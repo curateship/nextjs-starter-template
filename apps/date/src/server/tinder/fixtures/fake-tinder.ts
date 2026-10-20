@@ -5,10 +5,13 @@ import type { PhoneAnswer } from "@/server/phone/actions"
 
 import type { ScreenNode } from "../screen"
 import {
+  AGE_TRACK,
   chatList,
   chatMenu,
   conversation,
   discover,
+  discoverySettings,
+  DISTANCE_TRACK,
   EDIT_TILES,
   editProfile,
   fullProfile,
@@ -18,6 +21,7 @@ import {
   nobodyNew,
   otherApp,
   outOfLikes,
+  outOfSuperLikes,
   PHOTO_BOX,
   profileTab,
   signedOut,
@@ -28,6 +32,7 @@ import {
   type FakeBubble,
   type FakeCard,
   type FakeChat,
+  type FakeDiscovery,
 } from "./screens"
 
 /**
@@ -51,11 +56,16 @@ type Screen =
   | "edit"
   | "verification"
   | "signed-out"
+  | "super-out"
+  | "settings"
 
 export type FakeTinderSetup = {
   cards?: FakeCard[]
   chats?: Array<FakeChat & { bubbles: FakeBubble[] }>
   likesLeft?: number
+  superLikesLeft?: number
+  /** Tinder's own distance and ages, as its settings screen shows them. */
+  discovery?: FakeDiscovery
   me?: { name: string; age: number; photos: number; pages: string[][] }
   installed?: boolean
   signedIn?: boolean
@@ -68,6 +78,15 @@ export type FakeTinderSetup = {
 
 /** How much smaller the pictures are than the screen. */
 const SCALE = 0.25
+
+/** The real ends of the pretend sliders. The walk only guesses them, and aims from what it reads back. */
+const SLIDER_ENDS = { km: { min: 2, max: 160 }, mi: { min: 1, max: 100 }, age: { min: 18, max: 100 } }
+
+/** The value under a finger on a slider track, with no room kept for the thumb, unlike the walk's guess. */
+function valueAt(track: ScreenNode["bounds"], ends: { min: number; max: number }, x: number): number {
+  const share = Math.min(Math.max((x - track[0]) / (track[2] - track[0]), 0), 1)
+  return Math.round(ends.min + share * (ends.max - ends.min))
+}
 
 export class FakeTinder {
   screen: Screen = "discover"
@@ -83,7 +102,12 @@ export class FakeTinder {
   editPage = 0
   typed = ""
   likesLeft: number
+  superLikesLeft: number
+  discovery: FakeDiscovery
   liked: string[] = []
+  superLiked: string[] = []
+  /** Every buy button pressed. A walk must leave this empty. */
+  bought: string[] = []
   passed: string[] = []
   unmatched: string[] = []
   sent: string[] = []
@@ -98,6 +122,8 @@ export class FakeTinder {
     this.cards = setup.cards ?? []
     this.chats = setup.chats ?? []
     this.likesLeft = setup.likesLeft ?? 100
+    this.superLikesLeft = setup.superLikesLeft ?? 1
+    this.discovery = { ...(setup.discovery ?? { distance: 80, unit: "km", ageMin: 18, ageMax: 50 }) }
     if (setup.signedIn === false) this.screen = "signed-out"
     if (setup.verificationWall) this.screen = "verification"
     if (setup.otherAppInFront) this.foreground = setup.otherAppInFront
@@ -138,6 +164,10 @@ export class FakeTinder {
         return verificationWall()
       case "signed-out":
         return signedOut()
+      case "super-out":
+        return outOfSuperLikes()
+      case "settings":
+        return discoverySettings(this.discovery)
     }
   }
 
@@ -214,6 +244,26 @@ export class FakeTinder {
       this.cardIndex += 1
       this.photoIndex = 0
       if (tag === "like" && card.likesBack) this.screen = "match"
+    } else if (tag === "super-like") {
+      const card = this.card
+      if (!card) return
+      if (this.superLikesLeft <= 0) {
+        this.screen = "super-out"
+        return
+      }
+      this.superLikesLeft -= 1
+      this.superLiked.push(card.name)
+      this.cardIndex += 1
+      this.photoIndex = 0
+      if (card.likesBack) this.screen = "match"
+    } else if (tag === "buy") {
+      this.bought.push("Super Likes")
+    } else if (tag === "no-thanks") {
+      this.screen = "discover"
+    } else if (tag === "settings") {
+      this.screen = "settings"
+    } else if (tag === "settings-done") {
+      this.screen = "profile-tab"
     } else if (tag === "keep-swiping") {
       this.screen = "discover"
     } else if (tag === "tab:discover") {
@@ -262,7 +312,23 @@ export class FakeTinder {
     else if (this.screen === "menu" || this.screen === "confirm") this.screen = "conversation"
     else if (this.screen === "edit") this.screen = "profile-tab"
     else if (this.screen === "match") this.screen = "discover"
+    else if (this.screen === "super-out") this.screen = "discover"
+    else if (this.screen === "settings") this.screen = "profile-tab"
     else this.foreground = "home"
+  }
+
+  /** A finger dragged along a slider: the distance thumb, or whichever age thumb is nearer where it started. */
+  private drag(tag: string | undefined, x1: number, x2: number) {
+    if (tag === "slider:distance") {
+      this.discovery.distance = valueAt(DISTANCE_TRACK, SLIDER_ENDS[this.discovery.unit], x2)
+    } else if (tag === "slider:age") {
+      const ends = SLIDER_ENDS.age
+      const at = (value: number) => AGE_TRACK[0] + ((value - ends.min) / (ends.max - ends.min)) * (AGE_TRACK[2] - AGE_TRACK[0])
+      const value = valueAt(AGE_TRACK, ends, x2)
+      // The thumbs never pass each other.
+      if (Math.abs(x1 - at(this.discovery.ageMin)) <= Math.abs(x1 - at(this.discovery.ageMax))) this.discovery.ageMin = Math.min(value, this.discovery.ageMax)
+      else this.discovery.ageMax = Math.max(value, this.discovery.ageMin)
+    }
   }
 
   /** The phone's side of one plain action. */
@@ -283,6 +349,10 @@ export class FakeTinder {
         this.tap(this.tagAt(Number(payload.x), Number(payload.y), payload.node), Number(payload.x))
         return this.answer({ done: true }, thenRead)
       case "swipe": {
+        if (this.screen === "settings") {
+          this.drag(this.tagAt(Number(payload.x1), Number(payload.y1)), Number(payload.x1), Number(payload.x2))
+          return this.answer({ done: true }, thenRead)
+        }
         const up = Number(payload.y2) < Number(payload.y1)
         if (this.screen === "profile" && up) this.profilePage += 1
         if (this.screen === "chats") this.chatPage = up ? this.chatPage + 1 : Math.max(this.chatPage - 1, 0)

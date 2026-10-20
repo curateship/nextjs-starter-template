@@ -17,10 +17,35 @@ import type { Highlight } from "@/lib/note/library/highlights"
 // Sources
 
 /** Where a note came from. "note" is one written with New note. */
-export const NOTE_SOURCES = ["note", "youtube_long", "youtube_short", "instagram", "tiktok", "x"] as const
+export const NOTE_SOURCES = [
+  "note",
+  "youtube_long",
+  "youtube_short",
+  "instagram",
+  "tiktok",
+  "x",
+  "threads",
+  "linkedin",
+  "facebook",
+  "reddit",
+] as const
 export type NoteSource = (typeof NOTE_SOURCES)[number]
-/** The five the Import menu offers, in its order. */
-export const IMPORT_SOURCES = ["youtube_long", "youtube_short", "instagram", "tiktok", "x"] as const
+/**
+ * What the Import menu offers, in its order: Tyler's five, then the four he
+ * added on 20 Oct 2026. Threads is read as words like X; LinkedIn, Facebook
+ * and Reddit are saved as videos only.
+ */
+export const IMPORT_SOURCES = [
+  "youtube_long",
+  "youtube_short",
+  "instagram",
+  "tiktok",
+  "x",
+  "threads",
+  "linkedin",
+  "facebook",
+  "reddit",
+] as const
 export type ImportSource = (typeof IMPORT_SOURCES)[number]
 
 /** The name on the Import menu, the Source column, and the folder an import makes. */
@@ -31,6 +56,10 @@ export const SOURCE_LABEL: Record<NoteSource, string> = {
   instagram: "Instagram",
   tiktok: "TikTok",
   x: "X/Twitter",
+  threads: "Threads",
+  linkedin: "LinkedIn",
+  facebook: "Facebook",
+  reddit: "Reddit",
 }
 
 /** The site's own name, for "Open on YouTube". */
@@ -41,6 +70,10 @@ export const SOURCE_SITE: Record<NoteSource, string> = {
   instagram: "Instagram",
   tiktok: "TikTok",
   x: "X",
+  threads: "Threads",
+  linkedin: "LinkedIn",
+  facebook: "Facebook",
+  reddit: "Reddit",
 }
 
 /** The dot before the source's name. Written out so Tailwind finds them. */
@@ -51,10 +84,19 @@ export const SOURCE_DOT: Record<NoteSource, string> = {
   instagram: "bg-fuchsia-500",
   tiktok: "bg-foreground",
   x: "bg-sky-500",
+  threads: "bg-zinc-500",
+  linkedin: "bg-blue-700",
+  facebook: "bg-blue-500",
+  reddit: "bg-orange-600",
 }
 
 export function isImportSource(source: NoteSource): source is ImportSource {
   return source !== "note"
+}
+
+/** A source read as words from its page (X and Threads), rather than downloaded as a video. */
+export function isPostSource(source: NoteSource) {
+  return source === "x" || source === "threads"
 }
 
 // ---------------------------------------------------------------------------
@@ -199,7 +241,7 @@ export const LIBRARY_SAYS = {
   tooManyTags: `A note holds up to ${TAGS_PER_NOTE} tags`,
   authorEmpty: "Give the author a name",
   sameLibrary: "Those notes are already in that library",
-  notALink: "That link isn't from YouTube, Instagram, TikTok or X.",
+  notALink: "That link isn't from YouTube, Instagram, TikTok, X, Threads, LinkedIn, Facebook or Reddit.",
   alreadyHere: "That link is already in this library",
   tooManyLinks: "Too many imports. Try again in a few minutes.",
   tooLong: "Longer than 30 minutes",
@@ -223,9 +265,13 @@ export const LIBRARY_SAYS = {
   postPrivate: "This post is private, so only people its author lets in can read it.",
   xBusy: "X didn't answer. Try again in a minute.",
   xChanged: "X's page did not have the post in it. X may have changed its page.",
+  threadsBusy: "Threads didn't answer. Try again in a minute.",
+  threadsUnreadable: "Threads didn't show this post. It may be private or deleted, or Threads changed its page.",
   saveKeyWrong:
-    "This Save from x.com button is not yours, or is an old one. Drag it again from Settings → App settings → Library.",
-  saveKeyUnavailable: "Save from x.com needs the server's secret key, which is not set here.",
+    "This Save to Note button is not yours, or is an old one. Drag it again from Settings → App settings → Library.",
+  saveKeyUnavailable: "Save to Note needs the server's secret key, which is not set here.",
+  sameName: "That is already its name",
+  playedOutOfRange: "That place in the video is out of range",
 } as const
 
 // ---------------------------------------------------------------------------
@@ -281,6 +327,8 @@ export type LibraryFolder = {
   position: number
   /** Notes in it, not counting archived ones or Trash. */
   noteCount: number
+  /** When it was pinned to the Pinned card, or null. */
+  pinnedAt: string | null
 }
 
 export type LibraryAuthor = {
@@ -297,16 +345,36 @@ export type LibraryView = { id: string; name: string; filters: NoteFilters; posi
 
 export type TemplateSummary = { id: string; name: string; position: number }
 
+/**
+ * The LIBRARY card's own rows, which pin to the Pinned card like folders do
+ * (Tyler, 20 Oct 2026: "I should be able to pin library folders too").
+ */
+export const PINNABLE_ROWS = ["all", "loose", "steps", "quotes", "archived", "trash"] as const
+export type PinnableRow = (typeof PINNABLE_ROWS)[number]
+export type PinnedRow = { row: PinnableRow; pinnedAt: string }
+
+export const PINNABLE_ROW_LABEL: Record<PinnableRow, string> = {
+  all: "All notes",
+  loose: "Loose notes",
+  steps: "Plan steps",
+  quotes: "Quotes",
+  archived: "Archived",
+  trash: "Trash",
+}
+
 /** Everything the left panel and the headers need, read once per library. */
 export type LibraryPage = {
   library: LibraryRow
   folders: LibraryFolder[]
-  counts: { all: number; loose: number; archived: number; trash: number }
+  /** Notes per fixed row; `openSteps` counts unticked plan steps, `quotes` quotes and highlighted transcript lines. */
+  counts: { all: number; loose: number; archived: number; trash: number; openSteps: number; quotes: number }
   authors: LibraryAuthor[]
   tags: LibraryTag[]
   recent: { id: string; title: string; openedAt: string }[]
   views: LibraryView[]
   templates: TemplateSummary[]
+  /** The LIBRARY card's rows pinned to the Pinned card, in the order pinned. */
+  pinnedRows: PinnedRow[]
   /** Every other library of this person, for Move to library. */
   otherLibraries: { id: string; name: string; colour: LibraryColour }[]
 }
@@ -314,13 +382,43 @@ export type LibraryPage = {
 // ---------------------------------------------------------------------------
 // The list
 
-/** The fixed rows of the left panel, or a folder's id. */
-export const FIXED_SCOPES = ["all", "loose", "archived", "trash"] as const
+/**
+ * The fixed rows of the left panel, or a folder's id. Plan steps and Quotes
+ * show a list of their own in the middle; the notes under them are All notes,
+ * so the right panel still opens the first one on arrival.
+ */
+export const FIXED_SCOPES = ["all", "loose", "archived", "trash", "steps", "quotes"] as const
 type FixedScope = (typeof FIXED_SCOPES)[number]
 export type NoteScope = FixedScope | string
 
 export function isFixedScope(scope: string): scope is FixedScope {
   return (FIXED_SCOPES as readonly string[]).includes(scope)
+}
+
+/** The rows that show a list of their own rather than notes. */
+export function isGatheredScope(scope: string): scope is "steps" | "quotes" {
+  return scope === "steps" || scope === "quotes"
+}
+
+/**
+ * The notes table's sort: a column, newest or highest first unless it starts
+ * with "-". Absent is the newest edited first. Pinned notes stay first.
+ */
+export const NOTE_SORT_COLUMNS = ["title", "source", "priority", "folder", "edited"] as const
+export type NoteSortColumn = (typeof NOTE_SORT_COLUMNS)[number]
+export type NoteSort = { column: NoteSortColumn; descending: boolean }
+
+export function readNoteSort(value: unknown): NoteSort | undefined {
+  if (typeof value !== "string") return undefined
+  const descending = value.startsWith("-")
+  const column = descending ? value.slice(1) : value
+  return (NOTE_SORT_COLUMNS as readonly string[]).includes(column)
+    ? { column: column as NoteSortColumn, descending }
+    : undefined
+}
+
+export function writeNoteSort(sort: NoteSort) {
+  return `${sort.descending ? "-" : ""}${sort.column}`
 }
 
 export const ANALYSED_FILTERS = ["analysed", "not_analysed", "importing", "failed"] as const
@@ -390,6 +488,23 @@ export type NoteList = {
   more: boolean
 }
 
+/** One note's plan, as the Plan steps list shows it. */
+export type PlanStepsGroup = {
+  noteId: string
+  title: string
+  steps: PlanStep[]
+}
+
+/** One quote, or one highlighted transcript line, as the Quotes list shows it. */
+export type LibraryQuote = {
+  noteId: string
+  title: string
+  authorName: string | null
+  text: string
+  startMs: number | null
+  kind: "quote" | "highlight"
+}
+
 /** What the AI's price line needs to know about one note, worked out on the server. */
 export type AnalyseInputs = {
   /** Seconds of sound still to be written down, or 0. */
@@ -404,6 +519,8 @@ export type LinkedNoteState = "ok" | "trash" | "gone"
 /** Everything the right panel shows about one note. */
 export type NoteDetail = NoteCard & {
   body: JSONContent
+  /** Where the saved video or sound was stopped, in seconds, or null for the start. */
+  playedSeconds: number | null
   revision: number
   words: number
   linkedFrom: { id: string; title: string }[]

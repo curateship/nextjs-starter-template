@@ -15,7 +15,9 @@ import {
   listLibraries,
   loadLibraryPage,
   markLibraryOpened,
+  pinFolder,
   pinLibrary,
+  pinLibraryRowToCard,
   renameFolder,
   updateLibrary,
 } from "@/server/note/library/libraries"
@@ -29,6 +31,7 @@ import {
   LIBRARY_SAYS,
   NOTE_PRIORITIES,
   NOTE_SOURCES,
+  PINNABLE_ROWS,
   PROGRESS_FILTERS,
   TAG_MAX,
   TEMPLATE_NAME_MAX,
@@ -202,6 +205,26 @@ const deleteFolderFn = createServerFn({ method: "POST" })
 
 export function deleteLibraryFolder(id: string) {
   return deleteFolderFn({ data: { id } })
+}
+
+const pinFolderFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ id: idSchema, pinned: z.boolean() }))
+  .handler(async ({ data, context }) => pinFolder(context.user.id, data.id, data.pinned))
+
+/** Pins a folder to the Pinned card above LIBRARY, or takes it off. */
+export function pinLibraryFolder(id: string, pinned: boolean) {
+  return pinFolderFn({ data: { id, pinned } })
+}
+
+const pinRowFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ libraryId: idSchema, row: z.enum(PINNABLE_ROWS), pinned: z.boolean() }))
+  .handler(async ({ data, context }) => pinLibraryRowToCard(context.user.id, data.libraryId, data.row, data.pinned))
+
+/** Pins one of the LIBRARY card's own rows (All notes, Trash and the rest) to the Pinned card, or takes it off. */
+export function pinLibraryScope(libraryId: string, row: (typeof PINNABLE_ROWS)[number], pinned: boolean) {
+  return pinRowFn({ data: { libraryId, row, pinned } })
 }
 
 // ---------------------------------------------------------------------------

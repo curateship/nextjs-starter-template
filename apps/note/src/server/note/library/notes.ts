@@ -7,22 +7,29 @@ import { cardsFor, detailFor, joinedCard, withFolderName } from "@/server/note/l
 import type { Db } from "@/server/note/library/db-types"
 import { removeNoteFiles } from "@/server/note/library/files"
 import { authorMatches, folderForSource, requireFolder, requireLibrary } from "@/server/note/library/libraries"
-import { noteFolders, noteLinks, noteNotes, noteTemplates, noteVersions, type NoteRow } from "@/server/note/schema"
+import { noteFolders, noteLinks, noteNotes, noteTemplates, noteVersions, noteViews, type NoteRow } from "@/server/note/schema"
 import { cleanNoteBody, EMPTY_BODY, noteBodyFacts } from "@/lib/note/notes/body"
 import {
   AUTHOR_HANDLE_MAX,
+  authorKey,
   cleanAuthorName,
   cleanNoteTitle,
   cleanTag,
+  isAnalysing,
   isFixedScope,
+  isGatheredScope,
+  isImporting,
   isImportSource,
   LIBRARY_SAYS,
+  NOTE_TITLE_MAX,
+  noteTitle,
   NOTES_LIST_MAX,
   TAGS_PER_NOTE,
   TRASH_DAYS,
   VERSION_EVERY_MINUTES,
   VERSIONS_KEPT,
   type BulkOutcome,
+  type LibraryQuote,
   type NoteCard,
   type NoteDetail,
   type NoteFilters,
@@ -30,6 +37,9 @@ import {
   type NotePriority,
   type NoteSave,
   type NoteScope,
+  type NoteSort,
+  type PlanStepsGroup,
+  type TranscriptLine,
   type NoteTitle,
   type NoteVersion,
   type NoteVersionSummary,
@@ -106,20 +116,47 @@ function filtersWhere(filters: NoteFilters): (SQL | undefined)[] {
   ]
 }
 
+const PRIORITY_RANK = sql`case ${noteNotes.priority} when 'high' then 3 when 'normal' then 2 else 1 end`
+
+/**
+ * The order a column heading asks for, after pinned notes. `descending` puts
+ * High first for priority and the newest first for Edited.
+ */
+function sortOrder(sort: NoteSort | undefined): SQL[] {
+  if (!sort) return [desc(noteNotes.updatedAt)]
+  const way = (value: SQL | typeof noteNotes.updatedAt) => (sort.descending ? desc(value) : asc(value))
+  switch (sort.column) {
+    case "title":
+      return [way(sql`lower(${noteNotes.title})`)]
+    case "source":
+      return [way(sql`${noteNotes.source}`), desc(noteNotes.updatedAt)]
+    case "priority":
+      return [way(PRIORITY_RANK), desc(noteNotes.updatedAt)]
+    case "folder":
+      return [
+        sort.descending ? sql`lower(${noteFolders.name}) desc nulls last` : sql`lower(${noteFolders.name}) asc nulls last`,
+        desc(noteNotes.updatedAt),
+      ]
+    case "edited":
+      return [way(noteNotes.updatedAt)]
+  }
+}
+
 /**
  * The middle panel's notes: everything, the loose ones, the archived ones,
  * Trash, or one folder's, narrowed by the filters and the search box. A search
  * shows archived notes too and never shows Trash, except on Trash itself.
- * Pinned notes come first, then the newest edited.
+ * Pinned notes come first, then the column a heading sorts by, or the newest
+ * edited. Plan steps and Quotes read as All notes.
  */
 export async function listNotes(
   ownerId: string,
-  options: { libraryId: string; scope: NoteScope; search?: string; filters?: NoteFilters }
+  options: { libraryId: string; scope: NoteScope; search?: string; filters?: NoteFilters; sort?: NoteSort }
 ): Promise<NoteList> {
   await requireLibrary(ownerId, options.libraryId)
   const where: (SQL | undefined)[] = [eq(noteNotes.ownerId, ownerId), eq(noteNotes.libraryId, options.libraryId)]
   const searching = Boolean(options.search?.trim())
-  const scope = options.scope
+  const scope = isGatheredScope(options.scope) ? "all" : options.scope
   if (scope === "trash") {
     where.push(isNotNull(noteNotes.deletedAt))
   } else {
@@ -137,8 +174,9 @@ export async function listNotes(
     .leftJoin(noteFolders, eq(noteFolders.id, noteNotes.folderId))
     .where(and(...where))
     .orderBy(
-      sql`${noteNotes.pinnedAt} desc nulls last`,
-      desc(scope === "trash" ? noteNotes.deletedAt : noteNotes.updatedAt),
+      // Pinned notes as one group first, each group in the same order.
+      sql`${noteNotes.pinnedAt} is null`,
+      ...(scope === "trash" ? [desc(noteNotes.deletedAt)] : sortOrder(options.sort)),
       desc(noteNotes.id)
     )
     .limit(NOTES_LIST_MAX + 1)
@@ -628,6 +666,248 @@ export async function purgeOldTrash(limit = 50): Promise<number> {
     }
   }
   return cleared
+}
+
+// ---------------------------------------------------------------------------
+// Duplicate
+
+/**
+ * A copy of the note, in this library or another (Tyler's task 02, part 12).
+ * It has the text, tags, priority, author, the import and the AI's cards with
+ * their ticks, and no History. It shares the saved video and pictures with
+ * the note it came from rather than storing them twice; `removeNoteFiles`
+ * keeps a file while either still uses it. In another library it goes into
+ * the folder for its source, or loose, and its "[[" links become plain text,
+ * as a move does.
+ */
+export async function duplicateNote(ownerId: string, id: string, libraryId?: string): Promise<NoteCard> {
+  const row = await requireNote(ownerId, id)
+  if (row.deletedAt) throw new Error(LIBRARY_SAYS.inTrash)
+  if (isImporting(row.importStatus)) throw new Error(LIBRARY_SAYS.notImported)
+  if (row.videoStatus === "waiting" || row.videoStatus === "downloading") throw new Error(LIBRARY_SAYS.videoStillSaving)
+  if (isAnalysing(row.analyseStatus)) throw new Error(LIBRARY_SAYS.stillAnalysing)
+  const target = libraryId ?? row.libraryId
+  const elsewhere = target !== row.libraryId
+  if (elsewhere) await requireLibrary(ownerId, target)
+  const copyId = uuid()
+  await db.transaction(async (tx) => {
+    const folderId = !elsewhere ? row.folderId : isImportSource(row.source) ? await folderForSource(target, row.source, tx) : null
+    const body = elsewhere ? unlinkOtherLibraries(row.body, new Set()) : row.body
+    // The link stays one note per library: the copy keeps the site's id only
+    // in a library that does not have the link yet.
+    const [twin] = row.platformId
+      ? await tx
+          .select({ id: noteNotes.id })
+          .from(noteNotes)
+          .where(and(eq(noteNotes.libraryId, target), eq(noteNotes.source, row.source), eq(noteNotes.platformId, row.platformId)))
+      : []
+    const at = now()
+    await tx.insert(noteNotes).values({
+      ...row,
+      id: copyId,
+      libraryId: target,
+      folderId,
+      title: `Copy of ${noteTitle(row.title)}`.slice(0, NOTE_TITLE_MAX),
+      ...bodyColumns(body),
+      platformId: twin ? null : row.platformId,
+      leaseToken: null,
+      leaseExpiresAt: null,
+      pinnedAt: null,
+      archivedAt: null,
+      playedSeconds: null,
+      revision: 0,
+      lastOpenedAt: at,
+      createdAt: at,
+      updatedAt: at,
+    })
+    if (!elsewhere) await rewriteLinks(tx, { id: copyId, ownerId, libraryId: target }, noteBodyFacts(body).linkedIds)
+  })
+  return oneCard(ownerId, copyId)
+}
+
+// ---------------------------------------------------------------------------
+// Tags and authors across a library
+
+/** Saved views of the library whose filter names the old value take the new one. */
+async function renameInViews(tx: Db, libraryId: string, field: "tag" | "author", matches: (value: string) => boolean, next: string) {
+  const views = await tx.select().from(noteViews).where(eq(noteViews.libraryId, libraryId))
+  for (const view of views) {
+    const value = view.filters[field]
+    if (!value || !matches(value)) continue
+    await tx
+      .update(noteViews)
+      .set({ filters: { ...view.filters, [field]: next }, updatedAt: now() })
+      .where(eq(noteViews.id, view.id))
+  }
+}
+
+async function notesWithTag(tx: Db, ownerId: string, libraryId: string, tag: string) {
+  return tx
+    .select({ id: noteNotes.id, tags: noteNotes.tags })
+    .from(noteNotes)
+    .where(
+      and(eq(noteNotes.ownerId, ownerId), eq(noteNotes.libraryId, libraryId), sql`${noteNotes.tags} @> ${JSON.stringify([tag])}::jsonb`)
+    )
+    .orderBy(asc(noteNotes.id))
+    .for("update")
+}
+
+/**
+ * Renames a tag on every note of the library, Archived and Trash included,
+ * and in the saved views that filter on it (Tyler's task 02, part 11). A name
+ * another tag already has merges the two, each note keeping it once.
+ */
+export async function renameTag(ownerId: string, libraryId: string, from: string, to: string): Promise<{ notes: number }> {
+  const old = cleanTag(from)
+  const next = cleanTag(to)
+  if (old === next) throw new Error(LIBRARY_SAYS.sameName)
+  await requireLibrary(ownerId, libraryId)
+  return db.transaction(async (tx) => {
+    const rows = await notesWithTag(tx, ownerId, libraryId, old)
+    for (const row of rows) {
+      await tx
+        .update(noteNotes)
+        .set({ tags: cleanTags(row.tags.map((tag) => (tag === old ? next : tag))), updatedAt: now() })
+        .where(eq(noteNotes.id, row.id))
+    }
+    await renameInViews(tx, libraryId, "tag", (value) => value === old, next)
+    return { notes: rows.length }
+  })
+}
+
+/** Takes a tag off every note of the library. A view that filtered on it then says the tag has gone. */
+export async function deleteTag(ownerId: string, libraryId: string, tag: string): Promise<{ notes: number }> {
+  const old = cleanTag(tag)
+  await requireLibrary(ownerId, libraryId)
+  return db.transaction(async (tx) => {
+    const rows = await notesWithTag(tx, ownerId, libraryId, old)
+    for (const row of rows) {
+      await tx
+        .update(noteNotes)
+        .set({ tags: row.tags.filter((each) => each !== old), updatedAt: now() })
+        .where(eq(noteNotes.id, row.id))
+    }
+    return { notes: rows.length }
+  })
+}
+
+/**
+ * Renames an author on every note of the library that has it, and in the
+ * saved views that filter on it. Notes group by name (Tyler, 20 Oct 2026:
+ * "Group by name"), so a name another author already has merges the two
+ * rows. Each note keeps its own handle and picture.
+ */
+export async function renameAuthor(ownerId: string, libraryId: string, from: string, to: string): Promise<{ notes: number }> {
+  const next = cleanAuthorName(to)
+  if (!next) throw new Error(LIBRARY_SAYS.authorEmpty)
+  if (next === cleanAuthorName(from)) throw new Error(LIBRARY_SAYS.sameName)
+  await requireLibrary(ownerId, libraryId)
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .update(noteNotes)
+      .set({ authorName: next, updatedAt: now() })
+      .where(and(eq(noteNotes.ownerId, ownerId), eq(noteNotes.libraryId, libraryId), authorMatches(from)))
+      .returning({ id: noteNotes.id })
+    await renameInViews(tx, libraryId, "author", (value) => authorKey(value) === authorKey(from), next)
+    return { notes: rows.length }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Plan steps and Quotes
+
+const hasPlan = sql`(jsonb_typeof(${noteNotes.actionPlan}) = 'array' and jsonb_array_length(${noteNotes.actionPlan}) > 0)`
+const hasQuotes = sql`(jsonb_typeof(${noteNotes.quotes}) = 'array' and jsonb_array_length(${noteNotes.quotes}) > 0)`
+const hasLineHighlights = sql`(${noteNotes.highlights}::text like '%"line-%')`
+
+/**
+ * Every plan in the library, for the Plan steps list (Tyler's task 02, part
+ * 13). Archived and Trash are left out. Newest note first by when it was
+ * made, so a tick, which saves the note, never moves its group.
+ */
+export async function listPlanSteps(ownerId: string, libraryId: string): Promise<PlanStepsGroup[]> {
+  await requireLibrary(ownerId, libraryId)
+  const rows = await db
+    .select({ id: noteNotes.id, title: noteNotes.title, actionPlan: noteNotes.actionPlan })
+    .from(noteNotes)
+    .where(
+      and(
+        eq(noteNotes.ownerId, ownerId),
+        eq(noteNotes.libraryId, libraryId),
+        isNull(noteNotes.deletedAt),
+        isNull(noteNotes.archivedAt),
+        hasPlan
+      )
+    )
+    .orderBy(desc(noteNotes.createdAt), desc(noteNotes.id))
+    .limit(NOTES_LIST_MAX)
+  return rows.map((row) => ({ noteId: row.id, title: row.title, steps: row.actionPlan ?? [] }))
+}
+
+/**
+ * Every quote in the library, then each note's highlighted transcript lines,
+ * for the Quotes list (Tyler's task 02, part 14). Archived and Trash are left
+ * out. Newest note first.
+ */
+export async function listLibraryQuotes(ownerId: string, libraryId: string): Promise<LibraryQuote[]> {
+  await requireLibrary(ownerId, libraryId)
+  const rows = await db
+    .select({
+      id: noteNotes.id,
+      title: noteNotes.title,
+      authorName: noteNotes.authorName,
+      quotes: noteNotes.quotes,
+      highlights: noteNotes.highlights,
+      // The transcript only where a line of it is highlighted; it is the biggest column.
+      transcript: sql<TranscriptLine[] | null>`case when ${hasLineHighlights} then ${noteNotes.transcript} end`,
+    })
+    .from(noteNotes)
+    .where(
+      and(
+        eq(noteNotes.ownerId, ownerId),
+        eq(noteNotes.libraryId, libraryId),
+        isNull(noteNotes.deletedAt),
+        isNull(noteNotes.archivedAt),
+        or(hasQuotes, hasLineHighlights)
+      )
+    )
+    .orderBy(desc(noteNotes.createdAt), desc(noteNotes.id))
+    .limit(NOTES_LIST_MAX)
+  return rows.flatMap((row) => {
+    const base = { noteId: row.id, title: row.title, authorName: row.authorName }
+    const quotes = (row.quotes ?? []).map(
+      (quote): LibraryQuote => ({ ...base, text: quote.text, startMs: quote.startMs, kind: "quote" })
+    )
+    const marked = (row.highlights ?? []).flatMap((highlight): LibraryQuote[] => {
+      if (!highlight.part.startsWith("line-")) return []
+      const line = row.transcript?.[Number(highlight.part.slice("line-".length))]
+      const text = line?.text.slice(highlight.start, highlight.end).trim()
+      return line && text ? [{ ...base, text, startMs: line.startMs, kind: "highlight" }] : []
+    })
+    return [...quotes, ...marked]
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Where the video was stopped
+
+/** The longest place a saved file can be stopped at: a day, far past the 30-minute limit. */
+const PLAYED_SECONDS_MAX = 24 * 60 * 60
+
+/**
+ * Where the saved video or sound was stopped, so it starts there next time
+ * (Tyler's task 02, part 5). Not an edit, so the note's Edited time stays.
+ */
+export async function savePlayedSeconds(ownerId: string, id: string, seconds: number): Promise<void> {
+  if (!Number.isInteger(seconds) || seconds < 0 || seconds > PLAYED_SECONDS_MAX) {
+    throw new Error(LIBRARY_SAYS.playedOutOfRange)
+  }
+  const done = await db
+    .update(noteNotes)
+    .set({ playedSeconds: seconds || null })
+    .where(and(eq(noteNotes.id, id), eq(noteNotes.ownerId, ownerId)))
+    .returning({ id: noteNotes.id })
+  if (!done.length) throw new Error(LIBRARY_SAYS.noteNotFound)
 }
 
 // ---------------------------------------------------------------------------

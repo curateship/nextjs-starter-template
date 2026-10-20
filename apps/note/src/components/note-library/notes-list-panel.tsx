@@ -31,7 +31,16 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Table, TableBody, TableCell, TableGroupRow, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableGroupRow,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSortButton,
+} from "@/components/ui/table"
 import { getLibraryErrorMessage } from "@/lib/api/note/library"
 import { changeNotes, deleteNoteNow, emptyLibraryTrash, restoreNoteFromTrash } from "@/lib/api/note/notes"
 import { formatShortTimeAgo } from "@/lib/format/format-time"
@@ -39,7 +48,7 @@ import { plural } from "@/lib/format/plural"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSearchBoxText } from "@/lib/nav/list-search"
-import { filtersOf, type LibrarySearch } from "@/lib/note/library/address"
+import { filtersOf, sortOf, sortParam, type LibrarySearch } from "@/lib/note/library/address"
 import {
   FILTER_KEYS,
   isImporting,
@@ -52,16 +61,31 @@ import {
   type NoteCard,
   type NoteList,
   type NotePriority,
+  type NoteSort,
+  type NoteSortColumn,
 } from "@/lib/note/library/notes"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
+/** The way a column sorts on its first click: names A to Z, High first, newest first. */
+const FIRST_CLICK_DESCENDING: Record<NoteSortColumn, boolean> = {
+  title: false,
+  source: false,
+  priority: true,
+  folder: false,
+  edited: true,
+}
+
+/** With no sort in the address the table is newest edited first. */
+const DEFAULT_SORT: NoteSort = { column: "edited", descending: true }
+
 /**
  * The middle panel, as Tyler drew it on 20 Oct 2026: what is showing and how
  * many, then the toolbar (the "N selected" button while rows are ticked,
  * search, Filter, Views, Import, New note), then the notes as one table,
- * Pinned first and the rest under Notes. Its columns are the fixed fields:
+ * Pinned first and the rest under Notes. A column heading sorts the table,
+ * and a second click turns it round (task 02, part 10). Its columns are the fixed fields:
  * Note (the title and tags), Source, Priority, Folder and Edited, then the
  * row's cog and bin. Pressing a row opens the note on the right.
  */
@@ -148,6 +172,24 @@ export function NotesListPanel({
   ) : (
     <LibraryIcon className="size-4" />
   )
+
+  // Trash keeps its own order, newest trashed first, so its headings do not sort.
+  const sort = sortOf(search) ?? DEFAULT_SORT
+  function sortBy(column: NoteSortColumn) {
+    const next = sort.column === column ? { column, descending: !sort.descending } : { column, descending: FIRST_CLICK_DESCENDING[column] }
+    const isDefault = next.column === DEFAULT_SORT.column && next.descending === DEFAULT_SORT.descending
+    actions.setSearch({ sort: isDefault ? undefined : sortParam(next) })
+  }
+  const heading = (column: NoteSortColumn, label: string) =>
+    trash ? (
+      label
+    ) : (
+      <TableSortButton active={sort.column === column} direction={sort.descending ? "desc" : "asc"} onClick={() => sortBy(column)}>
+        {label}
+      </TableSortButton>
+    )
+  const ariaSort = (column: NoteSortColumn) =>
+    trash || sort.column !== column ? undefined : sort.descending ? ("descending" as const) : ("ascending" as const)
 
   const pinned = list.notes.filter((note) => note.pinned)
   const rest = list.notes.filter((note) => !note.pinned)
@@ -255,6 +297,10 @@ export function NotesListPanel({
                 actions.gone(note.id)
                 if (note.id === openId) actions.openNote(undefined)
               }}
+              onDuplicated={async (copy) => {
+                await actions.refreshAll()
+                actions.openNote(copy.id)
+              }}
             />
             <Button
               type="button"
@@ -282,7 +328,8 @@ export function NotesListPanel({
     <div className="@container/list flex min-h-0 flex-1 flex-col">
       <DashboardCardTitleHeader
         className="@container"
-        icon={loading ? <Loader2Icon className="size-4 animate-spin" aria-label="Loading" /> : icon}
+        // The icon stays while a list loads (Tyler, 20 Oct 2026: "remove the circle loading here").
+        icon={icon}
         title={title}
         meta={`${list.notes.length.toLocaleString()}${list.more ? "+" : ""} ${plural(list.notes.length, "note")}`}
         action={
@@ -385,6 +432,11 @@ export function NotesListPanel({
           </div>
         }
       />
+      {loading ? (
+        <p className="sr-only" role="status">
+          Loading the notes
+        </p>
+      ) : null}
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <Table
           containerClassName="overflow-visible"
@@ -400,23 +452,23 @@ export function NotesListPanel({
                   onCheckedChange={() => selection.toggleVisible(visibleIds)}
                 />
               ) : null}
-              <TableHead column="main" className="group/title min-w-48">
+              <TableHead column="main" className="group/title min-w-48" aria-sort={ariaSort("title")}>
                 <span className="flex items-center gap-2">
-                  Note
+                  {heading("title", "Note")}
                   {trash ? null : <MassSelectChip on={massSelect} onToggle={toggleMassSelect} />}
                 </span>
               </TableHead>
-              <TableHead column="meta" className="hidden @xl/list:table-cell">
-                Source
+              <TableHead column="meta" className="hidden @xl/list:table-cell" aria-sort={ariaSort("source")}>
+                {heading("source", "Source")}
               </TableHead>
-              <TableHead column="meta" className="hidden @2xl/list:table-cell">
-                Priority
+              <TableHead column="meta" className="hidden @2xl/list:table-cell" aria-sort={ariaSort("priority")}>
+                {heading("priority", "Priority")}
               </TableHead>
-              <TableHead column="meta" className="hidden @4xl/list:table-cell">
-                Folder
+              <TableHead column="meta" className="hidden @4xl/list:table-cell" aria-sort={ariaSort("folder")}>
+                {heading("folder", "Folder")}
               </TableHead>
-              <TableHead column="meta" className="hidden @lg/list:table-cell">
-                {trash ? "Trashed" : "Edited"}
+              <TableHead column="meta" className="hidden @lg/list:table-cell" aria-sort={ariaSort("edited")}>
+                {trash ? "Trashed" : heading("edited", "Edited")}
               </TableHead>
               <TableHead column="meta">Actions</TableHead>
             </TableRow>

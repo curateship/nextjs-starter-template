@@ -11,7 +11,7 @@ import {
   removeImport,
   retryImport,
   retryPostVideo,
-  saveFromX,
+  saveFromLink,
   saveHighlights,
   savePlan,
   type ImportResult,
@@ -47,21 +47,21 @@ export function importNoteLink(libraryId: string, link: string) {
 
 const saveKey = z.string().regex(/^[0-9a-f]{32}$/)
 
-const fromXFn = createServerFn({ method: "POST" })
+const saveLinkFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ url, key: saveKey }))
-  .handler(async ({ data, context }): Promise<ImportResult> => saveFromX(context.user.id, data.url, data.key))
+  .handler(async ({ data, context }): Promise<ImportResult> => saveFromLink(context.user.id, data.url, data.key))
 
-/** The Save from x.com button's link, saved into the library opened last. */
-export function saveXPostLink(link: string, key: string) {
-  return fromXFn({ data: { url: link, key } })
+/** The Save to Note button's or the iPhone Shortcut's link, saved into the library opened last. */
+export function saveLinkToLibrary(link: string, key: string) {
+  return saveLinkFn({ data: { url: link, key } })
 }
 
 const saveKeyFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }): Promise<string> => saveKeyFor(context.user.id))
 
-/** The key built into this person's Save from x.com button. */
+/** The key built into this person's Save to Note button and iPhone Shortcut. */
 export function loadSaveKey() {
   return saveKeyFn()
 }

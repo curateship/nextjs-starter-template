@@ -90,7 +90,7 @@ export function discover(card: FakeCard): BuiltScreen {
     { desc: "Open profile", cls: "ImageView", click: true, bounds: [960, 1580, 1040, 1660], tag: "open-profile" },
     { desc: "Rewind", cls: "ImageView", click: true, bounds: [60, 1960, 200, 2100] },
     { desc: "Nope", res: "com.tinder:id/gamepad_pass", cls: "ImageView", click: true, bounds: [230, 1940, 410, 2120], tag: "pass" },
-    { desc: "Super Like", cls: "ImageView", click: true, bounds: [450, 1960, 630, 2100] },
+    { desc: "Super Like", cls: "ImageView", click: true, bounds: [450, 1960, 630, 2100], tag: "super-like" },
     { desc: "Like", res: "com.tinder:id/gamepad_like", cls: "ImageView", click: true, bounds: [670, 1940, 850, 2120], tag: "like" },
     { desc: "Boost", cls: "ImageView", click: true, bounds: [880, 1960, 1020, 2100] },
     ...tabs,
@@ -233,8 +233,41 @@ export function unmatchConfirm(name: string): BuiltScreen {
   ])
 }
 
+/** Tinder's offer when the day's Super Likes are gone. "Buy" is tagged so a test can prove it was never pressed. */
+export function outOfSuperLikes(): BuiltScreen {
+  return build(TINDER, [
+    { text: "You're out of Super Likes", bounds: [140, 500, 940, 600] },
+    { text: "Get more Super Likes and stand out.", bounds: [120, 640, 960, 720] },
+    { text: "Buy 5 Super Likes for $9.99", click: true, bounds: [200, 1800, 880, 1920], tag: "buy" },
+    { text: "No thanks", click: true, bounds: [200, 1960, 880, 2060], tag: "no-thanks" },
+  ])
+}
+
+/** Where the two sliders sit on the settings screen. */
+export const DISTANCE_TRACK: ScreenNode["bounds"] = [64, 760, 1016, 840]
+export const AGE_TRACK: ScreenNode["bounds"] = [64, 1060, 1016, 1140]
+
+export type FakeDiscovery = { distance: number; unit: "km" | "mi"; ageMin: number; ageMax: number }
+
+/** Tinder's settings, opened from the gear on the Profile tab: the distance and the age range. */
+export function discoverySettings(discovery: FakeDiscovery): BuiltScreen {
+  return build(TINDER, [
+    { desc: "Navigate up", cls: "ImageView", click: true, bounds: [20, 100, 120, 200], tag: "back" },
+    { text: "Settings", bounds: [200, 110, 700, 190] },
+    { text: "Done", click: true, bounds: [880, 110, 1040, 190], tag: "settings-done" },
+    { text: "Discovery Settings", bounds: [64, 560, 700, 620] },
+    { text: "Maximum Distance", bounds: [64, 660, 600, 720] },
+    { text: `${discovery.distance} ${discovery.unit}`, bounds: [800, 660, 1016, 720] },
+    { cls: "android.widget.SeekBar", click: true, bounds: DISTANCE_TRACK, tag: "slider:distance" },
+    { text: "Age Range", bounds: [64, 960, 600, 1020] },
+    { text: `${discovery.ageMin} - ${discovery.ageMax}`, bounds: [760, 960, 1016, 1020] },
+    { cls: "com.google.android.material.slider.RangeSlider", click: true, bounds: AGE_TRACK, tag: "slider:age" },
+  ])
+}
+
 export function profileTab(name: string, age: number): BuiltScreen {
   return build(TINDER, [
+    { desc: "Settings", cls: "ImageView", click: true, bounds: [960, 100, 1060, 200], tag: "settings" },
     { cls: "ImageView", bounds: [390, 300, 690, 600] },
     { text: `${name}, ${age}`, bounds: [300, 640, 780, 720] },
     { desc: "Edit profile", text: "Edit profile", click: true, bounds: [340, 760, 740, 840], tag: "edit-profile" },

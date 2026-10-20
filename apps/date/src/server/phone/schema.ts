@@ -7,7 +7,9 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
  * The phone link's tables: the member's Android phone, the one-time codes that
  * pair it, the random words its signed messages carry once, the plain actions
  * the server asks it to run, and the pictures kept from them. The SQL is
- * `drizzle/0096_date_phones.sql`. Stored fields are never renamed.
+ * `drizzle/0096_date_phones.sql`, with later columns in
+ * `drizzle/0101_date_swipe_schedule.sql` and
+ * `drizzle/0102_date_tinder_filters.sql`. Stored fields are never renamed.
  */
 
 /**
@@ -49,6 +51,18 @@ export const datePhones = pgTable(
     /** Why the loop last ended, in words, and when. Empty while it runs or before it ever has. */
     stopWhy: text("stop_why").notNull().default(""),
     stopWhyAt: timestamp("stop_why_at", { withTimezone: true }),
+    /** Who started the loop running now: the member's Start, or the swiping schedule. */
+    startedBy: varchar("started_by", { length: 10 }).$type<"member" | "schedule">(),
+    /**
+     * The swiping window, by the phone-clock day it opened, that the schedule
+     * has already started or that Stop held. The schedule starts the loop once a
+     * window, and again in it only after a limit's time has passed.
+     */
+    scheduleDay: varchar("schedule_day", { length: 10 }).notNull().default(""),
+    /** A limit ended the loop and allows it again at this moment. The schedule may start it again then, inside its window. */
+    resumeAt: timestamp("resume_at", { withTimezone: true }),
+    /** Tinder's distance and ages need setting from Date's: a setting changed, or Resume was pressed. */
+    discoveryOwed: boolean("discovery_owed").notNull().default(true),
     /** A Tinder screen that stops everything until Resume. Null while nothing is stopping it. */
     stoppedReason: varchar("stopped_reason", { length: 40 }).$type<StopReason>(),
     stoppedAt: timestamp("stopped_at", { withTimezone: true }),

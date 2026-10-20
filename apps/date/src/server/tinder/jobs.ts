@@ -14,6 +14,7 @@ import { dateMessages, dateWalks } from "./schema"
 import { outOfLikesWait } from "./stop-screens"
 import { whoIsSignedIn, readOwnProfile } from "./walks/account"
 import { readCard, swipe } from "./walks/card"
+import { setDiscovery } from "./walks/discovery"
 import { readConversation, readMatches, sendMessage, unmatch } from "./walks/chat"
 import { StopScreenError, walkKit, WalkError, type PhoneDriver, type WalkContext, type WalkKit } from "./walks/kit"
 
@@ -34,12 +35,14 @@ const WALKS: Record<WalkKind, WalkRunner> = {
   "who-is-signed-in": (ctx, kit) => whoIsSignedIn(ctx, kit),
   "read-card": (ctx, kit) => readCard(ctx, kit),
   like: (ctx, kit, input, askedBy) => swipe(ctx, kit, "like", input, askedBy),
+  "super-like": (ctx, kit, input, askedBy) => swipe(ctx, kit, "super", input, askedBy),
   pass: (ctx, kit, input, askedBy) => swipe(ctx, kit, "pass", input, askedBy),
   "read-matches": (ctx, kit) => readMatches(ctx, kit),
   "read-conversation": (ctx, kit, input) => readConversation(ctx, kit, input),
   "send-message": (ctx, kit, input) => sendMessage(ctx, kit, input),
   unmatch: (ctx, kit, input) => unmatch(ctx, kit, input),
   "read-own-profile": (ctx, kit) => readOwnProfile(ctx, kit),
+  "set-discovery": (ctx, kit, input) => setDiscovery(ctx, kit, input),
 }
 
 /** How long a walk may go between steps before it counts as dropped. Longer than one step's longest wait. */
@@ -322,12 +325,13 @@ export async function cancelWalks(phoneId: string, reason: string, db: CustomShe
 /**
  * Resume on the Phone screen: the stop is cleared and Tinder is looked at
  * again at once. If the same screen is still there, the phone stops again,
- * with how long Tinder says is left.
+ * with how long Tinder says is left. Tinder's distance and ages are set again
+ * from Date's on the next pass after that.
  */
 export async function resumePhone(userId: string, phoneId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<string> {
   const [phone] = await db
     .update(datePhones)
-    .set({ stoppedReason: null, stoppedAt: null, stoppedWords: "", stoppedPictureId: null, updatedAt: now })
+    .set({ stoppedReason: null, stoppedAt: null, stoppedWords: "", stoppedPictureId: null, discoveryOwed: true, updatedAt: now })
     .where(and(eq(datePhones.id, phoneId), eq(datePhones.userId, userId)))
     .returning({ id: datePhones.id })
   if (!phone) throw new Error("That phone does not exist.")

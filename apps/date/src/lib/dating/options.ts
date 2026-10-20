@@ -75,12 +75,14 @@ export const WALK_KINDS = [
   "who-is-signed-in",
   "read-card",
   "like",
+  "super-like",
   "pass",
   "read-matches",
   "read-conversation",
   "send-message",
   "unmatch",
   "read-own-profile",
+  "set-discovery",
 ] as const
 export type WalkKind = (typeof WALK_KINDS)[number]
 
@@ -88,12 +90,14 @@ export const WALK_WORDS: Record<WalkKind, string> = {
   "who-is-signed-in": "Checking who is signed in",
   "read-card": "Reading the card in front",
   like: "Liking",
+  "super-like": "Super Liking",
   pass: "Passing",
   "read-matches": "Reading the matches",
   "read-conversation": "Reading a conversation",
   "send-message": "Sending a message",
   unmatch: "Unmatching",
   "read-own-profile": "Reading your profile",
+  "set-discovery": "Setting Tinder's distance and ages",
 }
 
 export const WALK_STATUSES = ["waiting", "running", "done", "failed", "cancelled"] as const
@@ -124,10 +128,24 @@ export const STOP_REASON_WORDS: Record<StopReason, string> = {
   tinder_missing: "Tinder is not installed on the phone",
 }
 
-/** Who made a swipe, or wrote a message from our side. */
-export const SWIPE_DECISIONS = ["none", "like", "pass"] as const
+/**
+ * What happened to a card. "super" is a Super Like, which is a like in every
+ * count. Tyler, 18 Oct 2026: a card scoring 95 or more, at most one a day.
+ */
+export const SWIPE_DECISIONS = ["none", "like", "pass", "super"] as const
 export type SwipeDecision = (typeof SWIPE_DECISIONS)[number]
 
+/** A like or a Super Like. */
+export function isLike(swipe: SwipeDecision): boolean {
+  return swipe === "like" || swipe === "super"
+}
+
+/** "liked", "Super Liked" or "passed", for the middle of a sentence. */
+export function swipedWord(swipe: Exclude<SwipeDecision, "none">): string {
+  return swipe === "super" ? "Super Liked" : swipe === "like" ? "liked" : "passed"
+}
+
+/** Who wrote a message: them, or from our side the member or the AI. */
 export const MESSAGE_SENDERS = ["them", "member", "ai"] as const
 export type MessageSender = (typeof MESSAGE_SENDERS)[number]
 
@@ -195,6 +213,7 @@ export const CARD_FLAGS = [
   "far_away",
   "dealbreaker",
   "ai_declined",
+  "known_person",
 ] as const
 export type CardFlag = (typeof CARD_FLAGS)[number]
 
@@ -207,7 +226,11 @@ export const CARD_FLAG_WORDS: Record<CardFlag, string> = {
   far_away: "Further than you want",
   dealbreaker: "Hits a dealbreaker",
   ai_declined: "The AI would not read this card",
+  known_person: "On your People I know list",
 }
+
+/** On What's working, a band of scores with fewer likes than this says "not enough yet" instead of its numbers. */
+export const BAND_NEEDS_LIKES = 20
 
 /** Which cards the dashboard's left column lists. */
 export const PROFILE_FILTERS = ["all", "liked", "passed", "unswiped"] as const

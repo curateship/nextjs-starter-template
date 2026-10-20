@@ -7,7 +7,9 @@ import {
   ArrowUpIcon,
   CheckIcon,
   ChevronLeftIcon,
+  CopyIcon,
   DownloadIcon,
+  FileVideoIcon,
   EllipsisVerticalIcon,
   FolderIcon,
   FolderInputIcon,
@@ -29,11 +31,12 @@ import {
 import { toast } from "sonner"
 
 import { AiCards, SourceCard } from "@/components/note-library/import-cards"
-import type { DashboardActions } from "@/components/note-library/library-dashboard"
+import type { DashboardActions, SeekRequest } from "@/components/note-library/library-dashboard"
 import { LibraryDot } from "@/components/note-library/library-dot"
 import { AuthorPicture } from "@/components/note-library/library-left-panel"
 import { HistoryDialog } from "@/components/note-library/history-dialog"
 import { NoteEditor, type NoteEditorHandle } from "@/components/note-library/note-editor"
+import { usePlayerPlace } from "@/components/note-library/use-player-place"
 import { ContactTagsBox } from "@/components/broadcasts/contact-tags-box"
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
 import {
@@ -72,6 +75,7 @@ import { getLibraryErrorMessage, saveAsTemplate } from "@/lib/api/note/library"
 import {
   changeNotes,
   deleteNoteNow,
+  duplicateLibraryNote,
   loadNoteDetail,
   moveNotesToLibrary,
   restoreNoteFromTrash,
@@ -87,6 +91,7 @@ import {
   AUTHOR_NAME_MAX,
   isImportSource,
   isMoving,
+  isPostSource,
   NOTE_PRIORITIES,
   NOTE_TITLE_MAX,
   noteTitle,
@@ -120,6 +125,7 @@ export function NotePanel({
   noteId,
   listedCard,
   reloadKey,
+  seekTo,
   page,
   actions,
 }: {
@@ -128,6 +134,8 @@ export function NotePanel({
   listedCard: NoteCard | null
   /** Changes when the open note changed elsewhere on the page, so it is read again. */
   reloadKey: number
+  /** A moment of this note's video to play from, asked for by the Quotes list. */
+  seekTo: SeekRequest | null
   page: LibraryPage
   actions: DashboardActions
 }) {
@@ -218,6 +226,7 @@ export function NotePanel({
       key={`${detail.id}:${loaded?.round}`}
       opened={detail}
       listedCard={listedCard}
+      seekTo={seekTo}
       page={page}
       actions={actions}
       tools={tools}
@@ -231,6 +240,7 @@ export function NotePanel({
 function OpenNote({
   opened,
   listedCard,
+  seekTo,
   page,
   actions,
   tools,
@@ -240,6 +250,7 @@ function OpenNote({
 }: {
   opened: NoteDetail
   listedCard: NoteCard | null
+  seekTo: SeekRequest | null
   page: LibraryPage
   actions: DashboardActions
   tools: boolean
@@ -460,11 +471,57 @@ function OpenNote({
     setTimeout(() => URL.revokeObjectURL(url), 0)
   }
 
-  function seek(ms: number) {
+  const seek = React.useCallback((ms: number) => {
     const player = playerRef.current
     if (!player) return
     player.currentTime = ms / 1000
     void player.play().catch(() => undefined)
+  }, [])
+
+  usePlayerPlace({
+    playerRef,
+    noteId: opened.id,
+    playbackUrl: detail.playbackUrl,
+    startSeconds: opened.playedSeconds,
+    seekTo,
+  })
+
+  /** Where the video is now, for the clock button and "/" Video time. Null with nothing playable. */
+  function videoTimeNow() {
+    const player = playerRef.current
+    return detail.playbackUrl && player ? Math.floor(player.currentTime * 1000) : null
+  }
+
+  function addTime() {
+    const ms = videoTimeNow()
+    if (ms !== null) editorRef.current?.insertTime(ms)
+  }
+
+  function addToNote(text: string, startMs: number | null) {
+    editorRef.current?.insertQuote(text, startMs)
+    toast.success("Added to your note.")
+  }
+
+  function downloadVideo() {
+    // Same site, so the browser saves it under the name the server gives.
+    const link = document.createElement("a")
+    link.href = `/api/v1/note/${encodeURIComponent(detail.id)}/video`
+    link.download = ""
+    link.click()
+  }
+
+  function duplicate(library?: LibraryPage["otherLibraries"][number]) {
+    void run("duplicate", async () => {
+      await autosave.flush()
+      const copy = await duplicateLibraryNote(detail.id, library?.id)
+      if (library) {
+        toast.success(`Copied ${quoteOneLine(shownTitle)} to ${quoteOneLine(library.name)}.`)
+        return
+      }
+      toast.success(`Made ${quoteOneLine(noteTitle(copy.title))}.`)
+      await actions.refreshAll()
+      actions.openNote(copy.id)
+    })
   }
 
   const shownTitle = noteTitle(title)
@@ -576,6 +633,8 @@ function OpenNote({
               }
               onTemplate={() => setTemplateOpen(true)}
               onDownload={download}
+              onDownloadVideo={detail.hasFile && detail.playbackUrl ? downloadVideo : undefined}
+              onDuplicate={duplicate}
               onTrash={() =>
                 void run("trash", async () => {
                   await autosave.flush()
@@ -634,6 +693,8 @@ function OpenNote({
             editable={!readOnly}
             linkTitles={opened.linkTitles}
             onOpenNote={actions.openNote}
+            onSeek={detail.playbackUrl ? seek : undefined}
+            videoTimeNow={videoTimeNow}
             onChange={(next) => {
               setBody(next)
               changed({ body: next })
@@ -656,6 +717,7 @@ function OpenNote({
               onRetryVideo={() => void run("video", async () => show(await retryNotePostVideo(detail.id)))}
               onRemove={() => setRemoving(true)}
               onHighlights={saveHighlights}
+              onAddTime={addTime}
             />
           ) : null}
 
@@ -664,8 +726,12 @@ function OpenNote({
               detail={detail}
               playable={detail.playbackUrl !== null}
               busy={busy !== null}
+              readOnly={readOnly}
+              playerRef={playerRef}
               onSeek={seek}
               onPlan={savePlan}
+              onHighlights={saveHighlights}
+              onAddToNote={addToNote}
               onRetryMerge={() => void run("analyse", async () => show(await analyseNoteNow(detail.id)))}
             />
           ) : null}
@@ -742,9 +808,9 @@ function OpenNote({
       <ConfirmDialog
         open={removing}
         onOpenChange={setRemoving}
-        title={detail.source === "x" ? "Remove the post?" : "Remove the video?"}
+        title={isPostSource(detail.source) ? "Remove the post?" : "Remove the video?"}
         description="The link, the saved file, the author and the Summary, Action plan and Quotes go. The note and its own text stay, as a plain note."
-        confirmLabel={detail.source === "x" ? "Remove post" : "Remove video"}
+        confirmLabel={isPostSource(detail.source) ? "Remove post" : "Remove video"}
         loading={busy === "remove"}
         onConfirm={() =>
           void run("remove", async () => {
@@ -827,7 +893,7 @@ function OpenNote({
   )
 }
 
-type MenuPage = "priority" | "folder" | "tags" | "outline" | "library"
+type MenuPage = "priority" | "folder" | "tags" | "outline" | "library" | "duplicate"
 
 const MENU_TITLE: Record<MenuPage, string> = {
   priority: "Priority",
@@ -835,6 +901,7 @@ const MENU_TITLE: Record<MenuPage, string> = {
   tags: "Tags",
   outline: "Outline",
   library: "Move to library",
+  duplicate: "Duplicate to library",
 }
 
 /**
@@ -861,6 +928,8 @@ function NoteMenu({
   onMoveLibrary,
   onTemplate,
   onDownload,
+  onDownloadVideo,
+  onDuplicate,
   onTrash,
 }: {
   page: LibraryPage
@@ -879,6 +948,10 @@ function NoteMenu({
   onMoveLibrary: (library: LibraryPage["otherLibraries"][number]) => void
   onTemplate: () => void
   onDownload: () => void
+  /** Absent when the note has no saved video or sound. */
+  onDownloadVideo?: () => void
+  /** A copy here, or with a library, there. */
+  onDuplicate: (library?: LibraryPage["otherLibraries"][number]) => void
   onTrash: () => void
 }) {
   const [open, setOpen] = React.useState(false)
@@ -987,7 +1060,10 @@ function NoteMenu({
             ) : page.otherLibraries.length ? (
               <ScrollArea className="max-h-72">
                 {page.otherLibraries.map((library) => (
-                  <SelectedMenuRow key={library.id} onClick={pick(() => onMoveLibrary(library))}>
+                  <SelectedMenuRow
+                    key={library.id}
+                    onClick={pick(() => (step === "duplicate" ? onDuplicate(library) : onMoveLibrary(library)))}
+                  >
                     <LibraryDot colour={library.colour} />
                     <span className="truncate">{library.name}</span>
                   </SelectedMenuRow>
@@ -1047,6 +1123,14 @@ function NoteMenu({
               <LibraryIcon className="size-4 text-muted-foreground" />
               Move to library
             </SelectedMenuRow>
+            <SelectedMenuRow onClick={pick(() => onDuplicate())}>
+              <CopyIcon className="size-4 text-muted-foreground" />
+              Duplicate
+            </SelectedMenuRow>
+            <SelectedMenuRow page="duplicate" onClick={() => setStep("duplicate")}>
+              <CopyIcon className="size-4 text-muted-foreground" />
+              Duplicate to library
+            </SelectedMenuRow>
             <SelectedMenuSeparator />
             <SelectedMenuRow onClick={pick(onTemplate)}>
               <LayoutTemplateIcon className="size-4 text-muted-foreground" />
@@ -1056,6 +1140,12 @@ function NoteMenu({
               <DownloadIcon className="size-4 text-muted-foreground" />
               Download as Markdown
             </SelectedMenuRow>
+            {onDownloadVideo ? (
+              <SelectedMenuRow onClick={pick(onDownloadVideo)}>
+                <FileVideoIcon className="size-4 text-muted-foreground" />
+                Download {detail.mediaKind === "audio" ? "sound" : "video"}
+              </SelectedMenuRow>
+            ) : null}
             <SelectedMenuSeparator />
             <SelectedMenuRow onClick={pick(onTrash)} className="text-destructive hover:text-destructive">
               <Trash2Icon className="size-4" />

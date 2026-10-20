@@ -20,11 +20,16 @@ const PLACEHOLDER: Record<ImportSource, string> = {
   instagram: "https://www.instagram.com/reel/…",
   tiktok: "https://www.tiktok.com/@…/video/…",
   x: "https://x.com/…/status/…",
+  threads: "https://www.threads.com/@…/post/…",
+  linkedin: "https://www.linkedin.com/posts/…",
+  facebook: "https://www.facebook.com/reel/…",
+  reddit: "https://www.reddit.com/r/…/comments/…",
 }
 
 /**
  * The middle header's Import, as Tyler drew it on 20 Oct 2026: YouTube long,
- * YouTube short, Instagram, TikTok and X/Twitter. Picking one turns the menu
+ * YouTube short, Instagram, TikTok and X/Twitter, then Threads, LinkedIn,
+ * Facebook and Reddit, which he added the same day. Picking one turns the menu
  * into one link box and Import, the same frame as every "New …" dropdown. The
  * note appears at once in that source's folder; a link that is another site's
  * is filed under its real one, and the toast says so.

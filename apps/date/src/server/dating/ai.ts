@@ -1,8 +1,8 @@
 import { and, asc, desc, eq, isNotNull, isNull, lt, or } from "drizzle-orm"
 import sharp from "sharp"
 
-import { STOPPING_FLAGS, type CardFlag, type DraftTone, type MatchFlag, type SwipeDecision } from "@/lib/dating/options"
-import type { DatingSettings } from "@/lib/dating/settings"
+import { isLike, STOPPING_FLAGS, type CardFlag, type DraftTone, type MatchFlag, type SwipeDecision } from "@/lib/dating/options"
+import type { DatingSettings, KnownPerson } from "@/lib/dating/settings"
 import { getAiKey } from "@/server/ai/keys"
 import { uuid } from "@/server/auth/security"
 import { runAiCall } from "@/server/ai/usage"
@@ -12,7 +12,7 @@ import { dateMatches, dateMessages, dateOwnProfiles, dateProfiles } from "@/serv
 import { NO_DRAFT } from "@/server/tinder/store"
 
 import { askClaude, type ClaudeAnswer, type ClaudeQuestion } from "./claude"
-import { DATING_MODEL, PHOTO_LONG_EDGE } from "./model"
+import { DATING_MODEL, FIRST_LOOK_MODEL, PHOTO_LONG_EDGE, SECOND_LOOK_WITHIN, type DatingModel } from "./model"
 import { askMatchesAnswer, askMatchesJsonSchema, ASK_MATCHES_SYSTEM, askMatchesText } from "./prompts/ask-matches"
 import { chatNotesAnswer, chatNotesJsonSchema, CHAT_NOTES_SYSTEM, chatNotesText, numberTheySent } from "./prompts/chat-notes"
 import { dateBriefAnswer, dateBriefJsonSchema, DATE_BRIEF_SYSTEM, dateBriefText } from "./prompts/date-brief"
@@ -28,7 +28,7 @@ import {
   type DraftAnswer,
   type DraftMode,
 } from "./prompts/draft-reply"
-import { readCardAnswer, readCardJsonSchema, readCardSystem, readCardText } from "./prompts/read-card"
+import { readCardAnswer, readCardJsonSchema, readCardSystem, readCardText, type OverruledCard } from "./prompts/read-card"
 import { reviewAnswer, reviewJsonSchema, REVIEW_SYSTEM, reviewText } from "./prompts/review-profile"
 import { readDatingSettings } from "./settings"
 import { DATING_FEATURE_PREFIX, spendCapReached } from "./spend"
@@ -46,16 +46,19 @@ import { DATING_FEATURE_PREFIX, spendCapReached } from "./spend"
  */
 
 /** Asks Claude one question. The real one uses the stored Anthropic key; tests pass their own. */
-export type AiAsk = <T>(question: Omit<ClaudeQuestion<T>, "apiKey" | "model">) => Promise<ClaudeAnswer<T>>
+export type AiAsk = <T>(question: Omit<ClaudeQuestion<T>, "apiKey">) => Promise<ClaudeAnswer<T>>
 
 export type AiDeps = { ask?: AiAsk }
 
+/** A question for one of Date's models. Opus unless it says otherwise. */
+type DatingQuestion<T> = Omit<ClaudeQuestion<T>, "apiKey" | "model"> & { model?: DatingModel }
+
 const CLAIM_MS = 5 * 60_000
 
-async function askWithStoredKey<T>(question: Omit<ClaudeQuestion<T>, "apiKey" | "model">): Promise<ClaudeAnswer<T>> {
+async function askWithStoredKey<T>(question: Omit<ClaudeQuestion<T>, "apiKey">): Promise<ClaudeAnswer<T>> {
   const apiKey = await getAiKey("anthropic")
   if (!apiKey) throw new Error("No Anthropic key is set. Add one in Settings → AI.")
-  return askClaude({ ...question, apiKey, model: DATING_MODEL })
+  return askClaude({ ...question, apiKey })
 }
 
 /** One call through the shell's meter, so it shows on the AI usage screen and counts toward the cap. */
@@ -63,12 +66,13 @@ async function metered<T>(
   userId: string,
   job: string,
   metadata: Record<string, unknown>,
-  question: Omit<ClaudeQuestion<T>, "apiKey" | "model">,
+  question: DatingQuestion<T>,
   deps: AiDeps
 ): Promise<ClaudeAnswer<T>> {
   const ask = deps.ask ?? askWithStoredKey
-  return runAiCall({ userId, provider: "anthropic", model: DATING_MODEL, feature: `${DATING_FEATURE_PREFIX}${job}`, metadata }, async () => {
-    const answer = await ask(question)
+  const model = question.model ?? DATING_MODEL
+  return runAiCall({ userId, provider: "anthropic", model, feature: `${DATING_FEATURE_PREFIX}${job}`, metadata }, async () => {
+    const answer = await ask({ ...question, model })
     return { result: answer, usage: { inputTokens: answer.inputTokens, outputTokens: answer.outputTokens } }
   })
 }
@@ -107,9 +111,68 @@ export function cardOwnFlags(
   return flags
 }
 
+/** A name as it is compared with the People I know list: no accents, no capitals, no spaces round it. */
+function plainName(name: string): string {
+  return name.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase()
+}
+
+/** Whether a card has the name and age of someone on the member's People I know list. */
+export function isKnownPerson(card: { name: string; age: number | null }, people: KnownPerson[]): boolean {
+  if (card.age === null) return false
+  const name = plainName(card.name)
+  return people.some((person) => person.age === card.age && plainName(person.name) === name)
+}
+
+/** The member's overruled cards the AI is shown each time it scores one. Tyler's choice, 18 Oct 2026. */
+export const OVERRULED_EXAMPLES = 10
+
+/**
+ * The member's last cards where they swiped against the AI: liked a card the
+ * rule would pass, or passed one it would like, judged by the like line as it
+ * is now. Cards the AI swiped, cards it would not read, people on the People I
+ * know list and sample cards are left out. Newest first.
+ */
+export async function overruledCards(
+  userId: string,
+  workspaceId: string,
+  settings: Pick<DatingSettings, "likeAbove">,
+  db: CustomShellDb,
+  exceptId: string | null = null
+): Promise<Array<OverruledCard & { id: string }>> {
+  const rows = await db
+    .select({ id: dateProfiles.id, swipe: dateProfiles.swipe, aiScore: dateProfiles.aiScore, aiFlags: dateProfiles.aiFlags, aiRead: dateProfiles.aiRead })
+    .from(dateProfiles)
+    .where(
+      and(
+        eq(dateProfiles.userId, userId),
+        eq(dateProfiles.workspaceId, workspaceId),
+        eq(dateProfiles.swipedBy, "member"),
+        eq(dateProfiles.sample, false),
+        isNotNull(dateProfiles.aiScore),
+        isNotNull(dateProfiles.swipedAt)
+      )
+    )
+    .orderBy(desc(dateProfiles.swipedAt))
+    .limit(OVERRULED_EXAMPLES * 20)
+  const examples: Array<OverruledCard & { id: string }> = []
+  for (const row of rows) {
+    if (row.id === exceptId || row.swipe === "none" || row.aiFlags.includes("ai_declined") || row.aiFlags.includes("known_person")) continue
+    const liked = isLike(row.swipe)
+    if ((decideSwipe(row, settings) === "like") === liked) continue
+    examples.push({ id: row.id, score: row.aiScore as number, read: row.aiRead, liked })
+    if (examples.length === OVERRULED_EXAMPLES) break
+  }
+  return examples
+}
+
 /**
  * The AI reads one card: score, three lines and flags, saved on the card.
  * `force` reads a card again that was already read, for Read again.
+ *
+ * Someone on the People I know list is passed without a call. Otherwise
+ * Sonnet takes the first look, and Opus looks again when Sonnet's score is
+ * within 10 of the like line; Opus's answer then counts. Both calls count
+ * toward the cap. Both are shown the member's last 10 overruled cards.
  */
 export async function scoreCard(
   profileId: string,
@@ -139,6 +202,24 @@ export async function scoreCard(
       .set({ aiError: words, aiStartedAt: retryAfterClaim ? now : null })
       .where(eq(dateProfiles.id, card.id))
 
+  const own = cardOwnFlags(card, settings)
+  if (isKnownPerson(card, settings.knownPeople)) {
+    await db
+      .update(dateProfiles)
+      .set({
+        aiScore: 0,
+        aiRead: ["Someone on your People I know list."],
+        aiFlags: [...own, "known_person"],
+        aiDealbreakers: [],
+        aiReadAt: now,
+        aiModel: null,
+        aiError: "",
+        aiStartedAt: null,
+      })
+      .where(eq(dateProfiles.id, card.id))
+    return { status: "done", words: "Someone on your People I know list." }
+  }
+
   // The cap is a pause, not a failure of this card: it is released without an
   // error, so it is read once the month turns over or the cap is raised.
   const cap = await spendCapReached(card.userId, settings.spendCapDollars, db, now)
@@ -149,22 +230,28 @@ export async function scoreCard(
 
   try {
     const photos = await photosForAi(card.userId, card.photoIds, db)
-    const answer = await metered(
-      card.userId,
-      "read-card",
-      { profileId: card.id },
-      {
-        system: readCardSystem(settings),
-        text: readCardText({ ...card, photos: photos.length }),
-        images: photos.map((jpeg) => ({ jpeg })),
-        jsonSchema: readCardJsonSchema,
-        schema: readCardAnswer,
-        effort: "low",
-        label: `Reading ${card.name}'s card`,
-      },
-      deps
-    )
-    const own = cardOwnFlags(card, settings)
+    const overruled = await overruledCards(card.userId, card.workspaceId, settings, db, card.id)
+    const question = {
+      system: readCardSystem(settings),
+      text: readCardText({ ...card, photos: photos.length }, overruled),
+      images: photos.map((jpeg) => ({ jpeg })),
+      jsonSchema: readCardJsonSchema,
+      schema: readCardAnswer,
+      effort: "low" as const,
+      label: `Reading ${card.name}'s card`,
+    }
+    let model: DatingModel = FIRST_LOOK_MODEL
+    let answer = await metered(card.userId, "read-card", { profileId: card.id, look: "first" }, { ...question, model }, deps)
+    if (!answer.refused && Math.abs(answer.value.score - settings.likeAbove) <= SECOND_LOOK_WITHIN) {
+      // The first look is paid for and is not saved: on a close card only Opus's score counts.
+      const capNow = await spendCapReached(card.userId, settings.spendCapDollars, db, now)
+      if (capNow) {
+        await release("", false)
+        return { status: "cap", words: capNow }
+      }
+      model = DATING_MODEL
+      answer = await metered(card.userId, "read-card", { profileId: card.id, look: "second" }, { ...question, model }, deps)
+    }
     if (answer.refused) {
       await db
         .update(dateProfiles)
@@ -174,6 +261,7 @@ export async function scoreCard(
           aiFlags: [...own, "ai_declined"],
           aiDealbreakers: [],
           aiReadAt: now,
+          aiModel: model,
           aiError: "",
           aiStartedAt: null,
         })
@@ -189,6 +277,7 @@ export async function scoreCard(
         aiFlags: [...own, ...answer.value.flags, ...(dealbreakers.length ? (["dealbreaker"] as const) : [])],
         aiDealbreakers: dealbreakers,
         aiReadAt: now,
+        aiModel: model,
         aiError: "",
         aiStartedAt: null,
       })
@@ -201,17 +290,21 @@ export async function scoreCard(
   }
 }
 
+/** A card scoring this or more is Super Liked instead of liked, at most once a day. Tyler's choice, 18 Oct 2026. */
+export const SUPER_LIKE_SCORE = 95
+
 /**
  * Like or pass, from the score and the member's rule. No AI call: a score at
  * or above the member's number is a like, below is a pass, and a card that
- * hits a dealbreaker is always a pass. A card the AI has not read has no
- * decision yet.
+ * hits a dealbreaker or is someone on the People I know list is always a
+ * pass. A card the AI has not read has no decision yet. Whether a like is a
+ * Super Like is the loop's call, because it depends on the day.
  */
 export function decideSwipe(
   card: { aiScore: number | null; aiFlags: CardFlag[] },
   settings: Pick<DatingSettings, "likeAbove">
-): Exclude<SwipeDecision, "none"> | null {
-  if (card.aiFlags.includes("dealbreaker")) return "pass"
+): Exclude<SwipeDecision, "none" | "super"> | null {
+  if (card.aiFlags.includes("dealbreaker") || card.aiFlags.includes("known_person")) return "pass"
   if (card.aiScore === null) return null
   return card.aiScore >= settings.likeAbove ? "like" : "pass"
 }

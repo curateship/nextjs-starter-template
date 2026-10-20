@@ -76,6 +76,7 @@ import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/no
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
+import { Route as ApiV1NoteNoteIdVideoRouteImport } from './routes/api/v1/note/$noteId/video'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -439,6 +440,11 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1NoteNoteIdVideoRoute = ApiV1NoteNoteIdVideoRouteImport.update({
+  id: '/api/v1/note/$noteId/video',
+  path: '/api/v1/note/$noteId/video',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -507,6 +513,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/note/$noteId/video': typeof ApiV1NoteNoteIdVideoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -573,6 +580,7 @@ export interface FileRoutesByTo {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/note/$noteId/video': typeof ApiV1NoteNoteIdVideoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -643,6 +651,7 @@ export interface FileRoutesById {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/note/$noteId/video': typeof ApiV1NoteNoteIdVideoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -713,6 +722,7 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/note/$noteId/video'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -779,6 +789,7 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/note/$noteId/video'
   id:
     | '__root__'
     | '/'
@@ -848,6 +859,7 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/_authenticated/admin/automations_/templates_/$templateKey'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/note/$noteId/video'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -879,6 +891,7 @@ export interface RootRouteChildren {
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
+  ApiV1NoteNoteIdVideoRoute: typeof ApiV1NoteNoteIdVideoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1352,6 +1365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/note/$noteId/video': {
+      id: '/api/v1/note/$noteId/video'
+      path: '/api/v1/note/$noteId/video'
+      fullPath: '/api/v1/note/$noteId/video'
+      preLoaderRoute: typeof ApiV1NoteNoteIdVideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1520,6 +1540,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
+  ApiV1NoteNoteIdVideoRoute: ApiV1NoteNoteIdVideoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -5,13 +5,14 @@ A walk is a list of plain phone actions that does one thing in Tinder. Walks run
 ## The walks
 
 - **Read the card in front.** The card's name, age, distance and verified badge, every photo by tapping through until the first comes back or nothing moves, and the full profile by opening it and scrolling to the bottom. It leaves the phone on the same card.
-- **Like and Pass.** Only once the card in front is checked to be the one that was read: same name, same age, one of its photos on screen. Otherwise nothing is swiped. A like that comes back "It's a Match!" becomes a match at once.
+- **Like, Super Like and Pass.** Only once the card in front is checked to be the one that was read: same name, same age, one of its photos on screen. Otherwise nothing is swiped. A like that comes back "It's a Match!" becomes a match at once. A Super Like that meets Tinder's offer to buy more shuts the offer by its way out and likes the card instead; nothing is bought.
 - **Read the chats.** New matches and conversations, a few screenfuls down. A conversation whose last line changed is read next. A read that reaches the bottom of the list is complete, and a chat with messages missing from two complete reads in a row is marked "They unmatched" (`../chats/chats-and-replies.md`).
 - **Read a conversation.** Every message back to the start or eight screenfuls, theirs on the left, ours on the right.
 - **Send a message.** Types it, taps Send and checks it showed in the chat.
 - **Unmatch.** Through Tinder's own menu and its confirm.
 - **Read your profile.** The photos in order and every section, from the edit screen. Nothing is changed.
 - **Who is signed in.** Run on Resume too, to see whether what stopped the phone has gone.
+- **Set Tinder's distance and ages.** The Profile tab's gear, then each slider dragged and read back until it says Date's numbers, then Done and back to the cards. Written before the settings screen was ever read on a phone: its labels and the slider ends (`TINDER_SLIDERS`) are guesses.
 
 ## Every walk checks two things after each screen it reads
 

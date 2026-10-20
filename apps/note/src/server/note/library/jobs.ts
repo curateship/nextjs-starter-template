@@ -17,6 +17,7 @@ import { requireGeminiKey } from "@/server/note/gemini"
 import { allPictures, PICTURES_PER_ANALYSIS } from "@/server/note/library/cards"
 import { purgeOldTrash } from "@/server/note/library/notes"
 import { mergePlans, summarisePost, type PostPicturePart } from "@/server/note/library/post-analysis"
+import { readThreadsPost } from "@/server/note/library/threads-reader"
 import { readXPost } from "@/server/note/library/x-reader"
 import type { ReadPicture } from "@/server/note/library/x-page"
 import { parseVideoLink } from "@/server/note/links"
@@ -25,9 +26,9 @@ import { noteNotes, type NoteRow } from "@/server/note/schema"
 import { SayableError } from "@/server/note/sayable"
 import { getAboutYou } from "@/server/note/settings"
 import { isUniqueViolation } from "@/server/note/unique-violation"
-import { postUrl } from "@/lib/note/library/x-links"
 import {
   cleanAuthorName,
+  isPostSource,
   isUnreadableKeyError,
   LIBRARY_SAYS,
   MAX_DURATION_SECONDS,
@@ -101,7 +102,7 @@ export async function runNext(): Promise<void> {
   const queued = await claimQueued()
   if (queued) return queued.mergedFrom ? runMerge(queued) : runAnalysis(queued)
   const waiting = await claimWaiting()
-  if (waiting) return waiting.source === "x" ? runReadPost(waiting) : runDownload(waiting)
+  if (waiting) return isPostSource(waiting.source) ? runReadPost(waiting) : runDownload(waiting)
   const video = await claimPostVideo()
   if (video) return runPostVideo(video)
 }
@@ -169,8 +170,8 @@ function claimQueued() {
 async function claimWaiting() {
   const waiting = and(eq(noteNotes.importStatus, "waiting"), isNull(noteNotes.deletedAt))
   const claimed = await claimWhere(waiting, { importStatus: "downloading" })
-  // An X post is read, not downloaded, and its card says so.
-  if (claimed?.source === "x") {
+  // An X or Threads post is read, not downloaded, and its card says so.
+  if (claimed && isPostSource(claimed.source)) {
     await db
       .update(noteNotes)
       .set({ importStatus: "reading" })
@@ -451,21 +452,22 @@ async function dropStored(paths: string[]) {
 /** The post's first line, as a title, or the author's handle when it has no words. */
 function postTitle(text: string, handle: string | null) {
   const line = text.split("\n").find((part) => part.trim())?.replace(/\s+/g, " ").trim() ?? ""
-  if (!line) return handle ? `@${handle}` : "X post"
+  if (!line) return handle ? `@${handle}` : "Post"
   return line.length > 100 ? `${line.slice(0, 99).trimEnd()}…` : line
 }
 
 /**
- * Reads the post's page from X, keeps its pictures, and saves the words. A
- * post with a video then downloads it under the same lease, so the Post card
- * says "Saving the video" while the words are already there to read.
+ * Reads the post's page from X or Threads, keeps its pictures, and saves the
+ * words. A post with a video then downloads it under the same lease, so the
+ * Post card says "Saving the video" while the words are already there to
+ * read. A Threads post brings its words and author only (`threads-reader.ts`).
  */
 async function runReadPost(job: Claimed): Promise<void> {
   const stored: string[] = []
   let downloadNext = false
   try {
     if (!job.platformId) throw new SayableError(LIBRARY_SAYS.notALink)
-    const post = await readXPost(job.platformId)
+    const post = job.source === "threads" ? await readThreadsPost(job.sourceUrl ?? "") : await readXPost(job.platformId)
     const budget = { left: PICTURES_KEPT_MAX }
     const pictures = await keepPictures(job, post.pictures, "p", budget, stored)
     const quoted = post.quoted
@@ -500,7 +502,7 @@ async function runReadPost(job: Claimed): Promise<void> {
       importStatus: "saved",
       importError: null,
       title: readTitle(postTitle(post.text, post.authorHandle)),
-      sourceUrl: postUrl(post.authorHandle, job.platformId),
+      sourceUrl: post.url,
       authorName: keepAuthor(post.authorName ?? (post.authorHandle ? `@${post.authorHandle}` : null)),
       authorHandle: sql`case when ${noteNotes.authorName} is null then ${post.authorHandle} else ${noteNotes.authorHandle} end`,
       authorPicturePath: author?.path ?? null,
@@ -674,7 +676,7 @@ async function runAnalysis(job: Claimed): Promise<void> {
     }
 
     let answer: { summary: string[]; actionPlan: NoteRow["actionPlan"]; quotes: NoteRow["quotes"]; tags: string[] }
-    if (job.source === "x") {
+    if (isPostSource(job.source)) {
       const pictures = (
         await Promise.all(allPictures(row).slice(0, PICTURES_PER_ANALYSIS).map(readStoredPicture))
       ).filter((part): part is PostPicturePart => part !== null)

@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm"
 
 import { chatTrend, TREND_NEEDS_FROM_THEM, type TrendMessage, type TrendRead } from "@/lib/dating/chat-trend"
-import type { CardFlag, ChatTrend, DraftKind, MatchFlag, MessageSender, MessageStatus, OpenerStyle, SwipeDecision, WalkKind, WalkStatus } from "@/lib/dating/options"
+import { isLike, type CardFlag, type ChatTrend, type DraftKind, type MatchFlag, type MessageSender, type MessageStatus, type OpenerStyle, type SwipeDecision, type WalkKind, type WalkStatus } from "@/lib/dating/options"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { listPhones, type PhoneView } from "@/server/phone/link"
 import { datePhones } from "@/server/phone/schema"
@@ -18,8 +18,10 @@ import {
   type ProfileSection,
 } from "@/server/tinder/schema"
 
+import { overruledCards } from "./ai"
+import { DATING_MODEL } from "./model"
 import { readDatingSettings } from "./settings"
-import { monthSpendDollars } from "./spend"
+import { monthMatchCost, type MatchCost } from "./spend"
 
 /**
  * What the Dating dashboard draws: the member's phone and its loop, the
@@ -94,6 +96,15 @@ export type WalkView = {
 
 export type DayTally = { day: string; swipes: number; likes: number; matches: number; messages: number; datesProposed: number }
 
+/** How liked cards of one band of scores turned out: matches, and matches that replied. */
+export type ScoreBand = { from: number; to: number; likes: number; matches: number; replied: number }
+
+/** Tinder's own distance and ages on the phone, as the last `set-discovery` walk left them. */
+export type DiscoveryView =
+  | { state: "never" | "owed" | "setting" }
+  | { state: "set"; distance: string; ageMin: number; ageMax: number; at: Date | null }
+  | { state: "failed"; error: string; at: Date | null }
+
 export type DatingDashboard = {
   phone: PhoneView | null
   settings: {
@@ -105,9 +116,22 @@ export type DatingDashboard = {
     quietStart: number
     quietEnd: number
     timeZone: string
+    swipesPerDay: number
+    scheduleStart: number | null
+    scheduleEnd: number | null
+    maxDistanceKm: number
+    ageMin: number
+    ageMax: number
   }
-  hour: { swipes: number; messages: number }
+  hour: { swipes: number; messages: number; swipesToday: number }
   spendDollars: number
+  /** This month's spend over this month's matches and agreed dates. */
+  matchCost: MatchCost
+  /** How many of the member's overruled cards the AI is shown when it scores, up to 10. */
+  learningFrom: number
+  /** Liked cards by band of 10 points, best first, with how they turned out. */
+  bands: ScoreBand[]
+  discovery: DiscoveryView
   /** The walk on the phone now, and the ones waiting. */
   walks: { current: WalkView | null; waiting: number; recent: WalkView[] }
   profiles: ProfileListItem[]
@@ -160,10 +184,10 @@ export async function loadDashboard(
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<DatingDashboard> {
-  const [phones, settings, spendDollars] = await Promise.all([
+  const [phones, settings, matchCost] = await Promise.all([
     listPhones(userId, workspaceId, db, now),
     readDatingSettings(userId, workspaceId, db),
-    monthSpendDollars(userId, db, now),
+    monthMatchCost(userId, db, now),
   ])
   const phone = phones.find((item) => item.paired) ?? phones[0] ?? null
   const mine = and(eq(dateProfiles.userId, userId), eq(dateProfiles.workspaceId, workspaceId))
@@ -180,16 +204,19 @@ export async function loadDashboard(
     phone
       ? db.select().from(dateWalks).where(eq(dateWalks.phoneId, phone.id)).orderBy(desc(dateWalks.createdAt)).limit(20)
       : Promise.resolve([]),
-    phone ? hourCounts(phone.id, db, now) : Promise.resolve({ swipes: 0, messages: 0 }),
+    phone ? hourCounts(phone, db, now) : Promise.resolve({ swipes: 0, messages: 0, swipesToday: 0 }),
   ])
 
   // Each match's last line: the newest message kept, or what the chat list showed.
-  const [newest, trends, drafts, openers] = await Promise.all([
+  const [newest, trends, drafts, openers, overruled, bands, discovery] = await Promise.all([
     newestMessages(matchRows.map((match) => match.id), db),
     // A chat with fewer messages from them than a trend needs is too early to tell, so its messages are not read.
     trendsFor(matchRows.filter((match) => !match.unmatchedAt && match.messagesFromThem >= TREND_NEEDS_FROM_THEM).map((match) => match.id), db),
     draftsSentUnchanged(userId, db),
     openerTally(userId, workspaceId, db),
+    overruledCards(userId, workspaceId, settings, db),
+    scoreBands(userId, workspaceId, db),
+    phone ? discoveryView(phone.id, db) : Promise.resolve<DiscoveryView>({ state: "never" }),
   ])
   const lastLines = new Map(newest.map((message) => [message.matchId, message.text]))
 
@@ -205,9 +232,19 @@ export async function loadDashboard(
       quietStart: settings.quietStart,
       quietEnd: settings.quietEnd,
       timeZone,
+      swipesPerDay: settings.swipesPerDay,
+      scheduleStart: settings.scheduleStart,
+      scheduleEnd: settings.scheduleEnd,
+      maxDistanceKm: settings.maxDistanceKm,
+      ageMin: settings.ageMin,
+      ageMax: settings.ageMax,
     },
     hour,
-    spendDollars,
+    spendDollars: matchCost.dollars,
+    matchCost,
+    learningFrom: overruled.length,
+    bands,
+    discovery,
     walks: {
       current: walkRows.find((walk) => walk.status === "running") ? walkView(walkRows.find((walk) => walk.status === "running")!) : null,
       waiting: walkRows.filter((walk) => walk.status === "waiting").length,
@@ -263,6 +300,59 @@ export async function loadDashboard(
       : null,
     tally: await dailyTally(userId, workspaceId, timeZone, db, now),
     hasSamples: profileRows.some((row) => row.sample) || matchRows.some((row) => row.sample),
+  }
+}
+
+/**
+ * What's working (part 9 of "features/02-swiping-and-scoring"): every liked
+ * card the AI scored, by band of 10 points, with how many became a match and
+ * how many of those matches sent a message. Likes by the member and by the AI
+ * both count. A match is tied to its card when the like came back "It's a
+ * Match!", or later by name on the chat list. Sample cards are left out.
+ */
+export async function scoreBands(userId: string, workspaceId: string, db: CustomShellDb = defaultDb): Promise<ScoreBand[]> {
+  // Counted in the database, because the dashboard asks every few seconds and the likes only grow. A score of 100 joins the 90s.
+  const band = sql<number>`(least(${dateProfiles.aiScore}, 99) / 10) * 10`
+  const rows = await db
+    .select({
+      from: band,
+      likes: sql<number>`count(distinct ${dateProfiles.id})::int`,
+      matches: sql<number>`count(distinct ${dateMatches.profileId})::int`,
+      replied: sql<number>`(count(distinct ${dateMatches.profileId}) filter (where ${dateMatches.messagesFromThem} > 0))::int`,
+    })
+    .from(dateProfiles)
+    .leftJoin(dateMatches, and(eq(dateMatches.profileId, dateProfiles.id), eq(dateMatches.sample, false)))
+    .where(
+      and(
+        eq(dateProfiles.userId, userId),
+        eq(dateProfiles.workspaceId, workspaceId),
+        eq(dateProfiles.sample, false),
+        inArray(dateProfiles.swipe, ["like", "super"]),
+        isNotNull(dateProfiles.aiScore)
+      )
+    )
+    .groupBy(band)
+    .orderBy(desc(band))
+  return rows.map((row) => ({ from: row.from, to: row.from === 90 ? 100 : row.from + 9, likes: row.likes, matches: row.matches, replied: row.replied }))
+}
+
+/** Where Tinder's own distance and ages stand on this phone. */
+async function discoveryView(phoneId: string, db: CustomShellDb): Promise<DiscoveryView> {
+  const [[phone], [last]] = await Promise.all([
+    db.select({ owed: datePhones.discoveryOwed }).from(datePhones).where(eq(datePhones.id, phoneId)).limit(1),
+    db.select().from(dateWalks).where(and(eq(dateWalks.phoneId, phoneId), eq(dateWalks.kind, "set-discovery"))).orderBy(desc(dateWalks.createdAt)).limit(1),
+  ])
+  if (last?.status === "waiting" || last?.status === "running") return { state: "setting" }
+  if (phone?.owed) return { state: "owed" }
+  if (!last || last.status === "cancelled") return { state: "never" }
+  if (last.status === "failed") return { state: "failed", error: last.error, at: last.finishedAt }
+  const result = last.result ?? {}
+  return {
+    state: "set",
+    distance: typeof result.distance === "string" ? result.distance : "",
+    ageMin: Number(result.ageMin ?? 0),
+    ageMax: Number(result.ageMax ?? 0),
+    at: last.finishedAt,
   }
 }
 
@@ -413,7 +503,7 @@ export async function dailyTally(
     const day = row.at ? byDay.get(dayOf(row.at, timeZone)) : undefined
     if (!day) continue
     day.swipes += 1
-    if (row.swipe === "like") day.likes += 1
+    if (isLike(row.swipe)) day.likes += 1
   }
   for (const row of matches) {
     const matched = byDay.get(dayOf(row.matchedAt, timeZone))
@@ -452,8 +542,12 @@ export type ProfileDetail = {
   aiError: string
   aiBusy: boolean
   sample: boolean
-  /** A like or pass on this card waiting for the phone, or on it now. */
-  pendingSwipe: "like" | "pass" | null
+  /** A like, Super Like or pass on this card waiting for the phone, or on it now. */
+  pendingSwipe: "like" | "super" | "pass" | null
+  /** This pass's photos were deleted 30 days after it. */
+  photosForgotten: boolean
+  /** Opus scored it again after Sonnet's first look, and its score counts. */
+  checkedTwice: boolean
 }
 
 export async function loadProfileDetail(userId: string, profileId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<ProfileDetail> {
@@ -463,7 +557,7 @@ export async function loadProfileDetail(userId: string, profileId: string, db: C
     ? await db
         .select({ kind: dateWalks.kind, input: dateWalks.input })
         .from(dateWalks)
-        .where(and(eq(dateWalks.phoneId, row.phoneId), inArray(dateWalks.status, ["waiting", "running"]), inArray(dateWalks.kind, ["like", "pass"])))
+        .where(and(eq(dateWalks.phoneId, row.phoneId), inArray(dateWalks.status, ["waiting", "running"]), inArray(dateWalks.kind, ["like", "super-like", "pass"])))
     : []
   const swipeWalk = pending.find((walk) => walk.input.profileId === row.id)
   return {
@@ -490,7 +584,9 @@ export async function loadProfileDetail(userId: string, profileId: string, db: C
     aiError: row.aiError,
     aiBusy: Boolean(row.aiStartedAt && !row.aiReadAt && now.getTime() - row.aiStartedAt.getTime() < 5 * 60_000),
     sample: row.sample,
-    pendingSwipe: swipeWalk ? (swipeWalk.kind as "like" | "pass") : null,
+    pendingSwipe: swipeWalk ? (swipeWalk.kind === "super-like" ? "super" : (swipeWalk.kind as "like" | "pass")) : null,
+    photosForgotten: row.photosForgottenAt !== null,
+    checkedTwice: row.aiModel === DATING_MODEL && row.aiScore !== null && !row.aiFlags.includes("ai_declined"),
   }
 }
 

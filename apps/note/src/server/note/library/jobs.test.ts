@@ -17,9 +17,11 @@ import * as files from "@/server/note/files"
 import * as gemini from "@/server/note/gemini"
 import { importLink } from "@/server/note/library/imports"
 import { runNext } from "@/server/note/library/jobs"
+import * as threadsReader from "@/server/note/library/threads-reader"
 import { createLibrary } from "@/server/note/library/libraries"
 import { SayableError } from "@/server/note/sayable"
 import { noteNotes } from "@/server/note/schema"
+import { LIBRARY_SAYS } from "@/lib/note/library/notes"
 
 /**
  * The `note-imports` worker's own rules. yt-dlp, the bucket, ffmpeg and Gemini
@@ -130,6 +132,52 @@ describe("importing a video", () => {
     const { note } = await importLink(user.id, { libraryId, url: "https://www.youtube.com/watch?v=jNQXAC9IVRw" })
     await runNext()
     expect(await rowOf(note.id)).toMatchObject({ importStatus: "failed", importError: "This post is private" })
+  })
+})
+
+describe("importing a Threads post", () => {
+  it("reads it as words with its author, files it under Threads, and rings the bell", async () => {
+    vi.spyOn(threadsReader, "readThreadsPost").mockResolvedValue({
+      postId: "Cw1dvVTLesB",
+      url: "https://www.threads.com/@mosseri/post/Cw1dvVTLesB",
+      authorName: "Adam Mosseri",
+      authorHandle: "mosseri",
+      authorPictureUrl: null,
+      postedAt: null,
+      text: "- Head of Instagram\n- Bartender",
+      pictures: [],
+      likes: null,
+      reposts: null,
+      quoted: null,
+      thread: [],
+      threadStatus: "none",
+      articleUrl: null,
+      video: null,
+    })
+    const { note } = await importLink(user.id, { libraryId, url: "https://www.threads.net/@mosseri/post/Cw1dvVTLesB" })
+    expect(note.folderName).toBe("Threads")
+    await runNext()
+    expect(threadsReader.readThreadsPost).toHaveBeenCalledWith("https://www.threads.com/@mosseri/post/Cw1dvVTLesB")
+    expect(download.downloadVideo).not.toHaveBeenCalled()
+    expect(await rowOf(note.id)).toMatchObject({
+      importStatus: "saved",
+      title: "- Head of Instagram",
+      authorName: "Adam Mosseri",
+      authorHandle: "mosseri",
+      postText: "- Head of Instagram\n- Bartender",
+      sourceUrl: "https://www.threads.com/@mosseri/post/Cw1dvVTLesB",
+      videoStatus: "none",
+      leaseToken: null,
+    })
+    const bell = await database.select({ message: customShellNotifications.message }).from(customShellNotifications)
+    expect(bell.map((each) => each.message)).toEqual(["Ready to analyse: - Head of Instagram"])
+  })
+
+  it("keeps Threads' reason when the post cannot be read", async () => {
+    vi.spyOn(threadsReader, "readThreadsPost").mockRejectedValue(new SayableError(LIBRARY_SAYS.threadsUnreadable))
+    const { note } = await importLink(user.id, { libraryId, url: "https://www.threads.com/@mosseri/post/Cw1dvVTLesB" })
+    await runNext()
+    expect(await rowOf(note.id)).toMatchObject({ importStatus: "failed", importError: LIBRARY_SAYS.threadsUnreadable })
   })
 })
 

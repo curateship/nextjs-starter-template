@@ -33,10 +33,12 @@ import {
   MinusIcon,
   PaletteIcon,
   PilcrowIcon,
+  PlayIcon,
   StrikethroughIcon,
   TableIcon,
   TableRowsSplitIcon,
   TextQuoteIcon,
+  TimerIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react"
@@ -56,7 +58,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { getMediaErrorMessage, uploadMedia } from "@/lib/api/media/media"
 import { findNoteTitles } from "@/lib/api/note/notes"
 import { getMediaUploadError, IMAGE_MIME_TYPES } from "@/lib/media/media-upload"
-import { Callout, NoteLink, noteBodyExtensions } from "@/lib/note/notes/body"
+import { Callout, NoteLink, noteBodyExtensions, VideoTime } from "@/lib/note/notes/body"
 import {
   CALLOUT_CLASS,
   CALLOUT_TONE_LABELS,
@@ -69,7 +71,7 @@ import {
   TEXT_COLOURS,
   type CalloutTone,
 } from "@/lib/note/notes/colours"
-import { noteTitle, type LinkedNoteState } from "@/lib/note/library/notes"
+import { formatTimecode, noteTitle, type LinkedNoteState } from "@/lib/note/library/notes"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -90,7 +92,12 @@ import { cn } from "@/lib/utils"
 
 type LinkTitles = Record<string, { title: string; state: LinkedNoteState }>
 
-const NoteLinkContext = React.createContext<{ titles: LinkTitles; open: (id: string) => void }>({
+const NoteLinkContext = React.createContext<{
+  titles: LinkTitles
+  open: (id: string) => void
+  /** Plays the note's own video from a moment; absent when the note has no video now. */
+  seek?: (ms: number) => void
+}>({
   titles: {},
   open: () => undefined,
 })
@@ -119,6 +126,36 @@ function NoteLinkView({ node }: NodeViewProps) {
         <FileTextIcon aria-hidden className="size-3.5 self-center" />
         {title}
       </button>
+    </NodeViewWrapper>
+  )
+}
+
+/**
+ * A moment in the note's video, "▶ 4:12" (task 02, part 3). Clicking it plays
+ * the video from there; with no video now it only shows the time.
+ */
+function VideoTimeView({ node }: NodeViewProps) {
+  const { seek } = React.useContext(NoteLinkContext)
+  const ms = Number(node.attrs.ms ?? 0)
+  const chip = "inline-flex items-center gap-0.5 rounded-sm bg-muted px-1 align-baseline text-xs font-medium tabular-nums"
+  return (
+    <NodeViewWrapper as="span" className="inline">
+      {seek ? (
+        <button
+          type="button"
+          contentEditable={false}
+          onClick={() => seek(ms)}
+          aria-label={`Play from ${formatTimecode(ms)}`}
+          className={cn(chip, "cursor-pointer hover:bg-accent", focusRing)}
+        >
+          <PlayIcon aria-hidden className="size-3" />
+          {formatTimecode(ms)}
+        </button>
+      ) : (
+        <span contentEditable={false} className={cn(chip, "text-muted-foreground")}>
+          {formatTimecode(ms)}
+        </span>
+      )}
     </NodeViewWrapper>
   )
 }
@@ -159,10 +196,16 @@ function CalloutView({ node, updateAttributes, editor }: NodeViewProps) {
 
 const DrawnCallout = Callout.extend({ addNodeView: () => ReactNodeViewRenderer(CalloutView) })
 const DrawnNoteLink = NoteLink.extend({ addNodeView: () => ReactNodeViewRenderer(NoteLinkView) })
+const DrawnVideoTime = VideoTime.extend({ addNodeView: () => ReactNodeViewRenderer(VideoTimeView) })
+
+/** The chip for a moment, then a space so typing carries on after it. */
+function videoTimeContent(ms: number) {
+  return [{ type: "videoTime", attrs: { ms: Math.max(0, Math.round(ms)) } }, { type: "text", text: " " }]
+}
 
 type SlashItem = MenuItem & { keywords: string; run: (editor: Editor) => void }
 
-function slashItems(pickImage: () => void): SlashItem[] {
+function slashItems(pickImage: () => void, now: number | null): SlashItem[] {
   return [
     { id: "text", title: "Text", icon: <PilcrowIcon />, keywords: "paragraph plain", run: (e) => e.chain().focus().setParagraph().run() },
     { id: "h1", title: "Heading 1", icon: <Heading1Icon />, keywords: "title big", run: (e) => e.chain().focus().setHeading({ level: 1 }).run() },
@@ -179,6 +222,10 @@ function slashItems(pickImage: () => void): SlashItem[] {
     { id: "table", title: "Table", icon: <TableIcon />, keywords: "grid rows columns", run: (e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
     { id: "image", title: "Image", hint: "Upload a picture", icon: <ImageIcon />, keywords: "picture photo upload", run: () => pickImage() },
     { id: "link", title: "Link to a note", hint: "Or type [[", icon: <FileTextIcon />, keywords: "note page reference", run: (e) => e.chain().focus().insertContent("[[").run() },
+    // Only on a note with a video that can play, at the time it is at now.
+    ...(now === null
+      ? []
+      : [{ id: "time", title: "Video time", hint: formatTimecode(now), icon: <TimerIcon />, keywords: "moment timestamp clock", run: (e: Editor) => e.chain().focus().insertContent(videoTimeContent(now)).run() }]),
   ]
 }
 
@@ -189,9 +236,14 @@ const IMAGE_ACCEPT = IMAGE_MIME_TYPES.join(",")
  * plus the placeholder and the "/" and "[[" menus. The "/" menu's Image
  * opens the editor's own hidden file picker, found by its id.
  */
-function editorExtensions(libraryId: string, noteId: string, fileInputId: string) {
+function editorExtensions(
+  libraryId: string,
+  noteId: string,
+  fileInputId: string,
+  videoTimeNow: React.RefObject<(() => number | null) | undefined>
+) {
   return [
-    ...noteBodyExtensions({ callout: DrawnCallout, noteLink: DrawnNoteLink }),
+    ...noteBodyExtensions({ callout: DrawnCallout, noteLink: DrawnNoteLink, videoTime: DrawnVideoTime }),
     Placeholder.configure({ placeholder: "Write, or type / for blocks" }),
     createSuggestionMenu<SlashItem>({
       name: "noteSlashMenu",
@@ -200,7 +252,7 @@ function editorExtensions(libraryId: string, noteId: string, fileInputId: string
       emptyText: "No block by that name",
       items: (query) => {
         const words = query.toLowerCase()
-        return slashItems(() => document.getElementById(fileInputId)?.click()).filter((item) =>
+        return slashItems(() => document.getElementById(fileInputId)?.click(), videoTimeNow.current?.() ?? null).filter((item) =>
           `${item.title} ${item.keywords}`.toLowerCase().includes(words)
         )
       },
@@ -255,6 +307,10 @@ function docText(value: unknown): string {
 export type NoteEditorHandle = {
   /** Scrolls the nth heading into view, for the outline. */
   scrollToHeading: (index: number) => void
+  /** Puts a video moment at the cursor, or on a new line at the end when the text was never clicked into. */
+  insertTime: (ms: number) => void
+  /** Adds the words as a quote at the end, with their video moment when they have one. */
+  insertQuote: (text: string, ms: number | null) => void
 }
 
 export const NoteEditor = React.forwardRef<
@@ -272,8 +328,15 @@ export const NoteEditor = React.forwardRef<
     linkTitles: LinkTitles
     onChange?: (body: JSONContent) => void
     onOpenNote?: (id: string) => void
+    /** Plays the note's video from a moment; absent when there is no video to play. */
+    onSeek?: (ms: number) => void
+    /** Where the note's video is now, in milliseconds, or null with nothing playable. */
+    videoTimeNow?: () => number | null
   }
->(function NoteEditor({ libraryId, inset = false, tools = true, noteId, initial, editable, linkTitles, onChange, onOpenNote }, ref) {
+>(function NoteEditor(
+  { libraryId, inset = false, tools = true, noteId, initial, editable, linkTitles, onChange, onOpenNote, onSeek, videoTimeNow },
+  ref
+) {
   const fileInputId = React.useId()
   const [uploading, setUploading] = React.useState<string[]>([])
   const changed = React.useRef(onChange)
@@ -286,8 +349,18 @@ export const NoteEditor = React.forwardRef<
   // upload through this ref, which always holds the newest one.
   const upload = React.useRef<(file: File, at: number | null) => Promise<void>>(async () => undefined)
 
+  // The "/" menu is built once, so it asks for the video's time through this ref.
+  const timeNow = React.useRef(videoTimeNow)
+  React.useEffect(() => {
+    timeNow.current = videoTimeNow
+  })
+  // Whether the text was ever clicked into, so a moment goes where the cursor was.
+  const clickedInto = React.useRef(false)
+
   // Built once per editor, so the extension list never changes under it.
-  const [extensions] = React.useState(() => editorExtensions(libraryId, noteId, fileInputId))
+  // The ref is handed over, not read: the "/" menu reads it only when typed into, never while drawing.
+  // eslint-disable-next-line react-hooks/refs
+  const [extensions] = React.useState(() => editorExtensions(libraryId, noteId, fileInputId, timeNow))
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -316,6 +389,9 @@ export const NoteEditor = React.forwardRef<
     // update with the very same text. Only a real change is handed on, or
     // merely opening a note would save it, and two copies of the panel (a
     // window narrowed past the three-panel width) would then clash.
+    onFocus: () => {
+      clickedInto.current = true
+    },
     onUpdate: ({ editor: current }) => {
       const json = current.getJSON()
       const text = docText(json)
@@ -362,6 +438,26 @@ export const NoteEditor = React.forwardRef<
         const heading = editor?.view.dom.querySelectorAll("h1, h2, h3")[index]
         heading?.scrollIntoView({ block: "start", behavior: "smooth" })
       },
+      insertTime(ms) {
+        if (!editor || editor.isDestroyed || !editor.isEditable) return
+        if (clickedInto.current) {
+          editor.chain().focus().insertContent(videoTimeContent(ms)).run()
+          return
+        }
+        editor
+          .chain()
+          .insertContentAt(editor.state.doc.content.size, { type: "paragraph", content: videoTimeContent(ms) })
+          .focus("end")
+          .run()
+      },
+      insertQuote(text, ms) {
+        if (!editor || editor.isDestroyed || !editor.isEditable) return
+        const words = [{ type: "text", text }, ...(ms === null ? [] : [{ type: "text", text: " " }, videoTimeContent(ms)[0]])]
+        editor
+          .chain()
+          .insertContentAt(editor.state.doc.content.size, { type: "blockquote", content: [{ type: "paragraph", content: words }] })
+          .run()
+      },
     }),
     [editor]
   )
@@ -371,8 +467,8 @@ export const NoteEditor = React.forwardRef<
   }, [editor, editable])
 
   const links = React.useMemo(
-    () => ({ titles: linkTitles, open: (id: string) => onOpenNote?.(id) }),
-    [linkTitles, onOpenNote]
+    () => ({ titles: linkTitles, open: (id: string) => onOpenNote?.(id), seek: onSeek }),
+    [linkTitles, onOpenNote, onSeek]
   )
 
   return (

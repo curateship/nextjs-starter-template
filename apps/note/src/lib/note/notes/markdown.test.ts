@@ -58,6 +58,13 @@ const body = {
         { type: "noteLink", attrs: { id: "n1", label: "Reading list" } },
       ],
     },
+    {
+      type: "paragraph",
+      content: [
+        { type: "videoTime", attrs: { ms: 252_000 } },
+        { type: "text", text: " raise the price" },
+      ],
+    },
   ],
 }
 
@@ -84,6 +91,7 @@ describe("noteToMarkdown", () => {
     expect(file).toMatch(/\| A\s*\| B\s*\|/)
     expect(file).toContain("> Careful")
     expect(file).toContain("[[Reading list]]")
+    expect(file).toContain("[4:12] raise the price")
   })
 
   it("comes back in with the same title, tags, priority and checklist", () => {

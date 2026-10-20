@@ -40,6 +40,26 @@ export const readCardJsonSchema = {
   },
 }
 
+/**
+ * A card the member swiped against the AI's score: its short read, its score,
+ * and whether they liked or passed it. Text only, no photos, to keep the cost
+ * down. Tyler's choice, 18 Oct 2026. They go with the card's own words rather
+ * than in the instructions, because the reads were written from strangers'
+ * cards.
+ */
+export type OverruledCard = { read: string[]; score: number; liked: boolean }
+
+function overruledLines(overruled: OverruledCard[]): string[] {
+  if (!overruled.length) return []
+  return [
+    "Earlier cards where the member went against your score, newest first. Move your scores toward their taste:",
+    ...overruled.map((card) => `- Scored ${card.score}, the member ${card.liked ? "liked it" : "passed it"}. ${card.read.join(" ")}`),
+    "",
+    "The card to score now:",
+    "",
+  ]
+}
+
 export function readCardSystem(settings: Pick<DatingSettings, "lookingFor" | "dealbreakers" | "ageMin" | "ageMax">): string {
   return [
     "You read one Tinder profile for a member of a dating app and judge how well the person fits what the member wants.",
@@ -75,8 +95,9 @@ export type CardForAi = {
   photos: number
 }
 
-export function readCardText(card: CardForAi): string {
+export function readCardText(card: CardForAi, overruled: OverruledCard[] = []): string {
   const lines = [
+    ...overruledLines(overruled),
     `The ${card.photos} picture${card.photos === 1 ? " above is" : "s above are"} this person's photos, in their order.`,
     "",
     `Name: ${card.name}`,

@@ -8,8 +8,12 @@ import {
   archiveNotes,
   createNote,
   deleteNoteForGood,
+  deleteTag,
+  duplicateNote,
   emptyTrash,
+  listLibraryQuotes,
   listNotes,
+  listPlanSteps,
   listVersions,
   loadNote,
   loadVersion,
@@ -18,9 +22,12 @@ import {
   noteTitles,
   pinNotes,
   removeTagFromNotes,
+  renameAuthor,
+  renameTag,
   restoreNote,
   restoreVersion,
   saveNote,
+  savePlayedSeconds,
   setAuthor,
   setPriority,
   setTags,
@@ -31,17 +38,21 @@ import {
   AUTHOR_NAME_MAX,
   FIXED_SCOPES,
   LIBRARY_SAYS,
+  NOTE_SORT_COLUMNS,
   NOTE_PRIORITIES,
   NOTE_TITLE_MAX,
   TAG_MAX,
   TAGS_PER_NOTE,
   type BulkOutcome,
+  type LibraryQuote,
   type NoteCard,
   type NoteDetail,
   type NoteFilters,
   type NoteList,
   type NotePriority,
+  type NoteSort,
   type NoteTitle,
+  type PlanStepsGroup,
   type NoteVersion,
   type NoteVersionSummary,
 } from "@/lib/note/library/notes"
@@ -65,15 +76,43 @@ const tag = z.string().min(1).max(TAG_MAX * 2)
 // ---------------------------------------------------------------------------
 // Reading
 
+const sort = z.object({ column: z.enum(NOTE_SORT_COLUMNS), descending: z.boolean() })
+
 const listFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(
-    z.object({ libraryId: idSchema, scope, search: z.string().max(200).optional(), filters: filtersSchema.optional() })
+    z.object({
+      libraryId: idSchema,
+      scope,
+      search: z.string().max(200).optional(),
+      filters: filtersSchema.optional(),
+      sort: sort.optional(),
+    })
   )
   .handler(async ({ data, context }): Promise<NoteList> => listNotes(context.user.id, data))
 
-export function loadNotes(data: { libraryId: string; scope: string; search?: string; filters?: NoteFilters }) {
+export function loadNotes(data: { libraryId: string; scope: string; search?: string; filters?: NoteFilters; sort?: NoteSort }) {
   return listFn({ data })
+}
+
+const stepsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ libraryId: idSchema }))
+  .handler(async ({ data, context }): Promise<PlanStepsGroup[]> => listPlanSteps(context.user.id, data.libraryId))
+
+/** Every plan in the library, for the Plan steps list. */
+export function loadPlanSteps(libraryId: string) {
+  return stepsFn({ data: { libraryId } })
+}
+
+const quotesFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ libraryId: idSchema }))
+  .handler(async ({ data, context }): Promise<LibraryQuote[]> => listLibraryQuotes(context.user.id, data.libraryId))
+
+/** Every quote and highlighted transcript line in the library, for the Quotes list. */
+export function loadLibraryQuotes(libraryId: string) {
+  return quotesFn({ data: { libraryId } })
 }
 
 const readFn = createServerFn({ method: "POST" })
@@ -168,6 +207,60 @@ const authorFn = createServerFn({ method: "POST" })
 
 export function saveNoteAuthor(id: string, name: string, handle: string | null) {
   return authorFn({ data: { id, name, handle } })
+}
+
+const playedFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ id: idSchema, seconds: z.number().int().min(0).max(24 * 60 * 60) }))
+  .handler(async ({ data, context }) => savePlayedSeconds(context.user.id, data.id, data.seconds))
+
+/** Where the saved video was stopped, so it starts there next time. */
+export function saveNotePlayed(id: string, seconds: number) {
+  return playedFn({ data: { id, seconds } })
+}
+
+const duplicateFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ id: idSchema, libraryId: idSchema.optional() }))
+  .handler(async ({ data, context }): Promise<NoteCard> => duplicateNote(context.user.id, data.id, data.libraryId))
+
+/** A copy of the note, in its own library or, with `libraryId`, another. */
+export function duplicateLibraryNote(id: string, libraryId?: string) {
+  return duplicateFn({ data: { id, libraryId } })
+}
+
+// ---------------------------------------------------------------------------
+// Tags and authors across a library
+
+const renameTagFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ libraryId: idSchema, from: tag, to: tag }))
+  .handler(async ({ data, context }) => renameTag(context.user.id, data.libraryId, data.from, data.to))
+
+/** Renames a tag on every note of the library; a name in use merges the two. */
+export function renameLibraryTag(libraryId: string, from: string, to: string) {
+  return renameTagFn({ data: { libraryId, from, to } })
+}
+
+const deleteTagFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ libraryId: idSchema, tag }))
+  .handler(async ({ data, context }) => deleteTag(context.user.id, data.libraryId, data.tag))
+
+export function deleteLibraryTag(libraryId: string, name: string) {
+  return deleteTagFn({ data: { libraryId, tag: name } })
+}
+
+const renameAuthorFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({ libraryId: idSchema, from: z.string().min(1).max(AUTHOR_NAME_MAX * 2), to: z.string().max(AUTHOR_NAME_MAX * 2) })
+  )
+  .handler(async ({ data, context }) => renameAuthor(context.user.id, data.libraryId, data.from, data.to))
+
+/** Renames an author on every note of the library; a name in use merges the two. */
+export function renameLibraryAuthor(libraryId: string, from: string, to: string) {
+  return renameAuthorFn({ data: { libraryId, from, to } })
 }
 
 // ---------------------------------------------------------------------------

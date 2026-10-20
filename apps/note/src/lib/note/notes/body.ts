@@ -7,6 +7,7 @@ import { TableKit } from "@tiptap/extension-table"
 import { Node as ProseMirrorNode, type Schema } from "@tiptap/pm/model"
 import StarterKit from "@tiptap/starter-kit"
 
+import { formatTimecode } from "@/lib/note/library/notes"
 import {
   CALLOUT_CLASS,
   CALLOUT_TONES,
@@ -105,6 +106,44 @@ export const NoteLink = Node.create({
   renderMarkdown: (node) => `[[${String(node.attrs?.label ?? "")}]]`,
 })
 
+/** The longest time a video-time chip may hold: a day, far past the 30-minute download limit. */
+const VIDEO_TIME_MAX_MS = 24 * 60 * 60 * 1000
+
+/** Whether a stored time is a whole number of milliseconds from 0 to a day. */
+export function isVideoTime(ms: unknown): ms is number {
+  return typeof ms === "number" && Number.isInteger(ms) && ms >= 0 && ms <= VIDEO_TIME_MAX_MS
+}
+
+/**
+ * A moment in the note's own video, such as "4:12", put in from the player
+ * (Tyler's task 02, part 3). Clicking it plays the video from there. Only the
+ * time is stored; the editor draws it.
+ */
+export const VideoTime = Node.create({
+  name: "videoTime",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes() {
+    return {
+      ms: {
+        default: 0,
+        parseHTML: (element) => Number(element.getAttribute("data-ms") ?? 0),
+        renderHTML: (attributes) => ({ "data-ms": attributes.ms }),
+      },
+    }
+  },
+  parseHTML() {
+    return [{ tag: "span[data-video-time]" }]
+  },
+  renderHTML({ HTMLAttributes, node }) {
+    return ["span", mergeAttributes(HTMLAttributes, { "data-video-time": "" }), formatTimecode(Number(node.attrs.ms))]
+  },
+  renderText: ({ node }) => `[${formatTimecode(Number(node.attrs.ms))}]`,
+  renderMarkdown: (node) => `[${formatTimecode(Number(node.attrs?.ms ?? 0))}]`,
+})
+
 /** Text in one of six colours, stored as the colour's name. */
 export const TextColour = Mark.create({
   name: "textColour",
@@ -158,7 +197,9 @@ const NoteDetailsContent = DetailsContent.extend({
  * Every block and style a note may hold. `overrides` swaps in the editor's
  * drawn versions of the same nodes, which never change what is stored.
  */
-export function noteBodyExtensions(overrides: { callout?: AnyExtension; noteLink?: AnyExtension } = {}) {
+export function noteBodyExtensions(
+  overrides: { callout?: AnyExtension; noteLink?: AnyExtension; videoTime?: AnyExtension } = {}
+) {
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
@@ -178,6 +219,7 @@ export function noteBodyExtensions(overrides: { callout?: AnyExtension; noteLink
     Image.configure({ allowBase64: false }),
     overrides.callout ?? Callout,
     overrides.noteLink ?? NoteLink,
+    overrides.videoTime ?? VideoTime,
   ]
 }
 
@@ -220,8 +262,9 @@ export function isSafeImageSrc(src: unknown) {
 /**
  * Drops anything a browser could be tricked into following or drawing: a
  * link that is not a web, mail or phone address, a picture from anywhere
- * else, a link to a note with a malformed id, a colour that is not one of
- * the named ones. What is left is then checked block by block against the
+ * else, a link to a note with a malformed id, a video time that is not a
+ * whole number of milliseconds within a day, a colour that is not one of the
+ * named ones. What is left is then checked block by block against the
  * schema by `cleanNoteBody`.
  */
 function scrub(node: JSONContent): JSONContent | null {
@@ -234,6 +277,10 @@ function scrub(node: JSONContent): JSONContent | null {
   if (node.type === "noteLink") {
     if (!ID.test(String(out.attrs?.id ?? ""))) return null
     out.attrs = { id: out.attrs?.id, label: String(out.attrs?.label ?? "").slice(0, 200) }
+  }
+  if (node.type === "videoTime") {
+    if (!isVideoTime(out.attrs?.ms)) return null
+    out.attrs = { ms: out.attrs?.ms }
   }
   if (node.type === "callout" && !isOneOf(CALLOUT_TONES, out.attrs?.tone)) {
     out.attrs = { ...out.attrs, tone: "grey" }
@@ -299,6 +346,7 @@ export function noteBodyFacts(body: JSONContent): NoteBodyFacts {
       return String(node.attrs?.label ?? "")
     }
     if (node.type === "hardBreak") return " "
+    if (node.type === "videoTime") return formatTimecode(Number(node.attrs?.ms ?? 0))
     return (node.content ?? []).map(inline).join("")
   }
 
@@ -329,7 +377,7 @@ export function noteBodyFacts(body: JSONContent): NoteBodyFacts {
 }
 
 function isInline(node: JSONContent) {
-  return node.type === "text" || node.type === "noteLink" || node.type === "hardBreak"
+  return node.type === "text" || node.type === "noteLink" || node.type === "hardBreak" || node.type === "videoTime"
 }
 
 export function countWords(text: string) {

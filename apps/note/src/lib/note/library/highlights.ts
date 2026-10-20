@@ -1,13 +1,18 @@
 
 /**
- * Highlights are marks on the post's own words, never the AI's, so Analyse
- * again leaves them where they are. Each is a part of the post (its words,
- * the quoted post, or one post of the thread) and a stretch of characters in
- * it.
+ * Highlights are marks on a note's saved words: an X post's own, or a video's
+ * transcript, which Analyse again reuses rather than writes afresh. Never on
+ * the summary or the plan, so Analyse again leaves them where they are. Each
+ * is a part (the post, the quoted post, one post of the thread, or one line
+ * of the transcript) and a stretch of characters in it.
  */
 
-/** Which part of an X post a highlight is in, and where in its words. */
-export type HighlightPart = "post" | "quoted" | `thread-${number}`
+/**
+ * Which part a highlight is in, and where in its words: an X post's words,
+ * its quoted post, one post of its thread, or one line of a video's
+ * transcript (`line-<n>`, the nth line).
+ */
+export type HighlightPart = "post" | "quoted" | `thread-${number}` | `line-${number}`
 export type Highlight = { part: HighlightPart; start: number; end: number }
 
 const HIGHLIGHTS_MAX = 100
@@ -83,5 +88,5 @@ export function highlightPieces(
 }
 
 export function isHighlightPart(value: string): value is HighlightPart {
-  return value === "post" || value === "quoted" || /^thread-\d{1,3}$/.test(value)
+  return value === "post" || value === "quoted" || /^thread-\d{1,3}$/.test(value) || /^line-\d{1,4}$/.test(value)
 }

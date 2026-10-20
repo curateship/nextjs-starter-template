@@ -1,14 +1,18 @@
 import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 
+import { PlanStepsPanel, QuotesPanel } from "@/components/note-library/gathered-lists"
 import { LibraryLeftPanel } from "@/components/note-library/library-left-panel"
 import { NotePanel } from "@/components/note-library/note-panel"
 import { NotesListPanel } from "@/components/note-library/notes-list-panel"
 import { ThreePanels } from "@/components/shared/three-panels"
 import { getLibraryErrorMessage, loadLibrary, markLibraryOpen } from "@/lib/api/note/library"
 import { loadNotes } from "@/lib/api/note/notes"
-import { filtersOf, listKeyOf, saysAnything, scopeOf, type LibrarySearch } from "@/lib/note/library/address"
+import { filtersOf, listKeyOf, saysAnything, scopeOf, sortOf, type LibrarySearch } from "@/lib/note/library/address"
 import { isMoving, type LibraryPage, type NoteCard, type NoteList } from "@/lib/note/library/notes"
+
+/** A moment to play the open note's video from, asked for by a quote; `round` makes a second ask of the same moment new. */
+export type SeekRequest = { noteId: string; ms: number; round: number }
 import { libraryPlaceKey, NOTE_LIBRARY_LAYOUT_KEY } from "@/lib/note/view-key"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -57,6 +61,7 @@ export function LibraryDashboard({
   const [page, setPage] = React.useState(initial.page)
   const scope = scopeOf(search)
   const filters = filtersOf(search)
+  const sort = sortOf(search)
   const listKey = listKeyOf(search)
   // The list carries the address it was read for, so a list from before a
   // change of folder is never taken for the new one.
@@ -72,6 +77,7 @@ export function LibraryDashboard({
   // screen on the list (UI standard: "the list stays in front").
   const [autoOpened, setAutoOpened] = React.useState<string | null>(null)
   const [reloadKey, setReloadKey] = React.useState(0)
+  const [seekTo, setSeekTo] = React.useState<SeekRequest | null>(null)
 
   // ---------------------------------------------------------------------------
   // The address
@@ -164,9 +170,9 @@ export function LibraryDashboard({
   )
 
   // What the list is asked for, kept for the polling and the panels' refreshes.
-  const query = React.useRef({ key: listKey, scope, q: search.q, filters })
+  const query = React.useRef({ key: listKey, scope, q: search.q, filters, sort })
   React.useEffect(() => {
-    query.current = { key: listKey, scope, q: search.q, filters }
+    query.current = { key: listKey, scope, q: search.q, filters, sort }
     // The key says everything the list is asked for, so it alone moves this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listKey])
@@ -177,7 +183,13 @@ export function LibraryDashboard({
       const ticket = ++listRequest.current
       const asked = query.current
       try {
-        const fresh = await loadNotes({ libraryId, scope: asked.scope, search: asked.q, filters: asked.filters })
+        const fresh = await loadNotes({
+          libraryId,
+          scope: asked.scope,
+          search: asked.q,
+          filters: asked.filters,
+          sort: asked.sort,
+        })
         if (ticket !== listRequest.current) return
         setListed({ key: asked.key, list: fresh })
         setFailedKey((failed) => (failed === asked.key ? null : failed))
@@ -224,6 +236,8 @@ export function LibraryDashboard({
     () => ({
       openNote: (id) => {
         setAutoOpened(null)
+        // A quote's moment is for the one opening that asked for it.
+        setSeekTo(null)
         setSearch({ open: id })
       },
       cardChanged: (card) =>
@@ -248,6 +262,38 @@ export function LibraryDashboard({
 
   const openCard = list.notes.find((note) => note.id === search.open) ?? null
 
+  const middle =
+    scope === "steps" ? (
+      <PlanStepsPanel
+        page={page}
+        actions={actions}
+        openId={search.open}
+        onOpenedChanged={() => setReloadKey((count) => count + 1)}
+      />
+    ) : scope === "quotes" ? (
+      <QuotesPanel
+        page={page}
+        onOpen={(quote) => {
+          actions.openNote(quote.noteId)
+          if (quote.startMs !== null) {
+            setSeekTo((current) => ({ noteId: quote.noteId, ms: quote.startMs ?? 0, round: (current?.round ?? 0) + 1 }))
+          }
+        }}
+      />
+    ) : (
+      <NotesListPanel
+        page={page}
+        list={list}
+        loading={listLoading}
+        failed={listFailed}
+        onRetry={() => setFailedKey(null)}
+        search={search}
+        openId={search.open}
+        actions={actions}
+        onOpenedElsewhere={() => setReloadKey((count) => count + 1)}
+      />
+    )
+
   return (
     <ThreePanels
       layoutKey={NOTE_LIBRARY_LAYOUT_KEY}
@@ -260,19 +306,7 @@ export function LibraryDashboard({
       }}
       middle={{
         label: "Notes",
-        content: (
-          <NotesListPanel
-            page={page}
-            list={list}
-            loading={listLoading}
-            failed={listFailed}
-            onRetry={() => setFailedKey(null)}
-            search={search}
-            openId={search.open}
-            actions={actions}
-            onOpenedElsewhere={() => setReloadKey((count) => count + 1)}
-          />
-        ),
+        content: middle,
       }}
       right={{
         label: "Note",
@@ -282,6 +316,7 @@ export function LibraryDashboard({
             noteId={search.open ?? null}
             listedCard={openCard}
             reloadKey={reloadKey}
+            seekTo={seekTo?.noteId === search.open ? seekTo : null}
             page={page}
             actions={actions}
           />

@@ -5,6 +5,7 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   ChevronLeftIcon,
+  CopyIcon,
   FolderInputIcon,
   LibraryIcon,
   MinusIcon,
@@ -20,7 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getLibraryErrorMessage } from "@/lib/api/note/library"
-import { changeNotes, moveNotesToLibrary, type NoteChange } from "@/lib/api/note/notes"
+import { changeNotes, duplicateLibraryNote, moveNotesToLibrary, type NoteChange } from "@/lib/api/note/notes"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { NOTE_PRIORITIES, noteTitle, PRIORITY_LABEL, type LibraryPage, type NoteCard } from "@/lib/note/library/notes"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
@@ -29,8 +30,8 @@ type Page = "folder" | "library" | "priority"
 
 /**
  * A row's cog (the default Tyler was offered on 20 Oct 2026): Pin, Archive,
- * Move to folder, Move to library and Priority, each one click from the
- * table. Moving and the priority step into a list of their own with a back
+ * Move to folder, Move to library, Priority and Duplicate (task 02, part
+ * 12), each one click from the table. Moving and the priority step into a list of their own with a back
  * arrow, the way the "N selected" menu does.
  */
 export function NoteRowMenu({
@@ -38,6 +39,7 @@ export function NoteRowMenu({
   page,
   onChanged,
   onMovedAway,
+  onDuplicated,
 }: {
   note: NoteCard
   page: LibraryPage
@@ -45,6 +47,8 @@ export function NoteRowMenu({
   onChanged: () => Promise<void>
   /** The note left this library. */
   onMovedAway: () => void
+  /** A copy was made beside it. */
+  onDuplicated: (copy: NoteCard) => Promise<void>
 }) {
   const [open, setOpen] = React.useState(false)
   const [step, setStep] = React.useState<Page | null>(null)
@@ -189,6 +193,17 @@ export function NoteRowMenu({
             <SelectedMenuRow page="priority" onClick={() => setStep("priority")}>
               <ArrowUpIcon className="size-4 text-muted-foreground" />
               Priority
+            </SelectedMenuRow>
+            <SelectedMenuSeparator />
+            <SelectedMenuRow
+              onClick={() =>
+                void run(async () => {
+                  await onDuplicated(await duplicateLibraryNote(note.id))
+                }, `Made a copy of ${quoteOneLine(title)}.`)
+              }
+            >
+              <CopyIcon className="size-4 text-muted-foreground" />
+              Duplicate
             </SelectedMenuRow>
           </>
         )}
