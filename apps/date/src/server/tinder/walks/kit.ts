@@ -144,6 +144,24 @@ export function walkKit(ctx: WalkContext) {
       )
     },
 
+    /** Drags a finger from one point to another along the screen, such as a slider's thumb, then reads the screen. */
+    async drag(from: { x: number; y: number }, to: { x: number; y: number }, settleMs = SETTLE_MS): Promise<Seen> {
+      return needScreen(
+        (
+          await step("swipe", {
+            x1: Math.round(from.x),
+            y1: Math.round(from.y),
+            x2: Math.round(to.x),
+            y2: Math.round(to.y),
+            durationMs: 450,
+            thenRead: true,
+            settleMs,
+          })
+        ).seen,
+        "a drag"
+      )
+    },
+
     async back(settleMs = SETTLE_MS): Promise<Seen> {
       return needScreen((await step("back", { thenRead: true, settleMs })).seen, "pressing back")
     },

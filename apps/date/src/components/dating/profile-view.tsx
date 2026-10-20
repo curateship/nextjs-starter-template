@@ -109,7 +109,7 @@ export function ProfileView({
               </div>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No photos were kept for this card.</p>
+            <p className="text-sm text-muted-foreground">{profile.photosForgotten ? "Photos deleted after 30 days." : "No photos were kept for this card."}</p>
           )}
 
           <div className="grid gap-2 text-sm">
@@ -155,7 +155,7 @@ export function ProfileView({
         ) : profile.pendingSwipe ? (
           <p className="mr-auto flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2Icon className="size-4 animate-spin" />
-            {profile.pendingSwipe === "like" ? "Like" : "Pass"} sent to the phone. It swipes once it has checked {profile.name} is still in front.
+            {profile.pendingSwipe === "super" ? "Super Like" : profile.pendingSwipe === "like" ? "Like" : "Pass"} sent to the phone. It swipes once it has checked {profile.name} is still in front.
           </p>
         ) : (
           <>

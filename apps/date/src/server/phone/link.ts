@@ -438,6 +438,8 @@ export type PhoneView = {
   phoneSwitchOn: boolean
   running: boolean
   runningSince: Date | null
+  /** Who started the loop running now: the member's Start, or the swiping schedule. */
+  startedBy: "member" | "schedule" | null
   stopWhy: string
   stopWhyAt: Date | null
   stoppedReason: StopReason | null
@@ -480,6 +482,7 @@ export function phoneView(row: typeof datePhones.$inferSelect, now: Date = new D
     phoneSwitchOn: row.phoneSwitchOn,
     running: row.running,
     runningSince: row.runningSince,
+    startedBy: row.startedBy ?? null,
     stopWhy: row.stopWhy,
     stopWhyAt: row.stopWhyAt,
     stoppedReason: row.stoppedReason,

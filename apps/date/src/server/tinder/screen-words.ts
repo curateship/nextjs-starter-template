@@ -27,6 +27,20 @@ export const TINDER_WORDS = {
     res: ["com.tinder:id/gamepad_pass", "com.tinder:id/pass_button"],
     desc: ["Nope", "Pass", r("^(nope|pass)( button)?$")],
   },
+  /** The star under a card. */
+  superLike: {
+    res: ["com.tinder:id/gamepad_super_like", "com.tinder:id/super_like_button"],
+    desc: ["Super Like", r("^super ?like( button)?$")],
+  },
+  /**
+   * Tinder's screen when the day's free Super Likes are gone, which offers to
+   * sell more. The walk shuts it and likes the card instead; it never presses
+   * anything on it but a way out.
+   */
+  superLikesGone: {
+    text: [r("out of super ?likes"), r("(get|buy) (more )?super ?likes"), r("no super ?likes left")],
+    desc: [r("out of super ?likes")],
+  },
   /** Opens the full profile of the card in front. */
   openProfile: {
     res: ["com.tinder:id/recs_card_info_button", "com.tinder:id/info_button"],
@@ -56,6 +70,19 @@ export const TINDER_WORDS = {
     desc: [r("^edit (profile|info)$")],
     text: [r("^edit (profile|info)$")],
   },
+  /** The gear on the Profile tab that opens Tinder's settings, where the distance and ages are. */
+  openSettings: {
+    res: ["com.tinder:id/settings_button", "com.tinder:id/profile_settings"],
+    desc: [r("^settings$"), r("^open settings$")],
+    text: [r("^settings$")],
+  },
+  /** The distance slider's heading and the age slider's heading in Tinder's settings. */
+  distanceHeading: { text: [r("^maximum distance$"), r("^distance preference$"), r("^distance$")] },
+  ageHeading: { text: [r("^age range$"), r("^age preference$"), r("^show ages$")] },
+  distanceSlider: { res: ["com.tinder:id/distance_seekbar", "com.tinder:id/discovery_distance_slider"] },
+  ageSlider: { res: ["com.tinder:id/age_range_seekbar", "com.tinder:id/discovery_age_slider"] },
+  /** Leaves Tinder's settings, which keeps what was set. */
+  settingsDone: { text: [r("^done$")], desc: [r("^(done|navigate up|back)$")] },
   /** The section headings on the chat list. */
   newMatchesHeading: { text: [r("^new matches$")] },
   messagesHeading: { text: [r("^messages$")] },
@@ -167,3 +194,22 @@ export const CHAT_CHROME_LINES = [
   r("^type a message$"),
   r("^send$"),
 ]
+
+/** A slider's value as Tinder writes it beside the slider: "25 km", "16 mi", "100+ km". */
+export const DISTANCE_VALUE = /^(\d{1,3})\+?\s*(km|mi|kilomet(?:re|er)s?|miles?)\+?$/i
+
+/** The age slider's value: "28 - 36", "28-36", "28 – 55+". */
+export const AGE_RANGE_VALUE = /^(\d{2})\s*[-–]\s*(\d{2,3})\+?$/
+
+/**
+ * The ends of Tinder's two sliders, guessed until a real phone reads them:
+ * the distance from 2 to 160 kilometres (1 to 100 miles) and the ages from 18
+ * to 100. They are only used to aim. The walk corrects its aim from what each
+ * move reads back, so a wrong guess costs a few more moves, not a wrong
+ * setting. A value past the slider's real end is set to the end.
+ */
+export const TINDER_SLIDERS = {
+  km: { min: 2, max: 160 },
+  mi: { min: 1, max: 100 },
+  age: { min: 18, max: 100 },
+} as const

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull, or } from "drizzle-orm"
+import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm"
 
 import type { MessageSender, OpenerStyle, SwipeDecision } from "@/lib/dating/options"
 import { uuid } from "@/server/auth/security"
@@ -177,7 +177,8 @@ export async function saveChatList(
       continue
     }
     const id = uuid()
-    // A match that came back later, after a like. Its card is the latest like of that name, if Date read it.
+    // A match that came back later, after a like or a Super Like. Its card is
+    // the latest of that name not already tied to a match, if Date read it.
     const [liked] = await db
       .select({ id: dateProfiles.id })
       .from(dateProfiles)
@@ -186,7 +187,8 @@ export async function saveChatList(
           eq(dateProfiles.userId, owner.userId),
           eq(dateProfiles.phoneId, owner.phoneId),
           eq(dateProfiles.name, chat.name),
-          eq(dateProfiles.swipe, "like")
+          inArray(dateProfiles.swipe, ["like", "super"]),
+          sql`not exists (select 1 from "date_matches" where "date_matches"."profile_id" = ${dateProfiles.id})`
         )
       )
       .orderBy(desc(dateProfiles.swipedAt))

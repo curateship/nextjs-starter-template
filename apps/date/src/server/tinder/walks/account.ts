@@ -7,10 +7,10 @@ import { onDiscover, WalkError, type Seen, type WalkContext, type WalkKit } from
 import { parseProfileLines } from "./parse"
 
 /** The Profile tab: its edit button with the bottom tabs under it. The edit screen itself has no tabs. */
-const onProfileTab = (screen: ScreenRead) =>
+export const onProfileTab = (screen: ScreenRead) =>
   Boolean(findNode(screen, TINDER_WORDS.editProfile) && findNode(screen, TINDER_WORDS.tabProfile))
 
-async function toProfileTab(kit: WalkKit): Promise<Seen> {
+export async function toProfileTab(kit: WalkKit): Promise<Seen> {
   return kit.goToTab(await kit.openTinder(), TINDER_WORDS.tabProfile, onProfileTab, "Profile")
 }
 

@@ -28,7 +28,7 @@ import { dateMatches, dateMessages, dateOwnProfiles, dateProfiles, dateWalks } f
 import { messageHash } from "@/server/tinder/store"
 
 import { decideSwipe, draftReply, reviewOwnProfile, scoreCard, type AiAsk } from "./ai"
-import { DATING_MODEL } from "./model"
+import { DATING_MODEL, FIRST_LOOK_MODEL } from "./model"
 import { saveDatingSettings } from "./settings"
 import { monthSpendDollars } from "./spend"
 import { runDatingPass, startLoop, stopLoopByHand } from "./worker"
@@ -77,7 +77,8 @@ describe("the AI and the swipe loop", () => {
     workspaceId = (await insertWorkspace(db)).id
     phoneId = uuid()
     clock = T0
-    await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0 })
+    // Tinder's distance and ages are already set, so the pass does not open Tinder's settings first.
+    await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0, discoveryOwed: false })
     asked = []
     answers = []
   })
@@ -144,9 +145,9 @@ describe("the AI and the swipe loop", () => {
       expect(asked[0].system).toContain("Someone outdoorsy who reads")
       expect(asked[0].system).toContain("aged 30 to 40")
       expect(asked[0].text).toContain("Bio: Climbing and baking.")
-      // One row on the shell's meter, under Date's name.
+      // One row on the shell's meter, under Date's name: 82 is more than 10 from the like line, so Sonnet's first look is the only one.
       const [usage] = await db.select().from(customShellAiUsageEvents)
-      expect(usage).toMatchObject({ feature: "dating-read-card", model: DATING_MODEL, inputTokens: 2_000, outputTokens: 300, status: "success" })
+      expect(usage).toMatchObject({ feature: "dating-read-card", model: FIRST_LOOK_MODEL, inputTokens: 2_000, outputTokens: 300, status: "success" })
     })
 
     it("never pays twice for a card two passes reach together", async () => {

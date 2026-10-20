@@ -17,7 +17,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { disconnectGoogleCalendar, loadGoogleCalendar, type CalendarConnection } from "@/lib/api/dating/chats"
 import { loadDatingSettings, saveDatingSettingsNow } from "@/lib/api/dating/settings"
 import { datingErrorMessage } from "@/lib/dating/errors"
-import { DATING_STYLES, DATING_STYLE_WORDS, datingSettingsProblem, MAX_EXAMPLES, type DatingSettings, type DatingStyle } from "@/lib/dating/settings"
+import {
+  DATING_STYLES,
+  DATING_STYLE_WORDS,
+  datingSettingsProblem,
+  knownPeopleText,
+  MAX_EXAMPLES,
+  parseKnownPeople,
+  type DatingSettings,
+  type DatingStyle,
+  type KnownPerson,
+} from "@/lib/dating/settings"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -201,17 +211,30 @@ function DatingSettingsTab() {
           />
           <NumberField id="date-age-max" label="Oldest" value={values.ageMax} min={18} max={99} onChange={(value) => set("ageMax", value)} onCommit={commit} />
         </div>
+        <NumberField
+          id="date-max-distance"
+          label="Furthest away, in km"
+          hint="The phone copies this and your ages into Tinder's own settings, so Tinder stops showing cards Date would pass anyway."
+          value={values.maxDistanceKm}
+          min={2}
+          max={160}
+          inputClassName="w-full sm:w-32"
+          onChange={(value) => set("maxDistanceKm", value)}
+          onCommit={commit}
+        />
+        <KnownPeopleField people={values.knownPeople} onChange={(people) => set("knownPeople", people)} onCommit={commit} />
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
         storageId="date-settings-swiping"
         title="Swiping"
-        description="A card the AI scores at this number or more is liked; below it, passed."
+        description="A card the AI scores at this number or more is liked; below it, passed. Swiping can start and stop by itself each day."
         contentClassName="grid gap-4"
       >
         <NumberField
           id="date-like-above"
           label="Like when the score is this or more"
+          hint="A card scoring 95 or more gets a Super Like instead, at most one a day."
           value={values.likeAbove}
           min={0}
           max={100}
@@ -219,6 +242,39 @@ function DatingSettingsTab() {
           onChange={(value) => set("likeAbove", value)}
           onCommit={commit}
         />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <ScheduleHourPick
+            id="date-schedule-start"
+            label="Swipe every day from"
+            value={values.scheduleStart}
+            onChange={(hour) =>
+              change(
+                hour === null
+                  ? { ...values, scheduleStart: null, scheduleEnd: null }
+                  : { ...values, scheduleStart: hour, scheduleEnd: values.scheduleEnd ?? (hour + 3) % 24 },
+                "now"
+              )
+            }
+          />
+          <ScheduleHourPick
+            id="date-schedule-end"
+            label="Until"
+            value={values.scheduleEnd}
+            onChange={(hour) =>
+              change(
+                hour === null
+                  ? { ...values, scheduleStart: null, scheduleEnd: null }
+                  : { ...values, scheduleEnd: hour, scheduleStart: values.scheduleStart ?? (hour + 21) % 24 },
+                "now"
+              )
+            }
+          />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {values.scheduleStart === null || values.scheduleEnd === null
+            ? "No schedule: swiping runs when you press Start."
+            : `Swiping starts by itself at ${values.scheduleStart}:00 and stops at ${values.scheduleEnd}:00, on the phone's own clock. Stop inside those hours holds it until the next day.`}
+        </p>
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
@@ -250,6 +306,16 @@ function DatingSettingsTab() {
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <NumberField id="date-swipes-hour" label="Swipes an hour" value={values.swipesPerHour} min={1} max={300} onChange={(value) => set("swipesPerHour", value)} onCommit={commit} />
+          <NumberField
+            id="date-swipes-day"
+            label="Swipes a day"
+            hint="Counted from midnight on the phone's own clock. At this number swiping stops until midnight."
+            value={values.swipesPerDay}
+            min={1}
+            max={2_000}
+            onChange={(value) => set("swipesPerDay", value)}
+            onCommit={commit}
+          />
           <NumberField
             id="date-messages-hour"
             label="Messages an hour"
@@ -390,6 +456,66 @@ function GoogleCalendarCard() {
         }}
       />
     </CollapsibleSettingsCard>
+  )
+}
+
+/**
+ * People I know: one person a line, a name and an age, such as "Sarah, 31".
+ * A card with that name and age is passed without an AI call. The box keeps
+ * what is typed; only a list that reads cleanly is saved, and a line that does
+ * not read is marked and named in a toast when the box is left.
+ */
+function KnownPeopleField({ people, onChange, onCommit }: { people: KnownPerson[]; onChange: (people: KnownPerson[]) => void; onCommit: () => void }) {
+  const [text, setText] = React.useState(() => knownPeopleText(people))
+  const parsed = parseKnownPeople(text)
+  const problem = "problem" in parsed ? parsed.problem : null
+  return (
+    <div className="grid gap-2">
+      <FieldLabel
+        htmlFor="date-known-people"
+        hint="One a line, a name and an age, such as Sarah, 31. A card with that name and age is passed without the AI reading it. Names match whatever their capitals or accents."
+      >
+        People I know
+      </FieldLabel>
+      <Textarea
+        id="date-known-people"
+        rows={1}
+        value={text}
+        aria-invalid={problem ? true : undefined}
+        placeholder="Sarah, 31"
+        onChange={(event) => {
+          setText(event.target.value)
+          const next = parseKnownPeople(event.target.value)
+          if ("people" in next) onChange(next.people)
+        }}
+        onBlur={() => {
+          if (problem) showErrorToast(problem)
+          else onCommit()
+        }}
+      />
+    </div>
+  )
+}
+
+/** An hour of the swiping schedule, or none. Picking one hour when neither is set fills the other three hours away. */
+function ScheduleHourPick({ id, label, value, onChange }: { id: string; label: string; value: number | null; onChange: (hour: number | null) => void }) {
+  return (
+    <div className="grid gap-2">
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Select value={value === null ? "none" : String(value)} onValueChange={(hour) => onChange(hour === "none" ? null : Number(hour))}>
+        <SelectTrigger id={id} className="w-full sm:w-fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">No schedule</SelectItem>
+          {Array.from({ length: 24 }, (_, hour) => (
+            <SelectItem key={hour} value={String(hour)}>
+              {hour}:00
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   )
 }
 

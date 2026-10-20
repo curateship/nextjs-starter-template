@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { DatingDashboard, MatchDetail, ProfileDetail } from "@/lib/api/dating/dashboard"
 import { CHAT_TREND_WORDS } from "@/lib/dating/chat-trend"
-import { CARD_FLAG_WORDS, DRAFT_TONES, MATCH_FLAG_WORDS, OPENER_STYLE_WORDS, STOP_REASON_WORDS, WALK_WORDS, type DraftTone } from "@/lib/dating/options"
+import { BAND_NEEDS_LIKES, CARD_FLAG_WORDS, DRAFT_TONES, MATCH_FLAG_WORDS, OPENER_STYLE_WORDS, STOP_REASON_WORDS, WALK_WORDS, type DraftTone } from "@/lib/dating/options"
 
 import { ChatSettingsCard, DateBriefCard, FactsCard } from "./chat-cards"
 import { DatingPicture } from "./picture"
@@ -155,7 +155,7 @@ function ProfileThoughts({ profile, busy, onReadAgain }: { profile: ProfileDetai
           <>
             <p className="text-2xl font-semibold tabular-nums">
               {profile.score}
-              <span className="text-sm font-normal text-muted-foreground"> out of 100</span>
+              <span className="text-sm font-normal text-muted-foreground"> out of 100{profile.checkedTwice ? ", checked twice" : ""}</span>
             </p>
             <ul className="grid gap-1 text-sm leading-relaxed">
               {profile.read.map((line) => (
@@ -510,16 +510,41 @@ function PhoneCard({ data, busy, actions }: { data: DatingDashboard; busy: strin
   )
 }
 
+function plural(count: number, word: string, many = `${word}s`): string {
+  return `${count} ${count === 1 ? word : many}`
+}
+
+/** "$4.20 for 3 matches, $1.40 a match", or "no matches yet". */
+function costWords(dollarsSpent: number, count: number, each: number | null, word: string, many: string): string {
+  if (each === null) return `no ${many} yet`
+  return `${dollars(dollarsSpent)} for ${plural(count, word, many)}, ${dollars(each)} a ${word}`
+}
+
+function discoveryWords(data: DatingDashboard): string {
+  const { discovery, settings } = data
+  const wanted = `${settings.maxDistanceKm} km, ages ${settings.ageMin} to ${settings.ageMax}`
+  if (discovery.state === "setting") return `Setting Tinder to ${wanted} now.`
+  if (discovery.state === "owed") return `Tinder is set to ${wanted} once the phone is free.`
+  if (discovery.state === "set") return `Tinder set to ${discovery.distance}, ages ${discovery.ageMin} to ${discovery.ageMax}${discovery.at ? `, ${whenWords(discovery.at)}` : ""}.`
+  if (discovery.state === "failed") return `Setting Tinder's distance and ages failed${discovery.at ? ` ${whenWords(discovery.at)}` : ""}: ${discovery.error} Change a setting or press Resume to try again.`
+  return `Not set on Tinder yet. The phone sets ${wanted} once it is paired.`
+}
+
 function SwipingCard({ data }: { data: DatingDashboard }) {
   const phone = data.phone
-  const { settings, hour } = data
+  const { settings, hour, matchCost } = data
   const current = data.walks.current
   const lastFailed = data.walks.recent.find((walk) => walk.status === "failed")
+  const scheduled = settings.scheduleStart !== null && settings.scheduleEnd !== null
   return (
     <InspectorCard storageId="date-rail-swiping" title="Swiping">
       <div className="mt-3 grid gap-3">
         {phone?.running ? (
-          <Line>Running since {whenWords(phone.runningSince)}. The AI swipes and drafts with the phone in your pocket until Stop or a limit.</Line>
+          <Line>
+            Running since {whenWords(phone.runningSince)}
+            {phone.startedBy === "schedule" ? ", started by the schedule" : ""}. The AI swipes and drafts with the phone in your pocket until{" "}
+            {phone.startedBy === "schedule" ? `${settings.scheduleEnd}:00, Stop or a limit` : "Stop or a limit"}.
+          </Line>
         ) : phone?.stopWhy ? (
           <Line>
             Stopped{phone.stopWhyAt ? ` at ${whenWords(phone.stopWhyAt)}` : ""}: {phone.stopWhy}
@@ -528,6 +553,10 @@ function SwipingCard({ data }: { data: DatingDashboard }) {
           <Line>Start lets the AI read cards and like or pass them, at a person's pace, until Stop or a limit.</Line>
         )}
         <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm">
+          <dt className="text-muted-foreground">Swipes today</dt>
+          <dd className="tabular-nums">
+            {hour.swipesToday} of {settings.swipesPerDay}
+          </dd>
           <dt className="text-muted-foreground">Swipes this hour</dt>
           <dd className="tabular-nums">
             {hour.swipes} of {settings.swipesPerHour}
@@ -544,11 +573,23 @@ function SwipingCard({ data }: { data: DatingDashboard }) {
           <dd>score {settings.likeAbove} or more</dd>
           <dt className="text-muted-foreground">Replies</dt>
           <dd>{settings.automate ? "the AI sends" : "you press Send"}</dd>
+          <dt className="text-muted-foreground">Schedule</dt>
+          <dd className="tabular-nums">{scheduled ? `${settings.scheduleStart}:00 to ${settings.scheduleEnd}:00` : "none"}</dd>
           <dt className="text-muted-foreground">Quiet hours</dt>
           <dd className="tabular-nums">
             {settings.quietStart === settings.quietEnd ? "none" : `${settings.quietStart}:00 to ${settings.quietEnd}:00`}
           </dd>
+          <dt className="text-muted-foreground">A match costs</dt>
+          <dd className="text-right tabular-nums">{costWords(matchCost.dollars, matchCost.matches, matchCost.perMatch, "match", "matches")}</dd>
+          <dt className="text-muted-foreground">A date costs</dt>
+          <dd className="text-right tabular-nums">{costWords(matchCost.dollars, matchCost.dates, matchCost.perDate, "date", "dates")}</dd>
         </dl>
+        <Line>
+          {data.learningFrom
+            ? `Learning from ${data.learningFrom} of your swipes: the cards where you liked or passed against the AI's score.`
+            : "Not learning from your swipes yet. Like or pass a card against the AI's score and it is shown as an example next time."}
+        </Line>
+        <Line>{discoveryWords(data)}</Line>
         {current ? (
           <Line>
             <Loader2Icon className="mr-1.5 inline size-4 animate-spin" />
@@ -652,6 +693,9 @@ function TallyCard({ data }: { data: DatingDashboard }) {
           <TabsTrigger value="openers" className="flex-none">
             Openers
           </TabsTrigger>
+          <TabsTrigger value="working" className="flex-none">
+            What's working
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="days" className="grid gap-3">
           {today ? (
@@ -696,6 +740,29 @@ function TallyCard({ data }: { data: DatingDashboard }) {
           <p className="text-xs text-muted-foreground">
             A reply means an answer within three days. Based on {data.openers.reduce((sum, row) => sum + row.sent, 0)} openers so far; a few dozen are needed before the
             numbers mean much.
+          </p>
+        </TabsContent>
+        <TabsContent value="working" className="grid gap-3">
+          {data.bands.length ? (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+              {data.bands.map((band) => (
+                <React.Fragment key={band.from}>
+                  <dt className="text-muted-foreground tabular-nums">
+                    {band.from} to {band.to}
+                  </dt>
+                  <dd className="text-right tabular-nums">
+                    {band.likes < BAND_NEEDS_LIKES
+                      ? `${plural(band.likes, "like")}, not enough yet`
+                      : `${plural(band.matches, "match", "matches")} out of ${plural(band.likes, "like")}, ${band.replied} replied`}
+                  </dd>
+                </React.Fragment>
+              ))}
+            </dl>
+          ) : (
+            <Line>No liked cards with a score yet. Each like is counted here by its score, with whether it became a match.</Line>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Scores in bands of 10. A band needs {BAND_NEEDS_LIKES} likes before its numbers show, so this takes a few weeks. Sample cards are not counted.
           </p>
         </TabsContent>
       </Tabs>
