@@ -219,7 +219,7 @@ export async function extrasToSend(userId: string, picks: ExtraPicks | null | un
   return sendingOrder(found)
 }
 
-/** The record of what was sent, kept on a frame and on each Veo piece. */
+/** The record of what was sent, kept on a frame and on each piece of a shot. */
 export function sentExtras(
   extras: Awaited<ReturnType<typeof extrasToSend>>
 ): SentExtra[] {

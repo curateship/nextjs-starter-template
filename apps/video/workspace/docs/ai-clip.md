@@ -23,20 +23,23 @@ shut. A shut card stays shut for that browser.
 2. **Make a first frame.** Type the scene, such as "Holding a coffee in a
    bright kitchen", and pick how many, 1 to 4. The frame comes out in the
    project's shape and look without asking. A square or 4:3 project asks for
-   9:16 or 16:9, because the picture models and Veo make only those two. The
+   9:16 or 16:9, because the picture models and the video model make only
+   those two. The
    line above the button says which shape and look it will use and what it
    costs: $0.039 a picture, so two are about $0.08. An actor with more than
    one picture on its character sheet shows "Pictures of <name> to send":
    the main picture is picked to start with, and others can be added until
    the person board holds 4 pictures with the extras (see `extras.md`). Each
    frame says under its name which pictures and extras it was made from.
-3. **Make the shot.** Veo brings the picked first frame to life. Pick the
-   length (4 to 32 seconds) and say what happens; a shot longer than 8 seconds
-   asks what happens in each 8 seconds (see `longer-ai-clips.md`). The price
-   shows first: $0.40 a second, so 8 seconds is $3.20. Veo is sent the
-   actor's pictures and the extras the frame was made with, on 8 second
-   pieces only; a 4 or 6 second shot gets their descriptions alone
-   (`extras.md`).
+3. **Make the shot.** Gemini Omni Flash brings the picked first frame to
+   life. Pick the length (4 to 32 seconds), the quality (Draft 360p, Normal
+   720p or Sharp 1080p) and say what happens; a shot longer than 8 seconds
+   asks what happens in each 8 seconds. The price shows first: about $0.10 a
+   second at Normal, so 8 seconds is $0.81 (`longer-ai-clips.md` has the
+   sizes and their prices). The shot is sent the actor's pictures and the
+   extras the frame was made with, at every length (`extras.md`). Each shot
+   then says what it was made with and what it cost, such as "Omni Flash,
+   Normal 720p, $0.81".
 4. **Drag it onto the timeline.** The finished shot drags onto a lane and
    lands where it is dropped, the same way a Media file does. A long shot's
    pieces land end to end on one lane, and one Undo takes them all back.

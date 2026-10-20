@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { VIDEO_QUALITY_IDS } from "@/lib/video/asset-factories"
+
 /**
  * Which AI does what.
  *
@@ -64,6 +66,9 @@ export const aiDefaultsSchema = z
   .object({
     transcriber: z.enum(["openai", "gemini"]).optional(),
     writer: z.enum(["gemini", "openai", "anthropic"]).optional(),
+    // The picture size the last AI shot was made at, so the next one starts
+    // on it. Saved when the shot is asked for.
+    videoQuality: z.enum(VIDEO_QUALITY_IDS).optional(),
   })
   .strict()
 

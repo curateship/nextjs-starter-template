@@ -29,11 +29,12 @@ like it belongs with scene one, instead of drifting from photo to cartoon to 3D.
 
 ## Which tools read it
 
-- **AI videos (Veo):** every clip made for a project gets the style line first
-  in its prompt (`veoPrompt` in
-  `src/server/video/asset-factories/generations.ts`). The style is read when
-  each piece starts, so a piece started after the style changed uses the new
-  one. Veo is sent the first frame and no look picture.
+- **AI videos (Gemini Omni Flash):** every clip made for a project gets the
+  style line in its prompt, right after Google's tags naming the first frame
+  (`videoPrompt` in `src/server/video/asset-factories/generations.ts`). The
+  style is read when each piece starts, so a piece started after the style
+  changed uses the new one. The shot is sent the first frame and no look
+  picture.
 - **First frames:** a first frame is made inside a project, on the editor's
   AI clip panel, so it always takes that project's look without asking. The
   panel says which look it will use before the button is pressed (see

@@ -15,7 +15,7 @@ const GAP = 16
 const WHITE = { r: 255, g: 255, b: 255, alpha: 1 }
 /** Matches the ceiling the other picture resizers work to. */
 const MAX_INPUT_PIXELS = 25_000_000
-/** A reference picture's longest side when it goes to Veo. */
+/** A reference picture's longest side when it goes with an AI shot. */
 const REFERENCE_LONGEST_SIDE = 1536
 
 /** A picture made here rather than read from Media, with the files it shows. */
@@ -90,7 +90,7 @@ export async function buildPersonBoard(
 }
 
 /**
- * A reference picture redrawn small enough for Veo, which takes them inline
+ * A reference picture redrawn small enough for an AI shot, which takes them inline
  * in one request: at most 1536 pixels on its longest side, as a JPEG. Three
  * 4 MB photos come out well under a megabyte each.
  */

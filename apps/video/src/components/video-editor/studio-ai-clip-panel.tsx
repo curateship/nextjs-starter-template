@@ -83,19 +83,25 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   ASSET_ASPECT_RATIOS,
   DEFAULT_IMAGE_MODEL,
+  DEFAULT_VIDEO_QUALITY,
+  pieceCostCents,
+  PRICED_VIDEO_QUALITY,
   PROJECT_SHOTS_FULL_MESSAGE,
   projectClipAspect,
+  shotCostCents,
   shotPieces,
   SHOTS_AT_ONCE_PER_PROJECT,
-  VEO_MODEL,
+  VIDEO_MODEL,
+  VIDEO_QUALITIES,
+  videoQualityName,
   type AssetAspectRatio,
   type ShotLengthSeconds,
+  type VideoQuality,
 } from "@/lib/video/asset-factories"
 import {
   BOARD_FULL_MESSAGE,
   BOARD_TILES,
   boardExtraCount,
-  VEO_REFERENCE_SECONDS,
   type ExtraPicks,
 } from "@/lib/video/extras"
 import {
@@ -157,6 +163,8 @@ export function AiClipPanel() {
   const [framesBusy, setFramesBusy] = React.useState(false)
   const [pickedFrameId, setPickedFrameId] = React.useState<string | null>(null)
   const [lengthSeconds, setLengthSeconds] = React.useState<ShotLengthSeconds>(8)
+  // The size the last shot was made at, until another is picked.
+  const [quality, setQuality] = React.useState<VideoQuality>(DEFAULT_VIDEO_QUALITY)
   const [directions, setDirections] = React.useState<string[]>([""])
   const [directionsInvalid, setDirectionsInvalid] = React.useState(false)
   const [shotBusy, setShotBusy] = React.useState(false)
@@ -180,6 +188,7 @@ export function AiClipPanel() {
         setExtraPicks(picked.picks)
         setFrames(frameList.firstFrames)
         setShots(shotList.generations)
+        setQuality(shotList.quality)
         setLoadFailed(false)
       })
       .catch((error) => {
@@ -193,7 +202,7 @@ export function AiClipPanel() {
   }, [projectId, reloads])
 
   // While a shot is being made, ask again. The spend line moves when one
-  // finishes, because Veo is paid for once the clip is made.
+  // finishes, because a shot is paid for once the clip is made.
   const makingCount = shots?.filter(shotWorking).length ?? 0
   const working = makingCount > 0
   React.useEffect(() => {
@@ -246,7 +255,8 @@ export function AiClipPanel() {
   const projectShape = projectClipAspect(editorAspect)
   const pieces = shotPieces(lengthSeconds).count
   const frameCostCents = aiUnitCostCents(DEFAULT_IMAGE_MODEL, variants)
-  const shotCostCents = aiUnitCostCents(VEO_MODEL, lengthSeconds)
+  const shotCents = shotCostCents(lengthSeconds)
+  const secondCents = pieceCostCents(VIDEO_MODEL, 1)
   // The picked frame's newest shots, as many as can be made at once, so
   // directions tried side by side show side by side.
   const frameShots = frame
@@ -356,6 +366,7 @@ export function AiClipPanel() {
         firstFrameId: frame.id,
         prompts: sent,
         lengthSeconds,
+        quality,
       })
       setShots((current) => [shot, ...(current ?? [])])
       toast.success(
@@ -696,6 +707,28 @@ export function AiClipPanel() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="ai-clip-quality">Quality</Label>
+                <Select
+                  value={quality}
+                  onValueChange={(value) => setQuality(value as VideoQuality)}
+                  disabled={!frame || shotBusy}
+                >
+                  {/* The closed list shows the size alone; the prices are in
+                      the open list and the line below, which have the room. */}
+                  <SelectTrigger id="ai-clip-quality">
+                    <SelectValue>{videoQualityName(quality)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VIDEO_QUALITIES.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.label} {item.id} ·{" "}
+                        {qualityPrice(item.id, secondCents, shotCents)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {directions.slice(0, pieces).map((line, index) => (
                 <div key={index} className="grid min-w-0 gap-2">
                   <Label htmlFor={`ai-clip-direction-${index}`}>
@@ -722,11 +755,7 @@ export function AiClipPanel() {
                 </div>
               ))}
               <p className="text-xs text-muted-foreground">
-                Costs about {formatCents(shotCostCents)}: {lengthSeconds} seconds
-                at {formatCents(aiUnitCostCents(VEO_MODEL, 1))} a second.
-                {frame && shotPieces(lengthSeconds).seconds !== VEO_REFERENCE_SECONDS
-                  ? ` Veo takes the pictures of ${frame.actor.name} and the extras on 8 second shots only, so this one is sent their descriptions.`
-                  : ""}
+                {shotPriceLine(quality, lengthSeconds, secondCents, shotCents)}
               </p>
               <Button
                 type="button"
@@ -1014,8 +1043,52 @@ function shotProgress(shot: GenerationItem) {
 }
 
 /**
- * What Veo was sent beyond the first frame, such as "Mia, 3 pictures on one
- * board, with Green wool jacket, Bright kitchen".
+ * A size's price beside its name in the Quality list. Google prices only
+ * 720p, so Draft says the most it can cost and Sharp says it is unpriced.
+ */
+function qualityPrice(quality: VideoQuality, secondCents: number, shotCents: number) {
+  if (quality === PRICED_VIDEO_QUALITY) {
+    return `${formatCents(secondCents)} a second, ${formatCents(shotCents)}`
+  }
+  return quality === "360p"
+    ? `up to ${formatCents(shotCents)}`
+    : "no price from Google yet"
+}
+
+/** The line under Quality: what this shot costs and what the size means. */
+function shotPriceLine(
+  quality: VideoQuality,
+  lengthSeconds: number,
+  secondCents: number,
+  shotCents: number
+) {
+  const price = `Costs about ${formatCents(shotCents)}: ${lengthSeconds} seconds at ${formatCents(secondCents)} a second.`
+  if (quality === PRICED_VIDEO_QUALITY) return price
+  const unpriced = `Google prices only 720p, so this counts as ${formatCents(shotCents)} against the allowance, and the bill is what Google counts.`
+  return quality === "360p"
+    ? `Draft is quicker and costs less than Normal. ${unpriced}`
+    : `Sharp makes a bigger file and takes longer. ${unpriced}`
+}
+
+/**
+ * What a shot was made with and what it cost, such as "Omni Flash, Normal
+ * 720p, $0.81". One still being made says what it is expected to cost.
+ */
+function shotMadeWith(shot: GenerationItem) {
+  const cost =
+    shot.status === "ready"
+      ? formatCents(shot.charged_cents || shot.expected_cents)
+      : shot.charged_cents
+        ? `${formatCents(shot.charged_cents)} so far`
+        : shot.status === "error"
+          ? "nothing charged"
+          : `about ${formatCents(shot.expected_cents)}`
+  return `${shot.model_name}, ${shot.quality}, ${cost}`
+}
+
+/**
+ * What the shot was sent beyond the first frame, such as "Mia, 3 pictures on
+ * one board, with Green wool jacket, Bright kitchen".
  */
 function shotSent(shot: GenerationItem) {
   const pictures =
@@ -1050,6 +1123,9 @@ function ShotRow({
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1">
       <p className="col-span-2 line-clamp-2 text-xs [overflow-wrap:anywhere]">
         {shot.pieces.map((piece) => piece.prompt).join(" / ")}
+      </p>
+      <p className="col-span-2 line-clamp-2 text-[0.625rem] text-muted-foreground">
+        {shotMadeWith(shot)}
       </p>
       {shot.actor_name ? (
         <p className="col-span-2 line-clamp-2 text-[0.625rem] text-muted-foreground">
