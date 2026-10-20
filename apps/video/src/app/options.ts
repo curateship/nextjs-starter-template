@@ -37,6 +37,12 @@ export const appOptions: AppOptions = {
         label: "YouTube",
         panel: () => import("@/components/video-viral/youtube-settings"),
       }),
+      /** The Pexels API key the editor's B-roll tool searches stock video with. */
+      defineSettingsTab({
+        id: "pexels",
+        label: "Pexels",
+        panel: () => import("@/components/video-editor/pexels-settings"),
+      }),
       /** The words the Voice window's script check flags. */
       defineSettingsTab({
         id: "scripts",
