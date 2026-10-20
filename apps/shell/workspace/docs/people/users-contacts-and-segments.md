@@ -102,6 +102,15 @@ cards for who they are, their tags, the segments they are in right now, and
 every email sent to them, ten at a time. Pressing one of their segments shows it in the list. With
 nobody open the panel says to click a contact.
 
+The page never arrives with nobody open. Opened from the left menu or a
+bookmark, it first goes back to the address it had last time in this browser,
+for this person and this site, and then opens the list's first contact if
+nobody is open. A remembered contact who has since been deleted gives way to
+the first one. A pasted link keeps its own view. Closing the contact with the
+× leaves the panel empty until the next visit. Tyler asked for this on
+19 Oct 2026, for every three-column dashboard (UI standard, "Three-column
+dashboards").
+
 ### The address
 
 The search, the rules (`filter`), the open segment (`segment`), the sort, the

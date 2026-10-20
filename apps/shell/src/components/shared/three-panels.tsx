@@ -9,6 +9,7 @@ import {
   WorkspacePanel,
 } from "@/components/ui/resizable"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useDashboardPlace } from "@/lib/layout/dashboard-place"
 import {
   useBlankSpaceDoubleClick,
   usePanelCollapsed,
@@ -30,9 +31,13 @@ type Side = { label: string; content: React.ReactNode; showLabel: string }
  * at a time, with a pill for each. All three stay mounted and the hidden two
  * are `inert`, so switching keeps each panel's own tab, scroll and loaded
  * lists instead of starting it over.
+ *
+ * `place` is not optional: every three-column dashboard goes back to where it
+ * was and opens its first row on arrival (`useDashboardPlace`).
  */
 export function ThreePanels({
   layoutKey,
+  place,
   left,
   middle,
   right,
@@ -41,6 +46,13 @@ export function ThreePanels({
   children,
 }: {
   layoutKey: string
+  /**
+   * Where the dashboard was, kept under `key`, one of `panelLayoutKey`'s
+   * `…Place` keys: the route's own search, and the ids of the list's rows as
+   * shown, first row first. The open record must be `?open=` and
+   * `showRightFor` its id.
+   */
+  place: { key: string; search: Record<string, unknown>; ids: string[] }
   left: Side
   middle: { label: string; content: React.ReactNode }
   right: Side
@@ -66,11 +78,21 @@ export function ThreePanels({
     if (showMiddleFor) setNarrowView("middle")
   }
   const [rightFor, setRightFor] = React.useState(showRightFor)
+  // A record the dashboard opened by itself on arrival. Nobody pressed it, so
+  // a narrow screen stays on the list rather than jumping to it.
+  const [quietRight, setQuietRight] = React.useState<string>()
   if (showRightFor !== rightFor) {
     setRightFor(showRightFor)
-    if (showRightFor) setNarrowView("right")
+    if (showRightFor && showRightFor === quietRight) setQuietRight(undefined)
+    else if (showRightFor) setNarrowView("right")
     else if (narrowView === "right") setNarrowView("middle")
   }
+  useDashboardPlace({
+    placeKey: place.key,
+    search: place.search,
+    ids: place.ids,
+    onQuietOpen: setQuietRight,
+  })
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)
   const rightRef = React.useRef<PanelImperativeHandle | null>(null)
   const layout = useRememberedPanelLayout(layoutKey)

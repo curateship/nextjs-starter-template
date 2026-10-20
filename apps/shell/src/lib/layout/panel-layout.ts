@@ -82,6 +82,9 @@ export const panelLayoutKey = {
   crmWorkspace: "crm-workspace-horizontal-2",
   // Contacts with its segments, the shell's first `ThreePanels` screen.
   contactsWorkspace: "contacts-workspace-horizontal",
+  // Not a layout: where the Contacts dashboard was, for `useDashboardPlace`.
+  // Every `ThreePanels` screen has one, named `…Place`.
+  contactsPlace: "contacts-workspace-place",
   // One key: the front page editor has no bottom panel, so there is no second
   // group whose height needs remembering.
   frontPageEditor: "front-page-editor-horizontal",

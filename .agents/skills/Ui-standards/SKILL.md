@@ -299,6 +299,26 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
   to see its steps and chat here." With a record open, its header holds the
   status or title on the left, the record's action icons, a cog, then an × that
   closes it.
+- **Every three-column dashboard opens a record on arrival and goes back to
+  where it was.** Tyler, 19 Oct 2026: "Make the first load on contact to load
+  the first contact on the load so that the right sidebar has something to
+  load. And then the dashboard remembers where it was before and make this
+  mandatory for all 3 col dashboards".
+  - Opened at its bare address, from the left menu or a bookmark, the
+    dashboard returns to the address it last had: its search, filters, picked
+    group, sort, page and open record. An address that already says
+    something, such as a shared link, wins.
+  - With no record open after that, the first row of the list opens, so the
+    right panel is never empty on arrival. A remembered record that has gone
+    gives way to the first row.
+  - Only on arrival: closing the record afterwards leaves the empty right
+    panel above.
+  - On a narrow screen the list stays in front; the record opened by itself
+    waits behind its pill.
+  - The place is kept per browser, per person and per site, and the open
+    record is `?open=<id>`. `ThreePanels` will not draw without its `place`
+    (`src/lib/layout/dashboard-place.ts`), so a dashboard built on it cannot
+    leave this out.
 - **Settings.** The cog in a panel's header opens the settings window for the
   panel's subject (a project, a team, a type). A card's own small options open
   a `CardDropdown` from the card's cog or +.

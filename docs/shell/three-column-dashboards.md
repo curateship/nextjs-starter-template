@@ -16,6 +16,18 @@ All of them are in `src/components/shared/`.
   under a row of pills, and all three stay mounted. `showRightFor` switches a
   narrow screen to the right panel when a record opens; `showMiddleFor` does
   the same for the middle.
+- **`ThreePanels`' `place`, read by `useDashboardPlace`
+  (`src/lib/layout/dashboard-place.ts`).** Required. It takes a key from
+  `panelLayoutKey` named `…Place`, the route's own `useSearch()`, and the ids
+  of the list's rows as shown. Arriving at the bare address, it puts back the
+  address this dashboard last had in this browser, kept per person and per
+  site. Then, with nothing in `?open=`, it opens the first row. A remembered
+  record that is no longer in the list gives way to the first row, while a
+  link's own `?open=` is left alone even when it is on another page. Both
+  moves replace the address, so Back still leaves the page. The record it
+  opens by itself does not switch a narrow screen to the right panel. The
+  open record has to be `?open=` and `showRightFor` its id, which is how
+  Contacts already worked.
 - **`panel-card.tsx`, `PanelCard` and `PanelHeading`.** The grey folding card
   of a side panel, which remembers being open or shut, with a muted note after
   its title, a badge, a button of its own and a footer of buttons.
