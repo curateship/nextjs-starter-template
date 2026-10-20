@@ -1,59 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { SegmentsPage } from "@/components/broadcasts/segments-page"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getSegmentLoadErrorMessage,
-  loadSegmentsPage,
-} from "@/lib/api/people/contact-segments"
-import {
-  readDirection,
-  readOneOf,
-  readPage,
-  readSearchText,
-} from "@/lib/nav/list-search"
 import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 
-export const SEGMENT_SORT_COLUMNS = [
-  "name",
-  "kind",
-  "people",
-  "updated",
-] as const
-
-type SegmentsSearch = {
-  open?: string
-  q?: string
-  sort?: (typeof SEGMENT_SORT_COLUMNS)[number]
-  direction?: "asc" | "desc"
-  page?: number
-}
-
 /**
- * `?open=<id>` names one segment to open; the rest is the list state, so Back
- * returns the exact list you left. Every value is checked before use.
+ * Segments live on the Contacts dashboard now (Tyler, 19 Oct 2026: "We have
+ * to combine both the contacts and segment into one 3 col dashboard"). This
+ * address stays so old links and bookmarks still land: `?open=<id>` opens the
+ * contacts list with that segment applied, and a bare address opens the list.
  */
-function readSegmentsSearch(
-  search: Record<string, unknown>
-): SegmentsSearch {
-  return {
-    ...readOpenSearch(search),
-    q: readSearchText(search.q),
-    sort: readOneOf(search.sort, SEGMENT_SORT_COLUMNS),
-    direction: readDirection(search.direction),
-    page: readPage(search.page),
-  }
-}
-
 export const Route = createFileRoute("/_authenticated/admin/segments")({
-  validateSearch: readSegmentsSearch,
-  loader: () => loadSegmentsPage(),
-  component: AdminSegmentsRoute,
-  errorComponent: routeErrorComponent(getSegmentLoadErrorMessage),
+  validateSearch: readOpenSearch,
+  beforeLoad: ({ search }) => {
+    throw redirect({
+      to: "/admin/contacts",
+      search: search.open ? { segment: search.open } : {},
+      replace: true,
+    })
+  },
 })
-
-function AdminSegmentsRoute() {
-  const { open } = Route.useSearch()
-
-  return <SegmentsPage initial={Route.useLoaderData()} openId={open} />
-}
