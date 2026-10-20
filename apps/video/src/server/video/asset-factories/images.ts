@@ -13,7 +13,10 @@ import { getFromR2 } from "@/server/media/storage"
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"])
 
-export type ImageReference = { storagePath: string; mimeType: string }
+/** A Media file, or a picture made for this request such as a person board. */
+export type ImageReference =
+  | { storagePath: string; mimeType: string }
+  | { bytes: Uint8Array; mimeType: string }
 
 type GeminiImageResponse = {
   candidates?: Array<{
@@ -32,6 +35,7 @@ type OpenAiImageResponse = {
 }
 
 async function referenceBytes(reference: ImageReference) {
+  if ("bytes" in reference) return reference.bytes
   const object = await getFromR2(reference.storagePath)
   const bytes = await object.Body?.transformToByteArray()
   if (!bytes?.byteLength) throw new Error("Reference image could not be read")

@@ -685,6 +685,8 @@ async function insertProjectCopy(
         sourceViralVideoTitle: source.sourceViralVideoTitle,
         sourceViralProjectId: source.sourceViralProjectId,
         spendLimitCents: source.spendLimitCents,
+        // And the extras picked in its AI clip panel, for the same reason.
+        extraPicks: source.extraPicks,
         // The copy is its own project from version 1; it shares nothing with
         // the original after this moment, and the background worker makes its
         // picture on the next pass, the same as any new project.

@@ -61,6 +61,10 @@ costs and may refuse its people setting from some countries.
   of the one before, so the picture lines up. The movement can still change
   speed at a join, and the sound starts afresh, because Google sees a
   picture and not the clip.
+- **Every piece keeps the person:** each 8 second piece is sent the same
+  person board and backdrop as the frame the shot started from, not only the
+  last frame of the piece before, so the actor and the outfit hold across the
+  joins (`extras.md`).
 - **One row per shot:** the AI clip panel shows a longer shot as one row
   with its full length. While it is being made the row says so.
 - **Putting it on the timeline:** dragging the shot lays every piece on one

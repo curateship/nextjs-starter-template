@@ -52,15 +52,7 @@ type FormState = {
   lookProjectId: string
 }
 
-/**
- * Whose look a new picture is made in. The Actors dashboard offers every
- * project; the editor's AI clip panel makes the actor for the project that is
- * open, so it is not asked.
- */
-export type ActorLook = { projects: ProjectItem[] } | { projectId: string }
-
-function startingForm(actor: ActorItem | null, look: ActorLook): FormState {
-  const lookProjectId = "projectId" in look ? look.projectId : ""
+function startingForm(actor: ActorItem | null): FormState {
   if (!actor) {
     return {
       name: "",
@@ -69,7 +61,7 @@ function startingForm(actor: ActorItem | null, look: ActorLook): FormState {
       status: "active",
       tags: "",
       referenceMediaUrl: "",
-      lookProjectId,
+      lookProjectId: "",
     }
   }
   return {
@@ -79,18 +71,18 @@ function startingForm(actor: ActorItem | null, look: ActorLook): FormState {
     status: actor.status,
     tags: actor.tags.join(", "),
     referenceMediaUrl: actor.reference_media_url ?? "",
-    lookProjectId,
+    lookProjectId: "",
   }
 }
 
 /**
- * Making or editing an actor. Shared by the Actors dashboard and the AI clip
- * panel, so an actor made in either place is made the same way.
+ * Making or editing an actor on the Actors dashboard. The editor's AI clip
+ * panel makes one from its own smaller box (`ai-clip-new-actor.tsx`).
  */
 export function ActorFormDialog({
   open,
   actor,
-  look,
+  projects,
   onClose,
   onSaved,
   onSheetChanged,
@@ -98,7 +90,8 @@ export function ActorFormDialog({
   open: boolean
   /** Null makes a new actor. */
   actor: ActorItem | null
-  look: ActorLook
+  /** The projects whose look a new picture can be made in. */
+  projects: ProjectItem[]
   onClose: () => void
   /** Handed the saved actor and whether its picture was made again. */
   onSaved: (actor: ActorItem, reposed: boolean) => void
@@ -109,7 +102,7 @@ export function ActorFormDialog({
   onSheetChanged?: (actor: ActorItem) => void
 }) {
   const [form, setForm] = React.useState<FormState>(() =>
-    startingForm(actor, look)
+    startingForm(actor)
   )
   const [busy, setBusy] = React.useState(false)
   const [regenerate, setRegenerate] = React.useState(false)
@@ -119,13 +112,13 @@ export function ActorFormDialog({
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
-      setForm(startingForm(actor, look))
+      setForm(startingForm(actor))
       setRegenerate(false)
     }
   }
 
   const dirty =
-    JSON.stringify(form) !== JSON.stringify(startingForm(actor, look))
+    JSON.stringify(form) !== JSON.stringify(startingForm(actor))
 
   async function submit(shouldRegenerate: boolean) {
     if (!form.name.trim() || !form.prompt.trim()) {
@@ -214,15 +207,13 @@ export function ActorFormDialog({
                     disabled={busy}
                   />
                 </div>
-                {"projects" in look ? (
-                  <ProjectLookSelect
-                    id="actor-look"
-                    projects={look.projects}
-                    value={form.lookProjectId}
-                    onChange={(lookProjectId) => setForm({ ...form, lookProjectId })}
-                    disabled={busy}
-                  />
-                ) : null}
+                <ProjectLookSelect
+                  id="actor-look"
+                  projects={projects}
+                  value={form.lookProjectId}
+                  onChange={(lookProjectId) => setForm({ ...form, lookProjectId })}
+                  disabled={busy}
+                />
               </CardContent>
             </Card>
           </DialogBody>

@@ -5,14 +5,14 @@ import {
   FilmIcon,
   GalleryHorizontalIcon,
   Loader2Icon,
-  PlusIcon,
   RotateCwIcon,
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { ActorFormDialog } from "@/components/video-assets/actor-form-dialog"
+import { AiClipExtras } from "@/components/video-editor/ai-clip-extras"
+import { AiClipNewActor } from "@/components/video-editor/ai-clip-new-actor"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -50,6 +50,13 @@ import { useDragToTimeline } from "@/components/video-editor/use-drag-to-timelin
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import { listActors, type ActorItem } from "@/lib/api/video/actors"
 import {
+  getExtraErrorMessage,
+  listExtras,
+  readProjectExtraPicks,
+  saveProjectExtraPicks,
+  type ExtraItem,
+} from "@/lib/api/video/extras"
+import {
   createCarouselFromFirstFrames,
   getCarouselErrorMessage,
   type CarouselFormat,
@@ -74,18 +81,23 @@ import {
 import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
-  actorPicturesPerRequest,
   ASSET_ASPECT_RATIOS,
   DEFAULT_IMAGE_MODEL,
   PROJECT_SHOTS_FULL_MESSAGE,
   projectClipAspect,
   shotPieces,
   SHOTS_AT_ONCE_PER_PROJECT,
-  tooManyActorPicturesMessage,
   VEO_MODEL,
   type AssetAspectRatio,
   type ShotLengthSeconds,
 } from "@/lib/video/asset-factories"
+import {
+  BOARD_FULL_MESSAGE,
+  BOARD_TILES,
+  boardExtraCount,
+  VEO_REFERENCE_SECONDS,
+  type ExtraPicks,
+} from "@/lib/video/extras"
 import {
   formatCents,
   isProjectSpendLimitMessage,
@@ -124,13 +136,15 @@ export function AiClipPanel() {
   const editorAspect = useEditorSelector((state) => state.aspect)
 
   const [actors, setActors] = React.useState<ActorItem[] | null>(null)
+  const [extras, setExtras] = React.useState<ExtraItem[] | null>(null)
+  // The extras picked, kept on the project so a series keeps its outfit.
+  const [extraPicks, setExtraPicks] = React.useState<ExtraPicks>({})
   const [frames, setFrames] = React.useState<FirstFrameItem[] | null>(null)
   const [shots, setShots] = React.useState<GenerationItem[] | null>(null)
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [reloads, setReloads] = React.useState(0)
 
   const [pickedActorId, setPickedActorId] = React.useState<string | null>(null)
-  const [makingActor, setMakingActor] = React.useState(false)
   const [scene, setScene] = React.useState("")
   const [sceneInvalid, setSceneInvalid] = React.useState(false)
   const [variants, setVariants] = React.useState(2)
@@ -156,10 +170,14 @@ export function AiClipPanel() {
       listActors(),
       listFirstFrames(projectId),
       listGenerations(projectId),
+      listExtras(),
+      readProjectExtraPicks(projectId),
     ])
-      .then(([actorList, frameList, shotList]) => {
+      .then(([actorList, frameList, shotList, extraList, picked]) => {
         if (!active) return
         setActors(actorList.actors.filter((actor) => actor.status === "active"))
+        setExtras(extraList.extras)
+        setExtraPicks(picked.picks)
         setFrames(frameList.firstFrames)
         setShots(shotList.generations)
         setLoadFailed(false)
@@ -210,11 +228,9 @@ export function AiClipPanel() {
     frames?.[0] ??
     null
   // Which of the actor's sheet pictures a first frame is drawn from: the
-  // main picture until others are picked, and never more than the model takes.
-  const pictureLimit = actorPicturesPerRequest(
-    DEFAULT_IMAGE_MODEL,
-    Boolean(project.look?.picture_url)
-  )
+  // main picture until others are picked. They share the person board with
+  // the clothing, hair and prop picked, which holds 4.
+  const boardExtras = boardExtraCount(extraPicks)
   const pictureIds = (() => {
     if (!actor) return []
     const picked =
@@ -261,11 +277,24 @@ export function AiClipPanel() {
       })
       return
     }
-    if (pictureIds.length >= pictureLimit) {
-      reportError(tooManyActorPicturesMessage(pictureLimit))
+    if (pictureIds.length + boardExtras >= BOARD_TILES) {
+      reportError(BOARD_FULL_MESSAGE)
       return
     }
     setPickedPictures({ actorId: actor.id, ids: [...pictureIds, pictureId] })
+  }
+
+  // The pick shows at once and saves behind it. A refused save puts back what
+  // was there, unless another pick has been made since.
+  async function changeExtras(next: ExtraPicks) {
+    const before = extraPicks
+    setExtraPicks(next)
+    try {
+      await saveProjectExtraPicks(projectId, next)
+    } catch (error) {
+      setExtraPicks((current) => (current === next ? before : current))
+      reportError(getExtraErrorMessage(error))
+    }
   }
 
   async function makeFrames() {
@@ -285,6 +314,7 @@ export function AiClipPanel() {
         prompt: scene,
         variants,
         sheetPictureIds: pictureIds,
+        extras: extraPicks,
         aspectRatio: projectShape ? null : chosenShape,
       })
       setFrames((current) => [...result.firstFrames, ...(current ?? [])])
@@ -422,7 +452,9 @@ export function AiClipPanel() {
     )
   }
 
-  const loading = (actors === null || frames === null || shots === null) && !loadFailed
+  const loading =
+    (actors === null || frames === null || shots === null || extras === null) &&
+    !loadFailed
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -479,14 +511,25 @@ export function AiClipPanel() {
                   photo if you have one.
                 </p>
               )}
-              <Button
-                type="button"
-                variant={actors?.length ? "outline" : "default"}
-                onClick={() => setMakingActor(true)}
+              <AiClipExtras
+                extras={extras ?? []}
+                picks={extraPicks}
+                angles={pictureIds.length}
+                disabled={framesBusy}
+                onChange={(next) => void changeExtras(next)}
+                onRefuse={reportError}
               >
-                <PlusIcon />
-                New actor
-              </Button>
+                <AiClipNewActor
+                  projectId={projectId}
+                  primary={!actors?.length}
+                  onMade={(made) => {
+                    setActors((current) => [made, ...(current ?? [])])
+                    setPickedActorId(made.id)
+                    refreshSpend()
+                    toast.success(`${made.name} is ready. Now make a first frame.`)
+                  }}
+                />
+              </AiClipExtras>
             </Step>
 
             <Step number={2} title="Make a first frame" waiting={!actor}>
@@ -547,7 +590,9 @@ export function AiClipPanel() {
                     ))}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Up to {pictureLimit} at once. The main picture goes first.
+                    These and the clothing, hair and prop picked in Extras go
+                    on one board of up to {BOARD_TILES} pictures. The main
+                    picture goes first.
                   </p>
                 </div>
               ) : null}
@@ -679,6 +724,9 @@ export function AiClipPanel() {
               <p className="text-xs text-muted-foreground">
                 Costs about {formatCents(shotCostCents)}: {lengthSeconds} seconds
                 at {formatCents(aiUnitCostCents(VEO_MODEL, 1))} a second.
+                {frame && shotPieces(lengthSeconds).seconds !== VEO_REFERENCE_SECONDS
+                  ? ` Veo takes the pictures of ${frame.actor.name} and the extras on 8 second shots only, so this one is sent their descriptions.`
+                  : ""}
               </p>
               <Button
                 type="button"
@@ -767,20 +815,6 @@ export function AiClipPanel() {
           </div>
         )}
       </ScrollArea>
-
-      <ActorFormDialog
-        open={makingActor}
-        actor={null}
-        look={{ projectId }}
-        onClose={() => setMakingActor(false)}
-        onSaved={(made) => {
-          setActors((current) => [made, ...(current ?? [])])
-          setPickedActorId(made.id)
-          setMakingActor(false)
-          refreshSpend()
-          toast.success(`${made.name} is ready. Now make a first frame.`)
-        }}
-      />
 
       <ConfirmDialog
         open={deleting !== null}
@@ -921,6 +955,11 @@ function FrameRow({
               From {frame.made_from.join(", ")}
             </span>
           ) : null}
+          {frame.made_with.length ? (
+            <span className="line-clamp-2 text-[0.625rem] text-muted-foreground">
+              With {frame.made_with.join(", ")}
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="flex items-center justify-between gap-2">
@@ -975,6 +1014,21 @@ function shotProgress(shot: GenerationItem) {
 }
 
 /**
+ * What Veo was sent beyond the first frame, such as "Mia, 3 pictures on one
+ * board, with Green wool jacket, Bright kitchen".
+ */
+function shotSent(shot: GenerationItem) {
+  const pictures =
+    shot.board_pictures > 1
+      ? `${shot.board_pictures} pictures on one board`
+      : shot.board_pictures === 1
+        ? "1 picture"
+        : "words only"
+  const extras = shot.extras.length ? `, with ${shot.extras.join(", ")}` : ""
+  return `${shot.actor_name}, ${pictures}${extras}`
+}
+
+/**
  * One shot: being made, failed with a reason, or ready to drag. Its direction
  * sits on top, so shots tried side by side can be told apart.
  */
@@ -997,6 +1051,11 @@ function ShotRow({
       <p className="col-span-2 line-clamp-2 text-xs [overflow-wrap:anywhere]">
         {shot.pieces.map((piece) => piece.prompt).join(" / ")}
       </p>
+      {shot.actor_name ? (
+        <p className="col-span-2 line-clamp-2 text-[0.625rem] text-muted-foreground">
+          {shotSent(shot)}
+        </p>
+      ) : null}
       {shot.status === "ready" && first ? (
         <button
           type="button"

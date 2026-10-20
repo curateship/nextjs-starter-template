@@ -33,6 +33,7 @@ import { createOwnedProject } from "@/server/video/projects"
 import {
   videoActors,
   videoAiGenerations,
+  videoExtras,
   videoFirstFrames,
   videoProjects,
 } from "@/server/video/schema"
@@ -50,6 +51,20 @@ vi.mock("@/server/media/storage", async (importOriginal) => ({
   getFromR2: async () => ({
     Body: { transformToByteArray: async () => new Uint8Array([137, 80, 78, 71]) },
   }),
+}))
+
+// The pictures in these tests are not real images, so the board and the
+// shrinking are stood in for: each picture read is its own bytes, a board is
+// one marker, and shrinking hands the bytes back. person-board.test.ts runs
+// the real ones.
+vi.mock("@/server/video/asset-factories/person-board", () => ({
+  readStoredPicture: async (storagePath: string) => new TextEncoder().encode(storagePath),
+  buildPersonBoard: async (tiles: { id: string }[]) => ({
+    bytes: new TextEncoder().encode(`board:${tiles.map((tile) => tile.id).join(",")}`),
+    mimeType: "image/jpeg",
+    tileMediaIds: tiles.map((tile) => tile.id),
+  }),
+  shrinkReference: async (bytes: Uint8Array) => ({ bytes, mimeType: "image/jpeg" }),
 }))
 
 const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0
@@ -668,9 +683,210 @@ describe("the project's style in a Veo request", () => {
     expect(sent).toHaveLength(1)
     const body = JSON.parse(sent[0]) as { instances: { prompt: string }[] }
     expect(body.instances[0].prompt).toBe(
-      veoPrompt("Flat illustration, warm palette", "Waves crash")
+      veoPrompt("Flat illustration, warm palette", "Waves crash", {
+        lines: ["The person is: Actor."],
+        references: { board: false, backdrop: false },
+      })
     )
     const [row] = await pieces()
     expect(row.operationName).toBe("operations/started")
+  })
+})
+
+describe("what Veo is sent beyond the first frame", () => {
+  async function insertPicture(id: string) {
+    const timestamp = now()
+    await database.insert(customShellMedia).values({
+      id,
+      workspaceId,
+      userId: user.id,
+      filename: `${id}.png`,
+      originalName: `${id}.png`,
+      fileSize: 8,
+      mimeType: "image/png",
+      fileType: "image",
+      storagePath: `${user.id}/${id}.png`,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+  }
+
+  /** The seeded frame, made from two angles, a jacket and a kitchen. */
+  async function seedDressedFrame() {
+    const project = await seedFirstFrame()
+    for (const id of ["side", "jacket", "kitchen"]) await insertPicture(id)
+    const timestamp = now()
+    await database.insert(videoExtras).values([
+      { id: "extra-jacket", userId: user.id, kind: "clothing", name: "Green jacket", prompt: "green wool jacket", imageMediaId: "jacket", createdAt: timestamp, updatedAt: timestamp },
+      { id: "extra-kitchen", userId: user.id, kind: "backdrop", name: "Kitchen", prompt: "bright kitchen, white tiles", imageMediaId: "kitchen", createdAt: timestamp, updatedAt: timestamp },
+    ])
+    await database
+      .update(videoFirstFrames)
+      .set({
+        actorMediaIds: ["media-1", "side"],
+        extras: [
+          { kind: "backdrop", extra_id: "extra-kitchen", media_id: "kitchen" },
+          { kind: "clothing", extra_id: "extra-jacket", media_id: "jacket" },
+        ],
+      })
+      .where(eq(videoFirstFrames.id, "frame-1"))
+    return project
+  }
+
+  function captureRequests() {
+    const sent: string[] = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: string | URL, init?: RequestInit) => {
+        sent.push(String(init?.body))
+        return Response.json({ name: "operations/started" })
+      })
+    )
+    return sent
+  }
+
+  type VeoBody = {
+    instances: {
+      prompt: string
+      image: unknown
+      referenceImages?: {
+        image: { inlineData: { mimeType: string; data: string } }
+        referenceType: string
+      }[]
+    }[]
+    parameters: unknown
+  }
+
+  const decoded = (data: string) => Buffer.from(data, "base64").toString()
+
+  it("records the actor, the board's pictures, then the backdrop, on every piece", async () => {
+    const project = await seedDressedFrame()
+    const shot = await createGeneration(user.id, {
+      projectId: project.id,
+      firstFrameId: "frame-1",
+      prompts: ["Pours a coffee", "Drinks it"],
+      lengthSeconds: 16,
+    })
+    for (const row of await pieces()) {
+      expect(row.actorId).toBe("actor-1")
+      expect(row.referenceMediaIds).toEqual(["media-1", "side", "jacket", "kitchen"])
+      expect(row.extras.map((extra) => extra.kind)).toEqual(["clothing", "backdrop"])
+    }
+    expect(shot.actor_name).toBe("Actor")
+    expect(shot.board_pictures).toBe(3)
+    expect(shot.extras).toEqual(["Green jacket", "Kitchen"])
+  })
+
+  it("sends a 4 or 6 second piece the words and no pictures", async () => {
+    const project = await seedDressedFrame()
+    const shot = await createGeneration(user.id, {
+      projectId: project.id,
+      firstFrameId: "frame-1",
+      prompts: ["Pours a coffee"],
+      lengthSeconds: 6,
+    })
+    const [row] = await pieces()
+    expect(row.referenceMediaIds).toEqual([])
+    expect(shot.board_pictures).toBe(0)
+
+    const sent = captureRequests()
+    await videoGenerationTick()
+    const body = JSON.parse(sent[0]) as VeoBody
+    expect(body.instances[0].referenceImages).toBeUndefined()
+    expect(body.instances[0].prompt).toBe(
+      veoPrompt(null, "Pours a coffee", {
+        lines: [
+          "The person is: Actor.",
+          "Wearing: green wool jacket.",
+          "The place is: bright kitchen, white tiles.",
+        ],
+        references: null,
+      })
+    )
+  })
+
+  it("sends the person board and the backdrop as reference pictures on an 8 second piece", async () => {
+    const project = await seedDressedFrame()
+    await createGeneration(user.id, {
+      projectId: project.id,
+      firstFrameId: "frame-1",
+      prompts: ["Pours a coffee"],
+      lengthSeconds: 8,
+    })
+    const sent = captureRequests()
+    await videoGenerationTick()
+
+    const body = JSON.parse(sent[0]) as VeoBody
+    const references = body.instances[0].referenceImages ?? []
+    expect(references.map((reference) => reference.referenceType)).toEqual(["asset", "asset"])
+    expect(references.map((reference) => decoded(reference.image.inlineData.data))).toEqual([
+      "board:media-1,side,jacket",
+      `${user.id}/kitchen.png`,
+    ])
+    expect(body.instances[0].prompt.split("\n\n")).toEqual([
+      "Pours a coffee",
+      "The person is: Actor.\nWearing: green wool jacket.\nThe place is: bright kitchen, white tiles.",
+      "The first reference picture is a board of one person from several sides and what they wear and hold: show that one person, never the board. The last reference picture is the place.",
+      "Use the supplied image as the exact first frame. Do not add captions or on-screen text.",
+    ])
+  })
+
+  it("leaves out an extra deleted since, and keeps its picture on the record", async () => {
+    const project = await seedDressedFrame()
+    await createGeneration(user.id, {
+      projectId: project.id,
+      firstFrameId: "frame-1",
+      prompts: ["Pours a coffee"],
+      lengthSeconds: 8,
+    })
+    await database.delete(videoExtras).where(eq(videoExtras.id, "extra-jacket"))
+    const sent = captureRequests()
+    await videoGenerationTick()
+
+    const body = JSON.parse(sent[0]) as VeoBody
+    expect(body.instances[0].prompt).not.toContain("Wearing")
+    expect(
+      decoded(body.instances[0].referenceImages![0].image.inlineData.data)
+    ).toBe("board:media-1,side,jacket")
+    const { generations } = await listGenerations(user.id, project.id)
+    expect(generations[0].extras).toEqual(["a removed extra", "Kitchen"])
+  })
+
+  it("sends a piece asked for before this change exactly what it always sent", async () => {
+    const project = await seedDressedFrame()
+    await createGeneration(user.id, {
+      projectId: project.id,
+      firstFrameId: "frame-1",
+      prompts: ["Waves crash"],
+      lengthSeconds: 8,
+    })
+    // What the migration leaves on a row written before it.
+    await database
+      .update(videoAiGenerations)
+      .set({ actorId: null, referenceMediaIds: [], extras: [] })
+    const sent = captureRequests()
+    await videoGenerationTick()
+
+    expect(JSON.parse(sent[0])).toEqual({
+      instances: [
+        {
+          prompt: veoPrompt(null, "Waves crash"),
+          image: {
+            inlineData: {
+              mimeType: "image/png",
+              data: Buffer.from(new Uint8Array([137, 80, 78, 71])).toString("base64"),
+            },
+          },
+        },
+      ],
+      parameters: {
+        aspectRatio: "9:16",
+        durationSeconds: "8",
+        resolution: "720p",
+        personGeneration: "allow_adult",
+      },
+    })
+    const { generations } = await listGenerations(user.id, project.id)
+    expect(generations[0].actor_name).toBeNull()
   })
 })

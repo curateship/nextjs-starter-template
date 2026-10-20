@@ -254,6 +254,11 @@ card in the rail on `/admin/settings`.
   on 14 Oct 2026. It is `UnderlineTabs` in
   `apps/project/src/components/project/task-header-controls.tsx`. No other
   screen copies it without his say-so.
+- **A second exception: Video's Extras box** in the AI clip panel (Clothing,
+  Backdrop, Props, Hair and makeup) uses the same underlined tabs with the
+  search as a magnifying glass at the row's right end. Tyler asked for it on
+  19 Oct 2026 by pointing at the Project tabs ("use this type of tabs"). It is
+  `apps/video/src/components/video-editor/ai-clip-extras.tsx`.
 - **The same header's bottom line is the one border that names its own shade**
   (`border-b-muted-foreground/10`, `project-tasks-panel.tsx`). At the Divider
   lines setting Tyler keeps (5), it vanished against the List's grey table
