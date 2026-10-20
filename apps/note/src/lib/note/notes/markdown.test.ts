@@ -1,43 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import type { NoteField } from "@/lib/note/notes/fields"
 import { markdownFileName, markdownToNote, noteToMarkdown } from "@/lib/note/notes/markdown"
 
 /**
- * Markdown out and back in keeps the fields, the checklist and the table, and
- * anything in a file that does not fit the folder is named, never lost quietly.
+ * Markdown out and back in keeps the title, tags, priority, the checklist and
+ * the table, and anything in a file a note does not keep is named, never lost
+ * quietly.
  */
-
-const fields: NoteField[] = [
-  { id: "f1", key: "author", name: "Author", type: "text", options: [], remind: false, position: 0 },
-  { id: "f2", key: "rating", name: "Rating", type: "number", options: [], remind: false, position: 1 },
-  {
-    id: "f3",
-    key: "status",
-    name: "Status",
-    type: "select",
-    options: [
-      { id: "o1", label: "To read", colour: "grey" },
-      { id: "o2", label: "Done", colour: "green" },
-    ],
-    remind: false,
-    position: 2,
-  },
-  {
-    id: "f4",
-    key: "topics",
-    name: "Topics",
-    type: "multi_select",
-    options: [
-      { id: "t1", label: "Pricing", colour: "blue" },
-      { id: "t2", label: "Sales, B2B", colour: "red" },
-    ],
-    remind: false,
-    position: 3,
-  },
-  { id: "f5", key: "finished", name: "Finished", type: "date", options: [], remind: true, position: 4 },
-  { id: "f6", key: "owned", name: "Owned", type: "checkbox", options: [], remind: false, position: 5 },
-]
 
 const body = {
   type: "doc",
@@ -93,24 +62,19 @@ const body = {
 }
 
 describe("noteToMarkdown", () => {
-  const values = {
-    author: "Ursula Le Guin",
-    rating: 4.5,
-    status: "o2",
-    topics: ["t1", "t2"],
-    finished: "2026-10-20",
-    owned: true,
-  }
-  const file = noteToMarkdown({ title: "The Dispossessed", body, fields, values })
+  const file = noteToMarkdown({
+    title: "The Dispossessed",
+    body,
+    tags: ["books", "sci-fi"],
+    priority: "high",
+    sourceUrl: "https://youtu.be/jNQXAC9IVRw",
+  })
 
-  it("writes the fields between --- lines", () => {
+  it("writes the title, tags, priority and link between --- lines", () => {
     expect(file).toContain('title: "The Dispossessed"')
-    expect(file).toContain('Author: "Ursula Le Guin"')
-    expect(file).toContain("Rating: 4.5")
-    expect(file).toContain('Status: "Done"')
-    expect(file).toContain('Topics: ["Pricing","Sales, B2B"]')
-    expect(file).toContain('Finished: "2026-10-20"')
-    expect(file).toContain("Owned: true")
+    expect(file).toContain('tags: ["books","sci-fi"]')
+    expect(file).toContain('priority: "High"')
+    expect(file).toContain('source: "https://youtu.be/jNQXAC9IVRw"')
   })
 
   it("writes checklists, tables, callouts and note links as Markdown", () => {
@@ -122,10 +86,11 @@ describe("noteToMarkdown", () => {
     expect(file).toContain("[[Reading list]]")
   })
 
-  it("comes back in with the same fields and checklist", () => {
-    const back = markdownToNote("whatever.md", file, fields)
+  it("comes back in with the same title, tags, priority and checklist", () => {
+    const back = markdownToNote("whatever.md", file)
     expect(back.title).toBe("The Dispossessed")
-    expect(back.values).toEqual(values)
+    expect(back.tags).toEqual(["books", "sci-fi"])
+    expect(back.priority).toBe("high")
     expect(back.problems).toEqual([])
     const json = JSON.stringify(back.body)
     expect(json).toContain('"taskItem"')
@@ -135,32 +100,28 @@ describe("noteToMarkdown", () => {
 })
 
 describe("markdownToNote", () => {
-  it("names a header that is not a field and a value that does not fit", () => {
-    const back = markdownToNote(
-      "Notes on pricing.md",
-      '---\nMood: happy\nRating: lots\nStatus: Abandoned\n---\n\nHello',
-      fields
-    )
+  it("names a header a note does not keep and a priority that does not fit", () => {
+    const back = markdownToNote("Notes on pricing.md", "---\nMood: happy\npriority: urgent\n---\n\nHello")
     expect(back.title).toBe("Notes on pricing")
-    expect(back.problems).toEqual([
-      "“Mood” is not a field in this folder",
-      "“Rating” did not fit the Rating field",
-      "“Status” did not fit the Status field",
-    ])
-    expect(back.values).toEqual({})
+    expect(back.problems).toEqual(["“Mood” is not something a note keeps", "“priority” did not fit High, Normal or Low"])
+    expect(back.priority).toBe("normal")
   })
 
-  it("reads plain values the way other tools write them", () => {
-    const back = markdownToNote(
-      "x.md",
-      "---\nStatus: done\nTopics: [Pricing]\nOwned: yes\nFinished: 2026-10-20 14:30\n---\nBody",
-      fields
-    )
-    expect(back.values).toEqual({ status: "o2", topics: ["t1"], owned: true, finished: "2026-10-20T14:30" })
+  it("reads tags the way other tools write them", () => {
+    expect(markdownToNote("x.md", "---\ntags: [Pricing, Sales]\n---\nBody").tags).toEqual(["pricing", "sales"])
+    expect(markdownToNote("x.md", "---\ntags: pricing, sales\n---\nBody").tags).toEqual(["pricing", "sales"])
+  })
+
+  it("reads an empty header as no header", () => {
+    const back = markdownToNote("Empty.md", "---\n---\nJust text")
+    expect(back.title).toBe("Empty")
+    expect(back.problems).toEqual([])
+    expect(JSON.stringify(back.body)).toContain("Just text")
+    expect(JSON.stringify(back.body)).not.toContain("---")
   })
 
   it("reads a file with no header as a plain note", () => {
-    const back = markdownToNote("Plain.md", "# Hi\n\n- [ ] task", fields)
+    const back = markdownToNote("Plain.md", "# Hi\n\n- [ ] task")
     expect(back.title).toBe("Plain")
     expect(JSON.stringify(back.body)).toContain('"taskItem"')
   })

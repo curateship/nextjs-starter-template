@@ -20,24 +20,24 @@ export const appOptions: AppOptions = {
   settings: {
     tabs: [
       /**
-       * The one line every post's plan is written for (Tyler, 19 Oct 2026:
-       * "One line for the whole app"). A pointer, never the component: this
-       * file is read by the server during boot.
+       * The one line every imported note's plan is written for (Tyler, 19 Oct
+       * 2026: "One line for the whole app"), and the Save from x.com button.
+       * A pointer, never the component: this file is read by the server
+       * during boot.
        */
       defineSettingsTab({
-        id: "posts",
-        label: "Posts",
-        panel: () => import("@/components/note-posts/posts-settings"),
+        id: "library",
+        label: "Library",
+        panel: () => import("@/components/note-library/library-settings-tab"),
       }),
     ],
   },
   notifications: {
     /**
-     * A video notice ("Ready to analyse", "Analysed", "Failed") opens
-     * `/videos?open=<id>` with that video picked, a post's opens
-     * `/posts?open=<id>`, and a note's reminder opens `/notes?open=<id>`.
-     * What each is about is kept on the server beside the
-     * notice, so it is asked for once per page of notices. A failed read only
+     * A note's notice ("Ready to analyse", "Analysed", "Failed") opens that
+     * note in its library, `/library/<id>?open=<note>`. Which note each is
+     * about is kept on the server beside the notice, so it is asked for once
+     * per page of notices. A failed read only
      * loses the links; the rows are already drawn from their own words.
      */
     detailsFor: async (notices) => {

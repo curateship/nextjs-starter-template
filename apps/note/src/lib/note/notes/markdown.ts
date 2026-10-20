@@ -2,24 +2,16 @@ import type { JSONContent } from "@tiptap/core"
 import { MarkdownManager } from "@tiptap/markdown"
 
 import { EMPTY_BODY, noteBodyExtensions } from "@/lib/note/notes/body"
-import {
-  fieldValueText,
-  hasValue,
-  isNoteDate,
-  parseFieldValue,
-  sameName,
-  type NoteField,
-  type NoteFieldValue,
-  type NoteFieldValues,
-} from "@/lib/note/notes/fields"
+import { NOTE_PRIORITIES, PRIORITY_LABEL, TAG_MAX, TAGS_PER_NOTE, type NotePriority } from "@/lib/note/library/notes"
 
 /**
  * A note as a Markdown file, and a Markdown file as a note.
  *
- * The fields go at the top between `---` lines, one `Name: value` a line,
- * which is the header Obsidian and most Markdown tools read. Values are
- * written as JSON (strings in quotes, lists in brackets), which those tools
- * also read, so a file exported here comes back in unchanged.
+ * The title, tags, priority and the link it was imported from go at the top
+ * between `---` lines, one `name: value` a line, which is the header Obsidian
+ * and most Markdown tools read. Values are written as JSON (strings in quotes,
+ * lists in brackets), which those tools also read, so a file exported here
+ * comes back in unchanged.
  *
  * Checklists become `- [ ]`, tables become Markdown tables, toggles and
  * callouts become quotes, a link to another note becomes `[[Title]]`, and
@@ -35,15 +27,14 @@ function markdown() {
 export function noteToMarkdown(note: {
   title: string
   body: JSONContent
-  fields: NoteField[]
-  values: NoteFieldValues
+  tags: string[]
+  priority: NotePriority
+  sourceUrl: string | null
 }) {
   const lines = [`title: ${JSON.stringify(note.title)}`]
-  for (const field of note.fields) {
-    const value = note.values[field.key]
-    if (!hasValue(value)) continue
-    lines.push(`${headerKey(field.name)}: ${headerValue(field, value)}`)
-  }
+  if (note.tags.length) lines.push(`tags: ${JSON.stringify(note.tags)}`)
+  if (note.priority !== "normal") lines.push(`priority: ${JSON.stringify(PRIORITY_LABEL[note.priority])}`)
+  if (note.sourceUrl) lines.push(`source: ${JSON.stringify(note.sourceUrl)}`)
   const body = markdown().serialize(note.body).trim()
   return `---\n${lines.join("\n")}\n---\n\n${body}\n`
 }
@@ -54,62 +45,46 @@ export function markdownFileName(title: string) {
   return `${(safe || "Untitled").slice(0, 120)}.md`
 }
 
-function headerKey(name: string) {
-  return /^[\p{L}\p{N} _-]+$/u.test(name) ? name : JSON.stringify(name)
-}
-
-function headerValue(field: NoteField, value: NoteFieldValue) {
-  switch (field.type) {
-    case "number":
-      return String(value)
-    case "checkbox":
-      return "true"
-    case "multi_select":
-      return JSON.stringify(
-        (value as string[])
-          .map((id) => field.options.find((option) => option.id === id)?.label)
-          .filter(Boolean)
-      )
-    default:
-      return JSON.stringify(fieldValueText(field, value))
-  }
-}
-
 type ImportedNote = {
   title: string
   body: JSONContent
-  values: NoteFieldValues
-  /** Every header line that did not become a field value, said in plain words. */
+  tags: string[]
+  priority: NotePriority
+  /** Every header line that was not kept, said in plain words. */
   problems: string[]
 }
 
 /**
- * One file read back into a note for a folder with these fields. A header
- * name that matches no field, or a value that does not fit its field, is
- * named in `problems` so the screen can list it, never dropped silently.
+ * One file read back into a note. A header name a note does not keep, or a
+ * value that does not fit, is named in `problems` so the screen can list it,
+ * never dropped silently. The source link is read as plain text in the file
+ * and not imported again.
  */
-export function markdownToNote(fileName: string, text: string, fields: NoteField[]): ImportedNote {
+export function markdownToNote(fileName: string, text: string): ImportedNote {
   const { header, rest } = splitHeader(text.replace(/^\u{FEFF}/u, "").replace(/\r\n?/g, "\n"))
   const problems: string[] = []
-  const values: NoteFieldValues = {}
   let title = fileName.replace(/\.(md|markdown)$/i, "").trim()
+  let tags: string[] = []
+  let priority: NotePriority = "normal"
 
   for (const [name, raw] of header) {
-    if (sameName(name, "title")) {
+    const key = name.trim().toLowerCase()
+    if (key === "title") {
       if (typeof raw === "string" && raw.trim()) title = raw.trim()
-      continue
+    } else if (key === "tags") {
+      const list = Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(",") : []
+      tags = [...new Set(list.map((tag) => tag.replace(/\s+/g, " ").trim().toLowerCase().slice(0, TAG_MAX)).filter(Boolean))]
+      if (tags.length > TAGS_PER_NOTE) {
+        problems.push(`Only the first ${TAGS_PER_NOTE} tags were kept`)
+        tags = tags.slice(0, TAGS_PER_NOTE)
+      }
+    } else if (key === "priority") {
+      const found = NOTE_PRIORITIES.find((each) => PRIORITY_LABEL[each].toLowerCase() === String(raw).trim().toLowerCase())
+      if (found) priority = found
+      else problems.push(`“${name}” did not fit High, Normal or Low`)
+    } else if (key !== "source") {
+      problems.push(`“${name}” is not something a note keeps`)
     }
-    const field = fields.find((each) => sameName(each.name, name))
-    if (!field) {
-      problems.push(`“${name}” is not a field in this folder`)
-      continue
-    }
-    const value = importValue(field, raw)
-    if (value === undefined) {
-      problems.push(`“${name}” did not fit the ${field.name} field`)
-      continue
-    }
-    if (value !== null) values[field.key] = value
   }
 
   let body: JSONContent
@@ -119,14 +94,15 @@ export function markdownToNote(fileName: string, text: string, fields: NoteField
     problems.push("The text could not be read, so the note is empty")
     body = EMPTY_BODY
   }
-  return { title: title.slice(0, 200) || "Untitled", body, values, problems }
+  return { title: title.slice(0, 200) || "Untitled", body, tags, priority, problems }
 }
 
 type HeaderValue = string | number | boolean | string[] | null
 
 function splitHeader(text: string): { header: [string, HeaderValue][]; rest: string } {
   if (!text.startsWith("---\n")) return { header: [], rest: text }
-  const end = text.indexOf("\n---", 4)
+  // From 3, so an empty header ("---" straight after "---") is found too.
+  const end = text.indexOf("\n---", 3)
   if (end < 0) return { header: [], rest: text }
   const header: [string, HeaderValue][] = []
   for (const line of text.slice(4, end).split("\n")) {
@@ -168,44 +144,4 @@ function readHeaderValue(text: string): HeaderValue {
   }
   if (/^-?\d+(\.\d+)?$/.test(text)) return Number(text)
   return text
-}
-
-/** A header value turned into a field value; undefined when it does not fit. */
-function importValue(field: NoteField, raw: HeaderValue): NoteFieldValue | null | undefined {
-  let candidate: unknown = raw
-  switch (field.type) {
-    case "checkbox":
-      candidate =
-        raw === true || (typeof raw === "string" && /^(yes|y|true|1|x)$/i.test(raw.trim()))
-          ? true
-          : raw === false || raw === null || (typeof raw === "string" && /^(no|n|false|0)$/i.test(raw.trim()))
-            ? null
-            : "?"
-      break
-    case "select": {
-      if (raw === null) return null
-      const option = field.options.find((each) => sameName(each.label, String(raw)))
-      if (!option) return undefined
-      candidate = option.id
-      break
-    }
-    case "multi_select": {
-      if (raw === null) return null
-      const labels = Array.isArray(raw) ? raw : String(raw).split(",").map((part) => part.trim())
-      const ids = labels.map((label) => field.options.find((each) => sameName(each.label, label))?.id)
-      if (ids.some((id) => !id)) return undefined
-      candidate = ids
-      break
-    }
-    case "date": {
-      if (raw === null) return null
-      const text = String(raw).trim().replace(" ", "T")
-      candidate = isNoteDate(text) ? text : isNoteDate(text.slice(0, 16)) ? text.slice(0, 16) : text
-      break
-    }
-    default:
-      candidate = raw === null ? null : String(raw)
-  }
-  const parsed = parseFieldValue(field, candidate)
-  return parsed.ok ? parsed.value : undefined
 }

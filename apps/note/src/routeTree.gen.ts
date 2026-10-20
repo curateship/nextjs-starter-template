@@ -32,9 +32,6 @@ import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
-import { Route as AuthenticatedNotesRouteImport } from './routes/_authenticated/notes'
-import { Route as AuthenticatedPostsRouteImport } from './routes/_authenticated/posts'
-import { Route as AuthenticatedVideosRouteImport } from './routes/_authenticated/videos'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
@@ -61,6 +58,8 @@ import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
+import { Route as AuthenticatedLibraryIndexRouteImport } from './routes/_authenticated/library.index'
+import { Route as AuthenticatedLibraryLibraryIdRouteImport } from './routes/_authenticated/library.$libraryId'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
@@ -190,21 +189,6 @@ const AuthenticatedChangelogRoute = AuthenticatedChangelogRouteImport.update({
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedNotesRoute = AuthenticatedNotesRouteImport.update({
-  id: '/notes',
-  path: '/notes',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedPostsRoute = AuthenticatedPostsRouteImport.update({
-  id: '/posts',
-  path: '/posts',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedVideosRoute = AuthenticatedVideosRouteImport.update({
-  id: '/videos',
-  path: '/videos',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
@@ -354,6 +338,18 @@ const AuthenticatedChangelogWhatsNewRoute =
     path: '/whats-new',
     getParentRoute: () => AuthenticatedChangelogRoute,
   } as any)
+const AuthenticatedLibraryIndexRoute =
+  AuthenticatedLibraryIndexRouteImport.update({
+    id: '/library/',
+    path: '/library/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedLibraryLibraryIdRoute =
+  AuthenticatedLibraryLibraryIdRouteImport.update({
+    id: '/library/$libraryId',
+    path: '/library/$libraryId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   id: '/api/auth/google',
   path: '/api/auth/google',
@@ -467,9 +463,6 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
-  '/notes': typeof AuthenticatedNotesRoute
-  '/posts': typeof AuthenticatedPostsRoute
-  '/videos': typeof AuthenticatedVideosRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -494,11 +487,13 @@ export interface FileRoutesByFullPath {
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/library/$libraryId': typeof AuthenticatedLibraryLibraryIdRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
+  '/library/': typeof AuthenticatedLibraryIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
@@ -534,9 +529,6 @@ export interface FileRoutesByTo {
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
-  '/notes': typeof AuthenticatedNotesRoute
-  '/posts': typeof AuthenticatedPostsRoute
-  '/videos': typeof AuthenticatedVideosRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -561,11 +553,13 @@ export interface FileRoutesByTo {
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/library/$libraryId': typeof AuthenticatedLibraryLibraryIdRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
+  '/library': typeof AuthenticatedLibraryIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
@@ -605,9 +599,6 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
-  '/_authenticated/notes': typeof AuthenticatedNotesRoute
-  '/_authenticated/posts': typeof AuthenticatedPostsRoute
-  '/_authenticated/videos': typeof AuthenticatedVideosRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -632,11 +623,13 @@ export interface FileRoutesById {
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/_authenticated/library/$libraryId': typeof AuthenticatedLibraryLibraryIdRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
+  '/_authenticated/library/': typeof AuthenticatedLibraryIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
@@ -676,9 +669,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/changelog'
     | '/home'
-    | '/notes'
-    | '/posts'
-    | '/videos'
     | '/workspaces'
     | '/api/health'
     | '/admin/ai'
@@ -703,11 +693,13 @@ export interface FileRouteTypes {
     | '/admin/traffic'
     | '/admin/users'
     | '/changelog/whats-new'
+    | '/library/$libraryId'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin/'
     | '/changelog/'
+    | '/library/'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
     | '/admin/automations/templates'
@@ -743,9 +735,6 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/account'
     | '/home'
-    | '/notes'
-    | '/posts'
-    | '/videos'
     | '/workspaces'
     | '/api/health'
     | '/admin/ai'
@@ -770,11 +759,13 @@ export interface FileRouteTypes {
     | '/admin/traffic'
     | '/admin/users'
     | '/changelog/whats-new'
+    | '/library/$libraryId'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin'
     | '/changelog'
+    | '/library'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
     | '/admin/automations/templates'
@@ -813,9 +804,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/changelog'
     | '/_authenticated/home'
-    | '/_authenticated/notes'
-    | '/_authenticated/posts'
-    | '/_authenticated/videos'
     | '/_authenticated/workspaces'
     | '/api/health'
     | '/_authenticated/admin/ai'
@@ -840,11 +828,13 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
     | '/_authenticated/changelog/whats-new'
+    | '/_authenticated/library/$libraryId'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
+    | '/_authenticated/library/'
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/automations_/$automationId'
     | '/_authenticated/admin/automations_/templates'
@@ -1054,27 +1044,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/notes': {
-      id: '/_authenticated/notes'
-      path: '/notes'
-      fullPath: '/notes'
-      preLoaderRoute: typeof AuthenticatedNotesRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/posts': {
-      id: '/_authenticated/posts'
-      path: '/posts'
-      fullPath: '/posts'
-      preLoaderRoute: typeof AuthenticatedPostsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/videos': {
-      id: '/_authenticated/videos'
-      path: '/videos'
-      fullPath: '/videos'
-      preLoaderRoute: typeof AuthenticatedVideosRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/workspaces': {
       id: '/_authenticated/workspaces'
       path: '/workspaces'
@@ -1256,6 +1225,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/changelog/whats-new'
       preLoaderRoute: typeof AuthenticatedChangelogWhatsNewRouteImport
       parentRoute: typeof AuthenticatedChangelogRoute
+    }
+    '/_authenticated/library/': {
+      id: '/_authenticated/library/'
+      path: '/library'
+      fullPath: '/library/'
+      preLoaderRoute: typeof AuthenticatedLibraryIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/library/$libraryId': {
+      id: '/_authenticated/library/$libraryId'
+      path: '/library/$libraryId'
+      fullPath: '/library/$libraryId'
+      preLoaderRoute: typeof AuthenticatedLibraryLibraryIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/api/auth/google': {
       id: '/api/auth/google'
@@ -1489,10 +1472,9 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
-  AuthenticatedNotesRoute: typeof AuthenticatedNotesRoute
-  AuthenticatedPostsRoute: typeof AuthenticatedPostsRoute
-  AuthenticatedVideosRoute: typeof AuthenticatedVideosRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
+  AuthenticatedLibraryLibraryIdRoute: typeof AuthenticatedLibraryLibraryIdRoute
+  AuthenticatedLibraryIndexRoute: typeof AuthenticatedLibraryIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -1500,10 +1482,9 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
-  AuthenticatedNotesRoute: AuthenticatedNotesRoute,
-  AuthenticatedPostsRoute: AuthenticatedPostsRoute,
-  AuthenticatedVideosRoute: AuthenticatedVideosRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
+  AuthenticatedLibraryLibraryIdRoute: AuthenticatedLibraryLibraryIdRoute,
+  AuthenticatedLibraryIndexRoute: AuthenticatedLibraryIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

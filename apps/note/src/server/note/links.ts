@@ -1,7 +1,7 @@
 import { lookup } from "node:dns/promises"
 import { BlockList, isIP } from "node:net"
 
-import { NOTE_SAYS } from "@/lib/note/videos"
+import { LIBRARY_SAYS } from "@/lib/note/library/notes"
 
 /**
  * Which pasted links are videos, and which addresses yt-dlp may be pointed at.
@@ -81,10 +81,10 @@ export function parseVideoLink(raw: string): VideoLink {
   try {
     parsed = new URL(raw.trim())
   } catch {
-    throw new Error(NOTE_SAYS.notALink)
+    throw new Error(LIBRARY_SAYS.notALink)
   }
   if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
-    throw new Error(NOTE_SAYS.notALink)
+    throw new Error(LIBRARY_SAYS.notALink)
   }
 
   const host = parsed.hostname.toLowerCase()
@@ -104,7 +104,7 @@ export function parseVideoLink(raw: string): VideoLink {
         readId(parsed.searchParams.get("v") ?? undefined, YOUTUBE_ID)
       )
     }
-    throw new Error(NOTE_SAYS.notALink)
+    throw new Error(LIBRARY_SAYS.notALink)
   }
   if (host === "tiktok.com" || host.endsWith(".tiktok.com")) {
     // tiktok.com/@creator/video/<id>. The shortened vm.tiktok.com/<code> and
@@ -127,12 +127,12 @@ export function parseVideoLink(raw: string): VideoLink {
     // instagram.com/reel/<id>, /reels/<id>, /p/<id>, /tv/<id>.
     const kind = segments[0]?.toLowerCase()
     if (kind !== "reel" && kind !== "reels" && kind !== "p" && kind !== "tv") {
-      throw new Error(NOTE_SAYS.notALink)
+      throw new Error(LIBRARY_SAYS.notALink)
     }
     return known(url, "instagram", readId(segments[1], INSTAGRAM_ID))
   }
 
-  if (!isPublicHostName(host)) throw new Error(NOTE_SAYS.notALink)
+  if (!isPublicHostName(host)) throw new Error(LIBRARY_SAYS.notALink)
   return { url, source: null, platformVideoId: null }
 }
 
@@ -149,7 +149,7 @@ function known(url: string, source: KnownSource, platformVideoId: string): Video
 function readId(value: string | undefined, allowed: RegExp): string {
   const id = (value ?? "").trim()
   if (!id || id.length > 100 || !allowed.test(id)) {
-    throw new Error(NOTE_SAYS.notALink)
+    throw new Error(LIBRARY_SAYS.notALink)
   }
   return id
 }
@@ -186,10 +186,10 @@ export async function checkLinkHost(
   try {
     addresses = await resolve(host)
   } catch {
-    throw new Error(NOTE_SAYS.notALink)
+    throw new Error(LIBRARY_SAYS.notALink)
   }
   if (!addresses.length || addresses.some(isPrivateAddress)) {
-    throw new Error(NOTE_SAYS.notALink)
+    throw new Error(LIBRARY_SAYS.notALink)
   }
 }
 
