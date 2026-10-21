@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { adminGet, adminPost } from "@/server/guards"
-import { actorFor, editorGet, editorPost, guestOnlyDescription, guestProjectView } from "@/server/social/project-guests"
+import { editorGet, editorPost } from "@/server/social/editor-guards"
+import { actorFor, guestOnlyDescription, guestProjectView } from "@/server/social/project-guests"
 import {
   addAccountToProject,
   addProjectNetwork,

@@ -90,7 +90,7 @@ owner sees it under the account on the Comments and Posts tabs.
 ## How the server keeps a guest inside one project
 
 Every endpoint the guest page calls uses `editorGet` or `editorPost`
-(`src/server/social/project-guests.ts`), which let in a signed-in person or a
+(`src/server/social/editor-guards.ts`), which let in a signed-in person or a
 browser holding a guest sign-in. The handler then asks who the call acts as:
 
 - **A record's project first.** `actorFor` takes a project id. The record
@@ -127,8 +127,14 @@ server settings only, never in the database or the page.
 
 - `src/server/social/project-handoff.ts`: checking a note, the guest
   sign-in, the cookie and the handoff answer.
-- `src/server/social/project-guests.ts`: `editorGet`, `editorPost`, who a
-  call acts as, and the guest's limits.
+- `src/server/social/editor-guards.ts`: `editorGet` and `editorPost`, in a
+  file of their own like the shell's `guards.ts`. A server call's middleware
+  goes to the browser with it, and only its `.server()` part is left out.
+  While they sat in `project-guests.ts` they took that file's database and
+  sign-in code (argon2) into the browser, and no Promo page responded to a
+  click (fixed 21 Oct 2026). Keep anything else out of this file.
+- `src/server/social/project-guests.ts`: who a call acts as, and the guest's
+  limits.
 - `src/routes/handoff/project.ts`: the handoff address.
 - `src/routes/guest/promo.$projectId.tsx` and `src/routes/guest/refused.tsx`:
   the guest page and the refusal page.

@@ -3,13 +3,12 @@ import { z } from "zod"
 
 import { AI_TEXT_PROVIDERS } from "@/lib/ai/ai-models"
 import { adminPost } from "@/server/guards"
+import { editorGet, editorPost } from "@/server/social/editor-guards"
 import {
   actorFor,
   actorForComment,
   actorForComments,
   actorForJobs,
-  editorGet,
-  editorPost,
   guestSenderName,
   onlyGuestProject,
   refuseGuestDelete,

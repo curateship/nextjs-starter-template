@@ -1,10 +1,7 @@
-import { createMiddleware } from "@tanstack/react-start"
 import { eq, inArray } from "drizzle-orm"
 
-import { requireAppOrigin } from "@/server/auth/origin"
 import { findCurrentUser, isAdmin } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { ensureBackgroundTicker } from "@/server/ticker"
 import type { JobCounts } from "@/server/social/jobs"
 import { findBrowserGuests } from "@/server/social/project-handoff"
 import {
@@ -24,8 +21,9 @@ import {
  * the shell's `adminGet`/`adminPost`, which a guest never passes because a
  * guest has no session.
  *
- * - `editorGet` and `editorPost` let in a signed-in person or a browser
- *   holding a guest sign-in, and hand the handler both on `context.caller`.
+ * - `editorGet` and `editorPost` (`editor-guards.ts`) let in a signed-in
+ *   person or a browser holding a guest sign-in, and hand the handler both
+ *   on `context.caller`.
  *   `editorPost` also checks the request came from this app's own pages, as
  *   `adminPost` does.
  * - The handler then asks `actorFor(caller, projectId)`, or one of the
@@ -47,24 +45,11 @@ export type EditorCaller = {
   guests: PromoProjectGuestRow[]
 }
 
-async function findEditorCaller(): Promise<EditorCaller> {
+export async function findEditorCaller(): Promise<EditorCaller> {
   const [user, guests] = await Promise.all([findCurrentUser(), findBrowserGuests()])
   if (!user && guests.length === 0) throw new Error("AUTH_REQUIRED")
   return { user, guests }
 }
-
-/** Reads an admin or a guest may make. */
-export const editorGet = createMiddleware({ type: "function" }).server(async ({ next }) => {
-  ensureBackgroundTicker()
-  return next({ context: { caller: await findEditorCaller() } })
-})
-
-/** Changes an admin or a guest may make. */
-export const editorPost = createMiddleware({ type: "function" }).server(async ({ next }) => {
-  ensureBackgroundTicker()
-  requireAppOrigin()
-  return next({ context: { caller: await findEditorCaller() } })
-})
 
 /** Who a call acts as, and the guest behind it if there is one. */
 export type EditorActor = {

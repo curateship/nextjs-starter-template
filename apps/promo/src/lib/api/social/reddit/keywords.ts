@@ -2,13 +2,12 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { adminPost } from "@/server/guards"
+import { editorGet, editorPost } from "@/server/social/editor-guards"
 import {
   actorFor,
   actorForFind,
   actorForFinds,
   actorForKeyword,
-  editorGet,
-  editorPost,
 } from "@/server/social/project-guests"
 import {
   addKeyword,
