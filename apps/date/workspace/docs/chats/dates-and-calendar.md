@@ -21,11 +21,11 @@ A window with the day, the time and the place, typed by the member. Clear the ti
 
 ## The Dates tab's month
 
-The Calendar screen until 20 Oct 2026, when Tyler folded every Dating page into the dashboard. The Dates tab shows a month with each date that has a time underlined, opening on the month of the next date. Pressing a marked day opens that lead. Dates still waiting for a time are the rows under it. Google Calendar's connection is in the cog's settings window.
+The Calendar screen until 20 Oct 2026, when Tyler folded every Dating page into the dashboard. The Dates tab shows a full-width month with each date that has a time written in its day, "7:00 PM Sofia", opening on the month of the next date (`src/components/dating/dates-month.tsx`). Pressing a date opens that lead. Dates still waiting for a time are the rows under it. Google Calendar's connection is in the cog's settings window.
 
 ## Google Calendar
 
-Optional, in the Dating settings under Google Calendar. One way only, as Tyler chose: Date adds, moves and removes its own event for each date with a time, and never reads the calendar.
+Optional, in the Dating settings under Google Calendar, one per profile: each profile connects its own, and a date goes to the calendar of the profile its chat belongs to. Connect remembers which profile asked, in the handshake's cookie, so Google's return saves it there. One way only, as Tyler chose: Date adds, moves and removes its own event for each date with a time, and never reads the calendar.
 
 - **The event** is "Date with Noor", at the place, two hours long, described "Added by Date."
 - **Connect** goes to Google and back. It asks only for the permission to manage calendar events, and keeps a refresh token encrypted with the server's key. `state` and a PKCE secret in a ten-minute cookie stop anyone else's link from connecting their calendar to this account.

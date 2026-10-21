@@ -165,15 +165,14 @@ export type DeadMatch = { id: string; theirName: string; photoId: string | null;
  * matched, not marked over, not moved to text, not a sample. A match nobody
  * ever wrote to counts from when it matched.
  */
-export async function deadMatches(userId: string, workspaceId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<DeadMatch[]> {
+export async function deadMatches(accountId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<DeadMatch[]> {
   const before = new Date(now.getTime() - DEAD_AFTER_MS)
   const rows = await db
     .select()
     .from(dateMatches)
     .where(
       and(
-        eq(dateMatches.userId, userId),
-        eq(dateMatches.workspaceId, workspaceId),
+        eq(dateMatches.accountId, accountId),
         eq(dateMatches.sample, false),
         isNull(dateMatches.unmatchedAt),
         isNull(dateMatches.endedAt),
@@ -194,18 +193,17 @@ export async function deadMatches(userId: string, workspaceId: string, db: Custo
  * skipped and counted.
  */
 export async function clearDeadMatches(
-  userId: string,
-  workspaceId: string,
+  account: { id: string; userId: string },
   matchIds: string[],
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<{ queued: string[]; skipped: string[] }> {
   if (!matchIds.length) return { queued: [], skipped: [] }
-  const dead = new Map((await deadMatches(userId, workspaceId, db, now)).map((match) => [match.id, match]))
+  const dead = new Map((await deadMatches(account.id, db, now)).map((match) => [match.id, match]))
   const rows = await db
     .select()
     .from(dateMatches)
-    .where(and(eq(dateMatches.userId, userId), inArray(dateMatches.id, matchIds)))
+    .where(and(eq(dateMatches.accountId, account.id), inArray(dateMatches.id, matchIds)))
   if (rows.some((match) => match.sample)) throw new Error(SAMPLE_WORDS)
   const queued: string[] = []
   const skipped: string[] = []
@@ -215,7 +213,7 @@ export async function clearDeadMatches(
       skipped.push(id)
       continue
     }
-    await queueWalk({ userId, phoneId: row.phoneId, kind: "unmatch", input: { matchId: row.id }, askedBy: "member" }, db, now)
+    await queueWalk({ userId: account.userId, accountId: account.id, phoneId: row.phoneId, kind: "unmatch", input: { matchId: row.id }, askedBy: "member" }, db, now)
     queued.push(id)
   }
   return { queued, skipped }

@@ -3,9 +3,9 @@ import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { swipedWord } from "@/lib/dating/options"
+import { ownAccount, requestAccount } from "@/server/dating/accounts"
 import { draftReply, reviewOwnProfile, scoreCard } from "@/server/dating/ai"
 import {
-  dashboardPhone,
   loadDashboard,
   loadMatchDetail,
   loadProfileDetail,
@@ -22,11 +22,11 @@ import { userGet, userPost } from "@/server/guards"
 import { checkWalkAllowed, queueWalk } from "@/server/tinder/jobs"
 import { dateMatches, dateProfiles } from "@/server/tinder/schema"
 import { createOutgoingMessage, settleMessage } from "@/server/tinder/store"
-import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 /**
  * The Dating dashboard's server functions. Every one is behind sign-in and
- * acts only on the member's own cards, matches and phone. Buttons on a sample
+ * acts only on the member's own cards, matches and phone, and the dashboard
+ * itself, the phone's walks, Start and Stop on the open profile. Buttons on a sample
  * card or conversation are refused here, so nothing about a sample can ever
  * reach a phone or the AI.
  */
@@ -38,7 +38,7 @@ const SAMPLE_WORDS = "This is a sample, so nothing was sent to a phone."
 const loadDashboardFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }): Promise<DatingDashboard> =>
-    inWords(async () => loadDashboard(context.user.id, await workspaceIdForRequest(context.user.id)))
+    inWords(async () => loadDashboard(await requestAccount(context.user.id)))
   )
 
 export function loadDatingDashboard() {
@@ -95,7 +95,7 @@ const swipeFn = createServerFn({ method: "POST" })
       if (card.sample) throw new Error(SAMPLE_WORDS)
       if (card.swipe !== "none") throw new Error(`${card.name} was already ${swipedWord(card.swipe)}.`)
       if (!card.phoneId) throw new Error("No phone read this card, so it cannot be swiped.")
-      await queueWalk({ userId: context.user.id, phoneId: card.phoneId, kind: data.decision, input: { profileId: card.id }, askedBy: "member" })
+      await queueWalk({ userId: context.user.id, accountId: card.accountId, phoneId: card.phoneId, kind: data.decision, input: { profileId: card.id }, askedBy: "member" })
     })
   )
 
@@ -104,11 +104,11 @@ export function swipeCard(profileId: string, decision: "like" | "pass") {
   return swipeFn({ data: { profileId, decision } })
 }
 
-/** Puts one of the member's own walks on the phone's list. */
+/** Puts one of the member's own walks on the open profile's phone's list. */
 async function memberWalk(userId: string, kind: "read-card" | "read-matches" | "read-own-profile") {
-  const workspaceId = await workspaceIdForRequest(userId)
-  const phone = await dashboardPhone(userId, workspaceId)
-  await queueWalk({ userId, phoneId: phone.id, kind, askedBy: "member" })
+  const account = await requestAccount(userId)
+  if (!account.phoneId) throw new Error("No phone is paired for this profile yet. Pair one in the dashboard's Phone panel first.")
+  await queueWalk({ userId, accountId: account.id, phoneId: account.phoneId, kind, askedBy: "member" })
 }
 
 const readCardFn = createServerFn({ method: "POST" })
@@ -147,7 +147,7 @@ const matchWalkFn = createServerFn({ method: "POST" })
       if (match.sample) throw new Error(SAMPLE_WORDS)
       if (!match.phoneId) throw new Error("No phone read this match.")
       if (match.unmatchedAt) throw new Error(`You already unmatched ${match.theirName}.`)
-      await queueWalk({ userId: context.user.id, phoneId: match.phoneId, kind: data.kind, input: { matchId: match.id }, askedBy: "member" })
+      await queueWalk({ userId: context.user.id, accountId: match.accountId, phoneId: match.phoneId, kind: data.kind, input: { matchId: match.id }, askedBy: "member" })
     })
   )
 
@@ -172,7 +172,7 @@ const sendFn = createServerFn({ method: "POST" })
       const text = data.text.trim()
       // A send the phone may not take now is refused before anything is
       // written, so the draft stays and nothing "not sent" is left in the chat.
-      await checkWalkAllowed({ userId: context.user.id, phoneId: match.phoneId, kind: "send-message" })
+      await checkWalkAllowed({ userId: context.user.id, accountId: match.accountId, phoneId: match.phoneId, kind: "send-message" })
       // The AI's own words, sent as they are, carry its "suggests a date" mark.
       const proposesDate = match.draftProposesDate && text === match.draft.trim()
       // The draft it started from, so "sent unchanged" can be counted: the
@@ -184,7 +184,7 @@ const sendFn = createServerFn({ method: "POST" })
         openerStyle: match.draftKind === "opener" && match.draft && match.messagesFromThem + match.messagesFromUs === 0 ? match.draftOpenerStyle : null,
       })
       try {
-        await queueWalk({ userId: context.user.id, phoneId: match.phoneId, kind: "send-message", input: { matchId: match.id, messageId }, askedBy: "member" })
+        await queueWalk({ userId: context.user.id, accountId: match.accountId, phoneId: match.phoneId, kind: "send-message", input: { matchId: match.id, messageId }, askedBy: "member" })
       } catch (error) {
         const words = error instanceof Error ? error.message : "It could not be put on the phone's list."
         await settleMessage(messageId, "failed", words)
@@ -224,14 +224,14 @@ const answerFn = createServerFn({ method: "POST" })
     inWords(async () => {
       const match = await ownMatch(context.user.id, data.matchId)
       if (match.sample) throw new Error("This is a sample conversation, so the AI does not write for it.")
-      await addToAboutMe(context.user.id, match.workspaceId, match.askQuestion, data.answer)
+      await addToAboutMe(await ownAccount(context.user.id, match.workspaceId, match.accountId), match.askQuestion, data.answer)
       await db.update(dateMatches).set({ flaggedReason: null, askQuestion: "", aiError: "" }).where(eq(dateMatches.id, match.id))
       const outcome = await draftReply(match.id, db, new Date(), {}, { anyTurn: true })
       if (outcome.status !== "done") throw new Error(outcome.words)
     })
   )
 
-/** Answers the AI's question: the answer goes into About me, and the AI drafts again. */
+/** Answers the AI's question: the answer goes into the chat's profile's About me, and the AI drafts again. */
 export function answerAiQuestion(matchId: string, answer: string) {
   return answerFn({ data: { matchId, answer } })
 }
@@ -272,8 +272,7 @@ const reviewFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .handler(async ({ context }) =>
     inWords(async () => {
-      const phone = await dashboardPhone(context.user.id, await workspaceIdForRequest(context.user.id))
-      const outcome = await reviewOwnProfile(phone.id)
+      const outcome = await reviewOwnProfile((await requestAccount(context.user.id)).id)
       if (outcome.status !== "done") throw new Error(outcome.words)
     })
   )
@@ -288,9 +287,9 @@ const loopFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ run: z.boolean() }))
   .handler(async ({ data, context }) =>
     inWords(async () => {
-      const phone = await dashboardPhone(context.user.id, await workspaceIdForRequest(context.user.id))
-      if (data.run) await startLoop(context.user.id, phone.id)
-      else await stopLoopByHand(context.user.id, phone.id)
+      const account = await requestAccount(context.user.id)
+      if (data.run) await startLoop(account)
+      else await stopLoopByHand(account)
     })
   )
 

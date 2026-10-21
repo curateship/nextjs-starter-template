@@ -12,6 +12,8 @@ vi.mock("@/server/media/storage", () => ({
   deleteFromR2: vi.fn(async () => {}),
 }))
 
+import type { DatingAccount } from "@/server/dating/accounts"
+import { insertAccount } from "@/server/tinder/fixtures/accounts"
 import { chatTrend } from "@/lib/dating/chat-trend"
 import { DEFAULT_DATING_SETTINGS, type DatingSettings } from "@/lib/dating/settings"
 import { encryptSecret } from "@/server/auth/encryption"
@@ -51,6 +53,7 @@ describe("chats and replies", () => {
   let userId: string
   let workspaceId: string
   let phoneId: string
+  let account: DatingAccount
   let clock: Date
   let asked: Asked[]
   let answers: Array<Record<string, unknown> | "refuse">
@@ -77,6 +80,7 @@ describe("chats and replies", () => {
     clock = T0
     // Tinder's distance and ages are already set, so the pass does not open Tinder's settings first.
     await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0, discoveryOwed: false })
+    account = await insertAccount(db, { userId, workspaceId, phoneId })
     asked = []
     answers = []
     notes = []
@@ -89,7 +93,7 @@ describe("chats and replies", () => {
   })
 
   async function settings(change: Partial<DatingSettings> = {}) {
-    await saveDatingSettings(userId, workspaceId, { ...DEFAULT_DATING_SETTINGS, aboutMe: "I'm a designer.", ...change }, db, clock)
+    await saveDatingSettings(account, { ...DEFAULT_DATING_SETTINGS, aboutMe: "I'm a designer.", ...change }, db, clock)
   }
 
   async function pass() {
@@ -106,6 +110,7 @@ describe("chats and replies", () => {
       id,
       userId,
       workspaceId,
+      accountId: account.id,
       phoneId,
       name: "Maya",
       age: 27,
@@ -132,6 +137,7 @@ describe("chats and replies", () => {
       id: matchId,
       userId,
       workspaceId,
+      accountId: account.id,
       phoneId,
       theirName: "Noor",
       matchedAt: new Date(clock.getTime() - 40 * DAY),
@@ -331,7 +337,7 @@ describe("chats and replies", () => {
       const id = await createOutgoingMessage(unchanged, "sent as drafted", "member", { proposesDate: false, draftText: "sent as drafted" }, db, clock)
       await db.update(dateMessages).set({ status: "sent", sentAt: clock }).where(eq(dateMessages.id, id))
       const matchId = await chat([["in", "Climb much?"]])
-      expect(await learnedSends(userId, matchId, db)).toEqual(["honestly the purple route is evil"])
+      expect(await learnedSends(account.id, matchId, db)).toEqual(["honestly the purple route is evil"])
       answers.push(draft("Badly"))
       await draftReply(matchId, db, clock, { ask })
       expect(drafts()[0].system).toContain("- honestly the purple route is evil")
@@ -378,7 +384,7 @@ describe("chats and replies", () => {
   })
 
   describe("part 11, they unmatched", () => {
-    const owner = () => ({ userId, workspaceId, phoneId })
+    const owner = () => ({ userId, workspaceId, accountId: account.id, phoneId })
     const listed = (name: string) => ({ name, preview: "", avatarHash: "", photoId: null, isNew: false })
 
     it("marks a chat with messages missing from two complete reads in a row, and nothing else", async () => {
@@ -412,8 +418,8 @@ describe("chats and replies", () => {
       await chat([["in", "hi", 29]], { theirName: "Recent", lastMessageAt: new Date(clock.getTime() - 29 * DAY) })
       await chat([["in", "bye", 40]], { theirName: "Over", lastMessageAt: new Date(clock.getTime() - 40 * DAY), endedAt: clock })
       const never = await chat([], { theirName: "Never", matchedAt: new Date(clock.getTime() - 35 * DAY) })
-      expect((await deadMatches(userId, workspaceId, db, clock)).map((match) => match.theirName)).toEqual(["Never", "Old"])
-      const result = await clearDeadMatches(userId, workspaceId, [old, never, uuid()], db, clock)
+      expect((await deadMatches(account.id, db, clock)).map((match) => match.theirName)).toEqual(["Never", "Old"])
+      const result = await clearDeadMatches(account, [old, never, uuid()], db, clock)
       expect(result.queued).toEqual([old, never])
       expect(result.skipped).toHaveLength(1)
       const walks = await db.select().from(dateWalks).where(eq(dateWalks.kind, "unmatch"))
@@ -441,7 +447,7 @@ describe("chats and replies", () => {
 
     it("holds back a first message the member dismissed, with nothing in the chat yet", async () => {
       const cardId = uuid()
-      await db.insert(dateProfiles).values({ id: cardId, userId, workspaceId, phoneId, name: "Ana", age: 30, readAt: clock })
+      await db.insert(dateProfiles).values({ id: cardId, userId, workspaceId, accountId: account.id, phoneId, name: "Ana", age: 30, readAt: clock })
       const matchId = await chat([], { profileId: cardId, theirName: "Ana", draft: "Hi Ana", draftKind: "opener" })
       await dismissDraft(userId, matchId, db, clock)
       expect((await matchRow(matchId)).draftDismissedFor).toBe("opener")
@@ -475,7 +481,7 @@ describe("chats and replies", () => {
         await db.update(dateMessages).set({ status: "sent", sentAt: clock }).where(eq(dateMessages.id, id))
       }
       await db.insert(dateMessages).values({ id: uuid(), userId, matchId: answered, direction: "in", sentBy: "them", text: "haha", hash: messageHash("haha"), status: "sent", position: 2, createdAt: new Date(clock.getTime() + DAY) })
-      expect(await openerTally(userId, workspaceId, db)).toEqual([{ style: "joke", sent: 2, replied: 1 }])
+      expect(await openerTally(account.id, db)).toEqual([{ style: "joke", sent: 2, replied: 1 }])
     })
   })
 
@@ -497,21 +503,21 @@ describe("chats and replies", () => {
       }
       // Not connected: nothing is written.
       await setDatePlan(userId, matchId, { dateAt: new Date("2099-01-03T19:00:00Z"), place: "Bar Raval" }, db, clock)
-      expect(await syncDateEvent(userId, workspaceId, matchId, db, fetcher)).toBe("none")
+      expect(await syncDateEvent(userId, matchId, db, fetcher)).toBe("none")
       expect(calls).toHaveLength(0)
 
-      await db.insert(dateGoogleCalendars).values({ userId, workspaceId, email: "me@example.com", refreshTokenEncrypted: encryptSecret("refresh") })
-      expect(await syncDateEvent(userId, workspaceId, matchId, db, fetcher)).toBe("written")
+      await db.insert(dateGoogleCalendars).values({ accountId: account.id, userId, workspaceId, email: "me@example.com", refreshTokenEncrypted: encryptSecret("refresh") })
+      expect(await syncDateEvent(userId, matchId, db, fetcher)).toBe("written")
       const added = calls.find((call) => call.method === "POST" && call.url.includes("/events"))
       expect(JSON.parse(added!.body)).toMatchObject({ summary: "Date with Noor", location: "Bar Raval", start: { dateTime: "2099-01-03T19:00:00.000Z" }, end: { dateTime: "2099-01-03T21:00:00.000Z" } })
       expect((await matchRow(matchId)).googleEventId).toBe("event-1")
 
       await setDatePlan(userId, matchId, { dateAt: new Date("2099-01-04T19:00:00Z"), place: "Bar Raval" }, db, clock)
-      await syncDateEvent(userId, workspaceId, matchId, db, fetcher)
+      await syncDateEvent(userId, matchId, db, fetcher)
       expect(calls.some((call) => call.method === "PATCH" && call.url.endsWith("/events/event-1"))).toBe(true)
 
       await setDatePlan(userId, matchId, { dateAt: null, place: "" }, db, clock)
-      expect(await syncDateEvent(userId, workspaceId, matchId, db, fetcher)).toBe("deleted")
+      expect(await syncDateEvent(userId, matchId, db, fetcher)).toBe("deleted")
       expect(await matchRow(matchId)).toMatchObject({ googleEventId: "", datePlace: "" })
       // Never a read of the calendar.
       expect(calls.filter((call) => call.method === "GET")).toHaveLength(0)
@@ -535,7 +541,7 @@ describe("chats and replies", () => {
         const id = await createOutgoingMessage(matchId, text, "member", { proposesDate: false, draftText: drafted }, db, clock)
         await db.update(dateMessages).set({ status: "sent", sentAt: clock }).where(eq(dateMessages.id, id))
       }
-      expect(await draftsSentUnchanged(userId, db)).toEqual({ unchanged: 1, of: 2 })
+      expect(await draftsSentUnchanged(account.id, db)).toEqual({ unchanged: 1, of: 2 })
     })
   })
 
@@ -565,7 +571,7 @@ describe("chats and replies", () => {
       const dog = await chat([], { theirName: "Noor", facts: [{ id: "f1", text: "Has a dog called Biscuit", edited: false }] })
       await chat([], { theirName: "Ava", facts: [{ id: "f2", text: "Allergic to dogs", edited: false, deleted: true }] })
       answers.push({ answers: [{ match: 1, why: "Has a dog called Biscuit" }, { match: 9, why: "nobody" }] })
-      expect(await askAboutMatches(userId, workspaceId, "who has a dog?", db, clock, { ask })).toEqual([{ matchId: dog, theirName: "Noor", why: "Has a dog called Biscuit" }])
+      expect(await askAboutMatches({ userId, accountId: account.id }, "who has a dog?", db, clock, { ask })).toEqual([{ matchId: dog, theirName: "Noor", why: "Has a dog called Biscuit" }])
       // A deleted fact is never searched.
       expect(asked[0].text).not.toContain("Allergic")
     })
@@ -602,7 +608,7 @@ describe("chats and replies", () => {
     })
 
     it("puts a chat marked unmatched back when it shows up again, instead of making a second one", async () => {
-      const owner = { userId, workspaceId, phoneId }
+      const owner = { userId, workspaceId, accountId: account.id, phoneId }
       const noor = await chat([["in", "hi"]], { theirName: "Noor" })
       await saveChatList(owner, [], db, clock, true)
       await saveChatList(owner, [], db, clock, true)

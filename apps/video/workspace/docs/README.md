@@ -199,6 +199,40 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [carousel-slide-order.md](carousel-slide-order.md) — dragging slides into a
   new order in the list or grid, by mouse, finger or keyboard, and Cmd+Z and
   Shift+Cmd+Z in the carousel editor.
+- [carousel-snapping.md](carousel-snapping.md) — snapping a dragged layer to
+  the slide, to other layers and to equal gaps, the eight resize handles,
+  arrow-key nudging, picking several layers, and copy and paste.
+- [carousel-text-styles.md](carousel-text-styles.md) — bold and highlighted
+  words, line and letter spacing, the box behind the words and the outline,
+  why bold is drawn as an outline, and how the export puts lines where the
+  canvas does.
+- [carousel-slide-numbers.md](carousel-slide-numbers.md) — the "3/7" layer
+  that renumbers itself, on one slide or every slide.
+- [carousel-layers.md](carousel-layers.md) — the Layers list: picking, hiding
+  and locking layers.
+- [carousel-guides.md](carousel-guides.md) — the Instagram guides on the
+  canvas: what a story and the profile grid hide, and where each number comes
+  from.
+- [carousel-preview.md](carousel-preview.md) — the phone-shaped Preview you
+  swipe through one slide at a time.
+- [carousel-pictures.md](carousel-pictures.md) — dropping pictures and clips
+  on a slide, moving a cropped picture inside its box, collections and free
+  Pexels photos in the Image panel, and stickers in carousels.
+- [carousel-video-slides.md](carousel-video-slides.md) — a clip on a slide:
+  one a slide, played muted in the editor, exported as an MP4 with the other
+  layers over it.
+- [carousel-writing.md](carousel-writing.md) — AI writing a whole carousel
+  from a topic, notes, a project or a web page, three stronger first lines,
+  the caption, and copies in other languages; how a web page is read safely.
+- [carousel-video.md](carousel-video.md) — a carousel made into a 9:16 reel:
+  seconds per slide, the change between slides, music, and the project it
+  makes.
+- [carousel-templates.md](carousel-templates.md) — marking a carousel as a
+  template and starting new ones from it.
+- [carousel-projects.md](carousel-projects.md) — carousels that belong to a
+  project, where the project lists them, and what deleting the project asks.
+- [carousel-history.md](carousel-history.md) — a carousel's earlier versions,
+  kept by the projects' rule, and bringing one back.
 - [carousel-exports.md](carousel-exports.md) — a carousel export kept on its
   own Carousel exports dashboard: the ZIP, its cover, the menu link under
   Carousels, downloading, sharing and clearing out, why it is a row of the

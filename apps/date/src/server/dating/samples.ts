@@ -169,20 +169,26 @@ const CHATS: SampleChat[] = [
 
 const samplePath = (card: number, photo: number) => `/sample/dating/person-${String(card + 1).padStart(2, "0")}-${photo}.svg`
 
+/** Whose samples: the profile they go into, and its member and site. */
+export type SampleOwner = { id: string; userId: string; workspaceId: string }
+
 /**
- * Adds the sample cards and conversations. Any already there are removed
- * first, so pressing it twice never doubles them.
+ * Adds the sample cards and conversations to one profile. Any already there
+ * are removed first, so pressing it twice never doubles them. The drawings
+ * are kept once per member, so two profiles' samples share them.
  */
-export async function addSamples(userId: string, workspaceId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
-  await removeSamples(userId, workspaceId, db)
+export async function addSamples(account: SampleOwner, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
+  await removeSamples(account, db)
+  const { userId, workspaceId } = account
 
   const pictureIds = new Map<string, string>()
   for (let card = 0; card < CARDS.length; card += 1) {
     for (const photo of [1, 2]) {
       const path = samplePath(card, photo)
-      const id = uuid()
-      pictureIds.set(path, id)
-      await db.insert(datePictures).values({ id, userId, kind: "sample", sha256: sha256Hex(`sample:${path}`), samplePath: path, createdAt: now })
+      const sha256 = sha256Hex(`sample:${path}`)
+      await db.insert(datePictures).values({ id: uuid(), userId, kind: "sample", sha256, samplePath: path, createdAt: now }).onConflictDoNothing()
+      const [kept] = await db.select({ id: datePictures.id }).from(datePictures).where(and(eq(datePictures.userId, userId), eq(datePictures.sha256, sha256))).limit(1)
+      pictureIds.set(path, kept.id)
     }
   }
 
@@ -196,6 +202,7 @@ export async function addSamples(userId: string, workspaceId: string, db: Custom
       id,
       userId,
       workspaceId,
+      accountId: account.id,
       phoneId: null,
       name: card.name,
       age: card.age,
@@ -241,6 +248,7 @@ export async function addSamples(userId: string, workspaceId: string, db: Custom
       id: matchId,
       userId,
       workspaceId,
+      accountId: account.id,
       phoneId: null,
       profileId: profileIds[chat.cardIndex],
       theirName: card.name,
@@ -293,12 +301,18 @@ export async function addSamples(userId: string, workspaceId: string, db: Custom
   }
 }
 
-/** Deletes every sample card, conversation and picture of this member's on this site, and nothing else. */
-export async function removeSamples(userId: string, workspaceId: string, db: CustomShellDb = defaultDb): Promise<void> {
-  await db.delete(dateMatches).where(and(eq(dateMatches.userId, userId), eq(dateMatches.workspaceId, workspaceId), eq(dateMatches.sample, true)))
-  await db
-    .delete(dateProfiles)
-    .where(and(eq(dateProfiles.userId, userId), eq(dateProfiles.workspaceId, workspaceId), eq(dateProfiles.sample, true)))
+/**
+ * Deletes one profile's sample cards and conversations, and nothing else.
+ * The drawings go once no profile of the member's has samples left.
+ */
+export async function removeSamples(account: SampleOwner, db: CustomShellDb = defaultDb): Promise<void> {
+  await db.delete(dateMatches).where(and(eq(dateMatches.accountId, account.id), eq(dateMatches.sample, true)))
+  await db.delete(dateProfiles).where(and(eq(dateProfiles.accountId, account.id), eq(dateProfiles.sample, true)))
+  const [left] = await db
+    .select({ id: dateProfiles.id })
+    .from(dateProfiles)
+    .where(and(eq(dateProfiles.userId, account.userId), eq(dateProfiles.sample, true)))
+    .limit(1)
   // Sample pictures are drawings with no file in R2, so the rows are all there is to remove.
-  await db.delete(datePictures).where(and(eq(datePictures.userId, userId), eq(datePictures.kind, "sample")))
+  if (!left) await db.delete(datePictures).where(and(eq(datePictures.userId, account.userId), eq(datePictures.kind, "sample")))
 }

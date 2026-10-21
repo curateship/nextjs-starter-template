@@ -31,13 +31,16 @@ export type CardRecord = {
   firstPhotoSha: string
 }
 
+/** Whose a record read off the phone is: the member, the site, the phone that read it and the profile it belongs to. */
+export type RecordOwner = { userId: string; workspaceId: string; phoneId: string; accountId: string }
+
 /**
  * Saves a card that was read. The same person read again before anyone
  * swiped is the same card, updated; once a card has been swiped, the person
  * coming round again is a new card.
  */
 export async function saveCard(
-  owner: { userId: string; workspaceId: string; phoneId: string },
+  owner: RecordOwner,
   card: CardRecord,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
@@ -65,8 +68,7 @@ export async function saveCard(
     .from(dateProfiles)
     .where(
       and(
-        eq(dateProfiles.userId, owner.userId),
-        eq(dateProfiles.phoneId, owner.phoneId),
+        eq(dateProfiles.accountId, owner.accountId),
         eq(dateProfiles.fingerprint, fingerprint),
         eq(dateProfiles.swipe, "none")
       )
@@ -109,6 +111,7 @@ export async function recordMatchFromCard(
     userId: profile.userId,
     workspaceId: profile.workspaceId,
     phoneId: profile.phoneId,
+    accountId: profile.accountId,
     profileId,
     theirName: profile.name,
     photoId: profile.photoIds[0] ?? null,
@@ -130,7 +133,7 @@ const SAME_FACE_BITS = 12
  * the match to have its conversation read. Returns the matches that need it.
  */
 export async function saveChatList(
-  owner: { userId: string; workspaceId: string; phoneId: string },
+  owner: RecordOwner,
   chats: ListedChat[],
   db: CustomShellDb = defaultDb,
   now: Date = new Date(),
@@ -144,8 +147,7 @@ export async function saveChatList(
     .from(dateMatches)
     .where(
       and(
-        eq(dateMatches.userId, owner.userId),
-        eq(dateMatches.phoneId, owner.phoneId),
+        eq(dateMatches.accountId, owner.accountId),
         or(isNull(dateMatches.unmatchedAt), eq(dateMatches.unmatchedBy, "them"))
       )
     )
@@ -184,8 +186,7 @@ export async function saveChatList(
       .from(dateProfiles)
       .where(
         and(
-          eq(dateProfiles.userId, owner.userId),
-          eq(dateProfiles.phoneId, owner.phoneId),
+          eq(dateProfiles.accountId, owner.accountId),
           eq(dateProfiles.name, chat.name),
           inArray(dateProfiles.swipe, ["like", "super"]),
           sql`not exists (select 1 from "date_matches" where "date_matches"."profile_id" = ${dateProfiles.id})`
@@ -502,9 +503,9 @@ export async function settleMessage(
 
 export type OwnProfileRecord = { name: string; photoIds: string[]; bio: string; sections: ProfileSection[]; texts: string[] }
 
-/** The member's own profile as last read, one per phone. The AI's review of the old one goes with it. */
+/** The member's own profile as last read, one per profile. The AI's review of the old one goes with it. */
 export async function saveOwnProfile(
-  owner: { userId: string; workspaceId: string; phoneId: string },
+  owner: RecordOwner,
   profile: OwnProfileRecord,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
@@ -513,5 +514,5 @@ export async function saveOwnProfile(
   await db
     .insert(dateOwnProfiles)
     .values({ ...owner, ...values })
-    .onConflictDoUpdate({ target: dateOwnProfiles.phoneId, set: values })
+    .onConflictDoUpdate({ target: dateOwnProfiles.accountId, set: { ...values, phoneId: owner.phoneId } })
 }

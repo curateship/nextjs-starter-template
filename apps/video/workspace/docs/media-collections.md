@@ -27,6 +27,14 @@ the same way: the file stays.
 
 Deleting a file does take it out of every collection it was in.
 
+## In the carousel editor
+
+The carousel editor's Image panel shows the collections as chips beside "This
+carousel". A collection's pictures come from the whole library, and one
+placed on a slide joins that carousel's shelf. Making, renaming and deleting
+collections stays in the video editor (see
+[carousel-pictures.md](carousel-pictures.md)).
+
 ## Where the buttons are
 
 Everything is in the editor's Media panel, under the All / Video / Image /

@@ -9,7 +9,8 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
  * the server asks it to run, and the pictures kept from them. The SQL is
  * `drizzle/0096_date_phones.sql`, with later columns in
  * `drizzle/0101_date_swipe_schedule.sql` and
- * `drizzle/0102_date_tinder_filters.sql`. Stored fields are never renamed.
+ * `drizzle/0102_date_tinder_filters.sql`, and `drizzle/0108_date_profiles.sql`.
+ * Stored fields are never renamed.
  */
 
 /**
@@ -78,7 +79,7 @@ export const datePhones = pgTable(
 /**
  * A six-digit code shown once in the dashboard's Phone panel. Only its hash is kept. It
  * works once, for ten minutes, and pairs the phone named here, or a new phone
- * when none is named.
+ * when none is named, for the profile named here.
  */
 export const datePhonePairCodes = pgTable(
   "date_phone_pair_codes",
@@ -91,6 +92,8 @@ export const datePhonePairCodes = pgTable(
       .notNull()
       .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     phoneId: varchar("phone_id", { length: 36 }).references(() => datePhones.id, { onDelete: "cascade" }),
+    /** The profile the phone is paired for. Its tie to `date_accounts` is in the SQL only, because `src/server/dating/schema.ts` imports this file. */
+    accountId: varchar("account_id", { length: 36 }).notNull(),
     codeHash: varchar("code_hash", { length: 64 }).notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     usedAt: timestamp("used_at", { withTimezone: true }),

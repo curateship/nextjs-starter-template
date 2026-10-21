@@ -1,7 +1,9 @@
 import { deleteFromR2 } from "@/server/media/storage"
+import { carouselPdfPath } from "@/server/video/carousel-pdf"
 
 /**
- * Removing exports' files from storage: the video and its cover.
+ * Removing exports' files from storage: the video and its cover, or a kept
+ * carousel's ZIP, PDF and cover.
  *
  * Shared by deleting an export and deleting the project it came from, since
  * both take the export's row away and a file with no row is space nobody can
@@ -28,7 +30,11 @@ export async function removeExportFiles(rows: ExportFiles[]) {
   async function worker() {
     while (next < rows.length) {
       const row = rows[next++]
-      const paths = [row.storagePath, row.thumbnailStoragePath].filter(
+      // A kept carousel's PDF sits beside its ZIP under the same name.
+      const pdfPath = row.storagePath?.endsWith(".zip")
+        ? carouselPdfPath(row.storagePath)
+        : null
+      const paths = [row.storagePath, row.thumbnailStoragePath, pdfPath].filter(
         (path): path is string => !!path
       )
       try {

@@ -10,6 +10,7 @@ What Date does and why, one file per part. Tyler's decisions of 17 Oct 2026 are 
 - [ai/swiping-and-scoring.md](ai/swiping-and-scoring.md): learning from overruled swipes, Sonnet's first look and Opus's second, People I know, Super Likes, the swiping schedule, Tinder's own distance and ages, passed photos deleted after 30 days, What's working and what a match costs.
 - [ai/spend.md](ai/spend.md): what the AI costs and the monthly cap.
 - [settings.md](settings.md): the Dating settings, in the window the dashboard's cog opens.
+- [profiles.md](profiles.md): several dating profiles for one member, each one app's account with its own phone, settings, leads and spend; the picker, New profile, Pause and Delete.
 - [dating-dashboard.md](dating-dashboard.md): the one three-column dashboard and Tyler's rules for it: leads and their status, the summary with the stats, the phone and My profile in the right panel, the Dates calendar, the cog's settings window, and the sample data.
 - [chats/chats-and-replies.md](chats/chats-and-replies.md): openers, the one follow-up, what they told you, chats that are over or scams, they unmatched, Show 3, tone, Tidy, the member's voice, warming or cooling, Ask Date, dead matches and the Openers card.
 - [chats/dates-and-calendar.md](chats/dates-and-calendar.md): a yes to a date, the Dates tab, Before your date, the Dates tab's month and Google Calendar.

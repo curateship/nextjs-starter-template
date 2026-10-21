@@ -3,6 +3,7 @@ import { useRouter } from "@tanstack/react-router"
 import {
   CalendarClockIcon,
   DownloadIcon,
+  FileTextIcon,
   FilmIcon,
   GalleryHorizontalIcon,
   Link2Icon,
@@ -212,7 +213,7 @@ export function ExportsPage({
       }
       if (deleted.length === 0) {
         if (!failed.length) {
-          showErrorToast("Nothing was deleted — those may already be gone.")
+          showErrorToast("Nothing was deleted. Those may already be gone.")
         }
         return
       }
@@ -421,6 +422,18 @@ export function ExportsPage({
                         <DownloadIcon className="size-4" />
                       </a>
                     </Button>
+                    {item.kind === "carousel" ? (
+                      // LinkedIn takes a carousel as a PDF, one slide a page.
+                      <Button asChild variant="ghost" size="icon">
+                        <a
+                          href={`/api/v1/video/exports/${item.id}/file?format=pdf&filename=${encodeURIComponent(item.title ?? "export")}`}
+                          download
+                          aria-label={`Download ${item.title ?? "this export"} as a PDF`}
+                        >
+                          <FileTextIcon className="size-4" />
+                        </a>
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
                       variant="ghost"

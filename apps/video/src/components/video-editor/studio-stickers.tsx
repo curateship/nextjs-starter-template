@@ -16,6 +16,11 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
   addSticker,
   getStickerErrorMessage,
   listStickerPictures,
@@ -51,27 +56,6 @@ import { useEditorRuntime } from "@/components/video-editor/editor-store"
  */
 export function StickerShelf() {
   const { dispatch, clock } = useEditorRuntime()
-  const [stickers, setStickers] = React.useState<Sticker[] | null>(null)
-  const [loadFailed, setLoadFailed] = React.useState(false)
-  const [refresh, setRefresh] = React.useState(0)
-  const [removing, setRemoving] = React.useState<string | null>(null)
-  const [pickerOpen, setPickerOpen] = React.useState(false)
-
-  React.useEffect(() => {
-    let active = true
-    loadStickers()
-      .then((loaded) => {
-        if (!active) return
-        setStickers(loaded)
-        setLoadFailed(false)
-      })
-      .catch(() => {
-        if (active) setLoadFailed(true)
-      })
-    return () => {
-      active = false
-    }
-  }, [refresh])
 
   function place(sticker: Sticker) {
     dispatch({
@@ -106,6 +90,41 @@ export function StickerShelf() {
     })
   }
 
+  return <StickerList onPlace={place} />
+}
+
+/**
+ * The person's sticker list with its add and remove controls. What a press
+ * on a sticker does is the caller's: a clip in the video editor, a layer in
+ * the carousel editor.
+ */
+export function StickerList({
+  onPlace,
+}: {
+  onPlace: (sticker: Sticker) => void
+}) {
+  const [stickers, setStickers] = React.useState<Sticker[] | null>(null)
+  const [loadFailed, setLoadFailed] = React.useState(false)
+  const [refresh, setRefresh] = React.useState(0)
+  const [removing, setRemoving] = React.useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    let active = true
+    loadStickers()
+      .then((loaded) => {
+        if (!active) return
+        setStickers(loaded)
+        setLoadFailed(false)
+      })
+      .catch(() => {
+        if (active) setLoadFailed(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [refresh])
+
   async function remove(sticker: Sticker) {
     const key = stickerKey(sticker)
     setRemoving(key)
@@ -136,27 +155,37 @@ export function StickerShelf() {
             const key = stickerKey(sticker)
             const label =
               sticker.kind === "emoji" ? sticker.emoji : sticker.name
+            const tile = (
+              <button
+                type="button"
+                className="st-hovcard grid aspect-square w-full cursor-pointer place-items-center overflow-hidden rounded-xl border"
+                style={{ background: "var(--panel2)", fontSize: 22 }}
+                aria-label={`Add ${label}`}
+                onClick={() => onPlace(sticker)}
+              >
+                {sticker.kind === "emoji" ? (
+                  sticker.emoji
+                ) : (
+                  <img
+                    src={sticker.url}
+                    alt=""
+                    loading="lazy"
+                    className="size-full object-contain p-1.5"
+                  />
+                )}
+              </button>
+            )
             return (
               <li key={key} className="group relative">
-                <button
-                  type="button"
-                  className="st-hovcard grid aspect-square w-full cursor-pointer place-items-center overflow-hidden rounded-xl border"
-                  style={{ background: "var(--panel2)", fontSize: 22 }}
-                  aria-label={`Add ${label}`}
-                  title={sticker.kind === "image" ? sticker.name : undefined}
-                  onClick={() => place(sticker)}
-                >
-                  {sticker.kind === "emoji" ? (
-                    sticker.emoji
-                  ) : (
-                    <img
-                      src={sticker.url}
-                      alt=""
-                      loading="lazy"
-                      className="size-full object-contain p-1.5"
-                    />
-                  )}
-                </button>
+                {/* A picture's name shows on hover; an emoji is its own name. */}
+                {sticker.kind === "image" ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>{tile}</TooltipTrigger>
+                    <TooltipContent>{sticker.name}</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  tile
+                )}
                 {/* Shown on hover and on keyboard focus, and always on a touch
                     screen, which has no hover. */}
                 <Button

@@ -94,6 +94,18 @@ export function inHourWindow(start: number, end: number, hour: number): boolean 
   return start < end ? hour >= start && hour < end : hour >= start || hour < end
 }
 
+/**
+ * Whether two swiping windows share an hour. Two profiles on one phone may
+ * not, because the phone runs one app at a time (Tyler, 20 Oct 2026: "Own
+ * hours, no overlap").
+ */
+export function hourWindowsOverlap(a: { start: number; end: number }, b: { start: number; end: number }): boolean {
+  for (let hour = 0; hour < 24; hour += 1) {
+    if (inHourWindow(a.start, a.end, hour) && inHourWindow(b.start, b.end, hour)) return true
+  }
+  return false
+}
+
 /** "Sarah, 31" for each person, one a line, as the People I know box shows them. */
 export function knownPeopleText(people: KnownPerson[]): string {
   return people.map((person) => `${person.name}, ${person.age}`).join("\n")

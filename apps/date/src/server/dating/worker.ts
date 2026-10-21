@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, ne } from "drizzle-orm"
 
-import { WALK_WORDS } from "@/lib/dating/options"
+import { PROFILE_PAUSED_WORDS, WALK_WORDS } from "@/lib/dating/options"
 import { inHourWindow, type DatingSettings } from "@/lib/dating/settings"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { cancelAbandonedActions } from "@/server/phone/actions"
@@ -11,20 +11,25 @@ import { phoneIsBusy, queueWalk, runWalkList, type RunOptions } from "@/server/t
 import { dateMatches, dateOwnProfiles, dateProfiles, dateWalks } from "@/server/tinder/schema"
 import { createOutgoingMessage, settleMessage } from "@/server/tinder/store"
 
+import type { DatingAccount } from "./accounts"
+
 import { decideSwipe, draftReply, makeDateBrief, readChatNotes, reviewOwnProfile, scoreCard, SUPER_LIKE_SCORE, type AiDeps } from "./ai"
 import { forgetPassedPhotos } from "./forget-photos"
 import { newestMessages } from "./dashboard"
 import { readDatingSettings } from "./settings"
-import { spendCapReached } from "./spend"
+import { dateAccounts } from "./schema"
+import { accountOwner, aiSpendStopped } from "./spend"
 
 /**
  * Date's one background job, run on every pass of the shell's 15-second loop
  * (`background.workers` in `src/app/server-options.ts`).
  *
- * Every pass it starts the next Tinder walk on each phone, has the AI read new
- * cards and draft replies, sends drafts whose time has come when the automate
- * switch is on, and, while a phone is running, takes the swipe loop one step:
- * read the card in front, wait for the AI's score, like or pass, and again.
+ * Every pass it starts the next Tinder walk on each phone, and for each
+ * profile with a paired phone that is not paused has the AI read new cards
+ * and draft replies, sends drafts whose time has come when the automate
+ * switch is on, and, while its phone is running, takes the swipe loop one
+ * step: read the card in front, wait for the AI's score, like or pass, and
+ * again. Each profile is run with its own settings and its own spend cap.
  *
  * Slow work, a walk or an AI call, is started and not waited for, so the pass
  * never holds up the shell's own jobs; each one claims its record so a second
@@ -74,17 +79,22 @@ export async function runDatingPass(
     work.push(forgetPassedPhotos(db, now).catch((error) => console.error("Old passes' photos could not be deleted", error)))
   }
 
-  const phones = await db.select().from(datePhones).where(isNotNull(datePhones.keyEncrypted))
-  for (const phone of phones) {
+  // A paused profile gets nothing: Pause already stopped its loop and called off its walks.
+  const runners = await db
+    .select({ account: dateAccounts, phone: datePhones })
+    .from(dateAccounts)
+    .innerJoin(datePhones, eq(datePhones.id, dateAccounts.phoneId))
+    .where(and(isNotNull(datePhones.keyEncrypted), isNull(dateAccounts.pausedAt)))
+  for (const { account, phone } of runners) {
     try {
-      const settings = await readDatingSettings(phone.userId, phone.workspaceId, db)
-      work.push(...aiWork(phone, db, now, options))
-      await sendDueDrafts(phone, settings, db, now)
-      await setDiscoveryIfOwed(phone, settings, db, now)
-      const scheduled = await scheduleStep(phone, settings, db, now)
-      if (scheduled.running) await loopStep(scheduled, settings, db, now, work, options)
+      const settings = await readDatingSettings(account.id, db)
+      work.push(...aiWork(account, db, now, options))
+      await sendDueDrafts(account, phone, settings, db, now)
+      await setDiscoveryIfOwed(account, phone, settings, db, now)
+      const scheduled = await scheduleStep(account, phone, settings, db, now)
+      if (scheduled.running) await loopStep(account, scheduled, settings, db, now, work, options)
     } catch (error) {
-      console.error(`The Date pass failed for phone ${phone.id}`, error)
+      console.error(`The Date pass failed for profile ${account.id} on phone ${phone.id}`, error)
     }
   }
 
@@ -119,14 +129,14 @@ export const NUDGE_AFTER_MS = 3 * 86_400_000
  * once it is read. Sample records are never sent to the AI, and a chat that is
  * over, moved to text or taken over by the member is left alone.
  */
-function aiWork(phone: Phone, db: CustomShellDb, now: Date, deps: AiDeps): Promise<unknown>[] {
-  return detached(`ai:${phone.id}`, async () => {
-    const settings = await readDatingSettings(phone.userId, phone.workspaceId, db)
-    if (await spendCapReached(phone.userId, settings.spendCapDollars, db, now)) return
+function aiWork(account: DatingAccount, db: CustomShellDb, now: Date, deps: AiDeps): Promise<unknown>[] {
+  return detached(`ai:${account.id}`, async () => {
+    const settings = await readDatingSettings(account.id, db)
+    if (await aiSpendStopped(accountOwner(account), settings.spendCapDollars, db, now)) return
     const cards = await db
       .select({ id: dateProfiles.id })
       .from(dateProfiles)
-      .where(and(eq(dateProfiles.phoneId, phone.id), isNull(dateProfiles.aiReadAt), eq(dateProfiles.aiError, ""), eq(dateProfiles.sample, false)))
+      .where(and(eq(dateProfiles.accountId, account.id), isNull(dateProfiles.aiReadAt), eq(dateProfiles.aiError, ""), eq(dateProfiles.sample, false)))
       .orderBy(desc(dateProfiles.readAt))
       .limit(CARDS_PER_PASS)
     for (const card of cards) await scoreCard(card.id, db, now, deps)
@@ -134,7 +144,7 @@ function aiWork(phone: Phone, db: CustomShellDb, now: Date, deps: AiDeps): Promi
     const live = await db
       .select()
       .from(dateMatches)
-      .where(and(eq(dateMatches.phoneId, phone.id), eq(dateMatches.sample, false), isNull(dateMatches.unmatchedAt)))
+      .where(and(eq(dateMatches.accountId, account.id), eq(dateMatches.sample, false), isNull(dateMatches.unmatchedAt)))
     const newest = new Map((await newestMessages(live.map((match) => match.id), db)).map((message) => [message.matchId, message]))
 
     // Notes first, so a draft written on this pass already knows the new facts.
@@ -177,7 +187,7 @@ function aiWork(phone: Phone, db: CustomShellDb, now: Date, deps: AiDeps): Promi
       .from(dateMatches)
       .where(
         and(
-          eq(dateMatches.phoneId, phone.id),
+          eq(dateMatches.accountId, account.id),
           eq(dateMatches.sample, false),
           isNull(dateMatches.unmatchedAt),
           isNotNull(dateMatches.dateAcceptedAt),
@@ -187,11 +197,11 @@ function aiWork(phone: Phone, db: CustomShellDb, now: Date, deps: AiDeps): Promi
     for (const match of agreed) await makeDateBrief(match.id, db, now, deps)
 
     const [own] = await db
-      .select({ phoneId: dateOwnProfiles.phoneId })
+      .select({ accountId: dateOwnProfiles.accountId })
       .from(dateOwnProfiles)
-      .where(and(eq(dateOwnProfiles.phoneId, phone.id), isNull(dateOwnProfiles.reviewMadeAt), eq(dateOwnProfiles.aiError, "")))
+      .where(and(eq(dateOwnProfiles.accountId, account.id), isNull(dateOwnProfiles.reviewMadeAt), eq(dateOwnProfiles.aiError, "")))
       .limit(1)
-    if (own) await reviewOwnProfile(phone.id, db, now, deps)
+    if (own) await reviewOwnProfile(account.id, db, now, deps)
   })
 }
 
@@ -201,14 +211,14 @@ function aiWork(phone: Phone, db: CustomShellDb, now: Date, deps: AiDeps): Promi
  * made while the switch was off is given its time now. Switching automate off
  * stops new sends; a send already on the list still goes.
  */
-async function sendDueDrafts(phone: Phone, settings: DatingSettings, db: CustomShellDb, now: Date): Promise<void> {
+async function sendDueDrafts(account: DatingAccount, phone: Phone, settings: DatingSettings, db: CustomShellDb, now: Date): Promise<void> {
   if (!settings.automate || phone.stoppedReason || !phone.inControl) return
   const drafts = await db
     .select()
     .from(dateMatches)
     .where(
       and(
-        eq(dateMatches.phoneId, phone.id),
+        eq(dateMatches.accountId, account.id),
         eq(dateMatches.sample, false),
         isNull(dateMatches.unmatchedAt),
         isNull(dateMatches.flaggedReason),
@@ -239,7 +249,7 @@ async function sendDueDrafts(phone: Phone, settings: DatingSettings, db: CustomS
       now
     )
     try {
-      await queueWalk({ userId: phone.userId, phoneId: phone.id, kind: "send-message", input: { matchId: match.id, messageId }, askedBy: "ai" }, db, now)
+      await queueWalk({ userId: phone.userId, accountId: account.id, phoneId: phone.id, kind: "send-message", input: { matchId: match.id, messageId }, askedBy: "ai" }, db, now)
     } catch (error) {
       await settleMessage(messageId, "failed", error instanceof Error ? error.message : "It could not be put on the phone's list.", db, now)
     }
@@ -298,7 +308,7 @@ function windowDay(start: number, timeZone: string, now: Date): string {
  *
  * Returns the phone as it now stands.
  */
-async function scheduleStep(phone: Phone, settings: DatingSettings, db: CustomShellDb, now: Date): Promise<Phone> {
+async function scheduleStep(account: DatingAccount, phone: Phone, settings: DatingSettings, db: CustomShellDb, now: Date): Promise<Phone> {
   const { scheduleStart: start, scheduleEnd: end } = settings
   if (start === null || end === null) return phone
   const inWindow = inHourWindow(start, end, phoneHour(phone.timeZone, now))
@@ -321,7 +331,7 @@ async function scheduleStep(phone: Phone, settings: DatingSettings, db: CustomSh
   if (phone.scheduleDay === day && !limitPassed) return phone
   if (!phone.keyEncrypted || !phone.inControl || phone.stoppedReason) return phone
   if (!phone.lastSeenAt || now.getTime() - phone.lastSeenAt.getTime() > AWAY_STOPS_LOOP_MS) return phone
-  if (await spendCapReached(phone.userId, settings.spendCapDollars, db, now)) return phone
+  if (await aiSpendStopped(accountOwner(account), settings.spendCapDollars, db, now)) return phone
   const [started] = await db
     .update(datePhones)
     .set({ running: true, runningSince: now, startedBy: "schedule", scheduleDay: day, resumeAt: null, stopWhy: "", stopWhyAt: null, updatedAt: now })
@@ -336,7 +346,7 @@ async function scheduleStep(phone: Phone, settings: DatingSettings, db: CustomSh
  * phone is here and free. A walk that fails is not tried again by itself; changing a
  * setting or Resume tries again.
  */
-async function setDiscoveryIfOwed(phone: Phone, settings: DatingSettings, db: CustomShellDb, now: Date): Promise<void> {
+async function setDiscoveryIfOwed(account: DatingAccount, phone: Phone, settings: DatingSettings, db: CustomShellDb, now: Date): Promise<void> {
   if (!phone.discoveryOwed || !phone.keyEncrypted || !phone.inControl || phone.stoppedReason) return
   // A phone asleep in a pocket would leave the walk waiting until it is called off; it goes once the phone is checking in.
   if (!phone.lastSeenAt || now.getTime() - phone.lastSeenAt.getTime() > AWAY_STOPS_LOOP_MS) return
@@ -347,6 +357,7 @@ async function setDiscoveryIfOwed(phone: Phone, settings: DatingSettings, db: Cu
     await queueWalk(
       {
         userId: phone.userId,
+        accountId: account.id,
         phoneId: phone.id,
         kind: "set-discovery",
         input: { distanceKm: settings.maxDistanceKm, ageMin: settings.ageMin, ageMax: settings.ageMax },
@@ -389,7 +400,15 @@ async function superLikeDue(phone: Phone, score: number | null, db: CustomShellD
  * with no card waiting, the next one is read. Every ten minutes the chat list
  * is read too.
  */
-async function loopStep(phone: Phone, settings: DatingSettings, db: CustomShellDb, now: Date, work: Promise<unknown>[], deps: AiDeps): Promise<void> {
+async function loopStep(
+  account: DatingAccount,
+  phone: Phone,
+  settings: DatingSettings,
+  db: CustomShellDb,
+  now: Date,
+  work: Promise<unknown>[],
+  deps: AiDeps
+): Promise<void> {
   if (phone.stoppedReason || !phone.inControl) {
     await stopLoop(phone, phone.stoppedReason ? "A Tinder screen stopped the phone." : "Date was switched off in the dashboard's Phone panel.", db, now)
     return
@@ -400,7 +419,7 @@ async function loopStep(phone: Phone, settings: DatingSettings, db: CustomShellD
     await stopLoop(phone, `The phone went away${since}: it stopped checking in.`, db, now, now)
     return
   }
-  const cap = await spendCapReached(phone.userId, settings.spendCapDollars, db, now)
+  const cap = await aiSpendStopped(accountOwner(account), settings.spendCapDollars, db, now)
   if (cap) {
     await stopLoop(phone, cap, db, now)
     return
@@ -440,7 +459,7 @@ async function loopStep(phone: Phone, settings: DatingSettings, db: CustomShellD
     .orderBy(desc(dateWalks.createdAt))
     .limit(1)
   if (!lastLook || now.getTime() - lastLook.createdAt.getTime() > READ_MATCHES_EVERY_MS) {
-    await queueWalk({ userId: phone.userId, phoneId: phone.id, kind: "read-matches", askedBy: "ai" }, db, now)
+    await queueWalk({ userId: phone.userId, accountId: account.id, phoneId: phone.id, kind: "read-matches", askedBy: "ai" }, db, now)
     return
   }
 
@@ -450,7 +469,7 @@ async function loopStep(phone: Phone, settings: DatingSettings, db: CustomShellD
     .from(dateProfiles)
     .where(
       and(
-        eq(dateProfiles.phoneId, phone.id),
+        eq(dateProfiles.accountId, account.id),
         eq(dateProfiles.swipe, "none"),
         eq(dateProfiles.sample, false),
         gt(dateProfiles.readAt, new Date((phone.runningSince ?? now).getTime() - 1)),
@@ -460,7 +479,7 @@ async function loopStep(phone: Phone, settings: DatingSettings, db: CustomShellD
     .orderBy(desc(dateProfiles.readAt))
     .limit(1)
   if (!waiting) {
-    await queueWalk({ userId: phone.userId, phoneId: phone.id, kind: "read-card", askedBy: "ai" }, db, now)
+    await queueWalk({ userId: phone.userId, accountId: account.id, phoneId: phone.id, kind: "read-card", askedBy: "ai" }, db, now)
     return
   }
   if (waiting.aiError) {
@@ -470,7 +489,7 @@ async function loopStep(phone: Phone, settings: DatingSettings, db: CustomShellD
   const decision = decideSwipe(waiting, settings)
   if (!decision) {
     // Not scored yet: the AI's part of the pass is on it.
-    work.push(...aiWork(phone, db, now, deps))
+    work.push(...aiWork(account, db, now, deps))
     return
   }
   const kind = decision === "like" && (await superLikeDue(phone, waiting.aiScore, db, now)) ? "super-like" : decision
@@ -480,22 +499,31 @@ async function loopStep(phone: Phone, settings: DatingSettings, db: CustomShellD
     await stopLoop(phone, refusal.words, db, now, refusal.until)
     return
   }
-  await queueWalk({ userId: phone.userId, phoneId: phone.id, kind, input: { profileId: waiting.id }, askedBy: "ai" }, db, now)
+  await queueWalk({ userId: phone.userId, accountId: account.id, phoneId: phone.id, kind, input: { profileId: waiting.id }, askedBy: "ai" }, db, now)
+}
+
+/** The profile's paired phone, or a refusal saying how to get one. */
+async function accountPhone(account: DatingAccount, db: CustomShellDb): Promise<Phone> {
+  const [phone] = account.phoneId
+    ? await db
+        .select()
+        .from(datePhones)
+        .where(and(eq(datePhones.id, account.phoneId), eq(datePhones.userId, account.userId)))
+        .limit(1)
+    : []
+  if (!phone) throw new Error("No phone is paired for this profile yet. Pair one in the dashboard's Phone panel first.")
+  return phone
 }
 
 /** Start on the dashboard: the loop runs from the next pass until Stop or a limit. */
-export async function startLoop(userId: string, phoneId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
-  const [phone] = await db
-    .select()
-    .from(datePhones)
-    .where(and(eq(datePhones.id, phoneId), eq(datePhones.userId, userId)))
-    .limit(1)
-  if (!phone) throw new Error("That phone does not exist.")
+export async function startLoop(account: DatingAccount, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
+  if (account.pausedAt) throw new Error(PROFILE_PAUSED_WORDS)
+  const phone = await accountPhone(account, db)
   if (!phone.keyEncrypted) throw new Error(`${phone.name} is not paired. Pair it in the dashboard's Phone panel first.`)
   if (!phone.inControl) throw new Error(`Date is switched off for ${phone.name}. Switch it on in the dashboard's Phone panel first.`)
   if (phone.stoppedReason) throw new Error("A Tinder screen stopped the phone. Press Resume in the dashboard's Phone panel once it is sorted.")
-  const settings = await readDatingSettings(userId, phone.workspaceId, db)
-  const cap = await spendCapReached(userId, settings.spendCapDollars, db, now)
+  const settings = await readDatingSettings(account.id, db)
+  const cap = await aiSpendStopped(accountOwner(account), settings.spendCapDollars, db, now)
   if (cap) throw new Error(cap)
   // Started by hand inside the swiping window counts as that window's start, so the schedule does not start it a second time.
   const { scheduleStart: start, scheduleEnd: end } = settings
@@ -516,16 +544,11 @@ export async function startLoop(userId: string, phoneId: string, db: CustomShell
 }
 
 /** Stop on the dashboard. The walk already on the phone finishes; nothing new starts. */
-export async function stopLoopByHand(userId: string, phoneId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
-  const [phone] = await db
-    .select()
-    .from(datePhones)
-    .where(and(eq(datePhones.id, phoneId), eq(datePhones.userId, userId)))
-    .limit(1)
-  if (!phone) throw new Error("That phone does not exist.")
+export async function stopLoopByHand(account: DatingAccount, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
+  const phone = await accountPhone(account, db)
   await stopLoop(phone, "Stopped by you.", db, now)
   // Inside the swiping window, Stop holds until the next day's window.
-  const settings = await readDatingSettings(userId, phone.workspaceId, db)
+  const settings = await readDatingSettings(account.id, db)
   const { scheduleStart: start, scheduleEnd: end } = settings
   if (start !== null && end !== null && inHourWindow(start, end, phoneHour(phone.timeZone, now))) {
     await db

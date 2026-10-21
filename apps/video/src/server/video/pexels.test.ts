@@ -8,7 +8,10 @@ import {
   PEXELS_HOURLY_LIMIT_MESSAGE,
   PEXELS_RATE_LIMITED_MESSAGE,
   downloadPexelsFile,
+  downloadPexelsPhoto,
   forgetPexelsRequests,
+  isPexelsPhotoUrl,
+  searchPexelsPhotos,
   searchPexelsRows,
   testPexelsKey,
 } from "@/server/video/pexels"
@@ -159,5 +162,97 @@ describe("downloading a file on Place", () => {
   it("hands back the bytes", async () => {
     const pexels = fakePexels(() => new Response(new Uint8Array([1, 2, 3])))
     expect(Array.from(await downloadPexelsFile("https://videos.pexels.com/video-files/1/hd.mp4", pexels.fetchImpl))).toEqual([1, 2, 3])
+  })
+})
+
+describe("Pexels photos for carousels", () => {
+  function photo(id: number, host = "images.pexels.com") {
+    return {
+      id,
+      url: `https://www.pexels.com/photo/${id}/`,
+      width: 3000,
+      height: 4000,
+      alt: "A runner at dawn",
+      photographer: "Jane Doe",
+      photographer_url: "https://www.pexels.com/@jane",
+      src: {
+        medium: `https://${host}/photos/${id}/medium.jpeg`,
+        large2x: `https://${host}/photos/${id}/large2x.jpeg`,
+      },
+    }
+  }
+
+  it("asks the photo library once, in the carousel's shape", async () => {
+    const pexels = fakePexels(() =>
+      Response.json({ photos: [photo(1), photo(2)] })
+    )
+    const photos = await searchPexelsPhotos({
+      apiKey: "key",
+      query: "runner",
+      orientation: "portrait",
+      fetchImpl: pexels.fetchImpl,
+    })
+    expect(pexels.calls).toHaveLength(1)
+    expect(pexels.calls[0].pathname).toBe("/v1/search")
+    expect(pexels.calls[0].searchParams.get("orientation")).toBe("portrait")
+    expect(photos.map((item) => item.pexelsId)).toEqual([1, 2])
+    expect(photos[0].fileUrl).toBe(
+      "https://images.pexels.com/photos/1/large2x.jpeg"
+    )
+  })
+
+  it("leaves out a photo hosted anywhere but Pexels' picture host", async () => {
+    const pexels = fakePexels(() =>
+      Response.json({ photos: [photo(1), photo(2, "evil.example.com")] })
+    )
+    const photos = await searchPexelsPhotos({
+      apiKey: "key",
+      query: "runner",
+      orientation: "square",
+      fetchImpl: pexels.fetchImpl,
+    })
+    expect(photos.map((item) => item.pexelsId)).toEqual([1])
+  })
+
+  it("counts photo searches against the same hour as B-roll", async () => {
+    const pexels = fakePexels(() => Response.json({ photos: [] }))
+    for (let index = 0; index < PEXELS_HOURLY_LIMIT; index += 1) {
+      await searchPexelsPhotos({
+        apiKey: "key",
+        query: "runner",
+        orientation: "portrait",
+        fetchImpl: pexels.fetchImpl,
+      })
+    }
+    await expect(
+      searchPexelsPhotos({
+        apiKey: "key",
+        query: "runner",
+        orientation: "portrait",
+        fetchImpl: pexels.fetchImpl,
+      })
+    ).rejects.toThrow(PEXELS_HOURLY_LIMIT_MESSAGE)
+    expect(pexels.calls).toHaveLength(PEXELS_HOURLY_LIMIT)
+  })
+
+  it("says the key was refused in words", async () => {
+    const pexels = fakePexels(() => new Response("", { status: 401 }))
+    await expect(
+      searchPexelsPhotos({
+        apiKey: "bad",
+        query: "runner",
+        orientation: "portrait",
+        fetchImpl: pexels.fetchImpl,
+      })
+    ).rejects.toThrow(BROLL_KEY_REFUSED_MESSAGE)
+  })
+
+  it("never downloads a photo from another host", async () => {
+    const pexels = fakePexels()
+    await expect(
+      downloadPexelsPhoto("https://evil.example.com/a.jpeg", pexels.fetchImpl)
+    ).rejects.toThrow("Not a Pexels photo address")
+    expect(pexels.calls).toHaveLength(0)
+    expect(isPexelsPhotoUrl("http://images.pexels.com/a.jpeg")).toBe(false)
   })
 })

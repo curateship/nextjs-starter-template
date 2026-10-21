@@ -1,3 +1,8 @@
+import { execFileSync } from "node:child_process"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
+
 import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -5,9 +10,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ONLY_FAILED_RETRY_MESSAGE, RENDER_NOT_FOUND_MESSAGE } from "@/lib/video/render"
 import { now, uuid } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
-import { type CustomShellUser } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { customShellMedia, type CustomShellUser } from "@/server/schema"
 import {
+  createTestDatabase,
+  insertUser,
+  insertWorkspace,
+} from "@/server/test-support"
+import {
+  ensureCarouselExportPdf,
   keepCarouselExport,
   readCarouselExportSlide,
 } from "@/server/video/carousel-exports"
@@ -55,9 +65,13 @@ vi.mock("@/server/media/storage", async (importOriginal) => ({
       : file.data
     return {
       ContentType: file.type,
-      Body: { transformToByteArray: async () => data },
+      Body: {
+        transformToByteArray: async () => data,
+        transformToWebStream: () => new Blob([new Uint8Array(data)]).stream(),
+      },
     }
   },
+  r2ObjectExists: async (path: string) => bucket.files.has(path),
   deleteFromR2: async (path: string) => {
     bucket.files.delete(path)
     bucket.removed.push(path)
@@ -329,8 +343,13 @@ describe("clearing out carousel exports", () => {
       bytes_freed: row.fileSize,
       failed: 0,
     })
+    // The ZIP, its PDF beside it, and the cover.
     expect(bucket.removed.sort()).toEqual(
-      [row.storagePath, row.thumbnailStoragePath].sort()
+      [
+        row.storagePath,
+        row.storagePath?.replace(/\.zip$/, ".pdf"),
+        row.thumbnailStoragePath,
+      ].sort()
     )
     expect(
       (await listOwnedExports({ userId: user.id, kind: "carousel", database }))
@@ -447,5 +466,166 @@ describe("each dashboard keeps to its own kind", () => {
     expect(
       (await listOwnedExports({ userId: user.id, database })).exports
     ).toHaveLength(1)
+  })
+})
+
+describe("the PDF kept beside the ZIP", () => {
+  it("keeps one page per slide at the slide's size", async () => {
+    const kept = await keep((await carouselOfThree()).id)
+    const [row] = await database
+      .select()
+      .from(videoRenderJobs)
+      .where(eq(videoRenderJobs.id, kept.id))
+    const pdf = bucket.files.get(String(row.storagePath).replace(/\.zip$/, ".pdf"))
+    expect(pdf?.type).toBe("application/pdf")
+    const text = new TextDecoder("latin1").decode(pdf?.data)
+    expect(text.startsWith("%PDF-1.4")).toBe(true)
+    expect(text.match(/\/Type \/Page /g)).toHaveLength(3)
+    expect(text).toContain("/MediaBox [0 0 1080 1350]")
+    // Every object is where the cross-reference table says it is.
+    const table = /xref\n0 (\d+)\n0000000000 65535 f \n((?:\d{10} 00000 n \n)+)/.exec(text)
+    expect(table).not.toBeNull()
+    const offsets = (table?.[2] ?? "").trim().split("\n").map((line) => Number(line.slice(0, 10)))
+    offsets.forEach((offset, index) => {
+      expect(text.slice(offset, offset + 12)).toMatch(new RegExp(`^${index + 1} 0 obj`))
+    })
+  })
+
+  it("builds the PDF of an export kept before PDFs were, and keeps it", async () => {
+    const kept = await keep((await carouselOfThree()).id)
+    const [row] = await database
+      .select()
+      .from(videoRenderJobs)
+      .where(eq(videoRenderJobs.id, kept.id))
+    const pdfPath = String(row.storagePath).replace(/\.zip$/, ".pdf")
+    bucket.files.delete(pdfPath)
+    expect(
+      await ensureCarouselExportPdf(String(row.storagePath), row.slideRanges ?? [])
+    ).toBe(pdfPath)
+    const text = new TextDecoder("latin1").decode(bucket.files.get(pdfPath)?.data)
+    expect(text.match(/\/Type \/Page /g)).toHaveLength(3)
+  })
+})
+
+describe("a video slide", () => {
+  const work = { dir: "" }
+
+  beforeEach(async () => {
+    work.dir = await mkdtemp(path.join(tmpdir(), "carousel-clip-test-"))
+  })
+
+  afterEach(async () => {
+    await rm(work.dir, { recursive: true, force: true })
+  })
+
+  // A real one-second clip, 320 by 240, made by ffmpeg.
+  async function testClip() {
+    const file = path.join(work.dir, "clip.mp4")
+    execFileSync("ffmpeg", [
+      "-y",
+      "-v",
+      "error",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc=size=320x240:rate=10",
+      "-t",
+      "1",
+      "-pix_fmt",
+      "yuv420p",
+      file,
+    ])
+    return new Uint8Array(await readFile(file))
+  }
+
+  it("exports as an MP4 the size of the slide, with the other slides as PNGs", async () => {
+    const carousel = await carouselOfThree()
+    const detail = await getOwnedCarouselDetail(user.id, carousel.id, database)
+    const storagePath = `${user.id}/${uuid()}.mp4`
+    bucket.files.set(storagePath, { data: await testClip(), type: "video/mp4" })
+    const timestamp = now()
+    const [media] = await database
+      .insert(customShellMedia)
+      .values({
+        id: uuid(),
+        workspaceId: (await insertWorkspace(database, { userId: user.id })).id,
+        userId: user.id,
+        filename: "clip.mp4",
+        originalName: "clip.mp4",
+        fileSize: 100,
+        mimeType: "video/mp4",
+        fileType: "video",
+        storagePath,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      .returning()
+    const slides = detail.slides.map((slide, index) =>
+      index === 1
+        ? {
+            ...slide,
+            items: [
+              {
+                id: "clip",
+                type: "video" as const,
+                mediaId: media.id,
+                url: "https://example.com/clip.mp4",
+                fit: "cover" as const,
+                x: 0,
+                y: 0,
+                width: 1,
+                height: 1,
+                zIndex: 0,
+              },
+              ...slide.items,
+            ],
+          }
+        : slide
+    )
+    await writeCarousel(
+      user.id,
+      carousel.id,
+      { slides, format: "4:5", caption: "", expectedVersion: detail.version },
+      database
+    )
+
+    const kept = await keep(carousel.id)
+    const [row] = await database
+      .select()
+      .from(videoRenderJobs)
+      .where(eq(videoRenderJobs.id, kept.id))
+    expect(row.slideRanges?.map((range) => range.type ?? "picture")).toEqual([
+      "picture",
+      "video",
+      "picture",
+    ])
+    const clip = await readCarouselExportSlide(
+      String(row.storagePath),
+      row.slideRanges ?? [],
+      1
+    )
+    const out = path.join(work.dir, "out.mp4")
+    await writeFile(out, clip ?? new Uint8Array())
+    const probe = JSON.parse(
+      execFileSync("ffprobe", [
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height:format=duration",
+        "-of",
+        "json",
+        out,
+      ]).toString()
+    ) as {
+      streams: { width: number; height: number }[]
+      format: { duration: string }
+    }
+    expect(probe.streams[0]).toMatchObject({ width: 1080, height: 1350 })
+    expect(Number(probe.format.duration)).toBeCloseTo(1, 0)
+    // The ZIP names the slide as a video.
+    const zip = bucket.files.get(String(row.storagePath))?.data ?? new Uint8Array()
+    expect(new TextDecoder("latin1").decode(zip)).toContain("slides/slide-02.mp4")
   })
 })

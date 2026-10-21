@@ -15,8 +15,9 @@ const NO_STORE = { "Cache-Control": "no-store" }
  * `no-store` keeps the browser and anything between it and here from holding
  * a copy that would outlive the link.
  *
- * A shared carousel answers `?slide=2` with that one slide's PNG, read out of
- * the kept ZIP by its byte range, the same check made first.
+ * A shared carousel answers `?slide=2` with that one slide's PNG, or a video
+ * slide's MP4, read out of the kept ZIP by its byte range, the same check
+ * made first.
  */
 export const Route = createFileRoute("/api/v1/video/share/$token/file")({
   server: {
@@ -86,11 +87,12 @@ async function sharedSlideResponse(
       { status: 404, headers: NO_STORE }
     )
   }
+  const video = ranges[index]?.type === "video"
   return new Response(png, {
     headers: {
       ...NO_STORE,
-      "Content-Disposition": `inline; filename="slide-${index + 1}.png"`,
-      "Content-Type": "image/png",
+      "Content-Disposition": `inline; filename="slide-${index + 1}.${video ? "mp4" : "png"}"`,
+      "Content-Type": video ? "video/mp4" : "image/png",
       "X-Content-Type-Options": "nosniff",
     },
   })

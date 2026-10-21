@@ -42,6 +42,7 @@ import {
   type ProfileDetail,
 } from "@/lib/api/dating/dashboard"
 import { resume } from "@/lib/api/dating/phone"
+import { deleteProfile, loadProfileCounts, pickProfile, setProfilePaused } from "@/lib/api/dating/profiles"
 import type { SavedView } from "@/lib/api/saved-views"
 import { datingErrorMessage } from "@/lib/dating/errors"
 import { readLeadView, shownLeads, type LeadListItem, type LeadView } from "@/lib/dating/leads"
@@ -57,6 +58,7 @@ import { LeadSummary } from "./lead-summary"
 import { MyProfilePanel } from "./my-profile-panel"
 import { PhonePanel } from "./phone-panel"
 import { PictureDialog } from "./picture-dialog"
+import { NewProfileDialog } from "./profiles"
 
 export type DatingSearch = LeadView & {
   /**
@@ -91,6 +93,12 @@ type Loaded<T> = { id: string; value: T } | { id: string; error: string }
  * busy, and every fifteen otherwise, so a swipe, a new message or a draft
  * shows up without a reload. The up and down arrows move through the list,
  * and L or P likes or passes the open lead while it is not swiped yet.
+ *
+ * It shows one profile (task "features/06-profiles"), and each profile
+ * remembers its own place. Switching profile loads the whole page again, the
+ * way the shell's site switcher does, so nothing of the last profile stays on
+ * screen; so does a switch made on another device or tab, because the server
+ * acts on the profile picked.
  */
 export function DatingWorkspace({ initial, views, search }: { initial: DatingDashboard; views: SavedView[]; search: DatingSearch }) {
   const navigate = useNavigate({ from: "/admin/dating" })
@@ -103,6 +111,8 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
   const [planning, setPlanning] = React.useState<DatePlanTarget | null>(null)
   const [clearing, setClearing] = React.useState<LeadListItem[] | null>(null)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const [newOpen, setNewOpen] = React.useState(false)
+  const [deleting, setDeleting] = React.useState<{ leads: number; chats: number } | null>(null)
   const failing = React.useRef(false)
   const seen = React.useRef<string | null>(null)
 
@@ -120,10 +130,14 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
       openProfileId ? settle(loadDatingProfile(openProfileId)) : null,
       openMatchId ? settle(loadDatingMatch(openMatchId)) : null,
     ])
+    if (next.profile.id !== initial.profile.id) {
+      openDashboard()
+      return
+    }
     setData(next)
     if (openProfileId && card) setProfile({ id: openProfileId, ...card })
     if (openMatchId && chat) setMatch({ id: openMatchId, ...chat })
-  }, [openProfileId, openMatchId])
+  }, [openProfileId, openMatchId, initial.profile.id])
 
   const profileNow = profile && profile.id === openProfileId ? profile : null
   const matchNow = match && match.id === openMatchId ? match : null
@@ -249,6 +263,12 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
     if (leadId && search.open && leadId !== search.open) openLead(leadId, true)
   }, [leadId, search.open, openLead])
 
+  // Not through `act`: the page loads again at once, so there is nothing to read again here.
+  const switchProfile = (accountId: string) =>
+    void fetchIt("pick", () => pickProfile(accountId)).then((done) => {
+      if (done !== null) openDashboard()
+    })
+
   const swipe = (decision: "like" | "pass") => {
     if (!profileValue) return
     void act("swipe", () => swipeCard(profileValue.id, decision), decision === "like" ? "Like sent to the phone." : "Pass sent to the phone.")
@@ -319,7 +339,7 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
     <ThreePanels
       layoutKey={DATING_PANEL_LAYOUT_KEY}
       // The phone and My profile go last, so the first lead still opens first, and coming back to either reopens it.
-      place={{ key: DATING_PLACE_KEY, search, ids: [...shown.map((item) => item.id), ...PANEL_VIEWS] }}
+      place={{ key: `${DATING_PLACE_KEY}:${data.profile.id}`, search, ids: [...shown.map((item) => item.id), ...PANEL_VIEWS] }}
       showMiddleFor={`${view.tab ?? ""}|${view.group ?? ""}`}
       showRightFor={search.open}
       left={{
@@ -337,6 +357,9 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
             openId={search.open}
             onOpen={(id) => openLead(id)}
             onOpenSettings={() => setSettingsOpen(true)}
+            onPickProfile={switchProfile}
+            onNewProfile={() => setNewOpen(true)}
+            onResumeProfile={() => void act("pause", () => setProfilePaused(false), "Resumed. The profile runs again; Start or its schedule starts swiping.")}
           />
         ),
       }}
@@ -352,7 +375,7 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
             busy={busy}
             onView={setView}
             onOpen={(id) => openLead(id)}
-            onResume={() => void act("resume", () => resume(data.phone?.id ?? ""), "Resumed. The phone looks at Tinder again now.")}
+            onResume={() => void act("resume", () => resume(), "Resumed. The phone looks at Tinder again now.")}
             onOpenPicture={setPicture}
             onMovedToText={async (ids) => {
               const result = await fetchIt("mass", () => markManyMovedToText(ids))
@@ -393,7 +416,41 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
       }}
     >
       <PictureDialog picture={picture} onClose={() => setPicture(null)} />
-      <DatingSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <DatingSettingsDialog
+        open={settingsOpen}
+        profile={data.profile}
+        busy={busy}
+        onClose={() => setSettingsOpen(false)}
+        onRenamed={() => void reload().catch(() => {})}
+        onPause={(paused) =>
+          void act(
+            "pause",
+            () => setProfilePaused(paused),
+            paused ? "Paused. No swiping, replies or AI on this profile until Resume." : "Resumed. The profile runs again; Start or its schedule starts swiping."
+          )
+        }
+        onDelete={() =>
+          void fetchIt("counts", () => loadProfileCounts(data.profile.id)).then((counts) => {
+            if (!counts) return
+            setSettingsOpen(false)
+            setDeleting(counts)
+          })
+        }
+      />
+      <NewProfileDialog open={newOpen} copyFrom={data.profile.name} onClose={() => setNewOpen(false)} onMade={switchProfile} />
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={`Delete ${data.profile.name}?`}
+        description={`Its ${countWords(deleting?.leads ?? 0, "lead")} and ${countWords(deleting?.chats ?? 0, "chat")} go with it, with its settings and its Google Calendar link${data.phone ? `, and ${data.phone.name} is unpaired` : ""}. Nothing changes on the app itself. This can't be undone.`}
+        confirmLabel="Delete profile"
+        loading={busy === "delete"}
+        onConfirm={() =>
+          void fetchIt("delete", () => deleteProfile(data.profile.id)).then((done) => {
+            if (done !== null) openDashboard()
+          })
+        }
+      />
       <DatePlanDialog
         target={planning}
         busy={busy === "plan"}
@@ -441,6 +498,18 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
       </ConfirmDialog>
     </ThreePanels>
   )
+}
+
+/**
+ * The dashboard from the top, for another profile: the whole page loads
+ * again, so it opens on that profile's own last place.
+ */
+function openDashboard() {
+  window.location.assign("/admin/dating")
+}
+
+function countWords(count: number, one: string): string {
+  return `${count} ${count === 1 ? one : `${one}s`}`
 }
 
 /** A key pressed while typing belongs to the box, not to the list. */

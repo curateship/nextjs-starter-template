@@ -13,7 +13,7 @@ The server half is copied from Promo's rack link and trimmed to one phone talkin
 
 ## Pairing
 
-- **Pair a phone** in the dashboard's phone panel shows a six-digit code that works once, for ten minutes. Only its hash is kept.
+- **Pair a phone** in the dashboard's phone panel shows a six-digit code that works once, for ten minutes. Only its hash is kept. The code is made for the open profile, and the phone it pairs becomes that profile's phone (`../profiles.md`). New profile shows one too.
 - **The phone posts the code** to `/api/phone/pair` and gets its key back once. The key is kept encrypted with the server's key.
 - **Ten tries per address per fifteen minutes**, so a code cannot be guessed.
 - **Unpair** stops the key at once and cancels everything waiting. The phone's record and history stay; Pair it again gives a new key.

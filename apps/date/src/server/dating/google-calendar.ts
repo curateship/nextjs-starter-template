@@ -60,13 +60,13 @@ const HANDSHAKE_TTL_SECONDS = 10 * 60
  * calendar to this account, and the PKCE verifier means a stolen code is
  * useless on its own.
  */
-export function startCalendarConnect(): string {
+export function startCalendarConnect(accountId: string): string {
   const keys = credentials()
   if (!keys) throw new Error(GOOGLE_NOT_SET_UP)
   const state = randomBytes(32).toString("base64url")
   const verifier = randomBytes(32).toString("base64url")
   const challenge = createHash("sha256").update(verifier).digest("base64url")
-  setCookie(HANDSHAKE_COOKIE, JSON.stringify({ state, verifier }), {
+  setCookie(HANDSHAKE_COOKIE, JSON.stringify({ state, verifier, accountId }), {
     httpOnly: true,
     maxAge: HANDSHAKE_TTL_SECONDS,
     path: "/",
@@ -90,8 +90,11 @@ export function startCalendarConnect(): string {
   return url.toString()
 }
 
-/** The handshake's verifier when Google's `state` matches the cookie, cleared either way so one trip connects once. */
-export function takeCalendarHandshake(state: string | null): string | null {
+/**
+ * The handshake's verifier and the profile that asked, when Google's `state`
+ * matches the cookie, cleared either way so one trip connects once.
+ */
+export function takeCalendarHandshake(state: string | null): { verifier: string; accountId: string } | null {
   const raw = getCookie(HANDSHAKE_COOKIE)
   setCookie(HANDSHAKE_COOKIE, "", {
     httpOnly: true,
@@ -102,8 +105,8 @@ export function takeCalendarHandshake(state: string | null): string | null {
   })
   if (!raw || !state) return null
   try {
-    const parsed = JSON.parse(raw) as { state?: string; verifier?: string }
-    return parsed.state === state && parsed.verifier ? parsed.verifier : null
+    const parsed = JSON.parse(raw) as { state?: string; verifier?: string; accountId?: string }
+    return parsed.state === state && parsed.verifier && parsed.accountId ? { verifier: parsed.verifier, accountId: parsed.accountId } : null
   } catch {
     return null
   }
@@ -127,10 +130,9 @@ async function googleJson<T>(fetcher: Fetcher, url: string, init: RequestInit, w
   return (response.status === 204 ? {} : await response.json()) as T
 }
 
-/** Swaps the code Google sent back for a refresh token, and keeps it encrypted against the member. */
+/** Swaps the code Google sent back for a refresh token, and keeps it encrypted against the profile. */
 export async function finishCalendarConnect(
-  userId: string,
-  workspaceId: string,
+  account: { id: string; userId: string; workspaceId: string },
   code: string,
   verifier: string,
   db: CustomShellDb = defaultDb,
@@ -173,27 +175,20 @@ export async function finishCalendarConnect(
   }
   await db
     .insert(dateGoogleCalendars)
-    .values({ userId, workspaceId, ...values })
-    .onConflictDoUpdate({ target: [dateGoogleCalendars.userId, dateGoogleCalendars.workspaceId], set: values })
+    .values({ accountId: account.id, userId: account.userId, workspaceId: account.workspaceId, ...values })
+    .onConflictDoUpdate({ target: dateGoogleCalendars.accountId, set: values })
 }
 
 export type CalendarConnection = { available: boolean; connected: boolean; email: string; lastError: string }
 
-export async function calendarConnection(userId: string, workspaceId: string, db: CustomShellDb = defaultDb): Promise<CalendarConnection> {
-  const [row] = await db
-    .select()
-    .from(dateGoogleCalendars)
-    .where(and(eq(dateGoogleCalendars.userId, userId), eq(dateGoogleCalendars.workspaceId, workspaceId)))
-    .limit(1)
+export async function calendarConnection(accountId: string, db: CustomShellDb = defaultDb): Promise<CalendarConnection> {
+  const [row] = await db.select().from(dateGoogleCalendars).where(eq(dateGoogleCalendars.accountId, accountId)).limit(1)
   return { available: googleCalendarAvailable(), connected: Boolean(row), email: row?.email ?? "", lastError: row?.lastError ?? "" }
 }
 
 /** Forgets the calendar and asks Google to cancel Date's access. Events already written stay in the calendar. */
-export async function disconnectCalendar(userId: string, workspaceId: string, db: CustomShellDb = defaultDb, fetcher: Fetcher = fetch): Promise<void> {
-  const [row] = await db
-    .delete(dateGoogleCalendars)
-    .where(and(eq(dateGoogleCalendars.userId, userId), eq(dateGoogleCalendars.workspaceId, workspaceId)))
-    .returning()
+export async function disconnectCalendar(accountId: string, db: CustomShellDb = defaultDb, fetcher: Fetcher = fetch): Promise<void> {
+  const [row] = await db.delete(dateGoogleCalendars).where(eq(dateGoogleCalendars.accountId, accountId)).returning()
   if (!row) return
   try {
     await fetcher(`${REVOKE_URL}?${new URLSearchParams({ token: decryptSecret(row.refreshTokenEncrypted) })}`, {
@@ -229,7 +224,7 @@ async function accessToken(row: typeof dateGoogleCalendars.$inferSelect, fetcher
 }
 
 /**
- * Brings one date's event in the member's Google Calendar into line with the
+ * Brings one date's event in its profile's Google Calendar into line with the
  * date: made when it has a time, moved when the time or place changed, and
  * deleted when the time was cleared. Nothing happens without a connected
  * calendar. A failure is kept on the connection and thrown in words; the date
@@ -237,19 +232,15 @@ async function accessToken(row: typeof dateGoogleCalendars.$inferSelect, fetcher
  */
 export async function syncDateEvent(
   userId: string,
-  workspaceId: string,
   matchId: string,
   db: CustomShellDb = defaultDb,
   fetcher: Fetcher = fetch
 ): Promise<"none" | "written" | "deleted"> {
-  const [row] = await db
-    .select()
-    .from(dateGoogleCalendars)
-    .where(and(eq(dateGoogleCalendars.userId, userId), eq(dateGoogleCalendars.workspaceId, workspaceId)))
-    .limit(1)
-  if (!row) return "none"
   const [match] = await db.select().from(dateMatches).where(and(eq(dateMatches.id, matchId), eq(dateMatches.userId, userId))).limit(1)
   if (!match || match.sample) return "none"
+  const calendar = eq(dateGoogleCalendars.accountId, match.accountId)
+  const [row] = await db.select().from(dateGoogleCalendars).where(calendar).limit(1)
+  if (!row) return "none"
   try {
     const token = await accessToken(row, fetcher)
     const auth = { authorization: `Bearer ${token}`, "content-type": "application/json" }
@@ -262,7 +253,7 @@ export async function syncDateEvent(
         }
       )
       await db.update(dateMatches).set({ googleEventId: "" }).where(eq(dateMatches.id, match.id))
-      await db.update(dateGoogleCalendars).set({ lastError: "" }).where(and(eq(dateGoogleCalendars.userId, userId), eq(dateGoogleCalendars.workspaceId, workspaceId)))
+      await db.update(dateGoogleCalendars).set({ lastError: "" }).where(calendar)
       return "deleted"
     }
     const event = {
@@ -284,11 +275,11 @@ export async function syncDateEvent(
       .update(dateMatches)
       .set({ googleEventId: (saved.id ?? match.googleEventId).slice(0, 200) })
       .where(eq(dateMatches.id, match.id))
-    await db.update(dateGoogleCalendars).set({ lastError: "" }).where(and(eq(dateGoogleCalendars.userId, userId), eq(dateGoogleCalendars.workspaceId, workspaceId)))
+    await db.update(dateGoogleCalendars).set({ lastError: "" }).where(calendar)
     return "written"
   } catch (error) {
     const words = error instanceof Error ? error.message : "Google Calendar could not be written to."
-    await db.update(dateGoogleCalendars).set({ lastError: words }).where(and(eq(dateGoogleCalendars.userId, userId), eq(dateGoogleCalendars.workspaceId, workspaceId)))
+    await db.update(dateGoogleCalendars).set({ lastError: words }).where(calendar)
     throw new Error(words)
   }
 }

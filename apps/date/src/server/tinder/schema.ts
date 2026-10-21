@@ -11,6 +11,7 @@ import type {
   WalkKind,
   WalkStatus,
 } from "@/lib/dating/options"
+import { dateAccounts } from "@/server/dating/schema"
 import { datePhones } from "@/server/phone/schema"
 import { customShellUsers, customShellWorkspaces } from "@/server/schema"
 
@@ -19,7 +20,8 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
  * and their messages, the member's own profile, and the job list of walks.
  * The SQL is `drizzle/0097_date_tinder.sql`, `drizzle/0100_date_chats.sql`,
  * `drizzle/0103_date_first_look_model.sql` and
- * `drizzle/0104_date_forget_passed_photos.sql`.
+ * `drizzle/0104_date_forget_passed_photos.sql`. Every record belongs to one
+ * profile (`accountId`, `drizzle/0108_date_profiles.sql`), and goes with it.
  * Stored fields are never renamed.
  */
 
@@ -48,6 +50,9 @@ export const dateProfiles = pgTable(
   "date_profiles",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => dateAccounts.id, { onDelete: "cascade" }),
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
@@ -94,7 +99,10 @@ export const dateProfiles = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("ix_date_profiles_user_read").on(table.userId, table.workspaceId, table.readAt.desc())]
+  (table) => [
+    index("ix_date_profiles_user_read").on(table.userId, table.workspaceId, table.readAt.desc()),
+    index("ix_date_profiles_account_read").on(table.accountId, table.readAt.desc()),
+  ]
 )
 
 /** One match: a person who liked back, and the conversation with them. */
@@ -102,6 +110,9 @@ export const dateMatches = pgTable(
   "date_matches",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => dateAccounts.id, { onDelete: "cascade" }),
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
@@ -186,7 +197,10 @@ export const dateMatches = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("ix_date_matches_user").on(table.userId, table.workspaceId, table.lastMessageAt.desc())]
+  (table) => [
+    index("ix_date_matches_user").on(table.userId, table.workspaceId, table.lastMessageAt.desc()),
+    index("ix_date_matches_account").on(table.accountId, table.lastMessageAt.desc()),
+  ]
 )
 
 /** One message in a match's conversation, theirs or ours, in the order Tinder shows them. */
@@ -221,10 +235,13 @@ export const dateMessages = pgTable(
   (table) => [index("ix_date_messages_match").on(table.matchId, table.position)]
 )
 
-/** The member's own Tinder profile as last read, and the AI's suggestions for it. One per phone. */
+/** The member's own profile on the app as last read, and the AI's suggestions for it. One per profile. */
 export const dateOwnProfiles = pgTable("date_own_profile", {
-  phoneId: varchar("phone_id", { length: 36 })
+  accountId: varchar("account_id", { length: 36 })
     .primaryKey()
+    .references(() => dateAccounts.id, { onDelete: "cascade" }),
+  phoneId: varchar("phone_id", { length: 36 })
+    .notNull()
     .references(() => datePhones.id, { onDelete: "cascade" }),
   userId: varchar("user_id", { length: 36 })
     .notNull()
@@ -254,6 +271,9 @@ export const dateWalks = pgTable(
   "date_walks",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => dateAccounts.id, { onDelete: "cascade" }),
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),

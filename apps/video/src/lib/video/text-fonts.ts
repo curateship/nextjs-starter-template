@@ -14,6 +14,12 @@
  * of caption text), then scaled by the same ~1.14 safety margin Inter's
  * shipped 0.55 carries over its measured 0.48 — wrapping a word early is
  * invisible, wrapping late pushes words off the frame.
+ *
+ * `ascent` and `descent` are how far the face reaches above and below the
+ * line it sits on, as a share of the font size, read from each ttf's `hhea`
+ * table on 20 Oct 2026. A browser centres those on each line, so the export
+ * uses them to put its lines, and the box behind highlighted words, where
+ * the canvas does.
  */
 
 export const TEXT_FONTS = [
@@ -24,6 +30,8 @@ export const TEXT_FONTS = [
     svgFamily: "Inter",
     weight: 600,
     widthRatio: 0.55,
+    ascent: 0.969,
+    descent: 0.241,
   },
   {
     id: "playfair-display",
@@ -32,6 +40,8 @@ export const TEXT_FONTS = [
     svgFamily: "Playfair Display",
     weight: 600,
     widthRatio: 0.52,
+    ascent: 1.082,
+    descent: 0.251,
   },
   {
     id: "space-grotesk",
@@ -40,6 +50,8 @@ export const TEXT_FONTS = [
     svgFamily: "Space Grotesk",
     weight: 600,
     widthRatio: 0.55,
+    ascent: 0.984,
+    descent: 0.292,
   },
   {
     id: "caveat",
@@ -48,6 +60,8 @@ export const TEXT_FONTS = [
     svgFamily: "Caveat",
     weight: 600,
     widthRatio: 0.38,
+    ascent: 0.96,
+    descent: 0.3,
   },
 ] as const
 

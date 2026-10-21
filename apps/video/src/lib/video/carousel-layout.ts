@@ -3,7 +3,13 @@ import type {
   CarouselSlide,
   CarouselSlideItem,
   CarouselTextItem,
+  CarouselWordsItem,
 } from "@/lib/video/carousel-schema"
+import {
+  letterSpacingOf,
+  lineHeightOf,
+  wrapCarouselText,
+} from "@/lib/video/carousel-text"
 import { requireTextFont } from "@/lib/video/text-fonts"
 
 /** Every shape is 1080 wide, so a new shape only changes the height. */
@@ -15,8 +21,6 @@ export const CAROUSEL_FRAME_SIZES: Record<
   "1:1": { width: 1080, height: 1080 },
   "9:16": { width: 1080, height: 1920 },
 }
-
-export const CAROUSEL_TEXT_LINE_HEIGHT = 1.16
 
 // A layer dragged to an edge is saved a hair short of it.
 const EDGE = 0.002
@@ -55,8 +59,8 @@ function relayoutItem(
   const fitted = height > 1 ? 1 : height < MIN_BOX ? MIN_BOX : null
   if (fitted !== null) {
     // Pictures and shadows scale evenly so they keep their proportions; a
-    // text box keeps its width so its words wrap as before.
-    if (item.type !== "text") {
+    // box of words keeps its width so its words wrap as before.
+    if (item.type !== "text" && item.type !== "slide-number") {
       width = Math.min(1, Math.max(MIN_BOX, (width * fitted) / height))
     }
     height = fitted
@@ -78,44 +82,6 @@ function clamp(value: number, max: number) {
   return Math.min(Math.max(0, max), Math.max(0, value))
 }
 
-/** The lines the export draws, worked out from each face's letter width. */
-export function wrapCarouselText(
-  text: string,
-  width: number,
-  fontSize: number,
-  widthRatio: number
-) {
-  const maxCharacters = Math.max(1, Math.floor(width / (fontSize * widthRatio)))
-  const lines: string[] = []
-  for (const paragraph of text.split("\n")) {
-    const words = paragraph.split(/\s+/).filter(Boolean)
-    if (!words.length) {
-      lines.push("")
-      continue
-    }
-    let line = ""
-    for (const word of words) {
-      if (word.length > maxCharacters) {
-        if (line) lines.push(line)
-        for (let start = 0; start < word.length; start += maxCharacters) {
-          lines.push(word.slice(start, start + maxCharacters))
-        }
-        line = ""
-        continue
-      }
-      const candidate = line ? `${line} ${word}` : word
-      if (candidate.length <= maxCharacters) {
-        line = candidate
-      } else {
-        lines.push(line)
-        line = word
-      }
-    }
-    if (line) lines.push(line)
-  }
-  return lines
-}
-
 /** True when the export would cut off the last lines of this text box. */
 export function textOverflows(item: CarouselTextItem, format: CarouselFormat) {
   if (!item.text.trim()) return false
@@ -124,16 +90,24 @@ export function textOverflows(item: CarouselTextItem, format: CarouselFormat) {
     item.text,
     item.width * size.width,
     item.fontSize,
-    requireTextFont(item.fontId).widthRatio
+    letterWidthOf(item)
   )
   // Blank lines after the last words draw nothing, so they cannot be cut off.
   let drawn = lines.length
   while (drawn > 0 && !lines[drawn - 1]) drawn -= 1
   // Half a pixel of slack, so a box sized exactly to its lines is not flagged.
   return (
-    drawn * item.fontSize * CAROUSEL_TEXT_LINE_HEIGHT >
+    drawn * item.fontSize * lineHeightOf(item) >
     item.height * size.height + 0.5
   )
+}
+
+/**
+ * A letter's average width as a share of the font size: the face's own, plus
+ * any extra spacing the layer adds after each letter.
+ */
+export function letterWidthOf(item: Pick<CarouselWordsItem, "fontId" | "letterSpacing">) {
+  return requireTextFont(item.fontId).widthRatio + letterSpacingOf(item)
 }
 
 /** The text boxes that do not fit, by slide id. Slides with none are left out. */
@@ -152,12 +126,37 @@ export function findTextOverflow(
   return overflow
 }
 
-type LayerKind = "text" | "picture" | "shadow"
+type LayerKind = "text" | "number" | "picture" | "shadow"
 
 function layerKind(item: CarouselSlideItem): LayerKind {
   if (item.type === "text") return "text"
+  if (item.type === "slide-number") return "number"
   if (item.type === "gradient-shadow") return "shadow"
   return "picture"
+}
+
+// How a layer of words looks, which travels with a pushed layout. The words
+// and their bold or highlighted letters never do.
+function wordsLook(item: CarouselWordsItem) {
+  return {
+    fontId: item.fontId,
+    fontSize: item.fontSize,
+    color: item.color,
+    align: item.align,
+    lineHeight: item.lineHeight,
+    letterSpacing: item.letterSpacing,
+    boxColor: item.boxColor,
+    outlineColor: item.outlineColor,
+    outlineWidth: item.outlineWidth,
+  }
+}
+
+// Optional fields set to undefined are dropped, so the saved layer never
+// holds a key the schema would refuse to read back.
+function withoutUnset<T extends object>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, field]) => field !== undefined)
+  ) as T
 }
 
 // Each kind's layers, bottom first. Equal z-orders keep their saved order.
@@ -205,8 +204,16 @@ function takeLayout(
   // Layers are matched kind to kind, so a mismatch here never happens.
   if (item.type === "text") {
     if (from.type !== "text") return item
-    const { fontId, fontSize, color, align } = from
-    return { ...item, ...box, fontId, fontSize, color, align }
+    return withoutUnset({
+      ...item,
+      ...box,
+      ...wordsLook(from),
+      highlightColor: from.highlightColor,
+    })
+  }
+  if (item.type === "slide-number") {
+    if (from.type !== "slide-number") return item
+    return withoutUnset({ ...item, ...box, ...wordsLook(from) })
   }
   if (item.type === "gradient-shadow") {
     if (from.type !== "gradient-shadow") return item
@@ -214,7 +221,9 @@ function takeLayout(
     const next = { ...rest, ...box, color: from.color, opacity: from.opacity }
     return from.direction ? { ...next, direction: from.direction } : next
   }
-  if (from.type === "text" || from.type === "gradient-shadow") return item
+  // Which part of a cropped picture shows belongs to that picture, so it
+  // stays.
+  if (from.type !== "image" && from.type !== "video") return item
   return { ...item, ...box, fit: from.fit }
 }
 
@@ -242,4 +251,18 @@ export function pushSlideLayout(
       }),
     }
   })
+}
+
+/** A layer's name in the Layers list: its first words, or what it is. */
+export function layerName(item: CarouselSlideItem) {
+  if (item.type === "text") {
+    const words = item.text.trim().replace(/\s+/g, " ")
+    if (!words) return "Empty text"
+    return words.length > 40 ? `${words.slice(0, 40)}...` : words
+  }
+  if (item.type === "slide-number") return "Slide number"
+  if (item.type === "gradient-shadow") return "Shadow"
+  const name = item.altText?.trim()
+  if (name) return name
+  return item.type === "video" ? "Video" : "Picture"
 }

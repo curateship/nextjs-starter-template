@@ -9,7 +9,6 @@ import { SaveViewDialog, SavedViewsControls, type EditFields, type SavedViewsScr
 import { SearchToggle } from "@/components/shared/search-toggle"
 import { SortableTableHeader, SelectAllTableHead, type TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -42,14 +41,18 @@ import { useListSort, useSearchBoxText } from "@/lib/nav/list-search"
 import { savedViewScreen, type SavedViewValues } from "@/lib/saved-views"
 import { cn } from "@/lib/utils"
 
+import { DatesMonth, DatesSplit } from "./dates-month"
 import { LeadAvatar } from "./lead-avatar"
 import { NeedsBadge, StatusPill } from "./lead-status"
 import { nameAndAge, whenWords } from "./words"
 
-const VIEWS_HERE: SavedViewsScreen = {
-  screen: savedViewScreen(DATING_SAVED_VIEW_KIND, ""),
-  describe: (filters) => describeLeadView(readLeadView(filters)),
-  kept: (filters) => readLeadView(filters) as SavedViewValues,
+/** The open profile's saved views: each profile keeps its own. */
+function viewsHere(accountId: string): SavedViewsScreen {
+  return {
+    screen: savedViewScreen(DATING_SAVED_VIEW_KIND, accountId),
+    describe: (filters) => describeLeadView(readLeadView(filters)),
+    kept: (filters) => readLeadView(filters) as SavedViewValues,
+  }
 }
 
 /** "Any" in a Select, since a Select item cannot hold an empty value. */
@@ -106,6 +109,7 @@ export function LeadList({
   const toggleSort = useListSort<LeadSort>({ sort, direction }, defaultLeadDirection)
   const [filterOpen, setFilterOpen] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
+  const here = React.useMemo(() => viewsHere(data.profile.id), [data.profile.id])
 
   const [massSelect, setMassSelect] = React.useState(false)
   const selection = useSelection()
@@ -235,7 +239,7 @@ export function LeadList({
             <LeadFilterRows idPrefix="lead-filter" view={filters} onChange={onView} />
           </FilterPopover>
           <SavedViewsControls
-            here={VIEWS_HERE}
+            here={here}
             views={views}
             filters={currentView}
             onOpen={(saved) => {
@@ -270,128 +274,100 @@ export function LeadList({
           </Button>
         </div>
       ) : null}
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        {view.tab === "dates" ? <DatesMonth leads={data.leads} onOpen={onOpen} /> : null}
-        <Table
-          containerClassName="overflow-visible"
-          className="[&_td]:py-3 [&_td:first-child]:pl-4 [&_td:last-child]:pr-3 [&_th:first-child]:pl-4 [&_th:last-child]:pr-3"
-        >
-          <SortableTableHeader
-            columns={columns}
-            sort={sort}
-            direction={direction}
-            onSort={toggleSort}
-            leading={
-              massSelect ? (
-                <SelectAllTableHead
-                  noun="leads"
-                  disabled={visibleIds.length === 0}
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                />
-              ) : null
-            }
-          />
-          <TableBody>
-            {leads.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns.length + 1} className="py-10 text-center text-sm whitespace-normal text-muted-foreground">
-                  <EmptyWords data={data} view={view} />
-                </TableCell>
-              </TableRow>
-            ) : (
-              leads.map((lead) => (
-                <TableRow
-                  key={lead.id}
-                  className={cn("group", lead.id === openId && "bg-muted/60 [&>td:first-child]:shadow-[inset_2px_0_0_0_var(--foreground)]")}
-                  rowAction={() => onOpen(lead.id)}
-                >
-                  {massSelect ? (
-                    <TableCell column="select">
-                      <Checkbox checked={selection.selected.has(lead.id)} onCheckedChange={() => selection.toggle(lead.id)} aria-label={`Select ${lead.name}`} />
-                    </TableCell>
-                  ) : null}
-                  <TableCell column="main" className="min-w-40">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <LeadAvatar name={lead.name} />
-                      <div className="grid min-w-0 gap-0.5">
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          {/* The same action the row carries, so it is reachable by keyboard. */}
-                          <button type="button" className="min-w-0 truncate text-left font-medium group-hover:underline" onClick={() => onOpen(lead.id)}>
-                            {nameAndAge(lead.name, lead.age)}
-                          </button>
-                          {lead.unreadCount ? (
-                            <span
-                              className="size-1.5 shrink-0 rounded-full bg-foreground"
-                              role="img"
-                              aria-label={`${lead.unreadCount} unread`}
-                            />
-                          ) : null}
-                        </span>
-                        <span className="truncate text-sm text-muted-foreground">
-                          {/* The status under the name once its own column has gone. */}
-                          <span className="@md/list:hidden">{LEAD_STATUS_WORDS[lead.status]} · </span>
-                          {lead.overWhy ? `${LEAD_OVER_WORDS[lead.overWhy]} · ` : ""}
-                          {secondLine(lead)}
-                        </span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell column="meta" className="hidden @md/list:table-cell">
-                    <StatusPill status={lead.status} />
-                  </TableCell>
-                  <TableCell column="meta" className="hidden @xl/list:table-cell">
-                    <NeedsBadge lead={lead} />
-                  </TableCell>
-                  <TableCell
-                    column="meta"
-                    className={cn("hidden text-right font-semibold tabular-nums @lg/list:table-cell", (lead.status === "passed" || lead.status === "over") && "font-normal text-muted-foreground")}
-                  >
-                    {lead.score ?? <span className="font-normal text-muted-foreground">-</span>}
-                  </TableCell>
-                  <TableCell column="mutedMeta" className="hidden @3xl/list:table-cell">
-                    {lead.swipedBy === "ai" ? "The AI" : lead.swipedBy === "member" ? "You" : "Nobody yet"}
-                  </TableCell>
-                  <TableCell column="mutedMeta" className="hidden text-right whitespace-nowrap @2xl/list:table-cell">
-                    {whenWords(lead.changedAt)}
+      <DatesSplit month={view.tab === "dates" ? <DatesMonth leads={data.leads} onOpen={onOpen} /> : null}>
+        <ScrollArea className="h-full min-h-0 flex-1" viewportClassName="h-full">
+          <Table
+            containerClassName="overflow-visible"
+            className="[&_td]:py-3 [&_td:first-child]:pl-4 [&_td:last-child]:pr-3 [&_th:first-child]:pl-4 [&_th:last-child]:pr-3"
+          >
+            <SortableTableHeader
+              columns={columns}
+              sort={sort}
+              direction={direction}
+              onSort={toggleSort}
+              leading={
+                massSelect ? (
+                  <SelectAllTableHead
+                    noun="leads"
+                    disabled={visibleIds.length === 0}
+                    checked={selection.selectAllState(visibleIds)}
+                    onCheckedChange={() => selection.toggleVisible(visibleIds)}
+                  />
+                ) : null
+              }
+            />
+            <TableBody>
+              {leads.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={columns.length + 1} className="py-10 text-center text-sm whitespace-normal text-muted-foreground">
+                    <EmptyWords data={data} view={view} />
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-      <SaveViewDialog open={savingView} here={VIEWS_HERE} filters={currentView} onClose={() => setSavingView(false)} />
-    </div>
-  )
-}
-
-/**
- * The Dates tab's month, which was the Calendar screen until Tyler's "We dont
- * need 4 seperate pages" (20 Oct 2026): every date with a time marked on its
- * day, opening on the month of the next one. Pressing a marked day opens that
- * lead. Dates still waiting for a time are the rows below.
- */
-function DatesMonth({ leads, onOpen }: { leads: LeadListItem[]; onOpen: (id: string) => void }) {
-  const timed = leads.filter((lead) => lead.dateAccepted && lead.dateAt)
-  const [month, setMonth] = React.useState<Date>(() => {
-    const now = Date.now()
-    return timed.map((lead) => new Date(lead.dateAt as Date)).find((at) => at.getTime() >= now) ?? new Date()
-  })
-  const onDay = (day: Date) => timed.find((lead) => new Date(lead.dateAt as Date).toDateString() === day.toDateString())
-  return (
-    <div className="flex justify-center border-b py-2">
-      <Calendar
-        month={month}
-        onMonthChange={setMonth}
-        modifiers={{ booked: timed.map((lead) => new Date(lead.dateAt as Date)) }}
-        modifiersClassNames={{ booked: "font-semibold text-primary underline underline-offset-4" }}
-        onDayClick={(day) => {
-          const lead = onDay(day)
-          if (lead) onOpen(lead.id)
-        }}
-      />
+              ) : (
+                leads.map((lead) => (
+                  <TableRow
+                    key={lead.id}
+                    className={cn("group", lead.id === openId && "bg-muted/60 [&>td:first-child]:shadow-[inset_2px_0_0_0_var(--foreground)]")}
+                    rowAction={() => onOpen(lead.id)}
+                  >
+                    {massSelect ? (
+                      <TableCell column="select">
+                        <Checkbox checked={selection.selected.has(lead.id)} onCheckedChange={() => selection.toggle(lead.id)} aria-label={`Select ${lead.name}`} />
+                      </TableCell>
+                    ) : null}
+                    <TableCell column="main" className="min-w-40">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <LeadAvatar name={lead.name} />
+                        <div className="grid min-w-0 gap-0.5">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            {/* The same action the row carries, so it is reachable by keyboard. */}
+                            <button type="button" className="min-w-0 truncate text-left font-medium group-hover:underline" onClick={() => onOpen(lead.id)}>
+                              {nameAndAge(lead.name, lead.age)}
+                            </button>
+                            {lead.unreadCount ? (
+                              <span
+                                className="size-1.5 shrink-0 rounded-full bg-foreground"
+                                role="img"
+                                aria-label={`${lead.unreadCount} unread`}
+                              />
+                            ) : null}
+                          </span>
+                          <span className="truncate text-sm text-muted-foreground">
+                            {/* The status under the name once its own column has gone. */}
+                            <span className="@md/list:hidden">{LEAD_STATUS_WORDS[lead.status]} · </span>
+                            {lead.overWhy ? `${LEAD_OVER_WORDS[lead.overWhy]} · ` : ""}
+                            {secondLine(lead)}
+                          </span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell column="meta" className="hidden @md/list:table-cell">
+                      <StatusPill status={lead.status} />
+                    </TableCell>
+                    <TableCell column="meta" className="hidden @xl/list:table-cell">
+                      <NeedsBadge lead={lead} />
+                    </TableCell>
+                    <TableCell
+                      column="meta"
+                      className={cn("hidden text-right font-semibold tabular-nums @lg/list:table-cell", (lead.status === "passed" || lead.status === "over") && "font-normal text-muted-foreground")}
+                    >
+                      {lead.score ?? <span className="font-normal text-muted-foreground">-</span>}
+                    </TableCell>
+                    <TableCell column="mutedMeta" className="hidden @3xl/list:table-cell">
+                      {lead.swipedBy === "ai" ? "The AI" : lead.swipedBy === "member" ? "You" : "Nobody yet"}
+                    </TableCell>
+                    <TableCell column="mutedMeta" className="hidden text-right whitespace-nowrap @2xl/list:table-cell">
+                      {whenWords(lead.changedAt)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      </DatesSplit>
+      <SaveViewDialog open={savingView} here={here} filters={currentView} onClose={() => setSavingView(false)} />
     </div>
   )
 }
