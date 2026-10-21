@@ -2,7 +2,9 @@
 
 The Stickers row in the studio's Text panel is each person's own list. It holds
 emoji and pictures from their media library. One press on a sticker puts it on
-the frame at the playhead.
+the frame at the playhead. The carousel editor's Text panel shows the same
+list and places a sticker as a layer (see
+[carousel-pictures.md](carousel-pictures.md)).
 
 ## The list
 

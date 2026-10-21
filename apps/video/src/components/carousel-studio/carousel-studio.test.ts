@@ -46,7 +46,7 @@ function initial(): BuilderState {
     caption: "Caption",
     format: "4:5",
     selectedSlideId: "slide-1",
-    selectedItemId: "text-1",
+    selectedItemIds: ["text-1"],
     past: [],
     future: [],
   }
@@ -100,18 +100,34 @@ const edits: { name: string; action: BuilderAction }[] = [
   {
     name: "deleting a layer",
     action: {
-      type: "DELETE_ITEM",
+      type: "DELETE_ITEMS",
       slideId: "slide-1",
-      itemId: "text-1",
+      itemIds: ["text-1"],
     },
   },
   {
     name: "layer ordering",
     action: {
-      type: "MOVE_LAYER",
+      type: "MOVE_LAYERS",
       slideId: "slide-1",
-      itemId: "text-1",
+      itemIds: ["text-1"],
       direction: 1,
+    },
+  },
+  {
+    name: "moving several layers in one drag",
+    action: {
+      type: "UPDATE_ITEMS",
+      slideId: "slide-1",
+      patches: { "text-1": { x: 0.15 } },
+    },
+  },
+  {
+    name: "pasting layers",
+    action: {
+      type: "PASTE_ITEMS",
+      slideId: "slide-2",
+      items: [{ ...text, id: "pasted-1" }],
     },
   },
   { name: "resetting a slide", action: { type: "RESET_DEFAULTS" } },
@@ -219,7 +235,7 @@ describe("carousel studio history", () => {
       ...initial(),
       slides: deck,
       selectedSlideId: "s5",
-      selectedItemId: "t5",
+      selectedItemIds: ["t5"],
     }
     const moved = builderReducer(before, {
       type: "MOVE_SLIDE",
@@ -236,7 +252,7 @@ describe("carousel studio history", () => {
       "s6",
     ])
     expect(moved.selectedSlideId).toBe("s5")
-    expect(moved.selectedItemId).toBe("t5")
+    expect(moved.selectedItemIds).toEqual(["t5"])
     expect(moved.past).toHaveLength(1)
 
     const undone = builderReducer(moved, { type: "UNDO" })
@@ -311,5 +327,165 @@ describe("carousel studio history", () => {
         item: { ...text, id: "text-51" },
       })
     ).toBe(state)
+  })
+
+  it("adds and takes out layers with Shift-click", () => {
+    const deck: CarouselSlide[] = [
+      {
+        ...slides[0],
+        items: [text, { ...text, id: "text-2" }, { ...text, id: "text-3" }],
+      },
+    ]
+    let state: BuilderState = { ...initial(), slides: deck }
+    state = builderReducer(state, {
+      type: "SELECT_ITEM",
+      itemId: "text-2",
+      additive: true,
+    })
+    state = builderReducer(state, {
+      type: "SELECT_ITEM",
+      itemId: "text-3",
+      additive: true,
+    })
+    expect(state.selectedItemIds).toEqual(["text-1", "text-2", "text-3"])
+    state = builderReducer(state, {
+      type: "SELECT_ITEM",
+      itemId: "text-1",
+      additive: true,
+    })
+    expect(state.selectedItemIds).toEqual(["text-2", "text-3"])
+    // A plain click picks one layer only.
+    state = builderReducer(state, { type: "SELECT_ITEM", itemId: "text-1" })
+    expect(state.selectedItemIds).toEqual(["text-1"])
+  })
+
+  it("moves three layers in one drag and one undo puts all three back", () => {
+    const deck: CarouselSlide[] = [
+      {
+        ...slides[0],
+        items: [
+          text,
+          { ...text, id: "text-2", y: 0.4 },
+          { ...text, id: "text-3", y: 0.6 },
+        ],
+      },
+    ]
+    const start: BuilderState = {
+      ...initial(),
+      slides: deck,
+      selectedItemIds: ["text-1", "text-2", "text-3"],
+    }
+    const patches = Object.fromEntries(
+      deck[0].items.map((item) => [item.id, { x: item.x + 0.05 }])
+    )
+    // A drag sends its moves as it goes and commits once at the end.
+    let state = builderReducer(start, {
+      type: "UPDATE_ITEMS",
+      slideId: "slide-1",
+      patches,
+      transient: true,
+    })
+    state = builderReducer(state, {
+      type: "COMMIT_HISTORY",
+      before: documentOf(start),
+    })
+    expect(state.slides[0].items.map((item) => item.x)).toEqual([
+      0.15000000000000002, 0.15000000000000002, 0.15000000000000002,
+    ])
+    expect(state.past).toHaveLength(1)
+
+    const undone = builderReducer(state, { type: "UNDO" })
+    expect(undone.slides[0].items.map((item) => item.x)).toEqual([
+      0.1, 0.1, 0.1,
+    ])
+  })
+
+  it("deletes every picked layer as one undo step", () => {
+    const deck: CarouselSlide[] = [
+      { ...slides[0], items: [text, { ...text, id: "text-2" }] },
+    ]
+    const start: BuilderState = {
+      ...initial(),
+      slides: deck,
+      selectedItemIds: ["text-1", "text-2"],
+    }
+    const deleted = builderReducer(start, {
+      type: "DELETE_ITEMS",
+      slideId: "slide-1",
+      itemIds: ["text-1", "text-2"],
+    })
+    expect(deleted.slides[0].items).toEqual([])
+    expect(deleted.selectedItemIds).toEqual([])
+    const undone = builderReducer(deleted, { type: "UNDO" })
+    expect(undone.slides[0].items).toHaveLength(2)
+  })
+
+  it("pastes onto another slide and picks what was pasted", () => {
+    const pasted = builderReducer(initial(), {
+      type: "PASTE_ITEMS",
+      slideId: "slide-2",
+      items: [{ ...text, id: "pasted-1" }],
+    })
+    expect(pasted.selectedSlideId).toBe("slide-2")
+    expect(pasted.selectedItemIds).toEqual(["pasted-1"])
+    expect(pasted.slides[1].items.map((item) => item.id)).toEqual(["pasted-1"])
+  })
+
+  it("refuses a paste that would pass 50 layers", () => {
+    const state = {
+      ...initial(),
+      slides: [
+        {
+          ...slides[0],
+          items: Array.from({ length: 49 }, (_, index) => ({
+            ...text,
+            id: `text-${index}`,
+          })),
+        },
+      ],
+    }
+    expect(
+      builderReducer(state, {
+        type: "PASTE_ITEMS",
+        slideId: "slide-1",
+        items: [
+          { ...text, id: "a" },
+          { ...text, id: "b" },
+        ],
+      })
+    ).toBe(state)
+  })
+
+  it("adds a slide number to every slide without one, as one undo step", () => {
+    const number = {
+      id: "number",
+      type: "slide-number" as const,
+      x: 0.7,
+      y: 0.9,
+      width: 0.24,
+      height: 0.06,
+      zIndex: 30,
+      fontId: "inter" as const,
+      fontSize: 36,
+      color: "#9ca3af",
+      align: "right" as const,
+    }
+    const start: BuilderState = {
+      ...initial(),
+      slides: [
+        { ...slides[0], items: [text, { ...number, id: "already" }] },
+        slides[1],
+      ],
+    }
+    const added = builderReducer(start, { type: "ADD_SLIDE_NUMBERS", item: number })
+    const counts = added.slides.map(
+      (slide) => slide.items.filter((item) => item.type === "slide-number").length
+    )
+    expect(counts).toEqual([1, 1])
+    expect(added.past).toHaveLength(1)
+    // Pressed again, nothing is missing, so nothing changes.
+    expect(builderReducer(added, { type: "ADD_SLIDE_NUMBERS", item: number })).toBe(
+      added
+    )
   })
 })

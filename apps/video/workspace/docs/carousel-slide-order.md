@@ -33,8 +33,8 @@ export's files follow it: the slide dragged to the top becomes
   the video editor's keys were taken out for the same reason on 19 Oct 2026.
 - **While typing** in any box, such as the caption or a text layer's words,
   the keys belong to that box and undo the typing, not the carousel.
-- **While a window is open** (Preview, Export or Align all slides) the keys do
-  nothing to the carousel.
+- **While a window is open** (Preview, Export, Align all slides, Copies in
+  other languages or Earlier versions) the keys do nothing to the carousel.
 - **After an undo** the first slide is picked, as with the undo button.
 
 The keys run the same steps as the undo and redo buttons above the canvas, so

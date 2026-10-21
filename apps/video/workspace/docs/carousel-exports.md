@@ -1,7 +1,7 @@
 # Carousel exports
 
-Exporting a carousel downloads a ZIP and also keeps that ZIP on the Carousel
-exports dashboard, `/admin/video-carousel-exports`. From there it works like a
+Exporting a carousel downloads a ZIP, or its PDF, and also keeps both on the
+Carousel exports dashboard, `/admin/video-carousel-exports`. From there it works like a
 video export: download it again, share it by link, delete it, or let Clear out
 old remove it. Tyler asked for "the same as video exports" on 18 Oct 2026, and
 on 19 Oct 2026 for a page of their own: "The carousel export should be on its
@@ -15,8 +15,19 @@ own dashboard". The video Exports page lists video exports only.
   saved slides, so the editor saves what is on screen before it asks.
 - **What the ZIP holds:** every slide as a full-size PNG, named
   `slides/slide-01.png` onwards in the carousel's slide order, plus
-  `caption.txt` with the post caption. Drag a slide to a new place and the
-  next export's files follow the new order.
+  `caption.txt` with the post caption. A slide with a clip is an MP4 instead,
+  `slides/slide-03.mp4` (see [carousel-video-slides.md](carousel-video-slides.md)).
+  Drag a slide to a new place and the next export's files follow the new
+  order.
+- **The PDF:** every export also keeps a PDF beside the ZIP, one slide to a
+  page at one point per pixel, which is how LinkedIn takes a carousel. A video
+  slide's page is its first frame. The Export window's "PDF for LinkedIn"
+  downloads it at once. On the dashboard, the page icon beside Download saves
+  it. An export kept before 21 Oct 2026 has no PDF; asking for one builds it
+  from the ZIP's slides and keeps it.
+- **The Export window** also offers Video, which makes a reel from the slides
+  instead (see [carousel-video.md](carousel-video.md)), and "Write it with
+  AI" for the caption (see [carousel-writing.md](carousel-writing.md)).
 - **What happens after:** the browser downloads the ZIP straight away, and a
   message says a copy is kept in Carousel exports, with a button that opens
   it.
@@ -44,7 +55,8 @@ no queue and no "waiting" row.
 - **Size:** the ZIP's size.
 - **Slides:** the number of slides, on screens wide enough to show that
   column.
-- **Download:** the same ZIP again, saved as `<title>.zip`.
+- **Download:** the same ZIP again, saved as `<title>.zip`. The page icon
+  beside it saves the PDF, `<title>.pdf`.
 - **Settings:** the title and "What it is about" can be changed, as for a
   video. The cover is always the first slide, so there is no moment to pick
   and no Save as a picture. To change the cover, move another slide to the
@@ -116,6 +128,8 @@ Exports list never pulls a full slide for a thumbnail.
 - `src/server/video/carousel-exports.ts`: building and keeping the ZIP, and
   reading one slide back out of it.
 - `src/lib/video/stored-zip.ts`: the ZIP writer.
+- `src/server/video/carousel-pdf.ts`: the PDF writer, and where the PDF sits
+  beside its ZIP. Deleting or clearing out an export removes the PDF too.
 - `src/server/video/carousel-export.ts`: drawing one slide as a PNG.
 - `exportCarousel` in `src/lib/api/video/carousels.ts`: the endpoint the
   Export button calls.

@@ -25,22 +25,31 @@ import {
   ArrowLeftIcon,
   ArrowUpIcon,
   BlendIcon,
+  BoldIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
   DownloadIcon,
+  EllipsisIcon,
   EyeIcon,
+  FilmIcon,
   GripVerticalIcon,
+  HashIcon,
+  HighlighterIcon,
+  HistoryIcon,
   ImageIcon,
+  LanguagesIcon,
   LayersIcon,
   LayoutGridIcon,
   ListIcon,
+  ListTreeIcon,
   Loader2Icon,
   Maximize2Icon,
   MinusIcon,
   PlusIcon,
   Redo2Icon,
   RotateCcwIcon,
+  ScanIcon,
   SearchIcon,
   SlidersHorizontalIcon,
   SparklesIcon,
@@ -81,9 +90,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -95,6 +111,10 @@ import {
   duplicateCarousel,
   exportCarousel,
   getCarouselErrorMessage,
+  listCollectionPictures,
+  makeVideoFromCarousel,
+  suggestFirstSlide,
+  writeCaption,
   polishCarouselText,
   saveCarousel,
   type CarouselDetail,
@@ -107,14 +127,57 @@ import {
   type CarouselTextAlign,
   type CarouselTextItem,
 } from "@/lib/api/video/carousels"
+import type {
+  CarouselSlideNumberItem,
+  CarouselTextMarkStyle,
+  CarouselWordsItem,
+} from "@/lib/video/carousel-schema"
+import {
+  DEFAULT_HIGHLIGHT_COLOR,
+  hasMark,
+  letterSpacingOf,
+  lineHeightOf,
+  shiftMarks,
+  toggleMark,
+} from "@/lib/video/carousel-text"
 import {
   getMediaErrorMessage,
   uploadMedia,
   type MediaItem,
 } from "@/lib/api/media/media"
 import { attachEditorMedia, listVideoMedia } from "@/lib/api/video/media"
+import { LayersPanelBody } from "@/components/carousel-studio/layers-panel"
+import { StickerList } from "@/components/video-editor/studio-stickers"
+import { useMediaCollections } from "@/components/video-editor/use-media-collections"
+import type { Sticker } from "@/lib/api/video/stickers"
+import { PhonePreviewDialog } from "@/components/carousel-studio/phone-preview"
+import {
+  CarouselVersionsDialog,
+  TranslateCopiesDialog,
+} from "@/components/carousel-studio/carousel-copies-dialogs"
+import { StockPhotoSearch } from "@/components/carousel-studio/stock-photos"
+import {
+  CarouselExportDialog,
+  type CarouselExportKind,
+  type CarouselVideoOptions,
+} from "@/components/carousel-studio/export-dialog"
+import {
+  SlideLayerContent,
+  StaticSlidePreview,
+} from "@/components/carousel-studio/slide-layer"
+import {
+  RESIZE_HANDLES,
+  boundingBox,
+  snapMove,
+  snapResize,
+  snapThreshold,
+  type ResizeHandle,
+  type SnapGap,
+  type SnapLine,
+} from "@/lib/video/carousel-snap"
 import type { CarouselShadowDirection } from "@/lib/video/carousel-schema"
 import {
+  CAROUSEL_FRAME_SIZES,
   findTextOverflow,
   matchSlideLayers,
   pushSlideLayout,
@@ -125,6 +188,9 @@ import {
   CAROUSEL_FORMATS,
   CAROUSEL_ITEM_LIMIT_MESSAGE,
   CAROUSEL_ITEM_MAX,
+  CAROUSEL_LETTER_SPACING_RANGE,
+  CAROUSEL_LINE_HEIGHT_RANGE,
+  CAROUSEL_OUTLINE_WIDTH_MAX,
 } from "@/lib/video/carousel-schema"
 import {
   DEFAULT_TEXT_FONT_ID,
@@ -133,6 +199,11 @@ import {
   type TextFontId,
 } from "@/lib/video/text-fonts"
 import { cn } from "@/lib/utils"
+import { useRememberedChoice } from "@/lib/remembered-choice"
+import {
+  instagramGuide,
+  type InstagramGuide,
+} from "@/lib/video/carousel-guides"
 import { railPickedEdge, useRailPickedEdge } from "@/lib/video/rail"
 import {
   dismissErrorToast,
@@ -154,14 +225,16 @@ export type Snapshot = {
 
 export type BuilderState = Snapshot & {
   selectedSlideId: string
-  selectedItemId: string | null
+  // The picked layers on the picked slide, in the order they were picked.
+  selectedItemIds: string[]
   past: Snapshot[]
   future: Snapshot[]
 }
 
 export type BuilderAction =
   | { type: "SELECT_SLIDE"; slideId: string }
-  | { type: "SELECT_ITEM"; itemId: string | null }
+  // `additive` is a Shift-click: it adds the layer, or takes it back out.
+  | { type: "SELECT_ITEM"; itemId: string | null; additive?: boolean }
   | { type: "UPDATE_CAPTION"; caption: string }
   | { type: "UPDATE_FORMAT"; format: CarouselFormat }
   | { type: "UPDATE_SLIDE"; slideId: string; patch: Partial<CarouselSlide> }
@@ -172,20 +245,34 @@ export type BuilderAction =
       patch: Partial<CarouselSlideItem>
       transient?: boolean
     }
+  | {
+      type: "UPDATE_ITEMS"
+      slideId: string
+      patches: Record<string, Partial<CarouselSlideItem>>
+      transient?: boolean
+    }
   | { type: "COMMIT_HISTORY"; before: Snapshot }
   | { type: "ADD_SLIDE" }
   | { type: "DUPLICATE_SLIDE"; slideId: string }
   | { type: "DELETE_SLIDE"; slideId: string }
   | { type: "MOVE_SLIDE"; slideId: string; toIndex: number }
   | { type: "ADD_ITEM"; slideId: string; item: CarouselSlideItem }
-  | { type: "DELETE_ITEM"; slideId: string; itemId: string }
-  | { type: "MOVE_LAYER"; slideId: string; itemId: string; direction: 1 | -1 }
+  // A slide number on every slide that has none yet, as one undo step.
+  | { type: "ADD_SLIDE_NUMBERS"; item: CarouselSlideNumberItem }
+  | { type: "PASTE_ITEMS"; slideId: string; items: CarouselSlideItem[] }
+  | { type: "DELETE_ITEMS"; slideId: string; itemIds: string[] }
+  | {
+      type: "MOVE_LAYERS"
+      slideId: string
+      itemIds: string[]
+      direction: 1 | -1
+    }
   | { type: "RESET_DEFAULTS" }
   | { type: "PUSH_LAYOUT"; sourceSlideId: string; targetSlideIds: string[] }
   | { type: "UNDO" }
   | { type: "REDO" }
 
-type StudioPanel = "slides" | "text" | "image" | "shadow"
+type StudioPanel = "slides" | "layers" | "text" | "image" | "shadow"
 
 const LAYOUT_KEY = "video-carousel-studio-horizontal"
 
@@ -218,7 +305,9 @@ const FORMAT_RATIOS: Record<CarouselFormat, number> = {
 }
 
 // Text style presets — each drops a pre-styled text layer. Mirrors the video
-// editor's Text panel (Styles list) but tuned for carousel copy.
+// editor's Text panel (Styles list) but tuned for carousel copy. The preview
+// is drawn in the face and weight the layer exports in: every face ships at
+// one weight, so a preset that looked heavier or slanted here came out plain.
 const TEXT_PRESETS: {
   label: string
   fontId: TextFontId
@@ -226,7 +315,7 @@ const TEXT_PRESETS: {
   align: CarouselTextAlign
   y: number
   height: number
-  preview: React.CSSProperties
+  previewSize: number
 }[] = [
   {
     label: "Headline",
@@ -235,11 +324,7 @@ const TEXT_PRESETS: {
     align: "left",
     y: 0.12,
     height: 0.2,
-    preview: {
-      fontFamily: "var(--app-font-sans)",
-      fontWeight: 800,
-      fontSize: 19,
-    },
+    previewSize: 19,
   },
   {
     label: "Title",
@@ -248,7 +333,7 @@ const TEXT_PRESETS: {
     align: "left",
     y: 0.3,
     height: 0.16,
-    preview: { fontWeight: 800, fontSize: 16 },
+    previewSize: 16,
   },
   {
     label: "Subheading",
@@ -257,7 +342,7 @@ const TEXT_PRESETS: {
     align: "left",
     y: 0.5,
     height: 0.12,
-    preview: { fontWeight: 600, fontSize: 14 },
+    previewSize: 14,
   },
   {
     label: "Body copy",
@@ -266,26 +351,24 @@ const TEXT_PRESETS: {
     align: "left",
     y: 0.64,
     height: 0.18,
-    preview: { fontWeight: 500, fontSize: 13, color: "var(--ink2)" },
+    previewSize: 13,
   },
   {
     label: "Pull quote",
-    fontId: "inter",
+    fontId: "playfair-display",
     fontSize: 52,
     align: "center",
     y: 0.4,
     height: 0.2,
-    preview: {
-      fontFamily: "var(--app-font-sans)",
-      fontStyle: "italic",
-      fontSize: 16,
-    },
+    previewSize: 16,
   },
 ]
 
 const NO_ITEMS: CarouselTextItem[] = []
 
-const STICKERS = ["🔥", "✨", "👀", "💯", "➡️", "❤️", "⭐", "📈"]
+// A picture sticker lands this share of the slide wide, or tall when it is
+// taller than it is wide.
+const STICKER_SHARE = 0.3
 
 // Scrim presets — each adds a gradient-shadow with a fade direction + placement.
 // `direction` is honoured by gradientShadowBackground (canvas) and the exporter.
@@ -310,6 +393,8 @@ const TEXT_SWATCHES = [
   "#ff5a5a",
   "#10b981",
 ]
+const HIGHLIGHT_SWATCHES = ["#ffe27a", "#a7f3d0", "#bfdbfe", "#fecaca", "#ffffff"]
+const TEXT_BOX_SWATCHES = ["#111827", "#ffffff", "#ffe27a", "#4f46e5"]
 const BACKGROUND_SWATCHES = [
   "#ffffff",
   "#f8fafc",
@@ -339,10 +424,15 @@ export function CarouselBuilderPage({
   const [previewOpen, setPreviewOpen] = React.useState(false)
   const [exportOpen, setExportOpen] = React.useState(false)
   const [exporting, setExporting] = React.useState(false)
+  const [writingCaption, setWritingCaption] = React.useState(false)
+  const [translateOpen, setTranslateOpen] = React.useState(false)
+  const [versionsOpen, setVersionsOpen] = React.useState(false)
   const [exportError, setExportError] = React.useState<string | null>(null)
   const [polishing, setPolishing] = React.useState(false)
   const [copyingTo, setCopyingTo] = React.useState<CarouselFormat | null>(null)
   const [pushOpen, setPushOpen] = React.useState(false)
+  const [mediaVersion, setMediaVersion] = React.useState(0)
+  const [dropping, setDropping] = React.useState(false)
   const navigate = useNavigate()
   const horizontalLayout = useRememberedPanelLayout(LAYOUT_KEY)
   const panelRef = React.useRef<PanelImperativeHandle>(null)
@@ -386,9 +476,20 @@ export function CarouselBuilderPage({
     state.slides.find((slide) => slide.id === state.selectedSlideId) ??
     state.slides[0]
   const selectedSlideId = selectedSlide?.id ?? null
-  const selectedItem =
-    selectedSlide?.items.find((item) => item.id === state.selectedItemId) ??
-    null
+  const selectedItems = React.useMemo(
+    () =>
+      selectedSlide
+        ? state.selectedItemIds.flatMap(
+            (id) => selectedSlide.items.find((item) => item.id === id) ?? []
+          )
+        : [],
+    [selectedSlide, state.selectedItemIds]
+  )
+  // The inspector edits one layer at a time; several picked share one card.
+  const selectedItem = selectedItems.length === 1 ? selectedItems[0] : null
+  // Copied layers, kept in this window only. The system clipboard stays free
+  // for the words being typed.
+  const clipboardRef = React.useRef<CarouselSlideItem[]>([])
   const textOverflow = React.useMemo(
     () => findTextOverflow(state.slides, state.format),
     [state.slides, state.format]
@@ -522,14 +623,32 @@ export function CarouselBuilderPage({
     }
   }
 
-  async function handleExport() {
+  async function handleExport(
+    kind: CarouselExportKind,
+    video: CarouselVideoOptions
+  ) {
     setExporting(true)
     setExportError(null)
     try {
-      // The server zips what is saved, so what is on screen is saved first.
+      // The server works from what is saved, so what is on screen is saved
+      // first.
       await flushSave()
+      if (kind === "video") {
+        await makeVideoFromCarousel(document.id, video)
+        setExportOpen(false)
+        toast.success(
+          `"${document.name} video" is queued. It shows in Exports when it is ready, and opens as a project.`,
+          {
+            action: {
+              label: "Open Exports",
+              onClick: () => void navigate({ to: "/admin/video-exports" }),
+            },
+          }
+        )
+        return
+      }
       const kept = await exportCarousel(document.id)
-      downloadKeptExport(kept.id, kept.title ?? document.name)
+      downloadKeptExport(kept.id, kept.title ?? document.name, kind === "pdf")
       setExportOpen(false)
       toast.success("Carousel exported. A copy is kept in Carousel exports.", {
         action: {
@@ -541,6 +660,20 @@ export function CarouselBuilderPage({
       setExportError(getCarouselErrorMessage(error))
     } finally {
       setExporting(false)
+    }
+  }
+
+  // The caption is written from the saved slides, then put in the box as an
+  // ordinary edit, so Undo takes it back out.
+  async function handleWriteCaption() {
+    setWritingCaption(true)
+    try {
+      await flushSave()
+      dispatch({ type: "UPDATE_CAPTION", caption: await writeCaption(document.id) })
+    } catch (error) {
+      showErrorToast(getCarouselErrorMessage(error))
+    } finally {
+      setWritingCaption(false)
     }
   }
 
@@ -616,6 +749,93 @@ export function CarouselBuilderPage({
     dispatch({ type: "ADD_ITEM", slideId: selectedSlide.id, item })
   }
 
+  /**
+   * Uploads pictures and clips onto this carousel's shelf, one by one.
+   * Anything else is refused before any upload starts.
+   */
+  async function uploadPictures(files: File[]) {
+    const refused = files.find((file) => !slideFileKind(file))
+    if (refused) throw new Error(DROP_PICTURES_ONLY_MESSAGE)
+    const uploaded: MediaItem[] = []
+    try {
+      for (const file of files) {
+        const media = await uploadMedia(file)
+        await attachEditorMedia({ type: "carousel", id: document.id }, media.id)
+        uploaded.push(media)
+      }
+    } finally {
+      if (uploaded.length) setMediaVersion((version) => version + 1)
+    }
+    return uploaded
+  }
+
+  /**
+   * Pictures dropped on the slide: uploaded, then placed on the picked slide
+   * with the first one centred where it was dropped and each next one a
+   * little further down and right.
+   */
+  async function dropPictures(files: File[], point: { x: number; y: number }) {
+    if (!selectedSlide) return
+    const slideId = selectedSlide.id
+    const room = CAROUSEL_ITEM_MAX - selectedSlide.items.length
+    if (files.length > room) {
+      showErrorToast(CAROUSEL_ITEM_LIMIT_MESSAGE)
+      return
+    }
+    const clips = files.filter((file) => slideFileKind(file) === "video")
+    if (clips.length && (clips.length > 1 || slideHasVideo(selectedSlide))) {
+      showErrorToast(ONE_VIDEO_PER_SLIDE_MESSAGE)
+      return
+    }
+    setDropping(true)
+    try {
+      const uploaded = await uploadPictures(files)
+      const size = CAROUSEL_FRAME_SIZES[state.format]
+      const placed = await Promise.all(
+        uploaded.map(async (media, index) => {
+          const kind = media.file_type === "video" ? "video" : "image"
+          const natural = await naturalSize(media.url, kind)
+          const box = natural
+            ? fitImageBox(natural.width, natural.height, state.format)
+            : undefined
+          const item = createImageItem(
+            media.url,
+            media.original_name,
+            media.id,
+            box,
+            kind
+          )
+          const shift = (index * PASTE_OFFSET_PX) / size.width
+          return {
+            ...item,
+            x: clamp01(point.x - item.width / 2 + shift, 1 - item.width),
+            y: clamp01(point.y - item.height / 2 + shift, 1 - item.height),
+          }
+        })
+      )
+      dispatch({ type: "PASTE_ITEMS", slideId, items: placed })
+    } catch (error) {
+      showErrorToast(getMediaErrorMessage(error))
+    } finally {
+      setDropping(false)
+    }
+  }
+
+  function addSlideNumbers() {
+    const missing = state.slides.filter(
+      (slide) => !slide.items.some((item) => item.type === "slide-number")
+    )
+    if (!missing.length) {
+      showErrorToast("Every slide already has a slide number.")
+      return
+    }
+    if (missing.every((slide) => slide.items.length >= CAROUSEL_ITEM_MAX)) {
+      showErrorToast(CAROUSEL_ITEM_LIMIT_MESSAGE)
+      return
+    }
+    dispatch({ type: "ADD_SLIDE_NUMBERS", item: createSlideNumberItem() })
+  }
+
   function addSlide() {
     if (state.slides.length >= 20) {
       showErrorToast("A carousel can have at most 20 slides.")
@@ -649,7 +869,9 @@ export function CarouselBuilderPage({
         type: "UPDATE_ITEM",
         slideId: selectedSlide.id,
         itemId: selectedItem.id,
-        patch: { text },
+        // New words, so bold and highlighted letters no longer point at
+        // anything.
+        patch: { text, marks: undefined },
       })
     } catch (error) {
       showErrorToast(getCarouselErrorMessage(error))
@@ -658,41 +880,100 @@ export function CarouselBuilderPage({
     }
   }
 
+  function pasteLayers() {
+    if (!selectedSlide || !clipboardRef.current.length) return
+    const copied = clipboardRef.current
+    const clips = copied.filter((item) => item.type === "video").length
+    if (clips && (clips > 1 || slideHasVideo(selectedSlide))) {
+      showErrorToast(ONE_VIDEO_PER_SLIDE_MESSAGE)
+      return
+    }
+    if (selectedSlide.items.length + copied.length > CAROUSEL_ITEM_MAX) {
+      showErrorToast(CAROUSEL_ITEM_LIMIT_MESSAGE)
+      return
+    }
+    dispatch({
+      type: "PASTE_ITEMS",
+      slideId: selectedSlide.id,
+      items: pastedLayers(copied, selectedSlide, state.format),
+    })
+  }
+
   React.useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented) return
-      if (previewOpen || exportOpen || pushOpen) return
+      // An open window, menu or popover owns the keys, so nothing behind it
+      // moves, goes or is undone unseen.
+      if (window.document.querySelector(OPEN_OVERLAY_SELECTOR)) return
       // While typing, the box's own undo handles the words being typed.
       if (isTextEntryTarget(event.target)) return
+      const key = event.key.toLowerCase()
+      const command = event.metaKey && !event.ctrlKey && !event.altKey
 
       // Cmd+Z undoes and Shift+Cmd+Z redoes. Control+Z is left alone:
       // Tyler's own keyboard setup uses it (19 Oct 2026).
-      if (
-        event.metaKey &&
-        !event.ctrlKey &&
-        !event.altKey &&
-        event.key.toLowerCase() === "z"
-      ) {
+      if (command && key === "z") {
         event.preventDefault()
         dispatch({ type: event.shiftKey ? "REDO" : "UNDO" })
+        return
+      }
+      // Cmd+C copies the picked layers and Cmd+V pastes them onto whichever
+      // slide is picked then, in the same place.
+      if (command && !event.shiftKey && key === "c") {
+        if (!selectedItems.length) return
+        event.preventDefault()
+        clipboardRef.current = selectedItems
+        return
+      }
+      if (command && !event.shiftKey && key === "v") {
+        if (!clipboardRef.current.length) return
+        event.preventDefault()
+        pasteLayers()
+        return
+      }
+      if (!selectedSlideId || !selectedItems.length) return
+      if (event.key === "Escape") {
+        dispatch({ type: "SELECT_ITEM", itemId: null })
+        return
+      }
+
+      const nudge = nudgeStep(event.key, event.shiftKey, state.format)
+      if (nudge && !event.altKey && !event.ctrlKey && !event.metaKey) {
+        const movable = selectedItems.filter((item) => !item.locked)
+        if (!movable.length) return
+        event.preventDefault()
+        dispatch({
+          type: "UPDATE_ITEMS",
+          slideId: selectedSlideId,
+          // A held arrow is one undo step: the first press keeps the place
+          // it started from and the repeats only move the layer on.
+          transient: event.repeat,
+          patches: Object.fromEntries(
+            movable.map((item) => [
+              item.id,
+              {
+                x: clamp01(item.x + nudge.x, 1 - item.width),
+                y: clamp01(item.y + nudge.y, 1 - item.height),
+              },
+            ])
+          ),
+        })
         return
       }
 
       if (event.key !== "Backspace" && event.key !== "Delete") return
       if (event.altKey || event.ctrlKey || event.metaKey) return
-      if (!selectedSlideId || !state.selectedItemId) return
-
       event.preventDefault()
       dispatch({
-        type: "DELETE_ITEM",
+        type: "DELETE_ITEMS",
         slideId: selectedSlideId,
-        itemId: state.selectedItemId,
+        itemIds: selectedItems.map((item) => item.id),
       })
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [exportOpen, previewOpen, pushOpen, selectedSlideId, state.selectedItemId])
+  })
 
   const slideIndex = state.slides.findIndex((s) => s.id === selectedSlideId)
 
@@ -703,6 +984,23 @@ export function CarouselBuilderPage({
         <CarouselContextPanel
           carouselId={document.id}
           panel={panel}
+          slide={selectedSlide}
+          selectedItemIds={state.selectedItemIds}
+          onSelectItem={(itemId, additive) =>
+            dispatch({ type: "SELECT_ITEM", itemId, additive })
+          }
+          onUpdateItem={(itemId, patch) =>
+            selectedSlide &&
+            dispatch({
+              type: "UPDATE_ITEM",
+              slideId: selectedSlide.id,
+              itemId,
+              patch,
+            })
+          }
+          onAddSlideNumbers={addSlideNumbers}
+          mediaVersion={mediaVersion}
+          onUpload={uploadPictures}
           slides={state.slides}
           format={state.format}
           textOverflow={textOverflow}
@@ -737,6 +1035,8 @@ export function CarouselBuilderPage({
         canPolish={selectedItem?.type === "text"}
         onPolish={() => void polishSelectedText()}
         onPreview={() => setPreviewOpen(true)}
+        onTranslate={() => setTranslateOpen(true)}
+        onVersions={() => setVersionsOpen(true)}
         onExport={() => {
           setExportError(null)
           setExportOpen(true)
@@ -755,17 +1055,18 @@ export function CarouselBuilderPage({
             slides={state.slides}
             slideIndex={slideIndex}
             format={state.format}
-            selectedItemId={state.selectedItemId}
-            onSelectItem={(itemId) => dispatch({ type: "SELECT_ITEM", itemId })}
+            selectedItemIds={state.selectedItemIds}
+            onSelectItem={(itemId, additive) =>
+              dispatch({ type: "SELECT_ITEM", itemId, additive })
+            }
             onSelectSlide={(slideId) =>
               dispatch({ type: "SELECT_SLIDE", slideId })
             }
-            onUpdateItem={(itemId, patch, transient) =>
+            onUpdateItems={(patches, transient) =>
               dispatch({
-                type: "UPDATE_ITEM",
+                type: "UPDATE_ITEMS",
                 slideId: selectedSlide.id,
-                itemId,
-                patch,
+                patches,
                 transient,
               })
             }
@@ -776,6 +1077,8 @@ export function CarouselBuilderPage({
               dispatch({ type: "UPDATE_FORMAT", format })
             }
             getSnapshot={() => currentSnapshot(state)}
+            dropping={dropping}
+            onDropPictures={(files, point) => void dropPictures(files, point)}
           />
         ) : null}
         {panelCollapsed ? (
@@ -843,7 +1146,14 @@ export function CarouselBuilderPage({
           {selectedSlide ? (
             <CarouselInspector
               slide={selectedSlide}
+              isFirstSlide={slideIndex === 0}
+              onSuggestFirstSlide={async (itemId) => {
+                // Written from the saved slides, so they are saved first.
+                await flushSave()
+                return suggestFirstSlide(document.id, itemId)
+              }}
               selectedItem={selectedItem}
+              selectedCount={selectedItems.length}
               format={state.format}
               copyingTo={copyingTo}
               onCopyToFormat={(format) => void copyToFormat(format)}
@@ -868,18 +1178,18 @@ export function CarouselBuilderPage({
                   patch,
                 })
               }
-              onDeleteItem={(itemId) =>
+              onDeletePicked={() =>
                 dispatch({
-                  type: "DELETE_ITEM",
+                  type: "DELETE_ITEMS",
                   slideId: selectedSlide.id,
-                  itemId,
+                  itemIds: state.selectedItemIds,
                 })
               }
-              onMoveLayer={(itemId, direction) =>
+              onMovePicked={(direction) =>
                 dispatch({
-                  type: "MOVE_LAYER",
+                  type: "MOVE_LAYERS",
                   slideId: selectedSlide.id,
-                  itemId,
+                  itemIds: state.selectedItemIds,
                   direction,
                 })
               }
@@ -894,24 +1204,41 @@ export function CarouselBuilderPage({
     <div className="studio-root carousel-studio flex min-h-0 flex-1 flex-col gap-[var(--shell-gutter,0.75rem)]">
       <div className="flex h-full min-h-0">{workspace}</div>
 
-      <PreviewDialog
+      <PhonePreviewDialog
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         slides={state.slides}
         caption={state.caption}
         format={state.format}
       />
-      <ExportDialog
+      <CarouselExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
         slideCount={state.slides.length}
+        videoSlides={state.slides.filter(slideHasVideo).length}
         caption={state.caption}
-        exporting={exporting}
+        busy={exporting}
+        writingCaption={writingCaption}
         error={exportError}
         onUpdateCaption={(caption) =>
           dispatch({ type: "UPDATE_CAPTION", caption })
         }
-        onExport={() => void handleExport()}
+        onWriteCaption={() => void handleWriteCaption()}
+        onExport={(kind, video) => void handleExport(kind, video)}
+      />
+      <TranslateCopiesDialog
+        open={translateOpen}
+        onOpenChange={setTranslateOpen}
+        carouselId={document.id}
+        beforeTranslate={flushSave}
+      />
+      <CarouselVersionsDialog
+        open={versionsOpen}
+        onOpenChange={setVersionsOpen}
+        carouselId={document.id}
+        beforeRestore={flushSave}
+        // The editor opens again on the restored slides and their version.
+        onRestored={() => window.location.reload()}
       />
       {selectedSlide ? (
         <PushLayoutDialog
@@ -940,6 +1267,8 @@ function CarouselStageHeader({
   canPolish,
   onPolish,
   onPreview,
+  onTranslate,
+  onVersions,
   onExport,
 }: {
   name: string
@@ -952,6 +1281,8 @@ function CarouselStageHeader({
   canPolish: boolean
   onPolish: () => void
   onPreview: () => void
+  onTranslate: () => void
+  onVersions: () => void
   onExport: () => void
 }) {
   return (
@@ -1032,6 +1363,33 @@ function CarouselStageHeader({
             <SparklesIcon />
           )}
         </Button>
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="More for this carousel"
+                >
+                  <EllipsisIcon />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>More</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuItem onSelect={onTranslate}>
+              <LanguagesIcon />
+              Copies in other languages
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onVersions}>
+              <HistoryIcon />
+              Earlier versions
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button type="button" variant="outline" onClick={onPreview}>
           <EyeIcon />
           Preview
@@ -1049,6 +1407,7 @@ function CarouselStageHeader({
 
 const RAIL: { id: StudioPanel; label: string; Icon: typeof TypeIcon }[] = [
   { id: "slides", label: "Slides", Icon: LayersIcon },
+  { id: "layers", label: "Layers", Icon: ListTreeIcon },
   { id: "text", label: "Text", Icon: TypeIcon },
   { id: "image", label: "Image", Icon: ImageIcon },
   { id: "shadow", label: "Shadow", Icon: BlendIcon },
@@ -1100,6 +1459,13 @@ function IconRail({
 function CarouselContextPanel({
   carouselId,
   panel,
+  slide,
+  selectedItemIds,
+  onSelectItem,
+  onUpdateItem,
+  onAddSlideNumbers,
+  mediaVersion,
+  onUpload,
   slides,
   format,
   textOverflow,
@@ -1113,6 +1479,13 @@ function CarouselContextPanel({
 }: {
   carouselId: string
   panel: StudioPanel
+  slide: CarouselSlide | undefined
+  selectedItemIds: string[]
+  onSelectItem: (itemId: string, additive: boolean) => void
+  onUpdateItem: (itemId: string, patch: Partial<CarouselSlideItem>) => void
+  onAddSlideNumbers: () => void
+  mediaVersion: number
+  onUpload: (files: File[]) => Promise<unknown>
   slides: CarouselSlide[]
   format: CarouselFormat
   textOverflow: ReadonlyMap<string, CarouselTextItem[]>
@@ -1156,12 +1529,28 @@ function CarouselContextPanel({
               onDeleteSlide={onDeleteSlide}
               onMoveSlide={onMoveSlide}
             />
+          ) : panel === "layers" ? (
+            slide ? (
+              <LayersPanelBody
+                slide={slide}
+                selectedItemIds={selectedItemIds}
+                onSelectItem={onSelectItem}
+                onUpdateItem={onUpdateItem}
+              />
+            ) : null
           ) : panel === "text" ? (
-            <TextPanelBody onAddItem={onAddItem} />
+            <TextPanelBody
+              format={format}
+              onAddItem={onAddItem}
+              onAddSlideNumbers={onAddSlideNumbers}
+            />
           ) : panel === "image" ? (
             <ImagePanelBody
               carouselId={carouselId}
+              slide={slide}
               format={format}
+              mediaVersion={mediaVersion}
+              onUpload={onUpload}
               onAddItem={onAddItem}
             />
           ) : (
@@ -1299,6 +1688,7 @@ function SlidesPanelBody({
               key={slide.id}
               slide={slide}
               index={index}
+              count={slides.length}
               format={format}
               overflowing={textOverflow.has(slide.id)}
               selected={slide.id === selectedSlideId}
@@ -1322,6 +1712,7 @@ function SlidesPanelBody({
               key={slide.id}
               slide={slide}
               index={index}
+              count={slides.length}
               format={format}
               overflowing={textOverflow.has(slide.id)}
               selected={slide.id === selectedSlideId}
@@ -1393,6 +1784,7 @@ function TextOverflowMark() {
 function SlideListRow({
   slide,
   index,
+  count,
   format,
   overflowing,
   selected,
@@ -1403,6 +1795,7 @@ function SlideListRow({
 }: {
   slide: CarouselSlide
   index: number
+  count: number
   format: CarouselFormat
   overflowing: boolean
   selected: boolean
@@ -1472,7 +1865,12 @@ function SlideListRow({
             border: "1px solid var(--line)",
           }}
         >
-          <StaticSlidePreview slide={slide} format={format} />
+          <StaticSlidePreview
+            slide={slide}
+            format={format}
+            index={index}
+            count={count}
+          />
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div
@@ -1525,6 +1923,7 @@ function SlideListRow({
 function SlideGridCard({
   slide,
   index,
+  count,
   format,
   overflowing,
   selected,
@@ -1535,6 +1934,7 @@ function SlideGridCard({
 }: {
   slide: CarouselSlide
   index: number
+  count: number
   format: CarouselFormat
   overflowing: boolean
   selected: boolean
@@ -1570,7 +1970,12 @@ function SlideGridCard({
           boxShadow: selected ? "0 0 0 2px var(--acc-soft)" : "none",
         }}
       >
-        <StaticSlidePreview slide={slide} format={format} />
+        <StaticSlidePreview
+            slide={slide}
+            format={format}
+            index={index}
+            count={count}
+          />
       </button>
       <span
         style={{
@@ -1664,12 +2069,54 @@ const gridCardIconBtn: React.CSSProperties = {
 // --------------------------------------------------------- Text panel -------
 
 function TextPanelBody({
+  format,
   onAddItem,
+  onAddSlideNumbers,
 }: {
+  format: CarouselFormat
   onAddItem: (item: CarouselSlideItem) => void
+  onAddSlideNumbers: () => void
 }) {
+  // The person's own stickers, the same list as the video editor's. An emoji
+  // lands as a text layer, a picture as a picture layer a third of the slide
+  // wide, in the middle (workspace/docs/stickers.md).
+  async function placeSticker(sticker: Sticker) {
+    if (sticker.kind === "emoji") {
+      onAddItem({
+        ...createTextItem(),
+        text: sticker.emoji,
+        fontSize: 90,
+        align: "center",
+        y: 0.4,
+        height: 0.2,
+      })
+      return
+    }
+    const natural = await naturalSize(sticker.url)
+    const box = natural
+      ? fitImageBox(natural.width, natural.height, format, STICKER_SHARE)
+      : undefined
+    onAddItem(createImageItem(sticker.url, sticker.name, sticker.mediaId, box))
+  }
+
   return (
     <div>
+      <StudioLabel>Slide number</StudioLabel>
+      <div className="mb-5 grid grid-cols-2 gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => onAddItem(createSlideNumberItem())}
+        >
+          <HashIcon />
+          This slide
+        </Button>
+        <Button type="button" variant="outline" onClick={onAddSlideNumbers}>
+          <HashIcon />
+          Every slide
+        </Button>
+      </div>
+
       <StudioLabel>Styles</StudioLabel>
       <div
         style={{
@@ -1696,7 +2143,15 @@ function TextPanelBody({
               cursor: "pointer",
             }}
           >
-            <span style={preset.preview}>{preset.label}</span>
+            <span
+              style={{
+                fontFamily: requireTextFont(preset.fontId).family,
+                fontWeight: requireTextFont(preset.fontId).weight,
+                fontSize: preset.previewSize,
+              }}
+            >
+              {preset.label}
+            </span>
             <PlusIcon size={14} style={{ color: "var(--mut)", flex: "none" }} />
           </button>
         ))}
@@ -1737,43 +2192,7 @@ function TextPanelBody({
       </div>
 
       <StudioLabel>Stickers</StudioLabel>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4,1fr)",
-          gap: 9,
-        }}
-      >
-        {STICKERS.map((sticker) => (
-          <button
-            key={sticker}
-            type="button"
-            className="st-hovcard"
-            onClick={() =>
-              onAddItem({
-                ...createTextItem(),
-                text: sticker,
-                fontSize: 90,
-                align: "center",
-                y: 0.4,
-                height: 0.2,
-              })
-            }
-            style={{
-              aspectRatio: "1",
-              display: "grid",
-              placeItems: "center",
-              fontSize: 22,
-              background: "var(--panel2)",
-              border: "1px solid var(--line)",
-              borderRadius: 12,
-              cursor: "pointer",
-            }}
-          >
-            {sticker}
-          </button>
-        ))}
-      </div>
+      <StickerList onPlace={(sticker) => void placeSticker(sticker)} />
     </div>
   )
 }
@@ -1782,20 +2201,39 @@ function TextPanelBody({
 
 function ImagePanelBody({
   carouselId,
+  slide,
   format,
+  mediaVersion,
+  onUpload,
   onAddItem,
 }: {
   carouselId: string
+  slide: CarouselSlide | undefined
   format: CarouselFormat
+  // Goes up whenever a file joins this carousel's shelf, from here or from a
+  // drop on the canvas, so the list reads it again.
+  mediaVersion: number
+  onUpload: (files: File[]) => Promise<unknown>
   onAddItem: (item: CarouselSlideItem) => void
 }) {
   const [search, setSearch] = React.useState("")
   const [debounced, setDebounced] = React.useState("")
   const [items, setItems] = React.useState<MediaItem[]>([])
   const [error, setError] = React.useState<string | null>(null)
-  const [refresh, setRefresh] = React.useState(0)
   const [uploading, setUploading] = React.useState(false)
+  const [dragOver, setDragOver] = React.useState(false)
+  // Goes up when a Pexels photo joins the shelf from this panel.
+  const [kept, setKept] = React.useState(0)
+  // "shelf" is this carousel's own uploads; a collection's id lists that
+  // collection's pictures from the whole library.
+  const [source, setSource] = React.useState("shelf")
+  const { collections } = useMediaCollections()
   const fileRef = React.useRef<HTMLInputElement>(null)
+  // A collection deleted in another tab falls back to the shelf.
+  const showing =
+    source === "shelf" || collections.some((item) => item.id === source)
+      ? source
+      : "shelf"
 
   React.useEffect(() => {
     const id = setTimeout(() => setDebounced(search.trim()), 250)
@@ -1804,15 +2242,20 @@ function ImagePanelBody({
 
   React.useEffect(() => {
     let active = true
-    listVideoMedia({
-      scope: { type: "carousel", id: carouselId },
-      pageSize: 30,
-      fileType: "image",
-      search: debounced || undefined,
-    })
-      .then((data) => {
+    const request =
+      showing === "shelf"
+        ? listVideoMedia({
+            scope: { type: "carousel", id: carouselId },
+            pageSize: 30,
+            search: debounced || undefined,
+          }).then((data) =>
+            data.media.filter((media) => media.file_type !== "audio")
+          )
+        : listCollectionPictures(showing, debounced)
+    request
+      .then((media) => {
         if (!active) return
-        setItems(data.media)
+        setItems(media)
         setError(null)
       })
       .catch((caught) => {
@@ -1822,18 +2265,49 @@ function ImagePanelBody({
     return () => {
       active = false
     }
-  }, [carouselId, debounced, refresh])
+  }, [carouselId, debounced, mediaVersion, showing, kept])
+
+  // A picture from a collection joins this carousel's shelf as it goes on a
+  // slide, so it is there next time without the collection.
+  function place(item: MediaItem, tile: HTMLElement) {
+    const isVideo = item.file_type === "video"
+    if (isVideo && slide && slideHasVideo(slide)) {
+      showErrorToast(ONE_VIDEO_PER_SLIDE_MESSAGE)
+      return
+    }
+    const media = tile.querySelector("img, video")
+    const natural =
+      media instanceof HTMLVideoElement
+        ? { width: media.videoWidth, height: media.videoHeight }
+        : media instanceof HTMLImageElement
+          ? { width: media.naturalWidth, height: media.naturalHeight }
+          : null
+    const box =
+      natural?.width && natural.height
+        ? fitImageBox(natural.width, natural.height, format)
+        : undefined
+    onAddItem(
+      createImageItem(
+        item.url,
+        item.original_name,
+        item.id,
+        box,
+        isVideo ? "video" : "image"
+      )
+    )
+    if (showing !== "shelf") {
+      void attachEditorMedia({ type: "carousel", id: carouselId }, item.id).catch(
+        (caught) => showErrorToast(getMediaErrorMessage(caught))
+      )
+    }
+  }
 
   async function handleUpload(files: FileList | null) {
     if (!files?.length) return
     setUploading(true)
     setError(null)
     try {
-      for (const file of Array.from(files)) {
-        const media = await uploadMedia(file)
-        await attachEditorMedia({ type: "carousel", id: carouselId }, media.id)
-      }
-      setRefresh((c) => c + 1)
+      await onUpload(Array.from(files))
     } catch (caught) {
       setError(getMediaErrorMessage(caught))
     } finally {
@@ -1896,7 +2370,7 @@ function ImagePanelBody({
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/mp4,video/quicktime,video/webm"
           multiple
           hidden
           onChange={(e) => {
@@ -1908,14 +2382,27 @@ function ImagePanelBody({
 
       <div
         className="st-hovcard"
+        data-media-drop
         onClick={() => fileRef.current?.click()}
+        onDragOver={(event) => {
+          if (!hasFiles(event)) return
+          event.preventDefault()
+          setDragOver(true)
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(event) => {
+          if (!hasFiles(event)) return
+          event.preventDefault()
+          setDragOver(false)
+          void handleUpload(event.dataTransfer.files)
+        }}
         style={{
-          border: "1.5px dashed var(--line2)",
+          border: `1.5px dashed ${dragOver ? "var(--acc)" : "var(--line2)"}`,
           borderRadius: 13,
           padding: "18px 12px",
           textAlign: "center",
           marginBottom: 18,
-          background: "var(--panel2)",
+          background: dragOver ? "var(--elev)" : "var(--panel2)",
           cursor: "pointer",
           transition: "background .13s",
         }}
@@ -1934,7 +2421,7 @@ function ImagePanelBody({
           {uploading ? "Uploading…" : "Drop or import media"}
         </div>
         <div style={{ fontSize: 11, color: "var(--mut)", marginTop: 2 }}>
-          PNG · JPG · WEBP
+          PNG · JPG · WEBP · MP4 · MOV
         </div>
       </div>
 
@@ -1946,35 +2433,55 @@ function ImagePanelBody({
         </div>
       ) : null}
 
-      <StudioLabel>Your media · {items.length}</StudioLabel>
+      {collections.length ? (
+        <div
+          role="group"
+          aria-label="Pictures from"
+          className="mb-4 flex flex-wrap gap-[5px]"
+        >
+          {[
+            { id: "shelf", label: "This carousel" },
+            ...collections.map((item) => ({ id: item.id, label: item.name })),
+          ].map((option) => {
+            const on = showing === option.id
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setSource(option.id)}
+                className="max-w-full truncate rounded-lg border px-[9px] py-[5px] text-[11px] font-semibold"
+                style={{
+                  borderColor: on ? "var(--acc)" : "var(--line)",
+                  background: on ? "var(--acc-soft)" : "var(--panel)",
+                  color: on ? "var(--acc)" : "var(--ink2)",
+                }}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
+
+      <StudioLabel>
+        {showing === "shelf"
+          ? `Your media · ${items.length}`
+          : `${collections.find((item) => item.id === showing)?.name ?? "Collection"} · ${items.length}`}
+      </StudioLabel>
       {/* 2-col masonry so each thumbnail keeps its own aspect ratio (no crop). */}
       <div style={{ columnCount: 2, columnGap: 10 }}>
-        {items.map((item) => (
-          <EditorMediaContextMenu
-            key={item.id}
-            scope={{ type: "carousel", id: carouselId }}
-            mediaId={item.id}
-            mediaName={item.original_name}
-            onDeleted={(mediaId) =>
-              setItems((current) =>
-                current.filter((media) => media.id !== mediaId)
-              )
-            }
-          >
+        {items.map((item) => {
+          const tile = (
             <button
               type="button"
               className="st-hovlift"
-              onClick={(event) => {
-                const img = event.currentTarget.querySelector("img")
-                const box =
-                  img && img.naturalWidth && img.naturalHeight
-                    ? fitImageBox(img.naturalWidth, img.naturalHeight, format)
-                    : undefined
-                onAddItem(
-                  createImageItem(item.url, item.original_name, item.id, box)
-                )
-              }}
-              title={`Add ${item.original_name}, or right-click to delete`}
+              onClick={(event) => place(item, event.currentTarget)}
+              aria-label={
+                showing === "shelf"
+                  ? `Add ${item.original_name}, or right-click to delete`
+                  : `Add ${item.original_name}`
+              }
               style={{
                 display: "block",
                 width: "100%",
@@ -1988,21 +2495,73 @@ function ImagePanelBody({
                 padding: 0,
               }}
             >
-              <img
-                src={item.url}
-                alt=""
-                draggable={false}
-                style={{ display: "block", width: "100%", height: "auto" }}
-              />
+              {item.file_type === "video" ? (
+                <span className="relative block">
+                  <video
+                    src={`${item.url}#t=0.1`}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    style={{ display: "block", width: "100%", height: "auto" }}
+                  />
+                  <span className="absolute top-1.5 left-1.5 grid size-5 place-items-center rounded bg-black/60 text-white">
+                    <FilmIcon className="size-3" />
+                  </span>
+                </span>
+              ) : (
+                <img
+                  src={item.url}
+                  alt=""
+                  draggable={false}
+                  style={{ display: "block", width: "100%", height: "auto" }}
+                />
+              )}
             </button>
-          </EditorMediaContextMenu>
-        ))}
+          )
+          // Deleting is for this carousel's own uploads. A collection's
+          // pictures belong to the library, so they have no delete here.
+          return showing === "shelf" ? (
+            <EditorMediaContextMenu
+              key={item.id}
+              scope={{ type: "carousel", id: carouselId }}
+              mediaId={item.id}
+              mediaName={item.original_name}
+              onDeleted={(mediaId) =>
+                setItems((current) =>
+                  current.filter((media) => media.id !== mediaId)
+                )
+              }
+            >
+              {tile}
+            </EditorMediaContextMenu>
+          ) : (
+            <React.Fragment key={item.id}>{tile}</React.Fragment>
+          )
+        })}
       </div>
       {!items.length && !error ? (
         <div style={{ fontSize: 12, color: "var(--mut)", padding: "8px 2px" }}>
-          No images yet — import one to place it on the slide.
+          {showing === "shelf"
+            ? "No images yet. Import one to place it on the slide."
+            : "No pictures in this collection yet."}
         </div>
       ) : null}
+
+      <StudioLabel style={{ marginTop: 18 }}>Free photos</StudioLabel>
+      <StockPhotoSearch
+        carouselId={carouselId}
+        onPlace={(picture, size) => {
+          onAddItem(
+            createImageItem(
+              picture.url,
+              picture.name,
+              picture.id,
+              fitImageBox(size.width, size.height, format)
+            )
+          )
+          setKept((count) => count + 1)
+        }}
+      />
     </div>
   )
 }
@@ -2116,7 +2675,7 @@ function ShadowPanelBody({
         }}
       >
         Scrims darken part of a photo so text stays readable. Pick a direction,
-        tint and strength — it drops in as a layer you can resize on the canvas.
+        tint and strength. It drops in as a layer you can resize on the canvas.
       </div>
     </div>
   )
@@ -2129,39 +2688,63 @@ function CanvasStage({
   slides,
   slideIndex,
   format,
-  selectedItemId,
+  selectedItemIds,
   onSelectItem,
   onSelectSlide,
-  onUpdateItem,
+  onUpdateItems,
   onCommitHistory,
   onUpdateFormat,
   getSnapshot,
+  dropping,
+  onDropPictures,
 }: {
   slide: CarouselSlide
   slides: CarouselSlide[]
   slideIndex: number
   format: CarouselFormat
-  selectedItemId: string | null
-  onSelectItem: (itemId: string | null) => void
+  selectedItemIds: string[]
+  onSelectItem: (itemId: string | null, additive?: boolean) => void
   onSelectSlide: (slideId: string) => void
-  onUpdateItem: (
-    itemId: string,
-    patch: Partial<CarouselSlideItem>,
+  onUpdateItems: (
+    patches: Record<string, Partial<CarouselSlideItem>>,
     transient?: boolean
   ) => void
   onCommitHistory: (before: Snapshot) => void
   onUpdateFormat: (format: CarouselFormat) => void
   getSnapshot: () => Snapshot
+  dropping: boolean
+  onDropPictures: (files: File[], point: { x: number; y: number }) => void
 }) {
   const containerRef = React.useRef<HTMLDivElement>(null)
+  const artboardRef = React.useRef<HTMLDivElement>(null)
   const dragRef = React.useRef<{
-    itemId: string
-    mode: "move" | "resize"
+    mode: "move" | ResizeHandle | "crop"
     startX: number
     startY: number
-    item: CarouselSlideItem
+    // Every layer the drag moves, as it was when the press began.
+    items: CarouselSlideItem[]
     before: Snapshot
+    moved: boolean
+    // Where the pointer last was, so pressing or letting go of Alt can redo
+    // the snap without waiting for the pointer to move.
+    pointer?: { x: number; y: number }
+    // For a crop drag: how many screen pixels the picture reaches past its
+    // box across and down.
+    spare?: { x: number; y: number }
   } | null>(null)
+  // The picture whose crop is being moved, after a double-click on it.
+  const [cropItemId, setCropItemId] = React.useState<string | null>(null)
+  const [fileOver, setFileOver] = React.useState(false)
+  const [guides, setGuides] = React.useState<{
+    lines: SnapLine[]
+    gaps: SnapGap[]
+  }>(NO_GUIDES)
+  const [guidesChoice, setGuidesChoice] = useRememberedChoice(
+    GUIDES_STORAGE_KEY,
+    "off",
+    GUIDES_CHOICES
+  )
+  const guide = guidesChoice === "on" ? instagramGuide(format) : null
   const [box, setBox] = React.useState({ width: 0, height: 0 })
   // null = auto-fit; a number is a fixed scale relative to the 1080px artboard.
   // Opens at DEFAULT_ZOOM; the "Fit" button switches to auto-fit (null).
@@ -2193,6 +2776,43 @@ function CanvasStage({
   const zoomPct = Math.max(1, Math.round(scale * 100))
   const overflowing =
     stageWidth > box.width - 40 || stageHeight > box.height - 40
+  const picked = new Set(selectedItemIds)
+  const singlePicked =
+    selectedItemIds.length === 1
+      ? slide.items.find((item) => item.id === selectedItemIds[0])
+      : undefined
+  // Crop mode lasts while that picture alone stays picked.
+  const croppingId =
+    cropItemId && singlePicked?.id === cropItemId ? cropItemId : null
+  // Picking anything else ends crop mode for good, so picking the picture
+  // again later moves it rather than its crop.
+  if (cropItemId && !croppingId) setCropItemId(null)
+
+  React.useEffect(() => {
+    if (!croppingId) return
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      setCropItemId(null)
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [croppingId])
+
+  function startCrop(item: CarouselSlideItem) {
+    if (!isMediaItem(item) || item.fit === "contain" || item.locked) return
+    onSelectItem(item.id)
+    setCropItemId(item.id)
+  }
+
+  function dropPoint(event: React.DragEvent<HTMLElement>) {
+    const rect = artboardRef.current?.getBoundingClientRect()
+    if (!rect || !rect.width || !rect.height) return { x: 0.5, y: 0.5 }
+    return {
+      x: clamp01((event.clientX - rect.left) / rect.width),
+      y: clamp01((event.clientY - rect.top) / rect.height),
+    }
+  }
 
   function zoomBy(factor: number) {
     const next = Math.min(
@@ -2205,55 +2825,191 @@ function CanvasStage({
   function handlePointerDown(
     event: React.PointerEvent<HTMLElement>,
     item: CarouselSlideItem,
-    mode: "move" | "resize"
+    mode: "move" | ResizeHandle
   ) {
     if (event.button !== 0) return
     event.stopPropagation()
-    onSelectItem(item.id)
+    if (mode === "move" && croppingId === item.id && isMediaItem(item)) {
+      // Dragging a picture in crop mode moves what shows inside its box.
+      const media = event.currentTarget.querySelector("img, video")
+      const natural =
+        media instanceof HTMLVideoElement
+          ? { width: media.videoWidth, height: media.videoHeight }
+          : media instanceof HTMLImageElement
+            ? { width: media.naturalWidth, height: media.naturalHeight }
+            : { width: 0, height: 0 }
+      const boxWidth = item.width * stageWidth
+      const boxHeight = item.height * stageHeight
+      const fill =
+        natural.width && natural.height
+          ? Math.max(boxWidth / natural.width, boxHeight / natural.height)
+          : 0
+      dragRef.current = {
+        mode: "crop",
+        startX: event.clientX,
+        startY: event.clientY,
+        items: [item],
+        before: getSnapshot(),
+        moved: false,
+        spare: {
+          x: fill ? natural.width * fill - boxWidth : 0,
+          y: fill ? natural.height * fill - boxHeight : 0,
+        },
+      }
+      event.currentTarget.setPointerCapture(event.pointerId)
+      return
+    }
+    if (mode === "move" && croppingId && croppingId !== item.id) {
+      setCropItemId(null)
+    }
+    let moving: CarouselSlideItem[]
+    if (mode !== "move") {
+      moving = [item]
+    } else if (event.shiftKey) {
+      // Shift adds the layer to the picked ones, or takes it back out. A
+      // layer taken out is not dragged.
+      onSelectItem(item.id, true)
+      if (picked.has(item.id)) return
+      moving = slide.items.filter(
+        (candidate) => picked.has(candidate.id) || candidate.id === item.id
+      )
+    } else if (picked.has(item.id)) {
+      moving = slide.items.filter((candidate) => picked.has(candidate.id))
+    } else {
+      onSelectItem(item.id)
+      moving = [item]
+    }
     dragRef.current = {
-      itemId: item.id,
       mode,
       startX: event.clientX,
       startY: event.clientY,
-      item,
+      items: moving.filter((candidate) => !candidate.locked),
       before: getSnapshot(),
+      moved: false,
     }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLElement>) {
     const drag = dragRef.current
-    if (!drag) return
-    const dx = (event.clientX - drag.startX) / stageWidth
-    const dy = (event.clientY - drag.startY) / stageHeight
-    if (drag.mode === "move") {
-      onUpdateItem(
-        drag.itemId,
+    if (!drag || !drag.items.length) return
+    // A few pixels of slack, so a click never counts as a move.
+    if (
+      !drag.moved &&
+      Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 3
+    ) {
+      return
+    }
+    drag.moved = true
+    if (drag.mode === "crop") {
+      const [item] = drag.items
+      if (!isMediaItem(item) || !drag.spare) return
+      // The picture follows the pointer, so dragging it right shows more of
+      // its left side.
+      const focus = (start: number | undefined, moved: number, spare: number) =>
+        spare > 0.5 ? clamp01((start ?? 0.5) - moved / spare) : (start ?? 0.5)
+      onUpdateItems(
         {
-          x: clamp01(drag.item.x + dx, 1 - drag.item.width),
-          y: clamp01(drag.item.y + dy, 1 - drag.item.height),
+          [item.id]: {
+            focusX: focus(item.focusX, event.clientX - drag.startX, drag.spare.x),
+            focusY: focus(item.focusY, event.clientY - drag.startY, drag.spare.y),
+          },
         },
         true
       )
       return
     }
-
-    onUpdateItem(
-      drag.itemId,
-      {
-        width: clampSize(drag.item.width + dx, 1 - drag.item.x),
-        height: clampSize(drag.item.height + dy, 1 - drag.item.y),
-      },
-      true
-    )
+    drag.pointer = { x: event.clientX, y: event.clientY }
+    dragTo(drag, event.clientX, event.clientY, event.altKey)
   }
+
+  function dragTo(
+    drag: NonNullable<typeof dragRef.current>,
+    clientX: number,
+    clientY: number,
+    altKey: boolean
+  ) {
+    if (drag.mode === "crop") return
+    const dx = (clientX - drag.startX) / stageWidth
+    const dy = (clientY - drag.startY) / stageHeight
+    const movingIds = new Set(drag.items.map((item) => item.id))
+    const others = slide.items.filter(
+      (item) => !movingIds.has(item.id) && !item.hidden
+    )
+    // Alt switches snapping off, as it does on the video stage.
+    const thresholdX = altKey ? 0 : snapThreshold(stageWidth)
+    const thresholdY = altKey ? 0 : snapThreshold(stageHeight)
+
+    if (drag.mode === "move") {
+      const start = boundingBox(drag.items)
+      const result = snapMove({
+        box: {
+          ...start,
+          x: clamp01(start.x + dx, 1 - start.width),
+          y: clamp01(start.y + dy, 1 - start.height),
+        },
+        others,
+        thresholdX,
+        thresholdY,
+      })
+      const shiftX = result.box.x - start.x
+      const shiftY = result.box.y - start.y
+      onUpdateItems(
+        Object.fromEntries(
+          drag.items.map((item) => [
+            item.id,
+            {
+              x: clamp01(item.x + shiftX, 1 - item.width),
+              y: clamp01(item.y + shiftY, 1 - item.height),
+            },
+          ])
+        ),
+        true
+      )
+      setGuides({ lines: result.lines, gaps: result.gaps })
+      return
+    }
+
+    const [item] = drag.items
+    const result = snapResize({
+      box: item,
+      handle: drag.mode,
+      dx,
+      dy,
+      others,
+      thresholdX,
+      thresholdY,
+      minSize: MIN_ITEM_SIZE,
+    })
+    onUpdateItems({ [item.id]: result.box }, true)
+    setGuides({ lines: result.lines, gaps: [] })
+  }
+
+  // Pressing or letting go of Alt mid-drag lets go of the snap, or takes it
+  // up again, on the spot, with the pointer held still.
+  const redoSnap = React.useEffectEvent((event: KeyboardEvent) => {
+    const drag = dragRef.current
+    if (event.key !== "Alt" || !drag?.moved || !drag.pointer) return
+    dragTo(drag, drag.pointer.x, drag.pointer.y, event.type === "keydown")
+  })
+
+  React.useEffect(() => {
+    window.addEventListener("keydown", redoSnap)
+    window.addEventListener("keyup", redoSnap)
+    return () => {
+      window.removeEventListener("keydown", redoSnap)
+      window.removeEventListener("keyup", redoSnap)
+    }
+  }, [])
 
   function handlePointerUp(event: React.PointerEvent<HTMLElement>) {
     const drag = dragRef.current
     dragRef.current = null
     if (!drag) return
     event.currentTarget.releasePointerCapture(event.pointerId)
-    onCommitHistory(drag.before)
+    setGuides(NO_GUIDES)
+    // A click that never moved is a pick, not an edit, and adds no undo step.
+    if (drag.moved) onCommitHistory(drag.before)
   }
 
   return (
@@ -2278,9 +3034,14 @@ function CanvasStage({
           padding: 24,
           overflow: overflowing ? "auto" : "hidden",
         }}
-        onPointerDown={() => onSelectItem(null)}
+        onPointerDown={() => {
+          setCropItemId(null)
+          onSelectItem(null)
+        }}
       >
         <div
+          ref={artboardRef}
+          data-carousel-artboard
           style={{
             position: "relative",
             flex: "none",
@@ -2293,28 +3054,64 @@ function CanvasStage({
           }}
           onPointerDown={(event) => {
             event.stopPropagation()
+            setCropItemId(null)
             onSelectItem(null)
+          }}
+          onDragOver={(event) => {
+            if (!hasFiles(event)) return
+            event.preventDefault()
+            setFileOver(true)
+          }}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+              setFileOver(false)
+            }
+          }}
+          onDrop={(event) => {
+            if (!hasFiles(event)) return
+            event.preventDefault()
+            setFileOver(false)
+            onDropPictures(Array.from(event.dataTransfer.files), dropPoint(event))
           }}
         >
           {slide.items
-            .slice()
+            .filter((item) => !item.hidden)
             .sort((a, b) => a.zIndex - b.zIndex)
             .map((item) => (
               <CanvasItem
                 key={item.id}
                 item={item}
-                selected={item.id === selectedItemId}
+                slideIndex={slideIndex}
+                slideCount={slides.length}
+                selected={picked.has(item.id)}
+                resizable={
+                  singlePicked?.id === item.id &&
+                  !item.locked &&
+                  croppingId !== item.id
+                }
+                cropping={croppingId === item.id}
+                onDoubleClick={() => startCrop(item)}
                 scale={scale}
                 onPointerDown={(event) =>
                   handlePointerDown(event, item, "move")
                 }
-                onResizeDown={(event) =>
-                  handlePointerDown(event, item, "resize")
+                onResizeDown={(event, handle) =>
+                  handlePointerDown(event, item, handle)
                 }
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
               />
             ))}
+          {guide ? <InstagramGuideOverlay guide={guide} /> : null}
+          <SnapGuides lines={guides.lines} gaps={guides.gaps} />
+          {fileOver || dropping ? (
+            <div
+              aria-live="polite"
+              className="pointer-events-none absolute inset-0 z-[1001] grid place-items-center bg-black/30 text-sm font-medium text-white"
+            >
+              {dropping ? "Uploading…" : "Drop to place on this slide"}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -2376,6 +3173,11 @@ function CanvasStage({
           zIndex: 10,
         }}
       >
+        <GuidesToggle
+          on={guidesChoice === "on"}
+          format={format}
+          onChange={(on) => setGuidesChoice(on ? "on" : "off")}
+        />
         <FormatControl format={format} onChange={onUpdateFormat} />
         <ZoomControl
           pct={zoomPct}
@@ -2487,6 +3289,84 @@ function ZoomControl({
         <Maximize2Icon size={14} />
         Fit
       </button>
+    </div>
+  )
+}
+
+const GUIDES_STORAGE_KEY = "video-carousel-instagram-guides"
+const GUIDES_CHOICES = ["on", "off"] as const
+
+// Shows where Instagram covers or cuts off this shape of slide. Remembered in
+// this browser; the guides are never saved with the carousel.
+function GuidesToggle({
+  on,
+  format,
+  onChange,
+}: {
+  on: boolean
+  format: CarouselFormat
+  onChange: (on: boolean) => void
+}) {
+  const guide = instagramGuide(format)
+  return (
+    <div style={canvasPill}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="st-hovbg"
+            aria-pressed={on}
+            aria-label={`Instagram guides: ${guide.label}`}
+            onClick={() => onChange(!on)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              height: 28,
+              padding: "0 10px",
+              border: "none",
+              background: on ? "var(--elev2)" : "transparent",
+              borderRadius: 8,
+              color: on ? "var(--ink)" : "var(--ink2)",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <ScanIcon size={14} />
+            Guides
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-64">
+          {guide.label}. {guide.note} Source: {guide.source}.
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  )
+}
+
+function InstagramGuideOverlay({ guide }: { guide: InstagramGuide }) {
+  return (
+    <div
+      aria-hidden
+      data-instagram-guide={guide.label}
+      className="pointer-events-none absolute inset-0 z-[999]"
+    >
+      {guide.zones.map((zone, index) => (
+        <div
+          key={index}
+          data-guide-zone
+          className="absolute"
+          style={{
+            left: `${zone.x * 100}%`,
+            top: `${zone.y * 100}%`,
+            width: `${zone.width * 100}%`,
+            height: `${zone.height * 100}%`,
+            background:
+              "repeating-linear-gradient(135deg, rgba(0,0,0,.34) 0 6px, rgba(0,0,0,.22) 6px 12px)",
+          }}
+        />
+      ))}
     </div>
   )
 }
@@ -2688,7 +3568,12 @@ const pagerArrow: React.CSSProperties = {
 
 function CanvasItem({
   item,
+  slideIndex,
+  slideCount,
   selected,
+  resizable,
+  cropping,
+  onDoubleClick,
   scale,
   onPointerDown,
   onResizeDown,
@@ -2696,10 +3581,18 @@ function CanvasItem({
   onPointerUp,
 }: {
   item: CarouselSlideItem
+  slideIndex: number
+  slideCount: number
   selected: boolean
+  resizable: boolean
+  cropping: boolean
+  onDoubleClick: () => void
   scale: number
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void
-  onResizeDown: (event: React.PointerEvent<HTMLElement>) => void
+  onResizeDown: (
+    event: React.PointerEvent<HTMLElement>,
+    handle: ResizeHandle
+  ) => void
   onPointerMove: (event: React.PointerEvent<HTMLElement>) => void
   onPointerUp: (event: React.PointerEvent<HTMLElement>) => void
 }) {
@@ -2713,77 +3606,154 @@ function CanvasItem({
         width: `${item.width * 100}%`,
         height: `${item.height * 100}%`,
         zIndex: item.zIndex,
-        outline: selected ? "2px solid var(--acc)" : undefined,
+        outline: cropping
+          ? "2px dashed var(--acc)"
+          : selected
+            ? "2px solid var(--acc)"
+            : undefined,
+        cursor: cropping ? "move" : undefined,
+        // A locked layer lets a press through to whatever lies under it.
+        pointerEvents: item.locked ? "none" : undefined,
       }}
+      data-cropping={cropping || undefined}
+      onDoubleClick={onDoubleClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      {item.type === "text" ? (
-        <CarouselTextLayer item={item} fontSize={item.fontSize * scale} />
-      ) : item.type === "image" ? (
-        <img
-          src={item.url}
-          alt={item.altText ?? ""}
-          draggable={false}
-          className={cn("h-full w-full rounded-sm", imageFitClass(item.fit))}
-        />
-      ) : item.type === "gradient-shadow" ? (
-        <div
-          className="h-full w-full rounded-sm"
-          style={{ background: gradientShadowBackground(item) }}
-        />
-      ) : (
-        <div className="grid h-full w-full place-items-center rounded-sm border bg-black text-white">
-          <ImageIcon className="size-8" />
-        </div>
-      )}
-      {selected ? (
-        <button
-          type="button"
-          onPointerDown={onResizeDown}
-          aria-label="Resize layer"
-          style={{
-            position: "absolute",
-            right: -7,
-            bottom: -7,
-            height: 15,
-            width: 15,
-            borderRadius: "50%",
-            border: "1px solid var(--line2)",
-            background: "var(--panel)",
-            boxShadow: "var(--sh-sm)",
-            cursor: "nwse-resize",
-          }}
-        />
-      ) : null}
+      <SlideLayerContent
+        item={item}
+        scale={scale}
+        slideIndex={slideIndex}
+        slideCount={slideCount}
+        rounded
+        play
+      />
+      {resizable
+        ? RESIZE_HANDLES.map((handle) => (
+            <button
+              key={handle}
+              type="button"
+              onPointerDown={(event) => onResizeDown(event, handle)}
+              // Only a pointer resizes; the keys move the layer instead.
+              tabIndex={-1}
+              aria-label={`Resize layer from the ${RESIZE_HANDLE_NAMES[handle]}`}
+              style={{
+                position: "absolute",
+                ...resizeHandlePosition(handle),
+                height: 13,
+                width: 13,
+                borderRadius: "50%",
+                border: "1px solid var(--line2)",
+                background: "var(--panel)",
+                boxShadow: "var(--sh-sm)",
+                cursor: RESIZE_CURSORS[handle],
+                zIndex: 1,
+              }}
+            />
+          ))
+        : null}
     </div>
   )
 }
 
-function CarouselTextLayer({
-  item,
-  fontSize,
-}: {
-  item: CarouselTextItem
-  fontSize: number | string
-}) {
-  const font = requireTextFont(item.fontId)
+const RESIZE_HANDLE_NAMES: Record<ResizeHandle, string> = {
+  n: "top",
+  s: "bottom",
+  e: "right",
+  w: "left",
+  ne: "top right",
+  nw: "top left",
+  se: "bottom right",
+  sw: "bottom left",
+}
 
+const RESIZE_CURSORS: Record<ResizeHandle, string> = {
+  n: "ns-resize",
+  s: "ns-resize",
+  e: "ew-resize",
+  w: "ew-resize",
+  ne: "nesw-resize",
+  sw: "nesw-resize",
+  nw: "nwse-resize",
+  se: "nwse-resize",
+}
+
+// Each handle sits on its side or corner, centred on the box's edge.
+function resizeHandlePosition(handle: ResizeHandle): React.CSSProperties {
+  const half = -7
+  return {
+    top: handle.includes("n")
+      ? half
+      : handle.includes("s")
+        ? undefined
+        : "calc(50% - 6.5px)",
+    bottom: handle.includes("s") ? half : undefined,
+    left: handle.includes("w")
+      ? half
+      : handle.includes("e")
+        ? undefined
+        : "calc(50% - 6.5px)",
+    right: handle.includes("e") ? half : undefined,
+  }
+}
+
+const OPEN_OVERLAY_SELECTOR = [
+  '[role="dialog"][data-state="open"]',
+  '[role="alertdialog"][data-state="open"]',
+  '[role="menu"][data-state="open"]',
+].join(",")
+
+const NO_GUIDES = { lines: [] as SnapLine[], gaps: [] as SnapGap[] }
+
+/**
+ * The lines a dragged layer snapped to, across the whole slide, and the
+ * equal gaps it was spaced at. Drawn in the accent colour on purpose: they
+ * are a measuring overlay, not a dividing line.
+ */
+function SnapGuides({ lines, gaps }: { lines: SnapLine[]; gaps: SnapGap[] }) {
+  if (!lines.length && !gaps.length) return null
   return (
-    <div
-      className="h-full w-full break-words whitespace-pre-wrap"
-      style={{
-        color: item.color,
-        fontFamily: font.family,
-        fontSize,
-        fontWeight: font.weight,
-        lineHeight: 1.16,
-        textAlign: item.align,
-      }}
-    >
-      {item.text}
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-[1000]">
+      {lines.map((line) => (
+        <div
+          key={`${line.axis}-${line.at}`}
+          data-snap-line={line.axis}
+          className="absolute bg-[var(--acc)]"
+          style={
+            line.axis === "x"
+              ? { left: `${line.at * 100}%`, top: 0, bottom: 0, width: 1 }
+              : { top: `${line.at * 100}%`, left: 0, right: 0, height: 1 }
+          }
+        />
+      ))}
+      {gaps.map((gap, index) => (
+        <div
+          key={`${gap.axis}-${gap.from}-${index}`}
+          data-snap-gap={gap.axis}
+          className="absolute border-[var(--acc)]"
+          style={
+            gap.axis === "x"
+              ? {
+                  left: `${gap.from * 100}%`,
+                  width: `${(gap.to - gap.from) * 100}%`,
+                  top: `${gap.cross * 100}%`,
+                  height: 0,
+                  borderTopWidth: 1,
+                  borderStyle: "dashed",
+                }
+              : {
+                  top: `${gap.from * 100}%`,
+                  height: `${(gap.to - gap.from) * 100}%`,
+                  left: `${gap.cross * 100}%`,
+                  width: 0,
+                  borderLeftWidth: 1,
+                  borderStyle: "dashed",
+                }
+          }
+        />
+      ))}
     </div>
   )
 }
@@ -2792,7 +3762,10 @@ function CarouselTextLayer({
 
 function CarouselInspector({
   slide,
+  isFirstSlide,
+  onSuggestFirstSlide,
   selectedItem,
+  selectedCount,
   format,
   copyingTo,
   onCopyToFormat,
@@ -2802,11 +3775,14 @@ function CarouselInspector({
   onSelectItem,
   onUpdateSlide,
   onUpdateItem,
-  onDeleteItem,
-  onMoveLayer,
+  onDeletePicked,
+  onMovePicked,
 }: {
   slide: CarouselSlide
+  isFirstSlide: boolean
+  onSuggestFirstSlide: (itemId: string) => Promise<string[]>
   selectedItem: CarouselSlideItem | null
+  selectedCount: number
   format: CarouselFormat
   copyingTo: CarouselFormat | null
   onCopyToFormat: (format: CarouselFormat) => void
@@ -2816,10 +3792,11 @@ function CarouselInspector({
   onSelectItem: (itemId: string) => void
   onUpdateSlide: (patch: Partial<CarouselSlide>) => void
   onUpdateItem: (itemId: string, patch: Partial<CarouselSlideItem>) => void
-  onDeleteItem: (itemId: string) => void
-  onMoveLayer: (itemId: string, direction: 1 | -1) => void
+  onDeletePicked: () => void
+  onMovePicked: (direction: 1 | -1) => void
 }) {
-  const title = getInspectorTitle(selectedItem)
+  const title =
+    selectedCount > 1 ? `${selectedCount} layers` : getInspectorTitle(selectedItem)
 
   return (
     <aside
@@ -2828,19 +3805,39 @@ function CarouselInspector({
     >
       <DashboardCardTitleHeader
         icon={<SlidersHorizontalIcon className="size-4" />}
-        title={selectedItem ? title : "Inspector"}
+        title={selectedCount ? title : "Inspector"}
         meta={slide.title || "Untitled slide"}
       />
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid auto-rows-min gap-3 p-4">
-          {selectedItem ? (
+          {selectedCount > 1 ? (
+            <InspectorCard
+              title={`${selectedCount} layers picked`}
+              description="Drag any of them to move them together. Shift-click a layer to add it or take it out, Cmd+C and Cmd+V copy them, and the arrow keys nudge them."
+            >
+              <p className="text-sm text-muted-foreground">
+                Pick one layer on its own to change how it looks.
+              </p>
+            </InspectorCard>
+          ) : selectedItem ? (
             selectedItem.type === "text" ? (
               <TextInspector
+                key={selectedItem.id}
                 item={selectedItem}
+                onSuggestFirstSlide={
+                  isFirstSlide && selectedItem.text.trim()
+                    ? () => onSuggestFirstSlide(selectedItem.id)
+                    : undefined
+                }
                 overflowing={overflowItems.some(
                   (item) => item.id === selectedItem.id
                 )}
+                onUpdate={(patch) => onUpdateItem(selectedItem.id, patch)}
+              />
+            ) : selectedItem.type === "slide-number" ? (
+              <SlideNumberInspector
+                item={selectedItem}
                 onUpdate={(patch) => onUpdateItem(selectedItem.id, patch)}
               />
             ) : selectedItem.type === "gradient-shadow" ? (
@@ -2868,11 +3865,11 @@ function CarouselInspector({
             />
           )}
 
-          {selectedItem ? (
+          {selectedCount ? (
             <LayerControls
-              onBringForward={() => onMoveLayer(selectedItem.id, 1)}
-              onSendBackward={() => onMoveLayer(selectedItem.id, -1)}
-              onDelete={() => onDeleteItem(selectedItem.id)}
+              onBringForward={() => onMovePicked(1)}
+              onSendBackward={() => onMovePicked(-1)}
+              onDelete={onDeletePicked}
             />
           ) : null}
         </div>
@@ -2884,6 +3881,7 @@ function CarouselInspector({
 function getInspectorTitle(selectedItem: CarouselSlideItem | null) {
   if (!selectedItem) return "Slide"
   if (selectedItem.type === "text") return "Text"
+  if (selectedItem.type === "slide-number") return "Slide number"
   if (selectedItem.type === "image") return "Image"
   if (selectedItem.type === "gradient-shadow") return "Shadow"
   return "Media"
@@ -3010,12 +4008,58 @@ function textLayerName(item: CarouselTextItem) {
 function TextInspector({
   item,
   overflowing,
+  onSuggestFirstSlide,
   onUpdate,
 }: {
   item: CarouselTextItem
   overflowing: boolean
+  /** Three other lines for this text; only on the first slide. */
+  onSuggestFirstSlide?: () => Promise<string[]>
   onUpdate: (patch: Partial<CarouselTextItem>) => void
 }) {
+  const contentRef = React.useRef<HTMLTextAreaElement>(null)
+  const [suggesting, setSuggesting] = React.useState(false)
+  const [lines, setLines] = React.useState<string[] | null>(null)
+
+  async function suggest() {
+    if (!onSuggestFirstSlide) return
+    setSuggesting(true)
+    try {
+      setLines(await onSuggestFirstSlide())
+    } catch (error) {
+      showErrorToast(getCarouselErrorMessage(error))
+    } finally {
+      setSuggesting(false)
+    }
+  }
+  const [selection, setSelection] = React.useState({ start: 0, end: 0 })
+  const marks = item.marks ?? []
+  const hasHighlight = marks.some((mark) => mark.style === "highlight")
+
+  function rememberSelection() {
+    const node = contentRef.current
+    if (node) setSelection({ start: node.selectionStart, end: node.selectionEnd })
+  }
+
+  function toggle(style: CarouselTextMarkStyle) {
+    const node = contentRef.current
+    const start = node ? node.selectionStart : selection.start
+    const end = node ? node.selectionEnd : selection.end
+    if (end <= start) {
+      showErrorToast(
+        `Select the words to make ${style === "bold" ? "bold" : "highlighted"} in Content first.`
+      )
+      return
+    }
+    const next = toggleMark(marks, start, end, style)
+    onUpdate({ marks: next.length ? next : undefined })
+    // The words stay selected, so the other button can go on too.
+    requestAnimationFrame(() => {
+      contentRef.current?.focus()
+      contentRef.current?.setSelectionRange(start, end)
+    })
+  }
+
   return (
     <>
       <InspectorCard
@@ -3035,83 +4079,311 @@ function TextInspector({
         <div className="grid gap-2">
           <FieldLabel htmlFor={`carousel-text-${item.id}`}>Content</FieldLabel>
           <Textarea
+            ref={contentRef}
             id={`carousel-text-${item.id}`}
             value={item.text}
             maxLength={2_000}
             rows={1}
-            onChange={(event) => onUpdate({ text: event.target.value })}
+            onSelect={rememberSelection}
+            onChange={(event) => {
+              const next = shiftMarks(item.text, event.target.value, marks)
+              onUpdate({
+                text: event.target.value,
+                marks: next.length ? next : undefined,
+              })
+            }}
           />
         </div>
 
         <div className="grid gap-2">
-          <FieldLabel>Font</FieldLabel>
+          <FieldLabel hint="Select words in Content, then press Bold or Highlight. Press it again with the same words selected to take it off.">
+            Words
+          </FieldLabel>
           <div className="grid grid-cols-2 gap-2">
-            {TEXT_FONTS.map((font) => {
-              const on = item.fontId === font.id
+            {(
+              [
+                ["bold", "Bold", BoldIcon],
+                ["highlight", "Highlight", HighlighterIcon],
+              ] as const
+            ).map(([style, label, Icon]) => {
+              const on = hasMark(marks, selection.start, selection.end, style)
               return (
                 <Button
-                  key={font.id}
+                  key={style}
                   type="button"
                   variant={on ? "secondary" : "outline"}
                   aria-pressed={on}
-                  onClick={() => onUpdate({ fontId: font.id })}
-                  style={{ fontFamily: font.family }}
+                  // Pressing the button must not take the selection away
+                  // from the words.
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => toggle(style)}
                 >
-                  {font.label}
+                  <Icon />
+                  {label}
                 </Button>
               )
             })}
           </div>
         </div>
 
-        <SliderField
-          id={`carousel-font-size-${item.id}`}
-          label="Size"
-          value={item.fontSize}
-          min={12}
-          max={180}
-          onChange={(fontSize) => onUpdate({ fontSize })}
-        />
+        {onSuggestFirstSlide ? (
+          <div className="grid gap-2">
+            <FieldLabel hint="Three other ways to word this first slide, written by AI from the slides after it. Click one to use it; Undo puts the old words back.">
+              A stronger first slide
+            </FieldLabel>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={suggesting}
+              onClick={() => void suggest()}
+            >
+              {suggesting ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+              {suggesting ? "Writing" : lines ? "Three more" : "Suggest three lines"}
+            </Button>
+            {lines ? (
+              lines.length ? (
+                <ul aria-label="Suggested first lines" className="grid gap-2">
+                  {lines.map((line) => (
+                    <li key={line}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // New words, so the old bold or highlighted
+                          // letters no longer point at anything.
+                          onUpdate({ text: line, marks: undefined })
+                          setLines(null)
+                        }}
+                        className="w-full rounded-md border p-2 text-left text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                      >
+                        {line}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  The writer sent back nothing new. Try again.
+                </p>
+              )
+            ) : null}
+          </div>
+        ) : null}
 
-        <div className="grid gap-2">
-          <FieldLabel>Colour</FieldLabel>
-          <ColorField
-            value={item.color}
-            onChange={(color) => onUpdate({ color })}
-            swatches={TEXT_SWATCHES}
-          />
-        </div>
+        {hasHighlight ? (
+          <div className="grid gap-2">
+            <FieldLabel>Highlight colour</FieldLabel>
+            <ColorField
+              value={item.highlightColor ?? DEFAULT_HIGHLIGHT_COLOR}
+              onChange={(highlightColor) => onUpdate({ highlightColor })}
+              swatches={HIGHLIGHT_SWATCHES}
+            />
+          </div>
+        ) : null}
 
-        <div className="grid gap-2">
-          <FieldLabel>Alignment</FieldLabel>
-          <SegRow
-            columns={3}
-            value={item.align}
-            onChange={(align) => onUpdate({ align })}
-            options={[
-              {
-                value: "left",
-                label: <AlignLeftIcon size={16} />,
-                title: "Align left",
-              },
-              {
-                value: "center",
-                label: <AlignCenterIcon size={16} />,
-                title: "Align center",
-              },
-              {
-                value: "right",
-                label: <AlignRightIcon size={16} />,
-                title: "Align right",
-              },
-            ]}
-          />
-        </div>
+        <WordsLookFields item={item} onUpdate={onUpdate} />
       </InspectorCard>
+      <TextBoxLookCard item={item} onUpdate={onUpdate} />
       <InspectorCard title="Position and size">
         <PositionFields item={item} onUpdate={onUpdate} />
       </InspectorCard>
     </>
+  )
+}
+
+function SlideNumberInspector({
+  item,
+  onUpdate,
+}: {
+  item: CarouselSlideNumberItem
+  onUpdate: (patch: Partial<CarouselSlideNumberItem>) => void
+}) {
+  return (
+    <>
+      <InspectorCard
+        title="Slide number"
+        description="Shows this slide's place and how many slides there are, such as 3/7. It changes by itself when slides move, come or go."
+      >
+        <WordsLookFields item={item} onUpdate={onUpdate} />
+      </InspectorCard>
+      <TextBoxLookCard item={item} onUpdate={onUpdate} />
+      <InspectorCard title="Position and size">
+        <PositionFields item={item} onUpdate={onUpdate} />
+      </InspectorCard>
+    </>
+  )
+}
+
+// Font, size, colour and alignment, shared by text and slide numbers.
+function WordsLookFields<T extends CarouselWordsItem>({
+  item,
+  onUpdate,
+}: {
+  item: T
+  onUpdate: (patch: Partial<T>) => void
+}) {
+  return (
+    <>
+      <div className="grid gap-2">
+        <FieldLabel>Font</FieldLabel>
+        <div className="grid grid-cols-2 gap-2">
+          {TEXT_FONTS.map((font) => {
+            const on = item.fontId === font.id
+            return (
+              <Button
+                key={font.id}
+                type="button"
+                variant={on ? "secondary" : "outline"}
+                aria-pressed={on}
+                onClick={() => onUpdate({ fontId: font.id } as Partial<T>)}
+                style={{ fontFamily: font.family }}
+              >
+                {font.label}
+              </Button>
+            )
+          })}
+        </div>
+      </div>
+
+      <SliderField
+        id={`carousel-font-size-${item.id}`}
+        label="Size"
+        value={item.fontSize}
+        min={12}
+        max={180}
+        onChange={(fontSize) => onUpdate({ fontSize } as Partial<T>)}
+      />
+
+      <div className="grid gap-2">
+        <FieldLabel>Colour</FieldLabel>
+        <ColorField
+          value={item.color}
+          onChange={(color) => onUpdate({ color } as Partial<T>)}
+          swatches={TEXT_SWATCHES}
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <FieldLabel>Alignment</FieldLabel>
+        <SegRow
+          columns={3}
+          value={item.align}
+          onChange={(align) => onUpdate({ align } as Partial<T>)}
+          options={[
+            {
+              value: "left",
+              label: <AlignLeftIcon size={16} />,
+              title: "Align left",
+            },
+            {
+              value: "center",
+              label: <AlignCenterIcon size={16} />,
+              title: "Align center",
+            },
+            {
+              value: "right",
+              label: <AlignRightIcon size={16} />,
+              title: "Align right",
+            },
+          ]}
+        />
+      </div>
+    </>
+  )
+}
+
+/**
+ * Line and letter spacing, a box behind the words and a line round the
+ * letters (workspace/docs/carousel-text-styles.md). Each switch adds its
+ * colour with the first swatch, and taking it off clears the colour.
+ */
+function TextBoxLookCard<T extends CarouselWordsItem>({
+  item,
+  onUpdate,
+}: {
+  item: T
+  onUpdate: (patch: Partial<T>) => void
+}) {
+  const update = (patch: Partial<CarouselWordsItem>) =>
+    onUpdate(patch as Partial<T>)
+  const outlineOn = Boolean(item.outlineColor && item.outlineWidth)
+
+  return (
+    <InspectorCard title="Box and spacing">
+      <SliderField
+        id={`carousel-line-height-${item.id}`}
+        label="Line spacing"
+        value={Math.round(lineHeightOf(item) * 100)}
+        min={CAROUSEL_LINE_HEIGHT_RANGE.min * 100}
+        max={CAROUSEL_LINE_HEIGHT_RANGE.max * 100}
+        unit="%"
+        onChange={(value) => update({ lineHeight: value / 100 })}
+      />
+      <SliderField
+        id={`carousel-letter-spacing-${item.id}`}
+        label="Letter spacing"
+        value={Math.round(letterSpacingOf(item) * 100)}
+        min={CAROUSEL_LETTER_SPACING_RANGE.min * 100}
+        max={CAROUSEL_LETTER_SPACING_RANGE.max * 100}
+        unit="%"
+        onChange={(value) =>
+          update({ letterSpacing: value === 0 ? undefined : value / 100 })
+        }
+      />
+
+      <div className="flex items-center justify-between gap-3">
+        <FieldLabel htmlFor={`carousel-text-box-${item.id}`}>
+          Box behind the words
+        </FieldLabel>
+        <Switch
+          id={`carousel-text-box-${item.id}`}
+          checked={Boolean(item.boxColor)}
+          onCheckedChange={(checked) =>
+            update({ boxColor: checked ? TEXT_BOX_SWATCHES[0] : undefined })
+          }
+        />
+      </div>
+      {item.boxColor ? (
+        <ColorField
+          value={item.boxColor}
+          onChange={(boxColor) => update({ boxColor })}
+          swatches={TEXT_BOX_SWATCHES}
+        />
+      ) : null}
+
+      <div className="flex items-center justify-between gap-3">
+        <FieldLabel htmlFor={`carousel-text-outline-${item.id}`}>
+          Outline round the letters
+        </FieldLabel>
+        <Switch
+          id={`carousel-text-outline-${item.id}`}
+          checked={outlineOn}
+          onCheckedChange={(checked) =>
+            update(
+              checked
+                ? { outlineColor: TEXT_SWATCHES[1], outlineWidth: 4 }
+                : { outlineColor: undefined, outlineWidth: undefined }
+            )
+          }
+        />
+      </div>
+      {outlineOn ? (
+        <>
+          <ColorField
+            value={item.outlineColor ?? TEXT_SWATCHES[1]}
+            onChange={(outlineColor) => update({ outlineColor })}
+            swatches={TEXT_SWATCHES}
+          />
+          <SliderField
+            id={`carousel-outline-width-${item.id}`}
+            label="Outline"
+            value={item.outlineWidth ?? 0}
+            min={1}
+            max={CAROUSEL_OUTLINE_WIDTH_MAX}
+            onChange={(outlineWidth) => update({ outlineWidth })}
+          />
+        </>
+      ) : null}
+    </InspectorCard>
   )
 }
 
@@ -3124,9 +4396,9 @@ function MediaInspector({
 }) {
   return (
     <>
-      <InspectorCard title="Picture">
-        {/* Preview shows the source image at its natural aspect ratio (full panel
-          width, height follows the image) rather than a fixed cropped box. */}
+      <InspectorCard title={item.type === "video" ? "Video" : "Picture"}>
+        {/* Preview shows the source at its natural aspect ratio (full panel
+          width, height follows it) rather than a fixed cropped box. */}
         <div
           style={{
             borderRadius: 13,
@@ -3137,11 +4409,22 @@ function MediaInspector({
             backgroundColor: "var(--elev)",
           }}
         >
-          <img
-            src={item.url}
-            alt=""
-            style={{ display: "block", width: "100%" }}
-          />
+          {item.type === "video" ? (
+            <video
+              src={`${item.url}#t=0.1`}
+              muted
+              playsInline
+              preload="metadata"
+              aria-label={item.altText || "Video"}
+              style={{ display: "block", width: "100%" }}
+            />
+          ) : (
+            <img
+              src={item.url}
+              alt=""
+              style={{ display: "block", width: "100%" }}
+            />
+          )}
         </div>
         <div className="grid gap-2">
           <FieldLabel>Fit</FieldLabel>
@@ -3156,6 +4439,31 @@ function MediaInspector({
             ]}
           />
         </div>
+        {item.fit !== "contain" ? (
+          <div className="grid gap-4">
+            <FieldLabel hint="Which part of the picture shows when it is cropped to its box. Double-click the picture on the slide and drag it to move it by hand; Escape ends that.">
+              Crop position
+            </FieldLabel>
+            <SliderField
+              id={`carousel-focus-x-${item.id}`}
+              label="Left to right"
+              value={Math.round((item.focusX ?? 0.5) * 100)}
+              min={0}
+              max={100}
+              unit="%"
+              onChange={(value) => onUpdate({ focusX: value / 100 })}
+            />
+            <SliderField
+              id={`carousel-focus-y-${item.id}`}
+              label="Top to bottom"
+              value={Math.round((item.focusY ?? 0.5) * 100)}
+              min={0}
+              max={100}
+              unit="%"
+              onChange={(value) => onUpdate({ focusY: value / 100 })}
+            />
+          </div>
+        ) : null}
       </InspectorCard>
       <InspectorCard title="Position and size">
         <PositionFields item={item} onUpdate={onUpdate} />
@@ -3462,174 +4770,6 @@ function ColorField({
 
 // ----------------------------------------------------------- Dialogs --------
 
-function PreviewDialog({
-  open,
-  onOpenChange,
-  slides,
-  caption,
-  format,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  slides: CarouselSlide[]
-  caption: string
-  format: CarouselFormat
-}) {
-  const hasCaption = caption.trim().length > 0
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin" className="max-w-5xl">
-        <DialogHeader>
-          <DialogTitle>Preview</DialogTitle>
-          <DialogDescription>
-            {hasCaption
-              ? "Review your slides and post caption before exporting."
-              : "Review your slides before exporting."}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <div
-            className={cn(
-              "grid gap-4",
-              hasCaption && "md:grid-cols-[1fr_280px]"
-            )}
-          >
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {slides.map((slide) => (
-                <div
-                  key={slide.id}
-                  className="overflow-hidden rounded-md border bg-muted"
-                >
-                  <StaticSlidePreview slide={slide} format={format} />
-                </div>
-              ))}
-            </div>
-            {hasCaption ? (
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>Post caption</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ScrollArea className="max-h-96">
-                    <p className="text-sm whitespace-pre-wrap">{caption}</p>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            ) : null}
-          </div>
-        </DialogBody>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function ExportDialog({
-  open,
-  onOpenChange,
-  slideCount,
-  caption,
-  exporting,
-  error,
-  onUpdateCaption,
-  onExport,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  slideCount: number
-  caption: string
-  exporting: boolean
-  error: string | null
-  onUpdateCaption: (caption: string) => void
-  onExport: () => void
-}) {
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!exporting) onOpenChange(nextOpen)
-      }}
-    >
-      <DialogContent variant="admin" className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Export Carousel</DialogTitle>
-          <DialogDescription>
-            Download every slide as a full-size PNG in one ZIP file. A copy is
-            kept in Carousel exports, to download again or share by link.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Format</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <p className="text-sm text-muted-foreground">
-                {slideCount} PNG {slideCount === 1 ? "slide" : "slides"}, plus
-                caption.txt.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Post caption</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="carousel-export-caption">
-                  Optional text saved as caption.txt
-                </FieldLabel>
-                <Textarea
-                  id="carousel-export-caption"
-                  value={caption}
-                  maxLength={2_200}
-                  rows={1}
-                  disabled={exporting}
-                  onChange={(event) => onUpdateCaption(event.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
-        </DialogBody>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={exporting}
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button type="button" disabled={exporting} onClick={onExport}>
-            {exporting ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : (
-              <DownloadIcon className="size-4" />
-            )}
-            {exporting ? "Exporting" : "Export slides"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 // Picks the slides that take the source slide's layout. Every other slide
 // starts ticked, and each row says how many of its layers will change.
 function PushLayoutDialog({
@@ -3753,7 +4893,12 @@ function PushLayoutForm({
                         className="flex-none overflow-hidden rounded-sm border"
                         style={{ width: thumbWidth, height: thumbHeight }}
                       >
-                        <StaticSlidePreview slide={slide} format={format} />
+                        <StaticSlidePreview
+                          slide={slide}
+                          format={format}
+                          index={index}
+                          count={slides.length}
+                        />
                       </span>
                       <span className="min-w-0 flex-1 truncate">
                         <span className="text-muted-foreground tabular-nums">
@@ -3787,73 +4932,6 @@ function PushLayoutForm({
   )
 }
 
-function StaticSlidePreview({
-  slide,
-  format,
-}: {
-  slide: CarouselSlide
-  format: CarouselFormat
-}) {
-  const ref = React.useRef<HTMLDivElement>(null)
-  const [width, setWidth] = React.useState(0)
-
-  React.useEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const observer = new ResizeObserver(() => setWidth(node.clientWidth))
-    observer.observe(node)
-    setWidth(node.clientWidth)
-    return () => observer.disconnect()
-  }, [])
-
-  // Scale text by the preview's real pixel width — identical to the 1080px
-  // canvas (which uses fontSize * width/1080) so previews match exactly.
-  const scale = width / 1080
-
-  return (
-    <div
-      ref={ref}
-      className="relative w-full overflow-hidden"
-      style={{
-        aspectRatio: String(FORMAT_RATIOS[format]),
-        backgroundColor: slide.backgroundColor,
-      }}
-    >
-      {slide.items
-        .slice()
-        .sort((a, b) => a.zIndex - b.zIndex)
-        .map((item) => (
-          <div
-            key={item.id}
-            className="absolute"
-            style={{
-              left: `${item.x * 100}%`,
-              top: `${item.y * 100}%`,
-              width: `${item.width * 100}%`,
-              height: `${item.height * 100}%`,
-              zIndex: item.zIndex,
-            }}
-          >
-            {item.type === "text" ? (
-              <CarouselTextLayer item={item} fontSize={item.fontSize * scale} />
-            ) : item.type === "image" ? (
-              <img
-                src={item.url}
-                alt={item.altText ?? ""}
-                className={cn("h-full w-full", imageFitClass(item.fit))}
-              />
-            ) : item.type === "gradient-shadow" ? (
-              <div
-                className="h-full w-full"
-                style={{ background: gradientShadowBackground(item) }}
-              />
-            ) : null}
-          </div>
-        ))}
-    </div>
-  )
-}
-
 // ------------------------------------------------------ State / model -------
 
 function createInitialBuilderState(document: CarouselDetail): BuilderState {
@@ -3863,7 +4941,7 @@ function createInitialBuilderState(document: CarouselDetail): BuilderState {
     caption: document.caption,
     format: document.format,
     selectedSlideId: slides[0].id,
-    selectedItemId: slides[0].items[0]?.id ?? null,
+    selectedItemIds: firstItemIds(slides[0]),
     past: [],
     future: [],
   }
@@ -3882,11 +4960,22 @@ export function builderReducer(
       return {
         ...state,
         selectedSlideId: slide.id,
-        selectedItemId: slide.items[0]?.id ?? null,
+        selectedItemIds: firstItemIds(slide),
       }
     }
-    case "SELECT_ITEM":
-      return { ...state, selectedItemId: action.itemId }
+    case "SELECT_ITEM": {
+      if (action.itemId === null) return { ...state, selectedItemIds: [] }
+      if (!action.additive) {
+        return { ...state, selectedItemIds: [action.itemId] }
+      }
+      const picked = state.selectedItemIds.includes(action.itemId)
+      return {
+        ...state,
+        selectedItemIds: picked
+          ? state.selectedItemIds.filter((id) => id !== action.itemId)
+          : [...state.selectedItemIds, action.itemId],
+      }
+    }
     case "UPDATE_CAPTION":
       return withHistory(state, { ...state, caption: action.caption })
     case "UPDATE_FORMAT":
@@ -3921,6 +5010,24 @@ export function builderReducer(
       }
       return action.transient ? next : withHistory(state, next)
     }
+    case "UPDATE_ITEMS": {
+      const next = {
+        ...state,
+        slides: state.slides.map((slide) =>
+          slide.id === action.slideId
+            ? {
+                ...slide,
+                items: slide.items.map((item) =>
+                  action.patches[item.id]
+                    ? ({ ...item, ...action.patches[item.id] } as CarouselSlideItem)
+                    : item
+                ),
+              }
+            : slide
+        ),
+      }
+      return action.transient ? next : withHistory(state, next)
+    }
     case "COMMIT_HISTORY":
       return {
         ...state,
@@ -3934,7 +5041,7 @@ export function builderReducer(
         ...state,
         slides: [...state.slides, slide],
         selectedSlideId: slide.id,
-        selectedItemId: slide.items[0]?.id ?? null,
+        selectedItemIds: firstItemIds(slide),
       })
     }
     case "DUPLICATE_SLIDE": {
@@ -3950,7 +5057,7 @@ export function builderReducer(
         ...state,
         slides,
         selectedSlideId: duplicate.id,
-        selectedItemId: duplicate.items[0]?.id ?? null,
+        selectedItemIds: firstItemIds(duplicate),
       })
     }
     case "DELETE_SLIDE": {
@@ -3969,7 +5076,7 @@ export function builderReducer(
         ...state,
         slides,
         selectedSlideId: selectedSlide.id,
-        selectedItemId: selectedSlide.items[0]?.id ?? null,
+        selectedItemIds: firstItemIds(selectedSlide),
       })
     }
     case "MOVE_SLIDE": {
@@ -3993,7 +5100,7 @@ export function builderReducer(
       if (!slide || slide.items.length >= CAROUSEL_ITEM_MAX) return state
       return withHistory(state, {
         ...state,
-        selectedItemId: action.item.id,
+        selectedItemIds: [action.item.id],
         slides: state.slides.map((slide) =>
           slide.id === action.slideId
             ? { ...slide, items: [...slide.items, action.item] }
@@ -4001,29 +5108,70 @@ export function builderReducer(
         ),
       })
     }
-    case "DELETE_ITEM":
+    case "ADD_SLIDE_NUMBERS": {
+      const slides = state.slides.map((slide) =>
+        slide.items.some((item) => item.type === "slide-number") ||
+        slide.items.length >= CAROUSEL_ITEM_MAX
+          ? slide
+          : { ...slide, items: [...slide.items, { ...action.item, id: builderId() }] }
+      )
+      if (slides.every((slide, index) => slide === state.slides[index])) {
+        return state
+      }
+      const picked = slides.find((slide) => slide.id === state.selectedSlideId)
+      const added = picked?.items.find((item) => item.type === "slide-number")
       return withHistory(state, {
         ...state,
-        selectedItemId:
-          state.selectedItemId === action.itemId ? null : state.selectedItemId,
+        slides,
+        selectedItemIds: added ? [added.id] : state.selectedItemIds,
+      })
+    }
+    case "PASTE_ITEMS": {
+      // Pasted layers arrive picked, on the slide they were pasted onto.
+      const slide = state.slides.find((item) => item.id === action.slideId)
+      if (
+        !slide ||
+        !action.items.length ||
+        slide.items.length + action.items.length > CAROUSEL_ITEM_MAX
+      ) {
+        return state
+      }
+      return withHistory(state, {
+        ...state,
+        selectedSlideId: slide.id,
+        selectedItemIds: action.items.map((item) => item.id),
+        slides: state.slides.map((candidate) =>
+          candidate.id === slide.id
+            ? { ...candidate, items: [...candidate.items, ...action.items] }
+            : candidate
+        ),
+      })
+    }
+    case "DELETE_ITEMS": {
+      if (!action.itemIds.length) return state
+      const gone = new Set(action.itemIds)
+      return withHistory(state, {
+        ...state,
+        selectedItemIds: state.selectedItemIds.filter((id) => !gone.has(id)),
         slides: state.slides.map((slide) =>
           slide.id === action.slideId
-            ? {
-                ...slide,
-                items: slide.items.filter((item) => item.id !== action.itemId),
-              }
+            ? { ...slide, items: slide.items.filter((item) => !gone.has(item.id)) }
             : slide
         ),
       })
-    case "MOVE_LAYER":
+    }
+    case "MOVE_LAYERS": {
+      if (!action.itemIds.length) return state
+      const moving = new Set(action.itemIds)
       return withHistory(state, {
         ...state,
         slides: state.slides.map((slide) =>
           slide.id === action.slideId
-            ? moveLayer(slide, action.itemId, action.direction)
+            ? moveLayers(slide, moving, action.direction)
             : slide
         ),
       })
+    }
     case "RESET_DEFAULTS":
       return withHistory(state, {
         ...state,
@@ -4050,7 +5198,7 @@ export function builderReducer(
         past: state.past.slice(0, -1),
         future: [currentSnapshot(state), ...state.future],
         selectedSlideId: previous.slides[0]?.id ?? state.selectedSlideId,
-        selectedItemId: null,
+        selectedItemIds: [],
       }
     }
     case "REDO": {
@@ -4062,7 +5210,7 @@ export function builderReducer(
         past: [...state.past, currentSnapshot(state)],
         future: state.future.slice(1),
         selectedSlideId: next.slides[0]?.id ?? state.selectedSlideId,
-        selectedItemId: null,
+        selectedItemIds: [],
       }
     }
   }
@@ -4226,10 +5374,6 @@ function imageFitPatch(value: CarouselMediaFit): Partial<CarouselMediaItem> {
   return { fit: value }
 }
 
-function imageFitClass(fit: CarouselMediaFit) {
-  return fit === "contain" ? "object-contain" : "object-cover"
-}
-
 function createTextItem(): CarouselTextItem {
   return {
     id: builderId(),
@@ -4244,6 +5388,24 @@ function createTextItem(): CarouselTextItem {
     fontSize: 56,
     color: "#111827",
     align: "left",
+  }
+}
+
+// "3/7" in a small grey line at the bottom right, readable on dark and light
+// slides alike.
+function createSlideNumberItem(): CarouselSlideNumberItem {
+  return {
+    id: builderId(),
+    type: "slide-number",
+    x: 0.7,
+    y: 0.9,
+    width: 0.24,
+    height: 0.06,
+    zIndex: DEFAULT_TEXT_Z_INDEX + 20,
+    fontId: DEFAULT_TEXT_FONT_ID,
+    fontSize: 36,
+    color: "#9ca3af",
+    align: "right",
   }
 }
 
@@ -4270,7 +5432,8 @@ function createImageItem(
   url: string,
   altText: string | undefined,
   mediaId: string,
-  box?: { x: number; y: number; width: number; height: number }
+  box?: { x: number; y: number; width: number; height: number },
+  type: "image" | "video" = "image"
 ): CarouselMediaItem {
   // Placed as a centred, medium image (not full-bleed) so it doesn't blanket
   // the slide's text. `box` (from the image's natural aspect) keeps portrait
@@ -4279,7 +5442,7 @@ function createImageItem(
   const placement = box ?? { x: 0.15, y: 0.275, width: 0.7, height: 0.45 }
   return {
     id: builderId(),
-    type: "image",
+    type,
     mediaId,
     url,
     altText,
@@ -4298,15 +5461,15 @@ function createImageItem(
 function fitImageBox(
   naturalWidth: number,
   naturalHeight: number,
-  format: CarouselFormat
+  format: CarouselFormat,
+  maxShare = 0.72
 ): { x: number; y: number; width: number; height: number } {
   const formatRatio = FORMAT_RATIOS[format]
   const aspect = naturalWidth / naturalHeight
-  const MAX = 0.72
-  let width = MAX
+  let width = maxShare
   let height = (width * formatRatio) / aspect
-  if (height > MAX) {
-    height = MAX
+  if (height > maxShare) {
+    height = maxShare
     width = (height * aspect) / formatRatio
   }
   // Extreme aspect ratios (panoramas / tall strips) can drive a dimension below
@@ -4380,17 +5543,19 @@ function cloneSlide(slide: CarouselSlide): CarouselSlide {
   }
 }
 
-function moveLayer(
+function firstItemIds(slide: CarouselSlide) {
+  return slide.items[0] ? [slide.items[0].id] : []
+}
+
+function moveLayers(
   slide: CarouselSlide,
-  itemId: string,
+  itemIds: ReadonlySet<string>,
   direction: 1 | -1
 ): CarouselSlide {
-  const item = slide.items.find((candidate) => candidate.id === itemId)
-  if (!item) return slide
   return {
     ...slide,
     items: slide.items.map((candidate) =>
-      candidate.id === itemId
+      itemIds.has(candidate.id)
         ? {
             ...candidate,
             zIndex: Math.max(0, Math.min(999, candidate.zIndex + direction)),
@@ -4398,6 +5563,103 @@ function moveLayer(
         : candidate
     ),
   }
+}
+
+// One press of an arrow moves the picked layers one pixel at full size, or
+// ten with Shift held.
+function nudgeStep(key: string, large: boolean, format: CarouselFormat) {
+  const pixels = large ? 10 : 1
+  const size = CAROUSEL_FRAME_SIZES[format]
+  if (key === "ArrowLeft") return { x: -pixels / size.width, y: 0 }
+  if (key === "ArrowRight") return { x: pixels / size.width, y: 0 }
+  if (key === "ArrowUp") return { x: 0, y: -pixels / size.height }
+  if (key === "ArrowDown") return { x: 0, y: pixels / size.height }
+  return null
+}
+
+const DROP_PICTURES_ONLY_MESSAGE =
+  "Only pictures and clips can go on a slide: PNG, JPG, WEBP, MP4, MOV or WEBM."
+const ONE_VIDEO_PER_SLIDE_MESSAGE =
+  "A slide can hold one video. Put the next clip on a slide of its own."
+
+// The clip types the library takes (`VIDEO_MIME_TYPES`).
+const SLIDE_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"])
+
+function slideFileKind(file: File) {
+  if (file.type.startsWith("image/")) return "image"
+  if (SLIDE_VIDEO_TYPES.has(file.type)) return "video"
+  return null
+}
+
+function slideHasVideo(slide: CarouselSlide) {
+  return slide.items.some((item) => item.type === "video")
+}
+
+function hasFiles(event: React.DragEvent) {
+  return Array.from(event.dataTransfer.types).includes("Files")
+}
+
+/** A picture's or clip's own width and height, read by loading it, or null. */
+function naturalSize(url: string, kind: "image" | "video" = "image") {
+  return new Promise<{ width: number; height: number } | null>((resolve) => {
+    if (kind === "video") {
+      const video = window.document.createElement("video")
+      video.preload = "metadata"
+      video.muted = true
+      video.onloadedmetadata = () =>
+        resolve(
+          video.videoWidth && video.videoHeight
+            ? { width: video.videoWidth, height: video.videoHeight }
+            : null
+        )
+      video.onerror = () => resolve(null)
+      video.src = url
+      return
+    }
+    const image = new Image()
+    image.onload = () =>
+      resolve(
+        image.naturalWidth && image.naturalHeight
+          ? { width: image.naturalWidth, height: image.naturalHeight }
+          : null
+      )
+    image.onerror = () => resolve(null)
+    image.src = url
+  })
+}
+
+// How far a paste lands from layers it would sit exactly on top of, in
+// pixels at full size, so the copy is seen.
+const PASTE_OFFSET_PX = 20
+
+/**
+ * Copied layers as new layers for `slide`: new ids, unlocked, in the same
+ * place, or a little down and right when the same layer is already there.
+ */
+function pastedLayers(
+  copied: CarouselSlideItem[],
+  slide: CarouselSlide,
+  format: CarouselFormat
+): CarouselSlideItem[] {
+  const size = CAROUSEL_FRAME_SIZES[format]
+  const covered = copied.some((item) =>
+    slide.items.some(
+      (existing) =>
+        Math.abs(existing.x - item.x) < 1e-6 &&
+        Math.abs(existing.y - item.y) < 1e-6
+    )
+  )
+  const dx = covered ? PASTE_OFFSET_PX / size.width : 0
+  const dy = covered ? PASTE_OFFSET_PX / size.height : 0
+  return copied.map((item) => {
+    const { locked: _locked, ...rest } = item
+    return {
+      ...rest,
+      id: builderId(),
+      x: clamp01(item.x + dx, 1 - item.width),
+      y: clamp01(item.y + dy, 1 - item.height),
+    } as CarouselSlideItem
+  })
 }
 
 function isMediaItem(item: CarouselSlideItem): item is CarouselMediaItem {
@@ -4410,26 +5672,6 @@ function clamp01(value: number, max = 1) {
 
 function clampSize(value: number, max = 1) {
   return Math.min(Math.max(MIN_ITEM_SIZE, max), Math.max(MIN_ITEM_SIZE, value))
-}
-
-function gradientShadowBackground(item: CarouselGradientShadowItem) {
-  const strong = hexToRgba(item.color, item.opacity / 100)
-  const clear = hexToRgba(item.color, 0)
-  switch (item.direction ?? "up") {
-    case "down":
-      return `linear-gradient(to bottom, ${strong} 0%, ${clear} 100%)`
-    case "left":
-      return `linear-gradient(to left, ${strong} 0%, ${clear} 100%)`
-    case "right":
-      return `linear-gradient(to right, ${strong} 0%, ${clear} 100%)`
-    case "radial":
-      return `radial-gradient(circle at 50% 50%, ${clear} 0%, ${strong} 100%)`
-    case "solid":
-      return strong
-    case "up":
-    default:
-      return `linear-gradient(to top, ${strong} 0%, ${clear} 100%)`
-  }
 }
 
 // Mini gradient used on the Shadow panel preset cards (fixed black tint).
@@ -4451,15 +5693,6 @@ function shadowPreviewCss(direction: CarouselShadowDirection) {
     default:
       return `linear-gradient(to top, ${strong}, ${clear} 65%)`
   }
-}
-
-function hexToRgba(hex: string, alpha: number) {
-  const color = hex.replace("#", "")
-  const red = Number.parseInt(color.slice(0, 2), 16)
-  const green = Number.parseInt(color.slice(2, 4), 16)
-  const blue = Number.parseInt(color.slice(4, 6), 16)
-
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`
 }
 
 function isTextEntryTarget(target: EventTarget | null) {
@@ -4487,10 +5720,13 @@ function positionPatch(
   return { height: clampSize(normalized, 1 - item.y) }
 }
 
-/** Hands the kept ZIP over as a download, the way the Exports page does. */
-function downloadKeptExport(exportId: string, name: string) {
+/**
+ * Hands the kept ZIP, or its PDF, over as a download, the way the Exports
+ * page does.
+ */
+function downloadKeptExport(exportId: string, name: string, pdf = false) {
   const link = window.document.createElement("a")
-  link.href = `/api/v1/video/exports/${encodeURIComponent(exportId)}/file?filename=${encodeURIComponent(name)}`
+  link.href = `/api/v1/video/exports/${encodeURIComponent(exportId)}/file?${pdf ? "format=pdf&" : ""}filename=${encodeURIComponent(name)}`
   link.download = ""
   window.document.body.append(link)
   link.click()

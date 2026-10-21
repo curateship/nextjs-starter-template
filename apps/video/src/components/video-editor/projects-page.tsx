@@ -167,6 +167,14 @@ export function ProjectsPage({
   const [deleteTargets, setDeleteTargets] = React.useState<ProjectItem[]>([])
   const [deleteSummary, setDeleteSummary] =
     React.useState<ProjectDeleteSummary | null>(null)
+  const [deleteSummaryError, setDeleteSummaryError] = React.useState<
+    string | null
+  >(null)
+  // What happens to the projects' carousels. Asked every time, so it starts
+  // unanswered (workspace/docs/carousel-projects.md).
+  const [carouselChoice, setCarouselChoice] = React.useState<
+    "keep" | "delete" | null
+  >(null)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const selection = useSelection()
 
@@ -210,7 +218,9 @@ export function ProjectsPage({
       .then((summary) => {
         if (active) setDeleteSummary(summary)
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        if (active) setDeleteSummaryError(getProjectErrorMessage(error))
+      })
     return () => {
       active = false
     }
@@ -307,9 +317,24 @@ export function ProjectsPage({
 
   async function confirmDelete() {
     if (!deleteTargets.length) return
+    // The window must know about the carousels before anything goes, so it
+    // can ask what happens to them.
+    if (!deleteSummary) {
+      showErrorToast(
+        deleteSummaryError
+          ? `${deleteSummaryError} Close this window and try again.`
+          : "Still counting what this project made. Try again in a moment."
+      )
+      return
+    }
+    if (deleteSummary.carousels && !carouselChoice) {
+      showErrorToast("Choose whether to keep or delete the carousels first.")
+      return
+    }
     await run(async () => {
       const { deleted_ids: deleted, failed_ids: failed } = await deleteProjects(
-        deleteTargets.map((project) => project.id)
+        deleteTargets.map((project) => project.id),
+        carouselChoice === "delete"
       )
       if (failed.length) {
         showErrorToast(
@@ -319,7 +344,7 @@ export function ProjectsPage({
       if (deleted.length === 0) {
         if (!failed.length) {
           showErrorToast(
-            "Nothing was deleted — those projects may already be gone."
+            "Nothing was deleted. Those projects may already be gone."
           )
         }
         return
@@ -327,6 +352,8 @@ export function ProjectsPage({
       selection.clear()
       setDeleteTargets([])
       setDeleteSummary(null)
+      setDeleteSummaryError(null)
+      setCarouselChoice(null)
       await router.invalidate()
       toast.success(
         describeBulkResult({
@@ -700,6 +727,8 @@ export function ProjectsPage({
           if (!open) {
             setDeleteTargets([])
             setDeleteSummary(null)
+            setDeleteSummaryError(null)
+            setCarouselChoice(null)
           }
         }}
         title={
@@ -721,7 +750,48 @@ export function ProjectsPage({
         }
         loading={busy}
         onConfirm={confirmDelete}
-      />
+      >
+        {deleteSummary?.carousels ? (
+          <div
+            role="group"
+            aria-label={`What happens to ${plural(deleteSummary.carousels, "its carousel", "its carousels")}`}
+            className="grid gap-2"
+          >
+            <p className="text-sm font-medium">
+              {`${deleteTargets.length === 1 ? "It has" : "They have"} ${deleteSummary.carousels} ${plural(deleteSummary.carousels, "carousel", "carousels")}.`}
+            </p>
+            {(
+              [
+                [
+                  "keep",
+                  deleteSummary.carousels === 1
+                    ? "Keep the carousel, with no project"
+                    : "Keep the carousels, with no project",
+                ],
+                [
+                  "delete",
+                  deleteSummary.carousels === 1
+                    ? "Delete the carousel too"
+                    : "Delete the carousels too",
+                ],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={carouselChoice === value}
+                onClick={() => setCarouselChoice(value)}
+                className={cn(
+                  "rounded-md border p-2 text-left text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                  carouselChoice === value && "border-primary bg-muted"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </ConfirmDialog>
     </>
   )
 }

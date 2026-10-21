@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   findTextOverflow,
+  layerName,
   matchSlideLayers,
   pushSlideLayout,
   relayoutSlides,
@@ -388,5 +389,80 @@ describe("pushSlideLayout", () => {
       new Set(["target"])
     )
     expect([...findTextOverflow(pushed, "4:5").keys()]).toEqual(["target"])
+  })
+})
+
+describe("looks added on 21 Oct 2026", () => {
+  it("flags a box once wider line spacing pushes its words past it", () => {
+    // Two lines of 72px words in a box 200px tall: 167px at the usual
+    // spacing fits, 288px at double spacing does not.
+    const item = text("t", "one\ntwo", [0.1, 0.1, 0.8, 200 / 1350])
+    expect(textOverflows(item, "4:5")).toBe(false)
+    expect(textOverflows({ ...item, lineHeight: 2 }, "4:5")).toBe(true)
+  })
+
+  it("wraps sooner with wider letter spacing", () => {
+    // 19 letters fit one 1080px line at 72px (27 a line), and need two once
+    // each letter takes half its size again (14 a line).
+    const item = text("t", "a b c d e f g h i j", [0, 0, 1, 100 / 1350])
+    expect(textOverflows(item, "4:5")).toBe(false)
+    expect(textOverflows({ ...item, letterSpacing: 0.5 }, "4:5")).toBe(true)
+  })
+
+  it("carries the new looks with a pushed layout, but not bold words", () => {
+    const source: CarouselSlide = {
+      id: "source",
+      title: "",
+      backgroundColor: "#000000",
+      items: [
+        {
+          ...text("s", "Source", [0.1, 0.1, 0.5, 0.2]),
+          lineHeight: 1.5,
+          boxColor: "#123456",
+          outlineColor: "#ffffff",
+          outlineWidth: 4,
+          highlightColor: "#a7f3d0",
+          marks: [{ start: 0, end: 3, style: "bold" }],
+        },
+      ],
+    }
+    const target: CarouselSlide = {
+      id: "target",
+      title: "",
+      backgroundColor: "#000000",
+      items: [text("t", "Target", [0.4, 0.6, 0.3, 0.1])],
+    }
+    const [, pushed] = pushSlideLayout(
+      [source, target],
+      "source",
+      new Set(["target"])
+    )
+    const item = pushed.items[0] as CarouselTextItem
+    expect(item.lineHeight).toBe(1.5)
+    expect(item.boxColor).toBe("#123456")
+    expect(item.outlineWidth).toBe(4)
+    expect(item.highlightColor).toBe("#a7f3d0")
+    expect(item.marks).toBeUndefined()
+    expect(item.text).toBe("Target")
+    expect(carouselSlidesSchema.safeParse([source, pushed]).success).toBe(true)
+  })
+
+  it("names a layer by its words, or by what it is", () => {
+    expect(layerName(text("t", "  Five   habits  ", [0, 0, 1, 1]))).toBe(
+      "Five habits"
+    )
+    expect(
+      layerName({
+        id: "s",
+        type: "gradient-shadow",
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        zIndex: 1,
+        color: "#000000",
+        opacity: 50,
+      })
+    ).toBe("Shadow")
   })
 })

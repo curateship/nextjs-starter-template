@@ -224,6 +224,7 @@ describe("duplicating and deleting a project", () => {
       first_frames: 2,
       ai_clips: 0,
       exports: 0,
+      carousels: 0,
     })
   })
 
