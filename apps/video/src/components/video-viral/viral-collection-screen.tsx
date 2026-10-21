@@ -10,8 +10,10 @@ import {
 import { toast } from "sonner"
 
 import {
+  DashboardCardHeader,
   DashboardCardTitleHeader,
 } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import {
   dashboardToolbarButtonActiveClassName,
   dashboardToolbarButtonGroupClassName,
@@ -46,6 +48,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { HookBoard } from "@/components/video-viral/hook-board"
 import { PlayerPanel } from "@/components/video-viral/player-panel"
 import type { Favourites } from "@/components/video-viral/star-menu"
 import { VideoGrid, VideoList } from "@/components/video-viral/video-grid"
@@ -77,7 +80,11 @@ import {
 } from "@/lib/video/viral-view"
 
 type CollectionSearch = {
+  /** Videos is the default and stays out of the address. */
+  view?: "hooks"
   video?: string
+  /** Where the open video starts, in milliseconds: its hook, opened from Hooks. */
+  at?: number
   sort?: ViralSort
   direction?: "asc" | "desc"
   q?: string
@@ -89,7 +96,9 @@ const SIZE_STORAGE_KEY = "video-viral-card-size"
 /**
  * Favourites, its own page beside Viral in the left menu: every collection on
  * the left, the open one's starred videos in the middle, the one picked
- * playing on the right. Taking a star off removes it from here only.
+ * playing on the right. Taking a star off removes it from here only. The
+ * middle's Hooks tab lists the opening words of every broken-down video in
+ * the collection, as a Viral project's does.
  */
 export function ViralCollectionScreen({
   collection,
@@ -107,6 +116,7 @@ export function ViralCollectionScreen({
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as CollectionSearch
   const setSearch = useListSearchNavigate()
+  const view = search.view ?? "videos"
   const sort: ViralSort = search.sort ?? "score"
   const direction = search.direction ?? "desc"
   const [searchText, setSearchText] = useSearchBoxText(search.q ?? "", (next) =>
@@ -136,6 +146,8 @@ export function ViralCollectionScreen({
       ).map(progress.apply),
     [direction, progress.apply, search.q, sort, videos]
   )
+  const hooks = shown.filter((video) => video.hook !== null)
+  const hookCount = videos.filter((video) => video.hook !== null).length
   const found = videos.find((video) => video.key === search.video)
   const picked = found ? progress.apply(found) : null
 
@@ -211,19 +223,13 @@ export function ViralCollectionScreen({
   const gridProps = {
     videos: shown,
     selectedKey: picked?.key ?? null,
-    onPick: (video: ViralVideo) => setSearch({ video: video.key }),
+    onPick: (video: ViralVideo) => setSearch({ video: video.key, at: undefined }),
     favourites,
     onFavouritesChanged: refresh,
     projectId: null,
   }
 
-  const middle = (
-    <>
-      <DashboardCardTitleHeader
-        icon={<StarIcon />}
-        title={collection?.name ?? "No collection yet"}
-        meta={collection ? `${videos.length} ${plural(videos.length, "video")}` : undefined}
-        action={
+  const layoutButtons = (
           <div className={dashboardToolbarButtonGroupClassName}>
             <DashboardToolbarButton
               type="button"
@@ -246,8 +252,26 @@ export function ViralCollectionScreen({
               <ListIcon className="size-4" />
             </DashboardToolbarButton>
           </div>
-        }
-      />
+  )
+
+  const middle = (
+    <>
+      {collection ? (
+        <DashboardCardHeader className="@container">
+          <DashboardTabs
+            value={view}
+            onValueChange={(next) => setSearch({ view: next === "videos" ? undefined : next })}
+            tabs={[
+              { value: "videos", label: "Videos", count: videos.length },
+              { value: "hooks", label: "Hooks", count: hookCount },
+            ]}
+          />
+          {/* Hooks is one list of words, drawn the same in either layout. */}
+          <div className="ml-auto flex shrink-0 items-center">{view === "hooks" ? null : layoutButtons}</div>
+        </DashboardCardHeader>
+      ) : (
+        <DashboardCardTitleHeader icon={<StarIcon />} title="No collection yet" />
+      )}
       <div className="flex flex-wrap items-center gap-2 border-b p-3">
         <DashboardToolbarSearch
           name="viral-collection-search"
@@ -268,7 +292,7 @@ export function ViralCollectionScreen({
             ))}
           </SelectContent>
         </Select>
-        {layout === "grid" ? (
+        {layout === "grid" && view !== "hooks" ? (
           <Select value={size} onValueChange={(next) => setSize(next as ViralCardSize)}>
             <DashboardToolbarSelectTrigger aria-label="Card size" className="min-w-24">
               <SelectValue />
@@ -282,7 +306,21 @@ export function ViralCollectionScreen({
         ) : null}
       </div>
       <ScrollArea className="min-h-0 flex-1">
-        {shown.length === 0 ? (
+        {view === "hooks" && collection ? (
+          hooks.length ? (
+            <HookBoard
+              videos={hooks}
+              selectedKey={picked?.key ?? null}
+              onOpen={(video, startMs) => setSearch({ video: video.key, at: startMs || undefined })}
+            />
+          ) : (
+            <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+              {hookCount
+                ? "No hook matches that search."
+                : "No hooks here yet. Break down a starred video and the words of its opening show here."}
+            </p>
+          )
+        ) : shown.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-muted-foreground">
             {!collection
               ? "Press the star on any video in a Viral project and make a collection. It shows here."
@@ -322,6 +360,7 @@ export function ViralCollectionScreen({
             favourites={favourites}
             onFavouritesChanged={refresh}
             onSavedChange={progress.report}
+            startAtMs={search.at}
             onDeleted={async (video) => {
               // The star stays: a favourite keeps its own copy of the details.
               progress.forget([video.key])

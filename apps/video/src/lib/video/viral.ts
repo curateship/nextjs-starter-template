@@ -7,6 +7,7 @@
  */
 
 import type { CreatorPlatform } from "./creators"
+import type { HookLine } from "./viral-breakdown"
 import type { ViralScore } from "./viral-score"
 
 /** The posted-within windows a project offers, in days. */
@@ -106,13 +107,15 @@ export type ViralVideo = {
   isNew: boolean
   /** The AI's 0 to 100 for how well it fits the description, or null. */
   topicMatch: number | null
-  /** Where it came from: a keyword search or a followed creator. */
-  source: "search" | "creator"
+  /** Where it came from: a keyword search, a followed creator, or a pasted link. */
+  source: "search" | "creator" | "link"
   /** Made up by "Add a sample project", so there is nothing to play. */
   sample: boolean
   /** The saved copy, when this person pressed Save & break down. */
   savedVideoId: string | null
   savedStatus: string | null
+  /** The words of its hook, once it is broken down and something is said in it. */
+  hook: HookLine | null
 }
 
 /** A channel as the Creators view lists it. */
@@ -187,10 +190,6 @@ export type ViralProjectScreen = {
   hidden: ViralHiddenChannel[]
   made: ViralMadeProject[]
   spend: { total_cents: number; limit_cents: number | null }
-  youtube: {
-    keyConfigured: boolean
-    unitsLeftToday: number
-  }
 }
 
 /** "Video" or "Videos", with the count. */

@@ -8,10 +8,13 @@ import {
   loadViralCollection,
 } from "@/lib/api/video/viral-collections"
 import { readDirection, readOneOf, readSearchText } from "@/lib/nav/list-search"
+import { readStartMs } from "@/lib/video/viral-breakdown"
 import { VIRAL_SORTS } from "@/lib/video/viral-view"
 
 type CollectionSearch = {
+  view?: "hooks"
   video?: string
+  at?: number
   sort?: (typeof VIRAL_SORTS)[number]
   direction?: "asc" | "desc"
   q?: string
@@ -22,6 +25,8 @@ export const Route = createFileRoute(
   "/_authenticated/admin/video-favourites/$collectionId"
 )({
   validateSearch: (search: Record<string, unknown>): CollectionSearch => ({
+    view: search.view === "hooks" ? "hooks" : undefined,
+    at: readStartMs(search.at),
     video:
       typeof search.video === "string" &&
       /^[a-z]+:[A-Za-z0-9_@.-]{1,120}$/.test(search.video)

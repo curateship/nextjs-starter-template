@@ -99,6 +99,7 @@ export function VideoGrid({
               <span className="line-clamp-2 text-sm leading-snug font-medium">
                 {video.title}
               </span>
+              <PastedChip video={video} />
               <span className="truncate text-xs text-muted-foreground">
                 {video.channelName || creatorPlatformLabels[video.platform]}
               </span>
@@ -210,6 +211,15 @@ function ProcessingStrip({ video }: { video: ViralVideo }) {
       {savedVideoStatusLabels[video.savedStatus as SavedVideoStatus]}…
     </span>
   )
+}
+
+/** A video pasted in by its link, which no search or followed creator found. */
+function PastedChip({ video }: { video: ViralVideo }) {
+  return video.source === "link" ? (
+    <span>
+      <Badge variant="outline">Pasted</Badge>
+    </span>
+  ) : null
 }
 
 /** Broken down, or failed. A video still working has its strip instead. */
@@ -326,6 +336,7 @@ export function VideoList({
                         {video.title}
                       </button>
                       {video.isNew ? <Badge>New</Badge> : null}
+                      <PastedChip video={video} />
                     </span>
                     {/* Where saving has got to sits with the channel, leaving the title its row. */}
                     <span className="flex min-w-0 items-center gap-1.5">
@@ -432,7 +443,10 @@ export function CreatorList({
                     </Badge>
                   ) : null}
                 </span>
-                <span className="truncate text-xs text-muted-foreground tabular-nums">
+                {/* "10m ago" is worked out on the server and again in the
+                    browser; a load that crosses a minute says "11m ago" the
+                    second time, which is not worth a hydration error. */}
+                <span className="truncate text-xs text-muted-foreground tabular-nums" suppressHydrationWarning>
                   {[
                     creator.subscribers !== null ? `${formatCount(creator.subscribers)} subs` : null,
                     `${creator.hits} ${creator.hits === 1 ? "hit" : "hits"}`,

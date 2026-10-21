@@ -1,3 +1,10 @@
+import * as React from "react"
+import { ChevronDownIcon } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { formatDate } from "@/lib/format/format-time"
+import { useRememberedCollapse } from "@/lib/remembered-choice"
+import { cn } from "@/lib/utils"
 import {
   VIRAL_SCORE_PART_LABELS,
   VIRAL_SCORE_WEIGHTS,
@@ -42,25 +49,65 @@ const SURE_DOT: Record<ViralScore["confidence"], string> = {
   low: "bg-muted-foreground",
 }
 
+/** Whether this browser left the score's parts open. Shut until opened. */
+const PARTS_OPEN_KEY = "video-viral-score-parts"
+
 /**
  * The right panel's score, as Tyler drew it on 20 Oct 2026: the score large
- * with "/ 100 score", how sure it is in a chip, then each part with its
- * points out of what it is worth and a bar filled to match, and a line on
- * whatever was missing.
+ * with "/ 100 score" and how sure it is. The "Sure" chip is a button that
+ * opens each part with its points out of what it is worth and a bar filled to
+ * match, the date it was posted under How recent, and a line on whatever was
+ * missing (Tyler, 20 Oct 2026: "make this a toggle and hide the graph bar.
+ * Move the posted date in there too"). This browser remembers it left open.
  */
-export function ViralScoreBlock({ score }: { score: ViralScore }) {
+export function ViralScoreBlock({
+  score,
+  postedAt,
+}: {
+  score: ViralScore
+  postedAt: string | null
+}) {
+  const [open, setOpen] = useRememberedCollapse(PARTS_OPEN_KEY, false)
+  const partsId = React.useId()
   return (
     <div className="grid gap-3">
       <div className="flex items-center justify-between gap-3">
         <p className="flex items-baseline gap-1.5">
           <span className="text-3xl font-semibold tabular-nums">{score.score}</span>
-          <span className="text-sm text-muted-foreground">/ 100 score</span>
+          <span className="text-sm whitespace-nowrap text-muted-foreground">/ 100 score</span>
         </p>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium">
+        <Button
+          type="button"
+          variant="outline"
+          size="xs"
+          aria-expanded={open}
+          // Only while the parts are on the page, since shut they are not drawn.
+          aria-controls={open ? partsId : undefined}
+          onClick={() => setOpen(!open)}
+          className="shrink-0 rounded-full"
+        >
           <span aria-hidden className={`size-1.5 rounded-full ${SURE_DOT[score.confidence]}`} />
           Sure: {score.confidence}
-        </span>
+          <ChevronDownIcon data-icon="inline-end" className={cn("transition-transform", open && "rotate-180")} />
+        </Button>
       </div>
+      {open ? <ScoreParts id={partsId} score={score} postedAt={postedAt} /> : null}
+    </div>
+  )
+}
+
+/** The opened half of the score block: the parts, the posted date and what was missing. */
+function ScoreParts({
+  id,
+  score,
+  postedAt,
+}: {
+  id: string
+  score: ViralScore
+  postedAt: string | null
+}) {
+  return (
+    <div id={id} className="grid gap-3">
       <dl className="grid gap-2.5">
         {PART_ORDER.map((part) => {
           const max = Math.round(VIRAL_SCORE_WEIGHTS[part] * 100)
@@ -80,6 +127,12 @@ export function ViralScoreBlock({ score }: { score: ViralScore }) {
                   style={{ width: `${Math.min(100, (points / max) * 100)}%` }}
                 />
               </div>
+              {/* How recent is worked out from the posted date, so it sits here. */}
+              {part === "freshness" ? (
+                <dd className="text-xs text-muted-foreground">
+                  {postedAt ? `Posted ${formatDate(postedAt)}` : "Posted date not known"}
+                </dd>
+              ) : null}
             </div>
           )
         })}

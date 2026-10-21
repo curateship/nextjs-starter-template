@@ -3,11 +3,11 @@ import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ImageUpload } from "@/components/shared/image-upload"
+import { SettingsFoldCard } from "@/components/video-assets/settings-fold-card"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -189,27 +189,27 @@ export function ProjectFormDialog({
             }}
           >
             <DialogBody>
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>Name</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="project-name">Project name</Label>
-                    <Input
-                      id="project-name"
-                      ref={inputRef}
-                      value={draft.name}
-                      maxLength={200}
-                      aria-invalid={!draft.name.trim() || undefined}
-                      placeholder="Gym hook reel"
-                      onChange={(event) =>
-                        setDraft({ ...draft, name: event.target.value })
-                      }
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+              <SettingsFoldCard
+                fold={Boolean(project)}
+                storageId="video-project-settings-name"
+                show={!draft.name.trim()}
+                title="Name"
+              >
+                <div className="grid gap-2">
+                  <Label htmlFor="project-name">Project name</Label>
+                  <Input
+                    id="project-name"
+                    ref={inputRef}
+                    value={draft.name}
+                    maxLength={200}
+                    aria-invalid={!draft.name.trim() || undefined}
+                    placeholder="Gym hook reel"
+                    onChange={(event) =>
+                      setDraft({ ...draft, name: event.target.value })
+                    }
+                  />
+                </div>
+              </SettingsFoldCard>
 
               {!project && folders.length ? (
                 <Card size="sm">
@@ -243,94 +243,90 @@ export function ProjectFormDialog({
               ) : null}
 
               {project ? (
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Look</CardTitle>
-                    <CardDescription>
-                      Sent with every AI picture or clip made for this
-                      project. It costs nothing itself.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
-                    <div className="grid gap-2">
-                      <FieldLabel
-                        htmlFor="project-style"
-                        hint="Describe the look, not the scene: drawing style, colours, light, what never appears. Each scene's own direction comes after it."
-                      >
-                        Style
-                      </FieldLabel>
-                      <Textarea
-                        id="project-style"
-                        rows={1}
-                        maxLength={MAX_STYLE_LENGTH}
-                        value={draft.style}
-                        placeholder="Flat illustration, warm palette, thick outlines, no text"
-                        onChange={(event) =>
-                          setDraft({ ...draft, style: event.target.value })
-                        }
-                      />
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        {draft.style.length} / {MAX_STYLE_LENGTH}
-                      </span>
-                    </div>
-                    <ImageUpload
-                      label="Look picture"
-                      value={draft.lookPictureUrl}
-                      onChange={(lookPictureUrl) =>
-                        setDraft({ ...draft, lookPictureUrl })
+                <SettingsFoldCard
+                  fold
+                  storageId="video-project-settings-look"
+                  title="Look"
+                  description="Sent with every AI picture or clip made for this project. It costs nothing itself."
+                >
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="project-style"
+                      hint="Describe the look, not the scene: drawing style, colours, light, what never appears. Each scene's own direction comes after it."
+                    >
+                      Style
+                    </FieldLabel>
+                    <Textarea
+                      id="project-style"
+                      rows={1}
+                      maxLength={MAX_STYLE_LENGTH}
+                      value={draft.style}
+                      placeholder="Flat illustration, warm palette, thick outlines, no text"
+                      onChange={(event) =>
+                        setDraft({ ...draft, style: event.target.value })
                       }
-                      aspect="square"
-                      fit="cover"
-                      disabled={saving}
-                      className="max-w-40"
-                      hint="Optional. The AI copies its colours, light and drawing style, not what is in it."
                     />
-                    {hasLook ? (
-                      <div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={saving}
-                          onClick={() =>
-                            setDraft({ ...draft, style: "", lookPictureUrl: "" })
-                          }
-                        >
-                          Clear look
-                        </Button>
-                      </div>
-                    ) : null}
-                  </CardContent>
-                </Card>
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {draft.style.length} / {MAX_STYLE_LENGTH}
+                    </span>
+                  </div>
+                  <ImageUpload
+                    label="Look picture"
+                    value={draft.lookPictureUrl}
+                    onChange={(lookPictureUrl) =>
+                      setDraft({ ...draft, lookPictureUrl })
+                    }
+                    aspect="square"
+                    fit="cover"
+                    disabled={saving}
+                    className="max-w-40"
+                    hint="Optional. The AI copies its colours, light and drawing style, not what is in it."
+                  />
+                  {hasLook ? (
+                    <div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={saving}
+                        onClick={() =>
+                          setDraft({ ...draft, style: "", lookPictureUrl: "" })
+                        }
+                      >
+                        Clear look
+                      </Button>
+                    </div>
+                  ) : null}
+                </SettingsFoldCard>
               ) : null}
 
               {project ? (
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Spending</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
-                    <div className="grid gap-2">
-                      <FieldLabel
-                        htmlFor="project-spend-limit"
-                        hint="Every AI tool used in this project stops and says so before it would take the project past this. Leave it empty for no limit."
-                      >
-                        Spend limit in dollars
-                      </FieldLabel>
-                      <Input
-                        id="project-spend-limit"
-                        inputMode="decimal"
-                        className="sm:max-w-40"
-                        value={draft.spendLimit}
-                        placeholder="No limit"
-                        aria-invalid={limitInvalid || undefined}
-                        onChange={(event) => {
-                          setDraft({ ...draft, spendLimit: event.target.value })
-                          setLimitInvalid(false)
-                        }}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
+                <SettingsFoldCard
+                  fold
+                  storageId="video-project-settings-spending"
+                  show={limitInvalid}
+                  title="Spending"
+                >
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="project-spend-limit"
+                      hint="Every AI tool used in this project stops and says so before it would take the project past this. Leave it empty for no limit."
+                    >
+                      Spend limit in dollars
+                    </FieldLabel>
+                    <Input
+                      id="project-spend-limit"
+                      inputMode="decimal"
+                      className="sm:max-w-40"
+                      value={draft.spendLimit}
+                      placeholder="No limit"
+                      aria-invalid={limitInvalid || undefined}
+                      onChange={(event) => {
+                        setDraft({ ...draft, spendLimit: event.target.value })
+                        setLimitInvalid(false)
+                      }}
+                    />
+                  </div>
+                </SettingsFoldCard>
               ) : null}
             </DialogBody>
             <DialogFooter>

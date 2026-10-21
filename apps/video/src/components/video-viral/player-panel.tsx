@@ -21,6 +21,7 @@ import {
 import { BreakdownPanel } from "@/components/video-viral/breakdown-panel"
 import { CopyThisButton } from "@/components/video-viral/copy-this-button"
 import { DeleteSavedVideosDialog } from "@/components/video-viral/delete-saved-videos-dialog"
+import { FlatSection } from "@/components/video-viral/flat-section"
 import { StarMenu, type Favourites } from "@/components/video-viral/star-menu"
 import { ViralScoreBlock } from "@/components/video-viral/viral-score-parts"
 import {
@@ -30,9 +31,7 @@ import {
   saveVideos,
   type SavedVideoDetail,
 } from "@/lib/api/video/viral-videos"
-import { formatDate } from "@/lib/format/format-time"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
 import {
   creatorPlatformLabels,
   formatCount,
@@ -49,8 +48,8 @@ import type { ViralVideo } from "@/lib/video/viral"
  * the buttons pinned to the panel's foot.
  *
  * **Picking a video spends nothing.** A YouTube video plays in YouTube's own
- * embed, which is free. TikTok and Instagram show their cover and a way out,
- * because their embeds need third-party scripts. Download spends storage only;
+ * embed, which is free, and an Instagram one in Instagram's (Tyler, 20 Oct
+ * 2026: "Make video play from IG"). TikTok shows its cover and a way out. Download spends storage only;
  * Break it down is the one button that spends AI money, and its hover says so.
  */
 /** How often the panel asks again while a breakdown is moving. */
@@ -100,6 +99,8 @@ type PlayerBodyProps = {
   ) => void
   /** The saved copy was deleted. Without it, the panel offers no Delete. */
   onDeleted?: (video: ViralVideo) => void | Promise<void>
+  /** Where the video starts, in milliseconds: its hook, opened from Hooks. */
+  startAtMs?: number
 }
 
 function PlayerBody({
@@ -111,6 +112,7 @@ function PlayerBody({
   onBack,
   onSavedChange,
   onDeleted,
+  startAtMs,
 }: PlayerBodyProps) {
   const [saved, setSavedHere] = React.useState<SavedVideoDetail | null>(null)
   const [busy, setBusy] = React.useState<"download" | "analyse" | "retry" | null>(null)
@@ -204,6 +206,15 @@ function PlayerBody({
     }
   }
 
+  // Another hook of the same video picked while it is open: the player is
+  // already loaded, so it moves now. A player still loading starts there by
+  // itself (Player's onLoadedMetadata).
+  React.useEffect(() => {
+    const player = playerRef.current
+    if (startAtMs === undefined || !player || player.readyState < 1) return
+    player.currentTime = startAtMs / 1000
+  }, [startAtMs])
+
   function seek(ms: number) {
     const player = playerRef.current
     if (!player) return
@@ -218,6 +229,10 @@ function PlayerBody({
   function sampleSays() {
     showErrorToast("This is a made-up sample video, so nothing is downloaded or broken down. Make your own project to try it.")
   }
+
+  const template = (
+    <CopyThisButton url={video.url} title={video.title} viralProjectId={projectId} className="h-8 w-full" />
+  )
 
   return (
     <>
@@ -276,6 +291,7 @@ function PlayerBody({
             saved={saved}
             playerRef={playerRef}
             onTime={setAtMs}
+            startAtMs={startAtMs}
           />
 
           <dl className="grid grid-cols-4 divide-x border-b">
@@ -286,17 +302,20 @@ function PlayerBody({
           </dl>
 
           <div className="border-b p-4">
-            <ViralScoreBlock score={video.score} />
+            <ViralScoreBlock score={video.score} postedAt={video.postedAt} />
           </div>
 
-          <dl className="grid gap-2 p-4 text-sm">
-            <Detail label="Posted" value={video.postedAt ? formatDate(video.postedAt) : "—"} />
-            <Detail label="Length" value={formatDuration(video.durationSeconds) || "—"} />
-            <Detail label="Views a day" value={formatCount(video.score.viewsPerDay)} />
-            {video.keywords.length ? (
-              <Detail label="Found by" value={video.keywords.map((keyword) => `“${keyword}”`).join(", ")} />
-            ) : null}
-          </dl>
+          {/* Its own headed section, like the breakdown's under it, so each
+              part of the panel says what it is (Tyler, 20 Oct 2026). */}
+          <FlatSection storageId="viral-video-details" title="Details">
+            <dl className="grid gap-2 text-sm">
+              <Detail label="Length" value={formatDuration(video.durationSeconds) || "—"} />
+              <Detail label="Views a day" value={formatCount(video.score.viewsPerDay)} />
+              {video.keywords.length ? (
+                <Detail label="Found by" value={video.keywords.map((keyword) => `“${keyword}”`).join(", ")} />
+              ) : null}
+            </dl>
+          </FlatSection>
 
           {saved?.breakdown ? (
             <BreakdownPanel
@@ -308,8 +327,10 @@ function PlayerBody({
         </div>
       </ScrollArea>
 
-      {/* Pinned to the panel's foot, under everything that scrolls. */}
-      <div className="grid gap-2 border-t p-3">
+      {/* Pinned to the panel's foot, under everything that scrolls, on a light
+          grey (Tyler, 20 Oct 2026). Make this a template is too long to share
+          a row in this narrow panel, so it has a whole row under the others. */}
+      <div className="grid gap-2 border-t bg-muted/50 p-3">
         {video.sample ? (
           <div className="grid grid-cols-2 gap-2">
             <Button variant="outline" onClick={sampleSays}>
@@ -318,47 +339,43 @@ function PlayerBody({
             <Button onClick={sampleSays}>Break it down</Button>
           </div>
         ) : saved === null ? (
-          <div className="grid grid-cols-3 gap-2">
-            <DownloadButton busy={busy} onPress={() => void onSave(false)} />
-            <CopyThisButton url={video.url} title={video.title} viralProjectId={projectId} className="h-8" />
-            <BreakDownButton busy={busy} onPress={() => void onSave(true)} />
-          </div>
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <DownloadButton busy={busy} onPress={() => void onSave(false)} />
+              <BreakDownButton busy={busy} onPress={() => void onSave(true)} />
+            </div>
+            {template}
+          </>
         ) : working ? (
           <>
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2Icon className="size-4 animate-spin" />
               {savedVideoStatusLabels[saved.status]}…
             </p>
-            <div className={cn("grid gap-2", saved.wantsAnalysis ? "grid-cols-1" : "grid-cols-2")}>
-              <CopyThisButton url={video.url} title={video.title} viralProjectId={projectId} className="h-8" />
-              {saved.wantsAnalysis ? null : (
-                <BreakDownButton busy={busy} onPress={() => void onSave(true)} />
-              )}
-            </div>
+            {saved.wantsAnalysis ? null : (
+              <BreakDownButton busy={busy} onPress={() => void onSave(true)} />
+            )}
+            {template}
           </>
         ) : saved.status === "downloaded" ? (
           <>
             <p className="text-xs text-muted-foreground">
               Downloaded into your media library. No AI has watched it yet.
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              <CopyThisButton url={video.url} title={video.title} viralProjectId={projectId} className="h-8" />
-              <BreakDownButton busy={busy} onPress={() => void onSave(true)} />
-            </div>
+            <BreakDownButton busy={busy} onPress={() => void onSave(true)} />
+            {template}
           </>
         ) : saved.status === "failed" ? (
           <>
             <ErrorRow message={saved.error ?? "The video could not be saved."} />
-            <div className="grid grid-cols-2 gap-2">
-              <CopyThisButton url={video.url} title={video.title} viralProjectId={projectId} className="h-8" />
-              <Button disabled={busy !== null} onClick={() => void onTryAgain()}>
-                {busy === "retry" ? <Loader2Icon className="animate-spin" /> : null}
-                Try again
-              </Button>
-            </div>
+            <Button disabled={busy !== null} onClick={() => void onTryAgain()}>
+              {busy === "retry" ? <Loader2Icon className="animate-spin" /> : null}
+              Try again
+            </Button>
+            {template}
           </>
         ) : (
-          <CopyThisButton url={video.url} title={video.title} viralProjectId={projectId} className="h-8 w-full" />
+          template
         )}
       </div>
       {onDeleted ? (
@@ -427,18 +444,20 @@ function BreakDownButton({
 /**
  * The player. Once the file has been downloaded it plays from the bucket,
  * which is the copy the breakdown's timings belong to. Before that, YouTube's
- * embed stands in; TikTok and Instagram get their cover and a way out.
+ * and Instagram's own embeds stand in; TikTok gets its cover and a way out.
  */
 function Player({
   video,
   saved,
   playerRef,
   onTime,
+  startAtMs,
 }: {
   video: ViralVideo
   saved: SavedVideoDetail | null
   playerRef: React.RefObject<HTMLVideoElement | null>
   onTime: (ms: number) => void
+  startAtMs?: number
 }) {
   if (video.sample) {
     const length = formatDuration(video.durationSeconds)
@@ -465,6 +484,9 @@ function Player({
         playsInline
         preload="metadata"
         className="aspect-[9/16] max-h-[60vh] w-full bg-black object-contain"
+        onLoadedMetadata={(event) => {
+          if (startAtMs) event.currentTarget.currentTime = startAtMs / 1000
+        }}
         onTimeUpdate={(event) =>
           onTime(Math.round(event.currentTarget.currentTime * 1000))
         }
@@ -476,11 +498,28 @@ function Player({
       <iframe
         // nocookie, because watching research is not asking YouTube for
         // anything and should not be tracked.
-        src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(video.platformVideoId)}`}
+        src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(video.platformVideoId)}${
+          startAtMs ? `?start=${Math.floor(startAtMs / 1000)}` : ""
+        }`}
         title={video.title}
         allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture"
         allowFullScreen
         className="aspect-[9/16] max-h-[60vh] w-full border-0 bg-black"
+      />
+    )
+  }
+  if (video.platform === "instagram") {
+    return (
+      <iframe
+        // Instagram's own player page, the one its Embed button gives out. It
+        // needs no script of Instagram's on this page, and plays in the frame.
+        // Unlike YouTube there is no address that keeps Instagram from
+        // knowing who is watching.
+        src={`https://www.instagram.com/p/${encodeURIComponent(video.platformVideoId)}/embed/`}
+        title={video.title}
+        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+        allowFullScreen
+        className="h-[70vh] w-full border-0 border-b bg-background"
       />
     )
   }

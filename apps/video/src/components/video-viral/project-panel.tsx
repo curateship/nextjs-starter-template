@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/tooltip"
 import { FlatSection } from "@/components/video-viral/flat-section"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { formatCount } from "@/lib/video/creators"
 import { formatCents } from "@/lib/video/project-spend"
@@ -78,15 +79,24 @@ export function ProjectPanel({
   /** The Creators card, after Keywords. */
   creators: React.ReactNode
 }) {
-  const { project, keywords, made, spend, youtube } = screen
+  const { project, keywords, made, spend } = screen
   const [adding, setAdding] = React.useState("")
+  // The field stays hidden until Add keywords is pressed (Tyler, 20 Oct 2026),
+  // then stays open for the next keyword until it is left empty.
+  const [fieldOpen, setFieldOpen] = React.useState(false)
   const searching = keywords.some((keyword) => isKeywordWorking(keyword.status))
   const perKeyword = unitsPerKeyword(project.video_length)
-  const runCost = keywords.length * perKeyword
 
   async function add() {
-    if (!adding.trim()) return
+    if (!adding.trim()) {
+      showErrorToast("Type a keyword first, then press Enter or +.")
+      return
+    }
     if (await onAddKeyword(adding)) setAdding("")
+  }
+
+  function closeFieldIfEmpty() {
+    if (!adding.trim()) setFieldOpen(false)
   }
 
   return (
@@ -146,54 +156,74 @@ export function ProjectPanel({
                 No keywords yet. Add the words people search for this niche.
               </p>
             )}
-            <form
-              className="flex gap-2"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void add()
-              }}
-            >
-              <Input
-                aria-label="Add a keyword"
-                placeholder="Add a keyword"
-                value={adding}
-                maxLength={VIRAL_KEYWORD_MAX}
-                onChange={(event) => setAdding(event.target.value)}
-              />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    size="icon"
-                    className="size-8 shrink-0"
-                    aria-label="Add the keyword and search it"
-                    disabled={busy}
-                  >
-                    <PlusIcon className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Adds it and searches it, {perKeyword} units
-                </TooltipContent>
-              </Tooltip>
-            </form>
-            <Button disabled={busy || searching} onClick={onSearchAll}>
-              {searching ? (
-                <Loader2Icon className="animate-spin" />
-              ) : (
-                <SearchIcon />
-              )}
-              {searching ? "Searching…" : "Search every keyword"}
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              {keywords.length
-                ? `${keywords.length} ${keywords.length === 1 ? "keyword" : "keywords"} × ${perKeyword} units = ${runCost.toLocaleString()} units. `
-                : ""}
-              {youtube.keyConfigured
-                ? `${youtube.unitsLeftToday.toLocaleString()} of today's 10,000 free YouTube units are left.`
-                : "No YouTube key saved. Add one in Settings → YouTube."}
-            </p>
+            {fieldOpen ? (
+              <form
+                className="flex gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void add()
+                }}
+                onBlur={(event) => {
+                  // Leaving the form, not moving from the field to its +.
+                  if (!event.currentTarget.contains(event.relatedTarget)) closeFieldIfEmpty()
+                }}
+              >
+                <Input
+                  aria-label="Add a keyword"
+                  placeholder="Add a keyword"
+                  autoFocus
+                  value={adding}
+                  maxLength={VIRAL_KEYWORD_MAX}
+                  onChange={(event) => setAdding(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape") return
+                    event.preventDefault()
+                    setAdding("")
+                    setFieldOpen(false)
+                  }}
+                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      size="icon"
+                      className="size-8 shrink-0"
+                      aria-label="Add the keyword and search it"
+                      disabled={busy}
+                    >
+                      <PlusIcon className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Adds it and searches it, {perKeyword} units
+                  </TooltipContent>
+                </Tooltip>
+              </form>
+            ) : null}
+            {/* Two worded buttons under the list, as Filter and Add creator sit
+                under Creators (Tyler, 20 Oct 2026). A panel too narrow for both
+                puts Search on a row of its own rather than cutting its words. */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="grow"
+                aria-expanded={fieldOpen}
+                onClick={() => setFieldOpen(true)}
+              >
+                <PlusIcon />
+                Add keywords
+              </Button>
+              <Button className="grow" disabled={busy || searching} onClick={onSearchAll}>
+                {searching ? (
+                  <Loader2Icon className="animate-spin" />
+                ) : (
+                  <SearchIcon />
+                )}
+                {searching ? "Searching…" : "Search every keyword"}
+              </Button>
+            </div>
           </FlatSection>
 
           {creators}
@@ -260,8 +290,8 @@ export function ProjectPanel({
               </ul>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Nothing yet. Copy this under a video makes an editor project
-                and lists it here.
+                Nothing yet. Make this a template under a video makes an
+                editor project and lists it here.
               </p>
             )}
           </FlatSection>

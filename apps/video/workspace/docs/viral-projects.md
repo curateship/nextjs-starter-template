@@ -84,9 +84,17 @@ whether it is open (`src/components/video-viral/flat-section.tsx`).
   keyword that found new videos shows "3 new". Clicking a keyword narrows the
   middle panel to the videos it found. The arrow searches that keyword again
   on its own. The cross removes it, after a window saying how many videos go
-  with it. Below the rows: a box to add a keyword, the **Search every
-  keyword** button, and a line with what a full search costs and how many of
-  today's units are left.
+  with it. Below the rows, side by side, **Add keywords** and **Search every
+  keyword** (Tyler, 20 Oct 2026). A panel too narrow for both, which is the
+  left panel at its usual width, puts Search on its own row under Add keywords
+  rather than cutting its words. Add keywords shows a box for a keyword above
+  them, ready to type in; Enter or + adds it and searches it, and the box
+  stays for the next one. Escape, or leaving the box empty, hides it again. +
+  with nothing typed says to type a keyword first. The line with what a full
+  search costs and the units left today is gone (Tyler, 20 Oct 2026); the +
+  still says what one keyword costs on hover. Search still refuses a run that
+  does not fit today's allowance, and one with no YouTube key saved ("Searching
+  needs the YouTube key. Paste one in Settings → YouTube first.").
 - **Creators:** every channel behind the project's results, plus everyone
   followed in it, each with their subscribers, hits and typical score, with
   how many there are ("Creators · 40", or "12 of 40"
@@ -99,19 +107,26 @@ whether it is open (`src/components/video-viral/flat-section.tsx`).
 - **At a glance:** a row each for how many videos and creators, the best
   score, the typical views (the middle number of all of them), the YouTube
   units used and the AI spend.
-- **Made from this:** every editor project Copy this made from this project,
+- **Made from this:** every editor project Make this a template made from this project,
   each one a link into the editor.
 
 ### The middle panel
 
-Three tabs in the header: **Videos**, **Downloaded** and **Broken down**, each
-with its count. They are drawn as pills or underlined, as Settings → Styling →
+Four tabs in the header: **Videos**, **Downloaded**, **Broken down** and
+**Hooks**, each with its count. They are drawn as pills or underlined, as Settings → Styling →
 Dashboard tabs says for every dashboard on the site. A row too long for the
 header slides sideways.
 
 Right of the tabs, in this order: the **N selected** button while videos are
 ticked, the search (a magnifying glass that opens into a box), **Filter**,
-**Views**, and the list and grid switch.
+**Views**, the list and grid switch, and last **Add a link** ("Pasting a link
+in" below). Add a link is the screen's one filled black button, its word beside
+a link icon, as the last button (Tyler, 20 Oct 2026). It keeps its word at
+every width, unlike Filter and Views, so in a narrow header the tabs slide
+sideways sooner. The list and grid switch raises the one showing on a white
+chip, the same as the tabs (Tyler, 20 Oct 2026: "if its selected then it
+should change color"). The Hooks tab has
+no list and grid switch, because it is one list of words either way.
 
 The Videos tab has a list of rows or a grid of covers. A browser that never
 chose opens on the list (Tyler, 20 Oct 2026). The choice is remembered in this
@@ -142,8 +157,9 @@ last row of the Filter dropdown.
   - **Sort by**: score (the default), views, views per day, newest, or how
     well it fits the topic. In the list, the column headings sort too.
   - **Order**: highest or lowest first.
-  - **From**: the keyword searches, the followed creators' own uploads, or
-    both.
+  - **From**: the keyword searches, the followed creators' own uploads, the
+    pasted links, or anywhere. "Anywhere" is still `both` in the address and
+    in saved views, the name it had when there were two.
   - **Fits the topic**: hides videos the AI judged off-topic (below 40 or
     below 70). A video the AI has not judged yet is kept, so the filter never
     seems to remove something it never looked at.
@@ -184,12 +200,15 @@ Videos tab. Ticking videos there offers **Delete**, and no Download or Break
 it down, since both are done. Tyler asked for this tab on 17 Oct 2026. The
 address keeps it (`?view=broken`).
 
+The **Hooks** tab is the opening words of every broken-down video in the
+list, "Hooks" below.
+
 **A picked creator** replaces the tabs with their name, their subscribers and
 a back arrow ("Back to every video"), and the middle shows their newest
 uploads.
 
 Delete opens a window that lists the editor projects made from those videos
-with Copy this, and says what happens to the downloaded files
+with Make this a template, and says what happens to the downloaded files
 (`creator-research.md`, "Deleting a saved video").
 
 None of the sorting, searching or filtering asks the server or YouTube.
@@ -205,37 +224,49 @@ Favourites screen shows the same one.
   **Hide** the channel, and **Open on YouTube**. A sample has only Hide,
   because its videos are made up.
 - **Playing costs nothing.** A YouTube video plays in YouTube's own embed,
-  through the no-cookie address so looking at research is not tracked. TikTok
-  and Instagram show their cover and a button out to their own site. A video
+  through the no-cookie address so looking at research is not tracked. An
+  Instagram video plays in Instagram's own player, the page its Embed button
+  gives out (`instagram.com/p/<id>/embed/`), with the account, Like and
+  "View more on Instagram" around it (Tyler, 20 Oct 2026: "Make video play
+  from IG"). Instagram has no no-cookie address, so Instagram can see who
+  watches. TikTok shows its cover and a button out to its own site. A video
   that was downloaded plays from the app's own copy instead. A sample shows a
   dark box with a play mark, "A sample has nothing to play." and its length.
 - **Under the player,** one strip: Views, Likes, Comments and Fits.
-- **The score** is written large, "62 / 100 score", with how sure it is in a
-  chip beside it. Under it, each of the five parts with its points out of what
-  it is worth, such as "25.6 of 30", and a bar filled to match. A line under
-  them says what was missing, such as "Breakdown is missing, so it scores 0 of
-  10. Break this video down to fill it in." The score itself is in
+- **The score** is written large, "62 / 100 score", with how sure it is on a
+  button beside it ("Sure: medium"). The button opens and shuts the rest,
+  which starts shut, and the browser remembers it left open (Tyler, 20 Oct
+  2026: "make this a toggle and hide the graph bar. Move the posted date in
+  there too"). Opened, it shows each of the five parts with its points out of
+  what it is worth, such as "25.6 of 30", and a bar filled to match, with the
+  date the video was posted under How recent, which is worked out from it. A
+  line under them says what was missing, such as "Breakdown is missing, so it
+  scores 0 of 10. Break this video down to fill it in." The score itself is in
   `viral-score.md`.
-- **The details:** when it was posted, its length, views a day, and the
-  keywords that found it.
+- **Details,** a headed section like the breakdown's: its length, views a
+  day, and the keywords that found it.
 - **A finished breakdown** follows the details (`creator-research.md`).
-- **The buttons are pinned to the panel's foot,** under everything that
-  scrolls. A video nobody has saved has **Download**, **Copy this** and
-  **Break it down**. While one is being saved the bar says how far it has got.
-  A downloaded one has Copy this and Break it down, a broken-down one Copy this,
-  and a failed one says why with **Try again**. On a sample, Download and
+- **The buttons are pinned to the panel's foot,** on a light grey, under
+  everything that scrolls (Tyler, 20 Oct 2026). **Make this a template** (it
+  was "Copy this") always has a whole row of its own at the bottom, because its
+  words do not fit beside another button in this narrow panel. Above it, a
+  video nobody has saved has **Download** and **Break it down** side by side.
+  While one is being saved the foot says how far it has got. A downloaded one
+  has Break it down, a broken-down one only Make this a template, and a failed
+  one says why with **Try again**. On a sample, Download and
   Break it down say the video is made up instead of running. Hovering
   Download says it spends storage only; hovering Break it down says it spends
   from the monthly AI allowance (`creator-research.md` for what each
-  downloads and spends). Pressed here, they remember this project: Copy this
-  saves the project's id on the editor project it makes, and the breakdown's
+  downloads and spends). Pressed here, they remember this project: Make this a
+  template saves the project's id on the editor project it makes, and the breakdown's
   AI cost counts against this project's spend limit. Download spends no AI, so
   a spend limit never refuses it.
 
 ### The address
 
 Everything you would want back after a reload is in the address: the tab, the
-playing video (`?open=youtube:<id>`, the dashboard's open record), the picked
+playing video (`?open=youtube:<id>`, the dashboard's open record), where it
+starts when it was opened from Hooks (`?at=<milliseconds>`), the picked
 creator, the sort, the search words, the source, the keyword and the fit. A
 reload or a shared link opens the same thing. An address naming a video that
 is no longer in the results drops it quietly instead of showing an error.
@@ -328,9 +359,106 @@ as `viral_topic_match` and counts against the project's spend limit. If the AI
 is refused or has no key, the matches stay blank and the search itself
 stands.
 
+## Pasting a link in
+
+**Add a link**, the black button at the end of the middle panel's header, opens a small window with one
+field, for a YouTube, TikTok or Instagram video found anywhere else: a friend
+sends a TikTok, you paste it, and it gets the same breakdown as a search
+result. Viral task 08, built 20 Oct 2026.
+
+- **Which links work:** one video. `youtube.com/shorts/…`, `youtube.com/watch?v=…`
+  and `youtu.be/…`; `tiktok.com/@name/video/…` and the short `vm.tiktok.com/…`
+  and `vt.tiktok.com/…`; `instagram.com/reel/…`, `/p/…` and `/tv/…`, with or
+  without the creator's name in front. A link copied without `https://` is
+  read with it, and an old `http://` one as `https://`.
+- **Everything else is refused** in the window, nothing saved, with "That is
+  not a link to one video. Paste a YouTube, TikTok or Instagram video, such as
+  … Profiles, playlists and other sites can't be added." A profile, a
+  playlist, a TikTok page such as `/explore`, and any other site all get it.
+  The empty field gets "Paste a link … first". The check is the same one that
+  keeps yt-dlp from fetching anything but the three platforms
+  (`parseVideoLink` in `src/server/video/viral/download.ts`).
+- **Pressing Add and break down** saves the video for Break it down and
+  returns at once. The window then shows Downloading, Breaking down and Ready,
+  the step running spinning and the ones done ticked, asking every 3 seconds.
+  A failure shows yt-dlp's or Gemini's reason with Try again.
+- **Closing the window stops nothing.** The background worker does the work,
+  as for any saved video (`creator-research.md`), and the video's row in the
+  list stays amber with "Downloading…" or "Watching it…" until it is done.
+- **Open the video** (Open the breakdown once it is ready) closes the window
+  and plays it on the right, its breakdown under it.
+- **A video already saved** is that saved copy, never a second one. The window
+  says "You saved this video before, so this is that copy." A broken-down one
+  is Ready at once and spends nothing. One saved with Download alone has its
+  breakdown turned on, from the file already stored. One that failed shows
+  its reason and Try again. Pasting the same link twice is one row.
+- **Where it shows:** in the project it was pasted into, among its videos,
+  with a **Pasted** chip, and Filter → From → Pasted links keeps only those.
+  The Downloaded, Broken down and Hooks tabs pick it up as for any other video.
+  Until the download lands, its title is the link and its figures are blank.
+  If a keyword or a followed creator also found it, it is that card, once.
+- **The numbers** are yt-dlp's own answer from the download, the fields the
+  old app read: views, likes, comments and posted date, plus the channel and
+  its follower count where the platform says. The score works from them like
+  any other video's. TikTok and Instagram hide follower counts, so a video
+  from either says "Missing follower count" in its score, the way a sample's
+  does.
+- **Spending:** the AI spend is the breakdown's, counted against this project's
+  spend limit. The limit is checked only when the AI would actually run, so a
+  video already broken down opens even in a project that has spent its limit.
+- **A sample project refuses it**, saying its videos are made up.
+- **Which projects a video was pasted into** is `video_viral_project_links`
+  (`drizzle/0136`), because a saved video is its owner's and not a project's.
+  Deleting the project takes the link and keeps the saved video and its
+  breakdown. Deleting the saved video takes it out of the project. Duplicate
+  copies no pasted links, the same as it copies no results. Hiding a pasted
+  video's channel hides it, like any other video.
+- The code is `src/server/video/viral/pasted-links.ts` and
+  `src/components/video-viral/paste-link-dialog.tsx`.
+
+Following the creator who posted it is a separate task (viral 30).
+
+## Hooks
+
+The **Hooks** tab lists the opening words of every broken-down video on the
+screen, one row each: you are about to film, you open the project's hooks and
+read twenty openings that worked. Viral task 16, built 20 Oct 2026. A
+Favourites collection has the same tab beside its Videos (`?view=hooks`).
+
+- **Each row** has the cover, the words in quotes, the channel, the views and
+  when the hook runs ("0:00 to 0:03"), then the score and a copy button. Copy
+  puts the words on the clipboard, without the quotes, and says "Hook copied."
+- **The words** are every line of the breakdown's transcript said or shown
+  while its hook part runs, joined by spaces, including a line that starts
+  just before the hook or runs on after it. The transcript holds speech and
+  on-screen text alike, so a video with no speech gives its captions.
+  `hookLine` in `src/lib/video/viral-breakdown.ts` works it out, on the
+  server, as the screen is read, so opening the tab asks nothing. The pace and
+  "what the winners share" tasks (viral 17 and 18) are to use the same
+  function.
+- **Left out:** a video with no hook part, and one with nothing said or shown
+  during its hook. A line under the list counts them: "1 broken-down video is
+  left out, because nothing is said or shown during its hook."
+- **The order** is the screen's sort, which is the score, highest first, unless
+  Filter says otherwise. The search, From, Fits and Keyword filters apply as on
+  every tab, so Keyword gives the board for one keyword. A collection's search
+  and sort apply the same way.
+- **Clicking a row** plays the video on the right from the hook's first
+  moment. The address keeps it (`?at=` in milliseconds), so a reload starts
+  there too. A hook starting at 0:00 leaves `at` out. Picking a video from any
+  other tab starts it from the beginning.
+- **Empty:** "No hooks yet. Break videos down and the words of each one's
+  opening show here." With broken-down videos but none with words, it says how
+  many there are and that none says or shows anything during its hook.
+
+Rewriting a hook for your own topic is a separate task (viral 25).
+
 ## Filters and settings
 
-The cog in the left panel's header opens **Project settings**:
+The cog in the left panel's header opens **Project settings**. Each card folds
+from its header and this browser remembers which were left shut; a shut card
+opens by itself while a field in it is refused (Tyler, 20 Oct 2026; how it
+works is in `project-first.md`, "Project settings"). The cards:
 
 - **The niche:** name and description.
 - **What YouTube is asked for:** posted within the last 7, 30 or 90 days (30
@@ -428,9 +556,9 @@ or make a new one.
 
 This replaced viral task 14, Named shortlists.
 
-## Copy this and the editor
+## Make this a template and the editor
 
-Copy this from a Viral project makes an editor project that remembers both
+Make this a template from a Viral project makes an editor project that remembers both
 the video and the Viral project (`video_projects.source_viral_project_id`).
 The project shows under **Made from this** on the left. In the editor, the
 Copy panel's **Open Viral** opens that Viral project with the copied video
@@ -454,6 +582,9 @@ Migration `0114_video_viral_projects.sql` did this once, on 17 Oct 2026:
 
 ## Deployment
 
+- Migration 0136 must run on the live database before Add a link works: it
+  adds `video_viral_project_links` and the saved video's `channel_id` and
+  `subscribers`, which the worker now writes on every download.
 - Migrations 0114, 0115, 0116 and 0121 must run on the live database. 0114
   moves the old searches and folders as above, 0115 adds the Favourites link,
   0116 adds the saved covers, and 0121 adds the Downloaded status and the title

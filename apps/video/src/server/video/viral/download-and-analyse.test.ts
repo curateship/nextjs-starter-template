@@ -126,6 +126,8 @@ beforeEach(async () => {
     mimeType: "video/mp4",
     title: "A dare that went viral",
     channelName: "creator",
+    channelId: "@creator",
+    subscribers: 50_000,
     durationSeconds: 21,
     views: 1_200_000,
     likes: 80_000,
@@ -160,6 +162,10 @@ describe("Download", () => {
     expect(row.status).toBe("downloaded")
     expect(row.mediaId).not.toBeNull()
     expect(row.title).toBe("A dare that went viral")
+    // yt-dlp's own channel and follower count, which a pasted video has no
+    // search result to take from.
+    expect(row.channelId).toBe("@creator")
+    expect(row.subscribers).toBe(50_000)
     expect(row.breakdown).toBeNull()
     // Let go of, so nothing thinks a worker is still on it.
     expect(row.leaseToken).toBeNull()
@@ -239,6 +245,8 @@ describe("AI analyse", () => {
         mimeType: "video/mp4",
         title: "A dare that went viral",
         channelName: "creator",
+        channelId: null,
+        subscribers: null,
         durationSeconds: 21,
         views: null,
         likes: null,

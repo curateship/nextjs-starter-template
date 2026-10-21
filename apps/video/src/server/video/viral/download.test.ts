@@ -50,6 +50,26 @@ describe("parseVideoLink", () => {
     }
   })
 
+  it("reads an Instagram reel shared with the creator's name in front", () => {
+    expect(
+      parseVideoLink("https://www.instagram.com/zachking/reel/Cabc-123_/?igsh=xyz")
+    ).toEqual({ platform: "instagram", platformVideoId: "Cabc-123_" })
+  })
+
+  it("refuses a profile, which is many videos rather than one", () => {
+    for (const link of [
+      "https://www.tiktok.com/@creator",
+      "https://www.tiktok.com/explore",
+      "https://www.tiktok.com/@creator/video/",
+      "https://www.tiktok.com/@creator/video/not-a-number",
+      "https://www.instagram.com/zachking/",
+      "https://www.instagram.com/zachking/reels/",
+      "https://www.instagram.com/explore/tags/gym/",
+    ]) {
+      expect(() => parseVideoLink(link)).toThrow(VIDEO_LINK_ERROR)
+    }
+  })
+
   it("refuses every other host, which is what keeps yt-dlp off the network", () => {
     for (const link of [
       "https://example.com/video/123",

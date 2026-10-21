@@ -8,6 +8,7 @@ import {
   viralSourceLabels,
   type ViralFit,
   type ViralSort,
+  type ViralSource,
 } from "@/lib/video/viral-view"
 
 /**
@@ -20,7 +21,7 @@ import {
 
 export type ViralViewFilters = {
   q?: string
-  from?: "search" | "creators"
+  from?: Exclude<ViralSource, "both">
   fit?: Exclude<ViralFit, 0>
   keyword?: string
   sort?: Exclude<ViralSort, "score">

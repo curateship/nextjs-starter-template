@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import { ViralScoreCell } from "@/components/video-viral/viral-score-cell"
 import { ViralScoreBlock } from "@/components/video-viral/viral-score-parts"
+import { formatDate } from "@/lib/format/format-time"
 import { scoreViralVideo } from "@/lib/video/viral-score"
 
 // The first worked example in viral-score.test.ts: 80, medium, no breakdown.
@@ -93,12 +94,40 @@ describe("ViralScoreCell", () => {
   })
 })
 
+/** Opens the parts with the "Sure" chip, which starts shut. */
+function openParts() {
+  const toggle = container.querySelector<HTMLButtonElement>("button[aria-expanded]")
+  if (!toggle) throw new Error("No Sure toggle")
+  act(() => toggle.click())
+  return toggle
+}
+
 describe("the right panel's score block", () => {
-  it("shows the score, how sure it is, each part out of its worth, and what the missing breakdown costs", () => {
-    act(() => root.render(<ViralScoreBlock score={score} />))
+  beforeEach(() => localStorage.clear())
+
+  it("starts with only the score and the Sure chip, and the chip opens the parts and the posted date", () => {
+    act(() => root.render(<ViralScoreBlock score={score} postedAt="2026-10-05T12:00:00Z" />))
+    expect(container.textContent).toContain("80/ 100 score")
+    expect(container.textContent).toContain("Sure: medium")
+    expect(container.textContent).not.toContain("Views per day")
+    expect(container.textContent).not.toContain("Posted")
+    // Shut, it points at nothing, since the parts are not on the page.
+    expect(container.querySelector("button[aria-expanded]")?.hasAttribute("aria-controls")).toBe(false)
+
+    const toggle = openParts()
+    expect(toggle.getAttribute("aria-expanded")).toBe("true")
+    expect(document.getElementById(toggle.getAttribute("aria-controls") ?? "")).not.toBeNull()
+    expect(container.textContent).toContain(`Posted ${formatDate("2026-10-05T12:00:00Z")}`)
+
+    act(() => toggle.click())
+    expect(container.textContent).not.toContain("Views per day")
+  })
+
+  it("shows each part out of its worth, and what the missing breakdown costs", () => {
+    act(() => root.render(<ViralScoreBlock score={score} postedAt={null} />))
+    openParts()
     const text = container.textContent ?? ""
-    expect(text).toContain("80/ 100 score")
-    expect(text).toContain("Sure: medium")
+    expect(text).toContain("Posted date not known")
     expect(text).toContain("Views per day30 of 30")
     expect(text).toContain("Breakdown0 of 10")
     expect(text).toContain(
@@ -121,7 +150,8 @@ describe("the right panel's score block", () => {
       },
       now: new Date("2026-10-09T12:00:00Z"),
     })
-    act(() => root.render(<ViralScoreBlock score={noFollowers} />))
+    act(() => root.render(<ViralScoreBlock score={noFollowers} postedAt={null} />))
+    openParts()
     expect(container.textContent).toContain("Missing: follower count.")
   })
 })

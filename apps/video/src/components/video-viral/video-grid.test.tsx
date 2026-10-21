@@ -33,6 +33,7 @@ function video(id: string, savedStatus: string | null): ViralVideo {
     sample: false,
     savedVideoId: savedStatus ? `saved-${id}` : null,
     savedStatus,
+    hook: null,
     score: scoreViralVideo({
       views: 10_000,
       likes: 100,

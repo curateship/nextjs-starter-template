@@ -142,8 +142,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [viral-projects.md](viral-projects.md) — Viral as projects, one niche
   each: the description and keywords, the three panels, the background search
   and what it costs, the allowance check, the New badge, the topic match,
-  creators found and followed, hidden channels, favourites, and what the move
-  from the old Viral and Creators pages did.
+  creators found and followed, hidden channels, favourites, pasting a video's
+  link in, the Hooks board, and what the move from the old Viral and Creators
+  pages did.
 - [viral-search.md](viral-search.md) — the YouTube key behind Viral: where it
   goes, the three calls one keyword makes, and why Shorts means 3 minutes or
   less.
@@ -151,7 +152,7 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   video: its five parts and their weights, one worked example, what
   "sure: medium" means, and why the score is worked out on every read.
 - [project-first.md](project-first.md) — what belongs to a project and what
-  is shared, the Copy and Exports panels at the foot of the rail, Copy this,
+  is shared, the Copy and Exports panels at the foot of the rail, Make this a template,
   a project's AI spend and its spend limit, and archive, pin and the actor
   filter on the projects list.
 - [several-ai-clips.md](several-ai-clips.md) — up to three AI shots at once

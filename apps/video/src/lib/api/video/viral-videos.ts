@@ -22,6 +22,10 @@ import {
   type SavedVideoDetail,
 } from "@/server/video/viral/saved-videos"
 import {
+  pasteVideoLink,
+  type PastedLink,
+} from "@/server/video/viral/pasted-links"
+import {
   deleteSavedVideos,
   savedVideoDeleteSummary,
   type SavedVideoDeleteResult,
@@ -37,6 +41,7 @@ import {
  */
 
 export type {
+  PastedLink,
   ProjectSourceDetail,
   SavedVideoDeleteResult,
   SavedVideoDeleteSummary,
@@ -114,6 +119,27 @@ export function saveVideos(
   analyse: boolean
 ) {
   return saveFn({ data: { urls, viralProjectId, analyse } })
+}
+
+const pasteFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      projectId: videoId,
+      url: z.string().trim().min(1).max(2048),
+    })
+  )
+  .handler(
+    async ({ data, context }): Promise<PastedLink> =>
+      pasteVideoLink(context.user.id, data.projectId, data.url)
+  )
+
+/**
+ * Add a link: saves one pasted video for breaking down and puts it in the
+ * Viral project. A video already saved is that copy, never a second one.
+ */
+export function pasteViralLink(projectId: string, url: string) {
+  return pasteFn({ data: { projectId, url } })
 }
 
 const deleteSummaryFn = createServerFn({ method: "GET" })

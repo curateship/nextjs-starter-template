@@ -3,6 +3,7 @@ import { Loader2Icon, SparklesIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { SettingsFoldCard } from "@/components/video-assets/settings-fold-card"
 import {
   Card,
   CardContent,
@@ -301,41 +302,41 @@ export function ViralProjectDialog({
             }}
           >
             <DialogBody>
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>The niche</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="viral-project-name">Project name</Label>
-                    <Input
-                      id="viral-project-name"
-                      ref={inputRef}
-                      value={draft.name}
-                      maxLength={200}
-                      aria-invalid={invalid === "name" || undefined}
-                      placeholder="Gym tips"
-                      onChange={(event) => set({ name: event.target.value })}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <FieldLabel
-                      htmlFor="viral-project-description"
-                      hint="A sentence or two about the niche. The AI reads it to suggest keywords and to judge how well each video fits."
-                    >
-                      Description
-                    </FieldLabel>
-                    <Textarea
-                      id="viral-project-description"
-                      rows={1}
-                      maxLength={VIRAL_DESCRIPTION_MAX}
-                      value={draft.description}
-                      placeholder="Short workout tips for busy people over 30"
-                      onChange={(event) => set({ description: event.target.value })}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+              <SettingsFoldCard
+                fold={Boolean(project)}
+                storageId="viral-project-settings-niche"
+                show={invalid === "name"}
+                title="The niche"
+              >
+                <div className="grid gap-2">
+                  <Label htmlFor="viral-project-name">Project name</Label>
+                  <Input
+                    id="viral-project-name"
+                    ref={inputRef}
+                    value={draft.name}
+                    maxLength={200}
+                    aria-invalid={invalid === "name" || undefined}
+                    placeholder="Gym tips"
+                    onChange={(event) => set({ name: event.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="viral-project-description"
+                    hint="A sentence or two about the niche. The AI reads it to suggest keywords and to judge how well each video fits."
+                  >
+                    Description
+                  </FieldLabel>
+                  <Textarea
+                    id="viral-project-description"
+                    rows={1}
+                    maxLength={VIRAL_DESCRIPTION_MAX}
+                    value={draft.description}
+                    placeholder="Short workout tips for busy people over 30"
+                    onChange={(event) => set({ description: event.target.value })}
+                  />
+                </div>
+              </SettingsFoldCard>
 
               {project ? null : (
                 <Card size="sm">
@@ -415,162 +416,155 @@ export function ViralProjectDialog({
               ) : null}
 
               {project ? (
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>What YouTube is asked for</CardTitle>
-                    <CardDescription>
-                      Changing these needs a new search of every keyword.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-4 sm:grid-cols-2">
-                    <div className="grid gap-2">
-                      <Label htmlFor="viral-project-days">Posted within</Label>
-                      <Select
-                        value={String(draft.days)}
-                        onValueChange={(value) => set({ days: Number(value) as ViralDays })}
-                      >
-                        <SelectTrigger id="viral-project-days">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {VIRAL_DAY_CHOICES.map((days) => (
-                            <SelectItem key={days} value={String(days)}>
-                              The last {days} days
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <FieldLabel
-                        htmlFor="viral-project-length"
-                        hint="Both runs two searches per keyword, so it costs twice as much."
-                      >
-                        Videos
-                      </FieldLabel>
-                      <Select
-                        value={draft.length}
-                        onValueChange={(value) => set({ length: value as ViralVideoLength })}
-                      >
-                        <SelectTrigger id="viral-project-length">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {VIRAL_VIDEO_LENGTHS.map((length) => (
-                            <SelectItem key={length} value={length}>
-                              {viralVideoLengthLabels[length]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </CardContent>
-                </Card>
+                <SettingsFoldCard
+                  fold
+                  storageId="viral-project-settings-youtube"
+                  title="What YouTube is asked for"
+                  description="Changing these needs a new search of every keyword."
+                  contentClassName="grid gap-4 sm:grid-cols-2"
+                >
+                  <div className="grid gap-2">
+                    <Label htmlFor="viral-project-days">Posted within</Label>
+                    <Select
+                      value={String(draft.days)}
+                      onValueChange={(value) => set({ days: Number(value) as ViralDays })}
+                    >
+                      <SelectTrigger id="viral-project-days">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VIRAL_DAY_CHOICES.map((days) => (
+                          <SelectItem key={days} value={String(days)}>
+                            The last {days} days
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="viral-project-length"
+                      hint="Both runs two searches per keyword, so it costs twice as much."
+                    >
+                      Videos
+                    </FieldLabel>
+                    <Select
+                      value={draft.length}
+                      onValueChange={(value) => set({ length: value as ViralVideoLength })}
+                    >
+                      <SelectTrigger id="viral-project-length">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VIRAL_VIDEO_LENGTHS.map((length) => (
+                          <SelectItem key={length} value={length}>
+                            {viralVideoLengthLabels[length]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </SettingsFoldCard>
               ) : null}
 
               {project ? (
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Which videos show</CardTitle>
-                    <CardDescription>
-                      Applied to what is already found, so changing them costs
-                      nothing.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-4 sm:grid-cols-2">
-                    <div className="grid gap-2">
-                      <Label htmlFor="viral-project-min-views">Minimum views</Label>
-                      <Input
-                        id="viral-project-min-views"
-                        inputMode="numeric"
-                        value={draft.minViews}
-                        placeholder="0"
-                        aria-invalid={invalid === "minViews" || undefined}
-                        onChange={(event) => set({ minViews: event.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="viral-project-min-score">Minimum score</Label>
-                      <Input
-                        id="viral-project-min-score"
-                        inputMode="numeric"
-                        value={draft.minScore}
-                        placeholder="0"
-                        aria-invalid={invalid === "minScore" || undefined}
-                        onChange={(event) => set({ minScore: event.target.value })}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
+                <SettingsFoldCard
+                  fold
+                  storageId="viral-project-settings-shown"
+                  show={invalid === "minViews" || invalid === "minScore"}
+                  title="Which videos show"
+                  description="Applied to what is already found, so changing them costs nothing."
+                  contentClassName="grid gap-4 sm:grid-cols-2"
+                >
+                  <div className="grid gap-2">
+                    <Label htmlFor="viral-project-min-views">Minimum views</Label>
+                    <Input
+                      id="viral-project-min-views"
+                      inputMode="numeric"
+                      value={draft.minViews}
+                      placeholder="0"
+                      aria-invalid={invalid === "minViews" || undefined}
+                      onChange={(event) => set({ minViews: event.target.value })}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="viral-project-min-score">Minimum score</Label>
+                    <Input
+                      id="viral-project-min-score"
+                      inputMode="numeric"
+                      value={draft.minScore}
+                      placeholder="0"
+                      aria-invalid={invalid === "minScore" || undefined}
+                      onChange={(event) => set({ minScore: event.target.value })}
+                    />
+                  </div>
+                </SettingsFoldCard>
               ) : null}
 
               {project ? (
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Spending</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
-                    <div className="grid gap-2">
-                      <FieldLabel
-                        htmlFor="viral-project-spend-limit"
-                        hint="Keyword ideas, the topic match and breakdowns pressed in this project stop and say so before they would take it past this. YouTube searches are free and are not counted. Leave it empty for no limit."
+                <SettingsFoldCard
+                  fold
+                  storageId="viral-project-settings-spending"
+                  show={invalid === "spendLimit"}
+                  title="Spending"
+                >
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="viral-project-spend-limit"
+                      hint="Keyword ideas, the topic match and breakdowns pressed in this project stop and say so before they would take it past this. YouTube searches are free and are not counted. Leave it empty for no limit."
+                    >
+                      AI spend limit in dollars
+                    </FieldLabel>
+                    <Input
+                      id="viral-project-spend-limit"
+                      inputMode="decimal"
+                      className="sm:max-w-40"
+                      value={draft.spendLimit}
+                      placeholder="No limit"
+                      aria-invalid={invalid === "spendLimit" || undefined}
+                      onChange={(event) => set({ spendLimit: event.target.value })}
+                    />
+                  </div>
+                </SettingsFoldCard>
+              ) : null}
+
+              {project ? (
+                <SettingsFoldCard
+                  fold
+                  storageId="viral-project-settings-hidden"
+                  title="Hidden channels"
+                  description="Their videos and their creator entry are left out of this project only."
+                  contentClassName="grid gap-2"
+                >
+                  {shownHidden.length ? (
+                    shownHidden.map((channel) => (
+                      <div
+                        key={`${channel.platform}:${channel.channelId}`}
+                        className="flex items-center justify-between gap-3"
                       >
-                        AI spend limit in dollars
-                      </FieldLabel>
-                      <Input
-                        id="viral-project-spend-limit"
-                        inputMode="decimal"
-                        className="sm:max-w-40"
-                        value={draft.spendLimit}
-                        placeholder="No limit"
-                        aria-invalid={invalid === "spendLimit" || undefined}
-                        onChange={(event) => set({ spendLimit: event.target.value })}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : null}
-
-              {project ? (
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Hidden channels</CardTitle>
-                    <CardDescription>
-                      Their videos and their creator entry are left out of this
-                      project only.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-2">
-                    {shownHidden.length ? (
-                      shownHidden.map((channel) => (
-                        <div
-                          key={`${channel.platform}:${channel.channelId}`}
-                          className="flex items-center justify-between gap-3"
-                        >
-                          <span className="min-w-0 truncate text-sm">
-                            {channel.channelName || channel.channelId}
-                            <span className="text-muted-foreground">
-                              {" "}
-                              · {creatorPlatformLabels[channel.platform]}
-                            </span>
+                        <span className="min-w-0 truncate text-sm">
+                          {channel.channelName || channel.channelId}
+                          <span className="text-muted-foreground">
+                            {" "}
+                            · {creatorPlatformLabels[channel.platform]}
                           </span>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void bringBack(channel)}
-                          >
-                            Show again
-                          </Button>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Nothing is hidden.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void bringBack(channel)}
+                        >
+                          Show again
+                        </Button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Nothing is hidden.
+                    </p>
+                  )}
+                </SettingsFoldCard>
               ) : null}
             </DialogBody>
             <DialogFooter>

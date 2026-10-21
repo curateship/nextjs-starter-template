@@ -13,8 +13,10 @@ import {
   type ViralProjectScreen,
   type ViralVideo,
 } from "@/lib/video/viral"
+import { hookLine } from "@/lib/video/viral-breakdown"
 import { scoreViralVideo } from "@/lib/video/viral-score"
 import { db } from "@/server/db"
+import { getPublicMediaUrl } from "@/server/media/storage"
 import { readViralProjectSpend } from "@/server/video/project-spend"
 import {
   videoCreatorPosts,
@@ -23,24 +25,24 @@ import {
   videoViralProjectCreators,
   videoViralProjectHiddenChannels,
   videoViralProjectKeywords,
+  videoViralProjectLinks,
   videoViralProjectResults,
   videoViralVideos,
   type VideoViralProjectResultRow,
 } from "@/server/video/schema"
-import { getYoutubeKeyStatus } from "@/server/video/settings"
 import { coverUrl } from "@/server/video/creators/covers"
 import { readStoredBreakdown } from "@/server/video/viral/analysis"
 import {
   getViralProjectItem,
   requireOwnedViralProject,
 } from "@/server/video/viral/projects"
-import { youtubeUnitsLeftToday } from "@/server/video/viral/youtube-units"
 
 /**
  * Everything one Viral project's screen shows, read in one go.
  *
  * Nothing here calls YouTube. The results are what each keyword's last
- * search saved, the creators are worked out from those results plus the ones
+ * search saved, plus the followed creators' posts and the videos pasted in by
+ * their links. The creators are worked out from those results plus the ones
  * followed in this project, and every score is worked out on this read and
  * never stored, so it moves as a video ages. Hidden channels are taken out
  * here, so the browser never sees them.
@@ -54,7 +56,7 @@ export async function loadViralProjectScreen(
   projectId: string
 ): Promise<ViralProjectScreen> {
   const row = await requireOwnedViralProject(ownerId, projectId)
-  const [project, keywordRows, resultRows, hidden, followed, made, keyStatus, unitsLeft, spend] =
+  const [project, keywordRows, resultRows, hidden, followed, pastedRows, made, spend] =
     await Promise.all([
       getViralProjectItem(ownerId, projectId),
       db
@@ -87,6 +89,20 @@ export async function loadViralProjectScreen(
           )
         ),
       db
+        .select({ video: videoViralVideos })
+        .from(videoViralProjectLinks)
+        .innerJoin(
+          videoViralVideos,
+          eq(videoViralVideos.id, videoViralProjectLinks.savedVideoId)
+        )
+        .where(
+          and(
+            eq(videoViralProjectLinks.projectId, projectId),
+            eq(videoViralVideos.ownerId, ownerId)
+          )
+        )
+        .orderBy(desc(videoViralProjectLinks.createdAt)),
+      db
         .select({ id: videoProjects.id, name: videoProjects.name })
         .from(videoProjects)
         .where(
@@ -96,8 +112,6 @@ export async function loadViralProjectScreen(
           )
         )
         .orderBy(desc(videoProjects.updatedAt)),
-      getYoutubeKeyStatus(),
-      youtubeUnitsLeftToday(),
       readViralProjectSpend(ownerId, projectId, row.spendLimitCents),
     ])
 
@@ -162,17 +176,26 @@ export async function loadViralProjectScreen(
     ]
   })
 
-  // A followed creator's post that a keyword also found is one card, the
-  // search's, which knows its keywords.
-  const searchedKeys = new Set(
-    searched.map((video) => `${video.platform}:${video.platformVideoId}`)
+  const pasted = (
+    await Promise.all(pastedRows.map(({ video }) => pastedVideo(video)))
+  ).filter(
+    (video): video is UnscoredVideo =>
+      video !== null && !hiddenKeys.has(`${video.platform}:${video.channelId}`)
   )
-  const videos = await scoreVideos(ownerId, [
-    ...searched,
-    ...fromCreators.filter(
-      (video) => !searchedKeys.has(`${video.platform}:${video.platformVideoId}`)
-    ),
-  ])
+
+  // A followed creator's post that a keyword also found is one card, the
+  // search's, which knows its keywords. A pasted video that either found is
+  // that card too.
+  const seen = new Set<string>()
+  const videos = await scoreVideos(
+    ownerId,
+    [...searched, ...fromCreators, ...pasted].filter((video) => {
+      const key = `${video.platform}:${video.platformVideoId}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  )
 
   const keywords: ViralKeyword[] = keywordRows.map((keyword) => {
     const mine = visibleResults.filter((result) => result.keywordId === keyword.id)
@@ -206,10 +229,6 @@ export async function loadViralProjectScreen(
     ),
     made,
     spend,
-    youtube: {
-      keyConfigured: keyStatus.configured && !keyStatus.unreadable,
-      unitsLeftToday: unitsLeft,
-    },
   }
 }
 
@@ -223,8 +242,40 @@ export function creatorChannelId(creator: {
 
 type UnscoredVideo = Omit<
   ViralVideo,
-  "key" | "score" | "savedVideoId" | "savedStatus"
+  "key" | "score" | "savedVideoId" | "savedStatus" | "hook"
 >
+
+/**
+ * A pasted video, drawn from its saved row. Until the download lands the row
+ * knows only its link, so the title is the link and the figures are blank.
+ */
+async function pastedVideo(
+  row: typeof videoViralVideos.$inferSelect
+): Promise<UnscoredVideo | null> {
+  if (!isCreatorPlatform(row.platform)) return null
+  return {
+    platform: row.platform,
+    platformVideoId: row.platformVideoId,
+    url: row.sourceUrl,
+    title: row.title ?? row.sourceUrl,
+    channelId: row.channelId ?? "",
+    channelName: row.channelName ?? "",
+    subscribers: row.subscribers,
+    views: row.views,
+    likes: row.likes,
+    comments: row.comments,
+    postedAt: row.postedAt?.toISOString() ?? null,
+    durationSeconds: row.durationSeconds,
+    thumbnailUrl: row.thumbnailStoragePath
+      ? await getPublicMediaUrl(row.thumbnailStoragePath)
+      : null,
+    keywords: [],
+    isNew: false,
+    topicMatch: null,
+    source: "link",
+    sample: false,
+  }
+}
 
 /**
  * One entry per video. Two keywords finding the same video is one card that
@@ -278,9 +329,9 @@ function mergeResults(
 }
 
 /**
- * Adds the score and the saved copy to each video. A video this person has
- * already had broken down scores its breakdown part; every other one scores 0
- * there and says the breakdown is missing.
+ * Adds the score, the saved copy and the hook's words to each video. A video
+ * this person has already had broken down scores its breakdown part; every
+ * other one scores 0 there and says the breakdown is missing.
  */
 export async function scoreVideos(
   ownerId: string,
@@ -322,19 +373,21 @@ export async function scoreVideos(
   return videos.map((video) => {
     const key = `${video.platform}:${video.platformVideoId}`
     const copy = savedByKey.get(key)
+    const breakdown =
+      copy?.status === "ready" ? readStoredBreakdown(copy.breakdown) : null
     return {
       ...video,
       key,
       savedVideoId: copy?.id ?? null,
       savedStatus: copy?.status ?? null,
+      hook: breakdown ? hookLine(breakdown) : null,
       score: scoreViralVideo({
         views: video.views,
         likes: video.likes,
         comments: video.comments,
         postedAt: video.postedAt,
         followers: video.subscribers,
-        breakdown:
-          copy?.status === "ready" ? readStoredBreakdown(copy.breakdown) : null,
+        breakdown,
         now: at,
       }),
     }

@@ -87,8 +87,8 @@ export function DeleteSavedVideosDialog({
             <ProjectList
               heading={
                 counted.copiedBy.length === 1
-                  ? "This editor project was made with Copy this. It stays, and its Copy panel will say the original video was deleted:"
-                  : `These ${counted.copiedBy.length} editor projects were made with Copy this. They stay, and their Copy panels will say the original video was deleted:`
+                  ? "This editor project was made with Make this a template. It stays, and its Copy panel will say the original video was deleted:"
+                  : `These ${counted.copiedBy.length} editor projects were made with Make this a template. They stay, and their Copy panels will say the original video was deleted:`
               }
               projects={counted.copiedBy}
             />

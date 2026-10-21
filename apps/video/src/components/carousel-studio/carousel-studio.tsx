@@ -133,6 +133,7 @@ import {
   type TextFontId,
 } from "@/lib/video/text-fonts"
 import { cn } from "@/lib/utils"
+import { railPickedEdge, useRailPickedEdge } from "@/lib/video/rail"
 import {
   dismissErrorToast,
   showErrorToast,
@@ -1060,12 +1061,16 @@ function IconRail({
   panel: StudioPanel
   onSelect: (panel: StudioPanel) => void
 }) {
+  const { trackRef, trackProps, pillProps } = useRailPickedEdge<HTMLElement>()
   return (
     <nav
+      ref={trackRef}
+      {...trackProps}
       data-screen-label="Tool rail"
       aria-label="Carousel panels"
-      className="flex w-16 shrink-0 flex-col items-center gap-1 border-r py-3"
+      className="relative flex w-16 shrink-0 flex-col items-center gap-1 border-r py-3"
     >
+      <span {...pillProps} />
       {RAIL.map(({ id, label, Icon }) => {
         const on = panel === id
         return (
@@ -1075,9 +1080,9 @@ function IconRail({
             aria-pressed={on}
             onClick={() => onSelect(id)}
             className={cn(
-              "flex w-full flex-col items-center gap-1 py-2 transition-colors",
+              "relative flex w-full flex-col items-center gap-1 py-2 transition-colors",
               on
-                ? "text-foreground"
+                ? cn("text-foreground", railPickedEdge)
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -1273,6 +1278,9 @@ function SlidesPanelBody({
 
   return (
     <DndContext
+      // A fixed id: dnd-kit counts its own otherwise, and the server's count
+      // and the browser's differ, which logged a hydration error on every load.
+      id="carousel-slides"
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}

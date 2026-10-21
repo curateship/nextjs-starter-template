@@ -397,6 +397,8 @@ async function runJob(job: ClaimedVideo): Promise<void> {
         thumbnailStoragePath,
         title: downloaded.title,
         channelName: downloaded.channelName,
+        channelId: downloaded.channelId,
+        subscribers: downloaded.subscribers,
         durationSeconds: downloaded.durationSeconds,
         views: downloaded.views,
         likes: downloaded.likes,
