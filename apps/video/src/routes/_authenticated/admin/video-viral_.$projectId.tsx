@@ -7,6 +7,7 @@ import { loadFavourites } from "@/lib/api/video/viral-collections"
 import { loadViralProject } from "@/lib/api/video/viral-projects"
 import { loadSavedViews } from "@/lib/api/saved-views"
 import { readDirection, readOneOf, readSearchText } from "@/lib/nav/list-search"
+import { readStartMs } from "@/lib/video/viral-breakdown"
 import { savedViewScreen } from "@/lib/saved-views"
 import { VIRAL_SAVED_VIEW_KIND } from "@/lib/video/viral-saved-views"
 import {
@@ -14,19 +15,22 @@ import {
   VIRAL_SORTS,
   VIRAL_SOURCES,
   type ViralFit,
+  type ViralSource,
 } from "@/lib/video/viral-view"
 
 type ViralProjectSearch = {
   /** Videos is the default and stays out of the address. */
-  view?: "downloaded" | "broken"
+  view?: "downloaded" | "broken" | "hooks"
   /** The playing video, `platform:id`: the dashboard's open record. */
   open?: string
+  /** Where the open video starts, in milliseconds: its hook, opened from Hooks. */
+  at?: number
   /** The picked creator, `platform:channel`. */
   creator?: string
   sort?: (typeof VIRAL_SORTS)[number]
   direction?: "asc" | "desc"
   q?: string
-  from?: "search" | "creators"
+  from?: Exclude<ViralSource, "both">
   keyword?: string
   fit?: ViralFit
 }
@@ -37,6 +41,9 @@ function readKey(value: unknown) {
     ? value
     : undefined
 }
+
+/** The middle panel's tabs other than Videos, which is the default. */
+const VIRAL_PROJECT_TABS = ["downloaded", "broken", "hooks"] as const
 
 function readFit(value: unknown): ViralFit | undefined {
   const fit = Number(value)
@@ -52,15 +59,16 @@ function readFit(value: unknown): ViralFit | undefined {
  */
 export const Route = createFileRoute("/_authenticated/admin/video-viral_/$projectId")({
   validateSearch: (search: Record<string, unknown>): ViralProjectSearch => ({
-    view: search.view === "broken" || search.view === "downloaded" ? search.view : undefined,
+    view: readOneOf(search.view, VIRAL_PROJECT_TABS),
     open: readKey(search.open),
+    at: readStartMs(search.at),
     creator: readKey(search.creator),
     sort: readOneOf(search.sort, VIRAL_SORTS),
     direction: readDirection(search.direction),
     q: readSearchText(search.q),
     from: readOneOf(
       search.from,
-      VIRAL_SOURCES.filter((one) => one !== "both") as ("search" | "creators")[]
+      VIRAL_SOURCES.filter((one) => one !== "both") as Exclude<ViralSource, "both">[]
     ),
     keyword: readSearchText(search.keyword),
     fit: readFit(search.fit),

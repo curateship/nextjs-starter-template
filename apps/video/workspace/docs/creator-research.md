@@ -138,7 +138,12 @@ Ticking videos in a Viral project offers both for all of them in one request.
 Pressing either writes a row and returns straight away. A background worker
 then:
 
-1. Downloads the video with yt-dlp, capped at the 100MB above.
+1. Downloads the video with yt-dlp, capped at the 100MB above, and keeps what
+   yt-dlp says about it: the title, the channel's name, its id (YouTube's
+   UC… id, or @handle on TikTok and Instagram) and its follower count, the
+   length, views, likes, comments and posted date (`drizzle/0136` added the
+   channel id and follower count, which a pasted link has nowhere else to come
+   from).
 2. Puts the file in the media library.
 3. Takes a cover frame with ffmpeg.
 4. Stops there, at `downloaded`, if the row was saved with Download alone.
@@ -170,14 +175,26 @@ break down, so the column starts true for all of them.
 
 ### What you get back
 
-The right panel shows the parts with their time ranges and a line on what each
-one does, then the cuts, then every word. **Clicking any of them jumps the
-player there.** That display is one component, used under the player on a
-Viral project and in the editor's Copy panel.
+The right panel shows three folding sections, each with a heading, a count and
+a line saying what it is (Tyler, 20 Oct 2026: "all these part need some
+seperation ... i dont know what im looking at"):
 
-### Copy this
+- **How it is built:** the parts of the video's story, such as the hook, with
+  their times and a line on what each one does.
+- **Shots:** where each new shot starts. A video with one shot says the
+  picture never cuts away.
+- **What is said:** every line spoken and any words written on screen, with
+  the time each starts.
 
-Above the two buttons sits **Copy this**. It saves and breaks the video down
+**Clicking any of them jumps the player there.** That display is one
+component (`breakdown-panel.tsx`), used under the player on a Viral project and
+in the editor's Copy panel, and the browser remembers which sections were left
+shut.
+
+### Make this a template
+
+Under the other buttons sits **Make this a template** (named "Copy this" until
+20 Oct 2026, a name the code still uses: `CopyThisButton`). It saves and breaks the video down
 the way Break it down does, makes a new project that copies it, and opens that
 project in the editor on its Copy panel (see `project-first.md` and
 `viral-projects.md`). It works before or after the video is saved; a video
@@ -212,7 +229,7 @@ it opens.
   Video still uses it, such as a carousel or a media collection
   (`mediaStillInUse` in `src/server/video/media-in-use.ts`), and the message
   after the delete says how many files stayed.
-- **Projects made with Copy this:** the window lists them, and they stay. Their
+- **Projects made with Make this a template:** the window lists them, and they stay. Their
   key to the video blanks itself when the row goes, so just before the delete
   the app writes the video's title onto each of them
   (`video_projects.source_viral_video_title`, migration 0121). Their Copy panel

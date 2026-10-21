@@ -122,7 +122,7 @@ export function CopyPanel() {
             ) : (
               <p>
                 This project copies no video. Find one that went viral in a
-                Viral project and press Copy this under it. It opens as a new
+                Viral project and press Make this a template under it. It opens as a new
                 project with the video here.
               </p>
             )}

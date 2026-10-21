@@ -10,7 +10,7 @@ about it. The AI clip panel itself is in `ai-clip.md`.
 
 - **First frames and AI shots.** Made in the project, kept with it, deleted
   with it.
-- **The viral video it copies,** when it was made with Copy this
+- **The viral video it copies,** when it was made with Make this a template
   (`video_projects.source_viral_video_id`). Deleting the saved video blanks it
   and the project stays, with the video's title kept on it.
 - **Its look, its spend limit, its exports,** as before.
@@ -25,11 +25,29 @@ never deletes an actor.
 - **Copy** and **Exports** are pinned to the foot of the rail (Tyler, 17 Oct
   2026), with **History** under them (`project-history.md`). The rail scrolls
   when the window is too short for every icon.
+- **The open panel's button** has a black line down its left side, at the
+  edge of the screen (Tyler, 20 Oct 2026: "the black border on editor and
+  caurosel should be on the left edge"). The line is one piece that slides
+  to the next button on the tabs' curve (Tyler: "make the tab animation
+  slide"). The carousel studio's rail does the
+  same. The line is the text colour, so it is white in the dark theme
+  (`src/lib/video/rail.ts`).
+
+## Project settings
+
+The project's settings window holds Name, Look and Spending. Each card folds
+from its header, the arrow showing on hover, and this browser remembers
+which cards were left shut (Tyler, 20 Oct 2026). A shut card opens by itself
+while a field in it is refused, such as an empty name or a spend limit that is
+not a number, so the field the error names is always in view. The New project
+window keeps every card open. A Viral project's settings fold the same way
+(`viral-projects.md`); both use
+`src/components/video-assets/settings-fold-card.tsx`.
 
 ## Copy
 
 The Copy panel plays the viral video this project copies and shows its
-breakdown underneath: its parts with the hook marked, its cuts and every word.
+breakdown underneath: How it is built, Shots and What is said (`creator-research.md`).
 Clicking a line jumps the player there. While the video is downloading or
 being read, the panel says so and asks again every 3 seconds. A failed
 download offers Try again.
@@ -43,7 +61,7 @@ first, so nobody deletes a video without knowing which projects copied it.
 A duplicate of the project carries the title too, so its Copy panel says the
 same.
 
-A project starts copying a video from **Copy this** under a video in a Viral
+A project starts copying a video from **Make this a template** under a video in a Viral
 project or a favourites collection. It makes a new project named after the
 video and opens it in the editor with the Copy panel showing. Made from a
 Viral project, it remembers that project, and the Copy panel's Open Viral goes

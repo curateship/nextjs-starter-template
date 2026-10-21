@@ -1283,6 +1283,13 @@ export const videoViralVideos = pgTable(
     thumbnailStoragePath: text("thumbnail_storage_path"),
     title: text("title"),
     channelName: text("channel_name"),
+    /**
+     * YouTube's channel id, or @handle on TikTok and Instagram, from yt-dlp.
+     * A pasted video has no search result to take it from (drizzle/0136).
+     */
+    channelId: varchar("channel_id", { length: 100 }),
+    /** The channel's followers, from yt-dlp. Null where the platform hides it. */
+    subscribers: bigint("subscribers", { mode: "number" }),
     durationSeconds: integer("duration_seconds"),
     views: bigint("views", { mode: "number" }),
     likes: bigint("likes", { mode: "number" }),
@@ -1518,6 +1525,28 @@ export const videoViralProjectCreators = pgTable(
   (table) => [
     primaryKey({ columns: [table.projectId, table.creatorId] }),
     index("ix_video_viral_project_creators_creator").on(table.creatorId),
+  ]
+)
+
+/**
+ * A video pasted into a project by its link (viral task 08, drizzle/0136).
+ * The saved video is its owner's; this row is only why it shows in this
+ * project. Deleting the project keeps the saved video.
+ */
+export const videoViralProjectLinks = pgTable(
+  "video_viral_project_links",
+  {
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoViralProjects.id, { onDelete: "cascade" }),
+    savedVideoId: varchar("saved_video_id", { length: 36 })
+      .notNull()
+      .references(() => videoViralVideos.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.savedVideoId] }),
+    index("ix_video_viral_project_links_saved_video").on(table.savedVideoId),
   ]
 )
 

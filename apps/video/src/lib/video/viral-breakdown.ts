@@ -51,3 +51,41 @@ export function formatTimecode(ms: number): string {
   const minutes = Math.floor(total / 60)
   return `${minutes}:${String(total % 60).padStart(2, "0")}`
 }
+
+/** A video's opening, as the Hooks board lists it. */
+export type HookLine = {
+  startMs: number
+  endMs: number
+  /** The lines said or shown during the hook, in order, joined by spaces. */
+  text: string
+}
+
+/**
+ * The words of a video's hook: every transcript line that is said or shown
+ * while the hook part runs, including a line that starts just before it or
+ * runs on after it. The transcript holds speech and on-screen text alike, so
+ * a video with no speech gives its captions. Null when the breakdown has no
+ * hook part, or nothing is said or shown during it.
+ *
+ * Shared because the Hooks board reads it now, and the pace and "what the
+ * winners share" tasks (viral 17 and 18) read the same opening.
+ */
+export function hookLine(breakdown: ViralBreakdown): HookLine | null {
+  const hook = breakdown.segments.find((segment) => segment.role === "hook")
+  if (!hook) return null
+  const text = breakdown.transcript
+    .filter((line) => line.startMs < hook.endMs && line.endMs > hook.startMs)
+    .map((line) => line.text.trim())
+    .filter(Boolean)
+    .join(" ")
+  return text ? { startMs: hook.startMs, endMs: hook.endMs, text } : null
+}
+
+/**
+ * `?at=` from an address: where the open video starts, in whole milliseconds
+ * under 24 hours. Anything else is dropped, so the player starts at 0.
+ */
+export function readStartMs(value: unknown): number | undefined {
+  const ms = Number(value)
+  return Number.isInteger(ms) && ms > 0 && ms < 86_400_000 ? ms : undefined
+}

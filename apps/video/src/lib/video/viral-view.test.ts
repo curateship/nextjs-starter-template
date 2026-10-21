@@ -32,6 +32,7 @@ function video(id: string, overrides: Partial<ViralVideo> = {}): ViralVideo {
     sample: false,
     savedVideoId: null,
     savedStatus: null,
+    hook: null,
     ...merged,
     score: scoreViralVideo({
       views: merged.views,
@@ -60,10 +61,13 @@ describe("the middle panel's filters", () => {
       video("a", { keywords: ["gym tips"] }),
       video("b", { keywords: ["home workout"], channelName: "Desk Fit" }),
       video("c", { keywords: [], source: "creator" }),
+      video("d", { keywords: [], source: "link" }),
     ]
     expect(filterVideos(videos, { ...NO_FILTER, keyword: "home workout" }).map((one) => one.platformVideoId)).toEqual(["b"])
     expect(filterVideos(videos, { ...NO_FILTER, source: "creators" }).map((one) => one.platformVideoId)).toEqual(["c"])
+    expect(filterVideos(videos, { ...NO_FILTER, source: "links" }).map((one) => one.platformVideoId)).toEqual(["d"])
     expect(filterVideos(videos, { ...NO_FILTER, source: "search" })).toHaveLength(2)
+    expect(filterVideos(videos, NO_FILTER)).toHaveLength(4)
     expect(filterVideos(videos, { ...NO_FILTER, text: "desk fit" }).map((one) => one.platformVideoId)).toEqual(["b"])
   })
 

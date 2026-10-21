@@ -36,6 +36,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { showErrorToast, useErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
+import { railPickedEdge, useRailPickedEdge } from "@/lib/video/rail"
 import {
   ASPECT_RATIOS,
   type AspectRatio,
@@ -386,8 +387,8 @@ function RailButton({
       aria-pressed={on}
       onClick={() => onSelect(id)}
       className={cn(
-        "flex w-full flex-col items-center gap-1 py-1.5 transition-colors",
-        on ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+        "relative flex w-full flex-col items-center gap-1 py-1.5 transition-colors",
+        on ? cn("text-foreground", railPickedEdge) : "text-muted-foreground hover:text-foreground"
       )}
     >
       <Icon className="size-5" />
@@ -407,6 +408,7 @@ function ToolRail({
   guest: boolean
 }) {
   const { rail, foot } = railFor(guest)
+  const { trackRef, trackProps, pillProps } = useRailPickedEdge()
   return (
     <nav
       data-screen-label="Tool rail"
@@ -417,18 +419,15 @@ function ToolRail({
           Copy and Exports at the foot when it is not. */}
       <ScrollArea
         className="h-full"
-        viewportClassName="[&>div]:flex! [&>div]:min-h-full [&>div]:flex-col [&>div]:items-center [&>div]:gap-1 [&>div]:py-2"
+        viewportClassName="[&>div]:flex! [&>div]:min-h-full [&>div]:flex-col [&>div]:py-2"
       >
-        {rail.map((item) => (
-          <RailButton
-            key={item.id}
-            {...item}
-            on={panel === item.id}
-            onSelect={onSelect}
-          />
-        ))}
-        <div className="mt-auto flex w-full flex-col items-center gap-1 border-t pt-2">
-          {foot.map((item) => (
+        <div
+          ref={trackRef}
+          {...trackProps}
+          className="relative flex w-full flex-1 flex-col items-center gap-1"
+        >
+          <span {...pillProps} />
+          {rail.map((item) => (
             <RailButton
               key={item.id}
               {...item}
@@ -436,6 +435,16 @@ function ToolRail({
               onSelect={onSelect}
             />
           ))}
+          <div className="mt-auto flex w-full flex-col items-center gap-1 border-t pt-2">
+            {foot.map((item) => (
+              <RailButton
+                key={item.id}
+                {...item}
+                on={panel === item.id}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
         </div>
       </ScrollArea>
     </nav>

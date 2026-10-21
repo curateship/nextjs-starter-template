@@ -16,7 +16,8 @@ import {
 const authenticatedRoute = getRouteApi("/_authenticated")
 
 /**
- * Copy this: makes a new project that copies this video and opens it in the
+ * Make this a template (Tyler, 20 Oct 2026; it was "Copy this", and the code
+ * keeps that name): makes a new project that copies this video and opens it in the
  * editor with the Copy panel showing. The video is saved and broken down on the way, which spends from
  * the AI allowance unless it was saved before. Pressed under the player on a
  * Viral project or a favourites collection.
@@ -67,7 +68,7 @@ export function CopyThisButton({
       onClick={() => void copy()}
     >
       {busy ? <Loader2Icon className="animate-spin" /> : <CopyIcon />}
-      Copy this
+      Make this a template
     </Button>
   )
 }

@@ -50,14 +50,18 @@ export const viralSortLabels: Record<ViralSort, string> = {
   topic: "Fits the topic",
 }
 
-/** Where the Videos view's videos come from. */
-export const VIRAL_SOURCES = ["search", "creators", "both"] as const
+/**
+ * Where the Videos view's videos come from. "both" is every source; it kept
+ * its name when pasted links joined, because saved views and addresses hold it.
+ */
+export const VIRAL_SOURCES = ["search", "creators", "links", "both"] as const
 export type ViralSource = (typeof VIRAL_SOURCES)[number]
 
 export const viralSourceLabels: Record<ViralSource, string> = {
   search: "Search",
   creators: "Followed creators",
-  both: "Both",
+  links: "Pasted links",
+  both: "Anywhere",
 }
 
 /** The topic-match floors the Fit filter offers. 0 is no filter. */
@@ -84,6 +88,7 @@ export function filterVideos(
   return videos.filter((video) => {
     if (filter.source === "search" && video.source !== "search") return false
     if (filter.source === "creators" && video.source !== "creator") return false
+    if (filter.source === "links" && video.source !== "link") return false
     if ((video.views ?? 0) < filter.minViews) return false
     if (video.score.score < filter.minScore) return false
     if (filter.keyword && !video.keywords.includes(filter.keyword)) return false

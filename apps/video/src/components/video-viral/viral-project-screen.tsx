@@ -4,6 +4,7 @@ import {
   DownloadIcon,
   EyeOffIcon,
   GridIcon,
+  LinkIcon,
   ListIcon,
   Loader2Icon,
   SparklesIcon,
@@ -17,6 +18,7 @@ import {
   DashboardCardTitleHeader,
 } from "@/components/shared/dashboard-card-header"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import {
   MassSelectChip,
@@ -50,6 +52,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { CreatorCard } from "@/components/video-viral/creator-card"
 import { CreatorsCard } from "@/components/video-viral/creators-card"
 import { DeleteSavedVideosDialog } from "@/components/video-viral/delete-saved-videos-dialog"
+import { HookBoard } from "@/components/video-viral/hook-board"
+import { PasteLinkDialog } from "@/components/video-viral/paste-link-dialog"
 import { PlayerPanel } from "@/components/video-viral/player-panel"
 import { ProjectPanel } from "@/components/video-viral/project-panel"
 import { StarMenu, type Favourites } from "@/components/video-viral/star-menu"
@@ -176,6 +180,7 @@ export function ViralProjectScreenView({
   const [removing, setRemoving] = React.useState<ViralKeyword | null>(null)
   const [offerSearch, setOfferSearch] = React.useState(false)
   const [deletingVideos, setDeletingVideos] = React.useState<ViralVideo[]>([])
+  const [pasting, setPasting] = React.useState(false)
   // A switch flipped here shows at once, before the screen reads itself again.
   const [watchOverride, setWatchOverride] = React.useState<Record<string, boolean>>({})
   const [run, busy] = useAsyncAction(getViralErrorMessage)
@@ -256,14 +261,16 @@ export function ViralProjectScreenView({
         }
       : (uploads[pickedCreator.key] ?? { state: "loading" })
     : undefined
-  // The Downloaded and Broken down tabs are the Videos tab's list, with its
-  // filters, kept to the videos downloaded with no AI yet and to the videos
-  // whose breakdown has finished.
+  // The Downloaded, Broken down and Hooks tabs are the Videos tab's list, with
+  // its filters, kept to the videos downloaded with no AI yet, to the videos
+  // whose breakdown has finished, and to those with words in their hook.
   const isDownloaded = (video: ViralVideo) => video.savedStatus === "downloaded"
   const isBrokenDown = (video: ViralVideo) => video.savedStatus === "ready"
+  const hasHook = (video: ViralVideo) => video.hook !== null
   const appliedProjectVideos = projectVideos.map(progress.apply)
   const downloadedCount = appliedProjectVideos.filter(isDownloaded).length
   const brokenDownCount = appliedProjectVideos.filter(isBrokenDown).length
+  const hookCount = projectVideos.filter(hasHook).length
   const middleVideos = pickedCreator
     ? creatorUploads?.state === "ready"
       ? creatorUploads.videos.map(progress.apply)
@@ -272,7 +279,9 @@ export function ViralProjectScreenView({
       ? shown.map(progress.apply).filter(isBrokenDown)
       : view === "downloaded"
         ? shown.map(progress.apply).filter(isDownloaded)
-        : shown.map(progress.apply)
+        : view === "hooks"
+          ? shown.map(progress.apply).filter(hasHook)
+          : shown.map(progress.apply)
 
   // The open video is looked for everywhere this screen has videos, so a
   // filter that hides it does not stop it playing.
@@ -333,7 +342,20 @@ export function ViralProjectScreenView({
   }
 
   function pickVideo(video: ViralVideo) {
-    setSearch({ open: video.key })
+    setSearch({ open: video.key, at: undefined })
+  }
+
+  /** From the Hooks tab: plays the video from its hook's first moment. */
+  function openAtHook(video: ViralVideo, startMs: number) {
+    setSearch({ open: video.key, at: startMs || undefined })
+  }
+
+  function addLink() {
+    if (project.sample) {
+      showErrorToast("A sample project's videos are made up, so nothing can be pasted into it. Make your own project to try it.")
+      return
+    }
+    setPasting(true)
   }
 
   function toggleTick(key: string) {
@@ -592,23 +614,31 @@ export function ViralProjectScreenView({
     />
   )
 
-  // A pair like the tabs, list first, as Tyler drew it on 20 Oct 2026.
+  // A pair like the tabs, list first, as Tyler drew it on 20 Oct 2026. The
+  // tooltip hangs on a span around each tab rather than on the tab itself: as
+  // the tab's own trigger it overwrote the tab's data-state and data-slot, so
+  // the picked one was never raised (Tyler: "if its selected then it should
+  // change color").
   const layoutToggle = (
     <Tabs value={layout} onValueChange={(next) => setLayout(next as typeof layout)} className="gap-0">
       <TabsList>
         <Tooltip>
           <TooltipTrigger asChild>
-            <TabsTrigger value="list" aria-label="List" className="px-2">
-              <ListIcon className="size-4" />
-            </TabsTrigger>
+            <span className="inline-flex">
+              <TabsTrigger value="list" aria-label="List" className="px-2">
+                <ListIcon className="size-4" />
+              </TabsTrigger>
+            </span>
           </TooltipTrigger>
           <TooltipContent>List</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <TabsTrigger value="grid" aria-label="Grid" className="px-2">
-              <GridIcon className="size-4" />
-            </TabsTrigger>
+            <span className="inline-flex">
+              <TabsTrigger value="grid" aria-label="Grid" className="px-2">
+                <GridIcon className="size-4" />
+              </TabsTrigger>
+            </span>
           </TooltipTrigger>
           <TooltipContent>Grid</TooltipContent>
         </Tooltip>
@@ -751,10 +781,17 @@ export function ViralProjectScreenView({
         saveButton={false}
         buttonVariant="ghost"
       />
-      {layoutToggle}
+      {/* Hooks is one list of words, drawn the same in either layout. */}
+      {view === "hooks" ? null : layoutToggle}
       {searching ? (
         <Loader2Icon className="size-4 animate-spin text-muted-foreground" aria-label="Searching" />
       ) : null}
+      {/* The screen's one primary button, last, filled and worded at every width
+          (Tyler, 20 Oct 2026). A header too narrow for it slides the tabs sideways. */}
+      <DashboardToolbarButton type="button" onClick={addLink}>
+        <LinkIcon className="size-4" />
+        Add a link
+      </DashboardToolbarButton>
     </div>
   )
 
@@ -790,6 +827,8 @@ export function ViralProjectScreenView({
   const videoContent = (emptyText: string) =>
     middleVideos.length === 0 ? (
       <p className="px-4 py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
+    ) : view === "hooks" && !pickedCreator ? (
+      <HookBoard videos={middleVideos} selectedKey={pickedVideo?.key ?? null} onOpen={openAtHook} />
     ) : layout === "grid" ? (
       <>
         {/* The grid has no heading row, so the chip has a row of its own. */}
@@ -815,6 +854,14 @@ export function ViralProjectScreenView({
   const brokenDownEmpty = brokenDownCount
     ? "No broken-down video matches these filters."
     : "Nothing broken down yet. Pick a video and press Break it down. It shows here once the AI has watched it."
+
+  // A broken-down video with nothing said or shown in its hook has no line.
+  const silentHooks = brokenDownCount - hookCount
+  const hooksEmpty = hookCount
+    ? "No hook matches these filters."
+    : brokenDownCount
+      ? `None of the ${brokenDownCount} broken-down ${plural(brokenDownCount, "video")} says or shows anything during its hook.`
+      : "No hooks yet. Break videos down and the words of each one's opening show here."
 
   const downloadedEmpty = downloadedCount
     ? "No downloaded video matches these filters."
@@ -886,14 +933,26 @@ export function ViralProjectScreenView({
               { value: "videos", label: "Videos", count: projectVideos.length },
               { value: "downloaded", label: "Downloaded", count: downloadedCount },
               { value: "broken", label: "Broken down", count: brokenDownCount },
+              { value: "hooks", label: "Hooks", count: hookCount },
             ]}
           />
           {toolbar}
         </DashboardCardHeader>
         <ScrollArea className={bodyClassName}>
           {videoContent(
-            view === "broken" ? brokenDownEmpty : view === "downloaded" ? downloadedEmpty : videosEmpty
+            view === "broken"
+              ? brokenDownEmpty
+              : view === "downloaded"
+                ? downloadedEmpty
+                : view === "hooks"
+                  ? hooksEmpty
+                  : videosEmpty
           )}
+          {view === "hooks" && hookCount && silentHooks > 0 ? (
+            <p className="px-4 py-3 text-xs text-muted-foreground">
+              {silentHooks} broken-down {plural(silentHooks, "video")} {silentHooks === 1 ? "is" : "are"} left out, because nothing is said or shown during {silentHooks === 1 ? "its" : "their"} hook.
+            </p>
+          ) : null}
         </ScrollArea>
       </>
     )
@@ -911,6 +970,7 @@ export function ViralProjectScreenView({
         onBack={pickedCreator ? () => setSearch({ open: undefined }) : undefined}
         onSavedChange={progress.report}
         onDeleted={(video) => afterDelete([video.key])}
+        startAtMs={search.at}
       />
     ) : (
       <CreatorCard
@@ -960,6 +1020,17 @@ export function ViralProjectScreenView({
           void refresh()
           if (searchChanged && hasSearched && !project.sample) setOfferSearch(true)
         }}
+      />
+
+      <PasteLinkDialog
+        open={pasting}
+        projectId={project.id}
+        onClose={() => setPasting(false)}
+        onPasted={async (pasted) => {
+          progress.report(pasted.key, { id: pasted.video.id, status: pasted.video.status })
+          await refresh()
+        }}
+        onOpenVideo={(key) => setSearch({ open: key, at: undefined, creator: undefined })}
       />
 
       <SaveViewDialog

@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { Badge } from "@/components/ui/badge"
+import { FlatSection } from "@/components/video-viral/flat-section"
 import { cn } from "@/lib/utils"
 import { focusRing } from "@/lib/layout/focus-ring"
 import {
@@ -29,9 +30,21 @@ export function BreakdownPanel({
   /** Where the player is now, so the line being played is marked. */
   atMs?: number
 }) {
+  const parts = breakdown.segments.length
+  const shots = breakdown.scenes.length
+  const lines = breakdown.transcript.length
+  // With no player to jump, nothing here is clickable, so nothing says so.
+  const click = (sentence: string) => (onSeek ? ` ${sentence}` : "")
   const sections = [
-    breakdown.segments.length > 0 && (
-      <Section key="parts" title="How it is built">
+    parts > 0 && (
+      <BreakdownSection
+        key="parts"
+        storageId="viral-breakdown-parts"
+        title="How it is built"
+        meta={parts}
+        about={`The AI splits the video into the parts of its story, such as the hook.${click("Click one to play from there.")}`}
+        rows
+      >
         {breakdown.segments.map((segment, index) => (
           <TimeRow
             key={`${segment.startMs}-${index}`}
@@ -46,19 +59,28 @@ export function BreakdownPanel({
                   {segmentRoleLabels[segment.role]}
                 </Badge>
                 <span className="text-xs text-muted-foreground tabular-nums">
-                  {formatTimecode(segment.startMs)} –{" "}
-                  {formatTimecode(segment.endMs)}
+                  {formatTimecode(segment.startMs)} to {formatTimecode(segment.endMs)}
                 </span>
               </span>
               <span className="text-sm">{segment.summary}</span>
             </span>
           </TimeRow>
         ))}
-      </Section>
+      </BreakdownSection>
     ),
-    breakdown.scenes.length > 0 && (
-      <Section key="scenes" title={`Cuts (${breakdown.scenes.length})`}>
-        <div className="flex flex-wrap gap-1.5 px-3 py-2">
+    shots > 0 && (
+      <BreakdownSection
+        key="scenes"
+        storageId="viral-breakdown-shots"
+        title="Shots"
+        meta={shots}
+        about={
+          shots === 1
+            ? "The video is one shot: the picture never cuts away."
+            : `Where each new shot starts, every time the picture cuts to something else.${click("Click a time to jump there.")}`
+        }
+      >
+        <div className="flex flex-wrap gap-1.5">
           {breakdown.scenes.map((scene, index) => (
             <button
               key={`${scene.startMs}-${index}`}
@@ -76,10 +98,17 @@ export function BreakdownPanel({
             </button>
           ))}
         </div>
-      </Section>
+      </BreakdownSection>
     ),
-    breakdown.transcript.length > 0 && (
-      <Section key="transcript" title="Every word">
+    lines > 0 && (
+      <BreakdownSection
+        key="transcript"
+        storageId="viral-breakdown-words"
+        title="What is said"
+        meta={lines}
+        about={`Every line spoken, and any words written on screen, with the time each starts.${click("Click one to play from there.")}`}
+        rows
+      >
         {breakdown.transcript.map((line, index) => (
           <TimeRow
             key={`${line.startMs}-${index}`}
@@ -94,7 +123,7 @@ export function BreakdownPanel({
             <span className="min-w-0 flex-1 text-sm">{line.text}</span>
           </TimeRow>
         ))}
-      </Section>
+      </BreakdownSection>
     ),
   ].filter(Boolean)
 
@@ -109,20 +138,33 @@ export function BreakdownPanel({
   return <div className="flex flex-col">{sections}</div>
 }
 
-function Section({
+/**
+ * One part of the breakdown as its own folding section, like the left
+ * panel's: a heading with a count, then a line saying what the part is
+ * (Tyler, 20 Oct 2026: "all these part need some seperation ... i dont know
+ * what im looking at").
+ */
+function BreakdownSection({
+  storageId,
   title,
+  meta,
+  about,
+  rows = false,
   children,
 }: {
+  storageId: string
   title: string
+  meta: React.ReactNode
+  about: string
+  /** Clickable rows, run to the panel's edges with a line between each. */
+  rows?: boolean
   children: React.ReactNode
 }) {
   return (
-    <section className="border-b last:border-b-0">
-      <h3 className="bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground">
-        {title}
-      </h3>
-      {children}
-    </section>
+    <FlatSection storageId={storageId} title={title} meta={meta}>
+      <p className="text-xs text-muted-foreground">{about}</p>
+      {rows ? <div className="-mx-4 -mb-3 border-t">{children}</div> : children}
+    </FlatSection>
   )
 }
 
@@ -152,7 +194,7 @@ function TimeRow({
       aria-current={playing ? "true" : undefined}
       onClick={() => onSeek?.(startMs)}
       className={cn(
-        "flex w-full items-start gap-2 border-b px-3 py-2 text-left last:border-b-0",
+        "flex w-full items-start gap-2 border-b px-4 py-2 text-left last:border-b-0",
         onSeek && "hover:bg-muted/50",
         playing && "bg-muted",
         focusRing

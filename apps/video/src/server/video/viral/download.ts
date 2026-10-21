@@ -51,6 +51,10 @@ export type DownloadedVideo = {
   mimeType: string
   title: string | null
   channelName: string | null
+  /** YouTube's channel id, or @handle on TikTok and Instagram. */
+  channelId: string | null
+  /** The channel's followers, where the platform says. */
+  subscribers: number | null
   durationSeconds: number | null
   views: number | null
   likes: number | null
@@ -97,24 +101,35 @@ export function parseVideoLink(url: string): VideoLink {
     throw new Error(VIDEO_LINK_ERROR)
   }
   if (host === "tiktok.com" || host.endsWith(".tiktok.com")) {
-    // tiktok.com/@creator/video/<id>, and the shortened vm.tiktok.com/<id>.
+    // tiktok.com/@creator/video/<id>, and the shortened vm. and vt.tiktok.com/<id>.
+    // Anything else on tiktok.com is a profile or a page, not one video.
+    if (host === "vm.tiktok.com" || host === "vt.tiktok.com") {
+      return { platform: "tiktok", platformVideoId: readId(segments[0], /^[A-Za-z0-9]+$/) }
+    }
     const videoAt = segments.indexOf("video")
-    const id = videoAt >= 0 ? segments[videoAt + 1] : segments[0]
-    return { platform: "tiktok", platformVideoId: readId(id, /^[A-Za-z0-9]+$/) }
+    if (videoAt < 0) throw new Error(VIDEO_LINK_ERROR)
+    return {
+      platform: "tiktok",
+      platformVideoId: readId(segments[videoAt + 1], /^[0-9]+$/),
+    }
   }
   if (host === "instagram.com" || host.endsWith(".instagram.com")) {
-    // instagram.com/reel/<id>, /p/<id>, /tv/<id>.
-    const kind = segments[0]?.toLowerCase()
-    if (kind !== "reel" && kind !== "reels" && kind !== "p" && kind !== "tv") {
+    // instagram.com/reel/<id>, /p/<id>, /tv/<id>, and the same after the
+    // creator's name (instagram.com/<name>/reel/<id>), which the app shares.
+    const kindAt = INSTAGRAM_KINDS.has(segments[0]?.toLowerCase() ?? "") ? 0 : 1
+    if (!INSTAGRAM_KINDS.has(segments[kindAt]?.toLowerCase() ?? "")) {
       throw new Error(VIDEO_LINK_ERROR)
     }
     return {
       platform: "instagram",
-      platformVideoId: readId(segments[1], /^[A-Za-z0-9_-]+$/),
+      platformVideoId: readId(segments[kindAt + 1], /^[A-Za-z0-9_-]+$/),
     }
   }
   throw new Error(VIDEO_LINK_ERROR)
 }
+
+/** The kinds of Instagram address that point at one post. */
+const INSTAGRAM_KINDS = new Set(["reel", "reels", "p", "tv"])
 
 function youtubeLink(id: string | undefined): VideoLink {
   return { platform: "youtube", platformVideoId: readId(id, /^[A-Za-z0-9_-]+$/) }
@@ -199,6 +214,8 @@ export async function downloadViralVideo(
       // are tried: Instagram puts the handle in `channel`, TikTok in `uploader`.
       channelName:
         readString(info.uploader, 255) ?? readString(info.channel, 255),
+      channelId: readChannelId(url, info),
+      subscribers: readCount(info.channel_follower_count),
       durationSeconds: readSeconds(info.duration),
       views: readCount(info.view_count),
       likes: readCount(info.like_count),
@@ -208,6 +225,21 @@ export async function downloadViralVideo(
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined)
   }
+}
+
+/**
+ * The channel the way the project screen keys it, so hiding a pasted video's
+ * channel hides the same channel a search found: YouTube's UC… id, and
+ * @handle on TikTok and Instagram, lowercased as a followed creator's is.
+ * TikTok puts the handle in `uploader` and Instagram in `channel`.
+ */
+function readChannelId(url: string, info: Record<string, unknown>): string | null {
+  if (parseVideoLink(url).platform === "youtube") {
+    return readString(info.channel_id, 100)
+  }
+  const handle =
+    readString(info.uploader, 99) ?? readString(info.channel, 99)
+  return handle ? `@${handle.replace(/^@/, "").toLowerCase()}` : null
 }
 
 function readString(value: unknown, max: number): string | null {
