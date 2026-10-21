@@ -154,6 +154,30 @@ in `src/lib/custom-shell.tsx` and are applied by
   redraws the popover and dropdown hairline from the card border settings the
   way it already does for modals. Do not restate a ring or border on their
   content, and do not copy computed styles across the portal by hand.
+- **One edge, one line, one strength.** Where two things meet, exactly one
+  of them draws the line, at the plain `--border` strength, drawn once. Tyler
+  has reported a "double border" again and again (14, 19 and 21 Oct 2026: "the
+  border is a recurring problem I thought we fixed"), and every time it was one
+  of these:
+  - **Two lines on one edge:** a section's `border-b` and the next header's own
+    top line, or a panel's frame and a hairline one pixel inside it.
+  - **One line drawn twice or darker:** a box-shadow listed twice, a border
+    plus a ring, or a see-through line painted over a grey band so it comes
+    out darker than its neighbours. A darker line under a grey band reads as
+    two lines even when it is one pixel.
+  - **A line that frames an empty strip:** a grey band with a line on each
+    side and nothing in it.
+- **Before fixing a double border, measure it.** Take a Playwright
+  screenshot at `deviceScaleFactor: 2`, read the pixel shades down one column
+  through the edge, and compare them with a divider known to be right (a
+  panel header's line). Two dark rows, or one row darker than the rest, is
+  the fault. Then take away the extra line. Never hide the one that belongs
+  there: hiding the line above a table header to "fix" the one below it only
+  moved the complaint (21 Oct 2026).
+- **The table header's bottom line is drawn once, in `theme.css`.** Never add
+  a second box-shadow, a `border-b` or a ring to a `th` or a header row, and
+  never stack the line to make it "stronger". When it looks too faint, the
+  Divider lines setting is the control.
 - Selected-state outlines and deliberate drawings, such as a measuring overlay
   or an annotation on a chart, keep their own color. Everything meant to read as
   a dividing line does not.
@@ -460,6 +484,8 @@ card in the rail on `/admin/settings`.
   rule in each screen.
 - Use a 40px header, `px-5 py-2` cells, a muted header, and the shared rounded
   surface.
+  The header's bottom line is the shell's, drawn once; see "One edge, one line,
+  one strength" above before touching any line near it.
 - The main title is interactive. If it opens a detail or edit view, pass that
   same action to `TableRow` as `rowAction`.
 - Mark the actions cell with `column="actions"` so a row click never steals a

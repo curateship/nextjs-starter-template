@@ -570,12 +570,11 @@ html[data-public-button-casing="uppercase"] [data-slot="button"] {
   background-position: bottom;
   background-size: 100% 1px;
   background-repeat: no-repeat;
-  /* Drawn twice, so the line under a table's heading row is a step stronger
-     than an ordinary divider and still follows the Divider lines setting
-     (Tyler, 19 Oct 2026: the header's bottom line "is not there"). */
-  box-shadow:
-    inset 0 -1px 0 var(--shell-table-header-line),
-    inset 0 -1px 0 var(--shell-table-header-line);
+  /* Drawn once, the same strength as every other divider. It was drawn twice
+     from 19 Oct 2026 (the header's bottom line "is not there"), and that
+     darker line under the grey band read as a double border (Tyler, 21 Oct
+     2026, picking an ordinary line). The card strip under it keeps it visible. */
+  box-shadow: inset 0 -1px 0 var(--shell-table-header-line);
 }
 
 /*
@@ -593,7 +592,6 @@ html[data-public-button-casing="uppercase"] [data-slot="button"] {
   background-size: 100% 1px;
   box-shadow:
     inset 0 1px 0 var(--shell-table-header-line),
-    inset 0 -1px 0 var(--shell-table-header-line),
     inset 0 -1px 0 var(--shell-table-header-line);
 }
 

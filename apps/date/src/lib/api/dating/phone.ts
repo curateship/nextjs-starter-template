@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { and, desc, eq } from "drizzle-orm"
 import { z } from "zod"
 
+import { requestAccount } from "@/server/dating/accounts"
 import { addSamples, removeSamples } from "@/server/dating/samples"
 import { inWords } from "@/server/dating/words"
 import { db } from "@/server/db"
@@ -9,8 +10,8 @@ import { userGet, userPost } from "@/server/guards"
 import { queueAction } from "@/server/phone/actions"
 import {
   createPairingCode,
-  listPhones,
   ownPhone,
+  phoneView,
   phoneActions,
   setInControl,
   unpairPhone,
@@ -19,13 +20,14 @@ import {
 } from "@/server/phone/link"
 import { closeScreen, watchScreen, type ScreenFrame } from "@/server/phone/screens"
 import { resumePhone } from "@/server/tinder/jobs"
+import { datePhones } from "@/server/phone/schema"
 import { dateProfiles, dateWalks } from "@/server/tinder/schema"
-import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 /**
  * The dashboard's Phone panel's server functions: pairing, the "Date is in control"
  * switch, Resume, the picture button, the live screen window, and the sample
- * data. Every one is behind sign-in and acts only on the member's own phone.
+ * data. Every one is behind sign-in and acts only on the member's own phone,
+ * and pairing, Resume and the samples on the open profile.
  */
 
 export type { PhoneActionView, PhoneView, ScreenFrame }
@@ -41,10 +43,11 @@ export type PhoneWalkView = {
 }
 
 export type PhoneScreenData = {
-  phones: PhoneView[]
-  /** The newest phone's last fifty actions. */
+  /** The open profile's phone, or null before one is paired for it. */
+  phone: PhoneView | null
+  /** The phone's last fifty actions. */
   actions: PhoneActionView[]
-  /** The newest phone's last twenty walks. */
+  /** The profile's last twenty walks. */
   walks: PhoneWalkView[]
   hasSamples: boolean
 }
@@ -55,9 +58,9 @@ const loadPhoneScreenFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }): Promise<PhoneScreenData> =>
     inWords(async () => {
-      const workspaceId = await workspaceIdForRequest(context.user.id)
-      const phones = await listPhones(context.user.id, workspaceId)
-      const phone = phones.find((item) => item.paired) ?? phones[0]
+      const account = await requestAccount(context.user.id)
+      const [row] = account.phoneId ? await db.select().from(datePhones).where(eq(datePhones.id, account.phoneId)).limit(1) : []
+      const phone = row ? phoneView(row) : null
       const [actions, walks, sample] = await Promise.all([
         phone ? phoneActions(context.user.id, phone.id) : Promise.resolve([]),
         phone
@@ -72,17 +75,17 @@ const loadPhoneScreenFn = createServerFn({ method: "GET" })
                 finishedAt: dateWalks.finishedAt,
               })
               .from(dateWalks)
-              .where(eq(dateWalks.phoneId, phone.id))
+              .where(eq(dateWalks.accountId, account.id))
               .orderBy(desc(dateWalks.createdAt))
               .limit(20)
           : Promise.resolve([]),
         db
           .select({ id: dateProfiles.id })
           .from(dateProfiles)
-          .where(and(eq(dateProfiles.userId, context.user.id), eq(dateProfiles.workspaceId, workspaceId), eq(dateProfiles.sample, true)))
+          .where(and(eq(dateProfiles.accountId, account.id), eq(dateProfiles.sample, true)))
           .limit(1),
       ])
-      return { phones, actions, walks, hasSamples: sample.length > 0 }
+      return { phone, actions, walks, hasSamples: sample.length > 0 }
     })
   )
 
@@ -92,17 +95,11 @@ export function loadPhoneScreen() {
 
 const makePairCodeFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ phoneId: z.string().min(1).max(40).nullable() }))
-  .handler(async ({ data, context }) =>
-    inWords(async () => {
-      const workspaceId = await workspaceIdForRequest(context.user.id)
-      return createPairingCode(context.user.id, workspaceId, data.phoneId)
-    })
-  )
+  .handler(async ({ context }) => inWords(async () => createPairingCode(await requestAccount(context.user.id))))
 
-/** A new six-digit code for the phone app. Naming a phone pairs that one again. */
-export function makePairCode(phone: string | null) {
-  return makePairCodeFn({ data: { phoneId: phone } })
+/** A new six-digit code for the phone app, for the open profile. Its phone, when it has one, is paired again. */
+export function makePairCode() {
+  return makePairCodeFn()
 }
 
 const unpairFn = createServerFn({ method: "POST" })
@@ -125,16 +122,15 @@ export function switchDateInControl(phone: string, on: boolean) {
 
 const resumeFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(phoneId)
-  .handler(async ({ data, context }) =>
+  .handler(async ({ context }) =>
     inWords(async () => {
-      await resumePhone(context.user.id, data.phoneId)
+      await resumePhone(await requestAccount(context.user.id))
     })
   )
 
-/** Resume: clears the stop and has the phone look at Tinder again at once. */
-export function resume(phone: string) {
-  return resumeFn({ data: { phoneId: phone } })
+/** Resume: clears the stop on the open profile's phone and has it look at Tinder again at once. */
+export function resume() {
+  return resumeFn()
 }
 
 const takePictureFn = createServerFn({ method: "POST" })
@@ -210,10 +206,10 @@ export function pressPhoneKey(phone: string, key: "back" | "home") {
 const addSamplesFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .handler(async ({ context }) =>
-    inWords(async () => addSamples(context.user.id, await workspaceIdForRequest(context.user.id)))
+    inWords(async () => addSamples(await requestAccount(context.user.id)))
   )
 
-/** Twelve sample cards and four conversations, to look at the dashboard before a phone is paired. */
+/** Twelve sample cards and four conversations in the open profile, to look at the dashboard before a phone is paired. */
 export function addSampleData() {
   return addSamplesFn()
 }
@@ -221,10 +217,10 @@ export function addSampleData() {
 const removeSamplesFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .handler(async ({ context }) =>
-    inWords(async () => removeSamples(context.user.id, await workspaceIdForRequest(context.user.id)))
+    inWords(async () => removeSamples(await requestAccount(context.user.id)))
   )
 
-/** Deletes the sample cards and conversations, and nothing a phone read. */
+/** Deletes the open profile's sample cards and conversations, and nothing a phone read. */
 export function removeSampleData() {
   return removeSamplesFn()
 }

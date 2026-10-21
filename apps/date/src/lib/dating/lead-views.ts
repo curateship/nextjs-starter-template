@@ -1,6 +1,6 @@
 import { LEAD_GROUP_WORDS, LEAD_SORT_WORDS, defaultLeadDirection, type LeadView } from "@/lib/dating/leads"
 
-/** The Dating dashboard's kind in the shell's saved views. Its screen key is `dating:`, naming no record. */
+/** The Dating dashboard's kind in the shell's saved views. Its screen key is `dating:<profile id>`, so each profile keeps its own. */
 export const DATING_SAVED_VIEW_KIND = "dating"
 
 const TAB_WORDS = { matches: "Matches", dates: "Dates" } as const

@@ -31,7 +31,7 @@ import {
 import { readCardAnswer, readCardJsonSchema, readCardSystem, readCardText, type OverruledCard } from "./prompts/read-card"
 import { reviewAnswer, reviewJsonSchema, REVIEW_SYSTEM, reviewText } from "./prompts/review-profile"
 import { readDatingSettings } from "./settings"
-import { DATING_FEATURE_PREFIX, spendCapReached } from "./spend"
+import { DATING_FEATURE_PREFIX, aiSpendStopped, type SpendOwner } from "./spend"
 
 /**
  * Date's AI jobs: reading a card, deciding the swipe, drafting a reply, an
@@ -61,9 +61,9 @@ async function askWithStoredKey<T>(question: Omit<ClaudeQuestion<T>, "apiKey">):
   return askClaude({ ...question, apiKey })
 }
 
-/** One call through the shell's meter, so it shows on the AI usage screen and counts toward the cap. */
+/** One call through the shell's meter, so it shows on the AI usage screen and counts toward its profile's cap. */
 async function metered<T>(
-  userId: string,
+  owner: SpendOwner,
   job: string,
   metadata: Record<string, unknown>,
   question: DatingQuestion<T>,
@@ -71,7 +71,7 @@ async function metered<T>(
 ): Promise<ClaudeAnswer<T>> {
   const ask = deps.ask ?? askWithStoredKey
   const model = question.model ?? DATING_MODEL
-  return runAiCall({ userId, provider: "anthropic", model, feature: `${DATING_FEATURE_PREFIX}${job}`, metadata }, async () => {
+  return runAiCall({ userId: owner.userId, provider: "anthropic", model, feature: `${DATING_FEATURE_PREFIX}${job}`, metadata: { ...metadata, accountId: owner.accountId } }, async () => {
     const answer = await ask({ ...question, model })
     return { result: answer, usage: { inputTokens: answer.inputTokens, outputTokens: answer.outputTokens } }
   })
@@ -133,8 +133,7 @@ export const OVERRULED_EXAMPLES = 10
  * know list and sample cards are left out. Newest first.
  */
 export async function overruledCards(
-  userId: string,
-  workspaceId: string,
+  accountId: string,
   settings: Pick<DatingSettings, "likeAbove">,
   db: CustomShellDb,
   exceptId: string | null = null
@@ -144,8 +143,7 @@ export async function overruledCards(
     .from(dateProfiles)
     .where(
       and(
-        eq(dateProfiles.userId, userId),
-        eq(dateProfiles.workspaceId, workspaceId),
+        eq(dateProfiles.accountId, accountId),
         eq(dateProfiles.swipedBy, "member"),
         eq(dateProfiles.sample, false),
         isNotNull(dateProfiles.aiScore),
@@ -195,7 +193,7 @@ export async function scoreCard(
     .returning()
   if (!card) return { status: "busy", words: "The AI is already reading this card, or has." }
 
-  const settings = await readDatingSettings(card.userId, card.workspaceId, db)
+  const settings = await readDatingSettings(card.accountId, db)
   const release = (words: string, retryAfterClaim: boolean) =>
     db
       .update(dateProfiles)
@@ -222,7 +220,7 @@ export async function scoreCard(
 
   // The cap is a pause, not a failure of this card: it is released without an
   // error, so it is read once the month turns over or the cap is raised.
-  const cap = await spendCapReached(card.userId, settings.spendCapDollars, db, now)
+  const cap = await aiSpendStopped(card, settings.spendCapDollars, db, now)
   if (cap) {
     await release("", false)
     return { status: "cap", words: cap }
@@ -230,7 +228,7 @@ export async function scoreCard(
 
   try {
     const photos = await photosForAi(card.userId, card.photoIds, db)
-    const overruled = await overruledCards(card.userId, card.workspaceId, settings, db, card.id)
+    const overruled = await overruledCards(card.accountId, settings, db, card.id)
     const question = {
       system: readCardSystem(settings),
       text: readCardText({ ...card, photos: photos.length }, overruled),
@@ -241,16 +239,16 @@ export async function scoreCard(
       label: `Reading ${card.name}'s card`,
     }
     let model: DatingModel = FIRST_LOOK_MODEL
-    let answer = await metered(card.userId, "read-card", { profileId: card.id, look: "first" }, { ...question, model }, deps)
+    let answer = await metered(card, "read-card", { profileId: card.id, look: "first" }, { ...question, model }, deps)
     if (!answer.refused && Math.abs(answer.value.score - settings.likeAbove) <= SECOND_LOOK_WITHIN) {
       // The first look is paid for and is not saved: on a close card only Opus's score counts.
-      const capNow = await spendCapReached(card.userId, settings.spendCapDollars, db, now)
+      const capNow = await aiSpendStopped(card, settings.spendCapDollars, db, now)
       if (capNow) {
         await release("", false)
         return { status: "cap", words: capNow }
       }
       model = DATING_MODEL
-      answer = await metered(card.userId, "read-card", { profileId: card.id, look: "second" }, { ...question, model }, deps)
+      answer = await metered(card, "read-card", { profileId: card.id, look: "second" }, { ...question, model }, deps)
     }
     if (answer.refused) {
       await db
@@ -327,14 +325,14 @@ const PHONE_NUMBER = /\+?\d[\d\s().-]{6,}\d/
  * sending. One-word messages and anything with a phone number are left out.
  * Tyler's choice, 18 Oct 2026, part 8 of "features/01-chats-and-replies".
  */
-export async function learnedSends(userId: string, exceptMatchId: string | null, db: CustomShellDb): Promise<string[]> {
+export async function learnedSends(accountId: string, exceptMatchId: string | null, db: CustomShellDb): Promise<string[]> {
   const rows = await db
     .select({ text: dateMessages.text, draftText: dateMessages.draftText, matchId: dateMessages.matchId })
     .from(dateMessages)
     .innerJoin(dateMatches, eq(dateMatches.id, dateMessages.matchId))
     .where(
       and(
-        eq(dateMessages.userId, userId),
+        eq(dateMatches.accountId, accountId),
         eq(dateMessages.direction, "out"),
         eq(dateMessages.sentBy, "member"),
         eq(dateMessages.status, "sent"),
@@ -440,7 +438,7 @@ async function askForDraft(
   const emojiAllowed = settings.examples.some(usesEmoji)
   for (let tries = 0; tries < 2; tries += 1) {
     const asked = await metered(
-      match.userId,
+      match,
       "draft-reply",
       { matchId: match.id, mode: chat.mode },
       {
@@ -523,13 +521,13 @@ export async function draftReply(
     return { status: "skipped", words: match.nudgedAt ? "This chat already had its one follow-up." : "Their move is not waiting on yours." }
   }
 
-  const settings = await readDatingSettings(match.userId, match.workspaceId, db)
-  const cap = await spendCapReached(match.userId, settings.spendCapDollars, db, now)
+  const settings = await readDatingSettings(match.accountId, db)
+  const cap = await aiSpendStopped(match, settings.spendCapDollars, db, now)
   if (cap) {
     await release({})
     return { status: "cap", words: cap }
   }
-  const learned = settings.learnFromSends ? await learnedSends(match.userId, match.id, db) : []
+  const learned = settings.learnFromSends ? await learnedSends(match.accountId, match.id, db) : []
   const chat = chatForAi(match, messages, card, { mode, notThis, tone: options.tone ?? null, three: Boolean(options.three), roughText: "" })
 
   try {
@@ -595,11 +593,11 @@ export async function tidyReply(
   if (!words) return { status: "skipped", words: "Write something first, then Tidy puts it in your voice.", text: "" }
   const [match] = await db.select().from(dateMatches).where(eq(dateMatches.id, matchId)).limit(1)
   if (!match || match.sample) return { status: "skipped", words: "This is a sample conversation, so the AI does not write for it.", text: "" }
-  const settings = await readDatingSettings(match.userId, match.workspaceId, db)
-  const cap = await spendCapReached(match.userId, settings.spendCapDollars, db, now)
+  const settings = await readDatingSettings(match.accountId, db)
+  const cap = await aiSpendStopped(match, settings.spendCapDollars, db, now)
   if (cap) return { status: "cap", words: cap, text: "" }
   const { messages, card } = await conversationFor(match, db)
-  const learned = settings.learnFromSends ? await learnedSends(match.userId, match.id, db) : []
+  const learned = settings.learnFromSends ? await learnedSends(match.accountId, match.id, db) : []
   const chat = chatForAi(match, messages, card, { mode: "tidy", notThis: "", tone: null, three: false, roughText: words })
   try {
     const asked = await askForDraft(match, chat, settings, learned, deps)
@@ -649,15 +647,15 @@ export async function readChatNotes(
     await release({ notesReadThrough: through })
     return { status: "skipped", words: "Nothing new from them to read." }
   }
-  const settings = await readDatingSettings(match.userId, match.workspaceId, db)
-  const cap = await spendCapReached(match.userId, settings.spendCapDollars, db, now)
+  const settings = await readDatingSettings(match.accountId, db)
+  const cap = await aiSpendStopped(match, settings.spendCapDollars, db, now)
   if (cap) {
     await release({})
     return { status: "cap", words: cap }
   }
   try {
     const asked = await metered(
-      match.userId,
+      match,
       "chat-notes",
       { matchId: match.id },
       {
@@ -721,8 +719,8 @@ export async function makeDateBrief(
     .where(and(eq(dateMatches.id, matchId), eq(dateMatches.sample, false), isNotNull(dateMatches.dateAcceptedAt), isNull(dateMatches.briefMadeAt)))
     .returning()
   if (!match) return { status: "busy", words: "The brief is already made." }
-  const settings = await readDatingSettings(match.userId, match.workspaceId, db)
-  const cap = await spendCapReached(match.userId, settings.spendCapDollars, db, now)
+  const settings = await readDatingSettings(match.accountId, db)
+  const cap = await aiSpendStopped(match, settings.spendCapDollars, db, now)
   if (cap) {
     await db.update(dateMatches).set({ briefMadeAt: null }).where(eq(dateMatches.id, match.id))
     return { status: "cap", words: cap }
@@ -730,7 +728,7 @@ export async function makeDateBrief(
   const { messages } = await conversationFor(match, db)
   try {
     const asked = await metered(
-      match.userId,
+      match,
       "date-brief",
       { matchId: match.id },
       {
@@ -759,8 +757,7 @@ export type MatchAnswer = { matchId: string; theirName: string; why: string }
 
 /** Ask Date: a question about the member's matches, answered from the facts each told them. */
 export async function askAboutMatches(
-  userId: string,
-  workspaceId: string,
+  owner: SpendOwner,
   question: string,
   db: CustomShellDb = defaultDb,
   now: Date = new Date(),
@@ -768,14 +765,14 @@ export async function askAboutMatches(
 ): Promise<MatchAnswer[]> {
   const words = question.trim()
   if (!words) throw new Error("Ask something first, such as who said they like hiking.")
-  const settings = await readDatingSettings(userId, workspaceId, db)
-  const cap = await spendCapReached(userId, settings.spendCapDollars, db, now)
+  const settings = await readDatingSettings(owner.accountId, db)
+  const cap = await aiSpendStopped(owner, settings.spendCapDollars, db, now)
   if (cap) throw new Error(cap)
   const matches = (
     await db
       .select({ id: dateMatches.id, theirName: dateMatches.theirName, facts: dateMatches.facts })
       .from(dateMatches)
-      .where(and(eq(dateMatches.userId, userId), eq(dateMatches.workspaceId, workspaceId), eq(dateMatches.sample, false), isNull(dateMatches.unmatchedAt)))
+      .where(and(eq(dateMatches.accountId, owner.accountId), eq(dateMatches.sample, false), isNull(dateMatches.unmatchedAt)))
       .orderBy(desc(dateMatches.lastMessageAt))
       .limit(200)
   )
@@ -783,7 +780,7 @@ export async function askAboutMatches(
     .filter((match) => match.facts.length)
   if (!matches.length) throw new Error("None of your matches has told you anything Date has noted yet, so there is nothing to search.")
   const asked = await metered(
-    userId,
+    owner,
     "ask-matches",
     { matches: matches.length },
     {
@@ -810,7 +807,7 @@ export async function askAboutMatches(
 
 /** The AI's suggestions for the member's own profile, saved with it. Suggestions only. */
 export async function reviewOwnProfile(
-  phoneId: string,
+  accountId: string,
   db: CustomShellDb = defaultDb,
   now: Date = new Date(),
   deps: AiDeps = {}
@@ -820,24 +817,24 @@ export async function reviewOwnProfile(
     .set({ aiStartedAt: now })
     .where(
       and(
-        eq(dateOwnProfiles.phoneId, phoneId),
+        eq(dateOwnProfiles.accountId, accountId),
         or(isNull(dateOwnProfiles.aiStartedAt), lt(dateOwnProfiles.aiStartedAt, new Date(now.getTime() - CLAIM_MS)))
       )
     )
     .returning()
   if (!own) return { status: "busy", words: "The AI is already looking at your profile." }
-  const settings = await readDatingSettings(own.userId, own.workspaceId, db)
-  const cap = await spendCapReached(own.userId, settings.spendCapDollars, db, now)
+  const settings = await readDatingSettings(own.accountId, db)
+  const cap = await aiSpendStopped(own, settings.spendCapDollars, db, now)
   if (cap) {
-    await db.update(dateOwnProfiles).set({ aiStartedAt: null }).where(eq(dateOwnProfiles.phoneId, phoneId))
+    await db.update(dateOwnProfiles).set({ aiStartedAt: null }).where(eq(dateOwnProfiles.accountId, accountId))
     return { status: "cap", words: cap }
   }
   try {
     const photos = await photosForAi(own.userId, own.photoIds, db)
     const answer = await metered(
-      own.userId,
+      own,
       "review-profile",
-      { phoneId },
+      { phoneId: own.phoneId },
       {
         system: REVIEW_SYSTEM,
         text: reviewText({ ...own, photos: photos.length }),
@@ -853,11 +850,11 @@ export async function reviewOwnProfile(
     await db
       .update(dateOwnProfiles)
       .set({ review: answer.value, reviewMadeAt: now, aiError: "", aiStartedAt: null })
-      .where(eq(dateOwnProfiles.phoneId, phoneId))
+      .where(eq(dateOwnProfiles.accountId, accountId))
     return { status: "done", words: "" }
   } catch (error) {
     const words = wordsOf(error)
-    await db.update(dateOwnProfiles).set({ aiError: words, aiStartedAt: now }).where(eq(dateOwnProfiles.phoneId, phoneId))
+    await db.update(dateOwnProfiles).set({ aiError: words, aiStartedAt: now }).where(eq(dateOwnProfiles.accountId, accountId))
     return { status: "failed", words }
   }
 }

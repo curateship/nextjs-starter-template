@@ -30,7 +30,9 @@ export const Route = createFileRoute("/_authenticated/admin/dating")({
     google: readOneOf(search.google, GOOGLE_RETURNS),
   }),
   loader: async () => {
-    const [dashboard, views] = await Promise.all([loadDatingDashboard(), loadSavedViews(savedViewScreen(DATING_SAVED_VIEW_KIND, ""))])
+    // The views are the open profile's, so they wait for the dashboard to say which that is.
+    const dashboard = await loadDatingDashboard()
+    const views = await loadSavedViews(savedViewScreen(DATING_SAVED_VIEW_KIND, dashboard.profile.id))
     return { dashboard, views }
   },
   errorComponent: routeErrorComponent(datingErrorMessage),
@@ -39,5 +41,6 @@ export const Route = createFileRoute("/_authenticated/admin/dating")({
 
 function DatingRoute() {
   const { dashboard, views } = Route.useLoaderData()
-  return <DatingWorkspace initial={dashboard} views={views} search={Route.useSearch()} />
+  // A new profile is a new dashboard: nothing held for the last one carries over.
+  return <DatingWorkspace key={dashboard.profile.id} initial={dashboard} views={views} search={Route.useSearch()} />
 }

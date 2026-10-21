@@ -17,7 +17,8 @@ import { stopScreen } from "../stop-screens"
 /** Sends one plain action to the phone and waits for its answer. */
 export type PhoneDriver = (kind: PhoneActionKind, payload: Record<string, unknown>, timeLimitSeconds: number) => Promise<PhoneAnswer>
 
-export type WalkPhone = { id: string; userId: string; workspaceId: string; name: string }
+/** The phone a walk runs on, and the profile whose walk it is. */
+export type WalkPhone = { id: string; userId: string; workspaceId: string; name: string; accountId: string }
 
 export type WalkContext = {
   phone: WalkPhone

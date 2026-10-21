@@ -2,9 +2,21 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm"
 
 import { chatTrend, TREND_NEEDS_FROM_THEM, type TrendMessage, type TrendRead } from "@/lib/dating/chat-trend"
 import { buildLeads, type LeadListItem } from "@/lib/dating/leads"
-import { isLike, type CardFlag, type DraftKind, type MatchFlag, type MessageSender, type MessageStatus, type OpenerStyle, type SwipeDecision, type WalkKind, type WalkStatus } from "@/lib/dating/options"
+import {
+  isLike,
+  type CardFlag,
+  type DatingApp,
+  type DraftKind,
+  type MatchFlag,
+  type MessageSender,
+  type MessageStatus,
+  type OpenerStyle,
+  type SwipeDecision,
+  type WalkKind,
+  type WalkStatus,
+} from "@/lib/dating/options"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { listPhones, type PhoneView } from "@/server/phone/link"
+import { phoneView, type PhoneView } from "@/server/phone/link"
 import { datePhones } from "@/server/phone/schema"
 import { hourCounts } from "@/server/tinder/limits"
 import {
@@ -19,15 +31,17 @@ import {
   type ProfileSection,
 } from "@/server/tinder/schema"
 
+import { listProfiles, type DatingAccount, type ProfileListItem } from "./accounts"
 import { overruledCards } from "./ai"
 import { DATING_MODEL } from "./model"
 import { readDatingSettings } from "./settings"
-import { monthMatchCost, type MatchCost } from "./spend"
+import { accountOwner, monthMatchCost, type MatchCost } from "./spend"
 
 /**
- * What the Dating dashboard draws: the member's phone and its loop, the
- * cards read and the matches, one card or conversation in full, the member's
- * own profile, and the daily tally. Reads only.
+ * What the Dating dashboard draws for the open profile: its phone and loop,
+ * the cards read and the matches, one card or conversation in full, its own
+ * profile and the daily tally, and the member's other profiles for the
+ * picker. Reads only.
  */
 
 /** How many openers of one kind went out, and how many got an answer within three days. */
@@ -58,6 +72,10 @@ export type DiscoveryView =
   | { state: "failed"; error: string; at: Date | null }
 
 export type DatingDashboard = {
+  /** The open profile. */
+  profile: { id: string; name: string; app: DatingApp; paused: boolean }
+  /** Every profile of the member's on this site, the open one too, oldest first. */
+  profiles: ProfileListItem[]
   phone: PhoneView | null
   settings: {
     likeAbove: number
@@ -128,32 +146,25 @@ function walkView(row: typeof dateWalks.$inferSelect): WalkView {
   }
 }
 
-export async function loadDashboard(
-  userId: string,
-  workspaceId: string,
-  db: CustomShellDb = defaultDb,
-  now: Date = new Date()
-): Promise<DatingDashboard> {
-  const [phones, settings, matchCost] = await Promise.all([
-    listPhones(userId, workspaceId, db, now),
-    readDatingSettings(userId, workspaceId, db),
-    monthMatchCost(userId, db, now),
+export async function loadDashboard(account: DatingAccount, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<DatingDashboard> {
+  const [phoneRows, settings, matchCost, profiles] = await Promise.all([
+    account.phoneId ? db.select().from(datePhones).where(eq(datePhones.id, account.phoneId)).limit(1) : Promise.resolve([]),
+    readDatingSettings(account.id, db),
+    monthMatchCost(accountOwner(account), db, now),
+    listProfiles(account.userId, account.workspaceId, db, now),
   ])
-  const phone = phones.find((item) => item.paired) ?? phones[0] ?? null
-  const mine = and(eq(dateProfiles.userId, userId), eq(dateProfiles.workspaceId, workspaceId))
+  const phone = phoneRows[0] ? phoneView(phoneRows[0], now) : null
 
   const [profileRows, matchRows, ownRow, walkRows, hour] = await Promise.all([
-    db.select().from(dateProfiles).where(mine).orderBy(desc(dateProfiles.readAt)).limit(300),
+    db.select().from(dateProfiles).where(eq(dateProfiles.accountId, account.id)).orderBy(desc(dateProfiles.readAt)).limit(300),
     db
       .select()
       .from(dateMatches)
-      .where(and(eq(dateMatches.userId, userId), eq(dateMatches.workspaceId, workspaceId)))
+      .where(eq(dateMatches.accountId, account.id))
       .orderBy(desc(dateMatches.lastMessageAt), desc(dateMatches.matchedAt))
       .limit(300),
-    phone ? db.select().from(dateOwnProfiles).where(eq(dateOwnProfiles.phoneId, phone.id)).limit(1) : Promise.resolve([]),
-    phone
-      ? db.select().from(dateWalks).where(eq(dateWalks.phoneId, phone.id)).orderBy(desc(dateWalks.createdAt)).limit(20)
-      : Promise.resolve([]),
+    db.select().from(dateOwnProfiles).where(eq(dateOwnProfiles.accountId, account.id)).limit(1),
+    db.select().from(dateWalks).where(eq(dateWalks.accountId, account.id)).orderBy(desc(dateWalks.createdAt)).limit(20),
     phone ? hourCounts(phone, db, now) : Promise.resolve({ swipes: 0, messages: 0, swipesToday: 0 }),
   ])
 
@@ -162,16 +173,18 @@ export async function loadDashboard(
     newestMessages(matchRows.map((match) => match.id), db),
     // A chat with fewer messages from them than a trend needs is too early to tell, so its messages are not read.
     trendsFor(matchRows.filter((match) => !match.unmatchedAt && match.messagesFromThem >= TREND_NEEDS_FROM_THEM).map((match) => match.id), db),
-    draftsSentUnchanged(userId, db),
-    openerTally(userId, workspaceId, db),
-    overruledCards(userId, workspaceId, settings, db),
-    scoreBands(userId, workspaceId, db),
+    draftsSentUnchanged(account.id, db),
+    openerTally(account.id, db),
+    overruledCards(account.id, settings, db),
+    scoreBands(account.id, db),
     phone ? discoveryView(phone.id, db) : Promise.resolve<DiscoveryView>({ state: "never" }),
   ])
   const lastLines = new Map(newest.map((message) => [message.matchId, message.text]))
 
   const timeZone = phone?.timeZone ?? ""
   return {
+    profile: { id: account.id, name: account.name, app: account.app, paused: account.pausedAt !== null },
+    profiles,
     phone,
     settings: {
       likeAbove: settings.likeAbove,
@@ -251,7 +264,7 @@ export async function loadDashboard(
           aiError: ownRow[0].aiError,
         }
       : null,
-    tally: await dailyTally(userId, workspaceId, timeZone, db, now),
+    tally: await dailyTally(account.id, timeZone, db, now),
   }
 }
 
@@ -262,7 +275,7 @@ export async function loadDashboard(
  * both count. A match is tied to its card when the like came back "It's a
  * Match!", or later by name on the chat list. Sample cards are left out.
  */
-export async function scoreBands(userId: string, workspaceId: string, db: CustomShellDb = defaultDb): Promise<ScoreBand[]> {
+export async function scoreBands(accountId: string, db: CustomShellDb = defaultDb): Promise<ScoreBand[]> {
   // Counted in the database, because the dashboard asks every few seconds and the likes only grow. A score of 100 joins the 90s.
   const band = sql<number>`(least(${dateProfiles.aiScore}, 99) / 10) * 10`
   const rows = await db
@@ -276,8 +289,7 @@ export async function scoreBands(userId: string, workspaceId: string, db: Custom
     .leftJoin(dateMatches, and(eq(dateMatches.profileId, dateProfiles.id), eq(dateMatches.sample, false)))
     .where(
       and(
-        eq(dateProfiles.userId, userId),
-        eq(dateProfiles.workspaceId, workspaceId),
+        eq(dateProfiles.accountId, accountId),
         eq(dateProfiles.sample, false),
         inArray(dateProfiles.swipe, ["like", "super"]),
         isNotNull(dateProfiles.aiScore)
@@ -335,14 +347,14 @@ async function trendsFor(matchIds: string[], db: CustomShellDb = defaultDb): Pro
 /** How many of the member's last sends, of the ones that began as the AI's draft, went exactly as drafted. */
 const READY_TO_AUTOMATE_OF = 20
 
-export async function draftsSentUnchanged(userId: string, db: CustomShellDb = defaultDb): Promise<{ unchanged: number; of: number }> {
+export async function draftsSentUnchanged(accountId: string, db: CustomShellDb = defaultDb): Promise<{ unchanged: number; of: number }> {
   const rows = await db
     .select({ text: dateMessages.text, draftText: dateMessages.draftText })
     .from(dateMessages)
     .innerJoin(dateMatches, eq(dateMatches.id, dateMessages.matchId))
     .where(
       and(
-        eq(dateMessages.userId, userId),
+        eq(dateMatches.accountId, accountId),
         eq(dateMessages.direction, "out"),
         eq(dateMessages.sentBy, "member"),
         eq(dateMessages.status, "sent"),
@@ -359,15 +371,14 @@ export async function draftsSentUnchanged(userId: string, db: CustomShellDb = de
 const OPENER_REPLY_WITHIN_MS = 3 * 86_400_000
 
 /** Which kinds of first message got an answer within three days. Sample chats are left out. */
-export async function openerTally(userId: string, workspaceId: string, db: CustomShellDb = defaultDb): Promise<OpenerTally[]> {
+export async function openerTally(accountId: string, db: CustomShellDb = defaultDb): Promise<OpenerTally[]> {
   const openers = await db
     .select({ matchId: dateMessages.matchId, style: dateMessages.openerStyle, position: dateMessages.position, sentAt: dateMessages.sentAt })
     .from(dateMessages)
     .innerJoin(dateMatches, eq(dateMatches.id, dateMessages.matchId))
     .where(
       and(
-        eq(dateMatches.userId, userId),
-        eq(dateMatches.workspaceId, workspaceId),
+        eq(dateMatches.accountId, accountId),
         eq(dateMatches.sample, false),
         eq(dateMessages.direction, "out"),
         eq(dateMessages.status, "sent"),
@@ -398,8 +409,7 @@ export async function openerTally(userId: string, workspaceId: string, db: Custo
  * likes, matches, messages sent and dates proposed. Sample records are left out.
  */
 export async function dailyTally(
-  userId: string,
-  workspaceId: string,
+  accountId: string,
   timeZone: string,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
@@ -410,25 +420,23 @@ export async function dailyTally(
     days.push({ day: dayOf(new Date(now.getTime() - back * 86_400_000), timeZone), swipes: 0, likes: 0, matches: 0, messages: 0, datesProposed: 0 })
   }
   const byDay = new Map(days.map((day) => [day.day, day]))
-  const mine = (column: typeof dateProfiles.userId | typeof dateMatches.userId) => eq(column, userId)
 
   const [swipes, matches, sent] = await Promise.all([
     db
       .select({ at: dateProfiles.swipedAt, swipe: dateProfiles.swipe })
       .from(dateProfiles)
-      .where(and(mine(dateProfiles.userId), eq(dateProfiles.workspaceId, workspaceId), eq(dateProfiles.sample, false), gte(dateProfiles.swipedAt, since))),
+      .where(and(eq(dateProfiles.accountId, accountId), eq(dateProfiles.sample, false), gte(dateProfiles.swipedAt, since))),
     db
       .select({ matchedAt: dateMatches.matchedAt, proposedAt: dateMatches.dateProposedAt })
       .from(dateMatches)
-      .where(and(mine(dateMatches.userId), eq(dateMatches.workspaceId, workspaceId), eq(dateMatches.sample, false))),
+      .where(and(eq(dateMatches.accountId, accountId), eq(dateMatches.sample, false))),
     db
       .select({ at: dateMessages.sentAt })
       .from(dateMessages)
       .innerJoin(dateMatches, eq(dateMatches.id, dateMessages.matchId))
       .where(
         and(
-          eq(dateMatches.userId, userId),
-          eq(dateMatches.workspaceId, workspaceId),
+          eq(dateMatches.accountId, accountId),
           eq(dateMatches.sample, false),
           eq(dateMessages.direction, "out"),
           eq(dateMessages.status, "sent"),
@@ -675,16 +683,4 @@ export async function newestMessages(matchIds: string[], db: CustomShellDb = def
 /** Opening a conversation on the dashboard is reading it: its unread count goes back to none. */
 export async function markMatchSeen(userId: string, matchId: string, db: CustomShellDb = defaultDb): Promise<void> {
   await db.update(dateMatches).set({ unreadCount: 0 }).where(and(eq(dateMatches.id, matchId), eq(dateMatches.userId, userId)))
-}
-
-/** The member's phone on this site that the dashboard acts on, or a refusal saying how to get one. */
-export async function dashboardPhone(userId: string, workspaceId: string, db: CustomShellDb = defaultDb) {
-  const [phone] = await db
-    .select()
-    .from(datePhones)
-    .where(and(eq(datePhones.userId, userId), eq(datePhones.workspaceId, workspaceId), isNotNull(datePhones.keyEncrypted)))
-    .orderBy(desc(datePhones.pairedAt))
-    .limit(1)
-  if (!phone) throw new Error("No phone is paired yet. Pair one in the dashboard's Phone panel first.")
-  return phone
 }

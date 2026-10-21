@@ -1,6 +1,6 @@
 import { Fragment } from "react"
 import type * as React from "react"
-import { HeartIcon, Loader2Icon, PlayIcon, SettingsIcon, SquareIcon, TriangleAlertIcon } from "lucide-react"
+import { Loader2Icon, PauseIcon, PlayIcon, SettingsIcon, SquareIcon, TriangleAlertIcon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 
 import { FlatSection } from "./flat-section"
 import { LEAD_DOT } from "./lead-status-style"
+import { ProfilePicker, ProfilesSection } from "./profiles"
 import { dollars, whenWords } from "./words"
 
 /** The groups the left panel lists, in the order a lead needs the member. */
@@ -29,6 +30,10 @@ const GROUPS: LeadGroup[] = ["waiting", "new", "liked", "matched", "chatting", "
  * Profiles (read the card on Tinder's screen) and Chats (read the chat list);
  * AI spend; and Leads, whose groups each show their leads in the middle list.
  * The header's cog opens every Dating setting in a window.
+ *
+ * Since profiles (task "features/06-profiles", 20 Oct 2026) the header's
+ * title is the open profile, which switches to another, and a Profiles
+ * section lists them all. A paused profile says so at the top, with Resume.
  *
  * Since Tyler's "We dont need 4 seperate pages. Condense them all into the 3
  * col dashboard" (20 Oct 2026) it also holds what the Stats screen did (the
@@ -46,6 +51,9 @@ export function LeadSummary({
   openId,
   onOpen,
   onOpenSettings,
+  onPickProfile,
+  onNewProfile,
+  onResumeProfile,
 }: {
   data: DatingDashboard
   group: LeadGroup | undefined
@@ -58,8 +66,11 @@ export function LeadSummary({
   /** What the right panel shows, to mark the phone or My profile as open. */
   openId: string | undefined
   onOpen: (id: "phone" | "me") => void
-  /** The cog: every Dating setting in a window. */
+  /** The cog: every Dating setting of the open profile in a window. */
   onOpenSettings: () => void
+  onPickProfile: (accountId: string) => void
+  onNewProfile: () => void
+  onResumeProfile: () => void
 }) {
   const today = data.tally[0]
   const counts = leadGroupCounts(data.leads)
@@ -69,8 +80,7 @@ export function LeadSummary({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <DashboardCardTitleHeader
-        icon={<HeartIcon className="size-4" />}
-        title="Dating"
+        title={<ProfilePicker data={data} onPick={onPickProfile} onNew={onNewProfile} />}
         action={
           <Tooltip>
             <TooltipTrigger asChild>
@@ -84,7 +94,9 @@ export function LeadSummary({
       />
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <div className="grid grid-cols-[minmax(0,1fr)]">
+          {data.profile.paused ? <PausedLine busy={busy === "pause"} onResume={onResumeProfile} /> : null}
           <PhoneLine data={data} open={openId === "phone"} onOpen={() => onOpen("phone")} />
+          <ProfilesSection data={data} onPick={onPickProfile} onNew={onNewProfile} />
           <FlatSection storageId="date-summary-today" title="Today" meta={`${data.hour.swipesToday} of ${data.settings.swipesPerDay} swipes`}>
             <Meter
               size="sm"
@@ -273,6 +285,20 @@ function PhoneLine({ data, open, onOpen }: { data: DatingDashboard; open: boolea
       <span className="min-w-0 flex-1 truncate">{words}</span>
       <Button type="button" variant="outline" size="sm" aria-pressed={open} onClick={onOpen}>
         {phone?.paired ? "Phone" : "Pair one"}
+      </Button>
+    </div>
+  )
+}
+
+/** A paused profile's line: nothing runs on it until Resume. */
+function PausedLine({ busy, onResume }: { busy: boolean; onResume: () => void }) {
+  return (
+    <div className="flex min-h-14 items-center gap-2.5 border-b px-4 py-3 text-sm">
+      <PauseIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      <span className="min-w-0 flex-1 truncate">Paused. Nothing runs until Resume.</span>
+      <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onResume}>
+        {busy ? <Loader2Icon className="animate-spin" /> : null}
+        Resume
       </Button>
     </div>
   )

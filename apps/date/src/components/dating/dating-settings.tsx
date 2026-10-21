@@ -13,10 +13,14 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { NumberField } from "@/components/ui/number-field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import type { DatingDashboard } from "@/lib/api/dating/dashboard"
+import { renameProfile } from "@/lib/api/dating/profiles"
 import { disconnectGoogleCalendar, loadGoogleCalendar, type CalendarConnection } from "@/lib/api/dating/chats"
 import { loadDatingSettings, saveDatingSettingsNow } from "@/lib/api/dating/settings"
 import { datingErrorMessage } from "@/lib/dating/errors"
+import { DATING_APP_WORDS, PROFILE_NAME_MAX } from "@/lib/dating/options"
 import {
   DATING_STYLES,
   DATING_STYLE_WORDS,
@@ -33,25 +37,27 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 /**
  * The Dating settings, shown in the window the cog on the Dating dashboard
  * opens (`dating-settings-dialog.tsx`); they left Settings → App settings on
- * 20 Oct 2026, because they will differ per profile once there is a Profiles
- * dashboard. What the AI is told about the member and what they want, how it
+ * 20 Oct 2026, because they differ per profile (task "features/06-profiles"):
+ * these are the open profile's. What the AI is told about the member and what they want, how it
  * decides, the limits on the phone, and Google Calendar. Every change saves
  * by itself: typing 700ms after the last key or when the field is left, a
  * switch or a pick at once. The page header says Saving…, Saved or Not saved.
  *
- * Read once per page and held, so opening the window again draws at once.
+ * Read once per page and held for the profile they belong to, so opening
+ * the window again draws at once.
  * Tyler's choices of 17 Oct 2026 are the defaults.
  */
 
 /** Typing waits this long after the last key, the same as the shell's own Settings. */
 const SAVE_DELAY_MS = 700
 
-/** The settings as last saved or edited, held while the page is open. Written in the browser only. */
-let held: DatingSettings | null = null
+/** The settings as last saved or edited, and whose, held while the page is open. Written in the browser only. */
+let held: { accountId: string; values: DatingSettings } | null = null
 const inBrowser = () => typeof window !== "undefined"
 
-function DatingSettingsTab() {
-  const [values, setValues] = React.useState<DatingSettings | null>(() => (inBrowser() ? held : null))
+function DatingSettingsTab({ profile, onRenamed }: { profile: DatingDashboard["profile"]; onRenamed: () => void }) {
+  const accountId = profile.id
+  const [values, setValues] = React.useState<DatingSettings | null>(() => (inBrowser() && held?.accountId === accountId ? held.values : null))
   const [error, setError] = React.useState<string | null>(null)
   const [reloads, setReloads] = React.useState(0)
   const setSaveStatus = useReportedSaveStatus()
@@ -62,27 +68,27 @@ function DatingSettingsTab() {
     loadDatingSettings().then(
       (next) => {
         // An edit made while this was on its way wins.
-        held = held ?? next
+        if (held?.accountId !== accountId) held = { accountId, values: next }
         if (live) {
-          setValues(held)
+          setValues(held.values)
           setError(null)
         }
       },
       (failure: unknown) => {
-        if (live && !held) setError(datingErrorMessage(failure))
+        if (live && held?.accountId !== accountId) setError(datingErrorMessage(failure))
       }
     )
     return () => {
       live = false
     }
-  }, [reloads])
+  }, [reloads, accountId])
 
   // A save still waiting when the tab closes goes now, so nothing typed is lost.
   React.useEffect(
     () => () => {
       if (timer.current && held) {
         clearTimeout(timer.current)
-        void saveDatingSettingsNow(held).catch(() => {})
+        void saveDatingSettingsNow(held.values).catch(() => {})
       }
     },
     []
@@ -110,7 +116,7 @@ function DatingSettingsTab() {
   }
 
   function change(next: DatingSettings, at: "now" | "soon") {
-    held = next
+    held = { accountId, values: next }
     setValues(next)
     clearTimeout(timer.current)
     if (at === "now") void save(next)
@@ -129,6 +135,7 @@ function DatingSettingsTab() {
 
   return (
     <CardGroup>
+      <ProfileCard profile={profile} onRenamed={onRenamed} />
       <CollapsibleSettingsCard
         storageId="date-settings-you"
         title="About you"
@@ -520,6 +527,72 @@ function HourPick({ id, label, value, onChange }: { id: string; label: string; v
         </SelectContent>
       </Select>
     </div>
+  )
+}
+
+/**
+ * Which profile these settings are, and its name, which saves the way every
+ * setting here does: 700ms after the last key, or when the field is left.
+ */
+function ProfileCard({ profile, onRenamed }: { profile: DatingDashboard["profile"]; onRenamed: () => void }) {
+  const [name, setName] = React.useState(profile.name)
+  const [invalid, setInvalid] = React.useState(false)
+  const saved = React.useRef(profile.name)
+  const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const setSaveStatus = useReportedSaveStatus()
+
+  async function save(next: string) {
+    clearTimeout(timer.current)
+    timer.current = undefined
+    if (next.trim() === saved.current) return
+    if (!next.trim()) {
+      setInvalid(true)
+      setSaveStatus({ blocked: "Give the profile a name." })
+      showErrorToast("Give the profile a name.")
+      return
+    }
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      await renameProfile(next)
+      saved.current = next.trim()
+      setInvalid(false)
+      setSaveStatus("saved")
+      onRenamed()
+    } catch (failure) {
+      const words = datingErrorMessage(failure)
+      setSaveStatus({ blocked: words })
+      showErrorToast(words)
+    }
+  }
+
+  return (
+    <CollapsibleSettingsCard
+      storageId="date-settings-profile"
+      title="Profile"
+      description={`One ${DATING_APP_WORDS[profile.app].name} account. Every setting in this window is this profile's own.`}
+      contentClassName="grid gap-4"
+    >
+      <div className="grid gap-2">
+        <FieldLabel htmlFor="date-profile-name">Name</FieldLabel>
+        <Input
+          id="date-profile-name"
+          value={name}
+          maxLength={PROFILE_NAME_MAX}
+          aria-invalid={invalid || undefined}
+          onChange={(event) => {
+            const next = event.target.value
+            setName(next)
+            clearTimeout(timer.current)
+            timer.current = setTimeout(() => void save(next), SAVE_DELAY_MS)
+          }}
+          onBlur={() => void save(name)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void save(name)
+          }}
+        />
+      </div>
+    </CollapsibleSettingsCard>
   )
 }
 

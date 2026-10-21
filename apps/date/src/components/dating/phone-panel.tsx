@@ -53,7 +53,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
   const [confirm, setConfirm] = React.useState<"unpair" | "samples" | null>(null)
   const [screenOpen, setScreenOpen] = React.useState(false)
   const [picture, setPicture] = React.useState<{ id: string; title: string } | null>(null)
-  const phone = screen ? (screen.phones.find((item) => item.paired) ?? screen.phones[0] ?? null) : null
+  const phone = screen?.phone ?? null
 
   React.useEffect(() => {
     let live = true
@@ -126,7 +126,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                     </button>
                   ) : null}
                   <p className="text-muted-foreground">Nothing runs on the phone until you sort it out on the phone itself and press Resume.</p>
-                  <Button type="button" size="sm" className="justify-self-start" disabled={busy === "resume"} onClick={() => void act("resume", () => resume(phone.id), "Resumed. The phone looks at Tinder again now.")}>
+                  <Button type="button" size="sm" className="justify-self-start" disabled={busy === "resume"} onClick={() => void act("resume", () => resume(), "Resumed. The phone looks at Tinder again now.")}>
                     {busy === "resume" ? <Loader2Icon className="animate-spin" /> : <PlayIcon />}
                     Resume
                   </Button>
@@ -157,7 +157,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                       {busy === "picture" ? <Loader2Icon className="animate-spin" /> : <CameraIcon />}
                       Picture
                     </Button>
-                    <Button type="button" variant="outline" size="sm" disabled={busy === "code"} onClick={() => void act("code", async () => setCode(await makePairCode(phone.id)))}>
+                    <Button type="button" variant="outline" size="sm" disabled={busy === "code"} onClick={() => void act("code", async () => setCode(await makePairCode()))}>
                       {busy === "code" ? <Loader2Icon className="animate-spin" /> : <KeyRoundIcon />}
                       New code
                     </Button>
@@ -166,7 +166,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                     </Button>
                   </>
                 ) : (
-                  <Button type="button" size="sm" disabled={busy === "code"} onClick={() => void act("code", async () => setCode(await makePairCode(phone?.id ?? null)))}>
+                  <Button type="button" size="sm" disabled={busy === "code"} onClick={() => void act("code", async () => setCode(await makePairCode()))}>
                     {busy === "code" ? <Loader2Icon className="animate-spin" /> : <KeyRoundIcon />}
                     {phone ? "Pair it again" : "Pair a phone"}
                   </Button>
@@ -302,7 +302,8 @@ function PhoneFacts({ phone }: { phone: PhoneView }) {
   )
 }
 
-function PairingSteps({ code }: { code: { code: string; expiresAt: Date } }) {
+/** The pair code and the four steps on the phone, here and in New profile. */
+export function PairingSteps({ code }: { code: { code: string; expiresAt: Date } }) {
   const origin = typeof window === "undefined" ? "" : window.location.origin
   const local = /localhost|127\.0\.0\.1/.test(origin)
   return (

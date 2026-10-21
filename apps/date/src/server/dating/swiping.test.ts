@@ -21,6 +21,8 @@ vi.mock("@/server/media/storage", () => ({
   }),
 }))
 
+import type { DatingAccount } from "@/server/dating/accounts"
+import { insertAccount } from "@/server/tinder/fixtures/accounts"
 import { DEFAULT_DATING_SETTINGS, parseKnownPeople, type DatingSettings } from "@/lib/dating/settings"
 import { keepPicture } from "@/server/phone/pictures"
 import { datePhones, datePictures } from "@/server/phone/schema"
@@ -54,6 +56,7 @@ describe("swiping and scoring", () => {
   let userId: string
   let workspaceId: string
   let phoneId: string
+  let account: DatingAccount
   let clock: Date
   let fake: FakeTinder
   let asked: Asked[]
@@ -87,6 +90,7 @@ describe("swiping and scoring", () => {
     phoneId = uuid()
     clock = T0
     await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0, discoveryOwed: false })
+    account = await insertAccount(db, { userId, workspaceId, phoneId })
     asked = []
     scores = {}
   })
@@ -97,7 +101,7 @@ describe("swiping and scoring", () => {
   })
 
   async function settings(change: Partial<DatingSettings> = {}) {
-    await saveDatingSettings(userId, workspaceId, { ...DEFAULT_DATING_SETTINGS, lookingFor: "Someone outdoorsy who reads", ...change }, db, clock)
+    await saveDatingSettings(account, { ...DEFAULT_DATING_SETTINGS, lookingFor: "Someone outdoorsy who reads", ...change }, db, clock)
   }
 
   /** One pass of the background loop, 15 seconds after the last, waiting for everything it started. */
@@ -114,7 +118,7 @@ describe("swiping and scoring", () => {
 
   async function card(overrides: Partial<typeof dateProfiles.$inferInsert> = {}) {
     const id = uuid()
-    await db.insert(dateProfiles).values({ id, userId, workspaceId, phoneId, name: "Maya", age: 27, bio: "Climbing.", texts: [], photoIds: [], ...overrides })
+    await db.insert(dateProfiles).values({ id, userId, workspaceId, accountId: account.id, phoneId, name: "Maya", age: 27, bio: "Climbing.", texts: [], photoIds: [], ...overrides })
     return id
   }
 
@@ -188,7 +192,7 @@ describe("swiping and scoring", () => {
       phone({ cards: [], chats: [] })
       await settings({ scheduleStart: 19, scheduleEnd: 22 })
       await at(19)
-      await stopLoopByHand(userId, phoneId, db, clock)
+      await stopLoopByHand(account, db, clock)
       await at(20)
       expect((await phoneRow()).running).toBe(false)
       // The next evening it starts again.
@@ -216,7 +220,7 @@ describe("swiping and scoring", () => {
       phone({ cards: [], chats: [] })
       await settings({ scheduleStart: 19, scheduleEnd: 22 })
       clock = new Date(Date.UTC(2099, 0, 1, 20, 0))
-      await startLoop(userId, phoneId, db, clock)
+      await startLoop(account, db, clock)
       await at(21)
       expect(await phoneRow()).toMatchObject({ running: true, startedBy: "member" })
       await at(22)
@@ -248,7 +252,7 @@ describe("swiping and scoring", () => {
       phone({ cards: [], chats: [] })
       await settings({ scheduleStart: 19, scheduleEnd: 22 })
       clock = new Date(Date.UTC(2099, 0, 1, 23, 0))
-      await startLoop(userId, phoneId, db, clock)
+      await startLoop(account, db, clock)
       await pass()
       expect(await phoneRow()).toMatchObject({ running: true, startedBy: "member" })
     })
@@ -260,7 +264,7 @@ describe("swiping and scoring", () => {
       await settings()
       scores.Ines = { [FIRST_LOOK_MODEL]: 97 }
       scores.Clara = { [FIRST_LOOK_MODEL]: 97 }
-      await startLoop(userId, phoneId, db, clock)
+      await startLoop(account, db, clock)
       for (let passes = 0; passes < 12 && fake.liked.length + fake.superLiked.length < 2; passes += 1) await pass()
       expect(fake.superLiked).toEqual(["Ines"])
       expect(fake.liked).toEqual(["Clara"])
@@ -276,7 +280,7 @@ describe("swiping and scoring", () => {
       await settings()
       scores.Ines = { [FIRST_LOOK_MODEL]: 97 }
       scores.Clara = { [FIRST_LOOK_MODEL]: 97 }
-      await startLoop(userId, phoneId, db, clock)
+      await startLoop(account, db, clock)
       for (let passes = 0; passes < 12 && fake.liked.length < 2; passes += 1) await pass()
       expect(fake.bought).toEqual([])
       expect(fake.superLiked).toEqual([])
@@ -421,19 +425,19 @@ describe("swiping and scoring", () => {
       // 80 to 89: 40 likes, 9 of them matches, 5 of those replied. 70 to 79: 3 likes, one match.
       for (let index = 0; index < 40; index += 1) {
         const id = await card({ name: `High${index}`, aiScore: 80 + (index % 10), swipe: index === 0 ? "super" : "like", swipedBy: "ai", swipedAt: T0 })
-        if (index < 9) await db.insert(dateMatches).values({ id: uuid(), userId, workspaceId, phoneId, profileId: id, theirName: `High${index}`, messagesFromThem: index < 5 ? 2 : 0 })
+        if (index < 9) await db.insert(dateMatches).values({ id: uuid(), userId, workspaceId, accountId: account.id, phoneId, profileId: id, theirName: `High${index}`, messagesFromThem: index < 5 ? 2 : 0 })
       }
       // A perfect score counts with the 90s.
       await card({ name: "Perfect", aiScore: 100, swipe: "like", swipedBy: "ai", swipedAt: T0 })
       for (let index = 0; index < 3; index += 1) {
         const id = await card({ name: `Mid${index}`, aiScore: 72, swipe: "like", swipedBy: "member", swipedAt: T0 })
-        if (index === 0) await db.insert(dateMatches).values({ id: uuid(), userId, workspaceId, phoneId, profileId: id, theirName: `Mid${index}` })
+        if (index === 0) await db.insert(dateMatches).values({ id: uuid(), userId, workspaceId, accountId: account.id, phoneId, profileId: id, theirName: `Mid${index}` })
       }
       // Passes and sample cards are not counted.
       await card({ name: "Passed", aiScore: 85, swipe: "pass", swipedBy: "ai", swipedAt: T0 })
       await card({ name: "Sample", aiScore: 85, swipe: "like", swipedBy: "ai", swipedAt: T0, sample: true })
 
-      expect(await scoreBands(userId, workspaceId, db)).toEqual([
+      expect(await scoreBands(account.id, db)).toEqual([
         { from: 90, to: 100, likes: 1, matches: 0, replied: 0 },
         { from: 80, to: 89, likes: 40, matches: 9, replied: 5 },
         { from: 70, to: 79, likes: 3, matches: 1, replied: 0 },
@@ -457,14 +461,15 @@ describe("swiping and scoring", () => {
         costCents: 0,
         status: "success",
         monthStart: "2099-01-01",
+        metadata: { accountId: account.id },
         createdAt: T0,
       })
       for (let index = 0; index < 3; index += 1) {
-        await db.insert(dateMatches).values({ id: uuid(), userId, workspaceId, phoneId, theirName: `M${index}`, matchedAt: T0 })
+        await db.insert(dateMatches).values({ id: uuid(), userId, workspaceId, accountId: account.id, phoneId, theirName: `M${index}`, matchedAt: T0 })
       }
       // Last month's match does not count.
-      await db.insert(dateMatches).values({ id: uuid(), userId, workspaceId, phoneId, theirName: "Old", matchedAt: new Date("2098-12-20T12:00:00Z") })
-      expect(await monthMatchCost(userId, db, T0)).toEqual({ dollars: 4.2, matches: 3, dates: 0, perMatch: 1.4, perDate: null })
+      await db.insert(dateMatches).values({ id: uuid(), userId, workspaceId, accountId: account.id, phoneId, theirName: "Old", matchedAt: new Date("2098-12-20T12:00:00Z") })
+      expect(await monthMatchCost({ userId, accountId: account.id }, db, T0)).toEqual({ dollars: 4.2, matches: 3, dates: 0, perMatch: 1.4, perDate: null })
     })
   })
 })

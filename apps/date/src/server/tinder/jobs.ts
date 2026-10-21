@@ -1,12 +1,13 @@
 import { and, asc, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm"
 
-import { STOP_REASON_WORDS, WALK_KINDS, type WalkKind } from "@/lib/dating/options"
+import { PROFILE_PAUSED_WORDS, STOP_REASON_WORDS, WALK_KINDS, type WalkKind } from "@/lib/dating/options"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { addStepPictures, callPhone, forgetWalkScreenshots, PhoneActionError } from "@/server/phone/actions"
 import { cancelPhoneActions } from "@/server/phone/link"
 import { keepPicture } from "@/server/phone/pictures"
 import { datePhoneActions, datePhones } from "@/server/phone/schema"
+import { dateAccounts } from "@/server/dating/schema"
 import { readDatingSettings } from "@/server/dating/settings"
 
 import { walkRefusal } from "./limits"
@@ -50,6 +51,8 @@ const LEASE_MS = 5 * 60_000
 
 export type WalkRequest = {
   userId: string
+  /** The profile whose walk it is, which must run on this phone. */
+  accountId: string
   phoneId: string
   kind: WalkKind
   input?: Record<string, unknown>
@@ -58,28 +61,39 @@ export type WalkRequest = {
 
 /**
  * Whether a walk may go on this phone's list now, refused in words for a
- * phone that is not paired, switched off or stopped on a Tinder screen, and
- * for a walk a limit stops right now. The few seconds between swipes are not
- * a refusal: a swipe waits its turn on the list. Returns the phone.
+ * paused profile, a phone that is not the profile's, not paired, switched
+ * off or stopped on a Tinder screen, and for a walk a limit stops right now.
+ * The few seconds between swipes are not a refusal: a swipe waits its turn on
+ * the list. Returns the phone.
  */
 export async function checkWalkAllowed(
-  request: Pick<WalkRequest, "userId" | "phoneId" | "kind">,
+  request: Pick<WalkRequest, "userId" | "accountId" | "phoneId" | "kind">,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ) {
   if (!(WALK_KINDS as readonly string[]).includes(request.kind)) throw new Error("That is not something Date does on Tinder.")
-  const [phone] = await db
-    .select()
-    .from(datePhones)
-    .where(and(eq(datePhones.id, request.phoneId), eq(datePhones.userId, request.userId)))
-    .limit(1)
+  const [[phone], [account]] = await Promise.all([
+    db
+      .select()
+      .from(datePhones)
+      .where(and(eq(datePhones.id, request.phoneId), eq(datePhones.userId, request.userId)))
+      .limit(1),
+    db
+      .select({ phoneId: dateAccounts.phoneId, pausedAt: dateAccounts.pausedAt })
+      .from(dateAccounts)
+      .where(and(eq(dateAccounts.id, request.accountId), eq(dateAccounts.userId, request.userId)))
+      .limit(1),
+  ])
   if (!phone) throw new Error("That phone does not exist.")
+  if (!account) throw new Error("That profile is gone.")
+  if (account.phoneId !== phone.id) throw new Error(`${phone.name} is not this profile's phone.`)
+  if (account.pausedAt) throw new Error(PROFILE_PAUSED_WORDS)
   if (!phone.keyEncrypted) throw new Error(`${phone.name} is not paired. Pair it in the dashboard's Phone panel first.`)
   if (!phone.inControl) throw new Error(`Date is switched off for ${phone.name}. Switch it on in the dashboard's Phone panel first.`)
   if (phone.stoppedReason) {
     throw new Error(`${STOP_REASON_WORDS[phone.stoppedReason]}. Press Resume in the dashboard's Phone panel once it is sorted.`)
   }
-  const settings = await readDatingSettings(request.userId, phone.workspaceId, db)
+  const settings = await readDatingSettings(request.accountId, db)
   const refusal = await walkRefusal(phone, request.kind, settings, db, now)
   if (refusal && refusal.limit !== "gap") throw new Error(refusal.words)
   return phone
@@ -113,6 +127,7 @@ export async function queueWalk(request: WalkRequest, db: CustomShellDb = defaul
     userId: request.userId,
     workspaceId: phone.workspaceId,
     phoneId: phone.id,
+    accountId: request.accountId,
     kind: request.kind,
     input,
     askedBy: request.askedBy,
@@ -140,7 +155,7 @@ export async function claimNextWalk(phoneId: string, db: CustomShellDb = default
     if (!next) return null
     const [phone] = await db.select().from(datePhones).where(eq(datePhones.id, phoneId)).limit(1)
     if (!phone || !phone.keyEncrypted || !phone.inControl || phone.stoppedReason) return null
-    const settings = await readDatingSettings(phone.userId, phone.workspaceId, db)
+    const settings = await readDatingSettings(next.accountId, db)
     const refusal = await walkRefusal(phone, next.kind, settings, db, now)
     if (refusal?.limit === "gap") return null
     if (refusal) {
@@ -193,7 +208,7 @@ export async function runWalk(walk: WalkRow, db: CustomShellDb = defaultDb, opti
   const clock = options.now ?? (() => new Date())
   const [phone] = await db.select().from(datePhones).where(eq(datePhones.id, walk.phoneId)).limit(1)
   if (!phone) return
-  const walkPhone = { id: phone.id, userId: phone.userId, workspaceId: phone.workspaceId, name: phone.name }
+  const walkPhone = { id: phone.id, userId: phone.userId, workspaceId: phone.workspaceId, name: phone.name, accountId: walk.accountId }
   const toPhone: PhoneDriver = options.drive ?? ((kind, payload, limit) => callPhone(walkPhone, walk.id, kind, payload, limit, db))
   const drive: PhoneDriver = async (kind, payload, limit) => {
     // The lease moves on before every step, so a slow phone is never taken for a dropped walk.
@@ -258,7 +273,7 @@ async function followUp(walk: WalkRow, result: Record<string, unknown>, db: Cust
   for (const matchId of result.toRead) {
     if (typeof matchId !== "string") continue
     try {
-      await queueWalk({ userId: walk.userId, phoneId: walk.phoneId, kind: "read-conversation", input: { matchId }, askedBy: walk.askedBy }, db, now)
+      await queueWalk({ userId: walk.userId, accountId: walk.accountId, phoneId: walk.phoneId, kind: "read-conversation", input: { matchId }, askedBy: walk.askedBy }, db, now)
     } catch (error) {
       console.error("A conversation could not be put on the list", error)
     }
@@ -328,14 +343,19 @@ export async function cancelWalks(phoneId: string, reason: string, db: CustomShe
  * with how long Tinder says is left. Tinder's distance and ages are set again
  * from Date's on the next pass after that.
  */
-export async function resumePhone(userId: string, phoneId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<string> {
+export async function resumePhone(
+  account: { id: string; userId: string; phoneId: string | null },
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<string> {
+  if (!account.phoneId) throw new Error("No phone is paired for this profile yet. Pair one in the dashboard's Phone panel first.")
   const [phone] = await db
     .update(datePhones)
     .set({ stoppedReason: null, stoppedAt: null, stoppedWords: "", stoppedPictureId: null, discoveryOwed: true, updatedAt: now })
-    .where(and(eq(datePhones.id, phoneId), eq(datePhones.userId, userId)))
+    .where(and(eq(datePhones.id, account.phoneId), eq(datePhones.userId, account.userId)))
     .returning({ id: datePhones.id })
   if (!phone) throw new Error("That phone does not exist.")
-  return queueWalk({ userId, phoneId, kind: "who-is-signed-in", askedBy: "member" }, db, now)
+  return queueWalk({ userId: account.userId, accountId: account.id, phoneId: phone.id, kind: "who-is-signed-in", askedBy: "member" }, db, now)
 }
 
 /**

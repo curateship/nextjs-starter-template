@@ -84,7 +84,7 @@ export async function readOwnProfile(ctx: WalkContext, kit: WalkKit): Promise<Re
 
   const parsed = parseProfileLines([], lines)
   await saveOwnProfile(
-    { userId: ctx.phone.userId, workspaceId: ctx.phone.workspaceId, phoneId: ctx.phone.id },
+    { userId: ctx.phone.userId, workspaceId: ctx.phone.workspaceId, phoneId: ctx.phone.id, accountId: ctx.phone.accountId },
     { name, photoIds, bio: parsed.bio, sections: parsed.sections, texts: lines },
     ctx.db,
     ctx.now()
