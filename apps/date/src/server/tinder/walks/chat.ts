@@ -58,7 +58,7 @@ export async function readMatches(ctx: WalkContext, kit: WalkKit): Promise<Recor
   }
   const listed = Array.from(chats.values())
   const saved = await saveChatList(
-    { userId: ctx.phone.userId, workspaceId: ctx.phone.workspaceId, phoneId: ctx.phone.id },
+    { userId: ctx.phone.userId, workspaceId: ctx.phone.workspaceId, phoneId: ctx.phone.id, accountId: ctx.phone.accountId },
     listed,
     ctx.db,
     ctx.now(),
@@ -70,7 +70,7 @@ export async function readMatches(ctx: WalkContext, kit: WalkKit): Promise<Recor
 async function matchFor(ctx: WalkContext, input: Record<string, unknown>) {
   const matchId = typeof input.matchId === "string" ? input.matchId : ""
   const [match] = await ctx.db.select().from(dateMatches).where(eq(dateMatches.id, matchId)).limit(1)
-  if (!match || match.userId !== ctx.phone.userId) throw new WalkError("That match is gone.")
+  if (!match || match.accountId !== ctx.phone.accountId) throw new WalkError("That match is gone.")
   if (match.unmatchedAt) throw new WalkError(`You unmatched ${match.theirName}.`)
   return match
 }

@@ -20,6 +20,10 @@ vi.mock("@/server/media/storage", () => ({
   }),
 }))
 
+import type { DatingAccount } from "@/server/dating/accounts"
+import { dateAccounts } from "@/server/dating/schema"
+import { insertAccount } from "@/server/tinder/fixtures/accounts"
+
 import { callPhone, PhoneActionError, queueAction } from "./actions"
 import {
   checkIn,
@@ -58,6 +62,7 @@ describe("the phone link", () => {
   let db: TestDatabase
   let userId: string
   let workspaceId: string
+  let account: DatingAccount
 
   beforeEach(async () => {
     r2.clear()
@@ -67,6 +72,7 @@ describe("the phone link", () => {
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
     workspaceId = (await insertWorkspace(db)).id
+    account = await insertAccount(db, { userId, workspaceId })
   })
 
   afterEach(async () => {
@@ -75,7 +81,7 @@ describe("the phone link", () => {
   })
 
   async function paired(): Promise<VerifiedPhone> {
-    const { code } = await createPairingCode(userId, workspaceId, null, db, T0)
+    const { code } = await createPairingCode(account, db, T0)
     const { phoneId, key } = await pairPhone({ code, model: "Pixel 8a", android: "15", appVersion: "1.0.0" }, db, T0)
     return { id: phoneId, userId, workspaceId, key }
   }
@@ -92,7 +98,7 @@ describe("the phone link", () => {
 
   describe("pairing", () => {
     it("makes a six-digit code that pairs a new phone once, named after its model", async () => {
-      const { code, expiresAt } = await createPairingCode(userId, workspaceId, null, db, T0)
+      const { code, expiresAt } = await createPairingCode(account, db, T0)
       expect(code).toMatch(/^\d{6}$/)
       expect(expiresAt).toEqual(later(600))
 
@@ -109,7 +115,7 @@ describe("the phone link", () => {
     })
 
     it("refuses a code after ten minutes, and a code that was never made", async () => {
-      const { code } = await createPairingCode(userId, workspaceId, null, db, T0)
+      const { code } = await createPairingCode(account, db, T0)
       await expect(pairPhone({ code, model: "", android: "", appVersion: "" }, db, later(601))).rejects.toThrow(/10 minutes/)
       await expect(
         pairPhone({ code: code === "000000" ? "000001" : "000000", model: "", android: "", appVersion: "" }, db, T0)
@@ -119,7 +125,7 @@ describe("the phone link", () => {
     it("pairs the same phone again after it was unpaired, keeping its record", async () => {
       const phone = await paired()
       await unpairPhone(userId, phone.id, db, later(10))
-      const { code } = await createPairingCode(userId, workspaceId, phone.id, db, later(20))
+      const { code } = await createPairingCode({ ...account, phoneId: phone.id }, db, later(20))
       const again = await pairPhone({ code, model: "Pixel 8a", android: "16", appVersion: "1.0.1" }, db, later(20))
       expect(again.phoneId).toBe(phone.id)
       expect(again.key).not.toBe(phone.key)
@@ -128,10 +134,10 @@ describe("the phone link", () => {
       expect(rows[0].androidVersion).toBe("16")
     })
 
-    it("refuses to pair a phone that belongs to somebody else", async () => {
+    it("makes the paired phone the phone of the profile the code was made for", async () => {
       const phone = await paired()
-      const stranger = (await insertUser(db)).id
-      await expect(createPairingCode(stranger, workspaceId, phone.id, db, T0)).rejects.toThrow(/does not exist/)
+      const [row] = await db.select().from(dateAccounts).where(eq(dateAccounts.id, account.id))
+      expect(row.phoneId).toBe(phone.id)
     })
   })
 

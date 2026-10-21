@@ -247,3 +247,21 @@ export const GOOGLE_RETURN_WORDS = {
 } as const
 export type GoogleReturn = keyof typeof GOOGLE_RETURN_WORDS
 export const GOOGLE_RETURNS = Object.keys(GOOGLE_RETURN_WORDS) as GoogleReturn[]
+
+/**
+ * The dating apps a profile can be (task "features/06-profiles"). A profile is
+ * one app's account, so one phone carries at most one of each. Hinge can be
+ * named but not made until its walks are built (task "features/04").
+ */
+export const DATING_APPS = ["tinder", "hinge"] as const
+export type DatingApp = (typeof DATING_APPS)[number]
+export const DATING_APP_WORDS: Record<DatingApp, { name: string; letter: string; ready: boolean }> = {
+  tinder: { name: "Tinder", letter: "T", ready: true },
+  hinge: { name: "Hinge", letter: "H", ready: false },
+}
+
+/** A profile's name, as typed in New profile. */
+export const PROFILE_NAME_MAX = 60
+
+/** Why a paused profile refuses to swipe, walk or call the AI. */
+export const PROFILE_PAUSED_WORDS = "This profile is paused. Resume it in the Dating settings first."

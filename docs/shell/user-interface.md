@@ -48,9 +48,11 @@
   divider colour is see-through, so the line sits on a one-pixel strip of the
   card colour rather than on the grey band, or it comes out darker than the
   line above it.
-- **The line under a table's heading row is drawn twice**, so it is a step
-  stronger than an ordinary divider and still follows Divider lines (Tyler,
-  19 Oct 2026, finding it missing at strength 5).
+- **The line under a table's heading row is drawn once**, the same strength
+  as every other divider. From 19 Oct 2026 it was drawn twice, after Tyler
+  found it missing at strength 5, and that darker line under the grey band
+  read as a double border; on 21 Oct 2026 he picked an ordinary line. The
+  card-colour strip under it is what keeps it visible.
 - **A group heading inside a table is `TableGroupRow`** from
   `src/components/ui/table.tsx`: a row spanning every column that names the
   rows under it, such as a status or a client. It is a pale band with a

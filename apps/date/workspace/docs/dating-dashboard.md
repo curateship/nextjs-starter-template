@@ -9,7 +9,7 @@
 - **Widths**: left 22 out of 100, middle 54, right 24. Each side drags shut and comes back from a tab on the middle's edge, a double-click on blank space shuts it, and the widths are kept in this browser.
 - **Under 1280 pixels** one panel shows at a time, under three pills: Leads, Summary and Lead. Pressing a lead switches to Lead.
 - **How it looks** follows Tyler's mock of 20 Oct 2026, `assets/pasted-image-1792550342758871000.png`, with the right panel's light grey bands from `assets/pasted-image-1792551008786131000.png`.
-- **On arrival** the dashboard goes back to its last address in this browser: the tab, the search, the filters, the sort and the open lead. With nothing remembered it opens the first lead in the list. A remembered lead that has gone gives way to the first one. A link that already names a lead wins.
+- **On arrival** the dashboard goes back to the open profile's last address in this browser: the tab, the search, the filters, the sort and the open lead. With nothing remembered it opens the first lead in the list. A remembered lead that has gone gives way to the first one. A link that already names a lead wins.
 
 ## A lead
 
@@ -26,15 +26,21 @@ Each lead has one status:
 
 A lead **waits on you** when its chat has a draft you send yourself, a flag from the AI, or the AI's question about you. A draft that automate sends by itself waits on nobody.
 
+## One profile at a time
+
+The dashboard shows the open profile (`profiles.md`): its leads, phone, settings and spend, and nothing of the member's other profiles. The left panel's title is the profile picker, and the Profiles section lists every profile. Switching loads the page again, and each profile goes back to its own last place.
+
 ## Left: the summary
 
 Flat sections split by lines, with no grey boxes (`flat-section.tsx`, copied from Video's Viral project). Each folds, and its arrow shows on hover.
 
+- **The title** is the open profile, with its photo or letter; it opens the list of profiles and New profile. A paused profile's line comes first, with Resume.
 - **The phone's line**: a dot and "No phone paired" with **Pair one**, or "Phone here · swiping", "Away since 9:40", or the Tinder screen that stopped it, with **Phone**. Both buttons open the phone in the right panel.
+- **Profiles · 2**: every profile, its app and phone, a Paused tag, and how many leads wait on you there. Pressing another switches to it; the New profile row under them makes one.
 - **Today · 42 of 150 swipes**: a bar of the day's swipes against the limit, then likes, matches, messages sent and dates suggested. Under them **Start** (Stop while running), **Profiles**, which has the phone read the card on Tinder's screen without swiping, and **Chats**, which has the phone read Tinder's chat list.
 - **AI spend · this month**: spent against the cap, cost per match and cost per date.
 - **Leads · 11**: Waiting on you, New, Liked, Matched, Chatting and Date set, each with its coloured dot and count. Pressing one shows those leads in the middle; pressing it again shows every lead. The 11 leaves over leads out.
-- **The cog** in the header opens every Dating setting in a window.
+- **The cog** in the header opens the open profile's Dating settings in a window, with Pause and Delete in its foot.
 - **Last 7 days**, **Openers** and **What's working** follow, then **My profile** with Open (see "One dashboard, no separate pages").
 
 ## Middle: every lead and its status
@@ -87,7 +93,7 @@ Tyler, 20 Oct 2026: "We dont need 4 seperate pages. Condense them all into the 3
   - **Sample data**: add or remove it.
 - **My profile**, `?open=me`, opens in the right panel from My profile at the foot of the left panel (`my-profile-panel.tsx`): your own Tinder profile as the phone last read it, and the AI's suggested photo order, bio and notes, with Read it again and Review again.
 - **Stats** moved into the left panel as three folding sections: Last 7 days (swipes, likes and matches each day), Openers (the AI's first messages by kind and how many got an answer within three days), and What's working (liked cards by band of 10 points and how many matched). What a match and a date cost is in AI spend.
-- **The calendar** is on the Dates tab: a month with each date that has a time underlined, opening on the month of the next one. Pressing a marked day opens that lead. Google Calendar's connection is in the cog's settings.
+- **The calendar** is on the Dates tab, a month across the middle panel's full width like Google Calendar (Tyler picked that on 21 Oct 2026 over a stretched date picker). Weeks start on Monday, as in Project's calendars. Each date with a time is written in its day, "7:00 PM Sofia" (the name alone on a phone), and pressing it opens that lead. It opens on the month of the next date, with arrows and Today to move. The list of dates sits under it, and the handle between them drags to give either more room (Tyler, 21 Oct 2026: "make the bottom panel draggable"); the split is remembered in that browser. The handle is the line between them. Google Calendar's connection is in the cog's settings.
 - **Coming back** to the dashboard reopens the phone or My profile too, if either was open.
 - **The cog** in the left header opens every Dating setting in a window (`dating-settings-dialog.tsx`; Tyler: "all the settings needs to be in this cog modal"). They are only there, not in Settings, because they will differ per profile once there is a Profiles dashboard. A change saves as it is made, and the page header says Saving… and Saved.
 - **There is no ×** on the right panel (Tyler, 20 Oct 2026); it always shows a lead, the phone or My profile.

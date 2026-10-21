@@ -20,6 +20,8 @@ vi.mock("@/server/media/storage", () => ({
   }),
 }))
 
+import type { DatingAccount } from "@/server/dating/accounts"
+import { insertAccount } from "@/server/tinder/fixtures/accounts"
 import { saveDatingSettings } from "@/server/dating/settings"
 import { DEFAULT_DATING_SETTINGS } from "@/lib/dating/settings"
 import { datePhones } from "@/server/phone/schema"
@@ -43,6 +45,7 @@ describe("Tinder walks", () => {
   let userId: string
   let workspaceId: string
   let phoneId: string
+  let account: DatingAccount
   let clock: Date
   let fake: FakeTinder
 
@@ -64,6 +67,7 @@ describe("Tinder walks", () => {
       timeZone: "UTC",
       lastSeenAt: T0,
     })
+    account = await insertAccount(db, { userId, workspaceId, phoneId })
     clock = T0
   })
 
@@ -83,7 +87,7 @@ describe("Tinder walks", () => {
    */
   async function run(kind: Parameters<typeof queueWalk>[0]["kind"], input: Record<string, unknown> = {}, askedBy: "member" | "ai" = "member") {
     clock = new Date(clock.getTime() + 20_000)
-    const id = await queueWalk({ userId, phoneId, kind, input, askedBy }, db, clock)
+    const id = await queueWalk({ userId, accountId: account.id, phoneId, kind, input, askedBy }, db, clock)
     for (let tries = 0; tries < 10; tries += 1) {
       const walk = await claimNextWalk(phoneId, db, clock)
       expect(walk).not.toBeNull()
@@ -217,9 +221,9 @@ describe("Tinder walks", () => {
       const card = await onlyProfile()
       await db.update(datePhones).set({ running: true }).where(eq(datePhones.id, phoneId))
       clock = new Date(clock.getTime() + 20_000)
-      const likeId = await queueWalk({ userId, phoneId, kind: "like", input: { profileId: card.id }, askedBy: "member" }, db, clock)
+      const likeId = await queueWalk({ userId, accountId: account.id, phoneId, kind: "like", input: { profileId: card.id }, askedBy: "member" }, db, clock)
       // Something else waiting behind it is called off too.
-      await queueWalk({ userId, phoneId, kind: "read-matches", askedBy: "member" }, db, new Date(clock.getTime() + 1))
+      await queueWalk({ userId, accountId: account.id, phoneId, kind: "read-matches", askedBy: "member" }, db, new Date(clock.getTime() + 1))
       const claimed = await claimNextWalk(phoneId, db, clock)
       expect(claimed?.id).toBe(likeId)
       await runWalk(claimed!, db, { drive: fake.drive, now: () => clock })
@@ -235,14 +239,14 @@ describe("Tinder walks", () => {
       const waiting = await db.select().from(dateWalks).where(eq(dateWalks.kind, "read-matches"))
       expect(waiting[0]).toMatchObject({ status: "cancelled" })
       // Nothing more can be asked for until Resume.
-      await expect(queueWalk({ userId, phoneId, kind: "read-card", askedBy: "member" }, db, clock)).rejects.toThrow(/Resume/)
+      await expect(queueWalk({ userId, accountId: account.id, phoneId, kind: "read-card", askedBy: "member" }, db, clock)).rejects.toThrow(/Resume/)
     })
 
     it("on Resume, looks at Tinder again and stops again if the screen is still there", async () => {
       phone({ verificationWall: true })
       expect((await run("read-card")).status).toBe("failed")
       expect((await db.select().from(datePhones))[0].stoppedReason).toBe("verification")
-      const id = await resumePhone(userId, phoneId, db, clock)
+      const id = await resumePhone(account, db, clock)
       const walk = await claimNextWalk(phoneId, db, clock)
       expect(walk?.id).toBe(id)
       await runWalk(walk!, db, { drive: fake.drive, now: () => clock })
@@ -419,27 +423,27 @@ describe("Tinder walks", () => {
       await db.update(datePhones).set({ timeZone: "America/Toronto" })
       // 08:00 UTC is 03:00 in Toronto in January.
       await expect(
-        queueWalk({ userId, phoneId, kind: "read-card", askedBy: "ai" }, db, new Date("2099-01-01T08:00:00Z"))
+        queueWalk({ userId, accountId: account.id, phoneId, kind: "read-card", askedBy: "ai" }, db, new Date("2099-01-01T08:00:00Z"))
       ).rejects.toThrow("Quiet hours on the phone, 1:00 to 7:00. Allowed again at 07:00.")
     })
 
     it("stops at the hourly swipe limit and keeps swipes 4 to 9 seconds apart", async () => {
       phone({ cards: [fakeCard("Maya"), fakeCard("Ines"), fakeCard("Lea")] })
-      await saveDatingSettings(userId, workspaceId, { ...DEFAULT_DATING_SETTINGS, swipesPerHour: 1 }, db, clock)
+      await saveDatingSettings(account, { ...DEFAULT_DATING_SETTINGS, swipesPerHour: 1 }, db, clock)
       await run("read-card")
       const first = await onlyProfile()
       await run("pass", { profileId: first.id })
       await run("read-card")
       const [second] = (await db.select().from(dateProfiles)).filter((row) => row.swipe === "none")
-      await expect(queueWalk({ userId, phoneId, kind: "like", input: { profileId: second.id }, askedBy: "ai" }, db, clock)).rejects.toThrow(
+      await expect(queueWalk({ userId, accountId: account.id, phoneId, kind: "like", input: { profileId: second.id }, askedBy: "ai" }, db, clock)).rejects.toThrow(
         /^1 swipe in the last hour, the most allowed\. The next is allowed at \d\d:\d\d\.$/
       )
 
       // The gap only makes a swipe wait its turn.
-      await saveDatingSettings(userId, workspaceId, DEFAULT_DATING_SETTINGS, db, clock)
+      await saveDatingSettings(account, DEFAULT_DATING_SETTINGS, db, clock)
       const [lastSwipe] = (await db.select().from(dateProfiles)).filter((row) => row.swipe !== "none")
       const justAfter = new Date(lastSwipe.swipedAt!.getTime() + 1_000)
-      await queueWalk({ userId, phoneId, kind: "like", input: { profileId: second.id }, askedBy: "ai" }, db, justAfter)
+      await queueWalk({ userId, accountId: account.id, phoneId, kind: "like", input: { profileId: second.id }, askedBy: "ai" }, db, justAfter)
       expect(await claimNextWalk(phoneId, db, justAfter)).toBeNull()
       expect(await claimNextWalk(phoneId, db, new Date(justAfter.getTime() + 9_000))).not.toBeNull()
     })
@@ -447,9 +451,9 @@ describe("Tinder walks", () => {
     it("marks a walk whose process stopped as stopped part-way, and a send in it as not sent", async () => {
       phone({ chats: [] })
       const matchId = uuid()
-      await db.insert(dateMatches).values({ id: matchId, userId, workspaceId, phoneId, theirName: "Noor" })
+      await db.insert(dateMatches).values({ id: matchId, userId, workspaceId, accountId: account.id, phoneId, theirName: "Noor" })
       const messageId = await createOutgoingMessage(matchId, "Hi!", "member", { proposesDate: false }, db, clock)
-      await queueWalk({ userId, phoneId, kind: "send-message", input: { matchId, messageId }, askedBy: "member" }, db, clock)
+      await queueWalk({ userId, accountId: account.id, phoneId, kind: "send-message", input: { matchId, messageId }, askedBy: "member" }, db, clock)
       await claimNextWalk(phoneId, db, clock)
       await expireWalkLeases(db, new Date(clock.getTime() + 6 * 60_000))
       const [walk] = await db.select().from(dateWalks)
@@ -459,8 +463,8 @@ describe("Tinder walks", () => {
 
     it("runs one walk per phone at a time from the list", async () => {
       phone({ cards: [fakeCard("Maya")], chats: [] })
-      await queueWalk({ userId, phoneId, kind: "read-card", askedBy: "ai" }, db, clock)
-      await queueWalk({ userId, phoneId, kind: "read-matches", askedBy: "ai" }, db, new Date(clock.getTime() + 1))
+      await queueWalk({ userId, accountId: account.id, phoneId, kind: "read-card", askedBy: "ai" }, db, clock)
+      await queueWalk({ userId, accountId: account.id, phoneId, kind: "read-matches", askedBy: "ai" }, db, new Date(clock.getTime() + 1))
       const started = await runWalkList(db, clock, { drive: fake.drive, now: () => clock })
       expect(started).toHaveLength(1)
       // While the first runs, nothing else starts on the same phone.

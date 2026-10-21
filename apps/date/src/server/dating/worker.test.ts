@@ -20,6 +20,8 @@ vi.mock("@/server/media/storage", () => ({
   }),
 }))
 
+import type { DatingAccount } from "@/server/dating/accounts"
+import { insertAccount } from "@/server/tinder/fixtures/accounts"
 import { DEFAULT_DATING_SETTINGS, type DatingSettings } from "@/lib/dating/settings"
 import { datePhones } from "@/server/phone/schema"
 import { customShellAiUsageEvents } from "@/server/schema"
@@ -49,6 +51,7 @@ describe("the AI and the swipe loop", () => {
   let userId: string
   let workspaceId: string
   let phoneId: string
+  let account: DatingAccount
   let clock: Date
   let fake: FakeTinder
   let asked: Asked[]
@@ -79,6 +82,7 @@ describe("the AI and the swipe loop", () => {
     clock = T0
     // Tinder's distance and ages are already set, so the pass does not open Tinder's settings first.
     await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0, discoveryOwed: false })
+    account = await insertAccount(db, { userId, workspaceId, phoneId })
     asked = []
     answers = []
   })
@@ -90,8 +94,7 @@ describe("the AI and the swipe loop", () => {
 
   async function settings(change: Partial<DatingSettings> = {}) {
     await saveDatingSettings(
-      userId,
-      workspaceId,
+      account,
       { ...DEFAULT_DATING_SETTINGS, lookingFor: "Someone outdoorsy who reads", dealbreakers: "Smokers", ...change },
       db,
       clock
@@ -119,6 +122,7 @@ describe("the AI and the swipe loop", () => {
         id,
         userId,
         workspaceId,
+        accountId: account.id,
         phoneId,
         name: "Maya",
         age: 27,
@@ -190,9 +194,10 @@ describe("the AI and the swipe loop", () => {
         costCents: 0,
         status: "success",
         monthStart: "2099-01-01",
+        metadata: { accountId: account.id },
         createdAt: clock,
       })
-      expect(await monthSpendDollars(userId, db, clock)).toBe(24)
+      expect(await monthSpendDollars({ userId, accountId: account.id }, db, clock)).toBe(24)
       const id = await seededCard()
       const outcome = await scoreCard(id, db, clock, { ask })
       expect(outcome.status).toBe("cap")
@@ -214,6 +219,7 @@ describe("the AI and the swipe loop", () => {
         id: matchId,
         userId,
         workspaceId,
+        accountId: account.id,
         phoneId,
         theirName: "Noor",
         messagesFromThem: messages.filter(([direction]) => direction === "in").length,
@@ -310,7 +316,7 @@ describe("the AI and the swipe loop", () => {
     it("reads a card, waits for the score, likes it, and goes on to the next", async () => {
       phone({ cards: [fakeCard("Maya"), fakeCard("Ines")], chats: [] })
       await settings()
-      await startLoop(userId, phoneId, db, clock)
+      await startLoop(account, db, clock)
       answers.push(goodCard, { ...goodCard, score: 20 })
 
       for (let passes = 0; passes < 8 && fake.passed.length === 0; passes += 1) await pass()
@@ -332,7 +338,7 @@ describe("the AI and the swipe loop", () => {
     it("ends at the hourly swipe limit, saying so", async () => {
       phone({ cards: [fakeCard("Maya"), fakeCard("Ines")], chats: [] })
       await settings({ swipesPerHour: 1 })
-      await startLoop(userId, phoneId, db, clock)
+      await startLoop(account, db, clock)
       answers.push(goodCard, goodCard)
       for (let passes = 0; passes < 10; passes += 1) await pass()
       expect(fake.liked).toEqual(["Maya"])
@@ -344,7 +350,7 @@ describe("the AI and the swipe loop", () => {
     it("ends on a stop screen", async () => {
       phone({ cards: [fakeCard("Maya")], chats: [], likesLeft: 0 })
       await settings()
-      await startLoop(userId, phoneId, db, clock)
+      await startLoop(account, db, clock)
       answers.push(goodCard)
       for (let passes = 0; passes < 8; passes += 1) await pass()
       const [stopped] = await db.select().from(datePhones)
@@ -355,7 +361,7 @@ describe("the AI and the swipe loop", () => {
     it("ends when the phone goes away", async () => {
       phone({ cards: [fakeCard("Maya")], chats: [] })
       await settings()
-      await startLoop(userId, phoneId, db, clock)
+      await startLoop(account, db, clock)
       clock = new Date(clock.getTime() + 3 * 60_000)
       const { work } = await runDatingPass(db, clock, { drive: fake.drive, now: () => clock, ask })
       await Promise.all(work)
@@ -367,8 +373,8 @@ describe("the AI and the swipe loop", () => {
     it("Stop ends it at once, and calls off what the loop queued", async () => {
       phone({ cards: [fakeCard("Maya")], chats: [] })
       await settings()
-      await startLoop(userId, phoneId, db, clock)
-      await stopLoopByHand(userId, phoneId, db, clock)
+      await startLoop(account, db, clock)
+      await stopLoopByHand(account, db, clock)
       await pass()
       expect(fake.steps).toHaveLength(0)
       expect((await db.select().from(datePhones))[0]).toMatchObject({ running: false, stopWhy: "Stopped by you." })
@@ -381,7 +387,7 @@ describe("the AI and the swipe loop", () => {
       phone({ cards: [], chats: [chat] })
       await settings({ automate: true, replyDelayMin: 10, replyDelayMax: 10 })
       const matchId = uuid()
-      await db.insert(dateMatches).values({ id: matchId, userId, workspaceId, phoneId, theirName: "Noor", lastPreview: "Do you climb?", messagesFromThem: 1 })
+      await db.insert(dateMatches).values({ id: matchId, userId, workspaceId, accountId: account.id, phoneId, theirName: "Noor", lastPreview: "Do you climb?", messagesFromThem: 1 })
       await db.insert(dateMessages).values({
         id: uuid(),
         userId,
@@ -420,7 +426,7 @@ describe("the AI and the swipe loop", () => {
       phone({ cards: [], chats: [] })
       await settings({ automate: false })
       const matchId = uuid()
-      await db.insert(dateMatches).values({ id: matchId, userId, workspaceId, phoneId, theirName: "Noor", draft: "Hi!", draftMadeAt: clock })
+      await db.insert(dateMatches).values({ id: matchId, userId, workspaceId, accountId: account.id, phoneId, theirName: "Noor", draft: "Hi!", draftMadeAt: clock })
       clock = new Date(clock.getTime() + 24 * 60 * 60_000)
       await pass()
       expect(await db.select().from(dateWalks).where(eq(dateWalks.kind, "send-message"))).toHaveLength(0)
@@ -432,9 +438,9 @@ describe("the AI and the swipe loop", () => {
     it("is reviewed once it has been read, with its photos", async () => {
       phone({ cards: [] })
       await settings()
-      await db.insert(dateOwnProfiles).values({ phoneId, userId, workspaceId, name: "Tyler", bio: "Cooks too much.", photoIds: [] })
+      await db.insert(dateOwnProfiles).values({ phoneId, userId, workspaceId, accountId: account.id, name: "Tyler", bio: "Cooks too much.", photoIds: [] })
       answers.push({ photoOrder: [], bio: "Cooks too much, shares the leftovers.", notes: ["Add a photo outdoors."] })
-      expect((await reviewOwnProfile(phoneId, db, clock, { ask })).status).toBe("done")
+      expect((await reviewOwnProfile(account.id, db, clock, { ask })).status).toBe("done")
       const [own] = await db.select().from(dateOwnProfiles)
       expect(own.review).toEqual({ photoOrder: [], bio: "Cooks too much, shares the leftovers.", notes: ["Add a photo outdoors."] })
     })

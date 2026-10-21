@@ -32,8 +32,7 @@ export async function forgetPassedPhotos(db: CustomShellDb = defaultDb, now: Dat
   const rows = await db
     .select({
       id: dateProfiles.id,
-      userId: dateProfiles.userId,
-      workspaceId: dateProfiles.workspaceId,
+      accountId: dateProfiles.accountId,
       swipedBy: dateProfiles.swipedBy,
       aiScore: dateProfiles.aiScore,
       aiFlags: dateProfiles.aiFlags,
@@ -56,9 +55,8 @@ export async function forgetPassedPhotos(db: CustomShellDb = defaultDb, now: Dat
   const forget: typeof rows = []
   for (const row of rows) {
     if (row.swipedBy === "member") {
-      const key = `${row.userId}|${row.workspaceId}`
-      if (!likeLines.has(key)) likeLines.set(key, (await readDatingSettings(row.userId, row.workspaceId, db)).likeAbove)
-      if (decideSwipe(row, { likeAbove: likeLines.get(key) as number }) === "like") continue
+      if (!likeLines.has(row.accountId)) likeLines.set(row.accountId, (await readDatingSettings(row.accountId, db)).likeAbove)
+      if (decideSwipe(row, { likeAbove: likeLines.get(row.accountId) as number }) === "like") continue
     }
     forget.push(row)
   }

@@ -12,6 +12,8 @@ vi.mock("@/server/media/storage", () => ({
   deleteFromR2: vi.fn(async () => {}),
 }))
 
+import { insertAccount } from "@/server/tinder/fixtures/accounts"
+
 import { createPairingCode, pairPhone } from "./link"
 import { replySignature, requestSignature } from "./signing"
 
@@ -45,7 +47,7 @@ describe("every signed phone address", () => {
     db = made.db
     const userId = (await insertUser(db, { role: "admin" })).id
     const workspaceId = (await insertWorkspace(db)).id
-    const { code } = await createPairingCode(userId, workspaceId, null, db)
+    const { code } = await createPairingCode(await insertAccount(db, { userId, workspaceId }), db)
     const paired = await pairPhone({ code, model: "Pixel 8a", android: "15", appVersion: "1.0.0" }, db)
     phone = { id: paired.phoneId, key: paired.key }
   })

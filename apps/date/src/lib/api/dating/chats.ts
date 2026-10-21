@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { DRAFT_TONES } from "@/lib/dating/options"
+import { requestAccount } from "@/server/dating/accounts"
 import { askAboutMatches, draftReply, tidyReply, type MatchAnswer } from "@/server/dating/ai"
 import {
   clearDeadMatches,
@@ -18,10 +19,10 @@ import {
   setNotOver,
 } from "@/server/dating/chats"
 import { calendarConnection, disconnectCalendar, syncDateEvent, type CalendarConnection } from "@/server/dating/google-calendar"
+import { accountOwner } from "@/server/dating/spend"
 import { inWords } from "@/server/dating/words"
 import { db } from "@/server/db"
 import { userGet, userPost } from "@/server/guards"
-import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 /**
  * The server functions for working on one chat (task
@@ -181,11 +182,10 @@ const planFn = createServerFn({ method: "POST" })
   .inputValidator(matchInput.extend({ dateAt: z.string().datetime({ offset: true }).nullable(), place: z.string().max(300) }))
   .handler(async ({ data, context }): Promise<{ googleWords: string }> =>
     inWords(async () => {
-      const workspaceId = await workspaceIdForRequest(context.user.id)
       await setDatePlan(context.user.id, data.matchId, { dateAt: data.dateAt ? new Date(data.dateAt) : null, place: data.place })
       // The date is saved in Date whatever Google says; a Google failure is said, not thrown.
       try {
-        const done = await syncDateEvent(context.user.id, workspaceId, data.matchId)
+        const done = await syncDateEvent(context.user.id, data.matchId)
         return { googleWords: done === "written" ? "It is in your Google Calendar too." : done === "deleted" ? "It is out of your Google Calendar too." : "" }
       } catch (error) {
         return { googleWords: `Saved in Date, but not in Google Calendar: ${error instanceof Error ? error.message : "Google could not be reached."}` }
@@ -201,7 +201,7 @@ export function saveDatePlan(matchId: string, dateAt: Date | null, place: string
 const googleFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }): Promise<CalendarConnection> =>
-    inWords(async () => calendarConnection(context.user.id, await workspaceIdForRequest(context.user.id)))
+    inWords(async () => calendarConnection((await requestAccount(context.user.id)).id))
   )
 
 export function loadGoogleCalendar() {
@@ -210,9 +210,9 @@ export function loadGoogleCalendar() {
 
 const disconnectFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .handler(async ({ context }) => inWords(async () => disconnectCalendar(context.user.id, await workspaceIdForRequest(context.user.id))))
+  .handler(async ({ context }) => inWords(async () => disconnectCalendar((await requestAccount(context.user.id)).id)))
 
-/** Forgets the Google Calendar. Events already written stay in it. */
+/** Forgets the open profile's Google Calendar. Events already written stay in it. */
 export function disconnectGoogleCalendar() {
   return disconnectFn()
 }
@@ -221,7 +221,7 @@ const askFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ question: z.string().min(1).max(300) }))
   .handler(async ({ data, context }): Promise<MatchAnswer[]> =>
-    inWords(async () => askAboutMatches(context.user.id, await workspaceIdForRequest(context.user.id), data.question))
+    inWords(async () => askAboutMatches(accountOwner(await requestAccount(context.user.id)), data.question))
   )
 
 /** Ask Date: who said they like hiking, and the like, from what each match told the member. */
@@ -234,7 +234,7 @@ const clearFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ matchIds: z.array(id).min(1).max(300) }))
   .handler(async ({ data, context }): Promise<{ queued: string[]; skipped: string[]; words: string }> =>
     inWords(async () => {
-      const result = await clearDeadMatches(context.user.id, await workspaceIdForRequest(context.user.id), data.matchIds)
+      const result = await clearDeadMatches(await requestAccount(context.user.id), data.matchIds)
       const words = describeBulkResult({
         done: result.queued.length,
         kept: result.skipped.length,

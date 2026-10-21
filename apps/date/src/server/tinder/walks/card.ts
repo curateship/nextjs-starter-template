@@ -70,7 +70,7 @@ export async function readCard(ctx: WalkContext, kit: WalkKit): Promise<Record<s
   const texts = Array.from(new Set([face.distance, ...face.lines, ...profileLines].filter(Boolean)))
 
   const profileId = await saveCard(
-    { userId: ctx.phone.userId, workspaceId: ctx.phone.workspaceId, phoneId: ctx.phone.id },
+    { userId: ctx.phone.userId, workspaceId: ctx.phone.workspaceId, phoneId: ctx.phone.id, accountId: ctx.phone.accountId },
     {
       name: face.name,
       age: face.age,
@@ -151,7 +151,7 @@ export async function swipe(
 ): Promise<Record<string, unknown>> {
   const profileId = typeof input.profileId === "string" ? input.profileId : ""
   const [profile] = await ctx.db.select().from(dateProfiles).where(eq(dateProfiles.id, profileId)).limit(1)
-  if (!profile || profile.userId !== ctx.phone.userId) throw new WalkError("That card is gone.")
+  if (!profile || profile.accountId !== ctx.phone.accountId) throw new WalkError("That card is gone.")
   if (profile.swipe !== "none") throw new WalkError(`${profile.name} was already ${swipedWord(profile.swipe)}. Nothing was swiped again.`)
 
   const arrived = await toDiscover(kit)

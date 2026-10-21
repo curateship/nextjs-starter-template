@@ -14,6 +14,7 @@ import {
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { dateAccounts } from "@/server/dating/schema"
 
 import { deletePictures, keepPicture } from "./pictures"
 import { datePhoneActions, datePhoneNonces, datePhonePairCodes, datePhones } from "./schema"
@@ -47,24 +48,16 @@ export class PhoneRefusal extends Error {
  * kept. A million codes, each good once for ten minutes, and the pairing
  * address allows ten tries in fifteen minutes from one address.
  *
- * Naming a phone pairs that phone again, keeping its history. Naming none
- * makes a new phone when the code is used.
+ * The code is made for one profile. A profile that already has a phone pairs
+ * that phone again, keeping its history; one with none gets a new phone when
+ * the code is used.
  */
 export async function createPairingCode(
-  userId: string,
-  workspaceId: string,
-  phoneId: string | null,
+  account: { id: string; userId: string; workspaceId: string; phoneId: string | null },
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<{ code: string; expiresAt: Date }> {
-  if (phoneId) {
-    const [phone] = await db
-      .select({ id: datePhones.id })
-      .from(datePhones)
-      .where(and(eq(datePhones.id, phoneId), eq(datePhones.userId, userId)))
-      .limit(1)
-    if (!phone) throw new Error("That phone does not exist.")
-  }
+  const { userId, workspaceId, phoneId } = account
   // Codes a day past their end are no use to anyone, so they go as new ones come.
   await db.delete(datePhonePairCodes).where(lt(datePhonePairCodes.expiresAt, new Date(now.getTime() - 86_400_000)))
   const expiresAt = new Date(now.getTime() + PAIR_CODE_MINUTES * 60_000)
@@ -85,7 +78,7 @@ export async function createPairingCode(
       )
       .limit(1)
     if (live) continue
-    await db.insert(datePhonePairCodes).values({ id: uuid(), userId, workspaceId, phoneId, codeHash, expiresAt, createdAt: now })
+    await db.insert(datePhonePairCodes).values({ id: uuid(), userId, workspaceId, phoneId, accountId: account.id, codeHash, expiresAt, createdAt: now })
     return { code, expiresAt }
   }
   throw new Error("Could not make a code. Try again.")
@@ -96,7 +89,8 @@ export type PairInput = { code: string; model: string; android: string; appVersi
 /**
  * Swaps a code for the phone's key. The code is spent in the same statement
  * that checks it, so two phones racing with one code cannot both win. The key
- * goes back once, in this answer, and is kept encrypted.
+ * goes back once, in this answer, and is kept encrypted. The phone becomes
+ * the phone of the profile the code was made for.
  */
 export async function pairPhone(
   input: PairInput,
@@ -121,6 +115,7 @@ export async function pairPhone(
       userId: datePhonePairCodes.userId,
       workspaceId: datePhonePairCodes.workspaceId,
       phoneId: datePhonePairCodes.phoneId,
+      accountId: datePhonePairCodes.accountId,
     })
   if (!spent) {
     throw new PhoneRefusal(
@@ -141,6 +136,7 @@ export async function pairPhone(
       .where(eq(datePhones.id, spent.phoneId))
     // A new key starts a new set of random words.
     await db.delete(datePhoneNonces).where(eq(datePhoneNonces.phoneId, spent.phoneId))
+    await giveToAccount(spent.accountId, spent.phoneId, db, now)
     return { phoneId: spent.phoneId, key }
   }
 
@@ -156,7 +152,13 @@ export async function pairPhone(
     createdAt: now,
     updatedAt: now,
   })
+  await giveToAccount(spent.accountId, phoneId, db, now)
   return { phoneId, key }
+}
+
+/** The paired phone becomes its profile's. */
+async function giveToAccount(accountId: string, phoneId: string, db: CustomShellDb, now: Date): Promise<void> {
+  await db.update(dateAccounts).set({ phoneId, updatedAt: now }).where(eq(dateAccounts.id, accountId))
 }
 
 export type VerifiedPhone = { id: string; userId: string; workspaceId: string; key: string }
@@ -446,21 +448,6 @@ export type PhoneView = {
   stoppedAt: Date | null
   stoppedWords: string
   stoppedPictureId: string | null
-}
-
-/** This member's phones on this site, newest first. */
-export async function listPhones(
-  userId: string,
-  workspaceId: string,
-  db: CustomShellDb = defaultDb,
-  now: Date = new Date()
-): Promise<PhoneView[]> {
-  const rows = await db
-    .select()
-    .from(datePhones)
-    .where(and(eq(datePhones.userId, userId), eq(datePhones.workspaceId, workspaceId)))
-    .orderBy(desc(datePhones.createdAt))
-  return rows.map((row) => phoneView(row, now))
 }
 
 export function phoneView(row: typeof datePhones.$inferSelect, now: Date = new Date()): PhoneView {
