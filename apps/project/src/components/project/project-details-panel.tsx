@@ -10,6 +10,7 @@ import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-hea
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ProjectPage } from "@/lib/api/project/projects"
+import { clockTotal, timeOnTasks } from "@/lib/project/clock"
 import { countLate, projectPace } from "@/lib/project/project-pace"
 import { runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
@@ -146,6 +147,7 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
                   <span className="truncate text-sm">{project.client}</span>
                 </div>
               ) : null}
+              <ProjectTime tasks={page.tasks} />
             </div>
           ) : null}
           {shared ? (
@@ -161,6 +163,25 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
       {siteAdmin ? (
         <ProjectSettingsDialog page={page} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * The project's time on the clock (Seven features, part 4). Nothing shows
+ * until someone has clocked a minute.
+ */
+function ProjectTime({ tasks }: { tasks: ProjectPage["tasks"] }) {
+  // Read once as the panel draws; a running clock is counted up to then.
+  const [nowMs] = React.useState(() => Date.now())
+  const seconds = timeOnTasks(tasks, nowMs)
+  if (seconds < 60) return null
+  return (
+    <div className="grid content-start gap-2">
+      <Heading>Time</Heading>
+      <span className="text-sm">
+        <span className="font-medium tabular-nums">{clockTotal(seconds)}</span> clocked
+      </span>
     </div>
   )
 }

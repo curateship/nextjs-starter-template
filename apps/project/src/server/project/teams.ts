@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, isNull, type SQL } from "drizzle-orm"
+import { and, asc, count, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-orm"
 
 import { localNow } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
@@ -13,7 +13,7 @@ import { db } from "@/server/db"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { loadAnnouncement, type Announcement } from "@/server/project/announcements"
 import { requireKnownZone } from "@/server/project/checkins"
-import { listHolidays, type Holiday } from "@/server/project/holidays"
+import { holidayOn, listHolidays, type Holiday } from "@/server/project/holidays"
 import { listTeamLabels, type Label } from "@/server/project/labels"
 import { listStepLists, type StepList } from "@/server/project/step-lists"
 import { listTemplates } from "@/server/project/templates"
@@ -21,6 +21,7 @@ import type { TemplateRow } from "@/lib/project/templates"
 import { clearPersonValues } from "@/server/project/task-types"
 import { pauseClocksOf } from "@/server/project/task-clock-runs"
 import { projectViewScreen } from "@/server/project/saved-views"
+import { countTeamToday } from "@/server/project/team-days"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
 import {
   findMembership,
@@ -131,12 +132,64 @@ export type TeamListRow = {
   /** Shared projects not archived. "Just me" lists are each person's, and not counted. */
   openProjects: number
   archivedProjects: number
+  /**
+   * The team's morning, so the site admin sees every team's day from one page
+   * (Seven features, part 3): a day off (not a work day, or a holiday), not
+   * yet (before the team's check-in time), or who has checked in so far,
+   * counted as the team's calendar counts today.
+   */
+  today:
+    | { state: "day_off" }
+    | { state: "not_yet" }
+    | { state: "counted"; checkedIn: number; expected: number }
+  /** Open tasks in its shared, open projects: Stuck, and past their due date on the team's calendar. */
+  stuck: number
+  overdue: number
+}
+
+/** Each team's Stuck and overdue open tasks, in one read, for the Teams dashboard. */
+async function teamTaskCounts(database: ProjectDb, at: Date) {
+  const rows = await database
+    .select({
+      teamId: projectProjects.teamId,
+      stuck: sql<number>`count(*) filter (where ${projectTasks.status} = 'stuck')`.mapWith(Number),
+      // Overdue on the team's own calendar, as its Needs attention counts it.
+      overdue: sql<number>`count(*) filter (where ${projectTasks.dueDate} < (${at.toISOString()}::timestamptz at time zone ${projectTeams.timeZone})::date)`.mapWith(Number),
+    })
+    .from(projectTasks)
+    .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
+    .innerJoin(projectTeams, eq(projectTeams.id, projectProjects.teamId))
+    .where(
+      and(
+        isNull(projectTasks.deletedAt),
+        ne(projectTasks.status, "done"),
+        isNull(projectProjects.personalUserId),
+        isNull(projectProjects.archivedAt)
+      )
+    )
+    .groupBy(projectProjects.teamId)
+  return new Map(rows.map((row) => [row.teamId, row]))
+}
+
+/** The team's day so far: a day off, not yet time to check in, or today's count. */
+async function teamToday(
+  team: { id: string; timeZone: string; checkinTime: string; workDays: readonly number[] },
+  database: ProjectDb,
+  at: Date
+): Promise<TeamListRow["today"]> {
+  const local = localNow(at, team.timeZone)
+  if (!team.workDays.includes(local.weekday) || (await holidayOn(team.id, local.day, database))) {
+    return { state: "day_off" }
+  }
+  if (local.time < team.checkinTime) return { state: "not_yet" }
+  const square = await countTeamToday(team.id, local.day, database)
+  return { state: "counted", checkedIn: square.checkedIn, expected: square.expected }
 }
 
 /** Every team by name with its counts, for the site admin's Teams dashboard (Tyler, 19 Oct 2026). */
-export async function listTeams(userId: string, database = db): Promise<TeamListRow[]> {
+export async function listTeams(userId: string, database = db, at = new Date()): Promise<TeamListRow[]> {
   await requireSiteAdmin(userId, database)
-  const [teams, people, projects] = await Promise.all([
+  const [teams, people, projects, tasks] = await Promise.all([
     database.select().from(projectTeams).orderBy(asc(projectTeams.name), asc(projectTeams.id)),
     database
       .select({ teamId: projectTeamMembers.teamId, n: count() })
@@ -146,8 +199,12 @@ export async function listTeams(userId: string, database = db): Promise<TeamList
       .select({ teamId: projectProjects.teamId, archivedAt: projectProjects.archivedAt })
       .from(projectProjects)
       .where(isNull(projectProjects.personalUserId)),
+    teamTaskCounts(database, at),
   ])
   const peopleOf = new Map(people.map((row) => [row.teamId, Number(row.n)]))
+  // One team at a time: the day's count reads each team's own check-ins and time off.
+  const todays = new Map<string, TeamListRow["today"]>()
+  for (const team of teams) todays.set(team.id, await teamToday(team, database, at))
   return teams.map((team) => {
     const mine = projects.filter((project) => project.teamId === team.id)
     const archived = mine.filter((project) => project.archivedAt).length
@@ -160,6 +217,9 @@ export async function listTeams(userId: string, database = db): Promise<TeamList
       people: peopleOf.get(team.id) ?? 0,
       openProjects: mine.length - archived,
       archivedProjects: archived,
+      today: todays.get(team.id)!,
+      stuck: tasks.get(team.id)?.stuck ?? 0,
+      overdue: tasks.get(team.id)?.overdue ?? 0,
     }
   })
 }

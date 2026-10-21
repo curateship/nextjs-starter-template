@@ -21,6 +21,7 @@ import {
 } from "@/lib/api/project/projects"
 import type { TaskCard } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { clockTotal, timeOnTasks } from "@/lib/project/clock"
 import { todayKey } from "@/lib/project/dates"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { milestoneLine, milestoneOverdue } from "@/lib/project/milestones"
@@ -114,6 +115,9 @@ function MilestoneRow({
   const [editing, setEditing] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  // Its tasks' time on the clock, counted as the row draws (Seven features, part 4).
+  const [nowMs] = React.useState(() => Date.now())
+  const clocked = timeOnTasks(tasks, nowMs)
   return (
     <li className="group/row flex items-center gap-1 rounded-lg border bg-background py-2 pr-1 pl-3">
       <span className="grid min-w-0 flex-1 gap-1">
@@ -129,6 +133,7 @@ function MilestoneRow({
         <span className={cn("text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>
           {overdue ? "Overdue · " : ""}
           {milestoneLine(milestone)}
+          {clocked >= 60 ? `, ${clockTotal(clocked)} clocked` : ""}
         </span>
       </span>
       <CardDropdown

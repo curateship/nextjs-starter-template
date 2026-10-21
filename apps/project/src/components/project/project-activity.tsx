@@ -13,7 +13,7 @@ import {
 } from "@/lib/api/project/projects"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { dayLabel } from "@/lib/project/days"
-import { readDueMove } from "@/lib/project/due-moves"
+import { readDueMove, readTimeAsk } from "@/lib/project/due-moves"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { isTaskStatus, PROJECT_HEALTH_LABEL, TASK_STATUS_LABEL } from "@/lib/project/rules"
 import { useTeamId } from "@/lib/project/team-scope"
@@ -249,6 +249,34 @@ function Line({
           {who} sent {task} back{entry.targetName ? ` to ${entry.targetName}` : ""}: {entry.reason}
         </>
       )
+    case "time_asked": {
+      const ask = readTimeAsk(entry.reason)
+      return (
+        <>
+          {who} asked for more time on {task}
+          {ask ? `, until ${dayLabel(ask.day)}: ${ask.text}` : ""}
+        </>
+      )
+    }
+    case "time_agreed": {
+      const move = readDueMove(entry.reason)
+      return (
+        <>
+          {who} agreed to more time on {task}
+          {move ? `, from ${dayLabel(move.from)} to ${dayLabel(move.to)}` : ""}
+        </>
+      )
+    }
+    case "time_kept": {
+      const ask = readTimeAsk(entry.reason)
+      return (
+        <>
+          {who} kept the due date of {task}
+          {ask ? `, not ${dayLabel(ask.day)}` : ""}
+          {ask?.text ? `: ${ask.text}` : ""}
+        </>
+      )
+    }
     default:
       return <>{who} changed {task}</>
   }

@@ -218,12 +218,28 @@ export type TaskEventKind =
   | "clock_started"
   | "clock_paused"
   | "clock_fixed"
+  /**
+   * Ask for more time (`workspace/docs/projects-and-tasks.md`). An ask's
+   * reason is the day asked for and why, "2026-12-05 Waiting on the photos";
+   * a Yes holds the move like `due_moved`, "2026-12-03 2026-12-05"; a No holds
+   * the day asked for and any reason given.
+   */
+  | "time_asked"
+  | "time_agreed"
+  | "time_kept"
 
 /**
  * A task picked on this many days and still not Done gets a mark saying so,
  * because a task that drags should show up without anyone writing a report.
  */
 export const PICKED_MANY_DAYS = 3
+
+/**
+ * An open task with no change, message, step or clock time for this many
+ * days shows in Needs attention as Untouched. Fixed for every team (Tyler,
+ * 20 Oct 2026).
+ */
+export const UNTOUCHED_DAYS = 14
 
 /**
  * A task not Done whose due date has moved this many times gets "Date moved
@@ -720,6 +736,9 @@ export const bulkChangeSchema = z.object({
     z.object({ kind: z.literal("assign"), assigneeUserId: id.nullable(), note: handoverNoteSchema }),
     z.object({ kind: z.literal("due"), dueDate: dueDateSchema }),
     z.object({ kind: z.literal("move"), projectId: id }),
+    z.object({ kind: z.literal("priority"), priority: z.enum(TASK_PRIORITIES) }),
+    z.object({ kind: z.literal("tag"), labelId: id, on: z.boolean() }),
+    z.object({ kind: z.literal("type"), typeId: id.nullable() }),
   ]),
 })
 
@@ -758,6 +777,19 @@ export const assignTaskSchema = z.object({
 export const acceptManySchema = z.object({ taskIds: z.array(id).min(1).max(200) })
 
 export const needsReviewSchema = z.object({ taskId: id, on: z.boolean() })
+
+/** Ask for more time: the later day and why (Seven features, part 2). */
+export const askForTimeSchema = z.object({
+  taskId: id,
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date from the calendar."),
+  reason: reasonSchema,
+})
+
+/** Yes moves the due date to the day asked for; No keeps it, with an optional reason. */
+export const answerTimeSchema = z.discriminatedUnion("answer", [
+  z.object({ taskId: id, answer: z.literal("yes") }),
+  z.object({ taskId: id, answer: z.literal("no"), reason: reasonSchema.nullable() }),
+])
 
 export const reviewSchema = z.discriminatedUnion("action", [
   z.object({ taskId: id, action: z.literal("confirm") }),

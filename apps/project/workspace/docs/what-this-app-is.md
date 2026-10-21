@@ -455,3 +455,27 @@ How it works is in [Opening a record in another app](connected-apps.md).
 - **CMS is left out for now.** Tyler, 19 Oct 2026: "skip cms for now".
 - **One record per task.** A task holds one Video project or one Promo
   project, and shows one button.
+
+## Choices for the seven features of 20 Oct 2026
+
+Tyler picked seven of twenty suggestions on 20 Oct 2026, put them in one
+task (`workspace/tasks/New features 20 Oct/01-seven-features.md`), and took
+the recommended answer on every question.
+
+- **A due date on someone's day off** gets a warning line only. The calendar
+  doesn't grey out days off, and the date still saves.
+- **Ask for more time** goes to whoever handed the task out. When nobody did,
+  the site admin answers.
+- **Every team's morning** is three columns on the Teams dashboard, not a
+  page of its own.
+- **Untouched** means 14 days, the same for every team, with no setting.
+- **The Projects table gets a Time column**, off until picked.
+- **No guesses in the totals.** Tyler, the same day, after seeing them:
+  "remove the guesses time. dont need it." The project's left panel shows
+  only the clocked time, and Workload has no "guessed this week". A task's
+  own guess, "20m over" or "10m left" in its footer, stays.
+- **A cog's settings are flat rows, not cards.** Tyler, 20 Oct 2026, of the
+  task cog's Person, Dates, Priority and type, Needs review, Video or Promo
+  and Plan: "move all of these outside the cards (flatten it)". Each is a row
+  with a line under it running edge to edge, in the task's cog and in My
+  settings alike.

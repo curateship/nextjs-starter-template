@@ -94,7 +94,7 @@ export type FieldColumn = {
 
 const STATUS_ORDER = Object.fromEntries(TASK_STATUSES.map((s, i) => [s, i]))
 const NO_FIELD_COLUMNS: readonly FieldColumn[] = []
-const NO_TARGETS: BulkTargets = { people: [], projects: [] }
+const NO_TARGETS: BulkTargets = { people: [], projects: [], tags: [], types: [] }
 
 function compare(a: TaskCard, b: TaskCard, column: TaskColumn, fieldColumns: readonly FieldColumn[]) {
   if (column.startsWith("field:")) {

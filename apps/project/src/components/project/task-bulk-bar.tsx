@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { RainbowEdge } from "@/components/project/rainbow-edge"
 import { ReasonDialog } from "@/components/project/reason-dialog"
@@ -22,9 +23,12 @@ import { dayLabel, longDayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import {
   LIMITS,
+  TASK_PRIORITIES,
+  TASK_PRIORITY_LABEL,
   TASK_STATUSES,
   TASK_STATUS_LABEL,
   type ProjectColor,
+  type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
 import { usePeopleRoom } from "@/lib/project/use-people-room"
@@ -34,10 +38,21 @@ import { cn } from "@/lib/utils"
 
 const NOBODY = "nobody"
 const NO_DATE = "none"
+const NO_TYPE = "none"
 
 export type BulkTargets = {
   people: { id: string; name: string; avatarUrl?: string }[]
   projects: { id: string; name: string; color: ProjectColor }[]
+  /** The team's tags, to add to or take off every ticked task. */
+  tags: { id: string; name: string; color: ProjectColor }[]
+  /** The types these tasks may take; a task whose project doesn't offer one is refused alone. */
+  types: { id: string; name: string }[]
+}
+
+/** "2 of the 12 tasks are now due on someone's day off." */
+function daysOffLine(count: number, changed: number) {
+  if (changed === 1) return "The task is now due on a day off."
+  return `${count} of the ${changed} tasks ${count === 1 ? "is" : "are"} now due on someone's day off.`
 }
 
 /**
@@ -55,13 +70,17 @@ function useBulkActions(taskIds: string[], onDone: () => void) {
   const [reset, setReset] = React.useState(0)
 
   async function apply(change: BulkChange, verb: string) {
-    let outcome = { changed: [] as string[], refused: [] as { title: string; reason: string }[] }
+    let outcome: { changed: string[]; refused: { title: string; reason: string }[]; onDaysOff?: number } = {
+      changed: [],
+      refused: [],
+    }
     const ok = await run(async () => {
       outcome = await changeTasks({ taskIds, change })
     })
     setReset((n) => n + 1)
     if (!ok) return false
     reportBulkOutcome(outcome, verb)
+    if (outcome.onDaysOff) toast.warning(daysOffLine(outcome.onDaysOff, outcome.changed.length))
     onDone()
     await router.invalidate()
     return true
@@ -125,8 +144,9 @@ function useBulkActions(taskIds: string[], onDone: () => void) {
 }
 
 /**
- * Status, Hand to, Due date and Move to project as a row of pickers for the
- * ticked rows of My tasks (which has no Move to project), beside Mark Done.
+ * Status, Hand to, Due date, Priority, Add tag, Take a tag off, Type and Move
+ * to project as a row of pickers for the ticked rows of My tasks (which has no
+ * Move to project), beside Mark Done.
  */
 export function TaskBulkBar({
   taskIds,
@@ -191,6 +211,79 @@ export function TaskBulkBar({
         disabled={busy}
         onPick={(dueDate) => void apply({ kind: "due", dueDate }, "changed")}
       />
+      <Select
+        key={`priority-${reset}`}
+        disabled={busy}
+        onValueChange={(value) => void apply({ kind: "priority", priority: value as TaskPriority }, "changed")}
+      >
+        <DashboardToolbarSelectTrigger aria-label="Set the priority of the ticked tasks">
+          <SelectValue placeholder="Priority" />
+        </DashboardToolbarSelectTrigger>
+        <SelectContent>
+          {TASK_PRIORITIES.map((priority) => (
+            <SelectItem key={priority} value={priority}>
+              {TASK_PRIORITY_LABEL[priority]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {targets.tags.length ? (
+        <>
+          <Select
+            key={`tag-on-${reset}`}
+            disabled={busy}
+            onValueChange={(labelId) => void apply({ kind: "tag", labelId, on: true }, "tagged")}
+          >
+            <DashboardToolbarSelectTrigger aria-label="Add a tag to the ticked tasks">
+              <SelectValue placeholder="Add tag" />
+            </DashboardToolbarSelectTrigger>
+            <SelectContent>
+              {targets.tags.map((tag) => (
+                <SelectItem key={tag.id} value={tag.id}>
+                  <ProjectDot color={tag.color} />
+                  {tag.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            key={`tag-off-${reset}`}
+            disabled={busy}
+            onValueChange={(labelId) => void apply({ kind: "tag", labelId, on: false }, "changed")}
+          >
+            <DashboardToolbarSelectTrigger aria-label="Take a tag off the ticked tasks">
+              <SelectValue placeholder="Remove tag" />
+            </DashboardToolbarSelectTrigger>
+            <SelectContent>
+              {targets.tags.map((tag) => (
+                <SelectItem key={tag.id} value={tag.id}>
+                  <ProjectDot color={tag.color} />
+                  {tag.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </>
+      ) : null}
+      {targets.types.length ? (
+        <Select
+          key={`type-${reset}`}
+          disabled={busy}
+          onValueChange={(value) => void apply({ kind: "type", typeId: value === NO_TYPE ? null : value }, "changed")}
+        >
+          <DashboardToolbarSelectTrigger aria-label="Set the type of the ticked tasks">
+            <SelectValue placeholder="Type" />
+          </DashboardToolbarSelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_TYPE}>Plain task</SelectItem>
+            {targets.types.map((type) => (
+              <SelectItem key={type.id} value={type.id}>
+                {type.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
       {targets.projects.length ? (
         <Select
           key={`move-${reset}`}
@@ -215,13 +308,14 @@ export function TaskBulkBar({
   )
 }
 
-type MenuPage = "main" | "status" | "hand" | "due" | "move"
+type MenuPage = "main" | "status" | "hand" | "due" | "priority" | "tag_on" | "tag_off" | "type" | "move"
 
 /**
  * The project List's ticked rows as one "3 selected" button in the header,
  * beside All time (Tyler, 19 Oct 2026). Its dropdown holds Mark Done, then
- * Status, Hand to, Due date and Move to project, each stepping into its own
- * list with a back arrow, then Clear selection.
+ * Status, Hand to, Due date, Priority, Add tag, Remove tag, Type and Move to
+ * project, each stepping into its own list with a back arrow, then Clear
+ * selection.
  */
 export function TaskBulkMenu({
   taskIds,
@@ -307,6 +401,24 @@ export function TaskBulkMenu({
               <MenuRow more page="due" onClick={() => setPage("due")}>
                 Due date
               </MenuRow>
+              <MenuRow more page="priority" onClick={() => setPage("priority")}>
+                Priority
+              </MenuRow>
+              {targets.tags.length ? (
+                <>
+                  <MenuRow more page="tag_on" onClick={() => setPage("tag_on")}>
+                    Add tag
+                  </MenuRow>
+                  <MenuRow more page="tag_off" onClick={() => setPage("tag_off")}>
+                    Remove tag
+                  </MenuRow>
+                </>
+              ) : null}
+              {targets.types.length ? (
+                <MenuRow more page="type" onClick={() => setPage("type")}>
+                  Type
+                </MenuRow>
+              ) : null}
               {targets.projects.length ? (
                 <MenuRow more page="move" onClick={() => setPage("move")}>
                   Move to project
@@ -359,6 +471,41 @@ export function TaskBulkMenu({
                     >
                       {person.name}
                       <RoomNote room={room[person.id]} />
+                    </MenuRow>
+                  ))}
+                </ScrollArea>
+              ) : null}
+              {page === "priority"
+                ? TASK_PRIORITIES.map((priority) => (
+                    <MenuRow key={priority} onClick={() => act({ kind: "priority", priority }, "changed")}>
+                      {TASK_PRIORITY_LABEL[priority]}
+                    </MenuRow>
+                  ))
+                : null}
+              {page === "tag_on" || page === "tag_off" ? (
+                <ScrollArea className="max-h-72">
+                  {targets.tags.map((tag) => (
+                    <MenuRow
+                      key={tag.id}
+                      onClick={() =>
+                        act(
+                          { kind: "tag", labelId: tag.id, on: page === "tag_on" },
+                          page === "tag_on" ? "tagged" : "changed"
+                        )
+                      }
+                    >
+                      <ProjectDot color={tag.color} />
+                      {tag.name}
+                    </MenuRow>
+                  ))}
+                </ScrollArea>
+              ) : null}
+              {page === "type" ? (
+                <ScrollArea className="max-h-72">
+                  <MenuRow onClick={() => act({ kind: "type", typeId: null }, "changed")}>Plain task</MenuRow>
+                  {targets.types.map((type) => (
+                    <MenuRow key={type.id} onClick={() => act({ kind: "type", typeId: type.id }, "changed")}>
+                      {type.name}
                     </MenuRow>
                   ))}
                 </ScrollArea>
@@ -416,6 +563,10 @@ const MENU_TITLE: Record<Exclude<MenuPage, "main">, string> = {
   status: "Status",
   hand: "Hand to",
   due: "Due date",
+  priority: "Priority",
+  tag_on: "Add tag",
+  tag_off: "Remove tag",
+  type: "Type",
   move: "Move to project",
 }
 

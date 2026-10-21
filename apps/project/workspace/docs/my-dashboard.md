@@ -18,8 +18,9 @@ version.
   dashboard".
 - **The header** shows my photo, my name, and my job title and team
   ("Designer · Sample team"). The cog beside it opens My settings, a dropdown with my email and
-  the day I joined, then three cards that fold open, the same as a task's
-  cog (Tyler, 14 Oct 2026): Job title ("None"), Check-in time ("9:00 AM,
+  the day I joined, then three rows that fold open, the same as a task's
+  cog (Tyler, 14 Oct 2026; flat rows with a line between them, not boxes,
+  since 20 Oct 2026): Job title ("None"), Check-in time ("9:00 AM,
   America/Toronto") and Bell notices ("All on" or "3 off"), each with its
   answer on the right while shut. The dropdown is 384px wide. Closing it saves
   the field being typed in.
@@ -156,8 +157,10 @@ else on a project I'm on, shows within about a second, with no reload (see
 Live updates in [Task chat](task-chat.md#my-dashboard-and-the-team-dashboard)).
 
 A tick in a round box selects the task without opening it. Ticked rows can be marked Done together, or changed with the same bar as a
-project's List tab: Status, Hand to (with one optional note for them all) and
-Due date. There is no Move to project here. Each task is changed on its own,
+project's List tab: Status, Hand to (with one optional note for them all),
+Due date, Priority, Add tag, Remove tag and Type. There is no Move to project
+here, and every live type is offered, so a project that doesn't offer one
+refuses it for its own tasks. Each task is changed on its own,
 so each writes its history and sends its notices, and the result says "5
 tasks changed, 1 refused." naming the refused ones with their reasons. My
 tasks span projects, so Hand to refuses anyone who isn't on a task's project. Clicking a task opens it in the

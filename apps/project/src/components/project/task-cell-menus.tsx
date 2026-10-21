@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { CheckIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { DueChip, PersonAvatar, PersonChip, PriorityChip, StatusBadge, StatusDot } from "@/components/project/task-bits"
 import { ReasonDialog } from "@/components/project/reason-dialog"
@@ -18,6 +19,7 @@ import { assignProjectTask, saveTask, setStatus, type TaskCard } from "@/lib/api
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { dateFromKey, keyFromDate } from "@/lib/project/dates"
 import { dayLabel, longDayLabel } from "@/lib/project/days"
+import { dayOffNote } from "@/lib/project/days-off"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import {
   LIMITS,
@@ -27,6 +29,7 @@ import {
   TASK_STATUS_LABEL,
   type TaskStatus,
 } from "@/lib/project/rules"
+import { useDaysOff } from "@/lib/project/use-days-off"
 import { useQuickDays } from "@/lib/project/use-quick-days"
 import { cn } from "@/lib/utils"
 
@@ -264,10 +267,16 @@ export function DueCellMenu({ task }: { task: TaskCard }) {
   const { change, busy } = useTaskChange()
   const [open, setOpen] = React.useState(false)
   const quick = useQuickDays(open)
+  const daysOff = useDaysOff(open)
 
   function pick(dueDate: string | null) {
     setOpen(false)
-    if (dueDate !== task.dueDate) void change(() => saveTask({ taskId: task.id, dueDate }))
+    if (dueDate === task.dueDate) return
+    // The picker has closed, so a day off is said once the date has saved (Seven features, part 1).
+    const note = task.status === "done" ? null : dayOffNote(daysOff, dueDate, task.assignee)
+    void change(() => saveTask({ taskId: task.id, dueDate })).then((ok) => {
+      if (ok && note) toast.warning(note)
+    })
   }
 
   return (

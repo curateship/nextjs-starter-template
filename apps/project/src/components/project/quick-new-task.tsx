@@ -5,7 +5,7 @@ import { toast } from "sonner"
 
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { NOBODY, type NewTaskStart } from "@/components/project/new-task-dialog"
-import { PersonAvatar, ProjectDot, StatusDot } from "@/components/project/task-bits"
+import { DayOffNote, PersonAvatar, ProjectDot, StatusDot } from "@/components/project/task-bits"
 import { TagsBox, tagIdsFor, type TagPill } from "@/components/project/task-tags-field"
 import { TypeIconGlyph } from "@/components/project/task-type-icon"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { createProjectTask, type NewTaskProject } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { dayOffNote } from "@/lib/project/days-off"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { moveNewTasks } from "@/lib/project/new-task-status"
 import { linesToTitles } from "@/lib/project/paste-lines"
@@ -30,6 +31,7 @@ import {
   type TaskStatus,
 } from "@/lib/project/rules"
 import { useTeamId } from "@/lib/project/team-scope"
+import { useDaysOff } from "@/lib/project/use-days-off"
 import type { TaskType } from "@/lib/project/task-types"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -112,6 +114,10 @@ export function QuickNewTask({
   const [title, setTitle] = React.useState("")
   const [person, setPerson] = React.useState(() => personFor(project))
   const [due, setDue] = React.useState<string | null>(startingDue)
+  // A due date on the person's day off or a team holiday says so (Seven features, part 1).
+  const daysOff = useDaysOff(open)
+  const assigneeName = project?.members.find((member) => member.userId === person)?.name
+  const dueNote = dayOffNote(daysOff, due, assigneeName ? { id: person, name: assigneeName } : null)
   const teamId = useTeamId()
   const startingPills = React.useCallback(
     (): TagPill[] => (tags ?? []).filter((tag) => tagIds.includes(tag.id)),
@@ -339,6 +345,7 @@ export function QuickNewTask({
               <DueDayPicker id="quick-task-due" value={due} onChange={setDue} placeholder="No date" clearLabel="Clear the due date" />
             </div>
           </div>
+          <DayOffNote note={dueNote} />
           <div className="grid grid-cols-2 gap-2">
             <div className="grid min-w-0 gap-2">
               <Label htmlFor="quick-task-status">Status</Label>

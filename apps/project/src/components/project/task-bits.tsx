@@ -146,6 +146,20 @@ export function RoomNote({ room }: { room: { open: number; awayUntil: string | n
   )
 }
 
+/**
+ * The warning under a due date that lands on someone's day off or a team
+ * holiday (Seven features, part 1). Nothing when there is no note.
+ */
+export function DayOffNote({ note, className }: { note: string | null; className?: string }) {
+  if (!note) return null
+  return (
+    <p className={cn("flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400", className)}>
+      <MoonIcon className="mt-px size-3.5 shrink-0" aria-hidden />
+      <span>{note}</span>
+    </p>
+  )
+}
+
 /** "Oct 14, 2026", or "Overdue · Oct 14, 2026" in the destructive colour. */
 /** "Oct 14", or "Oct 14 by 11:00 AM" with a "Due by" time, read on the reader's own clock. */
 export function DueDate({

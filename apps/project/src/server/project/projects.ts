@@ -34,7 +34,7 @@ import type { TaskType } from "@/lib/project/task-types"
 import { requireSharedProject } from "@/server/project/personal"
 import { listSavedViews, projectViewScreen, type SavedView } from "@/server/project/saved-views"
 import { listTaskCards, siteAdminPerson, withUnread, type TaskCard } from "@/server/project/tasks"
-import { pauseTaskClock } from "@/server/project/task-clock-runs"
+import { pauseTaskClock, projectClockSeconds } from "@/server/project/task-clock-runs"
 import { clearAssignee, listTeamMembers } from "@/server/project/teams"
 import {
   projectProjectMembers,
@@ -68,6 +68,8 @@ export type ProjectListRow = {
   client: string | null
   /** The project's team, shown in the site admin's Team column. */
   team: { id: string; name: string }
+  /** Seconds on the clock across its tasks, for the Time column (Seven features, part 4). */
+  clockSeconds: number
 }
 
 /**
@@ -178,6 +180,7 @@ export async function loadProjectsPage(
         )
     : []
   const starred = await starredProjectIds(userId, ids, database)
+  const clocked = await projectClockSeconds(ids, database)
 
   return {
     team: team && membership ? { ...team, myRole: membership.role } : null,
@@ -208,6 +211,7 @@ export async function loadProjectsPage(
             : null,
         client: project.client,
         team: { id: project.teamId, name: project.teamName },
+        clockSeconds: clocked.get(project.id) ?? 0,
       }
     }),
   }

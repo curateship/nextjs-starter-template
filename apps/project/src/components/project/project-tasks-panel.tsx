@@ -611,7 +611,12 @@ export function ProjectTasksPanel({
           groupsOf={grouped?.groupsOf}
           // Grouped by tags a task can sit under several headings, so rows don't drag then.
           onReorder={readOnly || grouping === "tags" ? undefined : (taskIds) => void reorder(taskIds)}
-          bulk={{ people, projects: page.otherProjects }}
+          bulk={{
+            people,
+            projects: page.otherProjects,
+            tags: page.labels,
+            types: offeredTypes(page.taskTypes, page.project.personal ? [] : page.project.hiddenTypeIds),
+          }}
           fieldColumns={fieldColumns}
           showTime={timeColumn}
           selectedSlot={selectedSlot}

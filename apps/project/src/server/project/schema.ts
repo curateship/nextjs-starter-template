@@ -335,6 +335,17 @@ export const projectTasks = pgTable("project_tasks", {
   linkedAddress: text("linked_address"),
   /** A guess at how long it takes, in minutes; null is no guess (`drizzle/0125_project_task_clock.sql`). */
   guessMinutes: integer("guess_minutes"),
+  /**
+   * The open ask for more time: the later day asked for, why, who asked and
+   * when (`drizzle/0130_project_more_time.sql`). How it works is in
+   * `workspace/docs/projects-and-tasks.md`, Asking for more time.
+   */
+  moreTimeDay: date("more_time_day", { mode: "string" }),
+  moreTimeReason: text("more_time_reason"),
+  moreTimeByUserId: varchar("more_time_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  moreTimeAskedAt: timestamp("more_time_asked_at", { withTimezone: true }),
 })
 
 /**

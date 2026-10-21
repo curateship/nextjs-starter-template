@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm"
+import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm"
 
 import { getProjectErrorMessage, PROJECT_ERRORS } from "@/lib/project/errors"
 import {
@@ -6,6 +6,7 @@ import {
   PERSONAL_PROJECT_ID,
   PERSONAL_PROJECT_NAME,
   type ProjectColor,
+  type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
@@ -13,6 +14,7 @@ import { db } from "@/server/db"
 import {
   isProjectMember,
   isSiteAdmin,
+  requireMembership,
   requireOpenProject,
   requireTaskAccess,
   visibleProjectsWhere,
@@ -27,15 +29,19 @@ import {
   projectTaskSteps,
   projectTasks,
 } from "@/server/project/schema"
+import { holidayOn } from "@/server/project/holidays"
+import { setOneTaskLabel } from "@/server/project/labels"
 import { requireSharedProject } from "@/server/project/personal"
 import {
   clearPersonValuesOffProject,
   copyFieldValues,
   listTeamTypes,
   projectOffersType,
+  setTaskType,
 } from "@/server/project/task-types"
 import { nextTaskPosition } from "@/server/project/task-order"
 import { recordTaskEvent } from "@/server/project/task-history"
+import { awayOn } from "@/server/project/time-off"
 import {
   assignTask,
   createTask,
@@ -318,10 +324,19 @@ export type BulkChange =
   | { kind: "assign"; assigneeUserId: string | null; note?: string | null }
   | { kind: "due"; dueDate: string | null }
   | { kind: "move"; projectId: string }
+  | { kind: "priority"; priority: TaskPriority }
+  | { kind: "tag"; labelId: string; on: boolean }
+  | { kind: "type"; typeId: string | null }
 
 export type BulkOutcome = {
   changed: string[]
   refused: { taskId: string; title: string; reason: string }[]
+  /**
+   * After a new due date: how many changed tasks now fall on their person's
+   * day off or a team holiday, so the bar can say so (Seven features, part 1).
+   * Left out when none do.
+   */
+  onDaysOff?: number
 }
 
 /**
@@ -361,6 +376,14 @@ export async function changeManyTasks(
         )
       } else if (change.kind === "due") {
         await updateTask(actor, { taskId, dueDate: change.dueDate }, database)
+      } else if (change.kind === "priority") {
+        await updateTask(actor, { taskId, priority: change.priority }, database)
+      } else if (change.kind === "tag") {
+        await setOneTaskLabel(actor.id, { taskId, labelId: change.labelId, on: change.on }, database)
+      } else if (change.kind === "type") {
+        // The same rule as one task: only whoever first handed it out and the
+        // site admin change a type, so the rest are refused with the reason.
+        await setTaskType(actor, { taskId, typeId: change.typeId }, database)
       } else {
         await moveTask(actor, { taskId, projectId: change.projectId }, database)
       }
@@ -375,7 +398,24 @@ export async function changeManyTasks(
       })
     }
   }
+  if (change.kind === "due" && change.dueDate && outcome.changed.length) {
+    const onDaysOff = await countOnDaysOff(actor.id, outcome.changed, change.dueDate, database)
+    if (onDaysOff) outcome.onDaysOff = onDaysOff
+  }
   return outcome
+}
+
+/** How many of these tasks are due on a team holiday, or on their person's time off, that day. */
+async function countOnDaysOff(actorId: string, taskIds: string[], day: string, database: ProjectDb) {
+  const { teamId } = await requireMembership(actorId, database)
+  const tasks = await database
+    .select({ assigneeUserId: projectTasks.assigneeUserId })
+    .from(projectTasks)
+    .where(and(inArray(projectTasks.id, taskIds), ne(projectTasks.status, "done")))
+  if (await holidayOn(teamId, day, database)) return tasks.length
+  const people = [...new Set(tasks.map((task) => task.assigneeUserId).filter((id): id is string => Boolean(id)))]
+  const away = people.length ? await awayOn(people, day, database) : new Set<string>()
+  return tasks.filter((task) => task.assigneeUserId && away.has(task.assigneeUserId)).length
 }
 
 /** Open projects this person can make a task in, with who can be handed it. */

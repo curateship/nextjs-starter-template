@@ -156,3 +156,27 @@ export async function setTaskLabels(
   })
 }
 
+/**
+ * One tag on or off a task, leaving its other tags as they are, for a bulk
+ * change over ticked rows (Seven features, part 5). Adding a tag it already
+ * has, or taking off one it hasn't, changes nothing.
+ */
+export async function setOneTaskLabel(
+  userId: string,
+  input: { taskId: string; labelId: string; on: boolean },
+  database: ProjectDb = db
+) {
+  const { membership, task } = await requireTaskAccess(userId, input.taskId, database)
+  const [label] = await database
+    .select({ id: projectLabels.id })
+    .from(projectLabels)
+    .where(and(eq(projectLabels.id, input.labelId), eq(projectLabels.teamId, membership.teamId)))
+  if (!label) throw new Error(PROJECT_ERRORS.labelNotFound)
+  if (input.on) {
+    await database.insert(projectTaskLabels).values({ taskId: task.id, labelId: label.id }).onConflictDoNothing()
+  } else {
+    await database
+      .delete(projectTaskLabels)
+      .where(and(eq(projectTaskLabels.taskId, task.id), eq(projectTaskLabels.labelId, label.id)))
+  }
+}

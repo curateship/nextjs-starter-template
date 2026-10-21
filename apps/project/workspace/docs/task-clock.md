@@ -78,6 +78,12 @@ task. Tyler asked for it on 20 Oct 2026
 
 ## Where the time shows
 
+- **The project's left panel, its milestones and the Projects table**, from
+  20 Oct 2026: "14h 20m clocked", each milestone's clocked time after its
+  dates, and a Time column on the Projects table, off until picked (see
+  [Projects and tasks](projects-and-tasks.md#milestones)). None of them is
+  set against the guesses (Tyler, 20 Oct 2026: "remove the guesses time.
+  dont need it").
 - **History**, in the task's cog: "Sam started the clock", "Sam paused the
   clock after 45m", "The clock paused itself at midnight after 3h", "Sam took
   it" and the change above (see [History](history.md)). The project's

@@ -48,6 +48,8 @@ const TASK_NOTICE_KINDS = [
   "task_sent_back",
   "task_thanks",
   "task_field_person",
+  "task_time_asked",
+  "task_time_answered",
 ] as const
 export type TaskNoticeKind = (typeof TASK_NOTICE_KINDS)[number]
 
@@ -95,6 +97,8 @@ const HEADING_ENDING: Record<Exclude<TaskNoticeKind, "tasks_handed">, string> = 
   task_sent_back: " sent a task back to you",
   task_thanks: " thanked you for a task",
   task_field_person: " named you on a task",
+  task_time_asked: " asked you for more time on a task",
+  task_time_answered: " answered your ask for more time",
 }
 
 /** "Anna gave you a task", or "Anna gave you 9 tasks" for a hand-over of many. */
@@ -352,6 +356,16 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
   },
   task_review: {
     icon: ClipboardCheckIcon,
+    toneClassName: "bg-primary/10 text-primary",
+    categoryId: "tasks",
+  },
+  task_time_asked: {
+    icon: CalendarClockIcon,
+    toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    categoryId: "tasks",
+  },
+  task_time_answered: {
+    icon: CalendarClockIcon,
     toneClassName: "bg-primary/10 text-primary",
     categoryId: "tasks",
   },

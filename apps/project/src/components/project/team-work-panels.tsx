@@ -101,6 +101,13 @@ const ATTENTION_GROUPS: {
     chip: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
     after: (days) => plural(days, "day"),
   },
+  {
+    kind: "untouched",
+    label: "Untouched",
+    dot: "bg-slate-500",
+    chip: "bg-slate-500/10 text-slate-600 dark:text-slate-300",
+    after: (days) => plural(days, "day"),
+  },
 ]
 
 function plural(count: number, one: string) {
@@ -111,7 +118,8 @@ function plural(count: number, one: string) {
  * Every task that needs help, for the site admin: a card per kind with its
  * count, each task a row with whose it is and how long, which opens it. Stuck
  * counts from the day it's marked, not accepted and waiting for review after
- * a work day, picked on 3+ days and not Done, and overdue. The numbers for
+ * a work day, picked on 3+ days and not Done, overdue, and untouched for 14
+ * days (Seven features, part 6). The numbers for
  * the morning are in the bell; this gives the names.
  */
 export function AttentionPanel({
@@ -129,7 +137,7 @@ export function AttentionPanel({
     return (
       <TeamSideCard>
         <p className="text-sm text-muted-foreground">
-          Nothing needs attention: no task is stuck, unanswered, waiting for review, dragging or overdue.
+          Nothing needs attention: no task is stuck, unanswered, waiting for review, dragging, overdue or forgotten.
         </p>
       </TeamSideCard>
     )

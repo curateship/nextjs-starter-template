@@ -40,6 +40,11 @@ A task ends with a History card, oldest first, wherever it opens.
   one day to another is written; setting a first date or clearing one isn't.
   The row's reason holds the two days, "2026-11-03 2026-11-10"
   (`src/lib/project/due-moves.ts`).
+- **Asking for more time**, from 20 Oct 2026: "Ben asked for more time,
+  until Dec 5: Waiting on the photos", "Anna agreed to more time, from Dec 3
+  to Dec 5" and "Anna kept the due date, not Dec 5: The client needs it", in
+  the History card and the Activity tabs. A Yes counts toward "Date moved 3
+  times" (see [Projects and tasks](projects-and-tasks.md#asking-for-more-time)).
   A status the app doesn't know reads "Ben changed its status".
   Comments are written down too, for the project's Activity tab, but the
   History card leaves them out because the chat already shows them.

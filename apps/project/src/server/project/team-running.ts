@@ -1,6 +1,7 @@
 import { and, count, eq, gte, inArray, isNotNull, isNull, lte, max, ne, sql } from "drizzle-orm"
 
 import { matchesClient } from "@/lib/project/clients"
+import type { DaysOff } from "@/lib/project/days-off"
 import { addDays, localNow, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { teamJoinedHeading, MEMBERS_HREF, onTeamHref } from "@/lib/project/notices"
@@ -8,6 +9,7 @@ import {
   INVITE_LIFETIME_DAYS,
   JOINS_PER_LINK_PER_DAY,
   PICKED_MANY_DAYS,
+  UNTOUCHED_DAYS,
   runsTheTeam,
 } from "@/lib/project/rules"
 import { appUrlFor } from "@/server/app-url"
@@ -25,6 +27,7 @@ import {
 } from "@/server/project/access"
 import { writeAppNotices, writeTaskNotices } from "@/server/project/notices"
 import { clockOf, personDay } from "@/server/project/checkins"
+import { listHolidays } from "@/server/project/holidays"
 import {
   projectProjects,
   projectTaskEvents,
@@ -102,6 +105,26 @@ async function teamToday(teamId: string, database: ProjectDb, at: Date) {
   }
 }
 
+/**
+ * When each task was last touched: its own change time, or its newest history
+ * row when that is later. A message, a step and the clock all leave one or the
+ * other (a step touches the task; a message and the clock write history).
+ */
+async function lastTouched(tasks: { id: string; updatedAt: Date }[], database: ProjectDb) {
+  const touched = new Map(tasks.map((task) => [task.id, task.updatedAt]))
+  if (tasks.length === 0) return touched
+  const rows = await database
+    .select({ taskId: projectTaskEvents.taskId, at: max(projectTaskEvents.createdAt) })
+    .from(projectTaskEvents)
+    .where(inArray(projectTaskEvents.taskId, tasks.map((task) => task.id)))
+    .groupBy(projectTaskEvents.taskId)
+  for (const row of rows) {
+    const at = row.at as Date | null
+    if (at && at > touched.get(row.taskId)!) touched.set(row.taskId, at)
+  }
+  return touched
+}
+
 /** The latest moment of one kind for each task, from the history rows. */
 async function latestEvents(
   taskIds: string[],
@@ -124,7 +147,7 @@ async function latestEvents(
   return new Map(rows.filter((row) => row.at).map((row) => [row.taskId, row.at as Date]))
 }
 
-export type AttentionKind = "stuck" | "not_accepted" | "review_waiting" | "picked_many" | "overdue"
+export type AttentionKind = "stuck" | "not_accepted" | "review_waiting" | "picked_many" | "overdue" | "untouched"
 
 export type AttentionRow = {
   kind: AttentionKind
@@ -144,8 +167,8 @@ export type AttentionRow = {
  * Every task that needs help, in one list, for the owner and admins: Stuck
  * (from the day it is marked), handed over and not accepted after a work
  * day, Done and waiting for its review after a work day, picked on 3 or more
- * days and not Done, and overdue. A task that is fixed leaves
- * the list, because it is worked out again on every read.
+ * days and not Done, overdue, and untouched for 14 days. A task that is fixed
+ * leaves the list, because it is worked out again on every read.
  *
  * How long a task has been Stuck or waiting is read from its history rows.
  * A task that became Stuck or was handed over before those were written down
@@ -172,6 +195,10 @@ export async function loadNeedsAttention(
         ).map((row) => [row.id, row])
       )
     : new Map<string, { updatedAt: Date; createdAt: Date }>()
+  const touched = await lastTouched(
+    [...changed].map(([id, row]) => ({ id, updatedAt: row.updatedAt })),
+    database
+  )
 
   const dayOf = (moment: Date) => localNow(moment, zone).day
   const daysBetween = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS)
@@ -216,6 +243,12 @@ export async function loadNeedsAttention(
     if (task.dueDate && task.dueDate < today) {
       const days = daysBetween(task.dueDate, today)
       rows.push(row(task, "overdue", `${plural(days, "day")} overdue`, days))
+    }
+    // A snoozed task was put aside on purpose, so it stays off until its day.
+    const snoozed = Boolean(task.snoozedUntil && task.snoozedUntil > today)
+    const idle = daysBetween(dayOf(touched.get(task.id)!), today)
+    if (!snoozed && idle >= UNTOUCHED_DAYS) {
+      rows.push(row(task, "untouched", `Untouched for ${plural(idle, "day")}`, idle))
     }
   }
   // Shown after a work day of waiting, like a task not accepted (Tyler, 16 Oct 2026).
@@ -383,6 +416,28 @@ export async function loadPeopleRoom(
       ]
     })
   )
+}
+
+/**
+ * The team's days off from yesterday on: each teammate's time off that hasn't
+ * ended, and the team's holidays, for the warning under a due date (Seven
+ * features, part 1). Yesterday, because the team's zone can be a day behind a
+ * teammate's. Only dates, never a reason.
+ */
+export async function loadDaysOff(viewerId: string, database = db, at = new Date()): Promise<DaysOff> {
+  const membership = await requireMembership(viewerId, database)
+  const { today } = await teamToday(membership.teamId, database, at)
+  const from = addDays(today, -1)
+  const [offs, holidays] = await Promise.all([
+    database
+      .select({ userId: projectTimeOff.userId, first: projectTimeOff.firstDay, last: projectTimeOff.lastDay })
+      .from(projectTimeOff)
+      .where(and(eq(projectTimeOff.teamId, membership.teamId), gte(projectTimeOff.lastDay, from))),
+    listHolidays(membership.teamId, from, database),
+  ])
+  const away: DaysOff["away"] = {}
+  for (const off of offs) (away[off.userId] ??= []).push({ first: off.first, last: off.last })
+  return { away, holidays: holidays.map((holiday) => ({ day: holiday.day, name: holiday.name })) }
 }
 
 export type HandOverOutcome = {

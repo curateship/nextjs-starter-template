@@ -13,7 +13,7 @@ panel at its usual width, so the team's Activity went beside Calendar in the
 middle panel instead (Tyler, 12 Oct 2026; see
 [Teams and invites](teams-and-invites.md#the-teams-activity)).
 
-- **Five kinds, grouped:**
+- **Six kinds, grouped:**
   - **Stuck**, from the day it is marked Stuck, because someone can't carry
     on. Tyler's rule (11 Oct 2026), replacing the first version's 2-day wait.
   - **Handed over, not accepted** after at least one of the team's work days.
@@ -23,10 +23,17 @@ middle panel instead (Tyler, 12 Oct 2026; see
   - **Picked on 3 days or more** and still not Done (the same mark as
     "Picked on 4 days" on the task).
   - **Overdue**: past its due date and not Done.
+  - **Untouched**: open and not touched for 14 days, with no change, message,
+    step or clock time in that time, so a task everyone forgot comes back
+    into view (Tyler, 20 Oct 2026, 14 days for every team, with no setting).
+    A task snoozed until a later day stays off until that day. "Touched" is
+    the task's own change time or its newest History row, whichever is later
+    (`lastTouched` in `team-running.ts`).
 - **One card per kind**, as Tyler drew it on 16 Oct 2026
   (`assets/pasted-image-1792198368279821000.png`), in this order: Overdue,
   Blocked (Stuck), Handed over not accepted, Waiting for review, Picked on
-  3+ days. Each has a coloured dot and its count.
+  3+ days, then Untouched, added 20 Oct 2026. Each has a coloured dot and
+  its count.
 - **Each row** is the task's title, then whose it is ("Ben Tester → Sam
   Owner" for a review, naming the reviewer) and how long at the end ("7
   days" in red when overdue, "Stuck 6 days", "24 work days"), longest first.
