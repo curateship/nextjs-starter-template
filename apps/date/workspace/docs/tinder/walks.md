@@ -24,7 +24,7 @@ A walk is a list of plain phone actions that does one thing in Tinder. Walks run
 - **One walk per phone at a time**, oldest first. The same walk waiting is not added twice.
 - **A walk runs apart from the 15-second pass**, so a card that takes a minute never holds up the shell's emails.
 - **A lease is moved on before every step.** A walk past its lease belonged to a process that stopped and is marked "stopped part-way".
-- **A failed walk keeps a picture** of the screen it stopped on, on its last step, shown on the Phone screen.
+- **A failed walk keeps a picture** of the screen it stopped on, on its last step, shown under What the phone did in the dashboard's phone panel.
 
 ## Tinder's labels, and refreshing them
 
@@ -32,7 +32,7 @@ Every word and label the walks look for is in `src/server/tinder/screen-words.ts
 
 **Until the first run on the real phone these are guesses.** When a walk cannot find something, it fails saying what, with a picture. To fix it:
 
-1. On the Phone screen, open the failed step's picture to see the screen.
+1. In the dashboard's phone panel, under What the phone did, open the failed step's picture to see the screen.
 2. Take a picture of that screen, or let a walk read it, and look at the box's words or label.
 3. Change or add the line in `screen-words.ts`.
 4. The walks are tested against hand-made screens in `src/server/tinder/fixtures/`. Swap a hand-made screen for a real one there when a real one is read, and run `src/server/tinder/walks.test.ts`.

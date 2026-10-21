@@ -1,13 +1,12 @@
 import * as React from "react"
-import { CalendarPlusIcon, CheckIcon, Loader2Icon, PlusIcon, SettingsIcon, Trash2Icon, XIcon } from "lucide-react"
+import { CalendarPlusIcon, CheckIcon, Loader2Icon, PlusIcon, XIcon } from "lucide-react"
 
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { MatchDetail } from "@/lib/api/dating/dashboard"
 
 import { DatingPicture } from "./picture"
@@ -18,11 +17,12 @@ function Line({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * What they told you (part 2): the facts the AI kept from the chat. Each can
- * be changed or deleted, and the member can add one. A fact the member wrote
- * or changed is theirs, and the AI never touches it.
+ * What they told you (part 2 of "features/01-chats-and-replies"), as small
+ * tags under the profile's lines (task "features/05-dashboard-layout", part
+ * 12). Pressing a tag changes it, its × deletes it, and + adds one. A fact the
+ * member wrote or changed is theirs, and the AI never touches it.
  */
-export function FactsCard({
+export function FactTags({
   match,
   onSave,
   onDelete,
@@ -32,11 +32,10 @@ export function FactsCard({
   onSave: (factId: string | null, text: string) => Promise<boolean>
   onDelete: (factId: string) => Promise<boolean>
 }) {
+  // The fact being changed, "new" while one is being added, or null.
   const [editing, setEditing] = React.useState<string | null>(null)
   const [text, setText] = React.useState("")
-  const [adding, setAdding] = React.useState("")
   const [busy, setBusy] = React.useState<string | null>(null)
-  const addId = React.useId()
 
   async function run(key: string, work: () => Promise<boolean>) {
     setBusy(key)
@@ -47,108 +46,95 @@ export function FactsCard({
     }
   }
 
+  const form = (factId: string | null) => (
+    <form
+      className="flex items-center gap-1"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void run(factId ?? "new", () => onSave(factId, text)).then((ok) => ok && setEditing(null))
+      }}
+    >
+      <Input aria-label={factId ? "The fact" : "A new fact"} value={text} maxLength={200} autoFocus placeholder="Has a dog called Biscuit" onChange={(event) => setText(event.target.value)} />
+      <Button type="submit" variant="ghost" size="icon-sm" aria-label="Save the fact" disabled={busy === (factId ?? "new")}>
+        {busy === (factId ?? "new") ? <Loader2Icon className="animate-spin" /> : <CheckIcon />}
+      </Button>
+      <Button type="button" variant="ghost" size="icon-sm" aria-label="Stop changing it" onClick={() => setEditing(null)}>
+        <XIcon />
+      </Button>
+    </form>
+  )
+
   return (
-    <InspectorCard storageId="date-rail-facts" title="What they told you">
-      <div className="mt-3 grid gap-3">
-        {match.facts.length ? (
-          <ul className="grid gap-1.5">
-            {match.facts.map((fact) =>
-              editing === fact.id ? (
-                <li key={fact.id}>
-                  <form
-                    className="flex items-center gap-1"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      void run(fact.id, () => onSave(fact.id, text)).then((ok) => ok && setEditing(null))
-                    }}
-                  >
-                    <Input aria-label="The fact" value={text} maxLength={200} autoFocus onChange={(event) => setText(event.target.value)} />
-                    <Button type="submit" variant="ghost" size="icon" aria-label="Save the fact" disabled={busy === fact.id}>
-                      {busy === fact.id ? <Loader2Icon className="animate-spin" /> : <CheckIcon />}
-                    </Button>
-                    <Button type="button" variant="ghost" size="icon" aria-label="Stop changing it" onClick={() => setEditing(null)}>
-                      <XIcon />
-                    </Button>
-                  </form>
-                </li>
-              ) : (
-                <li key={fact.id} className="flex items-start gap-1 text-sm">
-                  <span className="min-w-0 flex-1 py-1.5 leading-snug">{fact.text}</span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Change "${fact.text}"`}
-                        onClick={() => {
-                          setEditing(fact.id)
-                          setText(fact.text)
-                        }}
-                      >
-                        <SettingsIcon />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Change it</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Delete "${fact.text}"`}
-                        disabled={busy === `delete:${fact.id}`}
-                        onClick={() => void run(`delete:${fact.id}`, () => onDelete(fact.id))}
-                      >
-                        {busy === `delete:${fact.id}` ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Delete it. The AI will not add it back.</TooltipContent>
-                  </Tooltip>
-                </li>
-              )
-            )}
-          </ul>
-        ) : (
-          <Line>
-            {match.sample
-              ? "A sample chat the AI has not read."
-              : `Nothing yet. The AI notes what ${match.theirName} says about themselves as the chat goes on.`}
-          </Line>
+    // One column that may shrink, so a long fact is cut with "…" rather than pushing the panel sideways.
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2">
+      <p className="text-xs font-medium text-muted-foreground">What they told you</p>
+      {editing && editing !== "new" ? form(editing) : null}
+      <ul className="flex flex-wrap gap-1.5">
+        {match.facts.map((fact) =>
+          editing === fact.id ? null : (
+            <li key={fact.id} className="max-w-full min-w-0">
+              <Badge variant="secondary" className="max-w-full gap-0 py-0 pr-0.5 font-normal">
+                <button
+                  type="button"
+                  className="min-w-0 truncate py-0.5 text-left"
+                  aria-label={`Change "${fact.text}"`}
+                  onClick={() => {
+                    setEditing(fact.id)
+                    setText(fact.text)
+                  }}
+                >
+                  {fact.text}
+                </button>
+                <button
+                  type="button"
+                  className="ml-1 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+                  aria-label={`Delete "${fact.text}". The AI will not add it back.`}
+                  disabled={busy === `delete:${fact.id}`}
+                  onClick={() => void run(`delete:${fact.id}`, () => onDelete(fact.id))}
+                >
+                  {busy === `delete:${fact.id}` ? <Loader2Icon className="size-3 animate-spin" /> : <XIcon className="size-3" />}
+                </button>
+              </Badge>
+            </li>
+          )
         )}
-        <form
-          className="grid gap-2"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void run("add", () => onSave(null, adding)).then((ok) => ok && setAdding(""))
-          }}
-        >
-          <Label htmlFor={addId}>Add one yourself</Label>
-          <div className="flex gap-2">
-            <Input id={addId} value={adding} maxLength={200} placeholder="Has a dog called Biscuit" onChange={(event) => setAdding(event.target.value)} />
-            <Button type="submit" variant="outline" disabled={busy === "add"} aria-label="Add the fact">
-              {busy === "add" ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
-              Add
+        {editing === "new" ? null : (
+          <li>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                setEditing("new")
+                setText("")
+              }}
+            >
+              <PlusIcon /> Add one
             </Button>
-          </div>
-        </form>
-      </div>
-    </InspectorCard>
+          </li>
+        )}
+      </ul>
+      {editing === "new" ? form(null) : null}
+      {match.facts.length ? null : (
+        <Line>
+          {match.sample ? "A sample chat the AI has not read." : `Nothing yet. The AI notes what ${match.theirName} says about themselves as the chat goes on.`}
+        </Line>
+      )}
+    </div>
   )
 }
 
 /**
- * Before your date (part 13): shown once they said yes to the date. Their
- * photos, what they told you, three lines from the chat, their number, and
- * the time and place, which only the member sets.
+ * Before your date (part 13 of "features/01-chats-and-replies"): shown once
+ * they said yes to the date. Their photos, three lines from the chat, their
+ * number, and the time and place, which only the member sets.
  */
 export function DateBriefCard({ match, onPlan, onOpenPhoto }: { match: MatchDetail; onPlan: () => void; onOpenPhoto: (id: string) => void }) {
   if (!match.dateAcceptedAt) return null
   const photos = match.profile?.photoIds.length ? match.profile.photoIds : match.photoId ? [match.photoId] : []
   return (
-    <InspectorCard storageId="date-rail-brief" title="Before your date">
-      <div className="mt-3 grid gap-3">
+    <PanelCard storageId="date-lead-brief" title="Before your date">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
         <Line>
           {match.theirName} said yes {whenWords(match.dateAcceptedAt)}
           {match.dateAcceptedLine ? `: "${match.dateAcceptedLine}"` : "."}
@@ -162,7 +148,7 @@ export function DateBriefCard({ match, onPlan, onOpenPhoto }: { match: MatchDeta
             ))}
           </div>
         ) : null}
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
           <dt className="text-muted-foreground">When</dt>
           <dd>{match.dateAt ? dateTimeWords(match.dateAt) : "Not set yet"}</dd>
           <dt className="text-muted-foreground">Where</dt>
@@ -182,49 +168,32 @@ export function DateBriefCard({ match, onPlan, onOpenPhoto }: { match: MatchDeta
         ) : match.sample || match.briefMadeAt ? null : (
           <Line>The AI picks three lines from the chat to remember on its next pass.</Line>
         )}
-        {match.facts.length ? (
-          <div className="grid gap-1">
-            <p className="text-sm font-medium">What they told you</p>
-            <ul className="grid list-disc gap-1 pl-4 text-sm leading-relaxed">
-              {match.facts.slice(0, 6).map((fact) => (
-                <li key={fact.id}>{fact.text}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
         <Button type="button" variant="outline" className="justify-self-start" onClick={onPlan}>
           <CalendarPlusIcon />
           {match.dateAt ? "Change the time or place" : "Add to calendar"}
         </Button>
       </div>
-    </InspectorCard>
+    </PanelCard>
   )
 }
 
 /**
- * This chat (parts 18 and 19): the "AI drafts here" switch and the member's
- * note to the AI about this chat only, saved by itself as it is typed.
+ * The note to the AI about this chat only (part 19 of
+ * "features/01-chats-and-replies"), opened by Note in the reply box. It saves
+ * by itself 700ms after the last key, and at once when the field is left or
+ * another lead is opened.
  */
-export function ChatSettingsCard({
-  match,
-  onAiDrafts,
-  onSaveNote,
-}: {
-  match: MatchDetail
-  onAiDrafts: (on: boolean) => void
-  onSaveNote: (note: string) => Promise<boolean>
-}) {
-  const switchId = React.useId()
+export function ChatNote({ match, onSave }: { match: MatchDetail; onSave: (note: string) => Promise<boolean> }) {
   const noteId = React.useId()
   const [note, setNote] = React.useState(match.memberNote)
   const [status, setStatus] = React.useState<"idle" | "saving" | "saved" | "failed">("idle")
   const saved = React.useRef(match.memberNote)
   const typed = React.useRef(match.memberNote)
   // The newest save function, so the dashboard's refreshes never restart the wait.
-  const saveRef = React.useRef(onSaveNote)
+  const saveRef = React.useRef(onSave)
   React.useEffect(() => {
-    saveRef.current = onSaveNote
-  }, [onSaveNote])
+    saveRef.current = onSave
+  }, [onSave])
 
   const saveNow = React.useCallback(() => {
     const words = typed.current
@@ -239,7 +208,6 @@ export function ChatSettingsCard({
     })
   }, [])
 
-  // Saves 700ms after the last key, like Settings, and at once when the field is left.
   React.useEffect(() => {
     typed.current = note
     if (note === saved.current) return
@@ -247,43 +215,31 @@ export function ChatSettingsCard({
     return () => clearTimeout(timer)
   }, [note, saveNow])
 
-  // Opening another chat before the wait is over still saves what was typed.
   React.useEffect(() => () => saveNow(), [saveNow])
 
   return (
-    <InspectorCard storageId="date-rail-chat" title="This chat">
-      <div className="mt-3 grid gap-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="grid gap-1">
-            <Label htmlFor={switchId}>AI drafts here</Label>
-            <p className="text-xs text-muted-foreground">
-              {match.aiOff ? "Off: you write every message in this chat yourself." : "On: the AI drafts replies here by your rules."}
-            </p>
-          </div>
-          <Switch id={switchId} checked={!match.aiOff} onCheckedChange={onAiDrafts} />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor={noteId}>A note to the AI about this chat</Label>
-          <Textarea
-            id={noteId}
-            value={note}
-            rows={1}
-            maxLength={1_000}
-            placeholder="Slow down a bit. She's moving in March."
-            onChange={(event) => setNote(event.target.value)}
-            onBlur={saveNow}
-          />
-          <p className="text-xs text-muted-foreground" aria-live="polite">
-            {status === "saving"
-              ? "Saving…"
-              : status === "saved"
-                ? "Saved. The AI follows it in this chat only, and never over your rules."
-                : status === "failed"
-                  ? "Not saved."
-                  : "The AI follows it in this chat only, and never over your rules."}
-          </p>
-        </div>
-      </div>
-    </InspectorCard>
+    <div className="grid gap-1">
+      <Label htmlFor={noteId} className="px-1 text-xs text-muted-foreground">
+        Note to the AI about this chat
+      </Label>
+      <Textarea
+        id={noteId}
+        value={note}
+        rows={1}
+        maxLength={1_000}
+        placeholder="Slow down a bit. She's moving in March."
+        onChange={(event) => setNote(event.target.value)}
+        onBlur={saveNow}
+      />
+      <p className="px-1 text-xs text-muted-foreground" aria-live="polite">
+        {status === "saving"
+          ? "Saving…"
+          : status === "saved"
+            ? "Saved. The AI follows it in this chat only, and never over your rules."
+            : status === "failed"
+              ? "Not saved."
+              : "The AI follows it in this chat only, and never over your rules."}
+      </p>
+    </div>
   )
 }

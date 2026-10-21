@@ -1,6 +1,8 @@
-# Settings → App settings → Dating
+# The Dating settings
 
-One tab, listed in `src/app/options.ts`. It saves by itself: typing 700ms after the last key or when the field is left, a switch or a pick at once. The header says Saving…, Saved or Not saved. It is read once per page and held, so coming back to the tab draws at once.
+The cog in the Dating dashboard's left header opens these in a window (Tyler, 20 Oct 2026: "all the settings needs to be in this cog modal"). They are nowhere else: they left Settings → App settings the same day, because "we're gonna build a Profiles dashboard so all the settings will be differfent depending on the profile". Settings → App settings now says the app has no settings of its own. Coming back from Google Calendar's screen opens the window and says how it went.
+
+The panel is `src/components/dating/dating-settings.tsx`, in the window `dating-settings-dialog.tsx`. It saves by itself: typing 700ms after the last key or when the field is left, a switch or a pick at once. The page header says Saving…, Saved or Not saved. It is read once per page and held, so opening the window again draws at once.
 
 | Setting | Default |
 | --- | --- |

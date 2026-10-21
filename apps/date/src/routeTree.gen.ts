@@ -71,8 +71,6 @@ import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/str
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
-import { Route as AuthenticatedAdminDatingCalendarRouteImport } from './routes/_authenticated/admin/dating_.calendar'
-import { Route as AuthenticatedAdminDatingPhoneRouteImport } from './routes/_authenticated/admin/dating_.phone'
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
@@ -416,18 +414,6 @@ const AuthenticatedAdminAutomationsTemplatesRoute =
     path: '/automations/templates',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminDatingCalendarRoute =
-  AuthenticatedAdminDatingCalendarRouteImport.update({
-    id: '/dating_/calendar',
-    path: '/dating/calendar',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminDatingPhoneRoute =
-  AuthenticatedAdminDatingPhoneRouteImport.update({
-    id: '/dating_/phone',
-    path: '/dating/phone',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminNewsletterBroadcastIdRoute =
   AuthenticatedAdminNewsletterBroadcastIdRouteImport.update({
     id: '/newsletter_/$broadcastId',
@@ -559,8 +545,6 @@ export interface FileRoutesByFullPath {
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
-  '/admin/dating/calendar': typeof AuthenticatedAdminDatingCalendarRoute
-  '/admin/dating/phone': typeof AuthenticatedAdminDatingPhoneRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -634,8 +618,6 @@ export interface FileRoutesByTo {
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
-  '/admin/dating/calendar': typeof AuthenticatedAdminDatingCalendarRoute
-  '/admin/dating/phone': typeof AuthenticatedAdminDatingPhoneRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -713,8 +695,6 @@ export interface FileRoutesById {
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
-  '/_authenticated/admin/dating_/calendar': typeof AuthenticatedAdminDatingCalendarRoute
-  '/_authenticated/admin/dating_/phone': typeof AuthenticatedAdminDatingPhoneRoute
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -792,8 +772,6 @@ export interface FileRouteTypes {
     | '/account/billing/success'
     | '/admin/automations/$automationId'
     | '/admin/automations/templates'
-    | '/admin/dating/calendar'
-    | '/admin/dating/phone'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
@@ -867,8 +845,6 @@ export interface FileRouteTypes {
     | '/account/billing/success'
     | '/admin/automations/$automationId'
     | '/admin/automations/templates'
-    | '/admin/dating/calendar'
-    | '/admin/dating/phone'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
@@ -945,8 +921,6 @@ export interface FileRouteTypes {
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/automations_/$automationId'
     | '/_authenticated/admin/automations_/templates'
-    | '/_authenticated/admin/dating_/calendar'
-    | '/_authenticated/admin/dating_/phone'
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/pages_/edit'
     | '/_authenticated/admin/settings/$tab'
@@ -1436,20 +1410,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/dating_/calendar': {
-      id: '/_authenticated/admin/dating_/calendar'
-      path: '/dating/calendar'
-      fullPath: '/admin/dating/calendar'
-      preLoaderRoute: typeof AuthenticatedAdminDatingCalendarRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/dating_/phone': {
-      id: '/_authenticated/admin/dating_/phone'
-      path: '/dating/phone'
-      fullPath: '/admin/dating/phone'
-      preLoaderRoute: typeof AuthenticatedAdminDatingPhoneRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/newsletter_/$broadcastId': {
       id: '/_authenticated/admin/newsletter_/$broadcastId'
       path: '/newsletter/$broadcastId'
@@ -1589,8 +1549,6 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
   AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
-  AuthenticatedAdminDatingCalendarRoute: typeof AuthenticatedAdminDatingCalendarRoute
-  AuthenticatedAdminDatingPhoneRoute: typeof AuthenticatedAdminDatingPhoneRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminPagesEditRoute: typeof AuthenticatedAdminPagesEditRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
@@ -1625,8 +1583,6 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminAutomationsAutomationIdRoute,
   AuthenticatedAdminAutomationsTemplatesRoute:
     AuthenticatedAdminAutomationsTemplatesRoute,
-  AuthenticatedAdminDatingCalendarRoute: AuthenticatedAdminDatingCalendarRoute,
-  AuthenticatedAdminDatingPhoneRoute: AuthenticatedAdminDatingPhoneRoute,
   AuthenticatedAdminNewsletterBroadcastIdRoute:
     AuthenticatedAdminNewsletterBroadcastIdRoute,
   AuthenticatedAdminPagesEditRoute: AuthenticatedAdminPagesEditRoute,

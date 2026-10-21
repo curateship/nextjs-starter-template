@@ -23,7 +23,7 @@ import { dateProfiles, dateWalks } from "@/server/tinder/schema"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 /**
- * The Phone screen's server functions: pairing, the "Date is in control"
+ * The dashboard's Phone panel's server functions: pairing, the "Date is in control"
  * switch, Resume, the picture button, the live screen window, and the sample
  * data. Every one is behind sign-in and acts only on the member's own phone.
  */

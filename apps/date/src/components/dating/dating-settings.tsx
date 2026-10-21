@@ -31,14 +31,16 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * Settings → App settings → Dating: what the AI is told about the member and
- * what they want, how it decides, and the limits on the phone. Every change
- * saves by itself: typing 700ms after the last key or when the field is left,
- * a switch or a pick at once. The page header says Saving…, Saved or Not saved.
+ * The Dating settings, shown in the window the cog on the Dating dashboard
+ * opens (`dating-settings-dialog.tsx`); they left Settings → App settings on
+ * 20 Oct 2026, because they will differ per profile once there is a Profiles
+ * dashboard. What the AI is told about the member and what they want, how it
+ * decides, the limits on the phone, and Google Calendar. Every change saves
+ * by itself: typing 700ms after the last key or when the field is left, a
+ * switch or a pick at once. The page header says Saving…, Saved or Not saved.
  *
- * Read once per page and held, so coming back to the tab draws at once, the
- * way the shell's own tabs do (Pomoder's `admin-settings-tabs.tsx` is the
- * pattern). Tyler's choices of 17 Oct 2026 are the defaults.
+ * Read once per page and held, so opening the window again draws at once.
+ * Tyler's choices of 17 Oct 2026 are the defaults.
  */
 
 /** Typing waits this long after the last key, the same as the shell's own Settings. */
@@ -360,13 +362,6 @@ function DatingSettingsTab() {
   )
 }
 
-const GOOGLE_RETURN_WORDS: Record<string, { ok: boolean; words: string }> = {
-  connected: { ok: true, words: "Google Calendar is connected. Each date with a time goes there too." },
-  denied: { ok: false, words: "Google Calendar was not connected: access was not allowed on Google's screen." },
-  failed: { ok: false, words: "Google Calendar could not be connected. Try Connect again." },
-  "not-set-up": { ok: false, words: "Google is not set up on this server, so the calendar cannot be connected yet." },
-}
-
 /**
  * Google Calendar, one way (part 15 of "features/01-chats-and-replies"):
  * Date adds, moves and removes its own event for each date with a time, and
@@ -390,17 +385,6 @@ function GoogleCalendarCard() {
       live = false
     }
   }, [reloads])
-
-  // Coming back from Google: say how it went once, then take the word out of the address.
-  React.useEffect(() => {
-    const url = new URL(window.location.href)
-    const back = GOOGLE_RETURN_WORDS[url.searchParams.get("google") ?? ""]
-    if (!back) return
-    if (back.ok) toast.success(back.words)
-    else showErrorToast(back.words)
-    url.searchParams.delete("google")
-    window.history.replaceState(window.history.state, "", url.toString())
-  }, [])
 
   return (
     <CollapsibleSettingsCard

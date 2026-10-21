@@ -5,20 +5,18 @@ import { describeBulkResult } from "@/lib/format/bulk-result"
 import { DRAFT_TONES } from "@/lib/dating/options"
 import { askAboutMatches, draftReply, tidyReply, type MatchAnswer } from "@/server/dating/ai"
 import {
-  agreedDates,
   clearDeadMatches,
-  deadMatches,
   deleteFact,
+  dismissDraft,
   ownMatch,
   saveFact,
   saveNote,
   setAiDrafts,
   setDatePlan,
+  setManyMovedToText,
   setMovedToText,
   setNotOver,
-  type DeadMatch,
 } from "@/server/dating/chats"
-import type { DateListItem } from "@/server/dating/dashboard"
 import { calendarConnection, disconnectCalendar, syncDateEvent, type CalendarConnection } from "@/server/dating/google-calendar"
 import { inWords } from "@/server/dating/words"
 import { db } from "@/server/db"
@@ -29,12 +27,13 @@ import { workspaceIdForRequest } from "@/server/workspaces/for-request"
  * The server functions for working on one chat (task
  * "features/01-chats-and-replies"): three drafts, tone, tidy, the facts,
  * the note, taking a chat over, moving it to text, "Not over", the date's
- * time and place with Google Calendar, Ask Date, and clearing dead matches.
+ * time and place with Google Calendar, Ask Date, clearing dead matches, and
+ * moving several chats to text at once.
  * Every one is behind sign-in and acts only on the member's own matches; a
  * sample never reaches the AI or a phone.
  */
 
-export type { CalendarConnection, DateListItem, DeadMatch, MatchAnswer }
+export type { CalendarConnection, MatchAnswer }
 
 const SAMPLE_AI_WORDS = "This is a sample conversation, so the AI does not write for it."
 const id = z.string().min(1).max(40)
@@ -139,6 +138,39 @@ export function markMovedToText(matchId: string, moved: boolean) {
   return chatStateFn({ data: { matchId, change: moved ? "moved" : "not-moved" } })
 }
 
+const dismissFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(matchInput)
+  .handler(async ({ data, context }) => inWords(() => dismissDraft(context.user.id, data.matchId)))
+
+/** Dismiss on the AI's draft: it goes, and no new one is written for the same message. */
+export function dismissAiDraft(matchId: string) {
+  return dismissFn({ data: { matchId } })
+}
+
+const manyMovedFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ matchIds: z.array(id).min(1).max(300) }))
+  .handler(async ({ data, context }): Promise<{ moved: string[]; words: string }> =>
+    inWords(async () => {
+      const result = await setManyMovedToText(context.user.id, data.matchIds)
+      const words = describeBulkResult({
+        done: result.moved.length,
+        kept: result.skipped.length,
+        one: "chat",
+        many: "chats",
+        verb: "moved to text",
+        keptReason: "already moved or unmatched",
+      })
+      return { moved: result.moved, words }
+    })
+  )
+
+/** Moved to text for the ticked chats, in one request. */
+export function markManyMovedToText(matchIds: string[]) {
+  return manyMovedFn({ data: { matchIds } })
+}
+
 /** "Not over": the AI drafts in this chat again. */
 export function markNotOver(matchId: string) {
   return chatStateFn({ data: { matchId, change: "not-over" } })
@@ -164,23 +196,6 @@ const planFn = createServerFn({ method: "POST" })
 /** Sets or clears the date's time and place, and brings its Google Calendar event into line. */
 export function saveDatePlan(matchId: string, dateAt: Date | null, place: string) {
   return planFn({ data: { matchId, dateAt: dateAt ? dateAt.toISOString() : null, place } })
-}
-
-export type DatingCalendar = { dates: DateListItem[]; google: CalendarConnection }
-
-const calendarFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
-  .handler(async ({ context }): Promise<DatingCalendar> =>
-    inWords(async () => {
-      const workspaceId = await workspaceIdForRequest(context.user.id)
-      const [dates, google] = await Promise.all([agreedDates(context.user.id, workspaceId), calendarConnection(context.user.id, workspaceId)])
-      return { dates, google }
-    })
-  )
-
-/** Every agreed date, for the Calendar screen, and whether Google Calendar is connected. */
-export function loadDatingCalendar() {
-  return calendarFn()
 }
 
 const googleFn = createServerFn({ method: "GET" })
@@ -212,15 +227,6 @@ const askFn = createServerFn({ method: "POST" })
 /** Ask Date: who said they like hiking, and the like, from what each match told the member. */
 export function askDate(question: string) {
   return askFn({ data: { question } })
-}
-
-const deadFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
-  .handler(async ({ context }): Promise<DeadMatch[]> => inWords(async () => deadMatches(context.user.id, await workspaceIdForRequest(context.user.id))))
-
-/** Matches with no message either way in 30 days, for the Clear dead matches confirm. */
-export function listDeadMatches() {
-  return deadFn()
 }
 
 const clearFn = createServerFn({ method: "POST" })

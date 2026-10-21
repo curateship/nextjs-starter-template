@@ -43,7 +43,7 @@ export class PhoneRefusal extends Error {
 }
 
 /**
- * A new six-digit code, shown once on the Phone screen. Only its hash is
+ * A new six-digit code, shown once in the dashboard's Phone panel. Only its hash is
  * kept. A million codes, each good once for ten minutes, and the pairing
  * address allows ten tries in fifteen minutes from one address.
  *
@@ -125,7 +125,7 @@ export async function pairPhone(
   if (!spent) {
     throw new PhoneRefusal(
       401,
-      `That code is not right, already used or more than ${PAIR_CODE_MINUTES} minutes old. Make a new one on the Phone screen.`
+      `That code is not right, already used or more than ${PAIR_CODE_MINUTES} minutes old. Make a new one in the dashboard's Phone panel.`
     )
   }
 
@@ -191,7 +191,7 @@ export async function verifyPhoneRequest(
     .limit(1)
   if (!phone) throw new PhoneRefusal(401, "This phone is not paired with Date.")
   if (!phone.keyEncrypted) {
-    throw new PhoneRefusal(401, "This phone was unpaired on the Phone screen. Pair it again with a new code.")
+    throw new PhoneRefusal(401, "This phone was unpaired in the dashboard's Phone panel. Pair it again with a new code.")
   }
   if (Math.abs(now.getTime() / 1000 - stamp) > PHONE_CLOCK_WINDOW_SECONDS) {
     throw new PhoneRefusal(401, "This phone's clock is more than five minutes from the server's. Check the phone's time.")
@@ -286,7 +286,7 @@ export const NEXT_MAX_WAIT_SECONDS = 20
  * next ask. It also comes back early when a window starts or stops watching
  * the screen, which the phone was not told about yet.
  *
- * Nothing is handed out while Date is switched off on the Phone screen.
+ * Nothing is handed out while Date is switched off in the dashboard's Phone panel.
  */
 export async function nextAction(
   phone: VerifiedPhone,
@@ -369,7 +369,7 @@ export type ActionResultInput = {
  * A step of a walk keeps its screenshot on the row until the walk has used
  * it: the walk may run in another process, the worker, and needs the
  * picture to cut a card's photos from. An action asked for on its own, the
- * Phone screen's picture button, keeps its picture at once.
+ * Phone panel's picture button, keeps its picture at once.
  */
 export async function finishAction(
   phone: VerifiedPhone,
@@ -541,7 +541,7 @@ export async function unpairPhone(
 }
 
 /**
- * The "Date is in control" switch on the Phone screen. Off, the phone is
+ * The "Date is in control" switch in the dashboard's Phone panel. Off, the phone is
  * handed nothing, everything waiting for it is cancelled and the AI's loop
  * stops. On again, nothing restarts by itself.
  */
@@ -557,12 +557,12 @@ export async function setInControl(
     .set(
       on
         ? { inControl: true, updatedAt: now }
-        : { inControl: false, running: false, stopWhy: "Date was switched off on the Phone screen.", stopWhyAt: now, updatedAt: now }
+        : { inControl: false, running: false, stopWhy: "Date was switched off in the dashboard's Phone panel.", stopWhyAt: now, updatedAt: now }
     )
     .where(and(eq(datePhones.id, phoneId), eq(datePhones.userId, userId)))
     .returning({ id: datePhones.id })
   if (!phone) throw new Error("That phone does not exist.")
-  if (!on) await cancelPhoneActions(phoneId, "Date was switched off on the Phone screen.", db, now)
+  if (!on) await cancelPhoneActions(phoneId, "Date was switched off in the dashboard's Phone panel.", db, now)
 }
 
 export type PhoneActionView = {

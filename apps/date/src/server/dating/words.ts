@@ -1,6 +1,6 @@
 /**
  * Date's server functions say what went wrong in words a person can act on,
- * such as "Date is switched off for Pixel 8a. Switch it on on the Phone screen
+ * such as "Date is switched off for Pixel 8a. Switch it on in the dashboard's Phone panel
  * first." Those are thrown as plain errors with a full sentence and reach the
  * screen as they are. Anything else, a database error or a slip in the code,
  * is logged here and reaches the screen as one plain sentence, so nothing

@@ -4,7 +4,7 @@ import { allWords, findNode, type ScreenRead } from "./screen"
 
 /**
  * The Tinder screens that stop everything until Tyler presses Resume on the
- * Phone screen: out of likes, a verification wall, an account under review,
+ * Phone panel: out of likes, a verification wall, an account under review,
  * a ban, an update Tinder insists on, and being signed out. Each walk checks
  * for them first and after every step that changes the screen.
  *

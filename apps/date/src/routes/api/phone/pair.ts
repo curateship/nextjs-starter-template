@@ -14,7 +14,7 @@ const pairShape = z.object({
 })
 
 /**
- * The phone swaps the six-digit code from the Phone screen for its own key,
+ * The phone swaps the six-digit code from the dashboard's Phone panel for its own key,
  * once. Not signed, because the phone has no key yet: the code is the proof,
  * and it works once, for ten minutes, with ten tries per address per fifteen
  * minutes. The key goes back in this answer and is never shown again.

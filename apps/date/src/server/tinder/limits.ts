@@ -13,7 +13,7 @@ import { dateMatches, dateMessages, dateProfiles } from "./schema"
  * between swipes, at most 60 swipes and 20 messages an hour, and nothing at
  * all from 1am to 7am on the phone's own clock. On 18 Oct 2026 he added 150
  * swipes a day, beside the hourly 60. The numbers and the quiet hours are in
- * Settings → App settings → Dating; the gap is fixed here.
+ * the Dating settings; the gap is fixed here.
  */
 
 /** The walks that swipe a card, and so count against the swipe limits. */

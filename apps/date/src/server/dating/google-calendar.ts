@@ -120,7 +120,7 @@ async function googleJson<T>(fetcher: Fetcher, url: string, init: RequestInit, w
     const detail = await response.text().catch(() => "")
     console.error(`Google Calendar: ${what}`, response.status, detail.slice(0, 300))
     if (response.status === 401 || response.status === 400) {
-      throw new Error(`Google refused to ${what}. Connect Google Calendar again in Settings, Dating.`)
+      throw new Error(`Google refused to ${what}. Connect Google Calendar again in the Dating settings.`)
     }
     throw new Error(`Google answered with an error (HTTP ${response.status}) trying to ${what}.`)
   }
@@ -224,7 +224,7 @@ async function accessToken(row: typeof dateGoogleCalendars.$inferSelect, fetcher
     },
     "open your calendar"
   )
-  if (!tokens.access_token) throw new Error("Google did not open your calendar. Connect Google Calendar again in Settings, Dating.")
+  if (!tokens.access_token) throw new Error("Google did not open your calendar. Connect Google Calendar again in the Dating settings.")
   return tokens.access_token
 }
 

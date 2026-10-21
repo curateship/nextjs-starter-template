@@ -13,7 +13,7 @@ The server half is copied from Promo's rack link and trimmed to one phone talkin
 
 ## Pairing
 
-- **Pair a phone** on the Phone screen shows a six-digit code that works once, for ten minutes. Only its hash is kept.
+- **Pair a phone** in the dashboard's phone panel shows a six-digit code that works once, for ten minutes. Only its hash is kept.
 - **The phone posts the code** to `/api/phone/pair` and gets its key back once. The key is kept encrypted with the server's key.
 - **Ten tries per address per fifteen minutes**, so a code cannot be guessed.
 - **Unpair** stops the key at once and cancels everything waiting. The phone's record and history stay; Pair it again gives a new key.
@@ -39,7 +39,7 @@ Open an app, read the screen, tap, swipe, type, back, home, take a picture. Ever
 - **Reading the screen** sends every box on it, its words, label, view id and place, plus a picture.
 - **A tap, swipe, type, back or home** can ask to read the screen once it settles, in the same answer.
 - **Each action has a time limit.** The phone gives up when it runs out; the server waits a minute more for the answer.
-- **One action at a time, in order.** Nothing is handed out while "Date is in control" is off on the Phone screen.
+- **One action at a time, in order.** Nothing is handed out while "Date is in control" is off in the dashboard's phone panel.
 
 ## A phone in a pocket
 

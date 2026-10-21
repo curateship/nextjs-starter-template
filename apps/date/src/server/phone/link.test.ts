@@ -224,7 +224,7 @@ describe("the phone link", () => {
       await setInControl(userId, phone.id, false, db, T0)
       expect((await nextAction(phone, { waitSeconds: 0, watching: false }, db, noWait)).action).toBeNull()
       const [row] = await db.select().from(datePhoneActions).where(eq(datePhoneActions.id, id))
-      expect(row).toMatchObject({ status: "cancelled", error: "Date was switched off on the Phone screen." })
+      expect(row).toMatchObject({ status: "cancelled", error: "Date was switched off in the dashboard's Phone panel." })
       await expect(queueAction(userId, phone.id, "screenshot", {}, db, T0)).rejects.toThrow(/switched off/)
     })
 

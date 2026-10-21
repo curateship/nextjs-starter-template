@@ -1,5 +1,4 @@
 import type { AppOptions } from "@/lib/app-options"
-import { defineSettingsTab } from "@/lib/settings-tab"
 
 /**
  * What this app changes about the shell.
@@ -15,20 +14,9 @@ import { defineSettingsTab } from "@/lib/settings-tab"
  *
  * The type is written as an annotation rather than `satisfies` so that an empty
  * object still reads as the full shape. Both catch a misspelled option.
+ *
+ * Date has no settings tab of its own: the Dating settings open from the cog
+ * on the Dating dashboard, because they will differ per profile once there is
+ * a Profiles dashboard (Tyler, 20 Oct 2026).
  */
-export const appOptions: AppOptions = {
-  settings: {
-    tabs: [
-      defineSettingsTab({
-        id: "dating",
-        label: "Dating",
-        /**
-         * What the AI is told about the member, how it decides, the limits on
-         * the phone and the spend cap. A pointer, never the component: this
-         * file is read by the server during boot.
-         */
-        panel: () => import("@/components/dating/dating-settings"),
-      }),
-    ],
-  },
-}
+export const appOptions: AppOptions = {}

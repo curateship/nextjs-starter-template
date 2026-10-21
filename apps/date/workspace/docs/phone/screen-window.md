@@ -1,6 +1,6 @@
 # The phone's screen window
 
-Open screen window, on the dashboard's Phone card or the Phone screen, shows the phone's live screen from anywhere.
+Screen window, in the dashboard's phone panel, shows the phone's live screen from anywhere.
 
 - **A few pictures a second**, 540 pixels wide, kept in the web server's memory and never in the database. Promo's choice, kept.
 - **The phone only sends while someone watches.** The window asks for the newest picture about three times a second. Closing it stops the phone at once, and ten seconds without an ask stops it anyway.

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
@@ -6,7 +6,7 @@ import { queueWalk } from "@/server/tinder/jobs"
 import { dateMatches, type MatchFact } from "@/server/tinder/schema"
 import { NO_DRAFT } from "@/server/tinder/store"
 
-import { dateListItem, type DateListItem } from "./dashboard"
+import { newestMessages } from "./dashboard"
 
 /**
  * What the member does to one chat from the dashboard, outside sending:
@@ -88,6 +88,47 @@ export async function setMovedToText(userId: string, matchId: string, moved: boo
     .where(eq(dateMatches.id, match.id))
 }
 
+/**
+ * Dismiss on the AI's draft: the draft and its two choices go, so automate
+ * cannot send them, and the background pass writes no new one for the same
+ * message. Draft on the dashboard still writes one at once, and a newer
+ * message from them moves the chat on.
+ */
+export async function dismissDraft(userId: string, matchId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
+  const match = await ownMatch(userId, matchId, db)
+  const [newest] = await newestMessages([match.id], db)
+  await db
+    .update(dateMatches)
+    .set({ ...NO_DRAFT, draftDismissedFor: newest?.id ?? "opener", updatedAt: now })
+    .where(eq(dateMatches.id, match.id))
+}
+
+/**
+ * Moved to text for several chats at once, from mass select on the dashboard.
+ * A chat already moved or unmatched is skipped and counted; the rest move in
+ * one write.
+ */
+export async function setManyMovedToText(
+  userId: string,
+  matchIds: string[],
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<{ moved: string[]; skipped: string[] }> {
+  if (!matchIds.length) return { moved: [], skipped: [] }
+  const rows = await db
+    .select({ id: dateMatches.id, movedToTextAt: dateMatches.movedToTextAt, unmatchedAt: dateMatches.unmatchedAt })
+    .from(dateMatches)
+    .where(and(eq(dateMatches.userId, userId), inArray(dateMatches.id, matchIds)))
+  const moving = new Set(rows.filter((row) => !row.movedToTextAt && !row.unmatchedAt).map((row) => row.id))
+  if (moving.size) {
+    await db
+      .update(dateMatches)
+      .set({ movedToTextAt: now, ...NO_DRAFT, updatedAt: now })
+      .where(and(eq(dateMatches.userId, userId), inArray(dateMatches.id, [...moving])))
+  }
+  return { moved: matchIds.filter((id) => moving.has(id)), skipped: matchIds.filter((id) => !moving.has(id)) }
+}
+
 /** "Not over": the AI read the chat as over and the member disagrees. It drafts here again from the next pass. */
 export async function setNotOver(userId: string, matchId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
   const match = await ownMatch(userId, matchId, db)
@@ -115,21 +156,6 @@ export async function setDatePlan(
     .update(dateMatches)
     .set({ dateAt: plan.dateAt, datePlace: plan.dateAt ? place : "", updatedAt: now })
     .where(eq(dateMatches.id, match.id))
-}
-
-/** Every agreed date, soonest time first and the ones with no time after them. Sample dates are included and marked. */
-export async function agreedDates(userId: string, workspaceId: string, db: CustomShellDb = defaultDb): Promise<DateListItem[]> {
-  const rows = await db
-    .select()
-    .from(dateMatches)
-    .where(and(eq(dateMatches.userId, userId), eq(dateMatches.workspaceId, workspaceId), isNotNull(dateMatches.dateAcceptedAt), isNull(dateMatches.unmatchedAt)))
-    .orderBy(desc(dateMatches.dateAcceptedAt))
-  return rows.map(dateListItem).sort((a, b) => {
-    if (a.dateAt && b.dateAt) return a.dateAt.getTime() - b.dateAt.getTime()
-    if (a.dateAt) return -1
-    if (b.dateAt) return 1
-    return b.acceptedAt.getTime() - a.acceptedAt.getTime()
-  })
 }
 
 export type DeadMatch = { id: string; theirName: string; photoId: string | null; lastAt: Date }

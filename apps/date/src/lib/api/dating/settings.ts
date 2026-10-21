@@ -10,7 +10,7 @@ import { datePhones } from "@/server/phone/schema"
 import { dateMatches } from "@/server/tinder/schema"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
-/** Settings → App settings → Dating: read once per page, saved whole on every change. */
+/** The Dating settings: read once per page, saved whole on every change. */
 
 const loadFn = createServerFn({ method: "GET" })
   .middleware([userGet])

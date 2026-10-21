@@ -232,13 +232,18 @@ export const CARD_FLAG_WORDS: Record<CardFlag, string> = {
 /** On What's working, a band of scores with fewer likes than this says "not enough yet" instead of its numbers. */
 export const BAND_NEEDS_LIKES = 20
 
-/** Which cards the dashboard's left column lists. */
-export const PROFILE_FILTERS = ["all", "liked", "passed", "unswiped"] as const
-export type ProfileFilter = (typeof PROFILE_FILTERS)[number]
-
-/** The left column's tabs: cards, chats, and the chats where a date was agreed. */
-export const LIST_TABS = ["profiles", "matches", "dates"] as const
-export type ListTab = (typeof LIST_TABS)[number]
-
 /** The three columns' remembered widths. Not in the shell's `panelLayoutKey`, which is a shell file. */
-export const DATING_PANEL_LAYOUT_KEY = "date-dating-workspace"
+export const DATING_PANEL_LAYOUT_KEY = "date-dating-panels"
+
+/** Where the Dating dashboard was, for the shell's `useDashboardPlace`, kept beside the layout for the same reason. */
+export const DATING_PLACE_KEY = "date-dating-place"
+
+/** How coming back from Google's screen went, as the address says it (`?google=`), and what the dashboard then says. */
+export const GOOGLE_RETURN_WORDS = {
+  connected: { ok: true, words: "Google Calendar is connected. Each date with a time goes there too." },
+  denied: { ok: false, words: "Google Calendar was not connected: access was not allowed on Google's screen." },
+  failed: { ok: false, words: "Google Calendar could not be connected. Try Connect again." },
+  "not-set-up": { ok: false, words: "Google is not set up on this server, so the calendar cannot be connected yet." },
+} as const
+export type GoogleReturn = keyof typeof GOOGLE_RETURN_WORDS
+export const GOOGLE_RETURNS = Object.keys(GOOGLE_RETURN_WORDS) as GoogleReturn[]

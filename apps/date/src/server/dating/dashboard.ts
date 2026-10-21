@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm"
 
 import { chatTrend, TREND_NEEDS_FROM_THEM, type TrendMessage, type TrendRead } from "@/lib/dating/chat-trend"
-import { isLike, type CardFlag, type ChatTrend, type DraftKind, type MatchFlag, type MessageSender, type MessageStatus, type OpenerStyle, type SwipeDecision, type WalkKind, type WalkStatus } from "@/lib/dating/options"
+import { buildLeads, type LeadListItem } from "@/lib/dating/leads"
+import { isLike, type CardFlag, type DraftKind, type MatchFlag, type MessageSender, type MessageStatus, type OpenerStyle, type SwipeDecision, type WalkKind, type WalkStatus } from "@/lib/dating/options"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { listPhones, type PhoneView } from "@/server/phone/link"
 import { datePhones } from "@/server/phone/schema"
@@ -28,55 +29,6 @@ import { monthMatchCost, type MatchCost } from "./spend"
  * cards read and the matches, one card or conversation in full, the member's
  * own profile, and the daily tally. Reads only.
  */
-
-export type ProfileListItem = {
-  id: string
-  name: string
-  age: number | null
-  photoId: string | null
-  score: number | null
-  swipe: SwipeDecision
-  swipedBy: "member" | "ai" | null
-  readAt: Date
-  flags: CardFlag[]
-  sample: boolean
-}
-
-export type MatchListItem = {
-  id: string
-  theirName: string
-  photoId: string | null
-  lastLine: string
-  lastMessageAt: Date | null
-  matchedAt: Date
-  unreadCount: number
-  hasDraft: boolean
-  flagged: MatchFlag | null
-  unmatched: boolean
-  /** Who unmatched, when somebody did. */
-  unmatchedBy: "member" | "them" | null
-  /** The AI read the chat as over. */
-  ended: boolean
-  movedToText: boolean
-  /** The member took the chat over. */
-  aiOff: boolean
-  dateAccepted: boolean
-  trend: ChatTrend
-  sample: boolean
-}
-
-/** A chat where they said yes to a drink or coffee: the Dates tab and the Calendar screen. */
-export type DateListItem = {
-  matchId: string
-  theirName: string
-  photoId: string | null
-  acceptedAt: Date
-  acceptedLine: string
-  theirNumber: string
-  dateAt: Date | null
-  datePlace: string
-  sample: boolean
-}
 
 /** How many openers of one kind went out, and how many got an answer within three days. */
 export type OpenerTally = { style: OpenerStyle; sent: number; replied: number }
@@ -134,15 +86,13 @@ export type DatingDashboard = {
   discovery: DiscoveryView
   /** The walk on the phone now, and the ones waiting. */
   walks: { current: WalkView | null; waiting: number; recent: WalkView[] }
-  profiles: ProfileListItem[]
-  matches: MatchListItem[]
+  /** Every person: their card, and their chat once they match (`src/lib/dating/leads.ts`). */
+  leads: LeadListItem[]
   own: OwnProfileView | null
   tally: DayTally[]
-  dates: DateListItem[]
   /** Of the member's last 20 sends that started as the AI's draft, how many went unchanged. */
   drafts: { unchanged: number; of: number }
   openers: OpenerTally[]
-  hasSamples: boolean
 }
 
 export type OwnProfileView = {
@@ -250,41 +200,44 @@ export async function loadDashboard(
       waiting: walkRows.filter((walk) => walk.status === "waiting").length,
       recent: walkRows.slice(0, 8).map(walkView),
     },
-    profiles: profileRows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      age: row.age,
-      photoId: row.photoIds[0] ?? null,
-      score: row.aiScore,
-      swipe: row.swipe,
-      swipedBy: row.swipedBy ?? null,
-      readAt: row.readAt,
-      flags: row.aiFlags,
-      sample: row.sample,
-    })),
-    matches: matchRows.map((row) => ({
-      id: row.id,
-      theirName: row.theirName,
-      photoId: row.photoId,
-      lastLine: lastLines.get(row.id) ?? row.lastPreview,
-      lastMessageAt: row.lastMessageAt,
-      matchedAt: row.matchedAt,
-      unreadCount: row.unreadCount,
-      hasDraft: row.draft !== "",
-      flagged: row.flaggedReason,
-      unmatched: row.unmatchedAt !== null,
-      unmatchedBy: row.unmatchedAt ? (row.unmatchedBy ?? "member") : null,
-      ended: row.endedAt !== null,
-      movedToText: row.movedToTextAt !== null,
-      aiOff: row.aiOff,
-      dateAccepted: row.dateAcceptedAt !== null,
-      trend: trends.get(row.id)?.trend ?? "too_early",
-      sample: row.sample,
-    })),
-    dates: matchRows
-      .filter((row) => row.dateAcceptedAt && !row.unmatchedAt)
-      .map((row) => dateListItem(row))
-      .sort((a, b) => b.acceptedAt.getTime() - a.acceptedAt.getTime()),
+    leads: buildLeads(
+      profileRows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        age: row.age,
+        photoId: row.photoIds[0] ?? null,
+        score: row.aiScore,
+        swipe: row.swipe,
+        swipedBy: row.swipedBy ?? null,
+        swipedAt: row.swipedAt,
+        readAt: row.readAt,
+        sample: row.sample,
+      })),
+      matchRows.map((row) => ({
+        id: row.id,
+        profileId: row.profileId,
+        theirName: row.theirName,
+        photoId: row.photoId,
+        lastLine: lastLines.get(row.id) ?? row.lastPreview,
+        lastMessageAt: row.lastMessageAt,
+        matchedAt: row.matchedAt,
+        unreadCount: row.unreadCount,
+        hasDraft: row.draft !== "",
+        draftSendsItself: settings.automate && row.draftSendAt !== null,
+        flagged: row.flaggedReason,
+        messagesFromThem: row.messagesFromThem,
+        messagesFromUs: row.messagesFromUs,
+        unmatchedBy: row.unmatchedAt ? (row.unmatchedBy ?? "member") : null,
+        ended: row.endedAt !== null,
+        movedToText: row.movedToTextAt !== null,
+        aiOff: row.aiOff,
+        dateAccepted: row.dateAcceptedAt !== null,
+        dateAt: row.dateAt,
+        datePlace: row.datePlace,
+        trend: trends.get(row.id)?.trend ?? "too_early",
+        sample: row.sample,
+      }))
+    ),
     drafts,
     openers,
     own: ownRow[0]
@@ -299,7 +252,6 @@ export async function loadDashboard(
         }
       : null,
     tally: await dailyTally(userId, workspaceId, timeZone, db, now),
-    hasSamples: profileRows.some((row) => row.sample) || matchRows.some((row) => row.sample),
   }
 }
 
@@ -353,20 +305,6 @@ async function discoveryView(phoneId: string, db: CustomShellDb): Promise<Discov
     ageMin: Number(result.ageMin ?? 0),
     ageMax: Number(result.ageMax ?? 0),
     at: last.finishedAt,
-  }
-}
-
-export function dateListItem(row: typeof dateMatches.$inferSelect): DateListItem {
-  return {
-    matchId: row.id,
-    theirName: row.theirName,
-    photoId: row.photoId,
-    acceptedAt: row.dateAcceptedAt ?? row.updatedAt,
-    acceptedLine: row.dateAcceptedLine,
-    theirNumber: row.theirNumber,
-    dateAt: row.dateAt,
-    datePlace: row.datePlace,
-    sample: row.sample,
   }
 }
 
@@ -747,6 +685,6 @@ export async function dashboardPhone(userId: string, workspaceId: string, db: Cu
     .where(and(eq(datePhones.userId, userId), eq(datePhones.workspaceId, workspaceId), isNotNull(datePhones.keyEncrypted)))
     .orderBy(desc(datePhones.pairedAt))
     .limit(1)
-  if (!phone) throw new Error("No phone is paired yet. Pair one on the Phone screen first.")
+  if (!phone) throw new Error("No phone is paired yet. Pair one in the dashboard's Phone panel first.")
   return phone
 }

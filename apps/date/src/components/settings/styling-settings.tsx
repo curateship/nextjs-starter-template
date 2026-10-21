@@ -7,6 +7,8 @@ import {
   FieldGroup,
   ModalPreview,
 } from "@/components/settings/styling-fields"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import {
   Card,
   CardContent,
@@ -26,7 +28,9 @@ import { type ShellConfig } from "@/lib/custom-shell"
 import {
   DARK_SHADES,
   darkShade,
+  DEFAULT_DASHBOARD_TABS,
   isDarkShadeId,
+  isDashboardTabStyle,
   MAX_CARD_BORDER_WIDTH,
   MAX_CONTENT_GUTTER,
   MAX_MODAL_PADDING,
@@ -48,6 +52,8 @@ export function StylingSettings({
 }: StylingSettingsProps) {
   const styling = config.styling
   const isFlat = styling.gutter === 0
+  const tabStyle = styling.dashboardTabs ?? DEFAULT_DASHBOARD_TABS
+  const [previewTab, setPreviewTab] = React.useState("list")
   const shade = darkShade(styling.darkShade)
 
   const update = (patch: Partial<ShellStyling>) =>
@@ -182,6 +188,47 @@ export function StylingSettings({
             <div className="px-4 py-2 text-sm text-muted-foreground">
               The last row has no divider under it.
             </div>
+          </div>
+        </FieldGroup>
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="styling-dashboard-tabs"
+        title="Dashboard tabs"
+        description="How the tabs in a dashboard's panel headers are drawn, on every dashboard in this workspace."
+        contentClassName="space-y-3"
+      >
+        <FieldGroup label="Style">
+          <Select
+            value={tabStyle}
+            onValueChange={(value) => {
+              if (isDashboardTabStyle(value)) update({ dashboardTabs: value })
+            }}
+          >
+            <SelectTrigger id="dashboard-tabs" aria-label="Dashboard tab style">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pills">Pills</SelectItem>
+              <SelectItem value="underline">Underlined</SelectItem>
+            </SelectContent>
+          </Select>
+        </FieldGroup>
+
+        <FieldGroup label="Preview" className="gap-2">
+          <div className="max-w-lg overflow-hidden rounded-lg border bg-card">
+            <DashboardCardHeader>
+              <DashboardTabs
+                style={tabStyle}
+                value={previewTab}
+                onValueChange={setPreviewTab}
+                tabs={[
+                  { value: "list", label: "List" },
+                  { value: "board", label: "Board" },
+                  { value: "calendar", label: "Calendar" },
+                ]}
+              />
+            </DashboardCardHeader>
           </div>
         </FieldGroup>
       </CollapsibleSettingsCard>

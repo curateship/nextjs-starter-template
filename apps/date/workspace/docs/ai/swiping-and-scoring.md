@@ -7,7 +7,7 @@ How the score learns from the member, what it costs, when swiping runs, and what
 - **An overruled card** is one the member liked when the rule would pass it, or passed when it would like it. The like line as it is now decides, so moving the line changes which cards count.
 - **The AI sees the last 10** each time it scores a card, as their short read, their score and "the member liked it" or "passed it". No photos, to keep the cost down, about a cent a card more (`overruledCards` in `src/server/dating/ai.ts`).
 - **Left out**: cards the AI swiped, cards it would not read, people on the People I know list, and samples.
-- **The Swiping card says** "Learning from 7 of your swipes".
+- **The Swiping section of the dashboard's phone panel says** "Learning from 7 of your swipes".
 
 ## Two looks at a card
 
@@ -17,7 +17,7 @@ How the score learns from the member, what it costs, when swiping runs, and what
 
 ## People I know
 
-- **Settings → Dating, one a line**: a name and an age, such as "Sarah, 31".
+- **In the Dating settings, one a line**: a name and an age, such as "Sarah, 31".
 - **A card with that name and age is passed** without an AI call, with the read "Someone on your People I know list." and the flag "On your People I know list". The name matches whatever its capitals or accents, so "Zoë" is "zoe".
 - **A stranger with the same name and age is passed too.** Photos and faces are not compared.
 
@@ -28,7 +28,7 @@ How the score learns from the member, what it costs, when swiping runs, and what
 
 ## The swiping schedule
 
-One window every day, set in Settings → Dating as "Swipe every day from" and "Until", on the phone's own clock. Empty means no schedule.
+One window every day, set in the Dating settings as "Swipe every day from" and "Until", on the phone's own clock. Empty means no schedule.
 
 - **Inside the window the schedule starts the loop once**, when the phone is here, paired, in control, not stopped on a Tinder screen, and the cap has room. The Swiping card says "started by the schedule".
 - **It never resumes a stop screen.** Out of likes, a ban and the rest still need Resume.
@@ -39,7 +39,7 @@ One window every day, set in Settings → Dating as "Swipe every day from" and "
 
 ## Tinder's own filters
 
-- **Furthest away**, 25 km to start with, sits beside the ages in Settings → Dating. The phone copies it and the age range into Tinder's own settings, so Tinder stops showing cards Date would pass anyway.
+- **Furthest away**, 25 km to start with, sits beside the ages in the Dating settings. The phone copies it and the age range into Tinder's own settings, so Tinder stops showing cards Date would pass anyway.
 - **It runs** once for every phone, again whenever the distance or an age changes, and on Resume, as soon as the phone is free and outside quiet hours. A walk that fails is not tried again by itself: change a setting or press Resume.
 - **The walk drags each slider and reads it back** until it says what Date asked for, aiming again by how far each move missed. Tinder counting in miles gets miles (25 km is 16 miles). A value past the end of Tinder's slider is set to its end.
 - **The Swiping card shows what Tinder was set to**, and when, or why it failed.
@@ -53,12 +53,12 @@ One window every day, set in Settings → Dating as "Swipe every day from" and "
 
 ## What's working
 
-- **A tab on the Daily tally card**: every liked card the AI scored, in bands of 10 points, with how many became a match and how many of those matches sent a message. For example, "80 to 89: 9 matches out of 40 likes, 5 replied".
+- **What's working, a section of the dashboard's left panel**: every liked card the AI scored, in bands of 10 points, with how many became a match and how many of those matches sent a message. For example, "80 to 89: 9 matches out of 40 likes, 5 replied".
 - **A band with fewer than 20 likes** says "not enough yet". It needs a few weeks before the numbers mean anything.
 - **A match is tied to its card** when the like came back "It's a Match!", or later by name on the chat list, to the newest like of that name not already tied to a match.
 
 ## What a match costs
 
-- **The Swiping card shows this month's AI spend per match and per date**, such as "$4.20 for 3 matches, $1.40 a match". A month with none says "no matches yet" instead of dividing by zero.
+- **The dashboard's AI spend section shows this month's AI spend per match and per date**, such as "$4.20 for 3 matches, $1.40 a match". A month with none says "no matches yet" instead of dividing by zero.
 - **This month** is the meter's own, from the 1st in UTC. Matches count by when they matched, dates by when they said yes. Samples are left out.
 - **The dollars are estimates** until a real AI call goes through (`spend.md`).

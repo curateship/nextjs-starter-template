@@ -74,10 +74,10 @@ export async function checkWalkAllowed(
     .where(and(eq(datePhones.id, request.phoneId), eq(datePhones.userId, request.userId)))
     .limit(1)
   if (!phone) throw new Error("That phone does not exist.")
-  if (!phone.keyEncrypted) throw new Error(`${phone.name} is not paired. Pair it on the Phone screen first.`)
-  if (!phone.inControl) throw new Error(`Date is switched off for ${phone.name}. Switch it on on the Phone screen first.`)
+  if (!phone.keyEncrypted) throw new Error(`${phone.name} is not paired. Pair it in the dashboard's Phone panel first.`)
+  if (!phone.inControl) throw new Error(`Date is switched off for ${phone.name}. Switch it on in the dashboard's Phone panel first.`)
   if (phone.stoppedReason) {
-    throw new Error(`${STOP_REASON_WORDS[phone.stoppedReason]}. Press Resume on the Phone screen once it is sorted.`)
+    throw new Error(`${STOP_REASON_WORDS[phone.stoppedReason]}. Press Resume in the dashboard's Phone panel once it is sorted.`)
   }
   const settings = await readDatingSettings(request.userId, phone.workspaceId, db)
   const refusal = await walkRefusal(phone, request.kind, settings, db, now)
@@ -215,7 +215,7 @@ export async function runWalk(walk: WalkRow, db: CustomShellDb = defaultDb, opti
     let shot: Buffer | null = kit.lastSeen?.shot ?? null
     if (error instanceof StopScreenError) {
       await stopPhoneForScreen(walkPhone, error, db, clock())
-      words = `${STOP_REASON_WORDS[error.reason]}. Everything on the phone has stopped until you press Resume on the Phone screen.`
+      words = `${STOP_REASON_WORDS[error.reason]}. Everything on the phone has stopped until you press Resume in the dashboard's Phone panel.`
       shot = null
     } else if (error instanceof WalkError) {
       words = error.message
@@ -236,7 +236,7 @@ export async function runWalk(walk: WalkRow, db: CustomShellDb = defaultDb, opti
   }
 }
 
-/** The screen a failed walk stopped on, kept on its last step so the Phone screen can show where it went wrong. */
+/** The screen a failed walk stopped on, kept on its last step so the dashboard's Phone panel can show where it went wrong. */
 async function keepFailurePicture(walk: WalkRow, shot: Buffer, db: CustomShellDb, now: Date): Promise<void> {
   try {
     const [last] = await db
@@ -268,7 +268,7 @@ async function followUp(walk: WalkRow, result: Record<string, unknown>, db: Cust
 /**
  * A stop screen: the phone stops doing anything until Resume. The loop is
  * switched off, every walk and action waiting is cancelled, and the screen is
- * kept so the Phone screen shows what Tinder said.
+ * kept so the dashboard's Phone panel shows what Tinder said.
  */
 export async function stopPhoneForScreen(
   phone: { id: string; userId: string },
@@ -323,7 +323,7 @@ export async function cancelWalks(phoneId: string, reason: string, db: CustomShe
 }
 
 /**
- * Resume on the Phone screen: the stop is cleared and Tinder is looked at
+ * Resume in the dashboard's Phone panel: the stop is cleared and Tinder is looked at
  * again at once. If the same screen is still there, the phone stops again,
  * with how long Tinder says is left. Tinder's distance and ages are set again
  * from Date's on the next pass after that.

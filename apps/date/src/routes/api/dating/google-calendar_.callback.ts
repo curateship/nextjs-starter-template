@@ -11,8 +11,8 @@ import { workspaceIdForRequest } from "@/server/workspaces/for-request"
  * The handshake cookie is read and cleared first, and Google's `state` has to
  * match it, so a link somebody else built cannot connect their calendar to
  * this account. The member must still be signed in, and the calendar is kept
- * against them and the site they are on. Every exit goes back to Settings,
- * Dating, with a word the tab turns into a message.
+ * against them and the site they are on. Every exit goes back to the Dating
+ * dashboard, with a word that opens its settings window and says how it went.
  */
 export const Route = createFileRoute("/api/dating/google-calendar_/callback")({
   server: {
@@ -20,17 +20,17 @@ export const Route = createFileRoute("/api/dating/google-calendar_/callback")({
       GET: async ({ request }) => {
         const parameters = new URL(request.url).searchParams
         const verifier = takeCalendarHandshake(parameters.get("state"))
-        if (parameters.get("error") === "access_denied") return browserRedirect("/admin/settings/dating?google=denied")
+        if (parameters.get("error") === "access_denied") return browserRedirect("/admin/dating?google=denied")
         const code = parameters.get("code")
-        if (!verifier || !code) return browserRedirect("/admin/settings/dating?google=failed")
+        if (!verifier || !code) return browserRedirect("/admin/dating?google=failed")
         const user = await findCurrentUser()
-        if (!user) return browserRedirect("/login?redirect=/admin/settings/dating")
+        if (!user) return browserRedirect("/login?redirect=/admin/dating")
         try {
           await finishCalendarConnect(user.id, await workspaceIdForRequest(user.id), code, verifier)
-          return browserRedirect("/admin/settings/dating?google=connected")
+          return browserRedirect("/admin/dating?google=connected")
         } catch (error) {
           console.error("Google Calendar could not be connected", error)
-          return browserRedirect("/admin/settings/dating?google=failed")
+          return browserRedirect("/admin/dating?google=failed")
         }
       },
     },

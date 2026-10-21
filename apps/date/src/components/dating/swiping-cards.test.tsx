@@ -19,13 +19,15 @@ vi.mock("@/lib/api/dating/settings", async () => {
     },
   }
 })
+vi.mock("@/lib/api/dating/phone", () => ({}))
 vi.mock("@/lib/api/dating/chats", () => ({
   loadGoogleCalendar: async () => ({ connected: false, available: false, email: "", lastError: "" }),
   disconnectGoogleCalendar: async () => {},
 }))
 
 import DatingSettingsTab from "@/components/dating/dating-settings"
-import { DatingRail, type RailActions } from "@/components/dating/dating-rail"
+import { LeadSummary } from "@/components/dating/lead-summary"
+import { SwipingDetails } from "@/components/dating/phone-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { DatingDashboard } from "@/lib/api/dating/dashboard"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -34,8 +36,10 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * What a browser would show of task "features/02-swiping-and-scoring": the
- * Swiping card's new lines, the What's working tab, and the new Settings
- * fields, drawn by the real components with the data the dashboard sends.
+ * Swiping lines (in the dashboard's Phone view since
+ * "features/05-dashboard-layout"), What's working and what a match costs (in
+ * the dashboard's left panel), and the new Settings fields, drawn by the real
+ * components with the data the dashboard sends.
  */
 
 const at = new Date("2099-01-01T19:00:00Z")
@@ -93,17 +97,12 @@ const dashboard: DatingDashboard = {
   ],
   discovery: { state: "set", distance: "25 km", ageMin: 28, ageMax: 36, at },
   walks: { current: null, waiting: 0, recent: [] },
-  profiles: [],
-  matches: [],
+  leads: [],
   own: null,
   tally: [{ day: "2099-01-01", swipes: 47, likes: 20, matches: 3, messages: 4, datesProposed: 0 }],
-  dates: [],
   drafts: { unchanged: 0, of: 0 },
   openers: [],
-  hasSamples: false,
 }
-
-const actions = new Proxy({}, { get: () => vi.fn() }) as RailActions
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -124,33 +123,36 @@ function text(): string {
   return (host.textContent ?? "").replace(/\s+/g, " ")
 }
 
-describe("the Swiping card and What's working", () => {
-  it("shows today's swipes, the schedule, what a match costs, the learning count and Tinder's filters", async () => {
-    await mount(<DatingRail data={dashboard} profile={null} match={null} busy={null} actions={actions} />)
+describe("the Phone view's Swiping and the left panel", () => {
+  it("shows today's swipes, the learning count and Tinder's filters, and leaves the rules to Settings", async () => {
+    await mount(
+      <div>
+        <SwipingDetails data={dashboard} />
+      </div>
+    )
     const shown = text()
     expect(shown).toContain("Running since")
     expect(shown).toContain("started by the schedule")
     expect(shown).toContain("Swipes today47 of 150")
-    expect(shown).toContain("Schedule19:00 to 22:00")
-    expect(shown).toContain("A match costs$4.20 for 3 matches, $1.40 a match")
-    expect(shown).toContain("A date costsno dates yet")
     expect(shown).toContain("Learning from 7 of your swipes")
     expect(shown).toContain("Tinder set to 25 km, ages 28 to 36")
+    expect(shown).not.toContain("Quiet hours")
+    expect(shown).not.toContain("Schedule")
   })
 
-  it("counts liked cards by band, and says a thin band is not enough yet", async () => {
-    await mount(<DatingRail data={dashboard} profile={null} match={null} busy={null} actions={actions} />)
-    const tab = [...host.querySelectorAll('[role="tab"]')].find((node) => node.textContent === "What's working") as HTMLElement
-    await act(async () => {
-      tab.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }))
-    })
+  it("says what a match costs, and counts liked cards by band, saying a thin band is not enough yet", async () => {
+    await mount(
+      <LeadSummary data={dashboard} group={undefined} busy={null} onGroup={vi.fn()} onStartOrStop={vi.fn()} onReadCard={vi.fn()} onReadChats={vi.fn()} openId={undefined} onOpen={vi.fn()} onOpenSettings={vi.fn()} />
+    )
     const shown = text()
-    expect(shown).toContain("80 to 899 matches out of 40 likes, 5 replied")
+    expect(shown).toContain("Cost per match$1.40")
+    expect(shown).toContain("Cost per dateNone yet")
+    expect(shown).toContain("80 to 899 of 40 likes matched, 5 replied")
     expect(shown).toContain("70 to 793 likes, not enough yet")
   })
 })
 
-describe("Settings → Dating", () => {
+describe("the Dating settings", () => {
   it("shows Furthest away, swipes a day and no schedule, and saves a People I know line once it reads", async () => {
     await mount(<DatingSettingsTab />)
     expect((host.querySelector("#date-max-distance") as HTMLInputElement).value).toBe("25")

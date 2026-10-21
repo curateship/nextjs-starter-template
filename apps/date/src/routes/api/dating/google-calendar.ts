@@ -17,8 +17,8 @@ export const Route = createFileRoute("/api/dating/google-calendar")({
     handlers: {
       GET: async () => {
         const user = await findCurrentUser()
-        if (!user) return browserRedirect("/login?redirect=/admin/settings/dating")
-        if (!googleCalendarAvailable()) return browserRedirect("/admin/settings/dating?google=not-set-up")
+        if (!user) return browserRedirect("/login?redirect=/admin/dating")
+        if (!googleCalendarAvailable()) return browserRedirect("/admin/dating?google=not-set-up")
         return browserRedirect(startCalendarConnect())
       },
     },

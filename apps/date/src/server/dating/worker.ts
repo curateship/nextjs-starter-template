@@ -154,6 +154,8 @@ function aiWork(phone: Phone, db: CustomShellDb, now: Date, deps: AiDeps): Promi
     )
     for (const match of writable) {
       const last = newest.get(match.id)
+      // The member dismissed the draft for this very message: no new one until the chat moves on.
+      if (match.draftDismissedFor !== null && match.draftDismissedFor === (last?.id ?? "opener")) continue
       if (!last) {
         // A new match nobody has written to, whose card Date read: a first
         // message. Not while the chat list says there is something to read.
@@ -389,7 +391,7 @@ async function superLikeDue(phone: Phone, score: number | null, db: CustomShellD
  */
 async function loopStep(phone: Phone, settings: DatingSettings, db: CustomShellDb, now: Date, work: Promise<unknown>[], deps: AiDeps): Promise<void> {
   if (phone.stoppedReason || !phone.inControl) {
-    await stopLoop(phone, phone.stoppedReason ? "A Tinder screen stopped the phone." : "Date was switched off on the Phone screen.", db, now)
+    await stopLoop(phone, phone.stoppedReason ? "A Tinder screen stopped the phone." : "Date was switched off in the dashboard's Phone panel.", db, now)
     return
   }
   if (!phone.lastSeenAt || now.getTime() - phone.lastSeenAt.getTime() > AWAY_STOPS_LOOP_MS) {
@@ -489,9 +491,9 @@ export async function startLoop(userId: string, phoneId: string, db: CustomShell
     .where(and(eq(datePhones.id, phoneId), eq(datePhones.userId, userId)))
     .limit(1)
   if (!phone) throw new Error("That phone does not exist.")
-  if (!phone.keyEncrypted) throw new Error(`${phone.name} is not paired. Pair it on the Phone screen first.`)
-  if (!phone.inControl) throw new Error(`Date is switched off for ${phone.name}. Switch it on on the Phone screen first.`)
-  if (phone.stoppedReason) throw new Error("A Tinder screen stopped the phone. Press Resume on the Phone screen once it is sorted.")
+  if (!phone.keyEncrypted) throw new Error(`${phone.name} is not paired. Pair it in the dashboard's Phone panel first.`)
+  if (!phone.inControl) throw new Error(`Date is switched off for ${phone.name}. Switch it on in the dashboard's Phone panel first.`)
+  if (phone.stoppedReason) throw new Error("A Tinder screen stopped the phone. Press Resume in the dashboard's Phone panel once it is sorted.")
   const settings = await readDatingSettings(userId, phone.workspaceId, db)
   const cap = await spendCapReached(userId, settings.spendCapDollars, db, now)
   if (cap) throw new Error(cap)

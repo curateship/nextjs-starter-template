@@ -1,6 +1,8 @@
 import { createServerOnlyFn } from "@tanstack/react-start"
 
+import { DATING_SAVED_VIEW_KIND } from "@/lib/dating/lead-views"
 import type { AppServerOptions } from "@/server/app-options"
+import { datingSavedViewScreen } from "@/server/dating/saved-views"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -43,4 +45,5 @@ export const appServerOptions: AppServerOptions = {
   background: {
     workers: [{ name: "dating", tick: datingTick }],
   },
+  savedViews: { screens: { [DATING_SAVED_VIEW_KIND]: datingSavedViewScreen } },
 }

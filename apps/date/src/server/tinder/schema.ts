@@ -154,6 +154,12 @@ export const dateMatches = pgTable(
     draftOpenerStyle: varchar("draft_opener_style", { length: 20 }).$type<OpenerStyle>(),
     /** Two more drafts "Show 3" wrote. Automate never sends these; it sends `draft`. */
     draftChoices: jsonb("draft_choices").$type<string[]>().notNull().default([]),
+    /**
+     * The message the member dismissed the AI's draft for, or "opener" for a
+     * first message. The background pass writes no new draft until a newer
+     * message moves the chat on.
+     */
+    draftDismissedFor: varchar("draft_dismissed_for", { length: 36 }),
     /** The one follow-up on a quiet chat was drafted. There is never a second. */
     nudgedAt: timestamp("nudged_at", { withTimezone: true }),
     /** The AI read the chat as over, and the line of theirs that says so. */

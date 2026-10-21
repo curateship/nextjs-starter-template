@@ -83,7 +83,7 @@ function PlanWindow({
             <Card size="sm">
               <CardHeader>
                 <CardTitle>When and where</CardTitle>
-                <CardDescription>It shows on the Calendar screen under Dating, and in Google Calendar when that is connected in Settings.</CardDescription>
+                <CardDescription>It shows on the Dates tab's month, and in Google Calendar when that is connected in the Dating settings.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">

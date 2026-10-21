@@ -14,7 +14,7 @@ import { datePhoneActions, datePhones } from "./schema"
 /**
  * Writing plain actions for a phone and waiting for their answers.
  *
- * `queueAction` writes one and returns at once: the Phone screen's picture
+ * `queueAction` writes one and returns at once: the dashboard's Phone panel's picture
  * button and a tap in the screen window use it. `callPhone` writes one and
  * waits for the phone's answer: every step of a Tinder walk uses it. Both go
  * through the same queue, so the phone does one thing at a time, in order.
@@ -36,8 +36,8 @@ async function checkPhoneTakesActions(userId: string, phoneId: string, db: Custo
     .where(and(eq(datePhones.id, phoneId), eq(datePhones.userId, userId)))
     .limit(1)
   if (!phone) throw new Error("That phone does not exist.")
-  if (!phone.keyEncrypted) throw new Error(`${phone.name} is not paired. Pair it on the Phone screen first.`)
-  if (!phone.inControl) throw new Error(`Date is switched off for ${phone.name}. Switch it on on the Phone screen first.`)
+  if (!phone.keyEncrypted) throw new Error(`${phone.name} is not paired. Pair it in the dashboard's Phone panel first.`)
+  if (!phone.inControl) throw new Error(`Date is switched off for ${phone.name}. Switch it on in the dashboard's Phone panel first.`)
   return phone
 }
 
@@ -207,7 +207,7 @@ export async function forgetWalkScreenshots(walkId: string, db: CustomShellDb = 
   await db.update(datePhoneActions).set({ screenshot: null }).where(eq(datePhoneActions.walkId, walkId))
 }
 
-/** Lists kept pictures on a walk's step, so the Phone screen's history shows them. */
+/** Lists kept pictures on a walk's step, so the dashboard's Phone panel's history shows them. */
 export async function addStepPictures(actionId: string, pictureIds: string[], db: CustomShellDb = defaultDb): Promise<void> {
   if (!pictureIds.length) return
   const [row] = await db

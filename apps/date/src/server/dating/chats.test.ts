@@ -21,7 +21,7 @@ import { dateMatches, dateMessages, dateProfiles, dateWalks } from "@/server/tin
 import { createOutgoingMessage, messageHash, saveChatList } from "@/server/tinder/store"
 
 import { askAboutMatches, draftReply, learnedSends, readChatNotes, tidyReply, type AiAsk } from "./ai"
-import { clearDeadMatches, deadMatches, deleteFact, saveFact, setAiDrafts, setDatePlan, setMovedToText, setNotOver } from "./chats"
+import { clearDeadMatches, deadMatches, deleteFact, dismissDraft, saveFact, setAiDrafts, setDatePlan, setManyMovedToText, setMovedToText, setNotOver } from "./chats"
 import { draftsSentUnchanged, loadMatchDetail, openerTally } from "./dashboard"
 import { syncDateEvent, type Fetcher } from "./google-calendar"
 import { dateGoogleCalendars } from "./schema"
@@ -418,6 +418,51 @@ describe("chats and replies", () => {
       expect(result.skipped).toHaveLength(1)
       const walks = await db.select().from(dateWalks).where(eq(dateWalks.kind, "unmatch"))
       expect(walks.map((walk) => walk.input.matchId).sort()).toEqual([old, never].sort())
+    })
+  })
+
+  describe("Dismiss on the AI's draft (task features/05-dashboard-layout)", () => {
+    it("drops the draft and its choices, writes none for the same message, and drafts again once they write", async () => {
+      const matchId = await chat([["in", "hey"]], { draft: "Hey back", draftChoices: ["Hi", "Hello"], draftSendAt: clock })
+      await dismissDraft(userId, matchId, db, clock)
+      expect(await matchRow(matchId)).toMatchObject({ draft: "", draftChoices: [], draftSendAt: null })
+
+      // No answer is queued: had the pass asked the AI, drafts() would count it.
+      await pass()
+      expect(drafts()).toHaveLength(0)
+      expect((await matchRow(matchId)).draft).toBe("")
+
+      await db.insert(dateMessages).values({ id: uuid(), userId, matchId, direction: "in", sentBy: "them", text: "you there?", hash: messageHash("you there?"), status: "sent", position: 2, createdAt: clock })
+      await db.update(dateMatches).set({ messagesFromThem: 2 }).where(eq(dateMatches.id, matchId))
+      answers.push(draft("Here! Long day"))
+      await pass()
+      expect((await matchRow(matchId)).draft).toBe("Here! Long day")
+    })
+
+    it("holds back a first message the member dismissed, with nothing in the chat yet", async () => {
+      const cardId = uuid()
+      await db.insert(dateProfiles).values({ id: cardId, userId, workspaceId, phoneId, name: "Ana", age: 30, readAt: clock })
+      const matchId = await chat([], { profileId: cardId, theirName: "Ana", draft: "Hi Ana", draftKind: "opener" })
+      await dismissDraft(userId, matchId, db, clock)
+      expect((await matchRow(matchId)).draftDismissedFor).toBe("opener")
+      await pass()
+      expect(drafts()).toHaveLength(0)
+    })
+  })
+
+  describe("mass select, moved to text for several chats (task features/05-dashboard-layout)", () => {
+    it("moves the live chats in one write, drops their drafts, and skips one already moved, one unmatched and one that is not there", async () => {
+      const ana = await chat([["in", "hi"]], { theirName: "Ana", draft: "Hey Ana" })
+      const bea = await chat([["in", "hi"]], { theirName: "Bea" })
+      const moved = await chat([["in", "hi"]], { theirName: "Moved", movedToTextAt: new Date(clock.getTime() - DAY) })
+      const gone = await chat([["in", "hi"]], { theirName: "Gone", unmatchedAt: clock })
+      const result = await setManyMovedToText(userId, [ana, bea, moved, gone, uuid()], db, clock)
+      expect(result.moved).toEqual([ana, bea])
+      expect(result.skipped).toHaveLength(3)
+      expect(await matchRow(ana)).toMatchObject({ movedToTextAt: clock, draft: "" })
+      // The one moved yesterday keeps its own day.
+      expect((await matchRow(moved)).movedToTextAt).toEqual(new Date(clock.getTime() - DAY))
+      expect((await matchRow(gone)).movedToTextAt).toBeNull()
     })
   })
 

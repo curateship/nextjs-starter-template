@@ -41,7 +41,7 @@ export const datePhones = pgTable(
     /** Tinder's version on the phone, or empty when it is not installed. */
     tinderVersion: varchar("tinder_version", { length: 60 }).notNull().default(""),
     tinderInFront: boolean("tinder_in_front").notNull().default(false),
-    /** The "Date is in control" switch on the Phone screen. Off, the phone is handed nothing. */
+    /** The "Date is in control" switch in the dashboard's Phone panel. Off, the phone is handed nothing. */
     inControl: boolean("in_control").notNull().default(true),
     /** The same switch on the phone itself, as it last reported. */
     phoneSwitchOn: boolean("phone_switch_on").notNull().default(true),
@@ -76,7 +76,7 @@ export const datePhones = pgTable(
 )
 
 /**
- * A six-digit code shown once on the Phone screen. Only its hash is kept. It
+ * A six-digit code shown once in the dashboard's Phone panel. Only its hash is kept. It
  * works once, for ten minutes, and pairs the phone named here, or a new phone
  * when none is named.
  */
@@ -114,7 +114,7 @@ export const datePhoneNonces = pgTable(
 
 /**
  * One plain action for one phone. A walk writes these one step at a time and
- * waits on each; the Phone screen's picture button writes one on its own.
+ * waits on each; the dashboard's Phone panel's picture button writes one on its own.
  *
  * `screenshot` holds the phone's picture of the screen as it came in, only
  * until whoever asked has used it. Kept pictures go to R2 and are listed in

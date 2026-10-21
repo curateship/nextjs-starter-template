@@ -196,7 +196,7 @@ describe("the AI and the swipe loop", () => {
       const id = await seededCard()
       const outcome = await scoreCard(id, db, clock, { ask })
       expect(outcome.status).toBe("cap")
-      expect(outcome.words).toBe("Spend cap reached, $20 this month. The AI starts again on the 1st, or when the cap is raised in Settings → Dating.")
+      expect(outcome.words).toBe("Spend cap reached, $20 this month. The AI starts again on the 1st, or when the cap is raised in the Dating settings.")
       expect(asked).toHaveLength(0)
       // A pause, not a failure: the card is left to be read once there is room.
       const [card] = await db.select().from(dateProfiles)

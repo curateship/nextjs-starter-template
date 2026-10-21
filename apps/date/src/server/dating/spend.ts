@@ -42,7 +42,7 @@ export async function spendCapReached(
 ): Promise<string | null> {
   const spent = await monthSpendDollars(userId, db, now)
   if (spent < capDollars) return null
-  return `Spend cap reached, $${capDollars} this month. The AI starts again on the 1st, or when the cap is raised in Settings → Dating.`
+  return `Spend cap reached, $${capDollars} this month. The AI starts again on the 1st, or when the cap is raised in the Dating settings.`
 }
 
 /**
