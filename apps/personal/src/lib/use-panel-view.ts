@@ -1,9 +1,11 @@
 import * as React from "react"
 
+import { DEFAULT_KEPT_FRAMES, KEPT_FRAME_CHOICES } from "@/lib/frames"
+
 /**
- * How the middle panel draws its screen: a zoom, and a phone-size view. Both
- * are kept by this browser, one for every screen. Tyler chose one zoom kept by
- * the browser on 17 Oct 2026. Storage can be blocked (a private window), and
+ * How the middle panel draws its screen: a zoom, a phone-size view, and how
+ * many screens stay loaded. All are kept by this browser, one for every screen.
+ * Tyler chose one zoom kept by the browser on 17 Oct 2026. Storage can be blocked (a private window), and
  * then a choice lasts until the page reloads.
  */
 
@@ -15,6 +17,7 @@ export const PHONE_WIDTH = 390
 
 const ZOOM_KEY = "personal-panel-zoom"
 const PHONE_KEY = "personal-panel-phone"
+const KEPT_KEY = "personal-panel-kept"
 
 function read(key: string) {
   try {
@@ -41,6 +44,9 @@ export function usePanelView() {
     () => PANEL_ZOOMS.find((z) => String(z) === read(ZOOM_KEY)) ?? 1
   )
   const [phone, setPhoneState] = React.useState(() => read(PHONE_KEY) === "on")
+  const [kept, setKeptState] = React.useState<number>(
+    () => KEPT_FRAME_CHOICES.find((n) => String(n) === read(KEPT_KEY)) ?? DEFAULT_KEPT_FRAMES
+  )
 
   const setZoom = React.useCallback((next: PanelZoom) => {
     setZoomState(next)
@@ -52,5 +58,10 @@ export function usePanelView() {
     write(PHONE_KEY, next ? "on" : "off")
   }, [])
 
-  return { zoom, setZoom, phone, setPhone }
+  const setKept = React.useCallback((next: number) => {
+    setKeptState(next)
+    write(KEPT_KEY, String(next))
+  }, [])
+
+  return { zoom, setZoom, phone, setPhone, kept, setKept }
 }

@@ -17,7 +17,7 @@ import {
 } from "@/server/browser/session"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NO_PROFILE_MESSAGE, READER_JOB_KINDS, WRITE_JOB_KINDS, type JobKind } from "@/lib/social/options"
-import { aNetwork, handleWords, isPhoneAppNetwork, NETWORK_NAMES } from "@/lib/social/networks"
+import { aNetwork, handleWords, isNetwork, isPhoneAppNetwork, NETWORK_NAMES } from "@/lib/social/networks"
 import { nextWakeAt } from "@/lib/social/waking"
 import { PHONE_LANE_PREFIX, phoneLane } from "@/lib/phones/options"
 import { recordPhoneEvent } from "@/server/phones/history"
@@ -56,6 +56,16 @@ import { recordAppHealth } from "./phone-apps/health"
 import { runInboxRead, runInboxReply } from "./phone-apps/inbox"
 import { runAppPost } from "./phone-apps/posts"
 import { runProfileEdit } from "./phone-apps/profile"
+import { mediumQuickState, mediumState } from "./medium/calls"
+import {
+  MEDIUM_ACCOUNT_KINDS,
+  MEDIUM_READER_KINDS,
+  runMediumAccountJob,
+  runMediumReaderJob,
+  queueMediumProfileRead,
+  saveMediumSignIn,
+} from "./medium/run"
+import { settleFailedMediumJob } from "./medium/settle"
 
 /**
  * One turn of the browser work.
@@ -130,6 +140,9 @@ export async function runOneJob(
     const attempts = final ? JOB_MAX_ATTEMPTS : job.attempts
     const later = error instanceof TryAgainLater ? new Date(Date.now() + error.waitMs) : null
     await failJob(job.id, claimToken, message, attempts, db, later)
+    // A Medium response, article or list add refused before its own code ran
+    // still says so on its row.
+    if (final) await settleFailedMediumJob(job, message, db)
     // A comment, an answer or a post that did not go out rings the bell.
     await ringForFailure(job, message, db)
     return { did: "job", kind: job.kind, jobId: job.id, ok: false, error: message }
@@ -235,7 +248,7 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   }
   // Retired after the job was queued. A retired account never posts and
   // never warms up; a health reading is only a read and still runs.
-  const writes = WRITE_JOB_KINDS.includes(job.kind) || job.kind === "warm_up"
+  const writes = WRITE_JOB_KINDS.includes(job.kind) || job.kind === "warm_up" || job.kind === "medium_warm_up"
   if (account.retiredAt && writes) {
     throw new Refusal(
       "This account is retired, so it no longer posts or warms up. Bring it back on the Accounts dashboard first."
@@ -253,7 +266,9 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
     throw new Refusal(
       paused === "account"
         ? "This account is paused, so it does not warm up or take health readings. Resume it on the Accounts dashboard."
-        : "This account's project is paused, so it does not warm up or take health readings. Resume the project on its dashboard."
+        : paused === "network"
+          ? "This account's network is paused on its project, so it does not warm up or take readings. Resume it in the project's left column."
+          : "This account's project is paused, so it does not warm up or take health readings. Resume the project on its dashboard."
     )
   }
 
@@ -296,16 +311,35 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
 /** Jobs only a Reddit account does, in its browser or the Reddit app. */
 const REDDIT_ONLY_KINDS: readonly JobKind[] = ["comment", "reply", "submit", "delete_comment", "edit_comment", "warm_up"]
 
+/** The Medium jobs the Medium app on a phone does. The rest need a browser profile. */
+const MEDIUM_PHONE_KINDS: readonly JobKind[] = ["medium_respond", "medium_warm_up"]
+
 /** Jobs only an Instagram or TikTok account does, in its app. */
 const PHONE_APP_ONLY_KINDS: readonly JobKind[] = ["app_post", "app_profile"]
 
 /**
  * Refuses a job its account's network has no such thing for, before
  * anything opens: a Reddit comment from an Instagram account, a post of
- * photos from a Reddit one. Instagram and TikTok run on a phone only.
+ * photos from a Reddit one, a Medium response from anything but a Medium
+ * account. Instagram and TikTok run on a phone only.
  */
 function refuseWrongNetwork(kind: JobKind, account: Account): void {
   const network = account.platform
+  if (MEDIUM_ACCOUNT_KINDS.includes(kind) !== (network === "medium")) {
+    throw new Refusal(
+      network === "medium"
+        ? "That is not something a Medium account does. Nothing was sent."
+        : `That is Medium's, and this is ${isNetwork(network) ? aNetwork(network) : "another network's"} account. Nothing was sent.`
+    )
+  }
+  if (network === "medium") {
+    // Checked when the job was queued too, but an account can move to a
+    // phone while a job waits for its morning.
+    if (account.phoneId && !MEDIUM_PHONE_KINDS.includes(kind)) {
+      throw new Refusal("This Medium account runs on a phone now, and the Medium app there sends responses and answers only. Nothing was sent.")
+    }
+    return
+  }
   if (!isPhoneAppNetwork(network)) {
     if (PHONE_APP_ONLY_KINDS.includes(kind)) {
       throw new Refusal("Only an Instagram or TikTok account does that. Nothing was sent.")
@@ -340,7 +374,9 @@ async function runAccountJob(
   db: CustomShellDb
 ): Promise<void> {
   try {
-    if (job.kind === "comment") {
+    if (MEDIUM_ACCOUNT_KINDS.includes(job.kind)) {
+      await runMediumAccountJob(job, account, target, db)
+    } else if (job.kind === "comment") {
       const findId = String(job.payload.findId ?? "")
       const text = String(job.payload.text ?? "")
       if (!findId || !text) throw new Error("That comment job is missing its post or its words.")
@@ -440,10 +476,13 @@ async function runReaderJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   if (job.lane !== reader.id) throw new PutBack({ lane: reader.id })
   const session = await ensureSession(job.userId, reader.id, db)
   await touchSession(session.id, db)
-  await refuseSignedInReader(reader.name, session.target)
+  const network = MEDIUM_READER_KINDS.includes(job.kind) ? "medium" : "reddit"
+  await refuseSignedInReader(reader.name, session.target, network)
 
   try {
-    if (job.kind === "search") {
+    if (network === "medium") {
+      await runMediumReaderJob(job, session.target, db)
+    } else if (job.kind === "search") {
       const keywordId = String(job.payload.keywordId ?? "")
       if (!keywordId) throw new Error("That search job names no keyword.")
       await runKeywordSearch(job.userId, keywordId, session.target, db)
@@ -476,24 +515,25 @@ async function runReaderJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
     await touchSession(session.id, db)
   }
 
-  await refuseSignedInReader(reader.name, session.target)
+  await refuseSignedInReader(reader.name, session.target, network)
 }
 
 /**
- * Refuses when the reader is signed in to Reddit. A look that cannot be taken
- * is let go: the page may not be on Reddit yet, and the next look will tell.
+ * Refuses when the reader is signed in to the network it is reading. A look
+ * that cannot be taken is let go: the page may not be on that network yet,
+ * and the next look will tell.
  */
-async function refuseSignedInReader(name: string, target: CommandTarget): Promise<void> {
+async function refuseSignedInReader(name: string, target: CommandTarget, network: "reddit" | "medium"): Promise<void> {
   let handle: string | null = null
   try {
-    const state = await redditQuickState(target)
+    const state = network === "medium" ? await mediumQuickState(target) : await redditQuickState(target)
     handle = state.checked ? state.handle : null
   } catch (error) {
     console.error(`Could not read who the reader ${name} is signed in as`, error)
   }
   if (handle) {
     throw new Refusal(
-      `The reader browser ${name} is signed in to Reddit as u/${handle}. A reader has to be signed in to nobody: sign it out on the Browser profiles dashboard.`
+      `The reader browser ${name} is signed in to ${network === "medium" ? "Medium" : "Reddit"} as ${handleWords(network, handle)}. A reader has to be signed in to nobody: sign it out on the Browser profiles dashboard.`
     )
   }
 }
@@ -502,7 +542,7 @@ async function refuseSignedInReader(name: string, target: CommandTarget): Promis
 async function accountForJob(job: QueuedJob, db: CustomShellDb): Promise<Account> {
   const account = await jobAccount(job.userId, job.payload, db)
   if (!account) {
-    throw new Error("There is no Reddit account set up, so there is nothing to browse with.")
+    throw new Error("The account this job is for is not set up any more, so there is nothing to browse with.")
   }
   return account
 }
@@ -555,6 +595,19 @@ async function readSignIns(
         }
       } catch (error) {
         console.error(`Could not read who is signed in for account ${account.id}`, error)
+      }
+      continue
+    }
+    if (account.platform === "medium") {
+      try {
+        await saveMediumSignIn(account.id, full ? { ...(await mediumState(target)), checked: true } : await mediumQuickState(target), db)
+        // The Medium app shows no joined date, so the reader reads it.
+        if ("phoneId" in where) await queueMediumProfileRead(userId, account.id, db)
+      } catch (error) {
+        // A check a person asked for fails with its reason; after any other
+        // job the last saved answer stays.
+        if (full) throw error
+        console.error(`Could not read who is signed in to Medium for account ${account.id}`, error)
       }
       continue
     }

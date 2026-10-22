@@ -3,6 +3,7 @@ import { and, desc, eq, isNull, ne, sql } from "drizzle-orm"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import { promoComments, promoFinds } from "../schema"
+import { titleWords } from "../title-words"
 
 /**
  * What you have said before, shown beside the comment box while you write:
@@ -12,23 +13,6 @@ import { promoComments, promoFinds } from "../schema"
 
 /** How many past comments sit beside the box. */
 const PAST_ANSWERS = 3
-
-/** Words too common to say two titles are about the same thing. */
-const COMMON = new Set(
-  "a an and are as at be but by can do for from has have how i if in is it its me my of on or so that the this to was what when where which who why will with you your any does should would could best good".split(
-    " "
-  )
-)
-
-/** The words of a title that carry its meaning, lower case. */
-function titleWords(title: string): Set<string> {
-  return new Set(
-    title
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter((word) => word.length > 2 && !COMMON.has(word))
-  )
-}
 
 export type PastAnswer = {
   id: string

@@ -1,20 +1,9 @@
 import * as React from "react"
-import {
-  EllipsisVerticalIcon,
-  Loader2Icon,
-  MegaphoneIcon,
-  PlusIcon,
-  RotateCwIcon,
-  SparklesIcon,
-  TimerIcon,
-  TimerOffIcon,
-  XIcon,
-} from "lucide-react"
+import { EllipsisVerticalIcon, Loader2Icon, MegaphoneIcon, SparklesIcon, XIcon } from "lucide-react"
 
-import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
-import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +13,6 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Select,
@@ -39,26 +27,25 @@ import {
   type RedditSort,
   type RedditWindow,
 } from "@/lib/social/reddit/options"
-import { keywordChipTimeText, keywordScopeText, keywordTimerText, keywordTitle } from "@/lib/social/wording"
+import { keywordChipTimeText, keywordScopeText, keywordTitle } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import type { KeywordRow } from "@/server/social/keywords"
 
-import { Hint } from "../hint"
+import { KeywordPicker, type KeywordPickerItem } from "../keyword-picker"
+import { NetworkIcon } from "../network-icon"
 import { KeywordIdeasDialog } from "./keyword-ideas-dialog"
 
 /**
- * The saved keywords as a row of chips across the top of the posts column,
- * with Add keyword at the end and the column's buttons on the right. Tyler
- * sent this design on 13 Oct 2026.
+ * The posts column's header: Reddit's name, then on the right the search box,
+ * the keywords dropdown and the column's buttons (Tyler, 21 Oct 2026). The dropdown is the shared `KeywordPicker`
+ * (Tyler, 21 Oct 2026); the chips Tyler sent on 13 Oct 2026 took two lines
+ * once there were three keywords.
  *
- * Pressing a chip lists that keyword's posts alone; pressing it again goes
- * back to every keyword's posts in one ranked list, which is what shows when
- * no chip is chosen. Each chip carries its post count, when it last searched
- * (pressing that switches its timed searches off and on), search again, and
- * remove.
- *
- * Add keyword opens its box in a popover. It opens by itself when nothing is
+ * Picking a keyword lists its posts alone; All keywords lists every keyword's
+ * posts in one ranked list. Each keyword in the list carries its post count,
+ * when it last searched, the timer, search again and Remove. Add keyword turns
+ * the list into Reddit's add box, and the dropdown opens on it when nothing is
  * saved, because then it is the only thing on the screen worth pressing.
  */
 
@@ -130,59 +117,68 @@ export function KeywordsBar({
   const [ideasOpen, setIdeasOpen] = React.useState(false)
   // Ideas are written by the AI, which is off for a guest sent from Project.
   const guest = usePromoGuest()
-  // Open to begin with only when nothing is saved, worked out once so the box
-  // never shuts itself while somebody is still typing in it.
-  const [addOpen, setAddOpen] = React.useState(() => keywords.length === 0 && !loading)
+
+  const items: KeywordPickerItem[] = keywords.map((keyword) => {
+    const running = runningIds.has(keyword.id)
+    const failed = keyword.lastRun?.status === "failed"
+    return {
+      id: keyword.id,
+      label: keywordTitle(keyword),
+      count: keyword.postCount,
+      status: running
+        ? stalled
+          ? "waiting"
+          : keyword.term
+            ? "searching"
+            : "reading"
+        : failed
+          ? "search failed"
+          : `${keywordChipTimeText(keyword)} · ${keywordScopeText(keyword)}`,
+      failed: failed ? keyword.lastRun?.error || "The last search failed" : null,
+      enabled: keyword.enabled,
+      running,
+      stalled,
+      runHint: keyword.term ? "Search Reddit for this again" : "Read the newest posts again",
+      runningReason: stalled
+        ? "A search is already waiting for the browser program. The Jobs page says why."
+        : "Searching now",
+    }
+  })
 
   return (
-    // The chips keep at least 28rem before the buttons move to a row of
-    // their own.
-    <DashboardCardHeader className="flex-wrap items-start gap-x-3 gap-y-2">
-      <div className="flex min-h-8 min-w-0 grow basis-[28rem] flex-wrap items-center gap-2">
-        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Keywords</span>
-        {loading && !keywords.length ? (
-          <Loader2Icon className="size-4 animate-spin text-muted-foreground" aria-label="Reading your keywords" />
-        ) : null}
-        {keywords.map((keyword) => (
-          <KeywordChip
-            key={keyword.id}
-            keyword={keyword}
-            selected={keyword.id === selectedId}
-            running={runningIds.has(keyword.id)}
-            stalled={stalled}
-            onSelect={() => onSelect(keyword.id === selectedId ? null : keyword.id)}
-            onRun={onRun}
-            onSwitch={onSwitch}
-            onDelete={onDelete}
-          />
-        ))}
-
-        <Popover open={addOpen} onOpenChange={setAddOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="flex h-8 items-center gap-1.5 rounded-full border border-dashed px-3 text-sm whitespace-nowrap text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <PlusIcon className="size-4" aria-hidden="true" />
-              Add keyword
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-80 p-3">
-            <AddKeywordForm
-              onAdd={async (input) => {
-                await onAdd(input)
-                setAddOpen(false)
-              }}
-              onCancel={() => setAddOpen(false)}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
+    <DashboardCardHeader className="flex-wrap items-center gap-x-3 gap-y-2">
+      <DashboardCardHeaderIcon>
+        <NetworkIcon network="reddit" />
+      </DashboardCardHeaderIcon>
+      <h2 className={cn(dashboardCardHeadingClassName, "min-w-0 truncate")}>Reddit</h2>
 
       {/* A row of its own on a phone, where the search box takes what the
           two buttons leave. */}
       <div className="ml-auto flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
         {search}
+        <KeywordPicker
+          items={items}
+          loading={loading}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          onRun={onRun}
+          onSwitch={onSwitch}
+          menu={(item) => (
+            <DropdownMenuItem variant="destructive" onSelect={() => void onDelete(item.id)}>
+              <XIcon />
+              Remove {item.label} and everything it found
+            </DropdownMenuItem>
+          )}
+          addForm={(close) => (
+            <AddKeywordForm
+              onAdd={async (input) => {
+                await onAdd(input)
+                close()
+              }}
+              onCancel={close}
+            />
+          )}
+        />
         {actions}
         {/* The column's less used tools, behind one button. Tyler, 13 Oct 2026. */}
         <DropdownMenu>
@@ -218,155 +214,6 @@ export function KeywordsBar({
         onAdd={onAddIdea}
       />
     </DashboardCardHeader>
-  )
-}
-
-/**
- * One keyword: its name and post count choose it, the time says when it last
- * searched and switches its timer, and the two icons search again and remove.
- */
-function KeywordChip({
-  keyword,
-  selected,
-  running,
-  stalled,
-  onSelect,
-  onRun,
-  onSwitch,
-  onDelete,
-}: {
-  keyword: KeywordRow
-  selected: boolean
-  running: boolean
-  /** No browser program is running, so a search waiting here waits rather than runs. */
-  stalled: boolean
-  onSelect: () => void
-  onRun: (id: string) => Promise<void>
-  onSwitch: (id: string, enabled: boolean) => Promise<void>
-  onDelete: (id: string) => Promise<void>
-}) {
-  const [busy, setBusy] = React.useState(false)
-  const name = keywordTitle(keyword)
-  const failed = keyword.lastRun?.status === "failed"
-
-  async function act(work: () => Promise<void>) {
-    setBusy(true)
-    try {
-      await work()
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const iconButton =
-    "flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
-
-  return (
-    <div
-      className={cn(
-        "flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-full border bg-background pr-1 pl-3 text-sm",
-        selected && "bg-muted"
-      )}
-    >
-      <button
-        type="button"
-        aria-pressed={selected}
-        aria-label={`${name}, ${keywordScopeText(keyword)}`}
-        onClick={onSelect}
-        className="flex min-w-0 items-center gap-1.5 rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      >
-        <span className="truncate font-medium">{name}</span>
-        <span className="text-muted-foreground tabular-nums">{keyword.postCount}</span>
-      </button>
-      {/* When it last searched, or what it is doing now. A failed search says
-          why on hover, since the chip has no room for the reason. */}
-      <Hint label={failed && !running ? keyword.lastRun?.error || "The last search failed" : null}>
-        <span
-          // "just now" can become "1 minute ago" between the server drawing the
-          // page and the browser taking it over. Not worth a warning.
-          suppressHydrationWarning
-          className={cn(
-            "shrink-0 text-xs whitespace-nowrap",
-            failed && !running ? "text-destructive" : "text-muted-foreground"
-          )}
-        >
-          {running
-            ? stalled
-              ? "· waiting"
-              : keyword.term
-                ? "· searching"
-                : "· reading"
-            : failed
-              ? "· search failed"
-              : `· ${keywordChipTimeText(keyword)}`}
-        </span>
-      </Hint>
-      {/* The timer: whether it searches by itself every few hours. Its own
-          icon beside the arrow since Tyler asked on 13 Oct 2026. */}
-      <Hint
-        label={
-          keyword.enabled
-            ? "Searches by itself every few hours. Press to stop that."
-            : "Only searches when you press it. Press to search by itself every few hours."
-        }
-      >
-        <button
-          type="button"
-          className={iconButton}
-          aria-pressed={keyword.enabled}
-          aria-label={
-            keyword.enabled
-              ? `${keywordTimerText(keyword)}. Searches by itself every few hours. Press to stop that.`
-              : `${keywordTimerText(keyword)}. Press to search by itself every few hours.`
-          }
-          disabled={busy}
-          onClick={() => void act(() => onSwitch(keyword.id, !keyword.enabled))}
-        >
-          {keyword.enabled ? (
-            <TimerIcon className="size-3.5" aria-hidden="true" />
-          ) : (
-            <TimerOffIcon className="size-3.5" aria-hidden="true" />
-          )}
-        </button>
-      </Hint>
-      {/* Off while its search waits or runs, and the reason says which. */}
-      <DisabledReason
-        disabled={running}
-        reason={
-          stalled
-            ? "A search is already waiting for the browser program. The Jobs page says why."
-            : "Searching now"
-        }
-        className="rounded-full"
-      >
-        <Hint label={running ? null : keyword.term ? "Search Reddit for this again" : "Read the newest posts again"}>
-          <button
-            type="button"
-            className={iconButton}
-            aria-label={keyword.term ? `Search Reddit for ${name} again` : `Read ${name}'s newest posts again`}
-            disabled={busy || running}
-            onClick={() => void act(() => onRun(keyword.id))}
-          >
-            {busy || (running && !stalled) ? (
-              <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
-            ) : (
-              <RotateCwIcon className="size-3.5" aria-hidden="true" />
-            )}
-          </button>
-        </Hint>
-      </DisabledReason>
-      <Hint label="Remove this keyword and everything it found">
-        <button
-          type="button"
-          className={iconButton}
-          aria-label={`Remove ${name}`}
-          disabled={busy}
-          onClick={() => void act(() => onDelete(keyword.id))}
-        >
-          <XIcon className="size-3.5" aria-hidden="true" />
-        </button>
-      </Hint>
-    </div>
   )
 }
 

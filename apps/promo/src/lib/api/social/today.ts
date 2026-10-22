@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { actorFor, editorGet } from "@/server/social/project-guests"
+import { editorGet } from "@/server/social/editor-guards"
+import { actorFor } from "@/server/social/project-guests"
 import { readToday, type TodayView } from "@/server/social/today"
 
 import { createErrorMessage } from "../error-message"

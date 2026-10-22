@@ -21,6 +21,8 @@ anyone can.
   slides run down the page one after another, in a column no wider than a
   phone, then the title and the caption as they were exported. The viewer can
   save any slide as a picture. The ZIP itself is not offered.
+  A video slide plays with its own controls, muted to start (see
+  [carousel-video-slides.md](carousel-video-slides.md)).
 - **Nothing else.** No account name or email, no project or carousel name, no
   other exports, and no link back into the app. The page has no links on it at
   all.

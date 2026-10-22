@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { actorFor, editorGet } from "@/server/social/project-guests"
+import { editorGet } from "@/server/social/editor-guards"
+import { actorFor } from "@/server/social/project-guests"
 
 /**
  * Who is on the guest page (`/guest/promo/<project id>`): the Project

@@ -14,6 +14,7 @@ import { refuseMixedProject } from "./apart"
 import { jobCounts, type JobCounts } from "./jobs"
 import { shownFind } from "./keywords"
 import { readPostingState, type PostingState } from "./posting"
+import { promoMediumKeywords } from "./medium/schema"
 import {
   promoAccounts,
   promoComments,
@@ -170,7 +171,7 @@ export async function addProjectNetwork(
 /**
  * Takes a network off a project. Refused, with how many of each, while the
  * project still holds that network's accounts or keywords, worded like
- * deleting a project. Reddit's keywords are the only keywords there are.
+ * deleting a project. Reddit and Medium have keywords; the phone apps none.
  */
 export async function removeProjectNetwork(
   userId: string,
@@ -194,7 +195,9 @@ export async function removeProjectNetwork(
   const [keywords] =
     network === "reddit"
       ? await db.select({ n: count() }).from(promoKeywords).where(eq(promoKeywords.projectId, projectId))
-      : [{ n: 0 }]
+      : network === "medium"
+        ? await db.select({ n: count() }).from(promoMediumKeywords).where(eq(promoMediumKeywords.projectId, projectId))
+        : [{ n: 0 }]
   const held = [
     accounts.n ? `${accounts.n} ${NETWORK_NAMES[network]} ${accounts.n === 1 ? "account" : "accounts"}` : "",
     keywords.n ? `${keywords.n} ${keywords.n === 1 ? "keyword" : "keywords"}` : "",
@@ -258,10 +261,15 @@ export async function deleteProject(
     .select({ n: count() })
     .from(promoAccounts)
     .where(and(eq(promoAccounts.projectId, projectId), isNull(promoAccounts.retiredAt)))
-  const [keywords] = await db
+  const [redditKeywords] = await db
     .select({ n: count() })
     .from(promoKeywords)
     .where(eq(promoKeywords.projectId, projectId))
+  const [mediumKeywords] = await db
+    .select({ n: count() })
+    .from(promoMediumKeywords)
+    .where(eq(promoMediumKeywords.projectId, projectId))
+  const keywords = { n: redditKeywords.n + mediumKeywords.n }
   const held = [
     accounts.n ? `${accounts.n} ${accounts.n === 1 ? "account" : "accounts"}` : "",
     keywords.n ? `${keywords.n} ${keywords.n === 1 ? "keyword" : "keywords"}` : "",
@@ -356,7 +364,15 @@ export type ProjectView = {
     pausedAt: Date | null
     /** The networks it uses, each a row in its left column, in the order they were added. */
     networks: Network[]
+    /** The networks paused on their own while the rest of the project runs. */
+    pausedNetworks: Network[]
   }
+  /**
+   * What waits on each network's row in the left column: strong stories and
+   * unanswered responses. Only Medium has one so far; the endpoint fills it
+   * (`src/lib/api/social/projects.ts`), so this file needs no network's own code.
+   */
+  networkCounts?: Partial<Record<Network, number>>
   /**
    * The project's accounts, best to comment from first: awake with room left
    * in today's pace, then awake with none, then asleep, then warming up, then
@@ -430,6 +446,7 @@ export async function readProjectView(
       imageUrl: project.imageUrl,
       pausedAt: project.pausedAt,
       networks: usedNetworks(project),
+      pausedNetworks: project.pausedNetworks.filter(isNetwork),
     },
     accounts: accounts.map(({ rank: _rank, ...account }) => account),
     freeAccounts: rows

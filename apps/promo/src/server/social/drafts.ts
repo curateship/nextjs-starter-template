@@ -51,6 +51,9 @@ const MAX_DRAFT_CHARS = MAX_COMMENT_CHARS
 /** Long enough for a slow model, short enough that a person does not give up. */
 const TIMEOUT_MS = 90_000
 
+/** The most a model may write when a call does not say. Every Reddit draft fits in it. */
+const DEFAULT_MAX_TOKENS = 2_000
+
 /** How many existing replies to show the model. */
 const REPLY_CONTEXT = 5
 
@@ -60,7 +63,7 @@ const EXAMPLE_CHARS = MAX_COMMENT_CHARS
 type ProviderRequest = {
   url: (model: string) => string
   headers: (key: string) => Record<string, string>
-  body: (model: string, prompt: string) => string
+  body: (model: string, prompt: string, maxTokens: number) => string
   /** The words the model wrote, or "" when the shape surprises us. */
   text: (payload: Record<string, unknown>) => string
   usage: (payload: Record<string, unknown>) => {
@@ -83,10 +86,10 @@ const PROVIDERS: Record<AiTextProvider, ProviderRequest> = {
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     }),
-    body: (model, prompt) =>
+    body: (model, prompt, maxTokens) =>
       JSON.stringify({
         model,
-        max_tokens: 2_000,
+        max_tokens: maxTokens,
         messages: [{ role: "user", content: prompt }],
       }),
     text: (payload) => {
@@ -114,10 +117,10 @@ const PROVIDERS: Record<AiTextProvider, ProviderRequest> = {
       Authorization: `Bearer ${key}`,
       "content-type": "application/json",
     }),
-    body: (model, prompt) =>
+    body: (model, prompt, maxTokens) =>
       JSON.stringify({
         model,
-        max_completion_tokens: 2_000,
+        max_completion_tokens: maxTokens,
         messages: [{ role: "user", content: prompt }],
       }),
     text: (payload) => {
@@ -143,10 +146,10 @@ const PROVIDERS: Record<AiTextProvider, ProviderRequest> = {
       "x-goog-api-key": key,
       "content-type": "application/json",
     }),
-    body: (_model, prompt) =>
+    body: (_model, prompt, maxTokens) =>
       JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 2_000 },
+        generationConfig: { maxOutputTokens: maxTokens },
       }),
     text: (payload) => {
       const candidates = payload.candidates
@@ -599,6 +602,12 @@ export type ModelCall = {
   prompt: string
   /** The provider's key, already looked up, so a missing one is refused before anything is sent. */
   key: string
+  /**
+   * The most the model may write, in tokens. 2,000 unless asked: a Medium
+   * article of 1,200 words is about 1,700 tokens before its headings, so it
+   * asks for more.
+   */
+  maxTokens?: number
 }
 
 /**
@@ -625,7 +634,7 @@ export async function askModel<T>(call: ModelCall, read: (answer: string) => T):
       const response = await fetch(shape.url(call.model), {
         method: "POST",
         headers: shape.headers(call.key),
-        body: shape.body(call.model, call.prompt),
+        body: shape.body(call.model, call.prompt, call.maxTokens ?? DEFAULT_MAX_TOKENS),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       })
 

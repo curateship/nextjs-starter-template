@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { adminGet, adminPost } from "@/server/guards"
-import { actorFor, editorGet, editorPost, guestOnlyDescription, guestProjectView } from "@/server/social/project-guests"
+import { editorGet, editorPost } from "@/server/social/editor-guards"
+import { actorFor, guestOnlyDescription, guestProjectView } from "@/server/social/project-guests"
 import {
   addAccountToProject,
   addProjectNetwork,
@@ -20,7 +21,8 @@ import {
   type ProjectRow,
   type ProjectView,
 } from "@/server/social/projects"
-import { setProjectPaused } from "@/server/social/pause"
+import { setProjectNetworkPaused, setProjectPaused } from "@/server/social/pause"
+import { readMediumCounts } from "@/server/social/medium/module"
 import {
   listPromoThreads,
   queuePromoThreadReads,
@@ -99,7 +101,10 @@ const viewFn = createServerFn({ method: "GET" })
   .handler(async ({ context, data }): Promise<ProjectView> => {
     const actor = await actorFor(context.caller, data.projectId)
     const view = await readProjectView(actor.userId, data.projectId)
-    return actor.guest ? await guestProjectView(view, data.projectId) : view
+    if (actor.guest) return guestProjectView(view, data.projectId)
+    if (!view.project.networks.includes("medium")) return view
+    const counts = await readMediumCounts(actor.userId, data.projectId)
+    return { ...view, networkCounts: { medium: counts.strong + counts.toAnswer } }
   })
 
 /** One project with its accounts, best to comment from first, and what the queue is doing. */
@@ -179,6 +184,21 @@ const pauseFn = createServerFn({ method: "POST" })
  */
 export function pauseProject(projectId: string, paused: boolean) {
   return pauseFn({ data: { projectId, paused } })
+}
+
+const pauseNetworkFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: z.string().min(1), network: z.enum(NETWORKS), paused: z.boolean() }))
+  .handler(async ({ context, data }): Promise<void> => {
+    await setProjectNetworkPaused(context.user.id, data.projectId, data.network, data.paused)
+  })
+
+/**
+ * Pauses one network of a project, or with `paused` false resumes it. Its
+ * accounts there stop posting and warming up; the rest of the project runs.
+ */
+export function pauseProjectNetwork(projectId: string, network: Network, paused: boolean) {
+  return pauseNetworkFn({ data: { projectId, network, paused } })
 }
 
 const threadsFn = createServerFn({ method: "GET" })

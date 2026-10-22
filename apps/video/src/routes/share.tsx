@@ -149,7 +149,7 @@ function SharedCarousel({
 
 type SlideState =
   | { state: "loading" }
-  | { state: "ready"; url: string }
+  | { state: "ready"; url: string; video: boolean }
   | { state: "failed" }
 
 /**
@@ -188,7 +188,11 @@ function SharedSlide({
         const blob = await response.blob()
         if (cancelled) return
         objectUrl = URL.createObjectURL(blob)
-        setSlide({ state: "ready", url: objectUrl })
+        setSlide({
+          state: "ready",
+          url: objectUrl,
+          video: blob.type.startsWith("video/"),
+        })
       } catch {
         if (!cancelled) setSlide({ state: "failed" })
       }
@@ -199,6 +203,22 @@ function SharedSlide({
     }
   }, [index, router, token])
 
+  if (slide.state === "ready" && slide.video) {
+    // A video slide plays with its own controls, muted to start as on a
+    // phone.
+    return (
+      <video
+        src={slide.url}
+        aria-label={alt}
+        controls
+        muted
+        playsInline
+        loop
+        className="w-full rounded-lg border bg-black"
+        style={{ aspectRatio: String(ratio) }}
+      />
+    )
+  }
   if (slide.state === "ready") {
     return (
       <img

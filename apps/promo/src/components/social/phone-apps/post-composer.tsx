@@ -176,7 +176,13 @@ function phoneStop(account: AppAccount | null): string | null {
   if (!account) return null
   const name = account.handle ? `@${account.handle}` : "This account"
   if (account.banScreen) return `${name} hit a ban screen and was stopped. Let it run again from its settings on the Accounts dashboard.`
-  if (account.paused) return account.paused === "account" ? `${name} is paused.` : `${name}'s project is paused.`
+  if (account.paused) {
+    return account.paused === "account"
+      ? `${name} is paused.`
+      : account.paused === "network"
+        ? `This network is paused on ${name}'s project.`
+        : `${name}'s project is paused.`
+  }
   const phone = account.phone
   if (!phone) return `${name} is on no phone. Pick its phone on the Accounts dashboard.`
   if (phone.status === "offline") return `${phone.name} is offline: ${phone.offlineReason}.`

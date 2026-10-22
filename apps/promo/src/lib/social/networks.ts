@@ -7,10 +7,11 @@
  *
  * Only networks Promo has built are listed, so "+ Add network" never offers
  * one that does nothing. Instagram and TikTok joined with phone farm file 06
- * (`workspace/tasks/Phone farm/06-instagram-and-tiktok.md`). The server reads
- * this same list to refuse anything else.
+ * (`workspace/tasks/Phone farm/06-instagram-and-tiktok.md`), and Medium with
+ * `workspace/tasks/Medium/01-medium-features.md`. The server reads this same
+ * list to refuse anything else.
  */
-export const NETWORKS = ["reddit", "instagram", "tiktok"] as const
+export const NETWORKS = ["reddit", "instagram", "tiktok", "medium"] as const
 
 export type Network = (typeof NETWORKS)[number]
 
@@ -18,6 +19,7 @@ export const NETWORK_NAMES: Record<Network, string> = {
   reddit: "Reddit",
   instagram: "Instagram",
   tiktok: "TikTok",
+  medium: "Medium",
 }
 
 export function isNetwork(value: unknown): value is Network {

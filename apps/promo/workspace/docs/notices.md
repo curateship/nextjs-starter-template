@@ -45,6 +45,13 @@ acts on a bad reading". Tyler picked this the same day.
   out**: "Did not go out: a post on Instagram", "… a profile change on
   TikTok", "… an answer to a message on Reddit". Each opens where it was
   pressed.
+- **Medium** ([Responses on Medium](medium/responses.md)): "New response to you
+  on Medium from @name", once for each response somebody writes under one of
+  yours or under one of your articles; "Gone from Medium:" when one of your
+  responses or articles no longer shows; "Pulled from a publication:" when an
+  article no longer shows in its publication; and "Did not go out: a Medium
+  response", "... a Medium article", "... a change on Medium". Each opens the
+  Medium module's Responses or Articles tab with it open.
 - **A Wi-Fi phone showing the wrong address**: "Wrong address showing: Pixel
   8a in slot 4", with the address apps saw. Every job on it is refused until
   a check finds its proxy's address, and the notice goes then. Opens the phone.

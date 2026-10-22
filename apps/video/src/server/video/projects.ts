@@ -57,6 +57,7 @@ import {
 import {
   videoActors,
   videoAiGenerations,
+  videoCarousels,
   videoFirstFrames,
   videoMediaProxies,
   videoProjectFolderItems,
@@ -970,6 +971,8 @@ export type ProjectDeleteSummary = {
   first_frames: number
   ai_clips: number
   exports: number
+  /** Carousels that belong to the projects; the window asks what to do. */
+  carousels: number
 }
 
 export async function summarizeProjectDelete(
@@ -978,12 +981,14 @@ export async function summarizeProjectDelete(
   database: CustomShellDb = db
 ): Promise<ProjectDeleteSummary> {
   const ids = [...new Set(projectIds)]
-  if (!ids.length) return { first_frames: 0, ai_clips: 0, exports: 0 }
+  if (!ids.length) {
+    return { first_frames: 0, ai_clips: 0, exports: 0, carousels: 0 }
+  }
   const owned = and(
     eq(videoProjects.userId, userId),
     inArray(videoProjects.id, ids)
   )
-  const [[frames], [clips], [exports]] = await Promise.all([
+  const [[frames], [clips], [exports], [carousels]] = await Promise.all([
     database
       .select({ total: count() })
       .from(videoFirstFrames)
@@ -999,11 +1004,17 @@ export async function summarizeProjectDelete(
       .from(videoRenderJobs)
       .innerJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
       .where(owned),
+    database
+      .select({ total: count() })
+      .from(videoCarousels)
+      .innerJoin(videoProjects, eq(videoProjects.id, videoCarousels.projectId))
+      .where(owned),
   ])
   return {
     first_frames: frames?.total ?? 0,
     ai_clips: clips?.total ?? 0,
     exports: exports?.total ?? 0,
+    carousels: carousels?.total ?? 0,
   }
 }
 
@@ -1056,7 +1067,13 @@ async function madeForProjects(projectIds: string[], database: CustomShellDb) {
 export async function deleteOwnedProjects(
   userId: string,
   projectIds: string[],
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  /**
+   * The delete window asks each time (workspace/docs/carousel-projects.md):
+   * true deletes the projects' carousels too, false keeps them with no
+   * project.
+   */
+  deleteCarousels = false
 ): Promise<{ deleted_ids: string[]; failed_ids: string[] }> {
   const uniqueIds = Array.from(new Set(projectIds))
   if (!uniqueIds.length) return { deleted_ids: [], failed_ids: [] }
@@ -1108,15 +1125,31 @@ export async function deleteOwnedProjects(
   if (!deletable.length) return { deleted_ids: [], failed_ids: failedIds }
 
   const made = await madeForProjects(deletable, database)
-  const rows = await database
-    .delete(videoProjects)
-    .where(
-      and(
-        eq(videoProjects.userId, userId),
-        inArray(videoProjects.id, deletable)
+  // Carousels and projects go together or not at all, so a failure never
+  // leaves a project whose carousels were already deleted.
+  const rows = await database.transaction(async (tx) => {
+    if (deleteCarousels) {
+      // The carousels' own kept exports stay, as when a carousel is deleted
+      // from its list (workspace/docs/carousel-exports.md).
+      await tx
+        .delete(videoCarousels)
+        .where(
+          and(
+            eq(videoCarousels.userId, userId),
+            inArray(videoCarousels.projectId, deletable)
+          )
+        )
+    }
+    return tx
+      .delete(videoProjects)
+      .where(
+        and(
+          eq(videoProjects.userId, userId),
+          inArray(videoProjects.id, deletable)
+        )
       )
-    )
-    .returning({ id: videoProjects.id })
+      .returning({ id: videoProjects.id })
+  })
 
   const inUse = await mediaStillInUse(userId, made, database)
   const unused = made.filter((id) => !inUse.has(id))

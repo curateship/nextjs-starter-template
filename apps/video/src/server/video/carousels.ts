@@ -17,6 +17,11 @@ import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { serializeMedia } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
+import {
+  carouselVersionDue,
+  keepCarouselVersion,
+  lastKeptAt,
+} from "@/server/video/carousel-versions"
 import { getOwnedProject } from "@/server/video/projects"
 import {
   videoCarousels,
@@ -32,6 +37,10 @@ export type CarouselItem = {
   slide_count: number
   version: number
   thumbnail_url: string | null
+  /** Offered under "A template" in New carousel. */
+  is_template: boolean
+  /** The video project it belongs to, or null. */
+  project_id: string | null
   created_at: string
   updated_at: string
 }
@@ -64,7 +73,7 @@ function firstThumbnail(slides: CarouselSlide[]) {
   return null
 }
 
-function serializeCarousel(row: VideoCarouselRow): CarouselItem {
+export function serializeCarousel(row: VideoCarouselRow): CarouselItem {
   const slides = requireCanonicalCarouselSlides(row.slides)
   return {
     id: row.id,
@@ -73,6 +82,8 @@ function serializeCarousel(row: VideoCarouselRow): CarouselItem {
     slide_count: slides.length,
     version: row.version,
     thumbnail_url: firstThumbnail(slides),
+    is_template: row.isTemplate,
+    project_id: row.projectId,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
@@ -182,6 +193,90 @@ function createStarterSlides(): CarouselSlide[] {
   ]
 }
 
+/** This person's templates, newest change first, for New carousel. */
+export async function listOwnedTemplates(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<CarouselItem[]> {
+  const rows = await database
+    .select()
+    .from(videoCarousels)
+    .where(
+      and(eq(videoCarousels.userId, userId), eq(videoCarousels.isTemplate, true))
+    )
+    .orderBy(desc(videoCarousels.updatedAt), desc(videoCarousels.id))
+    .limit(100)
+  return rows.map(serializeCarousel)
+}
+
+/** Marks a carousel as a template, or takes the mark off. */
+export async function setCarouselTemplate(
+  userId: string,
+  carouselId: string,
+  isTemplate: boolean,
+  database: CustomShellDb = db
+): Promise<CarouselItem> {
+  const [row] = await database
+    .update(videoCarousels)
+    .set({ isTemplate })
+    .where(
+      and(eq(videoCarousels.id, carouselId), eq(videoCarousels.userId, userId))
+    )
+    .returning()
+  if (!row) throw new Error(CAROUSEL_NOT_FOUND_MESSAGE)
+  return serializeCarousel(row)
+}
+
+/**
+ * A new carousel copied from a template: its slides, shape and caption, with
+ * new ids so the two never share a layer. The copy is not a template and
+ * belongs to no project.
+ */
+export async function createCarouselFromTemplate(
+  userId: string,
+  templateId: string,
+  name: string,
+  database: CustomShellDb = db
+): Promise<CarouselItem> {
+  const template = await getOwnedCarousel(userId, templateId, database)
+  if (!template.isTemplate) throw new Error(CAROUSEL_NOT_FOUND_MESSAGE)
+  const timestamp = now()
+  const [row] = await database
+    .insert(videoCarousels)
+    .values({
+      id: uuid(),
+      userId,
+      name: cleanCarouselName(name),
+      format: requireCarouselFormat(template.format),
+      slides: requireCanonicalCarouselSlides(cloneSlides(template.slides)),
+      caption: template.caption,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .returning()
+  return serializeCarousel(row)
+}
+
+/** The carousels that belong to one of this person's projects. */
+export async function listProjectCarousels(
+  userId: string,
+  projectId: string,
+  database: CustomShellDb = db
+): Promise<CarouselItem[]> {
+  await getOwnedProject(userId, projectId, database)
+  const rows = await database
+    .select()
+    .from(videoCarousels)
+    .where(
+      and(
+        eq(videoCarousels.userId, userId),
+        eq(videoCarousels.projectId, projectId)
+      )
+    )
+    .orderBy(desc(videoCarousels.updatedAt), desc(videoCarousels.id))
+  return rows.map(serializeCarousel)
+}
+
 export async function createOwnedCarousel(
   userId: string,
   name: string,
@@ -269,6 +364,9 @@ export async function createCarouselFromFrames(
       name: cleanCarouselName(`${project.name} carousel`),
       format: requireCarouselFormat(format),
       slides: requireCanonicalCarouselSlides(slides),
+      // It is the project's, so the project lists it
+      // (workspace/docs/carousel-projects.md).
+      projectId: project.id,
       createdAt: timestamp,
       updatedAt: timestamp,
     })
@@ -312,6 +410,8 @@ export async function duplicateOwnedCarousel(
         relayoutSlides(cloneSlides(source.slides), sourceFormat, targetFormat)
       ),
       caption: source.caption,
+      // A copy stays in the same project, and is never a template itself.
+      projectId: source.projectId,
       version: 1,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -350,23 +450,40 @@ export async function writeCarousel(
 ): Promise<CarouselItem> {
   const slides = requireCanonicalCarouselSlides(value.slides)
   const format = requireCarouselFormat(value.format)
-  const [row] = await database
-    .update(videoCarousels)
-    .set({
-      slides,
-      format,
-      caption: value.caption.slice(0, 2_200),
-      version: value.expectedVersion + 1,
-      updatedAt: now(),
-    })
-    .where(
-      and(
-        eq(videoCarousels.id, carouselId),
-        eq(videoCarousels.userId, userId),
-        eq(videoCarousels.version, value.expectedVersion)
-      )
+  const owned = and(
+    eq(videoCarousels.id, carouselId),
+    eq(videoCarousels.userId, userId),
+    eq(videoCarousels.version, value.expectedVersion)
+  )
+  const row = await database.transaction(async (tx) => {
+    // Locked until the save lands, so two saves cannot both decide a
+    // version is due (workspace/docs/carousel-history.md).
+    const [current] = await tx
+      .select()
+      .from(videoCarousels)
+      .where(owned)
+      .for("update")
+    if (!current) return undefined
+    const at = now()
+    const reason = carouselVersionDue(
+      current,
+      await lastKeptAt(tx, current.id),
+      at
     )
-    .returning()
+    if (reason) await keepCarouselVersion(tx, current, reason, at)
+    const [saved] = await tx
+      .update(videoCarousels)
+      .set({
+        slides,
+        format,
+        caption: value.caption.slice(0, 2_200),
+        version: value.expectedVersion + 1,
+        updatedAt: at,
+      })
+      .where(owned)
+      .returning()
+    return saved
+  })
   if (row) return serializeCarousel(row)
 
   const [existing] = await database

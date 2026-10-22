@@ -75,6 +75,7 @@ import { AccountStatusBadge } from "./account-status-badge"
 import { AddAccountDialog } from "./add-account-dialog"
 import { HelpPostsDialog } from "./help-posts-dialog"
 import { AccountSettingsDialog } from "./account-settings-dialog"
+import { MediumSignInButton } from "../medium/medium-sign-in-button"
 
 type SortColumn = "account" | "status" | "project" | "profile" | "age" | "karma" | "last"
 
@@ -546,7 +547,7 @@ export function RedditAccountsDashboard({
       <AccountSettingsDialog
         key={runsOnFor?.id ?? "closed"}
         account={runsOnFor ? (accounts.find((row) => row.id === runsOnFor.id) ?? runsOnFor) : null}
-        profiles={page.freeProfiles}
+        profiles={runsOnFor && isNetwork(runsOnFor.platform) ? page.freeProfiles[runsOnFor.platform] : page.freeProfiles.reddit}
         phones={runsOnFor && isNetwork(runsOnFor.platform) ? page.freePhones[runsOnFor.platform] : page.freePhones.reddit}
         onClose={() => setRunsOnFor(null)}
         onSaved={async () => {
@@ -601,14 +602,20 @@ function AccountRow({
   onRetire: (retire: boolean) => void
 }) {
   const reddit = row.platform === "reddit"
+  const medium = row.platform === "medium"
   const name = row.handle ? handleWords(row.platform, row.handle) : "Not signed in"
-  const lastWord = reddit ? "comment" : "post"
-  // Instagram and TikTok show no account age; their reading is followers and posts.
+  const lastWord = reddit ? "comment" : medium ? "response or article" : "post"
+  // Instagram and TikTok show no account age; their reading is followers and
+  // posts. Medium's is when it joined and its followers.
   const age = reddit
     ? row.redditCreatedAt
       ? accountAgeText(new Date(row.redditCreatedAt))
       : "Age not read yet"
-    : row.postCount === null
+    : medium
+      ? row.mediumJoinedAt
+        ? `${accountAgeText(new Date(row.mediumJoinedAt))} on Medium`
+        : "Joined date not read yet"
+      : row.postCount === null
       ? "posts not read yet"
       : `${countWords(row.postCount)} posts`
   const karma = reddit
@@ -647,7 +654,7 @@ function AccountRow({
           {row.paused ? (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <PauseIcon className="size-3" aria-hidden="true" />
-              {row.paused === "account" ? "Paused" : "Project paused"}
+              {row.paused === "account" ? "Paused" : row.paused === "network" ? "Network paused" : "Project paused"}
             </span>
           ) : null}
           {row.importance === "important" ? (
@@ -800,7 +807,9 @@ function AccountRow({
               label={
                 reddit
                   ? "Check now: read its karma, age and profile again"
-                  : "Check now: read its followers, posts and Account status page again"
+                  : medium
+                    ? "Check now: read who is signed in, when it joined Medium and its followers"
+                    : "Check now: read its followers, posts and Account status page again"
               }
             >
               <Button
@@ -814,6 +823,7 @@ function AccountRow({
                 {busy ? <Loader2Icon className="size-4 animate-spin" /> : <RefreshCwIcon className="size-4" />}
               </Button>
             </Hint>
+            {medium && row.profile ? <MediumSignInButton accountId={row.id} name={name} /> : null}
             {reddit ? (
               <Hint label="Help-only posts: answer posts in its own subreddits, never mentioning what you make">
                 <Button

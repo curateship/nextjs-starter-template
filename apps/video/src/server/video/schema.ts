@@ -568,6 +568,14 @@ export const videoCarousels = pgTable(
     slides: jsonb("slides").notNull(),
     caption: text("caption").notNull().default(""),
     version: integer("version").notNull().default(1),
+    // Offered under "A template" in New carousel (`drizzle/0137`).
+    isTemplate: boolean("is_template").notNull().default(false),
+    // The video project it belongs to, if any (`drizzle/0138`). A project
+    // deleted without deleting its carousels leaves them with none.
+    projectId: varchar("project_id", { length: 36 }).references(
+      () => videoProjects.id,
+      { onDelete: "set null" }
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -578,6 +586,47 @@ export const videoCarousels = pgTable(
     ),
     check("video_carousels_version_check", sql`${table.version} >= 1`),
     index("ix_video_carousels_user_updated").on(table.userId, table.updatedAt),
+    index("ix_video_carousels_user_templates")
+      .on(table.userId)
+      .where(sql`${table.isTemplate}`),
+    index("ix_video_carousels_project")
+      .on(table.projectId)
+      .where(sql`${table.projectId} is not null`),
+  ]
+)
+
+/**
+ * Earlier slides of a carousel, kept by the save that replaces them, by the
+ * same rule as a project's history (`drizzle/0139`,
+ * `src/server/video/carousel-versions.ts`).
+ */
+export const videoCarouselVersions = pgTable(
+  "video_carousel_versions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    carouselId: varchar("carousel_id", { length: 36 })
+      .notNull()
+      .references(() => videoCarousels.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    reason: varchar("reason", { length: 16 }).notNull(),
+    slides: jsonb("slides").notNull(),
+    format: varchar("format", { length: 8 }).notNull(),
+    caption: text("caption").notNull().default(""),
+    slideCount: integer("slide_count").notNull(),
+    savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "ck_video_carousel_versions_reason",
+      sql`${table.reason} in ('break', 'hourly', 'restore')`
+    ),
+    index("ix_video_carousel_versions_carousel_created").on(
+      table.carouselId,
+      table.createdAt
+    ),
   ]
 )
 
@@ -1063,8 +1112,11 @@ export const videoRenderJobs = pgTable(
   ]
 )
 
-/** One slide's PNG inside a kept carousel ZIP: its first byte and its size. */
-export type CarouselSlideRange = { start: number; size: number }
+/**
+ * One slide's file inside a kept carousel ZIP: its first byte and its size.
+ * A PNG unless `type` says it is a video slide's MP4.
+ */
+export type CarouselSlideRange = { start: number; size: number; type?: "video" }
 
 /**
  * A link to one finished export that anybody holding it can watch without an

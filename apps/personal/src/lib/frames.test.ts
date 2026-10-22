@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   closeAll,
-  MAX_KEPT_FRAMES,
+  DEFAULT_KEPT_FRAMES,
   NO_FRAMES,
   openFrame,
   openScreen,
@@ -49,8 +49,21 @@ describe("kept frames", () => {
     state = openScreen(state, dashboard)
     state = openScreen(state, listings) // shown again, so project is now the oldest
     state = openScreen(state, video)
-    expect(state.kept).toHaveLength(MAX_KEPT_FRAMES)
+    expect(state.kept).toHaveLength(DEFAULT_KEPT_FRAMES)
     expect(state.kept.map((frame) => frame.url)).toEqual([listings, dashboard, video])
+  })
+
+  it("keeps as many frames as the cap it is given", () => {
+    let state = openScreen(NO_FRAMES, listings, "", null, 5)
+    for (const url of [project, dashboard, video]) state = openScreen(state, url, "", null, 5)
+    expect(state.kept).toHaveLength(4)
+    // Lowered back to three: the next screen opened drops the two shown longest ago.
+    state = openScreen(state, "http://localhost:3016/carousels", "", null, 3)
+    expect(state.kept.map((frame) => frame.url)).toEqual([
+      dashboard,
+      video,
+      "http://localhost:3016/carousels",
+    ])
   })
 
   it("reloads only the open frame", () => {

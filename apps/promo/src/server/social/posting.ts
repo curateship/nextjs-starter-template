@@ -15,7 +15,7 @@ import {
 } from "./behaviour"
 import { refuseInteraction } from "./apart"
 import { queueJob } from "./jobs"
-import { pausedBy } from "./pause"
+import { pausedBy, type PausedBy } from "./pause"
 import { promoAccounts, promoFinds, promoJobs } from "./schema"
 
 /**
@@ -38,7 +38,7 @@ export type PostingState = {
    * Paused on the Reddit accounts dashboard, or in a paused project, which
    * refuses Post until it is resumed. Null when it is running.
    */
-  paused: "account" | "project" | null
+  paused: PausedBy
   /** The account's own clock, which its waking hours are counted on. */
   timeZone: string
   awake: boolean

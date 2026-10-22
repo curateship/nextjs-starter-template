@@ -512,6 +512,8 @@ export function FindsSearch({ value, onChange }: { value: string; onChange: (val
       placeholder="Search posts"
       value={value}
       onChange={(event) => onChange(event.target.value)}
+      // Keeps room to type on a phone, where the keywords dropdown shares its row.
+      className="min-w-28"
       inputClassName="sm:w-40 lg:w-40"
     />
   )

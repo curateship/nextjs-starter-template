@@ -2,7 +2,6 @@ import * as React from "react"
 import {
   FolderOpenIcon,
   Loader2Icon,
-  MessagesSquareIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
@@ -35,6 +34,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 import { Hint } from "../hint"
+import { NetworkIcon } from "../network-icon"
 
 /** How long typing has to stop before the name or description saves. */
 const SAVE_AFTER_MS = 700
@@ -56,6 +56,7 @@ export function ProjectPanel({
   onSelectNetwork,
   onAddNetwork,
   onRemoveNetwork,
+  onToggleNetworkPause,
   onNewProject,
   onDeleteProject,
   onTogglePause,
@@ -67,6 +68,8 @@ export function ProjectPanel({
   onSelectNetwork: (network: Network) => void
   onAddNetwork: (network: Network) => Promise<void>
   onRemoveNetwork: (network: Network) => Promise<void>
+  /** Pauses one network of the project, or resumes it, while the rest runs. */
+  onToggleNetworkPause: (network: Network, paused: boolean) => Promise<void>
   onNewProject: () => void
   onDeleteProject: () => void
   /** Pauses the project, or resumes it when it is paused. */
@@ -157,10 +160,13 @@ export function ProjectPanel({
 
           <ProjectNetworks
             networks={project.networks}
+            paused={project.pausedNetworks}
+            counts={view.networkCounts ?? {}}
             selected={selectedNetwork}
             onSelect={onSelectNetwork}
             onAdd={guest ? null : onAddNetwork}
             onRemove={guest ? null : onRemoveNetwork}
+            onTogglePause={guest ? null : onToggleNetworkPause}
           />
         </div>
       </ScrollArea>
@@ -395,17 +401,25 @@ function ProjectMenu({
  */
 function ProjectNetworks({
   networks,
+  paused,
+  counts,
   selected,
   onSelect,
   onAdd,
   onRemove,
+  onTogglePause,
 }: {
   networks: Network[]
+  /** The networks paused on their own (Medium task, part 5). */
+  paused: Network[]
+  /** What waits on a network's row: strong stories and unanswered responses (part 16). */
+  counts: Partial<Record<Network, number>>
   selected: Network | null
   onSelect: (network: Network) => void
   /** Null for a guest, who uses the networks the project has. */
   onAdd: ((network: Network) => Promise<void>) | null
   onRemove: ((network: Network) => Promise<void>) | null
+  onTogglePause: ((network: Network, paused: boolean) => Promise<void>) | null
 }) {
   const [busy, setBusy] = React.useState<Network | null>(null)
   const addable = NETWORKS.filter((network) => !networks.includes(network))
@@ -469,7 +483,27 @@ function ProjectNetworks({
                 >
                   <NetworkIcon network={network} />
                   <span className="truncate">{name}</span>
+                  {paused.includes(network) ? <span className="shrink-0 text-xs font-normal text-muted-foreground">Paused</span> : null}
+                  {counts[network] ? (
+                    <Hint label={`${counts[network]} waiting: strong stories and responses to answer`}>
+                      <span className="ml-auto shrink-0 text-xs font-normal text-muted-foreground tabular-nums">{counts[network]}</span>
+                    </Hint>
+                  ) : null}
                 </button>
+                {onTogglePause ? (
+                  <Hint label={paused.includes(network) ? `Resume ${name} on this project` : `Pause ${name} alone: its accounts stop posting and warming up, and the rest of the project runs`}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={paused.includes(network) ? `Resume ${name} on this project` : `Pause ${name} on this project`}
+                      disabled={busy !== null}
+                      onClick={() => void run(network, (item) => onTogglePause(item, !paused.includes(item)))}
+                    >
+                      {paused.includes(network) ? <PlayIcon /> : <PauseIcon />}
+                    </Button>
+                  </Hint>
+                ) : null}
                 {onRemove ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -498,12 +532,4 @@ function ProjectNetworks({
       )}
     </div>
   )
-}
-
-/** A network's mark, the same size as the text beside it. */
-function NetworkIcon({ network }: { network: Network }) {
-  switch (network) {
-    case "reddit":
-      return <MessagesSquareIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-  }
 }

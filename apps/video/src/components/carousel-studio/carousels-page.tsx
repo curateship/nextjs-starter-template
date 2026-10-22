@@ -3,6 +3,7 @@ import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import {
   CopyIcon,
   ImagesIcon,
+  LayoutTemplateIcon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -10,6 +11,7 @@ import {
 import { toast } from "sonner"
 
 import { CarouselFormDialog } from "@/components/carousel-studio/carousel-form-dialog"
+import { NewCarouselDialog } from "@/components/carousel-studio/new-carousel-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -20,6 +22,7 @@ import {
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -28,6 +31,7 @@ import {
   deleteCarousels,
   duplicateCarousel,
   getCarouselErrorMessage,
+  markCarouselTemplate,
   type CarouselItem,
   type CarouselListResponse,
 } from "@/lib/api/video/carousels"
@@ -83,7 +87,7 @@ export function CarouselsPage({ initial }: { initial: CarouselListResponse }) {
   const direction = search.direction ?? "desc"
   const toggleSort = useListSort<CarouselSortColumn>({ sort, direction })
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
-  const [formOpen, setFormOpen] = React.useState(false)
+  const [newOpen, setNewOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<CarouselItem | null>(null)
   const [deleteTargets, setDeleteTargets] = React.useState<CarouselItem[]>([])
   const [run, busy] = useAsyncAction(getCarouselErrorMessage)
@@ -109,6 +113,18 @@ export function CarouselsPage({ initial }: { initial: CarouselListResponse }) {
     void navigate({
       to: "/admin/video-carousels/$carouselId",
       params: { carouselId: carousel.id },
+    })
+  }
+
+  async function handleTemplate(carousel: CarouselItem) {
+    await run(async () => {
+      await markCarouselTemplate(carousel.id, !carousel.is_template)
+      await router.invalidate()
+      toast.success(
+        carousel.is_template
+          ? `"${carousel.name}" is no longer offered as a template.`
+          : `"${carousel.name}" is now offered under "A template" in New carousel.`
+      )
     })
   }
 
@@ -176,13 +192,7 @@ export function CarouselsPage({ initial }: { initial: CarouselListResponse }) {
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
             />
-            <DashboardToolbarButton
-              type="button"
-              onClick={() => {
-                setEditing(null)
-                setFormOpen(true)
-              }}
-            >
+            <DashboardToolbarButton type="button" onClick={() => setNewOpen(true)}>
               <PlusIcon className="size-4" />
               New carousel
             </DashboardToolbarButton>
@@ -257,10 +267,14 @@ export function CarouselsPage({ initial }: { initial: CarouselListResponse }) {
                   type="button"
                   className="block max-w-full truncate text-left font-medium group-hover:underline"
                   onClick={() => openStudio(carousel)}
-                  title={carousel.name}
                 >
                   {carousel.name}
                 </button>
+                {carousel.is_template ? (
+                  <Badge variant="secondary" className="flex-none">
+                    Template
+                  </Badge>
+                ) : null}
               </div>
             </TableCell>
             <TableCell column="meta">{carousel.slide_count}</TableCell>
@@ -270,6 +284,21 @@ export function CarouselsPage({ initial }: { initial: CarouselListResponse }) {
             </TableCell>
             <TableCell column="actions">
               <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  aria-pressed={carousel.is_template}
+                  onClick={() => void handleTemplate(carousel)}
+                  aria-label={
+                    carousel.is_template
+                      ? `Stop offering ${carousel.name} as a template`
+                      : `Offer ${carousel.name} as a template`
+                  }
+                >
+                  <LayoutTemplateIcon className="size-4" />
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
@@ -285,10 +314,7 @@ export function CarouselsPage({ initial }: { initial: CarouselListResponse }) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={() => {
-                    setEditing(carousel)
-                    setFormOpen(true)
-                  }}
+                  onClick={() => setEditing(carousel)}
                   aria-label={`Rename ${carousel.name}`}
                   title={`Rename ${carousel.name}`}
                 >
@@ -317,14 +343,15 @@ export function CarouselsPage({ initial }: { initial: CarouselListResponse }) {
         </p>
       ) : null}
 
-      <CarouselFormDialog
-        open={formOpen}
-        carousel={editing}
-        onClose={() => {
-          setFormOpen(false)
-          setEditing(null)
-        }}
+      <NewCarouselDialog
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
         onCreated={openStudio}
+      />
+      <CarouselFormDialog
+        open={editing !== null}
+        carousel={editing}
+        onClose={() => setEditing(null)}
         onSaved={() => void router.invalidate()}
       />
       <ConfirmDialog

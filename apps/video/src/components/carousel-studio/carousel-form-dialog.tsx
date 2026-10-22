@@ -16,24 +16,22 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  createCarousel,
   getCarouselErrorMessage,
   renameCarousel,
   type CarouselItem,
 } from "@/lib/api/video/carousels"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
+/** Renaming a carousel. New carousels start in `NewCarouselDialog`. */
 export function CarouselFormDialog({
   open,
   carousel,
   onClose,
-  onCreated,
   onSaved,
 }: {
   open: boolean
   carousel: CarouselItem | null
   onClose: () => void
-  onCreated: (carousel: CarouselItem) => void
   onSaved: () => void
 }) {
   const [name, setName] = React.useState(carousel?.name ?? "")
@@ -51,15 +49,12 @@ export function CarouselFormDialog({
       inputRef.current?.focus()
       return
     }
+    if (!carousel) return
     setSaving(true)
     try {
-      if (carousel) {
-        await renameCarousel(carousel.id, name)
-        toast.success("Carousel renamed.")
-        onSaved()
-      } else {
-        onCreated(await createCarousel(name))
-      }
+      await renameCarousel(carousel.id, name)
+      toast.success("Carousel renamed.")
+      onSaved()
       dismissErrorToast()
       onClose()
     } catch (error) {
@@ -86,13 +81,9 @@ export function CarouselFormDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>
-              {carousel ? "Rename carousel" : "New carousel"}
-            </DialogTitle>
+            <DialogTitle>Rename carousel</DialogTitle>
             <DialogDescription>
-              {carousel
-                ? "What this carousel is called in the list."
-                : "It opens with one portrait slide and a ready-to-edit hook."}
+              What this carousel is called in the list.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -134,7 +125,7 @@ export function CarouselFormDialog({
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2Icon className="animate-spin" /> : null}
-                {carousel ? "Save changes" : "Create carousel"}
+                Save changes
               </Button>
             </DialogFooter>
           </form>

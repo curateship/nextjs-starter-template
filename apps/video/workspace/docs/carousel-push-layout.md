@@ -25,8 +25,9 @@ wrong, so here it is layer by layer.
 
 | Layer | Copied from the source slide | Never touched |
 | --- | --- | --- |
-| Text | Position, size, font, font size, colour, alignment | The words |
-| Picture or video | Position, size, Fit (Fill, Cover or Contain) | Which picture it is, its description |
+| Text | Position, size, font, font size, colour, alignment, line and letter spacing, the box behind the words, the outline, the highlight colour | The words, and which of them are bold or highlighted |
+| Slide number | Position, size, and the same look as text | Nothing else exists on a slide number |
+| Picture or video | Position, size, Fit (Fill, Cover or Contain) | Which picture it is, its description, which part of it a crop shows |
 | Shadow | Position, size, colour, strength, direction | Nothing else exists on a shadow |
 
 Three things never change on any slide:
@@ -43,8 +44,8 @@ crop the way the source's picture does. Tyler's call, 19 Oct 2026.
 ## How layers are matched
 
 Slides rarely have the same layers, so each layer on a target slide looks for a
-partner of the same kind on the source slide. The three kinds are text,
-pictures (images and videos together) and shadows.
+partner of the same kind on the source slide. The four kinds are text, slide
+numbers, pictures (images and videos together) and shadows.
 
 - **Within a kind, the bottom one matches the bottom one.** The lowest text on
   the target takes the lowest text on the source, the next text up takes the

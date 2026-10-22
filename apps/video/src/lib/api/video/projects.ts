@@ -160,10 +160,19 @@ const renameProjectFn = createServerFn({ method: "POST" })
 const deleteProjectsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
-    z.object({ projectIds: z.array(z.string().min(1).max(36)).min(1).max(100) })
+    z.object({
+      projectIds: z.array(z.string().min(1).max(36)).min(1).max(100),
+      // Whether the projects' carousels go too; the delete window asks.
+      deleteCarousels: z.boolean().default(false),
+    })
   )
   .handler(async ({ data, context }) => {
-    return deleteOwnedProjects(context.user.id, data.projectIds)
+    return deleteOwnedProjects(
+      context.user.id,
+      data.projectIds,
+      undefined,
+      data.deleteCarousels
+    )
   })
 
 const saveProjectTimelineFn = createServerFn({ method: "POST" })
@@ -296,8 +305,8 @@ export function renameProject(projectId: string, name: string) {
   return renameProjectFn({ data: { projectId, name } })
 }
 
-export function deleteProjects(projectIds: string[]) {
-  return deleteProjectsFn({ data: { projectIds } })
+export function deleteProjects(projectIds: string[], deleteCarousels = false) {
+  return deleteProjectsFn({ data: { projectIds, deleteCarousels } })
 }
 
 export function saveProjectTimeline(

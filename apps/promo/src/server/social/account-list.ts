@@ -15,9 +15,11 @@ import {
   type AccountStatusView,
 } from "@/lib/social/account-status"
 import type { ProxyTestResult } from "@/lib/social/options"
+import { MEDIUM_WARM_UP_DAYS } from "@/lib/social/medium/options"
 
 import { refuseMixedProject, refuseMixedVoice } from "./apart"
 import { moveHeldBack } from "./move-to-phone"
+import type { PausedBy } from "./pause"
 import { readBehaviour, warmUpEndsAt } from "./behaviour"
 import { queueHealthCheck } from "./health"
 import { promoAccounts, promoComments, promoProjects, promoVoices } from "./schema"
@@ -46,7 +48,10 @@ const movingPhone = alias(promoPhones, "moving_phone")
 export async function accountStatuses(
   userId: string,
   accounts: ReadonlyArray<
-    Pick<AccountRow, "id" | "statusOverride" | "profileCheck" | "redditCreatedAt" | "platform" | "lastPostedAt" | "banScreenAt" | "shadowbanned">
+    Pick<
+      AccountRow,
+      "id" | "statusOverride" | "profileCheck" | "redditCreatedAt" | "platform" | "lastPostedAt" | "banScreenAt" | "shadowbanned" | "mediumJoinedAt" | "handle"
+    >
   >,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
@@ -68,6 +73,10 @@ export async function accountStatuses(
   const lastAt = new Map(last.map((row) => [row.accountId, row.at]))
 
   for (const account of accounts) {
+    if (account.platform === "medium") {
+      out.set(account.id, mediumAccountStatus(account, now))
+      continue
+    }
     if (account.platform !== "reddit") {
       out.set(account.id, appAccountStatus(account, now))
       continue
@@ -105,6 +114,28 @@ function appAccountStatus(
   return { status: working ? "working" : "ready", byHand: false, warning }
 }
 
+/**
+ * A Medium account's status: Warming up for its first 7 days on Medium,
+ * Banned once a ban screen stopped it, Working when it wrote in the last
+ * week, and Ready otherwise. With no joined date read, it counts as warming,
+ * since Post refuses it until the date is known.
+ */
+function mediumAccountStatus(
+  account: Pick<AccountRow, "statusOverride" | "lastPostedAt" | "banScreenAt" | "mediumJoinedAt" | "handle">,
+  now: Date
+): AccountStatusView {
+  if (account.statusOverride && ACCOUNT_STATUSES.includes(account.statusOverride)) {
+    return { status: account.statusOverride, byHand: true, warning: null }
+  }
+  if (account.banScreenAt) return { status: "banned", byHand: false, warning: null }
+  const ends = warmUpEndsAt(account.mediumJoinedAt, MEDIUM_WARM_UP_DAYS, now)
+  if (ends || (ends === undefined && account.handle)) {
+    return { status: "warming_up", byHand: false, warning: ends === undefined ? "Joined date not read yet" : null }
+  }
+  const working = account.lastPostedAt !== null && now.getTime() - account.lastPostedAt.getTime() < WORKING_DAYS * 86_400_000
+  return { status: working ? "working" : "ready", byHand: false, warning: null }
+}
+
 export type RedditAccountRow = {
   id: string
   /** The network it is an account on, "reddit" for every account so far. */
@@ -136,6 +167,8 @@ export type RedditAccountRow = {
   proxy: { label: string; country: string; lastTestResult: ProxyTestResult | null } | null
   voice: { id: string; name: string } | null
   redditCreatedAt: Date | null
+  /** When Medium says a Medium account joined. Null on every other network and until read. */
+  mediumJoinedAt: Date | null
   karma: number | null
   /**
    * Instagram's and TikTok's daily reading: followers, following, posts, and
@@ -153,8 +186,8 @@ export type RedditAccountRow = {
   lastPostedAt: Date | null
   /** When it was retired, or null while in use. */
   retiredAt: Date | null
-  /** Paused by itself, or through a paused project, or null when it runs. */
-  paused: "account" | "project" | null
+  /** Paused by itself, through a paused project, through its network paused on the project, or null when it runs. */
+  paused: PausedBy
   /** True when an authenticator secret is saved. The secret itself never leaves the server. */
   twoFactor: boolean
   /** When a phone found a ban screen and stopped it, with the screen's words, or null. */
@@ -185,6 +218,7 @@ export async function listRedditAccounts(
       account: promoAccounts,
       projectName: promoProjects.name,
       projectPausedAt: promoProjects.pausedAt,
+      projectPausedNetworks: promoProjects.pausedNetworks,
       profileName: promoProfiles.name,
       profileTags: promoProfiles.tags,
       phoneName: promoPhones.name,
@@ -272,6 +306,7 @@ export async function listRedditAccounts(
           : null,
       voice: account.voiceId && row.voiceName !== null ? { id: account.voiceId, name: row.voiceName } : null,
       redditCreatedAt: account.redditCreatedAt,
+      mediumJoinedAt: account.mediumJoinedAt,
       karma: account.karma,
       followers: account.followers,
       following: account.following,
@@ -282,7 +317,13 @@ export async function listRedditAccounts(
       signedInAt: account.signedInAt,
       lastPostedAt: account.lastPostedAt,
       retiredAt: account.retiredAt,
-      paused: account.pausedAt ? "account" : row.projectPausedAt ? "project" : null,
+      paused: account.pausedAt
+        ? "account"
+        : row.projectPausedAt
+          ? "project"
+          : (row.projectPausedNetworks ?? []).some((network) => network === account.platform)
+            ? "network"
+            : null,
       twoFactor: Boolean(account.totpSecretEncrypted),
       banScreen: account.banScreenAt ? { at: account.banScreenAt, words: account.blockedReason } : null,
       importance: account.importance,

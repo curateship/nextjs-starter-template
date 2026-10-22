@@ -70,8 +70,8 @@ import { JobsWindow } from "./jobs-window"
  * tabs. Accounts can be a dropdown in the right panel to select accounts to
  * use. Jobs can be a button in middle header panel that opens up a modal".
  *
- * The middle column is the keywords as chips across its top with the column's
- * buttons, Jobs among them, then the tabs: To look at, Replied and Skipped
+ * The middle column's header is Reddit's name, then the search box, the
+ * keywords dropdown and the column's buttons, Jobs among them, then the tabs: To look at, Replied and Skipped
  * list the posts, Today and Comments their own lists. The right column is the
  * post and the comment box, with the account it goes out as picked beside
  * Post.

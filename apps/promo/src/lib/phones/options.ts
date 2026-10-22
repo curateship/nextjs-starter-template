@@ -99,7 +99,7 @@ const PHONE_ACTION_WORDS: Record<PhoneAction, string> = {
   "reddit/state": "Read who Reddit is signed in as",
 }
 
-/** A job's app steps, which the rack does in the Reddit, Instagram and TikTok apps, in words. */
+/** A job's app steps, which the rack does in the Reddit, Instagram, TikTok and Medium apps, in words. */
 const APP_STEP_WORDS: Record<string, string> = {
   "reddit/quick_state": "Read who Reddit is signed in as",
   "reddit/health": "Reddit health reading",
@@ -123,6 +123,17 @@ const APP_STEP_WORDS: Record<string, string> = {
   "tiktok/post": "Post on TikTok",
   "tiktok/inbox": "Read TikTok's messages and comments",
   "tiktok/reply": "Answer on TikTok",
+  "medium/state": "Read who Medium is signed in as",
+  "medium/quick_state": "Read who Medium is signed in as",
+  "medium/respond": "Send a Medium response",
+  "medium/warm_up": "Medium warm-up visit",
+  "medium/publish": "publishing an article",
+  "medium/edit": "editing on Medium",
+  "medium/delete": "deleting on Medium",
+  "medium/stats": "reading an article's views",
+  "medium/add_to_list": "adding to a Medium list",
+  "medium/publication": "checking a publication",
+  "medium/sign_in": "opening a sign-in link",
 }
 
 /** An action's name in words, for any action the rack ran, including a job's steps. */
@@ -159,9 +170,13 @@ export const PHONE_APP_ROUTINES = [
   "tiktok/post",
   "tiktok/inbox",
   "tiktok/reply",
+  "medium/state",
+  "medium/quick_state",
+  "medium/respond",
+  "medium/warm_up",
 ] as const
 
-const APP_PREFIXES = ["reddit/", "instagram/", "tiktok/"]
+const APP_PREFIXES = ["reddit/", "instagram/", "tiktok/", "medium/"]
 
 /**
  * Why a phone cannot do an app step, in words, or null when it can. Said
@@ -171,6 +186,9 @@ const APP_PREFIXES = ["reddit/", "instagram/", "tiktok/"]
 export function phoneStepRefusal(routine: string, phoneName: string): string | null {
   if (!APP_PREFIXES.some((prefix) => routine.startsWith(prefix))) return null
   if ((PHONE_APP_ROUTINES as readonly string[]).includes(routine)) return null
+  if (routine.startsWith("medium/")) {
+    return `${phoneName} cannot do ${actionWords(routine)}: on a phone, the Medium app reads who is signed in, sends responses and answers, and warms up. Articles, edits, deletes, lists and sign-in links need the account on a browser profile. Nothing was sent.`
+  }
   return `${phoneName} cannot do ${actionWords(routine)} yet: on a phone, the Reddit app reads who is signed in, takes the health reading, posts comments and answers messages. Nothing was sent.`
 }
 
@@ -218,7 +236,7 @@ export const RACK_PAUSED_NOTICE = "The rack is paused"
  * the same list in `rack/promo_rack.py`. TikTok's package keeps its old
  * Musical.ly name.
  */
-export const TRACKED_APPS = ["reddit", "instagram", "tiktok"] as const
+export const TRACKED_APPS = ["reddit", "instagram", "tiktok", "medium"] as const
 
 export type TrackedApp = (typeof TRACKED_APPS)[number]
 
@@ -226,6 +244,7 @@ export const APP_WORDS: Record<TrackedApp, string> = {
   reddit: "Reddit",
   instagram: "Instagram",
   tiktok: "TikTok",
+  medium: "Medium",
 }
 
 /**

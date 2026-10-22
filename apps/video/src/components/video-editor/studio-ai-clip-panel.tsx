@@ -40,6 +40,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InspectorCard } from "@/components/shared/inspector-card"
+import { ProjectCarouselsCard } from "@/components/video-editor/project-carousels-card"
 import {
   useEditorRuntime,
   useEditorSelector,
@@ -852,6 +853,8 @@ export function AiClipPanel() {
               )}
               </StepBody>
             </InspectorCard>
+
+            <ProjectCarouselsCard projectId={projectId} />
           </div>
         )}
       </ScrollArea>

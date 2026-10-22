@@ -1,3 +1,7 @@
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
+
 import { CAROUSEL_FRAME_SIZES } from "@/lib/video/carousel-layout"
 import {
   CAROUSEL_EMPTY_EXPORT_MESSAGE,
@@ -8,11 +12,25 @@ import { EXPORT_TITLE_MAX } from "@/lib/video/render"
 import { createStoredZip } from "@/lib/video/stored-zip"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { getFromR2, uploadToR2 } from "@/server/media/storage"
+import {
+  getFromR2,
+  r2ObjectExists,
+  uploadToR2,
+} from "@/server/media/storage"
 import {
   loadSlidePictures,
   renderCarouselSlidePng,
 } from "@/server/video/carousel-export"
+import {
+  carouselPdfPath,
+  createSlidesPdf,
+  slidePageJpeg,
+} from "@/server/video/carousel-pdf"
+import {
+  loadSlideClips,
+  renderVideoSlideMp4,
+  slideVideo,
+} from "@/server/video/carousel-video-slides"
 import { getOwnedCarouselDetail } from "@/server/video/carousels"
 import { removeExportFiles } from "@/server/video/export-files"
 import {
@@ -31,19 +49,24 @@ import {
  * again, shared by link, deleted and cleared out by the same code that handles
  * video exports.
  *
- * A carousel export is made in one request and written ready, never queued.
- * Ten slides draw in a few seconds, so there is nothing to wait in line for,
- * and a failure is told to the person who pressed Export rather than left as
- * a failed row.
+ * A carousel export is made in one request and written ready, never queued,
+ * so a failure is told to the person who pressed Export rather than left as
+ * a failed row. Ten picture slides draw in a few seconds. Each video slide is
+ * encoded by ffmpeg in turn, up to a minute of clip each, so a carousel of
+ * many video slides can keep the request open for minutes and holds every
+ * MP4 in memory until the ZIP is written.
  */
 
 // Wide enough to stay sharp in the details window, small enough that the
 // Exports list does not pull a full slide for a thumbnail.
 const COVER_WIDTH = 360
 
-/** `slides/slide-01.png`, the name each slide has inside the ZIP. */
-export function carouselSlideFileName(index: number) {
-  return `slides/slide-${String(index + 1).padStart(2, "0")}.png`
+/**
+ * `slides/slide-01.png`, the name each slide has inside the ZIP, or `.mp4`
+ * for a video slide.
+ */
+export function carouselSlideFileName(index: number, video = false) {
+  return `slides/slide-${String(index + 1).padStart(2, "0")}.${video ? "mp4" : "png"}`
 }
 
 export async function keepCarouselExport({
@@ -60,29 +83,68 @@ export async function keepCarouselExport({
   const carousel = await getOwnedCarouselDetail(userId, carouselId, database)
   if (!carousel.slides.length) throw new Error(CAROUSEL_EMPTY_EXPORT_MESSAGE)
 
-  const media = await loadSlidePictures(userId, carousel.slides, database)
-  let slides: Uint8Array[]
+  const workDir = await mkdtemp(path.join(tmpdir(), "carousel-export-"))
+  let files: { data: Uint8Array; video: boolean }[]
   let cover: Uint8Array
+  let pdf: Uint8Array
   try {
-    slides = carousel.slides.map((slide) =>
-      renderCarouselSlidePng(slide, carousel.format, media)
+    const media = await loadSlidePictures(userId, carousel.slides, database)
+    // A clip is downloaded once and stands in as its first frame wherever a
+    // still is drawn (workspace/docs/carousel-video-slides.md).
+    const { clips, posters } = await loadSlideClips(
+      userId,
+      carousel.slides,
+      workDir,
+      database
     )
-    cover = renderCarouselSlidePng(
-      carousel.slides[0],
-      carousel.format,
-      media,
-      COVER_WIDTH
-    )
-  } catch (error) {
-    console.error("Carousel export failed", carouselId, error)
-    throw new Error(CAROUSEL_EXPORT_FAILED_MESSAGE)
+    for (const [mediaId, poster] of posters) media.set(mediaId, poster)
+    const count = carousel.slides.length
+    let stills: Uint8Array[]
+    try {
+      stills = carousel.slides.map((slide, index) =>
+        renderCarouselSlidePng(slide, carousel.format, { index, count }, media)
+      )
+      cover = renderCarouselSlidePng(
+        carousel.slides[0],
+        carousel.format,
+        { index: 0, count },
+        media,
+        COVER_WIDTH
+      )
+    } catch (error) {
+      console.error("Carousel export failed", carouselId, error)
+      throw new Error(CAROUSEL_EXPORT_FAILED_MESSAGE)
+    }
+    files = []
+    for (const [index, slide] of carousel.slides.entries()) {
+      const video = slideVideo(slide)
+      const clip = video ? clips.get(video.mediaId) : undefined
+      files.push(
+        clip
+          ? {
+              data: await renderVideoSlideMp4({
+                slide,
+                format: carousel.format,
+                place: { index, count },
+                media,
+                clip,
+                workDir,
+              }),
+              video: true,
+            }
+          : { data: stills[index], video: false }
+      )
+    }
+    pdf = createSlidesPdf(await Promise.all(stills.map(slidePageJpeg)))
+  } finally {
+    await rm(workDir, { recursive: true, force: true })
   }
 
   const caption = carousel.caption.trim()
   const zip = createStoredZip([
-    ...slides.map((data, index) => ({
-      name: carouselSlideFileName(index),
-      data,
+    ...files.map((file, index) => ({
+      name: carouselSlideFileName(index, file.video),
+      data: file.data,
     })),
     {
       name: "caption.txt",
@@ -90,8 +152,10 @@ export async function keepCarouselExport({
     },
   ])
   const slideRanges: CarouselSlideRange[] = zip.entries
-    .slice(0, slides.length)
-    .map(({ start, size }) => ({ start, size }))
+    .slice(0, files.length)
+    .map(({ start, size }, index) =>
+      files[index].video ? { start, size, type: "video" } : { start, size }
+    )
 
   const id = uuid()
   const storagePath = `video/exports/${userId}/${id}.zip`
@@ -101,6 +165,7 @@ export async function keepCarouselExport({
 
   try {
     await uploadToR2(storagePath, zip.bytes, "application/zip")
+    await uploadToR2(carouselPdfPath(storagePath), pdf, "application/pdf")
     await uploadToR2(coverPath, cover, "image/png")
     const [row] = await database
       .insert(videoRenderJobs)
@@ -137,6 +202,29 @@ export async function keepCarouselExport({
     ])
     throw new Error(CAROUSEL_KEEP_FAILED_MESSAGE)
   }
+}
+
+/**
+ * The kept carousel's PDF. One made before PDFs were kept with the ZIP is
+ * built now from the ZIP's slides and kept for next time.
+ */
+export async function ensureCarouselExportPdf(
+  storagePath: string,
+  ranges: CarouselSlideRange[]
+) {
+  const pdfPath = carouselPdfPath(storagePath)
+  if (await r2ObjectExists(pdfPath)) return pdfPath
+  const pages = []
+  for (let index = 0; index < ranges.length; index += 1) {
+    const slide = await readCarouselExportSlide(storagePath, ranges, index)
+    // Every export from before PDFs were kept is pictures only.
+    if (!slide || ranges[index].type === "video") {
+      throw new Error("The slides could not be read back for the PDF.")
+    }
+    pages.push(await slidePageJpeg(slide))
+  }
+  await uploadToR2(pdfPath, createSlidesPdf(pages), "application/pdf")
+  return pdfPath
 }
 
 /**

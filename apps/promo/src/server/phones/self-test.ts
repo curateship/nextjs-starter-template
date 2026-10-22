@@ -15,6 +15,7 @@ import {
 } from "@/lib/phones/options"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { ringBell } from "@/server/social/notices"
+import { promoMediumFinds } from "@/server/social/medium/schema"
 import { promoAccounts, promoFinds } from "@/server/social/schema"
 
 import { brokenActionTarget } from "./action-checks"
@@ -64,16 +65,27 @@ const REHEARSAL_POST_DAYS = 7
  * What the rehearsals walk: the comment rehearsal opens a post found in the
  * last week, up to its Post button, which it never presses. With no post
  * found lately, the rack opens the first post of the test account's feed.
+ * The Medium response rehearsal opens a story found in the last week the
+ * same way, up to Respond; with none, it only opens the app.
  */
 async function rehearsalArgs(userId: string, db: CustomShellDb, now: Date): Promise<Record<string, unknown>> {
+  const since = new Date(now.getTime() - REHEARSAL_POST_DAYS * 86_400_000)
   const [find] = await db
     .select({ permalink: promoFinds.permalink, subreddit: promoFinds.subreddit })
     .from(promoFinds)
-    .where(and(eq(promoFinds.userId, userId), gte(promoFinds.firstSeenAt, new Date(now.getTime() - REHEARSAL_POST_DAYS * 86_400_000))))
+    .where(and(eq(promoFinds.userId, userId), gte(promoFinds.firstSeenAt, since)))
     .orderBy(desc(promoFinds.firstSeenAt))
     .limit(1)
-  if (!find) return {}
-  return { rehearsals: { "reddit/comment": { permalink: find.permalink, subreddit: find.subreddit, text: "" } } }
+  const [story] = await db
+    .select({ storyId: promoMediumFinds.storyId })
+    .from(promoMediumFinds)
+    .where(and(eq(promoMediumFinds.userId, userId), gte(promoMediumFinds.firstSeenAt, since)))
+    .orderBy(desc(promoMediumFinds.firstSeenAt))
+    .limit(1)
+  const rehearsals: Record<string, Record<string, unknown>> = {}
+  if (find) rehearsals["reddit/comment"] = { permalink: find.permalink, subreddit: find.subreddit, text: "" }
+  if (story) rehearsals["medium/respond"] = { storyId: story.storyId, text: "", line: "", tags: [] }
+  return Object.keys(rehearsals).length ? { rehearsals } : {}
 }
 
 type SettingsRow = {

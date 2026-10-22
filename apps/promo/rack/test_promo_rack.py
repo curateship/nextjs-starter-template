@@ -1198,6 +1198,51 @@ class AppActionsTest(unittest.TestCase):
             self.assertIn(name, promo_rack.REHEARSALS)
 
 
+class MediumAppTest(unittest.TestCase):
+    """Medium task, part 42: a response in the Medium app is typed and Respond pressed once in a real run, never in a rehearsal."""
+
+    # The same stand-in phone and patched waits the Instagram and TikTok steps run under.
+    run_action = AppActionsTest.run_action
+
+    def medium_phone(self, after):
+        return ScriptedAppPhone(promo_rack.MEDIUM, ["Home", "Responses", "What are your thoughts?", "Respond"], "Respond", after)
+
+    def test_a_real_response_opens_the_story_types_and_presses_respond_once(self):
+        device = self.medium_phone(["Responses", "Hi. Ok"])
+        result, sent = self.run_action(promo_rack.action_medium_respond, device, {"storyId": "4bad19bc09ae", "text": "Hi. Ok", "line": "", "tags": []})
+        self.assertEqual((result["responseId"], result["responseUrl"]), ("", ""))
+        self.assertEqual(device.pressed.count("Respond"), 1)
+        self.assertTrue(any("-d 'https://medium.com/p/4bad19bc09ae' -p com.medium.reader" in command for command in sent))
+        self.assertEqual(len([command for command in sent if command.startswith("input text")]), len("Hi. Ok"))
+
+    def test_a_response_that_never_shows_is_failed_without_a_second_press(self):
+        device = self.medium_phone(["Responses"])
+        failure, _ = self.run_action(promo_rack.action_medium_respond, device, {"storyId": "4bad19bc09ae", "text": "Hi", "line": "", "tags": []})
+        self.assertIn("did not show", str(failure))
+        self.assertIn("may already be on Medium", str(failure))
+        self.assertEqual(device.pressed.count("Respond"), 1)
+
+    def test_a_rehearsal_types_nothing_and_never_presses_respond(self):
+        device = self.medium_phone(["Responses"])
+        result, sent = self.run_action(promo_rack.action_medium_respond, device, {"storyId": "4bad19bc09ae", "text": "", "line": "", "tags": []}, rehearse=True)
+        self.assertEqual(result, {"responseId": "", "responseUrl": ""})
+        self.assertNotIn("Respond", device.pressed)
+        self.assertFalse([command for command in sent if command.startswith("input text")])
+
+    def test_a_highlighted_line_is_refused_before_anything_opens(self):
+        device = self.medium_phone(["Responses"])
+        failure, sent = self.run_action(promo_rack.action_medium_respond, device, {"storyId": "4bad19bc09ae", "text": "Hi", "line": "A line.", "tags": []})
+        self.assertIn("done in a browser", str(failure))
+        self.assertEqual(sent, [])
+
+    def test_medium_actions_are_registered_and_rehearsed(self):
+        for name in ("medium/state", "medium/quick_state", "medium/respond", "medium/warm_up"):
+            self.assertIn(name, promo_rack.ACTIONS)
+        for name in ("medium/state", "medium/respond"):
+            self.assertIn(name, promo_rack.REHEARSALS)
+        self.assertEqual(promo_rack.APP_PACKAGES["medium"], "com.medium.reader")
+
+
 class LauncherRollbackTest(unittest.TestCase):
     """A new version that stops before checking in is rolled back by itself."""
 
@@ -2196,6 +2241,8 @@ class IphoneAppsTest(unittest.TestCase):
             "itms-apps://apps.apple.com/app/id1064216828": ios_fixture("app-store-reddit-update.xml"),
             "itms-apps://apps.apple.com/app/id389801252": ios_tree(promo_rack.APP_STORE, ("Button", "Open"), ("StaticText", "Version 400.0")),
             "itms-apps://apps.apple.com/app/id835599320": ios_tree(promo_rack.APP_STORE, ("Button", "Get"), ("StaticText", "Version 41.0")),
+            # Medium is tracked too (Medium task, part 42), and not on this phone.
+            "itms-apps://apps.apple.com/app/id828256236": ios_tree(promo_rack.APP_STORE, ("Button", "Get"), ("StaticText", "Version 7.0")),
         }
         screen = self.phone(dict(store, start=ios_tree(IOS_SETTINGS)), "start")
         with mock.patch.object(iphone, "app_versions", lambda udid: {"reddit": "2025.40.0", "instagram": "400.0"}):

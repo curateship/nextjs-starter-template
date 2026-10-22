@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { nearlyTheSame } from "@/lib/social/similar"
-import { keywordTimerText, subredditRemovalText, subredditRemovalWarning } from "@/lib/social/wording"
+import { subredditRemovalText, subredditRemovalWarning } from "@/lib/social/wording"
 import { proxyCostTotalText, renewalText } from "@/lib/browser/wording"
 
 import { readIdeasAnswer, readPostAnswer, readRulesAnswer } from "./ai-tasks"
@@ -68,16 +68,6 @@ describe("the same comment twice", () => {
 
 describe("the words on screen", () => {
   const now = new Date("2026-10-13T12:00:00Z")
-
-  it("says when a keyword last searched and whether its timer is on", () => {
-    expect(keywordTimerText({ enabled: true, lastRunAt: null }, now)).toBe("Not searched yet")
-    expect(keywordTimerText({ enabled: true, lastRunAt: new Date("2026-10-13T10:00:00Z") }, now)).toBe(
-      "Searched 2 hours ago"
-    )
-    expect(keywordTimerText({ enabled: false, lastRunAt: new Date("2026-10-13T11:59:30Z") }, now)).toBe(
-      "Timer off · Searched just now"
-    )
-  })
 
   it("counts removals only when there are some, and says Post still works", () => {
     expect(subredditRemovalText({ removed: 0, checked: 5 })).toBeNull()

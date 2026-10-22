@@ -317,14 +317,14 @@ async function checkPicks(
       .where(
         and(
           eq(promoAccounts.profileId, input.profileId),
-          eq(promoAccounts.platform, "reddit"),
+          eq(promoAccounts.platform, platform),
           ...(accountId ? [ne(promoAccounts.id, accountId)] : [])
         )
       )
       .limit(1)
     if (taken) {
       throw new Error(
-        `The profile ${profile.name} already has a Reddit account in it. One Reddit account per profile, or they sign in over each other.`
+        `The profile ${profile.name} already has ${aNetwork(platform)} account in it. One ${networkName} account per profile, or they sign in over each other.`
       )
     }
   }

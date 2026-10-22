@@ -128,14 +128,15 @@ function Personal({
   update: (change: (menu: Menu) => Menu) => void
   onSignOut: () => void
 } & Pick<ReturnType<typeof useMenu>, "saveStatus" | "retrySave">) {
+  const view = usePanelView()
   const screens = useOpenScreen(
     startLink(menu)?.url ?? null,
     stayLoadedLink(menu)?.url ?? null,
     (url) => screenName(menu, url),
+    view.kept,
     menu.brand?.name
   )
   const { frames, screen, open, goHome } = screens
-  const view = usePanelView()
   const [menuOpen, setMenuOpen] = React.useState(false)
   // Adding, editing and dragging links only show while this is on. It starts
   // off on every visit, so the menu reads as a plain menu.
@@ -185,6 +186,8 @@ function Personal({
     setZoom: view.setZoom,
     phone: view.phone,
     setPhone: view.setPhone,
+    kept: view.kept,
+    setKept: view.setKept,
     shade: menu.sidebarShade ?? 0,
     setShade: (shade) => update((m) => setSidebarShade(m, shade)),
   }
