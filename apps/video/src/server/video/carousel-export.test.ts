@@ -18,11 +18,11 @@ import {
 import {
   carouselSlideSvg,
   findSlidePicture,
-  measureAdvance,
   pictureRect,
   renderCarouselSlidePng,
   slidePicture,
 } from "@/server/video/carousel-export"
+import { measureAdvance } from "@/server/video/text-measure"
 
 const ONLY_SLIDE = { index: 0, count: 1 }
 

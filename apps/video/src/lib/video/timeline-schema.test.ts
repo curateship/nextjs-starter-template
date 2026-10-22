@@ -223,7 +223,7 @@ describe("requireCanonicalTimeline", () => {
             durationMs: 3000,
             trimStartMs: 0,
             text: "Hello",
-            fontId: "anton",
+            fontId: "comic-sans",
           },
         ])
       )

@@ -216,6 +216,7 @@ import {
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import "@/components/video-editor/studio.css"
+import "@/components/video-editor/text-fonts.css"
 
 export type Snapshot = {
   slides: CarouselSlide[]

@@ -9,10 +9,13 @@ someone picks another. It is off unless someone switches it on.
 - **The Captions window** in the AI tools panel has "Light up each word as it is
   said" and "Spoken word colour". Its button says what the run costs, for
   example "Write them · about 2¢", or "no charge" when the recording is
-  already written down ([price-before-you-press.md](price-before-you-press.md)). The switch starts off every time the window
-  opens and is for that one run. The small sample colours its middle word to
-  show the look.
-- **The Voice window** has no switch of its own. Its captions start unlit.
+  already written down ([price-before-you-press.md](price-before-you-press.md)). The switch starts as the look saved on
+  Settings, Captions says, every time the window opens, and a change there is
+  for that one run. The Karaoke preset switches it on
+  ([caption-look.md](caption-look.md)). The small sample colours its middle
+  word to show the look.
+- **The Voice window** has no switch of its own. Its captions light up when
+  the saved look says so.
 - **One caption in the inspector.** A caption that knows when its words are
   said shows a "Word by word" card with the switch and the colour. A caption
   typed by hand has no timings, so it shows no card.
@@ -50,7 +53,8 @@ now it threw that away after cutting the words into lines.
 - **Captions are cut from the recording's kept words.** Whisper or Gemini
   writes the whole recording down once, and the words of the stretch the clip
   plays are cut into lines of up to four words
-  ([saved-transcripts.md](saved-transcripts.md)). So a second run on the same
+  ([saved-transcripts.md](saved-transcripts.md)), then cut again to the
+  look's "Words at a time" when it is fewer. So a second run on the same
   recording lights the same words at the same times, and costs nothing.
 - **The rules are in `src/lib/video/caption-words.ts`**, with their tests
   beside it.

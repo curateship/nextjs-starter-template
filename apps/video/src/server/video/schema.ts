@@ -13,6 +13,7 @@ import {
   timestamp,
   uniqueIndex,
   varchar,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core"
 
 import type {
@@ -384,6 +385,13 @@ export const videoProjects = pgTable(
     // The extras picked in the AI clip panel, one extra id per kind, so a
     // series keeps the same outfit and place (drizzle/0124).
     extraPicks: jsonb("extra_picks").$type<ExtraPicks>().notNull().default({}),
+    // The project this one is a language copy of, and the language it speaks
+    // (drizzle/0141). Deleting the original blanks the link; the copy stays.
+    languageOf: varchar("language_of", { length: 36 }).references(
+      (): AnyPgColumn => videoProjects.id,
+      { onDelete: "set null" }
+    ),
+    language: varchar("language", { length: 40 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -398,6 +406,7 @@ export const videoProjects = pgTable(
     ),
     check("video_projects_version_check", sql`${table.version} >= 1`),
     index("ix_video_projects_user_updated").on(table.userId, table.updatedAt),
+    index("ix_video_projects_language_of").on(table.languageOf),
   ]
 )
 
@@ -693,6 +702,12 @@ export const videoSettings = pgTable(
     // The words the script check flags, as a JSON list. NULL until somebody
     // saves a list on Settings → Scripts; the starter words apply until then.
     scriptBannedWords: jsonb("script_banned_words"),
+    // The look new captions take, saved on Settings → Captions. NULL until
+    // somebody saves one; the standard look applies until then.
+    captionLook: jsonb("caption_look"),
+    // How far in from each edge each platform covers a tall frame. NULL until
+    // somebody edits a number; the starting numbers apply until then.
+    safeBoxes: jsonb("safe_boxes"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

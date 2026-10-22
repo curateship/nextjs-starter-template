@@ -41,7 +41,7 @@ import {
   CAPTION_ANIMATIONS,
   resolveCaptionAnimation,
 } from "@/lib/video/caption-animations"
-import { DEFAULT_CAPTION_LOOK, type CaptionLook } from "@/lib/video/caption-look"
+import type { CaptionLook } from "@/lib/video/caption-look"
 import { SCRIPT_CHECK_NO_TEXT_MESSAGE } from "@/lib/video/script-check"
 import {
   voiceoverClips,
@@ -68,6 +68,7 @@ import {
   VOICE_TAG_EXAMPLES,
   voicePausesRefusal,
 } from "@/lib/video/voice-direction"
+import { useCaptionPlacement } from "@/components/video-editor/caption-settings-context"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import {
   ScriptCheckList,
@@ -101,6 +102,7 @@ export function VoiceDialog({
   available: AiToolsAvailability | null
 }) {
   const { store, dispatch, projectId } = useEditorRuntime()
+  const captions = useCaptionPlacement()
   const [script, setScript] = React.useState("")
   const [voices, setVoices] = React.useState<Voice[] | null>(null)
   const [voiceId, setVoiceId] = React.useState("")
@@ -120,13 +122,13 @@ export function VoiceDialog({
   // fetch the list again, so a voice made in the Voices panel since shows up,
   // without undoing what was picked in this session.
   const rememberedApplied = React.useRef(false)
-  // The captions that come with the voice take the standard look. Only the
+  // The captions that come with the voice take the saved look. Only the
   // entrance is offered here; the rest can be changed per caption afterwards.
-  const [look, setLook] = React.useState<CaptionLook>(DEFAULT_CAPTION_LOOK)
+  const [look, setLook] = React.useState<CaptionLook>(captions.look)
   const [wasOpen, setWasOpen] = React.useState(open)
   if (wasOpen !== open) {
     setWasOpen(open)
-    if (open) setLook(DEFAULT_CAPTION_LOOK)
+    if (open) setLook(captions.look)
   }
   const [speaking, setSpeaking] = React.useState(false)
   const [voicesRefused, setVoicesRefused] = React.useState(false)
@@ -281,7 +283,10 @@ export function VoiceDialog({
         showErrorToast(`${refusal} The voiceover is saved in the Voices panel.`)
         return
       }
-      dispatch({ type: "INSERT_VOICEOVER", ...voiceoverClips(result, 0, look) })
+      dispatch({
+        type: "INSERT_VOICEOVER",
+        ...voiceoverClips(result, 0, { ...captions, look }),
+      })
       dismissErrorToast()
       toast.success(
         `Read aloud, with ${result.captions.length} ${plural(result.captions.length, "caption", "captions")}. Undo removes it.`

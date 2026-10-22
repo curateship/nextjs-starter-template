@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
+import { DEFAULT_CAPTION_LOOK } from "@/lib/video/caption-look"
 import {
   createEditorStore,
   createInitialEditorState,
@@ -1119,6 +1120,7 @@ describe("making a clip again", () => {
     const remade = editorReducer(spoken, {
       type: "REMAKE_VOICE_LINE",
       clipId: "line",
+      look: DEFAULT_CAPTION_LOOK,
       line: {
         mediaId: "new-sound",
         url: "https://example.test/new.mp3",

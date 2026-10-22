@@ -3,7 +3,7 @@ import { z } from "zod"
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import { voiceCostCents } from "@/lib/video/ai-estimates"
 import { IMAGE_MODEL_IDS, type GeminiImageModelId } from "@/lib/video/asset-factories"
-import { DEFAULT_CAPTION_LOOK } from "@/lib/video/caption-look"
+import type { CaptionPlacement } from "@/lib/video/caption-look"
 import type { CaptionLine } from "@/lib/video/captions"
 import type { ClipMotion } from "@/lib/video/clip-motion"
 import type { ScenePictureOrigin, VoiceOrigin } from "@/lib/video/clip-origin"
@@ -285,7 +285,9 @@ export function storyboardScript(scenes: Pick<SceneDraft, "words">[]) {
 export function landBriefScenes(
   tracks: Tracks,
   brief: { scenes: SceneWithFiles[]; landing: BriefLanding },
-  newId: () => string
+  newId: () => string,
+  /** The saved caption look, on the project's shape. */
+  captions: CaptionPlacement
 ): { tracks: Tracks; placed: string[]; landing: BriefLanding } | null {
   let next = tracks
   const lanes = { ...brief.landing.lanes }
@@ -310,7 +312,7 @@ export function landBriefScenes(
         origin: voice.origin,
       },
       atMs,
-      DEFAULT_CAPTION_LOOK
+      captions
     )
     const still: Clip = {
       id: newId(),

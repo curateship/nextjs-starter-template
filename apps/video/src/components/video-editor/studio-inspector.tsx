@@ -101,6 +101,11 @@ import {
   TEXT_FONTS,
   type TextFontId,
 } from "@/lib/video/text-fonts"
+import {
+  DEFAULT_TEXT_STROKE_COLOR,
+  DEFAULT_TEXT_STROKE_WIDTH,
+  TEXT_STROKE_WIDTH_MAX,
+} from "@/lib/video/text-lines"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { cn } from "@/lib/utils"
 import { MakeItMoveCard } from "@/components/video-editor/moving-stills"
@@ -234,6 +239,7 @@ function TextInspector({ clip }: { clip: EditorClip }) {
   }
 
   const boxed = !!clip.highlightColor
+  const outlined = !!clip.strokeColor && !!clip.strokeWidth
 
   return (
     <>
@@ -287,6 +293,39 @@ function TextInspector({ clip }: { clip: EditorClip }) {
           value={clip.color ?? "#ffffff"}
           onChange={(color) => patch({ color })}
         />
+        <SwitchField
+          id="clip-outline"
+          label="Outline"
+          description="A line round each letter."
+          checked={outlined}
+          onChange={(on) =>
+            patch(
+              on
+                ? {
+                    strokeColor: DEFAULT_TEXT_STROKE_COLOR,
+                    strokeWidth: DEFAULT_TEXT_STROKE_WIDTH,
+                  }
+                : { strokeColor: undefined, strokeWidth: undefined }
+            )
+          }
+        />
+        {outlined ? (
+          <>
+            <ColorField
+              label="Outline colour"
+              value={clip.strokeColor ?? DEFAULT_TEXT_STROKE_COLOR}
+              onChange={(strokeColor) => patch({ strokeColor })}
+            />
+            <SliderField
+              id="clip-outline-width"
+              label="Outline thickness"
+              value={clip.strokeWidth ?? DEFAULT_TEXT_STROKE_WIDTH}
+              min={1}
+              max={TEXT_STROKE_WIDTH_MAX}
+              onChange={(strokeWidth) => patch({ strokeWidth })}
+            />
+          </>
+        ) : null}
       </InspectorCard>
 
       <InspectorCard

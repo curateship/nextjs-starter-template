@@ -1,4 +1,3 @@
-import { createRequire } from "node:module"
 import { eq } from "drizzle-orm"
 
 import sharp from "sharp"
@@ -25,18 +24,17 @@ import {
   wrapCarouselRuns,
   type TextRun,
 } from "@/lib/video/carousel-text"
-import { requireTextFont, type TextFont } from "@/lib/video/text-fonts"
+import { requireTextFont } from "@/lib/video/text-fonts"
 import { db, type CustomShellDb } from "@/server/db"
 import { IMAGE_TYPES } from "@/server/media/library"
 import { getFromR2 } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
 import { requireTextFontFiles } from "@/server/video/text-font-files"
-
-const requireNative = createRequire(import.meta.url)
-
-function loadResvg() {
-  return requireNative("@resvg/resvg-js") as typeof import("@resvg/resvg-js")
-}
+import {
+  escapeXml,
+  loadResvg,
+  measureAdvance,
+} from "@/server/video/text-measure"
 
 /** A picture as the slide drawing holds it, with its size for cropping. */
 export type SlidePicture = { href: string; width: number; height: number }
@@ -198,40 +196,6 @@ function itemBox(
     width: item.width * size.width,
     height: item.height * size.height,
   }
-}
-
-const advances = new Map<string, number>()
-
-/**
- * How far `text` reaches along its line in this face, in pixels: the browser's
- * own measure of a run, which the export needs to centre a line and to put a
- * highlight's box under exactly its words. resvg measures what it would draw,
- * so a bar after the words marks where they end, spaces included.
- */
-export function measureAdvance(
-  text: string,
-  font: TextFont,
-  fontSize: number,
-  letterSpacing: number
-) {
-  if (!text) return 0
-  const key = `${font.id}|${fontSize}|${letterSpacing}|${text}`
-  const known = advances.get(key)
-  if (known !== undefined) return known
-  const reach = (words: string) => {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20000" height="${fontSize * 3}"><text x="0" y="${fontSize * 2}" font-family="${font.svgFamily}" font-size="${fontSize}" font-weight="${font.weight}" letter-spacing="${letterSpacing}" xml:space="preserve">${escapeXml(words)}|</text></svg>`
-    const { Resvg } = loadResvg()
-    const bounds = new Resvg(svg, {
-      font: { fontFiles: requireTextFontFiles(), loadSystemFonts: false },
-    }).getBBox()
-    return bounds ? bounds.x + bounds.width : 0
-  }
-  const advance = reach(text) - reach("")
-  // Lines repeat across slides and exports; a long run of new words does not
-  // keep every one.
-  if (advances.size > 5_000) advances.clear()
-  advances.set(key, advance)
-  return advance
 }
 
 /**
@@ -407,13 +371,4 @@ function linearGradientPoints(direction: "up" | "down" | "left" | "right") {
   if (direction === "left") return 'x1="1" y1="0" x2="0" y2="0"'
   if (direction === "right") return 'x1="0" y1="0" x2="1" y2="0"'
   return 'x1="0" y1="1" x2="0" y2="0"'
-}
-
-function escapeXml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;")
 }

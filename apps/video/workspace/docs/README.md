@@ -49,12 +49,16 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [stickers.md](stickers.md) — the Text panel's stickers: each person's own
   emoji and pictures, where the list is stored, where a sticker lands, and
   what happens to a project whose picture sticker's file is deleted.
-- [text-fonts.md](text-fonts.md) — the four faces video text and carousel
-  slides can be drawn in, their licences, how the preview and the export stay
+- [text-fonts.md](text-fonts.md) — the five faces video text, captions and
+  carousel slides can be drawn in, their licences, how the preview and the export stay
   in step, and what the extra files cost to download.
-- [caption-look.md](caption-look.md) — the standard look every new caption
-  starts from, which windows let it be changed for one run, and why captions
+- [caption-look.md](caption-look.md) — the look every new caption starts
+  from, saved on Settings, Captions: font, outline, capitals, words at a time,
+  the Plain, Karaoke and Bold presets, which windows use it, and why captions
   already on a project never change.
+- [safe-box.md](safe-box.md) — keeping new captions out of the strips TikTok,
+  Reels and Shorts cover: where a caption lands, the starting numbers and where
+  they came from, and why they are settings.
 - [word-by-word-captions.md](word-by-word-captions.md) — captions that light
   up each word as it is said: where it is switched on, where the word times
   come from, what happens when the words are edited, and what it costs to
@@ -68,9 +72,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   counts, how it is worked out from the shell's price list, and how it
   compared with the meter.
 - [another-language.md](another-language.md) — translating what is said into
-  another language, which AI does which half, why nothing lands until it is
-  read and corrected, how the original is turned down under a new voice, and
-  what it costs.
+  another language, or several at once as copies of the project with an
+  export each, which AI does which half, why nothing lands until it is read
+  and corrected, how the original is turned down under a new voice, how the
+  Exports page groups the copies, and what it costs.
 - [saved-voiceovers.md](saved-voiceovers.md) — the Voiceovers panel: what is
   kept beside every voiceover read aloud, how one is laid at the playhead with
   its captions, and what happens when its file is deleted.

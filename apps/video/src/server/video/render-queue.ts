@@ -85,6 +85,13 @@ export type RenderJobSummary = {
   /** Always set on a video export, never on a carousel export. */
   project_id: string | null
   project_name: string | null
+  /**
+   * When the project is a language copy: the language it speaks, and the
+   * project it was translated from while that still exists.
+   */
+  language: string | null
+  original_project_id: string | null
+  original_project_name: string | null
   /** The carousel a carousel export came from, until it is deleted. */
   carousel_id: string | null
   carousel_name: string | null
@@ -117,13 +124,21 @@ type JobRow = typeof videoRenderJobs.$inferSelect
 export function serializeRenderJob(
   row: JobRow,
   projectName: string | null = null,
-  carouselName: string | null = null
+  carouselName: string | null = null,
+  copy: {
+    language: string | null
+    originalId: string | null
+    originalName: string | null
+  } | null = null
 ): RenderJobSummary {
   return {
     id: row.id,
     kind: row.kind === "carousel" ? "carousel" : "video",
     project_id: row.projectId,
     project_name: projectName,
+    language: copy?.language ?? null,
+    original_project_id: copy?.originalId ?? null,
+    original_project_name: copy?.originalName ?? null,
     carousel_id: row.carouselId,
     carousel_name: carouselName,
     slide_count: row.slideRanges ? row.slideRanges.length : null,
@@ -182,7 +197,7 @@ async function findBusyShape(
 }
 
 /** Refuses when this many more would take the person past their limit. */
-async function refuseFullQueue(
+export async function refuseFullQueue(
   userId: string,
   adding: number,
   database: CustomShellDb

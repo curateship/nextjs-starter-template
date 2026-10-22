@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
-import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { and, eq, inArray } from "drizzle-orm"
@@ -66,6 +65,11 @@ import {
 } from "@/lib/video/render"
 import { requireTextFont } from "@/lib/video/text-fonts"
 import {
+  TEXT_LINE_HEIGHT,
+  TEXT_WRAP_WIDTH,
+  wrapTextLines,
+} from "@/lib/video/text-lines"
+import {
   requireCanonicalTimeline,
   SAVED_TIMELINE_INVALID_MESSAGE,
   type AspectRatio,
@@ -86,6 +90,11 @@ import {
   FONT_MISSING_MESSAGE,
   requireTextFontFiles,
 } from "@/server/video/text-font-files"
+import {
+  escapeXml,
+  loadResvg,
+  measureAdvance,
+} from "@/server/video/text-measure"
 
 /**
  * Turning a timeline into a finished MP4.
@@ -134,14 +143,6 @@ export const SAFE_RENDER_ERRORS = new Set([
   FONT_MISSING_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
 ])
-
-// The rasterizer is a native add-on: no bundler can inline its binary, so it is
-// loaded when it is needed rather than imported. A server running this must
-// have it installed, the same as ffmpeg.
-const requireNative = createRequire(import.meta.url)
-function loadResvg() {
-  return requireNative("@resvg/resvg-js") as typeof import("@resvg/resvg-js")
-}
 
 function toEven(value: number) {
   return Math.max(2, Math.round(value / 2) * 2)
@@ -978,46 +979,11 @@ async function buildFfmpegCommand(options: {
 
 const HEX_COLOR = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 
-function escapeXml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-}
-
-/**
- * Where the lines break. A drawing has no idea how to wrap text on its own, so
- * this guesses from an average letter width — the same guess the preview's
- * font description carries — and always breaks where a newline was typed.
- */
-function wrapTextLines(text: string, charWidth: number, maxWidth: number) {
-  const maxChars = Math.max(1, Math.floor(maxWidth / charWidth))
-  const lines: string[] = []
-  for (const rawLine of text.split("\n")) {
-    if (rawLine.length <= maxChars) {
-      lines.push(rawLine)
-      continue
-    }
-    let current = ""
-    for (const word of rawLine.split(/\s+/)) {
-      const candidate = current ? `${current} ${word}` : word
-      if (candidate.length > maxChars && current) {
-        lines.push(current)
-        current = word
-      } else {
-        current = candidate
-      }
-    }
-    lines.push(current)
-  }
-  return lines
-}
-
 /**
  * One text clip's part of a picture, matching the preview: centred on its own
  * position, 1.15 line height, a soft shadow unless it sits on a block of
- * colour, and the size scaled from the 1080-tall design space.
+ * colour, an outline when it has one, and the size scaled from the 1080-tall
+ * design space.
  */
 function textSvgPart(
   clip: EditorClip,
@@ -1032,19 +998,30 @@ function textSvgPart(
   const scale = size.height / DESIGN_HEIGHT
   const fontSize = (clip.fontSize ?? 80) * scale
   const color = HEX_COLOR.test(clip.color ?? "") ? clip.color! : "#ffffff"
-  const lineHeight = fontSize * 1.15
-  const maxWidth = size.width * 0.9
-  const charWidth = fontSize * font.widthRatio
+  const lineHeight = fontSize * TEXT_LINE_HEIGHT
+  // A block of colour behind the words takes 0.45 of the size each side out
+  // of the width, the way the preview's padding does.
+  const boxed = !!clip.highlightColor && HEX_COLOR.test(clip.highlightColor)
+  const maxWidth =
+    size.width * (clip.wrapWidth ?? TEXT_WRAP_WIDTH) -
+    (boxed ? fontSize * 0.9 : 0)
 
   const centerX = (clip.x ?? 0.5) * size.width
   const centerY = (clip.y ?? 0.5) * size.height
 
-  const lines = wrapTextLines(clip.text ?? "", charWidth, maxWidth)
+  // Lines break where the browser breaks them, by each run's real width in
+  // this face.
+  const measure = (words: string) => measureAdvance(words, font, fontSize, 0)
+  const lines = wrapTextLines(clip.text ?? "", maxWidth, measure)
   const blockHeight = lines.length * lineHeight
-  // The nudge puts the letters, rather than their invisible box, on the middle
-  // — which is what the browser's centring does.
+  // A browser centres each face's own reach above and below the line on the
+  // line, so the baseline sits half the difference below the middle. That is
+  // 0.36 of the size for Inter and more for a tall face such as Anton.
   const firstBaseline =
-    centerY - blockHeight / 2 + lineHeight / 2 + fontSize * 0.36
+    centerY -
+    blockHeight / 2 +
+    lineHeight / 2 +
+    (fontSize * (font.ascent - font.descent)) / 2
 
   // The lit word gets a fill of its own inside its line. Words are counted
   // across the lines in the order they were wrapped, which is the order the
@@ -1071,14 +1048,11 @@ function textSvgPart(
 
   let maxLineWidth = 0
   const spans = lines.map((line, index) => {
-    maxLineWidth = Math.max(maxLineWidth, line.length * charWidth)
+    maxLineWidth = Math.max(maxLineWidth, measure(line))
     return `<tspan x="${centerX.toFixed(1)}" y="${(firstBaseline + index * lineHeight).toFixed(1)}">${drawLine(line)}</tspan>`
   })
 
-  const highlight =
-    clip.highlightColor && HEX_COLOR.test(clip.highlightColor)
-      ? clip.highlightColor
-      : null
+  const highlight = boxed ? clip.highlightColor! : null
   const highlightRect = highlight
     ? (() => {
         const boxWidth = maxLineWidth + fontSize * 0.9
@@ -1090,6 +1064,14 @@ function textSvgPart(
   // Boxed words drop the shadow, the way the preview does, so they read
   // cleanly against their block of colour.
   const textFilter = highlight ? "" : ` filter="url(#shadow)"`
+  // The outline is drawn twice as wide as asked and under the fill, so the
+  // asked width shows outside each letter. The preview does the same with
+  // `paint-order`, so neither eats into the letters.
+  const strokeWidth = (clip.strokeWidth ?? 0) * scale
+  const outline =
+    strokeWidth > 0 && HEX_COLOR.test(clip.strokeColor ?? "")
+      ? ` stroke="${clip.strokeColor}" stroke-width="${(strokeWidth * 2).toFixed(2)}" paint-order="stroke"`
+      : ""
   // The entrance is drawn as one move of the whole line: bigger or smaller
   // about its own middle, shifted up or down, and faded. The preview does
   // exactly this with a stylesheet, from the same numbers.
@@ -1102,7 +1084,7 @@ function textSvgPart(
   const closeGroup = entering ? "</g>" : ""
 
   return `${openGroup}${highlightRect}
-  <text${textFilter} text-anchor="middle" font-family="${font.svgFamily}" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}">${spans.join("")}</text>${closeGroup}`
+  <text${textFilter} text-anchor="middle" font-family="${font.svgFamily}" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}"${outline}>${spans.join("")}</text>${closeGroup}`
 }
 
 /**

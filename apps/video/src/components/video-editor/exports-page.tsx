@@ -24,7 +24,12 @@ import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import {
+  TableCell,
+  TableGroupRow,
+  TableHead,
+  TableRow,
+} from "@/components/ui/table"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import {
   deleteExports,
@@ -47,6 +52,7 @@ import {
   useSearchBoxText,
 } from "@/lib/nav/list-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { exportGroupId, groupLanguageCopies } from "@/lib/video/export-groups"
 import type { ExportKind } from "@/lib/video/export-kinds"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { ExportClearOutDialog } from "@/components/video-editor/export-clear-out-dialog"
@@ -182,9 +188,12 @@ export function ExportsPage({
     const timer = setInterval(() => void router.invalidate(), POLL_MS)
     return () => clearInterval(timer)
   }, [anyActive, router])
-  const sortedItems = React.useMemo(() => {
+  // Sorted, then each project's language copies gathered under it.
+  const { rows: sortedItems, originals } = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
-    return [...items].sort((a, b) => factor * compareExports(a, b, sort))
+    return groupLanguageCopies(
+      [...items].sort((a, b) => factor * compareExports(a, b, sort))
+    )
   }, [direction, items, sort])
 
   const totalPages = Math.ceil(sortedItems.length / pageSize)
@@ -331,170 +340,189 @@ export function ExportsPage({
           },
         }}
       >
-        {visibleItems.map((item) => (
-          <TableRow
-            key={item.id}
-            className="group"
-            rowAction={
-              item.status === "ready" ? () => setEditing(item) : undefined
-            }
-          >
-            <TableCell column="select">
-              <Checkbox
-                checked={selection.selected.has(item.id)}
-                onCheckedChange={() => selection.toggle(item.id)}
-                aria-label={`Select ${item.title ?? "this export"}`}
-              />
-            </TableCell>
-            <TableCell column="main">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-                  {item.has_thumbnail ? (
-                    <ExportCover
-                      exportId={item.id}
-                      className="size-full object-contain"
-                      fallback={<ExportKindIcon item={item} />}
-                    />
-                  ) : (
-                    <ExportKindIcon item={item} />
-                  )}
-                </span>
-                <div className="grid min-w-0 gap-0.5">
-                  {item.status === "ready" ? (
-                    <button
-                      type="button"
-                      className="block max-w-full truncate text-left font-medium group-hover:underline"
-                      onClick={() => setEditing(item)}
-                      title={item.title ?? "Untitled export"}
-                    >
-                      {item.title ?? "Untitled export"}
-                    </button>
-                  ) : (
-                    <span
-                      className="block max-w-full truncate font-medium"
-                      title={item.title ?? "Untitled export"}
-                    >
-                      {item.title ?? "Untitled export"}
-                    </span>
-                  )}
-                  {item.kind === "carousel" ? (
-                    <span className="text-sm text-muted-foreground">
-                      {describeSlides(item)}
-                    </span>
-                  ) : null}
-                  <ExportRowStatus
-                    item={item}
-                    shared={sharedIds.has(item.id)}
+        {visibleItems.map((item, index) => {
+          const group = exportGroupId(item, originals)
+          const startsGroup =
+            !!group &&
+            (index === 0 ||
+              exportGroupId(visibleItems[index - 1], originals) !== group)
+          return (
+            <React.Fragment key={item.id}>
+              {startsGroup ? (
+                <TableGroupRow
+                  colSpan={8}
+                  label={describeGroup(group, sortedItems, originals)}
+                />
+              ) : null}
+              <TableRow
+                className="group"
+                rowAction={
+                  item.status === "ready" ? () => setEditing(item) : undefined
+                }
+              >
+                <TableCell column="select">
+                  <Checkbox
+                    checked={selection.selected.has(item.id)}
+                    onCheckedChange={() => selection.toggle(item.id)}
+                    aria-label={`Select ${item.title ?? "this export"}`}
                   />
-                </div>
-              </div>
-            </TableCell>
-            <TableCell column="meta">
-              <span className="block max-w-40 truncate" title={sourceName(item)}>
-                {sourceName(item) || "—"}
-              </span>
-            </TableCell>
-            <TableCell column="meta">{item.aspect}</TableCell>
-            <TableCell column="meta">
-              {item.file_size ? formatFileSize(item.file_size) : "—"}
-            </TableCell>
-            <TableCell column="meta" className="hidden 2xl:table-cell">
-              {item.kind === "carousel"
-                ? describeSlides(item)
-                : item.duration_ms
-                  ? formatClock(item.duration_ms)
-                  : "—"}
-            </TableCell>
-            <TableCell column="meta">
-              {item.finished_at ? formatDate(item.finished_at) : "—"}
-            </TableCell>
-            <TableCell column="actions">
-              <div className="flex items-center gap-1">
-                {item.status === "ready" ? (
-                  <>
-                    <Button asChild variant="ghost" size="icon">
-                      <a
-                        href={`/api/v1/video/exports/${item.id}/file?filename=${encodeURIComponent(item.title ?? "export")}`}
-                        download
-                        aria-label={`Download ${item.title ?? "this export"}`}
-                        title={`Download ${item.title ?? "this export"}`}
-                      >
-                        <DownloadIcon className="size-4" />
-                      </a>
-                    </Button>
-                    {item.kind === "carousel" ? (
-                      // LinkedIn takes a carousel as a PDF, one slide a page.
-                      <Button asChild variant="ghost" size="icon">
-                        <a
-                          href={`/api/v1/video/exports/${item.id}/file?format=pdf&filename=${encodeURIComponent(item.title ?? "export")}`}
-                          download
-                          aria-label={`Download ${item.title ?? "this export"} as a PDF`}
+                </TableCell>
+                <TableCell column="main">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                      {item.has_thumbnail ? (
+                        <ExportCover
+                          exportId={item.id}
+                          className="size-full object-contain"
+                          fallback={<ExportKindIcon item={item} />}
+                        />
+                      ) : (
+                        <ExportKindIcon item={item} />
+                      )}
+                    </span>
+                    <div className="grid min-w-0 gap-0.5">
+                      {item.status === "ready" ? (
+                        <button
+                          type="button"
+                          className="block max-w-full truncate text-left font-medium group-hover:underline"
+                          onClick={() => setEditing(item)}
+                          title={item.title ?? "Untitled export"}
                         >
-                          <FileTextIcon className="size-4" />
-                        </a>
+                          {item.title ?? "Untitled export"}
+                        </button>
+                      ) : (
+                        <span
+                          className="block max-w-full truncate font-medium"
+                          title={item.title ?? "Untitled export"}
+                        >
+                          {item.title ?? "Untitled export"}
+                        </span>
+                      )}
+                      {item.kind === "carousel" ? (
+                        <span className="text-sm text-muted-foreground">
+                          {describeSlides(item)}
+                        </span>
+                      ) : null}
+                      {item.language ? (
+                        <span className="text-sm text-muted-foreground">
+                          {item.language}
+                        </span>
+                      ) : null}
+                      <ExportRowStatus
+                        item={item}
+                        shared={sharedIds.has(item.id)}
+                      />
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell column="meta">
+                  <span className="block max-w-40 truncate" title={sourceName(item)}>
+                    {sourceName(item) || "—"}
+                  </span>
+                </TableCell>
+                <TableCell column="meta">{item.aspect}</TableCell>
+                <TableCell column="meta">
+                  {item.file_size ? formatFileSize(item.file_size) : "—"}
+                </TableCell>
+                <TableCell column="meta" className="hidden 2xl:table-cell">
+                  {item.kind === "carousel"
+                    ? describeSlides(item)
+                    : item.duration_ms
+                      ? formatClock(item.duration_ms)
+                      : "—"}
+                </TableCell>
+                <TableCell column="meta">
+                  {item.finished_at ? formatDate(item.finished_at) : "—"}
+                </TableCell>
+                <TableCell column="actions">
+                  <div className="flex items-center gap-1">
+                    {item.status === "ready" ? (
+                      <>
+                        <Button asChild variant="ghost" size="icon">
+                          <a
+                            href={`/api/v1/video/exports/${item.id}/file?filename=${encodeURIComponent(item.title ?? "export")}`}
+                            download
+                            aria-label={`Download ${item.title ?? "this export"}`}
+                            title={`Download ${item.title ?? "this export"}`}
+                          >
+                            <DownloadIcon className="size-4" />
+                          </a>
+                        </Button>
+                        {item.kind === "carousel" ? (
+                          // LinkedIn takes a carousel as a PDF, one slide a page.
+                          <Button asChild variant="ghost" size="icon">
+                            <a
+                              href={`/api/v1/video/exports/${item.id}/file?format=pdf&filename=${encodeURIComponent(item.title ?? "export")}`}
+                              download
+                              aria-label={`Download ${item.title ?? "this export"} as a PDF`}
+                            >
+                              <FileTextIcon className="size-4" />
+                            </a>
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setSharing(item)}
+                          aria-label={`Share ${item.title ?? "this export"}`}
+                          title="Share link"
+                        >
+                          <Link2Icon className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditing(item)}
+                          aria-label={`Edit ${item.title ?? "this export"}`}
+                          title={`Edit ${item.title ?? "this export"}`}
+                        >
+                          <SettingsIcon className="size-4" />
+                        </Button>
+                      </>
+                    ) : null}
+                    {item.status === "error" ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={busy}
+                        onClick={() => void handleRetry(item)}
+                        aria-label={`Try ${item.title ?? "this export"} again`}
+                        title="Try again"
+                      >
+                        <RotateCwIcon className="size-4" />
                       </Button>
                     ) : null}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setSharing(item)}
-                      aria-label={`Share ${item.title ?? "this export"}`}
-                      title="Share link"
-                    >
-                      <Link2Icon className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setEditing(item)}
-                      aria-label={`Edit ${item.title ?? "this export"}`}
-                      title={`Edit ${item.title ?? "this export"}`}
-                    >
-                      <SettingsIcon className="size-4" />
-                    </Button>
-                  </>
-                ) : null}
-                {item.status === "error" ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    disabled={busy}
-                    onClick={() => void handleRetry(item)}
-                    aria-label={`Try ${item.title ?? "this export"} again`}
-                    title="Try again"
-                  >
-                    <RotateCwIcon className="size-4" />
-                  </Button>
-                ) : null}
-                {isExportActive(item) ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => void handleStop(item)}
-                    aria-label={`Stop export ${item.title ?? "this export"}`}
-                  >
-                    Stop export
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setDeleteTargets([item])}
-                    aria-label={`Delete ${item.title ?? "this export"}`}
-                    title={`Delete ${item.title ?? "this export"}`}
-                  >
-                    <Trash2Icon className="size-4" />
-                  </Button>
-                )}
-              </div>
-            </TableCell>
-          </TableRow>
-        ))}
+                    {isExportActive(item) ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void handleStop(item)}
+                        aria-label={`Stop export ${item.title ?? "this export"}`}
+                      >
+                        Stop export
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeleteTargets([item])}
+                        aria-label={`Delete ${item.title ?? "this export"}`}
+                        title={`Delete ${item.title ?? "this export"}`}
+                      >
+                        <Trash2Icon className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            </React.Fragment>
+          )
+        })}
       </DashboardTable>
 
       <ExportDetailsDialog
@@ -543,6 +571,26 @@ export function ExportsPage({
       />
     </>
   )
+}
+
+/** "My Short, and Spanish and Hindi": the original and its languages. */
+function describeGroup(
+  group: string,
+  rows: RenderJobSummary[],
+  originals: ReadonlySet<string>
+) {
+  const members = rows.filter((row) => exportGroupId(row, originals) === group)
+  const name =
+    members.find((row) => row.original_project_id === group)
+      ?.original_project_name ?? "Project"
+  const languages = Array.from(
+    new Set(members.flatMap((row) => (row.language ? [row.language] : [])))
+  )
+  const listed =
+    languages.length === 1
+      ? languages[0]
+      : `${languages.slice(0, -1).join(", ")} and ${languages.at(-1)}`
+  return `${name}, and ${listed}`
 }
 
 function describeSlides(item: RenderJobSummary) {

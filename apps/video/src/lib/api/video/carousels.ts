@@ -54,7 +54,10 @@ import {
   LINK_UNREADABLE_MESSAGE,
   PROJECT_SCRIPT_EMPTY_MESSAGE,
 } from "@/lib/video/carousel-writing"
-import { TRANSLATE_LANGUAGES } from "@/lib/video/translate"
+import {
+  TRANSLATE_LANGUAGES,
+  TRANSLATE_LANGUAGES_AT_ONCE,
+} from "@/lib/video/translate"
 import {
   keepCarouselStockPhoto,
   searchCarouselStockPhotos,
@@ -514,7 +517,10 @@ const translateFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
     carouselIdSchema.extend({
-      languages: z.array(z.enum(TRANSLATE_LANGUAGES)).min(1).max(10),
+      languages: z
+        .array(z.enum(TRANSLATE_LANGUAGES))
+        .min(1)
+        .max(TRANSLATE_LANGUAGES_AT_ONCE),
     })
   )
   .handler(async ({ data, context }) => {

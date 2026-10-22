@@ -53,12 +53,19 @@ import {
   resolveCaptionAnimation,
 } from "@/lib/video/caption-animations"
 import { captionWordHighlight, litWordAt } from "@/lib/video/caption-words"
+import { SAFE_BOX_ASPECT, safeBoxShares } from "@/lib/video/safe-box"
 import { requireTextFont } from "@/lib/video/text-fonts"
+import {
+  TEXT_LINE_HEIGHT,
+  TEXT_WRAP_WIDTH,
+  textOutlineCss,
+} from "@/lib/video/text-lines"
 import {
   snapStageCenter,
   stageSnapThreshold,
 } from "@/lib/video/timeline-snapping"
 import { DESIGN_HEIGHT } from "@/lib/video/timeline-utils"
+import { useCaptionSettings } from "@/components/video-editor/caption-settings-context"
 import {
   timelineDurationMs,
   useEditorRuntime,
@@ -1004,6 +1011,14 @@ export function EditorPreview() {
     .filter((clip) => colourFilterCss(clip) !== "")
   const textScale = stageHeight > 0 ? stageHeight / DESIGN_HEIGHT : 0
   const timeMs = clock.getTime()
+  // The platform new captions keep clear of, drawn faintly so a caption
+  // moved by hand can be kept inside it too. Never part of the export.
+  const { look: captionLook, safeBoxes: captionSettingsBoxes } =
+    useCaptionSettings()
+  const safeBox =
+    captionLook.platform && aspect === SAFE_BOX_ASPECT
+      ? safeBoxShares(captionSettingsBoxes[captionLook.platform])
+      : null
 
   return (
     <div ref={containerRef} className="grid h-full w-full place-items-center">
@@ -1079,7 +1094,8 @@ export function EditorPreview() {
         })}
 
         {/* Text overlays — drag to move. Anchored at their middle, wrapping at
-            90% of the frame, and scaled from the 1080-tall design space so the
+            90% of the frame (less when a caption was fitted into a platform's
+            safe box), and scaled from the 1080-tall design space so the
             same size means the same thing at any stage size. `w-max` is what
             lets a line reach that 90%: placed from the middle, the box would
             otherwise only grow into the right half and wrap sooner than the
@@ -1095,8 +1111,9 @@ export function EditorPreview() {
               onPointerUp={handleOverlayUp}
               onPointerCancel={handleOverlayUp}
               title="Click to edit · drag to move"
-              className="absolute w-max max-w-[90%] cursor-move touch-none text-center font-semibold whitespace-pre-wrap outline-1 outline-dashed outline-transparent select-none hover:outline-white/70"
+              className="absolute w-max cursor-move touch-none text-center font-semibold whitespace-pre-wrap outline-1 outline-dashed outline-transparent select-none hover:outline-white/70"
               style={{
+                maxWidth: `${(clip.wrapWidth ?? TEXT_WRAP_WIDTH) * 100}%`,
                 left: `${(clip.x ?? 0.5) * 100}%`,
                 top: `${(clip.y ?? 0.5) * 100}%`,
                 transform: "translate(-50%, -50%)",
@@ -1104,7 +1121,8 @@ export function EditorPreview() {
                 fontFamily: font.family,
                 fontWeight: font.weight,
                 fontSize: (clip.fontSize ?? 80) * textScale,
-                lineHeight: 1.15,
+                lineHeight: TEXT_LINE_HEIGHT,
+                ...textOutlineCss(clip.strokeColor, clip.strokeWidth, textScale),
                 // A block of colour behind the words. With one, the shadow goes
                 // — boxed text should read like a sticker, not a drop shadow.
                 backgroundColor: clip.highlightColor,
@@ -1139,6 +1157,21 @@ export function EditorPreview() {
             </filter>
           ))}
         </svg>
+
+        {safeBox ? (
+          <div
+            aria-hidden="true"
+            data-safe-box={captionLook.platform}
+            className="pointer-events-none absolute border border-dashed border-white/35"
+            style={{
+              top: `${safeBox.top * 100}%`,
+              bottom: `${safeBox.bottom * 100}%`,
+              left: `${safeBox.left * 100}%`,
+              right: `${safeBox.right * 100}%`,
+              zIndex: 94,
+            }}
+          />
+        ) : null}
 
         {/* The centre lines, only while a dragged overlay is locked onto one. */}
         <div

@@ -30,11 +30,12 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { VERSION_REASON_LABEL } from "@/lib/video/project-versions"
 import {
   TRANSLATE_LANGUAGES,
+  TRANSLATE_LANGUAGES_AT_ONCE,
+  TRANSLATE_TOO_MANY_LANGUAGES_MESSAGE,
   type TranslateLanguage,
 } from "@/lib/video/translate"
 import { cn } from "@/lib/utils"
 
-const MOST_LANGUAGES = 10
 
 /**
  * Copies in other languages (workspace/docs/carousel-writing.md): tick the
@@ -150,9 +151,9 @@ export function TranslateCopiesDialog({
                               id={id}
                               checked={on}
                               onCheckedChange={(checked) => {
-                                if (checked === true && picked.size >= MOST_LANGUAGES) {
+                                if (checked === true && picked.size >= TRANSLATE_LANGUAGES_AT_ONCE) {
                                   showErrorToast(
-                                    `Pick up to ${MOST_LANGUAGES} languages at once.`
+                                    `${TRANSLATE_TOO_MANY_LANGUAGES_MESSAGE}.`
                                   )
                                   return
                                 }
