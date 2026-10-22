@@ -1,4 +1,4 @@
-import { BookOpenTextIcon, MessagesSquareIcon } from "lucide-react"
+import { AtSignIcon, BookOpenTextIcon, MessagesSquareIcon } from "lucide-react"
 
 import type { Network } from "@/lib/social/networks"
 
@@ -9,5 +9,7 @@ export function NetworkIcon({ network }: { network: Network }) {
       return <MessagesSquareIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     case "medium":
       return <BookOpenTextIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+    case "x":
+      return <AtSignIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
   }
 }

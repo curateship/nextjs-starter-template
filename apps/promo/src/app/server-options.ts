@@ -124,6 +124,23 @@ export const appServerOptions: AppServerOptions = {
         },
       },
       {
+        name: "promo-x",
+        /**
+         * X's upkeep (`src/server/social/x/upkeep.ts`): every five minutes,
+         * reads each watched account again 15 minutes after its last read and
+         * each X keyword 2 hours after, and picks a time for each warming
+         * account's daily visit; every ten, asks for a fresh reading of replies
+         * and posts a day old, each account's mentions and daily look, the
+         * day's trends and an X browser account's messages, and tidies away
+         * old posts nobody answered. Only writes jobs and deletes old rows;
+         * the browser program reads and visits, through the search accounts.
+         */
+        tick: async () => {
+          const { xUpkeep } = await import("@/server/social/x/upkeep")
+          await xUpkeep()
+        },
+      },
+      {
         name: "promo-phone-health",
         /**
          * Rings the bell for a phone offline five minutes, a battery over

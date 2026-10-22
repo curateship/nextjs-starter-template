@@ -48,4 +48,14 @@ describe("Instagram and TikTok limits", () => {
     expect(phoneStepRefusal("instagram/follow", "Pixel 8a")).toContain("Pixel 8a cannot do instagram/follow yet")
     expect(phoneStepRefusal("reddit/reply", "Pixel 8a")).toContain("answering a reply")
   })
+
+  it("lets a phone take X's app steps and refuses X's browser-only ones", () => {
+    for (const routine of ["x/state", "x/quick_state", "x/reply", "x/quote", "x/publish", "x/follow", "x/warm_up", "x/inbox", "x/reply_message"]) {
+      expect(phoneStepRefusal(routine, "Pixel 8a")).toBeNull()
+    }
+    expect(phoneStepRefusal("x/edit", "Pixel 8a")).toBe(
+      "Pixel 8a cannot do editing an X post: on a phone, the X app reads who is signed in, replies, quotes, posts, follows, warms up, and reads and answers messages. Searches, reading posts again, edits, deletes, lists and sign-in codes are done in a browser. Nothing was sent."
+    )
+    expect(phoneStepRefusal("x/search", "Pixel 8a")).toContain("cannot do searching X")
+  })
 })

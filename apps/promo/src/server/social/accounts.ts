@@ -18,6 +18,7 @@ import {
 } from "./apart"
 import { readBehaviour } from "./behaviour"
 import { promoAccounts, promoJobs, promoVoices } from "./schema"
+import { promoXSearchers } from "./x/schema"
 
 /**
  * The Reddit accounts, as records a person picks for.
@@ -278,14 +279,15 @@ async function checkPicks(
         `The phone ${phone.name} already has ${aNetwork(platform)} account on it. One ${networkName} account per phone, or they sign in over each other.`
       )
     }
-    // Only Reddit accounts are moved onto phones from a browser profile.
-    const [incoming] = platform !== "reddit" ? [] : await db
+    // Only Reddit and X accounts are moved onto phones from a browser profile.
+    const [incoming] = platform !== "reddit" && platform !== "x" ? [] : await db
       .select({ handle: promoAccounts.handle })
       .from(promoAccounts)
       .where(
         and(
           eq(promoAccounts.movingToPhoneId, input.phoneId),
           eq(promoAccounts.userId, userId),
+          eq(promoAccounts.platform, platform),
           isNull(promoAccounts.retiredAt),
           ...(accountId ? [ne(promoAccounts.id, accountId)] : [])
         )
@@ -293,7 +295,7 @@ async function checkPicks(
       .limit(1)
     if (incoming) {
       throw new Error(
-        `The phone ${phone.name} already has a Reddit account on it, or one on its way. One Reddit account per phone: u/${incoming.handle} is being moved onto it.`
+        `The phone ${phone.name} already has ${aNetwork(platform)} account on it, or one on its way. One ${networkName} account per phone: ${handleWords(platform, incoming.handle)} is being moved onto it.`
       )
     }
   }
@@ -308,6 +310,16 @@ async function checkPicks(
     if ((await readBehaviour(userId, db)).readerProfileId === input.profileId) {
       throw new Error(
         `The profile ${profile.name} is the reader browser, which stays signed in to nobody. Pick another profile, or change the reader in Settings → Behaviour.`
+      )
+    }
+    const [searcher] = await db
+      .select({ id: promoXSearchers.id })
+      .from(promoXSearchers)
+      .where(eq(promoXSearchers.profileId, input.profileId))
+      .limit(1)
+    if (searcher) {
+      throw new Error(
+        `The profile ${profile.name} is an X search account, which only ever reads. Pick another profile, or take it off under X in Settings → Behaviour.`
       )
     }
 

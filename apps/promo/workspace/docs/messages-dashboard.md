@@ -1,10 +1,10 @@
 # The Messages dashboard
 
-Every phone account's direct messages on Reddit, Instagram and TikTok, in one
-list at `/admin/messages`, under Projects in the left menu after Accounts.
-Each conversation is read off the phone after the app's notification said a
-message arrived, and answered only when a person presses Send. Phone farm
-file 06, part 38.
+Every phone account's direct messages on Reddit, Instagram, TikTok and X, and
+every X account's in a browser, in one list at `/admin/messages`, under
+Projects in the left menu after Accounts. Each conversation is read off the
+phone after the app's notification said a message arrived, and answered only
+when a person presses Send. Phone farm file 06, part 38, and X task part 41.
 
 Nothing here has run on a real phone yet.
 
@@ -32,6 +32,12 @@ suspicious?" So the phones do not check the inbox on a clock.
   for comments, recorded as the inbox being opened rather than a notification
   being tapped, and the list here fills the same way. At night nothing is opened
   ([iPhones on the rack](phones/iphones.md)).
+
+- **An X account in a browser is the other exception, on a clock:** a browser
+  has no notifications, so in its waking hours Promo reads its inbox every
+  three hours, through the same read and answer jobs. Its conversations are
+  named by the other person's @handle, and Send answers that conversation in
+  the account's browser ([X accounts](x/accounts.md#direct-messages)).
 
 ## The list
 

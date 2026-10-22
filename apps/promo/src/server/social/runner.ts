@@ -16,7 +16,8 @@ import {
   touchSession,
 } from "@/server/browser/session"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { NO_PROFILE_MESSAGE, READER_JOB_KINDS, WRITE_JOB_KINDS, type JobKind } from "@/lib/social/options"
+import { NO_PROFILE_MESSAGE, READER_JOB_KINDS, WRITE_JOB_KINDS, X_SEARCHER_JOB_KINDS, type JobKind } from "@/lib/social/options"
+import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
 import { aNetwork, handleWords, isNetwork, isPhoneAppNetwork, NETWORK_NAMES } from "@/lib/social/networks"
 import { nextWakeAt } from "@/lib/social/waking"
 import { PHONE_LANE_PREFIX, phoneLane } from "@/lib/phones/options"
@@ -66,6 +67,11 @@ import {
   saveMediumSignIn,
 } from "./medium/run"
 import { settleFailedMediumJob } from "./medium/settle"
+import { ringBell } from "./notices"
+import { xQuickState, xState } from "./x/calls"
+import { runXAccountJob, runXSearcherJob, saveXSignIn, X_ACCOUNT_KINDS, X_PHONE_KINDS } from "./x/run"
+import { handlePosts, saveSearcherHandle, searcherForLane, stopSearcher, utcDay, type PickedSearcher } from "./x/searchers"
+import { settleFailedXJob } from "./x/settle"
 
 /**
  * One turn of the browser work.
@@ -142,7 +148,10 @@ export async function runOneJob(
     await failJob(job.id, claimToken, message, attempts, db, later)
     // A Medium response, article or list add refused before its own code ran
     // still says so on its row.
-    if (final) await settleFailedMediumJob(job, message, db)
+    if (final) {
+      await settleFailedMediumJob(job, message, db)
+      await settleFailedXJob(job, message, db)
+    }
     // A comment, an answer or a post that did not go out rings the bell.
     await ringForFailure(job, message, db)
     return { did: "job", kind: job.kind, jobId: job.id, ok: false, error: message }
@@ -230,6 +239,11 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
     return
   }
 
+  if (X_SEARCHER_JOB_KINDS.includes(job.kind)) {
+    await runXRead(job, db)
+    return
+  }
+
   const account = await accountForJob(job, db)
   refuseWrongNetwork(job.kind, account)
   if (!account.profileId && !account.phoneId) throw new Refusal(NO_PROFILE_MESSAGE)
@@ -248,7 +262,7 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   }
   // Retired after the job was queued. A retired account never posts and
   // never warms up; a health reading is only a read and still runs.
-  const writes = WRITE_JOB_KINDS.includes(job.kind) || job.kind === "warm_up" || job.kind === "medium_warm_up"
+  const writes = WRITE_JOB_KINDS.includes(job.kind) || job.kind === "warm_up" || job.kind === "medium_warm_up" || job.kind === "x_warm_up"
   if (account.retiredAt && writes) {
     throw new Refusal(
       "This account is retired, so it no longer posts or warms up. Bring it back on the Accounts dashboard first."
@@ -325,6 +339,23 @@ const PHONE_APP_ONLY_KINDS: readonly JobKind[] = ["app_post", "app_profile"]
  */
 function refuseWrongNetwork(kind: JobKind, account: Account): void {
   const network = account.platform
+  // X's direct messages use the Messages dashboard's own read and answer jobs.
+  const xInbox = network === "x" && (kind === "inbox_read" || kind === "inbox_reply")
+  if (!xInbox && X_ACCOUNT_KINDS.includes(kind) !== (network === "x")) {
+    throw new Refusal(
+      network === "x"
+        ? "That is not something an X account does. Nothing was sent."
+        : `That is X's, and this is ${isNetwork(network) ? aNetwork(network) : "another network's"} account. Nothing was sent.`
+    )
+  }
+  if (network === "x") {
+    // Checked when the job was queued too, but an account can move to a
+    // phone while a job waits for its morning.
+    if (account.phoneId && X_ACCOUNT_KINDS.includes(kind) && !X_PHONE_KINDS.includes(kind)) {
+      throw new Refusal("This X account runs on a phone now, and the X app there replies, quotes, posts and follows only. Nothing was sent.")
+    }
+    return
+  }
   if (MEDIUM_ACCOUNT_KINDS.includes(kind) !== (network === "medium")) {
     throw new Refusal(
       network === "medium"
@@ -376,6 +407,8 @@ async function runAccountJob(
   try {
     if (MEDIUM_ACCOUNT_KINDS.includes(job.kind)) {
       await runMediumAccountJob(job, account, target, db)
+    } else if (X_ACCOUNT_KINDS.includes(job.kind)) {
+      await runXAccountJob(job, account, target, db)
     } else if (job.kind === "comment") {
       const findId = String(job.payload.findId ?? "")
       const text = String(job.payload.text ?? "")
@@ -538,6 +571,75 @@ async function refuseSignedInReader(name: string, target: CommandTarget, network
   }
 }
 
+/**
+ * A read of X, in a search account's browser (parts 3 to 5): a browser
+ * signed in to a throwaway X account that only ever reads. A read filed under
+ * a search account that has used its views, or that X stopped, moves to the
+ * one with the most left before it opens anything.
+ *
+ * The search account is looked at before and after. Signed out, signed in as
+ * an account that posts, locked or rate-limited, it is stopped for the rest of
+ * the day with the reason, the bell rings once, and the read is refused.
+ */
+async function runXRead(job: QueuedJob, db: CustomShellDb): Promise<void> {
+  const picked = await searcherForLane(job.userId, job.lane, db)
+  if ("moveTo" in picked) throw new PutBack({ lane: picked.moveTo })
+  const { searcher } = picked
+  const session = await ensureSession(job.userId, searcher.profileId, db)
+  await touchSession(session.id, db)
+  // Found unfit before reading, the read moves to another search account
+  // untried, or is refused when none can read.
+  const before = await lookAtSearcher(job.userId, searcher, session.target, db)
+  if (before) {
+    const next = await searcherForLane(job.userId, job.lane, db)
+    if ("moveTo" in next) throw new PutBack({ lane: next.moveTo })
+    throw new Refusal(`The X search account in ${searcher.profileName} was stopped for today. ${before}`)
+  }
+  try {
+    await runXSearcherJob(job, { target: session.target, searcher }, db)
+  } finally {
+    await touchSession(session.id, db)
+  }
+  const after = await lookAtSearcher(job.userId, searcher, session.target, db)
+  if (after) throw new Refusal(`The X search account in ${searcher.profileName} was stopped for today after this read. ${after}`)
+}
+
+/**
+ * Stops a search account X would not let read for the rest of the day, rings
+ * the bell once, and returns why, or "" when it may read. A look that cannot
+ * be taken is let go: the page may not be on X yet, and the next look will
+ * tell.
+ */
+async function lookAtSearcher(userId: string, searcher: PickedSearcher, target: CommandTarget, db: CustomShellDb): Promise<string> {
+  let state: Awaited<ReturnType<typeof xQuickState>> | null = null
+  try {
+    state = await xQuickState(target)
+  } catch (error) {
+    console.error(`Could not read who the X search account in ${searcher.profileName} is`, error)
+  }
+  if (!state?.checked) return ""
+  if (state.handle) await saveSearcherHandle(searcher.id, state.handle, db)
+  const reason = state.banScreen
+    ? `X locked it: "${state.banScreen}". Sort it out in its browser window on the Browser profiles dashboard.`
+    : state.blocked
+      ? `X is in the way: ${state.reason}.`
+      : !state.handle
+        ? "It is signed out of X. Sign it in again in its browser window on the Browser profiles dashboard."
+        : (await handlePosts(userId, state.handle, db))
+          ? `It is signed in as @${state.handle}, one of your accounts that posts. A search account only ever reads, so sign it in to a throwaway.`
+          : ""
+  if (!reason) return ""
+  await stopSearcher(searcher.id, reason, db)
+  await ringBell(userId, {
+    kind: "x_searcher",
+    targetId: `${searcher.id}:${utcDay()}`,
+    message: `${NOTICE_HEADINGS.x_searcher} ${searcher.profileName}`,
+    detail: `${reason} It reads nothing more today; the other search accounts carry on.`,
+    href: "/admin/settings/behaviour",
+  }, db)
+  return reason
+}
+
 /** The account a job works as, by the rule its lane was filed by (`jobAccount`). */
 async function accountForJob(job: QueuedJob, db: CustomShellDb): Promise<Account> {
   const account = await jobAccount(job.userId, job.payload, db)
@@ -567,7 +669,14 @@ async function readSignIns(
   full = false
 ): Promise<void> {
   const accounts = await db
-    .select({ id: promoAccounts.id, platform: promoAccounts.platform, handle: promoAccounts.handle })
+    .select({
+      id: promoAccounts.id,
+      userId: promoAccounts.userId,
+      platform: promoAccounts.platform,
+      handle: promoAccounts.handle,
+      profileId: promoAccounts.profileId,
+      banScreenAt: promoAccounts.banScreenAt,
+    })
     .from(promoAccounts)
     .where(
       and(
@@ -608,6 +717,21 @@ async function readSignIns(
         // job the last saved answer stays.
         if (full) throw error
         console.error(`Could not read who is signed in to Medium for account ${account.id}`, error)
+      }
+      continue
+    }
+    if (account.platform === "x") {
+      try {
+        const state = full ? await xState(target) : await xQuickState(target)
+        // A check a person asked for that could not see X says so, rather
+        // than writing the account down as signed out.
+        if (full && !state.checked) throw new Refusal(state.reason || "The browser could not load X, so who is signed in was not read. Try Check now again.")
+        await saveXSignIn(account, state, db)
+      } catch (error) {
+        // A check a person asked for fails with its reason; after any other
+        // job the last saved answer stays.
+        if (full) throw error
+        console.error(`Could not read who is signed in to X for account ${account.id}`, error)
       }
       continue
     }

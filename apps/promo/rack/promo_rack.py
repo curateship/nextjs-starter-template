@@ -60,6 +60,7 @@ is: Promo reads it out of the same file it serves.
 
 import argparse
 import base64
+import calendar
 import collections
 import hashlib
 import hmac
@@ -1035,8 +1036,9 @@ APP_PACKAGES = {
     "instagram": "com.instagram.android",
     "tiktok": "com.zhiliaoapp.musically",
     "medium": "com.medium.reader",
+    "x": "com.twitter.android",
 }
-APP_NAMES = {"reddit": "Reddit", "instagram": "Instagram", "tiktok": "TikTok", "medium": "Medium"}
+APP_NAMES = {"reddit": "Reddit", "instagram": "Instagram", "tiktok": "TikTok", "medium": "Medium", "x": "X"}
 PLAY_STORE = "com.android.vending"
 
 # The same apps on an iPhone, by App Store bundle id, and Apple's own apps
@@ -1048,6 +1050,9 @@ APP_BUNDLES = {
     # Not yet read off a real iPhone. The Android package is Medium's own
     # Play Store name; this one is the same until a phone says otherwise.
     "medium": "com.medium.reader",
+    # X's iPhone app keeps Tweetie's bundle id from before Twitter bought it.
+    # Not yet read off a real iPhone either.
+    "x": "com.atebits.Tweetie2",
 }
 IOS_SETTINGS = "com.apple.Preferences"
 IOS_MESSAGES = "com.apple.MobileSMS"
@@ -1143,7 +1148,7 @@ UPDATE_BUTTON = {"textMatches": "(?i)^update$", "packageName": PLAY_STORE}
 # The same apps in the App Store (phone farm part 53): each app's page by
 # Apple's own number, opened through the itms-apps address the store owns.
 APP_STORE = "com.apple.AppStore"
-APP_STORE_IDS = {"reddit": "1064216828", "instagram": "389801252", "tiktok": "835599320", "medium": "828256236"}
+APP_STORE_IDS = {"reddit": "1064216828", "instagram": "389801252", "tiktok": "835599320", "medium": "828256236", "x": "333903271"}
 IOS_UPDATE_BUTTON = {"textMatches": "(?i)^update$", "packageName": APP_STORE}
 IOS_OPEN_BUTTON = {"textMatches": "(?i)^open$", "packageName": APP_STORE}
 # The page's What's New says "Version 2025.40.0" under the newest notes.
@@ -2029,14 +2034,15 @@ def parse_bounds(text):
     return tuple(int(part) for part in found.groups()) if found else None
 
 
-def feed_post_titles(hierarchy_xml, height):
+def feed_post_titles(hierarchy_xml, height, app="reddit"):
     """Post titles a thumb could open in the feed: long lines of the app's own
-    text in the middle of the screen, never a promoted post's."""
+    text in the middle of the screen, never a promoted post's. Reddit's
+    feed by default; X's feed reads the same way."""
     root = ElementTree.fromstring(hierarchy_xml)
     parents = {child: parent for parent in root.iter() for child in parent}
     titles = []
     for node in root.iter("node"):
-        if not own_node(node, app_packages("reddit")):
+        if not own_node(node, app_packages(app)):
             continue
         words = (node.get("text") or "").strip()
         bounds = parse_bounds(node.get("bounds"))
@@ -2072,11 +2078,11 @@ def open_post_link(serial, permalink):
     open_link(serial, "reddit", "https://www.reddit.com%s" % permalink)
 
 
-def open_feed_post(serial, walk):
+def open_feed_post(serial, walk, app="reddit"):
     """Opens one post from the feed by its title. False when none was on screen."""
     device = walk.screen()
     _, height = screen_size(device)
-    titles = feed_post_titles(device.dump_hierarchy(), height)
+    titles = feed_post_titles(device.dump_hierarchy(), height, app)
     if not titles:
         return False
     walk.check()
@@ -2583,6 +2589,60 @@ APP_SCREENS[APP_BUNDLES["medium"]] = dict(
     response_box=shapes(APP_BUNDLES["medium"], "(?i)^what are your thoughts\\??$") + ios_field_in(APP_BUNDLES["medium"]),
     handle_in_title=False,
 )
+
+
+# X's app (X task, part 2). Written from how the X app is put together: its
+# Android view ids (com.twitter.android:id/tweet_text, button_tweet,
+# composer_write, inline_reply, inline_retweet) and the words its buttons
+# say ("New post", "Post your reply", "Reply", "Post", "Repost", "Quote",
+# "Messages"). None of it has run on a real phone yet; the daily self-test
+# walks it first. A view id is tried before the words where both are
+# listed, since X's own Reply icon on a post says "Reply" too. The iPhone
+# app has no view ids to match, so its buttons are found by their words.
+X_APP = APP_PACKAGES["x"]
+IOS_X = APP_BUNDLES["x"]
+# The Follow button on a profile, by its view id. Its words alone could be
+# the "Following" count beside it.
+X_FOLLOW_BUTTON_ID = "(?i).*(follow_button|button_bar_follow|followbutton).*"
+
+
+def x_screens(package, field, first_item, ios):
+    ids = (lambda pattern: []) if ios else (lambda pattern: [{"resourceIdMatches": pattern, "packageName": package}])
+    composer_box = ids("(?i).*tweet_text.*") + field + shapes(
+        package, "(?i)^(post your reply|what's happening\\??|what is happening\\?!?|add a comment|add another post)( ?(…|\\.\\.\\.))?$")
+    post_button = ids("(?i).*button_tweet.*") + shapes(package, "(?i)^(post|reply|post all|reply all|tweet)$")
+    return {
+        "package": package,
+        "drawer": shapes(package, "(?i)^(show navigation drawer|open navigation drawer|navigation drawer|account menu|profile menu|open menu|menu)$")
+        + ids("(?i).*(drawer|toolbar_avatar|nav_avatar).*"),
+        "profile_entry": shapes(package, "(?i)^profile$"),
+        "reply_open": ids("(?i).*(inline_reply|tweet_reply|reply_compose).*") + shapes(package, "(?i)^(post your reply|tweet your reply|add a reply)( ?(…|\\.\\.\\.))?$"),
+        "composer_box": composer_box,
+        "post_button": post_button,
+        "repost": ids("(?i).*(inline_retweet|tweet_retweet|retweet_button).*") + shapes(package, "(?i)^(repost|retweet)(\\W.*)?$"),
+        "quote": shapes(package, "(?i)^(quote|quote post|quote tweet)$"),
+        "new_post": ids("(?i).*(composer_write|compose_fab|fab_compose).*") + shapes(package, "(?i)^(new post|compose|compose a post|compose a tweet|write a post|create post)$"),
+        "media": ids("(?i).*(gallery|photo|media).*(button|icon|picker|toolbar).*") + shapes(package, "(?i)^(add photos or video|add photos|photos|photo|gallery|add media|media)$"),
+        "media_first": first_item,
+        "media_done": shapes(package, "(?i)^(add|done|ok|select)$"),
+        "follow_button_id": "" if ios else X_FOLLOW_BUTTON_ID,
+        "inbox": ids("(?i).*(dm_tab|messages_tab|tab_messages).*") + shapes(package, "(?i)^(messages|direct messages|chat|chats)$"),
+        "activity": shapes(package, "(?i)^notifications$"),
+        "message_box": ids("(?i).*(dm_compose|dm_text|message_text).*") + shapes(package, "(?i)^(start a (new )?message|message|new message)( ?(…|\\.\\.\\.))?$") + field,
+        "send": ids("(?i).*(dm_send|send_dm|send_button).*") + shapes(package, "(?i)^send$"),
+        "reply": shapes(package, "(?i)^reply$"),
+        "comment_box": composer_box,
+        "comment_send": post_button,
+        "field": field,
+        "handle_id": "(?i).*(user_name|screen_name|username).*",
+        "handle_in_title": False,
+        "figures": {"posts": "", "followers": "followers", "following": "following"},
+    }
+
+
+APP_SCREENS["x"] = x_screens(X_APP, field_in(X_APP), [{"resourceIdMatches": "(?i).*(gallery_image|media_item|gallery_grid|thumbnail).*", "packageName": X_APP}], ios=False)
+APP_SCREENS[IOS_X] = x_screens(IOS_X, ios_field_in(IOS_X), ios_first_cell(IOS_X), ios=True)
+
 
 def app_screens(serial, app):
     """The app's buttons on this phone: the iPhone app's, keyed by its bundle
@@ -3365,18 +3425,20 @@ def parse_app_notifications(output):
 
 
 COMMENT_ALERT = re.compile(r"\b(commented|replied to your comment|mentioned you in a comment)\b")
-MESSAGE_ALERT = re.compile(r"\b(sent you a (message|chat|photo|video|reel|post)|messaged you|new message|new chat|wants to send you a message)\b")
+MESSAGE_ALERT = re.compile(r"\b(sent you a (direct message|message|chat|photo|video|reel|post)|messaged you|new (direct )?message|new chat|wants to send you a message)\b")
 
 
 def alert_kind(item):
     """"message", "comment" or None for one app notification. Reddit's comment
     replies are left to the reader browser, so Reddit only counts its chats
-    and messages. Likes and follows are nothing."""
+    and messages. X is the same: replies and mentions are read from a
+    browser, so only its direct messages count, which X files under a "dm"
+    channel. Likes and follows are nothing."""
     words = plain("%s %s" % (item["title"], item["text"]))
     meta = plain(item["meta"])
     if item["app"] in ("instagram", "tiktok") and COMMENT_ALERT.search(words):
         return "comment"
-    if MESSAGE_ALERT.search(words) or re.search(r"(direct|message|chat|\bmsg\b|\bim\b)", meta):
+    if MESSAGE_ALERT.search(words) or re.search(r"(direct|message|chat|\bmsg\b|\bim\b|(?<![a-z])dms?(?![a-z]))", meta):
         return "message"
     return None
 
@@ -3491,7 +3553,7 @@ def comments_from_screen(hierarchy_xml, app, handle, height=2400):
     return [dict(comment, thread=thread) for comment in comments]
 
 
-NOT_A_MESSAGE = re.compile(r"\b(liked|follow|following|tagged you|went live|posted)\b")
+NOT_A_MESSAGE = re.compile(r"\b(liked|follow|following|tagged you|went live|posted|reposted)\b")
 
 
 def notification_for(hierarchy_xml, app, kind):
@@ -4048,6 +4110,580 @@ REHEARSALS.update({
 })
 
 
+# ---------------------------------------------------------------------------
+# X's app (X task, part 2). The phone answers the same routine names as the
+# browser (src/server/social/x/calls.ts) with the same answers, so Promo does
+# not care where an X account runs. X's id for a reply or a post is not shown
+# in the app after it is sent, so it is "" here and Promo looks it up through
+# a search account, as Medium's reader does for a response. A community post
+# or a poll is made in a browser only, and is refused before anything opens.
+# Direct messages go through the shared inbox steps, as Instagram's and
+# TikTok's do: x/inbox reads them and x/reply_message answers one (x/reply
+# is the reply under a post). The phone's x/inbox answers in the shared
+# inbox's shape, conversations and their lines, not the browser's list of
+# messages, so Promo reads a phone account's messages through the phone
+# inbox code only. None of this has run on a real phone yet.
+
+X_POST_ID = re.compile(r"^\d{1,25}$")
+X_HANDLE = re.compile(r"^[A-Za-z0-9_]{1,15}$")
+# "Joined March 2021" on the account's own profile.
+X_JOINED = re.compile(r"(?i)^joined\s+([a-z]+)\s+(\d{4})$")
+MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+X_POSTED = ("your post was sent", "your reply was sent", "your post was posted", "post sent", "reply sent")
+X_POST_FAILED = ("couldn't be sent", "could not be sent", "couldn't send your", "failed to send", "you already said that", "over the daily limit")
+X_NOT_CHECKED = {"checked": False, "handle": None, "blocked": False, "reason": "", "banScreen": None, "joinedSeconds": None, "followers": None}
+X_BAN_WORDS = {"suspended": "suspended", "locked": "locked or limited", "confirm": "asking to confirm it's you"}
+
+
+def x_joined_seconds(hierarchy_xml):
+    """When the account joined, as the first of the month its profile names, in seconds. None when not shown."""
+    for line in screen_lines(hierarchy_xml, app_packages("x")):
+        found = X_JOINED.match(line.strip())
+        if found and found.group(1).lower()[:3] in MONTHS:
+            month = MONTHS.index(found.group(1).lower()[:3]) + 1
+            return float(calendar.timegm((int(found.group(2)), month, 1, 0, 0, 0)))
+    return None
+
+
+def read_x_profile(serial, walk):
+    """Opens X on the account's own profile, through the menu behind its
+    picture, and reads the handle, the followers and when it joined. A ban
+    screen in the way is read instead. Leaves the profile open."""
+    empty = {"handle": None, "followers": None, "joinedSeconds": None, "ban": None}
+    open_app(serial, "x")
+    walk.shot("Opened X")
+    device = walk.screen()
+    hierarchy = device.dump_hierarchy()
+    ban = ban_screen_in(hierarchy, "x", package_for(serial, "x"))
+    if ban:
+        return dict(empty, ban=ban)
+    if signed_out(hierarchy, "x"):
+        return empty
+    screens = app_screens(serial, "x")
+    walk.tap_first("Open the account menu", selectors=screens["drawer"])
+    time.sleep(1.5)
+    walk.tap_first("Open the profile", selectors=screens["profile_entry"])
+    time.sleep(2)
+    hierarchy = device.dump_hierarchy()
+    reading = app_profile_from_screen(hierarchy, "x")
+    walk.shot("Read the profile")
+    return {"handle": reading["handle"], "followers": reading["followers"], "joinedSeconds": x_joined_seconds(hierarchy), "ban": None}
+
+
+def action_x_state(serial, args, walk):
+    """Who the X app is signed in as, its followers and when it joined, off
+    its own profile; asked after every X job too, as x/quick_state. A lock
+    or suspended screen is answered as blocked, with X's own words. An app
+    that cannot be read says "not checked", so a failed look is never written
+    down as signed out; a rehearsal that cannot read it is broken."""
+    try:
+        walk.screen().screen_on()
+        reading = read_x_profile(serial, walk)
+        walk.home()
+    except Cancelled:
+        raise
+    except Exception as failure:  # Not checked rather than signed out.
+        if walk.rehearse:
+            raise
+        log("Could not read who is signed in to X on %s: %s" % (serial, failure))
+        return dict(X_NOT_CHECKED)
+    ban = reading["ban"]
+    return {
+        "checked": True,
+        "handle": reading["handle"],
+        "blocked": bool(ban),
+        "reason": "X shows the account %s" % X_BAN_WORDS.get(ban["kind"], "stopped") if ban else "",
+        "banScreen": ban["words"] if ban else None,
+        "joinedSeconds": reading["joinedSeconds"],
+        "followers": reading["followers"],
+    }
+
+
+# Said by every error after Post or Reply was pressed, so nobody sends twice blind.
+X_MAY_BE_SENT = "It may already be on X; look before sending again."
+
+
+def x_lines(hierarchy_xml):
+    """The X app's own lines on screen, kept from before a press so the
+    lines after it can be told apart."""
+    return set(screen_lines(hierarchy_xml, app_packages("x")))
+
+
+def x_landed(hierarchy_xml, package, text, before, shown_before=()):
+    """What the screen says after Post or Reply was pressed: ("sent", ""),
+    ("failed", X's words), or ("", "") while neither shows. Only lines that
+    were not on screen before the press are read, so the post being answered
+    saying "couldn't be sent" is not X's notice. The words showing more times
+    than before also count as sent."""
+    fresh = [plain(line) for line in screen_lines(hierarchy_xml, app_packages("x")) if line not in shown_before]
+    failed = next((line for line in fresh if any(phrase in line for phrase in X_POST_FAILED)), None)
+    if failed:
+        return "failed", failed
+    if any(phrase in line for line in fresh for phrase in X_POSTED) or (text and times_shown(hierarchy_xml, package, text) > before):
+        return "sent", ""
+    return "", ""
+
+
+def x_wait_landed(walk, package, text, before, verb, shown_before=()):
+    """Waits for X to say the post went. A failure X names fails the job; True once sent; False when nothing showed in time."""
+    device = walk.screen()
+    waiting_until = time.time() + POST_LANDED_SECONDS
+    while time.time() < waiting_until:
+        time.sleep(1)
+        try:
+            state, words = x_landed(device.dump_hierarchy(), package, text, before, shown_before)
+        except Exception:  # A screen caught mid-change; look again.
+            continue
+        if state == "failed":
+            walk.shot("X said it failed")
+            raise RuntimeError("%s: X said it did not go: %s. %s" % (verb, words, X_MAY_BE_SENT))
+        if state == "sent":
+            walk.shot("Looked for the post")
+            return True
+    walk.shot("Looked for the post")
+    return False
+
+
+def x_after_press(verb, look):
+    """Runs the look after Post or Reply was pressed. Whatever fails in it
+    says the words may be on X already."""
+    try:
+        return look()
+    except Cancelled:
+        raise
+    except Exception as failure:
+        words = str(failure) or failure.__class__.__name__
+        if "It may already be on X" in words:
+            raise
+        raise RuntimeError("%s: %s. %s" % (verb, words.rstrip("."), X_MAY_BE_SENT))
+
+
+def x_words_under(hierarchy_xml, package, text):
+    """True when one of the app's views shows exactly these words, the text
+    box left out: our reply is under the post already. Only the whole words
+    count, so a "Yes" of ours is never found inside somebody's longer post."""
+    wanted = plain(" ".join(text.split())).rstrip(".")
+    if not wanted:
+        return False
+    for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
+        if not own_node(node, package) or is_text_box(node):
+            continue
+        for key in ("text", "content-desc", "label"):
+            if plain(" ".join((node.get(key) or "").split())).rstrip(".") == wanted:
+                return True
+    return False
+
+
+def x_on_profile(serial, walk, package, text):
+    """The account's own profile looked at for the words, since a quote or a
+    post of its own does not show where it was written. False when the
+    profile could not be reached."""
+    screens = app_screens(serial, "x")
+    try:
+        open_app(serial, "x")
+        walk.tap_first("Open the account menu", timeout=5, selectors=screens["drawer"])
+        time.sleep(1.5)
+        walk.tap_first("Open the profile", timeout=5, selectors=screens["profile_entry"])
+        time.sleep(2)
+        found = times_shown(walk.screen().dump_hierarchy(), package, text) > 0
+        walk.shot("Looked on the profile")
+        return found
+    except StepFailed:
+        return False
+
+
+def x_feed_before(serial, walk, visit):
+    """A little of the home feed before a reply or a quote, which never stops it."""
+    started = time.monotonic()
+    try:
+        open_app(serial, "x")
+        walk.shot("Opened X")
+        browse_app_feed(serial, walk, random.uniform(*APP_READ_FEED_SECONDS))
+    except Cancelled:
+        raise
+    except Exception as failure:  # The reply still goes.
+        visit["problems"].append("the feed before: %s" % short_words(failure))
+    visit["beforeSeconds"] = int(time.monotonic() - started)
+
+
+def x_feed_after(serial, walk, visit):
+    """A little scrolling after the press, which can never fail what is already on X."""
+    started = time.monotonic()
+    try:
+        go_back(serial)
+        time.sleep(1.5)
+        browse_app_feed(serial, walk, random.uniform(*APP_FEED_AFTER_SECONDS))
+    except Exception as failure:  # Includes a cancel: it is on X either way.
+        visit["problems"].append("the feed after: %s" % short_words(failure))
+    visit["afterSeconds"] = int(time.monotonic() - started)
+
+
+def x_open_post(serial, walk, post_id):
+    """Opens a post by its link in the app. With no post (a rehearsal when
+    Promo found none lately) the first post of the home feed is opened."""
+    walk.check()
+    if post_id:
+        open_link(serial, "x", "https://x.com/i/status/%s" % post_id)
+        walk.shot("Opened the post")
+        return
+    open_app(serial, "x")
+    walk.shot("Opened X")
+    if not open_feed_post(serial, walk, "x"):
+        raise StepFailed("Open a post", "No post was on X's home feed to open.")
+
+
+def x_put_picture(serial, walk, url):
+    """Puts the post's picture on the phone, as Instagram's post does: into the
+    camera folder on an Android, into Photos through a one-time Safari link
+    on an iPhone. It is then the newest item the post box's picker shows."""
+    if is_iphone(serial):
+        save_from_safari(serial, walk, url)
+        return
+    data, extension = download_media(url)
+    put_in_gallery(serial, data, extension)
+    walk.shot("Put the picture in the gallery")
+
+
+def x_fill(serial, walk, screens, text, picture):
+    """In an open post box: the picture first, when one was put on the phone,
+    then the words typed with a person's rhythm. A rehearsal only finds the box."""
+    device = walk.screen()
+    box = walk.find_first("Find the post box", selectors=screens["composer_box"])
+    if walk.rehearse:
+        return
+    if picture:
+        walk.tap_first("Open the photos", selectors=screens["media"])
+        time.sleep(2)
+        walk.tap_first("Pick the newest picture", selectors=screens["media_first"])
+        time.sleep(1.5)
+        try:
+            walk.tap_first("Add the picture", timeout=4, selectors=screens["media_done"])
+            time.sleep(1.5)
+        except StepFailed:
+            pass  # Added on the pick on this version.
+        box = walk.find_first("Find the post box", selectors=screens["composer_box"])
+    if text:
+        walk.press(box)
+        gaps = type_like_a_person(serial, device, text, walk.check)
+        walk.shot("Typed the words")
+        log("x words typed: %d characters, gaps %.2f to %.2f seconds" % (len(text), min(gaps or [0]), max(gaps or [0])))
+    time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
+
+
+def x_reply_under(serial, walk, post_id, text, picture, verb):
+    """One reply under a post, Reply pressed once. A reply of the account's
+    own (verb "reply") is a visit: the home feed first, the post read for a
+    while. A thread's next piece (verb "publish") goes straight on. Words of
+    ours already under the post (an earlier try that went out without saying
+    so) count as sent, and nothing is typed."""
+    device = walk.screen()
+    device.screen_on()
+    screens = app_screens(serial, "x")
+    package = package_for(serial, "x")
+    visit = new_visit()
+    if verb == "reply" and not walk.rehearse:
+        x_feed_before(serial, walk, visit)
+    before = 0
+    shown = set()
+    try:
+        x_open_post(serial, walk, post_id)
+        hierarchy = device.dump_hierarchy()
+        if signed_out(hierarchy, "x"):
+            raise RuntimeError("%s: the app is not signed in to X" % verb)
+        if verb == "reply" and not walk.rehearse:
+            read_post(serial, walk, len(" ".join(screen_lines(hierarchy, app_packages("x")))), visit)
+        if not walk.rehearse:
+            hierarchy = device.dump_hierarchy()
+            if x_words_under(hierarchy, package, text):
+                walk.shot("Our words are under the post already")
+                walk.home()
+                return {"postId": "", "url": "", "visit": visit}
+            before = times_shown(hierarchy, package, text)
+            shown = x_lines(hierarchy)
+        walk.tap_first("Open the reply box", selectors=screens["reply_open"])
+        time.sleep(2)
+        x_fill(serial, walk, screens, text, picture)
+        shown |= x_lines(device.dump_hierarchy())
+        pressed = walk.final_first("Press Reply", selectors=screens["post_button"])
+    except Cancelled:
+        raise
+    except Exception:
+        # Stopped before the last button: the draft is thrown away and nothing was sent.
+        if not walk.rehearse:
+            leave_app_screen(serial, walk, "x", times=3)
+        raise
+    finally:
+        if walk.rehearse:
+            leave_app_screen(serial, walk, "x", times=3)
+    if not pressed:
+        walk.home()
+        return {"postId": "", "url": ""}
+    if not x_after_press(verb, lambda: x_wait_landed(walk, package, text, before, verb, shown)):
+        raise RuntimeError("%s: Reply was pressed but X did not say it was sent, and the words did not show within %d seconds. %s" % (verb, POST_LANDED_SECONDS, X_MAY_BE_SENT))
+    x_feed_after(serial, walk, visit)
+    walk.home()
+    return {"postId": "", "url": "", "visit": visit}
+
+
+def action_x_reply(serial, args, walk):
+    """Writes one reply under a post in the X app, inside a visit: a little
+    home feed, the post by its link, read for a while, the reply box, the
+    words typed with a person's rhythm, and Reply pressed once. It counts as
+    sent when X says so or the words show under the post. Its id is "".
+
+    In a rehearsal nothing is typed: the post opens (the feed's first post
+    when none was sent), the box opens, Reply is found and not pressed, and
+    the box is left.
+    """
+    post_id = str(args.get("replyToId") or "").strip()
+    text = str(args.get("text") or "").strip()
+    if post_id and not X_POST_ID.match(post_id):
+        raise RuntimeError("reply: that is not an X post id")
+    if not walk.rehearse and (not post_id or not text):
+        raise RuntimeError("reply: a reply needs its post and its words")
+    return x_reply_under(serial, walk, post_id, text, False, "reply")
+
+
+def action_x_quote(serial, args, walk):
+    """One quote post of somebody's post, inside a visit: a little home feed,
+    the post by its link, read, Repost, Quote, the words typed, and Post
+    pressed once. A quote does not show under the post it quotes, so it
+    counts as sent when X says so, or failing that when the words are on the
+    account's own profile. Its id is "".
+
+    In a rehearsal nothing is typed and Post is found, not pressed.
+    """
+    post_id = str(args.get("postId") or "").strip()
+    text = str(args.get("text") or "").strip()
+    if post_id and not X_POST_ID.match(post_id):
+        raise RuntimeError("quote: that is not an X post id")
+    if not walk.rehearse and (not post_id or not text):
+        raise RuntimeError("quote: a quote needs its post and its words")
+    device = walk.screen()
+    device.screen_on()
+    screens = app_screens(serial, "x")
+    package = package_for(serial, "x")
+    visit = new_visit()
+    if not walk.rehearse:
+        x_feed_before(serial, walk, visit)
+    try:
+        x_open_post(serial, walk, post_id)
+        hierarchy = device.dump_hierarchy()
+        if signed_out(hierarchy, "x"):
+            raise RuntimeError("quote: the app is not signed in to X")
+        shown = x_lines(hierarchy)
+        if not walk.rehearse:
+            read_post(serial, walk, len(" ".join(screen_lines(hierarchy, app_packages("x")))), visit)
+        walk.tap_first("Open Repost", selectors=screens["repost"])
+        time.sleep(1.5)
+        walk.tap_first("Pick Quote", selectors=screens["quote"])
+        time.sleep(2)
+        x_fill(serial, walk, screens, text, False)
+        shown |= x_lines(device.dump_hierarchy())
+        pressed = walk.final_first("Press Post", selectors=screens["post_button"])
+    except Cancelled:
+        raise
+    except Exception:
+        if not walk.rehearse:
+            leave_app_screen(serial, walk, "x", times=3)
+        raise
+    finally:
+        if walk.rehearse:
+            leave_app_screen(serial, walk, "x", times=3)
+    if not pressed:
+        walk.home()
+        return {"postId": "", "url": ""}
+    if not x_after_press("quote", lambda: x_wait_landed(walk, package, text, 0, "quote", shown) or x_on_profile(serial, walk, package, text)):
+        raise RuntimeError("quote: Post was pressed but X did not say it was sent, and the words are not on the profile. %s" % X_MAY_BE_SENT)
+    x_feed_after(serial, walk, visit)
+    walk.home()
+    return {"postId": "", "url": "", "visit": visit}
+
+
+def action_x_publish(serial, args, walk):
+    """One post of the account's own: the first of a thread from X's New post
+    button, or a later piece under `replyToId`, the piece before it. A picture
+    from `pictureUrl` is put on the phone first and picked in the post box.
+    Post or Reply is pressed once; it counts as sent when X says so or the
+    words show, under the piece before or on the profile. Its id is "".
+
+    A community post or a poll is made in a browser, and is refused here
+    before anything opens. In a rehearsal no picture is fetched, nothing is
+    typed, and Post is found, not pressed.
+    """
+    text = str(args.get("text") or "").strip()
+    picture = str(args.get("pictureUrl") or "").strip()
+    reply_to = str(args.get("replyToId") or "").strip()
+    if str(args.get("communityId") or "").strip():
+        raise RuntimeError("publish: a post into a community is made in a browser, not the X app")
+    if args.get("poll"):
+        raise RuntimeError("publish: a poll is made in a browser, not the X app")
+    if reply_to and not X_POST_ID.match(reply_to):
+        raise RuntimeError("publish: that is not an X post id")
+    if not walk.rehearse and not text and not picture:
+        raise RuntimeError("publish: a post needs its words or a picture")
+    device = walk.screen()
+    device.screen_on()
+    has_picture = bool(picture) and not walk.rehearse
+    if has_picture:
+        x_put_picture(serial, walk, picture)
+    if reply_to:
+        return x_reply_under(serial, walk, reply_to, text, has_picture, "publish")
+    screens = app_screens(serial, "x")
+    package = package_for(serial, "x")
+    visit = new_visit()
+    try:
+        open_app(serial, "x")
+        walk.shot("Opened X")
+        hierarchy = device.dump_hierarchy()
+        if signed_out(hierarchy, "x"):
+            raise RuntimeError("publish: the app is not signed in to X")
+        shown = x_lines(hierarchy)
+        walk.tap_first("Open a new post", selectors=screens["new_post"])
+        time.sleep(2)
+        try:
+            walk.find_first("Find the post box", timeout=4, selectors=screens["composer_box"])
+        except StepFailed:
+            # On some versions the button first opens a small menu, and a
+            # second press of it opens the post box.
+            walk.tap_first("Open a new post again", selectors=screens["new_post"])
+            time.sleep(2)
+        x_fill(serial, walk, screens, text, has_picture)
+        shown |= x_lines(device.dump_hierarchy())
+        pressed = walk.final_first("Press Post", selectors=screens["post_button"])
+    except Cancelled:
+        raise
+    except Exception:
+        if not walk.rehearse:
+            leave_app_screen(serial, walk, "x", times=3)
+        raise
+    finally:
+        if walk.rehearse:
+            leave_app_screen(serial, walk, "x", times=3)
+    if not pressed:
+        walk.home()
+        return {"postId": "", "url": ""}
+    if not x_after_press("publish", lambda: x_wait_landed(walk, package, text, 0, "publish", shown) or (text and x_on_profile(serial, walk, package, text))):
+        raise RuntimeError("publish: Post was pressed but X did not say it was sent, and the words are not on the profile. %s" % X_MAY_BE_SENT)
+    x_feed_after(serial, walk, visit)
+    walk.home()
+    return {"postId": "", "url": "", "visit": visit}
+
+
+def x_follow_state(hierarchy_xml, handle, button_id=""):
+    """What a profile's Follow button says: "following", "pending" (a
+    protected account was asked, as the browser counts it too), "follow", or
+    "" when none shows. Only the button counts: by its description naming the
+    handle ("Following @sam"), or by its view id, never a bare "Following",
+    which is also the count beside it. A bare "Pending" is the button: no
+    count on a profile is called that."""
+    wanted = (handle or "").lower()
+    state = ""
+    for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
+        if not own_node(node, app_packages("x")):
+            continue
+        on_button = bool(button_id) and bool(re.match(button_id, node.get("resource-id") or ""))
+        for key in ("text", "content-desc", "label"):
+            words = plain(" ".join((node.get(key) or "").split())).rstrip(".")
+            if not words:
+                continue
+            if words in ("following @%s" % wanted, "unfollow @%s" % wanted) or (on_button and words == "following"):
+                return "following"
+            if words in ("pending", "pending @%s" % wanted):
+                return "pending"
+            if words in ("follow @%s" % wanted, "follow back @%s" % wanted) or (on_button and words in ("follow", "follow back")):
+                state = "follow"
+    return state
+
+
+def action_x_follow(serial, args, walk):
+    """Follows one account from its profile, opened by its link: Follow
+    pressed once, then Following looked for, or Pending for a protected
+    account, which counts as done. An account already followed, or asked, is
+    done with no press. A rehearsal finds Follow and never presses it; with
+    no handle sent it only opens the app."""
+    handle = str(args.get("handle") or "").strip().lstrip("@")
+    if handle and not X_HANDLE.match(handle):
+        raise RuntimeError("follow: that is not an X handle")
+    if not walk.rehearse and not handle:
+        raise RuntimeError("follow: a follow needs the account's handle")
+    device = walk.screen()
+    device.screen_on()
+    screens = app_screens(serial, "x")
+    package = package_for(serial, "x")
+    if not handle:
+        open_app(serial, "x")
+        walk.shot("Opened X")
+        walk.home()
+        return {"done": False}
+    walk.check()
+    open_link(serial, "x", "https://x.com/%s" % handle)
+    walk.shot("Opened the profile")
+    hierarchy = device.dump_hierarchy()
+    if signed_out(hierarchy, "x"):
+        raise RuntimeError("follow: the app is not signed in to X")
+    if x_follow_state(hierarchy, handle, screens["follow_button_id"]) in ("following", "pending"):
+        walk.home()
+        return {"done": True}
+    buttons = shapes(package, "(?i)^follow @%s\\.?$" % handle)
+    if screens["follow_button_id"]:
+        buttons.append({"resourceIdMatches": screens["follow_button_id"], "textMatches": "(?i)^(follow|follow back)$", "packageName": package})
+    buttons += shapes(package, "(?i)^(follow|follow back)$")
+    if not walk.final_first("Press Follow", selectors=buttons):
+        walk.home()
+        return {"done": False}
+    followed = False
+    waiting_until = time.time() + POST_LANDED_SECONDS
+    while time.time() < waiting_until:
+        time.sleep(1)
+        try:
+            if x_follow_state(device.dump_hierarchy(), handle, screens["follow_button_id"]) in ("following", "pending"):
+                followed = True
+                break
+        except Exception:  # A screen caught mid-change; look again.
+            continue
+    walk.shot("Looked for Following")
+    if not followed:
+        raise RuntimeError("follow: Follow was pressed but X did not show Following within %d seconds. Look at the profile before following again." % POST_LANDED_SECONDS)
+    try:
+        browse_app_feed(serial, walk, random.uniform(*APP_FEED_AFTER_SECONDS))
+    except Exception as failure:  # The follow stands either way.
+        log("The feed after following on %s: %s" % (serial, short_words(failure)))
+    walk.home()
+    return {"done": True}
+
+
+def action_x_warm_up(serial, args, walk):
+    """A warming account's day in the X app: its home feed read for a few
+    minutes. Nothing is written, liked, reposted or followed from a phone,
+    and the browser's search or two on the topic is left out."""
+    walk.screen().screen_on()
+    open_app(serial, "x")
+    walk.shot("Opened X")
+    if walk.rehearse:
+        walk.home()
+        return {"postsRead": 0, "problems": []}
+    browse_app_feed(serial, walk, random.uniform(150, 360))
+    walk.home()
+    return {"postsRead": 0, "problems": []}
+
+
+# X's rehearsals. The reply, the quote and the follow open what Promo sends
+# (an X post found in the last week, and its writer); without one, the reply
+# and the quote open the home feed's first post and the follow only opens
+# the app. x/quick_state is x/state's own step, so it is walked once.
+REHEARSALS.update({
+    "x/state": {},
+    "x/reply": {"replyToId": "", "text": ""},
+    "x/quote": {"postId": "", "text": ""},
+    "x/publish": {"text": "", "pictureUrl": "", "replyToId": "", "communityId": "", "poll": None},
+    "x/follow": {"handle": ""},
+    "x/warm_up": {"words": []},
+    "x/inbox": {"kind": "message", "via": "inbox", "handle": ""},
+    "x/reply_message": {"kind": "message", "thread": "", "author": "", "quote": "", "text": ""},
+})
+
+
 ACTIONS = {
     "phone/list": action_list,
     "phone/health": action_health,
@@ -4081,6 +4717,18 @@ for _app in ("instagram", "tiktok"):
         "%s/inbox" % _app: action_app_inbox(_app),
         "%s/reply" % _app: action_app_reply(_app),
     })
+ACTIONS.update({
+    "x/state": action_x_state,
+    "x/quick_state": action_x_state,
+    "x/reply": action_x_reply,
+    "x/quote": action_x_quote,
+    "x/publish": action_x_publish,
+    "x/follow": action_x_follow,
+    "x/warm_up": action_x_warm_up,
+    # Direct messages, through the shared inbox steps (see above).
+    "x/inbox": action_app_inbox("x"),
+    "x/reply_message": action_app_reply("x"),
+})
 
 
 # ---------------------------------------------------------------------------
@@ -4123,6 +4771,34 @@ BAN_SCREENS = [
     ]),
     ("medium", "confirm", ["verify it's you", "confirm it's you"]),
 ]
+
+# X's (X task, part 7), each with and without the full stop X ends some of
+# them with. Left out: "Account suspended" and "This account is temporarily
+# restricted", which X shows on anybody's profile, not only the account's own.
+X_BAN_PHRASES = [
+    ("suspended", [
+        "your account is suspended",
+        "your account has been suspended",
+        "your account is permanently suspended",
+        "your account has been permanently suspended",
+    ]),
+    ("locked", [
+        "your account is locked",
+        "your account has been locked",
+        "your account is temporarily locked",
+        "we've temporarily limited some of your account features",
+    ]),
+    ("confirm", [
+        "confirm it's you",
+        "verify it's you",
+        "help us confirm it's you",
+        "we need to confirm it's you",
+        "confirm your identity",
+        "verify your identity",
+        "authenticate your account",
+    ]),
+]
+BAN_SCREENS += [("x", kind, [form for phrase in phrases for form in (phrase, phrase + ".")]) for kind, phrases in X_BAN_PHRASES]
 
 # A ban screen is a page of a few lines. A feed has many more.
 BAN_SCREEN_MAX_LINES = 30

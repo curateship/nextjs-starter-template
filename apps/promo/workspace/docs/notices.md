@@ -52,6 +52,17 @@ acts on a bad reading". Tyler picked this the same day.
   article no longer shows in its publication; and "Did not go out: a Medium
   response", "... a Medium article", "... a change on Medium". Each opens the
   Medium module's Responses or Articles tab with it open.
+- **X** ([Replies on X](x/replies.md), [Search accounts](x/search-accounts.md),
+  [X accounts](x/accounts.md)): "New post from a watched account: @name", once
+  per new post from an account a project watches with its bell on; "New reply
+  to you on X from @name", once for each reply under one of yours and each post
+  naming one of your accounts; "Gone from X:" when one of your replies no longer
+  shows or is folded away; "X search account stopped:" when a search account is
+  signed out, locked or held up, once a day; "X may be hiding @name" when the
+  daily look first finds an account hidden from search or its replies folded;
+  "Ban screen: @name in its browser" for a lock screen; and "Did not go out: an
+  X reply", "... an X post", "... a change on X", "... a follow on X". Each
+  opens the X module's tab, the Accounts dashboard, or Settings → Behaviour.
 - **A Wi-Fi phone showing the wrong address**: "Wrong address showing: Pixel
   8a in slot 4", with the address apps saw. Every job on it is refused until
   a check finds its proxy's address, and the notice goes then. Opens the phone.
