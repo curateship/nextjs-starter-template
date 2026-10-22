@@ -52,19 +52,23 @@ function stepOf(state: unknown) {
  * Personal lands on the same screen. `startUrl` is the screen a visit to
  * Personal's bare address opens, if one is chosen. `stayUrl` is the screen
  * whose frame stays loaded once opened, if one is chosen. `nameOf` gives a
- * screen its name from the menu.
+ * screen its name from the menu. `maxKept` is how many frames stay loaded,
+ * picked in the cog menu.
  */
 export function useOpenScreen(
   startUrl: string | null,
   stayUrl: string | null,
   nameOf: (url: string) => string,
+  maxKept: number,
   appName = DEFAULT_BRAND_NAME
 ) {
   const nameRef = React.useRef(nameOf)
   const stayRef = React.useRef(stayUrl)
+  const maxRef = React.useRef(maxKept)
   React.useEffect(() => {
     nameRef.current = nameOf
     stayRef.current = stayUrl
+    maxRef.current = maxKept
   })
   const [frames, setFrames] = React.useState<Frames>(() => {
     const url =
@@ -137,7 +141,13 @@ export function useOpenScreen(
       stepRef.current = step
       const url = appUrlFromPersonalPath(currentAddress())
       commit(
-        showAddress(framesRef.current, url, url ? nameRef.current(url) : "", stayRef.current)
+        showAddress(
+          framesRef.current,
+          url,
+          url ? nameRef.current(url) : "",
+          stayRef.current,
+          maxRef.current
+        )
       )
     }
     window.addEventListener("popstate", onPopState)
@@ -148,7 +158,15 @@ export function useOpenScreen(
   const open = React.useCallback(
     (url: string, title?: string) => {
       push(personalPath(url))
-      commit(openScreen(framesRef.current, url, title ?? nameRef.current(url), stayRef.current))
+      commit(
+        openScreen(
+          framesRef.current,
+          url,
+          title ?? nameRef.current(url),
+          stayRef.current,
+          maxRef.current
+        )
+      )
     },
     [commit, push]
   )

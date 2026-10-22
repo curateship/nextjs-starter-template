@@ -1,17 +1,21 @@
 /**
- * The frames kept in the middle panel. Up to three stay loaded, one shown and
- * the rest hidden, so going back to a screen opened a moment ago keeps its
- * place, scroll and any half-filled form. `workspace/docs/app-panels.md`
+ * The frames kept in the middle panel. Up to three stay loaded (more if chosen
+ * in the cog menu), one shown and the rest hidden, so going back to a screen
+ * opened a moment ago keeps its place, scroll and any half-filled form. `workspace/docs/app-panels.md`
  * explains it.
  *
  * Personal can't see inside another site's page, so a frame is known by the
  * screen Personal opened in it. A move made inside the app stays the app's.
  *
  * One screen may be marked to stay loaded (the menu's stay-loaded link). Its
- * frame is never dropped and doesn't count toward the three.
+ * frame is never dropped and doesn't count toward the cap.
  */
 
-export const MAX_KEPT_FRAMES = 3
+/** How many frames stay loaded until another number is picked in the cog menu. */
+export const DEFAULT_KEPT_FRAMES = 3
+
+/** The numbers the cog menu offers. Tyler asked for a choice on 21 Oct 2026. */
+export const KEPT_FRAME_CHOICES = [3, 5, 8, 10] as const
 
 export type Frame = {
   id: number
@@ -53,14 +57,20 @@ function show(state: Frames, id: number): Frames {
 /**
  * Adds a frame and shows it. Past the cap, the frames shown longest ago go,
  * apart from the new one and the one on `stayUrl`. More than one can go when
- * a screen has just stopped staying loaded.
+ * a screen has just stopped staying loaded, or the cap was lowered.
  */
-function addFrame(state: Frames, url: string, title: string, stayUrl: string | null): Frames {
+function addFrame(
+  state: Frames,
+  url: string,
+  title: string,
+  stayUrl: string | null,
+  max: number
+): Frames {
   const frame: Frame = { id: state.tick, url, title, load: 0, shownAt: state.tick }
   const droppable = [...state.kept, frame]
     .filter((f) => f.url !== stayUrl)
     .sort((a, b) => a.shownAt - b.shownAt)
-  const dropped = new Set(droppable.slice(0, Math.max(0, droppable.length - MAX_KEPT_FRAMES)))
+  const dropped = new Set(droppable.slice(0, Math.max(0, droppable.length - max)))
   return {
     kept: [...state.kept, frame].filter((f) => !dropped.has(f)),
     openId: frame.id,
@@ -84,16 +94,17 @@ export function reloadOpen(state: Frames): Frames {
  * Opens a screen. A kept frame on that screen is shown as it was, and a second
  * click on the screen already open loads it again. Anything else gets a new
  * frame, and past the cap the frame shown longest ago goes, never the one on
- * `stayUrl`.
+ * `stayUrl`. `max` is the cap.
  */
 export function openScreen(
   state: Frames,
   url: string,
   title = "",
-  stayUrl: string | null = null
+  stayUrl: string | null = null,
+  max: number = DEFAULT_KEPT_FRAMES
 ): Frames {
   const found = state.kept.find((frame) => frame.url === url)
-  if (!found) return addFrame(state, url, title, stayUrl)
+  if (!found) return addFrame(state, url, title, stayUrl, max)
   return found.id === state.openId ? reloadOpen(state) : show(state, found.id)
 }
 
@@ -106,11 +117,12 @@ export function showAddress(
   state: Frames,
   url: string | null,
   title = "",
-  stayUrl: string | null = null
+  stayUrl: string | null = null,
+  max: number = DEFAULT_KEPT_FRAMES
 ): Frames {
   if (!url) return state.openId === null ? state : { ...state, openId: null }
   if (openFrame(state)?.url === url) return state
-  return openScreen(state, url, title, stayUrl)
+  return openScreen(state, url, title, stayUrl, max)
 }
 
 /** Empties the middle panel. Kept frames stay loaded behind it. */
