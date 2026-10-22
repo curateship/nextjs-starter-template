@@ -5,11 +5,13 @@ import {
   ChevronRightIcon,
   FlagIcon,
   HeartIcon,
+  ImageIcon,
   Loader2Icon,
   MessageSquareShareIcon,
   MoreHorizontalIcon,
   RefreshCwIcon,
   ScanSearchIcon,
+  ShieldAlertIcon,
   UserRoundIcon,
   UserRoundXIcon,
   XIcon,
@@ -29,7 +31,7 @@ import type { MatchDetail, ProfileDetail } from "@/lib/api/dating/dashboard"
 import { formatClockTime } from "@/lib/format/format-time"
 import { CHAT_TREND_WORDS } from "@/lib/dating/chat-trend"
 import type { LeadListItem } from "@/lib/dating/leads"
-import { CARD_FLAG_WORDS, MATCH_FLAG_WORDS, MESSAGE_STATUS_WORDS, WALK_WORDS } from "@/lib/dating/options"
+import { CARD_FLAG_WORDS, DATING_APP_WORDS, MATCH_FLAG_WORDS, MESSAGE_STATUS_WORDS, WALK_WORDS, type DatingApp } from "@/lib/dating/options"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
@@ -55,6 +57,8 @@ export type LeadActions = ReplyActions & {
   answer: (answer: string) => Promise<boolean>
   letDraft: () => void
   openPicture: (picture: { id: string; title: string; description?: string }) => void
+  /** Resolves true when the report was put on the phone's list. */
+  report: () => Promise<boolean>
 }
 
 /**
@@ -77,6 +81,7 @@ export type LeadActions = ReplyActions & {
  * chat shows Profile.
  */
 export function LeadPanel({
+  app,
   lead,
   missing,
   loading,
@@ -87,6 +92,8 @@ export function LeadPanel({
   busy,
   actions,
 }: {
+  /** The open profile's app, for its name in words. */
+  app: DatingApp
   lead: LeadListItem | null
   /** The address names a lead that is not in the list any more. */
   missing: boolean
@@ -116,7 +123,7 @@ export function LeadPanel({
   const shownTab: LeadTab = tab === "chat" && !match ? "profile" : tab
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <LeadHeader lead={lead} profile={profile} match={match} tab={shownTab} onTab={setTab} busy={busy} actions={actions} />
+      <LeadHeader app={app} lead={lead} profile={profile} match={match} tab={shownTab} onTab={setTab} busy={busy} actions={actions} />
       {error ? (
         <div className="grid justify-items-start gap-3 p-3 text-sm text-muted-foreground">
           <p>{error}</p>
@@ -137,12 +144,12 @@ export function LeadPanel({
                       onOpenPhoto={(id) => actions.openPicture({ id, title: match.theirName })}
                     />
                   ) : null}
-                  <ProfileBox key={lead.id} lead={lead} profile={profile} match={match} actions={actions} />
+                  <ProfileBox key={lead.id} app={app} lead={lead} profile={profile} match={match} actions={actions} />
                 </>
               ) : shownTab === "ai" ? (
-                <AiAnalyzed profile={profile} match={match} busy={busy} actions={actions} />
+                <AiAnalyzed app={app} profile={profile} match={match} busy={busy} actions={actions} />
               ) : match ? (
-                <Chat match={match} busy={busy} actions={actions} />
+                <Chat app={app} match={match} busy={busy} actions={actions} />
               ) : null}
             </div>
           </ScrollArea>
@@ -161,6 +168,7 @@ export function LeadPanel({
 type LeadTab = "profile" | "ai" | "chat"
 
 function LeadHeader({
+  app,
   lead,
   profile,
   match,
@@ -169,6 +177,7 @@ function LeadHeader({
   busy,
   actions,
 }: {
+  app: DatingApp
   lead: LeadListItem
   profile: ProfileDetail | null
   match: MatchDetail | null
@@ -214,7 +223,7 @@ function LeadHeader({
                 {live ? (
                   <DropdownMenuItem onSelect={() => actions.movedToText(!match.movedToTextAt)}>
                     <MessageSquareShareIcon />
-                    {match.movedToTextAt ? "Back on Tinder" : "Moved to text"}
+                    {match.movedToTextAt ? `Back on ${DATING_APP_WORDS[app].name}` : "Moved to text"}
                   </DropdownMenuItem>
                 ) : null}
                 {live ? (
@@ -238,7 +247,7 @@ function LeadHeader({
           description={
             match.sample
               ? "This is a sample, so nothing is sent to a phone."
-              : `The phone opens your chat with ${match.theirName} and unmatches through Tinder's own menu. Tinder cannot undo an unmatch.`
+              : `The phone opens your chat with ${match.theirName} and unmatches through ${DATING_APP_WORDS[app].name}'s own menu. It cannot undo an unmatch.`
           }
           confirmLabel="Unmatch"
           loading={busy === "unmatch"}
@@ -259,7 +268,8 @@ function LeadHeader({
  * swiped. It stays put while the tab below scrolls.
  */
 function OpeningRow({ lead, profile, busy, actions }: { lead: LeadListItem; profile: ProfileDetail | null; busy: string | null; actions: LeadActions }) {
-  const swipeable = Boolean(profile && profile.swipe === "none" && !profile.pendingSwipe)
+  // Facebook's weekly surprise match is a match already, never swiped.
+  const swipeable = Boolean(profile && profile.swipe === "none" && !profile.pendingSwipe && profile.source !== "weekly")
   const line = profile ? `Read ${whenWords(profile.readAt)}` : `Matched ${whenWords(lead.changedAt)}`
   return (
     <div className="grid gap-3 border-b bg-muted/50 px-4 py-3">
@@ -294,11 +304,13 @@ function OpeningRow({ lead, profile, busy, actions }: { lead: LeadListItem; prof
  * own trab"), so it always shows whole.
  */
 function ProfileBox({
+  app,
   lead,
   profile,
   match,
   actions,
 }: {
+  app: DatingApp
   lead: LeadListItem
   profile: ProfileDetail | null
   match: MatchDetail | null
@@ -398,12 +410,81 @@ function ProfileBox({
         <p className="text-sm text-muted-foreground">Date did not read {lead.name}'s card, so there is only the chat, on the Chat tab.</p>
       )}
 
+      {profile ? <FacebookExtras app={app} name={lead.name} profile={profile} onOpenPicture={actions.openPicture} /> : null}
+
       {match ? <FactTags key={`facts:${match.id}`} match={match} onSave={actions.saveFact} onDelete={actions.deleteFact} /> : null}
 
       {profile ? <SwipeLine profile={profile} /> : null}
     </Shrinks>
   )
 }
+
+/**
+ * What Facebook Dating shows beside the profile (task "facebook/01"): the
+ * comment they sent with their like and the one ours carried, the weekly
+ * match, Second Look, mutual friends and shared groups, Instagram pictures,
+ * and the same person met on another of the member's profiles. Each line
+ * shows only when there is something to say, so a Tinder card shows none.
+ */
+function FacebookExtras({
+  app,
+  name,
+  profile,
+  onOpenPicture,
+}: {
+  app: DatingApp
+  name: string
+  profile: ProfileDetail
+  onOpenPicture: LeadActions["openPicture"]
+}) {
+  const lines = [
+    profile.source === "likes_you" ? (profile.theirComment ? `Liked you first, and wrote on your ${profile.theirCommentOn || "profile"}: "${profile.theirComment}"` : "Liked you first.") : "",
+    profile.source === "weekly" ? `${DATING_APP_WORDS[app].name}'s weekly surprise match.` : "",
+    profile.likeComment ? `Your like said: "${profile.likeComment}"${profile.likeCommentOn && profile.likeCommentOn !== "photo" ? `, on "${profile.likeCommentOn}"` : ", on a photo"}.` : "",
+    profile.secondLookAt ? `Liked from Second Look ${whenWords(profile.secondLookAt)}, after the AI passed.` : "",
+    profile.mutualFriends ? `${profile.mutualFriends} mutual friend${profile.mutualFriends === 1 ? "" : "s"}${profile.mutualNames.length ? `: ${profile.mutualNames.join(", ")}` : ""}.` : "",
+    profile.sharedGroups.length ? `Groups you share: ${profile.sharedGroups.join(", ")}.` : "",
+  ].filter(Boolean)
+  const seen = profile.seenOn
+  if (!lines.length && !profile.instagramPhotoIds.length && !seen) return null
+  return (
+    <div className="grid gap-2 text-sm">
+      {seen ? (
+        <p className={cn("rounded-md border px-3 py-2", (seen.outcome === "matched" || seen.outcome === "chatted") && profile.swipe === "none" && "font-medium")}>
+          {`You met ${name} on ${seen.profileName}: ${SEEN_WORDS[seen.outcome]}.`}
+          {seen.outcome === "matched" || seen.outcome === "chatted" ? (profile.swipe === "none" ? " Like or Pass is yours; the AI leaves it." : "") : seen.outcome === "passed" ? " The AI passes here too." : ""}
+        </p>
+      ) : null}
+      {lines.length ? (
+        <ul className="grid gap-1 text-muted-foreground">
+          {lines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : null}
+      {profile.instagramPhotoIds.length ? (
+        <div className="grid gap-1.5">
+          <p className="text-xs font-medium text-muted-foreground">From their Instagram</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {profile.instagramPhotoIds.map((id, index) => (
+              <button
+                key={id}
+                type="button"
+                className={cn("block overflow-hidden rounded-md", focusRing)}
+                aria-label={`Open ${name}'s Instagram picture ${index + 1} full size`}
+                onClick={() => onOpenPicture({ id, title: `${name}'s Instagram picture ${index + 1}` })}
+              >
+                <DatingPicture pictureId={id} alt="" className="aspect-square w-full" />
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+const SEEN_WORDS = { passed: "you passed them there", liked: "you liked them there", matched: "you matched there", chatted: "you chatted there" } as const
 
 /**
  * A box's contents in one column that may shrink. A grid grows to its
@@ -441,8 +522,21 @@ function SwipeLine({ profile }: { profile: ProfileDetail }) {
 }
 
 /** The Ai analyzed tab: what the AI thinks of the card, and of the chat once there is one. */
-function AiAnalyzed({ profile, match, busy, actions }: { profile: ProfileDetail | null; match: MatchDetail | null; busy: string | null; actions: LeadActions }) {
+function AiAnalyzed({
+  app,
+  profile,
+  match,
+  busy,
+  actions,
+}: {
+  app: DatingApp
+  profile: ProfileDetail | null
+  match: MatchDetail | null
+  busy: string | null
+  actions: LeadActions
+}) {
   const [answer, setAnswer] = React.useState("")
+  const [reporting, setReporting] = React.useState(false)
   const answerId = React.useId()
   const score = profile?.score ?? match?.profile?.score ?? null
   const read = profile?.read ?? match?.profile?.read ?? []
@@ -519,11 +613,34 @@ function AiAnalyzed({ profile, match, busy, actions }: { profile: ProfileDetail 
                 <FlagIcon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
                 {MATCH_FLAG_WORDS[match.flagged]}
               </p>
-              <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={actions.letDraft}>
-                Let the AI draft here again
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={actions.letDraft}>
+                  Let the AI draft here again
+                </Button>
+                {match.canReport ? (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setReporting(true)}>
+                    <ShieldAlertIcon /> Report and unmatch
+                  </Button>
+                ) : null}
+              </div>
             </div>
           ) : null}
+          {match.reportedAt ? <p className="text-sm text-muted-foreground">Reported to {DATING_APP_WORDS[app].name} as a scam {whenWords(match.reportedAt)}.</p> : null}
+          <ConfirmDialog
+            open={reporting}
+            onOpenChange={setReporting}
+            title={`Report ${match.theirName} as a scam?`}
+            description={
+              match.sample
+                ? "This is a sample, so nothing is sent to a phone."
+                : `The phone reports ${match.theirName} to ${DATING_APP_WORDS[app].name} as a scam, then unmatches. Neither can be undone.`
+            }
+            confirmLabel="Report and unmatch"
+            loading={busy === "report"}
+            onConfirm={() => {
+              void actions.report().then((ok) => ok && setReporting(false))
+            }}
+          />
         </>
       ) : null}
     </Shrinks>
@@ -535,7 +652,7 @@ function AiAnalyzed({ profile, match, busy, actions }: { profile: ProfileDetail 
  * theirs on the left with the time under it, ours on the right with "You" or
  * "AI" and the time, newest at the bottom.
  */
-function Chat({ match, busy, actions }: { match: MatchDetail; busy: string | null; actions: LeadActions }) {
+function Chat({ app, match, busy, actions }: { app: DatingApp; match: MatchDetail; busy: string | null; actions: LeadActions }) {
   const end = React.useRef<HTMLDivElement | null>(null)
   const newest = match.messages[match.messages.length - 1]?.id
 
@@ -565,7 +682,15 @@ function Chat({ match, busy, actions }: { match: MatchDetail; busy: string | nul
                 ours && message.status !== "sent" && "opacity-70"
               )}
             >
-              {message.text}
+              {message.kind === "text" ? (
+                message.text
+              ) : (
+                // A photo, voice note and the like: Date keeps that one came, not what it was.
+                <span className="flex items-center gap-1.5 italic">
+                  <ImageIcon className="size-3.5 shrink-0" aria-hidden />
+                  {message.text}
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
               <span>
@@ -586,7 +711,7 @@ function Chat({ match, busy, actions }: { match: MatchDetail; busy: string | nul
       {match.unmatchedAt ? (
         <p className="text-center text-sm text-muted-foreground">
           {match.unmatchedBy === "them"
-            ? `${match.theirName} unmatched you: the chat was gone from Tinder's list by ${whenWords(match.unmatchedAt)}.`
+            ? `${match.theirName} unmatched you: ${DATING_APP_WORDS[app].name} showed them gone by ${whenWords(match.unmatchedAt)}.`
             : `You unmatched ${match.theirName} ${whenWords(match.unmatchedAt)}.`}
         </p>
       ) : null}

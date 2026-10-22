@@ -69,6 +69,8 @@ const dashboard: DatingDashboard = {
     timeZone: "UTC",
     tinderVersion: "15.0",
     tinderInFront: true,
+    facebookVersion: "",
+    facebookInFront: false,
     inControl: true,
     phoneSwitchOn: true,
     running: true,
@@ -112,6 +114,8 @@ const dashboard: DatingDashboard = {
   tally: [{ day: "2099-01-01", swipes: 47, likes: 20, matches: 3, messages: 4, datesProposed: 0 }],
   drafts: { unchanged: 0, of: 0 },
   openers: [],
+  secondLook: [],
+  compare: { rows: [], moveHours: null, words: "" },
 }
 
 let host: HTMLDivElement
@@ -166,6 +170,8 @@ describe("the Phone view's Swiping and the left panel", () => {
         onPickProfile={vi.fn()}
         onNewProfile={vi.fn()}
         onResumeProfile={vi.fn()}
+        onSecondLookLike={vi.fn()}
+        onChangeHours={vi.fn()}
       />
     )
     const shown = text()
@@ -202,6 +208,8 @@ describe("profiles on the Dating dashboard", () => {
         onPickProfile={pick}
         onNewProfile={vi.fn()}
         onResumeProfile={vi.fn()}
+        onSecondLookLike={vi.fn()}
+        onChangeHours={vi.fn()}
       />
     )
     const shown = text()
@@ -233,6 +241,8 @@ describe("profiles on the Dating dashboard", () => {
         onPickProfile={vi.fn()}
         onNewProfile={vi.fn()}
         onResumeProfile={resume}
+        onSecondLookLike={vi.fn()}
+        onChangeHours={vi.fn()}
       />
     )
     expect(text()).toContain("Paused. Nothing runs until Resume.")
@@ -257,6 +267,8 @@ describe("profiles on the Dating dashboard", () => {
         onPickProfile={vi.fn()}
         onNewProfile={make}
         onResumeProfile={vi.fn()}
+        onSecondLookLike={vi.fn()}
+        onChangeHours={vi.fn()}
       />
     )
     const list = [...host.querySelectorAll("ul")].find((ul) => /Tinder ·/.test(ul.textContent ?? "")) as HTMLUListElement

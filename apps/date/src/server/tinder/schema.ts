@@ -2,9 +2,11 @@ import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, 
 
 import type {
   CardFlag,
+  CardSource,
   DraftKind,
   MatchFlag,
   OpenerStyle,
+  MessageKind,
   MessageSender,
   MessageStatus,
   SwipeDecision,
@@ -23,7 +25,8 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
  * `drizzle/0104_date_forget_passed_photos.sql`, and the own profile's Apply
  * and Undo `drizzle/0109_date_profile_apply.sql`. Every record belongs to one
  * profile (`accountId`, `drizzle/0108_date_profiles.sql`), and goes with it.
- * Stored fields are never renamed.
+ * Facebook Dating's additions (task "facebook/01") are `drizzle/0115` to
+ * `drizzle/0122`. Stored fields are never renamed.
  */
 
 /** One section of a profile as Tinder lays it out, such as "About me" or "Interests". */
@@ -66,7 +69,10 @@ export type OwnProfileChange =
   | { kind: "bio"; bio: string }
   | { kind: "prompt"; question: string; answer: string }
 
-/** One card read off Tinder's Discover screen. */
+/** What happened to the same person on another of the member's profiles (part 15 of "facebook/01"). */
+export type SeenOutcome = "passed" | "liked" | "matched" | "chatted"
+
+/** One card read off the app's cards, Facebook's Likes you list or its weekly match. */
 export const dateProfiles = pgTable(
   "date_profiles",
   {
@@ -117,6 +123,26 @@ export const dateProfiles = pgTable(
     /** Why the AI's last try at this card failed, in words, or empty. */
     aiError: text("ai_error").notNull().default(""),
     sample: boolean("sample").notNull().default(false),
+    /** Where the card came from: the cards in front, Facebook's Likes you list, or its weekly surprise match (0115). */
+    source: varchar("source", { length: 12 }).$type<CardSource>().notNull().default("card"),
+    /** The comment they sent with their like, and the photo or answer it was on (0115, part 16). */
+    theirComment: text("their_comment").notNull().default(""),
+    theirCommentOn: text("their_comment_on").notNull().default(""),
+    /** The comment the AI wrote and sent with our like, and what it was about (0116, part 10). */
+    likeComment: text("like_comment").notNull().default(""),
+    likeCommentOn: text("like_comment_on").notNull().default(""),
+    /** Mutual friends Facebook shows, null when it shows none; their names when shown, and the groups you share (0117, part 11). */
+    mutualFriends: integer("mutual_friends"),
+    mutualNames: jsonb("mutual_names").$type<string[]>().notNull().default([]),
+    sharedGroups: jsonb("shared_groups").$type<string[]>().notNull().default([]),
+    /** The Instagram pictures the card shows, given to the AI as extra photos (0118, part 12). */
+    instagramPhotoIds: jsonb("instagram_photo_ids").$type<string[]>().notNull().default([]),
+    /** The member liked this card from Second Look after the AI passed it (0119, part 14). */
+    secondLookAt: timestamp("second_look_at", { withTimezone: true }),
+    /** The first photo's look, to find the same person on the member's other profiles (0120, part 15). */
+    faceHash: varchar("face_hash", { length: 16 }).notNull().default(""),
+    seenOnAccountId: varchar("seen_on_account_id", { length: 36 }),
+    seenOnOutcome: varchar("seen_on_outcome", { length: 10 }).$type<SeenOutcome>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -214,6 +240,8 @@ export const dateMatches = pgTable(
     aiOff: boolean("ai_off").notNull().default(false),
     /** The member's note to the AI about this chat only. */
     memberNote: text("member_note").notNull().default(""),
+    /** The phone reported them to Facebook as a scam and unmatched (0122, part 20). */
+    reportedAt: timestamp("reported_at", { withTimezone: true }),
     sample: boolean("sample").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -237,6 +265,8 @@ export const dateMessages = pgTable(
       .references(() => dateMatches.id, { onDelete: "cascade" }),
     direction: varchar("direction", { length: 3 }).$type<"in" | "out">().notNull(),
     sentBy: varchar("sent_by", { length: 10 }).$type<MessageSender>().notNull(),
+    /** A photo, voice note, sticker, video or GIF is kept as what it was, with words saying so in `text` (0121, part 17). */
+    kind: varchar("kind", { length: 10 }).$type<MessageKind>().notNull().default("text"),
     text: text("text").notNull(),
     /** The words' hash, so the same message is never sent twice. */
     hash: varchar("hash", { length: 64 }).notNull(),

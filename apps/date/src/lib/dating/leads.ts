@@ -1,4 +1,4 @@
-import type { ChatTrend, MatchFlag, SwipeDecision } from "@/lib/dating/options"
+import type { CardSource, ChatTrend, MatchFlag, SwipeDecision } from "@/lib/dating/options"
 import { isLike } from "@/lib/dating/options"
 import { readOneOf, readSearchText } from "@/lib/nav/list-search"
 
@@ -36,8 +36,13 @@ export const LEAD_OVER_WORDS: Record<LeadOverWhy, string> = {
   "unmatched-you": "You unmatched",
 }
 
-/** What a lead waits on the member for: a draft to send, a flag to look at, or the AI's question. */
-export type LeadWaiting = "draft" | "flag" | "question"
+/**
+ * What a lead waits on the member for: a draft to send, a flag to look at,
+ * the AI's question, or a card the member decides because they met this
+ * person on another profile and matched or chatted there (part 15 of
+ * "facebook/01", "Matched or chatted there means Tyler decides").
+ */
+export type LeadWaiting = "draft" | "flag" | "question" | "decide"
 
 export type LeadListItem = {
   /** The card's id, or the chat's when Date never read the card. `?open=` holds it. */
@@ -64,6 +69,8 @@ export type LeadListItem = {
   dateAt: Date | null
   datePlace: string
   sample: boolean
+  /** Where its card came from: the cards in front, Facebook's Likes you list or its weekly match. Null for a chat with no card. */
+  source: CardSource | null
 }
 
 /** A card as the dashboard reads it, for `buildLeads`. */
@@ -78,6 +85,9 @@ export type LeadCard = {
   swipedAt: Date | null
   readAt: Date
   sample: boolean
+  source?: CardSource
+  /** Met on another profile and matched or chatted there: the member likes or passes it. */
+  yourCall?: boolean
 }
 
 /** A chat as the dashboard reads it, for `buildLeads`. */
@@ -169,6 +179,7 @@ export function buildLeads(cards: LeadCard[], chats: LeadChat[]): LeadListItem[]
       dateAt: chat.dateAt,
       datePlace: chat.datePlace,
       sample: chat.sample,
+      source: card?.source ?? null,
     })
   }
   for (const card of cards) {
@@ -185,7 +196,7 @@ export function buildLeads(cards: LeadCard[], chats: LeadChat[]): LeadListItem[]
       swipedBy: card.swipedBy,
       status: cardStatus(card),
       overWhy: null,
-      waiting: null,
+      waiting: card.yourCall && card.swipe === "none" ? "decide" : null,
       lastLine: "",
       changedAt: card.swipedAt ?? card.readAt,
       unreadCount: 0,
@@ -194,6 +205,7 @@ export function buildLeads(cards: LeadCard[], chats: LeadChat[]): LeadListItem[]
       dateAt: null,
       datePlace: "",
       sample: card.sample,
+      source: card.source ?? "card",
     })
   }
   return leads.sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime())

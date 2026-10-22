@@ -184,6 +184,8 @@ describe("the phone link", () => {
           batteryPercent: 64,
           tinderVersion: "15.20.0",
           tinderInFront: true,
+          facebookVersion: "540.0.0.1",
+          facebookInFront: false,
           phoneSwitchOn: true,
         },
         db,
@@ -191,13 +193,13 @@ describe("the phone link", () => {
       )
       expect(answer).toEqual({ checkInSeconds: 15, watched: false })
       const [row] = await db.select().from(datePhones).where(eq(datePhones.id, phone.id))
-      expect(row).toMatchObject({ batteryPercent: 64, timeZone: "America/Toronto", tinderVersion: "15.20.0", tinderInFront: true })
+      expect(row).toMatchObject({ batteryPercent: 64, timeZone: "America/Toronto", tinderVersion: "15.20.0", tinderInFront: true, facebookVersion: "540.0.0.1" })
       expect(row.lastSeenAt).toEqual(later(5))
 
       watchScreen(phone.id, later(6).getTime())
       const watched = await checkIn(
         phone,
-        { appVersion: "", model: "", android: "", timezone: "", batteryPercent: null, tinderVersion: "", tinderInFront: false, phoneSwitchOn: false },
+        { appVersion: "", model: "", android: "", timezone: "", batteryPercent: null, tinderVersion: "", tinderInFront: false, facebookVersion: "", facebookInFront: false, phoneSwitchOn: false },
         db,
         later(7)
       )

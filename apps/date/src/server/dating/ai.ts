@@ -1,7 +1,16 @@
 import { and, asc, desc, eq, isNotNull, isNull, lt, or } from "drizzle-orm"
 import sharp from "sharp"
 
-import { isLike, STOPPING_FLAGS, type CardFlag, type DraftTone, type MatchFlag, type SwipeDecision } from "@/lib/dating/options"
+import {
+  DATING_APP_WORDS,
+  isLike,
+  MUTUAL_FRIENDS_PASS,
+  STOPPING_FLAGS,
+  type CardFlag,
+  type DraftTone,
+  type MatchFlag,
+  type SwipeDecision,
+} from "@/lib/dating/options"
 import type { DatingSettings, KnownPerson } from "@/lib/dating/settings"
 import { getAiKey } from "@/server/ai/keys"
 import { uuid } from "@/server/auth/security"
@@ -9,7 +18,8 @@ import { runAiCall } from "@/server/ai/usage"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { pictureBytes } from "@/server/phone/pictures"
 import { dateMatches, dateMessages, dateOwnProfiles, dateProfiles, type OwnProfileReview } from "@/server/tinder/schema"
-import { NO_DRAFT } from "@/server/tinder/store"
+import { dateAccounts } from "@/server/dating/schema"
+import { NO_DRAFT, plainName } from "@/server/tinder/store"
 import { promptsOf } from "@/server/tinder/walks/parse"
 
 import { askClaude, type ClaudeAnswer, type ClaudeQuestion } from "./claude"
@@ -23,6 +33,7 @@ import {
   draftSystem,
   draftText,
   DRAFT_MAX_CHARS,
+  LIKE_COMMENT_MAX_CHARS,
   usesEmoji,
   withoutEmoji,
   type ConversationForAi,
@@ -96,26 +107,37 @@ async function photosForAi(userId: string, ids: string[], db: CustomShellDb): Pr
 
 export type AiOutcome = { status: "done" | "busy" | "cap" | "failed" | "skipped"; words: string }
 
+/** The profile's app's name, such as "Facebook Dating", for the prompts. */
+async function appNameOf(accountId: string, db: CustomShellDb): Promise<string> {
+  const [account] = await db.select({ app: dateAccounts.app }).from(dateAccounts).where(eq(dateAccounts.id, accountId)).limit(1)
+  if (!account) throw new Error("That profile is gone.")
+  return DATING_APP_WORDS[account.app].name
+}
+
 function wordsOf(error: unknown): string {
   return error instanceof Error ? error.message : "The AI could not be reached."
 }
 
-/** The flags a card shows by itself, without the AI. */
+/**
+ * The flags a card shows by itself, without the AI. On Facebook Dating, 3 or
+ * more mutual friends (part 11, "Pass at 3 or more"), and anyone the member
+ * passed on another profile (part 15, "Passed there means pass here").
+ */
 export function cardOwnFlags(
-  card: { bio: string; photoIds: string[]; age: number | null },
+  card: { bio: string; photoIds: string[]; age: number | null; mutualFriends?: number | null; seenOnOutcome?: string | null },
   settings: Pick<DatingSettings, "ageMin" | "ageMax">
 ): CardFlag[] {
   const flags: CardFlag[] = []
   if (!card.bio.trim()) flags.push("no_bio")
   if (card.photoIds.length === 1) flags.push("one_photo")
   if (card.age !== null && (card.age < settings.ageMin || card.age > settings.ageMax)) flags.push("outside_age_range")
+  if ((card.mutualFriends ?? 0) >= MUTUAL_FRIENDS_PASS) flags.push("mutual_friends")
+  if (card.seenOnOutcome === "passed") flags.push("passed_elsewhere")
   return flags
 }
 
-/** A name as it is compared with the People I know list: no accents, no capitals, no spaces round it. */
-function plainName(name: string): string {
-  return name.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase()
-}
+/** The flags that always mean pass, whatever the score. */
+export const ALWAYS_PASS: readonly CardFlag[] = ["dealbreaker", "known_person", "mutual_friends", "passed_elsewhere"]
 
 /** Whether a card has the name and age of someone on the member's People I know list. */
 export function isKnownPerson(card: { name: string; age: number | null }, people: KnownPerson[]): boolean {
@@ -155,7 +177,7 @@ export async function overruledCards(
     .limit(OVERRULED_EXAMPLES * 20)
   const examples: Array<OverruledCard & { id: string }> = []
   for (const row of rows) {
-    if (row.id === exceptId || row.swipe === "none" || row.aiFlags.includes("ai_declined") || row.aiFlags.includes("known_person")) continue
+    if (row.id === exceptId || row.swipe === "none" || row.aiFlags.includes("ai_declined") || row.aiFlags.some((flag) => ALWAYS_PASS.includes(flag) && flag !== "dealbreaker")) continue
     const liked = isLike(row.swipe)
     if ((decideSwipe(row, settings) === "like") === liked) continue
     examples.push({ id: row.id, score: row.aiScore as number, read: row.aiRead, liked })
@@ -229,11 +251,12 @@ export async function scoreCard(
 
   try {
     const photos = await photosForAi(card.userId, card.photoIds, db)
+    const instagram = await photosForAi(card.userId, card.instagramPhotoIds, db)
     const overruled = await overruledCards(card.accountId, settings, db, card.id)
     const question = {
-      system: readCardSystem(settings),
-      text: readCardText({ ...card, photos: photos.length }, overruled),
-      images: photos.map((jpeg) => ({ jpeg })),
+      system: readCardSystem(settings, await appNameOf(card.accountId, db)),
+      text: readCardText({ ...card, photos: photos.length, instagramPhotos: instagram.length }, overruled),
+      images: [...photos, ...instagram].map((jpeg) => ({ jpeg })),
       jsonSchema: readCardJsonSchema,
       schema: readCardAnswer,
       effort: "low" as const,
@@ -295,15 +318,16 @@ export const SUPER_LIKE_SCORE = 95
 /**
  * Like or pass, from the score and the member's rule. No AI call: a score at
  * or above the member's number is a like, below is a pass, and a card that
- * hits a dealbreaker or is someone on the People I know list is always a
- * pass. A card the AI has not read has no decision yet. Whether a like is a
- * Super Like is the loop's call, because it depends on the day.
+ * hits a dealbreaker, is someone on the People I know list, has 3 or more
+ * mutual friends or was passed on another profile is always a pass. A card
+ * the AI has not read has no decision yet. Whether a like is a Super Like is
+ * the loop's call, because it depends on the day.
  */
 export function decideSwipe(
   card: { aiScore: number | null; aiFlags: CardFlag[] },
   settings: Pick<DatingSettings, "likeAbove">
 ): Exclude<SwipeDecision, "none" | "super"> | null {
-  if (card.aiFlags.includes("dealbreaker") || card.aiFlags.includes("known_person")) return "pass"
+  if (card.aiFlags.some((flag) => ALWAYS_PASS.includes(flag))) return "pass"
   if (card.aiScore === null) return null
   return card.aiScore >= settings.likeAbove ? "like" : "pass"
 }
@@ -350,9 +374,11 @@ export async function learnedSends(accountId: string, exceptMatchId: string | nu
     .slice(0, LEARNED_SENDS)
 }
 
-/** What a card said, one line each, for a first message. */
+/** What a card said, one line each, for a first message. Mutual friends and shared groups are common ground (part 11). */
 function cardLines(card: typeof dateProfiles.$inferSelect): string[] {
   return [
+    card.mutualNames.length ? `Mutual friends with the member: ${card.mutualNames.slice(0, 2).join(" and ")}` : "",
+    card.sharedGroups.length ? `Groups both are in: ${card.sharedGroups.slice(0, 2).join(", ")}` : "",
     card.bio ? `Bio: ${card.bio}` : "",
     card.job ? `Job: ${card.job}` : "",
     card.school ? `School: ${card.school}` : "",
@@ -369,7 +395,7 @@ export type DraftOptions = {
   /** Write even when the newest message is the member's: Regenerate and Draft with AI. */
   anyTurn?: boolean
   /** What to write. Left out, a chat with no messages gets an opener and any other a reply. */
-  mode?: Exclude<DraftMode, "tidy">
+  mode?: Exclude<DraftMode, "tidy" | "like_comment">
   tone?: DraftTone | null
   /** Three drafts: the message and two alternatives, for "Show 3". */
   three?: boolean
@@ -395,21 +421,25 @@ async function conversationFor(match: MatchRow, db: CustomShellDb) {
     (message) => message.direction === "in" || message.status === "sent"
   )
   const [card] = match.profileId ? await db.select().from(dateProfiles).where(eq(dateProfiles.id, match.profileId)).limit(1) : []
-  return { messages, card: card ?? null }
+  return { messages, card: card ?? null, appName: await appNameOf(match.accountId, db) }
 }
 
 function chatForAi(
   match: MatchRow,
   messages: Array<typeof dateMessages.$inferSelect>,
   card: typeof dateProfiles.$inferSelect | null,
+  appName: string,
   extra: Pick<ConversationForAi, "mode" | "notThis" | "tone" | "three" | "roughText">
 ): ConversationForAi {
   return {
+    appName,
     theirName: match.theirName,
     theirRead: card?.aiRead ?? [],
     theirCard: card ? cardLines(card) : [],
     facts: match.facts.filter((fact) => !fact.deleted).map((fact) => fact.text),
     memberNote: match.memberNote,
+    theirLikeComment: card?.theirComment ?? "",
+    memberLikeComment: card?.likeComment ?? "",
     messages: messages.map((message) => ({ from: message.direction === "in" ? ("them" as const) : ("me" as const), text: message.text })),
     fromThem: messages.filter((message) => message.direction === "in").length,
     fromMe: messages.filter((message) => message.direction === "out").length,
@@ -443,7 +473,7 @@ async function askForDraft(
       "draft-reply",
       { matchId: match.id, mode: chat.mode },
       {
-        system: draftSystem(settings, learned),
+        system: draftSystem(settings, learned, chat.appName),
         text: draftText(chat),
         jsonSchema: draftJsonSchema,
         schema: draftAnswer,
@@ -505,7 +535,7 @@ export async function draftReply(
     await release({})
     return { status: "skipped", words: blocked }
   }
-  const { messages, card } = await conversationFor(match, db)
+  const { messages, card, appName } = await conversationFor(match, db)
   const newest = messages[messages.length - 1]
   const mode = options.mode ?? (messages.length ? "reply" : "opener")
   if (mode === "reply" && !options.anyTurn && (!newest || newest.direction !== "in")) {
@@ -529,7 +559,7 @@ export async function draftReply(
     return { status: "cap", words: cap }
   }
   const learned = settings.learnFromSends ? await learnedSends(match.accountId, match.id, db) : []
-  const chat = chatForAi(match, messages, card, { mode, notThis, tone: options.tone ?? null, three: Boolean(options.three), roughText: "" })
+  const chat = chatForAi(match, messages, card, appName, { mode, notThis, tone: options.tone ?? null, three: Boolean(options.three), roughText: "" })
 
   try {
     const asked = await askForDraft(match, chat, settings, learned, deps)
@@ -578,6 +608,89 @@ export async function draftReply(
   }
 }
 
+/** Kept as what a like's comment was about when the AI wrote none: the like goes plain, and the AI is not asked again. */
+export const NO_LIKE_COMMENT = "-"
+
+/**
+ * The comment a Facebook Dating like carries (part 10 of "facebook/01"),
+ * written only for a card that scored 10 or more over the like line. It is
+ * written from the opener prompt, under the same never-rules, and kept on
+ * the card with the answer or photo it is about, so the like walk sends it
+ * and the opener after a match knows what was said. A refusal, a flag, an
+ * answer that is not a comment or one too long leaves the like plain.
+ */
+export async function writeLikeComment(profileId: string, db: CustomShellDb = defaultDb, now: Date = new Date(), deps: AiDeps = {}): Promise<AiOutcome> {
+  const [card] = await db
+    .update(dateProfiles)
+    .set({ aiStartedAt: now })
+    .where(
+      and(
+        eq(dateProfiles.id, profileId),
+        eq(dateProfiles.sample, false),
+        eq(dateProfiles.likeComment, ""),
+        eq(dateProfiles.likeCommentOn, ""),
+        or(isNull(dateProfiles.aiStartedAt), lt(dateProfiles.aiStartedAt, new Date(now.getTime() - CLAIM_MS)))
+      )
+    )
+    .returning()
+  if (!card) return { status: "busy", words: "The AI is already writing this like's comment, or has." }
+  const done = (values: Partial<typeof dateProfiles.$inferInsert>) => db.update(dateProfiles).set({ aiStartedAt: null, ...values }).where(eq(dateProfiles.id, card.id))
+  const settings = await readDatingSettings(card.accountId, db)
+  const cap = await aiSpendStopped(card, settings.spendCapDollars, db, now)
+  if (cap) {
+    await done({})
+    return { status: "cap", words: cap }
+  }
+  const appName = await appNameOf(card.accountId, db)
+  const learned = settings.learnFromSends ? await learnedSends(card.accountId, null, db) : []
+  const chat: ConversationForAi = {
+    appName,
+    theirName: card.name,
+    theirRead: card.aiRead,
+    theirCard: cardLines(card),
+    facts: [],
+    memberNote: "",
+    theirLikeComment: card.theirComment,
+    memberLikeComment: "",
+    messages: [],
+    fromThem: 0,
+    fromMe: 0,
+    dateProposed: false,
+    notThis: "",
+    mode: "like_comment",
+    roughText: "",
+    tone: null,
+    three: false,
+  }
+  try {
+    const asked = await metered(
+      card,
+      "like-comment",
+      { profileId: card.id },
+      {
+        system: draftSystem(settings, learned, appName),
+        text: draftText(chat),
+        jsonSchema: draftJsonSchema,
+        schema: draftAnswer,
+        effort: "medium",
+        label: `Writing the comment for ${card.name}'s like`,
+      },
+      deps
+    )
+    const text = !asked.refused && asked.value.kind === "draft" ? cleanDraft(asked.value.text, settings.examples.some(usesEmoji)) : ""
+    if (!text || text.length > LIKE_COMMENT_MAX_CHARS || asked.refused) {
+      await done({ likeCommentOn: NO_LIKE_COMMENT })
+      return { status: "skipped", words: "The AI wrote no comment, so the like goes without one." }
+    }
+    await done({ likeComment: text, likeCommentOn: asked.value.about.trim().slice(0, 1_000) || "photo" })
+    return { status: "done", words: "" }
+  } catch (error) {
+    // A failed call is not tried again for this card: the like goes plain.
+    await done({ likeCommentOn: NO_LIKE_COMMENT })
+    return { status: "failed", words: wordsOf(error) }
+  }
+}
+
 /**
  * Tidy: the member's own rough words, put in their voice with the meaning
  * kept. Nothing is saved; the tidied words go back into the reply box for the
@@ -597,9 +710,9 @@ export async function tidyReply(
   const settings = await readDatingSettings(match.accountId, db)
   const cap = await aiSpendStopped(match, settings.spendCapDollars, db, now)
   if (cap) return { status: "cap", words: cap, text: "" }
-  const { messages, card } = await conversationFor(match, db)
+  const { messages, card, appName } = await conversationFor(match, db)
   const learned = settings.learnFromSends ? await learnedSends(match.accountId, match.id, db) : []
-  const chat = chatForAi(match, messages, card, { mode: "tidy", notThis: "", tone: null, three: false, roughText: words })
+  const chat = chatForAi(match, messages, card, appName, { mode: "tidy", notThis: "", tone: null, three: false, roughText: words })
   try {
     const asked = await askForDraft(match, chat, settings, learned, deps)
     if (asked.refused || asked.answer.kind !== "draft") return { status: "failed", words: "The AI would not tidy this. Send it as you wrote it, or change it yourself.", text: "" }
@@ -690,12 +803,15 @@ export async function readChatNotes(
     // A date the member offered in their own words counts too, not only the AI's.
     const offered = match.dateProposedAt !== null || value.memberOffered
     const accepted = !match.dateAcceptedAt && offered && value.dateAccepted
+    // A call ask goes to the member with no draft, unless the chat already waits on the member for something else.
+    const callAsk = value.askedForCall && !match.flaggedReason
     await release({
       facts: [...match.facts, ...added].slice(0, 40),
       notesReadThrough: through,
       theirNumber: number,
       ...(value.memberOffered && !match.dateProposedAt ? { dateProposedAt: now } : {}),
       ...(accepted ? { dateAcceptedAt: now, dateAcceptedLine: value.acceptedLine.trim().slice(0, 1_000) } : {}),
+      ...(callAsk ? { ...NO_DRAFT, flaggedReason: "asked_for_call" as const, askQuestion: "" } : {}),
       updatedAt: now,
     })
     return { status: "done", words: "" }

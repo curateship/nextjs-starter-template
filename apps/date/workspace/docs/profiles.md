@@ -1,10 +1,10 @@
 # Profiles
 
-One member can run several dating profiles. A profile is one dating app's account, a Tinder login or a Hinge login, with its own phone, settings, leads, chats, AI drafts, Google Calendar and AI spend. The Dating dashboard shows one profile at a time.
+One member can run several dating profiles. A profile is one dating app's account, a Tinder login, a Facebook Dating login or a Hinge login, with its own phone, settings, leads, chats, AI drafts, Google Calendar and AI spend. The Dating dashboard shows one profile at a time.
 
 Tyler asked for it on 20 Oct 2026: "We need to build a profile dashboard so that users can run multiple profiles". His answers the same day, which outrank the code:
 
-- **A profile is one app account.** He asked "One account one phone means one phone can run one of tinder and one of hinge?" and picked that: one phone carries at most one Tinder profile and one Hinge profile. Hinge is not built yet (`../tasks/features/04-phone-tinder-and-hinge.md`), so New profile makes Tinder profiles only.
+- **A profile is one app account.** He asked "One account one phone means one phone can run one of tinder and one of hinge?" and picked that: one phone carries at most one profile of each app. Facebook Dating joined on 22 Oct 2026 (`facebook/facebook-dating.md`). Hinge is not built yet (`../tasks/features/04-phone-tinder-and-hinge.md`), so New profile makes Tinder and Facebook Dating profiles.
 - **Inside the Dating dashboard**, not a dashboard of its own: a picker at the top of the left panel, and a Profiles section in it.
 - **Everything per profile**: About you, who you're looking for, swiping, replies, limits, the AI spend cap and Google Calendar.
 - **New profile**: a name and the app, then a pair code, starting with a copy of the open profile's settings.
@@ -24,9 +24,9 @@ Tyler asked for it on 20 Oct 2026: "We need to build a profile dashboard so that
 
 ## New profile
 
-From the picker or the **New profile** row at the bottom of the Profiles section. A window asks for the name and the app (Hinge shows as coming and can't be picked). **Create profile** makes it with a copy of the open profile's settings, never its Google Calendar, which each profile connects for itself. The same window then shows the pair code and the four steps on the phone. **Done** opens the new profile.
+From the picker or the **New profile** row at the bottom of the Profiles section. A window asks for the name and the app: Tinder, Hinge (shown as coming, and can't be picked) or Facebook Dating. **Create profile** makes it with a copy of the open profile's settings, never its Google Calendar, which each profile connects for itself. A Facebook Dating profile starts at Facebook's pace instead, at most 50 swipes a day and 20 an hour. The same window then shows the pair code and the four steps on the phone. **Done** opens the new profile.
 
-A profile with no phone yet works like the dashboard before pairing: no phone, **Pair one** on its line, and sample data to look at.
+A profile with no phone yet works like the dashboard before pairing: no phone, **Pair one** on its line, and sample data to look at. Its Phone panel also lists the member's phones already paired for another profile with **Use this phone**, so a Facebook profile can run on the Tinder phone without a new code.
 
 ## The settings window
 
@@ -36,20 +36,21 @@ The cog opens "Dating settings · <name>". Its first card, **Profile**, holds th
 
 ## Pause
 
-- **Pause** stops the phone's loop, calls off everything waiting on the phone, and the background pass skips the profile: no swipes, no automate sends, no AI calls.
+- **Pause** stops the profile's loop, calls off its walks waiting on the phone, and the background pass skips the profile: no swipes, no automate sends, no AI calls. Another profile on the same phone carries on.
+- **On Facebook Dating, Pause also turns on Dating's own break** so nobody sees the profile while Date isn't answering, and Resume turns it off (Tyler, 22 Oct 2026: "Yes, both ways"). The phone reads the switch back; the Phone panel says what it read, and says so when it could not set it.
 - **Walks are refused** while paused, from the dashboard or the AI, with "This profile is paused. Resume it in the Dating settings first." Start says the same.
 - **The AI is refused** while paused, pressed by hand too: Regenerate, Show 3, Tidy, Read again, Review and Ask Date say the same sentence and spend nothing. Every Dating AI call asks `aiSpendStopped` (`src/server/dating/spend.ts`) first, which checks Pause before the spend cap.
 - **Resume** starts nothing by itself. Start, or the profile's swiping schedule, starts swiping again.
 
 ## Two profiles on one phone
 
-The phone runs one app at a time, so saving swiping hours that share an hour with another profile on the same phone is refused, for example "Tinder (Tyler) swipes on this phone from 19:00 to 22:00. Pick hours that don't overlap it." (`hourWindowsOverlap` in `src/lib/dating/settings.ts`). A profile with no schedule only swipes when Start is pressed.
+The phone runs one app at a time, so saving swiping hours that share an hour with another profile on the same phone is refused, for example "Tinder (Tyler) swipes on this phone from 19:00 to 22:00. Pick hours that don't overlap it." (`hourWindowsOverlap` in `src/lib/dating/settings.ts`). **Use this phone** refuses the same way. A profile with no schedule only swipes when Start is pressed, and Start is refused while another profile on the phone is swiping: "Facebook Dating (Facebook) is swiping on Pixel 8a now. Stop it first; the phone runs one app at a time."
 
-Until Hinge is built a phone carries one profile, and the loop's state (running, the schedule's day, a stop screen) stays on the phone. Task 04's Hinge part moves it to the profile.
+Each profile has its own loop (part 2 of `../tasks/facebook/01-facebook-dating.md`, built 22 Oct 2026): running or not, the schedule's day, when a limit allows it again, the app's distance and ages owed, and a stop screen are the profile's, not the phone's. A stop screen on Facebook leaves the Tinder profile on the same phone running, and Resume clears only its own profile. The limits count each profile's own swipes and messages. The phone still runs one walk at a time, for either profile.
 
 ## How it is kept
 
-- **`date_accounts`** is a profile: its member, site, app, name, phone and `paused_at`. A unique index allows one profile per app per phone. It is called an account in the code because `date_profiles` already means a card; on screen it is always "profile".
+- **`date_accounts`** is a profile: its member, site, app, name, phone and `paused_at`, and its loop's state, moved there from `date_phones` by `drizzle/0112_date_loop_per_profile.sql` (those columns are still on `date_phones`, unread). Facebook Dating's break, as last read back, is `app_break` (`drizzle/0123_date_app_break.sql`). A unique index allows one profile per app per phone. It is called an account in the code because `date_profiles` already means a card; on screen it is always "profile".
 - **Every record carries `account_id`**: cards (`date_profiles`), chats (`date_matches`, and their messages through them), walks, and the own profile, which is now one per profile instead of one per phone. Deleting a profile cascades to all of them.
 - **Settings and the Google Calendar** are keyed by `account_id`. Their member and site columns stay; only the primary key moved.
 - **A pair code** names the profile it was made for, and pairing sets that profile's phone.

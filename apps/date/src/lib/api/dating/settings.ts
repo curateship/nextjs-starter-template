@@ -7,7 +7,7 @@ import { readDatingSettings, saveDatingSettings } from "@/server/dating/settings
 import { inWords } from "@/server/dating/words"
 import { db } from "@/server/db"
 import { userGet, userPost } from "@/server/guards"
-import { datePhones } from "@/server/phone/schema"
+import { dateAccounts } from "@/server/dating/schema"
 import { dateMatches } from "@/server/tinder/schema"
 
 /** The open profile's Dating settings: read once per page, saved whole on every change. */
@@ -38,11 +38,9 @@ const saveFn = createServerFn({ method: "POST" })
           .set({ draftSendAt: null })
           .where(and(eq(dateMatches.accountId, account.id), ne(dateMatches.draft, "")))
       }
-      // Tinder's own filters follow Date's: the phone sets them on its next free pass.
+      // The app's own filters follow Date's: the phone sets them on its next free pass.
       const filtersChanged = before.maxDistanceKm !== saved.maxDistanceKm || before.ageMin !== saved.ageMin || before.ageMax !== saved.ageMax
-      if (filtersChanged && account.phoneId) {
-        await db.update(datePhones).set({ discoveryOwed: true }).where(eq(datePhones.id, account.phoneId))
-      }
+      if (filtersChanged) await db.update(dateAccounts).set({ discoveryOwed: true }).where(eq(dateAccounts.id, account.id))
       return saved
     })
   )

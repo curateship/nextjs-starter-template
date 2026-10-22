@@ -27,10 +27,15 @@ export const DRAFT_MAX_CHARS = 200
 
 /**
  * What is being written. `reply` answers their newest message, `opener` is the
- * first message to a new match, `nudge` the one follow-up on a quiet chat, and
- * `tidy` the member's own rough reply put in their voice.
+ * first message to a new match, `nudge` the one follow-up on a quiet chat,
+ * `tidy` the member's own rough reply put in their voice, and `like_comment`
+ * the short comment a Facebook Dating like carries before any match (part 10
+ * of "facebook/01").
  */
-export type DraftMode = "reply" | "opener" | "nudge" | "tidy"
+export type DraftMode = "reply" | "opener" | "nudge" | "tidy" | "like_comment"
+
+/** The longest comment sent with a Facebook Dating like. */
+export const LIKE_COMMENT_MAX_CHARS = 150
 
 export const draftAnswer = z.object({
   kind: z.enum(["draft", "ask", "flag", "ended"]),
@@ -41,6 +46,8 @@ export const draftAnswer = z.object({
   endedLine: z.string().max(1_000).default(""),
   proposesDate: z.boolean(),
   openerStyle: z.enum([...OPENER_STYLES, "none"]).default("none"),
+  /** For a like's comment: the profile answer it is about, word for word, or "photo". */
+  about: z.string().max(1_000).default(""),
 })
 
 export type DraftAnswer = z.infer<typeof draftAnswer>
@@ -48,7 +55,7 @@ export type DraftAnswer = z.infer<typeof draftAnswer>
 export const draftJsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["kind", "text", "alternatives", "question", "flag", "endedLine", "proposesDate", "openerStyle"],
+  required: ["kind", "text", "alternatives", "question", "flag", "endedLine", "proposesDate", "openerStyle", "about"],
   properties: {
     kind: {
       type: "string",
@@ -69,15 +76,19 @@ export const draftJsonSchema = {
     openerStyle: {
       type: "string",
       enum: [...OPENER_STYLES, "none"],
-      description: "For a first message only, what kind it is. Otherwise none.",
+      description: "For a first message or a like's comment only, what kind it is. Otherwise none.",
+    },
+    about: {
+      type: "string",
+      description: "For a like's comment only: the answer on their profile it is about, copied word for word, or photo when it is about a photo. Otherwise empty.",
     },
   },
 }
 
-export function draftSystem(settings: Pick<DatingSettings, "aboutMe" | "examples" | "style">, learned: string[] = []): string {
+export function draftSystem(settings: Pick<DatingSettings, "aboutMe" | "examples" | "style">, learned: string[] = [], appName = "Tinder"): string {
   const examples = settings.examples.filter((line) => line.trim())
   return [
-    "You write the next message a member of a dating app sends in a Tinder conversation. The member reads it before it goes, or it goes on their behalf, so it must sound exactly like them.",
+    `You write the next message a member of a dating app sends in a ${appName} conversation. The member reads it before it goes, or it goes on their behalf, so it must sound exactly like them.`,
     "",
     "Facts about the member, the only ones you may use:",
     settings.aboutMe.trim() || "(None given.)",
@@ -105,6 +116,8 @@ export function draftSystem(settings: Pick<DatingSettings, "aboutMe" | "examples
 }
 
 export type ConversationForAi = {
+  /** The dating app, as its profile and chat are read off it, such as "Tinder" or "Facebook Dating". */
+  appName: string
   theirName: string
   /** The AI's read of their card, when Date read it. */
   theirRead: string[]
@@ -114,6 +127,9 @@ export type ConversationForAi = {
   facts: string[]
   /** The member's note to the AI about this chat only. */
   memberNote: string
+  /** What was said with the likes before the match: theirs (part 16) and the member's (part 10). Empty when nothing was. */
+  theirLikeComment: string
+  memberLikeComment: string
   messages: Array<{ from: "them" | "me"; text: string }>
   fromThem: number
   fromMe: number
@@ -135,6 +151,7 @@ const MODE_WORDS: Record<DraftMode, string> = {
   nudge:
     "The member's last message has had no answer for three days. Write one light follow-up: short and easy to answer, with no guilt, no complaint about the silence, and nothing already asked.",
   tidy: "The member wrote a reply in their own words, below. Put it in their voice, fixing spelling and flow. Keep every fact and what they meant, and add nothing new. Answer kind draft.",
+  like_comment: `Nobody has matched yet. The member is liking their profile, and the like carries one short comment, under ${LIKE_COMMENT_MAX_CHARS} characters, on one photo or one answer of theirs: something specific that is easy to answer, never a plain hey, and no date suggested. Say in openerStyle which kind it is, and in about the answer it is about, copied word for word, or photo.`,
 }
 
 const TONE_WORDS: Record<DraftTone, string> = {
@@ -147,7 +164,9 @@ export function draftText(chat: ConversationForAi): string {
   return [
     `Conversation with ${chat.theirName}.`,
     chat.theirRead.length ? `What their profile says about them: ${chat.theirRead.join(" ")}` : "",
-    chat.mode === "opener" && chat.theirCard.length ? `Their profile, as read off Tinder:\n${chat.theirCard.join("\n")}` : "",
+    (chat.mode === "opener" || chat.mode === "like_comment") && chat.theirCard.length ? `Their profile, as read off ${chat.appName}:\n${chat.theirCard.join("\n")}` : "",
+    chat.theirLikeComment ? `When they liked the member, they wrote: "${chat.theirLikeComment}". A first message answers that.` : "",
+    chat.memberLikeComment ? `With the member's like, the member already wrote: "${chat.memberLikeComment}". Do not say it again.` : "",
     chat.facts.length ? `What ${chat.theirName} has told the member:\n${chat.facts.map((fact) => `- ${fact}`).join("\n")}` : "",
     chat.memberNote.trim() ? `The member's note about this chat: ${chat.memberNote.trim()}` : "",
     "",

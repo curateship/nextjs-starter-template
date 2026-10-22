@@ -6,7 +6,8 @@ import { NAME_AGE_LINE, TINDER_CHROME_LINES, TINDER_WORDS } from "../screen-word
 import type { OwnProfileChange } from "../schema"
 import { keepReplaced, markApplied, photoTestMoved, readOwnRow, saveOwnProfile, type OwnProfileRecord, type PhotoTestStep } from "../store"
 
-import { onDiscover, WalkError, type Seen, type WalkContext, type WalkKit } from "./kit"
+import { onDiscover } from "../app-screens"
+import { WalkError, type Seen, type WalkContext, type WalkKit } from "./kit"
 import { parseProfileLines, promptsOf, sectionText } from "./parse"
 
 /** The Profile tab: its edit button with the bottom tabs under it. The edit screen itself has no tabs. */
@@ -14,7 +15,7 @@ export const onProfileTab = (screen: ScreenRead) =>
   Boolean(findNode(screen, TINDER_WORDS.editProfile) && findNode(screen, TINDER_WORDS.tabProfile))
 
 export async function toProfileTab(kit: WalkKit): Promise<Seen> {
-  return kit.goToTab(await kit.openTinder(), TINDER_WORDS.tabProfile, onProfileTab, "Profile")
+  return kit.goToTab(await kit.openApp(), TINDER_WORDS.tabProfile, onProfileTab, "Profile")
 }
 
 /** The "Name, 30" line on the Profile tab. */
@@ -139,7 +140,7 @@ export async function readOwnProfile(ctx: WalkContext, kit: WalkKit): Promise<Re
 
 /** Saves the edit screen through its Done, and is back on the Profile tab. */
 async function saveEdits(kit: WalkKit, seen: Seen): Promise<Seen> {
-  let current = await kit.tap(kit.need(seen, TINDER_WORDS.editDone, "Done on the edit screen"), 1_200)
+  let current = await kit.commit(kit.need(seen, TINDER_WORDS.editDone, "Done on the edit screen"), 1_200)
   for (let tries = 0; tries < 2 && !onProfileTab(current.screen); tries += 1) current = await kit.back(800)
   if (!onProfileTab(current.screen)) throw new WalkError("Could not get back to the Profile tab after saving.", current.shot)
   return current
@@ -263,7 +264,7 @@ export async function setPrompt(ctx: WalkContext, kit: WalkKit, input: Record<st
   const replaced: OwnProfileChange = { kind: "prompt", question, answer: box.text }
   const typed = await kit.type(box, answer)
   if (input.undo !== true) await keepReplaced(ctx.phone.accountId, replaced, ctx.db)
-  const backOnEdit = await kit.tap(kit.need(typed, TINDER_WORDS.editDone, "Done on the prompt's screen"), 1_000)
+  const backOnEdit = await kit.commit(kit.need(typed, TINDER_WORDS.editDone, "Done on the prompt's screen"), 1_000)
   await saveEdits(kit, backOnEdit)
 
   const read = await readBack(ctx, kit, own?.photoIds ?? [])

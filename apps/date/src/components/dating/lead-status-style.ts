@@ -33,6 +33,8 @@ export function needsWords(lead: LeadListItem): { words: string; urgent: boolean
   if (lead.waiting === "draft") return { words: "Review draft", urgent: false }
   if (lead.waiting === "flag") return { words: "Reply yourself", urgent: true }
   if (lead.waiting === "question") return { words: "Answer the AI", urgent: true }
+  // Met on another profile and matched or chatted there: Like or Pass is the member's (part 15 of "facebook/01").
+  if (lead.waiting === "decide") return { words: "Your call", urgent: true }
   if (lead.status === "date" && lead.dateAt) {
     // "Date Tue 7:00 PM", short enough for the column; the right panel has the full day.
     const at = new Date(lead.dateAt)

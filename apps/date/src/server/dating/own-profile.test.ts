@@ -70,7 +70,7 @@ describe("your profile", () => {
     workspaceId = (await insertWorkspace(db)).id
     phoneId = uuid()
     clock = T0
-    await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0, discoveryOwed: false })
+    await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0 })
     account = await insertAccount(db, { userId, workspaceId, phoneId })
     asked = []
     answers = []

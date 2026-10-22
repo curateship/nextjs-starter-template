@@ -60,9 +60,9 @@ function overruledLines(overruled: OverruledCard[]): string[] {
   ]
 }
 
-export function readCardSystem(settings: Pick<DatingSettings, "lookingFor" | "dealbreakers" | "ageMin" | "ageMax">): string {
+export function readCardSystem(settings: Pick<DatingSettings, "lookingFor" | "dealbreakers" | "ageMin" | "ageMax">, appName = "Tinder"): string {
   return [
-    "You read one Tinder profile for a member of a dating app and judge how well the person fits what the member wants.",
+    `You read one ${appName} profile for a member of a dating app and judge how well the person fits what the member wants.`,
     "",
     "What the member is looking for, in their words:",
     settings.lookingFor.trim() || "(They have not said. Judge on warmth, effort and clear photos.)",
@@ -93,12 +93,19 @@ export type CardForAi = {
   handles: ProfileHandles
   texts: string[]
   photos: number
+  /** Pictures from their Instagram that the card shows, after their photos (part 12 of "facebook/01"). */
+  instagramPhotos?: number
+  /** Facebook Dating's mutual friends and the groups both are in (part 11). */
+  mutualFriends?: number | null
+  sharedGroups?: string[]
 }
 
 export function readCardText(card: CardForAi, overruled: OverruledCard[] = []): string {
   const lines = [
     ...overruledLines(overruled),
-    `The ${card.photos} picture${card.photos === 1 ? " above is" : "s above are"} this person's photos, in their order.`,
+    card.instagramPhotos
+      ? `The first ${card.photos} picture${card.photos === 1 ? " above is" : "s above are"} this person's photos, in their order, and the last ${card.instagramPhotos} ${card.instagramPhotos === 1 ? "is" : "are"} from their Instagram.`
+      : `The ${card.photos} picture${card.photos === 1 ? " above is" : "s above are"} this person's photos, in their order.`,
     "",
     `Name: ${card.name}`,
     `Age: ${card.age ?? "not shown"}`,
@@ -113,6 +120,8 @@ export function readCardText(card: CardForAi, overruled: OverruledCard[] = []): 
   if (card.handles.instagram) lines.push(`Instagram: ${card.handles.instagram}`)
   if (card.handles.spotifyArtists?.length) lines.push(`Top Spotify artists: ${card.handles.spotifyArtists.join(", ")}`)
   if (card.handles.anthem) lines.push(`Anthem: ${card.handles.anthem}`)
+  if (card.mutualFriends) lines.push(`Mutual friends with the member: ${card.mutualFriends}`)
+  if (card.sharedGroups?.length) lines.push(`Groups both are in: ${card.sharedGroups.join(", ")}`)
   lines.push("", "Every line read off the card, in order:", ...card.texts.map((text) => `- ${text}`))
   return lines.join("\n")
 }

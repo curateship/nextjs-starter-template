@@ -27,6 +27,7 @@ import { datePhones } from "@/server/phone/schema"
 import { customShellAiUsageEvents } from "@/server/schema"
 import { fakeCard, FakeTinder, type FakeTinderSetup } from "@/server/tinder/fixtures/fake-tinder"
 import { dateMatches, dateMessages, dateOwnProfiles, dateProfiles, dateWalks } from "@/server/tinder/schema"
+import { dateAccounts } from "@/server/dating/schema"
 import { messageHash } from "@/server/tinder/store"
 
 import { decideSwipe, draftReply, reviewOwnProfile, scoreCard, type AiAsk } from "./ai"
@@ -81,7 +82,7 @@ describe("the AI and the swipe loop", () => {
     phoneId = uuid()
     clock = T0
     // Tinder's distance and ages are already set, so the pass does not open Tinder's settings first.
-    await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0, discoveryOwed: false })
+    await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0 })
     account = await insertAccount(db, { userId, workspaceId, phoneId })
     asked = []
     answers = []
@@ -342,7 +343,7 @@ describe("the AI and the swipe loop", () => {
       answers.push(goodCard, goodCard)
       for (let passes = 0; passes < 10; passes += 1) await pass()
       expect(fake.liked).toEqual(["Maya"])
-      const [stopped] = await db.select().from(datePhones)
+      const [stopped] = await db.select().from(dateAccounts)
       expect(stopped.running).toBe(false)
       expect(stopped.stopWhy).toMatch(/^1 swipe in the last hour, the most allowed\. The next is allowed at/)
     })
@@ -353,7 +354,7 @@ describe("the AI and the swipe loop", () => {
       await startLoop(account, db, clock)
       answers.push(goodCard)
       for (let passes = 0; passes < 8; passes += 1) await pass()
-      const [stopped] = await db.select().from(datePhones)
+      const [stopped] = await db.select().from(dateAccounts)
       expect(stopped).toMatchObject({ running: false, stoppedReason: "out_of_likes" })
       expect(fake.liked).toEqual([])
     })
@@ -365,7 +366,7 @@ describe("the AI and the swipe loop", () => {
       clock = new Date(clock.getTime() + 3 * 60_000)
       const { work } = await runDatingPass(db, clock, { drive: fake.drive, now: () => clock, ask })
       await Promise.all(work)
-      const [stopped] = await db.select().from(datePhones)
+      const [stopped] = await db.select().from(dateAccounts)
       expect(stopped.running).toBe(false)
       expect(stopped.stopWhy).toBe("The phone went away since 12:00: it stopped checking in.")
     })
@@ -377,7 +378,7 @@ describe("the AI and the swipe loop", () => {
       await stopLoopByHand(account, db, clock)
       await pass()
       expect(fake.steps).toHaveLength(0)
-      expect((await db.select().from(datePhones))[0]).toMatchObject({ running: false, stopWhy: "Stopped by you." })
+      expect((await db.select().from(dateAccounts))[0]).toMatchObject({ running: false, stopWhy: "Stopped by you." })
     })
   })
 

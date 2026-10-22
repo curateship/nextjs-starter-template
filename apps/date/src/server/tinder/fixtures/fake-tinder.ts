@@ -440,6 +440,9 @@ export class FakeTinder {
       case "home":
         this.foreground = "home"
         return this.answer({ done: true }, thenRead)
+      case "close-app":
+        this.foreground = "home"
+        return this.answer({ closed: true }, thenRead)
     }
   }
 }

@@ -34,7 +34,7 @@ import {
   type LeadTab,
   type LeadView,
 } from "@/lib/dating/leads"
-import { STOP_REASON_WORDS } from "@/lib/dating/options"
+import { DATING_APP_WORDS, stopReasonWords } from "@/lib/dating/options"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useListSort, useSearchBoxText } from "@/lib/nav/list-search"
@@ -210,7 +210,7 @@ export function LeadList({
                 ) : (
                   <>
                     <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                      None of these is a chat. Cards are swiped one at a time, because Tinder swipes only the card on the phone's screen.
+                      None of these is a chat. Cards are swiped one at a time, because {DATING_APP_WORDS[data.profile.app].name} swipes only the card on the phone's screen.
                     </p>
                   </>
                 )
@@ -256,16 +256,18 @@ export function LeadList({
         <div role="alert" className="flex flex-wrap items-center gap-2 border-b bg-destructive/10 px-3 py-2 text-sm">
           <TriangleAlertIcon className="size-4 shrink-0 text-destructive" aria-hidden />
           <span className="min-w-0 flex-1">
-            <span className="font-medium">{STOP_REASON_WORDS[stopped]}.</span> Nothing runs on the phone until you sort it out there and press Resume.
+            <span className="font-medium">{stopReasonWords(stopped, data.profile.app)}.</span> Nothing runs for this profile until you sort it out on the phone and press Resume.
           </span>
           {data.phone.stoppedPictureId ? (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => onOpenPicture({ id: data.phone?.stoppedPictureId as string, title: "What Tinder showed", description: STOP_REASON_WORDS[stopped] })}
+              onClick={() =>
+                onOpenPicture({ id: data.phone?.stoppedPictureId as string, title: `What ${DATING_APP_WORDS[data.profile.app].name} showed`, description: stopReasonWords(stopped, data.profile.app) })
+              }
             >
-              See what Tinder showed
+              See what {DATING_APP_WORDS[data.profile.app].name} showed
             </Button>
           ) : null}
           <Button type="button" size="sm" disabled={busy === "resume"} onClick={onResume}>
@@ -376,8 +378,10 @@ export function LeadList({
 function secondLine(lead: LeadListItem): string {
   // The date's day and time are in Needs, so the line holds the place.
   if (lead.status === "date") return lead.datePlace || lead.lastLine || "Said yes to a date"
-  if (lead.matchId) return lead.lastLine || "No messages yet"
-  return lead.status === "new" ? "Not swiped yet" : `Read ${whenWords(lead.changedAt)}`
+  if (lead.matchId) return lead.lastLine || (lead.source === "weekly" ? "Weekly surprise match" : "No messages yet")
+  if (lead.waiting === "decide") return "Met on another profile"
+  if (lead.status === "new") return lead.source === "likes_you" ? "Liked you first" : "Not swiped yet"
+  return `Read ${whenWords(lead.changedAt)}`
 }
 
 function EmptyWords({ data, view }: { data: DatingDashboard; view: LeadView }) {

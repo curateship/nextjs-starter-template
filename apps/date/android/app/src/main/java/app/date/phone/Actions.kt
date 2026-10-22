@@ -2,6 +2,7 @@ package app.date.phone
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.app.ActivityManager
 import android.content.Intent
 import android.graphics.Path
 import android.os.Bundle
@@ -18,7 +19,7 @@ import org.json.JSONObject
 
 /**
  * Runs one plain action the server handed the phone: open an app, read the
- * screen, tap, swipe, type, back, home or take a picture. Everything that
+ * screen, tap, swipe, type, back, home, take a picture or close an app. Everything that
  * knows what Tinder looks like is on the server; this only does what it is
  * told and says what happened, in words when it could not.
  *
@@ -52,6 +53,8 @@ class ActionRunner(private val service: DateAccessibilityService) {
     private suspend fun perform(kind: String, payload: JSONObject): Outcome = when (kind) {
         "open-app" -> openApp(payload)
         "read-screen" -> {
+            // A second look at a screen still drawing waits a moment first.
+            delay(payload.optLong("settleMs", 0L).coerceIn(0L, MAX_SETTLE_MS))
             val (screen, picture) = readWithPicture()
             Outcome(true, JSONObject().put("screen", screen), "", picture)
         }
@@ -77,6 +80,7 @@ class ActionRunner(private val service: DateAccessibilityService) {
             finish(payload, JSONObject())
         }
         "screenshot" -> screenshot()
+        "close-app" -> closeApp(payload)
         else -> throw StepFailed("This phone does not know how to \"$kind\". Update the Date app on the phone.")
     }
 
@@ -112,6 +116,22 @@ class ActionRunner(private val service: DateAccessibilityService) {
         withContext(Dispatchers.Main) { service.startActivity(intent) }
         answer.put("installed", true).put("opened", true)
         return finish(payload, answer)
+    }
+
+    /**
+     * Closes an app that froze: home first, so it is in the background, then
+     * Android is asked to end it. Opening it again starts it fresh. Android
+     * only ends an app in the background, which is why home comes first.
+     */
+    private suspend fun closeApp(payload: JSONObject): Outcome {
+        val packageName = payload.optString("package").trim()
+        if (packageName.isEmpty()) throw StepFailed("No app was named to close.")
+        global(AccessibilityService.GLOBAL_ACTION_HOME, "go to the home screen")
+        delay(CLOSE_WAIT_MS)
+        val manager = service.getSystemService(ActivityManager::class.java)
+            ?: throw StepFailed("Android would not let the Date app close another app.")
+        manager.killBackgroundProcesses(packageName)
+        return finish(payload, JSONObject().put("closed", true))
     }
 
     private suspend fun readScreen(): JSONObject {
@@ -277,6 +297,7 @@ class ActionRunner(private val service: DateAccessibilityService) {
         const val FOCUS_SETTLE_MS = 300L
         const val ROOT_TRIES = 5
         const val ROOT_WAIT_MS = 150L
+        const val CLOSE_WAIT_MS = 1_000L
 
         /** Pictures for the server: big enough to cut a card's photos from. */
         const val ACTION_PICTURE_WIDTH = 1080

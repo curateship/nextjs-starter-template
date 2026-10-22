@@ -1,11 +1,13 @@
-import { and, eq } from "drizzle-orm"
+import { and, eq, ne } from "drizzle-orm"
 
-import type { CardFlag } from "@/lib/dating/options"
+import type { CardFlag, CardSource, DatingApp, MatchFlag, MessageKind } from "@/lib/dating/options"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { datePictures } from "@/server/phone/schema"
 import { sha256Hex } from "@/server/phone/signing"
 import { dateMatches, dateMessages, dateProfiles } from "@/server/tinder/schema"
+
+import { dateAccounts } from "./schema"
 import { messageHash } from "@/server/tinder/store"
 
 /**
@@ -17,6 +19,12 @@ import { messageHash } from "@/server/tinder/store"
  * a sample: the AI never reads one and no button on one reaches a phone.
  * Their pictures are simple drawings in `public/sample/dating/`, not photos of
  * anybody.
+ *
+ * A Facebook Dating profile gets Facebook's extras too (part 8 of
+ * "facebook/01"): a like that came with a comment on Likes you, a card with
+ * mutual friends, a shared group and Instagram pictures, a near miss for
+ * Second Look, the weekly surprise match, someone already matched on another
+ * profile, a call request, a scam to report and a photo in a chat.
  */
 
 type SampleCard = {
@@ -35,6 +43,15 @@ type SampleCard = {
   flags: CardFlag[]
   swipe: "none" | "like" | "pass"
   verified: boolean
+  /** Facebook Dating's extras. */
+  source?: CardSource
+  theirComment?: string
+  theirCommentOn?: string
+  mutualFriends?: number
+  mutualNames?: string[]
+  sharedGroups?: string[]
+  instagram?: boolean
+  seenOn?: "passed" | "liked" | "matched" | "chatted"
 }
 
 const CARDS: SampleCard[] = [
@@ -54,12 +71,12 @@ const CARDS: SampleCard[] = [
 
 type SampleChat = {
   cardIndex: number
-  messages: Array<["in" | "out", string]>
+  messages: Array<["in" | "out", string] | ["in" | "out", string, MessageKind]>
   draft?: string
   draftKind?: "reply" | "opener" | "nudge"
   /** Two more drafts, as "Show 3" leaves them. */
   choices?: string[]
-  flagged?: "asked_if_bot" | "sexual" | "scam"
+  flagged?: MatchFlag
   proposed?: boolean
   unread?: number
   facts?: string[]
@@ -167,10 +184,59 @@ const CHATS: SampleChat[] = [
   },
 ]
 
-const samplePath = (card: number, photo: number) => `/sample/dating/person-${String(card + 1).padStart(2, "0")}-${photo}.svg`
+/**
+ * Facebook Dating's own samples, after the twelve above. They reuse the
+ * twelve drawings, so their pictures are the drawing of the card numbered
+ * the same less twelve.
+ */
+const FACEBOOK_CARDS: SampleCard[] = [
+  { name: "Mila", age: 30, distance: "4 kilometres away", bio: "Croissant ranker, river swimmer, owner of one opinionated cat.", job: "Pastry chef", school: "", livesIn: "Toronto", interests: ["Baking", "Swimming", "Cats"], lookingFor: "Long-term partner", score: 82, read: ["A pastry chef who swims in the lake.", "Liked you first, with a question.", "Close by."], flags: [], swipe: "none", verified: true, source: "likes_you", theirComment: "Okay but which bakery is the best one?", theirCommentOn: "answer" },
+  { name: "Lena", age: 28, distance: "6 kilometres away", bio: "My cat has more followers than me and she knows it.", job: "Vet tech", school: "", livesIn: "Toronto", interests: ["Animals", "Hiking"], lookingFor: "Long-term, open to short", score: 67, read: ["Funny bio about her cat.", "Close to what you want, just under your line.", "Lives nearby."], flags: [], swipe: "pass", verified: false },
+  { name: "Tess", age: 27, distance: "5 kilometres away", bio: "Teacher by day, karaoke menace by night.", job: "Teacher", school: "", livesIn: "Toronto", interests: ["Karaoke", "Hiking"], lookingFor: "Long-term partner", score: 76, read: ["A teacher who loves karaoke.", "Facebook's surprise match this week.", "Easy first message: her song."], flags: [], swipe: "none", verified: true, source: "weekly" },
+  { name: "Rosa", age: 31, distance: "3 kilometres away", bio: "Runner, reader, Sunday market regular.", job: "Physiotherapist", school: "", livesIn: "Toronto", interests: ["Running", "Markets"], lookingFor: "Long-term partner", score: 80, read: ["Runs and reads.", "Sunday markets fit your weekends.", "Asked for a call already."], flags: [], swipe: "like", verified: true },
+  { name: "Vera", age: 26, distance: "18 kilometres away", bio: "Crypto, travel, good vibes only.", job: "Entrepreneur", school: "", livesIn: "Mississauga", interests: ["Crypto", "Travel"], lookingFor: "Short-term fun", score: 30, read: ["Vague bio about crypto.", "Few real details.", "Far away."], flags: [], swipe: "like", verified: false },
+]
 
-/** Whose samples: the profile they go into, and its member and site. */
-export type SampleOwner = { id: string; userId: string; workspaceId: string }
+/** What Facebook adds to the twelve: mutual friends, a group and Instagram on Zoe; Ruth already met on another profile. */
+const FACEBOOK_TOUCHES: Record<number, Partial<SampleCard>> = {
+  7: { mutualFriends: 2, mutualNames: ["Sam", "Priya"], sharedGroups: ["Toronto Climbers"], instagram: true },
+  11: { seenOn: "matched" },
+}
+
+const FACEBOOK_CHATS: SampleChat[] = [
+  {
+    // The weekly surprise match: the AI's first message waits.
+    cardIndex: 14,
+    messages: [],
+    draft: "Facebook says we're this week's surprise. Important question first: what's your karaoke song?",
+    draftKind: "opener",
+  },
+  {
+    cardIndex: 15,
+    messages: [
+      ["out", "Which market is the Sunday one?"],
+      ["in", "St. Lawrence, every week"],
+      ["in", "Want to FaceTime tonight instead of all this typing?"],
+    ],
+    flagged: "asked_for_call",
+    unread: 1,
+  },
+  {
+    cardIndex: 16,
+    messages: [
+      ["in", "Hey handsome"],
+      ["out", "Hi Vera! How's your week going?"],
+      ["in", "I can't talk here, add me on Telegram and can you send $40 for a gift card?"],
+    ],
+    flagged: "scam",
+    unread: 1,
+  },
+]
+
+const samplePath = (card: number, photo: number) => `/sample/dating/person-${String((card % 12) + 1).padStart(2, "0")}-${photo}.svg`
+
+/** Whose samples: the profile they go into, its app, and its member and site. */
+export type SampleOwner = { id: string; userId: string; workspaceId: string; app?: DatingApp }
 
 /**
  * Adds the sample cards and conversations to one profile. Any already there
@@ -180,6 +246,18 @@ export type SampleOwner = { id: string; userId: string; workspaceId: string }
 export async function addSamples(account: SampleOwner, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
   await removeSamples(account, db)
   const { userId, workspaceId } = account
+  const facebook = account.app === "facebook"
+  const cards = facebook ? [...CARDS.map((card, index) => ({ ...card, ...FACEBOOK_TOUCHES[index] })), ...FACEBOOK_CARDS] : CARDS
+  const chats = facebook ? [...CHATS.map((chat, index) => (index === 0 ? { ...chat, messages: [...chat.messages, ["in", "Sent a photo", "photo"] as ["in", string, MessageKind]] } : chat)), ...FACEBOOK_CHATS] : CHATS
+  // Clara liked you first on Facebook, with a comment the opener answers.
+  if (facebook) {
+    cards[3] = { ...cards[3], source: "likes_you", theirComment: "Your dog has better photos than you do", theirCommentOn: "photo" }
+    chats[4] = { ...chats[4], draft: "In my defence, he's had more practice. What's your dog's name?" }
+  }
+  // Ruth was matched on the member's other profile, when there is one.
+  const [other] = facebook
+    ? await db.select({ id: dateAccounts.id }).from(dateAccounts).where(and(eq(dateAccounts.userId, userId), eq(dateAccounts.workspaceId, workspaceId), ne(dateAccounts.id, account.id))).limit(1)
+    : []
 
   const pictureIds = new Map<string, string>()
   for (let card = 0; card < CARDS.length; card += 1) {
@@ -193,10 +271,10 @@ export async function addSamples(account: SampleOwner, db: CustomShellDb = defau
   }
 
   const profileIds: string[] = []
-  for (const [index, card] of CARDS.entries()) {
+  for (const [index, card] of cards.entries()) {
     const id = uuid()
     profileIds.push(id)
-    const readAt = new Date(now.getTime() - (CARDS.length - index) * 7 * 60_000)
+    const readAt = new Date(now.getTime() - (cards.length - index) * 7 * 60_000)
     const scored = card.score !== null
     await db.insert(dateProfiles).values({
       id,
@@ -230,17 +308,26 @@ export async function addSamples(account: SampleOwner, db: CustomShellDb = defau
       aiFlags: card.flags,
       aiDealbreakers: card.flags.includes("dealbreaker") ? ["Smokers"] : [],
       aiReadAt: scored ? new Date(readAt.getTime() + 10_000) : null,
+      source: card.source ?? "card",
+      theirComment: card.theirComment ?? "",
+      theirCommentOn: card.theirCommentOn ?? "",
+      mutualFriends: card.mutualFriends ?? null,
+      mutualNames: card.mutualNames ?? [],
+      sharedGroups: card.sharedGroups ?? [],
+      instagramPhotoIds: card.instagram ? [pictureIds.get(samplePath(index + 1, 1)) as string] : [],
+      seenOnAccountId: card.seenOn ? (other?.id ?? null) : null,
+      seenOnOutcome: card.seenOn ?? null,
       sample: true,
       createdAt: readAt,
       updatedAt: readAt,
     })
   }
 
-  for (const [index, chat] of CHATS.entries()) {
-    const card = CARDS[chat.cardIndex]
+  for (const [index, chat] of chats.entries()) {
+    const card = cards[chat.cardIndex]
     const matchId = uuid()
-    const matchedAt = new Date(now.getTime() - (CHATS.length - index) * 3 * 3_600_000)
-    const lastAt = new Date(now.getTime() - (CHATS.length - index) * 20 * 60_000)
+    const matchedAt = new Date(now.getTime() - (chats.length - index) * 3 * 3_600_000)
+    const lastAt = new Date(now.getTime() - (chats.length - index) * 20 * 60_000)
     const fromThem = chat.messages.filter(([direction]) => direction === "in").length
     const accepted = chat.accepted
     const dateAt = accepted?.inDays != null ? new Date(new Date(now.getTime() + accepted.inDays * 86_400_000).setHours(19, 0, 0, 0)) : null
@@ -281,7 +368,7 @@ export async function addSamples(account: SampleOwner, db: CustomShellDb = defau
       createdAt: matchedAt,
       updatedAt: lastAt,
     })
-    for (const [position, [direction, text]] of chat.messages.entries()) {
+    for (const [position, [direction, text, kind]] of chat.messages.entries()) {
       // Their answers come sooner as a chat warms up: the gaps shrink from about 40 minutes to 5.
       const at = new Date(matchedAt.getTime() + chat.messages.slice(0, position + 1).reduce((sum, _, step) => sum + Math.max(5, 40 - step * 4), 0) * 60_000)
       await db.insert(dateMessages).values({
@@ -290,6 +377,7 @@ export async function addSamples(account: SampleOwner, db: CustomShellDb = defau
         matchId,
         direction,
         sentBy: direction === "in" ? "them" : position % 3 === 2 ? "ai" : "member",
+        kind: kind ?? "text",
         text,
         hash: messageHash(text),
         status: "sent",

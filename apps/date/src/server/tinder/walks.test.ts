@@ -27,7 +27,8 @@ import { DEFAULT_DATING_SETTINGS } from "@/lib/dating/settings"
 import { datePhones } from "@/server/phone/schema"
 
 import { fakeCard, FakeTinder, type FakeTinderSetup } from "./fixtures/fake-tinder"
-import { claimNextWalk, expireWalkLeases, queueWalk, resumePhone, runWalk, runWalkList } from "./jobs"
+import { claimNextWalk, expireWalkLeases, queueWalk, resumeProfile, runWalk, runWalkList } from "./jobs"
+import { dateAccounts } from "@/server/dating/schema"
 import { dateMatches, dateMessages, dateOwnProfiles, dateProfiles, dateWalks } from "./schema"
 import { createOutgoingMessage } from "./store"
 
@@ -219,7 +220,7 @@ describe("Tinder walks", () => {
       phone({ cards: [fakeCard("Maya"), fakeCard("Ines")], likesLeft: 0 })
       await run("read-card")
       const card = await onlyProfile()
-      await db.update(datePhones).set({ running: true }).where(eq(datePhones.id, phoneId))
+      await db.update(dateAccounts).set({ running: true }).where(eq(dateAccounts.id, account.id))
       clock = new Date(clock.getTime() + 20_000)
       const likeId = await queueWalk({ userId, accountId: account.id, phoneId, kind: "like", input: { profileId: card.id }, askedBy: "member" }, db, clock)
       // Something else waiting behind it is called off too.
@@ -232,7 +233,7 @@ describe("Tinder walks", () => {
       expect(walk.error).toMatch(/out of likes/)
       expect((await onlyProfile()).swipe).toBe("none")
 
-      const [stopped] = await db.select().from(datePhones)
+      const [stopped] = await db.select().from(dateAccounts)
       expect(stopped).toMatchObject({ stoppedReason: "out_of_likes", running: false, stopWhy: "Tinder says you are out of likes" })
       expect(stopped.stoppedWords).toBe("Tinder gives likes again in about 12 hours.")
       expect(stopped.stoppedPictureId).not.toBeNull()
@@ -245,23 +246,23 @@ describe("Tinder walks", () => {
     it("on Resume, looks at Tinder again and stops again if the screen is still there", async () => {
       phone({ verificationWall: true })
       expect((await run("read-card")).status).toBe("failed")
-      expect((await db.select().from(datePhones))[0].stoppedReason).toBe("verification")
-      const id = await resumePhone(account, db, clock)
+      expect((await db.select().from(dateAccounts))[0].stoppedReason).toBe("verification")
+      const id = await resumeProfile(account, db, clock)
       const walk = await claimNextWalk(phoneId, db, clock)
       expect(walk?.id).toBe(id)
       await runWalk(walk!, db, { drive: fake.drive, now: () => clock })
-      expect((await db.select().from(datePhones))[0].stoppedReason).toBe("verification")
+      expect((await db.select().from(dateAccounts))[0].stoppedReason).toBe("verification")
     })
 
     it("stops on a signed-out Tinder and on Tinder not installed", async () => {
       phone({ signedIn: false })
       await run("read-card")
-      expect((await db.select().from(datePhones))[0].stoppedReason).toBe("not_signed_in")
+      expect((await db.select().from(dateAccounts))[0].stoppedReason).toBe("not_signed_in")
 
-      await db.update(datePhones).set({ stoppedReason: null })
+      await db.update(dateAccounts).set({ stoppedReason: null })
       phone({ installed: false })
       await run("read-card")
-      expect((await db.select().from(datePhones))[0].stoppedReason).toBe("tinder_missing")
+      expect((await db.select().from(dateAccounts))[0].stoppedReason).toBe("tinder_missing")
     })
 
     it("fails the walk but stops nothing when another app is in front", async () => {
@@ -269,7 +270,7 @@ describe("Tinder walks", () => {
       const walk = await run("read-card")
       expect(walk.status).toBe("failed")
       expect(walk.error).toBe("Tinder was not in front: the phone showed com.whatsapp. This stopped there and nothing else was done.")
-      expect((await db.select().from(datePhones))[0].stoppedReason).toBeNull()
+      expect((await db.select().from(dateAccounts))[0].stoppedReason).toBeNull()
     })
   })
 
@@ -383,7 +384,7 @@ describe("Tinder walks", () => {
       // It never reached Tinder, so the next read calls it not sent.
       await run("read-conversation", { matchId: noor.id })
       const [settled] = await db.select().from(dateMessages).where(eq(dateMessages.id, messageId))
-      expect(settled).toMatchObject({ status: "failed", error: "It is not in the conversation on Tinder, so it was not sent." })
+      expect(settled).toMatchObject({ status: "failed", error: "It is not in the conversation on the app, so it was not sent." })
     })
 
     it("unmatches through Tinder's menu and its confirm", async () => {
