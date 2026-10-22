@@ -31,7 +31,7 @@ export async function readDatingSettings(accountId: string, db: CustomShellDb = 
  * Another profile on the same phone whose swiping hours share an hour with
  * these, in words, or null. The phone runs one app at a time.
  */
-async function scheduleClash(owner: SettingsOwner, settings: DatingSettings, db: CustomShellDb): Promise<string | null> {
+export async function scheduleClash(owner: SettingsOwner, settings: DatingSettings, db: CustomShellDb): Promise<string | null> {
   const { scheduleStart: start, scheduleEnd: end } = settings
   if (!owner.phoneId || start === null || end === null) return null
   const others = await db

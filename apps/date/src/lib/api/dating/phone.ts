@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { requestAccount } from "@/server/dating/accounts"
+import { readDatingSettings, scheduleClash } from "@/server/dating/settings"
 import { addSamples, removeSamples } from "@/server/dating/samples"
 import { inWords } from "@/server/dating/words"
 import { db } from "@/server/db"
@@ -13,13 +14,15 @@ import {
   ownPhone,
   phoneView,
   phoneActions,
+  phonesToShare,
   setInControl,
+  shareAPhone,
   unpairPhone,
   type PhoneActionView,
   type PhoneView,
 } from "@/server/phone/link"
 import { closeScreen, watchScreen, type ScreenFrame } from "@/server/phone/screens"
-import { resumePhone } from "@/server/tinder/jobs"
+import { resumeProfile } from "@/server/tinder/jobs"
 import { datePhones } from "@/server/phone/schema"
 import { dateProfiles, dateWalks } from "@/server/tinder/schema"
 
@@ -50,6 +53,10 @@ export type PhoneScreenData = {
   /** The profile's last twenty walks. */
   walks: PhoneWalkView[]
   hasSamples: boolean
+  /** With no phone yet: the member's paired phones this profile could share, by part 2 of "facebook/01". */
+  shareable: Array<{ id: string; name: string }>
+  /** Facebook Dating's own break as last read back (part 22): on, off, or null before it ever was. */
+  appBreak: { on: boolean | null; at: Date | null }
 }
 
 const phoneId = z.object({ phoneId: z.string().min(1).max(40) })
@@ -60,8 +67,8 @@ const loadPhoneScreenFn = createServerFn({ method: "GET" })
     inWords(async () => {
       const account = await requestAccount(context.user.id)
       const [row] = account.phoneId ? await db.select().from(datePhones).where(eq(datePhones.id, account.phoneId)).limit(1) : []
-      const phone = row ? phoneView(row) : null
-      const [actions, walks, sample] = await Promise.all([
+      const phone = row ? phoneView(row, account) : null
+      const [actions, walks, sample, shareable] = await Promise.all([
         phone ? phoneActions(context.user.id, phone.id) : Promise.resolve([]),
         phone
           ? db
@@ -84,8 +91,9 @@ const loadPhoneScreenFn = createServerFn({ method: "GET" })
           .from(dateProfiles)
           .where(and(eq(dateProfiles.accountId, account.id), eq(dateProfiles.sample, true)))
           .limit(1),
+        phone ? Promise.resolve([]) : phonesToShare(account),
       ])
-      return { phone, actions, walks, hasSamples: sample.length > 0 }
+      return { phone, actions, walks, hasSamples: sample.length > 0, shareable, appBreak: { on: account.appBreak, at: account.appBreakAt } }
     })
   )
 
@@ -124,13 +132,33 @@ const resumeFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .handler(async ({ context }) =>
     inWords(async () => {
-      await resumePhone(await requestAccount(context.user.id))
+      await resumeProfile(await requestAccount(context.user.id))
     })
   )
 
-/** Resume: clears the stop on the open profile's phone and has it look at Tinder again at once. */
+/** Resume: clears the open profile's stop and has the phone look at its app again at once. */
 export function resume() {
   return resumeFn()
+}
+
+const shareFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(phoneId)
+  .handler(async ({ data, context }) =>
+    inWords(async () => {
+      const account = await requestAccount(context.user.id)
+      // The member's own phone first, so nothing about another member's phone is ever read or told.
+      await ownPhone(context.user.id, data.phoneId)
+      // The phone runs one app at a time, so this profile's swiping hours may not overlap another's on it.
+      const clash = await scheduleClash({ ...account, phoneId: data.phoneId }, await readDatingSettings(account.id), db)
+      if (clash) throw new Error(clash)
+      await shareAPhone(account, data.phoneId)
+    })
+  )
+
+/** The open profile runs on a phone already paired for another profile, with no new code. */
+export function sharePhone(phone: string) {
+  return shareFn({ data: { phoneId: phone } })
 }
 
 const takePictureFn = createServerFn({ method: "POST" })

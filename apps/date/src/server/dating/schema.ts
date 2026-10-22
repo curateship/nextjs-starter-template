@@ -1,7 +1,7 @@
-import { index, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core"
+import { boolean, index, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
-import type { DatingApp } from "@/lib/dating/options"
+import type { DatingApp, StopReason } from "@/lib/dating/options"
 import type { DatingSettings } from "@/lib/dating/settings"
 import { datePhones } from "@/server/phone/schema"
 import { customShellUsers, customShellWorkspaces } from "@/server/schema"
@@ -30,6 +30,42 @@ export const dateAccounts = pgTable(
     phoneId: varchar("phone_id", { length: 36 }).references(() => datePhones.id, { onDelete: "set null" }),
     /** Pause: no swipes, no replies and no AI calls until Resume. */
     pausedAt: timestamp("paused_at", { withTimezone: true }),
+    /**
+     * The swipe loop's state, the profile's own so two profiles share one
+     * phone (`drizzle/0112_date_loop_per_profile.sql`, task "facebook/01"
+     * part 2). Start and Stop on the dashboard: the AI swiping and drafting
+     * with the phone in a pocket.
+     */
+    running: boolean("running").notNull().default(false),
+    runningSince: timestamp("running_since", { withTimezone: true }),
+    /** Why the loop last ended, in words, and when. Empty while it runs or before it ever has. */
+    stopWhy: text("stop_why").notNull().default(""),
+    stopWhyAt: timestamp("stop_why_at", { withTimezone: true }),
+    /** Who started the loop running now: the member's Start, or the swiping schedule. */
+    startedBy: varchar("started_by", { length: 10 }).$type<"member" | "schedule">(),
+    /**
+     * The swiping window, by the phone-clock day it opened, that the schedule
+     * has already started or that Stop held. The schedule starts the loop once a
+     * window, and again in it only after a limit's time has passed.
+     */
+    scheduleDay: varchar("schedule_day", { length: 10 }).notNull().default(""),
+    /** A limit ended the loop and allows it again at this moment. The schedule may start it again then, inside its window. */
+    resumeAt: timestamp("resume_at", { withTimezone: true }),
+    /** The app's distance and ages need setting from Date's: a setting changed, or Resume was pressed. */
+    discoveryOwed: boolean("discovery_owed").notNull().default(true),
+    /** A screen of the app's that stops this profile until Resume. Null while nothing is stopping it. */
+    stoppedReason: varchar("stopped_reason", { length: 40 }).$type<StopReason>(),
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    /** The words on the screen that stopped it. */
+    stoppedWords: text("stopped_words").notNull().default(""),
+    stoppedPictureId: varchar("stopped_picture_id", { length: 36 }),
+    /**
+     * Facebook Dating's own break, as the phone last read it back: on, off,
+     * or null before it ever read it (`drizzle/0123_date_app_break.sql`,
+     * part 22). Pause turns it on and Resume turns it off.
+     */
+    appBreak: boolean("app_break"),
+    appBreakAt: timestamp("app_break_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

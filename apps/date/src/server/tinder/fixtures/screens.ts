@@ -275,20 +275,74 @@ export function profileTab(name: string, age: number): BuiltScreen {
   ])
 }
 
+/*
+ * The edit screen and a prompt's own screen, built by hand on 22 Oct 2026
+ * for the walks that change the member's profile, before either was read on
+ * a real phone. Where Tinder keeps Done, how a photo is picked up and where
+ * it lands are guesses; the walks check every change by reading it back.
+ */
+
 export const EDIT_TILES: ScreenNode["bounds"][] = [
   [40, 220, 360, 640],
   [380, 220, 700, 640],
   [720, 220, 1040, 640],
   [40, 660, 360, 1080],
+  [380, 660, 700, 1080],
+  [720, 660, 1040, 1080],
 ]
 
-export function editProfile(photos: number, page: number, pages: string[][]): BuiltScreen {
-  const lines = pages[Math.min(page, pages.length - 1)] ?? []
+export type FakePrompt = { question: string; answer: string }
+
+/** The member's own profile as the edit screen shows it: photos by their drawing, the bio, the prompts and the rest. */
+export type FakeEdit = { photos: number[]; bio: string; prompts: FakePrompt[]; sections: Array<{ heading: string; items: string[] }> }
+
+/** How far one scroll moves the edit screen, the same as a walk's scroll. */
+export const EDIT_SCROLL = 960
+
+/**
+ * Tinder's edit screen, scrolled `scroll` times: Done in the bar at the top,
+ * the photo grid, the About me box, the prompts (each opens its own screen)
+ * and the other sections. A photo is long-pressed and dragged to move it.
+ */
+export function editProfile(edit: FakeEdit, scroll: number): BuiltScreen {
+  const rows: Spec[] = []
+  let y = 1200
+  const row = (spec: Omit<Spec, "bounds">, height = 110) => {
+    rows.push({ ...spec, bounds: [64, y, 1000, y + height - 10] })
+    y += height
+  }
+  row({ text: "About me" })
+  row({ cls: "EditText", edit: true, click: true, text: edit.bio, hint: "Add a bio", tag: "bio" }, 220)
+  if (edit.prompts.length) row({ text: "Prompts" })
+  edit.prompts.forEach((prompt, index) => {
+    rows.push({ cls: "ViewGroup", click: true, bounds: [40, y, 1040, y + 210], tag: `prompt:${index}` })
+    row({ text: prompt.question })
+    row({ text: prompt.answer })
+  })
+  for (const section of edit.sections) {
+    row({ text: section.heading })
+    for (const item of section.items) row({ text: item })
+  }
+  const offset = scroll * EDIT_SCROLL
+  const shifted = rows
+    .map((spec) => ({ ...spec, bounds: [spec.bounds[0], spec.bounds[1] - offset, spec.bounds[2], spec.bounds[3] - offset] }) as Spec)
+    .filter((spec) => spec.bounds[1] >= 200 && spec.bounds[3] <= HEIGHT - 50)
   return build(TINDER, [
     { text: "Edit Info", bounds: [400, 100, 680, 180] },
-    ...(page === 0
-      ? EDIT_TILES.slice(0, photos).map((bounds) => ({ cls: "ImageView", click: true, bounds }) as Spec)
+    { text: "Done", click: true, bounds: [880, 100, 1060, 180], tag: "edit-done" },
+    ...(scroll === 0
+      ? EDIT_TILES.slice(0, edit.photos.length).map((bounds, index) => ({ cls: "ImageView", click: true, bounds, tag: `tile:${index}` }) as Spec)
       : []),
-    ...lines.map((line, index) => ({ text: line, bounds: [64, 1200 + index * 110, 1000, 1290 + index * 110] }) as Spec),
+    ...shifted,
+  ])
+}
+
+/** One prompt's own screen: its question, the box for the answer, and Done. */
+export function promptEditor(question: string, typed: string): BuiltScreen {
+  return build(TINDER, [
+    { desc: "Back", cls: "ImageView", click: true, bounds: [20, 100, 120, 200], tag: "back" },
+    { text: "Done", click: true, bounds: [880, 100, 1060, 180], tag: "prompt-done" },
+    { text: question, bounds: [64, 300, 1000, 400] },
+    { cls: "EditText", edit: true, click: true, text: typed, hint: "Type your answer", bounds: [40, 450, 1040, 900], tag: "prompt-answer" },
   ])
 }

@@ -7,6 +7,7 @@ import {
   PHONE_AWAY_MS,
   PHONE_CHECK_IN_SECONDS,
   PHONE_CLOCK_WINDOW_SECONDS,
+  type DatingApp,
   type PhoneActionKind,
   type PhoneActionStatus,
   type StopReason,
@@ -161,6 +162,53 @@ async function giveToAccount(accountId: string, phoneId: string, db: CustomShell
   await db.update(dateAccounts).set({ phoneId, updatedAt: now }).where(eq(dateAccounts.id, accountId))
 }
 
+/**
+ * A second profile on a phone that is already paired (part 2 of
+ * "facebook/01"): a Facebook profile joins the phone a Tinder profile runs
+ * on, with no new code, because the phone already has its key. Refused for a
+ * phone that is not the member's or not paired, one that already carries a
+ * profile of this app, or one whose other profile's swiping hours share an
+ * hour with this one's (checked by the caller, which knows the settings).
+ */
+export async function shareAPhone(
+  account: { id: string; userId: string; workspaceId: string; app: DatingApp; phoneId: string | null },
+  phoneId: string,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<void> {
+  if (account.phoneId) throw new Error("This profile already has a phone.")
+  const phone = await ownPhone(account.userId, phoneId, db)
+  // A phone of the member's on another site is not offered here, and is refused the same as one that is not theirs.
+  if (phone.workspaceId !== account.workspaceId) throw new Error("That phone does not exist.")
+  if (!phone.keyEncrypted) throw new Error(`${phone.name} is not paired. Pair it with a code first.`)
+  const [same] = await db
+    .select({ name: dateAccounts.name })
+    .from(dateAccounts)
+    .where(and(eq(dateAccounts.phoneId, phone.id), eq(dateAccounts.app, account.app)))
+    .limit(1)
+  if (same) throw new Error(`${phone.name} already runs a profile of this app (${same.name}). A phone carries one of each.`)
+  await giveToAccount(account.id, phone.id, db, now)
+}
+
+/** The member's paired phones another profile could share, for the Phone panel's "Use a phone you already paired". */
+export async function phonesToShare(
+  account: { userId: string; workspaceId: string; app: DatingApp },
+  db: CustomShellDb = defaultDb
+): Promise<Array<{ id: string; name: string }>> {
+  const phones = await db
+    .select({ id: datePhones.id, name: datePhones.name, keyEncrypted: datePhones.keyEncrypted })
+    .from(datePhones)
+    .where(and(eq(datePhones.userId, account.userId), eq(datePhones.workspaceId, account.workspaceId)))
+    .orderBy(asc(datePhones.createdAt))
+  if (!phones.length) return []
+  const taken = await db
+    .select({ phoneId: dateAccounts.phoneId })
+    .from(dateAccounts)
+    .where(and(inArray(dateAccounts.phoneId, phones.map((phone) => phone.id)), eq(dateAccounts.app, account.app)))
+  const busy = new Set(taken.map((row) => row.phoneId))
+  return phones.filter((phone) => phone.keyEncrypted && !busy.has(phone.id)).map((phone) => ({ id: phone.id, name: phone.name }))
+}
+
 export type VerifiedPhone = { id: string; userId: string; workspaceId: string; key: string }
 
 /**
@@ -236,6 +284,9 @@ export type CheckInInput = {
   /** Tinder's version, or empty when it is not installed. */
   tinderVersion: string
   tinderInFront: boolean
+  /** Facebook's version, or empty when it is not installed. Facebook Dating lives inside it. */
+  facebookVersion: string
+  facebookInFront: boolean
   /** The "Date is in control" switch on the phone. */
   phoneSwitchOn: boolean
 }
@@ -262,6 +313,8 @@ export async function checkIn(
       batteryPercent: input.batteryPercent,
       tinderVersion: input.tinderVersion.slice(0, 60),
       tinderInFront: input.tinderInFront,
+      facebookVersion: input.facebookVersion.slice(0, 60),
+      facebookInFront: input.facebookInFront,
       phoneSwitchOn: input.phoneSwitchOn,
       updatedAt: now,
     })
@@ -421,6 +474,7 @@ export function phoneIsHere(lastSeenAt: Date | null, now: Date = new Date()): bo
   return Boolean(lastSeenAt && now.getTime() - lastSeenAt.getTime() < PHONE_AWAY_MS)
 }
 
+/** The phone as the dashboard's Phone panel shows it for one profile: the phone itself, and that profile's loop and stop. */
 export type PhoneView = {
   id: string
   name: string
@@ -436,6 +490,8 @@ export type PhoneView = {
   timeZone: string
   tinderVersion: string
   tinderInFront: boolean
+  facebookVersion: string
+  facebookInFront: boolean
   inControl: boolean
   phoneSwitchOn: boolean
   running: boolean
@@ -450,7 +506,13 @@ export type PhoneView = {
   stoppedPictureId: string | null
 }
 
-export function phoneView(row: typeof datePhones.$inferSelect, now: Date = new Date()): PhoneView {
+/** The open profile's part of the Phone panel: its loop and its stop. */
+export type ProfileLoop = Pick<
+  typeof dateAccounts.$inferSelect,
+  "running" | "runningSince" | "startedBy" | "stopWhy" | "stopWhyAt" | "stoppedReason" | "stoppedAt" | "stoppedWords" | "stoppedPictureId"
+>
+
+export function phoneView(row: typeof datePhones.$inferSelect, loop: ProfileLoop, now: Date = new Date()): PhoneView {
   return {
     id: row.id,
     name: row.name,
@@ -465,17 +527,19 @@ export function phoneView(row: typeof datePhones.$inferSelect, now: Date = new D
     timeZone: row.timeZone,
     tinderVersion: row.tinderVersion,
     tinderInFront: row.tinderInFront,
+    facebookVersion: row.facebookVersion,
+    facebookInFront: row.facebookInFront,
     inControl: row.inControl,
     phoneSwitchOn: row.phoneSwitchOn,
-    running: row.running,
-    runningSince: row.runningSince,
-    startedBy: row.startedBy ?? null,
-    stopWhy: row.stopWhy,
-    stopWhyAt: row.stopWhyAt,
-    stoppedReason: row.stoppedReason,
-    stoppedAt: row.stoppedAt,
-    stoppedWords: row.stoppedWords,
-    stoppedPictureId: row.stoppedPictureId,
+    running: loop.running,
+    runningSince: loop.runningSince,
+    startedBy: loop.startedBy ?? null,
+    stopWhy: loop.stopWhy,
+    stopWhyAt: loop.stopWhyAt,
+    stoppedReason: loop.stoppedReason,
+    stoppedAt: loop.stoppedAt,
+    stoppedWords: loop.stoppedWords,
+    stoppedPictureId: loop.stoppedPictureId,
   }
 }
 
@@ -507,10 +571,19 @@ export async function cancelPhoneActions(
     .where(and(eq(datePhoneActions.phoneId, phoneId), inArray(datePhoneActions.status, ["waiting", "running"])))
 }
 
+/** Every profile on a phone stops its loop, with the reason, when the phone itself goes or is switched off. */
+async function stopProfilesOnPhone(phoneId: string, why: string, db: CustomShellDb, now: Date): Promise<void> {
+  await db
+    .update(dateAccounts)
+    .set({ running: false, stopWhy: why, stopWhyAt: now, updatedAt: now })
+    .where(and(eq(dateAccounts.phoneId, phoneId), eq(dateAccounts.running, true)))
+}
+
 /**
  * Cancels the phone's key at once. Every message it sends from now on is
- * refused and every action waiting for it is cancelled. The phone's record,
- * its history and what it read stay; Pair again gives it a new key.
+ * refused and every action waiting for it is cancelled, and every profile on
+ * it stops. The phone's record, its history and what it read stay; Pair
+ * again gives it a new key.
  */
 export async function unpairPhone(
   userId: string,
@@ -520,10 +593,11 @@ export async function unpairPhone(
 ): Promise<void> {
   const [phone] = await db
     .update(datePhones)
-    .set({ keyEncrypted: null, running: false, stopWhy: "The phone was unpaired.", stopWhyAt: now, updatedAt: now })
+    .set({ keyEncrypted: null, updatedAt: now })
     .where(and(eq(datePhones.id, phoneId), eq(datePhones.userId, userId)))
     .returning({ id: datePhones.id })
   if (!phone) throw new Error("That phone does not exist.")
+  await stopProfilesOnPhone(phoneId, "The phone was unpaired.", db, now)
   await cancelPhoneActions(phoneId, "The phone was unpaired.", db, now)
 }
 
@@ -541,15 +615,13 @@ export async function setInControl(
 ): Promise<void> {
   const [phone] = await db
     .update(datePhones)
-    .set(
-      on
-        ? { inControl: true, updatedAt: now }
-        : { inControl: false, running: false, stopWhy: "Date was switched off in the dashboard's Phone panel.", stopWhyAt: now, updatedAt: now }
-    )
+    .set({ inControl: on, updatedAt: now })
     .where(and(eq(datePhones.id, phoneId), eq(datePhones.userId, userId)))
     .returning({ id: datePhones.id })
   if (!phone) throw new Error("That phone does not exist.")
-  if (!on) await cancelPhoneActions(phoneId, "Date was switched off in the dashboard's Phone panel.", db, now)
+  if (on) return
+  await stopProfilesOnPhone(phoneId, "Date was switched off in the dashboard's Phone panel.", db, now)
+  await cancelPhoneActions(phoneId, "Date was switched off in the dashboard's Phone panel.", db, now)
 }
 
 export type PhoneActionView = {

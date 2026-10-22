@@ -1,14 +1,15 @@
 import { eq } from "drizzle-orm"
 
 import { swipedWord } from "@/lib/dating/options"
-import { cropScreenshot, keepPicture, looksSame, pictureBytes } from "@/server/phone/pictures"
+import { averageHash, cropScreenshot, keepPicture, looksSame, pictureBytes } from "@/server/phone/pictures"
 import { sha256Hex } from "@/server/phone/signing"
 
+import { onDiscover } from "../app-screens"
 import { allWords, findNode, screenTexts } from "../screen"
 import { NOBODY_NEW, TINDER_CHROME_LINES, TINDER_WORDS } from "../screen-words"
 import { dateProfiles } from "../schema"
 import { recordMatchFromCard, recordSwipe, saveCard } from "../store"
-import { onDiscover, WalkError, type Seen, type WalkContext, type WalkKit } from "./kit"
+import { WalkError, type Seen, type WalkContext, type WalkKit } from "./kit"
 import { parseProfileLines, readCardFace, type CardFace } from "./parse"
 
 /** Tinder shows nine photos at most. */
@@ -18,7 +19,7 @@ const MAX_PHOTOS = 9
 const MAX_PROFILE_SCROLLS = 6
 
 async function toDiscover(kit: WalkKit): Promise<Seen | { nobody: string }> {
-  const opened = await kit.openTinder()
+  const opened = await kit.openApp()
   const nobody = NOBODY_NEW.find((pattern) => pattern.test(allWords(opened.screen)))
   if (nobody) return { nobody: allWords(opened.screen).slice(0, 300) }
   const seen = await kit.goToTab(opened, TINDER_WORDS.tabDiscover, onDiscover, "Discover")
@@ -80,6 +81,7 @@ export async function readCard(ctx: WalkContext, kit: WalkKit): Promise<Record<s
       texts,
       photoIds,
       firstPhotoSha: sha256Hex(photos[0]),
+      faceHash: await averageHash(photos[0]),
     },
     ctx.db,
     ctx.now()
@@ -185,7 +187,7 @@ export async function swipe(
   let after: Seen
   if (decision === "super") {
     const star = kit.find(seen, TINDER_WORDS.superLike)
-    after = star ? await kit.tap(star, 1_200) : await kit.tap(face.like, 1_200)
+    after = star ? await kit.commit(star, 1_200) : await kit.commit(face.like, 1_200)
     if (!star) done = "like"
     if (star && kit.has(after, TINDER_WORDS.superLikesGone)) {
       superLikesGone = true
@@ -195,10 +197,10 @@ export async function swipe(
         throw new WalkError(`After Tinder's Super Like offer, the card in front is not ${profile.name}. Nothing was bought or swiped.`, after.shot)
       }
       done = "like"
-      after = await kit.tap(again.like, 1_200)
+      after = await kit.commit(again.like, 1_200)
     }
   } else {
-    after = await kit.tap(decision === "like" ? face.like : face.pass, 1_200)
+    after = await kit.commit(decision === "like" ? face.like : face.pass, 1_200)
   }
   let matchId: string | null = null
   if (done !== "pass" && kit.has(after, TINDER_WORDS.matchScreen)) {

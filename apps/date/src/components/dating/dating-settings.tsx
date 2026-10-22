@@ -20,7 +20,7 @@ import { renameProfile } from "@/lib/api/dating/profiles"
 import { disconnectGoogleCalendar, loadGoogleCalendar, type CalendarConnection } from "@/lib/api/dating/chats"
 import { loadDatingSettings, saveDatingSettingsNow } from "@/lib/api/dating/settings"
 import { datingErrorMessage } from "@/lib/dating/errors"
-import { DATING_APP_WORDS, PROFILE_NAME_MAX } from "@/lib/dating/options"
+import { DATING_APP_WORDS, FACEBOOK_PACE, PROFILE_NAME_MAX } from "@/lib/dating/options"
 import {
   DATING_STYLES,
   DATING_STYLE_WORDS,
@@ -57,6 +57,7 @@ const inBrowser = () => typeof window !== "undefined"
 
 function DatingSettingsTab({ profile, onRenamed }: { profile: DatingDashboard["profile"]; onRenamed: () => void }) {
   const accountId = profile.id
+  const facebook = profile.app === "facebook"
   const [values, setValues] = React.useState<DatingSettings | null>(() => (inBrowser() && held?.accountId === accountId ? held.values : null))
   const [error, setError] = React.useState<string | null>(null)
   const [reloads, setReloads] = React.useState(0)
@@ -223,7 +224,7 @@ function DatingSettingsTab({ profile, onRenamed }: { profile: DatingDashboard["p
         <NumberField
           id="date-max-distance"
           label="Furthest away, in km"
-          hint="The phone copies this and your ages into Tinder's own settings, so Tinder stops showing cards Date would pass anyway."
+          hint={`The phone copies this and your ages into ${DATING_APP_WORDS[profile.app].name}'s own settings, so it stops showing cards Date would pass anyway.`}
           value={values.maxDistanceKm}
           min={2}
           max={160}
@@ -310,18 +311,30 @@ function DatingSettingsTab({ profile, onRenamed }: { profile: DatingDashboard["p
       <CollapsibleSettingsCard
         storageId="date-settings-limits"
         title="Limits"
-        description="What keeps the account looking like one person with a phone. Swipes are also kept 4 to 9 seconds apart."
+        description={
+          facebook
+            ? `What keeps the account looking like one person with a phone. On Facebook Dating at most ${FACEBOOK_PACE.swipesPerDay} swipes a day and ${FACEBOOK_PACE.swipesPerHour} an hour, ${FACEBOOK_PACE.gapMs.min / 1000} to ${FACEBOOK_PACE.gapMs.max / 1000} seconds apart, because a ban there loses the whole Facebook account.`
+            : "What keeps the account looking like one person with a phone. Swipes are also kept 4 to 9 seconds apart."
+        }
         contentClassName="grid gap-4"
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <NumberField id="date-swipes-hour" label="Swipes an hour" value={values.swipesPerHour} min={1} max={300} onChange={(value) => set("swipesPerHour", value)} onCommit={commit} />
+          <NumberField
+            id="date-swipes-hour"
+            label="Swipes an hour"
+            value={values.swipesPerHour}
+            min={1}
+            max={facebook ? FACEBOOK_PACE.swipesPerHour : 300}
+            onChange={(value) => set("swipesPerHour", value)}
+            onCommit={commit}
+          />
           <NumberField
             id="date-swipes-day"
             label="Swipes a day"
             hint="Counted from midnight on the phone's own clock. At this number swiping stops until midnight."
             value={values.swipesPerDay}
             min={1}
-            max={2_000}
+            max={facebook ? FACEBOOK_PACE.swipesPerDay : 2_000}
             onChange={(value) => set("swipesPerDay", value)}
             onCommit={commit}
           />

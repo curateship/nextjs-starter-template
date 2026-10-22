@@ -1,12 +1,22 @@
 import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm"
 
-import type { MessageSender, OpenerStyle, SwipeDecision } from "@/lib/dating/options"
+import type { CardSource, MessageSender, OpenerStyle, SwipeDecision } from "@/lib/dating/options"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { hashDistance } from "@/server/phone/pictures"
 import { sha256Hex } from "@/server/phone/signing"
 
-import { dateMatches, dateMessages, dateOwnProfiles, dateProfiles, type ProfileHandles, type ProfileSection } from "./schema"
+import {
+  dateMatches,
+  dateMessages,
+  dateOwnProfiles,
+  datePhotoTests,
+  dateProfiles,
+  type OwnProfileChange,
+  type ProfileHandles,
+  type ProfileSection,
+  type SeenOutcome,
+} from "./schema"
 import type { Bubble } from "./walks/parse"
 
 /**
@@ -29,6 +39,67 @@ export type CardRecord = {
   photoIds: string[]
   /** The first photo's hash, part of telling the same person read twice apart from somebody new. */
   firstPhotoSha: string
+  /** The first photo's look (`averageHash`), to find the same person on the member's other profiles. Empty when no photo was kept. */
+  faceHash: string
+  /** Facebook Dating's extras (task "facebook/01"). Left out on Tinder. */
+  source?: CardSource
+  theirComment?: string
+  theirCommentOn?: string
+  mutualFriends?: number | null
+  mutualNames?: string[]
+  sharedGroups?: string[]
+  instagramPhotoIds?: string[]
+}
+
+/** How many of 64 bits two pictures of one person may differ by: a chat picture, or a first photo on two profiles. */
+const SAME_FACE_BITS = 12
+
+/** A name as it is compared: no accents, no capitals, no spaces round it. */
+export function plainName(name: string): string {
+  return name.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase()
+}
+
+/**
+ * The same person on another of the member's profiles (part 15 of
+ * "facebook/01", Tyler's "Mark and follow"): a card of the same name whose
+ * first photo looks the same, and what happened there. A chat with messages
+ * outranks a match, a match a like, a like a pass. Null when nobody matches.
+ */
+async function seenElsewhere(
+  owner: Pick<RecordOwner, "userId" | "workspaceId" | "accountId">,
+  card: { name: string; faceHash: string },
+  db: CustomShellDb = defaultDb
+): Promise<{ accountId: string; outcome: SeenOutcome } | null> {
+  if (!card.faceHash) return null
+  const name = plainName(card.name)
+  const others = await db
+    .select({ id: dateProfiles.id, accountId: dateProfiles.accountId, name: dateProfiles.name, faceHash: dateProfiles.faceHash, swipe: dateProfiles.swipe })
+    .from(dateProfiles)
+    .where(
+      and(
+        eq(dateProfiles.userId, owner.userId),
+        eq(dateProfiles.workspaceId, owner.workspaceId),
+        sql`${dateProfiles.accountId} <> ${owner.accountId}`,
+        sql`${dateProfiles.faceHash} <> ''`,
+        // Narrowed by name in the database; accents and spacing are compared below.
+        sql`lower(trim(${dateProfiles.name})) = ${card.name.trim().toLowerCase()}`,
+        eq(dateProfiles.sample, false)
+      )
+    )
+  const same = others.filter((other) => plainName(other.name) === name && hashDistance(other.faceHash, card.faceHash) <= SAME_FACE_BITS)
+  if (!same.length) return null
+  const chats = await db
+    .select({ profileId: dateMatches.profileId, messages: sql<number>`(${dateMatches.messagesFromThem} + ${dateMatches.messagesFromUs})::int` })
+    .from(dateMatches)
+    .where(inArray(dateMatches.profileId, same.map((other) => other.id)))
+  const rank: Record<SeenOutcome, number> = { passed: 1, liked: 2, matched: 3, chatted: 4 }
+  let best: { accountId: string; outcome: SeenOutcome } | null = null
+  for (const other of same) {
+    const chat = chats.find((row) => row.profileId === other.id)
+    const outcome: SeenOutcome | null = chat ? (chat.messages > 0 ? "chatted" : "matched") : other.swipe === "pass" ? "passed" : other.swipe === "none" ? null : "liked"
+    if (outcome && (!best || rank[outcome] > rank[best.outcome])) best = { accountId: other.accountId, outcome }
+  }
+  return best
 }
 
 /** Whose a record read off the phone is: the member, the site, the phone that read it and the profile it belongs to. */
@@ -46,6 +117,7 @@ export async function saveCard(
   now: Date = new Date()
 ): Promise<string> {
   const fingerprint = sha256Hex(`${card.name.toLowerCase()}|${card.age ?? ""}|${card.firstPhotoSha}`)
+  const seen = await seenElsewhere(owner, card, db)
   const values = {
     name: card.name.slice(0, 120),
     age: card.age,
@@ -60,6 +132,15 @@ export async function saveCard(
     texts: card.texts,
     photoIds: card.photoIds,
     fingerprint,
+    faceHash: card.faceHash,
+    ...(card.source ? { source: card.source } : {}),
+    ...(card.theirComment !== undefined ? { theirComment: card.theirComment, theirCommentOn: card.theirCommentOn ?? "" } : {}),
+    ...(card.mutualFriends !== undefined ? { mutualFriends: card.mutualFriends } : {}),
+    ...(card.mutualNames ? { mutualNames: card.mutualNames } : {}),
+    ...(card.sharedGroups ? { sharedGroups: card.sharedGroups } : {}),
+    ...(card.instagramPhotoIds ? { instagramPhotoIds: card.instagramPhotoIds } : {}),
+    seenOnAccountId: seen?.accountId ?? null,
+    seenOnOutcome: seen?.outcome ?? null,
     readAt: now,
     updatedAt: now,
   }
@@ -123,9 +204,6 @@ export async function recordMatchFromCard(
 }
 
 export type ListedChat = { name: string; preview: string; avatarHash: string; photoId: string | null; isNew: boolean }
-
-/** How many of 64 bits two of one person's chat pictures may differ by. */
-const SAME_FACE_BITS = 12
 
 /**
  * The chat list as read: each person is matched to the match already kept by
@@ -215,6 +293,18 @@ export async function saveChatList(
   return { added, toRead, theyUnmatched }
 }
 
+/**
+ * The app said in the chat that they have gone, such as Facebook Dating's
+ * "no longer available" (part 18 of "facebook/01"): they unmatched, marked
+ * at once. The two-read rule below stays as the backup.
+ */
+export async function markTheyLeft(matchId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
+  await db
+    .update(dateMatches)
+    .set({ ...NO_DRAFT, unmatchedAt: now, unmatchedBy: "them", updatedAt: now })
+    .where(and(eq(dateMatches.id, matchId), isNull(dateMatches.unmatchedAt)))
+}
+
 /** Complete reads of the chat list in a row that must miss a chat before it counts as unmatched by them. */
 const MISSING_READS_TO_UNMATCH = 2
 
@@ -298,11 +388,12 @@ export async function saveConversation(
   // Ours that never showed up after the first one found did not go out. A
   // read that found no messages at all settles nothing: an empty screen is
   // more likely a screen Date could not read, and calling a message that did
-  // go out "not sent" would let it be sent again.
+  // go out "not sent" would let it be sent again. A message still waiting for
+  // its send walk was never typed, so a read that comes first leaves it alone.
   const after = kept.filter((message, index) => !placed.has(message.id) && !before.includes(message) && index >= Math.max(firstFound, 0))
   for (const message of after) {
-    if (bubbles.length && (message.status === "sending" || message.status === "unsure")) {
-      settled.set(message.id, { status: "failed", error: "It is not in the conversation on Tinder, so it was not sent." })
+    if (bubbles.length && message.status === "unsure") {
+      settled.set(message.id, { status: "failed", error: "It is not in the conversation on the app, so it was not sent." })
     }
   }
   const final: Array<{ id: string; isNew?: Bubble }> = [
@@ -323,6 +414,7 @@ export async function saveConversation(
         matchId,
         direction: entry.isNew.direction,
         sentBy: entry.isNew.direction === "in" ? "them" : "member",
+        kind: entry.isNew.kind ?? "text",
         text: entry.isNew.text,
         hash: messageHash(entry.isNew.text),
         status: "sent",
@@ -471,9 +563,11 @@ export async function createOutgoingMessage(
     position: (last?.position ?? 0) + 1,
     createdAt: now,
   })
+  // A call they asked for is the member's to answer; once the member writes, the AI may draft again (part 19 of "facebook/01").
+  const answeredCall = sentBy === "member" && match.flaggedReason === "asked_for_call"
   await db
     .update(dateMatches)
-    .set({ ...NO_DRAFT, updatedAt: now })
+    .set({ ...NO_DRAFT, ...(answeredCall ? { flaggedReason: null } : {}), updatedAt: now })
     .where(eq(dateMatches.id, matchId))
   return id
 }
@@ -503,16 +597,76 @@ export async function settleMessage(
 
 export type OwnProfileRecord = { name: string; photoIds: string[]; bio: string; sections: ProfileSection[]; texts: string[] }
 
-/** The member's own profile as last read, one per profile. The AI's review of the old one goes with it. */
+/**
+ * The member's own profile as last read, one per profile. A read the member
+ * asked for drops the AI's review of the old one, so the AI looks again. A
+ * read that checks a change the phone just made keeps it (`keepReview`), so
+ * the card can say the suggestion was applied.
+ */
 export async function saveOwnProfile(
   owner: RecordOwner,
   profile: OwnProfileRecord,
   db: CustomShellDb = defaultDb,
-  now: Date = new Date()
+  now: Date = new Date(),
+  keepReview = false
 ): Promise<void> {
-  const values = { ...profile, readAt: now, review: null, reviewMadeAt: null, aiStartedAt: null }
+  const values = { ...profile, readAt: now, ...(keepReview ? {} : { review: null, reviewMadeAt: null, aiStartedAt: null }) }
   await db
     .insert(dateOwnProfiles)
     .values({ ...owner, ...values })
     .onConflictDoUpdate({ target: dateOwnProfiles.accountId, set: { ...values, phoneId: owner.phoneId } })
+}
+
+export async function readOwnRow(accountId: string, db: CustomShellDb = defaultDb) {
+  const [own] = await db.select().from(dateOwnProfiles).where(eq(dateOwnProfiles.accountId, accountId)).limit(1)
+  return own ?? null
+}
+
+/**
+ * What an Apply is about to replace, kept just before the phone saves on
+ * Tinder, so Undo is there even when something fails after the save.
+ */
+export async function keepReplaced(accountId: string, replaced: OwnProfileChange, db: CustomShellDb = defaultDb): Promise<void> {
+  await db.update(dateOwnProfiles).set({ before: replaced }).where(eq(dateOwnProfiles.accountId, accountId))
+}
+
+/**
+ * The phone made a change and read it back. An Apply records the day; an
+ * Undo forgets it and what the Apply replaced, so Apply is offered again.
+ */
+export async function markApplied(accountId: string, key: string, undo: boolean, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
+  await db
+    .update(dateOwnProfiles)
+    .set(
+      undo
+        ? { before: null, appliedAt: sql`${dateOwnProfiles.appliedAt} - ${key}::text` }
+        : { appliedAt: sql`${dateOwnProfiles.appliedAt} || jsonb_build_object(${key}::text, ${now.toISOString()}::text)` }
+    )
+    .where(eq(dateOwnProfiles.accountId, accountId))
+}
+
+/** What a first-photo test asked the phone to do with the photo order. */
+export type PhotoTestStep = "week" | "winner" | "restore"
+
+/**
+ * The phone read a first-photo test's move back: a week's photo is first and
+ * its week begins, the winner is first, or the order from before the test is
+ * back after Stop.
+ */
+export async function photoTestMoved(
+  accountId: string,
+  rowId: string,
+  step: PhotoTestStep,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<void> {
+  const mine = and(eq(datePhotoTests.id, rowId), eq(datePhotoTests.accountId, accountId))
+  if (step === "week") {
+    await db.update(datePhotoTests).set({ startedAt: now, moveError: "" }).where(and(mine, isNull(datePhotoTests.startedAt), isNull(datePhotoTests.stoppedAt)))
+  } else if (step === "winner") {
+    await db.update(datePhotoTests).set({ putFirstAt: now, moveError: "" }).where(and(mine, isNull(datePhotoTests.stoppedAt)))
+  } else {
+    const [row] = await db.select({ testId: datePhotoTests.testId }).from(datePhotoTests).where(mine).limit(1)
+    if (row) await db.update(datePhotoTests).set({ restoredAt: now, moveError: "" }).where(eq(datePhotoTests.testId, row.testId))
+  }
 }

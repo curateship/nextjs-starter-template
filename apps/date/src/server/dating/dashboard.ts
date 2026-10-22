@@ -1,13 +1,17 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm"
 
 import { chatTrend, TREND_NEEDS_FROM_THEM, type TrendMessage, type TrendRead } from "@/lib/dating/chat-trend"
 import { buildLeads, type LeadListItem } from "@/lib/dating/leads"
 import {
+  DATING_APP_WORDS,
   isLike,
+  SECOND_LOOK_POINTS,
   type CardFlag,
+  type CardSource,
   type DatingApp,
   type DraftKind,
   type MatchFlag,
+  type MessageKind,
   type MessageSender,
   type MessageStatus,
   type OpenerStyle,
@@ -18,7 +22,7 @@ import {
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { phoneView, type PhoneView } from "@/server/phone/link"
 import { datePhones } from "@/server/phone/schema"
-import { hourCounts } from "@/server/tinder/limits"
+import { hourCounts, swipeLimits } from "@/server/tinder/limits"
 import {
   dateMatches,
   dateMessages,
@@ -26,14 +30,17 @@ import {
   dateProfiles,
   dateWalks,
   type MatchFact,
-  type OwnProfileReview,
   type ProfileHandles,
   type ProfileSection,
+  type SeenOutcome,
 } from "@/server/tinder/schema"
 
 import { listProfiles, type DatingAccount, type ProfileListItem } from "./accounts"
-import { overruledCards } from "./ai"
+import { ALWAYS_PASS, NO_LIKE_COMMENT, overruledCards } from "./ai"
+import { compareProfiles, type Comparison } from "./compare"
+import { dateAccounts } from "./schema"
 import { DATING_MODEL } from "./model"
+import { ownProfileView, type OwnProfileView } from "./own-profile"
 import { readDatingSettings } from "./settings"
 import { accountOwner, monthMatchCost, type MatchCost } from "./spend"
 
@@ -70,6 +77,12 @@ export type DiscoveryView =
   | { state: "never" | "owed" | "setting" }
   | { state: "set"; distance: string; ageMin: number; ageMax: number; at: Date | null }
   | { state: "failed"; error: string; at: Date | null }
+
+/** A card the AI passed just under the like line, on Facebook Dating's Second Look (part 14 of "facebook/01"). */
+export type SecondLookItem = { id: string; name: string; age: number | null; photoId: string | null; score: number; swipedAt: Date | null; sample: boolean }
+
+/** Second Look keeps passes this many days. */
+const SECOND_LOOK_DAYS = 14
 
 export type DatingDashboard = {
   /** The open profile. */
@@ -111,17 +124,12 @@ export type DatingDashboard = {
   /** Of the member's last 20 sends that started as the AI's draft, how many went unchanged. */
   drafts: { unchanged: number; of: number }
   openers: OpenerTally[]
+  /** Facebook Dating only: passes just under the like line, for the member to like after all. */
+  secondLook: SecondLookItem[]
+  /** Every profile of the member's side by side this month, and whether to move hours (parts 23 and 24). */
+  compare: Comparison
 }
 
-export type OwnProfileView = {
-  name: string
-  photoIds: string[]
-  bio: string
-  readAt: Date
-  review: OwnProfileReview | null
-  reviewMadeAt: Date | null
-  aiError: string
-}
 
 /** The calendar day a moment falls on in a time zone, as "2099-01-01". */
 function dayOf(at: Date, timeZone: string): string {
@@ -153,9 +161,9 @@ export async function loadDashboard(account: DatingAccount, db: CustomShellDb = 
     monthMatchCost(accountOwner(account), db, now),
     listProfiles(account.userId, account.workspaceId, db, now),
   ])
-  const phone = phoneRows[0] ? phoneView(phoneRows[0], now) : null
+  const phone = phoneRows[0] ? phoneView(phoneRows[0], account, now) : null
 
-  const [profileRows, matchRows, ownRow, walkRows, hour] = await Promise.all([
+  const [profileRows, matchRows, ownRow, walkRows, hour, secondLook, compare] = await Promise.all([
     db.select().from(dateProfiles).where(eq(dateProfiles.accountId, account.id)).orderBy(desc(dateProfiles.readAt)).limit(300),
     db
       .select()
@@ -165,7 +173,9 @@ export async function loadDashboard(account: DatingAccount, db: CustomShellDb = 
       .limit(300),
     db.select().from(dateOwnProfiles).where(eq(dateOwnProfiles.accountId, account.id)).limit(1),
     db.select().from(dateWalks).where(eq(dateWalks.accountId, account.id)).orderBy(desc(dateWalks.createdAt)).limit(20),
-    phone ? hourCounts(phone, db, now) : Promise.resolve({ swipes: 0, messages: 0, swipesToday: 0 }),
+    phone ? hourCounts({ accountId: account.id, timeZone: phone.timeZone }, db, now) : Promise.resolve({ swipes: 0, messages: 0, swipesToday: 0 }),
+    account.app === "facebook" ? secondLookList(account.id, settings.likeAbove, db, now) : Promise.resolve([]),
+    compareProfiles(account.userId, account.workspaceId, db, now),
   ])
 
   // Each match's last line: the newest message kept, or what the chat list showed.
@@ -177,11 +187,13 @@ export async function loadDashboard(account: DatingAccount, db: CustomShellDb = 
     openerTally(account.id, db),
     overruledCards(account.id, settings, db),
     scoreBands(account.id, db),
-    phone ? discoveryView(phone.id, db) : Promise.resolve<DiscoveryView>({ state: "never" }),
+    phone ? discoveryView(account, db) : Promise.resolve<DiscoveryView>({ state: "never" }),
   ])
   const lastLines = new Map(newest.map((message) => [message.matchId, message.text]))
 
   const timeZone = phone?.timeZone ?? ""
+  // What the limits really are: on Facebook Dating never over its pace, whatever the settings say.
+  const limits = swipeLimits(account.app, settings)
   return {
     profile: { id: account.id, name: account.name, app: account.app, paused: account.pausedAt !== null },
     profiles,
@@ -189,13 +201,13 @@ export async function loadDashboard(account: DatingAccount, db: CustomShellDb = 
     settings: {
       likeAbove: settings.likeAbove,
       automate: settings.automate,
-      swipesPerHour: settings.swipesPerHour,
+      swipesPerHour: limits.perHour,
       messagesPerHour: settings.messagesPerHour,
       spendCapDollars: settings.spendCapDollars,
       quietStart: settings.quietStart,
       quietEnd: settings.quietEnd,
       timeZone,
-      swipesPerDay: settings.swipesPerDay,
+      swipesPerDay: limits.perDay,
       scheduleStart: settings.scheduleStart,
       scheduleEnd: settings.scheduleEnd,
       maxDistanceKm: settings.maxDistanceKm,
@@ -225,6 +237,8 @@ export async function loadDashboard(account: DatingAccount, db: CustomShellDb = 
         swipedAt: row.swipedAt,
         readAt: row.readAt,
         sample: row.sample,
+        source: row.source,
+        yourCall: row.swipe === "none" && (row.seenOnOutcome === "matched" || row.seenOnOutcome === "chatted"),
       })),
       matchRows.map((row) => ({
         id: row.id,
@@ -253,19 +267,48 @@ export async function loadDashboard(account: DatingAccount, db: CustomShellDb = 
     ),
     drafts,
     openers,
-    own: ownRow[0]
-      ? {
-          name: ownRow[0].name,
-          photoIds: ownRow[0].photoIds,
-          bio: ownRow[0].bio,
-          readAt: ownRow[0].readAt,
-          review: ownRow[0].review,
-          reviewMadeAt: ownRow[0].reviewMadeAt,
-          aiError: ownRow[0].aiError,
-        }
-      : null,
+    own: ownRow[0] ? await ownProfileView(ownRow[0], db, now) : null,
     tally: await dailyTally(account.id, timeZone, db, now),
+    secondLook,
+    compare,
   }
+}
+
+/**
+ * Which cards are on Second Look (part 14, Tyler's "You decide"): passed by
+ * the AI this profile's like line by 5 points or fewer in the last two
+ * weeks, never one the member passed or already took back, and never one a
+ * rule passes whatever the score (a dealbreaker, People I know, 3 or more
+ * mutual friends, passed on another profile) or the AI would not read. The
+ * list and its Like button both ask this, so they never disagree.
+ */
+export function onSecondLook(accountId: string, likeAbove: number, now: Date) {
+  const neverLiked = sql.join(
+    [...ALWAYS_PASS, "ai_declined"].map((flag) => sql`${flag}`),
+    sql`, `
+  )
+  return and(
+    eq(dateProfiles.accountId, accountId),
+    eq(dateProfiles.swipe, "pass"),
+    eq(dateProfiles.swipedBy, "ai"),
+    isNull(dateProfiles.secondLookAt),
+    isNull(dateProfiles.photosForgottenAt),
+    gte(dateProfiles.aiScore, likeAbove - SECOND_LOOK_POINTS),
+    lt(dateProfiles.aiScore, likeAbove),
+    gte(dateProfiles.swipedAt, new Date(now.getTime() - SECOND_LOOK_DAYS * 86_400_000)),
+    sql`not (${dateProfiles.aiFlags} ?| array[${neverLiked}]::text[])`
+  )
+}
+
+/** Second Look's cards, best first. Nothing is liked until the member presses Like. */
+export async function secondLookList(accountId: string, likeAbove: number, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<SecondLookItem[]> {
+  const rows = await db
+    .select()
+    .from(dateProfiles)
+    .where(onSecondLook(accountId, likeAbove, now))
+    .orderBy(desc(dateProfiles.aiScore), desc(dateProfiles.swipedAt))
+    .limit(20)
+  return rows.map((row) => ({ id: row.id, name: row.name, age: row.age, photoId: row.photoIds[0] ?? null, score: row.aiScore as number, swipedAt: row.swipedAt, sample: row.sample }))
 }
 
 /**
@@ -300,14 +343,16 @@ export async function scoreBands(accountId: string, db: CustomShellDb = defaultD
   return rows.map((row) => ({ from: row.from, to: row.from === 90 ? 100 : row.from + 9, likes: row.likes, matches: row.matches, replied: row.replied }))
 }
 
-/** Where Tinder's own distance and ages stand on this phone. */
-async function discoveryView(phoneId: string, db: CustomShellDb): Promise<DiscoveryView> {
-  const [[phone], [last]] = await Promise.all([
-    db.select({ owed: datePhones.discoveryOwed }).from(datePhones).where(eq(datePhones.id, phoneId)).limit(1),
-    db.select().from(dateWalks).where(and(eq(dateWalks.phoneId, phoneId), eq(dateWalks.kind, "set-discovery"))).orderBy(desc(dateWalks.createdAt)).limit(1),
-  ])
+/** Where the app's own distance and ages stand for this profile. */
+async function discoveryView(account: DatingAccount, db: CustomShellDb): Promise<DiscoveryView> {
+  const [last] = await db
+    .select()
+    .from(dateWalks)
+    .where(and(eq(dateWalks.accountId, account.id), eq(dateWalks.kind, "set-discovery")))
+    .orderBy(desc(dateWalks.createdAt))
+    .limit(1)
   if (last?.status === "waiting" || last?.status === "running") return { state: "setting" }
-  if (phone?.owed) return { state: "owed" }
+  if (account.discoveryOwed) return { state: "owed" }
   if (!last || last.status === "cancelled") return { state: "never" }
   if (last.status === "failed") return { state: "failed", error: last.error, at: last.finishedAt }
   const result = last.result ?? {}
@@ -466,6 +511,23 @@ export async function dailyTally(
 
 export type ProfileDetail = {
   id: string
+  /** Where the card came from: the cards in front, Facebook's Likes you list, or its weekly match. */
+  source: CardSource
+  /** What they wrote with their like, and what it was on (part 16). */
+  theirComment: string
+  theirCommentOn: string
+  /** The comment the AI wrote for our like and what it is about (part 10). Empty when none. */
+  likeComment: string
+  likeCommentOn: string
+  /** Facebook's mutual friends and the groups both are in (part 11). */
+  mutualFriends: number | null
+  mutualNames: string[]
+  sharedGroups: string[]
+  instagramPhotoIds: string[]
+  /** Liked from Second Look after the AI passed it. */
+  secondLookAt: Date | null
+  /** The same person on another of the member's profiles, and what happened there (part 15). */
+  seenOn: { profileName: string; app: DatingApp | null; outcome: SeenOutcome } | null
   name: string
   age: number | null
   distance: string
@@ -506,8 +568,22 @@ export async function loadProfileDetail(userId: string, profileId: string, db: C
         .where(and(eq(dateWalks.phoneId, row.phoneId), inArray(dateWalks.status, ["waiting", "running"]), inArray(dateWalks.kind, ["like", "super-like", "pass"])))
     : []
   const swipeWalk = pending.find((walk) => walk.input.profileId === row.id)
+  const [seenOn] = row.seenOnOutcome && row.seenOnAccountId ? await db.select({ name: dateAccounts.name, app: dateAccounts.app }).from(dateAccounts).where(eq(dateAccounts.id, row.seenOnAccountId)).limit(1) : []
   return {
     id: row.id,
+    source: row.source,
+    theirComment: row.theirComment,
+    theirCommentOn: row.theirCommentOn,
+    likeComment: row.likeComment,
+    likeCommentOn: row.likeCommentOn === NO_LIKE_COMMENT ? "" : row.likeCommentOn,
+    mutualFriends: row.mutualFriends,
+    mutualNames: row.mutualNames,
+    sharedGroups: row.sharedGroups,
+    instagramPhotoIds: row.instagramPhotoIds,
+    secondLookAt: row.secondLookAt,
+    seenOn: row.seenOnOutcome
+      ? { profileName: seenOn ? `${DATING_APP_WORDS[seenOn.app].name} (${seenOn.name})` : "another profile", app: seenOn?.app ?? null, outcome: row.seenOnOutcome }
+      : null,
     name: row.name,
     age: row.age,
     distance: row.distance,
@@ -540,6 +616,8 @@ export type MessageView = {
   id: string
   direction: "in" | "out"
   sentBy: MessageSender
+  /** A photo, voice note and the like shows as what it was (part 17). */
+  kind: MessageKind
   text: string
   status: MessageStatus
   error: string
@@ -590,12 +668,16 @@ export type MatchDetail = {
   profile: { id: string; age: number | null; score: number | null; read: string[]; flags: CardFlag[]; photoIds: string[] } | null
   /** Walks for this match waiting for the phone, or on it now. */
   pending: WalkKind[]
+  /** When the phone reported them to Facebook as a scam (part 20). */
+  reportedAt: Date | null
+  /** Whether Report is offered: a Facebook Dating chat flagged as a scam, not yet reported. */
+  canReport: boolean
 }
 
 export async function loadMatchDetail(userId: string, matchId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<MatchDetail> {
   const [row] = await db.select().from(dateMatches).where(and(eq(dateMatches.id, matchId), eq(dateMatches.userId, userId))).limit(1)
   if (!row) throw new Error("That match is gone.")
-  const [messages, profile, pending] = await Promise.all([
+  const [messages, profile, pending, [account]] = await Promise.all([
     db.select().from(dateMessages).where(eq(dateMessages.matchId, row.id)).orderBy(asc(dateMessages.position)),
     row.profileId ? db.select().from(dateProfiles).where(eq(dateProfiles.id, row.profileId)).limit(1) : Promise.resolve([]),
     row.phoneId
@@ -604,6 +686,7 @@ export async function loadMatchDetail(userId: string, matchId: string, db: Custo
           .from(dateWalks)
           .where(and(eq(dateWalks.phoneId, row.phoneId), inArray(dateWalks.status, ["waiting", "running"])))
       : Promise.resolve([]),
+    db.select({ app: dateAccounts.app }).from(dateAccounts).where(eq(dateAccounts.id, row.accountId)).limit(1),
   ])
   const card = profile[0]
   return {
@@ -615,6 +698,7 @@ export async function loadMatchDetail(userId: string, matchId: string, db: Custo
       id: message.id,
       direction: message.direction,
       sentBy: message.sentBy,
+      kind: message.kind,
       text: message.text,
       status: message.status,
       error: message.error,
@@ -658,6 +742,8 @@ export async function loadMatchDetail(userId: string, matchId: string, db: Custo
     sample: row.sample,
     profile: card ? { id: card.id, age: card.age, score: card.aiScore, read: card.aiRead, flags: card.aiFlags, photoIds: card.photoIds } : null,
     pending: pending.filter((walk) => walk.input.matchId === row.id).map((walk) => walk.kind),
+    reportedAt: row.reportedAt,
+    canReport: row.flaggedReason === "scam" && !row.reportedAt && !row.unmatchedAt && account?.app === "facebook",
   }
 }
 

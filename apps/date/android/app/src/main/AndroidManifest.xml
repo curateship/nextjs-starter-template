@@ -7,10 +7,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Closing Facebook when it freezes, once, before a walk gives up (task "facebook/01", part 6). -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
     <!-- Android 11 and later hide other apps unless they are named here. -->
     <queries>
         <package android:name="com.tinder" />
+        <!-- Facebook Dating lives inside the Facebook app (task "facebook/01"). -->
+        <package android:name="com.facebook.katana" />
     </queries>
 
     <application

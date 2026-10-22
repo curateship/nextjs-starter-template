@@ -1,6 +1,6 @@
 import { Fragment } from "react"
 import type * as React from "react"
-import { Loader2Icon, PauseIcon, PlayIcon, SettingsIcon, SquareIcon, TriangleAlertIcon } from "lucide-react"
+import { HeartIcon, Loader2Icon, PauseIcon, PlayIcon, SettingsIcon, SquareIcon, TriangleAlertIcon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { DatingDashboard } from "@/lib/api/dating/dashboard"
 import { LEAD_GROUP_WORDS, leadGroupCounts, type LeadGroup } from "@/lib/dating/leads"
-import { BAND_NEEDS_LIKES, OPENER_STYLE_WORDS, STOP_REASON_WORDS } from "@/lib/dating/options"
+import { BAND_NEEDS_LIKES, DATING_APP_WORDS, OPENER_STYLE_WORDS, SECOND_LOOK_POINTS, stopReasonWords } from "@/lib/dating/options"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
@@ -39,6 +39,12 @@ const GROUPS: LeadGroup[] = ["waiting", "new", "liked", "matched", "chatting", "
  * col dashboard" (20 Oct 2026) it also holds what the Stats screen did (the
  * last 7 days, Openers and What's working), and the phone's line and My
  * profile open the phone and the member's own profile in the right panel.
+ *
+ * A Facebook Dating profile (task "facebook/01") adds Second Look, the AI's
+ * near misses to like after all, and has no My profile: Date does not change
+ * a Facebook Dating profile. A member with two or more profiles gets Compare
+ * apps, with the suggestion to move swiping hours when one app clearly does
+ * better.
  */
 export function LeadSummary({
   data,
@@ -54,6 +60,8 @@ export function LeadSummary({
   onPickProfile,
   onNewProfile,
   onResumeProfile,
+  onSecondLookLike,
+  onChangeHours,
 }: {
   data: DatingDashboard
   group: LeadGroup | undefined
@@ -71,7 +79,12 @@ export function LeadSummary({
   onPickProfile: (accountId: string) => void
   onNewProfile: () => void
   onResumeProfile: () => void
+  /** Like on a Second Look row (part 14). */
+  onSecondLookLike: (profileId: string, name: string) => void
+  /** The suggestion's button: the open profile's settings, where its swiping hours are (part 24). */
+  onChangeHours: () => void
 }) {
+  const facebook = data.profile.app === "facebook"
   const today = data.tally[0]
   const counts = leadGroupCounts(data.leads)
   const running = Boolean(data.phone?.running)
@@ -117,7 +130,7 @@ export function LeadSummary({
                 {running ? "Stop" : "Start"}
               </Button>
               <ReadButton label="Profiles" hint="Read the profile on the phone's screen now, without swiping" busy={busy === "read-card"} onClick={onReadCard} />
-              <ReadButton label="Chats" hint="Read Tinder's chat list on the phone now" busy={busy === "read-matches"} onClick={onReadChats} />
+              <ReadButton label="Chats" hint={`Read ${DATING_APP_WORDS[data.profile.app].name}'s chat list on the phone now`} busy={busy === "read-matches"} onClick={onReadChats} />
             </div>
           </FlatSection>
           <FlatSection storageId="date-summary-spend" title="AI spend" meta="this month">
@@ -154,6 +167,7 @@ export function LeadSummary({
               ))}
             </ul>
           </FlatSection>
+          {facebook ? <SecondLook data={data} busy={busy} onLike={onSecondLookLike} /> : null}
           <FlatSection storageId="date-summary-week" title="Last 7 days">
             <table className="w-full text-sm tabular-nums">
               <thead className="text-left text-xs text-muted-foreground">
@@ -212,15 +226,93 @@ export function LeadSummary({
             )}
             <p className="text-xs text-muted-foreground">Liked cards by score, in bands of 10. A band needs {BAND_NEEDS_LIKES} likes before its numbers show. Samples are not counted.</p>
           </FlatSection>
-          <OpenRow
-            title="My profile"
-            words={data.own ? `Read ${whenWords(data.own.readAt)}${data.own.review ? ", with the AI's suggestions" : ""}` : "Not read yet"}
-            open={openId === "me"}
-            onOpen={() => onOpen("me")}
-          />
+          {data.compare.rows.length > 1 ? <CompareApps data={data} onChangeHours={onChangeHours} /> : null}
+          {facebook ? null : (
+            <OpenRow
+              title="My profile"
+              words={data.own ? `Read ${whenWords(data.own.readAt)}${data.own.review ? ", with the AI's suggestions" : ""}` : "Not read yet"}
+              open={openId === "me"}
+              onOpen={() => onOpen("me")}
+            />
+          )}
         </div>
       </ScrollArea>
     </div>
+  )
+}
+
+/**
+ * Second Look (part 14 of "facebook/01", Tyler's "You decide"): the cards
+ * the AI passed by 5 points or fewer in the last two weeks. Like has the
+ * phone open Facebook's Second Look and like them there.
+ */
+function SecondLook({ data, busy, onLike }: { data: DatingDashboard; busy: string | null; onLike: (profileId: string, name: string) => void }) {
+  return (
+    <FlatSection storageId="date-summary-second-look" title="Second Look" meta={data.secondLook.length}>
+      {data.secondLook.length ? (
+        <ul className="grid grid-cols-[minmax(0,1fr)] gap-1.5 text-sm">
+          {data.secondLook.map((card) => (
+            <li key={card.id} className="flex min-w-0 items-center gap-2">
+              <span className="min-w-0 flex-1 truncate">
+                {card.name}
+                {card.age ? `, ${card.age}` : ""}
+                <span className="text-muted-foreground tabular-nums"> · {card.score}</span>
+              </span>
+              <Button type="button" variant="outline" size="sm" disabled={busy === `second-look:${card.id}`} onClick={() => onLike(card.id, card.name)}>
+                {busy === `second-look:${card.id}` ? <Loader2Icon className="animate-spin" /> : <HeartIcon />}
+                Like
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">No near misses in the last two weeks.</p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Cards the AI passed by {SECOND_LOOK_POINTS} points or fewer under your line of {data.settings.likeAbove}. Nothing is liked until you press Like.
+      </p>
+    </FlatSection>
+  )
+}
+
+/**
+ * Compare apps (part 23): each profile's month side by side, and the
+ * suggestion to move swiping hours when one app clearly does better (part
+ * 24). The button opens the open profile's settings, where its hours are;
+ * nothing changes by itself.
+ */
+function CompareApps({ data, onChangeHours }: { data: DatingDashboard; onChangeHours: () => void }) {
+  return (
+    <FlatSection storageId="date-summary-compare" title="Compare apps" meta="this month">
+      <ul className="grid grid-cols-[minmax(0,1fr)] gap-2.5 text-sm">
+        {data.compare.rows.map((row) => (
+          <li key={row.accountId} className="grid gap-0.5">
+            <span className="truncate font-medium">
+              {DATING_APP_WORDS[row.app].name}{" "}
+              <span className="font-normal text-muted-foreground">
+                ({row.name}){row.accountId === data.profile.id ? ", open now" : ""}
+              </span>
+            </span>
+            <span className="text-muted-foreground tabular-nums">
+              {row.perHundred === null ? `${row.likes} likes, not enough yet` : `${row.perHundred} matches out of 100 likes`}
+              {` · ${row.replied} replied · ${row.dates} ${row.dates === 1 ? "date" : "dates"} · ${row.perMatch === null ? "no matches yet" : `${dollars(row.perMatch)} a match`}`}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {data.compare.moveHours ? (
+        <div className="grid gap-2">
+          <p className="text-sm">{data.compare.words}</p>
+          {/* The settings window holds the open profile's hours, so the button shows only when the suggestion is about it. */}
+          {[data.compare.moveHours.better.accountId, data.compare.moveHours.worse.accountId].includes(data.profile.id) ? (
+            <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={onChangeHours}>
+              Change hours
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      <p className="text-xs text-muted-foreground">Likes and matches since the 1st, and what the AI cost. Samples are not counted.</p>
+    </FlatSection>
   )
 }
 
@@ -270,7 +362,7 @@ function PhoneLine({ data, open, onOpen }: { data: DatingDashboard; open: boolea
     words = (
       <span className="flex items-center gap-1.5 text-foreground">
         <TriangleAlertIcon className="size-3.5 shrink-0 text-destructive" aria-hidden />
-        Stopped: {STOP_REASON_WORDS[phone.stoppedReason].toLowerCase()}
+        Stopped: {stopReasonWords(phone.stoppedReason, data.profile.app).toLowerCase()}
       </span>
     )
   } else {

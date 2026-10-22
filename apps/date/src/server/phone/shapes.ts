@@ -15,6 +15,8 @@ export const checkInShape = z.object({
   batteryPercent: z.number().int().min(0).max(100).nullable().default(null),
   tinderVersion: z.string().max(60).default(""),
   tinderInFront: z.boolean().default(false),
+  facebookVersion: z.string().max(60).default(""),
+  facebookInFront: z.boolean().default(false),
   phoneSwitchOn: z.boolean().default(true),
 })
 

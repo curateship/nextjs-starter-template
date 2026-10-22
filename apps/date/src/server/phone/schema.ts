@@ -1,6 +1,6 @@
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core"
 
-import type { PhoneActionKind, PhoneActionStatus, StopReason } from "@/lib/dating/options"
+import type { PhoneActionKind, PhoneActionStatus } from "@/lib/dating/options"
 import { customShellUsers, customShellWorkspaces } from "@/server/schema"
 
 /**
@@ -10,7 +10,14 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
  * `drizzle/0096_date_phones.sql`, with later columns in
  * `drizzle/0101_date_swipe_schedule.sql` and
  * `drizzle/0102_date_tinder_filters.sql`, and `drizzle/0108_date_profiles.sql`.
+ * Facebook's version is `drizzle/0113_date_facebook_phone.sql`, and the
+ * versions last checked `drizzle/0114_date_app_version_checked.sql`.
  * Stored fields are never renamed.
+ *
+ * The swipe loop's state (running, the schedule's day, a stop screen and the
+ * rest) moved to the profile in `drizzle/0112_date_loop_per_profile.sql`, so
+ * two profiles share one phone. Those columns are still on `date_phones`,
+ * unread, and are left out here.
  */
 
 /**
@@ -42,34 +49,16 @@ export const datePhones = pgTable(
     /** Tinder's version on the phone, or empty when it is not installed. */
     tinderVersion: varchar("tinder_version", { length: 60 }).notNull().default(""),
     tinderInFront: boolean("tinder_in_front").notNull().default(false),
+    /** Facebook's version on the phone, or empty when it is not installed. Facebook Dating lives inside it. */
+    facebookVersion: varchar("facebook_version", { length: 60 }).notNull().default(""),
+    facebookInFront: boolean("facebook_in_front").notNull().default(false),
+    /** The versions whose buttons a check last found. A phone reporting another version is checked again before it swipes. */
+    tinderVersionChecked: varchar("tinder_version_checked", { length: 60 }).notNull().default(""),
+    facebookVersionChecked: varchar("facebook_version_checked", { length: 60 }).notNull().default(""),
     /** The "Date is in control" switch in the dashboard's Phone panel. Off, the phone is handed nothing. */
     inControl: boolean("in_control").notNull().default(true),
     /** The same switch on the phone itself, as it last reported. */
     phoneSwitchOn: boolean("phone_switch_on").notNull().default(true),
-    /** Start and Stop on the dashboard: the AI swiping and drafting with the phone in a pocket. */
-    running: boolean("running").notNull().default(false),
-    runningSince: timestamp("running_since", { withTimezone: true }),
-    /** Why the loop last ended, in words, and when. Empty while it runs or before it ever has. */
-    stopWhy: text("stop_why").notNull().default(""),
-    stopWhyAt: timestamp("stop_why_at", { withTimezone: true }),
-    /** Who started the loop running now: the member's Start, or the swiping schedule. */
-    startedBy: varchar("started_by", { length: 10 }).$type<"member" | "schedule">(),
-    /**
-     * The swiping window, by the phone-clock day it opened, that the schedule
-     * has already started or that Stop held. The schedule starts the loop once a
-     * window, and again in it only after a limit's time has passed.
-     */
-    scheduleDay: varchar("schedule_day", { length: 10 }).notNull().default(""),
-    /** A limit ended the loop and allows it again at this moment. The schedule may start it again then, inside its window. */
-    resumeAt: timestamp("resume_at", { withTimezone: true }),
-    /** Tinder's distance and ages need setting from Date's: a setting changed, or Resume was pressed. */
-    discoveryOwed: boolean("discovery_owed").notNull().default(true),
-    /** A Tinder screen that stops everything until Resume. Null while nothing is stopping it. */
-    stoppedReason: varchar("stopped_reason", { length: 40 }).$type<StopReason>(),
-    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
-    /** The words on the screen that stopped it. */
-    stoppedWords: text("stopped_words").notNull().default(""),
-    stoppedPictureId: varchar("stopped_picture_id", { length: 36 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

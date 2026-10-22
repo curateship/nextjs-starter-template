@@ -11,6 +11,9 @@ import org.json.JSONObject
 object DeviceInfo {
     const val TINDER = "com.tinder"
 
+    /** Facebook Dating lives inside the Facebook app. */
+    const val FACEBOOK = "com.facebook.katana"
+
     /** "Pixel 8a", or the maker and model when the model alone is a code such as "SM-S921B". */
     fun modelName(): String {
         val model = Build.MODEL.orEmpty().trim()
@@ -31,6 +34,8 @@ object DeviceInfo {
             .put("batteryPercent", batteryPercent(context) ?: JSONObject.NULL)
             .put("tinderVersion", appVersion(context, TINDER))
             .put("tinderInFront", DateAccessibilityService.instance?.foregroundPackage() == TINDER)
+            .put("facebookVersion", appVersion(context, FACEBOOK))
+            .put("facebookInFront", DateAccessibilityService.instance?.foregroundPackage() == FACEBOOK)
             .put("phoneSwitchOn", switchOn)
 
     private fun batteryPercent(context: Context): Int? {

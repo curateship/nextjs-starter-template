@@ -138,6 +138,15 @@ async function thumbnail(jpeg: Buffer): Promise<Buffer> {
   return sharp(jpeg).resize(16, 16, { fit: "fill" }).greyscale().raw().toBuffer()
 }
 
+/** How far apart two thumbnails are, on average per grey square. Under `SAME_UNDER` they show the same thing. */
+function thumbnailDistance(x: Buffer, y: Buffer): number {
+  let total = 0
+  for (let index = 0; index < x.length; index += 1) total += Math.abs(x[index] - y[index])
+  return total / x.length
+}
+
+const SAME_UNDER = 6
+
 /**
  * Whether two pictures show the same thing. A photo strip that stops moving
  * at its last photo is told this way, because two screenshots of one photo
@@ -145,9 +154,35 @@ async function thumbnail(jpeg: Buffer): Promise<Buffer> {
  */
 export async function looksSame(a: Buffer, b: Buffer): Promise<boolean> {
   const [x, y] = await Promise.all([thumbnail(a), thumbnail(b)])
-  let total = 0
-  for (let index = 0; index < x.length; index += 1) total += Math.abs(x[index] - y[index])
-  return total / x.length < 6
+  return thumbnailDistance(x, y) < SAME_UNDER
+}
+
+/**
+ * Which known picture each fresh one shows: for every fresh picture, the
+ * place in `known` of the picture that looks the same, or -1. Closest pairs
+ * are matched first and each known picture once, so two alike photos are
+ * not both taken for the same one. The member's own photos are told apart
+ * this way after the phone moved them, because a new screenshot is never
+ * the same bytes.
+ */
+export async function matchPictures(fresh: Buffer[], known: Buffer[]): Promise<number[]> {
+  const [freshThumbs, knownThumbs] = await Promise.all([Promise.all(fresh.map(thumbnail)), Promise.all(known.map(thumbnail))])
+  const pairs: Array<{ fresh: number; known: number; distance: number }> = []
+  freshThumbs.forEach((x, i) =>
+    knownThumbs.forEach((y, k) => {
+      const distance = thumbnailDistance(x, y)
+      if (distance < SAME_UNDER) pairs.push({ fresh: i, known: k, distance })
+    })
+  )
+  pairs.sort((a, b) => a.distance - b.distance)
+  const matched = fresh.map(() => -1)
+  const taken = new Set<number>()
+  for (const pair of pairs) {
+    if (matched[pair.fresh] !== -1 || taken.has(pair.known)) continue
+    matched[pair.fresh] = pair.known
+    taken.add(pair.known)
+  }
+  return matched
 }
 
 /**

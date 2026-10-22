@@ -140,9 +140,11 @@ describe("profiles", () => {
     userId = (await insertUser(db, { role: "admin" })).id
     workspaceId = (await insertWorkspace(db)).id
     phoneId = uuid()
-    await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0, discoveryOwed: false })
+    await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0 })
     main = await insertAccount(db, { userId, workspaceId, phoneId, name: "Tyler" })
     other = await insertAccount(db, { userId, workspaceId, name: "Weekends" })
+    // Made in the same instant the order of the two would be a coin toss; Weekends is the later one.
+    ;[other] = await db.update(dateAccounts).set({ createdAt: new Date(main.createdAt.getTime() + 1_000) }).where(eq(dateAccounts.id, other.id)).returning()
   })
 
   afterEach(async () => {
@@ -258,7 +260,7 @@ describe("profiles", () => {
 
     it("refuses no name and Hinge, which isn't built yet", async () => {
       await expect(createAccount(main, { name: "  ", app: "tinder" }, db, T0)).rejects.toThrow("Give the profile a name.")
-      await expect(createAccount(main, { name: "Hinge", app: "hinge" }, db, T0)).rejects.toThrow("Hinge isn't ready yet. Date runs Tinder only for now.")
+      await expect(createAccount(main, { name: "Hinge", app: "hinge" }, db, T0)).rejects.toThrow("Hinge isn't ready yet. Date runs Tinder and Facebook Dating for now.")
     })
   })
 
@@ -280,13 +282,13 @@ describe("profiles", () => {
 
   describe("Pause", () => {
     it("stops the loop, calls off what waits on the phone, and the pass then leaves the profile alone", async () => {
-      await db.update(datePhones).set({ running: true, runningSince: T0 }).where(eq(datePhones.id, phoneId))
+      await db.update(dateAccounts).set({ running: true, runningSince: T0 }).where(eq(dateAccounts.id, main.id))
       await db.insert(dateWalks).values({ id: uuid(), userId, workspaceId, accountId: main.id, phoneId, kind: "read-card", askedBy: "ai" })
       const unread = await card(main, { aiReadAt: null })
       await setAccountPaused(main, true, db, T0)
 
-      const [phone] = await db.select().from(datePhones).where(eq(datePhones.id, phoneId))
-      expect(phone).toMatchObject({ running: false, stopWhy: "The profile was paused." })
+      const [stopped] = await db.select().from(dateAccounts).where(eq(dateAccounts.id, main.id))
+      expect(stopped).toMatchObject({ running: false, stopWhy: "The profile was paused." })
       expect((await db.select().from(dateWalks)).map((walk) => walk.status)).toEqual(["cancelled"])
 
       const asked: string[] = []
