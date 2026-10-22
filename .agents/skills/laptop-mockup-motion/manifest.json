@@ -1,0 +1,13 @@
+{
+  "id": "laptop-mockup-motion",
+  "name": "Laptop Mockup Motion",
+  "version": "1.0.0",
+  "owner": "Omar",
+  "license": "MIT",
+  "type": "code",
+  "summary": "A MacBook motion-graphic kit with a browser and terminal on a macOS desktop, driven by a synced pan/zoom camera: tabs sweep in, Claude Code boots, then it flies over the dock. Swap the wallpaper, windows, and camera beats.",
+  "shape": "bundle",
+  "tags": ["design", "template", "marketing", "web", "social"],
+  "source": "community",
+  "tile": { "color": "slate", "glyph": "device" }
+}
