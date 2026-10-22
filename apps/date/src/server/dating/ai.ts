@@ -8,8 +8,9 @@ import { uuid } from "@/server/auth/security"
 import { runAiCall } from "@/server/ai/usage"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { pictureBytes } from "@/server/phone/pictures"
-import { dateMatches, dateMessages, dateOwnProfiles, dateProfiles } from "@/server/tinder/schema"
+import { dateMatches, dateMessages, dateOwnProfiles, dateProfiles, type OwnProfileReview } from "@/server/tinder/schema"
 import { NO_DRAFT } from "@/server/tinder/store"
+import { promptsOf } from "@/server/tinder/walks/parse"
 
 import { askClaude, type ClaudeAnswer, type ClaudeQuestion } from "./claude"
 import { DATING_MODEL, FIRST_LOOK_MODEL, PHOTO_LONG_EDGE, SECOND_LOOK_WITHIN, type DatingModel } from "./model"
@@ -805,7 +806,7 @@ export async function askAboutMatches(
   return answers
 }
 
-/** The AI's suggestions for the member's own profile, saved with it. Suggestions only. */
+/** The AI's suggestions for the member's own profile, saved with it. Nothing changes on the phone until an Apply. */
 export async function reviewOwnProfile(
   accountId: string,
   db: CustomShellDb = defaultDb,
@@ -831,13 +832,16 @@ export async function reviewOwnProfile(
   }
   try {
     const photos = await photosForAi(own.userId, own.photoIds, db)
+    // The suggested order numbers the photos, so every one must be shown.
+    if (photos.length !== own.photoIds.length) throw new Error("A photo Date kept of your profile is gone. Read your profile again.")
+    const prompts = promptsOf(own.sections)
     const answer = await metered(
       own,
       "review-profile",
       { phoneId: own.phoneId },
       {
         system: REVIEW_SYSTEM,
-        text: reviewText({ ...own, photos: photos.length }),
+        text: reviewText({ ...own, photos: photos.length, prompts, aboutMe: settings.aboutMe }),
         images: photos.map((jpeg) => ({ jpeg })),
         jsonSchema: reviewJsonSchema,
         schema: reviewAnswer,
@@ -847,9 +851,22 @@ export async function reviewOwnProfile(
       deps
     )
     if (answer.refused) throw new Error("The AI would not review this profile.")
+    const { photoOrder, bio, notes } = answer.value
+    const review: OwnProfileReview = {
+      photoIds: own.photoIds,
+      photoOrder,
+      bio,
+      // One per prompt, in the profile's order. A prompt the AI left out, or answered with the same words, is kept.
+      prompts: prompts.map((prompt, index) => {
+        const suggested = answer.value.prompts.find((item) => item.prompt === index + 1)
+        const keep = !suggested || suggested.keep || !suggested.answer.trim() || suggested.answer.trim() === prompt.answer.trim()
+        return { question: prompt.question, answer: keep ? "" : suggested.answer.trim(), keep }
+      }),
+      notes,
+    }
     await db
       .update(dateOwnProfiles)
-      .set({ review: answer.value, reviewMadeAt: now, aiError: "", aiStartedAt: null })
+      .set({ review, reviewMadeAt: now, aiError: "", aiStartedAt: null })
       .where(eq(dateOwnProfiles.accountId, accountId))
     return { status: "done", words: "" }
   } catch (error) {

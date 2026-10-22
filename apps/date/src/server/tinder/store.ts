@@ -6,7 +6,16 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { hashDistance } from "@/server/phone/pictures"
 import { sha256Hex } from "@/server/phone/signing"
 
-import { dateMatches, dateMessages, dateOwnProfiles, dateProfiles, type ProfileHandles, type ProfileSection } from "./schema"
+import {
+  dateMatches,
+  dateMessages,
+  dateOwnProfiles,
+  datePhotoTests,
+  dateProfiles,
+  type OwnProfileChange,
+  type ProfileHandles,
+  type ProfileSection,
+} from "./schema"
 import type { Bubble } from "./walks/parse"
 
 /**
@@ -503,16 +512,76 @@ export async function settleMessage(
 
 export type OwnProfileRecord = { name: string; photoIds: string[]; bio: string; sections: ProfileSection[]; texts: string[] }
 
-/** The member's own profile as last read, one per profile. The AI's review of the old one goes with it. */
+/**
+ * The member's own profile as last read, one per profile. A read the member
+ * asked for drops the AI's review of the old one, so the AI looks again. A
+ * read that checks a change the phone just made keeps it (`keepReview`), so
+ * the card can say the suggestion was applied.
+ */
 export async function saveOwnProfile(
   owner: RecordOwner,
   profile: OwnProfileRecord,
   db: CustomShellDb = defaultDb,
-  now: Date = new Date()
+  now: Date = new Date(),
+  keepReview = false
 ): Promise<void> {
-  const values = { ...profile, readAt: now, review: null, reviewMadeAt: null, aiStartedAt: null }
+  const values = { ...profile, readAt: now, ...(keepReview ? {} : { review: null, reviewMadeAt: null, aiStartedAt: null }) }
   await db
     .insert(dateOwnProfiles)
     .values({ ...owner, ...values })
     .onConflictDoUpdate({ target: dateOwnProfiles.accountId, set: { ...values, phoneId: owner.phoneId } })
+}
+
+export async function readOwnRow(accountId: string, db: CustomShellDb = defaultDb) {
+  const [own] = await db.select().from(dateOwnProfiles).where(eq(dateOwnProfiles.accountId, accountId)).limit(1)
+  return own ?? null
+}
+
+/**
+ * What an Apply is about to replace, kept just before the phone saves on
+ * Tinder, so Undo is there even when something fails after the save.
+ */
+export async function keepReplaced(accountId: string, replaced: OwnProfileChange, db: CustomShellDb = defaultDb): Promise<void> {
+  await db.update(dateOwnProfiles).set({ before: replaced }).where(eq(dateOwnProfiles.accountId, accountId))
+}
+
+/**
+ * The phone made a change and read it back. An Apply records the day; an
+ * Undo forgets it and what the Apply replaced, so Apply is offered again.
+ */
+export async function markApplied(accountId: string, key: string, undo: boolean, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
+  await db
+    .update(dateOwnProfiles)
+    .set(
+      undo
+        ? { before: null, appliedAt: sql`${dateOwnProfiles.appliedAt} - ${key}::text` }
+        : { appliedAt: sql`${dateOwnProfiles.appliedAt} || jsonb_build_object(${key}::text, ${now.toISOString()}::text)` }
+    )
+    .where(eq(dateOwnProfiles.accountId, accountId))
+}
+
+/** What a first-photo test asked the phone to do with the photo order. */
+export type PhotoTestStep = "week" | "winner" | "restore"
+
+/**
+ * The phone read a first-photo test's move back: a week's photo is first and
+ * its week begins, the winner is first, or the order from before the test is
+ * back after Stop.
+ */
+export async function photoTestMoved(
+  accountId: string,
+  rowId: string,
+  step: PhotoTestStep,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<void> {
+  const mine = and(eq(datePhotoTests.id, rowId), eq(datePhotoTests.accountId, accountId))
+  if (step === "week") {
+    await db.update(datePhotoTests).set({ startedAt: now, moveError: "" }).where(and(mine, isNull(datePhotoTests.startedAt), isNull(datePhotoTests.stoppedAt)))
+  } else if (step === "winner") {
+    await db.update(datePhotoTests).set({ putFirstAt: now, moveError: "" }).where(and(mine, isNull(datePhotoTests.stoppedAt)))
+  } else {
+    const [row] = await db.select({ testId: datePhotoTests.testId }).from(datePhotoTests).where(mine).limit(1)
+    if (row) await db.update(datePhotoTests).set({ restoredAt: now, moveError: "" }).where(eq(datePhotoTests.testId, row.testId))
+  }
 }

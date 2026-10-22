@@ -145,8 +145,12 @@ export function walkKit(ctx: WalkContext) {
       )
     },
 
-    /** Drags a finger from one point to another along the screen, such as a slider's thumb, then reads the screen. */
-    async drag(from: { x: number; y: number }, to: { x: number; y: number }, settleMs = SETTLE_MS): Promise<Seen> {
+    /**
+     * Drags a finger from one point to another along the screen, such as a
+     * slider's thumb, then reads the screen. With `holdMs` the finger first
+     * rests that long, a long press, which is how a photo is picked up.
+     */
+    async drag(from: { x: number; y: number }, to: { x: number; y: number }, settleMs = SETTLE_MS, holdMs = 0): Promise<Seen> {
       return needScreen(
         (
           await step("swipe", {
@@ -155,6 +159,7 @@ export function walkKit(ctx: WalkContext) {
             x2: Math.round(to.x),
             y2: Math.round(to.y),
             durationMs: 450,
+            ...(holdMs > 0 ? { holdMs } : {}),
             thenRead: true,
             settleMs,
           })

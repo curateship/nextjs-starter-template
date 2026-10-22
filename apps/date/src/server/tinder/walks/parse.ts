@@ -1,5 +1,5 @@
 import type { Bounds } from "@/server/phone/pictures"
-import type { ProfileHandles, ProfileSection } from "../schema"
+import type { ProfileHandles, ProfilePrompt, ProfileSection } from "../schema"
 
 import { findNode, isVisible, nodeWords, screenTexts, type ScreenNode, type ScreenRead } from "../screen"
 import {
@@ -172,6 +172,23 @@ export function parseProfileLines(cardLines: string[], profileLines: string[]): 
     sections,
     handles,
   }
+}
+
+/** The words under one heading of a profile, such as the bio under "About me", or empty. */
+export function sectionText(sections: ProfileSection[], heading: string): string {
+  return sections.find((section) => section.heading === heading)?.items.join("\n") ?? ""
+}
+
+/**
+ * The member's prompts, read from the "Prompts" section of their own
+ * profile: its lines in pairs, Tinder's question and then the answer. A
+ * guess until the edit screen is read on a real phone, like Tinder's labels.
+ */
+export function promptsOf(sections: ProfileSection[]): ProfilePrompt[] {
+  const lines = sections.find((section) => section.heading === "Prompts")?.items ?? []
+  const prompts: ProfilePrompt[] = []
+  for (let index = 0; index < lines.length; index += 2) prompts.push({ question: lines[index], answer: lines[index + 1] ?? "" })
+  return prompts
 }
 
 export type Bubble = { direction: "in" | "out"; text: string }

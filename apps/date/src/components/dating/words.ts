@@ -15,6 +15,11 @@ export function whenWords(value: Date | string | null): string {
   return `${at.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${formatClockTime(at)}`
 }
 
+/** A day and month, such as "18 Oct", in the reader's own time zone. */
+export function dayWords(value: Date | string): string {
+  return (typeof value === "string" ? new Date(value) : value).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+}
+
 export function nameAndAge(name: string, age: number | null): string {
   return age ? `${name}, ${age}` : name
 }

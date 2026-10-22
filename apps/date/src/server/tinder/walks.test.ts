@@ -399,7 +399,7 @@ describe("Tinder walks", () => {
 
   describe("your own profile", () => {
     it("reads the photos and words on the edit screen without changing anything", async () => {
-      phone({ me: { name: "Tyler", age: 30, photos: 3, pages: [["About me", "Product person who cooks too much."], ["Interests", "Cooking", "Running"]] } })
+      phone({ me: { name: "Tyler", age: 30, photos: 3, bio: "Product person who cooks too much.", sections: [{ heading: "Interests", items: ["Cooking", "Running"] }] } })
       const walk = await run("read-own-profile")
       expect(walk.status).toBe("done")
       const [own] = await db.select().from(dateOwnProfiles)
@@ -410,10 +410,137 @@ describe("Tinder walks", () => {
     })
 
     it("reads whose account is signed in", async () => {
-      phone({ cards: [fakeCard("Maya")], me: { name: "Tyler", age: 30, photos: 0, pages: [] } })
+      phone({ cards: [fakeCard("Maya")], me: { name: "Tyler", age: 30, photos: 0 } })
       const walk = await run("who-is-signed-in")
       expect(walk.result).toEqual({ name: "Tyler", age: 30 })
       expect(fake.screen).toBe("discover")
+    })
+  })
+
+  /**
+   * Part 1 of "features/03-your-profile": the phone changes the member's own
+   * profile only through these three walks, each read back to check it.
+   */
+  describe("changing your own profile", () => {
+    const PROMPTS = [
+      { question: "My simple pleasures", answer: "Coffee." },
+      { question: "Two truths and a lie", answer: "I cook, I run, I sing." },
+    ]
+    const REVIEW = { photoIds: [], photoOrder: [], bio: "Cooks too much.", prompts: [], notes: [] }
+
+    /** The pretend phone with Tyler's profile, read once and given a review, as Date has it before any Apply. */
+    async function readMine(setup: Partial<FakeTinderSetup> = {}) {
+      phone({ me: { name: "Tyler", age: 30, photos: 4, bio: "Product person who cooks too much.", prompts: PROMPTS }, ...setup })
+      await run("read-own-profile")
+      await db.update(dateOwnProfiles).set({ review: REVIEW, reviewMadeAt: clock })
+      const [own] = await db.select().from(dateOwnProfiles)
+      return own
+    }
+
+    async function mine() {
+      const [own] = await db.select().from(dateOwnProfiles)
+      return own
+    }
+
+    it("drags the photos into the order asked, saves, reads it back and keeps what it replaced for Undo", async () => {
+      const read = await readMine()
+      const [one, two, three, four] = read.photoIds
+      const walk = await run("reorder-photos", { photoIds: [three, one, two, four] })
+      expect(walk.status).toBe("done")
+      expect(fake.mine.photos).toEqual([2, 0, 1, 3])
+      // A long press then a drag, never a plain swipe, moved them.
+      expect(fake.steps.filter((step) => step.kind === "swipe" && Number(step.payload.holdMs) > 0).length).toBeGreaterThan(0)
+      const own = await mine()
+      expect(own.photoIds).toEqual([three, one, two, four])
+      expect(own.before).toEqual({ kind: "photos", photoIds: [one, two, three, four] })
+      expect(own.appliedAt.photos).toBe(clock.toISOString())
+      // The AI's suggestions stay, so the card can say it was applied.
+      expect(own.review).toEqual(REVIEW)
+
+      const undo = await run("reorder-photos", { photoIds: [one, two, three, four], undo: true })
+      expect(undo.status).toBe("done")
+      expect(fake.mine.photos).toEqual([0, 1, 2, 3])
+      expect((await mine()).before).toBeNull()
+      expect((await mine()).appliedAt).toEqual({})
+    })
+
+    it("gets the order right when Tinder swaps the dragged photo instead of putting it in front", async () => {
+      const read = await readMine({ photoDragSwaps: true })
+      const [one, two, three, four] = read.photoIds
+      const walk = await run("reorder-photos", { photoIds: [four, three, one, two] })
+      expect(walk.status).toBe("done")
+      expect(fake.mine.photos).toEqual([3, 2, 0, 1])
+    })
+
+    it("fails when the profile read back does not show the change, records no Apply, and keeps Undo in case Tinder did save", async () => {
+      const read = await readMine({ editsNotSaved: true })
+      const [one, two, three, four] = read.photoIds
+      const walk = await run("reorder-photos", { photoIds: [two, one, three, four] })
+      expect(walk).toMatchObject({ status: "failed", error: "After saving, your profile on Tinder does not show the photos in the new order." })
+      const own = await mine()
+      expect(own.photoIds).toEqual([one, two, three, four])
+      expect(own.before).toEqual({ kind: "photos", photoIds: [one, two, three, four] })
+      expect(own.appliedAt).toEqual({})
+      expect(own.review).toEqual(REVIEW)
+    })
+
+    it("refuses when Tinder shows a different number of photos from the ones Date read", async () => {
+      const read = await readMine()
+      fake.mine.photos = [0, 1, 2]
+      const walk = await run("reorder-photos", { photoIds: [read.photoIds[1], read.photoIds[0], read.photoIds[2], read.photoIds[3]] })
+      expect(walk).toMatchObject({ status: "failed", error: "Tinder shows 3 photos and Date expected 4. Read your profile again, then try once more." })
+      expect(fake.mine.photos).toEqual([0, 1, 2])
+    })
+
+    it("types a new bio, saves it, reads it back, and Undo puts the old one back", async () => {
+      await readMine()
+      const walk = await run("set-bio", { bio: "Cooks too much, shares the leftovers." })
+      expect(walk.status).toBe("done")
+      expect(fake.mine.bio).toBe("Cooks too much, shares the leftovers.")
+      const own = await mine()
+      expect(own.bio).toBe("Cooks too much, shares the leftovers.")
+      expect(own.before).toEqual({ kind: "bio", bio: "Product person who cooks too much." })
+      expect(own.appliedAt.bio).toBe(clock.toISOString())
+
+      expect((await run("set-bio", { bio: "Product person who cooks too much.", undo: true })).status).toBe("done")
+      expect(fake.mine.bio).toBe("Product person who cooks too much.")
+      expect((await mine()).before).toBeNull()
+    })
+
+    it("fails when the bio read back is not the new one", async () => {
+      await readMine({ editsNotSaved: true })
+      const walk = await run("set-bio", { bio: "Cooks too much, shares the leftovers." })
+      expect(walk).toMatchObject({ status: "failed", error: "After saving, your profile on Tinder does not show the new bio." })
+      expect(await mine()).toMatchObject({ before: { kind: "bio", bio: "Product person who cooks too much." }, appliedAt: {} })
+    })
+
+    it("fails when the prompt read back does not have the new answer", async () => {
+      await readMine({ editsNotSaved: true })
+      const walk = await run("set-prompt", { question: "My simple pleasures", answer: "Sourdough." })
+      expect(walk).toMatchObject({ status: "failed", error: 'After saving, your profile on Tinder does not show the new answer to "My simple pleasures".' })
+    })
+
+    it("changes one prompt's answer on its own screen and leaves the other prompt alone", async () => {
+      await readMine()
+      const walk = await run("set-prompt", { question: "Two truths and a lie", answer: "I bake bread, I ran a marathon, I hate coffee." })
+      expect(walk.status).toBe("done")
+      expect(fake.mine.prompts).toEqual([PROMPTS[0], { question: "Two truths and a lie", answer: "I bake bread, I ran a marathon, I hate coffee." }])
+      const own = await mine()
+      expect(own.sections.find((section) => section.heading === "Prompts")?.items).toEqual([
+        "My simple pleasures",
+        "Coffee.",
+        "Two truths and a lie",
+        "I bake bread, I ran a marathon, I hate coffee.",
+      ])
+      expect(own.before).toEqual({ kind: "prompt", question: "Two truths and a lie", answer: "I cook, I run, I sing." })
+      expect(own.appliedAt["prompt:Two truths and a lie"]).toBe(clock.toISOString())
+    })
+
+    it("fails, naming the prompt, when the prompt is not on the profile", async () => {
+      await readMine()
+      const walk = await run("set-prompt", { question: "My most irrational fear", answer: "Pigeons." })
+      expect(walk).toMatchObject({ status: "failed", error: 'Could not find the prompt "My most irrational fear" on Tinder\'s edit screen. The words for it may have changed.' })
+      expect(fake.mine.prompts).toEqual(PROMPTS)
     })
   })
 

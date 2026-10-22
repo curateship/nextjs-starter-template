@@ -1,6 +1,6 @@
 # Date's docs
 
-What Date does and why, one file per part. Tyler's decisions of 17 Oct 2026 are in `../tasks/tinder/01-ai-tinder.md`, and of 18 Oct 2026 in `../tasks/features/01-chats-and-replies.md` and `../tasks/features/02-swiping-and-scoring.md`. They outrank the code.
+What Date does and why, one file per part. Tyler's decisions of 17 Oct 2026 are in `../tasks/tinder/01-ai-tinder.md`, and of 18 Oct 2026 in `../tasks/features/01-chats-and-replies.md`, `../tasks/features/02-swiping-and-scoring.md` and `../tasks/features/03-your-profile.md`. They outrank the code.
 
 - [phone/phone-link.md](phone/phone-link.md): the Date phone app, pairing, the signed messages and the plain actions a phone runs.
 - [phone/screen-window.md](phone/screen-window.md): the phone's live screen on the dashboard, and taps from it.
@@ -9,6 +9,7 @@ What Date does and why, one file per part. Tyler's decisions of 17 Oct 2026 are 
 - [ai/how-the-ai-decides.md](ai/how-the-ai-decides.md): the score, the swipe rule, drafting, the date timing, the automate switch and the Start/Stop loop.
 - [ai/swiping-and-scoring.md](ai/swiping-and-scoring.md): learning from overruled swipes, Sonnet's first look and Opus's second, People I know, Super Likes, the swiping schedule, Tinder's own distance and ages, passed photos deleted after 30 days, What's working and what a match costs.
 - [ai/spend.md](ai/spend.md): what the AI costs and the monthly cap.
+- [your-profile.md](your-profile.md): the AI's suggestions for your own profile with before and after, Apply and Undo on the phone, new prompt answers from About me only, and the first-photo test.
 - [settings.md](settings.md): the Dating settings, in the window the dashboard's cog opens.
 - [profiles.md](profiles.md): several dating profiles for one member, each one app's account with its own phone, settings, leads and spend; the picker, New profile, Pause and Delete.
 - [dating-dashboard.md](dating-dashboard.md): the one three-column dashboard and Tyler's rules for it: leads and their status, the summary with the stats, the phone and My profile in the right panel, the Dates calendar, the cog's settings window, and the sample data.

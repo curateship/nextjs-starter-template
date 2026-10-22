@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core"
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core"
 
 import type {
   CardFlag,
@@ -20,7 +20,8 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
  * and their messages, the member's own profile, and the job list of walks.
  * The SQL is `drizzle/0097_date_tinder.sql`, `drizzle/0100_date_chats.sql`,
  * `drizzle/0103_date_first_look_model.sql` and
- * `drizzle/0104_date_forget_passed_photos.sql`. Every record belongs to one
+ * `drizzle/0104_date_forget_passed_photos.sql`, and the own profile's Apply
+ * and Undo `drizzle/0109_date_profile_apply.sql`. Every record belongs to one
  * profile (`accountId`, `drizzle/0108_date_profiles.sql`), and goes with it.
  * Stored fields are never renamed.
  */
@@ -38,12 +39,32 @@ export type ProfileHandles = { instagram?: string; spotifyArtists?: string[]; an
  */
 export type MatchFact = { id: string; text: string; edited: boolean; deleted?: boolean }
 
-/** The AI's suggestions for the member's own profile. Suggestions only; nothing is changed on the phone. */
+/** One of the member's Tinder prompts: the question Tinder asks and their answer. */
+export type ProfilePrompt = { question: string; answer: string }
+
+/**
+ * The AI's suggestions for the member's own profile. Nothing changes on the
+ * phone until the member presses Apply on one of them.
+ */
 export type OwnProfileReview = {
+  /** The photos as they stood when the AI looked, which `photoOrder` numbers from 1. */
+  photoIds: string[]
   photoOrder: Array<{ photo: number; why: string }>
   bio: string
+  /** A new answer for each prompt, or `keep` when the old one is better or About me is too thin to answer from. */
+  prompts: Array<{ question: string; answer: string; keep: boolean }>
   notes: string[]
 }
+
+/**
+ * One change the phone can make to the member's own profile: the photo
+ * order (as picture ids), the bio, or one prompt's answer. The same shape
+ * holds what was there before an Apply, for Undo.
+ */
+export type OwnProfileChange =
+  | { kind: "photos"; photoIds: string[] }
+  | { kind: "bio"; bio: string }
+  | { kind: "prompt"; question: string; answer: string }
 
 /** One card read off Tinder's Discover screen. */
 export const dateProfiles = pgTable(
@@ -259,7 +280,60 @@ export const dateOwnProfiles = pgTable("date_own_profile", {
   reviewMadeAt: timestamp("review_made_at", { withTimezone: true }),
   aiStartedAt: timestamp("ai_started_at", { withTimezone: true }),
   aiError: text("ai_error").notNull().default(""),
+  /** What the last Apply replaced, for Undo. Cleared once Undo has put it back. */
+  before: jsonb("before").$type<OwnProfileChange | null>(),
+  /** When each change was last applied by the phone, by `changeKey`, as ISO times. */
+  appliedAt: jsonb("applied_at").$type<Record<string, string>>().notNull().default({}),
 })
+
+/**
+ * The first-photo test, one row per week: each of the member's top 3 photos
+ * is put first for a week, and the likes and matches of that week are
+ * counted. The rows of one test share `testId`. `drizzle/0111_date_photo_tests.sql`.
+ */
+export const datePhotoTests = pgTable(
+  "date_photo_tests",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    testId: varchar("test_id", { length: 36 }).notNull(),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => dateAccounts.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** 1, 2 or 3: the photo's place in the order when the test started, and the week it is first. */
+    place: integer("place").notNull(),
+    photoId: varchar("photo_id", { length: 36 }).notNull(),
+    /** The whole order when the test started, as picture ids. The same on every row of one test. */
+    originalOrder: jsonb("original_order").$type<string[]>().notNull().default([]),
+    /** The phone read the photo back first, and its week began. */
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    likes: integer("likes").notNull().default(0),
+    matches: integer("matches").notNull().default(0),
+    /** The week with the most matches per 100 likes, put first when the test ends. */
+    winner: boolean("winner").notNull().default(false),
+    /** The phone read the winner back first. Only on the winner's row. */
+    putFirstAt: timestamp("put_first_at", { withTimezone: true }),
+    /** The member stopped the test. Set on every row of the test. */
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    /** After a stop, the phone read the original order back. Set on every row of the test. */
+    restoredAt: timestamp("restored_at", { withTimezone: true }),
+    /** When the phone was last asked to move a photo for this row, so a failed move is tried again an hour later, not every pass. */
+    askedAt: timestamp("asked_at", { withTimezone: true }),
+    /** Why the last move could not be put on the phone's list, in words, or empty. */
+    moveError: text("move_error").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("ix_date_photo_tests_account").on(table.accountId, table.createdAt.desc()),
+    uniqueIndex("ux_date_photo_tests_week").on(table.testId, table.place),
+  ]
+)
 
 /**
  * The job list: one Tinder walk for one phone. The dashboard and the AI ask

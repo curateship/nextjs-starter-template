@@ -15,6 +15,7 @@ import type { DatingAccount } from "./accounts"
 
 import { decideSwipe, draftReply, makeDateBrief, readChatNotes, reviewOwnProfile, scoreCard, SUPER_LIKE_SCORE, type AiDeps } from "./ai"
 import { forgetPassedPhotos } from "./forget-photos"
+import { photoTestStep } from "./own-profile"
 import { newestMessages } from "./dashboard"
 import { readDatingSettings } from "./settings"
 import { dateAccounts } from "./schema"
@@ -30,6 +31,8 @@ import { accountOwner, aiSpendStopped } from "./spend"
  * switch is on, and, while its phone is running, takes the swipe loop one
  * step: read the card in front, wait for the AI's score, like or pass, and
  * again. Each profile is run with its own settings and its own spend cap.
+ * A first-photo test is moved on too: a week closed when its seven days are
+ * up, and the next photo put first (`own-profile.ts`).
  *
  * Slow work, a walk or an AI call, is started and not waited for, so the pass
  * never holds up the shell's own jobs; each one claims its record so a second
@@ -91,6 +94,7 @@ export async function runDatingPass(
       work.push(...aiWork(account, db, now, options))
       await sendDueDrafts(account, phone, settings, db, now)
       await setDiscoveryIfOwed(account, phone, settings, db, now)
+      await photoTestStep(account, db, now)
       const scheduled = await scheduleStep(account, phone, settings, db, now)
       if (scheduled.running) await loopStep(account, scheduled, settings, db, now, work, options)
     } catch (error) {

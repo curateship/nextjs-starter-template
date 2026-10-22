@@ -38,6 +38,8 @@ Open an app, read the screen, tap, swipe, type, back, home, take a picture. Ever
 
 - **Reading the screen** sends every box on it, its words, label, view id and place, plus a picture.
 - **A tap, swipe, type, back or home** can ask to read the screen once it settles, in the same answer.
+- **An empty text box sends no words.** Android reports an empty box's grey hint as its text; the phone sends it as `hint` only, so a hint is never taken for a bio or a message.
+- **A swipe with `holdMs`** rests the finger on its start that long first, then moves without lifting: a long press that turns into a drag, which is how a photo on the edit screen is picked up and moved. Up to 3 seconds.
 - **Each action has a time limit.** The phone gives up when it runs out; the server waits a minute more for the answer.
 - **One action at a time, in order.** Nothing is handed out while "Date is in control" is off in the dashboard's phone panel.
 

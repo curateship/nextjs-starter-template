@@ -83,6 +83,9 @@ export const WALK_KINDS = [
   "unmatch",
   "read-own-profile",
   "set-discovery",
+  "reorder-photos",
+  "set-bio",
+  "set-prompt",
 ] as const
 export type WalkKind = (typeof WALK_KINDS)[number]
 
@@ -98,6 +101,9 @@ export const WALK_WORDS: Record<WalkKind, string> = {
   unmatch: "Unmatching",
   "read-own-profile": "Reading your profile",
   "set-discovery": "Setting Tinder's distance and ages",
+  "reorder-photos": "Putting your photos in order",
+  "set-bio": "Changing your bio",
+  "set-prompt": "Changing a prompt's answer",
 }
 
 export const WALK_STATUSES = ["waiting", "running", "done", "failed", "cancelled"] as const

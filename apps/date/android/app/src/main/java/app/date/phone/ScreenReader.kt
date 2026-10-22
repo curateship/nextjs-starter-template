@@ -66,7 +66,8 @@ class ScreenReader {
         JSONObject()
             .put("id", id)
             .put("depth", depth)
-            .put("text", node.text?.toString() ?: "")
+            // An empty box reports its grey hint as its words; it has none of its own.
+            .put("text", if (node.isShowingHintText) "" else node.text?.toString() ?: "")
             .put("desc", node.contentDescription?.toString() ?: "")
             // An empty box's grey words, such as "Type a message". Not every box has them.
             .put("hint", node.hintText?.toString() ?: "")

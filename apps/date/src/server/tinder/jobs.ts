@@ -13,7 +13,7 @@ import { readDatingSettings } from "@/server/dating/settings"
 import { walkRefusal } from "./limits"
 import { dateMessages, dateWalks } from "./schema"
 import { outOfLikesWait } from "./stop-screens"
-import { whoIsSignedIn, readOwnProfile } from "./walks/account"
+import { readOwnProfile, reorderPhotos, setBio, setPrompt, whoIsSignedIn } from "./walks/account"
 import { readCard, swipe } from "./walks/card"
 import { setDiscovery } from "./walks/discovery"
 import { readConversation, readMatches, sendMessage, unmatch } from "./walks/chat"
@@ -44,6 +44,9 @@ const WALKS: Record<WalkKind, WalkRunner> = {
   unmatch: (ctx, kit, input) => unmatch(ctx, kit, input),
   "read-own-profile": (ctx, kit) => readOwnProfile(ctx, kit),
   "set-discovery": (ctx, kit, input) => setDiscovery(ctx, kit, input),
+  "reorder-photos": (ctx, kit, input) => reorderPhotos(ctx, kit, input),
+  "set-bio": (ctx, kit, input) => setBio(ctx, kit, input),
+  "set-prompt": (ctx, kit, input) => setPrompt(ctx, kit, input),
 }
 
 /** How long a walk may go between steps before it counts as dropped. Longer than one step's longest wait. */

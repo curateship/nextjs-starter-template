@@ -70,6 +70,22 @@ export const TINDER_WORDS = {
     desc: [r("^edit (profile|info)$")],
     text: [r("^edit (profile|info)$")],
   },
+  /**
+   * Saves the edit screen, or a prompt's own screen, and leaves it. Written on
+   * 21 Oct 2026 before the edit screens were read on a phone, like the rest.
+   */
+  editDone: {
+    res: ["com.tinder:id/edit_profile_done", "com.tinder:id/done_button", "com.tinder:id/save_button"],
+    desc: [r("^(done|save)$")],
+    text: [r("^(done|save)$")],
+  },
+  /** The heading over the bio box on the edit screen. */
+  aboutMeHeading: { text: [r("^about me$"), r("^bio$")] },
+  /** The box a prompt's answer is typed into, on that prompt's own screen. */
+  promptAnswer: {
+    res: ["com.tinder:id/prompt_answer_input", "com.tinder:id/prompt_answer"],
+    hint: [r("answer"), r("^(type|write) (your|an) "), r("^start typing")],
+  },
   /** The gear on the Profile tab that opens Tinder's settings, where the distance and ages are. */
   openSettings: {
     res: ["com.tinder:id/settings_button", "com.tinder:id/profile_settings"],
@@ -131,6 +147,8 @@ export const TINDER_CHROME_LINES = [
   r("^report .+$"),
   r("^share .+'s profile$"),
   r("^block .+$"),
+  r("^edit info$"),
+  r("^(done|save)$"),
 ]
 
 /** Where a line says how far away someone is: "3 kilometres away", "12 miles away". */

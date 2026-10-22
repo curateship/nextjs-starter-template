@@ -10,7 +10,10 @@ A walk is a list of plain phone actions that does one thing in Tinder. Walks run
 - **Read a conversation.** Every message back to the start or eight screenfuls, theirs on the left, ours on the right.
 - **Send a message.** Types it, taps Send and checks it showed in the chat.
 - **Unmatch.** Through Tinder's own menu and its confirm.
-- **Read your profile.** The photos in order and every section, from the edit screen. Nothing is changed.
+- **Read your profile.** The photos in order and every section, from the edit screen, left by back, never Done. Nothing is changed. A photo that looks like one Date already keeps of this profile keeps that one's id.
+- **Put your photos in order.** Each photo on the edit screen is matched to Date's copy by how it looks, and the first one out of place is long-pressed and dragged to its place, until the order is right. Then Done, and your profile is read back and must show the new order. See `../your-profile.md`.
+- **Change your bio.** Types into the box under About me, Done, and reads your profile back to check the bio.
+- **Change a prompt's answer.** Opens the prompt by its question, types the answer on its own screen, Done there and on the edit screen, and reads your profile back to check it.
 - **Who is signed in.** Run on Resume too, to see whether what stopped the phone has gone.
 - **Set Tinder's distance and ages.** The Profile tab's gear, then each slider dragged and read back until it says Date's numbers, then Done and back to the cards. Written before the settings screen was ever read on a phone: its labels and the slider ends (`TINDER_SLIDERS`) are guesses.
 
@@ -28,7 +31,7 @@ A walk is a list of plain phone actions that does one thing in Tinder. Walks run
 
 ## Tinder's labels, and refreshing them
 
-Every word and label the walks look for is in `src/server/tinder/screen-words.ts`. They were written on 18 Oct 2026 before any phone was read, from how Tinder's Android app is known to label itself. Each thing has several candidates, so one renamed label does not break a walk.
+Every word and label the walks look for is in `src/server/tinder/screen-words.ts`. They were written on 18 Oct 2026 before any phone was read (the edit screen's Done, the About me box and a prompt's answer box on 22 Oct 2026), from how Tinder's Android app is known to label itself. Each thing has several candidates, so one renamed label does not break a walk.
 
 **Until the first run on the real phone these are guesses.** When a walk cannot find something, it fails saying what, with a picture. To fix it:
 

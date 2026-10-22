@@ -41,10 +41,12 @@ import {
   type MatchDetail,
   type ProfileDetail,
 } from "@/lib/api/dating/dashboard"
+import { applyProfileSuggestion, startFirstPhotoTest, stopFirstPhotoTest, undoProfileApply } from "@/lib/api/dating/own-profile"
 import { resume } from "@/lib/api/dating/phone"
 import { deleteProfile, loadProfileCounts, pickProfile, setProfilePaused } from "@/lib/api/dating/profiles"
 import type { SavedView } from "@/lib/api/saved-views"
 import { datingErrorMessage } from "@/lib/dating/errors"
+import { changeKey } from "@/lib/dating/own-profile"
 import { readLeadView, shownLeads, type LeadListItem, type LeadView } from "@/lib/dating/leads"
 import { DATING_PANEL_LAYOUT_KEY, DATING_PLACE_KEY, GOOGLE_RETURN_WORDS, type GoogleReturn } from "@/lib/dating/options"
 import { useListSearchNavigate } from "@/lib/nav/list-search"
@@ -399,6 +401,10 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
             busy={busy}
             onReadAgain={() => void act("read-own", readMyProfile, "The phone will read your profile.")}
             onReviewAgain={() => void act("review", reviewMyProfile, "The AI reviewed your profile again.")}
+            onApply={(what) => void act(`apply:${changeKey(what)}`, () => applyProfileSuggestion(what), "The phone will make this change, then read your profile back to check it.")}
+            onUndo={() => void act("undo", undoProfileApply, "The phone will put back what was there before.")}
+            onStartTest={() => void act("photo-test", startFirstPhotoTest, "The test has started. The phone puts photo 1 first to begin week 1.")}
+            onStopTest={() => act("photo-test", stopFirstPhotoTest, "The test is stopped. The phone puts your old order back.")}
           />
         ) : (
           <LeadPanel

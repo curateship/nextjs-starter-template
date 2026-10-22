@@ -26,7 +26,6 @@ import {
   dateProfiles,
   dateWalks,
   type MatchFact,
-  type OwnProfileReview,
   type ProfileHandles,
   type ProfileSection,
 } from "@/server/tinder/schema"
@@ -34,6 +33,7 @@ import {
 import { listProfiles, type DatingAccount, type ProfileListItem } from "./accounts"
 import { overruledCards } from "./ai"
 import { DATING_MODEL } from "./model"
+import { ownProfileView, type OwnProfileView } from "./own-profile"
 import { readDatingSettings } from "./settings"
 import { accountOwner, monthMatchCost, type MatchCost } from "./spend"
 
@@ -113,15 +113,6 @@ export type DatingDashboard = {
   openers: OpenerTally[]
 }
 
-export type OwnProfileView = {
-  name: string
-  photoIds: string[]
-  bio: string
-  readAt: Date
-  review: OwnProfileReview | null
-  reviewMadeAt: Date | null
-  aiError: string
-}
 
 /** The calendar day a moment falls on in a time zone, as "2099-01-01". */
 function dayOf(at: Date, timeZone: string): string {
@@ -253,17 +244,7 @@ export async function loadDashboard(account: DatingAccount, db: CustomShellDb = 
     ),
     drafts,
     openers,
-    own: ownRow[0]
-      ? {
-          name: ownRow[0].name,
-          photoIds: ownRow[0].photoIds,
-          bio: ownRow[0].bio,
-          readAt: ownRow[0].readAt,
-          review: ownRow[0].review,
-          reviewMadeAt: ownRow[0].reviewMadeAt,
-          aiError: ownRow[0].aiError,
-        }
-      : null,
+    own: ownRow[0] ? await ownProfileView(ownRow[0], db, now) : null,
     tally: await dailyTally(account.id, timeZone, db, now),
   }
 }
