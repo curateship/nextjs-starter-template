@@ -82,20 +82,24 @@ Tyler picked this on 17 Oct 2026 (task Panels/03, part 8). Going back to a
 screen opened a moment ago is instant and keeps its place, scroll and any
 half-filled form.
 
-- **Up to three frames stay loaded**, one per screen last opened from the
-  menu. The open one shows. The others sit behind it, made invisible but kept
+- **Up to three frames stay loaded** to start, one per screen last opened
+  from the menu. "Screens kept loaded" in the cog menu raises it to 5, 8 or
+  10; Tyler asked for the choice on 21 Oct 2026. The open one shows. The others sit behind it, made invisible but kept
   at full size, so their app keeps its layout and scroll.
 - **Clicking a menu link whose frame is kept shows that frame as it was**,
   wherever you had moved inside it.
 - **Clicking the link of the screen already open loads it again**, which is
   also the way back to that link's screen after moving around inside the app.
-- **A fourth screen drops the frame shown longest ago.** `MAX_KEPT_FRAMES` in
-  `src/lib/frames.ts` is the cap. Each kept frame is a whole app running, so
-  an app that checks for new data on a timer keeps doing it while hidden.
-- **One link can stay loaded on top of the three.** "Stay loaded" in a
+- **One screen past the cap drops the frame shown longest ago.** The cap
+  starts at `DEFAULT_KEPT_FRAMES` in `src/lib/frames.ts`, and the cog's
+  choices are `KEPT_FRAME_CHOICES` there. Lowering it closes nothing at once;
+  the next new screen opened drops the extras. Each kept frame is a whole app
+  running, so an app that checks for new data on a timer keeps doing it while
+  hidden.
+- **One link can stay loaded on top of the cap.** "Stay loaded" in a
   link's form (`menu.md`) marks it. Once that link's screen has been opened,
-  its frame is never the one dropped, and it doesn't count toward the three,
-  so three other screens stay loaded beside it. Tyler asked for this on
+  its frame is never the one dropped, and it doesn't count toward the cap,
+  so that many other screens stay loaded beside it. Tyler asked for this on
   18 Oct 2026 and chose one link, loaded on its first click rather than as
   soon as Personal opens. The frame belongs to the link's own address, so a
   deeper page of the same app opened from Recent screens is an ordinary
@@ -147,10 +151,12 @@ The code is `src/components/sidebar-footer.tsx`.
   - **Phone view** makes the frame 390 pixels wide, centred, full height. The
     app picks its phone layout because its window is that wide. Zoom is off
     while it is on. Kept under `personal-panel-phone`.
+  - **Screens kept loaded**: 3, 5, 8 or 10, the cap above. One number for
+    every screen, kept by this browser under `personal-panel-kept`.
   - **Menu shade**, a slider that makes the left menu lighter or darker, saved
     in the menu file. `menu.md` has the rest.
   - **Edit the menu** and **Sign out**.
-  - Recent screens, Pin, Zoom and Menu shade are views the dropdown steps into, with a row
+  - Recent screens, Pin, Zoom, Screens kept loaded and Menu shade are views the dropdown steps into, with a row
     at the top that steps back out, because the shell's dropdown has no
     sub-menus.
 - **On a phone** the menu is hidden, and a menu button in the bottom-left

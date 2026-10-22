@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Slider } from "@/components/ui/slider"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { KEPT_FRAME_CHOICES } from "@/lib/frames"
 import {
   MAX_SIDEBAR_SHADE,
   MIN_SIDEBAR_SHADE,
@@ -58,6 +59,9 @@ export type PanelControls = {
   setZoom: (zoom: PanelZoom) => void
   phone: boolean
   setPhone: (phone: boolean) => void
+  /** How many screens stay loaded, kept by this browser. */
+  kept: number
+  setKept: (kept: number) => void
   /** The left menu's shade, saved to the menu file. */
   shade: number
   setShade: (shade: number) => void
@@ -141,7 +145,7 @@ function SaveState({ status, onRetry }: { status: SaveStatus; onRetry: () => voi
   )
 }
 
-type CogView = "main" | "recent" | "pin" | "zoom" | "shade"
+type CogView = "main" | "recent" | "pin" | "zoom" | "kept" | "shade"
 
 /** A row that steps into one of the cog's lists. */
 function StepInItem({ label, onStep }: { label: React.ReactNode; onStep: () => void }) {
@@ -219,9 +223,10 @@ function ShadeControl({ panel }: { panel: PanelControls }) {
 
 /**
  * The cog: opening the screen in its own tab, recent screens, pinning, zoom,
- * phone view, the menu's shade, "Edit the menu" and Sign out. The recent
- * screens, the pin places, the zoom and the shade are lists the dropdown steps
- * into, since the shell's dropdown has no sub-menus.
+ * phone view, how many screens stay loaded, the menu's shade, "Edit the menu"
+ * and Sign out. The recent screens, the pin places, the zoom, the screens kept
+ * loaded and the shade are lists the dropdown steps into, since the shell's
+ * dropdown has no sub-menus.
  */
 function CogMenu({
   panel,
@@ -277,6 +282,19 @@ function CogMenu({
               </DropdownMenuCheckboxItem>
             ))}
           </>
+        ) : view === "kept" ? (
+          <>
+            <StepOutItem label="Screens kept loaded" onStep={() => setView("main")} />
+            {KEPT_FRAME_CHOICES.map((kept) => (
+              <DropdownMenuCheckboxItem
+                key={kept}
+                checked={panel.kept === kept}
+                onCheckedChange={() => panel.setKept(kept)}
+              >
+                {kept}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </>
         ) : view === "shade" ? (
           <>
             <StepOutItem label="Menu shade" onStep={() => setView("main")} />
@@ -327,6 +345,15 @@ function CogMenu({
             <DropdownMenuCheckboxItem checked={panel.phone} onCheckedChange={panel.setPhone}>
               Phone view
             </DropdownMenuCheckboxItem>
+            <StepInItem
+              label={
+                <>
+                  Screens kept loaded
+                  <span className="text-muted-foreground">{panel.kept}</span>
+                </>
+              }
+              onStep={() => setView("kept")}
+            />
             <StepInItem
               label={
                 <>
