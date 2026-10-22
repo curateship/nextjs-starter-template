@@ -14,7 +14,8 @@ export const PHOTO_MEASUREMENTS = [
 
 export type PhotoMeasurementKey = (typeof PHOTO_MEASUREMENTS)[number]["key"]
 
-function round(value: number) {
+/** "84" or "84.5", rounded to a tenth. */
+export function roundTenth(value: number) {
   const rounded = Math.round(value * 10) / 10
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
 }
@@ -27,18 +28,19 @@ export function describeChanges(earlier: PhotoSession, later: PhotoSession, unit
   const lines: string[] = []
   if (earlier.bodyweightKg !== null && later.bodyweightKg !== null) {
     const change = fromKg(later.bodyweightKg - earlier.bodyweightKg, unit)
-    lines.push(`Bodyweight ${formatWeight(later.bodyweightKg, unit)}, ${direction(change, unit)}`)
+    lines.push(`Bodyweight ${formatWeight(later.bodyweightKg, unit)}, ${changeWords(change, unit)}`)
   }
   for (const { key, label } of PHOTO_MEASUREMENTS) {
     const before = earlier[key]
     const after = later[key]
     if (before === null || after === null) continue
-    lines.push(`${label} ${round(after)} cm, ${direction(after - before, "cm")}`)
+    lines.push(`${label} ${roundTenth(after)} cm, ${changeWords(after - before, "cm")}`)
   }
   return lines
 }
 
-function direction(change: number, unit: string) {
+/** "down 3 cm", "up 0.5 kg" or "no change". */
+export function changeWords(change: number, unit: string) {
   if (Math.abs(change) < 0.05) return "no change"
-  return `${change > 0 ? "up" : "down"} ${round(Math.abs(change))} ${unit}`
+  return `${change > 0 ? "up" : "down"} ${roundTenth(Math.abs(change))} ${unit}`
 }

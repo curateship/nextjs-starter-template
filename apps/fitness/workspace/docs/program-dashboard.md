@@ -15,7 +15,7 @@ It follows the UI standard's three-column rules (`.agents/skills/Ui-standards/SK
 
 ## The three panels
 
-- **Left: the program and its week.** The header holds the arrow back to Programs, the program's name, the three-dot actions and the cog. Under it, the round picture with the name, routine type and status, then the This week card (`the-week.md`).
+- **Left: the program and its week.** The header holds the arrow back to Programs, the program's name, the three-dot actions and the cog. Under it, the round picture with the name, routine type and status, "Week 5 of 12" for a program with a length (`program-length.md`), then the This week card (`the-week.md`).
 - **Middle: the view.** Day, Calendar, History, Progress and Photos as words with a line under the open one, on the header's bottom edge. Five tabs take the line, not pills, because the standard draws three or more that way. The row scrolls sideways when it doesn't fit, which is also how it fits a phone. While a workout is being logged the tabs give way to the live workout (`workout-logger.md`).
 - **Right: what is open.** An exercise in the day, a calendar date, a workout, a lift or a photo day. Its header holds the title, the item's own icons and an × that closes it. With nothing open, the header names what will show there, then an icon and one line saying what to click.
 
@@ -48,15 +48,16 @@ Both are optional, both come from the person's own uploads, and both are set in 
 
 ## The cog and the three dots
 
-**The cog opens Program settings,** a window with four cards that fold and remember it:
+**The cog opens Program settings,** a window with five cards that fold and remember it:
 
 - **Pictures:** the banner and the picture.
 - **Starting data:** a summary line under its heading ("66 kg · 172 cm · Build muscle"), then Body, Training, the equipment you have and your best lifts. "Add lift" opens a dropdown list of lifts, not a second window.
-- **Weight rules** and **Training blocks** (`weight-rules-and-blocks.md`).
+- **Weight rules** and **Training blocks** (`weight-rules-and-blocks.md`). A Calisthenics program has **Step-up rules** in their place (`calisthenics.md`).
+- **Program length** (`program-length.md`).
 
 Each field saves as it changes, so the window ends with Done. Closing it saves the field being typed in, and a save that fails says so in a toast. Delete program sits at the foot on the left. Pressing it closes the window first, then asks.
 
-**The three dots hold what is done to the program as a whole:** Rename, Make it the active program (only when it isn't), Pause program or Resume program, Share (the owner's alone), then Archive or Bring back. Rename, Pause and Share open their own window.
+**The three dots hold what is done to the program as a whole:** Rename, Make it the active program (only when it isn't), Pause program or Resume program, Share (the owner's alone), Copy to a client (a coach's own program only, `coaching.md`), then Archive or Bring back. Rename, Pause and Share open their own window.
 
 ## Opening on arrival
 
@@ -81,6 +82,7 @@ Everything that decides what shows is in the address (`src/lib/fitness/program-s
 - `workout`: a workout being logged, which takes over the middle panel.
 - `at`: the lift open on the right of that workout, "pos-2". It is kept apart from `open` and never remembered, so coming back to a program never asks for "pos-2" as a date or a workout. Opening or closing a workout empties it.
 - `compare`: two photo days side by side.
+- `new`: "photo-day" opens New photo day on Photos, for the photo day reminder's link. Closing the window takes it out.
 - `q`, `name`, `status`, `exercise`, `group`: History's search, filters and grouping. Any change of view empties them: a tab, a weekday on the left, or a finished workout landing on History. The search keeps at most 80 characters.
 
 Picking a weekday or an item never reloads the page. Changing the view or opening a workout does, and each view loads only its own data (`src/lib/fitness/program-page.ts`).

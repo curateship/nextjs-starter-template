@@ -10,6 +10,8 @@ export type ExerciseDraft = {
   equipment: Equipment[]
   movement: Movement
   isBodyweight: boolean
+  /** A Calisthenics hold, logged in seconds. */
+  isTimed: boolean
   pictureUrl: string
 }
 
@@ -22,6 +24,7 @@ export function draftOf(exercise: Exercise | null, routineType: RoutineTypeId = 
     equipment: exercise?.equipment ?? [],
     movement: exercise?.movement ?? "push",
     isBodyweight: exercise?.isBodyweight ?? false,
+    isTimed: exercise?.isTimed ?? false,
     pictureUrl: exercise?.pictureUrl ?? "",
   }
 }

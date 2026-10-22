@@ -6,7 +6,7 @@ Both follow a person's active program and its calendar. Reminders are switched o
 
 - **What arrives:** a notice in the bell, an email, or both, saying "Workout today: Push" on a day the active program has a workout planned.
 - **When:** once the person's own clock passes the app's reminder time (07:00 unless the admin changes it). The clock is their own time zone, which the Programs dashboard saves from the browser the first time it opens.
-- **Never on a rest day, never during a pause, never twice.** The job stamps the calendar row before it sends anything (`reminded_at`), so two passes running at the same moment send it once.
+- **Never on a rest day, never during a pause, never on a day skipped on purpose, never twice.** The job stamps the calendar row before it sends anything (`reminded_at`), so two passes running at the same moment send it once.
 - **Where it runs:** `src/server/fitness/reminders.ts`, on the shell's background loop every 15 seconds (`src/app/server-options.ts`). Locally that loop starts with the dev server; when deployed it runs in the worker.
 
 ## The missed-workout nudge
@@ -14,6 +14,16 @@ Both follow a person's active program and its calendar. Reminders are switched o
 - **What arrives:** "You missed Pull yesterday", the day after a planned workout nobody logged, at the same reminder time.
 - **One per missed workout.** The job only looks at yesterday and stamps the row (`nudged_at`), so a workout missed on Monday sends one nudge on Tuesday and nothing after.
 - Moving a workout on the calendar clears both stamps, because it is a new day.
+
+## The coach's notice, the weekly check-in and the photo day reminder
+
+The same job sends three more notices (21 Oct 2026), each at the reminder time on the person's own clock:
+
+- **"Anna missed Push and Pull in a row"** to a client's coaches after two misses in a row, once per run, to the bell only. See `coaching.md`.
+- **"Your weekly check-in"** on Sundays to anyone with a coach who said yes, once a week, by the reminder channel. Someone who already sent that week's check-in isn't asked, and a coach whose account is being deleted doesn't count. See `weekly-check-in.md`.
+- **"Time for a photo day"** four weeks after the person's last photo day (Tyler: "4 weeks"), by the reminder channel. It goes once, stamped on the person (`photo_nudged_at`), and only a photo day dated later than the last one starts the next four weeks. Adding an older photo day sends nothing. Someone who never kept a photo day never gets it. It opens Photos with New photo day open (`?view=photos&new=photo-day`).
+
+The check-in and the photo reminder each have a switch on the Reminders tab, on to start, so they go out even with workout reminders off.
 
 ## Emails
 

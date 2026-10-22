@@ -133,9 +133,12 @@ export function HistoryMiddle(props: ProgramViewProps) {
                       </span>
                     </span>
                     <span className="hidden shrink-0 items-center gap-1.5 sm:flex">
-                      <span className="rounded-md border px-2 py-0.5 text-xs font-medium tabular-nums">
-                        {formatWeight(row.totalKg, unit)}
-                      </span>
+                      {/* A Calisthenics workout lifts no weight, so it has no total. */}
+                      {row.totalKg > 0 ? (
+                        <span className="rounded-md border px-2 py-0.5 text-xs font-medium tabular-nums">
+                          {formatWeight(row.totalKg, unit)}
+                        </span>
+                      ) : null}
                       {row.minutes ? (
                         <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground tabular-nums">
                           {row.minutes} min

@@ -56,7 +56,7 @@ async function noticesFor(userId: string) {
 describe("reminders", () => {
   it("reminds once on a workout day and never on a rest day", async () => {
     const programId = await annasProgram()
-    await saveAppSetting("reminders", { remindersOn: true, time: "00:00", channel: "bell", nudgeOn: false }, anna.id, database)
+    await saveAppSetting("reminders", { remindersOn: true, time: "00:00", channel: "bell", nudgeOn: false, checkInOn: false, photoReminderOn: false }, anna.id, database)
     const today = await todayFor(anna.id, database)
     const { days } = await loadCalendar(anna.id, programId, { from: today, to: addDays(today, 14) }, database)
     const workoutDay = days[0].day
@@ -74,7 +74,7 @@ describe("reminders", () => {
 
   it("nudges once the day after a missed workout", async () => {
     const programId = await annasProgram()
-    await saveAppSetting("reminders", { remindersOn: false, time: "00:00", channel: "bell", nudgeOn: true }, anna.id, database)
+    await saveAppSetting("reminders", { remindersOn: false, time: "00:00", channel: "bell", nudgeOn: true, checkInOn: false, photoReminderOn: false }, anna.id, database)
     const today = await todayFor(anna.id, database)
     const { days } = await loadCalendar(anna.id, programId, { from: today, to: addDays(today, 14) }, database)
     const missed = days[0].day
@@ -92,7 +92,7 @@ describe("reminders", () => {
 
   it("stays quiet during a pause", async () => {
     const programId = await annasProgram()
-    await saveAppSetting("reminders", { remindersOn: true, time: "00:00", channel: "bell", nudgeOn: false }, anna.id, database)
+    await saveAppSetting("reminders", { remindersOn: true, time: "00:00", channel: "bell", nudgeOn: false, checkInOn: false, photoReminderOn: false }, anna.id, database)
     const today = await todayFor(anna.id, database)
     await pauseProgram(anna.id, programId, { fromDay: today, untilDay: null, reason: "holiday" }, database)
     for (let offset = 0; offset < 7; offset += 1) {

@@ -1,8 +1,10 @@
 import * as React from "react"
 
+import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { TableSortButton } from "@/components/ui/table"
 import type { LiftRecord } from "@/lib/api/fitness/progress"
+import { countWords, hardestReached } from "@/lib/fitness/calisthenics"
 import { formatDay } from "@/lib/fitness/dates"
 import { formatWeight, type WeightUnit } from "@/lib/fitness/weights"
 import type { useSelection } from "@/lib/hooks/use-selection"
@@ -10,9 +12,9 @@ import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-type Column = "name" | "lastDay" | "sessions" | "heaviestKg" | "oneRepMaxKg"
+type Column = "name" | "lastDay" | "sessions" | "heaviestKg" | "oneRepMaxKg" | "mostReps"
 
-const NUMBER_COLUMNS = new Set<Column>(["sessions", "heaviestKg", "oneRepMaxKg", "lastDay"])
+const NUMBER_COLUMNS = new Set<Column>(["sessions", "heaviestKg", "oneRepMaxKg", "lastDay", "mostReps"])
 
 /** The most lifts one chart compares, so each still has a colour of its own. */
 const MOST_COMPARED = 4
@@ -37,16 +39,23 @@ const PICKED =
  * Progress view's Records card. Clicking a lift puts it on the chart and
  * opens it on the right. While comparing, each row has a tick box; ticking
  * two to four draws them together. Columns give way as the panel narrows.
+ *
+ * A Calisthenics program counts no weight, so its rows show the most reps
+ * (or seconds) instead, and mark the hardest version reached in each ladder
+ * (Tyler, 21 Oct 2026).
  */
 export function RecordsList({
   records,
   unit,
   shownId,
   selection,
+  counted = false,
   onShow,
 }: {
   records: readonly LiftRecord[]
   unit: WeightUnit
+  /** A Calisthenics program: most reps and the hardest version, no weights. */
+  counted?: boolean
   /** The lift the chart draws and the right panel shows. */
   shownId: string | null
   /** Set while comparing, and the tick boxes show. */
@@ -68,6 +77,7 @@ export function RecordsList({
     })
   }, [direction, records, sort])
   const visibleIds = rows.map((row) => row.exerciseId)
+  const hardest = React.useMemo(() => (counted ? hardestReached(records) : new Set<string>()), [counted, records])
 
   function head(column: Column, label: string, className?: string) {
     return (
@@ -118,8 +128,14 @@ export function RecordsList({
             {head("name", "Lift", "w-full")}
             {head("lastDay", "Last trained", "hidden @md:table-cell")}
             {head("sessions", "Sessions", "hidden @2xl:table-cell")}
-            {head("heaviestKg", "Heaviest", "hidden @lg:table-cell")}
-            {head("oneRepMaxKg", "Best one-rep max")}
+            {counted ? (
+              head("mostReps", "Most in a set")
+            ) : (
+              <>
+                {head("heaviestKg", "Heaviest", "hidden @lg:table-cell")}
+                {head("oneRepMaxKg", "Best one-rep max")}
+              </>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -160,13 +176,26 @@ export function RecordsList({
                   >
                     {record.name}
                   </button>
+                  {hardest.has(record.exerciseId) ? (
+                    <Badge variant="secondary" className="mt-1">
+                      Hardest so far
+                    </Badge>
+                  ) : null}
                 </td>
                 <td className={cn(cell, "hidden whitespace-nowrap text-muted-foreground @md:table-cell")}>{formatDay(record.lastDay)}</td>
                 <td className={cn(cell, "hidden text-muted-foreground tabular-nums @2xl:table-cell")}>{record.sessions}</td>
-                <td className={cn(cell, "hidden font-medium whitespace-nowrap tabular-nums @lg:table-cell")}>
-                  {formatWeight(record.heaviestKg, unit)}
-                </td>
-                <td className={cn(cell, "font-medium whitespace-nowrap tabular-nums")}>{formatWeight(record.oneRepMaxKg, unit)}</td>
+                {counted ? (
+                  <td className={cn(cell, "font-medium whitespace-nowrap tabular-nums")}>
+                    {countWords(record.mostReps, record.measure)}
+                  </td>
+                ) : (
+                  <>
+                    <td className={cn(cell, "hidden font-medium whitespace-nowrap tabular-nums @lg:table-cell")}>
+                      {formatWeight(record.heaviestKg, unit)}
+                    </td>
+                    <td className={cn(cell, "font-medium whitespace-nowrap tabular-nums")}>{formatWeight(record.oneRepMaxKg, unit)}</td>
+                  </>
+                )}
               </tr>
             )
           })}

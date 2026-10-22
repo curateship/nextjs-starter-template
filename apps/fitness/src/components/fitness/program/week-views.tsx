@@ -10,13 +10,16 @@ import {
   PlayIcon,
   PencilIcon,
   PlusIcon,
+  SkipForwardIcon,
   SparklesIcon,
+  Undo2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { PanelBody, RightEmpty } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
 import { PanelCard } from "@/components/fitness/panel-card"
+import { SCHEDULE_STATUS, skipCalendarDay } from "@/components/fitness/program/calendar-actions"
 import { calendarChanged } from "@/components/fitness/program/calendar-version"
 import { DayExercisePanel } from "@/components/fitness/program/day-exercise-panel"
 import { dayLine } from "@/components/fitness/program/day-groups"
@@ -26,6 +29,7 @@ import { NewButton, NewExercise } from "@/components/fitness/program/new-exercis
 import { AiPlanDialog, TemplateDialog } from "@/components/fitness/program/plan-dialogs"
 import { ProgramStateLine } from "@/components/fitness/program/program-actions"
 import { ProgramHero } from "@/components/fitness/program/program-hero"
+import { ProgramLengthLine } from "@/components/fitness/program/program-length"
 import { StatusDot, type DotKind } from "@/components/fitness/status-dot"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { Meter } from "@/components/ui/meter"
@@ -80,6 +84,7 @@ export function WeekLeft({ page, search, go }: ProgramViewProps) {
     <ProgramHero data={page}>
       <PanelBody>
         <ProgramStateLine data={page} />
+        <ProgramLengthLine data={page} />
         {page.openWorkout && page.openWorkout.id !== search.workout ? (
           <div className="grid gap-2 rounded-lg border p-3 text-sm">
             <p>
@@ -139,13 +144,13 @@ function ThisWeekCard({ page, search, go }: ProgramViewProps) {
           const status = day ? row?.status : undefined
           const dot: DotKind = !day
             ? "rest"
-            : status === "done" || status === "missed" || status === "paused"
+            : status === "done" || status === "missed" || status === "paused" || status === "skipped"
               ? status
               : isToday
                 ? "today"
                 : "planned"
           const word =
-            status === "done" ? "Done" : status === "missed" ? "Missed" : status === "paused" ? "Paused" : isToday ? "Today" : null
+            status && status !== "planned" ? SCHEDULE_STATUS[status].label : isToday ? "Today" : null
           return (
             <li key={weekday}>
               <button
@@ -190,6 +195,10 @@ export function DayMenu({ page, search, go }: ProgramViewProps) {
   const weekday = search.day
   const day = dayOf(page, weekday)
   const canChange = !page.program.archived
+  const { byWeekday } = useThisWeek(page.program.id, page.today)
+  // Today's planned date, which "Skip today" skips or brings back.
+  const todaysRow = day && weekday === weekdayOf(page.today) ? byWeekday.get(weekday) : undefined
+  const skippable = todaysRow && !todaysRow.workoutId && (todaysRow.status === "planned" || todaysRow.status === "skipped")
   const [renaming, setRenaming] = React.useState(false)
   const [copying, setCopying] = React.useState(false)
   const [resting, setResting] = React.useState(false)
@@ -265,6 +274,14 @@ export function DayMenu({ page, search, go }: ProgramViewProps) {
                   <BedIcon />
                   Make it a rest day
                 </DropdownMenuItem>
+                {skippable ? (
+                  <DropdownMenuItem
+                    onSelect={() => void act(() => skipCalendarDay(todaysRow, todaysRow.status !== "skipped"))}
+                  >
+                    {todaysRow.status === "skipped" ? <Undo2Icon /> : <SkipForwardIcon />}
+                    {todaysRow.status === "skipped" ? "Don't skip today" : "Skip today"}
+                  </DropdownMenuItem>
+                ) : null}
                 <DropdownMenuSeparator />
               </>
             ) : null}

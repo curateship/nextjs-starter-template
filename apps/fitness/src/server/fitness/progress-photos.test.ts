@@ -217,6 +217,7 @@ describe("exercise library", () => {
     equipment: ["cable" as const],
     movement: "isolation" as const,
     isBodyweight: false,
+    isTimed: false,
     pictureUrl: null,
   }
 
@@ -262,6 +263,9 @@ describe("exercise library", () => {
     const strength = await listExercises(anna.id, database, "strength")
     expect(strength.length).toBeGreaterThan(100)
     expect(strength.every((exercise) => exercise.routineType === "strength")).toBe(true)
-    expect(await listExercises(anna.id, database, "calisthenics")).toEqual([])
+    const calisthenics = await listExercises(anna.id, database, "calisthenics")
+    expect(calisthenics.map((exercise) => exercise.name)).toContain("Knee push-up")
+    expect(calisthenics.every((exercise) => exercise.routineType === "calisthenics")).toBe(true)
+    expect(await listExercises(anna.id, database, "running")).toEqual([])
   })
 })

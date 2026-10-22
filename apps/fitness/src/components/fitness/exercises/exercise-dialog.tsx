@@ -23,7 +23,13 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { changeExercise, type Exercise } from "@/lib/api/fitness/exercises"
-import { EQUIPMENT_LABELS, MOVEMENT_LABELS, MUSCLE_LABELS } from "@/lib/fitness/exercise-catalog"
+import {
+  EQUIPMENT_LABELS,
+  EXERCISE_CATALOG,
+  harderVersionOf,
+  MOVEMENT_LABELS,
+  MUSCLE_LABELS,
+} from "@/lib/fitness/exercise-catalog"
 import { reportFitnessError } from "@/lib/fitness/report-error"
 import { routineTypeLabel, type RoutineTypeId } from "@/lib/fitness/routine-types"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -197,6 +203,9 @@ export function ExerciseDialog({
 }
 
 function BuiltInFacts({ exercise }: { exercise: Exercise }) {
+  // A Calisthenics move names the version it steps up to.
+  const harderSlug = harderVersionOf(exercise.slug)
+  const harder = harderSlug ? EXERCISE_CATALOG.find((entry) => entry.slug === harderSlug)?.name : undefined
   return (
     <>
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
@@ -206,8 +215,22 @@ function BuiltInFacts({ exercise }: { exercise: Exercise }) {
         <dd>{exercise.equipment.map((item) => EQUIPMENT_LABELS[item]).join(", ")}</dd>
         <dt className="text-muted-foreground">Movement</dt>
         <dd>{MOVEMENT_LABELS[exercise.movement]}</dd>
-        <dt className="text-muted-foreground">Weight</dt>
-        <dd>{exercise.isBodyweight ? "Your bodyweight, plus anything added" : "The bar or the weights"}</dd>
+        <dt className="text-muted-foreground">{exercise.routineType === "calisthenics" ? "Counts" : "Weight"}</dt>
+        <dd>
+          {exercise.routineType === "calisthenics"
+            ? exercise.isTimed
+              ? "Seconds held, no weight"
+              : "Reps, no weight"
+            : exercise.isBodyweight
+              ? "Your bodyweight, plus anything added"
+              : "The bar or the weights"}
+        </dd>
+        {harder ? (
+          <>
+            <dt className="text-muted-foreground">Harder version</dt>
+            <dd>{harder}</dd>
+          </>
+        ) : null}
       </dl>
       <p className="text-xs text-muted-foreground">
         Built-in lifts can't be changed. Add your own with New exercise for anything different.

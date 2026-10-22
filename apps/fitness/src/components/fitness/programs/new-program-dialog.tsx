@@ -49,9 +49,10 @@ let heldExercises: Exercise[] | null = null
  * Makes a program in one go: its name, its routine type and the starting data
  * the person brings on day one. Tyler, 18 Oct 2026: "I create a program via
  * modal, choose a routine, input my starting data then create. Only then I get
- * to the 3 panel dashboard." Only Strength training can be picked today; the
- * other types are shown so people know they are coming. Best lifts are picked
- * from the chosen routine type's exercises only. A coach looking at a client
+ * to the 3 panel dashboard." Strength training and Calisthenics can be picked
+ * today; the other types are shown so people know they are coming. Best lifts
+ * are picked from the chosen routine type's exercises only, and a Calisthenics
+ * program has none, because its moves count no weight. A coach looking at a client
  * passes `personId`, and the program is the client's.
  */
 export function NewProgramDialog({
@@ -68,6 +69,7 @@ export function NewProgramDialog({
   const navigate = useNavigate()
   const ids = {
     name: React.useId(),
+    weeks: React.useId(),
     bodyweight: React.useId(),
     height: React.useId(),
     goal: React.useId(),
@@ -75,6 +77,7 @@ export function NewProgramDialog({
   }
   const [name, setName] = React.useState("")
   const [routineType, setRoutineType] = React.useState<RoutineTypeId>("strength")
+  const [weeks, setWeeks] = React.useState("")
   const [bodyweightKg, setBodyweightKg] = React.useState<number | null>(null)
   const [height, setHeight] = React.useState("")
   const [measurements, setMeasurements] = React.useState(EMPTY_MEASUREMENTS)
@@ -108,6 +111,7 @@ export function NewProgramDialog({
   )
   const dirty =
     name.trim() !== "" ||
+    weeks !== "" ||
     bodyweightKg !== null ||
     height !== "" ||
     Object.values(measurements).some(Boolean) ||
@@ -119,6 +123,7 @@ export function NewProgramDialog({
   function reset() {
     setName("")
     setRoutineType("strength")
+    setWeeks("")
     setBodyweightKg(null)
     setHeight("")
     setMeasurements(EMPTY_MEASUREMENTS)
@@ -148,6 +153,11 @@ export function NewProgramDialog({
     if (!name.trim()) {
       problems.add("name")
       message = FITNESS_ERRORS.nameNeeded
+    }
+    const weekCount = weeks.trim() === "" ? null : Number(weeks.trim())
+    if (weekCount !== null && (!Number.isInteger(weekCount) || weekCount < 1 || weekCount > 104)) {
+      problems.add("weeks")
+      message ??= "Type between 1 and 104 weeks, or leave it empty so the program runs for good."
     }
     const heightCm = centimetres(height)
     if (heightCm === undefined) {
@@ -182,6 +192,7 @@ export function NewProgramDialog({
       const { id } = await saveNewProgram({
         name,
         routineType,
+        weeks: weekCount,
         personId,
         baseline: {
           bodyweightKg,
@@ -237,6 +248,22 @@ export function NewProgramDialog({
                       aria-invalid={invalid.has("name") || undefined}
                       autoFocus
                       onChange={(event) => setName(event.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor={ids.weeks}
+                      hint="Counted from today. After the last week nothing more is planned, and you pick between running it again and ending it. Leave it empty to run for good."
+                    >
+                      Weeks it runs
+                    </FieldLabel>
+                    <Input
+                      id={ids.weeks}
+                      inputMode="numeric"
+                      value={weeks}
+                      placeholder="No end"
+                      aria-invalid={invalid.has("weeks") || undefined}
+                      onChange={(event) => setWeeks(event.target.value)}
                     />
                   </div>
                   <div className="grid gap-2" role="radiogroup" aria-label="Routine type">
@@ -371,53 +398,56 @@ export function NewProgramDialog({
                 </CardContent>
               </Card>
 
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>Best lifts</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                  <p className="text-sm text-muted-foreground">
-                    Your best recent set of a lift, such as 80 {unit === "kg" ? "kg" : "lb"} for 5. Only this routine
-                    type's exercises are listed, and templates start each lift from it.
-                  </p>
-                  {lifts.map((lift) => (
-                    <LiftRow
-                      key={lift.exerciseId}
-                      lift={lift}
-                      unit={unit}
-                      invalid={invalid.has(`lift-${lift.exerciseId}`)}
-                      onChange={(next) =>
-                        setLifts((current) => current.map((entry) => (entry.exerciseId === lift.exerciseId ? next : entry)))
-                      }
-                      onRemove={() => setLifts((current) => current.filter((entry) => entry.exerciseId !== lift.exerciseId))}
-                    />
-                  ))}
-                  {/* A dropdown rather than the exercise picker's own window: a window never opens over another. */}
-                  <Select
-                    value=""
-                    onValueChange={(exerciseId) => {
-                      const exercise = typeExercises.find((entry) => entry.id === exerciseId)
-                      if (!exercise) return
-                      setLifts((current) => [
-                        ...current,
-                        { exerciseId: exercise.id, name: exercise.name, weightKg: null, reps: "1" },
-                      ])
-                    }}
-                  >
-                    <SelectTrigger aria-label="Add a best lift" className="w-fit">
-                      <PlusIcon className="size-4" />
-                      <SelectValue placeholder={exercises ? "Add a best lift" : "Loading exercises…"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {typeExercises.map((exercise) => (
-                        <SelectItem key={exercise.id} value={exercise.id}>
-                          {exercise.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </CardContent>
-              </Card>
+              {/* A Calisthenics move counts no weight, so there are no best lifts to start from. */}
+              {routineType === "calisthenics" ? null : (
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Best lifts</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <p className="text-sm text-muted-foreground">
+                      Your best recent set of a lift, such as 80 {unit === "kg" ? "kg" : "lb"} for 5. Only this routine
+                      type's exercises are listed, and templates start each lift from it.
+                    </p>
+                    {lifts.map((lift) => (
+                      <LiftRow
+                        key={lift.exerciseId}
+                        lift={lift}
+                        unit={unit}
+                        invalid={invalid.has(`lift-${lift.exerciseId}`)}
+                        onChange={(next) =>
+                          setLifts((current) => current.map((entry) => (entry.exerciseId === lift.exerciseId ? next : entry)))
+                        }
+                        onRemove={() => setLifts((current) => current.filter((entry) => entry.exerciseId !== lift.exerciseId))}
+                      />
+                    ))}
+                    {/* A dropdown rather than the exercise picker's own window: a window never opens over another. */}
+                    <Select
+                      value=""
+                      onValueChange={(exerciseId) => {
+                        const exercise = typeExercises.find((entry) => entry.id === exerciseId)
+                        if (!exercise) return
+                        setLifts((current) => [
+                          ...current,
+                          { exerciseId: exercise.id, name: exercise.name, weightKg: null, reps: "1" },
+                        ])
+                      }}
+                    >
+                      <SelectTrigger aria-label="Add a best lift" className="w-fit">
+                        <PlusIcon className="size-4" />
+                        <SelectValue placeholder={exercises ? "Add a best lift" : "Loading exercises…"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {typeExercises.map((exercise) => (
+                          <SelectItem key={exercise.id} value={exercise.id}>
+                            {exercise.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </CardContent>
+                </Card>
+              )}
             </DialogBody>
             <DialogFooter>
               <Button type="button" variant="outline" size="lg" onClick={requestClose}>

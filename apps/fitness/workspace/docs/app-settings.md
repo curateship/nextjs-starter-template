@@ -6,7 +6,7 @@ Tyler, 18 Oct 2026: "all these settings live in settings page in the app setting
 
 - **Units and plates** (`fitness-units`): kilograms or pounds, the smallest jump the plates allow (2.5 kg to start), the empty bar (20 kg) and the plates on hand (25, 20, 15, 10, 5, 2.5 and 1.25 kg). Every weight is stored in kilograms, so switching to pounds changes what every screen shows and nothing that was logged.
 - **Workouts** (`fitness-workouts`): whether heavy lifts start with warm-up sets, the weekly goal (3 workouts to start) and sex, which is only used to compare lifts with others of the same size. Not set hides those comparisons.
-- **Reminders** (`fitness-reminders`): whether people get a notice on workout days, whether they get a nudge the day after a missed one, the time (07:00 to start, on each person's own clock) and whether it goes to the bell, email or both. See `reminders-and-calendar-feed.md`.
+- **Reminders** (`fitness-reminders`): whether people get a notice on workout days, whether they get a nudge the day after a missed one, whether people with a coach are asked for a weekly check-in, whether a photo day reminder goes out (both on to start), the time (07:00 to start, on each person's own clock) and whether it goes to the bell, email or both. See `reminders-and-calendar-feed.md`.
 - **Calendar feed** (`fitness-calendar`): the signed-in person's own feed address for Google or Apple Calendar, with Turn on, Reset address, Turn off and Copy. The feed is the one thing here that is the viewer's own, because the address carries their own secret.
 
 ## How they save

@@ -42,6 +42,7 @@ export async function calendarFeedFor(token: string, database: CustomShellDb = d
         id: fitnessScheduledWorkouts.id,
         day: fitnessScheduledWorkouts.day,
         status: fitnessScheduledWorkouts.status,
+        skippedAt: fitnessScheduledWorkouts.skippedAt,
         weekDayName: fitnessWeekDays.name,
         workoutName: fitnessWorkouts.name,
       })
@@ -66,7 +67,7 @@ export async function calendarFeedFor(token: string, database: CustomShellDb = d
           `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").slice(0, 15)}Z`,
           `DTSTART;VALUE=DATE:${start}`,
           `DTEND;VALUE=DATE:${end}`,
-          fold(`SUMMARY:${escapeText(`${row.status === "done" ? "Done: " : ""}${name}, ${program.name}`)}`),
+          fold(`SUMMARY:${escapeText(`${row.status === "done" ? "Done: " : row.skippedAt ? "Skipped: " : ""}${name}, ${program.name}`)}`),
           fold(`URL:${appUrlFor(`/programs/${program.id}`)}`),
           "END:VEVENT",
         ].join("\r\n")

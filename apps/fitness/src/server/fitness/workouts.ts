@@ -3,6 +3,8 @@ import { and, asc, desc, eq, exists, inArray, isNotNull, isNull, lt, max, ne, no
 import type { Day } from "@/lib/fitness/dates"
 import { FITNESS_ERRORS } from "@/lib/fitness/errors"
 import { warmUpSets } from "@/lib/fitness/plates"
+import { defaultRange, measureOf, nextCalisthenics, type SetMeasure } from "@/lib/fitness/calisthenics"
+import { harderVersionOf } from "@/lib/fitness/exercise-catalog"
 import { DEFAULT_PROGRESSION, nextWeight } from "@/lib/fitness/progress"
 import { isLightWeek } from "@/lib/fitness/schedule"
 import { estimateOneRepMax, formatWeight, roundToStep } from "@/lib/fitness/weights"
@@ -10,10 +12,10 @@ import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { canReachPerson, programFor, type FitnessDb } from "@/server/fitness/access"
 import { todayFor } from "@/server/fitness/calendar"
-import { exerciseFor, exerciseForRoutine, exercisesById } from "@/server/fitness/exercises"
+import { builtInBySlug, exerciseFor, exerciseForRoutine, exercisesById } from "@/server/fitness/exercises"
 import { sendFitnessNotice } from "@/server/fitness/notices"
 import { preferencesFor } from "@/server/fitness/profile"
-import { settleDayOrder } from "@/server/fitness/week"
+import { loadCalisthenicsSettings, settleDayOrder } from "@/server/fitness/week"
 import {
   fitnessBaselines,
   fitnessPhotoSessions,
@@ -47,6 +49,7 @@ export type WorkoutExercise = {
   position: number
   exerciseId: string
   name: string
+  measure: SetMeasure
   isBodyweight: boolean
   muscles: string[]
   groupKey: string | null
@@ -143,7 +146,7 @@ type NewSet = Omit<SetRow, "id" | "workoutId" | "updatedAt" | "note"> & { note?:
 /** The sets a plan exercise starts with: warm-ups when they are on, then its working sets. */
 function setsForDayExercise(
   plan: typeof fitnessDayExercises.$inferSelect,
-  exercise: { isBodyweight: boolean },
+  exercise: { isBodyweight: boolean; routineType: string },
   position: number,
   options: {
     warmupsOn: boolean
@@ -154,8 +157,11 @@ function setsForDayExercise(
     bodyweightKg: number | null
   }
 ): NewSet[] {
-  const weight =
-    options.lightShare !== null && !exercise.isBodyweight
+  // A Calisthenics move counts no weight and has no warm-up sets.
+  const calisthenics = exercise.routineType === "calisthenics"
+  const weight = calisthenics
+    ? 0
+    : options.lightShare !== null && !exercise.isBodyweight
       ? roundToStep(plan.weightKg * options.lightShare, options.stepKg)
       : plan.weightKg
   const sets: NewSet[] = []
@@ -168,7 +174,7 @@ function setsForDayExercise(
     reps: null,
     done: false,
   }
-  if (options.warmupsOn && !exercise.isBodyweight) {
+  if (options.warmupsOn && !exercise.isBodyweight && !calisthenics) {
     for (const warm of warmUpSets(weight, options.barKg, options.platesKg)) {
       sets.push({
         ...base,
@@ -296,20 +302,29 @@ export async function startWorkout(
     importKey: null,
   })
   const sets = planExercises.flatMap((plan, position) =>
-    setsForDayExercise(plan, { isBodyweight: exercises.get(plan.exerciseId)?.isBodyweight ?? false }, position, {
+    setsForDayExercise(
+      plan,
+      {
+        isBodyweight: exercises.get(plan.exerciseId)?.isBodyweight ?? false,
+        routineType: exercises.get(plan.exerciseId)?.routineType ?? program.routineType,
+      },
+      position,
+      {
       warmupsOn: profile.warmupsOn,
       barKg: profile.barKg,
       platesKg: profile.platesKg,
       stepKg: profile.stepKg,
-      lightShare: lightWeek && strength ? strength.lightWeekPercent / 100 : null,
-      bodyweightKg,
-    })
+        lightShare: lightWeek && strength ? strength.lightWeekPercent / 100 : null,
+        bodyweightKg,
+      }
+    )
   )
   await insertSets(id, sets, database)
   if (scheduled) {
+    // Training on a day skipped earlier takes the skip back.
     await database
       .update(fitnessScheduledWorkouts)
-      .set({ workoutId: id })
+      .set({ workoutId: id, skippedAt: null })
       .where(eq(fitnessScheduledWorkouts.id, scheduled.id))
   }
   return { id }
@@ -456,6 +471,7 @@ export async function loadWorkout(actorId: string, workoutId: string, database: 
         position,
         exerciseId: first.exerciseId,
         name: exercise?.name ?? "Exercise",
+        measure: measureOf(exercise),
         isBodyweight: exercise?.isBodyweight ?? false,
         muscles: exercise?.muscles ?? [],
         groupKey: first.groupKey,
@@ -577,7 +593,8 @@ export async function addExerciseToWorkout(
   const position = (last ?? -1) + 1
   const bodyweightKg = exercise.isBodyweight ? await latestBodyweight(workout.userId, database) : null
   const previous = await lastSessions(workout.userId, [exerciseId], workoutId, database)
-  const lastWeight = previous.get(exerciseId)?.sets.at(-1)?.weightKg ?? null
+  // A Calisthenics move counts no weight.
+  const lastWeight = exercise.routineType === "calisthenics" ? 0 : (previous.get(exerciseId)?.sets.at(-1)?.weightKg ?? null)
   await insertSets(
     workoutId,
     [1, 2, 3].map((setNumber) => ({
@@ -653,6 +670,8 @@ export async function swapExercise(
 export type PersonalRecord = {
   exerciseId: string
   exerciseName: string
+  /** What the lift's sets count, so a Calisthenics record reads "12 reps" with no weight. */
+  measure: SetMeasure
   kind: "heaviest" | "oneRepMax" | "mostReps"
   /** The weight on the bar, plus bodyweight for a bodyweight lift. */
   weightKg: number
@@ -727,10 +746,12 @@ async function recordsIn(workout: WorkoutRow, database: FitnessDb): Promise<Pers
     const old = bestNumbers(before)
     const fresh = bestNumbers(sets.filter((set) => set.exerciseId === exerciseId))
     const name = names.get(exerciseId)?.name ?? "Exercise"
+    const measure = measureOf(names.get(exerciseId))
     if (fresh.heaviest > old.heaviest + 1e-9) {
       records.push({
         exerciseId,
         exerciseName: name,
+        measure,
         kind: "heaviest",
         weightKg: fresh.heaviest,
         reps: 0,
@@ -742,6 +763,7 @@ async function recordsIn(workout: WorkoutRow, database: FitnessDb): Promise<Pers
       records.push({
         exerciseId,
         exerciseName: name,
+        measure,
         kind: "oneRepMax",
         weightKg: fresh.oneRepMax,
         reps: 0,
@@ -753,6 +775,7 @@ async function recordsIn(workout: WorkoutRow, database: FitnessDb): Promise<Pers
       records.push({
         exerciseId,
         exerciseName: name,
+        measure,
         kind: "mostReps",
         weightKg: fresh.mostRepsWeight,
         reps: fresh.mostReps,
@@ -766,6 +789,9 @@ async function recordsIn(workout: WorkoutRow, database: FitnessDb): Promise<Pers
 
 type WeightChange = { exerciseName: string; fromKg: number; toKg: number }
 
+/** A Calisthenics move after a workout: the harder version it stepped up to, or its new target. */
+type StepChange = { exerciseName: string; toName: string | null; reps: number; measure: SetMeasure }
+
 export type FinishSummary = {
   workoutId: string
   minutes: number
@@ -773,6 +799,7 @@ export type FinishSummary = {
   totalKg: number
   records: PersonalRecord[]
   weightChanges: WeightChange[]
+  stepChanges: StepChange[]
 }
 
 /**
@@ -781,6 +808,13 @@ export type FinishSummary = {
  */
 async function applyProgression(workout: WorkoutRow, database: FitnessDb): Promise<WeightChange[]> {
   if (!workout.programId || workout.lightWeek || workout.source !== "day") return []
+  const [program] = await database
+    .select({ routineType: fitnessPrograms.routineType })
+    .from(fitnessPrograms)
+    .where(eq(fitnessPrograms.id, workout.programId))
+    .limit(1)
+  // A Calisthenics move steps up instead (`applySteps`).
+  if (program?.routineType === "calisthenics") return []
   const [strength] = await database
     .select()
     .from(fitnessStrengthSettings)
@@ -838,6 +872,75 @@ async function applyProgression(workout: WorkoutRow, database: FitnessDb): Promi
   return changes
 }
 
+/**
+ * Moves each Calisthenics move in this workout along its ladder
+ * (`nextCalisthenics`): a good session at the top of the range steps it up to
+ * its next harder version, anything less sets next time's target one rep
+ * above the fewest done. With stepping up off, nothing changes.
+ */
+async function applySteps(workout: WorkoutRow, database: FitnessDb): Promise<StepChange[]> {
+  if (!workout.programId || workout.source !== "day") return []
+  const [program] = await database
+    .select({ routineType: fitnessPrograms.routineType })
+    .from(fitnessPrograms)
+    .where(eq(fitnessPrograms.id, workout.programId))
+    .limit(1)
+  if (program?.routineType !== "calisthenics") return []
+  const rules = await loadCalisthenicsSettings(workout.programId, database)
+  if (!rules.autoStepUp) return []
+  const sets = await database
+    .select()
+    .from(fitnessWorkoutSets)
+    .where(
+      and(
+        eq(fitnessWorkoutSets.workoutId, workout.id),
+        eq(fitnessWorkoutSets.kind, "working"),
+        isNotNull(fitnessWorkoutSets.dayExerciseId)
+      )
+    )
+  const planIds = [...new Set(sets.map((set) => set.dayExerciseId as string))]
+  if (planIds.length === 0) return []
+  const plans = await database.select().from(fitnessDayExercises).where(inArray(fitnessDayExercises.id, planIds))
+  const names = await exercisesById(plans.map((plan) => plan.exerciseId), database)
+  const bySlug = await builtInBySlug(database)
+  const changes: StepChange[] = []
+  for (const plan of plans) {
+    const mine = sets.filter((set) => set.dayExerciseId === plan.id && set.exerciseId === plan.exerciseId)
+    if (mine.length === 0) continue
+    const exercise = names.get(plan.exerciseId)
+    const harder = bySlug.get(harderVersionOf(exercise?.slug ?? null) ?? "")
+    const next = nextCalisthenics(
+      {
+        reps: plan.reps,
+        repsMin: plan.repsMin ?? plan.reps,
+        repsMax: plan.repsMax ?? defaultRange(plan.reps).repsMax,
+        goodStreak: plan.goodStreak,
+      },
+      { allDone: mine.every((set) => set.done), reps: mine.filter((set) => set.done).map((set) => set.reps ?? 0) },
+      { sessionsToStep: rules.sessionsToStep, hasHarder: Boolean(harder) }
+    )
+    await database
+      .update(fitnessDayExercises)
+      .set({
+        exerciseId: next.stepUp && harder ? harder.id : plan.exerciseId,
+        reps: next.reps,
+        repsMin: next.repsMin,
+        repsMax: next.repsMax,
+        goodStreak: next.goodStreak,
+      })
+      .where(eq(fitnessDayExercises.id, plan.id))
+    if (next.stepUp || next.reps !== plan.reps) {
+      changes.push({
+        exerciseName: exercise?.name ?? "Exercise",
+        toName: next.stepUp && harder ? harder.name : null,
+        reps: next.reps,
+        measure: measureOf(next.stepUp && harder ? harder : exercise),
+      })
+    }
+  }
+  return changes
+}
+
 const RECORD_WORDS: Record<PersonalRecord["kind"], string> = {
   heaviest: "heaviest",
   oneRepMax: "best estimated one-rep max",
@@ -866,10 +969,13 @@ export async function finishWorkout(
     .limit(1)
   if (!ticked) throw new Error(FITNESS_ERRORS.nothingLogged)
   const finishedAt = now()
-  await database
+  // Only the first of two finishes at the same moment moves the weights and the steps on.
+  const claimed = await database
     .update(fitnessWorkouts)
     .set({ finishedAt, effort: input.effort, note: input.note.trim() })
-    .where(eq(fitnessWorkouts.id, workoutId))
+    .where(and(eq(fitnessWorkouts.id, workoutId), isNull(fitnessWorkouts.finishedAt)))
+    .returning({ id: fitnessWorkouts.id })
+  if (claimed.length === 0) throw new Error(FITNESS_ERRORS.workoutFinished)
   if (workout.scheduledId) {
     await database
       .update(fitnessScheduledWorkouts)
@@ -878,13 +984,18 @@ export async function finishWorkout(
   }
   const finished = { ...workout, finishedAt }
   const weightChanges = await applyProgression(finished, database)
+  const stepChanges = await applySteps(finished, database)
   const records = await recordsIn(finished, database)
   const profile = await preferencesFor(workout.userId, database)
+  const lifts = await exercisesById(records.map((record) => record.exerciseId), database)
   for (const record of records) {
+    const measure = measureOf(lifts.get(record.exerciseId))
     const figure =
-      record.kind === "mostReps"
-        ? `${record.reps} reps at ${formatWeight(record.weightKg, profile.unit)}`
-        : formatWeight(record.weightKg, profile.unit)
+      record.kind !== "mostReps"
+        ? formatWeight(record.weightKg, profile.unit)
+        : measure === "load"
+          ? `${record.reps} reps at ${formatWeight(record.weightKg, profile.unit)}`
+          : `${record.reps} ${measure === "seconds" ? "seconds" : "reps"}`
     await sendFitnessNotice(
       {
         recipientUserId: workout.userId,
@@ -913,6 +1024,7 @@ export async function finishWorkout(
     totalKg: done.reduce((sum, set) => sum + loadOf(set) * (set.reps ?? 0), 0),
     records,
     weightChanges,
+    stepChanges,
   }
 }
 

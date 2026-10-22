@@ -7,6 +7,7 @@ import {
   displayStatus,
   fillSchedule,
   isLightWeek,
+  programEndDay,
   type PauseWindow,
   type ScheduleStatus,
 } from "@/lib/fitness/schedule"
@@ -78,11 +79,21 @@ export async function ensureScheduled(programId: string, today: Day, database: F
     .where(eq(fitnessStrengthSettings.programId, programId))
     .limit(1)
   if (!strength) return
-  const to = addDays(today, SCHEDULE_DAYS_AHEAD)
-  const from =
+  const [program] = await database
+    .select({ weeks: fitnessPrograms.weeks })
+    .from(fitnessPrograms)
+    .where(eq(fitnessPrograms.id, programId))
+    .limit(1)
+  // A program that runs for a set number of weeks plans nothing past its last day.
+  const end = programEndDay(strength.startDay, program?.weeks ?? null)
+  const ahead = addDays(today, SCHEDULE_DAYS_AHEAD)
+  const to = end && end < ahead ? end : ahead
+  const laidFrom =
     strength.scheduledThrough && strength.scheduledThrough >= today
       ? addDays(strength.scheduledThrough, 1)
       : today
+  // A program run again starts on a later Monday, and nothing is planned before it.
+  const from = laidFrom < strength.startDay ? strength.startDay : laidFrom
   if (from > to) return
   const week = await weekMap(programId, database)
   // A date is taken when it holds a workout, or when a workout was moved off
@@ -133,11 +144,11 @@ export async function ensureScheduled(programId: string, today: Day, database: F
  * Lays the week out again from today. Used when a weekday becomes a workout
  * or a rest day, or a pause changes.
  *
- * Throws away every planned date from today on that wasn't moved by hand and
- * has no workout started on it, and every planned date whose weekday is now a
- * rest day. A date with a workout on it, finished or started, is never
- * touched, so the calendar keeps its history and an open workout keeps its
- * date.
+ * Throws away every planned date from today on that wasn't moved or skipped
+ * by hand and has no workout started on it, and every planned date whose
+ * weekday is now a rest day. A date with a workout on it, finished or
+ * started, is never touched, so the calendar keeps its history and an open
+ * workout keeps its date.
  */
 export async function rescheduleFromToday(programId: string, today: Day, database: FitnessDb = db) {
   await database
@@ -148,7 +159,11 @@ export async function rescheduleFromToday(programId: string, today: Day, databas
         eq(fitnessScheduledWorkouts.status, "planned"),
         isNull(fitnessScheduledWorkouts.workoutId),
         or(
-          and(eq(fitnessScheduledWorkouts.moved, false), gte(fitnessScheduledWorkouts.day, today)),
+          and(
+            eq(fitnessScheduledWorkouts.moved, false),
+            isNull(fitnessScheduledWorkouts.skippedAt),
+            gte(fitnessScheduledWorkouts.day, today)
+          ),
           isNull(fitnessScheduledWorkouts.dayId)
         )
       )
@@ -195,6 +210,7 @@ export async function loadCalendar(
       workoutName: fitnessWorkouts.name,
       status: fitnessScheduledWorkouts.status,
       moved: fitnessScheduledWorkouts.moved,
+      skippedAt: fitnessScheduledWorkouts.skippedAt,
       workoutId: fitnessScheduledWorkouts.workoutId,
     })
     .from(fitnessScheduledWorkouts)
@@ -221,10 +237,10 @@ export async function loadCalendar(
   return {
     today,
     pause: asWindow(current),
-    days: rows.map(({ weekDayName, workoutName, ...row }) => ({
+    days: rows.map(({ weekDayName, workoutName, skippedAt, ...row }) => ({
       ...row,
       dayName: weekDayName ?? workoutName ?? "Workout",
-      status: displayStatus(row.status, row.day, today, pauseOn(row.day)),
+      status: displayStatus(row.status, row.day, today, pauseOn(row.day), Boolean(skippedAt)),
       lightWeek: strength ? isLightWeek(row.day, strength.startDay, strength.blockWeeks) : false,
     })),
   }
@@ -278,7 +294,42 @@ export async function moveScheduled(
   if (clash) throw new Error(FITNESS_ERRORS.dayTaken)
   await database
     .update(fitnessScheduledWorkouts)
-    .set({ day: toDay, moved: true, movedFrom: row.movedFrom ?? row.day, remindedAt: null, nudgedAt: null })
+    .set({
+      day: toDay,
+      moved: true,
+      movedFrom: row.movedFrom ?? row.day,
+      remindedAt: null,
+      nudgedAt: null,
+      skippedAt: null,
+      coachNoticedAt: null,
+    })
+    .where(eq(fitnessScheduledWorkouts.id, scheduledId))
+}
+
+/**
+ * Skips one planned date on purpose, or takes the skip back. A skipped date
+ * is neither done nor missed (Tyler, 21 Oct 2026): it keeps the streak, sends
+ * no reminder or nudge and counts as no miss. A date in the past can be
+ * skipped too, which turns a Missed date into Skipped. A date with a workout
+ * on it, finished or started, can't be skipped.
+ */
+export async function skipScheduled(
+  actorId: string,
+  scheduledId: string,
+  skipped: boolean,
+  database: FitnessDb = db
+) {
+  const [row] = await database
+    .select()
+    .from(fitnessScheduledWorkouts)
+    .where(eq(fitnessScheduledWorkouts.id, scheduledId))
+    .limit(1)
+  if (!row) throw new Error(FITNESS_ERRORS.scheduledNotFound)
+  await programFor(actorId, row.programId, database, { forChange: true })
+  if (row.status === "done" || row.workoutId) throw new Error(FITNESS_ERRORS.skipHasWorkout)
+  await database
+    .update(fitnessScheduledWorkouts)
+    .set({ skippedAt: skipped ? now() : null })
     .where(eq(fitnessScheduledWorkouts.id, scheduledId))
 }
 

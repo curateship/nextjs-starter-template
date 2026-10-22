@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { CheckInCard, ClientCheckIns } from "@/components/fitness/coaching/check-in"
 import { InviteClientDialog } from "@/components/fitness/coaching/invite-client-dialog"
 import { NewProgramDialog } from "@/components/fitness/programs/new-program-dialog"
 import { ProgramSettingsDialog } from "@/components/fitness/programs/program-settings-dialog"
@@ -34,7 +35,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { changeClients, changeMyCoach, type CoachClient, type MyCoach } from "@/lib/api/fitness/coaching"
 import { saveMyTimeZone } from "@/lib/api/fitness/profile"
 import { changeProgram, loadProgramsPage, type ProgramSummary } from "@/lib/api/fitness/programs"
-import { formatDay } from "@/lib/fitness/dates"
+import { daysBetween, formatDay, type Day } from "@/lib/fitness/dates"
 import { reportFitnessError } from "@/lib/fitness/report-error"
 import { routineTypeLabel } from "@/lib/fitness/routine-types"
 import { describeBulkResult } from "@/lib/format/bulk-result"
@@ -171,6 +172,7 @@ export function ProgramsDashboard({ page, clientName }: { page: ProgramsPage; cl
       ) : null}
 
       <CoachRequests coaches={requests} />
+      {page.checkInDue ? <CheckInCard week={page.checkInDue.week} unit={page.preferences.unit} /> : null}
 
       <DashboardTable
         title={viewingClient ? `${clientName}'s programs` : "Programs"}
@@ -242,8 +244,11 @@ export function ProgramsDashboard({ page, clientName }: { page: ProgramsPage; cl
         ))}
       </DashboardTable>
 
+      {viewingClient && page.checkIns ? (
+        <ClientCheckIns checkIns={page.checkIns} unit={page.preferences.unit} name={clientName} clientId={page.personId} />
+      ) : null}
       {viewingClient ? null : <MyCoaches coaches={myCoaches} />}
-      {page.clients ? <ClientsTable clients={page.clients} /> : null}
+      {page.clients ? <ClientsTable clients={page.clients} today={page.today} /> : null}
 
       <NewProgramDialog
         open={creating}
@@ -299,7 +304,7 @@ function ProgramRow({
       <TableCell column="select">
         <Checkbox checked={selected} onCheckedChange={onSelect} aria-label={`Select ${program.name}`} />
       </TableCell>
-      <TableCell column="main" className="min-w-40">
+      <TableCell column="main" className="min-w-40 whitespace-normal">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -468,19 +473,109 @@ function MyCoaches({ coaches }: { coaches: MyCoach[] }) {
   )
 }
 
-type ClientSort = "name" | "status"
+/** A linked client's figures in the Clients table; a waiting request shows dashes. */
+function ClientOverviewCells({ overview, today }: { overview: CoachClient["overview"]; today: Day }) {
+  if (!overview) {
+    return (
+      <>
+        <TableCell column="meta" className="hidden xl:table-cell" />
+        <TableCell column="meta" className="hidden xl:table-cell" />
+        <TableCell column="meta" className="hidden xl:table-cell" />
+        <TableCell column="meta" className="hidden xl:table-cell" />
+      </>
+    )
+  }
+  return (
+    <>
+      <TableCell column="meta" className="hidden xl:table-cell">
+        {lastWorkoutWords(overview.lastWorkout, today)}
+      </TableCell>
+      <TableCell column="meta" className="hidden tabular-nums xl:table-cell">
+        {overview.thisWeek} of {overview.goal}
+      </TableCell>
+      <TableCell column="meta" className="hidden tabular-nums xl:table-cell">
+        {overview.missed}
+      </TableCell>
+      <TableCell column="meta" className="hidden xl:table-cell">
+        {overview.lastCheckIn ? (
+          <span className="inline-flex items-center gap-1.5">
+            {formatDay(overview.lastCheckIn.sentAt.slice(0, 10))}
+            {overview.checkInUnread ? <Badge variant="secondary">New</Badge> : null}
+          </span>
+        ) : (
+          "None yet"
+        )}
+      </TableCell>
+    </>
+  )
+}
+
+type ClientSort = "name" | "status" | "last" | "week" | "missed" | "checkIn"
 
 const CLIENT_COLUMNS: TableHeaderColumn<ClientSort>[] = [
   { key: "name", label: "Client", column: "main", className: "min-w-40" },
-  { key: "status", label: "Status", column: "meta" },
+  { key: "status", label: "Status", column: "meta", className: "hidden sm:table-cell" },
+  { key: "last", label: "Last workout", column: "meta", className: "hidden xl:table-cell" },
+  { key: "week", label: "This week", column: "meta", className: "hidden xl:table-cell" },
+  { key: "missed", label: "Missed", column: "meta", className: "hidden xl:table-cell" },
+  { key: "checkIn", label: "Last check-in", column: "meta", className: "hidden xl:table-cell" },
 ]
 
 function clientStatus(client: CoachClient) {
   return client.accepted ? (client.photosAllowed ? "Linked, photos on" : "Linked") : "Waiting for an answer"
 }
 
-/** A coach's clients. Each row opens that client's Programs dashboard. */
-function ClientsTable({ clients }: { clients: CoachClient[] }) {
+function ClientStatusBadge({ client, className }: { client: CoachClient; className?: string }) {
+  return (
+    <Badge variant={client.accepted ? "secondary" : "outline"} className={className}>
+      {clientStatus(client)}
+    </Badge>
+  )
+}
+
+function clientSortValue(client: CoachClient, column: ClientSort): string | number {
+  const overview = client.overview
+  switch (column) {
+    case "name":
+      return client.name.toLowerCase()
+    case "status":
+      return clientStatus(client)
+    case "last":
+      return overview?.lastWorkout?.day ?? ""
+    case "week":
+      return overview?.thisWeek ?? -1
+    case "missed":
+      return overview?.missed ?? -1
+    case "checkIn":
+      return overview?.lastCheckIn?.week ?? ""
+  }
+}
+
+/**
+ * Below the width that fits the figure columns, the same figures as one line
+ * under the client's name: "Lower A, yesterday. 2 of 3 this week, 1 missed."
+ */
+function overviewLine(overview: NonNullable<CoachClient["overview"]>, today: Day) {
+  const missed = overview.missed ? `, ${overview.missed} missed` : ""
+  const checkIn = overview.checkInUnread ? " New check-in." : ""
+  return `${lastWorkoutWords(overview.lastWorkout, today)}. ${overview.thisWeek} of ${overview.goal} this week${missed}.${checkIn}`
+}
+
+/** "Push, 2 days ago", the client's last finished workout. */
+function lastWorkoutWords(lastWorkout: NonNullable<CoachClient["overview"]>["lastWorkout"], today: Day) {
+  if (!lastWorkout) return "Nothing yet"
+  const ago = daysBetween(lastWorkout.day, today)
+  const when = ago <= 0 ? "today" : ago === 1 ? "yesterday" : `${ago} days ago`
+  return `${lastWorkout.name}, ${when}`
+}
+
+/**
+ * A coach's clients. Each row opens that client's Programs dashboard. For a
+ * client who said yes, the row says how they are training (Tyler, 21 Oct
+ * 2026): their last workout, this week against the goal, the workouts missed
+ * this week and their last check-in, marked New until the coach opens it.
+ */
+function ClientsTable({ clients, today }: { clients: CoachClient[]; today: Day }) {
   const router = useRouter()
   const navigate = useNavigate()
   const [inviting, setInviting] = React.useState(false)
@@ -491,8 +586,11 @@ function ClientsTable({ clients }: { clients: CoachClient[] }) {
 
   const shown = React.useMemo(() => {
     const order = direction === "asc" ? 1 : -1
-    const value = (client: CoachClient) => (sort === "name" ? client.name.toLowerCase() : clientStatus(client))
-    return [...clients].sort((a, b) => value(a).localeCompare(value(b)) * order)
+    return [...clients].sort((a, b) => {
+      const left = clientSortValue(a, sort)
+      const right = clientSortValue(b, sort)
+      return (left < right ? -1 : left > right ? 1 : 0) * order
+    })
   }, [clients, sort, direction])
   const visibleIds = shown.map((client) => client.userId)
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selection.selected.has(id))
@@ -559,19 +657,12 @@ function ClientsTable({ clients }: { clients: CoachClient[] }) {
                 onCheckedChange={() => selection.toggleVisible(visibleIds)}
               />
             }
-            trailing={
-              <>
-                <TableHead column="meta" className="hidden sm:table-cell">
-                  Email
-                </TableHead>
-                <TableHead column="meta">Actions</TableHead>
-              </>
-            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
           />
         }
         isEmpty={clients.length === 0}
         emptyText="No clients yet. A client needs an account first, then you invite them by email."
-        emptyColSpan={5}
+        emptyColSpan={8}
         footer={{ type: "summary", count: clients.length, label: plural(clients.length, "client") }}
       >
         {shown.map((client) => {
@@ -587,7 +678,7 @@ function ClientsTable({ clients }: { clients: CoachClient[] }) {
                   aria-label={`Select ${client.name}`}
                 />
               </TableCell>
-              <TableCell column="main">
+              <TableCell column="main" className="min-w-40 whitespace-normal">
                 {open ? (
                   <button type="button" className="text-left text-sm font-medium group-hover:underline" onClick={open}>
                     {client.name}
@@ -595,13 +686,18 @@ function ClientsTable({ clients }: { clients: CoachClient[] }) {
                 ) : (
                   <span className="text-sm font-medium">{client.name}</span>
                 )}
-              </TableCell>
-              <TableCell column="meta">
-                <Badge variant={client.accepted ? "secondary" : "outline"}>{clientStatus(client)}</Badge>
+                <span className="block text-xs text-muted-foreground">{client.email}</span>
+                <ClientStatusBadge client={client} className="mt-1 sm:hidden" />
+                {client.overview ? (
+                  <span className="block text-xs text-muted-foreground xl:hidden">
+                    {overviewLine(client.overview, today)}
+                  </span>
+                ) : null}
               </TableCell>
               <TableCell column="meta" className="hidden sm:table-cell">
-                {client.email}
+                <ClientStatusBadge client={client} />
               </TableCell>
+              <ClientOverviewCells overview={client.overview} today={today} />
               <TableCell column="actions">
                 <Tooltip>
                   <TooltipTrigger asChild>

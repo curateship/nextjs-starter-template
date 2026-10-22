@@ -3,15 +3,19 @@
  * starting-data form. Each template names the weekday every workout falls on;
  * the other weekdays are rest days.
  *
- * A template only names built-in lifts by slug. Copying one fills each lift's
- * weight from the lifter's starting data where it can: 75 out of 100 of their
- * estimated one-rep max, rounded to their plates.
+ * A template only names built-in lifts by slug, and only programs of its own
+ * routine type offer it. Copying a strength template fills each lift's weight
+ * from the lifter's starting data where it can: 75 out of 100 of their
+ * estimated one-rep max, rounded to their plates. A Calisthenics template has
+ * no weights, only each move's rep range.
  */
 
 type TemplateExercise = {
   slug: string
   sets: number
   reps: number
+  /** A Calisthenics move's rep range; `reps` is where it starts, the bottom of it. */
+  repsMax?: number
   restSeconds: number
   /** Exercises that share a group are a superset. */
   group?: string
@@ -21,6 +25,8 @@ type PlanTemplate = {
   id: string
   label: string
   description: string
+  /** The routine type whose programs offer it. */
+  routineType: "strength" | "calisthenics"
   /** One entry per workout day, 0 = Sunday. */
   days: readonly { weekday: number; name: string; exercises: readonly TemplateExercise[] }[]
 }
@@ -78,9 +84,27 @@ const lower = [
   accessory("plank", 3, 30),
 ]
 
+/** A Calisthenics move in a template: three sets in a rep range, two minutes' rest. */
+const skill = (slug: string, reps = 8, repsMax = 12, sets = 3): TemplateExercise => ({
+  slug,
+  sets,
+  reps,
+  repsMax,
+  restSeconds: 120,
+})
+
+const fullBody = [
+  skill("cal-knee-push-up"),
+  skill("cal-incline-row"),
+  skill("cal-squat", 10, 15),
+  skill("cal-glute-bridge", 10, 15),
+  skill("cal-plank", 20, 40),
+]
+
 export const PLAN_TEMPLATES: readonly PlanTemplate[] = [
   {
     id: "five-by-five",
+    routineType: "strength",
     label: "5x5",
     description: "Five sets of five on the big lifts. Monday A, Wednesday B, Friday A.",
     days: [
@@ -91,6 +115,7 @@ export const PLAN_TEMPLATES: readonly PlanTemplate[] = [
   },
   {
     id: "push-pull-legs",
+    routineType: "strength",
     label: "Push Pull Legs",
     description: "Pushing muscles Monday, pulling muscles Wednesday, legs Friday.",
     days: [
@@ -101,6 +126,7 @@ export const PLAN_TEMPLATES: readonly PlanTemplate[] = [
   },
   {
     id: "upper-lower",
+    routineType: "strength",
     label: "Upper Lower",
     description: "Upper body Monday and Thursday, lower body Tuesday and Friday.",
     days: [
@@ -108,6 +134,17 @@ export const PLAN_TEMPLATES: readonly PlanTemplate[] = [
       { weekday: 2, name: "Lower", exercises: lower },
       { weekday: 4, name: "Upper", exercises: upper },
       { weekday: 5, name: "Lower", exercises: lower },
+    ],
+  },
+  {
+    id: "calisthenics-full-body",
+    routineType: "calisthenics",
+    label: "Full body three days",
+    description: "Push-ups, rows, squats, bridges and a plank on Monday, Wednesday and Friday, from the easy end of each ladder.",
+    days: [
+      { weekday: 1, name: "Full body", exercises: fullBody },
+      { weekday: 3, name: "Full body", exercises: fullBody },
+      { weekday: 5, name: "Full body", exercises: fullBody },
     ],
   },
 ]

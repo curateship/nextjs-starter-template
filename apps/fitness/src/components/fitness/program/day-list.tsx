@@ -26,6 +26,7 @@ import { changeWeek, type DayExercise, type WeekDay } from "@/lib/api/fitness/pr
 import { loadWorkoutPage } from "@/lib/api/fitness/workouts"
 import { BODY_PART_LABELS } from "@/lib/fitness/exercise-catalog"
 import { reportFitnessError } from "@/lib/fitness/report-error"
+import { countWords, measureOf, rangeWords } from "@/lib/fitness/calisthenics"
 import { formatWeightNumber, type WeightUnit } from "@/lib/fitness/weights"
 import { cn } from "@/lib/utils"
 
@@ -89,6 +90,8 @@ function useDayProgress(page: ProgramViewProps["page"], day: WeekDay) {
  * edge to edge under grey body part headings ("Chest · 2"), each row with its
  * drag handle, its number (filled in when it is open on the right), its name,
  * "Rest 3 min · Last: 60 kg × 8" and the sets ticked this week, "0/4 sets".
+ * A Calisthenics move leads with its range and has no weight: "8 to 12 reps ·
+ * Rest 2 min · Last: 10 reps".
  *
  * Pointing at a body part's heading shows a "+" that adds a lift of that body
  * part (Tyler: "Add a '+' icon on hover over to add an exercise to that body
@@ -283,9 +286,12 @@ function ExerciseRow({
     disabled: !canChange,
   })
   const name = exercise?.name ?? "Exercise"
+  const measure = measureOf(exercise)
   const lastWords = !last
     ? "Not logged yet"
-    : exercise?.isBodyweight
+    : measure !== "load"
+      ? `Last: ${countWords(last.reps, measure)}`
+      : exercise?.isBodyweight
       ? last.weightKg > 0
         ? `Last: +${formatWeightNumber(last.weightKg, unit)} ${unit} × ${last.reps}`
         : `Last: bodyweight × ${last.reps}`
@@ -340,6 +346,7 @@ function ExerciseRow({
                 Superset ·{" "}
               </>
             ) : null}
+            {row.repsMin !== null && row.repsMax !== null ? `${rangeWords(row.repsMin, row.repsMax, measure)} · ` : ""}
             {row.restSeconds > 0 ? `Rest ${restWords(row.restSeconds)}` : "No rest"} · {lastWords}
           </span>
         </span>

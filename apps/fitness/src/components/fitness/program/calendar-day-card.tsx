@@ -1,8 +1,8 @@
 import * as React from "react"
-import { Loader2Icon, PlayIcon } from "lucide-react"
+import { Loader2Icon, PlayIcon, SkipForwardIcon, Undo2Icon } from "lucide-react"
 
 import { PanelCard } from "@/components/fitness/panel-card"
-import { moveCalendarDay, SCHEDULE_STATUS } from "@/components/fitness/program/calendar-actions"
+import { moveCalendarDay, SCHEDULE_STATUS, skipCalendarDay } from "@/components/fitness/program/calendar-actions"
 import { useCalendarVersion } from "@/components/fitness/program/calendar-version"
 import { dateToDay, dayToDate } from "@/components/fitness/program/program-data"
 import { Button } from "@/components/ui/button"
@@ -20,7 +20,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 /**
  * The calendar date picked in the middle panel, at the top of the right panel:
  * what it is, and the buttons to start it, carry on with it, open the logged
- * workout, or move it to another day. Every workout opens inside the
+ * workout, skip it on purpose, or move it to another day. Every workout opens inside the
  * program's dashboard.
  */
 export function CalendarDayCard({
@@ -38,7 +38,7 @@ export function CalendarDayCard({
   const [error, setError] = React.useState<string | null>(null)
   const [retryAt, setRetryAt] = React.useState(0)
   const [moveTo, setMoveTo] = React.useState<Day | null>(null)
-  const [busy, setBusy] = React.useState<"start" | "move" | null>(null)
+  const [busy, setBusy] = React.useState<"start" | "move" | "skip" | null>(null)
   const moveId = React.useId()
   const key = `${scheduledId}:${version}`
   const [shownId, setShownId] = React.useState(scheduledId)
@@ -69,6 +69,7 @@ export function CalendarDayCard({
   const entry = loaded && loaded.key.startsWith(`${scheduledId}:`) ? loaded.entry : null
   const fresh = loaded?.key === key
   const movable = entry ? entry.status === "planned" || entry.status === "missed" : false
+  const skippable = entry ? movable && !entry.workoutId : false
 
   async function start(target: CalendarDay) {
     setBusy("start")
@@ -80,6 +81,12 @@ export function CalendarDayCard({
     } finally {
       setBusy(null)
     }
+  }
+
+  async function skip(target: CalendarDay, skipped: boolean) {
+    setBusy("skip")
+    await skipCalendarDay(target, skipped)
+    setBusy(null)
   }
 
   async function move(target: CalendarDay) {
@@ -135,7 +142,24 @@ export function CalendarDayCard({
               {entry.workoutId ? "Carry on with this workout" : "Start this workout"}
             </Button>
           ) : null}
-          {movable ? (
+          {entry.status === "skipped" ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Skipped on purpose. It doesn&apos;t count as missed or break the streak.
+              </p>
+              <Button type="button" variant="outline" disabled={busy !== null || !fresh} onClick={() => void skip(entry, false)}>
+                {busy === "skip" ? <Loader2Icon className="animate-spin" /> : <Undo2Icon />}
+                Don&apos;t skip
+              </Button>
+            </>
+          ) : null}
+          {skippable ? (
+            <Button type="button" variant="outline" disabled={busy !== null || !fresh} onClick={() => void skip(entry, true)}>
+              {busy === "skip" ? <Loader2Icon className="animate-spin" /> : <SkipForwardIcon />}
+              Skip this day
+            </Button>
+          ) : null}
+          {movable || entry.status === "skipped" ? (
             <div className="grid gap-2">
               <Label htmlFor={moveId}>Move to another day</Label>
               <DatePicker

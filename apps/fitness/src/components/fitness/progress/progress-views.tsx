@@ -1,18 +1,25 @@
 import * as React from "react"
-import { TrendingUpIcon } from "lucide-react"
+import { CircleAlertIcon, TrendingUpIcon } from "lucide-react"
 
 import { PanelCard } from "@/components/fitness/panel-card"
 import { BodyweightCard, NewWeighIn } from "@/components/fitness/progress/bodyweight-card"
 import { LiftChart, type LiftMetric } from "@/components/fitness/progress/lift-chart"
+import { MeasurementsCard } from "@/components/fitness/progress/measurements-card"
+import { RecordsTimeline } from "@/components/fitness/progress/records-timeline"
 import { ONE_REP_MAX_HINT, RecordsList } from "@/components/fitness/progress/records-list"
 import { WeeklySets } from "@/components/fitness/progress/weekly-sets"
 import { PanelBody, RightEmpty, RightHeader } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
 import { ownRecords } from "@/components/fitness/dashboard/view-rows"
+import { useThisWeek } from "@/components/fitness/program/this-week"
 import { SegmentedChoice } from "@/components/fitness/segmented-choice"
 import { Button } from "@/components/ui/button"
 import type { LiftRecord } from "@/lib/api/fitness/progress"
+import { countWords, hardestReached } from "@/lib/fitness/calisthenics"
 import { formatDay } from "@/lib/fitness/dates"
+import { ladderOf } from "@/lib/fitness/exercise-catalog"
+import { missingBodyParts, missingLine } from "@/lib/fitness/missing-muscles"
+import { isLightWeek } from "@/lib/fitness/schedule"
 import { formatWeight, formatWeightNumber } from "@/lib/fitness/weights"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { cn } from "@/lib/utils"
@@ -25,6 +32,7 @@ function shownLift(records: readonly LiftRecord[], pick: string | undefined) {
 const METRIC_LABELS: Record<LiftMetric, string> = {
   oneRepMax: "best one-rep max",
   heaviest: "heaviest lifted",
+  mostReps: "most in a set",
 }
 
 const METRIC_CHOICES: { value: LiftMetric; label: string }[] = [
@@ -71,16 +79,23 @@ function ProgressCard({
 /**
  * Progress in the middle panel, as Tyler drew it on 18 Oct 2026: four figures
  * in one strip, the chart of one lift (or up to four compared), every lift's
- * records, and sets per muscle, each in a card. Clicking a lift puts it on
+ * records, every record broken, and sets per muscle, each in a
+ * card. Above them, only when it applies, the missing muscle warning. Clicking a lift puts it on
  * the chart and opens its numbers on the right. Compare shows a tick box on
  * each lift; ticking two to four draws them together.
  */
 export function ProgressMiddle({ page, search, go }: ProgramViewProps) {
-  const [metric, setMetric] = React.useState<LiftMetric>("oneRepMax")
+  const [picked, setMetric] = React.useState<LiftMetric>("oneRepMax")
+  // A Calisthenics program counts no weight: its line is always the most in a set.
+  const counted = page.program.routineType === "calisthenics"
+  const metric: LiftMetric = counted ? "mostReps" : picked
   const [comparing, setComparing] = React.useState(false)
   const selection = useSelection()
+  const thisWeek = useThisWeek(page.program.id, page.today)
   if (page.viewData.view !== "progress") return null
-  const { weeklyGoal, weighIns, weeklySets, preferences, personId } = page.viewData.progress
+  const { weeklyGoal, weighIns, weeklySets, preferences, personId, timeline } = page.viewData.progress
+  // Until this week's calendar is in, nothing is known about what's still planned.
+  const missing = thisWeek.loading || thisWeek.error ? null : missingLineFor(page, thisWeek.byWeekday, weeklySets)
   const records = ownRecords(page)
   const unit = preferences.unit
   const shown = shownLift(records, search.open)
@@ -91,6 +106,12 @@ export function ProgressMiddle({ page, search, go }: ProgramViewProps) {
 
   return (
     <PanelBody>
+      {missing ? (
+        <p className="flex items-start gap-2 rounded-xl border p-3 text-sm" role="status">
+          <CircleAlertIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+          {missing}
+        </p>
+      ) : null}
       <dl className="grid grid-cols-2 overflow-hidden rounded-xl border bg-muted/40 @container sm:grid-cols-4 [&>div]:grid [&>div]:content-start [&>div]:gap-1 [&>div]:p-4">
         <div className="border-r border-b sm:border-b-0">
           <dt className="text-[13px] text-muted-foreground">This week</dt>
@@ -137,13 +158,15 @@ export function ProgressMiddle({ page, search, go }: ProgramViewProps) {
         actions={
           records.length ? (
             <div className="flex items-center gap-2">
-              <SegmentedChoice
-                label="What the line shows"
-                value={metric}
-                options={METRIC_CHOICES}
-                className="w-auto [&>button]:flex-none [&>button]:px-3"
-                onChange={setMetric}
-              />
+              {counted ? null : (
+                <SegmentedChoice
+                  label="What the line shows"
+                  value={metric}
+                  options={METRIC_CHOICES}
+                  className="w-auto [&>button]:flex-none [&>button]:px-3"
+                  onChange={setMetric}
+                />
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -178,6 +201,20 @@ export function ProgressMiddle({ page, search, go }: ProgramViewProps) {
           unit={unit}
           shownId={compared ? null : (shown?.exerciseId ?? null)}
           selection={comparing ? selection : null}
+          counted={counted}
+          onShow={(pick) => go({ open: pick }, { replace: true })}
+        />
+      </ProgressCard>
+
+      <ProgressCard
+        label="Records timeline"
+        title="Records timeline"
+        meta={`${timeline.length} ${timeline.length === 1 ? "record" : "records"} broken`}
+        flush
+      >
+        <RecordsTimeline
+          records={timeline}
+          unit={unit}
           onShow={(pick) => go({ open: pick }, { replace: true })}
         />
       </ProgressCard>
@@ -189,6 +226,25 @@ export function ProgressMiddle({ page, search, go }: ProgramViewProps) {
   )
 }
 
+/**
+ * The missing muscle warning's line, or null. Left out during a pause and in
+ * a light week, when fewer sets are the point.
+ */
+function missingLineFor(
+  page: ProgramViewProps["page"],
+  byWeekday: ReturnType<typeof useThisWeek>["byWeekday"],
+  weeklySets: readonly { sets: Record<string, number> }[]
+) {
+  if (page.pause && page.pause.fromDay <= page.today) return null
+  if (isLightWeek(page.today, page.strength.startDay, page.strength.blockWeeks)) return null
+  const muscles = new Map(page.exercises.map((exercise) => [exercise.id, exercise.muscles[0]]))
+  const plannedMuscles = [...byWeekday.values()]
+    .filter((row) => row.day >= page.today && row.status === "planned" && row.dayId)
+    .flatMap((row) => page.week.find((day) => day.id === row.dayId)?.exercises ?? [])
+    .flatMap((exercise) => muscles.get(exercise.exerciseId) ?? [])
+  return missingLine(missingBodyParts({ weeks: weeklySets, plannedMuscles }))
+}
+
 /** Progress's tools in the middle header: New weigh-in, for the person who trains. */
 export function ProgressTools({ page }: ProgramViewProps) {
   if (page.viewData.view !== "progress" || !page.program.mine) return null
@@ -198,16 +254,22 @@ export function ProgressTools({ page }: ProgramViewProps) {
 
 /**
  * Progress on the right, as Tyler drew it on 18 Oct 2026: the lift picked,
- * with its four best numbers in a grid, then bodyweight with its weigh-ins.
+ * with its four best numbers in a grid, then bodyweight with its weigh-ins
+ * and target, then the tape measurements.
  * With no lift picked, the bodyweight stays under the line saying what to click.
  */
 export function ProgressRight({ page, search, go }: ProgramViewProps) {
   if (page.viewData.view !== "progress") return null
-  const { weighIns, preferences } = page.viewData.progress
+  const { weighIns, preferences, targetWeightKg, measurements } = page.viewData.progress
   const records = ownRecords(page)
   const unit = preferences.unit
   const lift = records.find((record) => record.exerciseId === search.open) ?? null
-  const bodyweight = <BodyweightCard weighIns={weighIns} unit={unit} canEdit={page.program.mine} />
+  const bodyweight = (
+    <>
+      <BodyweightCard weighIns={weighIns} targetKg={targetWeightKg} unit={unit} canEdit={page.program.mine} />
+      <MeasurementsCard days={measurements} />
+    </>
+  )
   if (!lift) {
     return (
       <RightEmpty
@@ -228,6 +290,34 @@ export function ProgressRight({ page, search, go }: ProgramViewProps) {
         onClose={() => go({ open: undefined })}
       />
       <PanelBody>
+          {lift.measure !== "load" ? (
+            <PanelCard storageId="fitness-right-lift" title="Records" flush>
+              <dl className="grid grid-cols-2 [&>div]:grid [&>div]:gap-1 [&>div]:p-4 [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(odd)]:border-r">
+                <div>
+                  <dt className="text-[13px] text-muted-foreground">Most in a set</dt>
+                  <dd className="text-2xl font-semibold tabular-nums">{countWords(lift.mostReps, lift.measure)}</dd>
+                </div>
+                <div>
+                  <dt className="text-[13px] text-muted-foreground">Sessions</dt>
+                  <dd className="text-2xl font-semibold tabular-nums">{lift.sessions}</dd>
+                </div>
+                <div>
+                  <dt className="text-[13px] text-muted-foreground">Last trained</dt>
+                  <dd className="pt-1 text-lg font-semibold">{formatDay(lift.lastDay)}</dd>
+                </div>
+                <div>
+                  <dt className="text-[13px] text-muted-foreground">Harder versions</dt>
+                  <dd className="pt-1 text-lg font-semibold">
+                    {!lift.slug || ladderOf(lift.slug).length < 2
+                      ? "No other versions"
+                      : hardestReached(records).has(lift.exerciseId)
+                        ? "Hardest so far"
+                        : "Moved past it"}
+                  </dd>
+                </div>
+              </dl>
+            </PanelCard>
+          ) : (
           <PanelCard storageId="fitness-right-lift" title="Records" flush>
             <dl className="grid grid-cols-2 border-b [&>div]:grid [&>div]:gap-1 [&>div]:p-4 [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(odd)]:border-r">
               <div>
@@ -255,6 +345,7 @@ export function ProgressRight({ page, search, go }: ProgramViewProps) {
             </dl>
             <p className="p-4 text-[13px] text-muted-foreground">One-rep max: {ONE_REP_MAX_HINT.toLowerCase()}</p>
           </PanelCard>
+          )}
         {bodyweight}
       </PanelBody>
     </>

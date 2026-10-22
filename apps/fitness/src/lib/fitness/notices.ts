@@ -1,4 +1,4 @@
-import { CalendarXIcon, DumbbellIcon, TrophyIcon, UsersIcon } from "lucide-react"
+import { CalendarXIcon, CameraIcon, ClipboardListIcon, DumbbellIcon, MessageSquareIcon, TrophyIcon, UsersIcon } from "lucide-react"
 
 import type { AppNoticeDetail, NoticeToLink } from "@/lib/app-options"
 
@@ -10,7 +10,7 @@ import type { AppNoticeDetail, NoticeToLink } from "@/lib/app-options"
 
 export const FITNESS_NOTICE_CATEGORIES = [{ id: "training", label: "Training" }] as const
 
-export type FitnessNoticeKind = "record" | "reminder" | "missed" | "coach"
+export type FitnessNoticeKind = "record" | "reminder" | "missed" | "coach" | "note" | "checkin" | "photo"
 
 const LOOK: Record<FitnessNoticeKind, AppNoticeDetail> = {
   record: {
@@ -21,6 +21,9 @@ const LOOK: Record<FitnessNoticeKind, AppNoticeDetail> = {
   reminder: { icon: DumbbellIcon, toneClassName: "bg-primary/10 text-primary", categoryId: "training" },
   missed: { icon: CalendarXIcon, toneClassName: "bg-secondary text-muted-foreground", categoryId: "training" },
   coach: { icon: UsersIcon, toneClassName: "bg-primary/10 text-primary", categoryId: "training" },
+  note: { icon: MessageSquareIcon, toneClassName: "bg-primary/10 text-primary", categoryId: "training" },
+  checkin: { icon: ClipboardListIcon, toneClassName: "bg-primary/10 text-primary", categoryId: "training" },
+  photo: { icon: CameraIcon, toneClassName: "bg-secondary text-muted-foreground", categoryId: "training" },
 }
 
 export function fitnessNoticeLook(kind: FitnessNoticeKind): AppNoticeDetail {
@@ -34,6 +37,10 @@ export function fitnessNoticeKind(notice: NoticeToLink): FitnessNoticeKind | nul
   if (notice.message.startsWith("Workout today: ")) return "reminder"
   if (notice.message.startsWith("You missed ")) return "missed"
   if (notice.message.endsWith(" wants to coach you")) return "coach"
+  if (notice.message.endsWith(" in a row")) return "missed"
+  if (notice.message.includes(" left a note on ")) return "note"
+  if (notice.message === "Your weekly check-in" || notice.message.endsWith(" sent their check-in")) return "checkin"
+  if (notice.message === "Time for a photo day") return "photo"
   return null
 }
 

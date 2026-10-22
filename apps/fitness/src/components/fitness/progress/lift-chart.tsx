@@ -10,7 +10,8 @@ import { formatDay } from "@/lib/fitness/dates"
 import { getFitnessErrorMessage } from "@/lib/fitness/errors"
 import { fromKg, type WeightUnit } from "@/lib/fitness/weights"
 
-export type LiftMetric = "oneRepMax" | "heaviest"
+/** What the line shows. A Calisthenics move counts no weight, so its line is the most reps (or seconds) each day. */
+export type LiftMetric = "oneRepMax" | "heaviest" | "mostReps"
 
 /**
  * The chart in the Progress view's lift card: for each day a lift was
@@ -120,12 +121,17 @@ function LiftLines({
     const row: Record<string, string | number | null> = { day, label: formatDay(day) }
     exerciseIds.forEach((id, index) => {
       const point = histories[id]?.find((entry) => entry.day === day)
-      row[`lift${index}`] = point ? round(metric === "heaviest" ? point.heaviestKg : point.oneRepMaxKg) : null
+      row[`lift${index}`] = !point
+        ? null
+        : metric === "mostReps"
+          ? point.mostReps
+          : round(metric === "heaviest" ? point.heaviestKg : point.oneRepMaxKg)
     })
     return row
   })
 
-  const metricLabel = metric === "heaviest" ? "Heaviest lifted" : "Best one-rep max"
+  const metricLabel = metric === "heaviest" ? "Heaviest lifted" : metric === "mostReps" ? "Most in a set" : "Best one-rep max"
+  const valueUnit = metric === "mostReps" ? "" : ` ${unit}`
   const config: ChartConfig = Object.fromEntries(
     exerciseIds.map((id, index) => [
       `lift${index}`,
@@ -162,7 +168,8 @@ function LiftLines({
                     <span className="flex w-full justify-between gap-3">
                       <span className="text-muted-foreground">{String(config[String(name)]?.label ?? name)}</span>
                       <span className="font-medium text-foreground tabular-nums">
-                        {String(value)} {unit}
+                        {String(value)}
+                        {valueUnit}
                       </span>
                     </span>
                   )}

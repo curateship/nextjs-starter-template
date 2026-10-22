@@ -19,6 +19,8 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { changeWeek, type DayExercise, type WeekDay } from "@/lib/api/fitness/programs"
+import { countWords, measureOf } from "@/lib/fitness/calisthenics"
+import { harderVersionOf } from "@/lib/fitness/exercise-catalog"
 import { reportFitnessError } from "@/lib/fitness/report-error"
 import { formatWeight, roundToStep } from "@/lib/fitness/weights"
 import { cn } from "@/lib/utils"
@@ -59,6 +61,9 @@ function NextTimeRow({ tone, text, value }: { tone: keyof typeof TONE; text: str
  * weight and rest, saving as they change; whether it joins the one above as
  * a superset; what happens to its weight next time, in numbers; and Swap and
  * Remove.
+ *
+ * A Calisthenics move has a rep range instead of a weight, and Next time says
+ * which harder version it steps up to (Tyler, 21 Oct 2026).
  */
 export function DayExercisePanel({
   page,
@@ -81,6 +86,10 @@ export function DayExercisePanel({
   const [reps, setReps] = React.useState(row.reps)
   const [rest, setRest] = React.useState(row.restSeconds)
   const [weightKg, setWeightKg] = React.useState(row.weightKg)
+  const calisthenics = page.program.routineType === "calisthenics"
+  const measure = measureOf(exercise)
+  const [repsMin, setRepsMin] = React.useState(row.repsMin ?? row.reps)
+  const [repsMax, setRepsMax] = React.useState(row.repsMax ?? row.reps + 4)
   const [swapping, setSwapping] = React.useState(false)
   const [removing, setRemoving] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
@@ -92,7 +101,7 @@ export function DayExercisePanel({
   const shownIndex = shownOrder.findIndex((entry) => entry.id === row.id)
   const joined = row.groupKey !== null && shownOrder[shownIndex - 1]?.groupKey === row.groupKey
 
-  function save(field: "sets" | "reps" | "restSeconds" | "weightKg", value: number, at: "soon" | "now") {
+  function save(field: "sets" | "reps" | "restSeconds" | "weightKg" | "repsMin" | "repsMax", value: number, at: "soon" | "now") {
     autoSave[at](`${base}-${field}`, async () => {
       await changeWeek({ action: "updateExercise", dayExerciseId: row.id, change: { [field]: value } })
       await router.invalidate()
@@ -115,6 +124,8 @@ export function DayExercisePanel({
   }
 
   const { strength } = page
+  const harderSlug = harderVersionOf(exercise?.slug ?? null)
+  const harder = harderSlug ? page.exercises.find((entry) => entry.slug === harderSlug) : undefined
   const step = page.preferences.stepKg
   const up = weightKg + strength.increaseKg
   const down = Math.max(0, roundToStep(weightKg * (1 - strength.dropPercent / 100), step))
@@ -133,52 +144,102 @@ export function DayExercisePanel({
         onClose={onClose}
       />
       <PanelBody>
-        <PanelCard storageId="fitness-right-exercise-sets" title="Sets and weight">
-          <div className="grid grid-cols-2 gap-3">
-            <StepperField
-              id={`${base}-sets`}
-              label="Sets"
-              value={sets}
-              min={1}
-              max={20}
-              disabled={!canChange}
-              onChange={(value) => {
-                setSets(value)
-                save("sets", value, "soon")
-              }}
-            />
-            <StepperField
-              id={`${base}-reps`}
-              label="Reps"
-              value={reps}
-              min={1}
-              max={100}
-              disabled={!canChange}
-              onChange={(value) => {
-                setReps(value)
-                save("reps", value, "soon")
-              }}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor={`${base}-weight`}>{exercise?.isBodyweight ? "Added weight" : "Weight"}</Label>
-            <WeightInput
-              id={`${base}-weight`}
-              valueKg={weightKg}
-              unit={unit}
-              showUnit
-              placeholder="0"
-              onCommit={(kg) => {
-                setWeightKg(kg ?? 0)
-                save("weightKg", kg ?? 0, "now")
-              }}
-            />
-            <p className="text-[13px] text-muted-foreground">
-              {exercise?.isBodyweight
-                ? "Only what hangs from a belt or sits in a vest. Leave at 0 for bodyweight alone."
-                : "Leave at 0 for bodyweight or assisted."}
-            </p>
-          </div>
+        <PanelCard storageId="fitness-right-exercise-sets" title={calisthenics ? "Sets and reps" : "Sets and weight"}>
+          {calisthenics ? (
+            // A Calisthenics move counts no weight: a rep range, and the target inside it.
+            <>
+              <StepperField
+                id={`${base}-sets`}
+                label="Sets"
+                value={sets}
+                min={1}
+                max={20}
+                disabled={!canChange}
+                onChange={(value) => {
+                  setSets(value)
+                  save("sets", value, "soon")
+                }}
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <StepperField
+                  id={`${base}-from`}
+                  label={measure === "seconds" ? "Seconds from" : "Reps from"}
+                  value={repsMin}
+                  min={1}
+                  max={100}
+                  disabled={!canChange}
+                  onChange={(value) => {
+                    setRepsMin(value)
+                    if (value > repsMax) setRepsMax(value)
+                    save("repsMin", value, "soon")
+                  }}
+                />
+                <StepperField
+                  id={`${base}-to`}
+                  label="To"
+                  value={repsMax}
+                  min={repsMin}
+                  max={100}
+                  disabled={!canChange}
+                  onChange={(value) => {
+                    setRepsMax(value)
+                    save("repsMax", value, "soon")
+                  }}
+                />
+              </div>
+              <p className="text-[13px] text-muted-foreground">
+                The next session aims for {countWords(Math.min(repsMax, Math.max(repsMin, row.reps)), measure)} a set.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <StepperField
+                  id={`${base}-sets`}
+                  label="Sets"
+                  value={sets}
+                  min={1}
+                  max={20}
+                  disabled={!canChange}
+                  onChange={(value) => {
+                    setSets(value)
+                    save("sets", value, "soon")
+                  }}
+                />
+                <StepperField
+                  id={`${base}-reps`}
+                  label="Reps"
+                  value={reps}
+                  min={1}
+                  max={100}
+                  disabled={!canChange}
+                  onChange={(value) => {
+                    setReps(value)
+                    save("reps", value, "soon")
+                  }}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor={`${base}-weight`}>{exercise?.isBodyweight ? "Added weight" : "Weight"}</Label>
+                <WeightInput
+                  id={`${base}-weight`}
+                  valueKg={weightKg}
+                  unit={unit}
+                  showUnit
+                  placeholder="0"
+                  onCommit={(kg) => {
+                    setWeightKg(kg ?? 0)
+                    save("weightKg", kg ?? 0, "now")
+                  }}
+                />
+                <p className="text-[13px] text-muted-foreground">
+                  {exercise?.isBodyweight
+                    ? "Only what hangs from a belt or sits in a vest. Leave at 0 for bodyweight alone."
+                    : "Leave at 0 for bodyweight or assisted."}
+                </p>
+              </div>
+            </>
+          )}
           <div className="grid gap-2">
             <Label id={`${base}-rest`}>Rest between sets</Label>
             <SegmentedChoice
@@ -216,7 +277,30 @@ export function DayExercisePanel({
         </PanelCard>
 
         <PanelCard storageId="fitness-right-exercise-next" title="Next time" flush>
-          {strength.autoIncrease ? (
+          {calisthenics ? (
+            page.calisthenics.autoStepUp ? (
+              <ul className="divide-y">
+                <NextTimeRow
+                  tone="positive"
+                  text={
+                    page.calisthenics.sessionsToStep > 1
+                      ? `Every set at ${repsMax}, ${page.calisthenics.sessionsToStep} sessions in a row`
+                      : `Every set at ${repsMax}`
+                  }
+                  value={harder ? harder.name : countWords(repsMax + 1, measure)}
+                />
+                <NextTimeRow
+                  tone="warning"
+                  text={`Any set short of ${repsMax}: next time aims one more than your lowest set`}
+                  value="Same move"
+                />
+              </ul>
+            ) : (
+              <p className="p-4 text-sm text-muted-foreground">
+                Stepping up is off for this program, so the move and its range stay as they are until you change them.
+              </p>
+            )
+          ) : strength.autoIncrease ? (
             <ul className="divide-y">
               <NextTimeRow tone="positive" text={`Hit all ${sets} sets of ${reps}`} value={formatWeight(up, unit)} />
               <NextTimeRow
@@ -263,7 +347,7 @@ export function DayExercisePanel({
         onOpenChange={setSwapping}
         exercises={page.exercises.filter((entry) => entry.id !== row.exerciseId)}
         title={`Swap ${name} for`}
-        description="The sets, reps, weight and rest stay as they are."
+        description={calisthenics ? "The sets, range and rest stay as they are." : "The sets, reps, weight and rest stay as they are."}
         onPick={(picked) =>
           void act(
             () => changeWeek({ action: "updateExercise", dayExerciseId: row.id, change: { exerciseId: picked.id } }),

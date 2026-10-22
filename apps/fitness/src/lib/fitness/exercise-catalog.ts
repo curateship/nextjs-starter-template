@@ -101,6 +101,8 @@ export const EQUIPMENT = [
   "pull_up_bar",
   "dip_bars",
   "bench",
+  "rings",
+  "parallettes",
   "bodyweight",
 ] as const
 export type Equipment = (typeof EQUIPMENT)[number]
@@ -118,6 +120,8 @@ export const EQUIPMENT_LABELS: Record<Equipment, string> = {
   pull_up_bar: "Pull-up bar",
   dip_bars: "Dip bars",
   bench: "Bench",
+  rings: "Rings",
+  parallettes: "Parallettes",
   bodyweight: "Nothing",
 }
 
@@ -157,6 +161,12 @@ type CatalogExercise = {
    * whatever hangs from a belt or sits in a vest.
    */
   bodyweight?: boolean
+  /** The routine type it belongs to. Strength training unless it says otherwise. */
+  routineType: "strength" | "calisthenics"
+  /** A Calisthenics move's next harder version, by slug: knee push-up to push-up. */
+  harder?: string
+  /** A hold, such as a plank, logged in seconds rather than reps. */
+  timed?: boolean
 }
 
 function lift(
@@ -167,7 +177,23 @@ function lift(
   movement: Movement,
   bodyweight = false
 ): CatalogExercise {
-  return { slug, name, muscles, equipment, movement, bodyweight }
+  return { slug, name, muscles, equipment, movement, bodyweight, routineType: "strength" }
+}
+
+/**
+ * A Calisthenics move. Its weight is the body, never counted: progress is
+ * more reps, then the next harder version (Tyler, 21 Oct 2026: "Reps, then the
+ * next version").
+ */
+function move(
+  slug: string,
+  name: string,
+  muscles: readonly Muscle[],
+  equipment: readonly Equipment[],
+  movement: Movement,
+  { harder, timed = false }: { harder?: string; timed?: boolean } = {}
+): CatalogExercise {
+  return { slug, name, muscles, equipment, movement, routineType: "calisthenics", harder, timed }
 }
 
 export const EXERCISE_CATALOG: readonly CatalogExercise[] = [
@@ -299,4 +325,77 @@ export const EXERCISE_CATALOG: readonly CatalogExercise[] = [
   lift("russian-twist", "Russian twist", ["abs"], ["bodyweight"], "core", true),
   lift("farmers-carry", "Farmer's carry", ["forearms", "traps", "abs"], ["dumbbell"], "carry"),
   lift("suitcase-carry", "Suitcase carry", ["abs", "forearms"], ["kettlebell"], "carry"),
+
+  // Calisthenics, each ladder from easiest to hardest.
+  // Push-up ladder
+  move("cal-wall-push-up", "Wall push-up", ["chest", "triceps", "shoulders"], ["bodyweight"], "push", { harder: "cal-incline-push-up" }),
+  move("cal-incline-push-up", "Incline push-up", ["chest", "triceps", "shoulders"], ["bench"], "push", { harder: "cal-knee-push-up" }),
+  move("cal-knee-push-up", "Knee push-up", ["chest", "triceps", "shoulders"], ["bodyweight"], "push", { harder: "cal-push-up" }),
+  move("cal-push-up", "Push-up", ["chest", "triceps", "shoulders"], ["bodyweight"], "push", { harder: "cal-decline-push-up" }),
+  move("cal-decline-push-up", "Decline push-up", ["chest", "shoulders", "triceps"], ["bench"], "push", { harder: "cal-archer-push-up" }),
+  move("cal-archer-push-up", "Archer push-up", ["chest", "triceps", "shoulders"], ["bodyweight"], "push", { harder: "cal-one-arm-push-up" }),
+  move("cal-one-arm-push-up", "One-arm push-up", ["chest", "triceps", "abs"], ["bodyweight"], "push"),
+  // Overhead push ladder
+  move("cal-pike-push-up", "Pike push-up", ["shoulders", "triceps"], ["bodyweight"], "push", { harder: "cal-elevated-pike-push-up" }),
+  move("cal-elevated-pike-push-up", "Elevated pike push-up", ["shoulders", "triceps"], ["bench"], "push", { harder: "cal-wall-handstand-push-up" }),
+  move("cal-wall-handstand-push-up", "Wall handstand push-up", ["shoulders", "triceps"], ["bodyweight"], "push"),
+  // Dip ladder
+  move("cal-bench-dip", "Bench dip", ["triceps", "chest"], ["bench"], "push", { harder: "cal-negative-dip" }),
+  move("cal-negative-dip", "Slow lowering dip", ["triceps", "chest"], ["dip_bars"], "push", { harder: "cal-dip" }),
+  move("cal-dip", "Dip", ["triceps", "chest", "shoulders"], ["dip_bars"], "push", { harder: "cal-ring-dip" }),
+  move("cal-ring-dip", "Ring dip", ["triceps", "chest", "shoulders"], ["rings"], "push"),
+  // Pull-up ladder
+  move("cal-scapular-pull-up", "Scapular pull-up", ["upper_back", "lats"], ["pull_up_bar"], "pull", { harder: "cal-negative-pull-up" }),
+  move("cal-negative-pull-up", "Slow lowering pull-up", ["lats", "biceps", "upper_back"], ["pull_up_bar"], "pull", { harder: "cal-pull-up" }),
+  move("cal-pull-up", "Pull-up", ["lats", "biceps", "upper_back"], ["pull_up_bar"], "pull", { harder: "cal-chest-to-bar-pull-up" }),
+  move("cal-chest-to-bar-pull-up", "Chest-to-bar pull-up", ["lats", "upper_back", "biceps"], ["pull_up_bar"], "pull", { harder: "cal-archer-pull-up" }),
+  move("cal-archer-pull-up", "Archer pull-up", ["lats", "biceps", "upper_back"], ["pull_up_bar"], "pull"),
+  // Row ladder
+  move("cal-incline-row", "Incline ring row", ["upper_back", "lats", "biceps"], ["rings"], "pull", { harder: "cal-inverted-row" }),
+  move("cal-inverted-row", "Inverted row", ["upper_back", "lats", "biceps"], ["rings"], "pull", { harder: "cal-feet-elevated-row" }),
+  move("cal-feet-elevated-row", "Feet-up inverted row", ["upper_back", "lats", "biceps"], ["rings"], "pull"),
+  // Squat ladder
+  move("cal-assisted-squat", "Assisted squat", ["quads", "glutes"], ["bodyweight"], "squat", { harder: "cal-squat" }),
+  move("cal-squat", "Bodyweight squat", ["quads", "glutes"], ["bodyweight"], "squat", { harder: "cal-split-squat" }),
+  move("cal-split-squat", "Split squat", ["quads", "glutes"], ["bodyweight"], "lunge", { harder: "cal-bulgarian-split-squat" }),
+  move("cal-bulgarian-split-squat", "Rear-foot-up split squat", ["quads", "glutes"], ["bench"], "lunge", { harder: "cal-shrimp-squat" }),
+  move("cal-shrimp-squat", "Shrimp squat", ["quads", "glutes"], ["bodyweight"], "squat", { harder: "cal-pistol-squat" }),
+  move("cal-pistol-squat", "Pistol squat", ["quads", "glutes"], ["bodyweight"], "squat"),
+  // Hip and calf ladders
+  move("cal-glute-bridge", "Glute bridge", ["glutes", "hamstrings"], ["bodyweight"], "hinge", { harder: "cal-single-leg-glute-bridge" }),
+  move("cal-single-leg-glute-bridge", "Single-leg glute bridge", ["glutes", "hamstrings"], ["bodyweight"], "hinge"),
+  move("cal-calf-raise", "Calf raise", ["calves"], ["bodyweight"], "isolation", { harder: "cal-single-leg-calf-raise" }),
+  move("cal-single-leg-calf-raise", "Single-leg calf raise", ["calves"], ["bodyweight"], "isolation"),
+  // Core ladders
+  move("cal-lying-knee-raise", "Lying knee raise", ["abs"], ["bodyweight"], "core", { harder: "cal-hanging-knee-raise" }),
+  move("cal-hanging-knee-raise", "Hanging knee raise", ["abs"], ["pull_up_bar"], "core", { harder: "cal-hanging-leg-raise" }),
+  move("cal-hanging-leg-raise", "Hanging leg raise", ["abs"], ["pull_up_bar"], "core", { harder: "cal-toes-to-bar" }),
+  move("cal-toes-to-bar", "Toes to bar", ["abs", "lats"], ["pull_up_bar"], "core"),
+  // Holds, in seconds
+  move("cal-plank", "Plank", ["abs"], ["bodyweight"], "core", { timed: true, harder: "cal-long-lever-plank" }),
+  move("cal-long-lever-plank", "Long-lever plank", ["abs"], ["bodyweight"], "core", { timed: true }),
+  move("cal-hollow-hold", "Hollow body hold", ["abs"], ["bodyweight"], "core", { timed: true }),
+  move("cal-tuck-l-sit", "Tuck L-sit", ["abs", "triceps"], ["parallettes"], "core", { timed: true, harder: "cal-one-leg-l-sit" }),
+  move("cal-one-leg-l-sit", "One-leg L-sit", ["abs", "triceps"], ["parallettes"], "core", { timed: true, harder: "cal-l-sit" }),
+  move("cal-l-sit", "L-sit", ["abs", "triceps", "quads"], ["parallettes"], "core", { timed: true }),
+  move("cal-dead-hang", "Dead hang", ["forearms", "lats"], ["pull_up_bar"], "pull", { timed: true }),
 ]
+
+/** A built-in move's next harder version, or null at the top of its ladder or for a lift with none. */
+export function harderVersionOf(slug: string | null): string | null {
+  if (!slug) return null
+  return EXERCISE_CATALOG.find((exercise) => exercise.slug === slug)?.harder ?? null
+}
+
+/** Every slug in a move's ladder, easiest first: the move, the ones before it and the ones after. */
+export function ladderOf(slug: string): string[] {
+  let first = slug
+  for (;;) {
+    const easier = EXERCISE_CATALOG.find((exercise) => exercise.harder === first)
+    if (!easier) break
+    first = easier.slug
+  }
+  const ladder: string[] = []
+  for (let at: string | null = first; at; at = harderVersionOf(at)) ladder.push(at)
+  return ladder
+}

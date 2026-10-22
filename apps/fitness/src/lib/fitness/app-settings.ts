@@ -27,6 +27,10 @@ export const appSettingSchemas = {
     time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
     channel: z.enum(["bell", "email", "both"]),
     nudgeOn: z.boolean(),
+    /** Sunday's "Your weekly check-in" for people with a coach. */
+    checkInOn: z.boolean(),
+    /** "Time for a photo day", four weeks after the last one. */
+    photoReminderOn: z.boolean(),
   }),
 } as const
 
@@ -40,7 +44,14 @@ export const APP_SETTING_KEYS = Object.keys(appSettingSchemas) as AppSettingKey[
 export const DEFAULT_APP_SETTINGS: FitnessAppSettings = {
   units: { unit: "kg", stepKg: 2.5, barKg: 20, platesKg: [25, 20, 15, 10, 5, 2.5, 1.25] },
   workouts: { warmupsOn: true, weeklyGoal: 3, sex: null },
-  reminders: { remindersOn: false, time: "07:00", channel: "bell", nudgeOn: false },
+  reminders: {
+    remindersOn: false,
+    time: "07:00",
+    channel: "bell",
+    nudgeOn: false,
+    checkInOn: true,
+    photoReminderOn: true,
+  },
 }
 
 /** The tabs under Settings, App settings, in order. */

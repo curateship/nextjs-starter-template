@@ -189,67 +189,70 @@ export function StartingData({ data }: { data: ProgramPageData }) {
         </div>
       </section>
 
-      <section className="grid gap-2" aria-labelledby={`${base}-lifts`}>
-        <div className="flex items-center justify-between gap-2">
-          <SectionLabel
-            id={`${base}-lifts`}
-            hint="Templates and the AI start each lift at 75 out of 100 of the best you can lift once."
-          >
-            Best lifts
-          </SectionLabel>
-          {/* A dropdown, not a window: this sits inside the settings window already. */}
-          <Popover open={picking} onOpenChange={setPicking}>
-            <PopoverTrigger asChild>
-              <Button type="button" variant="outline" size="sm">
-                <PlusIcon />
-                Add lift
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 p-3" aria-label="Add a best lift">
-              <ExerciseList
-                compact
-                exercises={data.exercises.filter((exercise) => !liftIds.includes(exercise.id))}
-                onPick={(exercise) => {
-                  setPending((current) => [...current, exercise.id])
-                  setPicking(false)
-                }}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-        {liftIds.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Add your best squat, bench or deadlift. &quot;100 kg once&quot; or &quot;80 kg for 5&quot; both work.
-          </p>
-        ) : (
-          <ul className="grid gap-3">
-            {liftIds.map((exerciseId) => {
-              const saved = baseline.lifts.find((lift) => lift.exerciseId === exerciseId)
-              return (
-                <BestLiftRow
-                  key={exerciseId}
-                  exerciseId={exerciseId}
-                  name={names.get(exerciseId)?.name ?? "Exercise"}
-                  unit={unit}
-                  savedWeightKg={saved?.weightKg ?? null}
-                  savedReps={saved?.reps ?? 1}
-                  onSave={(weightKg, reps, at) => saveLift(exerciseId, weightKg, reps, at)}
-                  onRemove={() => {
-                    if (!saved) {
-                      setPending((current) => current.filter((id) => id !== exerciseId))
-                      return
-                    }
-                    autoSave.now(`lift-${exerciseId}`, async () => {
-                      const next = await changeBaselineLift({ action: "remove", programId, exerciseId })
-                      setBaseline((current) => ({ ...current, lifts: next.lifts }))
-                    })
+      {/* A Calisthenics move counts no weight, so there are no best lifts to start from. */}
+      {data.program.routineType === "calisthenics" ? null : (
+        <section className="grid gap-2" aria-labelledby={`${base}-lifts`}>
+          <div className="flex items-center justify-between gap-2">
+            <SectionLabel
+              id={`${base}-lifts`}
+              hint="Templates and the AI start each lift at 75 out of 100 of the best you can lift once."
+            >
+              Best lifts
+            </SectionLabel>
+            {/* A dropdown, not a window: this sits inside the settings window already. */}
+            <Popover open={picking} onOpenChange={setPicking}>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" size="sm">
+                  <PlusIcon />
+                  Add lift
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-3" aria-label="Add a best lift">
+                <ExerciseList
+                  compact
+                  exercises={data.exercises.filter((exercise) => !liftIds.includes(exercise.id))}
+                  onPick={(exercise) => {
+                    setPending((current) => [...current, exercise.id])
+                    setPicking(false)
                   }}
                 />
-              )
-            })}
-          </ul>
-        )}
-      </section>
+              </PopoverContent>
+            </Popover>
+          </div>
+          {liftIds.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Add your best squat, bench or deadlift. &quot;100 kg once&quot; or &quot;80 kg for 5&quot; both work.
+            </p>
+          ) : (
+            <ul className="grid gap-3">
+              {liftIds.map((exerciseId) => {
+                const saved = baseline.lifts.find((lift) => lift.exerciseId === exerciseId)
+                return (
+                  <BestLiftRow
+                    key={exerciseId}
+                    exerciseId={exerciseId}
+                    name={names.get(exerciseId)?.name ?? "Exercise"}
+                    unit={unit}
+                    savedWeightKg={saved?.weightKg ?? null}
+                    savedReps={saved?.reps ?? 1}
+                    onSave={(weightKg, reps, at) => saveLift(exerciseId, weightKg, reps, at)}
+                    onRemove={() => {
+                      if (!saved) {
+                        setPending((current) => current.filter((id) => id !== exerciseId))
+                        return
+                      }
+                      autoSave.now(`lift-${exerciseId}`, async () => {
+                        const next = await changeBaselineLift({ action: "remove", programId, exerciseId })
+                        setBaseline((current) => ({ ...current, lifts: next.lifts }))
+                      })
+                    }}
+                  />
+                )
+              })}
+            </ul>
+          )}
+        </section>
+      )}
       </fieldset>
     </CollapsibleSettingsCard>
   )

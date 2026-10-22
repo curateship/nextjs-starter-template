@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 
+import { defaultRange } from "@/lib/fitness/calisthenics"
 import { FITNESS_ERRORS } from "@/lib/fitness/errors"
 import { EXERCISE_CATALOG } from "@/lib/fitness/exercise-catalog"
 import { EXPERIENCE, GOALS, TEMPLATE_START_SHARE } from "@/lib/fitness/templates"
@@ -12,7 +13,7 @@ import { db } from "@/server/db"
 import { programFor, type FitnessDb } from "@/server/fitness/access"
 import { rescheduleFromToday, todayFor } from "@/server/fitness/calendar"
 import { builtInBySlug, listExercises } from "@/server/fitness/exercises"
-import { loadBaseline, settleDayOrder } from "@/server/fitness/week"
+import { loadBaseline, settleDayOrder, settleRange } from "@/server/fitness/week"
 import { preferencesFor } from "@/server/fitness/profile"
 import { fitnessWeekDays, fitnessDayExercises } from "@/server/fitness/schema"
 
@@ -37,7 +38,9 @@ const draftSchema = z.object({
             z.object({
               slug: z.string().min(1).max(64),
               sets: z.number().int().min(1).max(10),
-              reps: z.number().int().min(1).max(50),
+              reps: z.number().int().min(1).max(100),
+              /** Calisthenics only: the top of the move's rep range. */
+              repsMax: z.number().int().min(1).max(100).optional(),
               restSeconds: z.number().int().min(30).max(600),
             })
           )
@@ -54,7 +57,17 @@ export type PlanDraft = {
     /** 0 is Sunday. Weekdays not listed are rest days. */
     weekday: number
     name: string
-    exercises: { exerciseId: string; name: string; sets: number; reps: number; restSeconds: number; weightKg: number }[]
+    exercises: {
+      exerciseId: string
+      name: string
+      sets: number
+      reps: number
+      /** Calisthenics only: the move's rep range, the target starting at its bottom. */
+      repsMin?: number | null
+      repsMax?: number | null
+      restSeconds: number
+      weightKg: number
+    }[]
   }[]
 }
 
@@ -76,21 +89,35 @@ export async function buildAiPlan(
   const avoided = new Set(
     (await listExercises(program.userId, database)).filter((exercise) => exercise.avoided).map((exercise) => exercise.slug)
   )
+  const calisthenics = program.routineType === "calisthenics"
+  // Only the program's own routine type: a Calisthenics week is Calisthenics moves.
   const allowed = EXERCISE_CATALOG.filter(
     (exercise) =>
+      exercise.routineType === program.routineType &&
       !avoided.has(exercise.slug) &&
       (have.size === 0 || exercise.equipment.every((item) => item === "bodyweight" || have.has(item)))
   )
   const goal = GOALS.find((entry) => entry.id === baseline.goal)?.label ?? "Get stronger"
   const experience = EXPERIENCE.find((entry) => entry.id === baseline.experience)?.label ?? "New, under a year"
   const prompt = [
-    "You write strength training plans. Answer with JSON only, no prose.",
+    calisthenics
+      ? "You write calisthenics plans: bodyweight moves only, no weights. Answer with JSON only, no prose."
+      : "You write strength training plans. Answer with JSON only, no prose.",
     `The lifter's goal: ${goal}. Training experience: ${experience}.`,
     `They can train ${daysPerWeek} days a week.`,
-    beginner ? "They are a beginner: at most 5 exercises per day, mostly compound lifts, 3 sets each." : "",
+    beginner
+      ? calisthenics
+        ? "They are a beginner: at most 5 moves per day, 3 sets each, from the easier versions."
+        : "They are a beginner: at most 5 exercises per day, mostly compound lifts, 3 sets each."
+      : "",
+    calisthenics
+      ? "Each move has a rep range: reps is its bottom and repsMax its top, such as 8 and 12. Moves marked (seconds) are holds, so their reps are seconds, such as 20 and 40."
+      : "",
     "Use only these exercise slugs (slug: name):",
-    allowed.map((exercise) => `${exercise.slug}: ${exercise.name}`).join("\n"),
-    `Return {"days": [{"weekday": 0-6 where 0 is Sunday, "name": "short workout name", "exercises": [{"slug", "sets", "reps", "restSeconds"}]}]}.`,
+    allowed.map((exercise) => `${exercise.slug}: ${exercise.name}${exercise.timed ? " (seconds)" : ""}`).join("\n"),
+    calisthenics
+      ? `Return {"days": [{"weekday": 0-6 where 0 is Sunday, "name": "short workout name", "exercises": [{"slug", "sets", "reps", "repsMax", "restSeconds"}]}]}.`
+      : `Return {"days": [{"weekday": 0-6 where 0 is Sunday, "name": "short workout name", "exercises": [{"slug", "sets", "reps", "restSeconds"}]}]}.`,
     `Give exactly ${daysPerWeek} days, each on a different weekday, spread through the week. Every other weekday is a rest day.`,
   ]
     .filter(Boolean)
@@ -121,13 +148,18 @@ export async function buildAiPlan(
         .slice(0, beginner ? 5 : 10)
         .map((exercise) => {
           const row = bySlug.get(exercise.slug)!
+          const range = calisthenics
+            ? settleRange(exercise.reps, exercise.reps, exercise.repsMax ?? defaultRange(exercise.reps).repsMax)
+            : null
           return {
             exerciseId: row.id,
             name: row.name,
             sets: exercise.sets,
             reps: exercise.reps,
+            repsMin: range?.repsMin ?? null,
+            repsMax: range?.repsMax ?? null,
             restSeconds: exercise.restSeconds,
-            weightKg: startWeight(row.id, row.isBodyweight),
+            weightKg: calisthenics ? 0 : startWeight(row.id, row.isBodyweight),
           }
         }),
     }))
@@ -204,7 +236,11 @@ async function askOpenAi(apiKey: string, prompt: string) {
 export async function applyAiPlan(actorId: string, programId: string, draft: PlanDraft, database: FitnessDb = db) {
   const program = await programFor(actorId, programId, database, { forChange: true })
   const bySlug = await builtInBySlug(database)
-  const builtInIds = new Set([...bySlug.values()].map((row) => row.id))
+  // Only built-in lifts of the program's own routine type.
+  const builtInIds = new Set(
+    [...bySlug.values()].filter((row) => row.routineType === program.routineType).map((row) => row.id)
+  )
+  const calisthenics = program.routineType === "calisthenics"
   await database.delete(fitnessWeekDays).where(eq(fitnessWeekDays.programId, programId))
   const used = new Set<number>()
   for (const day of draft.days) {
@@ -220,8 +256,16 @@ export async function applyAiPlan(actorId: string, programId: string, draft: Pla
         exerciseId: exercise.exerciseId,
         position: index,
         sets: exercise.sets,
-        reps: exercise.reps,
-        weightKg: exercise.weightKg,
+        ...(calisthenics
+          ? {
+              ...settleRange(
+                exercise.reps,
+                exercise.repsMin ?? exercise.reps,
+                exercise.repsMax ?? defaultRange(exercise.reps).repsMax
+              ),
+              weightKg: 0,
+            }
+          : { reps: exercise.reps, repsMin: null, repsMax: null, weightKg: exercise.weightKg }),
         restSeconds: exercise.restSeconds,
         groupKey: null,
         missStreak: 0,

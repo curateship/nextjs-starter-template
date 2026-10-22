@@ -20,6 +20,8 @@ Laid out as Tyler drew it on 20 Oct 2026.
   - A warm-up set is a W in amber. Working sets are numbered from 1 in a small box. The set to do next is shaded.
   - The weight and reps boxes start filled with the set's target, so ticking Done without typing logs exactly what is written. Emptying a box puts the target back, for the same reason.
   - Lifts in a superset sit together under "Superset: one set of each in turn, then rest".
+- **A coach's note** on a lift, left on an earlier workout, shows under the lift's heading: "Cleo: keep the elbows in" (`coach-notes.md`).
+- **A Calisthenics move** has no weight box: its rows are Set, Previous, Reps (or Seconds for a hold) and Done, and the right panel's Up next shows the reps alone, with no plates (`calisthenics.md`).
 - **Typing a weight** on a set fills the open working sets below it that have none yet, so a lift added mid-workout needs its weight typed once. Ticking a blank set takes the numbers of the set above it.
 - **Add a set** under each lift's rows, and **Add exercise** as a dashed full-width button at the bottom, which only offers lifts of the program's own routine type.
 - **The rest timer** is a bar pinned to the bottom of the middle panel. It starts when a working set is ticked, for that lift's rest time, and in a superset only after the group's last lift. It has +30s and Skip, and at zero the phone buzzes and beeps once where the browser allows it.
@@ -39,7 +41,7 @@ Tyler took the "Change this lift" card out on 20 Oct 2026 ("we dont need this ca
 
 ## Finishing
 
-Finish needs at least one set ticked; with none, it says so and nothing is saved. It asks for the effort score (it can be skipped) and a note, then shows the summary: minutes, sets done, total lifted, any records broken, and next time's weights from the program's rules. Done opens History with this workout picked. "Back to the week" returns to the day.
+Finish needs at least one set ticked; with none, it says so and nothing is saved. It asks for the effort score (it can be skipped) and a note, then shows the summary: minutes, sets done, total lifted, any records broken, and next time's weights from the program's rules. A Calisthenics workout shows next time's targets and each step up instead: "Knee push-up steps up to Push-up, starting at 8 reps." Done opens History with this workout picked. "Back to the week" returns to the day.
 
 ## A coach
 

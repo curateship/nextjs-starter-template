@@ -31,6 +31,14 @@ in the row with the tabs, as on every view. Under them, four cards:
   record notice in the bell opens the same address. Tyler's drawing headed the
   last column "Best 1RM"; it says "Best one-rep max" because the app never
   uses gym shorthand on screen.
+- **Records timeline** (21 Oct 2026). Every record ever broken in this
+  program's routine type, newest first: "Oct 18, Bench press, 82 kg once
+  (was 80 kg)". The kinds are the record notices' kinds: heaviest, best
+  one-rep max ("once") and most reps. The first time a lift is logged sets
+  the mark and breaks nothing. 20 rows, then Show more. Clicking a row puts
+  the lift on the chart and opens it on the right. Nothing is stored: the
+  person's sets are walked in the order they were logged, workout by workout
+  (`loadRecordTimeline` in `src/server/fitness/progress.ts`).
 - **Sets per muscle.** Working sets this week, last week and in a typical week
   over the last eight, each muscle with a bar for this week. A set counts
   once, for its lift's main muscle, so a bench press set is a chest set. It is
@@ -39,6 +47,22 @@ in the row with the tabs, as on every view. Under them, four cards:
 
 There is no search box: Tyler's drawing has none, and a person tracks a
 handful of lifts.
+
+## The missing muscle warning
+
+Above the cards, only when it applies. Tyler, 21 Oct 2026: "When the rest
+of the week won't cover it".
+
+- **When:** a body part that usually gets 4 or more working sets a week has
+  none so far this week, and none in this week's planned workouts still to
+  come. "Usually" is the average of the earlier of the last eight weeks.
+- **What it says:** "No leg sets this week, and none planned." Several body
+  parts share one line: "No back or chest sets this week, and none planned."
+- **Body parts** are the Day view's, from each lift's main muscle, so "leg"
+  means the same everywhere.
+- **Never** during a pause, in a light week, or with under two weeks of
+  workouts behind it.
+- Nothing is stored (`missingBodyParts` in `src/lib/fitness/missing-muscles.ts`).
 
 ## The right panel
 
@@ -49,9 +73,12 @@ handful of lifts.
 - **Records:** heaviest lifted, best one-rep max, most reps and at what
   weight, and last trained, as four figures two by two, with a line under
   them saying what the one-rep max means.
-- **Bodyweight:** the dots and the seven-day line, and the last ten
-  weigh-ins. A weigh-in is added from New weigh-in in the middle header. See
-  `weigh-ins.md`.
+- **Bodyweight:** the dots and the seven-day line, the target line and the
+  pace to it, and the last ten weigh-ins. A weigh-in is added from New
+  weigh-in in the middle header. See `weigh-ins.md` and
+  `measurements-and-target.md`.
+- **Measurements:** the photo days' tape measurements as a line, one at a
+  time (`measurements-and-target.md`).
 
 ## Comparing lifts
 
@@ -84,5 +111,7 @@ The server refuses anyone who isn't the person or a coach they accepted.
   its routine type, which the view filters on; `bestNumbers` in
   `src/server/fitness/workouts.ts` is the one place a set's best is worked
   out, shared with the record notices.
+- A Calisthenics program's Progress counts reps, not weight: see
+  `calisthenics.md`.
 - Strength levels (part 18 of the task) are not built yet. They wait on which
   published table to compare against, which is Tyler's call.

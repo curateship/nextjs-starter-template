@@ -1,8 +1,8 @@
 import { and, asc, eq, inArray, max } from "drizzle-orm"
 
 import { weekOrder } from "@/lib/fitness/dates"
+import { defaultRange } from "@/lib/fitness/calisthenics"
 import { groupedIds, orderByBodyPart } from "@/lib/fitness/day-order"
-
 import { FITNESS_ERRORS } from "@/lib/fitness/errors"
 import { PLAN_TEMPLATES, TEMPLATE_START_SHARE, type ExperienceId, type GoalId } from "@/lib/fitness/templates"
 import { estimateOneRepMax, roundToStep } from "@/lib/fitness/weights"
@@ -15,6 +15,7 @@ import { preferencesFor } from "@/server/fitness/profile"
 import {
   fitnessBaselineLifts,
   fitnessBaselines,
+  fitnessCalisthenicsSettings,
   fitnessWeekDays,
   fitnessDayExercises,
   fitnessExercises,
@@ -33,7 +34,17 @@ export type DayExercise = {
   restSeconds: number
   groupKey: string | null
   missStreak: number
+  /** A Calisthenics move's rep range; `reps` is the target inside it. Null for a strength lift. */
+  repsMin: number | null
+  repsMax: number | null
+  /** Calisthenics: good sessions in a row toward the step up. */
+  goodStreak: number
 }
+
+/** Calisthenics' own rules for one program: whether moves step up by themselves, and after how many good sessions. */
+export type CalisthenicsSettings = { autoStepUp: boolean; sessionsToStep: number }
+
+export const DEFAULT_CALISTHENICS: CalisthenicsSettings = { autoStepUp: true, sessionsToStep: 1 }
 
 /** One weekday that holds a workout. A weekday with no entry is a rest day. */
 export type WeekDay = { id: string; name: string; weekday: number; exercises: DayExercise[] }
@@ -142,6 +153,43 @@ export async function loadBaseline(programId: string, database: FitnessDb = db):
       oneRepMaxKg: estimateOneRepMax(lift.weightKg, lift.reps),
     })),
   }
+}
+
+export async function loadCalisthenicsSettings(
+  programId: string,
+  database: FitnessDb = db
+): Promise<CalisthenicsSettings> {
+  const [row] = await database
+    .select()
+    .from(fitnessCalisthenicsSettings)
+    .where(eq(fitnessCalisthenicsSettings.programId, programId))
+    .limit(1)
+  return row ? { autoStepUp: row.autoStepUp, sessionsToStep: row.sessionsToStep } : DEFAULT_CALISTHENICS
+}
+
+export async function saveCalisthenicsSettings(
+  actorId: string,
+  programId: string,
+  change: Partial<CalisthenicsSettings>,
+  database: FitnessDb = db
+) {
+  await programFor(actorId, programId, database, { forChange: true })
+  const settings = { ...(await loadCalisthenicsSettings(programId, database)), ...change }
+  await database
+    .insert(fitnessCalisthenicsSettings)
+    .values({ programId, ...settings })
+    .onConflictDoUpdate({ target: fitnessCalisthenicsSettings.programId, set: settings })
+  return settings
+}
+
+/**
+ * A Calisthenics move's range and target, kept in order: the bottom never
+ * above the top, and the target inside them. Raising the bottom past the top
+ * takes the top with it.
+ */
+export function settleRange(reps: number, repsMin: number, repsMax: number) {
+  const top = Math.max(repsMin, repsMax)
+  return { reps: Math.min(top, Math.max(repsMin, reps)), repsMin, repsMax: top }
 }
 
 export type StrengthSettingsChange = Partial<{
@@ -281,7 +329,7 @@ export async function copyWeekDay(actorId: string, dayId: string, toWeekday: num
   const rows = source.map((exercise) => {
     const groupKey = exercise.groupKey ? (groups.get(exercise.groupKey) ?? uuid()) : null
     if (exercise.groupKey && groupKey) groups.set(exercise.groupKey, groupKey)
-    return { ...exercise, id: uuid(), dayId: target.id, groupKey, missStreak: 0 }
+    return { ...exercise, id: uuid(), dayId: target.id, groupKey, missStreak: 0, goodStreak: 0 }
   })
   if (rows.length) await database.insert(fitnessDayExercises).values(rows)
   await settleDayOrder(target.id, database)
@@ -293,6 +341,9 @@ type DayExerciseInput = {
   reps: number
   weightKg: number
   restSeconds: number
+  /** Calisthenics only: the rep range. Without one, a move gets its target up to four more. */
+  repsMin?: number | null
+  repsMax?: number | null
 }
 
 export async function addDayExercise(
@@ -309,12 +360,21 @@ export async function addDayExercise(
     .from(fitnessDayExercises)
     .where(eq(fitnessDayExercises.dayId, dayId))
   const id = uuid()
+  // A Calisthenics move counts no weight and lives in a rep range.
+  const counted =
+    program.routineType === "calisthenics"
+      ? {
+          ...input,
+          weightKg: 0,
+          ...settleRange(input.reps, input.repsMin ?? input.reps, input.repsMax ?? defaultRange(input.reps).repsMax),
+        }
+      : { ...input, repsMin: null, repsMax: null }
   await database.insert(fitnessDayExercises).values({
     id,
     dayId,
     exerciseId,
     position: (last ?? -1) + 1,
-    ...input,
+    ...counted,
     groupKey: null,
     missStreak: 0,
   })
@@ -341,9 +401,23 @@ export async function updateDayExercise(
 ) {
   const { row, program } = await dayExerciseFor(actorId, dayExerciseId, database)
   if (change.exerciseId) await exerciseForRoutine(program.userId, change.exerciseId, program.routineType, database)
+  const counted =
+    program.routineType === "calisthenics"
+      ? {
+          ...change,
+          weightKg: 0,
+          ...settleRange(
+            change.reps ?? row.reps,
+            change.repsMin ?? row.repsMin ?? row.reps,
+            change.repsMax ?? row.repsMax ?? defaultRange(row.reps).repsMax
+          ),
+          // Another move, or a new range, starts its run of good sessions again.
+          ...(change.exerciseId || change.repsMin !== undefined || change.repsMax !== undefined ? { goodStreak: 0 } : {}),
+        }
+      : { ...change, repsMin: undefined, repsMax: undefined }
   await database
     .update(fitnessDayExercises)
-    .set({ ...change, ...(change.weightKg !== undefined ? { missStreak: 0 } : {}) })
+    .set({ ...counted, ...(change.weightKg !== undefined ? { missStreak: 0 } : {}) })
     .where(eq(fitnessDayExercises.id, dayExerciseId))
   // A swap can move the lift to another body part.
   if (change.exerciseId) await settleDayOrder(row.dayId, database)
@@ -435,7 +509,9 @@ export async function applyTemplate(
   database: FitnessDb = db
 ) {
   const program = await programFor(actorId, programId, database, { forChange: true })
-  const template = PLAN_TEMPLATES.find((candidate) => candidate.id === templateId)
+  const template = PLAN_TEMPLATES.find(
+    (candidate) => candidate.id === templateId && candidate.routineType === program.routineType
+  )
   if (!template) throw new Error(FITNESS_ERRORS.templateNotFound)
   const bySlug = await builtInBySlug(database)
   const baseline = await loadBaseline(programId, database)
@@ -462,8 +538,10 @@ export async function applyTemplate(
           position,
           sets: exercise.sets,
           reps: exercise.reps,
-          // A bodyweight lift's weight is only what hangs from the belt.
-          weightKg: found.isBodyweight ? 0 : startWeight(found.id),
+          repsMin: exercise.repsMax ? exercise.reps : null,
+          repsMax: exercise.repsMax ?? null,
+          // A bodyweight lift's weight is only what hangs from the belt; a Calisthenics move counts none.
+          weightKg: found.isBodyweight || template.routineType === "calisthenics" ? 0 : startWeight(found.id),
           restSeconds: exercise.restSeconds,
           groupKey,
           missStreak: 0,

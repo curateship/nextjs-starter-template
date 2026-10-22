@@ -36,6 +36,7 @@ const exerciseInput = z.object({
   equipment: z.array(z.enum(EQUIPMENT)).max(EQUIPMENT.length),
   movement: z.enum(MOVEMENTS),
   isBodyweight: z.boolean(),
+  isTimed: z.boolean(),
   pictureUrl: z.string().url().max(2000).nullable(),
 })
 

@@ -151,7 +151,7 @@ describe("weekly streak", () => {
     ]
     expect(
       weeklyStreak({ workoutDays, goal: 3, today: thisMonday, pausedWeeks: new Set() })
-    ).toEqual({ streak: 2, thisWeek: 1 })
+    ).toEqual({ streak: 2, thisWeek: 1, weekGoal: 3 })
   })
 
   it("resets after a short week and skips a paused one", () => {

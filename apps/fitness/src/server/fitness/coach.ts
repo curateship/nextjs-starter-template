@@ -1,11 +1,20 @@
-import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm"
+import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 
+import { addDays, todayIn, weekStart, type Day } from "@/lib/fitness/dates"
 import { FITNESS_ERRORS } from "@/lib/fitness/errors"
 import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
 import type { FitnessDb } from "@/server/fitness/access"
+import { loadAppSettings } from "@/server/fitness/app-settings"
 import { sendFitnessNotice } from "@/server/fitness/notices"
-import { fitnessCoachClients } from "@/server/fitness/schema"
+import {
+  fitnessCheckIns,
+  fitnessCoachClients,
+  fitnessProfiles,
+  fitnessPrograms,
+  fitnessScheduledWorkouts,
+  fitnessWorkouts,
+} from "@/server/fitness/schema"
 import { customShellUsers } from "@/server/schema"
 
 /**
@@ -39,6 +48,21 @@ export type CoachClient = {
   email: string
   accepted: boolean
   photosAllowed: boolean
+  /** How the client is training, for a client who said yes; null while the request waits. */
+  overview: ClientOverview | null
+}
+
+export type ClientOverview = {
+  lastWorkout: { name: string; day: Day } | null
+  /** Finished workouts this week, Monday to Sunday on the client's clock. */
+  thisWeek: number
+  /** The weekly goal, less any day the client skipped on purpose this week. */
+  goal: number
+  /** Planned workouts earlier this week that nobody logged or skipped. */
+  missed: number
+  lastCheckIn: { week: Day; sentAt: string } | null
+  /** A check-in sent since the coach last opened the client's check-ins. */
+  checkInUnread: boolean
 }
 
 export async function listClients(coachId: string, database: FitnessDb = db): Promise<CoachClient[]> {
@@ -50,18 +74,126 @@ export async function listClients(coachId: string, database: FitnessDb = db): Pr
       email: customShellUsers.email,
       acceptedAt: fitnessCoachClients.acceptedAt,
       photosAllowed: fitnessCoachClients.photosAllowed,
+      checkInsSeenAt: fitnessCoachClients.checkInsSeenAt,
     })
     .from(fitnessCoachClients)
     .innerJoin(customShellUsers, eq(customShellUsers.id, fitnessCoachClients.clientUserId))
     .where(eq(fitnessCoachClients.coachUserId, coachId))
     .orderBy(sql`lower(${customShellUsers.name})`)
+  const overviews = await clientOverviews(
+    rows.filter((row) => row.acceptedAt).map((row) => ({ userId: row.userId, seenAt: row.checkInsSeenAt })),
+    database
+  )
   return rows.map((row) => ({
     userId: row.userId,
     name: row.name,
     email: row.email,
     accepted: Boolean(row.acceptedAt),
     photosAllowed: row.photosAllowed && Boolean(row.acceptedAt),
+    overview: overviews.get(row.userId) ?? null,
   }))
+}
+
+/**
+ * The Clients table's figures for every linked client at once: a fixed
+ * handful of queries however many clients there are, never one per client.
+ * "This week" runs on each client's own clock and counts every program, the
+ * same as the client's own weekly goal.
+ */
+async function clientOverviews(
+  clients: { userId: string; seenAt: Date | null }[],
+  database: FitnessDb
+): Promise<Map<string, ClientOverview>> {
+  const result = new Map<string, ClientOverview>()
+  if (clients.length === 0) return result
+  const ids = clients.map((client) => client.userId)
+  const [settings, zones] = await Promise.all([
+    loadAppSettings(database),
+    database
+      .select({ userId: fitnessProfiles.userId, timeZone: fitnessProfiles.timeZone })
+      .from(fitnessProfiles)
+      .where(inArray(fitnessProfiles.userId, ids)),
+  ])
+  const todayOf = new Map(ids.map((id) => [id, todayIn(zones.find((zone) => zone.userId === id)?.timeZone)]))
+  // Eight days back covers this week's Monday on any clock.
+  const earliest = addDays(todayIn(), -8)
+  const [lastWorkouts, recentWorkouts, recentDates, checkIns] = await Promise.all([
+    database
+      .selectDistinctOn([fitnessWorkouts.userId], {
+        userId: fitnessWorkouts.userId,
+        name: fitnessWorkouts.name,
+        day: fitnessWorkouts.day,
+      })
+      .from(fitnessWorkouts)
+      .where(and(inArray(fitnessWorkouts.userId, ids), isNotNull(fitnessWorkouts.finishedAt)))
+      .orderBy(fitnessWorkouts.userId, desc(fitnessWorkouts.day), desc(fitnessWorkouts.finishedAt)),
+    database
+      .select({ userId: fitnessWorkouts.userId, day: fitnessWorkouts.day })
+      .from(fitnessWorkouts)
+      .where(
+        and(
+          inArray(fitnessWorkouts.userId, ids),
+          isNotNull(fitnessWorkouts.finishedAt),
+          gte(fitnessWorkouts.day, earliest)
+        )
+      ),
+    database
+      .select({
+        userId: fitnessPrograms.userId,
+        day: fitnessScheduledWorkouts.day,
+        status: fitnessScheduledWorkouts.status,
+        skippedAt: fitnessScheduledWorkouts.skippedAt,
+        isActive: fitnessPrograms.isActive,
+      })
+      .from(fitnessScheduledWorkouts)
+      .innerJoin(fitnessPrograms, eq(fitnessPrograms.id, fitnessScheduledWorkouts.programId))
+      .where(
+        and(
+          inArray(fitnessPrograms.userId, ids),
+          isNull(fitnessPrograms.archivedAt),
+          gte(fitnessScheduledWorkouts.day, earliest)
+        )
+      ),
+    database
+      .selectDistinctOn([fitnessCheckIns.userId], {
+        userId: fitnessCheckIns.userId,
+        week: fitnessCheckIns.week,
+        sentAt: fitnessCheckIns.sentAt,
+      })
+      .from(fitnessCheckIns)
+      .where(inArray(fitnessCheckIns.userId, ids))
+      .orderBy(fitnessCheckIns.userId, desc(fitnessCheckIns.week)),
+  ])
+  for (const client of clients) {
+    const today = todayOf.get(client.userId) as Day
+    const monday = weekStart(today)
+    const inWeek = (day: Day) => day >= monday && day <= addDays(monday, 6)
+    const dates = recentDates.filter((row) => row.userId === client.userId && inWeek(row.day))
+    const last = lastWorkouts.find((row) => row.userId === client.userId)
+    const checkIn = checkIns.find((row) => row.userId === client.userId)
+    result.set(client.userId, {
+      lastWorkout: last ? { name: last.name, day: last.day } : null,
+      thisWeek: recentWorkouts.filter((row) => row.userId === client.userId && inWeek(row.day)).length,
+      goal: Math.max(0, settings.workouts.weeklyGoal - dates.filter((row) => row.skippedAt).length),
+      missed: dates.filter(
+        (row) => row.isActive && row.status === "planned" && !row.skippedAt && row.day < today
+      ).length,
+      lastCheckIn: checkIn ? { week: checkIn.week, sentAt: checkIn.sentAt.toISOString() } : null,
+      checkInUnread: Boolean(checkIn && (!client.seenAt || checkIn.sentAt > client.seenAt)),
+    })
+  }
+  return result
+}
+
+/** The clients who said yes, by name, for picking one to copy a program to. */
+export async function linkedClients(coachId: string, database: FitnessDb = db) {
+  await requireCoach(coachId, database)
+  return database
+    .select({ userId: customShellUsers.id, name: customShellUsers.name })
+    .from(fitnessCoachClients)
+    .innerJoin(customShellUsers, eq(customShellUsers.id, fitnessCoachClients.clientUserId))
+    .where(and(eq(fitnessCoachClients.coachUserId, coachId), isNotNull(fitnessCoachClients.acceptedAt)))
+    .orderBy(sql`lower(${customShellUsers.name})`)
 }
 
 /** Asks someone with an account to be coached. They say yes or no on their Programs dashboard. */

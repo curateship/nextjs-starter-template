@@ -13,14 +13,18 @@ import {
   SettingsIcon,
   ShareIcon,
   Trash2Icon,
+  UserPlusIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { calendarChanged } from "@/components/fitness/program/calendar-version"
+import { CopyToClientDialog } from "@/components/fitness/program/copy-to-client"
 import { NameDialog } from "@/components/fitness/program/name-dialog"
 import type { ProgramPageData } from "@/components/fitness/program/program-data"
 import { dateToDay, dayToDate } from "@/components/fitness/program/program-data"
 import { StartingData } from "@/components/fitness/program/starting-data"
+import { ProgramLengthCard } from "@/components/fitness/program/program-length"
+import { StepUpRules } from "@/components/fitness/program/step-up-rules"
 import { StrengthSettings } from "@/components/fitness/program/strength-rules"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { ImageUpload } from "@/components/shared/image-upload"
@@ -74,8 +78,9 @@ const PAUSE_REASONS = [
  * a whole. Its settings sit behind the cog beside it
  * (`ProgramSettingsWindow`), because the UI standard keeps the cog for
  * settings (Tyler, 20 Oct 2026, picking the standard's settings window over
- * his 18 Oct cog dropdown). Share is the owner's alone; Delete is at the foot
- * of the settings window.
+ * his 18 Oct cog dropdown). Share is the owner's alone, and Copy to a client
+ * is a coach's on their own program; Delete is at the foot of the settings
+ * window.
  */
 export function ProgramActionsMenu({ data }: { data: ProgramPageData }) {
   const router = useRouter()
@@ -83,6 +88,7 @@ export function ProgramActionsMenu({ data }: { data: ProgramPageData }) {
   const [renaming, setRenaming] = React.useState(false)
   const [pausing, setPausing] = React.useState(false)
   const [sharing, setSharing] = React.useState(false)
+  const [copying, setCopying] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
 
   async function act(action: () => Promise<unknown>, success: string) {
@@ -149,6 +155,12 @@ export function ProgramActionsMenu({ data }: { data: ProgramPageData }) {
               Share
             </DropdownMenuItem>
           ) : null}
+          {program.mine && data.viewerIsCoach ? (
+            <DropdownMenuItem onSelect={() => setCopying(true)}>
+              <UserPlusIcon />
+              Copy to a client
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() =>
@@ -187,6 +199,12 @@ export function ProgramActionsMenu({ data }: { data: ProgramPageData }) {
           await router.invalidate()
         }}
       />
+      <CopyToClientDialog
+        open={copying}
+        programId={program.id}
+        programName={program.name}
+        onClose={() => setCopying(false)}
+      />
       <ShareDialog
         open={sharing}
         programId={program.id}
@@ -205,8 +223,9 @@ export function ProgramActionsMenu({ data }: { data: ProgramPageData }) {
  *
  * - Pictures: the banner and the round picture, from the person's own
  *   uploads (`setProgramPictures` refuses anything else).
- * - Starting data, Weight rules, Training blocks: each field saves as it
- *   changes, so the window ends with Done. A save that fails says so in a
+ * - Starting data, Weight rules, Training blocks, Program length: each
+ *   field saves as it changes, so the window ends with Done. A Calisthenics
+ *   program has Step-up rules in place of Weight rules and Training blocks. A save that fails says so in a
  *   toast.
  * - Delete program sits at the foot on the left. The window closes before
  *   the question opens, so one window never sits on another.
@@ -248,7 +267,12 @@ export function ProgramSettingsWindow({ data, onDeleted }: { data: ProgramPageDa
           <DialogBody>
             <ProgramPicturesCard data={data} />
             <StartingData key={`start-${program.id}`} data={data} />
-            <StrengthSettings key={`rules-${program.id}`} data={data} />
+            {program.routineType === "calisthenics" ? (
+              <StepUpRules key={`steps-${program.id}`} data={data} />
+            ) : (
+              <StrengthSettings key={`rules-${program.id}`} data={data} />
+            )}
+            <ProgramLengthCard key={`length-${program.id}`} data={data} />
           </DialogBody>
           <DialogFooter>
             <Button

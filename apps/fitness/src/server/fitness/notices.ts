@@ -1,5 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm"
 
+import type { FitnessNoticeKind } from "@/lib/fitness/notices"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import type { FitnessDb } from "@/server/fitness/access"
@@ -7,7 +8,6 @@ import { fitnessNoticeLinks } from "@/server/fitness/schema"
 import { publishNotificationCreated } from "@/server/notifications/events"
 import { customShellNotifications } from "@/server/schema"
 
-export type FitnessNoticeKind = "record" | "reminder" | "missed" | "coach"
 
 /**
  * Puts one of Fitness's notices in someone's bell. The shell keeps the words;

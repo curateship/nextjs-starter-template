@@ -399,7 +399,14 @@ function RemindersCard({ initial }: { initial: AppSettingValue<"reminders"> }) {
   const [reminders, setReminders] = React.useState(initial)
   const [time, setTime] = React.useState(initial.time)
   const save = useSettingSave()
-  const ids = { on: React.useId(), nudge: React.useId(), time: React.useId(), channel: React.useId() }
+  const ids = {
+    on: React.useId(),
+    nudge: React.useId(),
+    checkIn: React.useId(),
+    photo: React.useId(),
+    time: React.useId(),
+    channel: React.useId(),
+  }
   const change = (next: AppSettingValue<"reminders">) => {
     setReminders(next)
     save.now("reminders", next)
@@ -418,7 +425,7 @@ function RemindersCard({ initial }: { initial: AppSettingValue<"reminders"> }) {
     <CollapsibleSettingsCard
       storageId="fitness-reminders"
       title="Reminders"
-      description="A notice on the days a person's active program has a workout, and a nudge the day after one they missed. Each person gets them on their own clock."
+      description="A notice on the days a person's active program has a workout, a nudge the day after one they missed, the weekly check-in and the photo day reminder. Each person gets them on their own clock."
       contentClassName="grid gap-4"
     >
       <SettingsSwitchRow
@@ -433,6 +440,20 @@ function RemindersCard({ initial }: { initial: AppSettingValue<"reminders"> }) {
         onCheckedChange={(nudgeOn) => change({ ...reminders, nudgeOn })}
         label="Nudge people the day after a missed workout"
         hint="One nudge per missed workout, never one a day after it."
+      />
+      <SettingsSwitchRow
+        id={ids.checkIn}
+        checked={reminders.checkInOn}
+        onCheckedChange={(checkInOn) => change({ ...reminders, checkInOn })}
+        label="Ask people with a coach for a weekly check-in"
+        hint="On Sundays: bodyweight, sleep, stress, how training felt and a note to the coach."
+      />
+      <SettingsSwitchRow
+        id={ids.photo}
+        checked={reminders.photoReminderOn}
+        onCheckedChange={(photoReminderOn) => change({ ...reminders, photoReminderOn })}
+        label="Remind people when a photo day is due"
+        hint="Four weeks after their last photo day, once, until they save the next one."
       />
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-2">

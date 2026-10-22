@@ -1,6 +1,6 @@
 # Programs and routine types
 
-Fitness is built around programs. Tyler, 18 Oct 2026: "There is a program dashboard. I create a program via modal, choose a routine, input my starting data then create. Only then I get to the 3 panel dashboard." A program is like a project: the thing a person makes and names, such as "Summer strength". Its routine is the type, such as Strength training, and the type decides every field and screen under it. Strength training is the only routine type that works today. Calisthenics, Running and Mobility show as "Coming soon" and can't be picked.
+Fitness is built around programs. Tyler, 18 Oct 2026: "There is a program dashboard. I create a program via modal, choose a routine, input my starting data then create. Only then I get to the 3 panel dashboard." A program is like a project: the thing a person makes and names, such as "Summer strength". Its routine is the type, such as Strength training, and the type decides every field and screen under it. Strength training and Calisthenics (21 Oct 2026, `calisthenics.md`) work today. Running and Mobility show as "Coming soon" and can't be picked.
 
 ## The rules Tyler set
 
@@ -12,11 +12,12 @@ Fitness is built around programs. Tyler, 18 Oct 2026: "There is a program dashbo
 
 ## The tables
 
-- `fitness_programs`: name, owner, routine type, active, archived. Nothing about sets or kilograms, so a second routine type adds tables beside Strength training's instead of changing this one.
-- `fitness_strength_settings`: Strength training's own settings for one program: the weight rules, training blocks and the share code.
+- `fitness_programs`: name, owner, routine type, active, archived, and how many weeks it runs (`program-length.md`). Nothing about sets or kilograms, so a second routine type adds tables beside Strength training's instead of changing this one.
+- `fitness_strength_settings`: Strength training's own settings for one program: the weight rules, training blocks and the share code. Every program has one, Calisthenics too, because it also holds the calendar's start day.
+- `fitness_calisthenics_settings`: Calisthenics' step-up rules for one program (`calisthenics.md`).
 - `fitness_week_days`: one row per weekday that holds a workout (`weekday`, 0 is Sunday). A weekday with no row is a rest day.
 - `fitness_day_exercises`: each workout day's lifts in order, with sets, reps, working weight and rest.
-- `fitness_scheduled_workouts`: the calendar, the week laid onto dates four weeks ahead. "Missed" and "paused" are never stored; a planned date in the past is missed, one inside a pause is paused.
+- `fitness_scheduled_workouts`: the calendar, the week laid onto dates four weeks ahead. "Missed" and "paused" are never stored; a planned date in the past is missed, one inside a pause is paused. A date skipped on purpose carries `skipped_at` (`the-week.md`).
 - `fitness_workouts` and `fitness_workout_sets`: what was actually logged, one row per set.
 - `fitness_exercises`: built-in lifts (with a slug) and a person's own (with an owner), each tagged with its `routine_type`.
 - `fitness_app_settings`: the app-wide settings, one row per group (`units`, `workouts`, `reminders`).

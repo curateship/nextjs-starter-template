@@ -367,6 +367,7 @@ function LiveMiddle({ data, pick, go }: { data: WorkoutData; pick: string | unde
                     unit={unit}
                     current={current?.position === exercise.position}
                     canChange={canChange}
+                    coachNote={data.liftNotes[exercise.exerciseId]}
                     onPick={() => go({ at: pickFor(exercise.position) }, { replace: true })}
                     onSetChange={(set, change) =>
                       "weightKg" in change ? saveWeight(exercise, set, change.weightKg ?? null) : void saveSetChange(set, change)
@@ -639,16 +640,24 @@ function LiveRight({ data, pick, go }: { data: WorkoutData; pick: string | undef
                 : "Every set done"
             }
           >
-            <dl className="grid grid-cols-[auto_auto_minmax(0,1fr)] gap-x-8 gap-y-1">
-              <Figure label="Weight" value={formatWeightNumber(weight ?? 0, unit)} unit={exercise.isBodyweight ? `+${unit}` : unit} />
-              <Figure label="Reps" value={reps === null ? "0" : String(reps)} />
-              <Figure
-                label="Last time"
-                value={lastForSet ? `${formatWeightNumber(lastForSet.weightKg ?? 0, unit)}×${lastForSet.reps ?? 0}` : "None"}
-                muted
-              />
-            </dl>
-            {exercise.isBodyweight ? (
+            {exercise.measure === "load" ? (
+              <dl className="grid grid-cols-[auto_auto_minmax(0,1fr)] gap-x-8 gap-y-1">
+                <Figure label="Weight" value={formatWeightNumber(weight ?? 0, unit)} unit={exercise.isBodyweight ? `+${unit}` : unit} />
+                <Figure label="Reps" value={reps === null ? "0" : String(reps)} />
+                <Figure
+                  label="Last time"
+                  value={lastForSet ? `${formatWeightNumber(lastForSet.weightKg ?? 0, unit)}×${lastForSet.reps ?? 0}` : "None"}
+                  muted
+                />
+              </dl>
+            ) : (
+              // A Calisthenics move counts no weight: just the reps, or seconds for a hold.
+              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-8 gap-y-1">
+                <Figure label={exercise.measure === "seconds" ? "Seconds" : "Reps"} value={reps === null ? "0" : String(reps)} />
+                <Figure label="Last time" value={lastForSet ? String(lastForSet.reps ?? 0) : "None"} muted />
+              </dl>
+            )}
+            {exercise.measure !== "load" ? null : exercise.isBodyweight ? (
               <p className="text-[13px] text-muted-foreground">
                 {set.bodyweightKg != null
                   ? `With your bodyweight, ${formatWeight(set.bodyweightKg + (weight ?? 0), unit)} in all.`
@@ -693,7 +702,7 @@ function LiveRight({ data, pick, go }: { data: WorkoutData; pick: string | undef
         <LiveCard title="Last time" aside={exercise.last ? formatDay(exercise.last.day) : undefined}>
           {exercise.last && best ? (
             <dl className="grid grid-cols-2 gap-4">
-              <Figure label="Best set" value={setWords(best, unit, exercise.isBodyweight)} small />
+              <Figure label="Best set" value={setWords(best, unit, exercise.isBodyweight, exercise.measure)} small />
               <Figure label="Working sets" value={String(exercise.last.sets.length)} small />
             </dl>
           ) : (

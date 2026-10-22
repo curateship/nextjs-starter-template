@@ -56,6 +56,17 @@ The Calendar view repeats the week through the month, four weeks ahead at a time
 
 A pause (Pause program in the left header's three dots) takes its dates off the calendar: no missed days, no reminders, no weight drops. Resume puts the week back from today.
 
+## Skipping a day
+
+A planned date can be skipped on purpose. Tyler, 21 Oct 2026, asked what a skipped day counts as: "Neither done nor missed".
+
+- **Where:** "Skip this day" on a planned date in the Calendar's right panel, and "Skip today" in the day's three dots on today's workout. A date in the past can be skipped too, which turns Missed into Skipped. A date with a workout on it, finished or started, can't be skipped.
+- **What it does:** the date reads Skipped, with a grey dot and the word beside it, on the calendar, its key and This week. It gets no reminder and no missed-workout nudge, and counts as no miss for the weight rules or the coach's notice. It comes off that week's goal, so a goal of 3 with Friday skipped is 2, and the streak carries on (`weeklyStreak` in `src/lib/fitness/progress.ts`). A week with every workout skipped counts like a paused one.
+- **Taking it back:** "Don't skip" on the date, or "Don't skip today", puts it back to planned, or missed if it's in the past. Starting a workout on a skipped date takes the skip back too, and so does moving it.
+- **Laying the week out again** never throws a skipped date away (`rescheduleFromToday`).
+- **The calendar feed** titles it "Skipped: Push, My program".
+- Stored as `fitness_scheduled_workouts.skipped_at` (`drizzle/0101_fitness_twelve_features.sql`).
+
 ## Code
 
 `src/components/fitness/program/week-views.tsx` (left panel, Day view, right panel), `day-exercise-panel.tsx`, `calendar-views.tsx`, `program-calendar.tsx`, `calendar-day-card.tsx`, `start-workout.ts`, `this-week.ts`; server `src/server/fitness/week.ts` and `src/server/fitness/calendar.ts`; tables `fitness_week_days` (one row per workout weekday) and `fitness_day_exercises`.

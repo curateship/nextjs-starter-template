@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm"
 import {
   boolean,
   date,
@@ -9,10 +10,12 @@ import {
   smallint,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core"
 
 import type { HistoryFilters } from "@/lib/fitness/history-filters"
+import type { FitnessNoticeKind } from "@/lib/fitness/notices"
 import { customShellNotifications, customShellUsers } from "@/server/schema"
 
 /**
@@ -35,6 +38,12 @@ export const fitnessProfiles = pgTable("fitness_profiles", {
     .references(userRef, { onDelete: "cascade" }),
   timeZone: text("time_zone").notNull(),
   calendarToken: varchar("calendar_token", { length: 64 }),
+  /** The person's own target bodyweight, drawn on the Bodyweight chart (`drizzle/0101_fitness_twelve_features.sql`). */
+  targetWeightKg: doublePrecision("target_weight_kg"),
+  /** When the last "Time for a photo day" went out. */
+  photoNudgedAt: timestamp("photo_nudged_at", { withTimezone: true }),
+  /** The Monday of the week the weekly check-in was last asked for. */
+  checkInAskedFor: day("check_in_asked_for"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 })
@@ -66,6 +75,8 @@ export const fitnessPrograms = pgTable("fitness_programs", {
   /** Pictures from the person's own uploads (`drizzle/0099_fitness_program_pictures.sql`). */
   bannerUrl: varchar("banner_url", { length: 2048 }),
   avatarUrl: varchar("avatar_url", { length: 2048 }),
+  /** How many weeks the program runs from its start day. Null runs for good. */
+  weeks: smallint("weeks"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 })
@@ -98,6 +109,8 @@ export const fitnessExercises = pgTable("fitness_exercises", {
   /** The routine type the lift belongs to, such as `strength`. A program only offers its own type's lifts. */
   routineType: varchar("routine_type", { length: 32 }).notNull(),
   isBodyweight: boolean("is_bodyweight").notNull(),
+  /** A hold such as a plank, logged in seconds kept in the set's `reps`. */
+  isTimed: boolean("is_timed").notNull().default(false),
   pictureUrl: text("picture_url"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -160,6 +173,11 @@ export const fitnessDayExercises = pgTable("fitness_day_exercises", {
   restSeconds: smallint("rest_seconds").notNull(),
   groupKey: varchar("group_key", { length: 36 }),
   missStreak: smallint("miss_streak").notNull(),
+  /** Calisthenics: the move's rep range; `reps` is the target inside it. Null for a strength lift. */
+  repsMin: smallint("reps_min"),
+  repsMax: smallint("reps_max"),
+  /** Calisthenics: good sessions in a row toward stepping up to the next version. */
+  goodStreak: smallint("good_streak").notNull().default(0),
 })
 
 export const fitnessScheduledWorkouts = pgTable("fitness_scheduled_workouts", {
@@ -177,6 +195,10 @@ export const fitnessScheduledWorkouts = pgTable("fitness_scheduled_workouts", {
   workoutId: varchar("workout_id", { length: 36 }),
   remindedAt: timestamp("reminded_at", { withTimezone: true }),
   nudgedAt: timestamp("nudged_at", { withTimezone: true }),
+  /** Skipped on purpose: neither done nor missed. */
+  skippedAt: timestamp("skipped_at", { withTimezone: true }),
+  /** Stamped on each missed date of a run once the person's coaches were told. */
+  coachNoticedAt: timestamp("coach_noticed_at", { withTimezone: true }),
 })
 
 export const fitnessPauses = pgTable("fitness_pauses", {
@@ -301,6 +323,8 @@ export const fitnessCoachClients = pgTable(
       .references(userRef, { onDelete: "cascade" }),
     photosAllowed: boolean("photos_allowed").notNull(),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    /** When the coach last opened this client's check-ins. */
+    checkInsSeenAt: timestamp("check_ins_seen_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (table) => [primaryKey({ columns: [table.coachUserId, table.clientUserId] })]
@@ -310,7 +334,7 @@ export const fitnessNoticeLinks = pgTable("fitness_notice_links", {
   noticeId: varchar("notice_id", { length: 36 })
     .primaryKey()
     .references(() => customShellNotifications.id, { onDelete: "cascade" }),
-  kind: varchar("kind", { length: 16 }).$type<"record" | "reminder" | "missed" | "coach">().notNull(),
+  kind: varchar("kind", { length: 16 }).$type<FitnessNoticeKind>().notNull(),
   href: text("href").notNull(),
 })
 
@@ -331,4 +355,58 @@ export const fitnessSavedViews = pgTable("fitness_saved_views", {
   name: varchar("name", { length: 60 }).notNull(),
   filters: jsonb("filters").$type<HistoryFilters>().notNull(),
   createdAt: createdAt(),
+})
+
+/** A coach's one-way note on a client's finished workout; a null position is the whole workout. */
+export const fitnessCoachNotes = pgTable(
+  "fitness_coach_notes",
+  {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  workoutId: varchar("workout_id", { length: 36 })
+    .notNull()
+    .references(() => fitnessWorkouts.id, { onDelete: "cascade" }),
+  exercisePosition: smallint("exercise_position"),
+  coachUserId: varchar("coach_user_id", { length: 36 })
+    .notNull()
+    .references(userRef, { onDelete: "cascade" }),
+  text: varchar("text", { length: 1000 }).notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+  },
+  // One note per coach per place; the whole workout's place is the empty position.
+  (table) => [
+    uniqueIndex("ux_fitness_coach_notes_place").on(
+      table.workoutId,
+      table.coachUserId,
+      sql`coalesce(${table.exercisePosition}, -1)`
+    ),
+  ]
+)
+
+/** A coached person's weekly check-in, one per week (its Monday). */
+export const fitnessCheckIns = pgTable(
+  "fitness_check_ins",
+  {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  userId: varchar("user_id", { length: 36 })
+    .notNull()
+    .references(userRef, { onDelete: "cascade" }),
+  week: day("week").notNull(),
+  sleep: smallint("sleep"),
+  stress: smallint("stress"),
+  training: smallint("training"),
+  note: varchar("note", { length: 1000 }).notNull(),
+  weighInDay: day("weigh_in_day"),
+  sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [uniqueIndex("ux_fitness_check_ins_week").on(table.userId, table.week)]
+)
+
+/** Calisthenics' own settings for one program. */
+export const fitnessCalisthenicsSettings = pgTable("fitness_calisthenics_settings", {
+  programId: varchar("program_id", { length: 36 })
+    .primaryKey()
+    .references(() => fitnessPrograms.id, { onDelete: "cascade" }),
+  autoStepUp: boolean("auto_step_up").notNull(),
+  sessionsToStep: smallint("sessions_to_step").notNull(),
 })

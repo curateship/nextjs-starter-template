@@ -17,24 +17,32 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import type { FinishSummary, PersonalRecord } from "@/lib/api/fitness/workouts"
 import { plural } from "@/lib/format/plural"
+import { countWords } from "@/lib/fitness/calisthenics"
 import { formatWeight, type WeightUnit } from "@/lib/fitness/weights"
 
 /**
- * Ten buttons for how hard the workout felt, 1 easy to 10 everything you had.
- * Pressing the picked one again clears it, because the score is optional.
+ * Ten buttons for how hard the workout felt, 1 easy to 10 everything you had,
+ * or five for a weekly check-in's scores. Pressing the picked one again
+ * clears it, because the score is optional.
  */
 export function EffortPicker({
   value,
   onChange,
   labelId,
+  max = 10,
 }: {
   value: number | null
   onChange: (effort: number | null) => void
   labelId: string
+  max?: 5 | 10
 }) {
   return (
-    <div role="radiogroup" aria-labelledby={labelId} className="grid grid-cols-5 gap-2 sm:grid-cols-10">
-      {Array.from({ length: 10 }, (_, index) => index + 1).map((score) => (
+    <div
+      role="radiogroup"
+      aria-labelledby={labelId}
+      className={max === 10 ? "grid grid-cols-5 gap-2 sm:grid-cols-10" : "grid grid-cols-5 gap-2"}
+    >
+      {Array.from({ length: max }, (_, index) => index + 1).map((score) => (
         <Button
           key={score}
           type="button"
@@ -137,6 +145,10 @@ export function FinishDialog({
 }
 
 function recordSentence(record: PersonalRecord, unit: WeightUnit) {
+  if (record.kind === "mostReps" && record.measure !== "load") {
+    const most = record.measure === "seconds" ? "Longest hold" : "Most reps"
+    return `${most} on ${record.exerciseName}: ${countWords(record.reps, record.measure)}, up from ${record.previousReps ?? 0}.`
+  }
   if (record.kind === "mostReps") {
     return `Most reps on ${record.exerciseName}: ${record.reps} at ${formatWeight(record.weightKg, unit)}, up from ${record.previousReps ?? 0}.`
   }
@@ -163,7 +175,9 @@ export function SummaryDialog({
           <DialogTitle>Workout done</DialogTitle>
           <DialogDescription>
             {summary
-              ? `${summary.minutes} ${plural(summary.minutes, "minute")}, ${summary.setsDone} ${plural(summary.setsDone, "set")}, ${formatWeight(summary.totalKg, unit)} lifted in total.`
+              ? summary.totalKg > 0
+                ? `${summary.minutes} ${plural(summary.minutes, "minute")}, ${summary.setsDone} ${plural(summary.setsDone, "set")}, ${formatWeight(summary.totalKg, unit)} lifted in total.`
+                : `${summary.minutes} ${plural(summary.minutes, "minute")}, ${summary.setsDone} ${plural(summary.setsDone, "set")}.`
               : ""}
           </DialogDescription>
         </DialogHeader>
@@ -192,7 +206,7 @@ export function SummaryDialog({
               <CardTitle>Next time</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-2">
-              {summary && summary.weightChanges.length > 0 ? (
+              {summary && summary.weightChanges.length + summary.stepChanges.length > 0 ? (
                 <ul className="grid gap-1">
                   {summary.weightChanges.map((change) => (
                     <li key={change.exerciseName}>
@@ -200,9 +214,18 @@ export function SummaryDialog({
                       {formatWeight(change.toKg, unit)}, from {formatWeight(change.fromKg, unit)}.
                     </li>
                   ))}
+                  {summary.stepChanges.map((change) => (
+                    <li key={change.exerciseName}>
+                      {change.toName
+                        ? `${change.exerciseName} steps up to ${change.toName}, starting at ${countWords(change.reps, change.measure)}.`
+                        : `${change.exerciseName} aims for ${countWords(change.reps, change.measure)} a set.`}
+                    </li>
+                  ))}
                 </ul>
               ) : (
-                <p className="text-muted-foreground">The weights stay the same next time.</p>
+                <p className="text-muted-foreground">
+                  {summary && summary.totalKg === 0 ? "Everything stays the same next time." : "The weights stay the same next time."}
+                </p>
               )}
             </CardContent>
           </Card>

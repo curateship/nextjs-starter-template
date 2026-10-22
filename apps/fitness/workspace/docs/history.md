@@ -17,6 +17,8 @@ Laid out as Tyler drew it on 18 Oct 2026:
 
 - **Nothing open:** the header says Workout, then an icon and "Click a workout to see its lifts and sets here.", and a Last four weeks card of four figures in a grid: workouts finished, sets done and total lifted in the last four weeks, and workouts all time.
 - **A workout open:** the header holds its name, its day and an × that closes it. Under it, its summary (day, minutes, sets done, total lifted, the effort score and the note) and every lift with its done sets, "60 x 5, 60 x 5".
+- **Coach notes:** a card under the summary with the notes a coach left on the workout, and each lift's notes under its sets. A coach writes them here. See `coach-notes.md`.
+- **A Calisthenics workout** lists its sets as reps, "12, 12, 11 reps", and has no Total lifted (`calisthenics.md`).
 - **Open** opens it in the middle panel to log or change it. **Do this again** starts a new workout in the same program with the same lifts and last time's weights as the targets, and opens it. **Delete** asks first; its sets leave the history, records and charts, and a calendar day it was on goes back to planned.
 
 ## A workout that isn't on the week

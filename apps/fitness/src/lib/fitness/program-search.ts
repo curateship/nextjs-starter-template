@@ -12,6 +12,8 @@
  *   is kept apart from `open`, so a dashboard remembered mid-workout never
  *   comes back asking for "pos-2" as a date or a workout.
  * - `compare`: two photo days side by side, "idA,idB".
+ * - `new`: "photo-day" opens New photo day on Photos, for the photo day
+ *   reminder's link. Closing the window takes it out of the address.
  * - History's search, filters and grouping (`history-filters.ts`).
  */
 
@@ -35,6 +37,7 @@ export type ProgramSearch = HistoryFilters & {
   workout?: string
   at?: string
   compare?: string
+  new?: "photo-day"
 }
 
 const ID = /^[\w-]{1,36}$/
@@ -56,6 +59,7 @@ export function readProgramSearch(search: Record<string, unknown>): ProgramSearc
     workout: id(search.workout),
     at: typeof search.at === "string" && /^pos-\d{1,3}$/.test(search.at) ? search.at : undefined,
     compare,
+    new: search.new === "photo-day" ? "photo-day" : undefined,
     ...readHistoryFilters(search),
   }
   for (const key of Object.keys(result) as (keyof ProgramSearch)[]) {

@@ -107,6 +107,7 @@ describe("routine types", () => {
         equipment: [],
         movement: "isolation",
         isBodyweight: true,
+        isTimed: false,
         pictureUrl: null,
       },
       database

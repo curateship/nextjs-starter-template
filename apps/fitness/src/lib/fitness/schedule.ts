@@ -43,18 +43,37 @@ export function fillSchedule({
   return entries
 }
 
-export type ScheduleStatus = "planned" | "done" | "missed" | "paused"
+export type ScheduleStatus = "planned" | "done" | "missed" | "paused" | "skipped"
 
-/** A planned day in the past that nobody trained on is a missed day. */
+/**
+ * A planned day in the past that nobody trained on is a missed day. One
+ * skipped on purpose is neither done nor missed (Tyler, 21 Oct 2026).
+ */
 export function displayStatus(
   stored: "planned" | "done",
   day: Day,
   today: Day,
-  pause: PauseWindow | null
+  pause: PauseWindow | null,
+  skipped = false
 ): ScheduleStatus {
   if (stored === "done") return "done"
   if (isPaused(day, pause)) return "paused"
+  if (skipped) return "skipped"
   return day < today ? "missed" : "planned"
+}
+
+/**
+ * The last day of a program that runs for `weeks` weeks from its start day,
+ * or null for one that runs for good. Twelve weeks from Mon, Jan 5 end on
+ * Sun, Mar 29.
+ */
+export function programEndDay(startDay: Day, weeks: number | null): Day | null {
+  return weeks && weeks > 0 ? addDays(startDay, weeks * 7 - 1) : null
+}
+
+/** Which week of the program a day falls in, counting from 1 on the start day. */
+export function programWeekOf(startDay: Day, day: Day): number {
+  return Math.floor(daysBetween(startDay, day) / 7) + 1
 }
 
 /**

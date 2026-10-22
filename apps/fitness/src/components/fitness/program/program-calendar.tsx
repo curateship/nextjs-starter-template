@@ -105,6 +105,7 @@ export function ProgramCalendar({
   const grid = Array.from({ length: 42 }, (_, index) => addDays(gridStart, index))
 
   const showsPaused = (days ?? []).some((entry) => entry.status === "paused")
+  const showsSkipped = (days ?? []).some((entry) => entry.status === "skipped")
 
   return (
     <>
@@ -137,6 +138,7 @@ export function ProgramCalendar({
           <LegendItem kind="missed" label="Missed" />
           <LegendItem kind="planned" label="Planned" />
           {showsPaused ? <LegendItem kind="paused" label="Paused" /> : null}
+          {showsSkipped ? <LegendItem kind="skipped" label="Skipped" /> : null}
         </ul>
       </div>
       {!hasPlan ? (
@@ -291,7 +293,7 @@ function CalendarEntry({
   picked: boolean
   onPick: (scheduledId: string) => void
 }) {
-  const movable = entry.status === "planned" || entry.status === "missed"
+  const movable = entry.status === "planned" || entry.status === "missed" || entry.status === "skipped"
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: entry.id,
     disabled: !movable,
@@ -310,7 +312,8 @@ function CalendarEntry({
       style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined}
       className={cn(
         "relative z-10 flex w-full min-w-0 items-center gap-1.5 rounded-lg border bg-card px-1.5 py-1 text-left text-xs @4xl:px-2 @4xl:text-[13px] hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        (entry.status === "missed" || entry.status === "paused" || !inMonth) && "text-muted-foreground",
+        (entry.status === "missed" || entry.status === "paused" || entry.status === "skipped" || !inMonth) &&
+          "text-muted-foreground",
         isToday && "border-foreground ring-1 ring-foreground",
         picked && !isToday && "border-foreground",
         isDragging && "z-20 opacity-80",

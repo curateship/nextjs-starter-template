@@ -16,6 +16,11 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [Exercise library](exercise-library.md): the Exercises dashboard, routine types, your own lifts and the pain list.
 - [Fitness's settings](app-settings.md): the app-wide tabs under Settings, App settings.
 - [Reminders and the calendar feed](reminders-and-calendar-feed.md): workout-day reminders, the missed-workout nudge, the Google or Apple Calendar feed, and where bell notices lead.
-- [Coaching](coaching.md): coaches, asking a client, what a linked coach can and can't do, and ending it.
+- [Coaching](coaching.md): coaches, asking a client, the Clients table's figures and the notice after two misses, copying a program to a client, what a linked coach can and can't do, and ending it.
+- [Coach notes](coach-notes.md): a coach's one-way notes on a client's finished workout and its lifts.
+- [Weekly check-in](weekly-check-in.md): the Sunday questions for someone with a coach, and where the coach reads them.
+- [Measurements and target bodyweight](measurements-and-target.md): the tape measurements chart, the target line and the pace to it.
+- [Program length](program-length.md): a program that runs for a set number of weeks, "Week 5 of 12", and what happens after the last one.
+- [Calisthenics](calisthenics.md): the second routine type, its ladders of moves, and how a move steps up to its harder version.
 - [Sharing a program](sharing-a-program.md): the public page at `/r/<code>` and copying it.
 - [Going live](launch.md): the live address, the German server, the Coolify resources, email, storage, every live value, and the release record.

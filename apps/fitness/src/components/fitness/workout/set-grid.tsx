@@ -1,4 +1,4 @@
-import { PlusIcon } from "lucide-react"
+import { MessageSquareIcon, PlusIcon } from "lucide-react"
 
 import { TONE } from "@/components/fitness/status-tones"
 import { WeightInput } from "@/components/fitness/weight-input"
@@ -7,12 +7,16 @@ import { bestOf, setWords } from "@/components/fitness/workout/live-workout"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import type { LiftNote } from "@/lib/api/fitness/coaching"
 import type { SetView, WorkoutExercise } from "@/lib/api/fitness/workouts"
 import { type WeightUnit } from "@/lib/fitness/weights"
 import { cn } from "@/lib/utils"
 
 /** The table's columns: Set, Previous, weight, reps, Done. */
 const GRID = "grid grid-cols-[2.5rem_minmax(0,1fr)_minmax(4.5rem,1fr)_minmax(3.5rem,1fr)_2.5rem] items-center gap-2 @2xl:gap-3"
+
+/** A Calisthenics move's columns: Set, Previous, reps or seconds, Done. Its weight is never counted. */
+const GRID_COUNT = "grid grid-cols-[2.5rem_minmax(0,1fr)_minmax(4.5rem,1fr)_2.5rem] items-center gap-2 @2xl:gap-3"
 
 /**
  * One lift in the live workout, as a band across the middle panel with a
@@ -24,13 +28,18 @@ const GRID = "grid grid-cols-[2.5rem_minmax(0,1fr)_minmax(4.5rem,1fr)_minmax(3.5
  * next is shaded. "Add a set" sits under the rows.
  *
  * The lift being done is white; the others are grey. Clicking the heading
- * opens the lift on the right.
+ * opens the lift on the right. A note a coach left on this lift in an earlier
+ * workout shows under the heading, "Coach: keep the elbows in".
+ *
+ * A Calisthenics move has no weight box: its sets are reps, or seconds for a
+ * hold such as a plank.
  */
 export function SetGrid({
   exercise,
   unit,
   current,
   canChange,
+  coachNote,
   onPick,
   onSetChange,
   onToggleDone,
@@ -38,6 +47,7 @@ export function SetGrid({
 }: {
   exercise: WorkoutExercise
   unit: WeightUnit
+  coachNote?: LiftNote
   /** This lift is the one being done, shown on the right. */
   current: boolean
   canChange: boolean
@@ -51,6 +61,9 @@ export function SetGrid({
   const done = exercise.sets.filter((set) => set.done).length
   const next = current ? exercise.sets.find((set) => !set.done) : undefined
   const suffix = exercise.isBodyweight ? `+${unit}` : unit
+  const counted = exercise.measure !== "load"
+  const grid = counted ? GRID_COUNT : GRID
+  const countLabel = exercise.measure === "seconds" ? "Seconds" : "Reps"
   let working = 0
 
   return (
@@ -66,7 +79,7 @@ export function SetGrid({
       >
         <span className="truncate text-base font-semibold">{exercise.name}</span>
         <span className="shrink-0 truncate text-[13px] text-muted-foreground">
-          {best ? `Last: ${setWords(best, unit, exercise.isBodyweight)}` : "First time"}
+          {best ? `Last: ${setWords(best, unit, exercise.isBodyweight, exercise.measure)}` : "First time"}
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-2 text-[13px] text-muted-foreground tabular-nums">
           {next ? (
@@ -75,12 +88,21 @@ export function SetGrid({
           {done}/{exercise.sets.length}
         </span>
       </button>
+      {coachNote ? (
+        <p className="flex items-start gap-1.5 border-b px-5 py-2 text-[13px]">
+          <MessageSquareIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="min-w-0">
+            <span className="font-medium">{coachNote.coachName}: </span>
+            <span className="whitespace-pre-line">{coachNote.text}</span>
+          </span>
+        </p>
+      ) : null}
       <div className="grid gap-1 px-3 pt-2 pb-3">
-        <div className={cn(GRID, "px-2 py-1 text-[13px] text-muted-foreground")} aria-hidden="true">
+        <div className={cn(grid, "px-2 py-1 text-[13px] text-muted-foreground")} aria-hidden="true">
           <span>Set</span>
           <span>Previous</span>
-          <span>{exercise.isBodyweight ? `Added ${unit}` : unit}</span>
-          <span>Reps</span>
+          {counted ? null : <span>{exercise.isBodyweight ? `Added ${unit}` : unit}</span>}
+          <span>{countLabel}</span>
           <span className="text-center">Done</span>
         </div>
         <ul className="grid gap-1">
@@ -91,24 +113,26 @@ export function SetGrid({
             const spoken = warmup ? "warm-up" : `set ${label}`
             const previous = warmup ? null : (lastSets[index] ?? null)
             return (
-              <li key={set.id} className={cn(GRID, "rounded-lg px-2 py-1.5", set.id === next?.id && "bg-muted")}>
+              <li key={set.id} className={cn(grid, "rounded-lg px-2 py-1.5", set.id === next?.id && "bg-muted")}>
                 <SetBadge warmup={warmup} label={label} />
                 <span className="truncate text-sm text-muted-foreground tabular-nums">
-                  {previous ? setWords(previous, unit, exercise.isBodyweight) : "None"}
+                  {previous ? setWords(previous, unit, exercise.isBodyweight, exercise.measure) : "None"}
                 </span>
-                <WeightInput
-                  aria-label={`${exercise.isBodyweight ? "Added weight" : "Weight"}, ${spoken}, in ${unit}`}
-                  valueKg={set.weightKg ?? set.targetWeightKg}
-                  unit={unit}
-                  placeholder="0"
-                  className="bg-background tabular-nums"
-                  showUnit
-                  unitLabel={suffix}
-                  onCommit={(kg) => onSetChange(set, { weightKg: kg })}
-                />
+                {counted ? null : (
+                  <WeightInput
+                    aria-label={`${exercise.isBodyweight ? "Added weight" : "Weight"}, ${spoken}, in ${unit}`}
+                    valueKg={set.weightKg ?? set.targetWeightKg}
+                    unit={unit}
+                    placeholder="0"
+                    className="bg-background tabular-nums"
+                    showUnit
+                    unitLabel={suffix}
+                    onCommit={(kg) => onSetChange(set, { weightKg: kg })}
+                  />
+                )}
                 <RepsInput
                   id={`reps-${set.id}`}
-                  label={`Reps, ${spoken}`}
+                  label={`${countLabel}, ${spoken}`}
                   // The target shows as the value, as the weight's does, so ticking
                   // Done without typing logs exactly what is written.
                   value={set.reps ?? set.targetReps}

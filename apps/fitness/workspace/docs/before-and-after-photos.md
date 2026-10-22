@@ -64,6 +64,11 @@ Laid out as Tyler drew it on 18 Oct 2026.
 - **Delete a photo day** asks first, then deletes the day, its figures and its
   photos.
 
+## The photo day reminder and the measurements chart
+
+- "Time for a photo day" arrives four weeks after the last photo day and opens New photo day (`reminders-and-calendar-feed.md`).
+- The tape measurements of every photo day are drawn as a line on Progress (`measurements-and-target.md`). A coach sees it only with photos switched on for them.
+
 ## Compare
 
 Compare opens on the earliest day and the picked one, or the

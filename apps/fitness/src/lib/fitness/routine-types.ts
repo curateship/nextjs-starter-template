@@ -4,8 +4,8 @@
  * A program is only the container. Its routine type decides which fields and
  * dashboards apply, so a new type adds its own tables beside
  * `fitness_strength_settings` and its own screens, and never changes the
- * program itself. Only Strength training works today; the others show as
- * "coming soon" and cannot be picked.
+ * program itself. Strength training and Calisthenics (21 Oct 2026) work
+ * today; the others show as "coming soon" and cannot be picked.
  */
 export const ROUTINE_TYPES = [
   {
@@ -17,8 +17,8 @@ export const ROUTINE_TYPES = [
   {
     id: "calisthenics",
     label: "Calisthenics",
-    description: "Bodyweight skills and progressions.",
-    live: false,
+    description: "Bodyweight moves that step up to a harder version once the reps are there.",
+    live: true,
   },
   {
     id: "running",

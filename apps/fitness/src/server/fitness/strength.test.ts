@@ -80,7 +80,7 @@ describe("programs", () => {
 
   it("refuses a routine type that isn't ready", async () => {
     await expect(
-      createProgram(anna.id, anna.id, { name: "Bars", routineType: "calisthenics" }, database)
+      createProgram(anna.id, anna.id, { name: "Miles", routineType: "running" }, database)
     ).rejects.toThrow(FITNESS_ERRORS.routineTypeNotLive)
   })
 

@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { userGet, userPost } from "@/server/guards"
+import { liftNotesFor, loadCoachNotes } from "@/server/fitness/coach-notes"
 import { preferencesFor } from "@/server/fitness/profile"
 import {
   addExerciseToWorkout,
@@ -63,6 +64,15 @@ const loadFn = createServerFn({ method: "GET" })
       workout,
       /** False for a coach reading a client's workout: only the person logs or changes it. */
       canChange: workout.userId === context.user.id,
+      /** A coach reading a client's workout may leave notes on it; the person can't. */
+      canNote: workout.userId !== context.user.id,
+      coachNotes: await loadCoachNotes(context.user.id, workout.id),
+      liftNotes: await liftNotesFor(
+        context.user.id,
+        workout.userId,
+        workout.exercises.map((exercise) => exercise.exerciseId),
+        workout.id
+      ),
       preferences: await preferencesFor(workout.userId),
       exercises: await listExercises(workout.userId, undefined, program?.routineType),
       equipment: program ? (await loadBaseline(program.id)).equipment : [],

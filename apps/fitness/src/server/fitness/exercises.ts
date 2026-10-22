@@ -28,6 +28,8 @@ export type Exercise = {
   /** The routine type it belongs to, such as `strength`. */
   routineType: string
   isBodyweight: boolean
+  /** A hold, logged in seconds rather than reps. */
+  isTimed: boolean
   pictureUrl: string | null
   builtIn: boolean
   /** On the person's pain list, so swaps never offer it. */
@@ -53,8 +55,9 @@ async function ensureBuiltInExercises(database: FitnessDb = db) {
     muscles: [...exercise.muscles],
     equipment: [...exercise.equipment],
     movement: exercise.movement,
-    routineType: "strength",
+    routineType: exercise.routineType,
     isBodyweight: exercise.bodyweight ?? false,
+    isTimed: exercise.timed ?? false,
     pictureUrl: null,
     createdAt: at,
     updatedAt: at,
@@ -70,6 +73,8 @@ async function ensureBuiltInExercises(database: FitnessDb = db) {
         equipment: sql`excluded.equipment`,
         movement: sql`excluded.movement`,
         isBodyweight: sql`excluded.is_bodyweight`,
+        isTimed: sql`excluded.is_timed`,
+        routineType: sql`excluded.routine_type`,
       },
     })
   seeded.add(database)
@@ -85,6 +90,7 @@ function toExercise(row: ExerciseRow, avoided?: { note: string }): Exercise {
     movement: row.movement as Movement,
     routineType: row.routineType,
     isBodyweight: row.isBodyweight,
+    isTimed: row.isTimed,
     pictureUrl: row.pictureUrl,
     builtIn: row.slug !== null,
     avoided: Boolean(avoided),
@@ -178,14 +184,26 @@ type ExerciseInput = {
   equipment: Equipment[]
   movement: Movement
   isBodyweight: boolean
+  isTimed: boolean
   pictureUrl: string | null
+}
+
+/**
+ * A Calisthenics move never counts its weight, so it is never a bodyweight
+ * lift; only it can be a hold logged in seconds.
+ */
+function settledKind(input: ExerciseInput): ExerciseInput {
+  return input.routineType === "calisthenics"
+    ? { ...input, isBodyweight: false }
+    : { ...input, isTimed: false }
 }
 
 export async function createExercise(
   userId: string,
-  input: ExerciseInput,
+  given: ExerciseInput,
   database: FitnessDb = db
 ): Promise<Exercise> {
+  const input = settledKind(given)
   const name = input.name.trim()
   if (!name) throw new Error(FITNESS_ERRORS.nameNeeded)
   const at = now()
@@ -213,9 +231,10 @@ async function ownExercise(userId: string, exerciseId: string, database: Fitness
 export async function updateExercise(
   userId: string,
   exerciseId: string,
-  input: ExerciseInput,
+  given: ExerciseInput,
   database: FitnessDb = db
 ): Promise<Exercise> {
+  const input = settledKind(given)
   await ownExercise(userId, exerciseId, database)
   const name = input.name.trim()
   if (!name) throw new Error(FITNESS_ERRORS.nameNeeded)

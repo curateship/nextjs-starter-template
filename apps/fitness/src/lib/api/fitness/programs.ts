@@ -14,8 +14,10 @@ import {
   moveScheduled,
   pauseProgram,
   resumeProgram,
+  skipScheduled,
   todayFor,
 } from "@/server/fitness/calendar"
+import { checkInDue, listCheckIns } from "@/server/fitness/check-ins"
 import { COACH_ROLE, listClients, listMyCoaches } from "@/server/fitness/coach"
 import { listExercises } from "@/server/fitness/exercises"
 import { preferencesFor } from "@/server/fitness/profile"
@@ -26,9 +28,11 @@ import {
   listPrograms,
   openProgramWorkout,
   renameProgram,
+  runProgramAgain,
   setActiveProgram,
   setProgramArchived,
   setProgramPictures,
+  setProgramWeeks,
 } from "@/server/fitness/programs"
 import { loadWeeklyGoal } from "@/server/fitness/progress"
 import { setProgramShared } from "@/server/fitness/sharing"
@@ -37,6 +41,7 @@ import {
   applyTemplate,
   copyWeekDay,
   loadBaseline,
+  loadCalisthenicsSettings,
   loadStrengthSettings,
   loadWeek,
   removeBaselineLift,
@@ -45,6 +50,7 @@ import {
   restWeekDay,
   saveBaseline,
   saveBaselineLift,
+  saveCalisthenicsSettings,
   saveStrengthSettings,
   setSuperset,
   setWeekDay,
@@ -53,7 +59,7 @@ import {
 import { discardUntouchedWorkouts, lastTimesFor, openWorkout } from "@/server/fitness/workouts"
 
 export type { ProgramSummary } from "@/server/fitness/programs"
-export type { Baseline, DayExercise, StrengthSettings, WeekDay } from "@/server/fitness/week"
+export type { Baseline, CalisthenicsSettings, DayExercise, StrengthSettings, WeekDay } from "@/server/fitness/week"
 export type { CalendarDay } from "@/server/fitness/calendar"
 export type { PlanDraft } from "@/server/fitness/ai-plan"
 
@@ -76,11 +82,15 @@ const baselineFields = z.object({
   equipment: z.array(z.enum(EQUIPMENT)).max(EQUIPMENT.length),
 })
 
+/** How many weeks a program runs; null runs for good. */
+const programWeeks = z.number().int().min(1).max(104).nullable()
+
 const liftFields = z.object({ exerciseId: id, weightKg: kg, reps: z.number().int().min(1).max(50) })
 
 /**
  * The Programs dashboard: a person's programs, an unfinished workout to pick
- * up, the week's goal, coach requests, and a coach's clients.
+ * up, the week's goal, coach requests, a coach's clients, and the weekly
+ * check-in a coached person owes.
  */
 const loadProgramsPageFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -93,12 +103,16 @@ const loadProgramsPageFn = createServerFn({ method: "GET" })
     return {
       personId,
       isCoach,
+      today: await todayFor(context.user.id),
       programs: await listPrograms(context.user.id, personId),
       openWorkout: own ? await openWorkout(personId) : null,
       weeklyGoal: await loadWeeklyGoal(personId),
       preferences: await preferencesFor(personId),
       coaches: own ? await listMyCoaches(personId) : [],
       clients: isCoach && own ? await listClients(context.user.id) : null,
+      checkInDue: own ? await checkInDue(personId) : null,
+      // A coach reads a client's check-ins on the client's Programs dashboard.
+      checkIns: own ? null : await listCheckIns(context.user.id, personId),
     }
   })
 
@@ -113,6 +127,7 @@ const createProgramFn = createServerFn({ method: "POST" })
     z.object({
       name: z.string().max(80),
       routineType: z.enum(ROUTINE_TYPE_IDS),
+      weeks: programWeeks.optional(),
       personId: id.optional(),
       baseline: baselineFields.partial().optional(),
       lifts: z.array(liftFields).max(30).optional(),
@@ -144,6 +159,8 @@ const loadProgramFn = createServerFn({ method: "GET" })
     const week = await loadWeek(program.id)
     return {
       today,
+      /** A coach copies their own programs to clients from the three dots. */
+      viewerIsCoach: context.user.role === COACH_ROLE,
       pause: pause ? { fromDay: pause.fromDay, untilDay: pause.untilDay, reason: pause.reason } : null,
       program: {
         id: program.id,
@@ -155,8 +172,10 @@ const loadProgramFn = createServerFn({ method: "GET" })
         mine: program.userId === context.user.id,
         bannerUrl: program.bannerUrl,
         avatarUrl: program.avatarUrl,
+        weeks: program.weeks,
       },
       strength: await loadStrengthSettings(program.id),
+      calisthenics: await loadCalisthenicsSettings(program.id),
       week,
       baseline: await loadBaseline(program.id),
       exercises: await listExercises(program.userId, undefined, program.routineType),
@@ -167,7 +186,9 @@ const loadProgramFn = createServerFn({ method: "GET" })
         week.flatMap((day) => day.exercises.map((exercise) => exercise.exerciseId))
       ),
       openWorkout: program.userId === context.user.id ? await openProgramWorkout(program.id) : null,
-      templates: PLAN_TEMPLATES.map(({ id: templateId, label, description }) => ({ id: templateId, label, description })),
+      templates: PLAN_TEMPLATES.filter((template) => template.routineType === program.routineType).map(
+        ({ id: templateId, label, description }) => ({ id: templateId, label, description })
+      ),
     }
   })
 
@@ -220,7 +241,10 @@ const programChangeFn = createServerFn({ method: "POST" })
         reason: z.enum(["holiday", "injury", "other"]),
       }),
       z.object({ action: z.literal("resume"), programId: id }),
+      z.object({ action: z.literal("weeks"), programId: id, weeks: programWeeks }),
+      z.object({ action: z.literal("runAgain"), programId: id }),
       z.object({ action: z.literal("move"), scheduledId: id, toDay: day }),
+      z.object({ action: z.literal("skip"), scheduledId: id, skipped: z.boolean() }),
       z.object({ action: z.literal("template"), programId: id, templateId: z.string().max(40) }),
     ])
   )
@@ -252,8 +276,17 @@ const programChangeFn = createServerFn({ method: "POST" })
       case "resume":
         await resumeProgram(actor, data.programId)
         return {}
+      case "weeks":
+        await setProgramWeeks(actor, data.programId, data.weeks)
+        return {}
+      case "runAgain":
+        await runProgramAgain(actor, data.programId)
+        return {}
       case "move":
         await moveScheduled(actor, data.scheduledId, data.toDay)
+        return {}
+      case "skip":
+        await skipScheduled(actor, data.scheduledId, data.skipped)
         return {}
       case "template":
         await applyTemplate(actor, data.programId, data.templateId)
@@ -287,6 +320,21 @@ const strengthSettingsFn = createServerFn({ method: "POST" })
 
 export function saveStrengthRules(data: Parameters<typeof strengthSettingsFn>[0]["data"]) {
   return strengthSettingsFn({ data })
+}
+
+/** Calisthenics' step-up rules: whether moves step up by themselves, and after how many good sessions in a row. */
+const calisthenicsSettingsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      programId: id,
+      change: z.object({ autoStepUp: z.boolean(), sessionsToStep: z.number().int().min(1).max(5) }).partial(),
+    })
+  )
+  .handler(async ({ data, context }) => saveCalisthenicsSettings(context.user.id, data.programId, data.change))
+
+export function saveStepUpRules(data: Parameters<typeof calisthenicsSettingsFn>[0]["data"]) {
+  return calisthenicsSettingsFn({ data })
 }
 
 const baselineFn = createServerFn({ method: "POST" })
@@ -323,6 +371,9 @@ const dayExerciseFields = {
   reps: z.number().int().min(1).max(100),
   weightKg: kg,
   restSeconds: z.number().int().min(0).max(900),
+  /** Calisthenics only: the move's rep range. */
+  repsMin: z.number().int().min(1).max(100).nullable().optional(),
+  repsMax: z.number().int().min(1).max(100).nullable().optional(),
 }
 
 /** The week: which weekdays are workouts, and each workout's exercises. */

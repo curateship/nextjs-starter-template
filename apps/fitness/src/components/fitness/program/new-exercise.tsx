@@ -33,6 +33,9 @@ export function NewButton({ label, ...props }: React.ComponentProps<typeof Butto
  * rest for its kind, 5 and 3 min for a compound lift, 10 and 1:30 for an
  * isolation one. Clicking away keeps what was chosen for the next opening.
  *
+ * A Calisthenics program asks for a rep range instead of reps and a weight:
+ * 8 to 12, or 20 to 40 seconds for a hold, with 2 min rest.
+ *
  * The same dropdown opens from the "+" on a body part's heading in the Day
  * view, already set to that body part: only its lifts are listed (UI
  * standard: a "+" on a group heading opens the same dropdown set to that
@@ -58,7 +61,11 @@ export function NewExercise({
   const [sets, setSets] = React.useState(3)
   const [reps, setReps] = React.useState(5)
   const [weightKg, setWeightKg] = React.useState<number | null>(null)
+  const [repsMax, setRepsMax] = React.useState(12)
   const [rest, setRest] = React.useState("180")
+  // A Calisthenics move has a rep range and no weight.
+  const calisthenics = page.program.routineType === "calisthenics"
+  const seconds = exercise?.isTimed ?? false
   const [busy, setBusy] = React.useState(false)
   const base = React.useId()
   const choices = bodyPart ? page.exercises.filter((entry) => bodyPartOf(entry.muscles) === bodyPart) : page.exercises
@@ -66,6 +73,12 @@ export function NewExercise({
 
   function pick(next: Exercise) {
     setExercise(next)
+    if (calisthenics) {
+      setReps(next.isTimed ? 20 : 8)
+      setRepsMax(next.isTimed ? 40 : 12)
+      setRest("120")
+      return
+    }
     setReps(next.movement === "isolation" ? 10 : 5)
     setRest(next.movement === "isolation" ? "90" : "180")
   }
@@ -85,6 +98,7 @@ export function NewExercise({
         reps,
         weightKg: weightKg ?? 0,
         restSeconds: Number(rest),
+        ...(calisthenics ? { repsMin: reps, repsMax: Math.max(reps, repsMax) } : {}),
       })
       await router.invalidate()
       toast.success(`${exercise.name} added to ${day.name}.`)
@@ -92,6 +106,7 @@ export function NewExercise({
       setExercise(null)
       setSets(3)
       setReps(5)
+      setRepsMax(12)
       setWeightKg(null)
       setRest("180")
       if (id) go({ open: id })
@@ -122,15 +137,33 @@ export function NewExercise({
           onPick={pick}
         />
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <NumberField id={`${base}-sets`} label="Sets" value={sets} min={1} max={20} onChange={setSets} />
-        <NumberField id={`${base}-reps`} label="Reps" value={reps} min={1} max={100} onChange={setReps} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="grid min-w-0 gap-2">
-          <Label htmlFor={`${base}-weight`}>Weight</Label>
-          <WeightInput id={`${base}-weight`} valueKg={weightKg} unit={unit} showUnit placeholder="0" onCommit={setWeightKg} />
+      {calisthenics ? (
+        <div className="grid grid-cols-2 gap-4">
+          <NumberField
+            id={`${base}-reps`}
+            label={seconds ? "Seconds from" : "Reps from"}
+            value={reps}
+            min={1}
+            max={100}
+            onChange={setReps}
+          />
+          <NumberField id={`${base}-reps-to`} label="To" value={repsMax} min={1} max={100} onChange={setRepsMax} />
         </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <NumberField id={`${base}-sets`} label="Sets" value={sets} min={1} max={20} onChange={setSets} />
+          <NumberField id={`${base}-reps`} label="Reps" value={reps} min={1} max={100} onChange={setReps} />
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-4">
+        {calisthenics ? (
+          <NumberField id={`${base}-sets`} label="Sets" value={sets} min={1} max={20} onChange={setSets} />
+        ) : (
+          <div className="grid min-w-0 gap-2">
+            <Label htmlFor={`${base}-weight`}>Weight</Label>
+            <WeightInput id={`${base}-weight`} valueKg={weightKg} unit={unit} showUnit placeholder="0" onCommit={setWeightKg} />
+          </div>
+        )}
         <div className="grid min-w-0 gap-2">
           <Label htmlFor={`${base}-rest`}>Rest</Label>
           <Select value={rest} onValueChange={setRest}>

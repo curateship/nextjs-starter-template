@@ -2,6 +2,7 @@ import * as React from "react"
 
 import type { RestTimerState } from "@/components/fitness/workout/rest-timer"
 import type { SetView, WorkoutView } from "@/lib/api/fitness/workouts"
+import { countWords, type SetMeasure } from "@/lib/fitness/calisthenics"
 import { formatWeightNumber, type WeightUnit } from "@/lib/fitness/weights"
 
 /**
@@ -116,8 +117,12 @@ export function currentSet(sets: readonly SetView[]) {
 
 type SetFigures = { weightKg: number | null; reps: number | null }
 
-/** "30 kg × 6"; on a bodyweight lift, the weight added: "+10 kg × 12". */
-export function setWords(set: SetFigures, unit: WeightUnit, bodyweight: boolean) {
+/**
+ * "30 kg × 6"; on a bodyweight lift, the weight added: "+10 kg × 12". A
+ * Calisthenics move counts no weight: "10 reps", or "30 seconds" for a hold.
+ */
+export function setWords(set: SetFigures, unit: WeightUnit, bodyweight: boolean, measure: SetMeasure = "load") {
+  if (measure !== "load") return countWords(set.reps ?? 0, measure)
   const weight = `${formatWeightNumber(set.weightKg ?? 0, unit)} ${unit}`
   return `${bodyweight ? "+" : ""}${weight} × ${set.reps ?? 0}`
 }

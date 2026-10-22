@@ -64,37 +64,52 @@ export function weightTrend(weighIns: readonly WeighIn[]): { day: Day; weightKg:
  * How many weeks in a row the weekly goal was hit, counting back from this
  * week. This week counts once it is hit, and does not break the run while it
  * is still under way. A paused week neither counts nor breaks the run.
+ *
+ * A day skipped on purpose is neither done nor missed (Tyler, 21 Oct 2026),
+ * so it comes off that week's goal: with a goal of 3 and Friday skipped, two
+ * workouts keep the run going. A week whose every workout was skipped counts
+ * like a paused one.
  */
 export function weeklyStreak({
   workoutDays,
   goal,
   today,
   pausedWeeks,
+  skippedDays = [],
 }: {
   workoutDays: readonly Day[]
   goal: number
   today: Day
   /** Mondays of weeks that were paused for their whole length. */
   pausedWeeks: ReadonlySet<Day>
-}): { streak: number; thisWeek: number } {
+  /** Planned dates skipped on purpose. */
+  skippedDays?: readonly Day[]
+}): { streak: number; thisWeek: number; weekGoal: number } {
   const perWeek = new Map<Day, number>()
   for (const day of workoutDays) {
     const week = weekStart(day)
     perWeek.set(week, (perWeek.get(week) ?? 0) + 1)
   }
+  const skipped = new Map<Day, number>()
+  for (const day of skippedDays) {
+    const week = weekStart(day)
+    skipped.set(week, (skipped.get(week) ?? 0) + 1)
+  }
+  const goalOf = (week: Day) => Math.max(0, goal - (skipped.get(week) ?? 0))
   const currentWeek = weekStart(today)
   const thisWeek = perWeek.get(currentWeek) ?? 0
-  if (goal <= 0) return { streak: 0, thisWeek }
+  const weekGoal = goalOf(currentWeek)
+  if (goal <= 0) return { streak: 0, thisWeek, weekGoal }
 
-  let streak = thisWeek >= goal ? 1 : 0
+  let streak = weekGoal > 0 && thisWeek >= weekGoal ? 1 : 0
   const earliest = [...perWeek.keys()].sort()[0]
-  if (!earliest) return { streak, thisWeek }
+  if (!earliest) return { streak, thisWeek, weekGoal }
   for (let week = addDays(currentWeek, -7); week >= earliest; week = addDays(week, -7)) {
-    if (pausedWeeks.has(week)) continue
-    if ((perWeek.get(week) ?? 0) < goal) break
+    if (pausedWeeks.has(week) || goalOf(week) === 0) continue
+    if ((perWeek.get(week) ?? 0) < goalOf(week)) break
     streak += 1
   }
-  return { streak, thisWeek }
+  return { streak, thisWeek, weekGoal }
 }
 
 /** The Mondays of every week a pause covered from Monday to Sunday. */

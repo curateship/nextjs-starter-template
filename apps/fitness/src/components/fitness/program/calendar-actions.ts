@@ -12,6 +12,27 @@ export const SCHEDULE_STATUS: Record<ScheduleStatus, { label: string }> = {
   done: { label: "Done" },
   missed: { label: "Missed" },
   paused: { label: "Paused" },
+  skipped: { label: "Skipped" },
+}
+
+/**
+ * Skips one calendar day on purpose, or takes the skip back, and tells both
+ * panels to read the calendar again. A skipped day is neither done nor missed.
+ */
+export async function skipCalendarDay(entry: Pick<CalendarDay, "id" | "dayName" | "day">, skipped: boolean) {
+  try {
+    await changeProgram({ action: "skip", scheduledId: entry.id, skipped })
+    toast.success(
+      skipped
+        ? `${entry.dayName} on ${formatDay(entry.day)} skipped. It won't count as missed.`
+        : `${entry.dayName} on ${formatDay(entry.day)} is back on.`
+    )
+    calendarChanged()
+    return true
+  } catch (failure) {
+    reportFitnessError(failure)
+    return false
+  }
 }
 
 /**

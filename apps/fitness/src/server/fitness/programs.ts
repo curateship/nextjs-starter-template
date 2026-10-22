@@ -1,17 +1,20 @@
-import { and, asc, desc, eq, gte, inArray, isNull, ne, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, gte, inArray, isNull, ne, sql } from "drizzle-orm"
 
+import { addDays, weekStart } from "@/lib/fitness/dates"
 import { FITNESS_ERRORS } from "@/lib/fitness/errors"
+import { programEndDay } from "@/lib/fitness/schedule"
 import { isLiveRoutineType, type RoutineTypeId } from "@/lib/fitness/routine-types"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { canReachPerson, programFor, type FitnessDb } from "@/server/fitness/access"
 import { exerciseFor } from "@/server/fitness/exercises"
 import { hasTickedSet } from "@/server/fitness/workouts"
-import type { BaselineChange } from "@/server/fitness/week"
-import { currentPause, ensureScheduled, todayFor } from "@/server/fitness/calendar"
+import { DEFAULT_CALISTHENICS, type BaselineChange } from "@/server/fitness/week"
+import { currentPause, ensureScheduled, rescheduleFromToday, todayFor } from "@/server/fitness/calendar"
 import {
   fitnessBaselineLifts,
   fitnessBaselines,
+  fitnessCalisthenicsSettings,
   fitnessWeekDays,
   fitnessPrograms,
   fitnessScheduledWorkouts,
@@ -102,6 +105,8 @@ export async function listPrograms(
 type NewProgramInput = {
   name: string
   routineType: RoutineTypeId
+  /** How many weeks it runs; empty runs for good. */
+  weeks?: number | null
   /** What the person brings on day one, entered in the New program window. */
   baseline?: Omit<BaselineChange, "equipment"> & { equipment?: string[] }
   lifts?: { exerciseId: string; weightKg: number; reps: number }[]
@@ -139,6 +144,7 @@ export async function createProgram(
     isActive: !existing,
     archivedAt: null,
     builtByUserId: actorId,
+    weeks: input.weeks ?? null,
     createdAt: at,
     updatedAt: at,
   })
@@ -154,6 +160,9 @@ export async function createProgram(
     lightWeekPercent: 60,
     shareSlug: null,
   })
+  if (input.routineType === "calisthenics") {
+    await database.insert(fitnessCalisthenicsSettings).values({ programId: id, ...DEFAULT_CALISTHENICS })
+  }
   await database
     .insert(fitnessBaselines)
     .values({ ...input.baseline, programId: id, equipment: input.baseline?.equipment ?? [], updatedAt: at })
@@ -166,6 +175,64 @@ export async function createProgram(
       .onConflictDoNothing()
   }
   return { id }
+}
+
+/**
+ * Sets how many weeks the program runs, or clears it so it runs for good.
+ * Planned dates past the new last day leave the calendar, and the week is
+ * laid out again from today so a longer program fills its new weeks.
+ */
+export async function setProgramWeeks(
+  actorId: string,
+  programId: string,
+  weeks: number | null,
+  database: FitnessDb = db
+) {
+  const program = await programFor(actorId, programId, database, { forChange: true })
+  const today = await todayFor(program.userId, database)
+  await database.update(fitnessPrograms).set({ weeks, updatedAt: now() }).where(eq(fitnessPrograms.id, programId))
+  const [strength] = await database
+    .select({ startDay: fitnessStrengthSettings.startDay })
+    .from(fitnessStrengthSettings)
+    .where(eq(fitnessStrengthSettings.programId, programId))
+    .limit(1)
+  const end = strength ? programEndDay(strength.startDay, weeks) : null
+  if (end) {
+    await database
+      .delete(fitnessScheduledWorkouts)
+      .where(
+        and(
+          eq(fitnessScheduledWorkouts.programId, programId),
+          eq(fitnessScheduledWorkouts.status, "planned"),
+          isNull(fitnessScheduledWorkouts.workoutId),
+          gt(fitnessScheduledWorkouts.day, end)
+        )
+      )
+  }
+  await rescheduleFromToday(programId, today, database)
+}
+
+/**
+ * Runs a finished program again: week 1 starts on the coming Monday, or
+ * today when today is a Monday, with the weights where they are now.
+ * Training blocks count again from the same day.
+ */
+export async function runProgramAgain(actorId: string, programId: string, database: FitnessDb = db) {
+  const program = await programFor(actorId, programId, database, { forChange: true })
+  const today = await todayFor(program.userId, database)
+  const [strength] = await database
+    .select({ startDay: fitnessStrengthSettings.startDay })
+    .from(fitnessStrengthSettings)
+    .where(eq(fitnessStrengthSettings.programId, programId))
+    .limit(1)
+  const end = strength ? programEndDay(strength.startDay, program.weeks) : null
+  if (!end || end >= today) throw new Error(FITNESS_ERRORS.programNotOver)
+  const monday = weekStart(today) === today ? today : addDays(weekStart(today), 7)
+  await database
+    .update(fitnessStrengthSettings)
+    .set({ startDay: monday })
+    .where(eq(fitnessStrengthSettings.programId, programId))
+  await rescheduleFromToday(programId, today, database)
 }
 
 export async function renameProgram(actorId: string, programId: string, name: string, database: FitnessDb = db) {

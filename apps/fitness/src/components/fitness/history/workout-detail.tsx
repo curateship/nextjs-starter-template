@@ -3,12 +3,14 @@ import { useRouter } from "@tanstack/react-router"
 import { CopyIcon, ExternalLinkIcon, HistoryIcon, Loader2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { LiftCoachNotes, WorkoutCoachNotes } from "@/components/fitness/history/coach-notes"
 import { PanelCard } from "@/components/fitness/panel-card"
 import { PanelBody, RightEmpty, RightHeader } from "@/components/fitness/dashboard/panel-parts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LoadingRow } from "@/components/ui/loading-row"
+import type { CoachNote } from "@/lib/api/fitness/coaching"
 import type { HistoryRow } from "@/lib/api/fitness/workouts"
 import { beginWorkout, loadWorkoutPage, removeWorkout, type WorkoutView } from "@/lib/api/fitness/workouts"
 import { addDays, formatDay, todayIn } from "@/lib/fitness/dates"
@@ -19,8 +21,9 @@ import { formatWeight, formatWeightNumber, type WeightUnit } from "@/lib/fitness
 /**
  * The History view's right panel. With nothing picked it shows how the last
  * four weeks went; with a workout picked it shows that workout's figures,
- * every lift with its sets, and Open, Do this again and Delete. A coach sees
- * the same figures without the three buttons that change things.
+ * every lift with its sets, its coach notes, and Open, Do this again and
+ * Delete. A coach sees the same figures without the three buttons that
+ * change things, and writes notes on the workout and its lifts.
  */
 export function WorkoutDetail({
   workoutId,
@@ -108,6 +111,8 @@ function PickedWorkout({
 }) {
   const router = useRouter()
   const [workout, setWorkout] = React.useState<WorkoutView | null>(null)
+  const [notes, setNotes] = React.useState<CoachNote[]>([])
+  const [canNote, setCanNote] = React.useState(false)
   const [failed, setFailed] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [confirming, setConfirming] = React.useState(false)
@@ -115,7 +120,12 @@ function PickedWorkout({
   React.useEffect(() => {
     let current = true
     loadWorkoutPage(workoutId).then(
-      (page) => current && setWorkout(page.workout),
+      (page) => {
+        if (!current) return
+        setWorkout(page.workout)
+        setNotes(page.coachNotes)
+        setCanNote(page.canNote)
+      },
       (error) => current && setFailed(getFitnessErrorMessage(error))
     )
     return () => {
@@ -187,8 +197,12 @@ function PickedWorkout({
                 <dd>{minutes ?? "Not finished"}</dd>
                 <dt className="text-muted-foreground">Sets done</dt>
                 <dd>{working?.length ?? 0}</dd>
-                <dt className="text-muted-foreground">Total lifted</dt>
-                <dd>{formatWeight(total, unit)}</dd>
+                {workout.exercises.every((exercise) => exercise.measure !== "load") ? null : (
+                  <>
+                    <dt className="text-muted-foreground">Total lifted</dt>
+                    <dd>{formatWeight(total, unit)}</dd>
+                  </>
+                )}
                 <dt className="text-muted-foreground">How hard</dt>
                 <dd>{workout.effort === null ? "Not given" : `${workout.effort} of 10`}</dd>
               </dl>
@@ -212,6 +226,13 @@ function PickedWorkout({
                 ) : null}
               </div>
             </PanelCard>
+            <WorkoutCoachNotes
+              notes={notes}
+              canNote={canNote}
+              finished={Boolean(workout.finishedAt)}
+              workoutId={workout.id}
+              onChange={setNotes}
+            />
             <PanelCard
               storageId="fitness-history-lifts"
               title="Lifts"
@@ -224,18 +245,29 @@ function PickedWorkout({
                   {workout.exercises.map((exercise) => {
                     const sets = exercise.sets.filter((set) => set.kind === "working" && set.done)
                     return (
-                      <li key={exercise.position} className="grid gap-0.5">
+                      <li key={exercise.position} className="grid gap-1.5">
                         <span className="text-sm font-medium">{exercise.name}</span>
                         <span className="text-[13px] text-muted-foreground">
                           {sets.length === 0
                             ? "No sets done"
-                            : sets
-                                .map(
-                                  (set) =>
-                                    `${formatWeightNumber((set.weightKg ?? 0) + (set.bodyweightKg ?? 0), unit)} x ${set.reps ?? 0}`
-                                )
-                                .join(", ")}
+                            : exercise.measure !== "load"
+                              ? `${sets.map((set) => set.reps ?? 0).join(", ")} ${exercise.measure === "seconds" ? "seconds" : "reps"}`
+                              : sets
+                                  .map(
+                                    (set) =>
+                                      `${formatWeightNumber((set.weightKg ?? 0) + (set.bodyweightKg ?? 0), unit)} x ${set.reps ?? 0}`
+                                  )
+                                  .join(", ")}
                         </span>
+                        <LiftCoachNotes
+                          notes={notes}
+                          canNote={canNote}
+                          finished={Boolean(workout.finishedAt)}
+                          workoutId={workout.id}
+                          position={exercise.position}
+                          liftName={exercise.name}
+                          onChange={setNotes}
+                        />
                       </li>
                     )
                   })}

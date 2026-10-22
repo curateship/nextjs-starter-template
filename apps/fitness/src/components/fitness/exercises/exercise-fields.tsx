@@ -134,19 +134,33 @@ export function ExerciseFields({
           </SelectContent>
         </Select>
       </div>
-      <div className="flex items-center justify-between gap-4">
-        <FieldLabel
-          htmlFor={ids.bodyweight}
-          hint="Your own body is the weight, like a pull-up. A set logs your bodyweight plus anything added on a belt."
-        >
-          Bodyweight lift
-        </FieldLabel>
-        <Switch
-          id={ids.bodyweight}
-          checked={draft.isBodyweight}
-          onCheckedChange={(isBodyweight) => onChange({ ...draft, isBodyweight })}
-        />
-      </div>
+      {draft.routineType === "calisthenics" ? (
+        // A Calisthenics move's weight is never counted, so it has no bodyweight switch.
+        <div className="flex items-center justify-between gap-4">
+          <FieldLabel htmlFor={ids.bodyweight} hint="A hold, such as a plank, is logged in seconds instead of reps.">
+            Logged in seconds
+          </FieldLabel>
+          <Switch
+            id={ids.bodyweight}
+            checked={draft.isTimed}
+            onCheckedChange={(isTimed) => onChange({ ...draft, isTimed })}
+          />
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-4">
+          <FieldLabel
+            htmlFor={ids.bodyweight}
+            hint="Your own body is the weight, like a pull-up. A set logs your bodyweight plus anything added on a belt."
+          >
+            Bodyweight lift
+          </FieldLabel>
+          <Switch
+            id={ids.bodyweight}
+            checked={draft.isBodyweight}
+            onCheckedChange={(isBodyweight) => onChange({ ...draft, isBodyweight })}
+          />
+        </div>
+      )}
       <ImageUpload
         label="Picture"
         hint="A photo or drawing of the lift, to remember how it's done."

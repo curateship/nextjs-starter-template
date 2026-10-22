@@ -5,6 +5,7 @@ import { loadSavedViews } from "@/lib/api/fitness/saved-views"
 import { loadWorkoutHistory, loadWorkoutPage } from "@/lib/api/fitness/workouts"
 import { FITNESS_ERRORS } from "@/lib/fitness/errors"
 import type { ProgramView } from "@/lib/fitness/program-search"
+import type { RoutineTypeId } from "@/lib/fitness/routine-types"
 
 /**
  * Everything one program's dashboard draws, gathered by its route's loader.
@@ -18,13 +19,13 @@ export async function loadProgramPage(input: { programId: string; view: ProgramV
   const program = await loadProgram(input.programId)
   const person = program.program.mine ? undefined : program.program.userId
   const [viewData, workout] = await Promise.all([
-    loadViewData(input.view, input.programId, person),
+    loadViewData(input.view, input.programId, person, program.program.routineType as RoutineTypeId),
     input.workout ? loadWorkoutPage(input.workout).catch(missingWorkout) : null,
   ])
   return { ...program, viewData, workout }
 }
 
-async function loadViewData(view: ProgramView, programId: string, person: string | undefined) {
+async function loadViewData(view: ProgramView, programId: string, person: string | undefined, routineType: RoutineTypeId) {
   switch (view) {
     case "history":
       return {
@@ -32,7 +33,7 @@ async function loadViewData(view: ProgramView, programId: string, person: string
         ...(await loadHistoryAndViews(programId, person)),
       } as const
     case "progress":
-      return { view, progress: await loadProgressPage(person) } as const
+      return { view, progress: await loadProgressPage(person, routineType) } as const
     case "photos":
       return { view, photos: await loadPhotoSessions(person) } as const
     default:

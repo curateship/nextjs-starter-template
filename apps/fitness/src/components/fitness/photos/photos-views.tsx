@@ -194,14 +194,18 @@ export function PhotosTools({ page, search, go }: ProgramViewProps) {
             <span className="@max-3xl:hidden">New photo day</span>
           </Button>
           <PhotoDayDialogFor
-            open={creating}
+            // The photo day reminder's link opens it with `new=photo-day`.
+            open={creating || search.new === "photo-day"}
             session={null}
             today={todayIn(preferences.timeZone)}
             unit={preferences.unit}
-            onClose={() => setCreating(false)}
+            onClose={() => {
+              setCreating(false)
+              if (search.new) go({ new: undefined }, { replace: true })
+            }}
             onSaved={(saved) => {
               setCreating(false)
-              go({ open: saved.id, compare: undefined })
+              go({ open: saved.id, compare: undefined, new: undefined })
               toast.success("Photo day made. Add its photos on the right.")
             }}
           />

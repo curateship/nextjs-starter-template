@@ -20,6 +20,11 @@ going.
   first.
 - **The page follows.** A save or a delete reloads the view's numbers, so the
   Bodyweight tile in the middle panel moves straight away.
+- **A target.** The target button in the card's heading sets a target
+  bodyweight, drawn as a dashed line with the pace to it under the chart. See
+  `measurements-and-target.md`.
+- **The weekly check-in** saves its bodyweight as that day's weigh-in
+  (`weekly-check-in.md`).
 - **Units.** Weights are stored in kilograms and shown in the person's unit.
 - **Where else it is used.** The latest weigh-in is the bodyweight a new
   bodyweight lift starts with, and a photo day's bodyweight counts too when it

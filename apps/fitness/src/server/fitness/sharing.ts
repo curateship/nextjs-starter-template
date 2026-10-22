@@ -1,18 +1,23 @@
 import { randomBytes } from "node:crypto"
 
-import { asc, eq, inArray } from "drizzle-orm"
+import { and, asc, eq, inArray } from "drizzle-orm"
 
 import { weekOrder } from "@/lib/fitness/dates"
 import { FITNESS_ERRORS } from "@/lib/fitness/errors"
 import type { RoutineTypeId } from "@/lib/fitness/routine-types"
 import { routineTypeLabel } from "@/lib/fitness/routine-types"
+import { TEMPLATE_START_SHARE } from "@/lib/fitness/templates"
+import { roundToStep } from "@/lib/fitness/weights"
 import { uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { programFor, type FitnessDb } from "@/server/fitness/access"
+import { canReachPerson, programFor, type FitnessDb } from "@/server/fitness/access"
 import { rescheduleFromToday, todayFor } from "@/server/fitness/calendar"
 import { exercisesById } from "@/server/fitness/exercises"
+import { preferencesFor } from "@/server/fitness/profile"
 import { createProgram } from "@/server/fitness/programs"
+import { loadBaseline } from "@/server/fitness/week"
 import {
+  fitnessCalisthenicsSettings,
   fitnessWeekDays,
   fitnessDayExercises,
   fitnessPrograms,
@@ -108,8 +113,8 @@ export async function loadSharedProgram(code: string, database: FitnessDb = db):
 /**
  * Copies a shared program into the visitor's own account as a new program.
  * Weights start empty, because the owner's weights are theirs. A lift that is
- * the owner's own (not built in) is copied by pointing at the built-in one of
- * the same slug when there is one, and otherwise left out.
+ * the owner's own (not built in) is left out, because it lives in the owner's
+ * own library.
  */
 export async function copySharedProgram(userId: string, code: string, database: FitnessDb = db) {
   const shared = await loadSharedProgram(code, database)
@@ -121,16 +126,119 @@ export async function copySharedProgram(userId: string, code: string, database: 
     .where(eq(fitnessStrengthSettings.shareSlug, code))
     .limit(1)
   const { id } = await createProgram(userId, userId, { name: shared.name, routineType: source.routineType as RoutineTypeId }, database)
-  const days = await database.select().from(fitnessWeekDays).where(eq(fitnessWeekDays.programId, source.programId))
+  await copyWeek(source.programId, id, () => 0, database)
+  await rescheduleFromToday(id, await todayFor(userId, database), database)
+  return { id }
+}
+
+/**
+ * Copies one of a coach's own programs into a client's account in one step
+ * (Tyler, 21 Oct 2026). The week, its rules and its length come too;
+ * pictures, starting data and history stay behind. Each heavy lift starts at
+ * 75 out of 100 of the client's best lift in their active program's starting
+ * data, the way templates start, or empty without one ("Start from the
+ * client's best lifts"). A lift the coach made themselves lives in the coach's
+ * library, so it's left out and named in the answer.
+ */
+export async function copyProgramToClient(
+  coachId: string,
+  programId: string,
+  clientId: string,
+  database: FitnessDb = db
+): Promise<{ id: string; leftOut: string[] }> {
+  const source = await programFor(coachId, programId, database)
+  if (source.userId !== coachId) throw new Error(FITNESS_ERRORS.copyNeedsOwnProgram)
+  if (clientId === coachId || !(await canReachPerson(coachId, clientId, database))) {
+    throw new Error(FITNESS_ERRORS.notYourClient)
+  }
+  // All of it or none of it: a copy that fails halfway leaves no half-built program.
+  return database.transaction(async (tx) => {
+    const { id } = await createProgram(
+      coachId,
+      clientId,
+      { name: source.name, routineType: source.routineType as RoutineTypeId, weeks: source.weeks },
+      tx
+    )
+    const [rules] = await tx
+      .select()
+      .from(fitnessStrengthSettings)
+      .where(eq(fitnessStrengthSettings.programId, source.id))
+      .limit(1)
+    if (rules) {
+      const { programId: _from, startDay: _start, scheduledThrough: _through, shareSlug: _share, ...kept } = rules
+      await tx.update(fitnessStrengthSettings).set(kept).where(eq(fitnessStrengthSettings.programId, id))
+    }
+    const [steps] = await tx
+      .select()
+      .from(fitnessCalisthenicsSettings)
+      .where(eq(fitnessCalisthenicsSettings.programId, source.id))
+      .limit(1)
+    if (steps) {
+      await tx
+        .insert(fitnessCalisthenicsSettings)
+        .values({ ...steps, programId: id })
+        .onConflictDoUpdate({
+          target: fitnessCalisthenicsSettings.programId,
+          set: { autoStepUp: steps.autoStepUp, sessionsToStep: steps.sessionsToStep },
+        })
+    }
+    const best = await clientBestLifts(clientId, tx)
+    const profile = await preferencesFor(clientId, tx)
+    const leftOut = await copyWeek(
+      source.id,
+      id,
+      (exerciseId) => {
+        const lift = best.get(exerciseId)
+        return lift ? roundToStep(lift * TEMPLATE_START_SHARE, profile.stepKg) : 0
+      },
+      tx
+    )
+  await rescheduleFromToday(id, await todayFor(clientId, tx), tx)
+    return { id, leftOut }
+  })
+}
+
+/** The client's estimated one-rep max for each lift in their active program's starting data. */
+async function clientBestLifts(clientId: string, database: FitnessDb) {
+  const [active] = await database
+    .select({ id: fitnessPrograms.id })
+    .from(fitnessPrograms)
+    .where(and(eq(fitnessPrograms.userId, clientId), eq(fitnessPrograms.isActive, true)))
+    .limit(1)
+  const best = new Map<string, number>()
+  if (!active) return best
+  for (const lift of (await loadBaseline(active.id, database)).lifts) best.set(lift.exerciseId, lift.oneRepMaxKg)
+  return best
+}
+
+/**
+ * Copies a program's week into another program: the same workout on the same
+ * weekday, with the same lifts, sets, reps, rest and supersets. Only built-in
+ * lifts travel, because a lift someone made lives in their own library; the
+ * names of the ones left out come back. A bodyweight lift's weight is only
+ * what hangs from the belt, so it starts at 0.
+ */
+async function copyWeek(
+  fromProgramId: string,
+  toProgramId: string,
+  weightFor: (exerciseId: string) => number,
+  database: FitnessDb
+): Promise<string[]> {
+  const leftOut = new Set<string>()
+  const days = await database.select().from(fitnessWeekDays).where(eq(fitnessWeekDays.programId, fromProgramId))
   for (const day of days) {
     const dayId = uuid()
-    await database.insert(fitnessWeekDays).values({ id: dayId, programId: id, name: day.name, weekday: day.weekday })
+    await database.insert(fitnessWeekDays).values({ id: dayId, programId: toProgramId, name: day.name, weekday: day.weekday })
     const exercises = await database
       .select()
       .from(fitnessDayExercises)
       .where(eq(fitnessDayExercises.dayId, day.id))
       .orderBy(asc(fitnessDayExercises.position))
     const names = await exercisesById(exercises.map((exercise) => exercise.exerciseId), database)
+    for (const exercise of exercises) {
+      const found = names.get(exercise.exerciseId)
+      if (found && !found.slug) leftOut.add(found.name)
+    }
     const groups = new Map<string, string>()
     const rows = exercises
       .filter((exercise) => names.get(exercise.exerciseId)?.slug)
@@ -143,15 +251,17 @@ export async function copySharedProgram(userId: string, code: string, database: 
           exerciseId: exercise.exerciseId,
           position: exercise.position,
           sets: exercise.sets,
-          reps: exercise.reps,
-          weightKg: 0,
+          reps: exercise.repsMin ?? exercise.reps,
+          repsMin: exercise.repsMin,
+          repsMax: exercise.repsMax,
+          weightKg: names.get(exercise.exerciseId)?.isBodyweight ? 0 : weightFor(exercise.exerciseId),
           restSeconds: exercise.restSeconds,
           groupKey,
           missStreak: 0,
+          goodStreak: 0,
         }
       })
     if (rows.length) await database.insert(fitnessDayExercises).values(rows)
   }
-  await rescheduleFromToday(id, await todayFor(userId, database), database)
-  return { id }
+  return [...leftOut]
 }
