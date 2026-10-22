@@ -23,6 +23,7 @@ import { clearBanScreen } from "@/server/phones/health"
 import { markImportant } from "@/server/social/apart"
 import { cancelMoveToPhone, checkMoveToPhone, startMoveToPhone } from "@/server/social/move-to-phone"
 import { currentCodes, removeTwoFactor, saveTwoFactor, type CurrentCode } from "@/server/social/two-factor"
+import { listSearchers } from "@/server/social/x/searchers"
 import { passReaderWritten } from "@/lib/social/refusal-words"
 
 import { createErrorMessage } from "../error-message"
@@ -90,6 +91,8 @@ const loadFn = createServerFn({ method: "GET" })
       readBehaviour(userId),
     ])
     const holders = await accountsByProfile(userId, profiles.map((profile) => profile.id))
+    // A profile that searches X only ever reads, so it holds no account of any network.
+    const searchers = new Set((await listSearchers(userId)).map((searcher) => searcher.profileId))
     return {
       accounts,
       voices: voices.map(({ id, name }) => ({ id, name })),
@@ -99,7 +102,7 @@ const loadFn = createServerFn({ method: "GET" })
           isPhoneAppNetwork(network)
             ? []
             : profiles
-                .filter((profile) => profile.id !== behaviour.readerProfileId)
+                .filter((profile) => profile.id !== behaviour.readerProfileId && !searchers.has(profile.id))
                 .filter((profile) => !(holders.get(profile.id) ?? []).some((other) => other.platform === network))
                 .map(({ id, name }) => ({ id, name })),
         ])
@@ -109,6 +112,7 @@ const loadFn = createServerFn({ method: "GET" })
         instagram: await phonesFreeFor(userId, null, undefined, "instagram"),
         tiktok: await phonesFreeFor(userId, null, undefined, "tiktok"),
         medium: await phonesFreeFor(userId, null, undefined, "medium"),
+        x: await phonesFreeFor(userId, null, undefined, "x"),
       },
     }
   })

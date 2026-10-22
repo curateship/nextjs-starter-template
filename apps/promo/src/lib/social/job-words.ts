@@ -56,6 +56,22 @@ export const JOB_KIND_WORDS: Record<JobKind, string> = {
   medium_publication: "Check a Medium publication",
   medium_profile: "Read when a Medium account joined",
   medium_find: "Find where a phone's response landed",
+  x_search: "Search an X keyword",
+  x_read: "Read an X post and its replies",
+  x_check: "Check an X reply or post",
+  x_mentions: "Read who named an X account",
+  x_trends: "Read what is trending on X",
+  x_lookup: "Look up X accounts",
+  x_community: "Read an X community's rules",
+  x_reach: "Check whether X hides an account",
+  x_code: "Type X's sign-in code",
+  x_reply: "Send an X reply",
+  x_publish: "Post on X",
+  x_edit: "Edit on X",
+  x_delete: "Delete on X",
+  x_follow: "Follow someone on X",
+  x_warm_up: "X warm-up visit",
+  x_list_add: "Add an account to an X list",
 }
 
 /**

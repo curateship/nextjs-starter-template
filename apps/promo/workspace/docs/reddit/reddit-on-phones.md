@@ -96,7 +96,9 @@ The accounts in the dropdown are listed under **Important** and **Throwaway**
 ## Moving an account from a browser profile to a phone
 
 How a throwaway that turned valuable is promoted, one way only. In the
-account's settings on the Accounts dashboard, under Throwaway.
+account's settings on the Accounts dashboard, under Throwaway. An X account
+moves the same way, signed in to the X app on the phone
+([X accounts](../x/accounts.md#moving-to-a-phone)).
 
 1. **Pick a phone** and press **Move to a phone**. It has to be free, ready
    (wiped and set up if an account was on it before) and not the self-test

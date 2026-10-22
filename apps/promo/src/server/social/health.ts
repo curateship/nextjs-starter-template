@@ -13,6 +13,7 @@ import type { ProfileCheck } from "@/lib/social/options"
 import { queueJob } from "./jobs"
 import { ringBell } from "./notices"
 import { queueMediumProfileRead } from "./medium/run"
+import { queueXReachLook } from "./x/reach"
 import { pausedBy } from "./pause"
 import { promoAccounts, promoJobs } from "./schema"
 
@@ -111,6 +112,12 @@ export async function queueHealthCheck(
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
     .limit(1)
   if (!account) throw new Error("That account is not there any more.")
+  // X's reading is the daily look from outside, through a search account
+  // (parts 42 and 43); who it is signed in as is read after every X job.
+  if (account.platform === "x") {
+    await queueXReachLook(userId, account.id, db)
+    return true
+  }
   // Medium has no health reading of its own. Check now looks at who its
   // browser is signed in as, which reads when it joined and its followers
   // too; on a phone the reader reads its public page instead.

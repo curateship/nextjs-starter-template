@@ -27,6 +27,11 @@ export type PromoNoticeKind =
   | "medium_reply"
   | "medium_gone"
   | "medium_pulled"
+  | "x_watched"
+  | "x_reply"
+  | "x_gone"
+  | "x_searcher"
+  | "x_hidden"
 
 /** Each heading starts with words no other kind's does, because the bell tells them apart by these. */
 export const NOTICE_HEADINGS: Record<PromoNoticeKind, string> = {
@@ -51,4 +56,9 @@ export const NOTICE_HEADINGS: Record<PromoNoticeKind, string> = {
   medium_reply: "New response to you on Medium",
   medium_gone: "Gone from Medium:",
   medium_pulled: "Pulled from a publication:",
+  x_watched: "New post from a watched account:",
+  x_reply: "New reply to you on X",
+  x_gone: "Gone from X:",
+  x_searcher: "X search account stopped:",
+  x_hidden: "X may be hiding",
 }

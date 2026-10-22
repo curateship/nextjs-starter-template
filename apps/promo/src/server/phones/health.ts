@@ -19,7 +19,9 @@ import {
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import type { PromoNoticeKind } from "@/lib/social/notice-words"
 import { noticeId, ringBell, type PromoNotice } from "@/server/social/notices"
+import { settleFailedMediumJob } from "@/server/social/medium/settle"
 import { promoAccounts, promoJobs, promoNotices } from "@/server/social/schema"
+import { settleFailedXJob } from "@/server/social/x/settle"
 
 import { recordPhoneEvent } from "./history"
 import { clearProblem, raiseProblem } from "./notices"
@@ -502,7 +504,13 @@ export async function stopForBanScreen(
           )
         )
       )
-      .returning({ id: promoJobs.id })
+      .returning({ id: promoJobs.id, kind: promoJobs.kind })
+    // A Medium or X row the job carried says why, or it would stay "on its way" for good.
+    for (const job of dropped) {
+      const why = `Not sent: the app showed a screen that stops the account ("${words}").`
+      await settleFailedMediumJob(job, why, db)
+      await settleFailedXJob(job, why, db)
+    }
     const name = account.handle ? (account.platform === "reddit" ? `u/${account.handle}` : `@${account.handle}`) : "The account"
     const appName = APP_WORDS[account.platform as TrackedApp] ?? account.platform
     await ringBell(

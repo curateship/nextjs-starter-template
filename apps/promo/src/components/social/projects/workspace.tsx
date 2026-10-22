@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { MediumModule, type MediumSearch } from "@/components/social/medium/medium-module"
 import { AppModule } from "@/components/social/phone-apps/app-module"
 import { RedditModule, type RedditSearch } from "@/components/social/reddit/reddit-module"
+import { XModule } from "@/components/social/x/x-module"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
   getNetworkErrorMessage,
@@ -16,7 +17,9 @@ import {
   setProjectNetwork,
   type ProjectView,
 } from "@/lib/api/social/projects"
+import { MEDIUM_VIEWS, type MediumView } from "@/lib/social/medium/options"
 import { NETWORK_NAMES, type Network } from "@/lib/social/networks"
+import { X_VIEWS, type XView } from "@/lib/social/x/options"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { KeywordRow } from "@/server/social/keywords"
 
@@ -25,7 +28,13 @@ import { ProjectDialogs, type ProjectDialog } from "./project-dialogs"
 import { ProjectPanel } from "./project-panel"
 
 /** What a project's page keeps in its address: the picked network, and that network's own. */
-export type ProjectSearch = RedditSearch & Omit<MediumSearch, "list" | "window"> & { network?: Network }
+export type ProjectSearch = RedditSearch &
+  Omit<MediumSearch, "list" | "window" | "tab"> & { network?: Network; tab?: Exclude<MediumView | XView, "new"> }
+
+/** The address's tab when it is one of this module's, else none. */
+function tabOf<T extends string>(tab: string | undefined, views: readonly T[]): Exclude<T, "new"> | undefined {
+  return tab && tab !== "new" && (views as readonly string[]).includes(tab) ? (tab as Exclude<T, "new">) : undefined
+}
 
 /**
  * A project's dashboard: the project and its networks on the left, and the
@@ -177,7 +186,20 @@ export function ProjectsWorkspace({
         projectId={projectId}
         left={left}
         dialogs={dialogs}
-        search={{ tab: search.tab, open: search.open, list: search.list === "failed" ? "failed" : undefined, window: search.window }}
+        search={{ tab: tabOf(search.tab, MEDIUM_VIEWS), open: search.open, list: search.list === "failed" ? "failed" : undefined, window: search.window }}
+        onSearch={setSearch}
+        onProjectChanged={refreshView}
+      />
+    )
+  }
+
+  if (network === "x") {
+    return (
+      <XModule
+        projectId={projectId}
+        left={left}
+        dialogs={dialogs}
+        search={{ tab: tabOf(search.tab, X_VIEWS), open: search.open, list: search.list === "failed" ? "failed" : undefined, window: search.window }}
         onSearch={setSearch}
         onProjectChanged={refreshView}
       />

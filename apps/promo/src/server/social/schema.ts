@@ -16,6 +16,7 @@ import { sql } from "drizzle-orm"
 import type { AccountStatus } from "@/lib/social/account-status"
 import type { AccountImportance } from "@/lib/social/importance"
 import type { Network } from "@/lib/social/networks"
+import type { XReach } from "@/lib/social/x/options"
 import type {
   InboxKind,
   InboxLine,
@@ -303,6 +304,19 @@ export const promoAccounts = pgTable(
      * Null until read. Added by `drizzle/0124_promo_medium.sql`.
      */
     mediumJoinedAt: timestamp("medium_joined_at", { withTimezone: true }),
+    /**
+     * X's own columns, added by `drizzle/0125_promo_x.sql`: when X says the
+     * account joined (its 7-day warm-up counts from here), whether it is a
+     * paid account, the daily search-ban look and when it was taken ('' until
+     * read, then 'seen', 'hidden' or 'folded'), whether it follows the people
+     * it replies to, and every how-many-th reply starts as Help only (0 never).
+     */
+    xJoinedAt: timestamp("x_joined_at", { withTimezone: true }),
+    xPaid: boolean("x_paid").notNull().default(false),
+    xReach: varchar("x_reach", { length: 10 }).$type<XReach | "">().notNull().default(""),
+    xReachAt: timestamp("x_reach_at", { withTimezone: true }),
+    xFollowBack: boolean("x_follow_back").notNull().default(false),
+    xHelpEvery: integer("x_help_every").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

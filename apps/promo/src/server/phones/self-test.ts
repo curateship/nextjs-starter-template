@@ -17,6 +17,7 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { ringBell } from "@/server/social/notices"
 import { promoMediumFinds } from "@/server/social/medium/schema"
 import { promoAccounts, promoFinds } from "@/server/social/schema"
+import { promoXFinds } from "@/server/social/x/schema"
 
 import { brokenActionTarget } from "./action-checks"
 import { phoneWords } from "./health"
@@ -66,7 +67,11 @@ const REHEARSAL_POST_DAYS = 7
  * last week, up to its Post button, which it never presses. With no post
  * found lately, the rack opens the first post of the test account's feed.
  * The Medium response rehearsal opens a story found in the last week the
- * same way, up to Respond; with none, it only opens the app.
+ * same way, up to Respond; with none, it only opens the app. X's reply and
+ * quote rehearsals open the newest X post found in the last week that still
+ * takes replies, up to Reply and Post, and the follow rehearsal opens its
+ * writer's profile up to Follow; with none, the reply and the quote open the
+ * first post of the test account's home feed and the follow only opens the app.
  */
 async function rehearsalArgs(userId: string, db: CustomShellDb, now: Date): Promise<Record<string, unknown>> {
   const since = new Date(now.getTime() - REHEARSAL_POST_DAYS * 86_400_000)
@@ -82,9 +87,20 @@ async function rehearsalArgs(userId: string, db: CustomShellDb, now: Date): Prom
     .where(and(eq(promoMediumFinds.userId, userId), gte(promoMediumFinds.firstSeenAt, since)))
     .orderBy(desc(promoMediumFinds.firstSeenAt))
     .limit(1)
+  const [xPost] = await db
+    .select({ postId: promoXFinds.postId, authorHandle: promoXFinds.authorHandle })
+    .from(promoXFinds)
+    .where(and(eq(promoXFinds.userId, userId), gte(promoXFinds.firstSeenAt, since), eq(promoXFinds.repliesOpen, true)))
+    .orderBy(desc(promoXFinds.firstSeenAt))
+    .limit(1)
   const rehearsals: Record<string, Record<string, unknown>> = {}
   if (find) rehearsals["reddit/comment"] = { permalink: find.permalink, subreddit: find.subreddit, text: "" }
   if (story) rehearsals["medium/respond"] = { storyId: story.storyId, text: "", line: "", tags: [] }
+  if (xPost) {
+    rehearsals["x/reply"] = { replyToId: xPost.postId, text: "" }
+    rehearsals["x/quote"] = { postId: xPost.postId, text: "" }
+    if (xPost.authorHandle) rehearsals["x/follow"] = { handle: xPost.authorHandle }
+  }
   return Object.keys(rehearsals).length ? { rehearsals } : {}
 }
 

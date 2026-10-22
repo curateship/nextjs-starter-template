@@ -39,8 +39,8 @@ and a comment or post is never tried twice."
 
 ## Ban screens
 
-- **After every app action** (anything starting `reddit/`, `instagram/` or
-  `tiktok/`, whether it worked or not), the rack reads the screen for that
+- **After every app action** (anything starting `reddit/`, `instagram/`,
+  `tiktok/`, `medium/` or `x/`, whether it worked or not), the rack reads the screen for that
   app's suspended, locked and "confirm it's you" screens.
 - **What counts as one:** a whole line of the app's own text that is one of
   the known phrases, such as "Your account has been suspended", "We

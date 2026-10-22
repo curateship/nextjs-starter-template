@@ -255,7 +255,7 @@ export async function runAppPost(
  * farm). The link rides under the same `mediaUrl` key, with `mediaFromSafari`
  * telling the rack which way to go.
  */
-async function mediaArgs(
+export async function mediaArgs(
   userId: string,
   phoneId: string | null,
   mediaUrl: string,

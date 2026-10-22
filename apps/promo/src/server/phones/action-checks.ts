@@ -26,8 +26,20 @@ import { promoPhoneActionChecks } from "./schema"
  * so they are refused only when the self-test finds them broken. A Medium
  * response is the same: with no Medium story found in the last week there is
  * nothing to rehearse it on, so it is refused only once found broken.
+ * An X reply, quote and post are on the list (X task, part 2): with no X
+ * post found lately, the reply and the quote are walked on the first post
+ * of the test account's home feed, and a post needs nothing to walk on.
  */
-const NEEDS_A_PASS = new Set(["reddit/comment", "instagram/post", "tiktok/post", "instagram/profile", "tiktok/profile"])
+const NEEDS_A_PASS = new Set([
+  "reddit/comment",
+  "instagram/post",
+  "tiktok/post",
+  "instagram/profile",
+  "tiktok/profile",
+  "x/reply",
+  "x/quote",
+  "x/publish",
+])
 
 /**
  * The bell's id for a broken action, one per action per kind. The person is
