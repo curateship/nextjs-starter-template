@@ -186,6 +186,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   export's window: which parts are listed, how the render works them out from
   the timeline it draws, the Edited by hand tick, the one-paragraph copy for
   YouTube and TikTok, and why the voice is the part platforms cannot see.
+- [retention-curve.md](retention-curve.md) — signing in to one YouTube
+  channel, pasting a posted video's link on its export, the two figures
+  YouTube measures, the scene columns saved with each export, the day or two
+  of lag, and that it only ever reads the channel.
 - [b-roll.md](b-roll.md) — free Pexels clips under each sentence of the voice
   line: where the key goes, how sentences are cut, the phrase rules and why,
   the 200-an-hour request budget, where the credit is kept, and how a short

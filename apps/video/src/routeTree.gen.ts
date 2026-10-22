@@ -94,6 +94,8 @@ import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/no
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
+import { Route as ApiV1VideoYoutubeCallbackRouteImport } from './routes/api/v1/video/youtube/callback'
+import { Route as ApiV1VideoYoutubeConnectRouteImport } from './routes/api/v1/video/youtube/connect'
 import { Route as ApiV1VideoActorsActorIdImageRouteImport } from './routes/api/v1/video/actors/$actorId/image'
 import { Route as ApiV1VideoCreatorsCreatorIdAvatarRouteImport } from './routes/api/v1/video/creators/$creatorId/avatar'
 import { Route as ApiV1VideoExportsExportIdCoverRouteImport } from './routes/api/v1/video/exports/$exportId/cover'
@@ -569,6 +571,18 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1VideoYoutubeCallbackRoute =
+  ApiV1VideoYoutubeCallbackRouteImport.update({
+    id: '/api/v1/video/youtube/callback',
+    path: '/api/v1/video/youtube/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1VideoYoutubeConnectRoute =
+  ApiV1VideoYoutubeConnectRouteImport.update({
+    id: '/api/v1/video/youtube/connect',
+    path: '/api/v1/video/youtube/connect',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1VideoActorsActorIdImageRoute =
   ApiV1VideoActorsActorIdImageRouteImport.update({
     id: '/api/v1/video/actors/$actorId/image',
@@ -697,6 +711,8 @@ export interface FileRoutesByFullPath {
   '/admin/video-viral/': typeof AuthenticatedAdminVideoViralIndexRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/video/youtube/callback': typeof ApiV1VideoYoutubeCallbackRoute
+  '/api/v1/video/youtube/connect': typeof ApiV1VideoYoutubeConnectRoute
   '/api/v1/video/actors/$actorId/image': typeof ApiV1VideoActorsActorIdImageRoute
   '/api/v1/video/creators/$creatorId/avatar': typeof ApiV1VideoCreatorsCreatorIdAvatarRoute
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
@@ -784,6 +800,8 @@ export interface FileRoutesByTo {
   '/admin/video-viral': typeof AuthenticatedAdminVideoViralIndexRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/video/youtube/callback': typeof ApiV1VideoYoutubeCallbackRoute
+  '/api/v1/video/youtube/connect': typeof ApiV1VideoYoutubeConnectRoute
   '/api/v1/video/actors/$actorId/image': typeof ApiV1VideoActorsActorIdImageRoute
   '/api/v1/video/creators/$creatorId/avatar': typeof ApiV1VideoCreatorsCreatorIdAvatarRoute
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
@@ -879,6 +897,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/video-viral/': typeof AuthenticatedAdminVideoViralIndexRoute
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/video/youtube/callback': typeof ApiV1VideoYoutubeCallbackRoute
+  '/api/v1/video/youtube/connect': typeof ApiV1VideoYoutubeConnectRoute
   '/api/v1/video/actors/$actorId/image': typeof ApiV1VideoActorsActorIdImageRoute
   '/api/v1/video/creators/$creatorId/avatar': typeof ApiV1VideoCreatorsCreatorIdAvatarRoute
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
@@ -974,6 +994,8 @@ export interface FileRouteTypes {
     | '/admin/video-viral/'
     | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/video/youtube/callback'
+    | '/api/v1/video/youtube/connect'
     | '/api/v1/video/actors/$actorId/image'
     | '/api/v1/video/creators/$creatorId/avatar'
     | '/api/v1/video/exports/$exportId/cover'
@@ -1061,6 +1083,8 @@ export interface FileRouteTypes {
     | '/admin/video-viral'
     | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/video/youtube/callback'
+    | '/api/v1/video/youtube/connect'
     | '/api/v1/video/actors/$actorId/image'
     | '/api/v1/video/creators/$creatorId/avatar'
     | '/api/v1/video/exports/$exportId/cover'
@@ -1155,6 +1179,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/video-viral/'
     | '/_authenticated/admin/automations_/templates_/$templateKey'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/video/youtube/callback'
+    | '/api/v1/video/youtube/connect'
     | '/api/v1/video/actors/$actorId/image'
     | '/api/v1/video/creators/$creatorId/avatar'
     | '/api/v1/video/exports/$exportId/cover'
@@ -1197,6 +1223,8 @@ export interface RootRouteChildren {
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
+  ApiV1VideoYoutubeCallbackRoute: typeof ApiV1VideoYoutubeCallbackRoute
+  ApiV1VideoYoutubeConnectRoute: typeof ApiV1VideoYoutubeConnectRoute
   ApiV1VideoActorsActorIdImageRoute: typeof ApiV1VideoActorsActorIdImageRoute
   ApiV1VideoCreatorsCreatorIdAvatarRoute: typeof ApiV1VideoCreatorsCreatorIdAvatarRoute
   ApiV1VideoExportsExportIdCoverRoute: typeof ApiV1VideoExportsExportIdCoverRoute
@@ -1803,6 +1831,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/video/youtube/callback': {
+      id: '/api/v1/video/youtube/callback'
+      path: '/api/v1/video/youtube/callback'
+      fullPath: '/api/v1/video/youtube/callback'
+      preLoaderRoute: typeof ApiV1VideoYoutubeCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/video/youtube/connect': {
+      id: '/api/v1/video/youtube/connect'
+      path: '/api/v1/video/youtube/connect'
+      fullPath: '/api/v1/video/youtube/connect'
+      preLoaderRoute: typeof ApiV1VideoYoutubeConnectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/video/actors/$actorId/image': {
       id: '/api/v1/video/actors/$actorId/image'
       path: '/api/v1/video/actors/$actorId/image'
@@ -2114,6 +2156,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
+  ApiV1VideoYoutubeCallbackRoute: ApiV1VideoYoutubeCallbackRoute,
+  ApiV1VideoYoutubeConnectRoute: ApiV1VideoYoutubeConnectRoute,
   ApiV1VideoActorsActorIdImageRoute: ApiV1VideoActorsActorIdImageRoute,
   ApiV1VideoCreatorsCreatorIdAvatarRoute:
     ApiV1VideoCreatorsCreatorIdAvatarRoute,
