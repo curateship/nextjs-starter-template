@@ -18,7 +18,7 @@ import { readBehaviour } from "@/server/social/behaviour"
 import { setAccountsPaused } from "@/server/social/pause"
 import { listVoices } from "@/server/social/voices"
 import { ACCOUNT_STATUSES } from "@/lib/social/account-status"
-import { NETWORKS, type Network } from "@/lib/social/networks"
+import { isPhoneAppNetwork, NETWORKS, type Network } from "@/lib/social/networks"
 import { clearBanScreen } from "@/server/phones/health"
 import { markImportant } from "@/server/social/apart"
 import { cancelMoveToPhone, checkMoveToPhone, startMoveToPhone } from "@/server/social/move-to-phone"
@@ -69,8 +69,11 @@ export type RedditAccountsPage = {
   accounts: RedditAccountRow[]
   /** Every voice, for the menu on each row and the Add account window. */
   voices: Array<{ id: string; name: string }>
-  /** Profiles that could hold a new account: no Reddit account in them, and not the reader. */
-  freeProfiles: Array<{ id: string; name: string }>
+  /**
+   * Profiles that could hold a new account on each network: none of that
+   * network in them, and not the reader. Empty for the phone-only networks.
+   */
+  freeProfiles: Record<Network, Array<{ id: string; name: string }>>
   /** Phones that could hold a new account on each network: none of that network on them yet. */
   freePhones: Record<Network, Array<{ id: string; name: string; note: string }>>
 }
@@ -90,14 +93,22 @@ const loadFn = createServerFn({ method: "GET" })
     return {
       accounts,
       voices: voices.map(({ id, name }) => ({ id, name })),
-      freeProfiles: profiles
-        .filter((profile) => profile.id !== behaviour.readerProfileId)
-        .filter((profile) => !(holders.get(profile.id) ?? []).some((other) => other.platform === "reddit"))
-        .map(({ id, name }) => ({ id, name })),
+      freeProfiles: Object.fromEntries(
+        NETWORKS.map((network) => [
+          network,
+          isPhoneAppNetwork(network)
+            ? []
+            : profiles
+                .filter((profile) => profile.id !== behaviour.readerProfileId)
+                .filter((profile) => !(holders.get(profile.id) ?? []).some((other) => other.platform === network))
+                .map(({ id, name }) => ({ id, name })),
+        ])
+      ) as RedditAccountsPage["freeProfiles"],
       freePhones: {
         reddit: await phonesFreeFor(userId, null),
         instagram: await phonesFreeFor(userId, null, undefined, "instagram"),
         tiktok: await phonesFreeFor(userId, null, undefined, "tiktok"),
+        medium: await phonesFreeFor(userId, null, undefined, "medium"),
       },
     }
   })

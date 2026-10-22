@@ -96,7 +96,9 @@ export async function refuseAppAccount(
     throw new Error(
       paused === "account"
         ? `${name} is paused. Resume it on the Accounts dashboard first.`
-        : `${name}'s project is paused. Resume the project first.`
+        : paused === "network"
+          ? `${name}'s network is paused on its project. Resume it in the project's left column first.`
+          : `${name}'s project is paused. Resume the project first.`
     )
   }
   if (!account.phoneId) throw new Error(`${name} is on no phone. Pick its phone on the Accounts dashboard.`)

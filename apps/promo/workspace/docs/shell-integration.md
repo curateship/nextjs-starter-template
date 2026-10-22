@@ -37,7 +37,7 @@ promo created, which has no shell version and so can never conflict.
 
 `src/app/server-options.ts`, which the browser never sees:
 
-- **`background.workers`** — eight quick jobs on the shell's ticker, listed in
+- **`background.workers`** — nine quick jobs on the shell's ticker, listed in
   `src/app/server-options.ts`:
   - re-testing the three proxies that have waited longest, and once an hour
     ringing the bell for a proxy renewing in the next three days;
@@ -53,6 +53,11 @@ promo created, which has no shell version and so can never conflict.
     pass, each capped at eight seconds, refusing any address inside the network;
   - looking after the browsers: closing an idle one, marking a dead one,
     removing a container nothing claims;
+  - [Medium's upkeep](medium/medium-module.md): every five minutes searching
+    each switched-on Medium keyword again once it is due and picking each
+    warming Medium account's daily visit, and every ten asking for a fresh
+    reading of Medium responses and articles a day old and tidying away old
+    stories nobody answered;
   - [the phones' health](phones/phone-health.md): the bell for a phone
     offline, hot, with no signal or nearly full and for a quiet rack, the
     daily [self-test](phones/self-test-and-app-updates.md) on the test phone,
@@ -64,7 +69,7 @@ promo created, which has no shell version and so can never conflict.
 
 ## The tables it owns
 
-Thirty-one, all named `promo_*`, in three files of promo's own. The shell's tables
+Forty, all named `promo_*`, in four files of promo's own. The shell's tables
 stay in `src/server/schema.ts`, which promo never opens.
 
 - `src/server/browser/schema.ts`: `promo_proxies`, `promo_proxy_addresses`,
@@ -86,6 +91,12 @@ stay in `src/server/schema.ts`, which promo never opens.
   `drizzle/0120_promo_instagram_tiktok.sql` `promo_app_posts` (Instagram and
   TikTok posts), `promo_profile_edits`, `promo_inbox` and `promo_inbox_seen`
   (messages and comments read off the phones).
+- `src/server/social/medium/schema.ts`, from `drizzle/0124_promo_medium.sql`:
+  `promo_medium_keywords`, `promo_medium_finds`, `promo_medium_hidden`,
+  `promo_medium_drafts`, `promo_medium_responses`, `promo_medium_articles`,
+  `promo_medium_article_readings`, `promo_medium_publications` and
+  `promo_medium_list_items`. The same migration adds `promo_accounts.medium_joined_at`
+  and `promo_projects.paused_networks`.
 
 The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
 `drizzle/0092_promo_reddit_relevance.sql`,

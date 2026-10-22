@@ -23,7 +23,9 @@ import { promoPhoneActionChecks } from "./schema"
  * change (file 06), each walked up to its last button with a picture the
  * rack makes for the purpose. Answers to messages and comments are not on
  * this list: the test account may have nothing in its inbox to rehearse on,
- * so they are refused only when the self-test finds them broken.
+ * so they are refused only when the self-test finds them broken. A Medium
+ * response is the same: with no Medium story found in the last week there is
+ * nothing to rehearse it on, so it is refused only once found broken.
  */
 const NEEDS_A_PASS = new Set(["reddit/comment", "instagram/post", "tiktok/post", "instagram/profile", "tiktok/profile"])
 

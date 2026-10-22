@@ -59,27 +59,26 @@ describe("when a post went up", () => {
 })
 
 describe("what a saved keyword searches", () => {
-  it("says the count, the window and where", () => {
+  it("says the window and where", () => {
     expect(
-      keywordScopeText({ term: "a tool", postCount: 15, subreddits: [], timeWindow: "week" })
-    ).toBe("15 posts · Past week · All of Reddit")
+      keywordScopeText({ term: "a tool", subreddits: [], timeWindow: "week" })
+    ).toBe("Past week · All of Reddit")
   })
 
   it("names the subreddits when there are some", () => {
     expect(
       keywordScopeText({
         term: "a tool",
-        postCount: 1,
         subreddits: ["SaaS", "founder"],
         timeWindow: "day",
       })
-    ).toBe("1 post · Past day · r/SaaS, r/founder")
+    ).toBe("Past day · r/SaaS, r/founder")
   })
 
   it("says what a watch watches instead of an empty pair of quotes", () => {
     const watch = { term: "", postCount: 25, subreddits: ["SaaS"], timeWindow: "week" }
     expect(keywordTitle(watch)).toBe("r/SaaS")
-    expect(keywordScopeText(watch)).toBe("Watching · 25 posts · Newest first")
+    expect(keywordScopeText(watch)).toBe("Watching · Newest first")
     expect(findsHeading(watch)).toBe("New posts in r/SaaS")
     expect(findsHeading({ term: "a tool", subreddits: [] })).toBe('"a tool"')
     expect(findsHeading(null)).toBe("Everything")

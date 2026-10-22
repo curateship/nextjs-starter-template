@@ -12,6 +12,7 @@ import type { ProfileCheck } from "@/lib/social/options"
 
 import { queueJob } from "./jobs"
 import { ringBell } from "./notices"
+import { queueMediumProfileRead } from "./medium/run"
 import { pausedBy } from "./pause"
 import { promoAccounts, promoJobs } from "./schema"
 
@@ -105,11 +106,32 @@ export async function queueHealthCheck(
   db: CustomShellDb = defaultDb
 ): Promise<boolean> {
   const [account] = await db
-    .select({ id: promoAccounts.id })
+    .select({ id: promoAccounts.id, platform: promoAccounts.platform, profileId: promoAccounts.profileId })
     .from(promoAccounts)
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
     .limit(1)
   if (!account) throw new Error("That account is not there any more.")
+  // Medium has no health reading of its own. Check now looks at who its
+  // browser is signed in as, which reads when it joined and its followers
+  // too; on a phone the reader reads its public page instead.
+  if (account.platform === "medium") {
+    if (!account.profileId) return queueMediumProfileRead(userId, account.id, db)
+    const [waiting] = await db
+      .select({ id: promoJobs.id })
+      .from(promoJobs)
+      .where(
+        and(
+          eq(promoJobs.userId, userId),
+          eq(promoJobs.kind, "check"),
+          inArray(promoJobs.status, ["queued", "running"]),
+          sql`${promoJobs.payload}->>'profileId' = ${account.profileId}`
+        )
+      )
+      .limit(1)
+    if (waiting) return false
+    await queueJob(userId, "check", { profileId: account.profileId }, db)
+    return true
+  }
   if (await pendingHealthJob(userId, accountId, db)) return false
   await queueJob(userId, "health", { accountId }, db)
   return true
@@ -280,6 +302,8 @@ export async function queueDueHealthChecks(
       userId: promoAccounts.userId,
       pausedAt: promoAccounts.pausedAt,
       projectId: promoAccounts.projectId,
+      // So a network paused on its project alone is seen too.
+      platform: promoAccounts.platform,
     })
     .from(promoAccounts)
     .where(
@@ -291,8 +315,9 @@ export async function queueDueHealthChecks(
             eq(promoAccounts.platform, "reddit"),
             or(isNotNull(promoAccounts.profileId), isNotNull(promoAccounts.phoneId))
           ),
-          // Instagram and TikTok on their phone, since file 06.
-          and(ne(promoAccounts.platform, "reddit"), isNotNull(promoAccounts.phoneId))
+          // Instagram and TikTok on their phone, since file 06. Medium has no
+          // health reading: who is signed in is read after every Medium job.
+          and(inArray(promoAccounts.platform, ["instagram", "tiktok"]), isNotNull(promoAccounts.phoneId))
         ),
         ne(promoAccounts.handle, ""),
         isNull(promoAccounts.retiredAt)

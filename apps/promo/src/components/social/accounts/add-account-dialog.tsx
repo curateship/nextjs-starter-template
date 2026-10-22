@@ -50,7 +50,8 @@ export function AddAccountDialog({
   open: boolean
   /** The network the dashboard is filtered to, picked to begin with. */
   initialPlatform: Network
-  profiles: Array<{ id: string; name: string }>
+  /** The browser profiles free for each network. */
+  profiles: Record<Network, Array<{ id: string; name: string }>>
   /** The phones free for each network. */
   phones: Record<Network, Array<{ id: string; name: string; note?: string }>>
   voices: Array<{ id: string; name: string }>
@@ -63,7 +64,7 @@ export function AddAccountDialog({
   const [invalid, setInvalid] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const phoneOnly = isPhoneAppNetwork(platform)
-  const platformProfiles = phoneOnly ? [] : profiles
+  const platformProfiles = phoneOnly ? [] : profiles[platform]
   const platformPhones = phones[platform]
 
   function reset() {
@@ -87,8 +88,12 @@ export function AddAccountDialog({
         const name = platformPhones.find((phone) => phone.id === picked.phoneId)?.name ?? "that phone"
         toast.success(`Account added. Sign in to the ${NETWORK_NAMES[platform]} app on ${name}, then press Check now.`)
       } else {
-        const name = profiles.find((profile) => profile.id === picked.profileId)?.name ?? "that profile"
-        toast.success(`Account added. Sign in to Reddit in ${name}'s browser on the Browser profiles dashboard.`)
+        const name = platformProfiles.find((profile) => profile.id === picked.profileId)?.name ?? "that profile"
+        toast.success(
+          platform === "medium"
+            ? `Account added. Medium signs in with an emailed link: paste it with the key button on its row, and it opens in ${name}'s browser.`
+            : `Account added. Sign in to ${NETWORK_NAMES[platform]} in ${name}'s browser on the Browser profiles dashboard.`
+        )
       }
       reset()
       await onAdded()
@@ -114,9 +119,9 @@ export function AddAccountDialog({
           <DialogHeader>
             <DialogTitle>Add an account</DialogTitle>
             <DialogDescription>
-              A Reddit account runs on a browser profile or a phone of its own; an Instagram or
-              TikTok account runs on a phone only. Put it in a project on the Projects dashboard
-              afterwards.
+              A Reddit or Medium account runs on a browser profile or a phone of its own; an
+              Instagram or TikTok account runs on a phone only. Put it in a project on the Projects
+              dashboard afterwards.
             </DialogDescription>
           </DialogHeader>
           <form

@@ -109,6 +109,21 @@ export const appServerOptions: AppServerOptions = {
         },
       },
       {
+        name: "promo-medium",
+        /**
+         * Medium's upkeep (`src/server/social/medium/upkeep.ts`): every five
+         * minutes, searches each switched-on Medium keyword again once it is
+         * due and picks a time for each warming account's daily visit; every
+         * ten, asks for a fresh reading of responses and articles a day old
+         * and tidies away old stories nobody answered. Only writes jobs and
+         * deletes old rows; the browser program reads and visits.
+         */
+        tick: async () => {
+          const { mediumUpkeep } = await import("@/server/social/medium/upkeep")
+          await mediumUpkeep()
+        },
+      },
+      {
         name: "promo-phone-health",
         /**
          * Rings the bell for a phone offline five minutes, a battery over

@@ -59,8 +59,8 @@ the morning misses everything posted after it.
 - **Spread out.** One pass puts its searches three minutes apart, plus a random
   part of three, so Reddit never sees every keyword in the same minute.
 - **A keyword with a search already waiting gets no second one.**
-- **The switch is the timer icon on each keyword chip,** beside the search
-  arrow. Pressing it turns the timer off for that keyword alone, and the icon
+- **The switch is the timer icon on each keyword's row** in the keywords
+  dropdown, beside the search arrow. Pressing it turns the timer off for that keyword alone, and the icon
   becomes a crossed-out timer. The search arrow still works by hand.
 - **Nothing posts.** A timed search is the same `search` job a press writes,
   in the reader, signed in to nobody, followed by the same reads of the best
@@ -228,16 +228,17 @@ with the project and its networks on the left
 dashboard's left and middle columns until 12 Oct 2026. Every list below is one
 project's.
 
-- **Keywords**, as chips across the top of the middle column since Tyler's
-  design of 13 Oct 2026. Each chip is the keyword, its post count, when it last
-  searched, a timer switch, an arrow to search again and an X to remove it.
-  What it searches ("Past week · All of Reddit", or "Watching · Newest first")
-  is read out to a screen reader with the name, and shown nowhere else.
-  **Add keyword**, after the chips, opens the box that adds one.
-- **Every keyword's posts together** is what shows when no chip is chosen.
-  Pressing a chip lists its posts alone; pressing it again goes back. See
+- **Keywords**, as one dropdown after the search box in the middle column's
+  header since 21 Oct 2026 (chips from Tyler's design of 13 Oct 2026 until then).
+  Each keyword's row is its name, its post count, when it last searched and
+  what it searches ("Past week · All of Reddit", or "Watching · Newest first"),
+  a timer switch, an arrow to search again and a "⋮" with Remove. **Add
+  keyword**, last in the list, opens the box that adds one
+  ([The keywords dropdown](../projects-dashboard.md#the-keywords-dropdown)).
+- **Every keyword's posts together** is All keywords, first in the dropdown and
+  what shows when the screen opens. Picking a keyword lists its posts alone. See
   "Every keyword together" below.
-- **The posts**, under the chips. Three tabs across the top say where the work
+- **The posts**, under the header. Three tabs across the top say where the work
   is: To look at, Replied, Skipped. Pressing one shows those posts. A search
   box sits at the right of the same row; see "Finding a post you remember"
   below.
@@ -251,11 +252,11 @@ There is no bottom panel.
 
 The morning question is what to answer, not what one saved search found. The
 ranking already puts every post on one scale, and its freshness part means the
-best post today could be under any keyword, so with no chip chosen the list is
-the project's posts in one order.
+best post today could be under any keyword, so with All keywords picked the
+list is the project's posts in one order.
 
-- **Chosen whenever nothing else is**: when the screen opens, when the chosen
-  chip is pressed again, and when the chosen keyword is removed. Adding a
+- **Chosen whenever nothing else is**: when the screen opens, when All keywords
+  is picked, and when the chosen keyword is removed. Adding a
   keyword still chooses the new one.
 - **No new endpoint.** The screen asks for the posts with no keyword named,
   which the existing endpoint already answered with all of the person's posts.

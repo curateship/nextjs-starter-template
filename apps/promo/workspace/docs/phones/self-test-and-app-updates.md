@@ -50,9 +50,11 @@ per kind of phone: a spare Android and a spare iPhone
   app who is signed in, the health reading, the comment, and reading and
   answering a chat (phone farm files 05 and 06); and in the Instagram and
   TikTok apps who is signed in, the daily reading, the profile, a post, and
-  reading and answering a message. About twenty rehearsals, so it has half an
-  hour. The wipe is never rehearsed. The test phone needs the test account
-  signed in to all three apps, or their steps read as broken.
+  reading and answering a message; and in the Medium app who is signed in and
+  a response, up to Respond, on the newest Medium story found in the last week
+  (Medium task, part 42). About twenty rehearsals, so
+  it has half an hour. The wipe is never rehearsed. The test phone needs the
+  test account signed in to every app, or their steps read as broken.
 - **The comment rehearsal** opens a post found in the last week, taps the
   comment box, types nothing, finds Post without pressing it, and backs out.
   With no post found lately it opens the first post in the test account's feed.
@@ -73,7 +75,7 @@ per kind of phone: a spare Android and a spare iPhone
 
 ## App updates, one phone first
 
-- **Promo knows each phone's versions** of Reddit, Instagram and TikTok, read
+- **Promo knows each phone's versions** of Reddit, Instagram, TikTok and Medium, read
   every ten minutes. Each row on the Phones dashboard lists them, the Health
   tab shows them, and the Self-test window has every phone's.
 - **Once a day the rack looks in the store** on each test phone (Tyler's

@@ -204,6 +204,10 @@ export async function ringForFailure(
     await ringForAppFailure(job, reason, db)
     return
   }
+  if (job.kind in MEDIUM_WRITE_WORDS) {
+    await ringForMediumFailure(job, reason, db)
+    return
+  }
   if (!(WRITE_KINDS as readonly string[]).includes(job.kind)) return
   const what = job.kind === "submit" ? "a post of yours" : job.kind === "reply" ? "an answer to a reply" : "a comment"
   // It opens on the Comments tab of the project the account is in, under
@@ -277,4 +281,32 @@ async function ringForAppFailure(
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : ""
+}
+
+/** Medium's writes, and how each is named on the bell. */
+const MEDIUM_WRITE_WORDS: Record<string, { what: string; view: string }> = {
+  medium_respond: { what: "a Medium response", view: "&tab=responses&list=failed" },
+  medium_publish: { what: "a Medium article", view: "&tab=articles" },
+  medium_edit: { what: "a change on Medium", view: "&tab=responses" },
+  medium_delete: { what: "a delete on Medium", view: "&tab=responses" },
+  medium_list_add: { what: "a story for a Medium list", view: "&tab=articles" },
+}
+
+/** Rings the bell for a Medium response, article, change or list add that did not go out, opening where it was pressed. */
+async function ringForMediumFailure(
+  job: { id: string; userId: string; kind: string },
+  reason: string,
+  db: CustomShellDb
+): Promise<void> {
+  const words = MEDIUM_WRITE_WORDS[job.kind]
+  const [row] = await db
+    .select({ projectId: promoAccounts.projectId })
+    .from(promoJobs)
+    .innerJoin(promoAccounts, eq(promoAccounts.id, sql`${promoJobs.payload}->>'accountId'`))
+    .where(and(eq(promoJobs.id, job.id), eq(promoJobs.userId, job.userId)))
+    .limit(1)
+  const href = row?.projectId
+    ? `/admin/projects/${encodeURIComponent(row.projectId)}?network=medium${words.view}`
+    : "/admin/projects"
+  await ringBell(job.userId, { kind: "failed", targetId: job.id, message: `${NOTICE_HEADINGS.failed} ${words.what}`, detail: reason, href }, db)
 }

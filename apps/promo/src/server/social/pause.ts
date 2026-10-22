@@ -1,35 +1,45 @@
 import { and, eq, isNull } from "drizzle-orm"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { isNetwork, type Network } from "@/lib/social/networks"
 
 import { promoAccounts, promoProjects } from "./schema"
 
 /**
- * Pausing an account or a whole project.
+ * Pausing an account, one network of a project, or a whole project.
  *
  * A paused account stays in every list and does not post, warm up or take a
  * health reading until it is resumed. Pausing a project pauses every account
- * in it. Unlike retiring, a pause is meant to end, and resuming puts
- * everything back as it was. A comment pressed before the pause waits, and can
- * still be cancelled.
+ * in it, and pausing one of its networks pauses that network's accounts while
+ * the rest of the project runs (Medium task, part 5). Unlike retiring, a
+ * pause is meant to end, and resuming puts everything back as it was. A
+ * comment pressed before the pause waits, and can still be cancelled.
  */
 
-type PauseFields = Pick<typeof promoAccounts.$inferSelect, "pausedAt" | "projectId">
+type PauseFields = Pick<typeof promoAccounts.$inferSelect, "pausedAt" | "projectId"> & {
+  /** The account's network. Left out, a network's own pause is not looked at. */
+  platform?: string
+}
 
-/** Whether the account is paused, by itself or through its project, or null when it runs. */
+/** What paused an account: itself, its project, its network inside its project, or null when it runs. */
+export type PausedBy = "account" | "project" | "network" | null
+
+/** Whether the account is paused, by itself, through its project or through its network there. */
 export async function pausedBy(
   userId: string,
   account: PauseFields,
   db: CustomShellDb = defaultDb
-): Promise<"account" | "project" | null> {
+): Promise<PausedBy> {
   if (account.pausedAt) return "account"
   if (!account.projectId) return null
   const [project] = await db
-    .select({ pausedAt: promoProjects.pausedAt })
+    .select({ pausedAt: promoProjects.pausedAt, pausedNetworks: promoProjects.pausedNetworks })
     .from(promoProjects)
     .where(and(eq(promoProjects.id, account.projectId), eq(promoProjects.userId, userId)))
     .limit(1)
-  return project?.pausedAt ? "project" : null
+  if (project?.pausedAt) return "project"
+  if (account.platform && project?.pausedNetworks.includes(account.platform as Network)) return "network"
+  return null
 }
 
 /**
@@ -76,4 +86,33 @@ export async function setProjectPaused(
     .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
     .returning({ id: promoProjects.id })
   if (!rows.length) throw new Error("That project does not exist.")
+}
+
+/**
+ * Pauses or resumes one network of a project: its accounts there stop
+ * posting and warming up, and the project's other networks keep running.
+ */
+export async function setProjectNetworkPaused(
+  userId: string,
+  projectId: string,
+  network: Network,
+  paused: boolean,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<Network[]> {
+  if (!isNetwork(network)) throw new Error("Promo cannot use that network yet.")
+  const [project] = await db
+    .select({ networks: promoProjects.networks, pausedNetworks: promoProjects.pausedNetworks })
+    .from(promoProjects)
+    .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
+    .limit(1)
+  if (!project) throw new Error("That project does not exist.")
+  if (!project.networks.includes(network)) throw new Error("This project does not use that network.")
+  const rest = project.pausedNetworks.filter((item) => item !== network && isNetwork(item))
+  const next = paused ? [...rest, network] : rest
+  await db
+    .update(promoProjects)
+    .set({ pausedNetworks: next, updatedAt: now })
+    .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
+  return next
 }

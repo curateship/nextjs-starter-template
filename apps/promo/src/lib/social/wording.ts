@@ -131,6 +131,9 @@ export function postingRefusalText(
   if (state.paused === "project") {
     return "This account's project is paused. Resume the project on its dashboard to post from it again."
   }
+  if (state.paused === "network") {
+    return "This network is paused on the account's project. Resume it in the project's left column to post again."
+  }
   if (state.warmUp.ageUnknown) {
     return "Promo has not read how old this account is, so it cannot tell when the warm-up ends. Tick it on the Accounts dashboard, and press Check now, then try again."
   }
@@ -250,29 +253,15 @@ export function findsHeading(input: { term: string; subreddits: string[] } | nul
 }
 
 /**
- * The line under the Everything row: how many posts are waiting to be looked
- * at across every keyword, and how many keywords that is.
- */
-export function everythingLineText(waiting: number, keywords: number): string {
-  return `${waiting} waiting · ${keywords} ${keywords === 1 ? "keyword" : "keywords"}`
-}
-
-/**
- * What a saved keyword searches, as one line under its name.
+ * What a saved keyword searches, for its line in the keywords dropdown.
  *
- * Says all three things a search is made of, because a keyword that quietly
- * searches one subreddit looks the same as one that searches Reddit otherwise.
- * A watch has no words, no window and no choice of order, so it says it reads
- * the newest first.
+ * Says both things a search is made of beside its words, because a keyword
+ * that quietly searches one subreddit looks the same as one that searches
+ * Reddit otherwise. A watch has no words, no window and no choice of order, so
+ * it says it reads the newest first. The count sits beside the name already.
  */
-export function keywordScopeText(input: {
-  term: string
-  postCount: number
-  subreddits: string[]
-  timeWindow: string
-}): string {
-  const posts = `${input.postCount} ${input.postCount === 1 ? "post" : "posts"}`
-  if (!input.term) return `Watching · ${posts} · Newest first`
+export function keywordScopeText(input: { term: string; subreddits: string[]; timeWindow: string }): string {
+  if (!input.term) return "Watching · Newest first"
 
   const windows: Record<string, string> = {
     hour: "Past hour",
@@ -286,26 +275,10 @@ export function keywordScopeText(input: {
     ? input.subreddits.map((name) => `r/${name}`).join(", ")
     : "All of Reddit"
 
-  return [posts, windows[input.timeWindow] ?? input.timeWindow, where].join(" · ")
+  return [windows[input.timeWindow] ?? input.timeWindow, where].join(" · ")
 }
 
-
-/**
- * When a keyword last searched and whether it searches again by itself:
- * "Searched 2 hours ago", "Not searched yet", and "Timer off" ahead of either
- * when its switch is off. `lastRunAt` is the last search that worked.
- */
-export function keywordTimerText(
-  input: { enabled: boolean; lastRunAt: Date | null },
-  now: Date = new Date()
-): string {
-  const searched = input.lastRunAt
-    ? `Searched ${relativeText(input.lastRunAt, now)}`
-    : "Not searched yet"
-  return input.enabled ? searched : `Timer off · ${searched}`
-}
-
-/** When a keyword last searched, short enough for its chip: "6 days ago", or "not searched yet". */
+/** When a keyword last searched, for its row in the keywords dropdown: "6 days ago", or "not searched yet". */
 export function keywordChipTimeText(input: { lastRunAt: Date | null }, now: Date = new Date()): string {
   return input.lastRunAt ? relativeText(input.lastRunAt, now) : "not searched yet"
 }

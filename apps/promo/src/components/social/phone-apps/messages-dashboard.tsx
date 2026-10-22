@@ -190,7 +190,8 @@ export function MessagesDashboard({
               </DashboardToolbarSelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All platforms</SelectItem>
-                {NETWORKS.map((network) => (
+                {/* Medium has no direct messages, so it is not offered. */}
+                {NETWORKS.filter((network) => network !== "medium").map((network) => (
                   <SelectItem key={network} value={network}>
                     {NETWORK_NAMES[network]}
                   </SelectItem>

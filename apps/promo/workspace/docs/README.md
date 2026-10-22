@@ -41,6 +41,28 @@ the repo's `docs/`, and is never copied here.
 - [What differs on TikTok](tiktok/what-differs-on-tiktok.md): no post count,
   longer captions, shorter bios and answers, Post rather than Share.
 
+## Medium
+
+- [The Medium module](medium/medium-module.md): Tyler's answers of 21 Oct 2026,
+  the keyword row and its four kinds, finding stories from Medium's feeds and
+  search, the order with the writer's reach as measured, hiding a writer,
+  tidying, Today, the count on the Medium row, and pausing Medium alone.
+- [Responses on Medium](medium/responses.md): the story and its top responses,
+  what you said before, drafts with the line they answer, Help only, the
+  rewrites, Medium's own rules, every check on Post (warm-up, pace, one account
+  per story, too similar), sending, the Responses tab, answering, edit, delete
+  and Failed.
+- [Articles on Medium](medium/articles.md): outline first, the article, the
+  cover, earlier articles linked, from a Reddit comment, ideas, Publish, the
+  numbers week by week, the public Medium list, and publications with their
+  rules.
+- [Medium accounts and signing in](medium/signing-in-and-accounts.md): adding
+  one, the emailed sign-in link pasted into its own browser, who is signed in,
+  its status, the warm-up, and what the Medium app on a phone does and does not.
+- [How Medium is read](medium/how-medium-is-read.md): why a browser, Medium's own data
+  addresses, what was proved against the real site and what waits for a real
+  account, and the tests.
+
 ## Messages
 
 - [The Messages dashboard](messages-dashboard.md): every phone account's

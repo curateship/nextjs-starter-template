@@ -12,7 +12,13 @@ the Reddit accounts page left the left menu on 14 Oct 2026
 
 - **Platform** is a filter in the toolbar, "All platforms" or one network, and
   each row names its platform after the account ("u/name · Reddit",
-  "@name · Instagram"). Reddit, Instagram and TikTok accounts are listed.
+  "@name · Instagram"). Reddit, Instagram, TikTok and Medium accounts are
+  listed.
+- **A Medium account's row** says how long it has been on Medium and its
+  followers, and has a key button that opens Medium's emailed sign-in link in
+  its own browser ([Medium accounts and signing in](../medium/signing-in-and-accounts.md)).
+  Add account offers each network the browser profiles with none of that
+  network's accounts in them yet.
 - **The filter lives in the address** as `?platform=reddit`, so a reload, a
   link or the left menu's own link always shows what the address says.
   **Manage accounts**, the last item in the **Comment as** dropdown above a

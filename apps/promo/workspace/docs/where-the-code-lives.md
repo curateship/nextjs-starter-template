@@ -1,7 +1,7 @@
 # Where the code lives
 
-Promo posts to social networks: Reddit, and since phone farm file 06
-Instagram and TikTok. The folders are split by one question: **will the next
+Promo posts to social networks: Reddit, since phone farm file 06 Instagram
+and TikTok, and since `workspace/tasks/Medium/01-medium-features.md` Medium. The folders are split by one question: **will the next
 network share this, or is it one network's own?**
 
 Shared sits in `social/`. Reddit's own sits in `social/reddit/`. Instagram and
@@ -67,6 +67,25 @@ side differs except limits.
 
 [Instagram and TikTok accounts, and the daily reading](instagram/accounts-and-the-daily-reading.md)
 has the rest.
+
+## What belongs to Medium alone
+
+Medium runs in the browser like Reddit, and on a phone only for responses
+([Medium accounts and signing in](medium/signing-in-and-accounts.md#on-a-phone)).
+It keeps its own tables beside Reddit's rather than widening them: a Reddit
+keyword carries subreddits and a sent comment is tied to a Reddit find, and
+widening those would change Reddit's code for no gain to Reddit.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/social/medium/` | The tables (`schema.ts`), the calls to the browser (`calls.ts`), keywords, search, the ranking (`rank.ts`), the stories (`finds.ts`), the checks on Post and the queue (`posting.ts`), the too-similar check (`similar.ts`), the prompts (`drafts.ts`), responses, articles, the cover, publications, lists, the spend, the warm-up, the upkeep, the module's one read (`module.ts`), the job handlers (`run.ts`) and a failed job's row (`settle.ts`). |
+| `src/lib/social/medium/` | The limits, kinds and words both halves read (`options.ts`) and the posting words (`wording.ts`). |
+| `src/lib/api/social/medium.ts` | Every Medium endpoint, admin only. |
+| `src/components/social/medium/` | The module (`medium-module.tsx`) and its keyword row, story list, story panel, Responses, Articles, Publications and Today, the Respond as dropdown and the sign-in link button. |
+| `docker/browser/routines/medium.py` | The only file that knows how a Medium page is put together. Its phone twin is the Medium part of `rack/promo_rack.py`. |
+
+The runner hands Medium's jobs to `medium/run.ts` and learns nothing else about
+Medium; the signed-in loop has a Medium branch beside Reddit's.
 
 ## Phones
 

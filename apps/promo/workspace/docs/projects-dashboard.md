@@ -76,9 +76,9 @@ Post, and the left column lists the project's networks instead
   the moment it changes. A project with none shows "Add a picture". The server
   takes only an image you uploaded, the same check as the shell's profile
   photo, and refuses any other address.
-- **Middle: keywords across the top, posts under them.** The keywords are chips
-  in the column's header with **Add keyword** after them, and **Search
-  posts**, **Jobs**, **Create post** and a "⋮" menu on the right. The menu
+- **Middle: keywords across the top, posts under them.** The column's header
+  names the network (Reddit), and on the right holds **Search posts**, the
+  keywords dropdown, **Jobs**, **Create post** and a "⋮" menu. The menu
   holds **Ideas** and **Self-promotion threads**, each of which opens a window.
   Under the header, the To look at, Replied, Skipped, Today and Comments tabs,
   then the posts in their three bands, or Today's or Comments' own lists.
@@ -88,38 +88,55 @@ Post, and the left column lists the project's networks instead
   **Comment as** with the accounts dropdown, then one box holding the words,
   **Write with AI** and **Check** along its bottom, and **Post comment**.
 
-### Keyword chips
+### The keywords dropdown
 
-- **A chip** shows the keyword, how many posts it lists, and when it last
-  searched ("· 6 days ago").
-- **Pressing the name** lists that keyword's posts alone. Pressing it again
-  goes back to every keyword's posts in one ranked list, which is what shows
-  when no chip is chosen. A row then names the keyword that found it, once the
-  project has more than one.
-- **The timer icon**, beside the arrow, switches its timed searches off and
-  on: a timer while it searches by itself, a crossed-out timer while it only
-  searches when pressed. The time before it is plain text. A failed last
-  search says "· search failed" in red, with the reason on hover.
-- **No hover on the name or on a post row.** Tyler asked for both tooltips to
-  go on 13 Oct 2026.
-- **The arrow** searches again; **the X** removes the keyword and everything it
-  found, at once, with no question asked.
-- **Add keyword** opens the words, subreddits, Reddit's order and how far back
-  in a box under it, with **Add and search**. It opens by itself while the
-  project has no keywords. Pressing Add and search with both boxes empty says
-  what is missing and marks the box.
-- **While a search waits or runs** the chip says "· searching" and its arrow
-  spins. When the browser program is not running, the chip says "· waiting"
-  instead and nothing spins, and a red line under the chips says how many jobs
-  are waiting, with **See the jobs** opening the Jobs window, the same one
-  the **Jobs** button opens ([The Jobs window](browser/jobs-dashboard.md)). Before that line, a search with no
-  program to run it spun forever and looked the same as one about to finish.
-- **Search posts** is the first box in the buttons on the right of this row,
+Tyler, 21 Oct 2026, with a picture of the chips taking two lines at three
+keywords: "have to organize the keywords ui better". Of three drawings he
+picked one dropdown, for Reddit and Medium alike. Until then the keywords were
+a row of chips, his design of 13 Oct 2026. The same day he moved the dropdown
+from the header's start to its buttons on the right, after the search box,
+and the network's name took its place.
+
+- **The button**, after the search box, names the keyword whose posts are
+  listed, or **All keywords**, with its count, and spins while any search runs.
+  With nothing saved it reads **Add keyword**.
+- **Its list** has All keywords first, ticked when picked, then a row per
+  keyword, then **Add keyword** under a line. Picking a row lists that
+  keyword's posts alone and closes the list; All keywords goes back to every
+  keyword's posts in one ranked list, which is what shows when the screen
+  opens. A post row then names the keyword that found it, once the project has
+  more than one.
+- **A keyword's row** shows its name and post count, and under them when it
+  last searched and what it searches ("2 hours ago · Past week · All of
+  Reddit", or "Watching · Newest first" for a watch). A failed last search says
+  "search failed" in red, with the reason on hover. No hover on the name:
+  Tyler asked for those tooltips to go on 13 Oct 2026.
+- **Three buttons on the row's right:** the timer switches its timed searches
+  off and on (a timer while it searches by itself, a crossed-out timer and
+  "timer off" in its line while it only searches when pressed); the arrow
+  searches again; the "⋮" holds **Remove**, which removes the keyword and
+  everything it found, at once, with no question asked.
+- **Add keyword** turns the list into the words, subreddits, Reddit's order
+  and how far back, with **Add and search**, and a Keywords link back. It opens
+  on that box by itself while the project has no keywords. Pressing Add and
+  search with both boxes empty says what is missing and marks the box.
+- **While a search waits or runs** its row says "searching" and its arrow
+  spins. When the browser program is not running, the row says "waiting"
+  instead and nothing spins, and a red line under the header says how many jobs
+  are waiting, with **See the jobs** opening the Jobs window, the same one the
+  **Jobs** button opens ([The Jobs window](browser/jobs-dashboard.md)). Before
+  that line, a search with no program to run it spun forever and looked the
+  same as one about to finish.
+- **Search posts** is the first box in the buttons on the right of the header,
   so the row beneath holds only the tabs and the ticked posts' buttons
   ([Finding a post you remember](reddit/finding-posts.md)).
-- **A narrow column:** when the chips and the buttons do not both
-  fit, the chips keep at least 28rem and the buttons move to a row of their
-  own under them, on the right.
+- **One line.** The network's name and the header's buttons share one line; on
+  a phone the buttons take a line of their own under the name, the search box
+  keeping room to type and the dropdown's name shortening first.
+- **The same dropdown draws Medium's keywords**
+  ([The Medium module](medium/medium-module.md)). It is
+  `src/components/social/keyword-picker.tsx`; each network passes its own rows,
+  its own "⋮" items and its own add box.
 
 ### The posts
 
@@ -313,7 +330,7 @@ The project's description, under "WHAT I MAKE, if it is genuinely relevant".
   A project's page is `workspace.tsx` beside it, its left column
   `project-panel.tsx` and its three columns `project-columns.tsx`. Reddit's
   middle and right columns are `src/components/social/reddit/reddit-module.tsx`:
-  `keywords-panel.tsx` (the chips) above `finds-panel.tsx` (the tabs and the
+  `keywords-panel.tsx` (the keywords dropdown) above `finds-panel.tsx` (the tabs and the
   posts), and `answer-panel.tsx` on the right. Endpoints are
   `src/lib/api/social/projects.ts`, and the server is
   `src/server/social/projects.ts`.

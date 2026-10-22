@@ -9,6 +9,7 @@ import { PHONE_LANE_PREFIX, phoneLane } from "@/lib/phones/options"
 import { readerProfile } from "./behaviour"
 import { readBrowserProgram } from "./browser-program"
 import { ringForFailure } from "./failures"
+import { settleFailedMediumJob } from "./medium/settle"
 import { promoAccounts, promoJobs } from "./schema"
 
 /**
@@ -68,6 +69,10 @@ const PROFILE_ABANDONED =
 /** What an abandoned answer to a message or comment says. */
 const INBOX_REPLY_ABANDONED =
   "The phone stopped part-way through sending the answer. It is not tried again, because it may already have gone. Open the conversation in the app before sending again."
+
+/** What an abandoned Medium response, article, edit, delete or list add says. */
+const MEDIUM_ABANDONED =
+  "The browser stopped part-way through. It is not tried again, because it may already be on Medium. Look at it on Medium before trying again."
 
 /** What an abandoned comment says, since it is never tried again. */
 const COMMENT_ABANDONED =
@@ -291,6 +296,8 @@ export async function failExpiredClaims(
           WHEN "promo_jobs"."kind" = 'app_post' THEN ${POST_ABANDONED}
           WHEN "promo_jobs"."kind" = 'app_profile' THEN ${PROFILE_ABANDONED}
           WHEN "promo_jobs"."kind" = 'inbox_reply' THEN ${INBOX_REPLY_ABANDONED}
+          WHEN "promo_jobs"."kind" IN ('medium_respond', 'medium_publish', 'medium_edit', 'medium_delete', 'medium_list_add')
+            THEN ${MEDIUM_ABANDONED}
           WHEN "promo_jobs"."kind" IN (${WRITES})
             THEN ${COMMENT_ABANDONED}
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS}
@@ -304,7 +311,7 @@ export async function failExpiredClaims(
         END
     WHERE "promo_jobs"."status" = 'running'
       AND "promo_jobs"."claimed_at" < now() - CASE
-        WHEN "promo_jobs"."kind" IN (${WRITES}, 'warm_up', 'health', 'inbox_read')
+        WHEN "promo_jobs"."kind" IN (${WRITES}, 'warm_up', 'health', 'inbox_read', 'medium_warm_up')
           THEN ${sql.raw(`interval '${VISIT_CLAIM_TIMEOUT_MINUTES} minutes'`)}
         ELSE ${sql.raw(`interval '${CLAIM_TIMEOUT_MINUTES} minutes'`)}
       END
@@ -322,6 +329,7 @@ export async function failExpiredClaims(
   // bell, because it may be on Reddit and only a person can tell.
   for (const row of rows) {
     if (row.status !== "failed") continue
+    await settleFailedMediumJob({ id: row.id, kind: row.kind }, row.last_error, db)
     await ringForFailure({ id: row.id, userId: row.user_id, kind: row.kind }, row.last_error, db)
   }
   return rows.length

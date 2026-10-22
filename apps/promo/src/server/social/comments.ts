@@ -242,7 +242,9 @@ export async function queueCommentChange(
     throw new Refusal(
       paused === "account"
         ? `${handle} is paused. Resume it on the Accounts dashboard first.`
-        : `${handle}'s project is paused. Resume the project first.`
+        : paused === "network"
+          ? `${handle}'s network is paused on its project. Resume it in the project's left column first.`
+          : `${handle}'s project is paused. Resume the project first.`
     )
   }
 

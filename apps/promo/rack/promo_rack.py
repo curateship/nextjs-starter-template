@@ -1034,8 +1034,9 @@ APP_PACKAGES = {
     "reddit": "com.reddit.frontpage",
     "instagram": "com.instagram.android",
     "tiktok": "com.zhiliaoapp.musically",
+    "medium": "com.medium.reader",
 }
-APP_NAMES = {"reddit": "Reddit", "instagram": "Instagram", "tiktok": "TikTok"}
+APP_NAMES = {"reddit": "Reddit", "instagram": "Instagram", "tiktok": "TikTok", "medium": "Medium"}
 PLAY_STORE = "com.android.vending"
 
 # The same apps on an iPhone, by App Store bundle id, and Apple's own apps
@@ -1044,6 +1045,9 @@ APP_BUNDLES = {
     "reddit": "com.reddit.Reddit",
     "instagram": "com.burbn.instagram",
     "tiktok": "com.zhiliaoapp.musically",
+    # Not yet read off a real iPhone. The Android package is Medium's own
+    # Play Store name; this one is the same until a phone says otherwise.
+    "medium": "com.medium.reader",
 }
 IOS_SETTINGS = "com.apple.Preferences"
 IOS_MESSAGES = "com.apple.MobileSMS"
@@ -1139,7 +1143,7 @@ UPDATE_BUTTON = {"textMatches": "(?i)^update$", "packageName": PLAY_STORE}
 # The same apps in the App Store (phone farm part 53): each app's page by
 # Apple's own number, opened through the itms-apps address the store owns.
 APP_STORE = "com.apple.AppStore"
-APP_STORE_IDS = {"reddit": "1064216828", "instagram": "389801252", "tiktok": "835599320"}
+APP_STORE_IDS = {"reddit": "1064216828", "instagram": "389801252", "tiktok": "835599320", "medium": "828256236"}
 IOS_UPDATE_BUTTON = {"textMatches": "(?i)^update$", "packageName": APP_STORE}
 IOS_OPEN_BUTTON = {"textMatches": "(?i)^open$", "packageName": APP_STORE}
 # The page's What's New says "Version 2025.40.0" under the newest notes.
@@ -2557,6 +2561,29 @@ APP_SCREENS[IOS_TIKTOK] = {
 }
 
 
+# Medium's app (Medium task, part 42). Written from how the app is put
+# together, like Instagram's and TikTok's were (phone farm file 06), and not
+# yet walked on a real phone. The daily self-test walks it first, on a story
+# Promo found in the last week; with none found, it only opens the app. A response
+# is answered in the app with the same three steps a browser takes: the
+# responses button under the story, the box, and Respond.
+MEDIUM = APP_PACKAGES["medium"]
+APP_SCREENS["medium"] = {
+    "package": MEDIUM,
+    "profile_tab": shapes(MEDIUM, "(?i)^(you|profile|your profile|me)$") + [{"resourceIdMatches": "(?i).*(profile|avatar).*tab.*", "packageName": MEDIUM}],
+    "responses": shapes(MEDIUM, "(?i)^(responses?|\\d+ responses?|view responses)$") + [{"resourceIdMatches": "(?i).*responses.*", "packageName": MEDIUM}],
+    "response_box": shapes(MEDIUM, "(?i)^what are your thoughts\\??$") + field_in(MEDIUM),
+    "respond": shapes(MEDIUM, "(?i)^(respond|publish|post)$"),
+    "handle_id": "(?i).*(username|user_name|handle).*",
+    "figures": {"posts": "", "followers": "followers", "following": "following"},
+}
+APP_SCREENS[APP_BUNDLES["medium"]] = dict(
+    APP_SCREENS["medium"],
+    package=APP_BUNDLES["medium"],
+    response_box=shapes(APP_BUNDLES["medium"], "(?i)^what are your thoughts\\??$") + ios_field_in(APP_BUNDLES["medium"]),
+    handle_in_title=False,
+)
+
 def app_screens(serial, app):
     """The app's buttons on this phone: the iPhone app's, keyed by its bundle
     id, on an iPhone; the Android app's, keyed by its name, otherwise."""
@@ -3891,6 +3918,136 @@ def action_self_test(serial, args, walk, rehearsals=None):
     return {"actions": lines}
 
 
+def medium_state(serial, args, walk):
+    """Who the Medium app is signed in as, and its followers, off its own
+    profile. When Medium joined it is not shown in the app, so Promo reads it
+    from the account's public page in the reader browser instead."""
+    try:
+        walk.screen().screen_on()
+        reading = read_app_profile(serial, walk, "medium")
+        walk.home()
+    except Cancelled:
+        raise
+    except Exception as failure:  # Not checked rather than signed out.
+        log("Could not read who is signed in to Medium on %s: %s" % (serial, failure))
+        return {"checked": False, "handle": None, "blocked": False, "reason": "", "joinedSeconds": None, "followers": None}
+    return {"checked": True, "handle": reading["handle"], "blocked": False, "reason": "", "joinedSeconds": None, "followers": reading["followers"]}
+
+
+MEDIUM_STORY_ID = re.compile(r"^[0-9a-f]{8,16}$")
+
+
+def action_medium_respond(serial, args, walk):
+    """Writes one response under a story in the Medium app, inside a visit.
+
+    Before: a little of the app's home feed. Then the story by its link, read
+    for a while, the responses button, the box, the words typed with a
+    person's rhythm, and Respond pressed once. It counts as sent when the
+    words show on screen. Medium's id for the response is not shown in the
+    app, so it is "" here and Promo finds it from the reader browser, by the
+    account's name and the opening words. A highlighted line is a browser
+    step and is refused before anything opens.
+
+    In a rehearsal nothing is typed: the story opens, the box opens, Respond
+    is found and not pressed, and the screen is left. With no story sent, a
+    rehearsal only opens the app.
+    """
+    story_id = str(args.get("storyId") or "").strip()
+    text = str(args.get("text") or "").strip()
+    if str(args.get("line") or "").strip():
+        raise RuntimeError("respond: answering one highlighted line is done in a browser, not the Medium app")
+    if story_id and not MEDIUM_STORY_ID.match(story_id):
+        raise RuntimeError("respond: that is not a Medium story id")
+    if not walk.rehearse and (not story_id or not text):
+        raise RuntimeError("respond: a response needs its story and its words")
+    device = walk.screen()
+    device.screen_on()
+    screens = app_screens(serial, "medium")
+    package = package_for(serial, "medium")
+    visit = new_visit()
+
+    if not walk.rehearse:
+        started = time.monotonic()
+        try:
+            open_app(serial, "medium")
+            walk.shot("Opened Medium")
+            browse_app_feed(serial, walk, random.uniform(*APP_READ_FEED_SECONDS))
+        except Cancelled:
+            raise
+        except Exception as failure:  # The response still goes.
+            visit["problems"].append("the feed before: %s" % short_words(failure))
+        visit["beforeSeconds"] = int(time.monotonic() - started)
+
+    if not story_id:
+        open_app(serial, "medium")
+        walk.shot("Opened Medium")
+        walk.home()
+        return {"responseId": "", "responseUrl": ""}
+
+    walk.check()
+    open_link(serial, "medium", "https://medium.com/p/%s" % story_id)
+    walk.shot("Opened the story")
+    if not walk.rehearse:
+        read_post(serial, walk, len(" ".join(screen_lines(device.dump_hierarchy(), app_packages("medium")))), visit)
+    walk.tap_first("Open the responses", selectors=screens["responses"])
+    time.sleep(2)
+    box = walk.find_first("Find the response box", selectors=screens["response_box"])
+    before = 0
+    if not walk.rehearse:
+        before = times_shown(device.dump_hierarchy(), package, text)
+        walk.press(box)
+        gaps = type_like_a_person(serial, device, text, walk.check)
+        walk.shot("Typed the response")
+        log("medium response typed: %d characters, gaps %.2f to %.2f seconds" % (len(text), min(gaps or [0]), max(gaps or [0])))
+        time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
+    pressed = walk.final_first("Press Respond", selectors=screens["respond"])
+    if not pressed:
+        leave_app_screen(serial, walk, "medium", times=3)
+        walk.home()
+        return {"responseId": "", "responseUrl": ""}
+    waiting_until = time.time() + POST_LANDED_SECONDS
+    shown = False
+    while time.time() < waiting_until:
+        time.sleep(1)
+        try:
+            if times_shown(device.dump_hierarchy(), package, text) > before:
+                shown = True
+                break
+        except Exception:  # A screen caught mid-change; look again.
+            continue
+    walk.shot("Looked for the response")
+    if not shown:
+        raise RuntimeError("respond: Respond was pressed but the words did not show within %d seconds. It may already be on Medium; look before sending again." % POST_LANDED_SECONDS)
+    try:
+        browse_app_feed(serial, walk, random.uniform(*APP_FEED_AFTER_SECONDS))
+    except Cancelled:
+        raise
+    except Exception as failure:  # It is on Medium already.
+        visit["problems"].append("the feed after: %s" % short_words(failure))
+    walk.home()
+    return {"responseId": "", "responseUrl": "", "visit": visit}
+
+
+def action_medium_warm_up(serial, args, walk):
+    """A warming account's day in the Medium app: its home feed read for a few
+    minutes. Nothing is written, clapped, highlighted or followed from a phone."""
+    walk.screen().screen_on()
+    open_app(serial, "medium")
+    walk.shot("Opened Medium")
+    if walk.rehearse:
+        walk.home()
+        return {"storiesRead": 0, "followed": [], "problems": []}
+    browse_app_feed(serial, walk, random.uniform(150, 360))
+    walk.home()
+    return {"storiesRead": 0, "followed": [], "problems": []}
+
+
+REHEARSALS.update({
+    "medium/state": {},
+    "medium/respond": {"storyId": "", "text": "", "line": "", "tags": []},
+})
+
+
 ACTIONS = {
     "phone/list": action_list,
     "phone/health": action_health,
@@ -3909,6 +4066,12 @@ ACTIONS = {
     "reddit/inbox": action_app_inbox("reddit"),
     "reddit/reply_message": action_app_reply("reddit"),
 }
+ACTIONS.update({
+    "medium/state": medium_state,
+    "medium/quick_state": medium_state,
+    "medium/respond": action_medium_respond,
+    "medium/warm_up": action_medium_warm_up,
+})
 for _app in ("instagram", "tiktok"):
     ACTIONS.update({
         "%s/quick_state" % _app: action_app_quick_state(_app),
@@ -3954,6 +4117,11 @@ BAN_SCREENS = [
         "your account was suspended",
     ]),
     ("tiktok", "confirm", ["verify it's you", "confirm it's you"]),
+    ("medium", "suspended", [
+        "your account has been suspended",
+        "this account is under investigation or was found in violation of the medium rules",
+    ]),
+    ("medium", "confirm", ["verify it's you", "confirm it's you"]),
 ]
 
 # A ban screen is a page of a few lines. A feed has many more.

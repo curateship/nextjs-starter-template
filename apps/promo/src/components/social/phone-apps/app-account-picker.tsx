@@ -131,7 +131,7 @@ export function AppAccountPicker({
 /** Its phone and followers, or what is stopping it. */
 function accountLine(account: AppAccount): string {
   if (account.banScreen) return "Stopped by a ban screen"
-  if (account.paused) return account.paused === "account" ? "Paused" : "Project paused"
+  if (account.paused) return account.paused === "account" ? "Paused" : account.paused === "network" ? "Network paused" : "Project paused"
   const phone = account.phone ? [account.phone.name, slotWords(account.phone.shelfSlot)].filter(Boolean).join(" in ") : "No phone"
   const followers = account.followers === null ? "followers not read yet" : `${countWords(account.followers)} followers`
   return `${phone} · ${followers}${account.shadowbanned ? " · Shadowbanned" : ""}`

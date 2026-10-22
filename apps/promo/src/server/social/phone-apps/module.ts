@@ -6,7 +6,7 @@ import { promoPhones } from "@/server/phones/schema"
 import type { PhoneAppNetwork } from "@/lib/social/networks"
 
 import { jobCounts, type JobCounts } from "../jobs"
-import { pausedBy } from "../pause"
+import { pausedBy, type PausedBy } from "../pause"
 import { ownedProject } from "../projects"
 import { promoAccounts, promoVoices } from "../schema"
 import { listInbox, type InboxRow } from "./inbox"
@@ -32,7 +32,7 @@ export type AppAccount = {
   shadowbanned: boolean | null
   /** Stopped by a ban screen; nothing goes out until a person lets it run again. */
   banScreen: boolean
-  paused: "account" | "project" | null
+  paused: PausedBy
 }
 
 export type AppModuleView = {

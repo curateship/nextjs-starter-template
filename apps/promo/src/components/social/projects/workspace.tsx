@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { LayersIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { MediumModule, type MediumSearch } from "@/components/social/medium/medium-module"
 import { AppModule } from "@/components/social/phone-apps/app-module"
 import { RedditModule, type RedditSearch } from "@/components/social/reddit/reddit-module"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -11,6 +12,7 @@ import {
   getProjectErrorMessage,
   loadProject,
   pauseProject,
+  pauseProjectNetwork,
   setProjectNetwork,
   type ProjectView,
 } from "@/lib/api/social/projects"
@@ -23,7 +25,7 @@ import { ProjectDialogs, type ProjectDialog } from "./project-dialogs"
 import { ProjectPanel } from "./project-panel"
 
 /** What a project's page keeps in its address: the picked network, and that network's own. */
-export type ProjectSearch = RedditSearch & { network?: Network }
+export type ProjectSearch = RedditSearch & Omit<MediumSearch, "list" | "window"> & { network?: Network }
 
 /**
  * A project's dashboard: the project and its networks on the left, and the
@@ -96,10 +98,10 @@ export function ProjectsWorkspace({
       await refreshView()
       if (use) {
         // The network just added is the one wanted next.
-        setSearch({ network: changed, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined })
+        setSearch({ network: changed, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined, tab: undefined, open: undefined })
         toast.success(`${NETWORK_NAMES[changed]} added.`)
       } else {
-        if (changed === network) setSearch({ network: undefined, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined })
+        if (changed === network) setSearch({ network: undefined, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined, tab: undefined, open: undefined })
         toast.success(`${NETWORK_NAMES[changed]} taken off ${view.project.name}.`)
       }
     } catch (error) {
@@ -113,11 +115,24 @@ export function ProjectsWorkspace({
       selectedNetwork={network}
       onSelectNetwork={(picked) => {
         if (picked !== network) {
-          setSearch({ network: picked, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined })
+          setSearch({ network: picked, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined, tab: undefined, open: undefined })
         }
       }}
       onAddNetwork={(added) => changeNetwork(added, true)}
       onRemoveNetwork={(removed) => changeNetwork(removed, false)}
+      onToggleNetworkPause={async (changed, paused) => {
+        try {
+          await pauseProjectNetwork(projectId, changed, paused)
+          await refreshView()
+          toast.success(
+            paused
+              ? `${NETWORK_NAMES[changed]} paused on ${view.project.name}. Its accounts do not post or warm up; the rest of the project runs.`
+              : `${NETWORK_NAMES[changed]} resumed on ${view.project.name}.`
+          )
+        } catch (error) {
+          showErrorToast(getNetworkErrorMessage(error))
+        }
+      }}
       onNewProject={() => setDialog({ kind: "new" })}
       onDeleteProject={() => setDialog({ kind: "delete", project: view.project })}
       onTogglePause={async () => {
@@ -152,6 +167,19 @@ export function ProjectsWorkspace({
         dialogs={dialogs}
         search={search}
         onSearch={setSearch}
+      />
+    )
+  }
+
+  if (network === "medium") {
+    return (
+      <MediumModule
+        projectId={projectId}
+        left={left}
+        dialogs={dialogs}
+        search={{ tab: search.tab, open: search.open, list: search.list === "failed" ? "failed" : undefined, window: search.window }}
+        onSearch={setSearch}
+        onProjectChanged={refreshView}
       />
     )
   }

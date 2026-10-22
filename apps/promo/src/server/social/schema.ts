@@ -128,6 +128,12 @@ export const promoProjects = pgTable(
      * Added by `drizzle/0110_promo_new_features.sql`.
      */
     pausedAt: timestamp("paused_at", { withTimezone: true }),
+    /**
+     * The networks paused on their own while the rest of the project runs:
+     * their accounts do not post or warm up until resumed. Added by
+     * `drizzle/0124_promo_medium.sql`.
+     */
+    pausedNetworks: jsonb("paused_networks").$type<Network[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -156,7 +162,7 @@ export const promoAccounts = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     /**
-     * 'reddit', 'instagram' or 'tiktok' (`src/lib/social/networks.ts`).
+     * 'reddit', 'instagram', 'tiktok' or 'medium' (`src/lib/social/networks.ts`).
      * Instagram and TikTok accounts run on a phone only.
      */
     platform: varchar("platform", { length: 30 }).notNull().default("reddit"),
@@ -291,6 +297,12 @@ export const promoAccounts = pgTable(
      * an Android account. Added by `drizzle/0122_promo_iphone_promo_side.sql`.
      */
     inboxAskedAt: timestamp("inbox_asked_at", { withTimezone: true }),
+    /**
+     * When Medium says the account joined, read off its own profile after
+     * every Medium job. The 7-day warm-up and the young days count from here.
+     * Null until read. Added by `drizzle/0124_promo_medium.sql`.
+     */
+    mediumJoinedAt: timestamp("medium_joined_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

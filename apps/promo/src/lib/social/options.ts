@@ -55,6 +55,16 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  * comments a phone's notification said arrived, and `inbox_reply` answers
  * one, each from the account's own phone (phone farm file 06).
  *
+ * The `medium_` kinds are Medium's (`workspace/tasks/Medium/01-medium-features.md`):
+ * a keyword's search, one story read in full, and a sent response or article
+ * read again, all in the reader; and from the account's own browser, opening
+ * Medium's emailed sign-in link, a response or an answer, an article, an
+ * edit, a delete, an article's views and reads, the daily warm-up, a story
+ * put on the account's Medium list, and what a publication allows it.
+ * `medium_profile` and `medium_find` are the reader's two lookups for an
+ * account on a phone, whose app shows neither when it joined nor where a
+ * response landed.
+ *
  * `READER_JOB_KINDS` run in the signed-out reader browser, never in the
  * account's own: the account Reddit sees commenting never searches.
  */
@@ -85,6 +95,20 @@ export type JobKind =
   | "app_profile"
   | "inbox_read"
   | "inbox_reply"
+  | "medium_search"
+  | "medium_story"
+  | "medium_check"
+  | "medium_sign_in"
+  | "medium_respond"
+  | "medium_publish"
+  | "medium_edit"
+  | "medium_delete"
+  | "medium_stats"
+  | "medium_warm_up"
+  | "medium_list_add"
+  | "medium_publication"
+  | "medium_profile"
+  | "medium_find"
 
 /** The kinds that run in the reader browser, signed in to nobody. */
 export const READER_JOB_KINDS: readonly JobKind[] = [
@@ -96,6 +120,11 @@ export const READER_JOB_KINDS: readonly JobKind[] = [
   "help_read",
   "promo_threads",
   "comment_link",
+  "medium_search",
+  "medium_story",
+  "medium_check",
+  "medium_profile",
+  "medium_find",
 ]
 
 /**
@@ -112,6 +141,11 @@ export const WRITE_JOB_KINDS: readonly JobKind[] = [
   "app_post",
   "app_profile",
   "inbox_reply",
+  "medium_respond",
+  "medium_publish",
+  "medium_edit",
+  "medium_delete",
+  "medium_list_add",
 ]
 
 /**

@@ -65,6 +65,16 @@ ROUTINE_TIMEOUT_SECONDS = {
     "reddit.submit": 900,
     # An edit types the new words at a person's pace, which 90 seconds does not cover.
     "reddit.edit_comment": 600,
+    # Medium's response is the same kind of visit; an article is typed and
+    # pasted, then its topics typed one by one; an edit retypes the words.
+    "medium.respond": 900,
+    "medium.warm_up": 900,
+    "medium.publish": 600,
+    "medium.edit": 600,
+    # Adding to a list reads the story first and waits on up to six of its
+    # buttons; a delete waits on its menu, its confirm and the check after.
+    "medium.add_to_list": 240,
+    "medium.delete": 240,
 }
 
 work = queue.Queue()

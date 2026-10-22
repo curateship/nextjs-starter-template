@@ -51,6 +51,9 @@ const LOOKS: Record<PromoNoticeKind, Pick<AppNoticeDetail, "icon" | "toneClassNa
   shadowbanned: { icon: EyeOffIcon, toneClassName: "bg-destructive/10 text-destructive" },
   new_message: { icon: MailIcon, toneClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
   new_comment: { icon: MessageSquareIcon, toneClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  medium_reply: { icon: MessageCircleReplyIcon, toneClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  medium_gone: { icon: EyeOffIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  medium_pulled: { icon: EyeOffIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
 }
 
 /** Which of Promo's kinds a notice is, read off its heading, or null. */

@@ -4,7 +4,7 @@
 opens a window that shows whether the browser program is running, and lists
 every job it is doing, waiting to do, or did lately, for every project. The
 button shows how many are running or waiting. **See the jobs**, in the red line
-under the keyword chips, opens the same window.
+under the column's header, opens the same window.
 
 Tyler asked for it on 13 Oct 2026: "should there be jobs visible somewhere in
 the settings so I can see what's running?" His searches had sat waiting since
@@ -47,8 +47,9 @@ slow database answer never reads as a stop.
   database on port 54320 that is not there.
 - **The Projects dashboard** reads the same answer through its job counts
   (`programRunning` on `JobCounts` in `src/server/social/jobs.ts`). While the
-  program is stopped and jobs wait, it shows a red line under the keyword chips
-  linking here (**See the jobs**), and a waiting chip says "· waiting" instead of spinning.
+  program is stopped and jobs wait, it shows a red line under the column's
+  header linking here (**See the jobs**), and a waiting keyword says "waiting"
+  in the keywords dropdown instead of spinning.
 
 ## The list
 

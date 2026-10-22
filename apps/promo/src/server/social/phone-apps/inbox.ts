@@ -137,7 +137,9 @@ export async function runInboxRead(
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<void> {
-  if (!isNetwork(account.platform)) throw new Refusal("That account is on a network Promo does not know.")
+  if (!isNetwork(account.platform) || account.platform === "medium") {
+    throw new Refusal("That account is on a network whose inbox Promo does not read.")
+  }
   const kind: InboxKind = payload.inboxKind === "comment" ? "comment" : "message"
   const via = payload.via === "inbox" ? "inbox" : "notification"
   const reading = await appInbox(target, account.platform, { kind, via, handle: account.handle })
@@ -573,7 +575,7 @@ async function sendOnPhone(
   if (item.status !== "sending" || item.jobId !== jobId) {
     throw new Refusal("That message is not waiting for this answer any more. Nothing was sent.")
   }
-  if (!isNetwork(item.platform)) throw new Refusal("That message is on a network Promo does not know.")
+  if (!isNetwork(item.platform) || item.platform === "medium") throw new Refusal("That message is on a network Promo does not answer.")
   const quote = [...item.lines].reverse().find((line) => !line.mine)
   try {
     const answer = await appReply(target, item.platform, {
