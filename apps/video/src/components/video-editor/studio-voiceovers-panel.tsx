@@ -14,7 +14,6 @@ import {
   voiceoverClips,
   voiceoverRefusal,
 } from "@/lib/video/saved-voiceovers"
-import { DEFAULT_CAPTION_LOOK } from "@/lib/video/caption-look"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
@@ -22,6 +21,7 @@ import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { useCaptionPlacement } from "@/components/video-editor/caption-settings-context"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import { OwnVoices } from "@/components/video-editor/studio-own-voices"
 
@@ -35,6 +35,7 @@ import { OwnVoices } from "@/components/video-editor/studio-own-voices"
  */
 export function VoiceoversPanel() {
   const { store, dispatch, clock } = useEditorRuntime()
+  const captions = useCaptionPlacement()
   const [search, setSearch] = React.useState("")
   const [debounced, setDebounced] = React.useState("")
   const [voiceovers, setVoiceovers] = React.useState<SavedVoiceover[] | null>(
@@ -79,8 +80,8 @@ export function VoiceoversPanel() {
     const atMs = clock.getTime()
     dispatch({
       type: "INSERT_VOICEOVER",
-      // The standard look, the same as a fresh voiceover's captions.
-      ...voiceoverClips(voiceover, atMs, DEFAULT_CAPTION_LOOK),
+      // The saved look, the same as a fresh voiceover's captions.
+      ...voiceoverClips(voiceover, atMs, captions),
     })
     const count = voiceover.captions.length
     toast.success(

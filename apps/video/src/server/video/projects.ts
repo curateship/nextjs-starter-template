@@ -29,6 +29,10 @@ import {
   type AspectRatio,
   type ProjectTimeline,
 } from "@/lib/video/timeline-schema"
+import {
+  languageCopyName,
+  type TranslateLanguage,
+} from "@/lib/video/translate"
 import { LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE } from "@/lib/video/visual-style"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
@@ -656,6 +660,29 @@ export async function keepRefusedTimeline(
 }
 
 /**
+ * A copy of one of the caller's own projects in another language, holding a
+ * timeline already laid with the new voice and its captions. It is named
+ * "My Short (Spanish)" and remembers the project it came from. The original
+ * is only read.
+ */
+export async function insertLanguageCopy(
+  source: VideoProjectRow,
+  language: TranslateLanguage,
+  timeline: ProjectTimeline,
+  database: CustomShellDb = db
+): Promise<ProjectItem> {
+  const canonical = requireCanonicalTimeline(timeline)
+  return insertProjectCopy(
+    source,
+    languageCopyName(source.name, language),
+    { timeline: canonical, aspect: canonical.aspect },
+    database,
+    // A copy made from a copy belongs with the first original.
+    { languageOf: source.languageOf ?? source.id, language }
+  )
+}
+
+/**
  * A new project made from an existing one, in the same folder. A duplicate
  * passes the stored timeline over as it is, even one that no longer parses; a
  * kept copy passes one the schema has just checked.
@@ -664,7 +691,8 @@ async function insertProjectCopy(
   source: VideoProjectRow,
   name: string,
   content: Pick<VideoProjectRow, "timeline" | "aspect">,
-  database: CustomShellDb
+  database: CustomShellDb,
+  translated?: Pick<VideoProjectRow, "languageOf" | "language">
 ): Promise<ProjectItem> {
   const createdAt = now()
   const created = await database.transaction(async (tx) => {
@@ -688,6 +716,9 @@ async function insertProjectCopy(
         spendLimitCents: source.spendLimitCents,
         // And the extras picked in its AI clip panel, for the same reason.
         extraPicks: source.extraPicks,
+        // A language copy says what it is a copy of; any other copy does not.
+        languageOf: translated?.languageOf ?? null,
+        language: translated?.language ?? null,
         // The copy is its own project from version 1; it shares nothing with
         // the original after this moment, and the background worker makes its
         // picture on the next pass, the same as any new project.

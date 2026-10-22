@@ -43,6 +43,15 @@ export const appOptions: AppOptions = {
         label: "Pexels",
         panel: () => import("@/components/video-editor/pexels-settings"),
       }),
+      /**
+       * The look every caption window starts from (presets, font, outline,
+       * words at a time, platform) and the platforms' safe boxes.
+       */
+      defineSettingsTab({
+        id: "captions",
+        label: "Captions",
+        panel: () => import("@/components/video-editor/caption-settings"),
+      }),
       /** The words the Voice window's script check flags. */
       defineSettingsTab({
         id: "scripts",

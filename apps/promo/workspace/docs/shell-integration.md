@@ -58,6 +58,12 @@ promo created, which has no shell version and so can never conflict.
     warming Medium account's daily visit, and every ten asking for a fresh
     reading of Medium responses and articles a day old and tidying away old
     stories nobody answered;
+  - [X's upkeep](x/x-module.md): every five minutes reading each watched X
+    account 15 minutes after its last read and each X keyword 2 hours after,
+    while the search accounts are awake, and picking each warming X account's
+    daily visit; every ten asking for a fresh reading of X replies and posts a
+    day old, each account's mentions and daily look, the day's trends and an X
+    browser account's messages, and tidying away old posts nobody answered;
   - [the phones' health](phones/phone-health.md): the bell for a phone
     offline, hot, with no signal or nearly full and for a quiet rack, the
     daily [self-test](phones/self-test-and-app-updates.md) on the test phone,
@@ -97,6 +103,13 @@ stay in `src/server/schema.ts`, which promo never opens.
   `promo_medium_article_readings`, `promo_medium_publications` and
   `promo_medium_list_items`. The same migration adds `promo_accounts.medium_joined_at`
   and `promo_projects.paused_networks`.
+- `src/server/social/x/schema.ts`, from `drizzle/0125_promo_x.sql`:
+  `promo_x_settings`, `promo_x_keywords`, `promo_x_finds`, `promo_x_hidden`,
+  `promo_x_drafts`, `promo_x_replies`, `promo_x_posts`, `promo_x_communities`,
+  `promo_x_list_items`, `promo_x_follows`, `promo_x_searchers`,
+  `promo_x_readings`, `promo_x_trends` and `promo_x_mentions`. The same
+  migration adds `promo_accounts.x_joined_at`, `x_paid`, `x_reach`,
+  `x_reach_at`, `x_follow_back` and `x_help_every`.
 
 The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
 `drizzle/0092_promo_reddit_relevance.sql`,

@@ -29,6 +29,7 @@ import { AppProfileCard } from "./app-profile-card"
 import { ImportanceCard } from "./importance-card"
 import { RunsOnSelect } from "./runs-on-select"
 import { TwoFactorCard } from "./two-factor-card"
+import { XAccountCard } from "./x-account-card"
 
 /**
  * One account's settings, from the settings button on its row.
@@ -49,6 +50,9 @@ import { TwoFactorCard } from "./two-factor-card"
  *
  * An Instagram or TikTok account's profile: its name, bio, link and picture,
  * applied in the app by its phone (`app-profile-card.tsx`).
+ *
+ * An X account's own switches, its reach and its followers over time
+ * (`x-account-card.tsx`).
  */
 export function AccountSettingsDialog({
   account,
@@ -165,6 +169,7 @@ export function AccountSettingsDialog({
                 </Card>
               ) : null}
               {account && appNetwork ? <AppProfileCard accountId={account.id} network={appNetwork} /> : null}
+              {account?.platform === "x" ? <XAccountCard account={account} onChanged={onChanged} /> : null}
               {account ? <ImportanceCard account={account} phones={phones} onChanged={onChanged} /> : null}
               <Card size="sm">
                 <CardHeader>

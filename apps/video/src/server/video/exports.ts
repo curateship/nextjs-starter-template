@@ -8,6 +8,7 @@ import {
   or,
   type SQL,
 } from "drizzle-orm"
+import { alias } from "drizzle-orm/pg-core"
 
 import {
   EXPORT_DESCRIPTION_MAX,
@@ -30,6 +31,9 @@ import {
   type RenderJobSummary,
 } from "@/server/video/render-queue"
 import { extractCoverFrameFromStorage } from "@/server/video/render"
+
+/** The project a language copy was made from, joined beside the copy. */
+const originalProjects = alias(videoProjects, "original_projects")
 
 /**
  * The gallery: every export, whatever project it came from, except the ones
@@ -103,9 +107,20 @@ export async function listOwnedExports({
         job: videoRenderJobs,
         projectName: videoProjects.name,
         carouselName: videoCarousels.name,
+        language: videoProjects.language,
+        originalId: originalProjects.id,
+        originalName: originalProjects.name,
       })
       .from(videoRenderJobs)
       .leftJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
+      // A language copy's original, so the page can group the two.
+      .leftJoin(
+        originalProjects,
+        and(
+          eq(originalProjects.id, videoProjects.languageOf),
+          eq(originalProjects.userId, userId)
+        )
+      )
       .leftJoin(
         videoCarousels,
         eq(videoCarousels.id, videoRenderJobs.carouselId)
@@ -128,7 +143,7 @@ export async function listOwnedExports({
   const total = totals?.total ?? 0
   return {
     exports: rows.map((row) =>
-      serializeRenderJob(row.job, row.projectName, row.carouselName)
+      serializeRenderJob(row.job, row.projectName, row.carouselName, row)
     ),
     total,
     page: safePage,

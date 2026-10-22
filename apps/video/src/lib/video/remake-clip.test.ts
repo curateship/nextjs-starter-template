@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 
+import { DEFAULT_CAPTION_LOOK } from "@/lib/video/caption-look"
+
 import type { VoiceOrigin } from "@/lib/video/clip-origin"
 import { landVoiceLine, voiceOrigin, type SpokenLine } from "@/lib/video/remake-clip"
 import { MAX_TIMELINE_TRACKS, type ProjectTimeline } from "@/lib/video/timeline-schema"
@@ -107,7 +109,7 @@ function starts(tracks: Tracks, ...ids: string[]) {
 describe("making a voice line again", () => {
   it("lays the new sound at the same start, shorter or longer, and moves nothing else", () => {
     const tracks = seeded()
-    const shorter = landVoiceLine(tracks, {
+    const shorter = landVoiceLine(tracks, { look: DEFAULT_CAPTION_LOOK,
       clipId: "line",
       line: line(3000, [{ startMs: 0, endMs: 3000, text: "Scene four, again." }]),
       newId,
@@ -123,7 +125,7 @@ describe("making a voice line again", () => {
     })
 
     // Up to the music at 7s there is room for 5 seconds.
-    const longer = landVoiceLine(tracks, { clipId: "line", line: line(5000, []), newId })!
+    const longer = landVoiceLine(tracks, { look: DEFAULT_CAPTION_LOOK, clipId: "line", line: line(5000, []), newId })!
     expect(longer.newLane).toBe(false)
     expect(find(longer.tracks, "line")).toMatchObject({ startMs: 2000, durationMs: 5000 })
     expect(starts(longer.tracks, "pic", "music", "typed")).toEqual([0, 7000, 9000])
@@ -131,7 +133,7 @@ describe("making a voice line again", () => {
 
   it("puts a line that grows into the next clip on a lane of its own just below, at the same start", () => {
     const tracks = seeded()
-    const landed = landVoiceLine(tracks, { clipId: "line", line: line(6500, []), newId })!
+    const landed = landVoiceLine(tracks, { look: DEFAULT_CAPTION_LOOK, clipId: "line", line: line(6500, []), newId })!
     expect(landed.newLane).toBe(true)
     expect(landed.tracks.map((track) => track.id)).toEqual([
       "words",
@@ -148,12 +150,12 @@ describe("making a voice line again", () => {
   it("runs at the clip's own speed", () => {
     const tracks = seeded()
     tracks[2].clips[0] = { ...tracks[2].clips[0], speed: 2 }
-    const landed = landVoiceLine(tracks, { clipId: "line", line: line(4000, []), newId })!
+    const landed = landVoiceLine(tracks, { look: DEFAULT_CAPTION_LOOK, clipId: "line", line: line(4000, []), newId })!
     expect(find(landed.tracks, "line")).toMatchObject({ durationMs: 2000, sourceDurationMs: 4000 })
   })
 
   it("replaces its captions with the new reading's, in their look and on their lane", () => {
-    const landed = landVoiceLine(seeded(), {
+    const landed = landVoiceLine(seeded(), { look: DEFAULT_CAPTION_LOOK,
       clipId: "line",
       line: line(3000, [
         { startMs: 0, endMs: 1500, text: "Scene four,", words: [{ startMs: 0, endMs: 900 }] },
@@ -180,7 +182,7 @@ describe("making a voice line again", () => {
   it("lays no captions for a line whose captions were deleted", () => {
     const tracks = seeded()
     tracks[0].clips = tracks[0].clips.filter((clip) => !clip.spokenBy)
-    const landed = landVoiceLine(tracks, {
+    const landed = landVoiceLine(tracks, { look: DEFAULT_CAPTION_LOOK,
       clipId: "line",
       line: line(3000, [{ startMs: 0, endMs: 3000, text: "Scene four, again." }]),
       newId,
@@ -192,7 +194,7 @@ describe("making a voice line again", () => {
     const tracks = seeded()
     const hook = { ...origin, tool: "hook" as const }
     tracks[2].clips[0] = { ...tracks[2].clips[0], origin: hook }
-    const landed = landVoiceLine(tracks, {
+    const landed = landVoiceLine(tracks, { look: DEFAULT_CAPTION_LOOK,
       clipId: "line",
       line: { ...line(3000, []), origin: { ...hook, prompt: "Nobody warns you about this" } },
       newId,
@@ -212,7 +214,7 @@ describe("making a voice line again", () => {
       ...track,
       clips: track.clips.filter((clip) => clip.id !== "line"),
     }))
-    expect(landVoiceLine(gone, { clipId: "line", line: line(3000, []), newId })).toBeNull()
+    expect(landVoiceLine(gone, { look: DEFAULT_CAPTION_LOOK, clipId: "line", line: line(3000, []), newId })).toBeNull()
 
     const full: Tracks = [
       ...tracks,
@@ -222,8 +224,8 @@ describe("making a voice line again", () => {
         clips: [],
       })),
     ]
-    expect(landVoiceLine(full, { clipId: "line", line: line(3000, []), newId })).not.toBeNull()
-    expect(landVoiceLine(full, { clipId: "line", line: line(6500, []), newId })).toBeNull()
+    expect(landVoiceLine(full, { look: DEFAULT_CAPTION_LOOK, clipId: "line", line: line(3000, []), newId })).not.toBeNull()
+    expect(landVoiceLine(full, { look: DEFAULT_CAPTION_LOOK, clipId: "line", line: line(6500, []), newId })).toBeNull()
   })
 })
 

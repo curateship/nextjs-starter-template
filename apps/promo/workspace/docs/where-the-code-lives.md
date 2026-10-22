@@ -1,7 +1,8 @@
 # Where the code lives
 
 Promo posts to social networks: Reddit, since phone farm file 06 Instagram
-and TikTok, and since `workspace/tasks/Medium/01-medium-features.md` Medium. The folders are split by one question: **will the next
+and TikTok, since `workspace/tasks/Medium/01-medium-features.md` Medium, and
+since `workspace/tasks/X/01-x-features.md` X. The folders are split by one question: **will the next
 network share this, or is it one network's own?**
 
 Shared sits in `social/`. Reddit's own sits in `social/reddit/`. Instagram and
@@ -86,6 +87,29 @@ widening those would change Reddit's code for no gain to Reddit.
 
 The runner hands Medium's jobs to `medium/run.ts` and learns nothing else about
 Medium; the signed-in loop has a Medium branch beside Reddit's.
+
+## What belongs to X alone
+
+X runs in the browser or on a phone, either from the start
+([X accounts](x/accounts.md)). Its reads never run in the signed-out reader:
+X shows nothing to a visitor who is not signed in, so a search account, a
+profile signed in to a throwaway X account, reads for every project
+([Search accounts](x/search-accounts.md)). It keeps its own tables beside
+Reddit's and Medium's, for the reason Medium does.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/social/x/` | The tables (`schema.ts`), the calls to the browser and the phone (`calls.ts`), the search accounts and their views (`searchers.ts`), keywords, search, the ranking (`rank.ts`), the posts (`finds.ts`), the checks on Post and the queue (`posting.ts`), the too-similar warning (`similar.ts`), the prompts (`drafts.ts`), replies, posts of your own, communities, lists, follows, the daily look (`reach.ts`), the spend, the warm-up, the upkeep, the module's one read (`module.ts`), the job handlers and who is signed in (`run.ts`) and a failed job's row (`settle.ts`). |
+| `src/lib/social/x/` | The limits, kinds and words both halves read (`options.ts`) and the posting words (`wording.ts`). |
+| `src/lib/api/social/x.ts` | Every X endpoint, admin only, X's part of Settings → Behaviour included. |
+| `src/components/social/x/` | The module (`x-module.tsx`) and its keyword row, post list, post panel, Today, Replies, Posts and Communities, and the Reply as dropdown. |
+| `docker/browser/routines/x.py` | The only file that knows how an X page is put together. Its phone twin is the X part of `rack/promo_rack.py`. |
+
+The runner hands X's reads to `runXRead` (a search account's browser, looked
+at before and after) and its account jobs to `x/run.ts`, and learns nothing
+else about X. X's direct messages use the Messages dashboard's own
+`inbox_read` and `inbox_reply` jobs, in a browser as on a phone
+(`src/server/social/phone-apps/inbox.ts`).
 
 ## Phones
 

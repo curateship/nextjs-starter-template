@@ -12,6 +12,7 @@ import {
 import { knownTimeZone } from "@/lib/social/waking"
 
 import { promoAccounts, promoBehaviourSettings, promoComments, promoJobs, promoPosts } from "./schema"
+import { promoXSearchers } from "./x/schema"
 
 /**
  * How every account behaves, whatever it runs on. Settings → Behaviour.
@@ -99,6 +100,16 @@ export async function saveBehaviour(
     if (holder) {
       throw new Error(
         `The profile ${profile.name} holds an account, so it cannot be the reader. A reader is signed in to nobody.`
+      )
+    }
+    const [searcher] = await db
+      .select({ id: promoXSearchers.id })
+      .from(promoXSearchers)
+      .where(eq(promoXSearchers.profileId, input.readerProfileId))
+      .limit(1)
+    if (searcher) {
+      throw new Error(
+        `The profile ${profile.name} is an X search account, signed in to X, so it cannot be the reader. A reader is signed in to nobody.`
       )
     }
   }

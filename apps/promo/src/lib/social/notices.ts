@@ -1,6 +1,7 @@
 import {
   AlertTriangleIcon,
   BanIcon,
+  BellRingIcon,
   CalendarClockIcon,
   DownloadIcon,
   EyeOffIcon,
@@ -11,6 +12,7 @@ import {
   MailIcon,
   MessageCircleReplyIcon,
   MessageSquareIcon,
+  SearchXIcon,
   ServerOffIcon,
   SignalZeroIcon,
   SmartphoneIcon,
@@ -54,6 +56,11 @@ const LOOKS: Record<PromoNoticeKind, Pick<AppNoticeDetail, "icon" | "toneClassNa
   medium_reply: { icon: MessageCircleReplyIcon, toneClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
   medium_gone: { icon: EyeOffIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
   medium_pulled: { icon: EyeOffIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  x_watched: { icon: BellRingIcon, toneClassName: "bg-sky-500/10 text-sky-600 dark:text-sky-400" },
+  x_reply: { icon: MessageCircleReplyIcon, toneClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  x_gone: { icon: EyeOffIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  x_searcher: { icon: SearchXIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  x_hidden: { icon: EyeOffIcon, toneClassName: "bg-destructive/10 text-destructive" },
 }
 
 /** Which of Promo's kinds a notice is, read off its heading, or null. */

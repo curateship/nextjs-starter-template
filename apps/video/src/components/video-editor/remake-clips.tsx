@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { useCaptionSettings } from "@/components/video-editor/caption-settings-context"
 import {
   findClip,
   useEditorRuntime,
@@ -387,6 +388,7 @@ function RemakeVoiceDialog({
   onClose: () => void
 }) {
   const { store, dispatch, projectId, saveNow } = useEditorRuntime()
+  const captionSettings = useCaptionSettings()
   const { refreshSpend } = useProjectSettings()
   const reportError = useReportError()
   const startModel =
@@ -466,6 +468,7 @@ function RemakeVoiceDialog({
         clipId: clip.id,
         line,
         newId: editorId,
+        look: captionSettings.look,
       })
       if (!landed) {
         // It was read and paid for, so say where it went.
@@ -476,7 +479,12 @@ function RemakeVoiceDialog({
         )
         return
       }
-      dispatch({ type: "REMAKE_VOICE_LINE", clipId: clip.id, line })
+      dispatch({
+        type: "REMAKE_VOICE_LINE",
+        clipId: clip.id,
+        line,
+        look: captionSettings.look,
+      })
       toast.success(
         landed.newLane
           ? "Read again. It ran longer than the room after it, so it is on a lane of its own. Undo brings the old line back."

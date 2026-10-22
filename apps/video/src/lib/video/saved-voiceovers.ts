@@ -1,8 +1,10 @@
 import { z } from "zod"
 
-import { captionClipStyle, type CaptionLook } from "@/lib/video/caption-look"
-import { captionClipWordTimes } from "@/lib/video/caption-words"
-import { captionClipName, type CaptionLine } from "@/lib/video/captions"
+import {
+  captionTextClips,
+  type CaptionPlacement,
+} from "@/lib/video/caption-look"
+import type { CaptionLine } from "@/lib/video/captions"
 import type { VoiceOrigin } from "@/lib/video/clip-origin"
 import {
   MAX_TIMELINE_TRACKS,
@@ -66,7 +68,7 @@ export function readSavedCaptions(value: unknown): CaptionLine[] {
 
 /**
  * A voiceover as timeline clips: the sound starting at `atMs` and each
- * caption line moved along with it, styled from the look it is handed. The
+ * caption line moved along with it, laid in the look it is handed. The
  * captions name the sound as the line that speaks them. A voiceover read
  * just now carries its recipe, which the sound keeps for Make it again; one
  * laid again from the shelf has none.
@@ -81,7 +83,7 @@ export function voiceoverClips(
     origin?: VoiceOrigin
   },
   atMs: number,
-  look: CaptionLook
+  placement: CaptionPlacement
 ): { audio: TimelineClip; captions: TimelineClip[] } {
   const startMs = Math.max(0, Math.round(atMs))
   const audioId = editorId()
@@ -98,19 +100,48 @@ export function voiceoverClips(
       sourceDurationMs: voiceover.durationMs,
       ...(voiceover.origin ? { origin: voiceover.origin } : {}),
     },
-    captions: voiceover.captions.map((line) => ({
-      id: editorId(),
-      kind: "text" as const,
-      name: captionClipName(line.text),
-      text: line.text,
-      startMs: startMs + line.startMs,
-      durationMs: line.endMs - line.startMs,
-      trimStartMs: 0,
-      wordTimes: captionClipWordTimes(line),
-      ...captionClipStyle(look),
+    captions: captionTextClips(voiceover.captions, placement, {
+      atMs: startMs,
       spokenBy: audioId,
-    })),
+      newId: editorId,
+    }),
   }
+}
+
+/**
+ * A voiceover laid on the timeline: its captions on a new lane above
+ * everything, its sound on a new lane below, the way they are laid out when
+ * somebody does this by hand. A clip named in `quieten` is turned down to that
+ * volume, never up: a clip already quieter keeps its own level. The editor
+ * lays a voiceover with this, and so does a language copy made on the server.
+ */
+export function layVoiceover(
+  tracks: TimelineTrack[],
+  voiceover: {
+    audio: TimelineClip
+    captions: TimelineClip[]
+    quieten?: { clipId: string; volume: number }
+  },
+  newTrackId: () => string
+): TimelineTrack[] {
+  const { audio, captions, quieten } = voiceover
+  const laid = quieten
+    ? tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((clip) =>
+          clip.id === quieten.clipId
+            ? { ...clip, volume: Math.min(clip.volume ?? 1, quieten.volume) }
+            : clip
+        ),
+      }))
+    : tracks
+  const words: TimelineTrack = {
+    id: newTrackId(),
+    muted: false,
+    clips: [...captions].sort((a, b) => a.startMs - b.startMs),
+  }
+  const voice: TimelineTrack = { id: newTrackId(), muted: false, clips: [audio] }
+  return [...(captions.length ? [words] : []), ...laid, voice]
 }
 
 /**

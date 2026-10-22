@@ -15,6 +15,7 @@ import { jobCounts, type JobCounts } from "./jobs"
 import { shownFind } from "./keywords"
 import { readPostingState, type PostingState } from "./posting"
 import { promoMediumKeywords } from "./medium/schema"
+import { promoXKeywords } from "./x/schema"
 import {
   promoAccounts,
   promoComments,
@@ -171,7 +172,7 @@ export async function addProjectNetwork(
 /**
  * Takes a network off a project. Refused, with how many of each, while the
  * project still holds that network's accounts or keywords, worded like
- * deleting a project. Reddit and Medium have keywords; the phone apps none.
+ * deleting a project. Reddit, Medium and X have keywords; the phone apps none.
  */
 export async function removeProjectNetwork(
   userId: string,
@@ -197,7 +198,9 @@ export async function removeProjectNetwork(
       ? await db.select({ n: count() }).from(promoKeywords).where(eq(promoKeywords.projectId, projectId))
       : network === "medium"
         ? await db.select({ n: count() }).from(promoMediumKeywords).where(eq(promoMediumKeywords.projectId, projectId))
-        : [{ n: 0 }]
+        : network === "x"
+          ? await db.select({ n: count() }).from(promoXKeywords).where(eq(promoXKeywords.projectId, projectId))
+          : [{ n: 0 }]
   const held = [
     accounts.n ? `${accounts.n} ${NETWORK_NAMES[network]} ${accounts.n === 1 ? "account" : "accounts"}` : "",
     keywords.n ? `${keywords.n} ${keywords.n === 1 ? "keyword" : "keywords"}` : "",
@@ -269,7 +272,11 @@ export async function deleteProject(
     .select({ n: count() })
     .from(promoMediumKeywords)
     .where(eq(promoMediumKeywords.projectId, projectId))
-  const keywords = { n: redditKeywords.n + mediumKeywords.n }
+  const [xKeywords] = await db
+    .select({ n: count() })
+    .from(promoXKeywords)
+    .where(eq(promoXKeywords.projectId, projectId))
+  const keywords = { n: redditKeywords.n + mediumKeywords.n + xKeywords.n }
   const held = [
     accounts.n ? `${accounts.n} ${accounts.n === 1 ? "account" : "accounts"}` : "",
     keywords.n ? `${keywords.n} ${keywords.n === 1 ? "keyword" : "keywords"}` : "",

@@ -27,8 +27,9 @@ instagram panels."
   hashtag.
 - **Only built networks can be added.** Reddit, since 16 Oct 2026
   Instagram and TikTok (`workspace/tasks/Phone farm/06-instagram-and-tiktok.md`),
-  and since 21 Oct 2026 Medium (`workspace/tasks/Medium/01-medium-features.md`,
-  [The Medium module](medium/medium-module.md)).
+  since 21 Oct 2026 Medium (`workspace/tasks/Medium/01-medium-features.md`,
+  [The Medium module](medium/medium-module.md)), and since 22 Oct 2026 X
+  (`workspace/tasks/X/01-x-features.md`, [The X module](x/x-module.md)).
 - **Voices stays in the left menu,** because one voice serves every network.
 - **Accounts has its own dashboard,** with a Platform filter, under Projects
   after Voices. Tyler, 15 Oct 2026: "I think accounts should be on its own
@@ -45,7 +46,7 @@ instagram panels."
   of each: "My project still holds 2 Reddit accounts and 1 keyword. Take its
   accounts out and remove its keywords first, then take Reddit off."
 - **New project** asks for the networks with the name, every built network
-  ticked to begin with: Reddit, Instagram, TikTok and Medium.
+  ticked to begin with: Reddit, Instagram, TikTok, Medium and X.
 - **Pause** on a network's row pauses that network on this project alone: its
   accounts send nothing and do not warm up, and the project's other networks
   keep running. Added with Medium (part 5), on every network's row.
@@ -56,7 +57,8 @@ instagram panels."
 
 Reddit's keywords are `promo_keywords`, shaped for Reddit (subreddits,
 Reddit's sort order and time window). Medium's are its own,
-`promo_medium_keywords`: a tag, search words, a publication or a writer.
+`promo_medium_keywords`: a tag, search words, a publication or a writer. X's
+are `promo_x_keywords`: search words, a hashtag or a watched account.
 Instagram and TikTok have no keywords: Tyler, 16 Oct 2026, "Skip the searching
 for posts to answer. IG and tiktok is not reddit."
 

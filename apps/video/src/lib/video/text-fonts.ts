@@ -1,9 +1,10 @@
 /**
  * The faces text clips and carousel text can be drawn in. Each one ships
- * twice: as woff2 files in `public/fonts` for the browser, and as a
- * SemiBold ttf in `src/server/assets` for the server's rasterizer, so the
- * export matches the preview. All four are free under the SIL Open Font
- * License 1.1 — each licence sits beside its ttf as `<Face>-LICENSE.txt`.
+ * twice: as woff2 files in `public/fonts` for the browser, and as a ttf in
+ * `src/server/assets` for the server's rasterizer, so the export matches the
+ * preview. Four are SemiBold; Anton comes in one weight only, its own heavy
+ * Regular. All five are free under the SIL Open Font License 1.1 — each
+ * licence sits beside its ttf as `<Face>-LICENSE.txt`.
  *
  * `family` is what the browser draws with, `svgFamily` is the exact family
  * name inside the ttf, which is what the export's SVG must say.
@@ -14,6 +15,11 @@
  * of caption text), then scaled by the same ~1.14 safety margin Inter's
  * shipped 0.55 carries over its measured 0.48 — wrapping a word early is
  * invisible, wrapping late pushes words off the frame.
+ *
+ * `capitalsWidthRatio` is the same number measured on the same sample in
+ * capitals, for words written all in capitals (the Bold caption preset).
+ * Capitals are up to a fifth wider than small letters, so guessing them with
+ * the small-letter number wraps late. Measured on 21 Oct 2026 the same way.
  *
  * `ascent` and `descent` are how far the face reaches above and below the
  * line it sits on, as a share of the font size, read from each ttf's `hhea`
@@ -30,6 +36,7 @@ export const TEXT_FONTS = [
     svgFamily: "Inter",
     weight: 600,
     widthRatio: 0.55,
+    capitalsWidthRatio: 0.66,
     ascent: 0.969,
     descent: 0.241,
   },
@@ -40,6 +47,7 @@ export const TEXT_FONTS = [
     svgFamily: "Playfair Display",
     weight: 600,
     widthRatio: 0.52,
+    capitalsWidthRatio: 0.65,
     ascent: 1.082,
     descent: 0.251,
   },
@@ -50,6 +58,7 @@ export const TEXT_FONTS = [
     svgFamily: "Space Grotesk",
     weight: 600,
     widthRatio: 0.55,
+    capitalsWidthRatio: 0.6,
     ascent: 0.984,
     descent: 0.292,
   },
@@ -60,8 +69,20 @@ export const TEXT_FONTS = [
     svgFamily: "Caveat",
     weight: 600,
     widthRatio: 0.38,
+    capitalsWidthRatio: 0.52,
     ascent: 0.96,
     descent: 0.3,
+  },
+  {
+    id: "anton",
+    label: "Anton",
+    family: '"Anton", Impact, sans-serif',
+    svgFamily: "Anton",
+    weight: 400,
+    widthRatio: 0.45,
+    capitalsWidthRatio: 0.46,
+    ascent: 1.176,
+    descent: 0.329,
   },
 ] as const
 
@@ -92,4 +113,13 @@ export function requireTextFont(fontId: TextFontId | undefined): TextFont {
     throw new Error(`Unsupported text font: ${fontId}`)
   }
   return font
+}
+
+/**
+ * The letter width a line of text is guessed at: the capitals number when the
+ * words have letters and none of them is small, the ordinary one otherwise.
+ */
+export function lineWidthRatio(font: TextFont, text: string) {
+  const allCapitals = /\p{Lu}/u.test(text) && !/\p{Ll}/u.test(text)
+  return allCapitals ? font.capitalsWidthRatio : font.widthRatio
 }

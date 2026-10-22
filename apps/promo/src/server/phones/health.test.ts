@@ -369,6 +369,15 @@ describe("phone health", () => {
       expect(check).toMatchObject({ passed: true, step: "" })
     })
 
+    it("holds an X reply, quote and post back until the self-test has walked them once", async () => {
+      await expect(refuseBrokenAction(userId, "x/reply", "android", db)).rejects.toThrow("has not walked Post an X reply")
+      await expect(refuseBrokenAction(userId, "x/quote", "iphone", db)).rejects.toThrow("never goes out from a phone")
+      await expect(refuseBrokenAction(userId, "x/publish", "android", db)).rejects.toThrow("Nothing was sent.")
+      // Answers to messages have nothing to rehearse on, so only a broken walk refuses them.
+      await expect(refuseBrokenAction(userId, "x/reply_message", "android", db)).resolves.toBeUndefined()
+      await expect(refuseBrokenAction(userId, "x/follow", "android", db)).resolves.toBeUndefined()
+    })
+
     it("puts an update on the test phone first, and the rest of the rack only after it passes the self-test", async () => {
       await testPhone()
       await queueDailySelfTest(db, later(1))

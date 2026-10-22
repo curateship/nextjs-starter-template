@@ -2,6 +2,12 @@ import { eq } from "drizzle-orm"
 
 import { readAiDefaults, type AiDefaults } from "@/lib/video/ai-choices"
 import {
+  readCaptionSettings,
+  type CaptionLook,
+  type CaptionSettings,
+} from "@/lib/video/caption-look"
+import type { SafeBoxes } from "@/lib/video/safe-box"
+import {
   readBannedWords,
   SCRIPT_STARTER_BANNED_WORDS,
 } from "@/lib/video/script-check"
@@ -118,6 +124,69 @@ export async function saveScriptBannedWords(
       set: { scriptBannedWords: words, updatedAt: timestamp },
     })
   return words
+}
+
+/**
+ * The look new captions take and the platform safe boxes, from Settings →
+ * Captions. The standard look and the starting numbers until either is saved.
+ */
+export async function getCaptionSettings(
+  database: CustomShellDb = db
+): Promise<CaptionSettings> {
+  const [row] = await database
+    .select({
+      captionLook: videoSettings.captionLook,
+      safeBoxes: videoSettings.safeBoxes,
+    })
+    .from(videoSettings)
+    .where(eq(videoSettings.id, SETTINGS_ROW_ID))
+    .limit(1)
+  return readCaptionSettings({
+    look: row?.captionLook,
+    safeBoxes: row?.safeBoxes,
+  })
+}
+
+/** Checked by the caller's validator; written whole. */
+export async function saveCaptionLook(
+  captionLook: CaptionLook,
+  database: CustomShellDb = db
+): Promise<CaptionLook> {
+  const timestamp = now()
+  await database
+    .insert(videoSettings)
+    .values({
+      id: SETTINGS_ROW_ID,
+      captionLook,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .onConflictDoUpdate({
+      target: videoSettings.id,
+      set: { captionLook, updatedAt: timestamp },
+    })
+  return captionLook
+}
+
+/** Checked by the caller's validator; written whole, all three platforms. */
+export async function saveSafeBoxes(
+  safeBoxes: SafeBoxes,
+  database: CustomShellDb = db
+): Promise<SafeBoxes> {
+  const timestamp = now()
+  await database
+    .insert(videoSettings)
+    .values({
+      id: SETTINGS_ROW_ID,
+      safeBoxes,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .onConflictDoUpdate({
+      target: videoSettings.id,
+      set: { safeBoxes, updatedAt: timestamp },
+    })
+  return safeBoxes
 }
 
 /** Env var that backs the YouTube key when none is saved in Settings. */

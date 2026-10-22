@@ -16,11 +16,13 @@ import {
 } from "@/lib/social/account-status"
 import type { ProxyTestResult } from "@/lib/social/options"
 import { MEDIUM_WARM_UP_DAYS } from "@/lib/social/medium/options"
+import { X_REACH_WORDS, X_WARM_UP_DAYS } from "@/lib/social/x/options"
 
 import { refuseMixedProject, refuseMixedVoice } from "./apart"
 import { moveHeldBack } from "./move-to-phone"
 import type { PausedBy } from "./pause"
 import { readBehaviour, warmUpEndsAt } from "./behaviour"
+import { xAccountBorn } from "./x/posting"
 import { queueHealthCheck } from "./health"
 import { promoAccounts, promoComments, promoProjects, promoVoices } from "./schema"
 
@@ -50,7 +52,19 @@ export async function accountStatuses(
   accounts: ReadonlyArray<
     Pick<
       AccountRow,
-      "id" | "statusOverride" | "profileCheck" | "redditCreatedAt" | "platform" | "lastPostedAt" | "banScreenAt" | "shadowbanned" | "mediumJoinedAt" | "handle"
+      | "id"
+      | "statusOverride"
+      | "profileCheck"
+      | "redditCreatedAt"
+      | "platform"
+      | "lastPostedAt"
+      | "banScreenAt"
+      | "shadowbanned"
+      | "mediumJoinedAt"
+      | "handle"
+      | "xJoinedAt"
+      | "signedInAt"
+      | "xReach"
     >
   >,
   db: CustomShellDb = defaultDb,
@@ -75,6 +89,10 @@ export async function accountStatuses(
   for (const account of accounts) {
     if (account.platform === "medium") {
       out.set(account.id, mediumAccountStatus(account, now))
+      continue
+    }
+    if (account.platform === "x") {
+      out.set(account.id, xAccountStatus(account, now))
       continue
     }
     if (account.platform !== "reddit") {
@@ -136,6 +154,30 @@ function mediumAccountStatus(
   return { status: working ? "working" : "ready", byHand: false, warning: null }
 }
 
+/**
+ * An X account's status: Warming up for its first 7 days on X (counted from
+ * when X says it joined, or from when Promo first saw it signed in), Banned
+ * once a lock screen stopped it, Working when it posted in the last week, and
+ * Ready otherwise. The daily look's best guess that X hides it is the warning
+ * beside it (part 42).
+ */
+function xAccountStatus(
+  account: Pick<AccountRow, "statusOverride" | "lastPostedAt" | "banScreenAt" | "xJoinedAt" | "signedInAt" | "handle" | "xReach">,
+  now: Date
+): AccountStatusView {
+  const warning = account.xReach === "hidden" || account.xReach === "folded" ? `${X_REACH_WORDS[account.xReach]}: Promo's best guess, X never says` : null
+  if (account.statusOverride && ACCOUNT_STATUSES.includes(account.statusOverride)) {
+    return { status: account.statusOverride, byHand: true, warning }
+  }
+  if (account.banScreenAt) return { status: "banned", byHand: false, warning }
+  const ends = warmUpEndsAt(xAccountBorn(account), X_WARM_UP_DAYS, now)
+  if (ends || (ends === undefined && account.handle)) {
+    return { status: "warming_up", byHand: false, warning: ends === undefined ? "Not seen signed in yet" : warning }
+  }
+  const working = account.lastPostedAt !== null && now.getTime() - account.lastPostedAt.getTime() < WORKING_DAYS * 86_400_000
+  return { status: working ? "working" : "ready", byHand: false, warning }
+}
+
 export type RedditAccountRow = {
   id: string
   /** The network it is an account on, "reddit" for every account so far. */
@@ -169,6 +211,13 @@ export type RedditAccountRow = {
   redditCreatedAt: Date | null
   /** When Medium says a Medium account joined. Null on every other network and until read. */
   mediumJoinedAt: Date | null
+  /**
+   * An X account's own: when X says it joined, whether it is paid (part 27),
+   * whether it follows the people it replies to (part 44), every how-many-th
+   * reply starts as Help only (part 24, 0 never), and the daily look's guess
+   * whether X hides it (part 42, "" until read). Defaults on every other network.
+   */
+  x: { joinedAt: Date | null; paid: boolean; followBack: boolean; helpEvery: number; reach: "" | "seen" | "hidden" | "folded"; reachAt: Date | null }
   karma: number | null
   /**
    * Instagram's and TikTok's daily reading: followers, following, posts, and
@@ -307,6 +356,14 @@ export async function listRedditAccounts(
       voice: account.voiceId && row.voiceName !== null ? { id: account.voiceId, name: row.voiceName } : null,
       redditCreatedAt: account.redditCreatedAt,
       mediumJoinedAt: account.mediumJoinedAt,
+      x: {
+        joinedAt: account.xJoinedAt,
+        paid: account.xPaid,
+        followBack: account.xFollowBack,
+        helpEvery: account.xHelpEvery,
+        reach: account.xReach,
+        reachAt: account.xReachAt,
+      },
       karma: account.karma,
       followers: account.followers,
       following: account.following,

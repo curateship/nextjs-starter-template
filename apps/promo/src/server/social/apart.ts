@@ -315,6 +315,44 @@ export async function refuseInteraction(
   }
 }
 
+/**
+ * X's own checks (X task, part 8). A throwaway X account never replies to or
+ * quotes a post by an important account, never names it as @name, and never
+ * links its x.com page or one of its posts. Two of the person's accounts
+ * never meet under one post at all on X (`refuseSecondAccountOnPost` in
+ * `x/posting.ts`), so the two groups cannot meet there either.
+ */
+export async function refuseXInteraction(
+  userId: string,
+  account: Pick<AccountRow, "id" | "handle" | "importance" | "movingToPhoneId">,
+  what: { postAuthor?: string; words: string[] },
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  if (effectiveGroup(account) !== "throwaway") return
+  const rows = await db
+    .select({ handle: promoAccounts.handle })
+    .from(promoAccounts)
+    .where(and(eq(promoAccounts.userId, userId), eq(promoAccounts.platform, "x"), otherGroup("throwaway"), ne(promoAccounts.handle, "")))
+  if (!rows.length) return
+  const handles = new Map(rows.map((row) => [row.handle.toLowerCase(), row.handle]))
+  const author = what.postAuthor?.toLowerCase()
+  if (author && handles.has(author)) {
+    throw new Refusal(
+      `${APART}: that post is by your important account @${handles.get(author)}, and ${name(account)} is a throwaway. Reply from an important account instead.`
+    )
+  }
+  const words = what.words.join("\n").toLowerCase()
+  for (const [handle, shown] of handles) {
+    const escaped = handle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    const named = new RegExp(`(^|[^a-z0-9_])(@|(?:x|twitter)\\.com/)${escaped}(?![a-z0-9_])`, "i")
+    if (named.test(words)) {
+      throw new Refusal(
+        `${APART}: the words name your important account @${shown}, or link to its page or a post, and ${name(account)} is a throwaway. Take that out first.`
+      )
+    }
+  }
+}
+
 /** An account of the other group with a comment under the same Reddit post, sent or on its way. */
 async function otherGroupOnPost(
   userId: string,

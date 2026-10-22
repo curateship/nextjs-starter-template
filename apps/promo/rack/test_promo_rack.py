@@ -7,6 +7,7 @@ No phone, adb or Promo is needed. A real phone on the rack is the only proof
 that an action works on a phone; these prove the parts around it.
 """
 
+import calendar
 import json
 import os
 import random
@@ -1243,6 +1244,315 @@ class MediumAppTest(unittest.TestCase):
         self.assertEqual(promo_rack.APP_PACKAGES["medium"], "com.medium.reader")
 
 
+X_POST = "1850000000000000000"
+
+
+class XAppTest(unittest.TestCase):
+    """X task, parts 2, 7 and 41: X's app on a phone. Written from how the app
+    is put together; a real phone is the proof. The last button is pressed
+    once in a real run and never in a rehearsal, and a community post or a
+    poll is refused before anything opens."""
+
+    def run_action(self, handler, device, args, rehearse=False):
+        with mock.patch.object(promo_rack, "READ_SECONDS", (0, 0)):
+            return AppActionsTest.run_action(self, handler, device, args, rehearse)
+
+    def typed(self, sent):
+        return len([command for command in sent if command.startswith("input text")])
+
+    # --- the screens and the names ------------------------------------------
+
+    def test_x_is_known_by_both_kinds_of_phone_and_its_steps_are_registered(self):
+        self.assertEqual(promo_rack.APP_PACKAGES["x"], "com.twitter.android")
+        self.assertEqual(promo_rack.APP_BUNDLES["x"], "com.atebits.Tweetie2")
+        self.assertEqual(promo_rack.APP_STORE_IDS["x"], "333903271")
+        self.assertEqual(promo_rack.APP_NAMES["x"], "X")
+        self.assertEqual(iphone.TRACKED_APPS["com.atebits.Tweetie2"], "x")
+        self.assertIn("com.twitter.android", promo_rack.APPS_COMMAND)
+        for name in ("state", "quick_state", "reply", "quote", "publish", "follow", "warm_up", "inbox", "reply_message"):
+            self.assertIn("x/%s" % name, promo_rack.ACTIONS)
+        for name in ("state", "reply", "quote", "publish", "follow", "warm_up", "inbox", "reply_message"):
+            self.assertIn("x/%s" % name, promo_rack.REHEARSALS)
+        # A message is answered by x/reply_message; x/reply is the reply under a post.
+        self.assertIsNot(promo_rack.ACTIONS["x/reply"], promo_rack.ACTIONS["x/reply_message"])
+        self.assertNotIn("x/message", promo_rack.ACTIONS)
+        self.assertEqual(promo_rack.action_app("x/reply"), "x")
+
+    def test_each_kind_of_phone_has_all_of_xs_buttons_in_its_own_app(self):
+        android, ios = promo_rack.APP_SCREENS["x"], promo_rack.APP_SCREENS[promo_rack.IOS_X]
+        self.assertEqual(sorted(android), sorted(ios))
+        with mock.patch.dict(promo_rack._KINDS, {"I1": "iphone", "A1": "android"}):
+            self.assertIs(promo_rack.app_screens("I1", "x"), ios)
+            self.assertIs(promo_rack.app_screens("A1", "x"), android)
+        for package, screens in ((promo_rack.X_APP, android), (promo_rack.IOS_X, ios)):
+            for key, selectors in screens.items():
+                for selector in selectors if isinstance(selectors, list) else []:
+                    self.assertEqual(selector.get("packageName"), package, key)
+            # What a rehearsal taps on the way is never a last button; what it stops at is.
+            for key in ("drawer", "profile_entry", "reply_open", "repost", "quote", "new_post", "inbox"):
+                self.assertFalse(any(promo_rack.could_be_last_button(one) for one in screens[key]), key)
+            self.assertTrue(any(promo_rack.could_be_last_button(one) for one in screens["post_button"]))
+            self.assertTrue(any(promo_rack.could_be_last_button(one) for one in screens["send"]))
+        # An iPhone app has no Android view ids to match.
+        self.assertFalse([one for selectors in ios.values() if isinstance(selectors, list) for one in selectors if "resourceIdMatches" in one])
+        self.assertEqual(ios["follow_button_id"], "")
+
+    def test_the_profile_gives_the_handle_followers_and_when_it_joined(self):
+        screen = app_screen(promo_rack.X_APP, ["Quiet Maple", "@quiet_maple", "Night timers for students.", "Joined March 2021", "56 Following", "1,204 Followers"])
+        self.assertEqual(promo_rack.app_profile_from_screen(screen, "x")["handle"], "quiet_maple")
+        self.assertEqual(promo_rack.app_profile_from_screen(screen, "x")["followers"], 1204)
+        self.assertEqual(promo_rack.x_joined_seconds(screen), float(calendar.timegm((2021, 3, 1, 0, 0, 0))))
+        self.assertEqual(promo_rack.x_joined_seconds(app_screen(promo_rack.X_APP, ["Joined Sept 2019"])), float(calendar.timegm((2019, 9, 1, 0, 0, 0))))
+        self.assertIsNone(promo_rack.x_joined_seconds(app_screen(promo_rack.X_APP, ["Joined the conversation"])))
+
+    def test_x_feed_posts_are_read_the_way_reddits_are(self):
+        screen = app_screen(promo_rack.X_APP, ["For you", "This is a post long enough to be opened by a thumb.", "Short"])
+        self.assertEqual(len(promo_rack.feed_post_titles(screen, 2400, "x")), 1)
+        self.assertEqual(promo_rack.feed_post_titles(screen, 2400), [])
+
+    # --- ban screens ---------------------------------------------------------
+
+    def test_xs_lock_suspended_limited_and_confirm_screens_stop_the_account(self):
+        for name, kind in (("x-locked", "locked"), ("x-suspended", "suspended"), ("x-limited", "locked"), ("x-confirm", "confirm")):
+            found = promo_rack.ban_screen_in(BanScreenTest.read(self, name), "x")
+            self.assertIsNotNone(found, name)
+            self.assertEqual((found["app"], found["kind"]), ("x", kind), name)
+        words = promo_rack.ban_screen_in(BanScreenTest.read(self, "x-locked"), "x")["words"]
+        self.assertTrue(words.startswith("Your account has been locked."))
+        self.assertNotIn("12:04", words)
+        # Without X's full stop it is the same screen.
+        self.assertEqual(promo_rack.ban_screen_in(app_screen(promo_rack.X_APP, ["Your account is suspended", "Learn more"]), "x")["kind"], "suspended")
+
+    def test_another_accounts_suspended_profile_or_another_apps_screen_stops_nothing(self):
+        self.assertIsNone(promo_rack.ban_screen_in(BanScreenTest.read(self, "x-other-profile-not-a-ban"), "x"))
+        self.assertIsNone(promo_rack.ban_screen_in(BanScreenTest.read(self, "x-locked"), "reddit"))
+        self.assertIsNone(promo_rack.ban_screen_in(BanScreenTest.read(self, "instagram-locked"), "x"))
+
+    # --- direct messages -----------------------------------------------------
+
+    def test_an_x_direct_message_is_a_message_and_its_likes_and_replies_are_nothing(self):
+        output = (
+            "    NotificationRecord(0x01: pkg=com.twitter.android user=UserHandle{0} id=1 tag=null importance=4 key=0|com.twitter.android|1|null|10300: Notification(channel=dm category=msg vis=PRIVATE))\n"
+            "        android.title=String (Sam)\n"
+            "        android.text=String (hey, is the night mode free?)\n"
+            "    NotificationRecord(0x02: pkg=com.twitter.android user=UserHandle{0} id=2 tag=null importance=3 key=0|com.twitter.android|2|null|10300: Notification(channel=engagement vis=PRIVATE))\n"
+            "        android.title=String (X)\n"
+            "        android.text=String (Sam liked your post)\n"
+            "    NotificationRecord(0x03: pkg=com.twitter.android user=UserHandle{0} id=3 tag=null importance=3 key=0|com.twitter.android|3|null|10300: Notification(channel=mentions vis=PRIVATE))\n"
+            "        android.title=String (X)\n"
+            "        android.text=String (Sam replied to your post)\n"
+        )
+        self.assertEqual(promo_rack.new_alerts(output, collections.OrderedDict()), [{"app": "x", "kind": "message"}])
+        self.assertEqual(promo_rack.alert_kind({"app": "x", "meta": "", "title": "Sam", "text": "sent you a direct message"}), "message")
+        # "dm" only as its own word: an admin channel is not a message.
+        self.assertIsNone(promo_rack.alert_kind({"app": "x", "meta": "channel=admin_alerts", "title": "X", "text": "Your settings changed"}))
+
+    def test_an_x_message_is_answered_through_the_shared_inbox_steps_with_one_send(self):
+        device = ScriptedAppPhone(promo_rack.X_APP, ["Messages", "Sam", "Start a message", "Send"], "Send", ["Sam", "Yes, offline too."])
+        result, sent = self.run_action(
+            promo_rack.ACTIONS["x/reply_message"], device,
+            {"kind": "message", "thread": "Sam", "author": "Sam", "quote": "does it work offline?", "text": "Yes, offline too."},
+        )
+        self.assertEqual(result, {"sent": True})
+        self.assertEqual(device.pressed.count("Send"), 1)
+        self.assertIn("Messages", device.pressed)
+
+    # --- who is signed in ----------------------------------------------------
+
+    def test_state_reads_the_profile_through_the_menu(self):
+        device = ScriptedAppPhone(promo_rack.X_APP, ["Show navigation drawer", "Profile", "@quiet_maple", "1,204 Followers", "Joined March 2021"], "never", [])
+        result, _ = self.run_action(promo_rack.action_x_state, device, {})
+        self.assertEqual(result, {
+            "checked": True, "handle": "quiet_maple", "blocked": False, "reason": "", "banScreen": None,
+            "joinedSeconds": float(calendar.timegm((2021, 3, 1, 0, 0, 0))), "followers": 1204,
+        })
+        self.assertEqual(device.pressed, ["Show navigation drawer", "Profile"])
+
+    def test_state_on_a_lock_screen_is_blocked_with_xs_words_and_presses_nothing(self):
+        device = FakeDevice([], hierarchy=BanScreenTest.read(self, "x-locked"))
+        result, _ = self.run_action(promo_rack.action_x_state, device, {})
+        self.assertEqual((result["checked"], result["blocked"], result["handle"]), (True, True, None))
+        self.assertTrue(result["banScreen"].startswith("Your account has been locked."))
+        self.assertEqual(result["reason"], "X shows the account locked or limited")
+        self.assertEqual(device.pressed, [])
+
+    def test_state_that_cannot_be_read_is_not_checked_but_a_rehearsal_is_broken(self):
+        device = FakeDevice(["Home"], hierarchy=app_screen(promo_rack.X_APP, ["Home"]))
+        with mock.patch.object(promo_rack, "read_x_profile", mock.Mock(side_effect=promo_rack.StepFailed("Open the account menu", "gone"))):
+            result, _ = self.run_action(promo_rack.action_x_state, device, {})
+            self.assertEqual(result, promo_rack.X_NOT_CHECKED)
+            failure, _ = self.run_action(promo_rack.action_x_state, device, {}, rehearse=True)
+            self.assertIsInstance(failure, promo_rack.StepFailed)
+
+    # --- replies, quotes and posts ------------------------------------------
+
+    def reply_phone(self, after):
+        return ScriptedAppPhone(promo_rack.X_APP, ["Home", "Post your reply", "Reply"], "Reply", after)
+
+    def test_a_real_reply_opens_the_post_by_its_link_types_and_presses_reply_once(self):
+        device = self.reply_phone(["Reply", "Thanks, that fixed it."])
+        result, sent = self.run_action(promo_rack.action_x_reply, device, {"replyToId": X_POST, "text": "Thanks, that fixed it."})
+        self.assertEqual((result["postId"], result["url"]), ("", ""))
+        self.assertEqual(device.pressed.count("Reply"), 1)
+        self.assertTrue(any("-d 'https://x.com/i/status/%s' -p com.twitter.android" % X_POST in command for command in sent))
+        self.assertEqual(self.typed(sent), len("Thanks, that fixed it."))
+
+    def test_a_reply_x_refuses_or_never_shows_is_failed_without_a_second_press(self):
+        device = self.reply_phone(["Your post couldn't be sent"])
+        failure, _ = self.run_action(promo_rack.action_x_reply, device, {"replyToId": X_POST, "text": "Hi"})
+        self.assertIn("X said it did not go", str(failure))
+        self.assertEqual(device.pressed.count("Reply"), 1)
+        device = self.reply_phone(["Reply"])
+        failure, _ = self.run_action(promo_rack.action_x_reply, device, {"replyToId": X_POST, "text": "Hi"})
+        self.assertIn("may already be on X", str(failure))
+        self.assertEqual(device.pressed.count("Reply"), 1)
+
+    def test_the_post_being_answered_saying_couldnt_be_sent_is_not_xs_notice(self):
+        post = "Ugh, my post couldn't be sent all morning. Anyone else?"
+        device = ScriptedAppPhone(promo_rack.X_APP, ["Home", post, "Post your reply", "Reply"], "Reply", [post, "Reply", "Thanks, that fixed it."])
+        result, _ = self.run_action(promo_rack.action_x_reply, device, {"replyToId": X_POST, "text": "Thanks, that fixed it."})
+        self.assertEqual((result["postId"], result["url"]), ("", ""))
+        self.assertEqual(device.pressed.count("Reply"), 1)
+        # Only a line that came after the press is X's notice.
+        package = promo_rack.X_APP
+        self.assertEqual(promo_rack.x_landed(app_screen(package, [post]), package, "Hi", 0, {post}), ("", ""))
+        self.assertEqual(promo_rack.x_landed(app_screen(package, [post, "Your post couldn't be sent"]), package, "Hi", 0, {post})[0], "failed")
+
+    def test_our_words_already_under_the_post_are_sent_with_nothing_typed(self):
+        device = self.reply_phone(["Reply", "Thanks, that fixed it."])
+        device.before = sorted(["Home", "Thanks, that fixed it.", "Post your reply", "Reply"])
+        result, sent = self.run_action(promo_rack.action_x_reply, device, {"replyToId": X_POST, "text": "Thanks, that fixed it."})
+        self.assertEqual((result["postId"], result["url"]), ("", ""))
+        self.assertNotIn("Reply", device.pressed)
+        self.assertEqual(self.typed(sent), 0)
+        # Only the whole words count: a "Yes" of ours is not inside somebody's longer post.
+        package = promo_rack.X_APP
+        self.assertFalse(promo_rack.x_words_under(app_screen(package, ["Yes, the free plan covers that."]), package, "Yes"))
+        self.assertTrue(promo_rack.x_words_under(app_screen(package, ["Yes."]), package, "Yes"))
+
+    def test_every_failure_after_the_press_says_it_may_already_be_on_x(self):
+        device = self.reply_phone(["Your post couldn't be sent"])
+        failure, _ = self.run_action(promo_rack.action_x_reply, device, {"replyToId": X_POST, "text": "Hi"})
+        self.assertIn("It may already be on X", str(failure))
+        texts = ["Repost", "Quote", "Add a comment", "Post"]
+        device = ScriptedAppPhone(promo_rack.X_APP, texts, "Post", [])
+        with mock.patch.object(promo_rack, "x_on_profile", mock.Mock(side_effect=RuntimeError("the phone stopped answering"))):
+            failure, _ = self.run_action(promo_rack.action_x_quote, device, {"postId": X_POST, "text": "Worth reading."})
+        self.assertIn("the phone stopped answering", str(failure))
+        self.assertIn("It may already be on X", str(failure))
+        self.assertEqual(device.pressed.count("Post"), 1)
+
+    def test_a_rehearsed_reply_types_nothing_and_never_presses_reply(self):
+        device = self.reply_phone(["Reply", "Hi"])
+        result, sent = self.run_action(promo_rack.action_x_reply, device, {"replyToId": X_POST, "text": ""}, rehearse=True)
+        self.assertEqual(result, {"postId": "", "url": ""})
+        self.assertNotIn("Reply", device.pressed)
+        self.assertEqual(self.typed(sent), 0)
+
+    def test_a_reply_needs_an_x_post_id(self):
+        failure, sent = self.run_action(promo_rack.action_x_reply, self.reply_phone([]), {"replyToId": "../home", "text": "Hi"})
+        self.assertIn("not an X post id", str(failure))
+        self.assertEqual(sent, [])
+
+    def test_a_quote_presses_post_once_and_a_rehearsal_never_does(self):
+        texts = ["Repost", "Quote", "Add a comment", "Post"]
+        device = ScriptedAppPhone(promo_rack.X_APP, texts, "Post", ["Your post was sent"])
+        result, sent = self.run_action(promo_rack.action_x_quote, device, {"postId": X_POST, "text": "Worth reading."})
+        self.assertEqual((result["postId"], result["url"]), ("", ""))
+        self.assertEqual(device.pressed.count("Post"), 1)
+        self.assertEqual(device.pressed[:2], ["Repost", "Quote"])
+        self.assertEqual(self.typed(sent), len("Worth reading."))
+        device = ScriptedAppPhone(promo_rack.X_APP, texts, "Post", [])
+        result, sent = self.run_action(promo_rack.action_x_quote, device, {"postId": X_POST, "text": ""}, rehearse=True)
+        self.assertEqual(result, {"postId": "", "url": ""})
+        self.assertNotIn("Post", device.pressed)
+        self.assertEqual(self.typed(sent), 0)
+
+    def test_a_community_post_or_a_poll_is_refused_before_anything_opens(self):
+        args = {"text": "Hi", "pictureUrl": "", "replyToId": "", "communityId": "", "poll": None}
+        failure, sent = self.run_action(promo_rack.action_x_publish, self.reply_phone([]), dict(args, communityId="1500000000000000000"))
+        self.assertIn("community", str(failure))
+        self.assertEqual(sent, [])
+        failure, sent = self.run_action(promo_rack.action_x_publish, self.reply_phone([]), dict(args, poll={"choices": ["Yes", "No"], "minutes": 60}))
+        self.assertIn("poll", str(failure))
+        self.assertEqual(sent, [])
+
+    def test_a_post_with_a_picture_puts_it_in_the_gallery_picks_it_and_presses_post_once(self):
+        device = ScriptedAppPhone(promo_rack.X_APP, ["New post", "What's happening?", "Add photos or video", "IMG_0001", "Post"], "Post", ["Your post was sent"])
+        # The fake screen finds buttons by their words, so the picker's newest item is named here.
+        with mock.patch.dict(promo_rack.APP_SCREENS["x"], {"media_first": promo_rack.shapes(promo_rack.X_APP, "^IMG_\\d+$")}):
+            result, sent = self.run_action(
+                promo_rack.action_x_publish, device,
+                {"text": "Night mode is out.", "pictureUrl": "https://media.example/a.jpg", "replyToId": "", "communityId": "", "poll": None},
+            )
+        self.assertEqual((result["postId"], result["url"]), ("", ""))
+        self.assertEqual(device.pressed.count("Post"), 1)
+        self.assertEqual(device.pressed[:3], ["New post", "Add photos or video", "IMG_0001"])
+        self.assertTrue(any(command.startswith("push ") and "/sdcard/DCIM/Camera/IMG_" in command for command in sent))
+        self.assertEqual(self.typed(sent), len("Night mode is out."))
+
+    def test_a_threads_next_piece_goes_under_the_piece_before(self):
+        device = self.reply_phone(["Reply", "And one more thing."])
+        result, sent = self.run_action(
+            promo_rack.action_x_publish, device,
+            {"text": "And one more thing.", "pictureUrl": "", "replyToId": X_POST, "communityId": "", "poll": None},
+        )
+        self.assertEqual((result["postId"], result["url"]), ("", ""))
+        self.assertEqual(device.pressed.count("Reply"), 1)
+        self.assertTrue(any("https://x.com/i/status/%s" % X_POST in command for command in sent))
+
+    def test_a_rehearsed_post_finds_post_and_never_presses_it(self):
+        device = ScriptedAppPhone(promo_rack.X_APP, ["New post", "What's happening?", "Post"], "Post", [])
+        result, sent = self.run_action(
+            promo_rack.action_x_publish, device,
+            {"text": "", "pictureUrl": "", "replyToId": "", "communityId": "", "poll": None}, rehearse=True,
+        )
+        self.assertEqual(result, {"postId": "", "url": ""})
+        self.assertEqual(device.pressed, ["New post"])
+        self.assertEqual(self.typed(sent), 0)
+
+    # --- follows -------------------------------------------------------------
+
+    def test_follow_presses_follow_once_and_waits_for_following(self):
+        device = ScriptedAppPhone(promo_rack.X_APP, ["Follow @sam_reads", "1,204 Following"], "Follow @sam_reads", ["Following @sam_reads"])
+        result, sent = self.run_action(promo_rack.action_x_follow, device, {"handle": "@sam_reads"})
+        self.assertEqual(result, {"done": True})
+        self.assertEqual(device.pressed, ["Follow @sam_reads"])
+        self.assertTrue(any("-d 'https://x.com/sam_reads' -p com.twitter.android" in command for command in sent))
+
+    def test_an_account_already_followed_is_done_with_no_press_and_a_rehearsal_never_presses(self):
+        device = ScriptedAppPhone(promo_rack.X_APP, ["Following @sam_reads"], "never", [])
+        result, _ = self.run_action(promo_rack.action_x_follow, device, {"handle": "sam_reads"})
+        self.assertEqual((result, device.pressed), ({"done": True}, []))
+        device = ScriptedAppPhone(promo_rack.X_APP, ["Follow @sam_reads"], "Follow @sam_reads", [])
+        result, _ = self.run_action(promo_rack.action_x_follow, device, {"handle": "sam_reads"}, rehearse=True)
+        self.assertEqual((result, device.pressed), ({"done": False}, []))
+
+    def test_only_the_follow_button_says_whether_the_account_is_followed(self):
+        package = promo_rack.X_APP
+        # A bare "Following" is the count beside it, not the button.
+        self.assertEqual(promo_rack.x_follow_state(app_screen(package, ["1,204", "Following", "Follow @sam_reads"]), "sam_reads"), "follow")
+        self.assertEqual(promo_rack.x_follow_state(app_screen(package, ["Following @Sam_Reads."]), "sam_reads"), "following")
+        self.assertEqual(promo_rack.x_follow_state(app_screen(package, ["Following @someone_else"]), "sam_reads"), "")
+        button = '<hierarchy><node text="Following" resource-id="com.twitter.android:id/button_bar_follow" package="%s" bounds="[60,400][400,480]" /></hierarchy>' % package
+        self.assertEqual(promo_rack.x_follow_state(button, "sam_reads", promo_rack.X_FOLLOW_BUTTON_ID), "following")
+        self.assertEqual(promo_rack.x_follow_state(button, "sam_reads"), "")
+
+    def test_a_protected_account_asked_to_follow_is_done(self):
+        device = ScriptedAppPhone(promo_rack.X_APP, ["Follow @sam_reads"], "Follow @sam_reads", ["Pending"])
+        result, _ = self.run_action(promo_rack.action_x_follow, device, {"handle": "sam_reads"})
+        self.assertEqual((result, device.pressed), ({"done": True}, ["Follow @sam_reads"]))
+        device = ScriptedAppPhone(promo_rack.X_APP, ["Pending"], "never", [])
+        result, _ = self.run_action(promo_rack.action_x_follow, device, {"handle": "sam_reads"})
+        self.assertEqual((result, device.pressed), ({"done": True}, []))
+        self.assertEqual(promo_rack.x_follow_state(app_screen(promo_rack.X_APP, ["Pending @Sam_Reads"]), "sam_reads"), "pending")
+
+    def test_a_follow_needs_an_x_handle(self):
+        failure, sent = self.run_action(promo_rack.action_x_follow, self.reply_phone([]), {"handle": "not a handle"})
+        self.assertIn("not an X handle", str(failure))
+        self.assertEqual(sent, [])
+
+
 class LauncherRollbackTest(unittest.TestCase):
     """A new version that stops before checking in is rolled back by itself."""
 
@@ -2152,6 +2462,20 @@ class IphoneAppsTest(unittest.TestCase):
             promo_rack.leave_app_screen(IPHONE, walk, "instagram", times=1)
         self.assertEqual([call for call in screen.calls if call[0] == "app_stop"], [("app_stop", IOS_INSTAGRAM)])
 
+    def test_a_rehearsed_x_reply_on_an_iphone_finds_reply_and_never_presses_it(self):
+        post = "https://x.com/i/status/1850000000000000000"
+        screen = self.phone({
+            "start": ios_tree(IOS_SETTINGS),
+            post: ios_tree(promo_rack.IOS_X, ("StaticText", "A post worth answering."), ("Button", "Post your reply")),
+            "Post your reply": ios_tree(promo_rack.IOS_X, ("TextView", "Post your reply"), ("Button", "Reply")),
+        }, "start")
+        result, walk = self.run_action(promo_rack.action_x_reply, screen, {"replyToId": "1850000000000000000", "text": ""}, rehearse=True)
+        self.assertEqual(result, {"postId": "", "url": ""})
+        self.assertIn(("open_url", post), screen.calls)
+        self.assertEqual(screen.pressed, ["Post your reply"])
+        self.assertIn("Press Reply (found, not pressed)", [step for step, _ in walk.steps])
+        self.assertIn(("app_stop", promo_rack.IOS_X), screen.calls)
+
     def test_each_app_action_picks_the_iphone_shapes_by_the_phone(self):
         self.assertIs(promo_rack.app_screens(IPHONE, "tiktok"), promo_rack.APP_SCREENS[IOS_TIKTOK])
         self.assertIs(promo_rack.app_screens("A1", "tiktok"), promo_rack.APP_SCREENS["tiktok"])
@@ -2243,6 +2567,8 @@ class IphoneAppsTest(unittest.TestCase):
             "itms-apps://apps.apple.com/app/id835599320": ios_tree(promo_rack.APP_STORE, ("Button", "Get"), ("StaticText", "Version 41.0")),
             # Medium is tracked too (Medium task, part 42), and not on this phone.
             "itms-apps://apps.apple.com/app/id828256236": ios_tree(promo_rack.APP_STORE, ("Button", "Get"), ("StaticText", "Version 7.0")),
+            # So is X (X task, part 2), and not on this phone either.
+            "itms-apps://apps.apple.com/app/id333903271": ios_tree(promo_rack.APP_STORE, ("Button", "Get"), ("StaticText", "Version 11.0")),
         }
         screen = self.phone(dict(store, start=ios_tree(IOS_SETTINGS)), "start")
         with mock.patch.object(iphone, "app_versions", lambda udid: {"reddit": "2025.40.0", "instagram": "400.0"}):

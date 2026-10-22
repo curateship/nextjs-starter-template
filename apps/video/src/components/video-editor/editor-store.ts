@@ -15,11 +15,12 @@ import {
   type SceneWithFiles,
 } from "@/lib/video/brief"
 import { landBroll, type BrollPlacement } from "@/lib/video/b-roll"
+import type { CaptionLook, CaptionPlacement } from "@/lib/video/caption-look"
 import type { ClipboardClip } from "@/lib/video/clip-clipboard"
 import { LEFT_OF_CUT, RIGHT_OF_CUT } from "@/lib/video/clip-fades"
 import { landMovingShot, type MovingPiece } from "@/lib/video/moving-still"
 import { landVoiceLine, type SpokenLine } from "@/lib/video/remake-clip"
-import { voiceoverRefusal } from "@/lib/video/saved-voiceovers"
+import { layVoiceover, voiceoverRefusal } from "@/lib/video/saved-voiceovers"
 import { PlaybackClock } from "@/lib/video/playback-clock"
 import {
   MAX_TIMELINE_TRACKS,
@@ -109,10 +110,20 @@ export type EditorAction =
     }
   // A voice line read again, swapped in with its words (remake-clip.ts). One
   // action, so one Undo brings the old line and its captions back together.
-  | { type: "REMAKE_VOICE_LINE"; clipId: string; line: SpokenLine }
+  | {
+      type: "REMAKE_VOICE_LINE"
+      clipId: string
+      line: SpokenLine
+      look: CaptionLook
+    }
   // A brief's made scenes, each a still, its voice and its captions, laid in
   // order on the brief's lanes (brief.ts). One action, one Undo.
-  | { type: "LAND_BRIEF_SCENES"; scenes: SceneWithFiles[]; landing: BriefLanding }
+  | {
+      type: "LAND_BRIEF_SCENES"
+      scenes: SceneWithFiles[]
+      landing: BriefLanding
+      captions: CaptionPlacement
+    }
   // Pexels clips picked in the B-roll window, on one new lane under their
   // sentences (b-roll.ts). One action, one Undo.
   | { type: "PLACE_BROLL"; placements: BrollPlacement[] }
@@ -670,35 +681,8 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       // Past the most lanes a save allows, every later save would fail. The
       // callers ask voiceoverRefusal first, so this only guards the store.
       if (voiceoverRefusal(state.tracks, action.captions)) return state
-      const captions: EditorTrack = {
-        ...newTrack(),
-        clips: [...action.captions].sort((a, b) => a.startMs - b.startMs),
-      }
-      const voice: EditorTrack = { ...newTrack(), clips: [action.audio] }
-      const quieten = action.quieten
-      // Turned down, never up: a clip already quieter than asked keeps its
-      // own level.
-      const tracks = quieten
-        ? state.tracks.map((track) => ({
-            ...track,
-            clips: track.clips.map((clip) =>
-              clip.id === quieten.clipId
-                ? {
-                    ...clip,
-                    volume: Math.min(clip.volume ?? 1, quieten.volume),
-                  }
-                : clip
-            ),
-          }))
-        : state.tracks
-      // Words above the picture, sound below it, the way they are laid out
-      // when somebody does this by hand.
       return {
-        ...pushUndo(state, [
-          ...(action.captions.length ? [captions] : []),
-          ...tracks,
-          voice,
-        ]),
+        ...pushUndo(state, layVoiceover(state.tracks, action, editorId)),
         selectedClipId: action.audio.id,
       }
     }
@@ -836,7 +820,7 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
     }
 
     case "LAND_BRIEF_SCENES": {
-      const landed = landBriefScenes(state.tracks, action, editorId)
+      const landed = landBriefScenes(state.tracks, action, editorId, action.captions)
       if (!landed?.placed.length) return state
       return pushUndo(state, landed.tracks)
     }
