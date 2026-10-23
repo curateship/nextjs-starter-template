@@ -1,15 +1,17 @@
 "use client"
 
 import * as React from "react"
-import ArrowDownIcon from "lucide-react/dist/esm/icons/arrow-down.js"
-import ArrowUpIcon from "lucide-react/dist/esm/icons/arrow-up.js"
-import ChevronsUpDownIcon from "lucide-react/dist/esm/icons/chevrons-up-down.js"
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ChevronsUpDownIcon,
+} from "lucide-react"
 
+import { focusRing, focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 type TableHeadProps = React.ComponentProps<"th"> & {
-  // "content" is a directory-only column kind (wrapping mid-width free text).
-  column?: "main" | "meta" | "preview" | "select" | "content"
+  column?: "main" | "meta" | "preview" | "select"
 }
 
 type TableSortDirection = "asc" | "desc"
@@ -20,14 +22,73 @@ type TableSortButtonProps = React.ComponentProps<"button"> & {
 }
 
 type TableCellProps = React.ComponentProps<"td"> & {
-  column?: "main" | "meta" | "mutedMeta" | "preview" | "select" | "content"
+  column?: "main" | "meta" | "mutedMeta" | "preview" | "select" | "actions"
 }
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+type TableRowProps = React.ComponentProps<"tr"> & {
+  /**
+   * What clicking anywhere in the row does — always the same thing the row's
+   * title already does, so the row is a bigger target for it and never a
+   * second, different action.
+   *
+   * A row with one gets the pointer cursor and the grey hover tint; a row
+   * without stays flat, so the tint always means something will happen.
+   *
+   * The row is deliberately not *tabbable*. Its title is already a link or a
+   * button, so the keyboard reaches the same place without a second tab stop
+   * on every row of every table.
+   *
+   * It is focusable by a click, though (`tabIndex={-1}`), and the handler
+   * focuses it before running this. That is only so a window opened from a row
+   * has something to give focus back to when it closes.
+   */
+  rowAction?: () => void
+}
+
+/**
+ * Everything inside a row that owns its own click, so the row must not take it:
+ * the controls themselves, plus the two columns that exist only to hold
+ * controls.
+ *
+ * The columns are listed as well as the controls because a *disabled* button
+ * carries `pointer-events-none` — the click misses the button entirely and
+ * lands on the cell behind it, which would otherwise read as a click on the
+ * row. Clicking a greyed-out Delete must never open the thing it refused to
+ * delete. `[tabindex]` catches the wrappers built to be clicked in a disabled
+ * control's place, such as `DisabledReason`.
+ */
+const rowInteractiveSelector = [
+  "a",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "label",
+  "[tabindex]",
+  '[role="checkbox"]',
+  '[role="menuitem"]',
+  '[contenteditable="true"]',
+  '[data-column="select"]',
+  '[data-column="actions"]',
+].join(", ")
+
+function Table({
+  className,
+  containerClassName,
+  ...props
+}: React.ComponentProps<"table"> & {
+  /**
+   * Classes for the box the table scrolls inside. A max-height belongs here
+   * and nowhere else: this box is already the scroll container, so it is what
+   * a sticky heading sticks to. Cap anything further out and the headings
+   * scroll away with the rows.
+   */
+  containerClassName?: string
+}) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn("relative w-full overflow-x-auto", containerClassName)}
     >
       <table
         data-slot="table"
@@ -58,10 +119,9 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn(
-        "[&_tr]:border-b-0 [&_tr]:bg-muted/50",
-        className
-      )}
+      // The heading row's own top and bottom lines are drawn in `theme.css`
+      // in the Divider lines colour, like every other dividing line.
+      className={cn("[&_tr]:bg-muted/50", className)}
       {...props}
     />
   )
@@ -77,27 +137,61 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   )
 }
 
-function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
-  return (
-    <tfoot
-      data-slot="table-footer"
-      className={cn(
-        "border-t border-border bg-muted/50 font-medium [&>tr]:last:border-b-0",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+function TableRow({ className, rowAction, onClick, ...props }: TableRowProps) {
+  function handleClick(event: React.MouseEvent<HTMLTableRowElement>) {
+    onClick?.(event)
+    if (!rowAction || event.defaultPrevented) return
+    // A held modifier means "open this somewhere else", which a row is not a
+    // link and cannot do. Doing nothing beats doing the wrong thing.
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    if (!(event.target instanceof Element)) return
+    // Whatever is under the pointer owns this click. Bounded to the row: the
+    // table itself sits inside scrollers and wrappers that would match too.
+    const owner = event.target.closest(rowInteractiveSelector)
+    // The row itself never counts as something inside the row that owns the
+    // click — it is the thing being clicked. It matches the selector only
+    // because it carries `tabIndex={-1}` for the focus handover below.
+    if (owner && owner !== event.currentTarget && event.currentTarget.contains(owner)) {
+      return
+    }
+    // Dragging across a cell to copy some text is not a click on the row.
+    const selection = window.getSelection()
+    if (
+      selection &&
+      !selection.isCollapsed &&
+      event.currentTarget.contains(selection.anchorNode)
+    ) {
+      return
+    }
+    // Take focus before doing anything. A row cannot be tabbed to — that is
+    // deliberate, above — but clicking a `<tr>` moves focus nowhere at all, so
+    // a window opened from here has nothing to hand focus back to when it
+    // closes and it lands on the page instead. `tabIndex={-1}` below is what
+    // makes this possible without adding a tab stop to every row of every
+    // table. The ring is `focus-visible`, so a mouse click does not paint one.
+    //
+    // Without `preventScroll` this also scrolls the row into view, which in a
+    // table scrolled sideways yanks it back to the left on every click. The row
+    // was just clicked, so it is already where the reader can see it.
+    event.currentTarget.focus({ preventScroll: true })
+    rowAction()
+  }
 
-function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
       data-slot="table-row"
       className={cn(
-        "border-0 transition-colors has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+        "border-0 transition-colors has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted data-[state=selected]:hover:bg-muted",
+        rowAction && "cursor-pointer hover:bg-muted/50",
+        // A focused row has to show it. Inside, because a wide table scrolls
+        // and a `<tr>` cannot paint a ring — see `focusRingInset`. Only on
+        // keyboard focus, so the click that focuses a row draws nothing.
+        focusRingInset,
         className
       )}
+      // Reachable by a click, never by Tab — see `handleClick`.
+      tabIndex={rowAction ? -1 : undefined}
+      onClick={rowAction || onClick ? handleClick : undefined}
       {...props}
     />
   )
@@ -111,9 +205,7 @@ function TableHead({ className, column, ...props }: TableHeadProps) {
       className={cn(
         "h-10 px-5 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
         column === "main" &&
-          "w-full min-w-[320px] text-left text-xs font-medium text-muted-foreground sm:text-sm",
-        column === "content" &&
-          "min-w-[180px] text-left text-xs font-medium text-muted-foreground sm:text-sm",
+          "w-full min-w-80 text-left text-xs font-medium text-muted-foreground sm:text-sm",
         column === "meta" &&
           "w-px whitespace-nowrap text-left text-xs font-medium text-muted-foreground sm:text-sm",
         column === "preview" &&
@@ -131,13 +223,21 @@ function TableSortButton({
   children,
   className,
   direction,
+  "aria-label": ariaLabel,
   ...props
 }: TableSortButtonProps) {
   return (
     <button
       type="button"
+      aria-label={
+        ariaLabel ??
+        (active && typeof children === "string"
+          ? `${children}, sorted ${direction === "asc" ? "ascending" : "descending"}`
+          : undefined)
+      }
       className={cn(
         "group/sort flex h-8 cursor-pointer items-center gap-2 px-0 text-xs font-medium text-inherit outline-none transition-colors hover:text-foreground sm:text-sm",
+        focusRing,
         className
       )}
       {...props}
@@ -158,16 +258,18 @@ function TableSortButton({
   )
 }
 
-function TableCell({ className, column, ...props }: TableCellProps) {
+function TableCell({ className, column, children, ...props }: TableCellProps) {
   return (
     <td
       data-slot="table-cell"
       data-column={column}
       className={cn(
         "px-5 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
-        column === "main" && "min-w-[320px]",
-        column === "content" && "min-w-[180px] whitespace-normal text-left",
-        column === "meta" && "whitespace-nowrap text-left",
+        column === "main" && "min-w-80",
+        // "actions" is "meta" that a clickable row keeps its hands off. It
+        // looks identical; the difference is only who owns the click.
+        (column === "meta" || column === "actions") &&
+          "whitespace-nowrap text-left",
         column === "mutedMeta" &&
           "whitespace-nowrap text-left text-xs text-muted-foreground sm:text-sm",
         column === "preview" &&
@@ -176,20 +278,13 @@ function TableCell({ className, column, ...props }: TableCellProps) {
         className
       )}
       {...props}
-    />
-  )
-}
-
-function TableCaption({
-  className,
-  ...props
-}: React.ComponentProps<"caption">) {
-  return (
-    <caption
-      data-slot="table-caption"
-      className={cn("mt-4 text-sm text-muted-foreground", className)}
-      {...props}
-    />
+    >
+      {column === "actions" ? (
+        <div className="flex items-center gap-1">{children}</div>
+      ) : (
+        children
+      )}
+    </td>
   )
 }
 
@@ -198,11 +293,9 @@ export {
   TableSurface,
   TableHeader,
   TableBody,
-  TableFooter,
   TableHead,
   TableSortButton,
   TableRow,
   TableCell,
-  TableCaption,
 }
 export type { TableSortDirection }

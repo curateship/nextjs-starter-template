@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
-import { READER_JOB_KINDS, WRITE_JOB_KINDS, X_SEARCHER_JOB_KINDS, type JobKind } from "@/lib/social/options"
+import { LINKEDIN_SEARCHER_JOB_KINDS, READER_JOB_KINDS, WRITE_JOB_KINDS, X_SEARCHER_JOB_KINDS, type JobKind } from "@/lib/social/options"
 import { PHONE_LANE_PREFIX, phoneLane } from "@/lib/phones/options"
 
 import { readerProfile } from "./behaviour"
@@ -11,6 +11,8 @@ import { readBrowserProgram } from "./browser-program"
 import { ringForFailure } from "./failures"
 import { settleFailedMediumJob } from "./medium/settle"
 import { promoAccounts, promoJobs } from "./schema"
+import { pickLinkedinSearcher } from "./linkedin/searchers"
+import { settleFailedLinkedinJob } from "./linkedin/settle"
 import { pickSearcher } from "./x/searchers"
 import { settleFailedXJob } from "./x/settle"
 
@@ -75,6 +77,17 @@ const INBOX_REPLY_ABANDONED =
 /** What an abandoned Medium response, article, edit, delete or list add says. */
 const MEDIUM_ABANDONED =
   "The browser stopped part-way through. It is not tried again, because it may already be on Medium. Look at it on Medium before trying again."
+
+/**
+ * A LinkedIn post can be a newsletter issue typed at a person's pace for up to
+ * 30 minutes (`linkedin.newsletter` in `docker/browser/launch.py`), so its
+ * claim is given longer than a visit's before it counts as abandoned.
+ */
+const LINKEDIN_PUBLISH_CLAIM_TIMEOUT_MINUTES = 40
+
+/** What an abandoned LinkedIn comment, post, edit, delete, connect or accept says. */
+const LINKEDIN_ABANDONED =
+  "The browser stopped part-way through. It is not tried again, because it may already be on LinkedIn. Look at it on LinkedIn before trying again."
 
 /** What an abandoned X reply, post, edit, delete, follow or list add says. */
 const X_ABANDONED =
@@ -178,6 +191,7 @@ async function laneFor(
   if (typeof payload.profileId === "string" && payload.profileId) return payload.profileId
   if (READER_JOB_KINDS.includes(kind)) return (await readerProfile(userId, db)).id
   if (X_SEARCHER_JOB_KINDS.includes(kind)) return (await pickSearcher(userId, db)).profileId
+  if (LINKEDIN_SEARCHER_JOB_KINDS.includes(kind)) return (await pickLinkedinSearcher(userId, db)).profileId
   const account = await jobAccount(userId, payload, db)
   if (account?.phoneId) return phoneLane(account.phoneId)
   return account?.profileId ?? null
@@ -308,6 +322,8 @@ export async function failExpiredClaims(
             THEN ${MEDIUM_ABANDONED}
           WHEN "promo_jobs"."kind" IN ('x_reply', 'x_publish', 'x_edit', 'x_delete', 'x_follow', 'x_list_add')
             THEN ${X_ABANDONED}
+          WHEN "promo_jobs"."kind" IN ('linkedin_comment', 'linkedin_publish', 'linkedin_edit', 'linkedin_delete', 'linkedin_connect', 'linkedin_accept')
+            THEN ${LINKEDIN_ABANDONED}
           WHEN "promo_jobs"."kind" IN (${WRITES})
             THEN ${COMMENT_ABANDONED}
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS}
@@ -321,7 +337,9 @@ export async function failExpiredClaims(
         END
     WHERE "promo_jobs"."status" = 'running'
       AND "promo_jobs"."claimed_at" < now() - CASE
-        WHEN "promo_jobs"."kind" IN (${WRITES}, 'warm_up', 'health', 'inbox_read', 'medium_warm_up', 'x_warm_up')
+        WHEN "promo_jobs"."kind" = 'linkedin_publish'
+          THEN ${sql.raw(`interval '${LINKEDIN_PUBLISH_CLAIM_TIMEOUT_MINUTES} minutes'`)}
+        WHEN "promo_jobs"."kind" IN (${WRITES}, 'warm_up', 'health', 'inbox_read', 'medium_warm_up', 'x_warm_up', 'linkedin_warm_up')
           THEN ${sql.raw(`interval '${VISIT_CLAIM_TIMEOUT_MINUTES} minutes'`)}
         ELSE ${sql.raw(`interval '${CLAIM_TIMEOUT_MINUTES} minutes'`)}
       END
@@ -341,6 +359,7 @@ export async function failExpiredClaims(
     if (row.status !== "failed") continue
     await settleFailedMediumJob({ id: row.id, kind: row.kind }, row.last_error, db)
     await settleFailedXJob({ id: row.id, kind: row.kind }, row.last_error, db)
+    await settleFailedLinkedinJob({ id: row.id, kind: row.kind }, row.last_error, db)
     await ringForFailure({ id: row.id, userId: row.user_id, kind: row.kind }, row.last_error, db)
   }
   return rows.length

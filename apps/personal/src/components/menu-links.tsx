@@ -26,6 +26,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   addLink,
   canPlace,
@@ -99,6 +100,40 @@ export function OwnTabMark({ link }: { link: MenuLink }) {
       <ArrowUpRightIcon className="size-3 text-muted-foreground" aria-hidden />
       <span className="sr-only">(opens in its own tab)</span>
     </>
+  )
+}
+
+/**
+ * The arrow that opens a panel link's site in a new browser tab, shown while
+ * the link is hovered. Like the editing controls, it covers the end of the
+ * name instead of taking room from it, left of the fold arrow if there is one.
+ */
+export function OpenInNewTab({
+  link,
+  className,
+}: {
+  link: MenuLink
+  /** Where it sits, and the row hover that shows it and lets it be clicked. */
+  className: string
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <a
+          href={link.url}
+          target="_blank"
+          rel="noopener"
+          aria-label={`Open ${link.label} in a new tab`}
+          className={cn(
+            "pointer-events-none absolute top-1/2 z-20 flex size-6 -translate-y-1/2 items-center justify-center rounded-md bg-sidebar-accent text-muted-foreground opacity-0 outline-hidden hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+            className
+          )}
+        >
+          <ArrowUpRightIcon className="size-3.5" />
+        </a>
+      </TooltipTrigger>
+      <TooltipContent side="right">Open in a new tab</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -279,6 +314,15 @@ function MenuLinkItem({
             />
           </button>
         </CollapsibleTrigger>
+      ) : null}
+      {!editingMenu && !opensInTab(link) ? (
+        <OpenInNewTab
+          link={link}
+          className={cn(
+            "group-hover/link:pointer-events-auto group-hover/link:opacity-100",
+            subLinks.length ? "right-9" : "right-1"
+          )}
+        />
       ) : null}
       {editingMenu && !renaming ? (
         /* Drag, add a sub-link and edit, shown only while editing is on.

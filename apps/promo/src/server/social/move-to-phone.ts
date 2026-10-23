@@ -17,7 +17,8 @@ import { promoAccounts } from "./schema"
  * (part 31 of the phone farm): how a throwaway that turned valuable is
  * promoted.
  *
- * Reddit and X accounts can move (X task, part 46). A person picks a phone
+ * Reddit, X and LinkedIn accounts can move (X task, part 46; LinkedIn task,
+ * part 9). A person picks a phone
  * that is free and ready, then signs in to the app on it by hand through its
  * screen window. The account keeps running on its
  * profile meanwhile. Once the phone reads the account signed in, the move
@@ -30,7 +31,7 @@ import { promoAccounts } from "./schema"
 type AccountRow = typeof promoAccounts.$inferSelect
 
 /** The networks whose accounts move from a browser profile to a phone. */
-const MOVABLE = ["reddit", "x"] as const
+const MOVABLE = ["reddit", "x", "linkedin"] as const
 type Movable = (typeof MOVABLE)[number]
 
 function movable(platform: string): platform is Movable {
@@ -56,7 +57,7 @@ export async function startMoveToPhone(
 ): Promise<void> {
   const account = await ownAccount(userId, accountId, db)
   const who = account.handle ? handleWords(account.platform, account.handle) : "This account"
-  if (!movable(account.platform)) throw new Error(`${who} is not a Reddit or X account, so it does not move to a phone this way.`)
+  if (!movable(account.platform)) throw new Error(`${who} is not a Reddit, X or LinkedIn account, so it does not move to a phone this way.`)
   const network = NETWORK_NAMES[account.platform]
   if (account.importance === "important") throw new Error(`${who} is already important and runs on a phone.`)
   if (!account.profileId) throw new Error(`${who} is not on a browser profile, so there is nothing to move from. Set its phone in its settings instead.`)
@@ -196,7 +197,9 @@ export async function finishMoveFromPhone(
   /** The app that answered, so a Reddit answer never finishes an X account's move. */
   platform: Movable = "reddit"
 ): Promise<string | null> {
-  const handle = typeof result?.handle === "string" ? result.handle.trim() : ""
+  // LinkedIn's state answers the member's slug; Reddit's and X's their handle.
+  const named = platform === "linkedin" ? result?.slug : result?.handle
+  const handle = typeof named === "string" ? named.trim() : ""
   if (!handle) return null
   const [account] = await db
     .select()

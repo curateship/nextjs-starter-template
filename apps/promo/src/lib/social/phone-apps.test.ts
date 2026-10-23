@@ -58,4 +58,25 @@ describe("Instagram and TikTok limits", () => {
     )
     expect(phoneStepRefusal("x/search", "Pixel 8a")).toContain("cannot do searching X")
   })
+
+  it("lets a phone take LinkedIn's app steps and refuses LinkedIn's browser-only ones", () => {
+    for (const routine of [
+      "linkedin/state",
+      "linkedin/quick_state",
+      "linkedin/comment",
+      "linkedin/publish",
+      "linkedin/connect",
+      "linkedin/invites",
+      "linkedin/accept",
+      "linkedin/warm_up",
+      "linkedin/inbox",
+      "linkedin/reply_message",
+    ]) {
+      expect(phoneStepRefusal(routine, "Pixel 8a")).toBeNull()
+    }
+    expect(phoneStepRefusal("linkedin/viewers", "Pixel 8a")).toBe(
+      "Pixel 8a cannot do reading who viewed the profile: on a phone, the LinkedIn app reads who is signed in, comments, posts with words and a picture, sends and accepts connection requests, warms up, and reads and answers messages. Who viewed the profile, the account's numbers, its own feed, searches, reading posts again, edits, deletes, newsletters and the emailed sign-in code are done in a browser. Nothing was sent."
+    )
+    expect(phoneStepRefusal("linkedin/newsletter", "Pixel 8a")).toContain("cannot do publishing a newsletter issue")
+  })
 })

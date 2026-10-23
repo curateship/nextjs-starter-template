@@ -103,6 +103,8 @@ function fieldsAskedFor(type: TaskType | undefined) {
 export type NewTaskStart = {
   title: string
   lines: string[] | null
+  /** The Description written in the dropdown; left out, the type's own notes. */
+  notes?: WrittenPageNode
   /** A member's id, or `NOBODY`. */
   assignee: string
   due: string | null
@@ -272,6 +274,10 @@ export function NewTaskDialog({
         setPriority(start.priority)
         setPills(start.tags)
         setMilestoneId(start.milestoneId)
+        if (start.notes) {
+          setNotes(start.notes)
+          setNotesKey((key) => key + 1)
+        }
       }
     }
   }

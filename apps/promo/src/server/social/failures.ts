@@ -283,8 +283,8 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : ""
 }
 
-/** Medium's and X's writes, and how each is named on the bell. */
-const NETWORK_WRITE_WORDS: Record<string, { network: "medium" | "x"; what: string; view: string }> = {
+/** Medium's, X's and LinkedIn's writes, and how each is named on the bell. */
+const NETWORK_WRITE_WORDS: Record<string, { network: "medium" | "x" | "linkedin"; what: string; view: string }> = {
   medium_respond: { network: "medium", what: "a Medium response", view: "&tab=responses&list=failed" },
   medium_publish: { network: "medium", what: "a Medium article", view: "&tab=articles" },
   medium_edit: { network: "medium", what: "a change on Medium", view: "&tab=responses" },
@@ -296,9 +296,16 @@ const NETWORK_WRITE_WORDS: Record<string, { network: "medium" | "x"; what: strin
   x_delete: { network: "x", what: "a delete on X", view: "&tab=replies" },
   x_follow: { network: "x", what: "a follow on X", view: "&tab=replies" },
   x_list_add: { network: "x", what: "an account for an X list", view: "&tab=posts" },
+  linkedin_comment: { network: "linkedin", what: "a LinkedIn comment", view: "&tab=comments&list=failed" },
+  linkedin_publish: { network: "linkedin", what: "a LinkedIn post", view: "&tab=posts" },
+  linkedin_edit: { network: "linkedin", what: "a change on LinkedIn", view: "&tab=comments" },
+  linkedin_delete: { network: "linkedin", what: "a delete on LinkedIn", view: "&tab=comments" },
+  linkedin_connect: { network: "linkedin", what: "a LinkedIn connection request", view: "&tab=people" },
+  linkedin_accept: { network: "linkedin", what: "accepting a LinkedIn request", view: "&tab=people" },
+  linkedin_code: { network: "linkedin", what: "LinkedIn's emailed code", view: "" },
 }
 
-/** Rings the bell for a Medium or X write that did not go out, opening where it was pressed. */
+/** Rings the bell for a Medium, X or LinkedIn write that did not go out, opening where it was pressed. */
 async function ringForNetworkFailure(
   job: { id: string; userId: string; kind: string },
   reason: string,

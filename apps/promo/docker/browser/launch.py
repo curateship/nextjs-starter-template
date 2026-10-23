@@ -97,6 +97,33 @@ ROUTINE_TIMEOUT_SECONDS = {
     "x.check": 120,
     "x.reach": 120,
     "x.lookup": 120,
+    # The quick look after every LinkedIn job: the app waits 60 seconds.
+    "linkedin.quick_state": 50,
+    # LinkedIn's comment and post are the same visit as X's reply; a
+    # warm-up is the visit without the writing. A newsletter issue puts up to
+    # 20,000 characters into the editor a paragraph at a time, with a
+    # person's pauses; the app waits 1,830 seconds.
+    "linkedin.comment": 900,
+    "linkedin.publish": 900,
+    "linkedin.warm_up": 900,
+    "linkedin.newsletter": 1800,
+    # An edit retypes the words and a message types the answer, at a person's
+    # pace; the app waits 630 seconds.
+    "linkedin.edit": 600,
+    "linkedin.message": 600,
+    # Each waits on several buttons and a look after.
+    "linkedin.delete": 240,
+    "linkedin.connect": 240,
+    "linkedin.accept": 240,
+    # Each opens more than one page inside its read; the app waits 150 seconds.
+    "linkedin.check": 120,
+    "linkedin.lookup": 120,
+    "linkedin.seen": 120,
+    "linkedin.find_own": 120,
+    "linkedin.numbers": 120,
+    # The own feed scrolls and the inbox opens up to eight conversations.
+    "linkedin.feed": 120,
+    "linkedin.inbox": 120,
 }
 
 work = queue.Queue()

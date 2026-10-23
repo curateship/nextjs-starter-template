@@ -198,6 +198,8 @@ function DayCell({
     <section
       ref={setNodeRef}
       aria-label={inMonth ? label : undefined}
+      // Right-clicking the day starts a New task due that day (project-tasks-panel.tsx).
+      data-new-due={inMonth ? date : undefined}
       aria-hidden={inMonth ? undefined : true}
       className={cn(dayCellClassName(inMonth), isOver && "ring-2 ring-ring")}
     >
@@ -284,6 +286,7 @@ function TaskChip({
       ref={setNodeRef}
       type="button"
       onClick={onOpen}
+      data-task-id={task.id}
       {...listeners}
       {...attributes}
       // dnd-kit names it a draggable; it is a button that opens the task.

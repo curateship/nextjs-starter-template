@@ -354,7 +354,7 @@ export function TaskList({
                   <React.Fragment key={group.key}>
                     {group.label !== null ? (
                       // The shell's group heading, its label 16px in like the List's first column.
-                      <TableGroupRow colSpan={colSpan} inset="1rem" label={group.label}>
+                      <TableGroupRow colSpan={colSpan} inset="1rem" label={group.label} data-new-group={group.key}>
                         <span className="text-muted-foreground">{group.rows.length}</span>
                         {readOnly ? null : addTask?.(group.key, <HeadingAddButton label={group.label} />)}
                       </TableGroupRow>
@@ -439,6 +439,7 @@ function TaskRow({
     <TableRow
       ref={setNodeRef}
       style={style}
+      data-task-id={task.id}
       // A little tighter than the shell's rows (Tyler, 19 Oct 2026).
       className={cn("group [&>td]:py-1", isDragging && "relative z-10 bg-background")}
       rowAction={onOpen}

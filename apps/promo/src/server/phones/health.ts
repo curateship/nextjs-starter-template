@@ -17,8 +17,10 @@ import {
   type TrackedApp,
 } from "@/lib/phones/options"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { handleWords } from "@/lib/social/networks"
 import type { PromoNoticeKind } from "@/lib/social/notice-words"
 import { noticeId, ringBell, type PromoNotice } from "@/server/social/notices"
+import { settleFailedLinkedinJob } from "@/server/social/linkedin/settle"
 import { settleFailedMediumJob } from "@/server/social/medium/settle"
 import { promoAccounts, promoJobs, promoNotices } from "@/server/social/schema"
 import { settleFailedXJob } from "@/server/social/x/settle"
@@ -458,6 +460,8 @@ const BAN_KIND_WORDS: Record<string, string> = {
   suspended: "suspended",
   locked: "locked",
   confirm: "asking to confirm it's you",
+  // LinkedIn's word for an account it stopped (LinkedIn task, part 5).
+  restricted: "restricted",
 }
 
 /**
@@ -505,13 +509,14 @@ export async function stopForBanScreen(
         )
       )
       .returning({ id: promoJobs.id, kind: promoJobs.kind })
-    // A Medium or X row the job carried says why, or it would stay "on its way" for good.
+    // A Medium, X or LinkedIn row the job carried says why, or it would stay "on its way" for good.
     for (const job of dropped) {
       const why = `Not sent: the app showed a screen that stops the account ("${words}").`
       await settleFailedMediumJob(job, why, db)
       await settleFailedXJob(job, why, db)
+      await settleFailedLinkedinJob(job, why, db)
     }
-    const name = account.handle ? (account.platform === "reddit" ? `u/${account.handle}` : `@${account.handle}`) : "The account"
+    const name = handleWords(account.platform, account.handle) || "The account"
     const appName = APP_WORDS[account.platform as TrackedApp] ?? account.platform
     await ringBell(
       userId,

@@ -11,21 +11,115 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
-import { Route as AdminRouteImport } from './routes/admin'
-import { Route as ContentSitemapRouteImport } from './routes/content-sitemap'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as AddEventRouteImport } from './routes/add-event'
+import { Route as AddListingRouteImport } from './routes/add-listing'
+import { Route as ChangeEmailRouteImport } from './routes/change-email'
+import { Route as DealsRouteImport } from './routes/deals'
+import { Route as DirectoryRouteImport } from './routes/directory'
+import { Route as EventsRouteImport } from './routes/events'
 import { Route as EventsDoticsRouteImport } from './routes/events[.]ics'
+import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as GuidesRouteImport } from './routes/guides'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as MaintenanceRouteImport } from './routes/maintenance'
+import { Route as ManifestDotwebmanifestRouteImport } from './routes/manifest[.]webmanifest'
+import { Route as PostsRouteImport } from './routes/posts'
+import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ReportUnwantedSignInRouteImport } from './routes/report-unwanted-sign-in'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as RevokeEmailChangeRouteImport } from './routes/revoke-email-change'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
-import { Route as RscActionRouteImport } from './routes/rsc-action'
+import { Route as SearchRouteImport } from './routes/search'
+import { Route as SignInLinkRouteImport } from './routes/sign-in-link'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as AdminSplatRouteImport } from './routes/admin/$'
-import { Route as ApiSplatRouteImport } from './routes/api/$'
-import { Route as CdnSplatRouteImport } from './routes/cdn/$'
-import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps/$chunk'
-import { Route as EmbedListingDirectoryIdRouteImport } from './routes/embed/listing/$directoryId'
-import { Route as EventsSlugCalendarDoticsRouteImport } from './routes/events/$slug/calendar[.]ics'
-import { Route as ShareImageTypeItemIdRouteImport } from './routes/share-image/$type/$itemId'
-import { Route as SponsorReportsTokenExportRouteImport } from './routes/sponsor-reports/$token/export'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
+import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
+import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedMyListingsRouteImport } from './routes/_authenticated/my-listings'
+import { Route as AuthenticatedSavedListingsRouteImport } from './routes/_authenticated/saved-listings'
+import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
+import { Route as ApiDirectoryOutreachUnsubscribeRouteImport } from './routes/api/directory-outreach-unsubscribe'
+import { Route as ApiDirectoryVerifyRouteImport } from './routes/api/directory-verify'
+import { Route as ApiEventSeatRouteImport } from './routes/api/event-seat'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiListingUnfollowRouteImport } from './routes/api/listing-unfollow'
+import { Route as DealsSlugRouteImport } from './routes/deals_.$slug'
+import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps.$chunk'
+import { Route as DirectorySlugRouteImport } from './routes/directory_.$slug'
+import { Route as EventSitemapsChunkRouteImport } from './routes/event-sitemaps.$chunk'
+import { Route as EventsSlugRouteImport } from './routes/events_.$slug'
+import { Route as GuidesSlugRouteImport } from './routes/guides_.$slug'
+import { Route as PostSitemapsChunkRouteImport } from './routes/post-sitemaps.$chunk'
+import { Route as PostsSlugRouteImport } from './routes/posts_.$slug'
+import { Route as ProfileProfileIdRouteImport } from './routes/profile_.$profileId'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
+import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
+import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
+import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
+import { Route as AuthenticatedAdminCategoriesRouteImport } from './routes/_authenticated/admin/categories'
+import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
+import { Route as AuthenticatedAdminCrmRouteImport } from './routes/_authenticated/admin/crm'
+import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
+import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
+import { Route as AuthenticatedAdminEventSubmissionsRouteImport } from './routes/_authenticated/admin/event-submissions'
+import { Route as AuthenticatedAdminEventsRouteImport } from './routes/_authenticated/admin/events'
+import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
+import { Route as AuthenticatedAdminListingClaimsRouteImport } from './routes/_authenticated/admin/listing-claims'
+import { Route as AuthenticatedAdminListingFeaturedRouteImport } from './routes/_authenticated/admin/listing-featured'
+import { Route as AuthenticatedAdminListingFieldsRouteImport } from './routes/_authenticated/admin/listing-fields'
+import { Route as AuthenticatedAdminListingGuidesRouteImport } from './routes/_authenticated/admin/listing-guides'
+import { Route as AuthenticatedAdminListingOutreachRouteImport } from './routes/_authenticated/admin/listing-outreach'
+import { Route as AuthenticatedAdminListingReportsRouteImport } from './routes/_authenticated/admin/listing-reports'
+import { Route as AuthenticatedAdminListingSavesRouteImport } from './routes/_authenticated/admin/listing-saves'
+import { Route as AuthenticatedAdminListingSubmissionsRouteImport } from './routes/_authenticated/admin/listing-submissions'
+import { Route as AuthenticatedAdminListingsRouteImport } from './routes/_authenticated/admin/listings'
+import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
+import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_authenticated/admin/membership'
+import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_authenticated/admin/newsletter'
+import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
+import { Route as AuthenticatedAdminPagesRouteImport } from './routes/_authenticated/admin/pages'
+import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
+import { Route as AuthenticatedAdminPostsRouteImport } from './routes/_authenticated/admin/posts'
+import { Route as AuthenticatedAdminPromotionRequestsRouteImport } from './routes/_authenticated/admin/promotion-requests'
+import { Route as AuthenticatedAdminPromotionsRouteImport } from './routes/_authenticated/admin/promotions'
+import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
+import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
+import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
+import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
+import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
+import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
+import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
+import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
+import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
+import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
+import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
+import { Route as DealsCodeCodeRouteImport } from './routes/deals_.code.$code'
+import { Route as DirectoryCategorySlugRouteImport } from './routes/directory_.category.$slug'
+import { Route as DirectoryShareImageSlugRouteImport } from './routes/directory_.share-image.$slug'
+import { Route as EmbedListingListingIdRouteImport } from './routes/embed/listing/$listingId'
+import { Route as EventsSlugCalendarDoticsRouteImport } from './routes/events_.$slug.calendar[.]ics'
+import { Route as EventsShareImageSlugRouteImport } from './routes/events_.share-image.$slug'
+import { Route as GuidesShareImageSlugRouteImport } from './routes/guides_.share-image.$slug'
+import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
+import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
+import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
+import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
+import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
+import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
+import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
+import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
+import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
+import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
+import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
+import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
+import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -37,14 +131,38 @@ const SplatRoute = SplatRouteImport.update({
   path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ContentSitemapRoute = ContentSitemapRouteImport.update({
-  id: '/content-sitemap',
-  path: '/content-sitemap',
+const AddEventRoute = AddEventRouteImport.update({
+  id: '/add-event',
+  path: '/add-event',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AddListingRoute = AddListingRouteImport.update({
+  id: '/add-listing',
+  path: '/add-listing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChangeEmailRoute = ChangeEmailRouteImport.update({
+  id: '/change-email',
+  path: '/change-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DealsRoute = DealsRouteImport.update({
+  id: '/deals',
+  path: '/deals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DirectoryRoute = DirectoryRouteImport.update({
+  id: '/directory',
+  path: '/directory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventsRoute = EventsRouteImport.update({
+  id: '/events',
+  path: '/events',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EventsDoticsRoute = EventsDoticsRouteImport.update({
@@ -52,14 +170,79 @@ const EventsDoticsRoute = EventsDoticsRouteImport.update({
   path: '/events.ics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FeedDotxmlRoute = FeedDotxmlRouteImport.update({
+  id: '/feed.xml',
+  path: '/feed.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuidesRoute = GuidesRouteImport.update({
+  id: '/guides',
+  path: '/guides',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MaintenanceRoute = MaintenanceRouteImport.update({
+  id: '/maintenance',
+  path: '/maintenance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManifestDotwebmanifestRoute = ManifestDotwebmanifestRouteImport.update({
+  id: '/manifest.webmanifest',
+  path: '/manifest.webmanifest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PostsRoute = PostsRouteImport.update({
+  id: '/posts',
+  path: '/posts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportUnwantedSignInRoute = ReportUnwantedSignInRouteImport.update({
+  id: '/report-unwanted-sign-in',
+  path: '/report-unwanted-sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RevokeEmailChangeRoute = RevokeEmailChangeRouteImport.update({
+  id: '/revoke-email-change',
+  path: '/revoke-email-change',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
   id: '/robots.txt',
   path: '/robots.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RscActionRoute = RscActionRouteImport.update({
-  id: '/rsc-action',
-  path: '/rsc-action',
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInLinkRoute = SignInLinkRouteImport.update({
+  id: '/sign-in-link',
+  path: '/sign-in-link',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -67,24 +250,81 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminIndexRoute = AdminIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminSplatRoute = AdminSplatRouteImport.update({
-  id: '/$',
-  path: '/$',
-  getParentRoute: () => AdminRoute,
-} as any)
-const ApiSplatRoute = ApiSplatRouteImport.update({
-  id: '/api/$',
-  path: '/api/$',
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CdnSplatRoute = CdnSplatRouteImport.update({
-  id: '/cdn/$',
-  path: '/cdn/$',
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedChangelogRoute = AuthenticatedChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedMyListingsRoute = AuthenticatedMyListingsRouteImport.update({
+  id: '/my-listings',
+  path: '/my-listings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedSavedListingsRoute =
+  AuthenticatedSavedListingsRouteImport.update({
+    id: '/saved-listings',
+    path: '/saved-listings',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
+  id: '/workspaces',
+  path: '/workspaces',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const ApiDirectoryOutreachUnsubscribeRoute =
+  ApiDirectoryOutreachUnsubscribeRouteImport.update({
+    id: '/api/directory-outreach-unsubscribe',
+    path: '/api/directory-outreach-unsubscribe',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiDirectoryVerifyRoute = ApiDirectoryVerifyRouteImport.update({
+  id: '/api/directory-verify',
+  path: '/api/directory-verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEventSeatRoute = ApiEventSeatRouteImport.update({
+  id: '/api/event-seat',
+  path: '/api/event-seat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiListingUnfollowRoute = ApiListingUnfollowRouteImport.update({
+  id: '/api/listing-unfollow',
+  path: '/api/listing-unfollow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DealsSlugRoute = DealsSlugRouteImport.update({
+  id: '/deals_/$slug',
+  path: '/deals/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DirectorySitemapsChunkRoute = DirectorySitemapsChunkRouteImport.update({
@@ -92,161 +332,1124 @@ const DirectorySitemapsChunkRoute = DirectorySitemapsChunkRouteImport.update({
   path: '/directory-sitemaps/$chunk',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EmbedListingDirectoryIdRoute = EmbedListingDirectoryIdRouteImport.update({
-  id: '/embed/listing/$directoryId',
-  path: '/embed/listing/$directoryId',
+const DirectorySlugRoute = DirectorySlugRouteImport.update({
+  id: '/directory_/$slug',
+  path: '/directory/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventSitemapsChunkRoute = EventSitemapsChunkRouteImport.update({
+  id: '/event-sitemaps/$chunk',
+  path: '/event-sitemaps/$chunk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventsSlugRoute = EventsSlugRouteImport.update({
+  id: '/events_/$slug',
+  path: '/events/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuidesSlugRoute = GuidesSlugRouteImport.update({
+  id: '/guides_/$slug',
+  path: '/guides/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PostSitemapsChunkRoute = PostSitemapsChunkRouteImport.update({
+  id: '/post-sitemaps/$chunk',
+  path: '/post-sitemaps/$chunk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PostsSlugRoute = PostsSlugRouteImport.update({
+  id: '/posts_/$slug',
+  path: '/posts/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileProfileIdRoute = ProfileProfileIdRouteImport.update({
+  id: '/profile_/$profileId',
+  path: '/profile/$profileId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminAiRoute = AuthenticatedAdminAiRouteImport.update({
+  id: '/ai',
+  path: '/ai',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminAiUsageRoute =
+  AuthenticatedAdminAiUsageRouteImport.update({
+    id: '/ai-usage',
+    path: '/ai-usage',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminAnnouncementsRoute =
+  AuthenticatedAdminAnnouncementsRouteImport.update({
+    id: '/announcements',
+    path: '/announcements',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminAutomationsRoute =
+  AuthenticatedAdminAutomationsRouteImport.update({
+    id: '/automations',
+    path: '/automations',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminCategoriesRoute =
+  AuthenticatedAdminCategoriesRouteImport.update({
+    id: '/categories',
+    path: '/categories',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminContactsRoute =
+  AuthenticatedAdminContactsRouteImport.update({
+    id: '/contacts',
+    path: '/contacts',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminCrmRoute = AuthenticatedAdminCrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminDashboardRoute =
+  AuthenticatedAdminDashboardRouteImport.update({
+    id: '/dashboard',
+    path: '/dashboard',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminDevOutboxRoute =
+  AuthenticatedAdminDevOutboxRouteImport.update({
+    id: '/dev-outbox',
+    path: '/dev-outbox',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminEventSubmissionsRoute =
+  AuthenticatedAdminEventSubmissionsRouteImport.update({
+    id: '/event-submissions',
+    path: '/event-submissions',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminEventsRoute =
+  AuthenticatedAdminEventsRouteImport.update({
+    id: '/events',
+    path: '/events',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminFeedbackRoute =
+  AuthenticatedAdminFeedbackRouteImport.update({
+    id: '/feedback',
+    path: '/feedback',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingClaimsRoute =
+  AuthenticatedAdminListingClaimsRouteImport.update({
+    id: '/listing-claims',
+    path: '/listing-claims',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingFeaturedRoute =
+  AuthenticatedAdminListingFeaturedRouteImport.update({
+    id: '/listing-featured',
+    path: '/listing-featured',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingFieldsRoute =
+  AuthenticatedAdminListingFieldsRouteImport.update({
+    id: '/listing-fields',
+    path: '/listing-fields',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingGuidesRoute =
+  AuthenticatedAdminListingGuidesRouteImport.update({
+    id: '/listing-guides',
+    path: '/listing-guides',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingOutreachRoute =
+  AuthenticatedAdminListingOutreachRouteImport.update({
+    id: '/listing-outreach',
+    path: '/listing-outreach',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingReportsRoute =
+  AuthenticatedAdminListingReportsRouteImport.update({
+    id: '/listing-reports',
+    path: '/listing-reports',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingSavesRoute =
+  AuthenticatedAdminListingSavesRouteImport.update({
+    id: '/listing-saves',
+    path: '/listing-saves',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingSubmissionsRoute =
+  AuthenticatedAdminListingSubmissionsRouteImport.update({
+    id: '/listing-submissions',
+    path: '/listing-submissions',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingsRoute =
+  AuthenticatedAdminListingsRouteImport.update({
+    id: '/listings',
+    path: '/listings',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
+  id: '/media',
+  path: '/media',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminMembershipRoute =
+  AuthenticatedAdminMembershipRouteImport.update({
+    id: '/membership',
+    path: '/membership',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminNewsletterRoute =
+  AuthenticatedAdminNewsletterRouteImport.update({
+    id: '/newsletter',
+    path: '/newsletter',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminNotificationsRoute =
+  AuthenticatedAdminNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminPagesRoute = AuthenticatedAdminPagesRouteImport.update({
+  id: '/pages',
+  path: '/pages',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminPlansRoute = AuthenticatedAdminPlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminPostsRoute = AuthenticatedAdminPostsRouteImport.update({
+  id: '/posts',
+  path: '/posts',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminPromotionRequestsRoute =
+  AuthenticatedAdminPromotionRequestsRouteImport.update({
+    id: '/promotion-requests',
+    path: '/promotion-requests',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminPromotionsRoute =
+  AuthenticatedAdminPromotionsRouteImport.update({
+    id: '/promotions',
+    path: '/promotions',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminReferralsRoute =
+  AuthenticatedAdminReferralsRouteImport.update({
+    id: '/referrals',
+    path: '/referrals',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminSegmentsRoute =
+  AuthenticatedAdminSegmentsRouteImport.update({
+    id: '/segments',
+    path: '/segments',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminSettingsRoute =
+  AuthenticatedAdminSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminSystemEmailsRoute =
+  AuthenticatedAdminSystemEmailsRouteImport.update({
+    id: '/system-emails',
+    path: '/system-emails',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminTrafficRoute =
+  AuthenticatedAdminTrafficRouteImport.update({
+    id: '/traffic',
+    path: '/traffic',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedChangelogIndexRoute =
+  AuthenticatedChangelogIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedChangelogRoute,
+  } as any)
+const AuthenticatedChangelogWhatsNewRoute =
+  AuthenticatedChangelogWhatsNewRouteImport.update({
+    id: '/whats-new',
+    path: '/whats-new',
+    getParentRoute: () => AuthenticatedChangelogRoute,
+  } as any)
+const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
+  id: '/api/auth/google',
+  path: '/api/auth/google',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWebhooksResendRoute = ApiWebhooksResendRouteImport.update({
+  id: '/api/webhooks/resend',
+  path: '/api/webhooks/resend',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
+  id: '/api/webhooks/stripe',
+  path: '/api/webhooks/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DealsCodeCodeRoute = DealsCodeCodeRouteImport.update({
+  id: '/deals_/code/$code',
+  path: '/deals/code/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DirectoryCategorySlugRoute = DirectoryCategorySlugRouteImport.update({
+  id: '/directory_/category/$slug',
+  path: '/directory/category/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DirectoryShareImageSlugRoute = DirectoryShareImageSlugRouteImport.update({
+  id: '/directory_/share-image/$slug',
+  path: '/directory/share-image/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedListingListingIdRoute = EmbedListingListingIdRouteImport.update({
+  id: '/embed/listing/$listingId',
+  path: '/embed/listing/$listingId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EventsSlugCalendarDoticsRoute =
   EventsSlugCalendarDoticsRouteImport.update({
-    id: '/events/$slug/calendar.ics',
-    path: '/events/$slug/calendar.ics',
-    getParentRoute: () => rootRouteImport,
+    id: '/calendar.ics',
+    path: '/calendar.ics',
+    getParentRoute: () => EventsSlugRoute,
   } as any)
-const ShareImageTypeItemIdRoute = ShareImageTypeItemIdRouteImport.update({
-  id: '/share-image/$type/$itemId',
-  path: '/share-image/$type/$itemId',
+const EventsShareImageSlugRoute = EventsShareImageSlugRouteImport.update({
+  id: '/events_/share-image/$slug',
+  path: '/events/share-image/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SponsorReportsTokenExportRoute =
-  SponsorReportsTokenExportRouteImport.update({
-    id: '/sponsor-reports/$token/export',
-    path: '/sponsor-reports/$token/export',
+const GuidesShareImageSlugRoute = GuidesShareImageSlugRouteImport.update({
+  id: '/guides_/share-image/$slug',
+  path: '/guides/share-image/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAccountBillingSuccessRoute =
+  AuthenticatedAccountBillingSuccessRouteImport.update({
+    id: '/billing_/success',
+    path: '/billing/success',
+    getParentRoute: () => AuthenticatedAccountRoute,
+  } as any)
+const AuthenticatedAdminAutomationsAutomationIdRoute =
+  AuthenticatedAdminAutomationsAutomationIdRouteImport.update({
+    id: '/automations_/$automationId',
+    path: '/automations/$automationId',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminAutomationsTemplatesRoute =
+  AuthenticatedAdminAutomationsTemplatesRouteImport.update({
+    id: '/automations_/templates',
+    path: '/automations/templates',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminNewsletterBroadcastIdRoute =
+  AuthenticatedAdminNewsletterBroadcastIdRouteImport.update({
+    id: '/newsletter_/$broadcastId',
+    path: '/newsletter/$broadcastId',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminPagesEditRoute =
+  AuthenticatedAdminPagesEditRouteImport.update({
+    id: '/pages_/edit',
+    path: '/pages/edit',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminSettingsTabRoute =
+  AuthenticatedAdminSettingsTabRouteImport.update({
+    id: '/$tab',
+    path: '/$tab',
+    getParentRoute: () => AuthenticatedAdminSettingsRoute,
+  } as any)
+const AuthenticatedAdminSystemEmailsKindRoute =
+  AuthenticatedAdminSystemEmailsKindRouteImport.update({
+    id: '/system-emails_/$kind',
+    path: '/system-emails/$kind',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
+  id: '/api/auth/google_/callback',
+  path: '/api/auth/google/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1MediaResizedRoute = ApiV1MediaResizedRouteImport.update({
+  id: '/api/v1/media/resized',
+  path: '/api/v1/media/resized',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1NotificationsStreamRoute =
+  ApiV1NotificationsStreamRouteImport.update({
+    id: '/api/v1/notifications/stream',
+    path: '/api/v1/notifications/stream',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1TrafficViewRoute = ApiV1TrafficViewRouteImport.update({
+  id: '/api/v1/traffic/view',
+  path: '/api/v1/traffic/view',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute =
+  AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport.update({
+    id: '/automations_/templates_/$templateKey',
+    path: '/automations/templates/$templateKey',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
+  id: '/api/v1/media/$mediaId/file',
+  path: '/api/v1/media/$mediaId/file',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/admin': typeof AdminRouteWithChildren
-  '/content-sitemap': typeof ContentSitemapRoute
+  '/add-event': typeof AddEventRoute
+  '/add-listing': typeof AddListingRoute
+  '/change-email': typeof ChangeEmailRoute
+  '/deals': typeof DealsRoute
+  '/directory': typeof DirectoryRoute
+  '/events': typeof EventsRoute
   '/events.ics': typeof EventsDoticsRoute
+  '/feed.xml': typeof FeedDotxmlRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/guides': typeof GuidesRoute
+  '/login': typeof LoginRoute
+  '/maintenance': typeof MaintenanceRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/posts': typeof PostsRoute
+  '/pricing': typeof PricingRoute
+  '/register': typeof RegisterRoute
+  '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/revoke-email-change': typeof RevokeEmailChangeRoute
   '/robots.txt': typeof RobotsDottxtRoute
-  '/rsc-action': typeof RscActionRoute
+  '/search': typeof SearchRoute
+  '/sign-in-link': typeof SignInLinkRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/admin/$': typeof AdminSplatRoute
-  '/api/$': typeof ApiSplatRoute
-  '/cdn/$': typeof CdnSplatRoute
+  '/unsubscribe': typeof UnsubscribeRoute
+  '/verify-email': typeof VerifyEmailRoute
+  '/account': typeof AuthenticatedAccountRouteWithChildren
+  '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/changelog': typeof AuthenticatedChangelogRouteWithChildren
+  '/home': typeof AuthenticatedHomeRoute
+  '/my-listings': typeof AuthenticatedMyListingsRoute
+  '/saved-listings': typeof AuthenticatedSavedListingsRoute
+  '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
+  '/api/directory-verify': typeof ApiDirectoryVerifyRoute
+  '/api/event-seat': typeof ApiEventSeatRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/listing-unfollow': typeof ApiListingUnfollowRoute
+  '/deals/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
-  '/admin/': typeof AdminIndexRoute
-  '/embed/listing/$directoryId': typeof EmbedListingDirectoryIdRoute
+  '/directory/$slug': typeof DirectorySlugRoute
+  '/event-sitemaps/$chunk': typeof EventSitemapsChunkRoute
+  '/events/$slug': typeof EventsSlugRouteWithChildren
+  '/guides/$slug': typeof GuidesSlugRoute
+  '/post-sitemaps/$chunk': typeof PostSitemapsChunkRoute
+  '/posts/$slug': typeof PostsSlugRoute
+  '/profile/$profileId': typeof ProfileProfileIdRoute
+  '/admin/ai': typeof AuthenticatedAdminAiRoute
+  '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
+  '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
+  '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
+  '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
+  '/admin/contacts': typeof AuthenticatedAdminContactsRoute
+  '/admin/crm': typeof AuthenticatedAdminCrmRoute
+  '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
+  '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
+  '/admin/event-submissions': typeof AuthenticatedAdminEventSubmissionsRoute
+  '/admin/events': typeof AuthenticatedAdminEventsRoute
+  '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
+  '/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
+  '/admin/listing-fields': typeof AuthenticatedAdminListingFieldsRoute
+  '/admin/listing-guides': typeof AuthenticatedAdminListingGuidesRoute
+  '/admin/listing-outreach': typeof AuthenticatedAdminListingOutreachRoute
+  '/admin/listing-reports': typeof AuthenticatedAdminListingReportsRoute
+  '/admin/listing-saves': typeof AuthenticatedAdminListingSavesRoute
+  '/admin/listing-submissions': typeof AuthenticatedAdminListingSubmissionsRoute
+  '/admin/listings': typeof AuthenticatedAdminListingsRoute
+  '/admin/media': typeof AuthenticatedAdminMediaRoute
+  '/admin/membership': typeof AuthenticatedAdminMembershipRoute
+  '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
+  '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
+  '/admin/pages': typeof AuthenticatedAdminPagesRoute
+  '/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/admin/posts': typeof AuthenticatedAdminPostsRoute
+  '/admin/promotion-requests': typeof AuthenticatedAdminPromotionRequestsRoute
+  '/admin/promotions': typeof AuthenticatedAdminPromotionsRoute
+  '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
+  '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
+  '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
+  '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/webhooks/resend': typeof ApiWebhooksResendRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/deals/code/$code': typeof DealsCodeCodeRoute
+  '/directory/category/$slug': typeof DirectoryCategorySlugRoute
+  '/directory/share-image/$slug': typeof DirectoryShareImageSlugRoute
+  '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
-  '/share-image/$type/$itemId': typeof ShareImageTypeItemIdRoute
-  '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
+  '/events/share-image/$slug': typeof EventsShareImageSlugRoute
+  '/guides/share-image/$slug': typeof GuidesShareImageSlugRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/changelog/': typeof AuthenticatedChangelogIndexRoute
+  '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
+  '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
+  '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
+  '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
+  '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
+  '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
+  '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
+  '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
+  '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/content-sitemap': typeof ContentSitemapRoute
+  '/add-event': typeof AddEventRoute
+  '/add-listing': typeof AddListingRoute
+  '/change-email': typeof ChangeEmailRoute
+  '/deals': typeof DealsRoute
+  '/directory': typeof DirectoryRoute
+  '/events': typeof EventsRoute
   '/events.ics': typeof EventsDoticsRoute
+  '/feed.xml': typeof FeedDotxmlRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/guides': typeof GuidesRoute
+  '/login': typeof LoginRoute
+  '/maintenance': typeof MaintenanceRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/posts': typeof PostsRoute
+  '/pricing': typeof PricingRoute
+  '/register': typeof RegisterRoute
+  '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/revoke-email-change': typeof RevokeEmailChangeRoute
   '/robots.txt': typeof RobotsDottxtRoute
-  '/rsc-action': typeof RscActionRoute
+  '/search': typeof SearchRoute
+  '/sign-in-link': typeof SignInLinkRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/admin/$': typeof AdminSplatRoute
-  '/api/$': typeof ApiSplatRoute
-  '/cdn/$': typeof CdnSplatRoute
+  '/unsubscribe': typeof UnsubscribeRoute
+  '/verify-email': typeof VerifyEmailRoute
+  '/account': typeof AuthenticatedAccountRouteWithChildren
+  '/home': typeof AuthenticatedHomeRoute
+  '/my-listings': typeof AuthenticatedMyListingsRoute
+  '/saved-listings': typeof AuthenticatedSavedListingsRoute
+  '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
+  '/api/directory-verify': typeof ApiDirectoryVerifyRoute
+  '/api/event-seat': typeof ApiEventSeatRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/listing-unfollow': typeof ApiListingUnfollowRoute
+  '/deals/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
-  '/admin': typeof AdminIndexRoute
-  '/embed/listing/$directoryId': typeof EmbedListingDirectoryIdRoute
+  '/directory/$slug': typeof DirectorySlugRoute
+  '/event-sitemaps/$chunk': typeof EventSitemapsChunkRoute
+  '/events/$slug': typeof EventsSlugRouteWithChildren
+  '/guides/$slug': typeof GuidesSlugRoute
+  '/post-sitemaps/$chunk': typeof PostSitemapsChunkRoute
+  '/posts/$slug': typeof PostsSlugRoute
+  '/profile/$profileId': typeof ProfileProfileIdRoute
+  '/admin/ai': typeof AuthenticatedAdminAiRoute
+  '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
+  '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
+  '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
+  '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
+  '/admin/contacts': typeof AuthenticatedAdminContactsRoute
+  '/admin/crm': typeof AuthenticatedAdminCrmRoute
+  '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
+  '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
+  '/admin/event-submissions': typeof AuthenticatedAdminEventSubmissionsRoute
+  '/admin/events': typeof AuthenticatedAdminEventsRoute
+  '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
+  '/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
+  '/admin/listing-fields': typeof AuthenticatedAdminListingFieldsRoute
+  '/admin/listing-guides': typeof AuthenticatedAdminListingGuidesRoute
+  '/admin/listing-outreach': typeof AuthenticatedAdminListingOutreachRoute
+  '/admin/listing-reports': typeof AuthenticatedAdminListingReportsRoute
+  '/admin/listing-saves': typeof AuthenticatedAdminListingSavesRoute
+  '/admin/listing-submissions': typeof AuthenticatedAdminListingSubmissionsRoute
+  '/admin/listings': typeof AuthenticatedAdminListingsRoute
+  '/admin/media': typeof AuthenticatedAdminMediaRoute
+  '/admin/membership': typeof AuthenticatedAdminMembershipRoute
+  '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
+  '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
+  '/admin/pages': typeof AuthenticatedAdminPagesRoute
+  '/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/admin/posts': typeof AuthenticatedAdminPostsRoute
+  '/admin/promotion-requests': typeof AuthenticatedAdminPromotionRequestsRoute
+  '/admin/promotions': typeof AuthenticatedAdminPromotionsRoute
+  '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
+  '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
+  '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
+  '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/webhooks/resend': typeof ApiWebhooksResendRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/deals/code/$code': typeof DealsCodeCodeRoute
+  '/directory/category/$slug': typeof DirectoryCategorySlugRoute
+  '/directory/share-image/$slug': typeof DirectoryShareImageSlugRoute
+  '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
-  '/share-image/$type/$itemId': typeof ShareImageTypeItemIdRoute
-  '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
+  '/events/share-image/$slug': typeof EventsShareImageSlugRoute
+  '/guides/share-image/$slug': typeof GuidesShareImageSlugRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
+  '/changelog': typeof AuthenticatedChangelogIndexRoute
+  '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
+  '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
+  '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
+  '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
+  '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
+  '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
+  '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
+  '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
+  '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/admin': typeof AdminRouteWithChildren
-  '/content-sitemap': typeof ContentSitemapRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/add-event': typeof AddEventRoute
+  '/add-listing': typeof AddListingRoute
+  '/change-email': typeof ChangeEmailRoute
+  '/deals': typeof DealsRoute
+  '/directory': typeof DirectoryRoute
+  '/events': typeof EventsRoute
   '/events.ics': typeof EventsDoticsRoute
+  '/feed.xml': typeof FeedDotxmlRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/guides': typeof GuidesRoute
+  '/login': typeof LoginRoute
+  '/maintenance': typeof MaintenanceRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/posts': typeof PostsRoute
+  '/pricing': typeof PricingRoute
+  '/register': typeof RegisterRoute
+  '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/revoke-email-change': typeof RevokeEmailChangeRoute
   '/robots.txt': typeof RobotsDottxtRoute
-  '/rsc-action': typeof RscActionRoute
+  '/search': typeof SearchRoute
+  '/sign-in-link': typeof SignInLinkRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/admin/$': typeof AdminSplatRoute
-  '/api/$': typeof ApiSplatRoute
-  '/cdn/$': typeof CdnSplatRoute
+  '/unsubscribe': typeof UnsubscribeRoute
+  '/verify-email': typeof VerifyEmailRoute
+  '/_authenticated/account': typeof AuthenticatedAccountRouteWithChildren
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
+  '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/my-listings': typeof AuthenticatedMyListingsRoute
+  '/_authenticated/saved-listings': typeof AuthenticatedSavedListingsRoute
+  '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
+  '/api/directory-verify': typeof ApiDirectoryVerifyRoute
+  '/api/event-seat': typeof ApiEventSeatRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/listing-unfollow': typeof ApiListingUnfollowRoute
+  '/deals_/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
-  '/admin/': typeof AdminIndexRoute
-  '/embed/listing/$directoryId': typeof EmbedListingDirectoryIdRoute
-  '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
-  '/share-image/$type/$itemId': typeof ShareImageTypeItemIdRoute
-  '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
+  '/directory_/$slug': typeof DirectorySlugRoute
+  '/event-sitemaps/$chunk': typeof EventSitemapsChunkRoute
+  '/events_/$slug': typeof EventsSlugRouteWithChildren
+  '/guides_/$slug': typeof GuidesSlugRoute
+  '/post-sitemaps/$chunk': typeof PostSitemapsChunkRoute
+  '/posts_/$slug': typeof PostsSlugRoute
+  '/profile_/$profileId': typeof ProfileProfileIdRoute
+  '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
+  '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
+  '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
+  '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
+  '/_authenticated/admin/categories': typeof AuthenticatedAdminCategoriesRoute
+  '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
+  '/_authenticated/admin/crm': typeof AuthenticatedAdminCrmRoute
+  '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
+  '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
+  '/_authenticated/admin/event-submissions': typeof AuthenticatedAdminEventSubmissionsRoute
+  '/_authenticated/admin/events': typeof AuthenticatedAdminEventsRoute
+  '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/_authenticated/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
+  '/_authenticated/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
+  '/_authenticated/admin/listing-fields': typeof AuthenticatedAdminListingFieldsRoute
+  '/_authenticated/admin/listing-guides': typeof AuthenticatedAdminListingGuidesRoute
+  '/_authenticated/admin/listing-outreach': typeof AuthenticatedAdminListingOutreachRoute
+  '/_authenticated/admin/listing-reports': typeof AuthenticatedAdminListingReportsRoute
+  '/_authenticated/admin/listing-saves': typeof AuthenticatedAdminListingSavesRoute
+  '/_authenticated/admin/listing-submissions': typeof AuthenticatedAdminListingSubmissionsRoute
+  '/_authenticated/admin/listings': typeof AuthenticatedAdminListingsRoute
+  '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
+  '/_authenticated/admin/membership': typeof AuthenticatedAdminMembershipRoute
+  '/_authenticated/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
+  '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
+  '/_authenticated/admin/pages': typeof AuthenticatedAdminPagesRoute
+  '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/_authenticated/admin/posts': typeof AuthenticatedAdminPostsRoute
+  '/_authenticated/admin/promotion-requests': typeof AuthenticatedAdminPromotionRequestsRoute
+  '/_authenticated/admin/promotions': typeof AuthenticatedAdminPromotionsRoute
+  '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
+  '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
+  '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
+  '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
+  '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/webhooks/resend': typeof ApiWebhooksResendRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/deals_/code/$code': typeof DealsCodeCodeRoute
+  '/directory_/category/$slug': typeof DirectoryCategorySlugRoute
+  '/directory_/share-image/$slug': typeof DirectoryShareImageSlugRoute
+  '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
+  '/events_/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
+  '/events_/share-image/$slug': typeof EventsShareImageSlugRoute
+  '/guides_/share-image/$slug': typeof GuidesShareImageSlugRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
+  '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
+  '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
+  '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
+  '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
+  '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
+  '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
+  '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
+  '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
+  '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/$'
-    | '/admin'
-    | '/content-sitemap'
+    | '/add-event'
+    | '/add-listing'
+    | '/change-email'
+    | '/deals'
+    | '/directory'
+    | '/events'
     | '/events.ics'
+    | '/feed.xml'
+    | '/forgot-password'
+    | '/guides'
+    | '/login'
+    | '/maintenance'
+    | '/manifest.webmanifest'
+    | '/posts'
+    | '/pricing'
+    | '/register'
+    | '/report-unwanted-sign-in'
+    | '/reset-password'
+    | '/revoke-email-change'
     | '/robots.txt'
-    | '/rsc-action'
+    | '/search'
+    | '/sign-in-link'
     | '/sitemap.xml'
-    | '/admin/$'
-    | '/api/$'
-    | '/cdn/$'
+    | '/unsubscribe'
+    | '/verify-email'
+    | '/account'
+    | '/admin'
+    | '/changelog'
+    | '/home'
+    | '/my-listings'
+    | '/saved-listings'
+    | '/workspaces'
+    | '/api/directory-outreach-unsubscribe'
+    | '/api/directory-verify'
+    | '/api/event-seat'
+    | '/api/health'
+    | '/api/listing-unfollow'
+    | '/deals/$slug'
     | '/directory-sitemaps/$chunk'
-    | '/admin/'
-    | '/embed/listing/$directoryId'
+    | '/directory/$slug'
+    | '/event-sitemaps/$chunk'
+    | '/events/$slug'
+    | '/guides/$slug'
+    | '/post-sitemaps/$chunk'
+    | '/posts/$slug'
+    | '/profile/$profileId'
+    | '/admin/ai'
+    | '/admin/ai-usage'
+    | '/admin/announcements'
+    | '/admin/automations'
+    | '/admin/categories'
+    | '/admin/contacts'
+    | '/admin/crm'
+    | '/admin/dashboard'
+    | '/admin/dev-outbox'
+    | '/admin/event-submissions'
+    | '/admin/events'
+    | '/admin/feedback'
+    | '/admin/listing-claims'
+    | '/admin/listing-featured'
+    | '/admin/listing-fields'
+    | '/admin/listing-guides'
+    | '/admin/listing-outreach'
+    | '/admin/listing-reports'
+    | '/admin/listing-saves'
+    | '/admin/listing-submissions'
+    | '/admin/listings'
+    | '/admin/media'
+    | '/admin/membership'
+    | '/admin/newsletter'
+    | '/admin/notifications'
+    | '/admin/pages'
+    | '/admin/plans'
+    | '/admin/posts'
+    | '/admin/promotion-requests'
+    | '/admin/promotions'
+    | '/admin/referrals'
+    | '/admin/segments'
+    | '/admin/settings'
+    | '/admin/system-emails'
+    | '/admin/traffic'
+    | '/admin/users'
+    | '/changelog/whats-new'
+    | '/api/auth/google'
+    | '/api/webhooks/resend'
+    | '/api/webhooks/stripe'
+    | '/deals/code/$code'
+    | '/directory/category/$slug'
+    | '/directory/share-image/$slug'
+    | '/embed/listing/$listingId'
     | '/events/$slug/calendar.ics'
-    | '/share-image/$type/$itemId'
-    | '/sponsor-reports/$token/export'
+    | '/events/share-image/$slug'
+    | '/guides/share-image/$slug'
+    | '/admin/'
+    | '/changelog/'
+    | '/account/billing/success'
+    | '/admin/automations/$automationId'
+    | '/admin/automations/templates'
+    | '/admin/newsletter/$broadcastId'
+    | '/admin/pages/edit'
+    | '/admin/settings/$tab'
+    | '/admin/system-emails/$kind'
+    | '/api/auth/google/callback'
+    | '/api/v1/media/resized'
+    | '/api/v1/notifications/stream'
+    | '/api/v1/traffic/view'
+    | '/admin/automations/templates/$templateKey'
+    | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$'
-    | '/content-sitemap'
+    | '/add-event'
+    | '/add-listing'
+    | '/change-email'
+    | '/deals'
+    | '/directory'
+    | '/events'
     | '/events.ics'
+    | '/feed.xml'
+    | '/forgot-password'
+    | '/guides'
+    | '/login'
+    | '/maintenance'
+    | '/manifest.webmanifest'
+    | '/posts'
+    | '/pricing'
+    | '/register'
+    | '/report-unwanted-sign-in'
+    | '/reset-password'
+    | '/revoke-email-change'
     | '/robots.txt'
-    | '/rsc-action'
+    | '/search'
+    | '/sign-in-link'
     | '/sitemap.xml'
-    | '/admin/$'
-    | '/api/$'
-    | '/cdn/$'
+    | '/unsubscribe'
+    | '/verify-email'
+    | '/account'
+    | '/home'
+    | '/my-listings'
+    | '/saved-listings'
+    | '/workspaces'
+    | '/api/directory-outreach-unsubscribe'
+    | '/api/directory-verify'
+    | '/api/event-seat'
+    | '/api/health'
+    | '/api/listing-unfollow'
+    | '/deals/$slug'
     | '/directory-sitemaps/$chunk'
-    | '/admin'
-    | '/embed/listing/$directoryId'
+    | '/directory/$slug'
+    | '/event-sitemaps/$chunk'
+    | '/events/$slug'
+    | '/guides/$slug'
+    | '/post-sitemaps/$chunk'
+    | '/posts/$slug'
+    | '/profile/$profileId'
+    | '/admin/ai'
+    | '/admin/ai-usage'
+    | '/admin/announcements'
+    | '/admin/automations'
+    | '/admin/categories'
+    | '/admin/contacts'
+    | '/admin/crm'
+    | '/admin/dashboard'
+    | '/admin/dev-outbox'
+    | '/admin/event-submissions'
+    | '/admin/events'
+    | '/admin/feedback'
+    | '/admin/listing-claims'
+    | '/admin/listing-featured'
+    | '/admin/listing-fields'
+    | '/admin/listing-guides'
+    | '/admin/listing-outreach'
+    | '/admin/listing-reports'
+    | '/admin/listing-saves'
+    | '/admin/listing-submissions'
+    | '/admin/listings'
+    | '/admin/media'
+    | '/admin/membership'
+    | '/admin/newsletter'
+    | '/admin/notifications'
+    | '/admin/pages'
+    | '/admin/plans'
+    | '/admin/posts'
+    | '/admin/promotion-requests'
+    | '/admin/promotions'
+    | '/admin/referrals'
+    | '/admin/segments'
+    | '/admin/settings'
+    | '/admin/system-emails'
+    | '/admin/traffic'
+    | '/admin/users'
+    | '/changelog/whats-new'
+    | '/api/auth/google'
+    | '/api/webhooks/resend'
+    | '/api/webhooks/stripe'
+    | '/deals/code/$code'
+    | '/directory/category/$slug'
+    | '/directory/share-image/$slug'
+    | '/embed/listing/$listingId'
     | '/events/$slug/calendar.ics'
-    | '/share-image/$type/$itemId'
-    | '/sponsor-reports/$token/export'
+    | '/events/share-image/$slug'
+    | '/guides/share-image/$slug'
+    | '/admin'
+    | '/changelog'
+    | '/account/billing/success'
+    | '/admin/automations/$automationId'
+    | '/admin/automations/templates'
+    | '/admin/newsletter/$broadcastId'
+    | '/admin/pages/edit'
+    | '/admin/settings/$tab'
+    | '/admin/system-emails/$kind'
+    | '/api/auth/google/callback'
+    | '/api/v1/media/resized'
+    | '/api/v1/notifications/stream'
+    | '/api/v1/traffic/view'
+    | '/admin/automations/templates/$templateKey'
+    | '/api/v1/media/$mediaId/file'
   id:
     | '__root__'
     | '/'
     | '/$'
-    | '/admin'
-    | '/content-sitemap'
+    | '/_authenticated'
+    | '/add-event'
+    | '/add-listing'
+    | '/change-email'
+    | '/deals'
+    | '/directory'
+    | '/events'
     | '/events.ics'
+    | '/feed.xml'
+    | '/forgot-password'
+    | '/guides'
+    | '/login'
+    | '/maintenance'
+    | '/manifest.webmanifest'
+    | '/posts'
+    | '/pricing'
+    | '/register'
+    | '/report-unwanted-sign-in'
+    | '/reset-password'
+    | '/revoke-email-change'
     | '/robots.txt'
-    | '/rsc-action'
+    | '/search'
+    | '/sign-in-link'
     | '/sitemap.xml'
-    | '/admin/$'
-    | '/api/$'
-    | '/cdn/$'
+    | '/unsubscribe'
+    | '/verify-email'
+    | '/_authenticated/account'
+    | '/_authenticated/admin'
+    | '/_authenticated/changelog'
+    | '/_authenticated/home'
+    | '/_authenticated/my-listings'
+    | '/_authenticated/saved-listings'
+    | '/_authenticated/workspaces'
+    | '/api/directory-outreach-unsubscribe'
+    | '/api/directory-verify'
+    | '/api/event-seat'
+    | '/api/health'
+    | '/api/listing-unfollow'
+    | '/deals_/$slug'
     | '/directory-sitemaps/$chunk'
-    | '/admin/'
-    | '/embed/listing/$directoryId'
-    | '/events/$slug/calendar.ics'
-    | '/share-image/$type/$itemId'
-    | '/sponsor-reports/$token/export'
+    | '/directory_/$slug'
+    | '/event-sitemaps/$chunk'
+    | '/events_/$slug'
+    | '/guides_/$slug'
+    | '/post-sitemaps/$chunk'
+    | '/posts_/$slug'
+    | '/profile_/$profileId'
+    | '/_authenticated/admin/ai'
+    | '/_authenticated/admin/ai-usage'
+    | '/_authenticated/admin/announcements'
+    | '/_authenticated/admin/automations'
+    | '/_authenticated/admin/categories'
+    | '/_authenticated/admin/contacts'
+    | '/_authenticated/admin/crm'
+    | '/_authenticated/admin/dashboard'
+    | '/_authenticated/admin/dev-outbox'
+    | '/_authenticated/admin/event-submissions'
+    | '/_authenticated/admin/events'
+    | '/_authenticated/admin/feedback'
+    | '/_authenticated/admin/listing-claims'
+    | '/_authenticated/admin/listing-featured'
+    | '/_authenticated/admin/listing-fields'
+    | '/_authenticated/admin/listing-guides'
+    | '/_authenticated/admin/listing-outreach'
+    | '/_authenticated/admin/listing-reports'
+    | '/_authenticated/admin/listing-saves'
+    | '/_authenticated/admin/listing-submissions'
+    | '/_authenticated/admin/listings'
+    | '/_authenticated/admin/media'
+    | '/_authenticated/admin/membership'
+    | '/_authenticated/admin/newsletter'
+    | '/_authenticated/admin/notifications'
+    | '/_authenticated/admin/pages'
+    | '/_authenticated/admin/plans'
+    | '/_authenticated/admin/posts'
+    | '/_authenticated/admin/promotion-requests'
+    | '/_authenticated/admin/promotions'
+    | '/_authenticated/admin/referrals'
+    | '/_authenticated/admin/segments'
+    | '/_authenticated/admin/settings'
+    | '/_authenticated/admin/system-emails'
+    | '/_authenticated/admin/traffic'
+    | '/_authenticated/admin/users'
+    | '/_authenticated/changelog/whats-new'
+    | '/api/auth/google'
+    | '/api/webhooks/resend'
+    | '/api/webhooks/stripe'
+    | '/deals_/code/$code'
+    | '/directory_/category/$slug'
+    | '/directory_/share-image/$slug'
+    | '/embed/listing/$listingId'
+    | '/events_/$slug/calendar.ics'
+    | '/events_/share-image/$slug'
+    | '/guides_/share-image/$slug'
+    | '/_authenticated/admin/'
+    | '/_authenticated/changelog/'
+    | '/_authenticated/account/billing_/success'
+    | '/_authenticated/admin/automations_/$automationId'
+    | '/_authenticated/admin/automations_/templates'
+    | '/_authenticated/admin/newsletter_/$broadcastId'
+    | '/_authenticated/admin/pages_/edit'
+    | '/_authenticated/admin/settings/$tab'
+    | '/_authenticated/admin/system-emails_/$kind'
+    | '/api/auth/google_/callback'
+    | '/api/v1/media/resized'
+    | '/api/v1/notifications/stream'
+    | '/api/v1/traffic/view'
+    | '/_authenticated/admin/automations_/templates_/$templateKey'
+    | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
-  AdminRoute: typeof AdminRouteWithChildren
-  ContentSitemapRoute: typeof ContentSitemapRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  AddEventRoute: typeof AddEventRoute
+  AddListingRoute: typeof AddListingRoute
+  ChangeEmailRoute: typeof ChangeEmailRoute
+  DealsRoute: typeof DealsRoute
+  DirectoryRoute: typeof DirectoryRoute
+  EventsRoute: typeof EventsRoute
   EventsDoticsRoute: typeof EventsDoticsRoute
+  FeedDotxmlRoute: typeof FeedDotxmlRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
+  GuidesRoute: typeof GuidesRoute
+  LoginRoute: typeof LoginRoute
+  MaintenanceRoute: typeof MaintenanceRoute
+  ManifestDotwebmanifestRoute: typeof ManifestDotwebmanifestRoute
+  PostsRoute: typeof PostsRoute
+  PricingRoute: typeof PricingRoute
+  RegisterRoute: typeof RegisterRoute
+  ReportUnwantedSignInRoute: typeof ReportUnwantedSignInRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
+  RevokeEmailChangeRoute: typeof RevokeEmailChangeRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
-  RscActionRoute: typeof RscActionRoute
+  SearchRoute: typeof SearchRoute
+  SignInLinkRoute: typeof SignInLinkRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
-  ApiSplatRoute: typeof ApiSplatRoute
-  CdnSplatRoute: typeof CdnSplatRoute
+  UnsubscribeRoute: typeof UnsubscribeRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
+  ApiDirectoryOutreachUnsubscribeRoute: typeof ApiDirectoryOutreachUnsubscribeRoute
+  ApiDirectoryVerifyRoute: typeof ApiDirectoryVerifyRoute
+  ApiEventSeatRoute: typeof ApiEventSeatRoute
+  ApiHealthRoute: typeof ApiHealthRoute
+  ApiListingUnfollowRoute: typeof ApiListingUnfollowRoute
+  DealsSlugRoute: typeof DealsSlugRoute
   DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
-  EmbedListingDirectoryIdRoute: typeof EmbedListingDirectoryIdRoute
-  EventsSlugCalendarDoticsRoute: typeof EventsSlugCalendarDoticsRoute
-  ShareImageTypeItemIdRoute: typeof ShareImageTypeItemIdRoute
-  SponsorReportsTokenExportRoute: typeof SponsorReportsTokenExportRoute
+  DirectorySlugRoute: typeof DirectorySlugRoute
+  EventSitemapsChunkRoute: typeof EventSitemapsChunkRoute
+  EventsSlugRoute: typeof EventsSlugRouteWithChildren
+  GuidesSlugRoute: typeof GuidesSlugRoute
+  PostSitemapsChunkRoute: typeof PostSitemapsChunkRoute
+  PostsSlugRoute: typeof PostsSlugRoute
+  ProfileProfileIdRoute: typeof ProfileProfileIdRoute
+  ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
+  ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
+  ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  DealsCodeCodeRoute: typeof DealsCodeCodeRoute
+  DirectoryCategorySlugRoute: typeof DirectoryCategorySlugRoute
+  DirectoryShareImageSlugRoute: typeof DirectoryShareImageSlugRoute
+  EmbedListingListingIdRoute: typeof EmbedListingListingIdRoute
+  EventsShareImageSlugRoute: typeof EventsShareImageSlugRoute
+  GuidesShareImageSlugRoute: typeof GuidesShareImageSlugRoute
+  ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+  ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
+  ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
+  ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
+  ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -265,18 +1468,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/content-sitemap': {
-      id: '/content-sitemap'
-      path: '/content-sitemap'
-      fullPath: '/content-sitemap'
-      preLoaderRoute: typeof ContentSitemapRouteImport
+    '/add-event': {
+      id: '/add-event'
+      path: '/add-event'
+      fullPath: '/add-event'
+      preLoaderRoute: typeof AddEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/add-listing': {
+      id: '/add-listing'
+      path: '/add-listing'
+      fullPath: '/add-listing'
+      preLoaderRoute: typeof AddListingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/change-email': {
+      id: '/change-email'
+      path: '/change-email'
+      fullPath: '/change-email'
+      preLoaderRoute: typeof ChangeEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/deals': {
+      id: '/deals'
+      path: '/deals'
+      fullPath: '/deals'
+      preLoaderRoute: typeof DealsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/directory': {
+      id: '/directory'
+      path: '/directory'
+      fullPath: '/directory'
+      preLoaderRoute: typeof DirectoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/events': {
+      id: '/events'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof EventsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/events.ics': {
@@ -286,6 +1524,90 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventsDoticsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/feed.xml': {
+      id: '/feed.xml'
+      path: '/feed.xml'
+      fullPath: '/feed.xml'
+      preLoaderRoute: typeof FeedDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guides': {
+      id: '/guides'
+      path: '/guides'
+      fullPath: '/guides'
+      preLoaderRoute: typeof GuidesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/maintenance': {
+      id: '/maintenance'
+      path: '/maintenance'
+      fullPath: '/maintenance'
+      preLoaderRoute: typeof MaintenanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manifest.webmanifest': {
+      id: '/manifest.webmanifest'
+      path: '/manifest.webmanifest'
+      fullPath: '/manifest.webmanifest'
+      preLoaderRoute: typeof ManifestDotwebmanifestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/posts': {
+      id: '/posts'
+      path: '/posts'
+      fullPath: '/posts'
+      preLoaderRoute: typeof PostsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/report-unwanted-sign-in': {
+      id: '/report-unwanted-sign-in'
+      path: '/report-unwanted-sign-in'
+      fullPath: '/report-unwanted-sign-in'
+      preLoaderRoute: typeof ReportUnwantedSignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/revoke-email-change': {
+      id: '/revoke-email-change'
+      path: '/revoke-email-change'
+      fullPath: '/revoke-email-change'
+      preLoaderRoute: typeof RevokeEmailChangeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/robots.txt': {
       id: '/robots.txt'
       path: '/robots.txt'
@@ -293,11 +1615,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/rsc-action': {
-      id: '/rsc-action'
-      path: '/rsc-action'
-      fullPath: '/rsc-action'
-      preLoaderRoute: typeof RscActionRouteImport
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in-link': {
+      id: '/sign-in-link'
+      path: '/sign-in-link'
+      fullPath: '/sign-in-link'
+      preLoaderRoute: typeof SignInLinkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sitemap.xml': {
@@ -307,32 +1636,109 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/': {
-      id: '/admin/'
-      path: '/'
-      fullPath: '/admin/'
-      preLoaderRoute: typeof AdminIndexRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/$': {
-      id: '/admin/$'
-      path: '/$'
-      fullPath: '/admin/$'
-      preLoaderRoute: typeof AdminSplatRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/api/$': {
-      id: '/api/$'
-      path: '/api/$'
-      fullPath: '/api/$'
-      preLoaderRoute: typeof ApiSplatRouteImport
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/cdn/$': {
-      id: '/cdn/$'
-      path: '/cdn/$'
-      fullPath: '/cdn/$'
-      preLoaderRoute: typeof CdnSplatRouteImport
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/account': {
+      id: '/_authenticated/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AuthenticatedAccountRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/changelog': {
+      id: '/_authenticated/changelog'
+      path: '/changelog'
+      fullPath: '/changelog'
+      preLoaderRoute: typeof AuthenticatedChangelogRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/home': {
+      id: '/_authenticated/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof AuthenticatedHomeRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/my-listings': {
+      id: '/_authenticated/my-listings'
+      path: '/my-listings'
+      fullPath: '/my-listings'
+      preLoaderRoute: typeof AuthenticatedMyListingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/saved-listings': {
+      id: '/_authenticated/saved-listings'
+      path: '/saved-listings'
+      fullPath: '/saved-listings'
+      preLoaderRoute: typeof AuthenticatedSavedListingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/workspaces': {
+      id: '/_authenticated/workspaces'
+      path: '/workspaces'
+      fullPath: '/workspaces'
+      preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/directory-outreach-unsubscribe': {
+      id: '/api/directory-outreach-unsubscribe'
+      path: '/api/directory-outreach-unsubscribe'
+      fullPath: '/api/directory-outreach-unsubscribe'
+      preLoaderRoute: typeof ApiDirectoryOutreachUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/directory-verify': {
+      id: '/api/directory-verify'
+      path: '/api/directory-verify'
+      fullPath: '/api/directory-verify'
+      preLoaderRoute: typeof ApiDirectoryVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/event-seat': {
+      id: '/api/event-seat'
+      path: '/api/event-seat'
+      fullPath: '/api/event-seat'
+      preLoaderRoute: typeof ApiEventSeatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/listing-unfollow': {
+      id: '/api/listing-unfollow'
+      path: '/api/listing-unfollow'
+      fullPath: '/api/listing-unfollow'
+      preLoaderRoute: typeof ApiListingUnfollowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/deals_/$slug': {
+      id: '/deals_/$slug'
+      path: '/deals/$slug'
+      fullPath: '/deals/$slug'
+      preLoaderRoute: typeof DealsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/directory-sitemaps/$chunk': {
@@ -342,65 +1748,732 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DirectorySitemapsChunkRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/embed/listing/$directoryId': {
-      id: '/embed/listing/$directoryId'
-      path: '/embed/listing/$directoryId'
-      fullPath: '/embed/listing/$directoryId'
-      preLoaderRoute: typeof EmbedListingDirectoryIdRouteImport
+    '/directory_/$slug': {
+      id: '/directory_/$slug'
+      path: '/directory/$slug'
+      fullPath: '/directory/$slug'
+      preLoaderRoute: typeof DirectorySlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/events/$slug/calendar.ics': {
-      id: '/events/$slug/calendar.ics'
-      path: '/events/$slug/calendar.ics'
+    '/event-sitemaps/$chunk': {
+      id: '/event-sitemaps/$chunk'
+      path: '/event-sitemaps/$chunk'
+      fullPath: '/event-sitemaps/$chunk'
+      preLoaderRoute: typeof EventSitemapsChunkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/events_/$slug': {
+      id: '/events_/$slug'
+      path: '/events/$slug'
+      fullPath: '/events/$slug'
+      preLoaderRoute: typeof EventsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guides_/$slug': {
+      id: '/guides_/$slug'
+      path: '/guides/$slug'
+      fullPath: '/guides/$slug'
+      preLoaderRoute: typeof GuidesSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/post-sitemaps/$chunk': {
+      id: '/post-sitemaps/$chunk'
+      path: '/post-sitemaps/$chunk'
+      fullPath: '/post-sitemaps/$chunk'
+      preLoaderRoute: typeof PostSitemapsChunkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/posts_/$slug': {
+      id: '/posts_/$slug'
+      path: '/posts/$slug'
+      fullPath: '/posts/$slug'
+      preLoaderRoute: typeof PostsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile_/$profileId': {
+      id: '/profile_/$profileId'
+      path: '/profile/$profileId'
+      fullPath: '/profile/$profileId'
+      preLoaderRoute: typeof ProfileProfileIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/ai': {
+      id: '/_authenticated/admin/ai'
+      path: '/ai'
+      fullPath: '/admin/ai'
+      preLoaderRoute: typeof AuthenticatedAdminAiRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/ai-usage': {
+      id: '/_authenticated/admin/ai-usage'
+      path: '/ai-usage'
+      fullPath: '/admin/ai-usage'
+      preLoaderRoute: typeof AuthenticatedAdminAiUsageRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/announcements': {
+      id: '/_authenticated/admin/announcements'
+      path: '/announcements'
+      fullPath: '/admin/announcements'
+      preLoaderRoute: typeof AuthenticatedAdminAnnouncementsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/automations': {
+      id: '/_authenticated/admin/automations'
+      path: '/automations'
+      fullPath: '/admin/automations'
+      preLoaderRoute: typeof AuthenticatedAdminAutomationsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/categories': {
+      id: '/_authenticated/admin/categories'
+      path: '/categories'
+      fullPath: '/admin/categories'
+      preLoaderRoute: typeof AuthenticatedAdminCategoriesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/contacts': {
+      id: '/_authenticated/admin/contacts'
+      path: '/contacts'
+      fullPath: '/admin/contacts'
+      preLoaderRoute: typeof AuthenticatedAdminContactsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/crm': {
+      id: '/_authenticated/admin/crm'
+      path: '/crm'
+      fullPath: '/admin/crm'
+      preLoaderRoute: typeof AuthenticatedAdminCrmRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/dashboard': {
+      id: '/_authenticated/admin/dashboard'
+      path: '/dashboard'
+      fullPath: '/admin/dashboard'
+      preLoaderRoute: typeof AuthenticatedAdminDashboardRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/dev-outbox': {
+      id: '/_authenticated/admin/dev-outbox'
+      path: '/dev-outbox'
+      fullPath: '/admin/dev-outbox'
+      preLoaderRoute: typeof AuthenticatedAdminDevOutboxRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/event-submissions': {
+      id: '/_authenticated/admin/event-submissions'
+      path: '/event-submissions'
+      fullPath: '/admin/event-submissions'
+      preLoaderRoute: typeof AuthenticatedAdminEventSubmissionsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/events': {
+      id: '/_authenticated/admin/events'
+      path: '/events'
+      fullPath: '/admin/events'
+      preLoaderRoute: typeof AuthenticatedAdminEventsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/feedback': {
+      id: '/_authenticated/admin/feedback'
+      path: '/feedback'
+      fullPath: '/admin/feedback'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-claims': {
+      id: '/_authenticated/admin/listing-claims'
+      path: '/listing-claims'
+      fullPath: '/admin/listing-claims'
+      preLoaderRoute: typeof AuthenticatedAdminListingClaimsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-featured': {
+      id: '/_authenticated/admin/listing-featured'
+      path: '/listing-featured'
+      fullPath: '/admin/listing-featured'
+      preLoaderRoute: typeof AuthenticatedAdminListingFeaturedRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-fields': {
+      id: '/_authenticated/admin/listing-fields'
+      path: '/listing-fields'
+      fullPath: '/admin/listing-fields'
+      preLoaderRoute: typeof AuthenticatedAdminListingFieldsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-guides': {
+      id: '/_authenticated/admin/listing-guides'
+      path: '/listing-guides'
+      fullPath: '/admin/listing-guides'
+      preLoaderRoute: typeof AuthenticatedAdminListingGuidesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-outreach': {
+      id: '/_authenticated/admin/listing-outreach'
+      path: '/listing-outreach'
+      fullPath: '/admin/listing-outreach'
+      preLoaderRoute: typeof AuthenticatedAdminListingOutreachRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-reports': {
+      id: '/_authenticated/admin/listing-reports'
+      path: '/listing-reports'
+      fullPath: '/admin/listing-reports'
+      preLoaderRoute: typeof AuthenticatedAdminListingReportsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-saves': {
+      id: '/_authenticated/admin/listing-saves'
+      path: '/listing-saves'
+      fullPath: '/admin/listing-saves'
+      preLoaderRoute: typeof AuthenticatedAdminListingSavesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-submissions': {
+      id: '/_authenticated/admin/listing-submissions'
+      path: '/listing-submissions'
+      fullPath: '/admin/listing-submissions'
+      preLoaderRoute: typeof AuthenticatedAdminListingSubmissionsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listings': {
+      id: '/_authenticated/admin/listings'
+      path: '/listings'
+      fullPath: '/admin/listings'
+      preLoaderRoute: typeof AuthenticatedAdminListingsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/media': {
+      id: '/_authenticated/admin/media'
+      path: '/media'
+      fullPath: '/admin/media'
+      preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/membership': {
+      id: '/_authenticated/admin/membership'
+      path: '/membership'
+      fullPath: '/admin/membership'
+      preLoaderRoute: typeof AuthenticatedAdminMembershipRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/newsletter': {
+      id: '/_authenticated/admin/newsletter'
+      path: '/newsletter'
+      fullPath: '/admin/newsletter'
+      preLoaderRoute: typeof AuthenticatedAdminNewsletterRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/notifications': {
+      id: '/_authenticated/admin/notifications'
+      path: '/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/pages': {
+      id: '/_authenticated/admin/pages'
+      path: '/pages'
+      fullPath: '/admin/pages'
+      preLoaderRoute: typeof AuthenticatedAdminPagesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/plans': {
+      id: '/_authenticated/admin/plans'
+      path: '/plans'
+      fullPath: '/admin/plans'
+      preLoaderRoute: typeof AuthenticatedAdminPlansRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/posts': {
+      id: '/_authenticated/admin/posts'
+      path: '/posts'
+      fullPath: '/admin/posts'
+      preLoaderRoute: typeof AuthenticatedAdminPostsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/promotion-requests': {
+      id: '/_authenticated/admin/promotion-requests'
+      path: '/promotion-requests'
+      fullPath: '/admin/promotion-requests'
+      preLoaderRoute: typeof AuthenticatedAdminPromotionRequestsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/promotions': {
+      id: '/_authenticated/admin/promotions'
+      path: '/promotions'
+      fullPath: '/admin/promotions'
+      preLoaderRoute: typeof AuthenticatedAdminPromotionsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/referrals': {
+      id: '/_authenticated/admin/referrals'
+      path: '/referrals'
+      fullPath: '/admin/referrals'
+      preLoaderRoute: typeof AuthenticatedAdminReferralsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/segments': {
+      id: '/_authenticated/admin/segments'
+      path: '/segments'
+      fullPath: '/admin/segments'
+      preLoaderRoute: typeof AuthenticatedAdminSegmentsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/settings': {
+      id: '/_authenticated/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/system-emails': {
+      id: '/_authenticated/admin/system-emails'
+      path: '/system-emails'
+      fullPath: '/admin/system-emails'
+      preLoaderRoute: typeof AuthenticatedAdminSystemEmailsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/traffic': {
+      id: '/_authenticated/admin/traffic'
+      path: '/traffic'
+      fullPath: '/admin/traffic'
+      preLoaderRoute: typeof AuthenticatedAdminTrafficRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/users': {
+      id: '/_authenticated/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/changelog/': {
+      id: '/_authenticated/changelog/'
+      path: '/'
+      fullPath: '/changelog/'
+      preLoaderRoute: typeof AuthenticatedChangelogIndexRouteImport
+      parentRoute: typeof AuthenticatedChangelogRoute
+    }
+    '/_authenticated/changelog/whats-new': {
+      id: '/_authenticated/changelog/whats-new'
+      path: '/whats-new'
+      fullPath: '/changelog/whats-new'
+      preLoaderRoute: typeof AuthenticatedChangelogWhatsNewRouteImport
+      parentRoute: typeof AuthenticatedChangelogRoute
+    }
+    '/api/auth/google': {
+      id: '/api/auth/google'
+      path: '/api/auth/google'
+      fullPath: '/api/auth/google'
+      preLoaderRoute: typeof ApiAuthGoogleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhooks/resend': {
+      id: '/api/webhooks/resend'
+      path: '/api/webhooks/resend'
+      fullPath: '/api/webhooks/resend'
+      preLoaderRoute: typeof ApiWebhooksResendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhooks/stripe': {
+      id: '/api/webhooks/stripe'
+      path: '/api/webhooks/stripe'
+      fullPath: '/api/webhooks/stripe'
+      preLoaderRoute: typeof ApiWebhooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/deals_/code/$code': {
+      id: '/deals_/code/$code'
+      path: '/deals/code/$code'
+      fullPath: '/deals/code/$code'
+      preLoaderRoute: typeof DealsCodeCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/directory_/category/$slug': {
+      id: '/directory_/category/$slug'
+      path: '/directory/category/$slug'
+      fullPath: '/directory/category/$slug'
+      preLoaderRoute: typeof DirectoryCategorySlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/directory_/share-image/$slug': {
+      id: '/directory_/share-image/$slug'
+      path: '/directory/share-image/$slug'
+      fullPath: '/directory/share-image/$slug'
+      preLoaderRoute: typeof DirectoryShareImageSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/listing/$listingId': {
+      id: '/embed/listing/$listingId'
+      path: '/embed/listing/$listingId'
+      fullPath: '/embed/listing/$listingId'
+      preLoaderRoute: typeof EmbedListingListingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/events_/$slug/calendar.ics': {
+      id: '/events_/$slug/calendar.ics'
+      path: '/calendar.ics'
       fullPath: '/events/$slug/calendar.ics'
       preLoaderRoute: typeof EventsSlugCalendarDoticsRouteImport
+      parentRoute: typeof EventsSlugRoute
+    }
+    '/events_/share-image/$slug': {
+      id: '/events_/share-image/$slug'
+      path: '/events/share-image/$slug'
+      fullPath: '/events/share-image/$slug'
+      preLoaderRoute: typeof EventsShareImageSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/share-image/$type/$itemId': {
-      id: '/share-image/$type/$itemId'
-      path: '/share-image/$type/$itemId'
-      fullPath: '/share-image/$type/$itemId'
-      preLoaderRoute: typeof ShareImageTypeItemIdRouteImport
+    '/guides_/share-image/$slug': {
+      id: '/guides_/share-image/$slug'
+      path: '/guides/share-image/$slug'
+      fullPath: '/guides/share-image/$slug'
+      preLoaderRoute: typeof GuidesShareImageSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sponsor-reports/$token/export': {
-      id: '/sponsor-reports/$token/export'
-      path: '/sponsor-reports/$token/export'
-      fullPath: '/sponsor-reports/$token/export'
-      preLoaderRoute: typeof SponsorReportsTokenExportRouteImport
+    '/_authenticated/account/billing_/success': {
+      id: '/_authenticated/account/billing_/success'
+      path: '/billing/success'
+      fullPath: '/account/billing/success'
+      preLoaderRoute: typeof AuthenticatedAccountBillingSuccessRouteImport
+      parentRoute: typeof AuthenticatedAccountRoute
+    }
+    '/_authenticated/admin/automations_/$automationId': {
+      id: '/_authenticated/admin/automations_/$automationId'
+      path: '/automations/$automationId'
+      fullPath: '/admin/automations/$automationId'
+      preLoaderRoute: typeof AuthenticatedAdminAutomationsAutomationIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/automations_/templates': {
+      id: '/_authenticated/admin/automations_/templates'
+      path: '/automations/templates'
+      fullPath: '/admin/automations/templates'
+      preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/newsletter_/$broadcastId': {
+      id: '/_authenticated/admin/newsletter_/$broadcastId'
+      path: '/newsletter/$broadcastId'
+      fullPath: '/admin/newsletter/$broadcastId'
+      preLoaderRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/pages_/edit': {
+      id: '/_authenticated/admin/pages_/edit'
+      path: '/pages/edit'
+      fullPath: '/admin/pages/edit'
+      preLoaderRoute: typeof AuthenticatedAdminPagesEditRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/settings/$tab': {
+      id: '/_authenticated/admin/settings/$tab'
+      path: '/$tab'
+      fullPath: '/admin/settings/$tab'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
+      parentRoute: typeof AuthenticatedAdminSettingsRoute
+    }
+    '/_authenticated/admin/system-emails_/$kind': {
+      id: '/_authenticated/admin/system-emails_/$kind'
+      path: '/system-emails/$kind'
+      fullPath: '/admin/system-emails/$kind'
+      preLoaderRoute: typeof AuthenticatedAdminSystemEmailsKindRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/api/auth/google_/callback': {
+      id: '/api/auth/google_/callback'
+      path: '/api/auth/google/callback'
+      fullPath: '/api/auth/google/callback'
+      preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/media/resized': {
+      id: '/api/v1/media/resized'
+      path: '/api/v1/media/resized'
+      fullPath: '/api/v1/media/resized'
+      preLoaderRoute: typeof ApiV1MediaResizedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/notifications/stream': {
+      id: '/api/v1/notifications/stream'
+      path: '/api/v1/notifications/stream'
+      fullPath: '/api/v1/notifications/stream'
+      preLoaderRoute: typeof ApiV1NotificationsStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/traffic/view': {
+      id: '/api/v1/traffic/view'
+      path: '/api/v1/traffic/view'
+      fullPath: '/api/v1/traffic/view'
+      preLoaderRoute: typeof ApiV1TrafficViewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin/automations_/templates_/$templateKey': {
+      id: '/_authenticated/admin/automations_/templates_/$templateKey'
+      path: '/automations/templates/$templateKey'
+      fullPath: '/admin/automations/templates/$templateKey'
+      preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/api/v1/media/$mediaId/file': {
+      id: '/api/v1/media/$mediaId/file'
+      path: '/api/v1/media/$mediaId/file'
+      fullPath: '/api/v1/media/$mediaId/file'
+      preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
-interface AdminRouteChildren {
-  AdminSplatRoute: typeof AdminSplatRoute
-  AdminIndexRoute: typeof AdminIndexRoute
+interface AuthenticatedAccountRouteChildren {
+  AuthenticatedAccountBillingSuccessRoute: typeof AuthenticatedAccountBillingSuccessRoute
 }
 
-const AdminRouteChildren: AdminRouteChildren = {
-  AdminSplatRoute: AdminSplatRoute,
-  AdminIndexRoute: AdminIndexRoute,
+const AuthenticatedAccountRouteChildren: AuthenticatedAccountRouteChildren = {
+  AuthenticatedAccountBillingSuccessRoute:
+    AuthenticatedAccountBillingSuccessRoute,
 }
 
-const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+const AuthenticatedAccountRouteWithChildren =
+  AuthenticatedAccountRoute._addFileChildren(AuthenticatedAccountRouteChildren)
+
+interface AuthenticatedAdminSettingsRouteChildren {
+  AuthenticatedAdminSettingsTabRoute: typeof AuthenticatedAdminSettingsTabRoute
+}
+
+const AuthenticatedAdminSettingsRouteChildren: AuthenticatedAdminSettingsRouteChildren =
+  {
+    AuthenticatedAdminSettingsTabRoute: AuthenticatedAdminSettingsTabRoute,
+  }
+
+const AuthenticatedAdminSettingsRouteWithChildren =
+  AuthenticatedAdminSettingsRoute._addFileChildren(
+    AuthenticatedAdminSettingsRouteChildren,
+  )
+
+interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminAiRoute: typeof AuthenticatedAdminAiRoute
+  AuthenticatedAdminAiUsageRoute: typeof AuthenticatedAdminAiUsageRoute
+  AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
+  AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
+  AuthenticatedAdminCategoriesRoute: typeof AuthenticatedAdminCategoriesRoute
+  AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
+  AuthenticatedAdminCrmRoute: typeof AuthenticatedAdminCrmRoute
+  AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
+  AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
+  AuthenticatedAdminEventSubmissionsRoute: typeof AuthenticatedAdminEventSubmissionsRoute
+  AuthenticatedAdminEventsRoute: typeof AuthenticatedAdminEventsRoute
+  AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
+  AuthenticatedAdminListingClaimsRoute: typeof AuthenticatedAdminListingClaimsRoute
+  AuthenticatedAdminListingFeaturedRoute: typeof AuthenticatedAdminListingFeaturedRoute
+  AuthenticatedAdminListingFieldsRoute: typeof AuthenticatedAdminListingFieldsRoute
+  AuthenticatedAdminListingGuidesRoute: typeof AuthenticatedAdminListingGuidesRoute
+  AuthenticatedAdminListingOutreachRoute: typeof AuthenticatedAdminListingOutreachRoute
+  AuthenticatedAdminListingReportsRoute: typeof AuthenticatedAdminListingReportsRoute
+  AuthenticatedAdminListingSavesRoute: typeof AuthenticatedAdminListingSavesRoute
+  AuthenticatedAdminListingSubmissionsRoute: typeof AuthenticatedAdminListingSubmissionsRoute
+  AuthenticatedAdminListingsRoute: typeof AuthenticatedAdminListingsRoute
+  AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
+  AuthenticatedAdminMembershipRoute: typeof AuthenticatedAdminMembershipRoute
+  AuthenticatedAdminNewsletterRoute: typeof AuthenticatedAdminNewsletterRoute
+  AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
+  AuthenticatedAdminPagesRoute: typeof AuthenticatedAdminPagesRoute
+  AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
+  AuthenticatedAdminPostsRoute: typeof AuthenticatedAdminPostsRoute
+  AuthenticatedAdminPromotionRequestsRoute: typeof AuthenticatedAdminPromotionRequestsRoute
+  AuthenticatedAdminPromotionsRoute: typeof AuthenticatedAdminPromotionsRoute
+  AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
+  AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
+  AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
+  AuthenticatedAdminSystemEmailsRoute: typeof AuthenticatedAdminSystemEmailsRoute
+  AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
+  AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+  AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
+  AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
+  AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
+  AuthenticatedAdminPagesEditRoute: typeof AuthenticatedAdminPagesEditRoute
+  AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
+  AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+}
+
+const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminAiRoute: AuthenticatedAdminAiRoute,
+  AuthenticatedAdminAiUsageRoute: AuthenticatedAdminAiUsageRoute,
+  AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
+  AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
+  AuthenticatedAdminCategoriesRoute: AuthenticatedAdminCategoriesRoute,
+  AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
+  AuthenticatedAdminCrmRoute: AuthenticatedAdminCrmRoute,
+  AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
+  AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
+  AuthenticatedAdminEventSubmissionsRoute:
+    AuthenticatedAdminEventSubmissionsRoute,
+  AuthenticatedAdminEventsRoute: AuthenticatedAdminEventsRoute,
+  AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
+  AuthenticatedAdminListingClaimsRoute: AuthenticatedAdminListingClaimsRoute,
+  AuthenticatedAdminListingFeaturedRoute:
+    AuthenticatedAdminListingFeaturedRoute,
+  AuthenticatedAdminListingFieldsRoute: AuthenticatedAdminListingFieldsRoute,
+  AuthenticatedAdminListingGuidesRoute: AuthenticatedAdminListingGuidesRoute,
+  AuthenticatedAdminListingOutreachRoute:
+    AuthenticatedAdminListingOutreachRoute,
+  AuthenticatedAdminListingReportsRoute: AuthenticatedAdminListingReportsRoute,
+  AuthenticatedAdminListingSavesRoute: AuthenticatedAdminListingSavesRoute,
+  AuthenticatedAdminListingSubmissionsRoute:
+    AuthenticatedAdminListingSubmissionsRoute,
+  AuthenticatedAdminListingsRoute: AuthenticatedAdminListingsRoute,
+  AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
+  AuthenticatedAdminMembershipRoute: AuthenticatedAdminMembershipRoute,
+  AuthenticatedAdminNewsletterRoute: AuthenticatedAdminNewsletterRoute,
+  AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
+  AuthenticatedAdminPagesRoute: AuthenticatedAdminPagesRoute,
+  AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
+  AuthenticatedAdminPostsRoute: AuthenticatedAdminPostsRoute,
+  AuthenticatedAdminPromotionRequestsRoute:
+    AuthenticatedAdminPromotionRequestsRoute,
+  AuthenticatedAdminPromotionsRoute: AuthenticatedAdminPromotionsRoute,
+  AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
+  AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
+  AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
+  AuthenticatedAdminSystemEmailsRoute: AuthenticatedAdminSystemEmailsRoute,
+  AuthenticatedAdminTrafficRoute: AuthenticatedAdminTrafficRoute,
+  AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+  AuthenticatedAdminAutomationsAutomationIdRoute:
+    AuthenticatedAdminAutomationsAutomationIdRoute,
+  AuthenticatedAdminAutomationsTemplatesRoute:
+    AuthenticatedAdminAutomationsTemplatesRoute,
+  AuthenticatedAdminNewsletterBroadcastIdRoute:
+    AuthenticatedAdminNewsletterBroadcastIdRoute,
+  AuthenticatedAdminPagesEditRoute: AuthenticatedAdminPagesEditRoute,
+  AuthenticatedAdminSystemEmailsKindRoute:
+    AuthenticatedAdminSystemEmailsKindRoute,
+  AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute:
+    AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute,
+}
+
+const AuthenticatedAdminRouteWithChildren =
+  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
+
+interface AuthenticatedChangelogRouteChildren {
+  AuthenticatedChangelogWhatsNewRoute: typeof AuthenticatedChangelogWhatsNewRoute
+  AuthenticatedChangelogIndexRoute: typeof AuthenticatedChangelogIndexRoute
+}
+
+const AuthenticatedChangelogRouteChildren: AuthenticatedChangelogRouteChildren =
+  {
+    AuthenticatedChangelogWhatsNewRoute: AuthenticatedChangelogWhatsNewRoute,
+    AuthenticatedChangelogIndexRoute: AuthenticatedChangelogIndexRoute,
+  }
+
+const AuthenticatedChangelogRouteWithChildren =
+  AuthenticatedChangelogRoute._addFileChildren(
+    AuthenticatedChangelogRouteChildren,
+  )
+
+interface AuthenticatedRouteChildren {
+  AuthenticatedAccountRoute: typeof AuthenticatedAccountRouteWithChildren
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
+  AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedMyListingsRoute: typeof AuthenticatedMyListingsRoute
+  AuthenticatedSavedListingsRoute: typeof AuthenticatedSavedListingsRoute
+  AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAccountRoute: AuthenticatedAccountRouteWithChildren,
+  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
+  AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedMyListingsRoute: AuthenticatedMyListingsRoute,
+  AuthenticatedSavedListingsRoute: AuthenticatedSavedListingsRoute,
+  AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
+interface EventsSlugRouteChildren {
+  EventsSlugCalendarDoticsRoute: typeof EventsSlugCalendarDoticsRoute
+}
+
+const EventsSlugRouteChildren: EventsSlugRouteChildren = {
+  EventsSlugCalendarDoticsRoute: EventsSlugCalendarDoticsRoute,
+}
+
+const EventsSlugRouteWithChildren = EventsSlugRoute._addFileChildren(
+  EventsSlugRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
-  AdminRoute: AdminRouteWithChildren,
-  ContentSitemapRoute: ContentSitemapRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  AddEventRoute: AddEventRoute,
+  AddListingRoute: AddListingRoute,
+  ChangeEmailRoute: ChangeEmailRoute,
+  DealsRoute: DealsRoute,
+  DirectoryRoute: DirectoryRoute,
+  EventsRoute: EventsRoute,
   EventsDoticsRoute: EventsDoticsRoute,
+  FeedDotxmlRoute: FeedDotxmlRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
+  GuidesRoute: GuidesRoute,
+  LoginRoute: LoginRoute,
+  MaintenanceRoute: MaintenanceRoute,
+  ManifestDotwebmanifestRoute: ManifestDotwebmanifestRoute,
+  PostsRoute: PostsRoute,
+  PricingRoute: PricingRoute,
+  RegisterRoute: RegisterRoute,
+  ReportUnwantedSignInRoute: ReportUnwantedSignInRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
+  RevokeEmailChangeRoute: RevokeEmailChangeRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
-  RscActionRoute: RscActionRoute,
+  SearchRoute: SearchRoute,
+  SignInLinkRoute: SignInLinkRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
-  ApiSplatRoute: ApiSplatRoute,
-  CdnSplatRoute: CdnSplatRoute,
+  UnsubscribeRoute: UnsubscribeRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
+  ApiDirectoryOutreachUnsubscribeRoute: ApiDirectoryOutreachUnsubscribeRoute,
+  ApiDirectoryVerifyRoute: ApiDirectoryVerifyRoute,
+  ApiEventSeatRoute: ApiEventSeatRoute,
+  ApiHealthRoute: ApiHealthRoute,
+  ApiListingUnfollowRoute: ApiListingUnfollowRoute,
+  DealsSlugRoute: DealsSlugRoute,
   DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
-  EmbedListingDirectoryIdRoute: EmbedListingDirectoryIdRoute,
-  EventsSlugCalendarDoticsRoute: EventsSlugCalendarDoticsRoute,
-  ShareImageTypeItemIdRoute: ShareImageTypeItemIdRoute,
-  SponsorReportsTokenExportRoute: SponsorReportsTokenExportRoute,
+  DirectorySlugRoute: DirectorySlugRoute,
+  EventSitemapsChunkRoute: EventSitemapsChunkRoute,
+  EventsSlugRoute: EventsSlugRouteWithChildren,
+  GuidesSlugRoute: GuidesSlugRoute,
+  PostSitemapsChunkRoute: PostSitemapsChunkRoute,
+  PostsSlugRoute: PostsSlugRoute,
+  ProfileProfileIdRoute: ProfileProfileIdRoute,
+  ApiAuthGoogleRoute: ApiAuthGoogleRoute,
+  ApiWebhooksResendRoute: ApiWebhooksResendRoute,
+  ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  DealsCodeCodeRoute: DealsCodeCodeRoute,
+  DirectoryCategorySlugRoute: DirectoryCategorySlugRoute,
+  DirectoryShareImageSlugRoute: DirectoryShareImageSlugRoute,
+  EmbedListingListingIdRoute: EmbedListingListingIdRoute,
+  EventsShareImageSlugRoute: EventsShareImageSlugRoute,
+  GuidesShareImageSlugRoute: GuidesShareImageSlugRoute,
+  ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+  ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
+  ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
+  ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
+  ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

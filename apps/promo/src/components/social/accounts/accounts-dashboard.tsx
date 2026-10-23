@@ -77,6 +77,7 @@ import { AccountStatusBadge } from "./account-status-badge"
 import { AddAccountDialog } from "./add-account-dialog"
 import { HelpPostsDialog } from "./help-posts-dialog"
 import { AccountSettingsDialog } from "./account-settings-dialog"
+import { LINKEDIN_SEEN_WORDS } from "@/lib/social/linkedin/options"
 import { X_REACH_HINT, xReachWords } from "../x/x-words"
 import { MediumSignInButton } from "../medium/medium-sign-in-button"
 
@@ -624,8 +625,9 @@ function AccountRow({
   const reddit = row.platform === "reddit"
   const medium = row.platform === "medium"
   const x = row.platform === "x"
+  const linkedin = row.platform === "linkedin"
   // X's reach guess shows as its own line, so the status warning saying the same is left out.
-  const reachGuess = x && (row.x.reach === "hidden" || row.x.reach === "folded")
+  const reachGuess = (x && (row.x.reach === "hidden" || row.x.reach === "folded")) || (linkedin && row.linkedin.seen === "hidden")
   const name = row.handle ? handleWords(row.platform, row.handle) : "Not signed in"
   const lastWord = reddit ? "comment" : medium ? "response or article" : "post"
   // Instagram and TikTok show no account age; their reading is followers and
@@ -642,6 +644,10 @@ function AccountRow({
         ? row.x.joinedAt
           ? `${accountAgeText(new Date(row.x.joinedAt))} on X`
           : "Joined date not read yet"
+      : linkedin
+        ? row.signedInAt
+          ? `first seen signed in ${formatTimeAgo(row.signedInAt)}`
+          : "Not seen signed in yet"
       : row.postCount === null
       ? "posts not read yet"
       : `${countWords(row.postCount)} posts`
@@ -733,6 +739,24 @@ function AccountRow({
             </Hint>
           ) : null}
           {x && row.x.paid ? <span className="text-xs text-muted-foreground">Paid</span> : null}
+          {linkedin && row.linkedin.seen ? (
+            <Hint label="Promo's best guess from its weekly look for the account's latest comments, as a stranger sees them. LinkedIn never says.">
+              <span
+                className={
+                  row.linkedin.seen === "hidden"
+                    ? "flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+                    : "flex items-center gap-1 text-xs text-muted-foreground"
+                }
+              >
+                {row.linkedin.seen === "hidden" ? <EyeOffIcon className="size-3" aria-hidden="true" /> : <EyeIcon className="size-3" aria-hidden="true" />}
+                {LINKEDIN_SEEN_WORDS[row.linkedin.seen]}
+              </span>
+            </Hint>
+          ) : null}
+          {linkedin && row.linkedin.premium ? <span className="text-xs text-muted-foreground">Premium</span> : null}
+          {linkedin && row.linkedin.codeAsked ? (
+            <span className="text-xs text-amber-600 dark:text-amber-400">Wants the code LinkedIn emailed. Open its settings.</span>
+          ) : null}
           {row.shadowbanned || reachGuess ? null : row.status.warning ? (
             <Hint label={row.status.warning}>
               <span className="block max-w-48 truncate text-xs text-amber-600 dark:text-amber-400">
@@ -854,7 +878,9 @@ function AccountRow({
                     ? "Check now: read who is signed in, when it joined Medium and its followers"
                     : x
                       ? "Check now: look for its latest reply from outside, to see whether X hides it, and read its followers"
-                      : "Check now: read its followers, posts and Account status page again"
+                      : linkedin
+                        ? "Check now: look for its latest comments from outside, to see whether LinkedIn still shows them"
+                        : "Check now: read its followers, posts and Account status page again"
               }
             >
               <Button

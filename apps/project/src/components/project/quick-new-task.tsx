@@ -8,6 +8,7 @@ import { NOBODY, type NewTaskStart } from "@/components/project/new-task-dialog"
 import { DayOffNote, PersonAvatar, ProjectDot, StatusDot } from "@/components/project/task-bits"
 import { TagsBox, tagIdsFor, type TagPill } from "@/components/project/task-tags-field"
 import { TypeIconGlyph } from "@/components/project/task-type-icon"
+import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,7 +20,9 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { dayOffNote } from "@/lib/project/days-off"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { moveNewTasks } from "@/lib/project/new-task-status"
+import { notesForEditor, readTaskNotes } from "@/lib/project/notes"
 import { linesToTitles } from "@/lib/project/paste-lines"
+import { emptyWrittenPageBody, type WrittenPageNode } from "@/lib/pages/written-page-body"
 import type { Label as TaskTag } from "@/lib/api/project/sorting"
 import {
   LIMITS,
@@ -129,6 +132,8 @@ export function QuickNewTask({
   const [milestoneId, setMilestoneId] = React.useState<string | null>(null)
   // A type picked here; left unpicked, the task starts on the opener's or the project's own.
   const [pickedTypeId, setPickedTypeId] = React.useState<string | null | undefined>(undefined)
+  // What was typed in Description, and the type showing when typing began; null shows the type's notes.
+  const [written, setWritten] = React.useState<{ body: WrittenPageNode; typeKey: string } | null>(null)
   const [stuckReason, setStuckReason] = React.useState("")
   const [invalid, setInvalid] = React.useState<"title" | "reason" | null>(null)
   const [run, saving] = useAsyncAction(getProjectErrorMessage)
@@ -160,6 +165,14 @@ export function QuickNewTask({
         ? project.defaultTypeId
         : null
   const type = types.find((t) => t.id === typeId)
+  // The Description starts on the type's notes and follows the type until something is typed.
+  const typeNotes = React.useMemo(
+    () => (type ? notesForEditor(readTaskNotes(type.notes)) : emptyWrittenPageBody()),
+    [type]
+  )
+  const description = written?.body ?? typeNotes
+  // A new type reloads the box only while nothing is typed in it.
+  const descriptionKey = written?.typeKey ?? typeId ?? NO_TYPE
   // A type that asks for fields when the task is made needs the full window.
   const needsWindow = Boolean(type?.fields.some((field) => field.neededWhenMade && field.kind !== "file"))
 
@@ -172,6 +185,7 @@ export function QuickNewTask({
 
   function reset() {
     setTitle("")
+    setWritten(null)
     setDue(startingDue)
     setChosenStatus(status)
     setPriority(startingPriority)
@@ -188,6 +202,7 @@ export function QuickNewTask({
     onMoreOptions(project.id, {
       title,
       lines,
+      notes: written?.body,
       assignee: person,
       due,
       status: chosenStatus,
@@ -239,7 +254,7 @@ export function QuickNewTask({
         await createProjectTask({
           projectId: project.id,
           title,
-          notes: type?.notes ?? "",
+          notes: description,
           assigneeUserId,
           dueDate: due,
           steps: type?.steps ?? [],
@@ -317,6 +332,28 @@ export function QuickNewTask({
                 setInvalid(null)
               }}
             />
+          </div>
+          {/* Under the title, as Tyler marked it on 22 Oct 2026. It saves as the task's notes. */}
+          <div className="grid gap-2" role="group" aria-labelledby="quick-task-description-label">
+            <Label id="quick-task-description-label" asChild>
+              <span>Description</span>
+            </Label>
+            {/* "!" because the editor's own style tag (260px tall, large text) beats plain utilities. */}
+            <div className="[&_.page-rte_.tiptap]:min-h-16! [&_.page-rte_.tiptap]:px-3! [&_.page-rte_.tiptap]:py-2! [&_.page-rte_.tiptap]:text-sm!">
+              <DocumentEditor
+                key={descriptionKey}
+                value={description}
+                disabled={saving}
+                onChange={(body) =>
+                  setWritten(
+                    JSON.stringify(body) === JSON.stringify(typeNotes)
+                      ? null
+                      : { body, typeKey: descriptionKey }
+                  )
+                }
+                placeholder="What it's about. Select words to make them bold, a list or a link."
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="grid min-w-0 gap-2">

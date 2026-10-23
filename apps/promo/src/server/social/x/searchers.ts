@@ -11,6 +11,7 @@ import { X_BEHAVIOUR_RANGES, type XBehaviourNumber } from "@/lib/social/x/option
 import { TryAgainLater } from "../jobs"
 import { ringBell } from "../notices"
 import { promoAccounts, promoBehaviourSettings, promoJobs } from "../schema"
+import { promoLinkedinSearchers } from "../linkedin/schema"
 import { promoXSearchers, promoXSettings } from "./schema"
 
 /**
@@ -174,6 +175,14 @@ export async function addSearcher(
     throw new Error(
       `The profile ${profile.name} is the reader, which has to stay signed in to nobody. Make a new profile for X's searching.`
     )
+  }
+  const [linkedinSearcher] = await db
+    .select({ id: promoLinkedinSearchers.id })
+    .from(promoLinkedinSearchers)
+    .where(eq(promoLinkedinSearchers.profileId, profileId))
+    .limit(1)
+  if (linkedinSearcher) {
+    throw new Error(`The profile ${profile.name} already searches LinkedIn. Make a new profile for X's searching.`)
   }
   const id = uuid()
   const added = await db

@@ -1,9 +1,11 @@
 # Where the code lives
 
 Promo posts to social networks: Reddit, since phone farm file 06 Instagram
-and TikTok, since `workspace/tasks/Medium/01-medium-features.md` Medium, and
-since `workspace/tasks/X/01-x-features.md` X. The folders are split by one question: **will the next
-network share this, or is it one network's own?**
+and TikTok, since `workspace/tasks/Medium/01-medium-features.md` Medium,
+since `workspace/tasks/X/01-x-features.md` X, and since
+`workspace/tasks/LinkedIn/01-linkedin-features.md` LinkedIn. The folders are
+split by one question: **will the next network share this, or is it one
+network's own?**
 
 Shared sits in `social/`. Reddit's own sits in `social/reddit/`. Instagram and
 TikTok share `social/phone-apps/`, because on Promo's side the two are the
@@ -110,6 +112,31 @@ at before and after) and its account jobs to `x/run.ts`, and learns nothing
 else about X. X's direct messages use the Messages dashboard's own
 `inbox_read` and `inbox_reply` jobs, in a browser as on a phone
 (`src/server/social/phone-apps/inbox.ts`).
+
+## What belongs to LinkedIn alone
+
+LinkedIn runs in the browser or on a phone, either from the start
+([LinkedIn accounts](linkedin/accounts.md)). Its reads run in a search
+account's browser, as X's do, because LinkedIn shows almost nothing to a
+visitor who is not signed in ([LinkedIn search accounts](linkedin/search-accounts.md));
+the account's own pages (its feed, requests, viewers, numbers and messages)
+are read in its own browser. Every job of its own waits for its workday,
+weekdays 8:00 to 18:00 on its own clock. It keeps its own tables beside the
+other networks', for the reason Medium does.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/social/linkedin/` | The tables (`schema.ts`), the calls to the browser and the phone (`calls.ts`), the search accounts and LinkedIn's numbers in Settings → Behaviour (`searchers.ts`), keywords and the project's buyer titles (`keywords.ts`), search, read and an account's own feed (`search.ts`), the ranking (`rank.ts`), the posts (`finds.ts`), the checks on Post and the queue (`posting.ts`), the too-similar warning (`similar.ts`), the prompts (`drafts.ts`), comments and what happened to them (`comments.ts`), posts, reposts and newsletter issues (`posts.ts`), groups and their rules (`groups.ts`), connection requests, requests waiting and viewers (`people.ts`), the weekly numbers and comments look (`reach.ts`), the spend, the warm-up, the upkeep, the module's one read (`module.ts`), the job handlers, the emailed code and who is signed in (`run.ts`) and a failed job's row (`settle.ts`). |
+| `src/lib/social/linkedin/` | The limits, kinds and words both halves read (`options.ts`), the posting words (`wording.ts`) and the workday hours (`workday.ts`). |
+| `src/lib/api/social/linkedin.ts` | Every LinkedIn endpoint, admin only, LinkedIn's part of Settings → Behaviour included. |
+| `src/components/social/linkedin/` | The module (`linkedin-module.tsx`) and its keyword row, post list, post panel, Today, Comments, Posts and People, the Comment as dropdown, and LinkedIn's card in Settings → Behaviour. The account's card is `src/components/social/accounts/linkedin-account-card.tsx`. The right column frame and a few words are X's, imported from `src/components/social/x/`. |
+| `docker/browser/routines/linkedin.py` | The only file that knows how a LinkedIn page is put together, its page details in one `SELECTORS` block. Its phone twin is the LinkedIn part of `rack/promo_rack.py` (`linkedin_screens`). |
+
+The runner hands LinkedIn's reads to `runLinkedinRead` (a search account's
+browser, looked at before and after) and its account jobs to
+`linkedin/run.ts`, and learns nothing else about LinkedIn. LinkedIn's messages
+use the Messages dashboard's own `inbox_read` and `inbox_reply` jobs, in a
+browser as on a phone (`src/server/social/phone-apps/inbox.ts`).
 
 ## Phones
 

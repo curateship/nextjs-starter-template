@@ -52,6 +52,13 @@ signed out.
   in, so X is read by search accounts: throwaway X accounts that only ever
   read, which Tyler accepted on 21 Oct 2026 ([Search accounts](../x/search-accounts.md)).
   A search account is never the reader and never an account that posts.
+  LinkedIn is read the same way, for the same reason, by spare LinkedIn
+  accounts ([LinkedIn search accounts](../linkedin/search-accounts.md)). One
+  profile searches one network.
+- **LinkedIn keeps workday hours, not waking hours.** Tyler, 22 Oct 2026:
+  "Weekdays, 8am to 6pm", on the account's own clock. A LinkedIn account does
+  nothing of its own outside them, reads included
+  ([LinkedIn accounts](../linkedin/accounts.md#workday-hours)).
 - **A reader must stay signed out.** A profile holding an account is not offered
   as the reader, and the account's picker leaves the reader out. If the reader
   is found signed in to Reddit, before or after a job, the job is refused and

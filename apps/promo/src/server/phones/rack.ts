@@ -527,8 +527,9 @@ export async function finishAction(
     await recordSetupCheck(rack.userId, done.phoneId, input.result, db, now)
   } else if (done.action === "phone/wipe" && input.ok && input.result?.wiped === true) {
     await recordWipe(rack.userId, done.phoneId, db, now)
-  } else if ((done.action === "reddit/state" || done.action === "x/state") && input.ok) {
-    await finishMoveFromPhone(rack.userId, done.phoneId, input.result, db, now, done.action === "x/state" ? "x" : "reddit")
+  } else if ((done.action === "reddit/state" || done.action === "x/state" || done.action === "linkedin/state") && input.ok) {
+    const platform = done.action === "x/state" ? "x" : done.action === "linkedin/state" ? "linkedin" : "reddit"
+    await finishMoveFromPhone(rack.userId, done.phoneId, input.result, db, now, platform)
   }
   return true
 }

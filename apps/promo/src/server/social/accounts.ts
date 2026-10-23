@@ -18,6 +18,7 @@ import {
 } from "./apart"
 import { readBehaviour } from "./behaviour"
 import { promoAccounts, promoJobs, promoVoices } from "./schema"
+import { promoLinkedinSearchers } from "./linkedin/schema"
 import { promoXSearchers } from "./x/schema"
 
 /**
@@ -279,8 +280,8 @@ async function checkPicks(
         `The phone ${phone.name} already has ${aNetwork(platform)} account on it. One ${networkName} account per phone, or they sign in over each other.`
       )
     }
-    // Only Reddit and X accounts are moved onto phones from a browser profile.
-    const [incoming] = platform !== "reddit" && platform !== "x" ? [] : await db
+    // Only Reddit, X and LinkedIn accounts are moved onto phones from a browser profile.
+    const [incoming] = platform !== "reddit" && platform !== "x" && platform !== "linkedin" ? [] : await db
       .select({ handle: promoAccounts.handle })
       .from(promoAccounts)
       .where(
@@ -320,6 +321,16 @@ async function checkPicks(
     if (searcher) {
       throw new Error(
         `The profile ${profile.name} is an X search account, which only ever reads. Pick another profile, or take it off under X in Settings → Behaviour.`
+      )
+    }
+    const [linkedinSearcher] = await db
+      .select({ id: promoLinkedinSearchers.id })
+      .from(promoLinkedinSearchers)
+      .where(eq(promoLinkedinSearchers.profileId, input.profileId))
+      .limit(1)
+    if (linkedinSearcher) {
+      throw new Error(
+        `The profile ${profile.name} is a LinkedIn search account, which only ever reads. Pick another profile, or take it off under LinkedIn in Settings → Behaviour.`
       )
     }
 

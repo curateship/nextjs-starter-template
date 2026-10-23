@@ -128,7 +128,7 @@ export function appPost(
  */
 export function appInbox(
   target: CommandTarget,
-  network: PhoneAppNetwork | "reddit" | "x",
+  network: PhoneAppNetwork | "reddit" | "x" | "linkedin",
   args: { kind: "message" | "comment"; via: "notification" | "inbox"; handle: string }
 ) {
   return call(target, `${network}/inbox`, { ...args }, inboxShape, READ_TIMEOUT_MS)
@@ -140,10 +140,10 @@ export function appInbox(
  */
 export function appReply(
   target: CommandTarget,
-  network: PhoneAppNetwork | "reddit" | "x",
+  network: PhoneAppNetwork | "reddit" | "x" | "linkedin",
   args: { kind: "message" | "comment"; thread: string; author: string; quote: string; text: string }
 ) {
-  // Reddit's and X's `reply` already answer under a post, so their message answer has its own name.
-  const routine = network === "reddit" || network === "x" ? `${network}/reply_message` : `${network}/reply`
+  // Reddit's, X's and LinkedIn's own steps already answer under a post, so their message answer has its own name.
+  const routine = network === "reddit" || network === "x" || network === "linkedin" ? `${network}/reply_message` : `${network}/reply`
   return call(target, routine, { ...args }, replyShape, REPLY_TIMEOUT_MS)
 }

@@ -1,7 +1,5 @@
-"use client"
-
 import * as React from "react"
-import InfoIcon from "lucide-react/dist/esm/icons/info.js"
+import { InfoIcon } from "lucide-react"
 
 import { Label } from "@/components/ui/label"
 import {
@@ -34,14 +32,16 @@ export function FieldLabel({
     <div className={cn("flex items-center gap-1.5", className)}>
       <Label htmlFor={htmlFor} {...props}>
         {children}
+        {hint ? <span className="sr-only">. {hint}</span> : null}
       </Label>
       {hint ? (
         <Tooltip open={open} onOpenChange={setOpen}>
           <TooltipTrigger asChild>
             <button
               type="button"
-              // Not a form control: it must never take focus from the field or
-              // submit the form it sits in.
+              // The label reads the hint with its field. This button only lets
+              // pointer and touch users reveal the same text on screen, so it
+              // must not interrupt the form's keyboard order or submit it.
               tabIndex={-1}
               aria-label={
                 typeof children === "string" ? `About ${children}` : "More information"

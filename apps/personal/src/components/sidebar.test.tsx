@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { MenuActionsContext } from "@/components/menu-links"
 import { PinnedLinks } from "@/components/sidebar"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { defaultMenu, pinnedLinks } from "@/lib/menu"
 
 function render(
@@ -22,9 +23,11 @@ function render(
   }
   const menu = { ...defaultMenu(), pinnedLinkIds: ids }
   return renderToStaticMarkup(
-    <MenuActionsContext.Provider value={actions}>
-      <PinnedLinks links={pinnedLinks(menu)} onUnpin={() => {}} />
-    </MenuActionsContext.Provider>
+    <TooltipProvider>
+      <MenuActionsContext.Provider value={actions}>
+        <PinnedLinks links={pinnedLinks(menu)} onUnpin={() => {}} />
+      </MenuActionsContext.Provider>
+    </TooltipProvider>
   )
 }
 
@@ -49,6 +52,14 @@ describe("Pinned in the left menu", () => {
     expect(html).toContain('aria-label="Unpin My dashboard"')
     expect(html).toContain('aria-label="Drag Listings"')
     expect(html).toContain('aria-label="Drag My dashboard"')
+  })
+
+  it("gives each panel link an arrow to its site in a new tab, hidden while editing", () => {
+    const ids = ["link-cms-listings"]
+    expect(render(ids)).toMatch(
+      /href="http:\/\/localhost:3015\/admin\/listings" target="_blank" rel="noopener" aria-label="Open Listings in a new tab"/
+    )
+    expect(render(ids, { editing: true })).not.toContain("in a new tab")
   })
 
   it("draws nothing while no link is pinned", () => {

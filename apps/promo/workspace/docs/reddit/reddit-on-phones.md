@@ -98,7 +98,8 @@ The accounts in the dropdown are listed under **Important** and **Throwaway**
 How a throwaway that turned valuable is promoted, one way only. In the
 account's settings on the Accounts dashboard, under Throwaway. An X account
 moves the same way, signed in to the X app on the phone
-([X accounts](../x/accounts.md#moving-to-a-phone)).
+([X accounts](../x/accounts.md#moving-to-a-phone)), and so does a LinkedIn
+account, signed in to the LinkedIn app ([LinkedIn accounts](../linkedin/accounts.md#moving-to-a-phone)).
 
 1. **Pick a phone** and press **Move to a phone**. It has to be free, ready
    (wiped and set up if an account was on it before) and not the self-test

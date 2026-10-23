@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  AlertCircleIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
   ChevronLeftIcon,
@@ -122,6 +123,32 @@ function PinItems({ panel }: { panel: PanelControls }) {
       <span className="truncate">{choice.label}</span>
     </DropdownMenuItem>
   ))
+}
+
+/**
+ * A save under way or one that failed, as one icon for the folded menu: the
+ * spinner, or a red mark whose tooltip gives the reason and whose click
+ * tries again.
+ */
+function FoldedSaveState({ status, onRetry }: { status: SaveStatus; onRetry: () => void }) {
+  if (status === "idle" || status === "saved") return null
+  if (status === "saving") {
+    return (
+      <span role="status" className="flex size-7 items-center justify-center text-muted-foreground">
+        <Loader2Icon className="size-3.5 animate-spin" />
+        <span className="sr-only">Saving</span>
+      </span>
+    )
+  }
+  return (
+    <FooterButton
+      label={`Not saved: ${status.failed}. Click to try again.`}
+      className="text-destructive hover:text-destructive"
+      onClick={onRetry}
+    >
+      <AlertCircleIcon />
+    </FooterButton>
+  )
 }
 
 /** Only a save under way or one that failed shows; a finished save says nothing. */
@@ -384,7 +411,8 @@ function CogMenu({
  * The bottom of the left menu: whether the menu is saving, then Back,
  * Forward, Reload and the cog. Personal has no top bar, so each app's own top
  * navigation shows at the top of the middle panel instead. Tyler moved these
- * here on 18 Oct 2026.
+ * here on 18 Oct 2026. In the folded menu only the cog stays, under the save
+ * state: Tyler's pick on 22 Oct 2026.
  */
 export function SidebarFooter({
   panel,
@@ -393,6 +421,7 @@ export function SidebarFooter({
   editing,
   onEditingChange,
   onSignOut,
+  folded,
 }: {
   panel: PanelControls
   saveStatus: SaveStatus
@@ -400,7 +429,25 @@ export function SidebarFooter({
   editing: boolean
   onEditingChange: (editing: boolean) => void
   onSignOut: () => void
+  folded: boolean
 }) {
+  const cog = (
+    <CogMenu
+      panel={panel}
+      editing={editing}
+      onEditingChange={onEditingChange}
+      onSignOut={onSignOut}
+    />
+  )
+  if (folded) {
+    return (
+      <div className="flex shrink-0 flex-col items-center gap-1 border-t border-sidebar-border/50 p-2">
+        <FoldedSaveState status={saveStatus} onRetry={onRetrySave} />
+        {cog}
+      </div>
+    )
+  }
+
   return (
     <div className="flex shrink-0 flex-col gap-1 border-t border-sidebar-border/50 p-2">
       <SaveState status={saveStatus} onRetry={onRetrySave} />
@@ -416,14 +463,7 @@ export function SidebarFooter({
             <RotateCwIcon />
           </FooterButton>
         ) : null}
-        <div className="ml-auto">
-          <CogMenu
-            panel={panel}
-            editing={editing}
-            onEditingChange={onEditingChange}
-            onSignOut={onSignOut}
-          />
-        </div>
+        <div className="ml-auto">{cog}</div>
       </div>
     </div>
   )

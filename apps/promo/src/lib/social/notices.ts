@@ -61,6 +61,12 @@ const LOOKS: Record<PromoNoticeKind, Pick<AppNoticeDetail, "icon" | "toneClassNa
   x_gone: { icon: EyeOffIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
   x_searcher: { icon: SearchXIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
   x_hidden: { icon: EyeOffIcon, toneClassName: "bg-destructive/10 text-destructive" },
+  linkedin_watched: { icon: BellRingIcon, toneClassName: "bg-sky-500/10 text-sky-600 dark:text-sky-400" },
+  linkedin_reply: { icon: MessageCircleReplyIcon, toneClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  linkedin_gone: { icon: EyeOffIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  linkedin_searcher: { icon: SearchXIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  linkedin_hidden: { icon: EyeOffIcon, toneClassName: "bg-destructive/10 text-destructive" },
+  linkedin_code: { icon: MailIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
 }
 
 /** Which of Promo's kinds a notice is, read off its heading, or null. */

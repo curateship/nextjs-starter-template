@@ -29,6 +29,11 @@ import { promoPhoneActionChecks } from "./schema"
  * An X reply, quote and post are on the list (X task, part 2): with no X
  * post found lately, the reply and the quote are walked on the first post
  * of the test account's home feed, and a post needs nothing to walk on.
+ * A LinkedIn comment, post and connection request are on it too (LinkedIn
+ * task, part 2): with no LinkedIn post found lately, the comment is walked
+ * on the first post of the test account's home feed, a post needs nothing to
+ * walk on, and the connect is walked on the writer of a found post; with
+ * none, its walk only opens the app.
  */
 const NEEDS_A_PASS = new Set([
   "reddit/comment",
@@ -39,6 +44,9 @@ const NEEDS_A_PASS = new Set([
   "x/reply",
   "x/quote",
   "x/publish",
+  "linkedin/comment",
+  "linkedin/publish",
+  "linkedin/connect",
 ])
 
 /**
