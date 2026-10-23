@@ -29,7 +29,7 @@ Four apps are live, and they are the only ones worked on:
 - `apps/shell` - the template every app is copied from, and a running app
   in its own right
 - `apps/trade` - the trading app
-- `apps/cms` - the CMS and directory app
+- `apps/directory` - the directory app (was `apps/cms`, renamed 23 Oct 2026)
 - `apps/video` - the video app
 
 The shell's folder was `apps/custom-shell`, and its package name was

@@ -1,71 +1,125 @@
 import * as React from "react"
 
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 
-// Directory carve-out (recorded in task 01): this file keeps directory's card
-// GEOMETRY — padding lives in CardHeader/CardContent (not on the card), the
-// header is a flex column, CardContent is a `grid gap-4`, and CardGroup has no
-// display of its own. ~200 call sites (full-bleed dashboard cards, settings
-// forms, modal bodies) are built against this contract; custom-shell's card
-// anatomy (py-4/gap-4 card, grid header, bare px content) belongs to a
-// screen-by-screen visual sweep, not a primitive swap. The adjustable border
-// is drawn by the runtime styling rules in styles.css, not by the primitive.
-
-const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="card" className={cn("text-card-foreground rounded-md bg-card", className)} {...props} />
-  )
-)
-Card.displayName = "Card"
-
-// CardGroup — wraps a grid or flex of Card elements and applies consistent responsive gap between them
-const CardGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, style, ...props }, ref) => (
+function Card({
+  className,
+  size = "default",
+  ...props
+}: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
+  return (
     <div
-      ref={ref}
-      data-slot="card-group"
-      className={cn(className)}
-      // Gap between cards tracks the content-spacing setting via --shell-gutter.
-      // Inside a modal the dialog surface sets --card-group-gap to the modal's
-      // own Inner-spacing, so modal cards space by the modal setting instead.
-      style={{ gap: "var(--card-group-gap, var(--shell-gutter, 0.75rem))", ...style }}
+      data-slot="card"
+      data-size={size}
+      className={cn(
+        "group/card flex flex-col gap-4 overflow-hidden rounded-xl bg-card py-4 text-sm text-card-foreground ring-1 ring-foreground/10 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-4 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
+        className
+      )}
       {...props}
     />
   )
-)
-CardGroup.displayName = "CardGroup"
+}
 
-const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="card-header" className={cn("flex flex-col space-y-1 p-4 pb-3", className)} {...props} />
+function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-header"
+      className={cn(
+        "group/card-header @container/card-header grid auto-rows-min items-start gap-1 rounded-t-xl px-4 group-data-[size=sm]/card:px-3 has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-4 group-data-[size=sm]/card:[.border-b]:pb-3",
+        className
+      )}
+      {...props}
+    />
   )
-)
-CardHeader.displayName = "CardHeader"
+}
 
-const CardTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="card-title" className={cn("font-semibold leading-none tracking-tight", className)} {...props} />
+type CardTitleElement = "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
+
+function CardTitle({
+  as: Comp = "h2",
+  className,
+  ...props
+}: React.ComponentProps<"h2"> & { as?: CardTitleElement }) {
+  return (
+    <Comp
+      data-slot="card-title"
+      className={cn(
+        "font-heading text-lg leading-snug font-medium group-data-[size=sm]/card:text-base",
+        className
+      )}
+      {...props}
+    />
   )
-)
-CardTitle.displayName = "CardTitle"
+}
 
-const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="card-description" className={cn("text-muted-foreground text-sm", className)} {...props} />
+function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-description"
+      className={cn("text-sm text-muted-foreground", className)}
+      {...props}
+    />
   )
-)
-CardDescription.displayName = "CardDescription"
+}
 
-const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="card-content" className={cn("grid gap-4 p-4 not-first:pt-0", className)} {...props} />
+function CardAction({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-action"
+      className={cn(
+        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
+        className
+      )}
+      {...props}
+    />
   )
-)
-CardContent.displayName = "CardContent"
+}
 
-const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => <div ref={ref} data-slot="card-footer" className={cn("flex items-center p-6 pt-0", className)} {...props} />
-)
-CardFooter.displayName = "CardFooter"
+function CardContent({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-content"
+      className={cn("px-4 group-data-[size=sm]/card:px-3", className)}
+      {...props}
+    />
+  )
+}
 
-export { Card, CardGroup, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+function CardGroup({ className, style, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-group"
+      className={cn("flex flex-col", className)}
+      // Gap between stacked cards tracks the content gutter. Outside a styled
+      // content area — inside a modal, mainly — it falls back to 24px, which is
+      // the modal's own default padding.
+      style={{ gap: pageGutter, ...style }}
+      {...props}
+    />
+  )
+}
+
+function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-footer"
+      className={cn(
+        "flex items-center rounded-b-xl border-t bg-muted/50 p-4 group-data-[size=sm]/card:p-3",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export {
+  Card,
+  CardHeader,
+  CardFooter,
+  CardTitle,
+  CardAction,
+  CardDescription,
+  CardContent,
+  CardGroup,
+}

@@ -1,45 +1,80 @@
-# AGENTS.md
+# CLAUDE.md
 
-Guidance for agents working in Directory.
+This file is a map. It holds no rules of its own. Everything it points at is
+the rule, and the file it points at is the one to read before you start.
 
-## Route First
+Two folders hold everything. **The repo's `docs/`** covers what is true of every
+app, and **this app's `workspace/docs/`** covers what is true of this one.
+Paths below say which is which.
 
-- Shared skills live in `../../.agents/skills/`.
-- Directory docs live in `workspace/docs/`.
-- Directory tasks live in `workspace/tasks/`, sorted into category folders — see `workspace/tasks/README.md` for the map.
-- Before coding, read the relevant docs in `workspace/docs/`.
-- Before changing task-driven work, check `workspace/tasks/`.
-- Before building or changing UI or layout, read and follow `../../.agents/skills/Ui-standards/SKILL.md`.
-- **Before touching admin feedback — toasts, errors, saves, loading — read and follow `workspace/docs/admin-action-feedback.md`.** Deletions and other destructive actions follow `workspace/docs/destructive-confirm-dialogs.md`.
+## How to reply
 
-## App Context
+**Re-read `.agents/skills/unslop/SKILL.md` before every reply**, not once a
+session, and check your draft against it before sending. It also covers every
+summary of finished work and every doc you write. Tyler is smart
+and is not a programmer or a trader, so the plainest true sentence always wins.
 
-Directory is a multi-tenant directory platform: one deployment serves many sites, each with its own listings, events, products, newsletters, and members. It is a TanStack Start app in the monorepo. Public pages are server-rendered screens resolved through `src/lib/page-renderer.tsx`; the admin dashboard lives under `src/screens/admin/` and fetches its data on the client by design.
+The monorepo's root `CLAUDE.md` adds the banned-word list, the rule about
+leading with the answer, and how to talk about money. It is part of the unslop
+skill and gets re-read on the same terms.
 
-- The dev server port is 3011, assigned in the repo root's `local-apps.json`. Never start a dev server — use the one already running (the root `CLAUDE.md` has the full rules).
-- Database migrations belong to the hub: numbered SQL files in `apps/hub/migrations/`. This app never gets its own migrations folder.
+## Before you write code
 
-Use this app's local code, config, and workspace docs as source of truth for Directory behavior.
+1. `workspace/docs/README.md` lists this app's own docs. Read the ones that
+   cover what you are about to change.
+2. The repo's `docs/shell/what-lives-where.md` says which folder a new file
+   belongs in.
+3. The repo's `docs/shell/shell-and-apps.md` is the rulebook for the shell and
+   the apps built on it. Read it before touching any file outside `src/app/`
+   and the app's own files, because an edited shell file is a fork that
+   conflicts forever.
+4. The repo's `docs/shell/working-rules.md` says how to scope the change and how
+   to prove it.
+5. For anything drawn on screen, `.agents/skills/Ui-standards/SKILL.md` is the
+   single UI standard. There is no app-local copy.
 
-## Communication Style
+The repo's `docs/README.md` indexes the rest: architecture, accounts and
+billing, security, the UI rules, the performance rules, deployment and local
+setup. If the work came from a task, the task files are in `workspace/tasks/`.
 
-- **ALWAYS answer in plain English. This applies to EVERYTHING, every response, no exceptions.**
-- Write for a smart person who is NOT a programmer. Assume no technical background.
-- Avoid jargon. If a technical term is unavoidable, explain it in everyday words the first time.
-- Prefer short sentences, everyday analogies, and concrete examples over precise-but-dense wording.
-- Still be accurate and honest — plain does not mean vague or dumbed-down on the facts.
+## After you write code, write the doc
 
-## Working Rules
+Every change that a person could later ask about leaves a doc behind. This is
+part of the work, not a favour, and it happens in the same turn as the code.
 
-- Keep changes small and direct.
-- Fix only the requested behavior.
-- Do not refactor adjacent systems unless required.
-- Do not hide failed operations.
-- Only fix build, lint, or type errors caused by your change.
-- When summarizing work, do not include full file paths.
-- Keep answers short and concise.
-- Update documents when applicable
+- **New behaviour gets a new file** in `workspace/docs/`, named after the thing
+  it explains, plus one line in `workspace/docs/README.md`.
+- **Changed behaviour edits the file that already describes it.** Search
+  `workspace/docs/` first. Two docs describing one thing is worse than none,
+  because the reader cannot tell which one is current.
+- **Write what the app does and why, not what you did.** A doc is not a
+  changelog entry. Dates belong in a line only when the behaviour changed on
+  that date and older records still show the old behaviour.
+- **A rule Tyler stated out loud goes in the doc that holds the rules**, in his
+  words. That file outranks the code.
+- **Behaviour that belongs to the shell is documented in the repo's
+  `docs/shell/`**, one copy for every app. Never copy a shell doc into an app.
 
-## Tools
+## Skills
 
-- Use Playwright to test (not chrome extension)
+Repo skills live in `.agents/skills/`. Read the whole `SKILL.md` before acting
+on it.
+
+- `unslop` — how to write. Always on.
+- `Ui-standards` — the one UI standard for every app.
+- `plan-change` — turn a request into a spec and an ordered plan.
+- `implement-change` — build a focused change or bug fix.
+- `validate-app` — open the change in a real browser and read the console.
+- `audit-change` — check a change for correctness, security and bloat.
+- `check-yourself` — when Tyler says an answer is wrong, or asks if you are
+  sure. Stop and prove it instead of defending it.
+- `commit-change` — only when Tyler asks for a commit.
+- `ship-release` — only when Tyler asks for a deploy.
+- `migrate-legacy-code`, `new-features-suggestion`, `polish-app-suggestions` —
+  as their descriptions say.
+
+## Verifying
+
+The repo's `docs/shell/working-rules.md` has the commands. Two of them are
+absolute: never start a dev server, and never call browser work done without
+opening it in a real browser through the `validate-app` skill.

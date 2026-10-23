@@ -31,4 +31,4 @@ Six rules never wait for a file to be opened:
   say exactly what evidence is missing and how to obtain it.
 
 Working in one of the four live apps means reading that app's own `CLAUDE.md`
-first: `apps/shell`, `apps/trade`, `apps/cms`, `apps/video`.
+first: `apps/shell`, `apps/trade`, `apps/directory`, `apps/video`.

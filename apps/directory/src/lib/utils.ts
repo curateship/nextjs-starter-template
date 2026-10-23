@@ -1,2 +1,6 @@
-// Re-export so vendored shadcn components importing "@/lib/utils" share the single cn() in utils/tailwind
-export { cn } from './utils/tailwind'
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}

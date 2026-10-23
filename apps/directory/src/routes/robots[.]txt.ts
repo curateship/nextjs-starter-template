@@ -1,19 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import robots from "@/screens/robots"
+import {
+  publicFileWorkspaceId,
+  publicRequestOrigin,
+} from "@/server/content/sitemap"
 
 export const Route = createFileRoute("/robots.txt")({
   server: {
     handlers: {
-      GET: async () => {
-        const config = await robots()
-        const lines = config.rules.flatMap((rule) => [
-          `User-agent: ${rule.userAgent}`,
-          ...(rule.allow ? [`Allow: ${rule.allow}`] : []),
-          ...(rule.disallow || []).map((path) => `Disallow: ${path}`),
-        ])
-        if (config.sitemap) lines.push(`Sitemap: ${config.sitemap}`)
-        return new Response(`${lines.join("\n")}\n`, {
+      GET: async ({ request }) => {
+        const workspaceId = await publicFileWorkspaceId()
+        if (!workspaceId) return new Response("Not found", { status: 404 })
+
+        const origin = publicRequestOrigin(request)
+        const body = [
+          "User-agent: *",
+          "Allow: /",
+          "Disallow: /admin",
+          "Disallow: /account",
+          `Sitemap: ${origin}/sitemap.xml`,
+          "",
+        ].join("\n")
+
+        return new Response(body, {
           headers: { "Content-Type": "text/plain; charset=utf-8" },
         })
       },
