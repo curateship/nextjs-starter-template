@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { MenuActionsContext } from "@/components/menu-links"
 import { Sidebar } from "@/components/sidebar"
@@ -73,7 +73,7 @@ describe("the folded left menu", () => {
 
   it("hides section names and sub-links, and gives a link with no icon its first letter", () => {
     const html = render({ folded: true })
-    expect(html).not.toContain("Project")
+    expect(html).not.toContain(">Project<")
     expect(html).not.toContain("Weekly")
     expect(html).toMatch(/aria-label="reports"[^>]*>(?:(?!<\/a>).)*>r<\/span>/)
   })
@@ -103,5 +103,24 @@ describe("the logo row of the full menu", () => {
   it("keeps the pencil pressed while editing, so it turns editing off", () => {
     const html = render({ folded: false, editing: true })
     expect(html).toMatch(/aria-label="Stop editing the menu"[^>]*aria-pressed="true"|aria-pressed="true"[^>]*aria-label="Stop editing the menu"/)
+  })
+})
+
+describe("the folded menu's section arrows", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it("puts an arrow above Pinned and each section that hides its icons", () => {
+    const html = render({ folded: true })
+    const arrows = [...html.matchAll(/aria-label="(Hide [^"]*)" aria-expanded="true"/g)].map((m) => m[1])
+    expect(arrows).toEqual(["Hide Pinned", "Hide Project", "Hide CMS"])
+  })
+
+  it("shows a section folded in the full menu folded here too, its arrow offering to show it", () => {
+    const folded: Record<string, string> = { "personal-sidebar-section-section-cms": "closed" }
+    vi.stubGlobal("window", { localStorage: { getItem: (key: string) => folded[key] ?? null } })
+    const html = render({ folded: true })
+    expect(html).toContain('aria-label="Show CMS" aria-expanded="false"')
+    const names = [...html.matchAll(/<a [^>]*aria-label="([^"]*)"/g)].map((m) => m[1])
+    expect(names).toEqual(["Listings", "My dashboard", "reports", "IGN (opens in its own tab)"])
   })
 })

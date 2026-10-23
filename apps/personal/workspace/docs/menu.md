@@ -99,6 +99,13 @@ edited where it stands, with no settings screen.
     its icon with its name in a tooltip. A link with no icon shows its first
     letter. Section names and sub-links hide. A link stays marked while one of
     its sub-links is open.
+  - **An arrow above Pinned and each section folds its icons**, the way the
+    full menu folds a section by its name. Tyler asked for it on 23 Oct 2026:
+    "Add a toggle arrow to show more icons ... like an uncollapsed mode
+    would". The arrow points down while the icons show, and its tooltip says
+    "Hide CMS" or "Show CMS". It shares the full menu's remembered fold
+    (`personal-sidebar-section-<id>`, `personal-sidebar-pinned`), so a section
+    folded in one is folded in the other.
   - **The bottom row keeps only the cog**, Tyler's pick. Back, Forward and
     Reload come back when the menu unfolds. A save under way shows as a
     spinner. A failed save shows as a red mark, whose tooltip gives the reason

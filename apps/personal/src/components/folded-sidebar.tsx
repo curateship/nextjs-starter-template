@@ -1,5 +1,5 @@
 import * as React from "react"
-import { PanelLeftOpenIcon } from "lucide-react"
+import { ChevronRightIcon, PanelLeftOpenIcon } from "lucide-react"
 
 import { BrandLogo } from "@/components/brand-editor"
 import { LinkIconPicture } from "@/components/link-icon"
@@ -8,6 +8,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { isBlankSpace } from "@/lib/blank-space"
 import { opensInTab, pinnedLinks, type Menu, type MenuLink } from "@/lib/menu"
+import { useRememberedOpen } from "@/lib/use-remembered-open"
+import { cn } from "@/lib/utils"
 
 /**
  * One link as its icon alone, its name in a tooltip. A link with no icon
@@ -58,11 +60,53 @@ function FoldedLinks({ links }: { links: MenuLink[] }) {
 }
 
 /**
+ * Pinned or one section: an arrow above its icons that hides and shows them,
+ * the way the full menu folds a section by its name. Tyler asked for it on
+ * 23 Oct 2026. It uses the full menu's remembered fold, `rememberKey`, so a
+ * section folded in one is folded in the other.
+ */
+function FoldedGroup({
+  name,
+  rememberKey,
+  links,
+}: {
+  name: string
+  rememberKey: string
+  links: MenuLink[]
+}) {
+  const [open, setOpen] = useRememberedOpen(rememberKey)
+  const label = `${open ? "Hide" : "Show"} ${name}`
+
+  return (
+    <section aria-label={name} className="flex flex-col items-center gap-0.5">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={label}
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+            className="flex h-5 w-8 items-center justify-center rounded-md text-sidebar-foreground/70 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          >
+            <ChevronRightIcon
+              className={cn("size-3.5 transition-transform duration-200", open && "rotate-90")}
+            />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{label}</TooltipContent>
+      </Tooltip>
+      {open ? <FoldedLinks links={links} /> : null}
+    </section>
+  )
+}
+
+/**
  * The left menu folded down to icons, as Custom Shell folds its own. Tyler
  * asked for it on 22 Oct 2026: "collapse the sidebar to only show the icons
  * like how normal app does it". Pinned, then each section's links, then the
  * links at the bottom, each as its icon; section names and sub-links hide
- * until it unfolds. The logo turns into the unfold button on hover.
+ * until it unfolds, and an arrow above each section folds its icons. The
+ * logo turns into the unfold button on hover.
  */
 export function FoldedSidebar({
   menu,
@@ -73,6 +117,8 @@ export function FoldedSidebar({
   onUnfold: () => void
   footer: React.ReactNode
 }) {
+  const pinned = pinnedLinks(menu)
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-16 shrink-0 items-center justify-center p-2">
@@ -99,10 +145,17 @@ export function FoldedSidebar({
           if (isBlankSpace(event.target)) onUnfold()
         }}
       >
-        <nav aria-label="Screens" className="flex flex-col items-center gap-2 p-2">
-          <FoldedLinks links={pinnedLinks(menu)} />
+        <nav aria-label="Screens" className="flex flex-col items-center gap-1 p-2">
+          {pinned.length ? (
+            <FoldedGroup name="Pinned" rememberKey="personal-sidebar-pinned" links={pinned} />
+          ) : null}
           {menu.sections.map((section) => (
-            <FoldedLinks key={section.id} links={section.links} />
+            <FoldedGroup
+              key={section.id}
+              name={section.title || "Untitled section"}
+              rememberKey={`personal-sidebar-section-${section.id}`}
+              links={section.links}
+            />
           ))}
         </nav>
       </ScrollArea>
