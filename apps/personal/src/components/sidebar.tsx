@@ -26,6 +26,7 @@ import { LinkIconPicture } from "@/components/link-icon"
 import {
   AddLinkButton,
   linkAnchorProps,
+  OpenInNewTab,
   OwnTabMark,
   SortableLinks,
   useMenuActions,
@@ -46,6 +47,7 @@ import {
   addSection,
   DEFAULT_BRAND_NAME,
   newId,
+  opensInTab,
   personalPath,
   pinnedLinks,
   removeSection,
@@ -274,6 +276,12 @@ function PinnedRow({ link, onUnpin }: { link: MenuLink; onUnpin: () => void }) {
         <span className="truncate">{link.label}</span>
         <OwnTabMark link={link} />
       </a>
+      {!editing && !opensInTab(link) ? (
+        <OpenInNewTab
+          link={link}
+          className="right-1 group-hover/pinned:pointer-events-auto group-hover/pinned:opacity-100"
+        />
+      ) : null}
       {/* The whole row is the one hover, handle and × included: neither has
           a box of its own, and the name makes room for them only while
           hovered, so it keeps its whole name the rest of the time. */}

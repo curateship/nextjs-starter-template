@@ -257,6 +257,13 @@ Everything here needs editing switched on.
   tab link. It is a real link to the site with a small arrow after its name,
   it never changes the panel, and it never shows as the open link. Saved as
   `"opens": "tab"`; a link without the field opens in the panel.
+- **Open in a new tab:** hovering a panel link, in Pinned or a section, shows
+  a small arrow at its right end that opens the link's site in a new browser
+  tab. The panel stays as it was. The arrow covers the end of the name only
+  while hovered, sits left of the fold arrow on a link with sub-links, and
+  hides while Edit the menu is on and on tab links. Tyler asked for it on 23
+  Oct 2026: "add a small icon linked out arrow here ... when hover over to
+  link out its own tab". `OpenInNewTab` in `src/components/menu-links.tsx`.
 - **Pinned:** a switch in every link's form, above the two below. Turned on,
   the link also shows in Pinned at the top of the menu; see Pinned above.
 - **Personal opens here:** a switch in a panel link's form. Turned on, a visit
