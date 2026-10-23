@@ -4,6 +4,8 @@ import { CSS } from "@dnd-kit/utilities"
 import {
   ChevronRightIcon,
   GripVerticalIcon,
+  PanelLeftCloseIcon,
+  PencilIcon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -11,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { BrandEditor, BrandLogo } from "@/components/brand-editor"
+import { FoldedSidebar } from "@/components/folded-sidebar"
 import {
   PINNED_LIST_ID,
   pinnedDragId,
@@ -37,6 +40,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { isBlankSpace } from "@/lib/blank-space"
 import {
   addSection,
   DEFAULT_BRAND_NAME,
@@ -303,23 +308,56 @@ function PinnedRow({ link, onUnpin }: { link: MenuLink; onUnpin: () => void }) {
   )
 }
 
+/** One of the logo row's icon buttons, with its name in a tooltip. */
+function BrandRowButton({
+  label,
+  children,
+  ...props
+}: React.ComponentProps<typeof Button> & { label: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon-xs" aria-label={label} {...props}>
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+/**
+ * The logo row's buttons show while it is hovered or one has focus, and
+ * always on a screen with no pointer to hover with.
+ */
+const SHOWN_ON_HOVER =
+  "opacity-0 group-hover/brand:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
+
 /**
  * The left menu: "Pinned", then sections of links, each edited where it stands while editing
- * is on, then the list of links at its bottom, then `footer`. "Edit the menu"
- * in the cog at the bottom turns editing on and off; off, the menu shows only
- * its sections and links. Deleting a section that still holds links asks
- * first; an empty one goes at once.
+ * is on, then the list of links at its bottom, then `footer`. The pencil in
+ * the logo row, or "Edit the menu" in the cog at the bottom, turns editing on
+ * and off; off, the menu shows only its sections and links. Deleting a
+ * section that still holds links asks first; an empty one goes at once.
+ * Folded, it is `FoldedSidebar`: the links as icons.
  */
 export function Sidebar({
   menu,
   update,
   editing,
+  onEditingChange,
+  folded,
+  onFoldedChange,
   onHome,
   footer,
 }: {
   menu: Menu
   update: (change: (menu: Menu) => Menu) => void
   editing: boolean
+  onEditingChange: (editing: boolean) => void
+  /** Folded down to icons. Only ever true beside the page, from 768 pixels wide. */
+  folded: boolean
+  onFoldedChange: (folded: boolean) => void
   /** The logo and name go back to Personal's start page, when no screen is chosen for them. */
   onHome: () => void
   /** The controls at the very bottom. */
@@ -339,6 +377,10 @@ export function Sidebar({
   const { open, openUrl } = useMenuActions()
   const brand = menu.brand
 
+  if (folded) {
+    return <FoldedSidebar menu={menu} onUnfold={() => onFoldedChange(false)} footer={footer} />
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="group/brand relative flex h-16 shrink-0 items-center p-2">
@@ -346,7 +388,9 @@ export function Sidebar({
             else the start page. Its name, logo and link are changed with the
             cog that shows while editing (Tyler asked for this on 18 Oct
             2026). Personal's own logo has a white version for dark mode,
-            both cut from the logo the old Personal OS used. */}
+            both cut from the logo the old Personal OS used. The buttons at
+            its right end cover the end of the name, so the name keeps room
+            for the pencil while it stays shown. */}
         <a
           href={brand?.url ? personalPath(brand.url) : "/"}
           onClick={(event) => {
@@ -355,41 +399,75 @@ export function Sidebar({
             if (brand?.url) open(brand.url)
             else onHome()
           }}
-          className="flex h-12 w-full min-w-0 items-center gap-2 rounded-md px-2 outline-hidden hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          className={cn(
+            "flex h-12 w-full min-w-0 items-center gap-2 rounded-md px-2 outline-hidden hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+            editing && "pr-10"
+          )}
         >
           <BrandLogo logo={brand?.logo} />
           <span className="truncate text-sm font-semibold">{brand?.name ?? DEFAULT_BRAND_NAME}</span>
         </a>
-        {editing ? (
-          <Popover open={brandOpen} onOpenChange={setBrandOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Change the name, logo and link"
-                className="absolute top-1/2 right-4 -translate-y-1/2 bg-sidebar-accent opacity-0 group-hover/brand:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-              >
-                <SettingsIcon />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent side={formSide} align="start" collisionPadding={8} className="w-80">
-              <BrandEditor
-                brand={brand}
-                openUrl={openUrl}
-                onSubmit={(next) => {
-                  update((m) => {
-                    const { brand: _old, ...rest } = m
-                    return next ? { ...rest, brand: next } : rest
-                  })
-                  setBrandOpen(false)
-                }}
-                onCancel={() => setBrandOpen(false)}
-              />
-            </PopoverContent>
-          </Popover>
-        ) : null}
+        <div className="absolute top-1/2 right-4 flex -translate-y-1/2 items-center gap-0.5">
+          {editing ? (
+            <Popover open={brandOpen} onOpenChange={setBrandOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Change the name, logo and link"
+                  className={cn("bg-sidebar-accent", SHOWN_ON_HOVER)}
+                >
+                  <SettingsIcon />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent side={formSide} align="start" collisionPadding={8} className="w-80">
+                <BrandEditor
+                  brand={brand}
+                  openUrl={openUrl}
+                  onSubmit={(next) => {
+                    update((m) => {
+                      const { brand: _old, ...rest } = m
+                      return next ? { ...rest, brand: next } : rest
+                    })
+                    setBrandOpen(false)
+                  }}
+                  onCancel={() => setBrandOpen(false)}
+                />
+              </PopoverContent>
+            </Popover>
+          ) : null}
+          {/* The pencil turns editing on and off, and stays shown, filled
+              in, while editing is on. Tyler asked for it on 22 Oct 2026. */}
+          <BrandRowButton
+            label={editing ? "Stop editing the menu" : "Edit the menu"}
+            aria-pressed={editing}
+            className={
+              editing
+                ? "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 hover:text-sidebar-primary-foreground dark:hover:bg-sidebar-primary/90"
+                : cn("bg-sidebar-accent", SHOWN_ON_HOVER)
+            }
+            onClick={() => onEditingChange(!editing)}
+          >
+            <PencilIcon />
+          </BrandRowButton>
+          {/* Folding only happens beside the page; a phone's menu opens over it. */}
+          <BrandRowButton
+            label="Fold the menu"
+            className={cn("hidden bg-sidebar-accent md:inline-flex", SHOWN_ON_HOVER)}
+            onClick={() => onFoldedChange(true)}
+          >
+            <PanelLeftCloseIcon />
+          </BrandRowButton>
+        </div>
       </div>
-      <ScrollArea className="min-h-0 flex-1">
+      {/* Double-clicking the empty space under the links folds the menu, as
+          in Custom Shell. */}
+      <ScrollArea
+        className="min-h-0 flex-1"
+        onDoubleClick={(event) => {
+          if (isBlankSpace(event.target)) onFoldedChange(true)
+        }}
+      >
         <nav aria-label="Screens" className="flex flex-col p-2">
           <PinnedLinks
             links={pinnedLinks(menu)}
@@ -419,7 +497,7 @@ export function Sidebar({
             <p className="px-2 py-1 text-sm text-muted-foreground">
               {editing
                 ? "No sections yet. Add one below, then add links to it."
-                : "No sections yet. Turn on Edit the menu in the cog at the bottom to add one."}
+                : "No sections yet. Hover the logo and press the pencil to add one."}
             </p>
           ) : null}
         </nav>
