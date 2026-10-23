@@ -3,7 +3,16 @@ import { useRouter } from "@tanstack/react-router"
 import { CheckIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { DueChip, PersonAvatar, PersonChip, PriorityChip, StatusBadge, StatusDot } from "@/components/project/task-bits"
+import {
+  DueChip,
+  PersonAvatar,
+  PersonChip,
+  PriorityChip,
+  ProjectChip,
+  ProjectDot,
+  StatusBadge,
+  StatusDot,
+} from "@/components/project/task-bits"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -11,11 +20,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { assignProjectTask, saveTask, setStatus, type TaskCard } from "@/lib/api/project/tasks"
+import { assignProjectTask, moveProjectTask, saveTask, setStatus, type TaskCard } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { dateFromKey, keyFromDate } from "@/lib/project/dates"
 import { dayLabel, longDayLabel } from "@/lib/project/days"
@@ -27,6 +37,7 @@ import {
   TASK_PRIORITY_LABEL,
   TASK_STATUSES,
   TASK_STATUS_LABEL,
+  type ProjectColor,
   type TaskStatus,
 } from "@/lib/project/rules"
 import { useDaysOff } from "@/lib/project/use-days-off"
@@ -175,6 +186,71 @@ export function PriorityCellMenu({ task }: { task: TaskCard }) {
               {TASK_PRIORITY_LABEL[priority]}
             </Choice>
           ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </KeepClicks>
+  )
+}
+
+/** A project a task can move to, under its team's name where the list spans teams. */
+export type ProjectChoice = { id: string; name: string; color: ProjectColor; group: string | null }
+
+/**
+ * The task's project as a chip that moves it to another project (Tyler,
+ * 23 Oct 2026: "I should be able to select a project in the project col and
+ * the text there to be in a chip form"). The dropdown lists every choice in
+ * its order, under group names, with the task's own project ticked. The move
+ * is the task's own Move to project, so its steps, chat and files go with it.
+ */
+export function ProjectCellMenu({
+  task,
+  project,
+  choices,
+}: {
+  task: TaskCard
+  project: { name: string; color: ProjectColor }
+  choices: ProjectChoice[]
+}) {
+  const { change, busy } = useTaskChange()
+  const groups = [...new Set(choices.map((choice) => choice.group))]
+  return (
+    <KeepClicks>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            disabled={busy}
+            aria-label={`Project: ${project.name}. Move it`}
+            className={CELL_TRIGGER}
+          >
+            <ProjectChip name={project.name} color={project.color} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56 p-0">
+          <ScrollArea className="min-h-0" viewportClassName="max-h-72">
+            <div className="p-1">
+              {groups.map((group) => (
+                <React.Fragment key={group ?? "all"}>
+                  {group ? <DropdownMenuLabel className="text-xs text-muted-foreground">{group}</DropdownMenuLabel> : null}
+                  {choices
+                    .filter((choice) => choice.group === group)
+                    .map((choice) => (
+                      <Choice
+                        key={choice.id}
+                        checked={choice.id === task.projectId}
+                        // No message: the chip itself shows where it went (Tyler, 23 Oct 2026).
+                        onSelect={() =>
+                          choice.id === task.projectId ? undefined : void change(() => moveProjectTask(task.id, choice.id))
+                        }
+                      >
+                        <ProjectDot color={choice.color} />
+                        <span className="truncate">{choice.name}</span>
+                      </Choice>
+                    ))}
+                </React.Fragment>
+              ))}
+            </div>
+          </ScrollArea>
         </DropdownMenuContent>
       </DropdownMenu>
     </KeepClicks>

@@ -492,16 +492,38 @@ describe("left menu", () => {
     expect(await workEntries()).not.toContain("item-project-task-types")
   })
 
-  it("leaves My dashboard out of the admins' menus and in the members' menu", async () => {
+  it("puts My dashboard first in the admins' menus, back where an older pass took it out", async () => {
     const workspace = await insertWorkspace(database, { settings: { sections: [] } })
     await addProjectNavigation(database)
+    const adminEntries = async () => {
+      const [row] = await database.select().from(customShellWorkspaces).where(eq(customShellWorkspaces.id, workspace.id))
+      const admins = (row.settings as { sections: { id: string; entries: { id: string }[] }[] }).sections
+      return admins.find((section) => section.id === PROJECT_NAV_SECTION_ID)!.entries.map((e) => e.id)
+    }
+    const fresh = ["item-project-dashboard", "item-project-projects", "item-project-team", "item-project-task-types"]
+    expect(await adminEntries()).toEqual(fresh)
+
+    // A menu from 16 Oct 2026, when My dashboard left the admins' menus.
     const [row] = await database.select().from(customShellWorkspaces).where(eq(customShellWorkspaces.id, workspace.id))
-    const admins = (row.settings as { sections: { id: string; entries: { id: string }[] }[] }).sections
-    expect(admins.find((section) => section.id === PROJECT_NAV_SECTION_ID)!.entries.map((e) => e.id)).toEqual([
-      "item-project-projects",
-      "item-project-team",
-      "item-project-task-types",
-    ])
+    const settings16 = row.settings as { sections: { id: string; entries: { id: string }[] }[] }
+    await database
+      .update(customShellWorkspaces)
+      .set({
+        settings: {
+          ...settings16,
+          sections: settings16.sections.map((section) =>
+            section.id === PROJECT_NAV_SECTION_ID
+              ? { ...section, entries: section.entries.filter((e) => e.id !== "item-project-dashboard") }
+              : section
+          ),
+        },
+      })
+      .where(eq(customShellWorkspaces.id, workspace.id))
+    await database
+      .delete(projectNavigationAdded)
+      .where(eq(projectNavigationAdded.scope, `workspace:${workspace.id}:admin-my-dashboard`))
+    await addProjectNavigation(database)
+    expect(await adminEntries()).toEqual(fresh)
     const [settings] = await database.select().from(customShellSettings)
     const members = (settings.settings as { memberSections: { id: string; entries: { id: string }[] }[] })
       .memberSections

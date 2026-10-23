@@ -51,7 +51,7 @@ type AskRow = Pick<
  * A due date already moved to the day asked for, or later, ends it too, so a
  * Yes can never pull the date back.
  */
-function openAsk(task: AskRow) {
+export function openAsk(task: AskRow) {
   if (!task.moreTimeDay || !task.moreTimeByUserId) return null
   if (task.status === "done" || task.deletedAt || task.moreTimeByUserId !== task.assigneeUserId) return null
   if (task.dueDate && task.dueDate >= task.moreTimeDay) return null
@@ -59,7 +59,7 @@ function openAsk(task: AskRow) {
 }
 
 /** Whoever handed the task out, when that is someone other than the person asking; else nobody. */
-function handedOutBy(task: Pick<TaskRow, "assignedByUserId" | "assigneeUserId">) {
+export function handedOutBy(task: Pick<TaskRow, "assignedByUserId" | "assigneeUserId">) {
   return task.assignedByUserId && task.assignedByUserId !== task.assigneeUserId ? task.assignedByUserId : null
 }
 

@@ -139,7 +139,7 @@ function momentsOf(meeting: Pick<MeetingRow, "startTime" | "endTime" | "timeZone
  * meeting's own calendar is read a day wider on each side, because a meeting
  * late on Monday in Toronto is already Tuesday in Berlin.
  */
-function occurrencesBetween(
+export function occurrencesBetween(
   meeting: MeetingRow,
   viewerZone: string,
   from: string,

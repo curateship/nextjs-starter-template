@@ -106,9 +106,17 @@ in [Teams and invites](teams-and-invites.md#who-is-who).
   member of the teams he creates, never checks in, and gets no tasks unless he
   takes one himself. Since 19 Oct 2026 he can take a task on any project
   without joining it (Tyler: "I should be able to assign myself (admin)").
-  Nobody else can hand him one, and he still has no My dashboard ("I dont
-  need my own dashboard"). Only he sees every project in a team, and only he gets the morning "5 of 6
-  checked in" notice.
+  Nobody else can hand him one. Only he sees every project in a team, and
+  only he gets the morning "5 of 6 checked in" notice.
+- **The site admin has a My dashboard of his own** (23 Oct 2026, replacing
+  "I dont need my own dashboard"): "I want a dashboard just for admin, but it
+  wont work like 'my dashboard' my dashboard has things like checkin and
+  checkout which an admin wont need. Admin dashboard should have tasks that
+  are assigned to me and personal tasks. We'd also need other admin specific
+  features". His personal tasks are "one list of my own", on no team. The
+  cards he picked, in his "act first" order: Waiting on you, Needs
+  attention, No one on it, Invites not taken, Meetings today, Due this week,
+  Projects running late, Milestones this month, Done today, then the Inbox.
 - **The site admin runs every team.** Tyler: "Im admin, I should be able to
   see everything." Only the site admin creates teams, changes their
   settings, invites people and makes task types.

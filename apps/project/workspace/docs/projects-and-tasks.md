@@ -983,7 +983,11 @@ Neither puts a window over the page.
   them. When the new project doesn't offer the task's type, the card says so
   and the task keeps it. Past check-in lines keep the old project, because that's where
   the task was that day. On the old project's page, the page follows the task
-  to its new one.
+  to its new one. The site admin's My dashboard can also move a task to
+  another team's project, or a task they're doing into their own Just me
+  list, from its Project chip; another team's move drops the task's tags,
+  type and field values, which belong to the old team (see
+  [My dashboard](my-dashboard.md#the-site-admins-my-dashboard)).
 - **Make it a task.** A step that grew too big becomes its own task in the
   same project, from the step's own menu, with the step's text, person and
   date. The step leaves the old task, and both histories link to each other.
@@ -1323,12 +1327,12 @@ Projects, Team and Task types to the members' menu and to each admin menu.
 - **Each menu gets the section once.** The job writes down which menus it has
   done in `project_navigation_added`. An admin who later removes a link in
   Settings keeps it removed.
-- **My dashboard left the admins' menus** on 16 Oct 2026 (Tyler: "remove my
-  dashboard from my menu"), by a pass of its own
-  (`workspace:<id>:no-my-dashboard`). The site admin has no check-in, so
-  the page only forwarded them to Team, and it stays out of their menu even
-  now they can take tasks (Tyler, 19 Oct 2026: "I dont need my own dashboard"). The members' menu and
-  the employee menu keep it.
+- **My dashboard is first in the admins' menus again** since 23 Oct 2026,
+  when the site admin got a My dashboard of their own (see
+  [My dashboard](my-dashboard.md#the-site-admins-my-dashboard)). It had left
+  them on 16 Oct 2026 by a pass marked `workspace:<id>:no-my-dashboard`; the
+  pass marked `workspace:<id>:admin-my-dashboard` puts it back first where it
+  is missing.
 - **A link added later gets its own pass.** Task types (12 Oct 2026) went
   after Team in menus that already had the section, once each, with a marker
   of its own (`members:task-types`, `workspace:<id>:task-types`). A menu

@@ -10,7 +10,7 @@ import { NOBODY_FILTER } from "@/lib/project/task-filters"
 import { savedViewScreen, type SavedViewValues } from "@/lib/saved-views"
 import type { SavedViewScreen } from "@/server/app-options"
 import { db } from "@/server/db"
-import { requireMembership, requireProjectAccess, type ProjectDb } from "@/server/project/access"
+import { requireMembership, requireProjectAccess, requireSiteAdmin, type ProjectDb } from "@/server/project/access"
 import {
   projectLabels,
   projectTaskTypes,
@@ -20,8 +20,9 @@ import { listSavedViews as listShellSavedViews } from "@/server/saved-views"
 import { customShellUsers } from "@/server/schema"
 
 /**
- * Saved views on Project's two task screens: one project's Board and List
- * (`project:<id>`), and My tasks (`my-tasks:<team id>`). They live in the
+ * Saved views on Project's task screens: one project's Board and List
+ * (`project:<id>`), My tasks (`my-tasks:<team id>`), and the site admin's
+ * My dashboard (`admin-tasks:<their id>`), which spans every team. They live in the
  * shell's `saved_views` table since 20 Oct 2026, when views moved into the
  * shell for every app; `project_saved_views` holds the rows from before and
  * nothing writes to it. The shell keeps the table and the limits; this file
@@ -38,6 +39,11 @@ export type SavedView = {
 /** The shell's key for a project's views, or My tasks' for `projectId` null. */
 export function projectViewScreen(teamId: string, projectId: string | null) {
   return projectId === null ? savedViewScreen("my-tasks", teamId) : savedViewScreen("project", projectId)
+}
+
+/** The site admin's own views on their My dashboard, kept under their id. */
+export function adminViewScreen(userId: string) {
+  return savedViewScreen("admin-tasks", userId)
 }
 
 /** The person's views on a project, or on My tasks for `projectId` null. Call after an access check. */
@@ -87,14 +93,24 @@ export const projectSavedViewScreens: Record<string, SavedViewScreen> = {
     keep: ({ filters }) => keptFilters(filters, true),
     namesOf: async ({ recordId, filters, database }) => namesOf(recordId, filters as SavedViewFilters, database),
   },
+  "admin-tasks": {
+    // The key is the site admin's own id, so nobody keeps views under another's.
+    authorize: async ({ userId, recordId, database }) => {
+      await requireSiteAdmin(userId, database)
+      if (recordId !== userId) throw new Error("FORBIDDEN")
+    },
+    keep: ({ filters }) => keptFilters(filters, true),
+    namesOf: async ({ filters, database }) => namesOf(null, filters as SavedViewFilters, database),
+  },
 }
 
 /**
  * The person's, label's and type's names as they are now, from this team
- * only, so a view can later say "Leo isn't on this project any more".
+ * only, so a view can later say "Leo isn't on this project any more". The
+ * site admin's My dashboard spans every team, so it passes no team.
  */
 async function namesOf(
-  teamId: string,
+  teamId: string | null,
   filters: SavedViewFilters,
   database: ProjectDb
 ): Promise<Record<string, string>> {
@@ -104,21 +120,21 @@ async function namesOf(
       .select({ name: customShellUsers.name })
       .from(projectTeamMembers)
       .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
-      .where(and(eq(projectTeamMembers.teamId, teamId), eq(projectTeamMembers.userId, filters.person)))
+      .where(and(teamId ? eq(projectTeamMembers.teamId, teamId) : undefined, eq(projectTeamMembers.userId, filters.person)))
     if (person) names.person = person.name
   }
   if (filters.label) {
     const [label] = await database
       .select({ name: projectLabels.name })
       .from(projectLabels)
-      .where(and(eq(projectLabels.teamId, teamId), eq(projectLabels.id, filters.label)))
+      .where(and(teamId ? eq(projectLabels.teamId, teamId) : undefined, eq(projectLabels.id, filters.label)))
     if (label) names.label = label.name
   }
   if (filters.type) {
     const [type] = await database
       .select({ name: projectTaskTypes.name })
       .from(projectTaskTypes)
-      .where(and(eq(projectTaskTypes.teamId, teamId), eq(projectTaskTypes.id, filters.type)))
+      .where(and(teamId ? eq(projectTaskTypes.teamId, teamId) : undefined, eq(projectTaskTypes.id, filters.type)))
     if (type) names.type = type.name
   }
   return names

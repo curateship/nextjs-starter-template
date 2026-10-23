@@ -25,13 +25,15 @@ import {
 import {
   projectProjectMembers,
   projectProjects,
+  projectTaskFieldValues,
   projectTaskLabels,
   projectTaskSteps,
   projectTasks,
+  projectTeams,
 } from "@/server/project/schema"
 import { holidayOn } from "@/server/project/holidays"
 import { setOneTaskLabel } from "@/server/project/labels"
-import { requireSharedProject } from "@/server/project/personal"
+import { isAdminSpace, requireSharedProject, resolveProjectId } from "@/server/project/personal"
 import {
   clearPersonValuesOffProject,
   copyFieldValues,
@@ -167,32 +169,40 @@ export type MoveTarget = {
   offersType: boolean
 }
 
-/** The person's other open projects, for Move to project. */
+/**
+ * The person's other open projects, for Move to project. A task on the site
+ * admin's own list can go to any team's project, named with its team (Tyler,
+ * 23 Oct 2026); everything else stays within its team.
+ */
 export async function listMoveTargets(
   membership: Membership,
   task: Pick<TaskRow, "projectId" | "assigneeUserId" | "typeId">,
   database: ProjectDb
 ): Promise<MoveTarget[]> {
+  const fromOwnList = membership.siteAdmin && (await isAdminSpace(membership.teamId, database))
   const rows = await database
     .select({
       id: projectProjects.id,
       name: projectProjects.name,
       color: projectProjects.color,
       hiddenTypeIds: projectProjects.hiddenTypeIds,
+      teamName: projectTeams.name,
     })
     .from(projectProjects)
+    .innerJoin(projectTeams, eq(projectTeams.id, projectProjects.teamId))
     .where(
       and(
-        visibleProjectsWhere(membership),
+        fromOwnList ? isNull(projectTeams.personalUserId) : visibleProjectsWhere(membership),
         isNull(projectProjects.archivedAt),
         isNull(projectProjects.personalUserId)
       )
     )
-    .orderBy(asc(projectProjects.name))
+    .orderBy(...(fromOwnList ? [asc(projectTeams.name)] : []), asc(projectProjects.name))
   const others = rows
     .filter((project) => project.id !== task.projectId)
-    .map(({ hiddenTypeIds, ...project }) => ({
+    .map(({ hiddenTypeIds, teamName, ...project }) => ({
       ...project,
+      name: fromOwnList ? `${teamName} · ${project.name}` : project.name,
       offersType: projectOffersType({ hiddenTypeIds }, task.typeId),
     }))
   if (!task.assigneeUserId || others.length === 0) {
@@ -217,7 +227,10 @@ export async function listMoveTargets(
 /**
  * Moves a task to another open project in the team. Its steps, chat, files,
  * labels, type, field values and history go with it, even when the new
- * project doesn't offer its type. If the person assigned isn't on the new project,
+ * project doesn't offer its type. The site admin may also move one to another
+ * team's project, from their My dashboard's Project chip (Tyler, 23 Oct
+ * 2026); its tags, type and field values belong to the old team, so they come
+ * off. If the person assigned isn't on the new project,
  * the task moves with nobody assigned and their name kept, and a Person
  * field naming someone who isn't on it is emptied. Past check-in lines keep
  * the old project: that's where the task was that day.
@@ -229,25 +242,40 @@ export async function moveTask(
 ): Promise<{ keptAssignee: boolean }> {
   return database.transaction(async (tx) => {
     const { project: from, task } = await requireTaskAccess(actor.id, input.taskId, tx)
-    if (input.projectId === task.projectId) return { keptAssignee: true }
-    const { project: to } = await requireOpenProject(actor.id, input.projectId, tx)
-    // A shared task never disappears into someone's own "Just me" list.
-    requireSharedProject(to)
+    // The site admin may put a task of theirs in their own list, made now if it isn't yet
+    // (Tyler, 23 Oct 2026: "its missing a 'just me' option").
+    const siteAdmin = await isSiteAdmin(actor.id, tx)
+    const toId =
+      input.projectId === PERSONAL_PROJECT_ID && siteAdmin
+        ? await resolveProjectId(actor.id, input.projectId, tx)
+        : input.projectId
+    if (toId === task.projectId) return { keptAssignee: true }
+    const { project: to } = await requireOpenProject(actor.id, toId, tx)
+    // A shared task never disappears into someone's own "Just me" list, except a
+    // task the site admin is doing, into their own.
+    const intoOwnList = siteAdmin && to.personalUserId === actor.id && task.assigneeUserId === actor.id
+    if (!intoOwnList) requireSharedProject(to)
     // The site admin is on no project, so a task they took goes with them.
     const keptAssignee =
       !task.assigneeUserId ||
       (await isProjectMember(to.id, task.assigneeUserId, tx)) ||
       (await isSiteAdmin(task.assigneeUserId, tx))
     if (!keptAssignee) await clearAssignee(task.assigneeUserId!, eq(projectTasks.id, task.id), tx)
+    const otherTeam = to.teamId !== from.teamId
     await tx
       .update(projectTasks)
       .set({
         projectId: to.id,
         milestoneId: null,
         position: await nextTaskPosition(to.id, tx),
+        ...(otherTeam ? { typeId: null } : null),
         updatedAt: now(),
       })
       .where(eq(projectTasks.id, task.id))
+    if (otherTeam) {
+      await tx.delete(projectTaskLabels).where(eq(projectTaskLabels.taskId, task.id))
+      await tx.delete(projectTaskFieldValues).where(eq(projectTaskFieldValues.taskId, task.id))
+    }
     // People on steps who aren't on the new project come off their steps.
     const steps = await tx
       .select({ id: projectTaskSteps.id, userId: projectTaskSteps.assigneeUserId })
@@ -430,6 +458,18 @@ export type NewTaskProject = {
   defaultTypeId: string | null
 }
 
+/** "Just me" in New task's project picker, by its stand-in id, so opening the window makes nothing. */
+export function justMeChoice(me: { id: string; name: string; avatarUrl: string }, typeIds: string[]): NewTaskProject {
+  return {
+    id: PERSONAL_PROJECT_ID,
+    name: PERSONAL_PROJECT_NAME,
+    color: "slate",
+    members: [{ userId: me.id, name: me.name, avatarUrl: me.avatarUrl }],
+    typeIds,
+    defaultTypeId: null,
+  }
+}
+
 export async function listNewTaskProjects(
   membership: Membership,
   me: { id: string; name: string; avatarUrl: string },
@@ -439,14 +479,7 @@ export async function listNewTaskProjects(
   const offered = (hidden: readonly string[]) =>
     types.filter((type) => !hidden.includes(type.id)).map((type) => type.id)
   // "Just me" goes last, by its stand-in id, so opening the window makes nothing.
-  const justMe: NewTaskProject = {
-    id: PERSONAL_PROJECT_ID,
-    name: PERSONAL_PROJECT_NAME,
-    color: "slate",
-    members: [{ userId: me.id, name: me.name, avatarUrl: me.avatarUrl }],
-    typeIds: offered([]),
-    defaultTypeId: null,
-  }
+  const justMe = justMeChoice(me, offered([]))
   const projects = await database
     .select({
       id: projectProjects.id,
@@ -464,7 +497,7 @@ export async function listNewTaskProjects(
       )
     )
     .orderBy(asc(projectProjects.name))
-  // The site admin oversees, so they have no "Just me" list to put a task in.
+  // The site admin's own list is on no team, so it is offered once, not per team.
   const own = membership.siteAdmin ? [] : [justMe]
   if (projects.length === 0) return own
   const members = await database

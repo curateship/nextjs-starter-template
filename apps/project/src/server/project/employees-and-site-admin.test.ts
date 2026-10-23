@@ -220,15 +220,17 @@ describe("the site admin", () => {
       expect(await moveTask(actor(tyler), { taskId: mine, projectId: later }, database)).toEqual({ keptAssignee: true })
     }))
 
-  it("gets no check-in and no Just me list", () =>
+  it("gets no check-in, and a Just me list of their own on no team (23 Oct 2026)", () =>
     // The site admin is on no team, so each step names this one.
     inTeam(teamId, async () => {
       await expect(
         submitCheckin(tyler.id, { answers: [], picks: [] }, database, at(`${MONDAY}T08:00:00Z`))
       ).rejects.toThrow(PROJECT_ERRORS.siteAdminNoCheckin)
-      await expect(
-        createTask(actor(tyler), task(PERSONAL_PROJECT_ID, "Mine", null), database)
-      ).rejects.toThrow(PROJECT_ERRORS.siteAdminNoTasks)
+      const { id } = await createTask(actor(tyler), task(PERSONAL_PROJECT_ID, "Mine", null), database)
+      const detail = await loadTaskDetail(tyler.id, id, database)
+      expect(detail.task.projectName).toBe("Just me")
+      // Not this team's: the list sits in the site admin's own space.
+      expect((await loadProjectsPage(tyler.id, database, teamId)).projects.map((p) => p.name)).not.toContain("Just me")
     }))
 
   it("alone gets the morning notice, opening on the team", async () => {
