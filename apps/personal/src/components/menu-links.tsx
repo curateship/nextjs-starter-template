@@ -26,7 +26,6 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   addLink,
   canPlace,
@@ -107,6 +106,7 @@ export function OwnTabMark({ link }: { link: MenuLink }) {
  * The arrow that opens a panel link's site in a new browser tab, shown while
  * the link is hovered. Like the editing controls, it covers the end of the
  * name instead of taking room from it, left of the fold arrow if there is one.
+ * It has no tooltip: Tyler asked for it gone on 23 Oct 2026.
  */
 export function OpenInNewTab({
   link,
@@ -117,23 +117,18 @@ export function OpenInNewTab({
   className: string
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <a
-          href={link.url}
-          target="_blank"
-          rel="noopener"
-          aria-label={`Open ${link.label} in a new tab`}
-          className={cn(
-            "pointer-events-none absolute top-1/2 z-20 flex size-6 -translate-y-1/2 items-center justify-center rounded-md bg-sidebar-accent text-muted-foreground opacity-0 outline-hidden hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-            className
-          )}
-        >
-          <ArrowUpRightIcon className="size-3.5" />
-        </a>
-      </TooltipTrigger>
-      <TooltipContent side="right">Open in a new tab</TooltipContent>
-    </Tooltip>
+    <a
+      href={link.url}
+      target="_blank"
+      rel="noopener"
+      aria-label={`Open ${link.label} in a new tab`}
+      className={cn(
+        "pointer-events-none absolute top-1/2 z-20 flex size-6 -translate-y-1/2 items-center justify-center rounded-md bg-sidebar-accent text-muted-foreground opacity-0 outline-hidden hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+        className
+      )}
+    >
+      <ArrowUpRightIcon className="size-3.5" />
+    </a>
   )
 }
 
@@ -194,6 +189,74 @@ function LinkRename({
 }
 
 /**
+ * The cog that opens a link's edit form, with the question asked before
+ * deleting a link that has sub-links. Used on a link where it stands and on
+ * its row in Pinned, which edit the same link.
+ */
+export function LinkEditButton({ link, place }: { link: MenuLink; place: Place }) {
+  const { places, openUrl, startLinkId, stayLoaded, pinnedIds, update } = useMenuActions()
+  const [editorOpen, setEditorOpen] = React.useState(false)
+  const [confirmingDelete, setConfirmingDelete] = React.useState(false)
+  const formSide = useMenuFormSide()
+  const subLinks = link.children ?? []
+
+  return (
+    <>
+      <Popover open={editorOpen} onOpenChange={setEditorOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon-xs" aria-label={`Edit ${link.label}`}>
+            <SettingsIcon />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent side={formSide} align="start" collisionPadding={8} className="w-80">
+          <LinkEditor
+            initial={{
+              label: link.label,
+              url: link.url,
+              icon: link.icon,
+              opens: link.opens ?? "panel",
+              start: startLinkId === link.id,
+              stayLoaded: stayLoaded?.id === link.id,
+              pinned: pinnedIds.includes(link.id),
+            }}
+            stayLoadedElsewhere={stayLoaded && stayLoaded.id !== link.id ? stayLoaded.label : null}
+            place={place}
+            places={places.filter((choice) => canPlace(link, choice.place))}
+            openUrl={openUrl}
+            submitLabel="Save"
+            onSubmit={(draft, to) => {
+              update((menu) =>
+                withSwitches(updateLink(menu, withDraft(link, draft), to), link.id, draft)
+              )
+              setEditorOpen(false)
+            }}
+            onDelete={() => {
+              setEditorOpen(false)
+              if (subLinks.length) setConfirmingDelete(true)
+              else update((menu) => removeLink(menu, link.id))
+            }}
+            onCancel={() => setEditorOpen(false)}
+          />
+        </PopoverContent>
+      </Popover>
+      {subLinks.length ? (
+        <ConfirmDialog
+          open={confirmingDelete}
+          onOpenChange={setConfirmingDelete}
+          title={`Delete ${link.label}?`}
+          description={`Removes it and the ${subLinks.length} ${plural(subLinks.length, "sub-link")} under it from the menu. The screens themselves are not touched.`}
+          confirmLabel="Delete link"
+          onConfirm={() => {
+            update((menu) => removeLink(menu, link.id))
+            setConfirmingDelete(false)
+          }}
+        />
+      ) : null}
+    </>
+  )
+}
+
+/**
  * One link: click it to open its screen, hover it to drag or edit it, and
  * double-click its name to rename it while editing is on. A left-menu link
  * with sub-links folds them underneath, as Custom Shell's menu does, and
@@ -209,20 +272,7 @@ function MenuLinkItem({
   /** A sub-link, drawn smaller under its link. */
   nested: boolean
 }) {
-  const {
-    editing: editingMenu,
-    places,
-    openUrl,
-    activeId,
-    startLinkId,
-    stayLoaded,
-    pinnedIds,
-    open,
-    update,
-  } = useMenuActions()
-  const [editorOpen, setEditorOpen] = React.useState(false)
-  const formSide = useMenuFormSide()
-  const [confirmingDelete, setConfirmingDelete] = React.useState(false)
+  const { editing: editingMenu, activeId, open, update } = useMenuActions()
   const [renaming, setRenaming] = React.useState(false)
   // Switching editing off closes a half-done rename, as sections do.
   const [wasEditing, setWasEditing] = React.useState(editingMenu)
@@ -355,45 +405,7 @@ function MenuLinkItem({
               onAdded={() => setSubLinksOpen(true)}
             />
           ) : null}
-          <Popover open={editorOpen} onOpenChange={setEditorOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon-xs" aria-label={`Edit ${link.label}`}>
-                <SettingsIcon />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent side={formSide} align="start" collisionPadding={8} className="w-80">
-              <LinkEditor
-                initial={{
-                  label: link.label,
-                  url: link.url,
-                  icon: link.icon,
-                  opens: link.opens ?? "panel",
-                  start: startLinkId === link.id,
-                  stayLoaded: stayLoaded?.id === link.id,
-                  pinned: pinnedIds.includes(link.id),
-                }}
-                stayLoadedElsewhere={
-                  stayLoaded && stayLoaded.id !== link.id ? stayLoaded.label : null
-                }
-                place={place}
-                places={places.filter((choice) => canPlace(link, choice.place))}
-                openUrl={openUrl}
-                submitLabel="Save"
-                onSubmit={(draft, to) => {
-                  update((menu) =>
-                    withSwitches(updateLink(menu, withDraft(link, draft), to), link.id, draft)
-                  )
-                  setEditorOpen(false)
-                }}
-                onDelete={() => {
-                  setEditorOpen(false)
-                  if (subLinks.length) setConfirmingDelete(true)
-                  else update((menu) => removeLink(menu, link.id))
-                }}
-                onCancel={() => setEditorOpen(false)}
-              />
-            </PopoverContent>
-          </Popover>
+          <LinkEditButton link={link} place={place} />
         </div>
       ) : null}
     </div>
@@ -424,19 +436,6 @@ function MenuLinkItem({
       ) : (
         row
       )}
-      {subLinks.length ? (
-        <ConfirmDialog
-          open={confirmingDelete}
-          onOpenChange={setConfirmingDelete}
-          title={`Delete ${link.label}?`}
-          description={`Removes it and the ${subLinks.length} ${plural(subLinks.length, "sub-link")} under it from the menu. The screens themselves are not touched.`}
-          confirmLabel="Delete link"
-          onConfirm={() => {
-            update((menu) => removeLink(menu, link.id))
-            setConfirmingDelete(false)
-          }}
-        />
-      ) : null}
     </li>
   )
 }

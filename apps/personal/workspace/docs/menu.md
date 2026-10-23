@@ -32,7 +32,12 @@ edited where it stands, with no settings screen.
     sub-links and bottom links included, and for links that open in their own
     tab.
   - **A pinned link stays in its own section too.** Pinned is a second way in,
-    not a move. It is renamed and edited in its section, not in Pinned.
+    not a move. It is renamed in its section.
+  - **A cog edits a link from Pinned too.** It shows between the drag handle
+    and the × while editing is on and the row is hovered, and opens the same
+    form as the link's cog in its section, saved to the same link. Tyler asked
+    for it on 23 Oct 2026: "There should be a cog for me to edit tab settings
+    for pinned as well". `LinkEditButton` in `src/components/menu-links.tsx`.
   - **Drag Pinned into a new order** by the handle that shows at a row's right
     end when it is hovered, only while editing is on (Tyler, 19 Oct 2026: "I
     shopuld be able to drag and drop pinned tabs"). A pinned row moves only
@@ -264,6 +269,10 @@ Everything here needs editing switched on.
   hides while Edit the menu is on and on tab links. Tyler asked for it on 23
   Oct 2026: "add a small icon linked out arrow here ... when hover over to
   link out its own tab". `OpenInNewTab` in `src/components/menu-links.tsx`.
+- **No tooltips in the open menu.** The new-tab arrow, the pencil and the
+  fold button show no name on hover; Tyler asked for them gone on 23 Oct
+  2026. A screen reader still reads their names. The folded menu keeps its
+  tooltips, since there the icon is all that shows.
 - **Pinned:** a switch in every link's form, above the two below. Turned on,
   the link also shows in Pinned at the top of the menu; see Pinned above.
 - **Personal opens here:** a switch in a panel link's form. Turned on, a visit
