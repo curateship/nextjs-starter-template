@@ -26,6 +26,7 @@ out/
 # production
 build/
 dist/
+.output/
 .cursor/
 
 # misc
