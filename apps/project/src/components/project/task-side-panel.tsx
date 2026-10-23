@@ -9,7 +9,6 @@ import {
   SquareMousePointerIcon,
   TagIcon,
   Trash2Icon,
-  XIcon,
 } from "lucide-react"
 
 import {
@@ -37,8 +36,9 @@ import { cn } from "@/lib/utils"
  * 2026 (`workspace/docs/assets/pasted-image-1791936316739365000.png`): the
  * status and a cog along the top, then Steps and Chat. On 20 Oct he put Add
  * note, Add comment and Add files behind a three-dot button and took the
- * cross away (`pasted-image-1792504237260017000.png`). My dashboard keeps the
- * cross, since closing the task there is the way back to the inbox. Notes show above Steps once a task has some. On 14
+ * cross away (`pasted-image-1792504237260017000.png`). On 23 Oct he took it off
+ * My dashboard too: "There is no 'x' icon to close the right panel to show an
+ * empty panel." Notes show above Steps once a task has some. On 14
  * Oct he moved Follow into the cog and gave the chat the notes' pattern: an
  * icon that opens a dropdown while it's empty.
  * Later on 20 Oct the task's name took the status's place in the header, and
@@ -52,13 +52,11 @@ import { cn } from "@/lib/utils"
 export function TaskSidePanel({
   taskId,
   onClose,
-  closeButton = false,
   onLoaded,
 }: {
   taskId: string | undefined
+  /** After the task is deleted: back to the list. */
   onClose: () => void
-  /** A cross that closes the task, where closing brings something back, as My dashboard's inbox. */
-  closeButton?: boolean
   /** Once the task has loaded, which marks its chat read. */
   onLoaded?: (taskId: string) => void
 }) {
@@ -79,7 +77,7 @@ export function TaskSidePanel({
   }
   return (
     <TaskView key={taskId} taskId={taskId} onLoaded={onLoaded}>
-      {(parts) => <SidePanel parts={parts} onClose={onClose} closeButton={closeButton} />}
+      {(parts) => <SidePanel parts={parts} onClose={onClose} />}
     </TaskView>
   )
 }
@@ -87,11 +85,9 @@ export function TaskSidePanel({
 function SidePanel({
   parts,
   onClose,
-  closeButton,
 }: {
   parts: TaskParts
   onClose: () => void
-  closeButton: boolean
 }) {
   const { side } = parts
   const frame = React.useRef<HTMLDivElement>(null)
@@ -161,16 +157,6 @@ function SidePanel({
         ) : (
           <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{parts.title}</h2>
         )}
-        {closeButton ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button type="button" variant="ghost" size="icon" aria-label="Close the task" onClick={onClose}>
-                <XIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Close the task</TooltipContent>
-          </Tooltip>
-        ) : null}
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <div className="grid gap-3 p-3">

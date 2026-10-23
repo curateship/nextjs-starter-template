@@ -12,6 +12,8 @@ export const TASK_TYPES_PANEL_LAYOUT_KEY = "project-task-types-horizontal"
 export const PROJECT_TASK_VIEW_KEY = "project-page-task-view"
 /** My dashboard's Board, List, Calendar or Timeline, remembered in this browser. */
 export const MY_TASK_VIEW_KEY = "project-my-dashboard-task-view"
+/** The task My dashboard had open last, opened again on arrival. */
+export const MY_OPEN_TASK_KEY = "project-my-dashboard-open-task"
 
 /** The field columns a project's List shows when filtered to one task type, per type. */
 export const fieldColumnsKey = (typeId: string) => `project-type-columns-${typeId}`

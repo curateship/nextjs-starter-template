@@ -359,6 +359,11 @@ built. Each was the recommended option.
   dots and no cross on the project page (20 Oct 2026). The status went to a
   footer pinned to the panel's bottom later the same day (see "Choices for
   the task clock" below).
+- **No cross on My dashboard either, and the right panel is never empty**
+  (23 Oct 2026): "There is no 'x' icon to close the right panel to show an
+  empty panel. The first load always show the first task and then it
+  remembers what task I'm on afterwards." The inbox moved to a card on the
+  left.
 - **The Notes card has a Delete button**, and a card footer's buttons fill
   the row (20 Oct 2026).
 - **Over a project's banner, the left panel's header has no line under it**

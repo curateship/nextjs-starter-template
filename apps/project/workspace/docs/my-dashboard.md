@@ -2,8 +2,8 @@
 
 `/dashboard`, first in the left menu, is each person's own page. Tyler asked
 for it on 10 Oct 2026: three panels, me on the left, my tasks in the middle,
-my inbox on the right. The panels resize and collapse like the project page's.
-Below 1280px wide one panel shows at a time, with My tasks, Me and Inbox tabs.
+the open task on the right. The panels resize and collapse like the project page's.
+Below 1280px wide one panel shows at a time, with My tasks, Me and Task tabs.
 Switching tabs keeps each panel as it was: My tasks stays on its view, and Time
 off doesn't load again. Tyler redrew all three panels on 13 Oct 2026
 (`assets/pasted-image-1791938818669097000.png`); what follows is that
@@ -164,24 +164,40 @@ refuses it for its own tasks. Each task is changed on its own,
 so each writes its history and sends its notices, and the result says "5
 tasks changed, 1 refused." naming the refused ones with their reasons. My
 tasks span projects, so Hand to refuses anyone who isn't on a task's project. Clicking a task opens it in the
-right panel, in my inbox's place, the same panel as on the project page
-(Tyler, 13 Oct 2026). My tasks stay in view, and the open task's row is
-shaded with a dark bar down its left edge. The cross at the top right, or
-the browser's own back button, closes the task and the inbox comes back on
-the tab and at the spot I left it. Opening another task swaps it in place.
-On a narrow screen the right panel's tab reads Task while a task is open,
-opening one switches to it, and closing it goes back to My tasks. The
-address is `?task=<id>`. How a task opens is in
+right panel, the same panel as on the project page (Tyler, 13 Oct 2026). My
+tasks stay in view, and the open task's row is shaded with a dark bar down
+its left edge. Opening another task swaps it in place. On a narrow screen
+opening one switches to the Task tab. The address is `?task=<id>`. How a task opens is in
 [Projects and tasks](projects-and-tasks.md#opening-a-task).
 
 A task whose clock is running shows the ticking time and a Pause button at
 the end of its row, so it pauses without being opened (Tyler, 20 Oct 2026;
 see [The task clock](task-clock.md)).
 
-## Right: my inbox, or the open task
+## Right: the open task
 
-While a task is open it takes this panel (see Middle above). Otherwise:
-"Inbox · 5 unread" with **Mark all read** in the header, then tabs: All,
+The right panel always holds a task. Tyler, 23 Oct 2026: "There is no 'x'
+icon to close the right panel to show an empty panel. The first load always
+show the first task and then it remembers what task I'm on afterwards."
+
+- **No cross.** Nothing closes the task; it changes when another is picked.
+- **On arrival** with no task in the address, the task last open here opens
+  again, or the List's first row when that task is no longer listed (done
+  tasks count, since Done is listed last). A link's own task wins. The task
+  is kept in this browser, per person (`src/lib/project/use-remembered-task.ts`).
+  On a narrow screen a task opened this way leaves My tasks in front.
+- **After deleting the open task**, or Close on "That task is gone", the
+  List's first row opens, so the panel is not left empty.
+- **Only with no tasks at all** does the panel show "Click a task to see its
+  steps and chat here."
+
+## Inbox
+
+A card at the bottom of the left panel since 23 Oct 2026 (it was the right
+panel's when no task was open, and Tyler picked a left card over dropping it
+or a tab beside the task). It folds like the others. Its heading reads
+"Inbox · 5 unread", with a double-tick **Mark all read** button beside the
+arrow, then tabs: All,
 Unread, Tasks (Project's own notices), Flows (an automation waiting for
 approval or one that failed) and News (product updates and announcements).
 A notice of any other kind, such as feedback, shows under All and Unread

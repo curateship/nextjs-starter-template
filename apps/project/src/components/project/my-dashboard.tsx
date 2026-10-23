@@ -54,7 +54,7 @@ import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { notificationAction } from "@/lib/notification-action"
 import { clientChoices } from "@/lib/project/clients"
-import { MY_DASHBOARD_PANEL_LAYOUT_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
+import { MY_DASHBOARD_PANEL_LAYOUT_KEY, MY_OPEN_TASK_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { clockIn, clockLabel } from "@/lib/project/days"
@@ -70,6 +70,7 @@ import { todaysPicks } from "@/lib/project/todays-picks"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { viewHasFilters } from "@/lib/project/saved-views"
 import { useMyLive } from "@/lib/project/use-my-live"
+import { useRememberedTask } from "@/lib/project/use-remembered-task"
 import { cn } from "@/lib/utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useTeamId } from "@/lib/project/team-scope"
@@ -149,18 +150,22 @@ function Dashboard({
       }),
     [navigate]
   )
+  const [rows, setRows] = React.useState<string[] | null>(null)
+  const quietTask = useRememberedTask({ storageKey: MY_OPEN_TASK_KEY, taskId: search.task, ids: rows })
 
   return (
     <PersonPages>
       <ThreePanels
         layoutKey={MY_DASHBOARD_PANEL_LAYOUT_KEY}
-        showRightFor={search.task}
+        // A task opened on arrival leaves a narrow screen on the list.
+        showRightFor={search.task === quietTask ? undefined : search.task}
         left={{
           label: "Me",
           showLabel: "Show my details",
           content: (
             <MePanel
               dashboard={dashboard}
+              notifications={notifications}
               onCheckIn={() => go({ checkin: true })}
               onCheckOut={() => go({ checkout: true })}
             />
@@ -183,27 +188,14 @@ function Dashboard({
               }}
               onFilters={(patch) => go(patch, { replace: true })}
               onOpenTask={taskAddress.open}
+              onRows={setRows}
             />
           ),
         }}
         right={{
-          label: search.task ? "Task" : "Inbox",
-          showLabel: search.task ? "Show the task" : "Show my inbox",
-          content: (
-            <>
-              {search.task ? (
-                <TaskSidePanel taskId={search.task} onClose={taskAddress.back} closeButton onLoaded={taskLoaded} />
-              ) : null}
-              {/* The inbox stays loaded under an open task, so closing the task
-                  finds it on the same tab and scrolled to the same spot. */}
-              <div
-                className={cn("flex min-h-0 flex-1 flex-col", search.task && "hidden")}
-                inert={Boolean(search.task)}
-              >
-                <InboxPanel notifications={notifications} />
-              </div>
-            </>
-          ),
+          label: "Task",
+          showLabel: "Show the task",
+          content: <TaskSidePanel taskId={search.task} onClose={taskAddress.back} onLoaded={taskLoaded} />,
         }}
       >
         <CheckinDialog
@@ -230,10 +222,12 @@ function Dashboard({
  */
 function MePanel({
   dashboard,
+  notifications,
   onCheckIn,
   onCheckOut,
 }: {
   dashboard: MyDashboardData
+  notifications: NotificationItem[]
   onCheckIn: () => void
   onCheckOut: () => void
 }) {
@@ -324,6 +318,7 @@ function MePanel({
           <PanelCard storageId="project-my-time-off" title="Time off">
             <TimeOffSection idPrefix="my-time-off" compact initial={dashboard.timeOff} />
           </PanelCard>
+          <InboxCard notifications={notifications} />
         </div>
       </ScrollArea>
     </>
@@ -408,6 +403,7 @@ function MyTasksPanel({
   filters,
   onFilters,
   onOpenTask,
+  onRows,
 }: {
   dashboard: MyDashboardData
   /** The task open in the right panel, whose row is marked. */
@@ -415,6 +411,8 @@ function MyTasksPanel({
   filters: TaskFilters
   onFilters: (patch: Partial<TaskFilters>) => void
   onOpenTask: (taskId: string) => void
+  /** The List's rows in order, so the first one can open on arrival. */
+  onRows: (ids: string[]) => void
 }) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
@@ -533,6 +531,10 @@ function MyTasksPanel({
     [...today, ...open.filter((task) => !picked.has(task.id)).sort(byDueDate), ...done],
     filters
   )
+  const rowIds = listRows.map((task) => task.id).join(",")
+  React.useEffect(() => {
+    onRows(rowIds ? rowIds.split(",") : [])
+  }, [rowIds, onRows])
   // The Board, Calendar and Timeline: every task of mine they can show, snoozed ones still hidden.
   const shown = filterTasks([...open, ...done], filters)
   const projects = [...new Map(shown.map((task) => [task.projectId, task.projectName])).entries()].map(
@@ -716,12 +718,13 @@ function inboxTabOf(item: NotificationItem, categoryId: string | undefined): Inb
 
 /**
  * My notices, the same ones the bell holds, with the newest first, as Tyler
- * drew the panel on 13 Oct 2026: "Inbox · 5 unread" with Mark all read, then
+ * drew them on 13 Oct 2026: "Inbox · 5 unread" with Mark all read, then
  * All, Unread, Tasks (Project's own notices), Flows (automations waiting or
  * failed) and News (updates and announcements). Clicking one goes where the
- * bell would take it and marks it read.
+ * bell would take it and marks it read. A card on the left since 23 Oct 2026,
+ * when the right panel became the open task's alone.
  */
-function InboxPanel({ notifications }: { notifications: NotificationItem[] }) {
+function InboxCard({ notifications }: { notifications: NotificationItem[] }) {
   const navigate = useNavigate()
   const router = useRouter()
   const { onOpenFeedbackThread } = useShellRuntime()
@@ -793,20 +796,32 @@ function InboxPanel({ notifications }: { notifications: NotificationItem[] }) {
   }
 
   return (
-    <>
-      <DashboardCardHeader>
-        <h2 className="min-w-0 flex-1 truncate text-sm font-medium">
-          Inbox
-          {unread ? <span className="ml-2 font-normal text-muted-foreground">{unread} unread</span> : null}
-        </h2>
-        <Button type="button" variant="secondary" size="sm" disabled={markingAll} onClick={() => void markAllRead()}>
-          {markingAll ? <Loader2Icon className="size-4 animate-spin" /> : null}
-          Mark all read
-        </Button>
-      </DashboardCardHeader>
+    <PanelCard
+      storageId="project-my-inbox"
+      title="Inbox"
+      meta={unread ? `${unread} unread` : undefined}
+      action={
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              aria-label="Mark all read"
+              disabled={markingAll}
+              onClick={() => void markAllRead()}
+            >
+              {markingAll ? <Loader2Icon className="size-4 animate-spin" /> : <CheckCheckIcon className="size-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Mark all read</TooltipContent>
+        </Tooltip>
+      }
+    >
       <Tabs value={tab} onValueChange={(value) => setTab(value as InboxTab)}>
-        <ScrollArea className="border-b">
-          <div className="px-3 py-2">
+        <ScrollArea>
+          <div className="pb-1">
             <TabsList className="justify-start">
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="unread">Unread</TabsTrigger>
@@ -818,30 +833,28 @@ function InboxPanel({ notifications }: { notifications: NotificationItem[] }) {
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </Tabs>
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        {notifications.length === 0 ? (
-          <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-            <ListChecksIcon className="size-4" aria-hidden />
-            Nothing yet. Tasks handed to you, comments and check-in reminders land here.
-          </p>
-        ) : shown.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">
-            {tab === "unread" ? "Nothing unread." : "Nothing here yet."}
-          </p>
-        ) : (
-          <div className="flex flex-col gap-1 p-3">
-            {shown.map((item) => (
-              <NotificationRow
-                key={item.id}
-                item={readHere[item.id] && !item.read_at ? { ...item, read_at: readHere[item.id] } : item}
-                detail={details[item.id]}
-                onClick={() => open(item)}
-              />
-            ))}
-          </div>
-        )}
-      </ScrollArea>
-    </>
+      {notifications.length === 0 ? (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <ListChecksIcon className="size-4 shrink-0" aria-hidden />
+          Nothing yet. Tasks handed to you, comments and check-in reminders land here.
+        </p>
+      ) : shown.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {tab === "unread" ? "Nothing unread." : "Nothing here yet."}
+        </p>
+      ) : (
+        <div className="-mx-2 flex flex-col gap-1">
+          {shown.map((item) => (
+            <NotificationRow
+              key={item.id}
+              item={readHere[item.id] && !item.read_at ? { ...item, read_at: readHere[item.id] } : item}
+              detail={details[item.id]}
+              onClick={() => open(item)}
+            />
+          ))}
+        </div>
+      )}
+    </PanelCard>
   )
 }
 
