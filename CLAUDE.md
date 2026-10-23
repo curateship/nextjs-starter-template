@@ -16,7 +16,7 @@ specifically, and it wins wherever the two halves disagree.
 Four apps are live, and they are the only ones worked on:
 
 - `apps/shell` — the template every app is copied from.
-- `apps/trade`, `apps/cms`, `apps/video` — the products, each a copy of the
+- `apps/trade`, `apps/directory`, `apps/video` — the products, each a copy of the
   shell.
 
 Each has its own `CLAUDE.md`. Read that app's file before touching that app.

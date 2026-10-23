@@ -11,7 +11,7 @@ node_modules
 dist
 dist-ssr
 .output
-.tanstack
+import-eatdrinktoronto-output/
 *.local
 
 # Editor directories and files
@@ -27,5 +27,4 @@ dist-ssr
 .env
 .env.*
 !.env.example
-.local-storage/
-public/local-media/
+.scaffold-database.json

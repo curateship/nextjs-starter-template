@@ -5,29 +5,41 @@ import {
 } from "@tanstack/react-start"
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server"
 
+// Personal's dev server. On this Mac, Personal shows CMS screens in its middle
+// panel (apps/personal/workspace/docs/app-panels.md), so in development CMS lets
+// that one address frame it as well as itself. The live site still refuses
+// every frame but its own and the listing badge's.
+const PERSONAL_DEV_ORIGIN = "http://localhost:3021"
+
 const securityHeaders = createMiddleware().server(async ({ next }) => {
-  // Widget embed pages (/embed/*) exist to be framed by third-party sites; they
-  // ship their own locked-down CSP, so skip the global frame-blocking headers
-  const isEmbeddableWidget = new URL(getRequest().url).pathname.startsWith("/embed/")
+  const pathname = new URL(getRequest().url).pathname
+  const isListingBadge = /^\/embed\/listing\/[^/]+\/?$/.test(pathname)
 
   setResponseHeader("X-DNS-Prefetch-Control", "on")
-  if (!isEmbeddableWidget) setResponseHeader("X-Frame-Options", "SAMEORIGIN")
+  if (!isListingBadge) {
+    if (process.env.NODE_ENV === "production") {
+      setResponseHeader("X-Frame-Options", "SAMEORIGIN")
+    } else {
+      // X-Frame-Options cannot name a second address; frame-ancestors can.
+      setResponseHeader(
+        "Content-Security-Policy",
+        `frame-ancestors 'self' ${PERSONAL_DEV_ORIGIN}`
+      )
+    }
+  }
   setResponseHeader("X-Content-Type-Options", "nosniff")
   setResponseHeader("Referrer-Policy", "origin-when-cross-origin")
-  // Geolocation is allowed for this origin's own pages so the directory's
-  // "near me" search can ask the browser where the visitor is. Embedded
-  // third-party frames still cannot use it, and camera/microphone stay off.
   setResponseHeader(
     "Permissions-Policy",
     "camera=(), microphone=(), geolocation=(self)"
   )
 
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && !isListingBadge) {
     setResponseHeader(
       "Strict-Transport-Security",
       "max-age=63072000; includeSubDomains; preload"
     )
-    if (!isEmbeddableWidget) setResponseHeader(
+    setResponseHeader(
       "Content-Security-Policy",
       [
         "default-src 'self'",
