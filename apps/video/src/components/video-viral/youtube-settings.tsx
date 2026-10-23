@@ -18,12 +18,14 @@ import {
   type YoutubeKeyStatus,
 } from "@/lib/api/video/viral"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { YoutubeChannelCard } from "@/components/video-retention/youtube-channel-card"
 
 /**
  * Settings → YouTube: the one key the Viral page searches with, saved
  * encrypted beside the other video settings. The browser only ever sees the
  * key's last four characters. Removing the saved key falls back to the
- * VIDEO_YOUTUBE_API_KEY env var, if the deployment sets one.
+ * VIDEO_YOUTUBE_API_KEY env var, if the deployment sets one. Under it, the
+ * channel the retention curves are read from (`YoutubeChannelCard`).
  */
 export default function YoutubeSettings() {
   const [status, setStatus] = React.useState<YoutubeKeyStatus | null>(null)
@@ -143,6 +145,8 @@ export default function YoutubeSettings() {
           </div>
         )}
       </CollapsibleSettingsCard>
+
+      <YoutubeChannelCard />
 
       <ConfirmDialog
         open={removing}
