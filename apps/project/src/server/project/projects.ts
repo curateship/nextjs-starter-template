@@ -134,9 +134,8 @@ export async function loadProjectsPage(
       .where(
         membership
           ? and(visibleProjectsWhere(membership), isNull(projectProjects.personalUserId))
-          : filter
-            ? eq(projectProjects.teamId, filter)
-            : undefined
+          : // A site admin's own list is on My dashboard, never on a team's Projects page.
+            and(isNull(projectTeams.personalUserId), filter ? eq(projectProjects.teamId, filter) : undefined)
       )
       .orderBy(asc(projectProjects.name))
   ).map((row) => ({

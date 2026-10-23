@@ -361,6 +361,16 @@ export function PriorityChip({ priority }: { priority: TaskPriority }) {
   )
 }
 
+/** A task's project as the List's Project cell draws it: its colour dot and name in a chip. */
+export function ProjectChip({ name, color }: { name: string; color: ProjectColor }) {
+  return (
+    <Badge variant="outline" className="max-w-44">
+      <ProjectDot color={color} />
+      <span className="truncate">{name}</span>
+    </Badge>
+  )
+}
+
 /** "Date moved 3 times", beside the date of a task not Done that keeps slipping. */
 export function DueMovesMark({ moves, status }: { moves: number; status: TaskStatus }) {
   if (moves < DUE_MOVED_MANY || status === "done") return null

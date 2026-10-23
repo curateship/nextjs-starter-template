@@ -2,20 +2,19 @@
 
 `/dashboard`, first in the left menu, is each person's own page. Tyler asked
 for it on 10 Oct 2026: three panels, me on the left, my tasks in the middle,
-my inbox on the right. The panels resize and collapse like the project page's.
-Below 1280px wide one panel shows at a time, with My tasks, Me and Inbox tabs.
+the open task on the right. The panels resize and collapse like the project page's.
+Below 1280px wide one panel shows at a time, with My tasks, Me and Task tabs.
 Switching tabs keeps each panel as it was: My tasks stays on its view, and Time
 off doesn't load again. Tyler redrew all three panels on 13 Oct 2026
 (`assets/pasted-image-1791938818669097000.png`); what follows is that
 version.
 
+The site admin has a My dashboard of their own at the same address, with no
+check-in. It is described in
+[The site admin's My dashboard](#the-site-admins-my-dashboard) below.
+
 ## Left: me
 
-- **My dashboard is an employee's.** The site admin has no check-in, so
-  `/dashboard` sends them to the Team dashboard (Tyler, 16 Oct 2026). Tasks
-  they take themselves (since 19 Oct 2026) show on the project pages, where
-  the members dropdown can show just theirs, not here: "I dont need my own
-  dashboard".
 - **The header** shows my photo, my name, and my job title and team
   ("Designer · Sample team"). The cog beside it opens My settings, a dropdown with my email and
   the day I joined, then three rows that fold open, the same as a task's
@@ -163,29 +162,57 @@ here, and every live type is offered, so a project that doesn't offer one
 refuses it for its own tasks. Each task is changed on its own,
 so each writes its history and sends its notices, and the result says "5
 tasks changed, 1 refused." naming the refused ones with their reasons. My
-tasks span projects, so Hand to refuses anyone who isn't on a task's project. Clicking a task opens it in the
-right panel, in my inbox's place, the same panel as on the project page
-(Tyler, 13 Oct 2026). My tasks stay in view, and the open task's row is
-shaded with a dark bar down its left edge. The cross at the top right, or
-the browser's own back button, closes the task and the inbox comes back on
-the tab and at the spot I left it. Opening another task swaps it in place.
-On a narrow screen the right panel's tab reads Task while a task is open,
-opening one switches to it, and closing it goes back to My tasks. The
-address is `?task=<id>`. How a task opens is in
+tasks span projects, so Hand to refuses anyone who isn't on a task's project.
+
+**Right-click** (Tyler, 23 Oct 2026: "My dashboard is missing right click to
+add task and delete task"), as on the project page: on a task's row, card,
+chip or bar it opens Duplicate and Delete (Delete only on a task I made, or
+on any task for the site admin, asking first, with Undo in its message); on
+empty space it opens New task at the mouse, with its project picker. A text
+box, a link or picked words keep the browser's own menu.
+
+Clicking a task opens it in the
+right panel, the same panel as on the project page (Tyler, 13 Oct 2026). My
+tasks stay in view, and the open task's row is shaded with a dark bar down
+its left edge. Opening another task swaps it in place. On a narrow screen
+opening one switches to the Task tab. The address is `?task=<id>`. How a task opens is in
 [Projects and tasks](projects-and-tasks.md#opening-a-task).
 
 A task whose clock is running shows the ticking time and a Pause button at
 the end of its row, so it pauses without being opened (Tyler, 20 Oct 2026;
 see [The task clock](task-clock.md)).
 
-## Right: my inbox, or the open task
+## Right: the open task
 
-While a task is open it takes this panel (see Middle above). Otherwise:
-"Inbox · 5 unread" with **Mark all read** in the header, then tabs: All,
+The right panel always holds a task. Tyler, 23 Oct 2026: "There is no 'x'
+icon to close the right panel to show an empty panel. The first load always
+show the first task and then it remembers what task I'm on afterwards."
+
+- **No cross.** Nothing closes the task; it changes when another is picked.
+- **On arrival** with no task in the address, the task last open here opens
+  again, or the List's first row when that task is no longer listed (done
+  tasks count, since Done is listed last). A link's own task wins. The task
+  is kept in this browser, per person (`src/lib/project/use-remembered-task.ts`).
+  On a narrow screen a task opened this way leaves My tasks in front.
+- **After deleting the open task**, or Close on "That task is gone", the
+  List's first row opens, so the panel is not left empty.
+- **Only with no tasks at all** does the panel show "Click a task to see its
+  steps and chat here."
+
+## Inbox
+
+A card at the bottom of the left panel since 23 Oct 2026 (it was the right
+panel's when no task was open, and Tyler picked a left card over dropping it
+or a tab beside the task). It folds like the others. Its heading reads
+"Inbox · 5 unread", with a double-tick **Mark all read** button beside the
+arrow, then tabs: All,
 Unread, Tasks (Project's own notices), Flows (an automation waiting for
 approval or one that failed) and News (product updates and announcements).
 A notice of any other kind, such as feedback, shows under All and Unread
-only. The same notices the bell holds, newest first, 30 at most. Clicking
+only. The same notices the bell holds, newest first. It shows **6**, and
+**Load more** shows 6 more, fetching the next 30 from the server once the
+loaded ones run out (Tyler, 23 Oct 2026: "the inbox should have 6 open and a
+button to load more"); a tab starts again at 6. Clicking
 one goes where the bell would take it and marks it read. If marking it read
 fails, the unread dot and the count come back and an error says so, the
 same as in the bell. Mark all read marks every notice read, the bell's own
@@ -194,10 +221,115 @@ task's notice opens the task on its project page, in the right panel. The
 check-in reminder opens this page with the check-in window open
 (`/dashboard?checkin=true`).
 
+## The site admin's My dashboard
+
+Tyler, 23 Oct 2026: "I want a dashboard just for admin, but it wont work like
+'my dashboard' my dashboard has things like checkin and checkout which an
+admin wont need. Admin dashboard should have tasks that are assigned to me
+and personal tasks. We'd also need other admin specific features". It replaced
+his 16 Oct "remove my dashboard from my menu", so `/dashboard` no longer sends
+the site admin to Teams, and My dashboard is first in the admins' left menu
+again (a menu pass marked `:admin-my-dashboard`). His answers are in
+`workspace/tasks/Admin/03-admin-dashboard.md`.
+
+- **Three panels, the same frame.** Left: the site admin and ten cards.
+  Middle: their tasks. Right: the open task, with no cross. Below 1280px wide
+  one panel at a time, with Me, My tasks and Task tabs.
+- **The header** shows their photo, name and "Site admin". The cog opens My
+  settings: their email, then **Time zone** and **Bell notices** as rows that
+  fold open. There is no check-in time or job title. The bell notices include
+  the two only the site admin gets: who checked in this morning, and joins
+  through a team's link.
+- **Their time zone.** Today, Due this week, Meetings today and Done today
+  count in it. Before one is saved, the first visit saves the browser's zone
+  (until then the page counts in UTC). It lives on
+  `project_site_admin_prefs`, beside their Board's column order, since the
+  site admin has no team row to keep either on.
+- **The middle** is the same My tasks as an employee's (List, Board, Calendar,
+  Timeline, search, Filter, Views, New task), with every open task handed to
+  them in any team's projects mixed with their own list. **The List is the
+  project page's table** (Tyler, 23 Oct 2026: "The tasks table have to look
+  like the project's tasks table"), grouped under Overdue, Today, This week,
+  Later, No date and Done, with Mass select, each cell changing its task, and
+  a cog and a bin in Actions. Its columns are Task, **Project**, Status,
+  Priority, Due and Actions. Tyler first asked for Team and Project as their
+  own columns, then had Assigned to, Steps and Team taken off ("remove the
+  assigned to, steps and my team col"). The Project cell is a chip with the
+  project's colour and its own name ("Just me" for their own), and picking it
+  moves the task (Tyler: "I should be able to select a project in the project
+  col and the text there to be in a chip form"). Every task's dropdown is the
+  same ("all should be this"): **Just me** ("its missing a 'just me'
+  option"), then every team's open projects under the team's name, with the
+  task's own project ticked. It is the task's own Move to project, so steps,
+  chat and files go with it, and it shows no message ("It doesnt need a toast
+  confirmation"). A task moved to another team loses its tags, type and type
+  fields, which belong to its old team. Only a task the site admin is doing
+  can go into their list; one someone else is doing stays shared. The Board, Calendar and Timeline still name the team with the
+  project ("Acme · Website").
+  There are no picks for today, so nothing drags up or down. Filter offers
+  every team's tags and types. Saved views are kept under their own id
+  (`admin-tasks:<their id>`), so nobody else can save there.
+- **Their own list is on no team.** Every list in the app belongs to a team,
+  so theirs sits in a space of its own: a team row marked with their id
+  (`project_teams.personal_user_id`), made the first time a task goes in "Just
+  me". It has no members, and no list of teams shows it: not Teams, not the
+  Projects page or its team filter, not New task off a team's page. Nobody but
+  them and another site admin can open it.
+- **New task** starts on the project used last; "Just me" is first in its
+  list, followed by every team's projects.
+- **Move to project** on a task of their own offers every team's open
+  projects, named with the team ("Brand · Logo"). Once moved, the team sees
+  it like any other task, and it stays theirs.
+- **The right panel** is the employee page's: on arrival the task last open
+  here, or the List's first row, and no cross. A task opened here asks its own
+  team's questions (its tags, its people), as on its project page.
+- **No live updates.** An employee's My dashboard reloads when a task of
+  theirs changes elsewhere; the site admin's loads with the page, since the
+  live stream is per team and theirs spans every team.
+
+### The ten cards
+
+Top to bottom, Tyler's "act first" order. Each counts across every team,
+folds and is remembered open or shut in this browser, shows its five most
+urgent rows then "Show all 12" for the rest, and shrinks to one line
+("No one on it · None") when it has nothing. A task in a card opens on the
+right.
+
+1. **Waiting on you:** asks for more time that fall to them: nobody else
+   handed the task out, they handed it out themselves, or whoever did can no
+   longer see it. Each row has the task, who asked, the new day and the old,
+   the reason, and **Yes** and **No** in the card. Yes moves the date; No opens
+   a box for an optional reason. Both are the task's own answer, with its
+   history line and its notice.
+2. **Needs attention:** each team with Stuck, Overdue or Untouched tasks,
+   counted exactly as that team's Attention tab counts them, the most first.
+   A count opens the team on its Needs attention tab.
+3. **No one on it:** open tasks with nobody on them, soonest due first. Each
+   has a **Hand to** picker with the project's people and the site admin;
+   picking one hands it over the same way the task's own Hand to does.
+4. **Invites not taken:** people put on a team who haven't set a password,
+   the longest waiting first, with **Resend**, which makes a fresh link.
+5. **Meetings today:** every team's meetings on their today, earliest first,
+   with the time in their zone. A row opens that team's calendar on that day.
+6. **Due this week:** open tasks in any team due today to six days on,
+   soonest first, then High before Normal before Low.
+7. **Projects running late:** shared open projects whose status is Slowing
+   down or Behind, the most late tasks first, counted on this browser's clock
+   as the Projects page counts them. A row opens the project.
+8. **Milestones this month:** milestones due today to 30 days on, with how
+   many of their tasks aren't Done ("All done" when none are left).
+9. **Done today:** tasks finished in their today, by person ("Carla · 3"),
+   the most first. A name folds open its tasks.
+10. **Inbox:** the employees' Inbox card.
+
 ## Where it lives
 
-- **Reader:** `src/server/project/my-dashboard.ts`.
-- **Screen:** `src/components/project/my-dashboard.tsx`, laid out by
+- **Reader:** `src/server/project/my-dashboard.ts`, and
+  `src/server/project/admin-dashboard.ts` for the site admin's.
+- **Screen:** `src/components/project/my-dashboard.tsx`, and
+  `admin-dashboard.tsx` with `admin-cards.tsx` for the site admin's. Both
+  share My tasks (`my-tasks-panel.tsx`) and the Inbox card (`inbox-card.tsx`),
+  laid out by
   `src/components/project/three-panels.tsx`, which the project page and the
   Team dashboard share. Widths are remembered under the keys in
   `src/lib/project/panel-keys.ts`.

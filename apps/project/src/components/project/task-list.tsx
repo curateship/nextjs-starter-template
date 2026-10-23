@@ -23,6 +23,7 @@ import {
   PersonChip,
   PickedDaysBadge,
   PriorityChip,
+  ProjectChip,
   ReviewBadge,
   SnoozedBadge,
   StatusBadge,
@@ -39,7 +40,9 @@ import {
   AssigneeCellMenu,
   DueCellMenu,
   PriorityCellMenu,
+  ProjectCellMenu,
   StatusCellMenu,
+  type ProjectChoice,
 } from "@/components/project/task-cell-menus"
 import {
   SelectAllTableHead,
@@ -64,7 +67,7 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { todayKey } from "@/lib/project/dates"
 import { clockSeconds } from "@/lib/project/clock"
-import { TASK_STATUSES, priorityRank } from "@/lib/project/rules"
+import { TASK_STATUSES, priorityRank, type ProjectColor } from "@/lib/project/rules"
 import { fieldSortValue, fieldValueText, type FieldRule } from "@/lib/project/task-fields"
 import type { TaskGroup } from "@/lib/project/task-groups"
 import { byPosition } from "@/lib/project/task-order"
@@ -86,6 +89,12 @@ export type TaskColumn =
   | "time"
   | `field:${string}`
 
+/** The Project column's chip for a task, and the projects it can move to. */
+export type ProjectColumn = {
+  of: (task: TaskCard) => { name: string; color: ProjectColor }
+  choices?: (task: TaskCard) => ProjectChoice[]
+}
+
 /** A task type's field drawn as a column, with the words for each task's value. */
 export type FieldColumn = {
   field: Pick<FieldRule, "id" | "name" | "kind" | "settings">
@@ -96,7 +105,13 @@ const STATUS_ORDER = Object.fromEntries(TASK_STATUSES.map((s, i) => [s, i]))
 const NO_FIELD_COLUMNS: readonly FieldColumn[] = []
 const NO_TARGETS: BulkTargets = { people: [], projects: [], tags: [], types: [] }
 
-function compare(a: TaskCard, b: TaskCard, column: TaskColumn, fieldColumns: readonly FieldColumn[]) {
+function compare(
+  a: TaskCard,
+  b: TaskCard,
+  column: TaskColumn,
+  fieldColumns: readonly FieldColumn[],
+  projectOf: (task: TaskCard) => string
+) {
   if (column.startsWith("field:")) {
     const spec = fieldColumns.find((c) => `field:${c.field.id}` === column)
     if (!spec) return 0
@@ -110,7 +125,7 @@ function compare(a: TaskCard, b: TaskCard, column: TaskColumn, fieldColumns: rea
   }
   switch (column) {
     case "project":
-      return a.projectName.localeCompare(b.projectName)
+      return projectOf(a).localeCompare(projectOf(b))
     case "status":
       return STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
     case "priority":
@@ -170,6 +185,8 @@ export function TaskList({
   canDelete,
   myUserId,
   addTask,
+  projectColumn,
+  showSteps = true,
 }: {
   tasks: TaskCard[]
   readOnly: boolean
@@ -202,6 +219,13 @@ export function TaskList({
    * or null where a group can't be started in, such as Overdue.
    */
   addTask?: (groupKey: string, button: React.ReactNode) => React.ReactNode
+  /**
+   * With `showProject`, what the Project column's chip shows, and where it
+   * moves the task when picked; without it, the project's name in a plain chip.
+   */
+  projectColumn?: ProjectColumn
+  /** Tyler took Steps off the site admin's My dashboard (23 Oct 2026). */
+  showSteps?: boolean
 }) {
   const { sort, direction, toggleSort } = useTableSort<TaskColumn>(
     onReorder ? "order" : showProject ? "due" : "status"
@@ -258,7 +282,7 @@ export function TaskList({
     { key: "priority", label: "Priority", column: "preview" },
     ...(showProject ? [] : [{ key: "assignee" as const, label: "Assigned to", column: "preview" as const }]),
     { key: "due", label: "Due", column: "preview" },
-    { key: "steps", label: "Steps", column: "preview" },
+    ...(showSteps ? [{ key: "steps" as const, label: "Steps", column: "preview" as const }] : []),
     ...(showTime ? [{ key: "time" as const, label: "Time", column: "preview" as const }] : []),
     ...fieldColumns.map((spec) => ({
       key: `field:${spec.field.id}` as const,
@@ -270,9 +294,11 @@ export function TaskList({
   const rows = React.useMemo(() => {
     const sign = direction === "asc" ? 1 : -1
     return [...tasks].sort(
-      (a, b) => compare(a, b, sort, fieldColumns) * sign || a.title.localeCompare(b.title)
+      (a, b) =>
+        compare(a, b, sort, fieldColumns, (task) => projectColumn?.of(task).name ?? task.projectName) * sign ||
+        a.title.localeCompare(b.title)
     )
-  }, [direction, fieldColumns, sort, tasks])
+  }, [direction, fieldColumns, projectColumn, sort, tasks])
   const sections = React.useMemo(() => {
     if (!groups || !groupsOf) return [{ key: "all", label: null, rows }]
     return groups
@@ -367,7 +393,9 @@ export function TaskList({
                         <TaskRow
                           key={task.id}
                           task={task}
-                          showProject={showProject}
+                          project={showProject ? (projectColumn?.of(task) ?? { name: task.projectName, color: "slate" }) : null}
+                          projectChoices={projectColumn?.choices?.(task) ?? null}
+                          showSteps={showSteps}
                           editable={!readOnly}
                           people={bulk.people}
                           myUserId={myUserId}
@@ -399,7 +427,9 @@ export function TaskList({
 
 function TaskRow({
   task,
-  showProject,
+  project,
+  projectChoices,
+  showSteps,
   editable,
   people,
   myUserId,
@@ -414,7 +444,11 @@ function TaskRow({
   showTime,
 }: {
   task: TaskCard
-  showProject: boolean
+  /** The Project column's chip, or null without the column. */
+  project: { name: string; color: ProjectColor } | null
+  /** Where the chip can move the task; null keeps it a plain chip. */
+  projectChoices: ProjectChoice[] | null
+  showSteps: boolean
   /** Each cell opens a dropdown to change it. */
   editable: boolean
   people: BulkTargets["people"]
@@ -482,7 +516,15 @@ function TaskRow({
           ))}
         </span>
       </TableCell>
-      {showProject ? <TableCell column="preview">{task.projectName}</TableCell> : null}
+      {project !== null ? (
+        <TableCell column="preview">
+          {editable && projectChoices ? (
+            <ProjectCellMenu task={task} project={project} choices={projectChoices} />
+          ) : (
+            <ProjectChip name={project.name} color={project.color} />
+          )}
+        </TableCell>
+      ) : null}
       <TableCell column="preview">
         {editable ? <StatusCellMenu task={task} look="badge" /> : <StatusBadge status={task.status} />}
       </TableCell>
@@ -493,7 +535,7 @@ function TaskRow({
           <PriorityChip priority={task.priority} />
         )}
       </TableCell>
-      {showProject ? null : (
+      {project !== null ? null : (
         // Wide enough for a face and a full name, however narrow the panel.
         <TableCell column="preview" className="min-w-40">
           {editable ? (
@@ -510,9 +552,11 @@ function TaskRow({
           <DueChip dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} />
         )}
       </TableCell>
-      <TableCell column="preview">
-        <StepsChip steps={task.steps} />
-      </TableCell>
+      {showSteps ? (
+        <TableCell column="preview">
+          <StepsChip steps={task.steps} />
+        </TableCell>
+      ) : null}
       {showTime ? (
         // Blank for a task whose clock never ran; ticking while it runs.
         <TableCell column="preview">

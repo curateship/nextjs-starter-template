@@ -21,7 +21,6 @@ export const PROJECT_ERRORS = {
     "That email already has an account. Ask the site admin to add it to the team instead.",
   alreadySignedIn: "They've already set their password, so there's no invite to send again.",
   onlySiteAdminSettings: "Only the site admin changes a project's settings.",
-  siteAdminNoTasks: "The site admin oversees the team, so there's no Just me list. Pick a project.",
   siteAdminNoCheckin: "The site admin oversees the team, so there's no check-in to do.",
   personNotOnTeam: "That person isn't on your team.",
   projectNotFound: "That project doesn't exist or you can't see it.",

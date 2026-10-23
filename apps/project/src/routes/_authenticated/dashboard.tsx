@@ -1,14 +1,22 @@
-import { createFileRoute, redirect } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 
+import { AdminDashboardScreen } from "@/components/project/admin-dashboard"
+import type { InboxPage } from "@/components/project/inbox-card"
 import { MyDashboardScreen, type MyDashboardSearch } from "@/components/project/my-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { listNotificationPage } from "@/lib/api/notification"
+import { loadAdminDashboardPage } from "@/lib/api/project/admin-dashboard"
 import { loadMyDashboardPage } from "@/lib/api/project/checkins"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { readTaskFilters } from "@/lib/project/task-filters"
 import { pageTitleHead } from "@/lib/project/page-title"
 
 const ID = /^[\w-]{1,36}$/
+
+/** The Inbox card's first page, and where its Load more picks up. */
+function inboxOf(page: Awaited<ReturnType<typeof listNotificationPage>>): InboxPage {
+  return { notifications: page.notifications, nextCursor: page.next_cursor }
+}
 
 function readSearch(search: Record<string, unknown>): MyDashboardSearch {
   // Every task here is mine, so there is no Person filter.
@@ -20,22 +28,24 @@ function readSearch(search: Record<string, unknown>): MyDashboardSearch {
   return result
 }
 
-/** My dashboard: me and today's check-in, my tasks, my inbox. Employees only. */
+/**
+ * My dashboard. An employee's has their check-in, their tasks and their inbox;
+ * the site admin's has their tasks across every team, their own list and the
+ * admin cards (Admin task 03, 23 Oct 2026).
+ */
 export const Route = createFileRoute("/_authenticated/dashboard")({
   validateSearch: readSearch,
   // Opening a task or the check-in doesn't reload the page under it.
   loaderDeps: () => ({}),
   loader: async ({ parentMatchPromise }) => {
-    // The site admin oversees and has no tasks or check-in (Tyler, 16 Oct
-    // 2026: "What tasks? if i only overseeas the team, why would I get
-    // tasks?"), so My dashboard sends them to Teams.
     const { user } = (await parentMatchPromise).loaderData ?? {}
-    if (user?.role === "admin") throw redirect({ to: "/teams", replace: true })
-    const [page, inbox] = await Promise.all([
-      loadMyDashboardPage(),
-      listNotificationPage({ limit: 30 }),
-    ])
-    return { ...page, notifications: inbox.notifications }
+    const inbox = listNotificationPage({ limit: 30 })
+    if (user?.role === "admin") {
+      const [admin, firstPage] = await Promise.all([loadAdminDashboardPage(), inbox])
+      return { admin, dashboard: null, inbox: inboxOf(firstPage) }
+    }
+    const [page, firstPage] = await Promise.all([loadMyDashboardPage(), inbox])
+    return { admin: null, dashboard: page.dashboard, inbox: inboxOf(firstPage) }
   },
   head: ({ matches }) => pageTitleHead("My dashboard", matches),
   component: DashboardRoute,
@@ -43,12 +53,12 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 })
 
 function DashboardRoute() {
-  const { dashboard, notifications } = Route.useLoaderData()
-  return (
-    <MyDashboardScreen
-      dashboard={dashboard}
-      notifications={notifications}
-      search={Route.useSearch()}
-    />
-  )
+  const { admin, dashboard, inbox } = Route.useLoaderData()
+  const search = Route.useSearch()
+  if (admin) {
+    // The admin's address has no check-in or check-out to open.
+    const { checkin: _checkin, checkout: _checkout, ...adminSearch } = search
+    return <AdminDashboardScreen dashboard={admin} inbox={inbox} search={adminSearch} />
+  }
+  return <MyDashboardScreen dashboard={dashboard} inbox={inbox} search={search} />
 }

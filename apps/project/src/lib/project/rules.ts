@@ -422,6 +422,9 @@ export const createTeamSchema = z.object({
   timeZone: timeZoneSchema,
 })
 
+/** The site admin's own time zone, which every "today" on their My dashboard follows. */
+export const adminTimeZoneSchema = z.object({ timeZone: timeZoneSchema })
+
 /** A person's own check-in time and zone. Null goes back to the team's. */
 export const myCheckinTimeSchema = z.object({
   checkinTime: checkinTimeSchema.nullable().optional(),

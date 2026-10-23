@@ -70,8 +70,8 @@ on it.
   sure. Stop and prove it instead of defending it.
 - `commit-change` — only when Tyler asks for a commit.
 - `ship-release` — only when Tyler asks for a deploy.
-- `migrate-legacy-code`, `new-features-suggestion`, `polish-app-suggestions` —
-  as their descriptions say.
+- `migrate-legacy-code`, `new-features-suggestion`, `polish-app-suggestions`,
+  `laptop-mockup-motion` — as their descriptions say.
 
 ## Verifying
 

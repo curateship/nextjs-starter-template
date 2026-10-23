@@ -18,8 +18,7 @@ import { customShellSettings, customShellWorkspaces } from "@/server/schema"
 
 /**
  * Puts Project's dashboards in the left menu: My dashboard, Projects, Team
- * and Task types, without My dashboard in the admins' menus (the site admin
- * has no tasks) and with Teams in place of Team there. An employee's menu comes from `roles` in `src/app/options.ts`.
+ * and Task types, with Teams in place of Team in the admins' menus. An employee's menu comes from `roles` in `src/app/options.ts`.
  *
  * The shell keeps its menus in the database, not in code. Members share one
  * list on the settings row and an admin sees their workspace's own list, and
@@ -51,16 +50,20 @@ function withTaskTypesLink(sections: unknown): ShellSection[] | null {
 }
 
 /**
- * My dashboard leaves the admins' menus (Tyler, 16 Oct 2026: "remove my
- * dashboard from my menu"). The site admin has no tasks or check-in, so the
- * page only forwarded them to the Team dashboard.
+ * My dashboard comes back first in the admins' menus (Tyler, 23 Oct 2026: "I
+ * want a dashboard just for admin"). It left them on 16 Oct 2026 under a pass
+ * marked `:no-my-dashboard`, which this replaces; a menu that never lost it
+ * keeps the one it has.
  */
-function withoutMyDashboard(sections: unknown): ShellSection[] | null {
+function withMyDashboardFirst(sections: unknown): ShellSection[] | null {
   if (!Array.isArray(sections)) return null
   const list = sections as ShellSection[]
+  const item = projectNavSection().entries.find((entry) => entry.id === MY_DASHBOARD_ITEM_ID)!
   return list.map((section) =>
-    section?.id === PROJECT_NAV_SECTION_ID && Array.isArray(section.entries)
-      ? { ...section, entries: section.entries.filter((entry) => entry?.id !== MY_DASHBOARD_ITEM_ID) }
+    section?.id === PROJECT_NAV_SECTION_ID &&
+    Array.isArray(section.entries) &&
+    !section.entries.some((entry) => entry?.id === MY_DASHBOARD_ITEM_ID)
+      ? { ...section, entries: [item, ...section.entries] }
       : section
   )
 }
@@ -94,7 +97,7 @@ function withTeamsLink(sections: unknown): ShellSection[] | null {
 const PASSES: readonly { suffix: string; change: MenuChange; adminsOnly?: true }[] = [
   { suffix: "", change: withProjectSection },
   { suffix: ":task-types", change: withTaskTypesLink },
-  { suffix: ":no-my-dashboard", change: withoutMyDashboard, adminsOnly: true },
+  { suffix: ":admin-my-dashboard", change: withMyDashboardFirst, adminsOnly: true },
   { suffix: ":teams", change: withTeamsLink, adminsOnly: true },
 ]
 

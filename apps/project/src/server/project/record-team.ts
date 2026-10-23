@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm"
+import { asc, eq, isNull } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { db } from "@/server/db"
@@ -100,10 +100,14 @@ export function fieldTeam(userId: string, fieldId: string, database: ProjectDb) 
   )
 }
 
-/** Every team by name, for what the site admin sees across all teams at once. */
+/**
+ * Every team by name, for what the site admin sees across all teams at once.
+ * A site admin's own space for their personal list is no team, so it is left out.
+ */
 export function listTeamNames(database: ProjectDb = db) {
   return database
     .select({ id: projectTeams.id, name: projectTeams.name })
     .from(projectTeams)
+    .where(isNull(projectTeams.personalUserId))
     .orderBy(asc(projectTeams.name), asc(projectTeams.id))
 }
