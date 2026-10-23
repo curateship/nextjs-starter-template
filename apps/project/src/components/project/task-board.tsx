@@ -551,6 +551,9 @@ function BoardColumn({
   const headingId = `board-column-${id.replace(/[^\w-]/g, "-")}`
   return (
     <section
+      // Right-clicking empty space here starts a New task in this column and row (project-tasks-panel.tsx).
+      data-new-status={status}
+      data-new-lane={splitKey(id).lane}
       ref={(node) => {
         setNodeRef(node)
         sortable.setNodeRef(node)
@@ -650,7 +653,7 @@ function BoardCard({
 
   return (
     // The card stays in the column as a faint placeholder while its copy follows the pointer.
-    <li ref={setNodeRef} style={style} className={cn("group/card relative", isDragging && "opacity-40")}>
+    <li ref={setNodeRef} style={style} data-task-id={task.id} className={cn("group/card relative", isDragging && "opacity-40")}>
       <button
         type="button"
         onClick={onOpen}

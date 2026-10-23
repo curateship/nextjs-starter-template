@@ -391,6 +391,15 @@ show out of the left panel and into that header.
   the right, and Delete, which asks the bin's question first. Delete shows
   only to whoever made the task and the site admin, the same
   people the server lets delete it. An archived project's cards have no "...".
+- **Right-click a task** on the List, Board, Calendar or Timeline (Tyler,
+  22 Oct 2026). A dropdown opens at the mouse with the card's two items:
+  Duplicate and Delete, and Delete shows to the same people as on the card.
+  Right-click empty space on those tabs and New task opens at the mouse
+  instead (see Making tasks quickly). The browser's own menu still shows in
+  a text box, on a link, over words picked to copy, inside a dropdown that is
+  already open, and on an archived project. The tabs mark what is under the
+  mouse with `data-task-id` and `data-new-*` attributes, read by
+  `src/lib/project/right-click.ts`.
 - **Right: the open task.** Clicking a task opens it here (see Opening a
   task below). With none open, the panel says "Click a task to see its steps
   and chat here."
@@ -857,7 +866,7 @@ Neither puts a window over the page.
   starting steps and notes and asks for its fields that are needed when made
   (see [Task types](task-types.md)).
 - **New task opens a dropdown**, not a window (Tyler, 14 Oct 2026): the
-  title, who it is for (me, when I'm on the project), a due date, then
+  title, a Description box under it (Tyler, 22 Oct 2026), who it is for (me, when I'm on the project), a due date, then
   Status, Priority, Type (when the project offers any, from 20 Oct 2026)
   and, on a project's page, Milestone and Tags (Tyler,
   19 Oct 2026: "there should be a way to add tags here as well as priority
@@ -868,16 +877,28 @@ Neither puts a window over the page.
   Tags work as under a task's title: type and press Enter for a pill with an
   ×; a new name becomes the team's tag when the task is made. Enter in the
   title or Create task makes it, with the type picked (the project's own
-  until another is picked, or Plain task) and that type's steps and notes,
-  and with its priority and tags in the same save. A type that needs fields
+  until another is picked, or Plain task) and that type's steps, and with
+  its priority and tags in the same save.
+- **Description** is the same writing box as the task's notes: select words
+  to make them bold, a list or a link. It saves as the task's notes. It
+  starts on the picked type's notes and follows the type while nothing is
+  typed in it; once something is typed, a new type leaves it alone. Enter
+  makes a new line there, not the task. When the full window opens instead
+  (a type that needs fields), what was written goes with it. A type that needs fields
   when made opens the full window on that same type. Picking
   Stuck asks why. There is no "More options" (Tyler, 19 Oct 2026: "we dont
   need the 'more option' to open up a modal. Just keep it all in the
   dropdown"). The full New task window, which has the same fields, still
   opens on its own for a type that needs fields filled in when it is made
   (the dropdown says so and its button reads Continue) and for pasting
-  several lines. Clicking away keeps the title typed for the next opening;
-  the rest starts again from where it was opened.
+  several lines. Clicking away keeps the title and Description typed for the
+  next opening; the rest starts again from where it was opened.
+- **Right-click empty space** on the List, Board, Calendar or Timeline opens
+  the same dropdown at the mouse (Tyler, 22 Oct 2026). It starts on what was
+  clicked: in a Board column, that status (and that person, on a person's
+  row); on a Calendar day, due that day; on a List heading, that heading's
+  group, as its "+" does. Anywhere else it starts like the header's New
+  task.
 - **A "+" on each List heading** starts a task in that group (Tyler, 19 Oct
   2026: "if I hover over the sort parent there should be a '+' icon for me to
   add a task that will slot into that sort"). It shows while the heading is

@@ -223,7 +223,7 @@ export function TaskTimeline({
                     const dates = dayRangeLabel(shown.first, shown.last)
                     const waiting = task.waitingOn && !task.waitingOn.ready
                     return (
-                      <li key={task.id} className="relative flex h-9 items-center">
+                      <li key={task.id} data-task-id={task.id} className="relative flex h-9 items-center">
                         <span
                           className="sticky left-0 z-10 flex h-full shrink-0 items-center gap-1.5 bg-background px-3 text-sm"
                           style={{ width: TITLE_PX }}

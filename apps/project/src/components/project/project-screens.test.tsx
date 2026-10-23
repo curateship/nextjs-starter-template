@@ -120,6 +120,11 @@ describe("the board", () => {
     expect(html).toContain("Overdue · ")
   })
 
+  it("marks each card and column for right-click: the card's task, the column's status and row", () => {
+    expect(html).toContain(`data-task-id="e"`)
+    expect(html).toMatch(/data-new-status="doing" data-new-lane="all"/)
+  })
+
   it("gives each card a ... menu with Duplicate, and Delete only where allowed, but none on an archived project", () => {
     const withMenus = (readOnly: boolean) =>
       renderToStaticMarkup(
@@ -233,6 +238,11 @@ describe("the list", () => {
 
     const readOnly = renderToStaticMarkup(<TaskList tasks={tasks} readOnly onOpenTask={() => {}} />)
     expect(readOnly).not.toContain("Mass select")
+  })
+
+  it("marks each row with its task, so a right-click on it opens Duplicate and Delete", () => {
+    const html = renderToStaticMarkup(<TaskList tasks={tasks} readOnly={false} onOpenTask={() => {}} />)
+    expect(html).toContain(`data-task-id="e"`)
   })
 
   it("gathers the ticked rows' changes behind one button", () => {
