@@ -16,6 +16,7 @@ import { sql } from "drizzle-orm"
 import type { AccountStatus } from "@/lib/social/account-status"
 import type { AccountImportance } from "@/lib/social/importance"
 import type { Network } from "@/lib/social/networks"
+import type { LinkedinSeen } from "@/lib/social/linkedin/options"
 import type { XReach } from "@/lib/social/x/options"
 import type {
   InboxKind,
@@ -317,6 +318,18 @@ export const promoAccounts = pgTable(
     xReachAt: timestamp("x_reach_at", { withTimezone: true }),
     xFollowBack: boolean("x_follow_back").notNull().default(false),
     xHelpEvery: integer("x_help_every").notNull().default(0),
+    /**
+     * LinkedIn's own columns, added by `drizzle/0126_promo_linkedin.sql`:
+     * whether the account pays for Premium (part 8), the weekly look at
+     * whether its comments still show to someone else and when it was taken
+     * ('' until read, then 'seen' or 'hidden', part 46), and when LinkedIn
+     * last asked it for the code it emails at sign-in (part 4), null when it
+     * is not asking.
+     */
+    linkedinPremium: boolean("linkedin_premium").notNull().default(false),
+    linkedinSeen: varchar("linkedin_seen", { length: 10 }).$type<LinkedinSeen | "">().notNull().default(""),
+    linkedinSeenAt: timestamp("linkedin_seen_at", { withTimezone: true }),
+    linkedinCodeAskedAt: timestamp("linkedin_code_asked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

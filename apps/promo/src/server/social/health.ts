@@ -13,6 +13,7 @@ import type { ProfileCheck } from "@/lib/social/options"
 import { queueJob } from "./jobs"
 import { ringBell } from "./notices"
 import { queueMediumProfileRead } from "./medium/run"
+import { queueLinkedinSeenLook } from "./linkedin/reach"
 import { queueXReachLook } from "./x/reach"
 import { pausedBy } from "./pause"
 import { promoAccounts, promoJobs } from "./schema"
@@ -118,26 +119,21 @@ export async function queueHealthCheck(
     await queueXReachLook(userId, account.id, db)
     return true
   }
+  // LinkedIn's reading is the weekly look at whether its comments still show,
+  // through a search account (LinkedIn task, part 46). Check now also reads
+  // who its browser is signed in as, which brings back a name a restriction
+  // screen or the code page hid.
+  if (account.platform === "linkedin") {
+    await queueLinkedinSeenLook(userId, account.id, db)
+    if (account.profileId) await queueProfileCheck(userId, account.profileId, db)
+    return true
+  }
   // Medium has no health reading of its own. Check now looks at who its
   // browser is signed in as, which reads when it joined and its followers
   // too; on a phone the reader reads its public page instead.
   if (account.platform === "medium") {
     if (!account.profileId) return queueMediumProfileRead(userId, account.id, db)
-    const [waiting] = await db
-      .select({ id: promoJobs.id })
-      .from(promoJobs)
-      .where(
-        and(
-          eq(promoJobs.userId, userId),
-          eq(promoJobs.kind, "check"),
-          inArray(promoJobs.status, ["queued", "running"]),
-          sql`${promoJobs.payload}->>'profileId' = ${account.profileId}`
-        )
-      )
-      .limit(1)
-    if (waiting) return false
-    await queueJob(userId, "check", { profileId: account.profileId }, db)
-    return true
+    return queueProfileCheck(userId, account.profileId, db)
   }
   if (await pendingHealthJob(userId, accountId, db)) return false
   await queueJob(userId, "health", { accountId }, db)
@@ -367,4 +363,23 @@ async function pendingHealthJob(
     )
     .limit(1)
   return Boolean(row)
+}
+
+/** Asks the browser who a profile is signed in as, unless that look is already waiting. */
+async function queueProfileCheck(userId: string, profileId: string, db: CustomShellDb): Promise<boolean> {
+  const [waiting] = await db
+    .select({ id: promoJobs.id })
+    .from(promoJobs)
+    .where(
+      and(
+        eq(promoJobs.userId, userId),
+        eq(promoJobs.kind, "check"),
+        inArray(promoJobs.status, ["queued", "running"]),
+        sql`${promoJobs.payload}->>'profileId' = ${profileId}`
+      )
+    )
+    .limit(1)
+  if (waiting) return false
+  await queueJob(userId, "check", { profileId }, db)
+  return true
 }

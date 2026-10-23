@@ -63,6 +63,21 @@ acts on a bad reading". Tyler picked this the same day.
   "Ban screen: @name in its browser" for a lock screen; and "Did not go out: an
   X reply", "... an X post", "... a change on X", "... a follow on X". Each
   opens the X module's tab, the Accounts dashboard, or Settings → Behaviour.
+- **LinkedIn** ([Comments on LinkedIn](linkedin/comments.md),
+  [Search accounts](linkedin/search-accounts.md), [LinkedIn accounts](linkedin/accounts.md)):
+  "New LinkedIn post from someone you watch: Name", once per new post from a
+  person or page a project watches with its bell on; "New reply to you on
+  LinkedIn from Name", once for each reply under one of your comments or posts;
+  "Gone from LinkedIn:" when one of your comments or posts no longer shows;
+  "LinkedIn search account stopped:" when a search account is signed out,
+  restricted, asked for a code or shown the limit, once a day; "LinkedIn may be
+  hiding in/name's comments" when the weekly look first finds none of its
+  latest comments showing; "LinkedIn wants its emailed code: in/name" when
+  LinkedIn asks for the code at sign-in; "Ban screen: in/name in its browser"
+  for a restriction screen; and "Did not go out: a LinkedIn comment", "... a
+  LinkedIn post", "... a change on LinkedIn", "... a LinkedIn connection
+  request", "... accepting a LinkedIn request". Each opens the LinkedIn
+  module's tab, the Accounts dashboard, or Settings → Behaviour.
 - **A Wi-Fi phone showing the wrong address**: "Wrong address showing: Pixel
   8a in slot 4", with the address apps saw. Every job on it is refused until
   a check finds its proxy's address, and the notice goes then. Opens the phone.

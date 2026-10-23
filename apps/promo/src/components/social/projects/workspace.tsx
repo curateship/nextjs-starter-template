@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { MediumModule, type MediumSearch } from "@/components/social/medium/medium-module"
 import { AppModule } from "@/components/social/phone-apps/app-module"
 import { RedditModule, type RedditSearch } from "@/components/social/reddit/reddit-module"
+import { LinkedinModule } from "@/components/social/linkedin/linkedin-module"
 import { XModule } from "@/components/social/x/x-module"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
@@ -19,6 +20,7 @@ import {
 } from "@/lib/api/social/projects"
 import { MEDIUM_VIEWS, type MediumView } from "@/lib/social/medium/options"
 import { NETWORK_NAMES, type Network } from "@/lib/social/networks"
+import { LINKEDIN_VIEWS, type LinkedinView } from "@/lib/social/linkedin/options"
 import { X_VIEWS, type XView } from "@/lib/social/x/options"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { KeywordRow } from "@/server/social/keywords"
@@ -29,7 +31,7 @@ import { ProjectPanel } from "./project-panel"
 
 /** What a project's page keeps in its address: the picked network, and that network's own. */
 export type ProjectSearch = RedditSearch &
-  Omit<MediumSearch, "list" | "window" | "tab"> & { network?: Network; tab?: Exclude<MediumView | XView, "new"> }
+  Omit<MediumSearch, "list" | "window" | "tab"> & { network?: Network; tab?: Exclude<MediumView | XView | LinkedinView, "new"> }
 
 /** The address's tab when it is one of this module's, else none. */
 function tabOf<T extends string>(tab: string | undefined, views: readonly T[]): Exclude<T, "new"> | undefined {
@@ -200,6 +202,19 @@ export function ProjectsWorkspace({
         left={left}
         dialogs={dialogs}
         search={{ tab: tabOf(search.tab, X_VIEWS), open: search.open, list: search.list === "failed" ? "failed" : undefined, window: search.window }}
+        onSearch={setSearch}
+        onProjectChanged={refreshView}
+      />
+    )
+  }
+
+  if (network === "linkedin") {
+    return (
+      <LinkedinModule
+        projectId={projectId}
+        left={left}
+        dialogs={dialogs}
+        search={{ tab: tabOf(search.tab, LINKEDIN_VIEWS), open: search.open, list: search.list === "failed" ? "failed" : undefined, window: search.window }}
         onSearch={setSearch}
         onProjectChanged={refreshView}
       />

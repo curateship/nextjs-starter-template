@@ -1553,6 +1553,524 @@ class XAppTest(unittest.TestCase):
         self.assertEqual(sent, [])
 
 
+LINKEDIN_POST = "7250000000000000000"
+
+
+class CopyingClipboard(object):
+    """A phone's clipboard as LinkedIn's Copy fills it: each press of a Copy
+    row puts the next address of `addresses` on it, None being a copy that
+    silently did nothing. Emptying it is remembered, so an old address never
+    comes back by itself."""
+
+    COPY_WORDS = ("Copy link to profile", "Copy")
+
+    def _copies(self):
+        return len([label for label in getattr(self, "pressed", []) if label in self.COPY_WORDS])
+
+    @property
+    def clipboard(self):
+        copies = self._copies()
+        if copies > self._cleared_at and copies - 1 < len(self.addresses) and self.addresses[copies - 1] is not None:
+            return self.addresses[copies - 1]
+        return self._clip
+
+    @clipboard.setter
+    def clipboard(self, text):
+        self._clip, self._cleared_at = text, self._copies()
+
+
+def linkedin_screen(rows):
+    """A LinkedIn screen of rows one under another; a tuple is buttons side by side on one row."""
+    package = promo_rack.LINKEDIN
+    nodes = ""
+    for index, row in enumerate(rows):
+        items = row if isinstance(row, tuple) else (row,)
+        width = 980 // len(items)
+        for place, item in enumerate(items):
+            # "Follow#top_card_primary_action" is the words Follow under that view id.
+            text, _, view = item.partition("#")
+            nodes += '<node text="%s" resource-id="%s" package="%s" bounds="[%d,%d][%d,%d]" />' % (
+                text, "%s:id/%s" % (package, view) if view else "", package,
+                60 + place * width, 400 + index * 120, 60 + (place + 1) * width - 10, 480 + index * 120)
+    return '<hierarchy><node text="" package="%s" bounds="[0,0][1080,2400]">%s</node></hierarchy>' % (package, nodes)
+
+
+class LinkedinPhone(CopyingClipboard, ScriptedAppPhone):
+    """The LinkedIn app on a fake screen whose rows keep their order, one set
+    before the last button and one after, where a tap at a place presses the
+    words drawn there."""
+
+    def __init__(self, rows, last, after, addresses=(), clipboard=""):
+        self.addresses = list(addresses)
+        flat = [item.partition("#")[0] for row in rows for item in (row if isinstance(row, tuple) else (row,))]
+        ScriptedAppPhone.__init__(self, promo_rack.LINKEDIN, flat, last, after, clipboard)
+        self.rows = list(rows)
+
+    def dump_hierarchy(self):
+        return linkedin_screen(self.after if self.last in self.pressed else self.rows)
+
+    def __call__(self, **selector):
+        # A view id finds whatever words are drawn under it, as on a phone.
+        if "resourceIdMatches" in selector:
+            for node in ElementTree.fromstring(self.dump_hierarchy()).iter("node"):
+                if re.fullmatch(selector["resourceIdMatches"], node.get("resource-id") or ""):
+                    return FakeElement(self, {"text": node.get("text") or ""})
+            return FakeElement(self, {"text": "\0"})
+        return ScriptedAppPhone.__call__(self, **selector)
+
+    def click(self, x, y):
+        for node in ElementTree.fromstring(self.dump_hierarchy()).iter("node"):
+            bounds = promo_rack.parse_bounds(node.get("bounds"))
+            if node.get("text") and bounds and bounds[0] <= x < bounds[2] and bounds[1] <= y < bounds[3]:
+                self.pressed.append(node.get("text"))
+                return
+
+
+class InvitationsPhone(CopyingClipboard, FakeDevice):
+    """LinkedIn's invitations screen: one row per request, its name, headline
+    and note beside Accept and Ignore, and each profile's address on the
+    clipboard once its More menu's Copy is pressed."""
+
+    def __init__(self, rows, addresses):
+        FakeDevice.__init__(self, ["My Network", "Invitations", "More", "Copy link to profile", "Accept", "Ignore"])
+        self.rows, self.addresses = rows, list(addresses)
+        self.clipboard = ""
+
+    def dump_hierarchy(self):
+        package = promo_rack.LINKEDIN
+        groups = "".join(
+            '<node package="%s" bounds="[0,%d][1080,%d]">%s'
+            '<node text="Accept" package="%s" bounds="[700,%d][860,%d]" /><node text="Ignore" package="%s" bounds="[880,%d][1040,%d]" /></node>'
+            % (
+                package, 500 + index * 300, 780 + index * 300,
+                "".join('<node text="%s" package="%s" bounds="[60,%d][660,%d]" />' % (line, package, 520 + index * 300 + n * 70, 580 + index * 300 + n * 70) for n, line in enumerate(row)),
+                package, 520 + index * 300, 600 + index * 300, package, 520 + index * 300, 600 + index * 300,
+            )
+            for index, row in enumerate(self.rows)
+        )
+        return '<hierarchy><node package="%s" bounds="[0,0][1080,2400]">%s</node></hierarchy>' % (package, groups)
+
+
+class LinkedinAppTest(unittest.TestCase):
+    """LinkedIn task, parts 2, 5, 9, 39, 40 and 42: LinkedIn's app on a phone.
+    Written from how the app is put together; a real phone is the proof. The
+    last button is pressed once in a real run and never in a rehearsal, and a
+    poll, a video, a repost, a group post, tags and a company page are refused
+    before anything opens."""
+
+    def run_action(self, handler, device, args, rehearse=False):
+        with mock.patch.object(promo_rack, "READ_SECONDS", (0, 0)):
+            return AppActionsTest.run_action(self, handler, device, args, rehearse)
+
+    def typed(self, sent):
+        return len([command for command in sent if command.startswith("input text")])
+
+    # --- the screens and the names ------------------------------------------
+
+    def test_linkedin_is_known_by_both_kinds_of_phone_and_its_steps_are_registered(self):
+        self.assertEqual(promo_rack.APP_PACKAGES["linkedin"], "com.linkedin.android")
+        self.assertEqual(promo_rack.APP_BUNDLES["linkedin"], "com.linkedin.LinkedIn")
+        self.assertEqual(promo_rack.APP_STORE_IDS["linkedin"], "288429040")
+        self.assertEqual(promo_rack.APP_NAMES["linkedin"], "LinkedIn")
+        self.assertEqual(iphone.TRACKED_APPS["com.linkedin.LinkedIn"], "linkedin")
+        self.assertIn("com.linkedin.android", promo_rack.APPS_COMMAND)
+        steps = ("state", "comment", "publish", "connect", "invites", "accept", "warm_up", "inbox", "reply_message")
+        for name in steps + ("quick_state",):
+            self.assertIn("linkedin/%s" % name, promo_rack.ACTIONS)
+        for name in steps:
+            self.assertIn("linkedin/%s" % name, promo_rack.REHEARSALS)
+        # The browser's own routines are never answered by a phone.
+        for name in ("search", "post", "check", "edit", "delete", "newsletter", "viewers", "numbers", "feed", "enter_code", "message"):
+            self.assertNotIn("linkedin/%s" % name, promo_rack.ACTIONS)
+        self.assertEqual(promo_rack.action_app("linkedin/comment"), "linkedin")
+
+    def test_each_kind_of_phone_has_all_of_linkedins_buttons_in_its_own_app(self):
+        android, ios = promo_rack.APP_SCREENS["linkedin"], promo_rack.APP_SCREENS[promo_rack.IOS_LINKEDIN]
+        self.assertEqual(sorted(android), sorted(ios))
+        with mock.patch.dict(promo_rack._KINDS, {"I1": "iphone", "A1": "android"}):
+            self.assertIs(promo_rack.app_screens("I1", "linkedin"), ios)
+            self.assertIs(promo_rack.app_screens("A1", "linkedin"), android)
+        for package, screens in ((promo_rack.LINKEDIN, android), (promo_rack.IOS_LINKEDIN, ios)):
+            for key, selectors in screens.items():
+                for selector in selectors if isinstance(selectors, list) else []:
+                    self.assertEqual(selector.get("packageName"), package, key)
+            # What a rehearsal taps on the way is never a last button; what it stops at is.
+            for key in ("drawer", "profile_entry", "profile_more", "copy_link", "share_profile", "like", "new_post", "media", "network", "invitations", "inbox", "comment_box"):
+                self.assertFalse(any(promo_rack.could_be_last_button(one) for one in screens[key]), key)
+            for key in ("comment_send", "post_button", "send"):
+                self.assertTrue(any(promo_rack.could_be_last_button(one) for one in screens[key]), key)
+        self.assertFalse([one for selectors in ios.values() if isinstance(selectors, list) for one in selectors if "resourceIdMatches" in one])
+        self.assertEqual(ios["name_id"], "")
+
+    def test_a_profile_address_gives_the_slug(self):
+        self.assertEqual(promo_rack.linkedin_slug_from("https://www.linkedin.com/in/jane-doe-12/"), "jane-doe-12")
+        self.assertEqual(promo_rack.linkedin_slug_from("Check out my profile https://linkedin.com/in/j%C3%A9r%C3%B4me?utm=share"), u"jérôme")
+        self.assertIsNone(promo_rack.linkedin_slug_from("https://www.linkedin.com/company/acme/"))
+        self.assertIsNone(promo_rack.linkedin_slug_from(""))
+
+    # --- who is signed in ----------------------------------------------------
+
+    def state_phone(self, extra, addresses=("https://www.linkedin.com/in/jane-doe-12/",), clipboard=""):
+        return LinkedinPhone(
+            ["Open navigation drawer", "View profile", "Jane Doe", "Head of Growth at Acme", "1,204 followers", "Premium", "More"] + extra,
+            "never", [], addresses=addresses, clipboard=clipboard,
+        )
+
+    def test_state_reads_the_slug_off_the_copied_profile_link(self):
+        device = self.state_phone(["Copy link to profile"])
+        result, _ = self.run_action(promo_rack.action_linkedin_state, device, {})
+        self.assertEqual(result, {
+            "checked": True, "slug": "jane-doe-12", "name": "", "blocked": False, "reason": "", "banScreen": None,
+            "codeAsked": False, "pages": None, "premium": True, "followers": 1204,
+        })
+        self.assertEqual(device.pressed, ["Open navigation drawer", "View profile", "More", "Copy link to profile"])
+
+    def test_state_copies_through_the_share_sheet_when_the_menu_has_no_copy(self):
+        device = self.state_phone(["Share via", "Copy"])
+        result, _ = self.run_action(promo_rack.action_linkedin_state, device, {})
+        self.assertEqual(result["slug"], "jane-doe-12")
+        self.assertEqual(device.pressed[-2:], ["Share via", "Copy"])
+
+    def test_a_copy_that_did_nothing_never_reports_the_address_left_on_the_clipboard(self):
+        # Somebody else's address is on the clipboard from before, and Copy does nothing.
+        device = self.state_phone(["Copy link to profile"], addresses=(None,), clipboard="https://www.linkedin.com/in/sam-lee/")
+        result, _ = self.run_action(promo_rack.action_linkedin_state, device, {})
+        self.assertEqual(result, promo_rack.LINKEDIN_NOT_CHECKED)
+        self.assertIn("Copy link to profile", device.pressed)
+
+    def test_state_with_no_address_on_the_clipboard_is_not_checked(self):
+        device = self.state_phone(["Copy link to profile"], addresses=())
+        result, _ = self.run_action(promo_rack.action_linkedin_state, device, {})
+        self.assertEqual(result, promo_rack.LINKEDIN_NOT_CHECKED)
+        failure, _ = self.run_action(promo_rack.action_linkedin_state, device, {}, rehearse=True)
+        self.assertIsInstance(failure, promo_rack.StepFailed)
+
+    def test_state_on_a_restriction_or_code_screen_is_blocked_and_presses_nothing(self):
+        device = FakeDevice([], hierarchy=BanScreenTest.read(self, "linkedin-restricted"))
+        result, _ = self.run_action(promo_rack.action_linkedin_state, device, {})
+        self.assertEqual((result["checked"], result["blocked"], result["slug"]), (True, True, None))
+        self.assertTrue(result["banScreen"].startswith("Your account has been temporarily restricted"))
+        self.assertEqual(result["reason"], "LinkedIn shows the account restricted")
+        self.assertEqual(device.pressed, [])
+        device = FakeDevice([], hierarchy=app_screen(promo_rack.LINKEDIN, ["Enter the code", "We sent a code to j***@mail.com", "Submit"]))
+        result, _ = self.run_action(promo_rack.action_linkedin_state, device, {})
+        self.assertEqual((result["blocked"], result["codeAsked"], result["banScreen"]), (True, True, None))
+        self.assertEqual(device.pressed, [])
+
+    def test_the_quick_verification_code_screen_asks_for_the_code_and_is_no_ban(self):
+        code_screen = BanScreenTest.read(self, "linkedin-code")
+        self.assertIsNone(promo_rack.ban_screen_in(code_screen, "linkedin"))
+        device = FakeDevice([], hierarchy=code_screen)
+        result, _ = self.run_action(promo_rack.action_linkedin_state, device, {})
+        self.assertEqual((result["checked"], result["codeAsked"], result["banScreen"], result["slug"]), (True, True, None, None))
+        self.assertEqual(result["reason"], "LinkedIn is asking for the code it emailed")
+        self.assertEqual(device.pressed, [])
+
+    # --- ban screens ---------------------------------------------------------
+
+    def test_linkedins_restricted_verify_and_security_check_screens_stop_the_account(self):
+        for name, kind in (("linkedin-restricted", "restricted"), ("linkedin-verify", "confirm"), ("linkedin-security-check", "confirm")):
+            found = promo_rack.ban_screen_in(BanScreenTest.read(self, name), "linkedin")
+            self.assertIsNotNone(found, name)
+            self.assertEqual((found["app"], found["kind"]), ("linkedin", kind), name)
+            self.assertNotIn("12:04", found["words"])
+        self.assertEqual(promo_rack.ban_screen_in(app_screen(promo_rack.LINKEDIN, ["Your account is restricted.", "Learn more"]), "linkedin")["kind"], "restricted")
+
+    def test_an_ordinary_profile_or_another_apps_screen_stops_nothing(self):
+        self.assertIsNone(promo_rack.ban_screen_in(BanScreenTest.read(self, "linkedin-not-a-ban"), "linkedin"))
+        self.assertIsNone(promo_rack.ban_screen_in(BanScreenTest.read(self, "linkedin-restricted"), "x"))
+        self.assertIsNone(promo_rack.ban_screen_in(BanScreenTest.read(self, "x-locked"), "linkedin"))
+
+    # --- messages ------------------------------------------------------------
+
+    def test_a_linkedin_message_is_a_message_and_its_reactions_and_invitations_are_nothing(self):
+        output = (
+            "    NotificationRecord(0x01: pkg=com.linkedin.android user=UserHandle{0} id=1 tag=null importance=4 key=0|com.linkedin.android|1|null|10400: Notification(channel=MESSAGING category=msg vis=PRIVATE))\n"
+            "        android.title=String (Sam Lee)\n"
+            "        android.text=String (Is the night mode free?)\n"
+            "    NotificationRecord(0x02: pkg=com.linkedin.android user=UserHandle{0} id=2 tag=null importance=3 key=0|com.linkedin.android|2|null|10400: Notification(channel=NOTIFICATIONS vis=PRIVATE))\n"
+            "        android.title=String (LinkedIn)\n"
+            "        android.text=String (Sam Lee reacted to your comment)\n"
+            "    NotificationRecord(0x03: pkg=com.linkedin.android user=UserHandle{0} id=3 tag=null importance=3 key=0|com.linkedin.android|3|null|10400: Notification(channel=INVITATIONS vis=PRIVATE))\n"
+            "        android.title=String (LinkedIn)\n"
+            "        android.text=String (Sam Lee accepted your invitation)\n"
+        )
+        self.assertEqual(promo_rack.new_alerts(output, collections.OrderedDict()), [{"app": "linkedin", "kind": "message"}])
+        self.assertEqual(promo_rack.alert_kind({"app": "linkedin", "meta": "", "title": "Sam Lee", "text": "sent you a new message"}), "message")
+        self.assertEqual(promo_rack.alert_kind({"app": "linkedin", "meta": "", "title": "Sam Lee", "text": "sent you an InMail"}), "message")
+
+    def test_a_linkedin_message_is_answered_through_the_shared_inbox_steps_with_one_send(self):
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, ["Messaging", "Sam Lee", "Write a message…", "Send"], "Send", ["Sam Lee", "Yes, offline too."])
+        result, _ = self.run_action(
+            promo_rack.ACTIONS["linkedin/reply_message"], device,
+            {"kind": "message", "thread": "Sam Lee", "author": "Sam Lee", "quote": "does it work offline?", "text": "Yes, offline too."},
+        )
+        self.assertEqual(result, {"sent": True})
+        self.assertEqual(device.pressed.count("Send"), 1)
+        self.assertIn("Messaging", device.pressed)
+
+    # --- comments ------------------------------------------------------------
+
+    def comment_phone(self, after, bar=("Like", "Comment", "Repost", "Send"), rows_after=()):
+        return LinkedinPhone(["Home", bar, "Add a comment…", "Post"] + list(rows_after), "Post", after)
+
+    def test_a_real_comment_likes_first_types_and_presses_post_once(self):
+        device = self.comment_phone(["Post", "Great point, thanks."])
+        result, sent = self.run_action(
+            promo_rack.action_linkedin_comment, device,
+            {"postId": LINKEDIN_POST, "parentCommentId": "", "text": "Great point, thanks.", "react": True, "asPageId": ""},
+        )
+        self.assertEqual((result["commentId"], result["url"]), ("", ""))
+        self.assertEqual(device.pressed.count("Post"), 1)
+        self.assertLess(device.pressed.index("Like"), device.pressed.index("Post"))
+        self.assertTrue(any("urn:li:activity:%s/' -p com.linkedin.android" % LINKEDIN_POST in command for command in sent))
+        self.assertEqual(self.typed(sent), len("Great point, thanks."))
+
+    def test_a_comment_without_react_or_on_a_post_already_liked_gives_no_like(self):
+        device = self.comment_phone(["Post", "Great point."])
+        result, _ = self.run_action(promo_rack.action_linkedin_comment, device, {"postId": LINKEDIN_POST, "text": "Great point.", "react": False})
+        self.assertNotIn("Like", device.pressed)
+        device = self.comment_phone(["Post", "Great point."], bar=("Unlike", "Comment", "Repost", "Send"))
+        result, _ = self.run_action(promo_rack.action_linkedin_comment, device, {"postId": LINKEDIN_POST, "text": "Great point.", "react": True})
+        self.assertNotIn("Like", device.pressed)
+        self.assertNotIn("Unlike", device.pressed)
+        self.assertEqual(device.pressed.count("Post"), 1)
+
+    def test_only_the_posts_own_like_is_pressed_never_a_comments(self):
+        # No action bar on screen, only a comment's Like beside its Reply.
+        device = LinkedinPhone(["Home", "Sam Lee: so true", ("Like", "Reply"), "Add a comment…", "Post"], "Post", ["Post", "Great point."])
+        result, _ = self.run_action(promo_rack.action_linkedin_comment, device, {"postId": LINKEDIN_POST, "text": "Great point.", "react": True})
+        self.assertNotIn("Like", device.pressed)
+        self.assertNotIn("Reply", device.pressed)
+        self.assertEqual(device.pressed.count("Post"), 1)
+        self.assertTrue(any("the post's own Like was not on screen" in problem for problem in result["visit"]["problems"]))
+        # The action bar's Like is the topmost; a comment's Like further down is never it.
+        package = promo_rack.LINKEDIN
+        screens = promo_rack.APP_SCREENS["linkedin"]
+        screen = linkedin_screen([("Like", "Comment", "Repost", "Send"), "Sam Lee: so true", ("Like", "Reply")])
+        state, bounds = promo_rack.linkedin_post_like(screen, package, screens)
+        self.assertEqual(state, "like")
+        self.assertEqual(bounds[1], 400)
+        # A comment's Like higher on screen than the action bar is still never taken for the post's.
+        screen = linkedin_screen([("Like", "Reply"), "Sam Lee: so true", ("Like", "Comment", "Repost", "Send")])
+        state, bounds = promo_rack.linkedin_post_like(screen, package, screens)
+        self.assertEqual((state, bounds[1]), ("like", 640))
+
+    def test_a_reply_under_a_comment_opens_that_comment_and_presses_its_reply(self):
+        device = LinkedinPhone(["Reply", "Add a comment…", "Post"], "Post", ["Post", "Agreed, and cheaper too."])
+        result, sent = self.run_action(
+            promo_rack.action_linkedin_comment, device,
+            {"postId": LINKEDIN_POST, "parentCommentId": "7250000000000000123", "text": "Agreed, and cheaper too.", "react": False},
+        )
+        self.assertEqual((result["commentId"], result["url"]), ("", ""))
+        self.assertEqual(device.pressed[0], "Reply")
+        self.assertEqual(device.pressed.count("Post"), 1)
+        self.assertTrue(any("commentUrn=urn%3Ali%3Acomment%3A%28activity%3A" + LINKEDIN_POST in command for command in sent))
+
+    def test_a_comment_linkedin_refuses_or_never_shows_is_failed_without_a_second_press(self):
+        device = self.comment_phone(["Something went wrong. Try again."])
+        failure, _ = self.run_action(promo_rack.action_linkedin_comment, device, {"postId": LINKEDIN_POST, "text": "Hi there"})
+        self.assertIn("LinkedIn said it did not go", str(failure))
+        self.assertIn("It may already be on LinkedIn", str(failure))
+        self.assertEqual(device.pressed.count("Post"), 1)
+        device = self.comment_phone(["Post"])
+        failure, _ = self.run_action(promo_rack.action_linkedin_comment, device, {"postId": LINKEDIN_POST, "text": "Hi there"})
+        self.assertIn("may already be on LinkedIn", str(failure))
+        self.assertEqual(device.pressed.count("Post"), 1)
+
+    def test_our_words_already_under_the_post_are_sent_with_nothing_typed(self):
+        device = self.comment_phone(["Post", "Great point, thanks."])
+        device.rows = ["Home", "Great point, thanks.", "Add a comment…", "Post"]
+        result, sent = self.run_action(promo_rack.action_linkedin_comment, device, {"postId": LINKEDIN_POST, "text": "Great point, thanks.", "react": True})
+        self.assertEqual((result["commentId"], result["url"]), ("", ""))
+        self.assertEqual(device.pressed, [])
+        self.assertEqual(self.typed(sent), 0)
+
+    def test_a_rehearsed_comment_types_nothing_likes_nothing_and_never_presses_post(self):
+        device = self.comment_phone(["Post", "Hi"])
+        result, sent = self.run_action(promo_rack.action_linkedin_comment, device, {"postId": LINKEDIN_POST, "text": "", "react": True}, rehearse=True)
+        self.assertEqual(result, {"commentId": "", "url": ""})
+        self.assertEqual(device.pressed, [])
+        self.assertEqual(self.typed(sent), 0)
+
+    def test_post_is_only_the_button_beside_the_box_and_two_of_them_are_refused(self):
+        # A comment's Reply under the box is never Post, and the action bar's Send above it is not either.
+        device = self.comment_phone(["Post", "Great point."], rows_after=[("Like", "Reply")])
+        result, _ = self.run_action(promo_rack.action_linkedin_comment, device, {"postId": LINKEDIN_POST, "text": "Great point.", "react": False})
+        self.assertEqual((result["commentId"], result["url"]), ("", ""))
+        # The box is pressed to type into, then Post once; never the Reply or the Send.
+        self.assertEqual(device.pressed, ["Add a comment…", "Post"])
+        # Two buttons beside the box that could each be Post: neither is pressed.
+        device = LinkedinPhone(["Home", "Add a comment…", ("Send", "Post")], "Post", [])
+        failure, _ = self.run_action(promo_rack.action_linkedin_comment, device, {"postId": LINKEDIN_POST, "text": "Great point.", "react": False})
+        self.assertIsInstance(failure, promo_rack.StepFailed)
+        self.assertIn("could be Post, so none was pressed", str(failure))
+        self.assertEqual([label for label in device.pressed if label in ("Send", "Post")], [])
+
+    def test_a_comment_as_a_page_or_with_a_bad_id_is_refused_before_anything_opens(self):
+        failure, sent = self.run_action(promo_rack.action_linkedin_comment, self.comment_phone([]), {"postId": LINKEDIN_POST, "text": "Hi", "asPageId": "12345"})
+        self.assertIn("company page", str(failure))
+        self.assertEqual(sent, [])
+        failure, sent = self.run_action(promo_rack.action_linkedin_comment, self.comment_phone([]), {"postId": "../feed", "text": "Hi"})
+        self.assertIn("not a LinkedIn post id", str(failure))
+        self.assertEqual(sent, [])
+
+    # --- posts ---------------------------------------------------------------
+
+    def test_a_poll_video_repost_group_tags_or_page_post_is_refused_before_anything_opens(self):
+        base = {"text": "Hi", "pictureUrl": "", "videoUrl": "", "poll": None, "tags": [], "repostOf": "", "groupId": "", "asPageId": ""}
+        for change, word in (
+            ({"poll": {"question": "Which?", "choices": ["A", "B"], "days": 3}}, "poll"),
+            ({"videoUrl": "https://media.example/a.mp4"}, "video"),
+            ({"repostOf": LINKEDIN_POST}, "repost"),
+            ({"groupId": "12345"}, "group"),
+            ({"tags": [{"name": "Sam Lee", "slug": "sam-lee", "kind": "person"}]}, "tags"),
+            ({"asPageId": "12345"}, "company page"),
+        ):
+            failure, sent = self.run_action(promo_rack.action_linkedin_publish, self.comment_phone([]), dict(base, **change))
+            self.assertIn(word, str(failure))
+            self.assertEqual(sent, [])
+
+    def test_a_post_with_a_picture_puts_it_in_the_gallery_picks_it_and_presses_post_once(self):
+        device = ScriptedAppPhone(
+            promo_rack.LINKEDIN, ["Start a post", "What do you want to talk about?", "Add a photo", "IMG_0001", "Done", "Post"], "Post", ["Post successful"])
+        with mock.patch.dict(promo_rack.APP_SCREENS["linkedin"], {"media_first": promo_rack.shapes(promo_rack.LINKEDIN, "^IMG_\\d+$")}):
+            result, sent = self.run_action(
+                promo_rack.action_linkedin_publish, device,
+                {"text": "Night mode is out.", "pictureUrl": "https://media.example/a.jpg", "videoUrl": "", "poll": None, "tags": [], "repostOf": "", "groupId": "", "asPageId": ""},
+            )
+        self.assertEqual((result["postId"], result["url"]), ("", ""))
+        self.assertEqual(device.pressed.count("Post"), 1)
+        self.assertEqual(device.pressed[:4], ["Start a post", "Add a photo", "IMG_0001", "Done"])
+        self.assertTrue(any(command.startswith("push ") and "/sdcard/DCIM/Camera/IMG_" in command for command in sent))
+        self.assertEqual(self.typed(sent), len("Night mode is out."))
+
+    def test_a_post_linkedin_refuses_is_failed_with_one_press_and_a_rehearsal_never_presses(self):
+        texts = ["Start a post", "What do you want to talk about?", "Post"]
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, texts, "Post", ["Your post couldn't be shared"])
+        failure, _ = self.run_action(promo_rack.action_linkedin_publish, device, {"text": "Hi all"})
+        self.assertIn("It may already be on LinkedIn", str(failure))
+        self.assertEqual(device.pressed.count("Post"), 1)
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, texts, "Post", [])
+        result, sent = self.run_action(promo_rack.action_linkedin_publish, device, {"text": ""}, rehearse=True)
+        self.assertEqual(result, {"postId": "", "url": ""})
+        self.assertEqual(device.pressed, ["Start a post"])
+        self.assertEqual(self.typed(sent), 0)
+
+    # --- connection requests -------------------------------------------------
+
+    def test_connect_without_a_note_presses_connect_then_send_without_a_note(self):
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, ["Connect", "Send without a note"], "Connect", ["Pending"])
+        result, sent = self.run_action(promo_rack.action_linkedin_connect, device, {"slug": "sam-lee", "note": ""})
+        self.assertEqual(result, {"done": True, "already": False})
+        self.assertEqual(device.pressed, ["Connect", "Send without a note"])
+        self.assertTrue(any("-d 'https://www.linkedin.com/in/sam-lee/' -p com.linkedin.android" in command for command in sent))
+
+    def test_connect_with_a_note_types_it_and_presses_send_once(self):
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, ["Connect", "Add a note", "Ex: We know each other from school", "Send"], "Connect", ["Pending"])
+        note = "Liked your post on pricing."
+        result, sent = self.run_action(promo_rack.action_linkedin_connect, device, {"slug": "sam-lee", "note": note})
+        self.assertEqual(result, {"done": True, "already": False})
+        self.assertEqual(device.pressed, ["Connect", "Add a note", "Ex: We know each other from school", "Send"])
+        self.assertEqual(self.typed(sent), len(note))
+
+    def test_somebody_connected_or_asked_already_is_done_with_no_press_and_a_rehearsal_never_presses(self):
+        for screen in (["Pending", "Message"], ["Message", "Remove connection"]):
+            device = ScriptedAppPhone(promo_rack.LINKEDIN, screen, "never", [])
+            result, _ = self.run_action(promo_rack.action_linkedin_connect, device, {"slug": "sam-lee", "note": ""})
+            self.assertEqual((result, device.pressed), ({"done": True, "already": True}, []))
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, ["Connect"], "Connect", [])
+        result, _ = self.run_action(promo_rack.action_linkedin_connect, device, {"slug": "sam-lee", "note": ""}, rehearse=True)
+        self.assertEqual((result, device.pressed), ({"done": False, "already": False}, []))
+
+    def test_connect_never_presses_follow_or_message_under_the_profiles_main_button(self):
+        # A creator's page: its main button is Follow, and Connect is not on screen.
+        for rows in (
+            ["Jane Doe", ("Follow#top_card_primary_action", "More")],
+            ["Jane Doe", "Following", ("Following#top_card_primary_action", "More")],
+        ):
+            device = LinkedinPhone(rows, "Connect", ["Pending"])
+            failure, _ = self.run_action(promo_rack.action_linkedin_connect, device, {"slug": "jane-doe", "note": ""})
+            self.assertIsInstance(failure, promo_rack.StepFailed)
+            self.assertEqual(device.pressed, [])
+        # A first-degree contact: "· 1st" beside the name and Message as the main button.
+        device = LinkedinPhone(["Sam Lee", "· 1st", ("Message#top_card_primary_action", "More")], "Connect", ["Pending"])
+        result, _ = self.run_action(promo_rack.action_linkedin_connect, device, {"slug": "sam-lee", "note": ""})
+        self.assertEqual((result, device.pressed), ({"done": True, "already": True}, []))
+        # Followed but not connected, with Connect by its words: that is pressed.
+        device = LinkedinPhone(["Jane Doe", "Following", ("Following#top_card_primary_action", "Connect")], "Connect", ["Pending"])
+        result, _ = self.run_action(promo_rack.action_linkedin_connect, device, {"slug": "jane-doe", "note": ""})
+        self.assertEqual((result, device.pressed), ({"done": True, "already": False}, ["Connect"]))
+        self.assertEqual(promo_rack.linkedin_profile_state(linkedin_screen(["Jane Doe", "Following"])), "following")
+
+    def test_a_request_that_never_shows_pending_says_it_may_be_out(self):
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, ["Connect"], "Connect", ["Connect"])
+        failure, _ = self.run_action(promo_rack.action_linkedin_connect, device, {"slug": "sam-lee", "note": ""})
+        self.assertIn("It may already be on LinkedIn", str(failure))
+        self.assertEqual(device.pressed, ["Connect"])
+        failure, sent = self.run_action(promo_rack.action_linkedin_connect, device, {"slug": "../feed", "note": ""})
+        self.assertIn("not a LinkedIn profile", str(failure))
+        self.assertEqual(sent, [])
+
+    # --- waiting requests ----------------------------------------------------
+
+    def test_invites_read_each_row_and_its_profile_address_and_accept_nothing(self):
+        device = InvitationsPhone([["Sam Lee", "Founder at Tidy", "Loved your comment on pricing"]], ["https://www.linkedin.com/in/sam-lee/"])
+        result, _ = self.run_action(promo_rack.action_linkedin_invites, device, {"max": 5})
+        self.assertEqual(result, {"invites": [{"slug": "sam-lee", "name": "Sam Lee", "headline": "Founder at Tidy", "note": "Loved your comment on pricing"}]})
+        self.assertNotIn("Accept", device.pressed)
+        self.assertEqual(device.pressed[:2], ["My Network", "Invitations"])
+        result, _ = self.run_action(promo_rack.action_linkedin_invites, device, {"max": 5}, rehearse=True)
+        self.assertEqual(result, {"invites": []})
+
+    def test_a_copy_that_did_nothing_or_repeats_the_last_address_never_files_one_person_as_another(self):
+        rows = [["Sam Lee", "Founder at Tidy", "Hi"], ["Ana Ruiz", "CEO at Loop", "Hello"], ["Ben Ode", "CTO at Kite", "Hey"]]
+        # Ana's copy silently did nothing, and Ben's handed back Sam's address again.
+        device = InvitationsPhone(rows, ["https://www.linkedin.com/in/sam-lee/", None, "https://www.linkedin.com/in/sam-lee/"])
+        result, _ = self.run_action(promo_rack.action_linkedin_invites, device, {"max": 5})
+        self.assertEqual([invite["slug"] for invite in result["invites"]], ["sam-lee"])
+        self.assertEqual([invite["name"] for invite in result["invites"]], ["Sam Lee"])
+        device = InvitationsPhone(rows[:2], ["https://www.linkedin.com/in/sam-lee/", "https://www.linkedin.com/in/ana-ruiz/"])
+        result, _ = self.run_action(promo_rack.action_linkedin_invites, device, {"max": 5})
+        self.assertEqual([(invite["name"], invite["slug"]) for invite in result["invites"]], [("Sam Lee", "sam-lee"), ("Ana Ruiz", "ana-ruiz")])
+
+    def test_accept_needs_proof_the_two_are_connected_not_just_a_changed_screen(self):
+        # Accept is gone, but nothing says connected: not done.
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, ["Accept", "Ignore", "Message"], "Accept", ["Sam Lee", "Message"])
+        failure, _ = self.run_action(promo_rack.action_linkedin_accept, device, {"slug": "sam-lee"})
+        self.assertIn("did not show the two connected", str(failure))
+        self.assertIn("It may already be on LinkedIn", str(failure))
+        # "· 1st" after the press is proof, and so is a Message button that was not there before.
+        for after in (["Sam Lee", "· 1st"], ["Sam Lee", "Message"]):
+            device = ScriptedAppPhone(promo_rack.LINKEDIN, ["Accept", "Ignore"], "Accept", after)
+            result, _ = self.run_action(promo_rack.action_linkedin_accept, device, {"slug": "sam-lee"})
+            self.assertEqual((result, device.pressed), ({"done": True}, ["Accept"]))
+
+    def test_an_accept_that_never_shows_the_connection_says_it_may_be_done(self):
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, ["Accept", "Ignore"], "Accept", ["Accept", "Ignore"])
+        failure, _ = self.run_action(promo_rack.action_linkedin_accept, device, {"slug": "sam-lee"})
+        self.assertIn("It may already be on LinkedIn", str(failure))
+        self.assertEqual(device.pressed, ["Accept"])
+
+    def test_accept_presses_accept_once_and_waits_for_the_connection(self):
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, ["Accept", "Ignore"], "Accept", ["Message", "Remove connection"])
+        result, sent = self.run_action(promo_rack.action_linkedin_accept, device, {"slug": "sam-lee"})
+        self.assertEqual((result, device.pressed), ({"done": True}, ["Accept"]))
+        self.assertTrue(any("https://www.linkedin.com/in/sam-lee/" in command for command in sent))
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, ["Message", "Remove connection"], "never", [])
+        result, _ = self.run_action(promo_rack.action_linkedin_accept, device, {"slug": "sam-lee"})
+        self.assertEqual((result, device.pressed), ({"done": True}, []))
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, ["Accept", "Ignore"], "Accept", [])
+        result, _ = self.run_action(promo_rack.action_linkedin_accept, device, {"slug": "sam-lee"}, rehearse=True)
+        self.assertEqual((result, device.pressed), ({"done": False}, []))
+
+    def test_the_warm_up_presses_nothing(self):
+        device = ScriptedAppPhone(promo_rack.LINKEDIN, ["Home", "Like", "Connect"], "never", [])
+        with mock.patch.object(promo_rack, "browse_app_feed", lambda serial, walk, seconds: None):
+            result, _ = self.run_action(promo_rack.action_linkedin_warm_up, device, {"words": ["pricing"]})
+        self.assertEqual((result, device.pressed), ({"postsRead": 0, "problems": []}, []))
+
+
 class LauncherRollbackTest(unittest.TestCase):
     """A new version that stops before checking in is rolled back by itself."""
 
@@ -2476,6 +2994,19 @@ class IphoneAppsTest(unittest.TestCase):
         self.assertIn("Press Reply (found, not pressed)", [step for step, _ in walk.steps])
         self.assertIn(("app_stop", promo_rack.IOS_X), screen.calls)
 
+    def test_a_rehearsed_linkedin_comment_on_an_iphone_finds_post_and_never_presses_it(self):
+        post = promo_rack.linkedin_post_url("7250000000000000000")
+        screen = self.phone({
+            "start": ios_tree(IOS_SETTINGS),
+            post: ios_tree(promo_rack.IOS_LINKEDIN, ("StaticText", "A post worth answering."), ("TextView", "Add a comment…"), ("Button", "Post")),
+        }, "start")
+        result, walk = self.run_action(promo_rack.action_linkedin_comment, screen, {"postId": "7250000000000000000", "text": "", "react": True}, rehearse=True)
+        self.assertEqual(result, {"commentId": "", "url": ""})
+        self.assertIn(("open_url", post), screen.calls)
+        self.assertEqual(screen.pressed, [])
+        self.assertIn("Press Post (found, not pressed)", [step for step, _ in walk.steps])
+        self.assertIn(("app_stop", promo_rack.IOS_LINKEDIN), screen.calls)
+
     def test_each_app_action_picks_the_iphone_shapes_by_the_phone(self):
         self.assertIs(promo_rack.app_screens(IPHONE, "tiktok"), promo_rack.APP_SCREENS[IOS_TIKTOK])
         self.assertIs(promo_rack.app_screens("A1", "tiktok"), promo_rack.APP_SCREENS["tiktok"])
@@ -2569,6 +3100,8 @@ class IphoneAppsTest(unittest.TestCase):
             "itms-apps://apps.apple.com/app/id828256236": ios_tree(promo_rack.APP_STORE, ("Button", "Get"), ("StaticText", "Version 7.0")),
             # So is X (X task, part 2), and not on this phone either.
             "itms-apps://apps.apple.com/app/id333903271": ios_tree(promo_rack.APP_STORE, ("Button", "Get"), ("StaticText", "Version 11.0")),
+            # And LinkedIn (LinkedIn task, part 2), not on this phone either.
+            "itms-apps://apps.apple.com/app/id288429040": ios_tree(promo_rack.APP_STORE, ("Button", "Get"), ("StaticText", "Version 9.0")),
         }
         screen = self.phone(dict(store, start=ios_tree(IOS_SETTINGS)), "start")
         with mock.patch.object(iphone, "app_versions", lambda udid: {"reddit": "2025.40.0", "instagram": "400.0"}):

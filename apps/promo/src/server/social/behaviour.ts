@@ -12,6 +12,7 @@ import {
 import { knownTimeZone } from "@/lib/social/waking"
 
 import { promoAccounts, promoBehaviourSettings, promoComments, promoJobs, promoPosts } from "./schema"
+import { promoLinkedinSearchers } from "./linkedin/schema"
 import { promoXSearchers } from "./x/schema"
 
 /**
@@ -110,6 +111,16 @@ export async function saveBehaviour(
     if (searcher) {
       throw new Error(
         `The profile ${profile.name} is an X search account, signed in to X, so it cannot be the reader. A reader is signed in to nobody.`
+      )
+    }
+    const [linkedinSearcher] = await db
+      .select({ id: promoLinkedinSearchers.id })
+      .from(promoLinkedinSearchers)
+      .where(eq(promoLinkedinSearchers.profileId, input.readerProfileId))
+      .limit(1)
+    if (linkedinSearcher) {
+      throw new Error(
+        `The profile ${profile.name} is a LinkedIn search account, signed in to LinkedIn, so it cannot be the reader. A reader is signed in to nobody.`
       )
     }
   }

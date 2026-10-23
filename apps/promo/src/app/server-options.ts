@@ -141,6 +141,24 @@ export const appServerOptions: AppServerOptions = {
         },
       },
       {
+        name: "promo-linkedin",
+        /**
+         * LinkedIn's upkeep (`src/server/social/linkedin/upkeep.ts`): every
+         * five minutes, inside the search accounts' workday, reads each
+         * watched person or page again 30 minutes after its last read and
+         * each LinkedIn keyword 3 hours after, and picks a time for each
+         * warming account's daily visit; every ten, asks for a fresh reading
+         * of comments and posts a day old, each account's weekly comments look
+         * and numbers, its daily requests, viewers, feed and messages, and
+         * tidies away old posts nobody answered. Only writes jobs and deletes
+         * old rows; the browser program reads and visits.
+         */
+        tick: async () => {
+          const { linkedinUpkeep } = await import("@/server/social/linkedin/upkeep")
+          await linkedinUpkeep()
+        },
+      },
+      {
         name: "promo-phone-health",
         /**
          * Rings the bell for a phone offline five minutes, a battery over

@@ -16,6 +16,7 @@ import {
 } from "@/lib/social/account-status"
 import type { ProxyTestResult } from "@/lib/social/options"
 import { MEDIUM_WARM_UP_DAYS } from "@/lib/social/medium/options"
+import { LINKEDIN_SEEN_WORDS, LINKEDIN_WARM_UP_DAYS } from "@/lib/social/linkedin/options"
 import { X_REACH_WORDS, X_WARM_UP_DAYS } from "@/lib/social/x/options"
 
 import { refuseMixedProject, refuseMixedVoice } from "./apart"
@@ -65,6 +66,7 @@ export async function accountStatuses(
       | "xJoinedAt"
       | "signedInAt"
       | "xReach"
+      | "linkedinSeen"
     >
   >,
   db: CustomShellDb = defaultDb,
@@ -93,6 +95,10 @@ export async function accountStatuses(
     }
     if (account.platform === "x") {
       out.set(account.id, xAccountStatus(account, now))
+      continue
+    }
+    if (account.platform === "linkedin") {
+      out.set(account.id, linkedinAccountStatus(account, now))
       continue
     }
     if (account.platform !== "reddit") {
@@ -178,6 +184,30 @@ function xAccountStatus(
   return { status: working ? "working" : "ready", byHand: false, warning }
 }
 
+/**
+ * A LinkedIn account's status: Warming up for its first 7 days after Promo
+ * first saw it signed in (LinkedIn shows nobody when an account joined),
+ * Banned once a restriction screen stopped it, Working when it wrote in the
+ * last week, and Ready otherwise. The weekly look's guess that its comments
+ * no longer show is the warning beside it (LinkedIn task, part 46).
+ */
+function linkedinAccountStatus(
+  account: Pick<AccountRow, "statusOverride" | "lastPostedAt" | "banScreenAt" | "signedInAt" | "handle" | "linkedinSeen">,
+  now: Date
+): AccountStatusView {
+  const warning = account.linkedinSeen === "hidden" ? `${LINKEDIN_SEEN_WORDS.hidden} Promo's best guess, LinkedIn never says` : null
+  if (account.statusOverride && ACCOUNT_STATUSES.includes(account.statusOverride)) {
+    return { status: account.statusOverride, byHand: true, warning }
+  }
+  if (account.banScreenAt) return { status: "banned", byHand: false, warning }
+  const ends = warmUpEndsAt(account.signedInAt, LINKEDIN_WARM_UP_DAYS, now)
+  if (ends || (ends === undefined && account.handle)) {
+    return { status: "warming_up", byHand: false, warning: ends === undefined ? "Not seen signed in yet" : warning }
+  }
+  const working = account.lastPostedAt !== null && now.getTime() - account.lastPostedAt.getTime() < WORKING_DAYS * 86_400_000
+  return { status: working ? "working" : "ready", byHand: false, warning }
+}
+
 export type RedditAccountRow = {
   id: string
   /** The network it is an account on, "reddit" for every account so far. */
@@ -218,6 +248,13 @@ export type RedditAccountRow = {
    * whether X hides it (part 42, "" until read). Defaults on every other network.
    */
   x: { joinedAt: Date | null; paid: boolean; followBack: boolean; helpEvery: number; reach: "" | "seen" | "hidden" | "folded"; reachAt: Date | null }
+  /**
+   * A LinkedIn account's own: whether it has Premium (part 8), the weekly
+   * look at whether its comments still show ("" until read, part 46), and
+   * whether LinkedIn is asking it for its emailed code (part 4). Defaults on
+   * every other network.
+   */
+  linkedin: { premium: boolean; seen: "" | "seen" | "hidden"; seenAt: Date | null; codeAsked: boolean }
   karma: number | null
   /**
    * Instagram's and TikTok's daily reading: followers, following, posts, and
@@ -363,6 +400,12 @@ export async function listRedditAccounts(
         helpEvery: account.xHelpEvery,
         reach: account.xReach,
         reachAt: account.xReachAt,
+      },
+      linkedin: {
+        premium: account.linkedinPremium,
+        seen: account.linkedinSeen,
+        seenAt: account.linkedinSeenAt,
+        codeAsked: Boolean(account.linkedinCodeAskedAt),
       },
       karma: account.karma,
       followers: account.followers,

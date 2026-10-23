@@ -23,6 +23,7 @@ import {
 } from "@/server/social/projects"
 import { setProjectNetworkPaused, setProjectPaused } from "@/server/social/pause"
 import { readMediumCounts } from "@/server/social/medium/module"
+import { readLinkedinCounts } from "@/server/social/linkedin/module"
 import { readXCounts } from "@/server/social/x/module"
 import {
   listPromoThreads,
@@ -111,6 +112,10 @@ const viewFn = createServerFn({ method: "GET" })
     if (view.project.networks.includes("x")) {
       const counts = await readXCounts(actor.userId, data.projectId)
       networkCounts.x = counts.strong + counts.toAnswer
+    }
+    if (view.project.networks.includes("linkedin")) {
+      const counts = await readLinkedinCounts(actor.userId, data.projectId)
+      networkCounts.linkedin = counts.strong + counts.toAnswer + counts.invites
     }
     return Object.keys(networkCounts).length ? { ...view, networkCounts } : view
   })

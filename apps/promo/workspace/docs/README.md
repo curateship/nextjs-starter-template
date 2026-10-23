@@ -86,6 +86,34 @@ the repo's `docs/`, and is never copied here.
   on a phone, what was checked, and that nothing has run against the real X
   yet.
 
+## LinkedIn
+
+- [The LinkedIn module](linkedin/linkedin-module.md): Tyler's answers of
+  22 Oct 2026, the four kinds of keyword, watched people and pages, who the
+  project sells to, the order with the writer's job title, what never reaches
+  To look at (comments closed, bare reposts, older than 2 days, hidden
+  people), an account's own feed, Today and the AI spend.
+- [Search accounts](linkedin/search-accounts.md): why LinkedIn is read by a
+  spare signed-in account that never comments, the 300 views a day, when one
+  stops, and several taking turns.
+- [Comments on LinkedIn](linkedin/comments.md): drafts, Help only, answering
+  a top comment, the best comments as examples, every check on Post, reacting
+  first, the Comments tab, answers, edit, delete, Try again, and the weekly
+  look at whether the comments still show.
+- [Posts of your own on LinkedIn](linkedin/posts.md): posts with a picture, a
+  video or a poll, the link in the first comment, tags, reposts, starting from
+  a Medium article or a Reddit comment, post ideas, newsletter issues, groups
+  and company pages.
+- [People on LinkedIn](linkedin/people.md): connection requests with an AI note, under
+  a weekly number in Settings → Behaviour (20 to begin with), accepting the
+  requests waiting, and who viewed a profile.
+- [LinkedIn accounts](linkedin/accounts.md): adding one, the emailed code,
+  restriction screens, the warm-up, workday hours, Premium, the numbers week
+  by week, important and throwaway, moving to a phone, and messages.
+- [How LinkedIn is read](linkedin/how-linkedin-is-read.md): the browser
+  routines, the LinkedIn app on a phone, and that nothing has run against the
+  real LinkedIn yet.
+
 ## Messages
 
 - [The Messages dashboard](messages-dashboard.md): every phone account's

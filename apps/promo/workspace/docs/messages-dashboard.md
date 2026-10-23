@@ -1,10 +1,11 @@
 # The Messages dashboard
 
-Every phone account's direct messages on Reddit, Instagram, TikTok and X, and
-every X account's in a browser, in one list at `/admin/messages`, under
-Projects in the left menu after Accounts. Each conversation is read off the
-phone after the app's notification said a message arrived, and answered only
-when a person presses Send. Phone farm file 06, part 38, and X task part 41.
+Every phone account's direct messages on Reddit, Instagram, TikTok, X and
+LinkedIn, and every X and LinkedIn account's in a browser, in one list at
+`/admin/messages`, under Projects in the left menu after Accounts. Each
+conversation is read off the phone after the app's notification said a
+message arrived, and answered only when a person presses Send. Phone farm
+file 06, part 38, X task part 41, and LinkedIn task part 42.
 
 Nothing here has run on a real phone yet.
 
@@ -38,6 +39,11 @@ suspicious?" So the phones do not check the inbox on a clock.
   three hours, through the same read and answer jobs. Its conversations are
   named by the other person's @handle, and Send answers that conversation in
   the account's browser ([X accounts](x/accounts.md#direct-messages)).
+- **A LinkedIn account in a browser reads on a clock too,** every three hours
+  inside its workday (weekdays, 8:00 to 18:00 on its own clock). Each
+  conversation is named by LinkedIn's own conversation and the other person's
+  page, and Send answers only that conversation, to only that person
+  ([LinkedIn accounts](linkedin/accounts.md#messages)).
 
 ## The list
 

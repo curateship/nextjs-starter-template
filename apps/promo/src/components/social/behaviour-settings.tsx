@@ -27,6 +27,7 @@ import { clockText, isAwake, nextWakeAt, zoneClockText } from "@/lib/social/waki
 import { accountAgeText, whenText } from "@/lib/social/wording"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
+import { LinkedinBehaviourCard } from "./linkedin/linkedin-behaviour-card"
 import { XBehaviourCard } from "./x/x-behaviour-card"
 
 /**
@@ -304,6 +305,8 @@ function BehaviourSettingsPanel() {
       </CollapsibleSettingsCard>
 
       <XBehaviourCard profiles={readers.filter((profile) => profile.id !== settings.readerProfileId)} />
+
+      <LinkedinBehaviourCard profiles={readers.filter((profile) => profile.id !== settings.readerProfileId)} />
     </CardGroup>
   )
 }

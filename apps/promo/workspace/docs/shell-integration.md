@@ -64,6 +64,13 @@ promo created, which has no shell version and so can never conflict.
     daily visit; every ten asking for a fresh reading of X replies and posts a
     day old, each account's mentions and daily look, the day's trends and an X
     browser account's messages, and tidying away old posts nobody answered;
+  - [LinkedIn's upkeep](linkedin/linkedin-module.md): every five minutes,
+    inside the search accounts' workday, reading each watched LinkedIn person
+    or page 30 minutes after its last read and each LinkedIn keyword 3 hours
+    after, and picking each warming LinkedIn account's daily visit; every ten
+    asking for a fresh reading of LinkedIn comments and posts a day old, each
+    account's weekly comments look and numbers, its daily requests, viewers,
+    feed and messages, and tidying away old posts nobody answered;
   - [the phones' health](phones/phone-health.md): the bell for a phone
     offline, hot, with no signal or nearly full and for a quiet rack, the
     daily [self-test](phones/self-test-and-app-updates.md) on the test phone,
@@ -110,6 +117,15 @@ stay in `src/server/schema.ts`, which promo never opens.
   `promo_x_readings`, `promo_x_trends` and `promo_x_mentions`. The same
   migration adds `promo_accounts.x_joined_at`, `x_paid`, `x_reach`,
   `x_reach_at`, `x_follow_back` and `x_help_every`.
+- `src/server/social/linkedin/schema.ts`, from `drizzle/0126_promo_linkedin.sql`:
+  `promo_linkedin_settings`, `promo_linkedin_projects`, `promo_linkedin_keywords`,
+  `promo_linkedin_finds`, `promo_linkedin_hidden`, `promo_linkedin_drafts`,
+  `promo_linkedin_comments`, `promo_linkedin_posts`, `promo_linkedin_groups`,
+  `promo_linkedin_pages`, `promo_linkedin_connects`, `promo_linkedin_invites`,
+  `promo_linkedin_viewers`, `promo_linkedin_searchers` and
+  `promo_linkedin_readings`. The same migration adds
+  `promo_accounts.linkedin_premium`, `linkedin_seen`, `linkedin_seen_at` and
+  `linkedin_code_asked_at`.
 
 The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
 `drizzle/0092_promo_reddit_relevance.sql`,

@@ -15,6 +15,7 @@ import { jobCounts, type JobCounts } from "./jobs"
 import { shownFind } from "./keywords"
 import { readPostingState, type PostingState } from "./posting"
 import { promoMediumKeywords } from "./medium/schema"
+import { promoLinkedinKeywords } from "./linkedin/schema"
 import { promoXKeywords } from "./x/schema"
 import {
   promoAccounts,
@@ -172,7 +173,8 @@ export async function addProjectNetwork(
 /**
  * Takes a network off a project. Refused, with how many of each, while the
  * project still holds that network's accounts or keywords, worded like
- * deleting a project. Reddit, Medium and X have keywords; the phone apps none.
+ * deleting a project. Reddit, Medium, X and LinkedIn have keywords; the phone
+ * apps none.
  */
 export async function removeProjectNetwork(
   userId: string,
@@ -200,7 +202,9 @@ export async function removeProjectNetwork(
         ? await db.select({ n: count() }).from(promoMediumKeywords).where(eq(promoMediumKeywords.projectId, projectId))
         : network === "x"
           ? await db.select({ n: count() }).from(promoXKeywords).where(eq(promoXKeywords.projectId, projectId))
-          : [{ n: 0 }]
+          : network === "linkedin"
+            ? await db.select({ n: count() }).from(promoLinkedinKeywords).where(eq(promoLinkedinKeywords.projectId, projectId))
+            : [{ n: 0 }]
   const held = [
     accounts.n ? `${accounts.n} ${NETWORK_NAMES[network]} ${accounts.n === 1 ? "account" : "accounts"}` : "",
     keywords.n ? `${keywords.n} ${keywords.n === 1 ? "keyword" : "keywords"}` : "",
@@ -276,7 +280,11 @@ export async function deleteProject(
     .select({ n: count() })
     .from(promoXKeywords)
     .where(eq(promoXKeywords.projectId, projectId))
-  const keywords = { n: redditKeywords.n + mediumKeywords.n + xKeywords.n }
+  const [linkedinKeywords] = await db
+    .select({ n: count() })
+    .from(promoLinkedinKeywords)
+    .where(eq(promoLinkedinKeywords.projectId, projectId))
+  const keywords = { n: redditKeywords.n + mediumKeywords.n + xKeywords.n + linkedinKeywords.n }
   const held = [
     accounts.n ? `${accounts.n} ${accounts.n === 1 ? "account" : "accounts"}` : "",
     keywords.n ? `${keywords.n} ${keywords.n === 1 ? "keyword" : "keywords"}` : "",
