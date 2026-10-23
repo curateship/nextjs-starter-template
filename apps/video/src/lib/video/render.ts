@@ -21,6 +21,9 @@ export const RENDER_QUALITIES: {
   { id: "low", label: "Small", note: "Quickest, for a check" },
 ]
 
+/** What the Export window starts on, and what a language copy is made at. */
+export const DEFAULT_RENDER_QUALITY: RenderQuality = "high"
+
 /**
  * How many pictures a second the file shows. Thirty is the default because
  * every export was 30 before there was a choice. Sixty only helps footage shot

@@ -1,10 +1,18 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { scriptBannedWordsSchema } from "@/lib/video/script-check"
-import { adminGet, adminPost } from "@/server/guards"
 import {
+  captionLookSchema,
+  type CaptionLook,
+} from "@/lib/video/caption-look"
+import { safeBoxesSchema, type SafeBoxes } from "@/lib/video/safe-box"
+import { scriptBannedWordsSchema } from "@/lib/video/script-check"
+import { adminGet, adminPost, userGet } from "@/server/guards"
+import {
+  getCaptionSettings,
   getScriptBannedWords,
+  saveCaptionLook as saveCaptionLookRow,
+  saveSafeBoxes as saveSafeBoxesRow,
   saveScriptBannedWords,
 } from "@/server/video/settings"
 
@@ -26,4 +34,33 @@ export function loadScriptBannedWords() {
 
 export function saveBannedWords(words: string[]) {
   return saveScriptBannedWordsFn({ data: { words } })
+}
+
+// The caption look and the safe boxes. Every caption window in the editor
+// starts from them, so anyone signed in may read them; changing them changes
+// captions for everybody, so saving is for admins, on Settings.
+const getCaptionSettingsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async () => getCaptionSettings())
+
+const saveCaptionLookFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ look: captionLookSchema }))
+  .handler(async ({ data }) => saveCaptionLookRow(data.look))
+
+const saveSafeBoxesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ safeBoxes: safeBoxesSchema }))
+  .handler(async ({ data }) => saveSafeBoxesRow(data.safeBoxes))
+
+export function loadCaptionSettings() {
+  return getCaptionSettingsFn()
+}
+
+export function saveCaptionLook(look: CaptionLook) {
+  return saveCaptionLookFn({ data: { look } })
+}
+
+export function saveSafeBoxes(safeBoxes: SafeBoxes) {
+  return saveSafeBoxesFn({ data: { safeBoxes } })
 }

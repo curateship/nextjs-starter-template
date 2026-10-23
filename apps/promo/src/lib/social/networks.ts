@@ -8,10 +8,12 @@
  * Only networks Promo has built are listed, so "+ Add network" never offers
  * one that does nothing. Instagram and TikTok joined with phone farm file 06
  * (`workspace/tasks/Phone farm/06-instagram-and-tiktok.md`), and Medium with
- * `workspace/tasks/Medium/01-medium-features.md`. The server reads this same
- * list to refuse anything else.
+ * `workspace/tasks/Medium/01-medium-features.md`, and X with
+ * `workspace/tasks/X/01-x-features.md`, and LinkedIn with
+ * `workspace/tasks/LinkedIn/01-linkedin-features.md`. The server reads this
+ * same list to refuse anything else.
  */
-export const NETWORKS = ["reddit", "instagram", "tiktok", "medium"] as const
+export const NETWORKS = ["reddit", "instagram", "tiktok", "medium", "x", "linkedin"] as const
 
 export type Network = (typeof NETWORKS)[number]
 
@@ -20,6 +22,8 @@ export const NETWORK_NAMES: Record<Network, string> = {
   instagram: "Instagram",
   tiktok: "TikTok",
   medium: "Medium",
+  x: "X",
+  linkedin: "LinkedIn",
 }
 
 export function isNetwork(value: unknown): value is Network {
@@ -39,17 +43,23 @@ export function isPhoneAppNetwork(value: unknown): value is PhoneAppNetwork {
   return typeof value === "string" && (PHONE_ONLY_NETWORKS as readonly string[]).includes(value)
 }
 
-/** An account's name as its network writes it: u/name on Reddit, @name elsewhere. */
+/**
+ * An account's name as its network writes it: u/name on Reddit, in/name on
+ * LinkedIn (the end of the member's own address), @name elsewhere.
+ */
 export function handleWords(platform: string, handle: string): string {
   if (!handle) return ""
-  return platform === "reddit" ? `u/${handle}` : `@${handle}`
+  if (platform === "reddit") return `u/${handle}`
+  if (platform === "linkedin") return `in/${handle}`
+  return `@${handle}`
 }
 
 /**
- * "a Reddit", "an Instagram", "a TikTok": the network's name with its
+ * "a Reddit", "an Instagram", "a TikTok", "an X": the network's name with its
  * article, for a sentence, with a capital when it starts one.
  */
 export function aNetwork(network: Network, atStart = false): string {
-  const article = network === "instagram" ? "an" : "a"
+  // X is said "ex", so it takes "an" too.
+  const article = network === "instagram" || network === "x" ? "an" : "a"
   return `${atStart ? article.charAt(0).toUpperCase() + article.slice(1) : article} ${NETWORK_NAMES[network]}`
 }

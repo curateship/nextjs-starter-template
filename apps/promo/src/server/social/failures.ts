@@ -204,8 +204,8 @@ export async function ringForFailure(
     await ringForAppFailure(job, reason, db)
     return
   }
-  if (job.kind in MEDIUM_WRITE_WORDS) {
-    await ringForMediumFailure(job, reason, db)
+  if (job.kind in NETWORK_WRITE_WORDS) {
+    await ringForNetworkFailure(job, reason, db)
     return
   }
   if (!(WRITE_KINDS as readonly string[]).includes(job.kind)) return
@@ -283,22 +283,35 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : ""
 }
 
-/** Medium's writes, and how each is named on the bell. */
-const MEDIUM_WRITE_WORDS: Record<string, { what: string; view: string }> = {
-  medium_respond: { what: "a Medium response", view: "&tab=responses&list=failed" },
-  medium_publish: { what: "a Medium article", view: "&tab=articles" },
-  medium_edit: { what: "a change on Medium", view: "&tab=responses" },
-  medium_delete: { what: "a delete on Medium", view: "&tab=responses" },
-  medium_list_add: { what: "a story for a Medium list", view: "&tab=articles" },
+/** Medium's, X's and LinkedIn's writes, and how each is named on the bell. */
+const NETWORK_WRITE_WORDS: Record<string, { network: "medium" | "x" | "linkedin"; what: string; view: string }> = {
+  medium_respond: { network: "medium", what: "a Medium response", view: "&tab=responses&list=failed" },
+  medium_publish: { network: "medium", what: "a Medium article", view: "&tab=articles" },
+  medium_edit: { network: "medium", what: "a change on Medium", view: "&tab=responses" },
+  medium_delete: { network: "medium", what: "a delete on Medium", view: "&tab=responses" },
+  medium_list_add: { network: "medium", what: "a story for a Medium list", view: "&tab=articles" },
+  x_reply: { network: "x", what: "an X reply", view: "&tab=replies&list=failed" },
+  x_publish: { network: "x", what: "an X post", view: "&tab=posts" },
+  x_edit: { network: "x", what: "a change on X", view: "&tab=replies" },
+  x_delete: { network: "x", what: "a delete on X", view: "&tab=replies" },
+  x_follow: { network: "x", what: "a follow on X", view: "&tab=replies" },
+  x_list_add: { network: "x", what: "an account for an X list", view: "&tab=posts" },
+  linkedin_comment: { network: "linkedin", what: "a LinkedIn comment", view: "&tab=comments&list=failed" },
+  linkedin_publish: { network: "linkedin", what: "a LinkedIn post", view: "&tab=posts" },
+  linkedin_edit: { network: "linkedin", what: "a change on LinkedIn", view: "&tab=comments" },
+  linkedin_delete: { network: "linkedin", what: "a delete on LinkedIn", view: "&tab=comments" },
+  linkedin_connect: { network: "linkedin", what: "a LinkedIn connection request", view: "&tab=people" },
+  linkedin_accept: { network: "linkedin", what: "accepting a LinkedIn request", view: "&tab=people" },
+  linkedin_code: { network: "linkedin", what: "LinkedIn's emailed code", view: "" },
 }
 
-/** Rings the bell for a Medium response, article, change or list add that did not go out, opening where it was pressed. */
-async function ringForMediumFailure(
+/** Rings the bell for a Medium, X or LinkedIn write that did not go out, opening where it was pressed. */
+async function ringForNetworkFailure(
   job: { id: string; userId: string; kind: string },
   reason: string,
   db: CustomShellDb
 ): Promise<void> {
-  const words = MEDIUM_WRITE_WORDS[job.kind]
+  const words = NETWORK_WRITE_WORDS[job.kind]
   const [row] = await db
     .select({ projectId: promoAccounts.projectId })
     .from(promoJobs)
@@ -306,7 +319,7 @@ async function ringForMediumFailure(
     .where(and(eq(promoJobs.id, job.id), eq(promoJobs.userId, job.userId)))
     .limit(1)
   const href = row?.projectId
-    ? `/admin/projects/${encodeURIComponent(row.projectId)}?network=medium${words.view}`
+    ? `/admin/projects/${encodeURIComponent(row.projectId)}?network=${words.network}${words.view}`
     : "/admin/projects"
   await ringBell(job.userId, { kind: "failed", targetId: job.id, message: `${NOTICE_HEADINGS.failed} ${words.what}`, detail: reason, href }, db)
 }

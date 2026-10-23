@@ -33,6 +33,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { BriefsContext, useBriefs, type BriefsValue } from "@/components/video-editor/briefs-context"
+import { useCaptionPlacement } from "@/components/video-editor/caption-settings-context"
 import { useEditorLock, useEditorRuntime } from "@/components/video-editor/editor-store"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { useProjectSettings } from "@/components/video-editor/project-settings-context"
@@ -140,6 +141,7 @@ export function BriefsProvider({ children }: { children: React.ReactNode }) {
 
 function OwnerBriefs({ children }: { children: React.ReactNode }) {
   const { store, dispatch, projectId } = useEditorRuntime()
+  const captions = useCaptionPlacement()
   const { refreshSpend } = useProjectSettings()
   const lock = useEditorLock()
   const [briefs, setBriefs] = React.useState<BriefItem[] | null>(null)
@@ -188,7 +190,8 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
       const landed = landBriefScenes(
         store.getSnapshot().state.tracks,
         { scenes: brief.scenes, landing: brief.landing },
-        editorId
+        editorId,
+        captions
       )
       if (!landed?.placed.length) continue
       const key = `${brief.id}:${landed.placed.join(",")}`
@@ -198,7 +201,12 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
       settleBriefScenes({ briefId: brief.id, sceneIds: landed.placed, lanes: landed.landing.lanes })
         .then(({ settled }) => {
           if (!settled) return
-          dispatch({ type: "LAND_BRIEF_SCENES", scenes: brief.scenes, landing: landed.landing })
+          dispatch({
+            type: "LAND_BRIEF_SCENES",
+            scenes: brief.scenes,
+            landing: landed.landing,
+            captions,
+          })
           setBriefs((current) =>
             current?.map((item) =>
               item.id === brief.id
@@ -226,7 +234,7 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
           landing.current.delete(key)
         })
     }
-  }, [briefs, lock, store, dispatch, refreshSpend])
+  }, [briefs, lock, store, dispatch, refreshSpend, captions])
 
   const value = React.useMemo<BriefsValue>(
     () => ({

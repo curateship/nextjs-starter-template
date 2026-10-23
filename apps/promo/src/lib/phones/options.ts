@@ -78,6 +78,10 @@ export const PHONE_ACTIONS = [
   // being moved onto the phone (part 31). A job's own Reddit steps are
   // written by `dispatch.ts`, not from here.
   "reddit/state",
+  // The same for an X account being moved onto the phone (X task, part 46).
+  "x/state",
+  // And for a LinkedIn account, whose answer names its slug (LinkedIn task, part 9).
+  "linkedin/state",
 ] as const
 
 export type PhoneAction = (typeof PHONE_ACTIONS)[number]
@@ -97,9 +101,11 @@ const PHONE_ACTION_WORDS: Record<PhoneAction, string> = {
   "phone/wipe": "Wipe the phone",
   "phone/icloud-state": "Read whether an Apple ID is signed in",
   "reddit/state": "Read who Reddit is signed in as",
+  "x/state": "Read who X is signed in as",
+  "linkedin/state": "Read who LinkedIn is signed in as",
 }
 
-/** A job's app steps, which the rack does in the Reddit, Instagram, TikTok and Medium apps, in words. */
+/** A job's app steps, which the rack does in the Reddit, Instagram, TikTok, Medium, X and LinkedIn apps, in words. */
 const APP_STEP_WORDS: Record<string, string> = {
   "reddit/quick_state": "Read who Reddit is signed in as",
   "reddit/health": "Reddit health reading",
@@ -134,6 +140,53 @@ const APP_STEP_WORDS: Record<string, string> = {
   "medium/add_to_list": "adding to a Medium list",
   "medium/publication": "checking a publication",
   "medium/sign_in": "opening a sign-in link",
+  "x/state": "Read who X is signed in as",
+  "x/quick_state": "Read who X is signed in as",
+  "x/reply": "Post an X reply",
+  "x/quote": "Post an X quote",
+  "x/publish": "Post on X",
+  "x/follow": "Follow an X account",
+  "x/warm_up": "X warm-up visit",
+  "x/inbox": "Read X's messages",
+  "x/reply_message": "Answer an X message",
+  "x/enter_code": "typing a sign-in code",
+  "x/search": "searching X",
+  "x/post": "reading an X post",
+  "x/check": "reading a sent X post again",
+  "x/mentions": "reading mentions",
+  "x/trends": "reading what is trending",
+  "x/lookup": "looking up X accounts",
+  "x/community": "reading a community",
+  "x/reach": "the search-ban check",
+  "x/edit": "editing an X post",
+  "x/delete": "deleting an X post",
+  "x/list_add": "adding to an X list",
+  "x/message": "answering a message the browser's way",
+  "linkedin/state": "Read who LinkedIn is signed in as",
+  "linkedin/quick_state": "Read who LinkedIn is signed in as",
+  "linkedin/comment": "Post a LinkedIn comment",
+  "linkedin/publish": "Post on LinkedIn",
+  "linkedin/connect": "Send a LinkedIn connection request",
+  "linkedin/invites": "Read waiting LinkedIn requests",
+  "linkedin/accept": "Accept a LinkedIn request",
+  "linkedin/warm_up": "LinkedIn warm-up visit",
+  "linkedin/inbox": "Read LinkedIn's messages",
+  "linkedin/reply_message": "Answer a LinkedIn message",
+  "linkedin/enter_code": "typing an emailed code",
+  "linkedin/search": "searching LinkedIn",
+  "linkedin/post": "reading a LinkedIn post",
+  "linkedin/check": "reading a sent LinkedIn comment or post again",
+  "linkedin/lookup": "looking up LinkedIn people and pages",
+  "linkedin/group": "reading a group",
+  "linkedin/seen": "the look at whether comments still show",
+  "linkedin/find_own": "finding where a comment or post landed",
+  "linkedin/newsletter": "publishing a newsletter issue",
+  "linkedin/edit": "editing on LinkedIn",
+  "linkedin/delete": "deleting on LinkedIn",
+  "linkedin/viewers": "reading who viewed the profile",
+  "linkedin/numbers": "reading the account's numbers",
+  "linkedin/feed": "reading the account's own feed",
+  "linkedin/message": "answering a message the browser's way",
 }
 
 /** An action's name in words, for any action the rack ran, including a job's steps. */
@@ -174,9 +227,35 @@ export const PHONE_APP_ROUTINES = [
   "medium/quick_state",
   "medium/respond",
   "medium/warm_up",
+  // X (X task, part 2): who is signed in, a reply, a quote, one post or a
+  // thread's next piece (never into a community or with a poll), a follow,
+  // the warm-up, and its direct messages through the shared inbox steps.
+  "x/state",
+  "x/quick_state",
+  "x/reply",
+  "x/quote",
+  "x/publish",
+  "x/follow",
+  "x/warm_up",
+  "x/inbox",
+  "x/reply_message",
+  // LinkedIn (LinkedIn task, part 2): who is signed in, a comment or a reply
+  // under one (never as a company page), one post with words and at most a
+  // picture, a connection request, the requests waiting and accepting one,
+  // the warm-up, and its messages through the shared inbox steps.
+  "linkedin/state",
+  "linkedin/quick_state",
+  "linkedin/comment",
+  "linkedin/publish",
+  "linkedin/connect",
+  "linkedin/invites",
+  "linkedin/accept",
+  "linkedin/warm_up",
+  "linkedin/inbox",
+  "linkedin/reply_message",
 ] as const
 
-const APP_PREFIXES = ["reddit/", "instagram/", "tiktok/", "medium/"]
+const APP_PREFIXES = ["reddit/", "instagram/", "tiktok/", "medium/", "x/", "linkedin/"]
 
 /**
  * Why a phone cannot do an app step, in words, or null when it can. Said
@@ -188,6 +267,12 @@ export function phoneStepRefusal(routine: string, phoneName: string): string | n
   if ((PHONE_APP_ROUTINES as readonly string[]).includes(routine)) return null
   if (routine.startsWith("medium/")) {
     return `${phoneName} cannot do ${actionWords(routine)}: on a phone, the Medium app reads who is signed in, sends responses and answers, and warms up. Articles, edits, deletes, lists and sign-in links need the account on a browser profile. Nothing was sent.`
+  }
+  if (routine.startsWith("x/")) {
+    return `${phoneName} cannot do ${actionWords(routine)}: on a phone, the X app reads who is signed in, replies, quotes, posts, follows, warms up, and reads and answers messages. Searches, reading posts again, edits, deletes, lists and sign-in codes are done in a browser. Nothing was sent.`
+  }
+  if (routine.startsWith("linkedin/")) {
+    return `${phoneName} cannot do ${actionWords(routine)}: on a phone, the LinkedIn app reads who is signed in, comments, posts with words and a picture, sends and accepts connection requests, warms up, and reads and answers messages. Who viewed the profile, the account's numbers, its own feed, searches, reading posts again, edits, deletes, newsletters and the emailed sign-in code are done in a browser. Nothing was sent.`
   }
   return `${phoneName} cannot do ${actionWords(routine)} yet: on a phone, the Reddit app reads who is signed in, takes the health reading, posts comments and answers messages. Nothing was sent.`
 }
@@ -236,7 +321,7 @@ export const RACK_PAUSED_NOTICE = "The rack is paused"
  * the same list in `rack/promo_rack.py`. TikTok's package keeps its old
  * Musical.ly name.
  */
-export const TRACKED_APPS = ["reddit", "instagram", "tiktok", "medium"] as const
+export const TRACKED_APPS = ["reddit", "instagram", "tiktok", "medium", "x", "linkedin"] as const
 
 export type TrackedApp = (typeof TRACKED_APPS)[number]
 
@@ -245,6 +330,8 @@ export const APP_WORDS: Record<TrackedApp, string> = {
   instagram: "Instagram",
   tiktok: "TikTok",
   medium: "Medium",
+  x: "X",
+  linkedin: "LinkedIn",
 }
 
 /**

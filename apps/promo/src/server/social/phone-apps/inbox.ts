@@ -9,6 +9,7 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoPhones } from "@/server/phones/schema"
 import { refuseBrokenAction } from "@/server/phones/action-checks"
 import { phoneStepRefusal } from "@/lib/phones/options"
+import { xHandle } from "@/lib/social/x/options"
 import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
 import { handleWords, isNetwork, isPhoneAppNetwork, NETWORK_NAMES } from "@/lib/social/networks"
 import {
@@ -26,6 +27,8 @@ import { pausedBy } from "../pause"
 import { projectDescription } from "../projects"
 import { promoAccounts, promoInbox, promoInboxSeen, promoJobs } from "../schema"
 import { wordsForAccount } from "../voices"
+import { linkedinInbox, linkedinMessage } from "../linkedin/calls"
+import { xInbox, xMessage } from "../x/calls"
 import { appInbox, appReply, type AppInboxReading } from "./calls"
 
 /**
@@ -41,6 +44,14 @@ import { appInbox, appReply, type AppInboxReading } from "./calls"
  * notification the way a person answers the buzz, then a minute in the feed.
  * The daily health visit glances at the inbox in case one was missed.
  *
+ * X and LinkedIn are the networks whose accounts may also run in a browser
+ * (X task, part 41; LinkedIn task, part 42). A browser has no notifications,
+ * so an X or LinkedIn account on a browser profile has its inbox read on a
+ * timer (`x/upkeep.ts`, `linkedin/upkeep.ts`), by the same `inbox_read` job,
+ * and is answered by the same `inbox_reply` job in its browser. An X
+ * conversation is named by the other person's @handle; a LinkedIn one by its
+ * own id and the other person's slug.
+ *
  * Nothing replies by itself. Tyler, 16 Oct 2026, asked "does it auto respond
  * to everything with my voice?": no. Each conversation or comment is listed
  * with an AI suggestion in the account's voice, and a person sends it, edits
@@ -50,6 +61,9 @@ import { appInbox, appReply, type AppInboxReading } from "./calls"
  * skipping it deletes it, words and all. Only a hash of each line read stays
  * (`promo_inbox_seen`), so the same lines are not listed again.
  */
+
+/** The networks whose accounts may also run in a browser, which has no notifications, so their inbox is read on a timer there. */
+const BROWSER_INBOX_NETWORKS = new Set(["x", "linkedin"])
 
 type AccountRow = typeof promoAccounts.$inferSelect
 
@@ -79,7 +93,9 @@ export async function queueInboxRead(
     .from(promoAccounts)
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
     .limit(1)
-  if (!account?.phoneId || account.retiredAt || account.banScreenAt) return false
+  if (!account || account.retiredAt || account.banScreenAt) return false
+  // Only X and LinkedIn read an inbox in a browser; every other network reads it on its phone.
+  if (!account.phoneId && !(BROWSER_INBOX_NETWORKS.has(account.platform) && account.profileId)) return false
   if (kind === "comment" && !isPhoneAppNetwork(account.platform)) return false
   if (await pausedBy(userId, account, db)) return false
   const [waiting] = await db
@@ -142,8 +158,69 @@ export async function runInboxRead(
   }
   const kind: InboxKind = payload.inboxKind === "comment" ? "comment" : "message"
   const via = payload.via === "inbox" ? "inbox" : "notification"
-  const reading = await appInbox(target, account.platform, { kind, via, handle: account.handle })
+  const reading =
+    account.platform === "x" && !account.phoneId
+      ? await xBrowserInbox(target)
+      : account.platform === "linkedin" && !account.phoneId
+        ? await linkedinBrowserInbox(target)
+        : await appInbox(target, account.platform, { kind, via, handle: account.handle })
   await storeInboxReading(userId, account, reading, db, now)
+}
+
+/**
+ * An X account's direct messages read in its browser, in the shape the
+ * phones answer: one conversation per other person, named by their @handle,
+ * oldest line first.
+ */
+async function xBrowserInbox(target: CommandTarget): Promise<AppInboxReading> {
+  const { messages } = await xInbox(target)
+  const byHandle = new Map<string, Array<(typeof messages)[number]>>()
+  for (const message of messages) {
+    if (!message.handle) continue
+    const list = byHandle.get(message.handle) ?? []
+    list.push(message)
+    byHandle.set(message.handle, list)
+  }
+  return {
+    conversations: [...byHandle.entries()].map(([handle, list]) => ({
+      thread: `@${handle}`,
+      lines: list
+        .sort((a, b) => (a.sentSeconds ?? 0) - (b.sentSeconds ?? 0))
+        .map((message) => ({ from: message.name || `@${handle}`, text: message.text, mine: false })),
+    })),
+    comments: [],
+  }
+}
+
+/** A LinkedIn browser conversation's thread: its own id and the other person's slug, so an answer reaches only them. */
+const LINKEDIN_THREAD = /^li:([^:]{1,200}):([\p{L}\p{N}_-]{3,100})$/u
+
+/**
+ * A LinkedIn account's messages read in its browser (LinkedIn task, part 42),
+ * in the shape the phones answer: one conversation per LinkedIn conversation,
+ * its thread naming the conversation's id and the other person's slug,
+ * oldest line first.
+ */
+async function linkedinBrowserInbox(target: CommandTarget): Promise<AppInboxReading> {
+  const { messages } = await linkedinInbox(target)
+  const byConversation = new Map<string, Array<(typeof messages)[number]>>()
+  for (const message of messages) {
+    if (!message.conversationId || !message.slug) continue
+    const thread = `li:${message.conversationId}:${message.slug}`
+    if (!LINKEDIN_THREAD.test(thread)) continue
+    const list = byConversation.get(thread) ?? []
+    list.push(message)
+    byConversation.set(thread, list)
+  }
+  return {
+    conversations: [...byConversation.entries()].map(([thread, list]) => ({
+      thread,
+      lines: list
+        .sort((a, b) => (a.sentSeconds ?? 0) - (b.sentSeconds ?? 0))
+        .map((message) => ({ from: message.name || `in/${message.slug}`, text: message.text, mine: false })),
+    })),
+    comments: [],
+  }
 }
 
 /**
@@ -152,7 +229,7 @@ export async function runInboxRead(
  * lines; its own lines are shown for context. A comment not seen before is
  * listed once. Each new row rings the bell. Answers how many rows opened.
  */
-async function storeInboxReading(
+export async function storeInboxReading(
   userId: string,
   account: Pick<AccountRow, "id" | "platform" | "handle" | "projectId">,
   reading: AppInboxReading,
@@ -505,6 +582,11 @@ async function refuseAccountCannotAnswer(
   db: CustomShellDb
 ): Promise<void> {
   const name = handleWords(account.platform, account.handle) || "This account"
+  if (BROWSER_INBOX_NETWORKS.has(account.platform) && !account.phoneId && account.profileId) {
+    if (account.retiredAt) throw new Error(`${name} is retired, so it does not answer. Bring it back on the Accounts dashboard first.`)
+    if (account.banScreenAt) throw new Error(`${name} hit a lock screen and was stopped. Let it run again from the Accounts dashboard once it is sorted.`)
+    return
+  }
   if (!account.phoneId) {
     throw new Error(`${name} is not on a phone any more, so it cannot answer here. Pick a phone for it on the Accounts dashboard.`)
   }
@@ -517,7 +599,7 @@ async function refuseAccountCannotAnswer(
     .from(promoPhones)
     .where(eq(promoPhones.id, account.phoneId))
     .limit(1)
-  const routine = platform === "reddit" ? "reddit/reply_message" : `${platform}/reply`
+  const routine = platform === "reddit" || platform === "x" || platform === "linkedin" ? `${platform}/reply_message` : `${platform}/reply`
   if (!phone) throw new Error("That account's phone is not there any more. Pick where it runs on the Accounts dashboard.")
   const cannot = phoneStepRefusal(routine, phone.name)
   if (cannot) throw new Error(cannot)
@@ -578,13 +660,29 @@ async function sendOnPhone(
   if (!isNetwork(item.platform) || item.platform === "medium") throw new Refusal("That message is on a network Promo does not answer.")
   const quote = [...item.lines].reverse().find((line) => !line.mine)
   try {
-    const answer = await appReply(target, item.platform, {
-      kind: item.kind,
-      thread: item.thread,
-      author: item.author,
-      quote: quote?.text ?? "",
-      text,
-    })
+    // An X account in a browser answers the conversation with the person its thread names. Only a
+    // browser read names a thread "@handle"; a phone read names it by the person's display name,
+    // which may be someone else's handle, so a conversation read on a phone is never sent from here.
+    const xBrowserHandle = item.platform === "x" && !account.phoneId && item.thread.startsWith("@") ? xHandle(item.thread) : ""
+    if (item.platform === "x" && !account.phoneId && !xBrowserHandle) {
+      throw new Refusal("That conversation was read on a phone. Read the inbox again in the browser first. Nothing was sent.")
+    }
+    // A LinkedIn account in a browser answers the conversation its thread names, to the person it names.
+    const linkedinThread = item.platform === "linkedin" && !account.phoneId ? item.thread.match(LINKEDIN_THREAD) : null
+    if (item.platform === "linkedin" && !account.phoneId && !linkedinThread) {
+      throw new Refusal("That conversation was read on a phone. Read the inbox again in the browser first. Nothing was sent.")
+    }
+    const answer = xBrowserHandle
+      ? { sent: (await xMessage(target, { handle: xBrowserHandle, text })).done }
+      : linkedinThread
+        ? { sent: (await linkedinMessage(target, { conversationId: linkedinThread[1] ?? "", slug: linkedinThread[2] ?? "", text })).done }
+        : await appReply(target, item.platform, {
+            kind: item.kind,
+            thread: item.thread,
+            author: item.author,
+            quote: quote?.text ?? "",
+            text,
+          })
     if (!answer.sent) throw new Error("The phone pressed Send but could not see the answer go out. Check the app before sending again.")
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

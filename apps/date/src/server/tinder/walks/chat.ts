@@ -2,11 +2,10 @@ import { eq } from "drizzle-orm"
 
 import { averageHash, cropScreenshot, hashDistance, keepPicture } from "@/server/phone/pictures"
 
-import { findNode, isVisible, type ScreenNode } from "../screen"
-import { TINDER_WORDS } from "../screen-words"
+import { findNode, isVisible, screenTexts, type ScreenNode } from "../screen"
 import { dateMatches, dateMessages } from "../schema"
-import { saveChatList, saveConversation, settleMessage, type ListedChat } from "../store"
-import { onChatList, WalkError, type Seen, type WalkContext, type WalkKit } from "./kit"
+import { markTheyLeft, saveChatList, saveConversation, settleMessage, type ListedChat } from "../store"
+import { FrozenError, onChatList, WalkError, type Seen, type WalkContext, type WalkKit } from "./kit"
 import { prependOlder, readBubbles, readChatList, sameBubbles, type Bubble, type ChatRow } from "./parse"
 
 /** How many screenfuls of the chat list are read for one look. */
@@ -15,8 +14,13 @@ const MAX_LIST_SCROLLS = 4
 /** How far back a conversation is read, in screenfuls. */
 const MAX_CHAT_SCROLLS = 8
 
+/**
+ * The chat walks, the same on Tinder and on Facebook Dating: the chat list,
+ * one conversation, sending and unmatching. The words come from the walk's
+ * app (`kit.app`).
+ */
 async function toChatList(kit: WalkKit): Promise<Seen> {
-  return kit.goToTab(await kit.openTinder(), TINDER_WORDS.tabChat, onChatList, "Chat")
+  return kit.goToTab(await kit.openApp(), kit.app.words.tabChat, (screen) => onChatList(kit.app, screen), "chat")
 }
 
 async function avatarOf(seen: Seen, row: ChatRow): Promise<{ hash: string; jpeg: Buffer | null }> {
@@ -35,7 +39,7 @@ export async function readMatches(ctx: WalkContext, kit: WalkKit): Promise<Recor
   const chats = new Map<string, ListedChat>()
   const take = async (screenSeen: Seen) => {
     let added = 0
-    for (const row of readChatList(screenSeen.screen)) {
+    for (const row of readChatList(screenSeen.screen, kit.app)) {
       const key = `${row.isNew ? "new" : "chat"}:${row.name}:${row.preview}`
       if (chats.has(key)) continue
       const avatar = await avatarOf(screenSeen, row)
@@ -47,7 +51,7 @@ export async function readMatches(ctx: WalkContext, kit: WalkKit): Promise<Recor
   }
   await take(seen)
   // A scroll that shows nobody new is the bottom of the list, so the read is
-  // complete and a chat not in it has gone from Tinder.
+  // complete and a chat not in it has gone from the app.
   let complete = false
   for (let scrolls = 0; scrolls < MAX_LIST_SCROLLS; scrolls += 1) {
     seen = await kit.scroll(seen, "up", 600)
@@ -67,7 +71,7 @@ export async function readMatches(ctx: WalkContext, kit: WalkKit): Promise<Recor
   return { listed: listed.length, added: saved.added, toRead: saved.toRead, complete, theyUnmatched: saved.theyUnmatched }
 }
 
-async function matchFor(ctx: WalkContext, input: Record<string, unknown>) {
+export async function matchFor(ctx: WalkContext, input: Record<string, unknown>) {
   const matchId = typeof input.matchId === "string" ? input.matchId : ""
   const [match] = await ctx.db.select().from(dateMatches).where(eq(dateMatches.id, matchId)).limit(1)
   if (!match || match.accountId !== ctx.phone.accountId) throw new WalkError("That match is gone.")
@@ -80,21 +84,21 @@ async function matchFor(ctx: WalkContext, input: Record<string, unknown>) {
  * to find them. Two people of one name are told apart by their picture. The
  * conversation's header has to show their name, or nothing more is done.
  */
-async function openConversation(
+export async function openConversation(
   kit: WalkKit,
   match: { theirName: string; avatarHash: string }
 ): Promise<Seen> {
   let seen = await toChatList(kit)
-  // Tinder keeps the list where it was left, so it goes back to the top first.
+  // The app keeps the list where it was left, so it goes back to the top first.
   for (let scrolls = 0; scrolls < MAX_LIST_SCROLLS; scrolls += 1) {
-    const before = readChatList(seen.screen).map((row) => row.name).join("|")
+    const before = readChatList(seen.screen, kit.app).map((row) => row.name).join("|")
     const higher = await kit.scroll(seen, "down", 500)
-    const after = readChatList(higher.screen).map((row) => row.name).join("|")
+    const after = readChatList(higher.screen, kit.app).map((row) => row.name).join("|")
     seen = higher
     if (after === before) break
   }
   for (let scrolls = 0; scrolls <= MAX_LIST_SCROLLS; scrolls += 1) {
-    const rows = readChatList(seen.screen).filter((row) => row.name.toLowerCase() === match.theirName.toLowerCase())
+    const rows = readChatList(seen.screen, kit.app).filter((row) => row.name.toLowerCase() === match.theirName.toLowerCase())
     let row = rows[0]
     if (rows.length > 1 && match.avatarHash) {
       let best = 65
@@ -116,7 +120,7 @@ async function openConversation(
     }
     if (scrolls < MAX_LIST_SCROLLS) seen = await kit.scroll(seen, "up", 600)
   }
-  throw new WalkError(`Could not find ${match.theirName} in Tinder's chat list.`, seen.shot)
+  throw new WalkError(`Could not find ${match.theirName} in ${kit.app.appName}'s chat list.`, seen.shot)
 }
 
 /** Their name in the top part of the screen, which is how an open conversation says whose it is. */
@@ -133,13 +137,15 @@ function conversationHeader(seen: Seen, name: string): ScreenNode | null {
 }
 
 /** Reads the open conversation back to its start, or eight screenfuls, whichever comes first. */
-async function readWholeConversation(kit: WalkKit, opened: Seen): Promise<Bubble[]> {
+async function readWholeConversation(kit: WalkKit, opened: Seen, theirName: string): Promise<Bubble[]> {
+  // The app's own line saying they have gone is not a message.
+  const skip = (line: string) => kit.app.theyLeft?.(line, theirName) ?? false
   let seen = opened
-  let view = readBubbles(seen.screen, findNode(seen.screen, TINDER_WORDS.messageInput))
+  let view = readBubbles(seen.screen, findNode(seen.screen, kit.app.words.messageInput), kit.app, skip)
   let all = view
   for (let scrolls = 0; scrolls < MAX_CHAT_SCROLLS; scrolls += 1) {
     seen = await kit.scroll(seen, "down", 600)
-    const older = readBubbles(seen.screen, findNode(seen.screen, TINDER_WORDS.messageInput))
+    const older = readBubbles(seen.screen, findNode(seen.screen, kit.app.words.messageInput), kit.app, skip)
     if (sameBubbles(older, view)) break
     all = prependOlder(all, older)
     view = older
@@ -147,7 +153,12 @@ async function readWholeConversation(kit: WalkKit, opened: Seen): Promise<Bubble
   return all
 }
 
-/** Reads one conversation and lays it over the messages kept. */
+/**
+ * Reads one conversation and lays it over the messages kept. When the app
+ * says in the chat that the person has gone ("no longer available" on
+ * Facebook Dating), they unmatched, and that is marked at once (part 18 of
+ * "facebook/01").
+ */
 export async function readConversation(
   ctx: WalkContext,
   kit: WalkKit,
@@ -155,10 +166,12 @@ export async function readConversation(
 ): Promise<Record<string, unknown>> {
   const match = await matchFor(ctx, input)
   const opened = await openConversation(kit, match)
-  const bubbles = await readWholeConversation(kit, opened)
+  const left = screenTexts(opened.screen).some((line) => kit.app.theyLeft?.(line, match.theirName) ?? false)
+  const bubbles = await readWholeConversation(kit, opened, match.theirName)
   await kit.back(700)
   const saved = await saveConversation(match.id, bubbles, ctx.db, ctx.now())
-  return { matchId: match.id, messages: bubbles.length, newFromThem: saved.newFromThem }
+  if (left) await markTheyLeft(match.id, ctx.db, ctx.now())
+  return { matchId: match.id, messages: bubbles.length, newFromThem: saved.newFromThem, theyLeft: left }
 }
 
 /**
@@ -181,15 +194,15 @@ export async function sendMessage(
 
   try {
     const opened = await openConversation(kit, match)
-    const box = kit.need(opened, TINDER_WORDS.messageInput, "the message box")
+    const box = kit.need(opened, kit.app.words.messageInput, "the message box")
     const typed = await kit.type(box, message.text)
     const filled = typed.screen.nodes.find((node) => node.edit && node.text.trim() === message.text.trim())
-    if (!filled) throw new WalkError("The words did not go into Tinder's message box. Nothing was sent.", typed.shot)
-    const button = kit.need(typed, TINDER_WORDS.send, "the Send button")
+    if (!filled) throw new WalkError(`The words did not go into ${kit.app.appName}'s message box. Nothing was sent.`, typed.shot)
+    const button = kit.need(typed, kit.app.words.send, "the Send button")
     // From the moment Send is tapped it may have gone, so it is never tried again.
     await settleMessage(message.id, "unsure", "", ctx.db, ctx.now())
     const after = await kit.tap(button, 1_500)
-    const bubbles = readBubbles(after.screen, findNode(after.screen, TINDER_WORDS.messageInput))
+    const bubbles = readBubbles(after.screen, findNode(after.screen, kit.app.words.messageInput), kit.app)
     const lastOurs = [...bubbles].reverse().find((bubble) => bubble.direction === "out")
     if (lastOurs?.text.trim() !== message.text.trim()) {
       throw new WalkError(
@@ -201,7 +214,9 @@ export async function sendMessage(
     await kit.back(700)
     return { matchId: match.id, messageId: message.id, sent: true }
   } catch (error) {
-    // Before Send was tapped nothing went out: it is not sent, and may be tried again by hand.
+    // Before Send was tapped nothing went out: it is not sent, and may be tried again by hand. A
+    // freeze before anything was typed leaves it waiting, for the walk's one restart to send it.
+    if (error instanceof FrozenError && !kit.committed) throw error
     const [now] = await ctx.db.select({ status: dateMessages.status }).from(dateMessages).where(eq(dateMessages.id, message.id)).limit(1)
     if (now?.status === "sending") {
       await settleMessage(message.id, "failed", error instanceof Error ? error.message : "It could not be sent.", ctx.db, ctx.now())
@@ -210,21 +225,31 @@ export async function sendMessage(
   }
 }
 
-/** Unmatches one person through Tinder's own menu and its confirm. */
+/** Unmatches one person through the app's own menu and its confirm. */
 export async function unmatch(ctx: WalkContext, kit: WalkKit, input: Record<string, unknown>): Promise<Record<string, unknown>> {
   const match = await matchFor(ctx, input)
   const opened = await openConversation(kit, match)
-  const menu = await kit.tap(kit.need(opened, TINDER_WORDS.chatMenu, "the conversation's menu"), 900)
-  const asked = await kit.tap(kit.need(menu, TINDER_WORDS.unmatch, "Unmatch in the menu"), 900)
-  const confirm = kit.find(asked, TINDER_WORDS.confirmUnmatch)
-  const after = confirm ? await kit.tap(confirm, 1_200) : asked
-  if (conversationHeader(after, match.theirName) && kit.has(after, TINDER_WORDS.messageInput)) {
-    throw new WalkError(`Tinder still shows the conversation with ${match.theirName}, so the unmatch may not have gone through.`, after.shot)
-  }
+  const menu = await kit.tap(kit.need(opened, kit.app.words.chatMenu, "the conversation's menu"), 900)
+  await confirmUnmatch(kit, menu, match.theirName)
   const now = ctx.now()
   await ctx.db
     .update(dateMatches)
     .set({ unmatchedAt: now, unmatchedBy: "member", draft: "", draftSendAt: null, draftForMessageId: null, draftChoices: [], updatedAt: now })
     .where(eq(dateMatches.id, match.id))
   return { matchId: match.id, unmatched: true }
+}
+
+/**
+ * From a conversation's menu: Unmatch, its confirm, and a check that the
+ * conversation has gone. Facebook's report (`src/server/facebook/walks/index.ts`)
+ * ends here too.
+ */
+export async function confirmUnmatch(kit: WalkKit, menu: Seen, theirName: string): Promise<Seen> {
+  const asked = await kit.tap(kit.need(menu, kit.app.words.unmatch, "Unmatch in the menu"), 900)
+  const confirm = kit.find(asked, kit.app.words.confirmUnmatch)
+  const after = confirm ? await kit.commit(confirm, 1_200) : asked
+  if (conversationHeader(after, theirName) && kit.has(after, kit.app.words.messageInput)) {
+    throw new WalkError(`${kit.app.appName} still shows the conversation with ${theirName}, so the unmatch may not have gone through.`, after.shot)
+  }
+  return after
 }

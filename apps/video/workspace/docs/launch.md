@@ -81,7 +81,10 @@ each one breaks when missing.
 
 The worker calls `ffmpeg`, `ffprobe` and `yt-dlp`. Alpine's `ffmpeg` package
 brings `ffprobe` with it. The YouTube key for Viral search is pasted in
-Settings → YouTube after launch, not set as `VIDEO_YOUTUBE_API_KEY`.
+Settings → YouTube after launch, not set as `VIDEO_YOUTUBE_API_KEY`. The
+Google client that reads retention curves is pasted on the same tab, and the
+live site's return address must be listed on that client in Google Cloud
+(`retention-curve.md`).
 
 ## Deploying
 

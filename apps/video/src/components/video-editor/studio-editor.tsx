@@ -73,6 +73,7 @@ import { MovingStillsProvider } from "@/components/video-editor/moving-stills"
 import { RemakeClipsProvider } from "@/components/video-editor/remake-clips"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
 import "@/components/video-editor/studio.css"
+import "@/components/video-editor/text-fonts.css"
 
 /**
  * The editor: the panel you are working from on the left, the picture in the

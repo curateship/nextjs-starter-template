@@ -38,6 +38,8 @@ export const appOpenEndpoints: Record<string, string> = {
  * reason names that function, so the claim can be checked.
  */
 export const appGuardedDeeper: Record<string, string> = {
+  "video/youtube-retention.ts:loadRetentionFn":
+    "editorGet lets in a signed-in person or a guest sent from Project, then the handler answers null unless the caller is a signed-in admin with no guest sign-in, and getExportRetention checks the export is that admin's own.",
   "video/projects.ts:getProjectFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before the owner check in getOwnedProjectDetail.",
   "video/projects.ts:saveProjectTimelineFn":

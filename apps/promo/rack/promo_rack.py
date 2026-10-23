@@ -60,6 +60,7 @@ is: Promo reads it out of the same file it serves.
 
 import argparse
 import base64
+import calendar
 import collections
 import hashlib
 import hmac
@@ -77,6 +78,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ElementTree
 
@@ -1035,8 +1037,10 @@ APP_PACKAGES = {
     "instagram": "com.instagram.android",
     "tiktok": "com.zhiliaoapp.musically",
     "medium": "com.medium.reader",
+    "x": "com.twitter.android",
+    "linkedin": "com.linkedin.android",
 }
-APP_NAMES = {"reddit": "Reddit", "instagram": "Instagram", "tiktok": "TikTok", "medium": "Medium"}
+APP_NAMES = {"reddit": "Reddit", "instagram": "Instagram", "tiktok": "TikTok", "medium": "Medium", "x": "X", "linkedin": "LinkedIn"}
 PLAY_STORE = "com.android.vending"
 
 # The same apps on an iPhone, by App Store bundle id, and Apple's own apps
@@ -1048,6 +1052,11 @@ APP_BUNDLES = {
     # Not yet read off a real iPhone. The Android package is Medium's own
     # Play Store name; this one is the same until a phone says otherwise.
     "medium": "com.medium.reader",
+    # X's iPhone app keeps Tweetie's bundle id from before Twitter bought it.
+    # Not yet read off a real iPhone either.
+    "x": "com.atebits.Tweetie2",
+    # LinkedIn's App Store bundle id. Not yet read off a real iPhone either.
+    "linkedin": "com.linkedin.LinkedIn",
 }
 IOS_SETTINGS = "com.apple.Preferences"
 IOS_MESSAGES = "com.apple.MobileSMS"
@@ -1143,7 +1152,7 @@ UPDATE_BUTTON = {"textMatches": "(?i)^update$", "packageName": PLAY_STORE}
 # The same apps in the App Store (phone farm part 53): each app's page by
 # Apple's own number, opened through the itms-apps address the store owns.
 APP_STORE = "com.apple.AppStore"
-APP_STORE_IDS = {"reddit": "1064216828", "instagram": "389801252", "tiktok": "835599320", "medium": "828256236"}
+APP_STORE_IDS = {"reddit": "1064216828", "instagram": "389801252", "tiktok": "835599320", "medium": "828256236", "x": "333903271", "linkedin": "288429040"}
 IOS_UPDATE_BUTTON = {"textMatches": "(?i)^update$", "packageName": APP_STORE}
 IOS_OPEN_BUTTON = {"textMatches": "(?i)^open$", "packageName": APP_STORE}
 # The page's What's New says "Version 2025.40.0" under the newest notes.
@@ -2029,14 +2038,15 @@ def parse_bounds(text):
     return tuple(int(part) for part in found.groups()) if found else None
 
 
-def feed_post_titles(hierarchy_xml, height):
+def feed_post_titles(hierarchy_xml, height, app="reddit"):
     """Post titles a thumb could open in the feed: long lines of the app's own
-    text in the middle of the screen, never a promoted post's."""
+    text in the middle of the screen, never a promoted post's. Reddit's
+    feed by default; X's feed reads the same way."""
     root = ElementTree.fromstring(hierarchy_xml)
     parents = {child: parent for parent in root.iter() for child in parent}
     titles = []
     for node in root.iter("node"):
-        if not own_node(node, app_packages("reddit")):
+        if not own_node(node, app_packages(app)):
             continue
         words = (node.get("text") or "").strip()
         bounds = parse_bounds(node.get("bounds"))
@@ -2072,11 +2082,11 @@ def open_post_link(serial, permalink):
     open_link(serial, "reddit", "https://www.reddit.com%s" % permalink)
 
 
-def open_feed_post(serial, walk):
+def open_feed_post(serial, walk, app="reddit"):
     """Opens one post from the feed by its title. False when none was on screen."""
     device = walk.screen()
     _, height = screen_size(device)
-    titles = feed_post_titles(device.dump_hierarchy(), height)
+    titles = feed_post_titles(device.dump_hierarchy(), height, app)
     if not titles:
         return False
     walk.check()
@@ -2583,6 +2593,129 @@ APP_SCREENS[APP_BUNDLES["medium"]] = dict(
     response_box=shapes(APP_BUNDLES["medium"], "(?i)^what are your thoughts\\??$") + ios_field_in(APP_BUNDLES["medium"]),
     handle_in_title=False,
 )
+
+
+# X's app (X task, part 2). Written from how the X app is put together: its
+# Android view ids (com.twitter.android:id/tweet_text, button_tweet,
+# composer_write, inline_reply, inline_retweet) and the words its buttons
+# say ("New post", "Post your reply", "Reply", "Post", "Repost", "Quote",
+# "Messages"). None of it has run on a real phone yet; the daily self-test
+# walks it first. A view id is tried before the words where both are
+# listed, since X's own Reply icon on a post says "Reply" too. The iPhone
+# app has no view ids to match, so its buttons are found by their words.
+X_APP = APP_PACKAGES["x"]
+IOS_X = APP_BUNDLES["x"]
+# The Follow button on a profile, by its view id. Its words alone could be
+# the "Following" count beside it.
+X_FOLLOW_BUTTON_ID = "(?i).*(follow_button|button_bar_follow|followbutton).*"
+
+
+def x_screens(package, field, first_item, ios):
+    ids = (lambda pattern: []) if ios else (lambda pattern: [{"resourceIdMatches": pattern, "packageName": package}])
+    composer_box = ids("(?i).*tweet_text.*") + field + shapes(
+        package, "(?i)^(post your reply|what's happening\\??|what is happening\\?!?|add a comment|add another post)( ?(…|\\.\\.\\.))?$")
+    post_button = ids("(?i).*button_tweet.*") + shapes(package, "(?i)^(post|reply|post all|reply all|tweet)$")
+    return {
+        "package": package,
+        "drawer": shapes(package, "(?i)^(show navigation drawer|open navigation drawer|navigation drawer|account menu|profile menu|open menu|menu)$")
+        + ids("(?i).*(drawer|toolbar_avatar|nav_avatar).*"),
+        "profile_entry": shapes(package, "(?i)^profile$"),
+        "reply_open": ids("(?i).*(inline_reply|tweet_reply|reply_compose).*") + shapes(package, "(?i)^(post your reply|tweet your reply|add a reply)( ?(…|\\.\\.\\.))?$"),
+        "composer_box": composer_box,
+        "post_button": post_button,
+        "repost": ids("(?i).*(inline_retweet|tweet_retweet|retweet_button).*") + shapes(package, "(?i)^(repost|retweet)(\\W.*)?$"),
+        "quote": shapes(package, "(?i)^(quote|quote post|quote tweet)$"),
+        "new_post": ids("(?i).*(composer_write|compose_fab|fab_compose).*") + shapes(package, "(?i)^(new post|compose|compose a post|compose a tweet|write a post|create post)$"),
+        "media": ids("(?i).*(gallery|photo|media).*(button|icon|picker|toolbar).*") + shapes(package, "(?i)^(add photos or video|add photos|photos|photo|gallery|add media|media)$"),
+        "media_first": first_item,
+        "media_done": shapes(package, "(?i)^(add|done|ok|select)$"),
+        "follow_button_id": "" if ios else X_FOLLOW_BUTTON_ID,
+        "inbox": ids("(?i).*(dm_tab|messages_tab|tab_messages).*") + shapes(package, "(?i)^(messages|direct messages|chat|chats)$"),
+        "activity": shapes(package, "(?i)^notifications$"),
+        "message_box": ids("(?i).*(dm_compose|dm_text|message_text).*") + shapes(package, "(?i)^(start a (new )?message|message|new message)( ?(…|\\.\\.\\.))?$") + field,
+        "send": ids("(?i).*(dm_send|send_dm|send_button).*") + shapes(package, "(?i)^send$"),
+        "reply": shapes(package, "(?i)^reply$"),
+        "comment_box": composer_box,
+        "comment_send": post_button,
+        "field": field,
+        "handle_id": "(?i).*(user_name|screen_name|username).*",
+        "handle_in_title": False,
+        "figures": {"posts": "", "followers": "followers", "following": "following"},
+    }
+
+
+APP_SCREENS["x"] = x_screens(X_APP, field_in(X_APP), [{"resourceIdMatches": "(?i).*(gallery_image|media_item|gallery_grid|thumbnail).*", "packageName": X_APP}], ios=False)
+APP_SCREENS[IOS_X] = x_screens(IOS_X, ios_field_in(IOS_X), ios_first_cell(IOS_X), ios=True)
+
+
+# LinkedIn's app (LinkedIn task, part 2). Written from how the LinkedIn app is
+# put together: its Android view ids (feed_social_actions_like, me_launcher,
+# share_compose_post_button, messaging_keyboard_send) and the words its
+# buttons say ("Start a post", "Add a comment…", "Like", "Post", "Connect",
+# "Send without a note", "Accept", "Messaging"). None of it has run on a real
+# phone yet; the daily self-test walks it first. A view id is tried before
+# the words where both are listed. The iPhone app has no view ids to match,
+# so its buttons are found by their words. The box under a post is opened by
+# its own words, never by the post's "Comment" button, whose word is also a
+# last button's.
+LINKEDIN = APP_PACKAGES["linkedin"]
+IOS_LINKEDIN = APP_BUNDLES["linkedin"]
+# The system's share sheet, outside the app: its Copy row puts the profile's
+# address on the clipboard when the app's own menu has no Copy link.
+LINKEDIN_SYSTEM_COPY = [{"textMatches": "(?i)^(copy|copy link|copy to clipboard)$"}]
+
+
+def linkedin_screens(package, field, first_item, ios):
+    ids = (lambda pattern: []) if ios else (lambda pattern: [{"resourceIdMatches": pattern, "packageName": package}])
+    comment_box = ids("(?i).*(comment_bar_text|comment_compose|comments_compose_text).*") + shapes(
+        package, "(?i)^(add a comment|leave your thoughts here|add a reply|reply to .+)( ?(…|\\.\\.\\.))?$") + field
+    # Never "Reply": every comment under the post has one. Only a button
+    # beside the box counts (linkedin_composer_send).
+    comment_send = ids("(?i).*(comment_bar_post|comment_compose_post|comment_post_button).*") + shapes(package, "(?i)^(post|send)$")
+    return {
+        "package": package,
+        "drawer": ids("(?i).*(me_launcher|feed_toolbar_me|toolbar_profile_image|nav_me).*")
+        + shapes(package, "(?i)^(open (navigation )?(drawer|menu)|show navigation drawer|open profile menu|me|my profile)$"),
+        "profile_entry": shapes(package, "(?i)^(view profile|view your profile|profile)$"),
+        "profile_more": ids("(?i).*(profile_overflow|top_card_overflow|profile_more).*") + shapes(package, "(?i)^(more|more actions|more options)$"),
+        "copy_link": shapes(package, "(?i)^(copy link to profile|copy profile link|copy link to your profile|copy link)$"),
+        "share_profile": shapes(package, "(?i)^(share profile( via)?( ?(…|\\.\\.\\.))?|share via( ?(…|\\.\\.\\.))?)$"),
+        "name_id": "" if ios else "(?i).*(profile_name|top_card_name|profile_top_card_name|identity_name).*",
+        "like": ids("(?i).*(feed_social_actions_like|social_actions_like|reaction_button).*") + shapes(package, "(?i)^(like|react like)$"),
+        "liked": shapes(package, "(?i)^(unlike|liked|reaction button state: (liked|reacted).*|remove (your )?reaction.*)$"),
+        "comment_box": comment_box,
+        "comment_send": comment_send,
+        "comment_reply": shapes(package, "(?i)^reply$"),
+        "new_post": ids("(?i).*(share_box|feed_share_box|bottom_nav_post|post_tab|create_post).*")
+        + shapes(package, "(?i)^(start a post|create a post|share a post)( ?(…|\\.\\.\\.))?$"),
+        "composer_box": ids("(?i).*(share_compose_text|compose_text_input|sharing_compose_text).*")
+        + shapes(package, "(?i)^(what do you want to talk about\\??|share your thoughts\\.?|start writing)( ?(…|\\.\\.\\.))?$") + field,
+        "post_button": ids("(?i).*(share_compose_post_button|sharing_compose_post|toolbar_post).*") + shapes(package, "(?i)^post$"),
+        "media": ids("(?i).*(share_compose_photo|compose_add_photo|media_picker).*") + shapes(package, "(?i)^(add a photo|add photos|photo|add media|media|gallery)$"),
+        "media_first": first_item,
+        "media_done": shapes(package, "(?i)^(done|next|add|ok|select)$"),
+        # By its words only: the profile's main button is Follow on a
+        # creator's page and Message on a contact's, under the same view id.
+        "connect": shapes(package, "(?i)^(connect|invite .+ to connect)$"),
+        "add_note": shapes(package, "(?i)^(add a note|personalize invite|personalise invite)$"),
+        # The box's hint, never the Add a note button that opened it.
+        "note_box": shapes(package, "(?i)^(ex: we know each other from .*|add a note ?(…|\\.\\.\\.)|your message.*)$") + field,
+        "send_invite": shapes(package, "(?i)^(send|send now|send without a note|send invitation)$"),
+        "accept": shapes(package, "(?i)^(accept|accept .+ invitation)$"),
+        "network": ids("(?i).*(bottom_nav_mynetwork|tab_mynetwork|my_network_tab).*") + shapes(package, "(?i)^(my network|network)$"),
+        "invitations": shapes(package, "(?i)^(invitations?( \\(\\d+\\))?|manage invitations|show all invitations|see all( invitations)?)$"),
+        "inbox": ids("(?i).*(messaging_icon|toolbar_messaging|home_messaging|nav_messaging).*") + shapes(package, "(?i)^(messaging|messages|open messaging|messaging, .*)$"),
+        "activity": ids("(?i).*(bottom_nav_notifications|tab_notifications).*") + shapes(package, "(?i)^notifications$"),
+        "message_box": ids("(?i).*(messaging_keyboard_text|compose_message|message_text).*") + shapes(package, "(?i)^(write a message|message)( ?(…|\\.\\.\\.))?$") + field,
+        "send": ids("(?i).*(messaging_keyboard_send|send_button).*") + shapes(package, "(?i)^send$"),
+        "field": field,
+    }
+
+
+APP_SCREENS["linkedin"] = linkedin_screens(
+    LINKEDIN, field_in(LINKEDIN), [{"resourceIdMatches": "(?i).*(media_picker_item|gallery_item|thumbnail|media_grid).*", "packageName": LINKEDIN}], ios=False)
+APP_SCREENS[IOS_LINKEDIN] = linkedin_screens(IOS_LINKEDIN, ios_field_in(IOS_LINKEDIN), ios_first_cell(IOS_LINKEDIN), ios=True)
+
 
 def app_screens(serial, app):
     """The app's buttons on this phone: the iPhone app's, keyed by its bundle
@@ -3365,18 +3498,22 @@ def parse_app_notifications(output):
 
 
 COMMENT_ALERT = re.compile(r"\b(commented|replied to your comment|mentioned you in a comment)\b")
-MESSAGE_ALERT = re.compile(r"\b(sent you a (message|chat|photo|video|reel|post)|messaged you|new message|new chat|wants to send you a message)\b")
+MESSAGE_ALERT = re.compile(r"\b(sent you an? (new )?(direct message|message|inmail|chat|photo|video|reel|post)|messaged you|new (direct )?message|new chat|wants to send you a message)\b")
 
 
 def alert_kind(item):
     """"message", "comment" or None for one app notification. Reddit's comment
     replies are left to the reader browser, so Reddit only counts its chats
-    and messages. Likes and follows are nothing."""
+    and messages. X is the same: replies and mentions are read from a
+    browser, so only its direct messages count, which X files under a "dm"
+    channel. LinkedIn too: its comments are read by a search account, so only
+    its messages and InMail count, which it files under a "messaging"
+    channel. Likes, reactions, follows and invitations are nothing."""
     words = plain("%s %s" % (item["title"], item["text"]))
     meta = plain(item["meta"])
     if item["app"] in ("instagram", "tiktok") and COMMENT_ALERT.search(words):
         return "comment"
-    if MESSAGE_ALERT.search(words) or re.search(r"(direct|message|chat|\bmsg\b|\bim\b)", meta):
+    if MESSAGE_ALERT.search(words) or re.search(r"(direct|messag(e|ing)|chat|\bmsg\b|\bim\b|(?<![a-z])dms?(?![a-z]))", meta):
         return "message"
     return None
 
@@ -3491,7 +3628,7 @@ def comments_from_screen(hierarchy_xml, app, handle, height=2400):
     return [dict(comment, thread=thread) for comment in comments]
 
 
-NOT_A_MESSAGE = re.compile(r"\b(liked|follow|following|tagged you|went live|posted)\b")
+NOT_A_MESSAGE = re.compile(r"\b(liked|follow|following|tagged you|went live|posted|reposted)\b")
 
 
 def notification_for(hierarchy_xml, app, kind):
@@ -4048,6 +4185,1452 @@ REHEARSALS.update({
 })
 
 
+# ---------------------------------------------------------------------------
+# X's app (X task, part 2). The phone answers the same routine names as the
+# browser (src/server/social/x/calls.ts) with the same answers, so Promo does
+# not care where an X account runs. X's id for a reply or a post is not shown
+# in the app after it is sent, so it is "" here and Promo looks it up through
+# a search account, as Medium's reader does for a response. A community post
+# or a poll is made in a browser only, and is refused before anything opens.
+# Direct messages go through the shared inbox steps, as Instagram's and
+# TikTok's do: x/inbox reads them and x/reply_message answers one (x/reply
+# is the reply under a post). The phone's x/inbox answers in the shared
+# inbox's shape, conversations and their lines, not the browser's list of
+# messages, so Promo reads a phone account's messages through the phone
+# inbox code only. None of this has run on a real phone yet.
+
+X_POST_ID = re.compile(r"^\d{1,25}$")
+X_HANDLE = re.compile(r"^[A-Za-z0-9_]{1,15}$")
+# "Joined March 2021" on the account's own profile.
+X_JOINED = re.compile(r"(?i)^joined\s+([a-z]+)\s+(\d{4})$")
+MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+X_POSTED = ("your post was sent", "your reply was sent", "your post was posted", "post sent", "reply sent")
+X_POST_FAILED = ("couldn't be sent", "could not be sent", "couldn't send your", "failed to send", "you already said that", "over the daily limit")
+X_NOT_CHECKED = {"checked": False, "handle": None, "blocked": False, "reason": "", "banScreen": None, "joinedSeconds": None, "followers": None}
+X_BAN_WORDS = {"suspended": "suspended", "locked": "locked or limited", "confirm": "asking to confirm it's you"}
+
+
+def x_joined_seconds(hierarchy_xml):
+    """When the account joined, as the first of the month its profile names, in seconds. None when not shown."""
+    for line in screen_lines(hierarchy_xml, app_packages("x")):
+        found = X_JOINED.match(line.strip())
+        if found and found.group(1).lower()[:3] in MONTHS:
+            month = MONTHS.index(found.group(1).lower()[:3]) + 1
+            return float(calendar.timegm((int(found.group(2)), month, 1, 0, 0, 0)))
+    return None
+
+
+def read_x_profile(serial, walk):
+    """Opens X on the account's own profile, through the menu behind its
+    picture, and reads the handle, the followers and when it joined. A ban
+    screen in the way is read instead. Leaves the profile open."""
+    empty = {"handle": None, "followers": None, "joinedSeconds": None, "ban": None}
+    open_app(serial, "x")
+    walk.shot("Opened X")
+    device = walk.screen()
+    hierarchy = device.dump_hierarchy()
+    ban = ban_screen_in(hierarchy, "x", package_for(serial, "x"))
+    if ban:
+        return dict(empty, ban=ban)
+    if signed_out(hierarchy, "x"):
+        return empty
+    screens = app_screens(serial, "x")
+    walk.tap_first("Open the account menu", selectors=screens["drawer"])
+    time.sleep(1.5)
+    walk.tap_first("Open the profile", selectors=screens["profile_entry"])
+    time.sleep(2)
+    hierarchy = device.dump_hierarchy()
+    reading = app_profile_from_screen(hierarchy, "x")
+    walk.shot("Read the profile")
+    return {"handle": reading["handle"], "followers": reading["followers"], "joinedSeconds": x_joined_seconds(hierarchy), "ban": None}
+
+
+def action_x_state(serial, args, walk):
+    """Who the X app is signed in as, its followers and when it joined, off
+    its own profile; asked after every X job too, as x/quick_state. A lock
+    or suspended screen is answered as blocked, with X's own words. An app
+    that cannot be read says "not checked", so a failed look is never written
+    down as signed out; a rehearsal that cannot read it is broken."""
+    try:
+        walk.screen().screen_on()
+        reading = read_x_profile(serial, walk)
+        walk.home()
+    except Cancelled:
+        raise
+    except Exception as failure:  # Not checked rather than signed out.
+        if walk.rehearse:
+            raise
+        log("Could not read who is signed in to X on %s: %s" % (serial, failure))
+        return dict(X_NOT_CHECKED)
+    ban = reading["ban"]
+    return {
+        "checked": True,
+        "handle": reading["handle"],
+        "blocked": bool(ban),
+        "reason": "X shows the account %s" % X_BAN_WORDS.get(ban["kind"], "stopped") if ban else "",
+        "banScreen": ban["words"] if ban else None,
+        "joinedSeconds": reading["joinedSeconds"],
+        "followers": reading["followers"],
+    }
+
+
+# Said by every error after Post or Reply was pressed, so nobody sends twice blind.
+X_MAY_BE_SENT = "It may already be on X; look before sending again."
+
+
+def x_lines(hierarchy_xml):
+    """The X app's own lines on screen, kept from before a press so the
+    lines after it can be told apart."""
+    return set(screen_lines(hierarchy_xml, app_packages("x")))
+
+
+def x_landed(hierarchy_xml, package, text, before, shown_before=()):
+    """What the screen says after Post or Reply was pressed: ("sent", ""),
+    ("failed", X's words), or ("", "") while neither shows. Only lines that
+    were not on screen before the press are read, so the post being answered
+    saying "couldn't be sent" is not X's notice. The words showing more times
+    than before also count as sent."""
+    fresh = [plain(line) for line in screen_lines(hierarchy_xml, app_packages("x")) if line not in shown_before]
+    failed = next((line for line in fresh if any(phrase in line for phrase in X_POST_FAILED)), None)
+    if failed:
+        return "failed", failed
+    if any(phrase in line for line in fresh for phrase in X_POSTED) or (text and times_shown(hierarchy_xml, package, text) > before):
+        return "sent", ""
+    return "", ""
+
+
+def x_wait_landed(walk, package, text, before, verb, shown_before=()):
+    """Waits for X to say the post went. A failure X names fails the job; True once sent; False when nothing showed in time."""
+    device = walk.screen()
+    waiting_until = time.time() + POST_LANDED_SECONDS
+    while time.time() < waiting_until:
+        time.sleep(1)
+        try:
+            state, words = x_landed(device.dump_hierarchy(), package, text, before, shown_before)
+        except Exception:  # A screen caught mid-change; look again.
+            continue
+        if state == "failed":
+            walk.shot("X said it failed")
+            raise RuntimeError("%s: X said it did not go: %s. %s" % (verb, words, X_MAY_BE_SENT))
+        if state == "sent":
+            walk.shot("Looked for the post")
+            return True
+    walk.shot("Looked for the post")
+    return False
+
+
+def x_after_press(verb, look):
+    """Runs the look after Post or Reply was pressed. Whatever fails in it
+    says the words may be on X already."""
+    try:
+        return look()
+    except Cancelled:
+        raise
+    except Exception as failure:
+        words = str(failure) or failure.__class__.__name__
+        if "It may already be on X" in words:
+            raise
+        raise RuntimeError("%s: %s. %s" % (verb, words.rstrip("."), X_MAY_BE_SENT))
+
+
+def x_words_under(hierarchy_xml, package, text):
+    """True when one of the app's views shows exactly these words, the text
+    box left out: our reply is under the post already. Only the whole words
+    count, so a "Yes" of ours is never found inside somebody's longer post."""
+    wanted = plain(" ".join(text.split())).rstrip(".")
+    if not wanted:
+        return False
+    for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
+        if not own_node(node, package) or is_text_box(node):
+            continue
+        for key in ("text", "content-desc", "label"):
+            if plain(" ".join((node.get(key) or "").split())).rstrip(".") == wanted:
+                return True
+    return False
+
+
+def x_on_profile(serial, walk, package, text):
+    """The account's own profile looked at for the words, since a quote or a
+    post of its own does not show where it was written. False when the
+    profile could not be reached."""
+    screens = app_screens(serial, "x")
+    try:
+        open_app(serial, "x")
+        walk.tap_first("Open the account menu", timeout=5, selectors=screens["drawer"])
+        time.sleep(1.5)
+        walk.tap_first("Open the profile", timeout=5, selectors=screens["profile_entry"])
+        time.sleep(2)
+        found = times_shown(walk.screen().dump_hierarchy(), package, text) > 0
+        walk.shot("Looked on the profile")
+        return found
+    except StepFailed:
+        return False
+
+
+def x_feed_before(serial, walk, visit):
+    """A little of the home feed before a reply or a quote, which never stops it."""
+    started = time.monotonic()
+    try:
+        open_app(serial, "x")
+        walk.shot("Opened X")
+        browse_app_feed(serial, walk, random.uniform(*APP_READ_FEED_SECONDS))
+    except Cancelled:
+        raise
+    except Exception as failure:  # The reply still goes.
+        visit["problems"].append("the feed before: %s" % short_words(failure))
+    visit["beforeSeconds"] = int(time.monotonic() - started)
+
+
+def x_feed_after(serial, walk, visit):
+    """A little scrolling after the press, which can never fail what is already on X."""
+    started = time.monotonic()
+    try:
+        go_back(serial)
+        time.sleep(1.5)
+        browse_app_feed(serial, walk, random.uniform(*APP_FEED_AFTER_SECONDS))
+    except Exception as failure:  # Includes a cancel: it is on X either way.
+        visit["problems"].append("the feed after: %s" % short_words(failure))
+    visit["afterSeconds"] = int(time.monotonic() - started)
+
+
+def x_open_post(serial, walk, post_id):
+    """Opens a post by its link in the app. With no post (a rehearsal when
+    Promo found none lately) the first post of the home feed is opened."""
+    walk.check()
+    if post_id:
+        open_link(serial, "x", "https://x.com/i/status/%s" % post_id)
+        walk.shot("Opened the post")
+        return
+    open_app(serial, "x")
+    walk.shot("Opened X")
+    if not open_feed_post(serial, walk, "x"):
+        raise StepFailed("Open a post", "No post was on X's home feed to open.")
+
+
+def x_put_picture(serial, walk, url):
+    """Puts the post's picture on the phone, as Instagram's post does: into the
+    camera folder on an Android, into Photos through a one-time Safari link
+    on an iPhone. It is then the newest item the post box's picker shows."""
+    if is_iphone(serial):
+        save_from_safari(serial, walk, url)
+        return
+    data, extension = download_media(url)
+    put_in_gallery(serial, data, extension)
+    walk.shot("Put the picture in the gallery")
+
+
+def x_fill(serial, walk, screens, text, picture):
+    """In an open post box: the picture first, when one was put on the phone,
+    then the words typed with a person's rhythm. A rehearsal only finds the box."""
+    device = walk.screen()
+    box = walk.find_first("Find the post box", selectors=screens["composer_box"])
+    if walk.rehearse:
+        return
+    if picture:
+        walk.tap_first("Open the photos", selectors=screens["media"])
+        time.sleep(2)
+        walk.tap_first("Pick the newest picture", selectors=screens["media_first"])
+        time.sleep(1.5)
+        try:
+            walk.tap_first("Add the picture", timeout=4, selectors=screens["media_done"])
+            time.sleep(1.5)
+        except StepFailed:
+            pass  # Added on the pick on this version.
+        box = walk.find_first("Find the post box", selectors=screens["composer_box"])
+    if text:
+        walk.press(box)
+        gaps = type_like_a_person(serial, device, text, walk.check)
+        walk.shot("Typed the words")
+        log("x words typed: %d characters, gaps %.2f to %.2f seconds" % (len(text), min(gaps or [0]), max(gaps or [0])))
+    time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
+
+
+def x_reply_under(serial, walk, post_id, text, picture, verb):
+    """One reply under a post, Reply pressed once. A reply of the account's
+    own (verb "reply") is a visit: the home feed first, the post read for a
+    while. A thread's next piece (verb "publish") goes straight on. Words of
+    ours already under the post (an earlier try that went out without saying
+    so) count as sent, and nothing is typed."""
+    device = walk.screen()
+    device.screen_on()
+    screens = app_screens(serial, "x")
+    package = package_for(serial, "x")
+    visit = new_visit()
+    if verb == "reply" and not walk.rehearse:
+        x_feed_before(serial, walk, visit)
+    before = 0
+    shown = set()
+    try:
+        x_open_post(serial, walk, post_id)
+        hierarchy = device.dump_hierarchy()
+        if signed_out(hierarchy, "x"):
+            raise RuntimeError("%s: the app is not signed in to X" % verb)
+        if verb == "reply" and not walk.rehearse:
+            read_post(serial, walk, len(" ".join(screen_lines(hierarchy, app_packages("x")))), visit)
+        if not walk.rehearse:
+            hierarchy = device.dump_hierarchy()
+            if x_words_under(hierarchy, package, text):
+                walk.shot("Our words are under the post already")
+                walk.home()
+                return {"postId": "", "url": "", "visit": visit}
+            before = times_shown(hierarchy, package, text)
+            shown = x_lines(hierarchy)
+        walk.tap_first("Open the reply box", selectors=screens["reply_open"])
+        time.sleep(2)
+        x_fill(serial, walk, screens, text, picture)
+        shown |= x_lines(device.dump_hierarchy())
+        pressed = walk.final_first("Press Reply", selectors=screens["post_button"])
+    except Cancelled:
+        raise
+    except Exception:
+        # Stopped before the last button: the draft is thrown away and nothing was sent.
+        if not walk.rehearse:
+            leave_app_screen(serial, walk, "x", times=3)
+        raise
+    finally:
+        if walk.rehearse:
+            leave_app_screen(serial, walk, "x", times=3)
+    if not pressed:
+        walk.home()
+        return {"postId": "", "url": ""}
+    if not x_after_press(verb, lambda: x_wait_landed(walk, package, text, before, verb, shown)):
+        raise RuntimeError("%s: Reply was pressed but X did not say it was sent, and the words did not show within %d seconds. %s" % (verb, POST_LANDED_SECONDS, X_MAY_BE_SENT))
+    x_feed_after(serial, walk, visit)
+    walk.home()
+    return {"postId": "", "url": "", "visit": visit}
+
+
+def action_x_reply(serial, args, walk):
+    """Writes one reply under a post in the X app, inside a visit: a little
+    home feed, the post by its link, read for a while, the reply box, the
+    words typed with a person's rhythm, and Reply pressed once. It counts as
+    sent when X says so or the words show under the post. Its id is "".
+
+    In a rehearsal nothing is typed: the post opens (the feed's first post
+    when none was sent), the box opens, Reply is found and not pressed, and
+    the box is left.
+    """
+    post_id = str(args.get("replyToId") or "").strip()
+    text = str(args.get("text") or "").strip()
+    if post_id and not X_POST_ID.match(post_id):
+        raise RuntimeError("reply: that is not an X post id")
+    if not walk.rehearse and (not post_id or not text):
+        raise RuntimeError("reply: a reply needs its post and its words")
+    return x_reply_under(serial, walk, post_id, text, False, "reply")
+
+
+def action_x_quote(serial, args, walk):
+    """One quote post of somebody's post, inside a visit: a little home feed,
+    the post by its link, read, Repost, Quote, the words typed, and Post
+    pressed once. A quote does not show under the post it quotes, so it
+    counts as sent when X says so, or failing that when the words are on the
+    account's own profile. Its id is "".
+
+    In a rehearsal nothing is typed and Post is found, not pressed.
+    """
+    post_id = str(args.get("postId") or "").strip()
+    text = str(args.get("text") or "").strip()
+    if post_id and not X_POST_ID.match(post_id):
+        raise RuntimeError("quote: that is not an X post id")
+    if not walk.rehearse and (not post_id or not text):
+        raise RuntimeError("quote: a quote needs its post and its words")
+    device = walk.screen()
+    device.screen_on()
+    screens = app_screens(serial, "x")
+    package = package_for(serial, "x")
+    visit = new_visit()
+    if not walk.rehearse:
+        x_feed_before(serial, walk, visit)
+    try:
+        x_open_post(serial, walk, post_id)
+        hierarchy = device.dump_hierarchy()
+        if signed_out(hierarchy, "x"):
+            raise RuntimeError("quote: the app is not signed in to X")
+        shown = x_lines(hierarchy)
+        if not walk.rehearse:
+            read_post(serial, walk, len(" ".join(screen_lines(hierarchy, app_packages("x")))), visit)
+        walk.tap_first("Open Repost", selectors=screens["repost"])
+        time.sleep(1.5)
+        walk.tap_first("Pick Quote", selectors=screens["quote"])
+        time.sleep(2)
+        x_fill(serial, walk, screens, text, False)
+        shown |= x_lines(device.dump_hierarchy())
+        pressed = walk.final_first("Press Post", selectors=screens["post_button"])
+    except Cancelled:
+        raise
+    except Exception:
+        if not walk.rehearse:
+            leave_app_screen(serial, walk, "x", times=3)
+        raise
+    finally:
+        if walk.rehearse:
+            leave_app_screen(serial, walk, "x", times=3)
+    if not pressed:
+        walk.home()
+        return {"postId": "", "url": ""}
+    if not x_after_press("quote", lambda: x_wait_landed(walk, package, text, 0, "quote", shown) or x_on_profile(serial, walk, package, text)):
+        raise RuntimeError("quote: Post was pressed but X did not say it was sent, and the words are not on the profile. %s" % X_MAY_BE_SENT)
+    x_feed_after(serial, walk, visit)
+    walk.home()
+    return {"postId": "", "url": "", "visit": visit}
+
+
+def action_x_publish(serial, args, walk):
+    """One post of the account's own: the first of a thread from X's New post
+    button, or a later piece under `replyToId`, the piece before it. A picture
+    from `pictureUrl` is put on the phone first and picked in the post box.
+    Post or Reply is pressed once; it counts as sent when X says so or the
+    words show, under the piece before or on the profile. Its id is "".
+
+    A community post or a poll is made in a browser, and is refused here
+    before anything opens. In a rehearsal no picture is fetched, nothing is
+    typed, and Post is found, not pressed.
+    """
+    text = str(args.get("text") or "").strip()
+    picture = str(args.get("pictureUrl") or "").strip()
+    reply_to = str(args.get("replyToId") or "").strip()
+    if str(args.get("communityId") or "").strip():
+        raise RuntimeError("publish: a post into a community is made in a browser, not the X app")
+    if args.get("poll"):
+        raise RuntimeError("publish: a poll is made in a browser, not the X app")
+    if reply_to and not X_POST_ID.match(reply_to):
+        raise RuntimeError("publish: that is not an X post id")
+    if not walk.rehearse and not text and not picture:
+        raise RuntimeError("publish: a post needs its words or a picture")
+    device = walk.screen()
+    device.screen_on()
+    has_picture = bool(picture) and not walk.rehearse
+    if has_picture:
+        x_put_picture(serial, walk, picture)
+    if reply_to:
+        return x_reply_under(serial, walk, reply_to, text, has_picture, "publish")
+    screens = app_screens(serial, "x")
+    package = package_for(serial, "x")
+    visit = new_visit()
+    try:
+        open_app(serial, "x")
+        walk.shot("Opened X")
+        hierarchy = device.dump_hierarchy()
+        if signed_out(hierarchy, "x"):
+            raise RuntimeError("publish: the app is not signed in to X")
+        shown = x_lines(hierarchy)
+        walk.tap_first("Open a new post", selectors=screens["new_post"])
+        time.sleep(2)
+        try:
+            walk.find_first("Find the post box", timeout=4, selectors=screens["composer_box"])
+        except StepFailed:
+            # On some versions the button first opens a small menu, and a
+            # second press of it opens the post box.
+            walk.tap_first("Open a new post again", selectors=screens["new_post"])
+            time.sleep(2)
+        x_fill(serial, walk, screens, text, has_picture)
+        shown |= x_lines(device.dump_hierarchy())
+        pressed = walk.final_first("Press Post", selectors=screens["post_button"])
+    except Cancelled:
+        raise
+    except Exception:
+        if not walk.rehearse:
+            leave_app_screen(serial, walk, "x", times=3)
+        raise
+    finally:
+        if walk.rehearse:
+            leave_app_screen(serial, walk, "x", times=3)
+    if not pressed:
+        walk.home()
+        return {"postId": "", "url": ""}
+    if not x_after_press("publish", lambda: x_wait_landed(walk, package, text, 0, "publish", shown) or (text and x_on_profile(serial, walk, package, text))):
+        raise RuntimeError("publish: Post was pressed but X did not say it was sent, and the words are not on the profile. %s" % X_MAY_BE_SENT)
+    x_feed_after(serial, walk, visit)
+    walk.home()
+    return {"postId": "", "url": "", "visit": visit}
+
+
+def x_follow_state(hierarchy_xml, handle, button_id=""):
+    """What a profile's Follow button says: "following", "pending" (a
+    protected account was asked, as the browser counts it too), "follow", or
+    "" when none shows. Only the button counts: by its description naming the
+    handle ("Following @sam"), or by its view id, never a bare "Following",
+    which is also the count beside it. A bare "Pending" is the button: no
+    count on a profile is called that."""
+    wanted = (handle or "").lower()
+    state = ""
+    for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
+        if not own_node(node, app_packages("x")):
+            continue
+        on_button = bool(button_id) and bool(re.match(button_id, node.get("resource-id") or ""))
+        for key in ("text", "content-desc", "label"):
+            words = plain(" ".join((node.get(key) or "").split())).rstrip(".")
+            if not words:
+                continue
+            if words in ("following @%s" % wanted, "unfollow @%s" % wanted) or (on_button and words == "following"):
+                return "following"
+            if words in ("pending", "pending @%s" % wanted):
+                return "pending"
+            if words in ("follow @%s" % wanted, "follow back @%s" % wanted) or (on_button and words in ("follow", "follow back")):
+                state = "follow"
+    return state
+
+
+def action_x_follow(serial, args, walk):
+    """Follows one account from its profile, opened by its link: Follow
+    pressed once, then Following looked for, or Pending for a protected
+    account, which counts as done. An account already followed, or asked, is
+    done with no press. A rehearsal finds Follow and never presses it; with
+    no handle sent it only opens the app."""
+    handle = str(args.get("handle") or "").strip().lstrip("@")
+    if handle and not X_HANDLE.match(handle):
+        raise RuntimeError("follow: that is not an X handle")
+    if not walk.rehearse and not handle:
+        raise RuntimeError("follow: a follow needs the account's handle")
+    device = walk.screen()
+    device.screen_on()
+    screens = app_screens(serial, "x")
+    package = package_for(serial, "x")
+    if not handle:
+        open_app(serial, "x")
+        walk.shot("Opened X")
+        walk.home()
+        return {"done": False}
+    walk.check()
+    open_link(serial, "x", "https://x.com/%s" % handle)
+    walk.shot("Opened the profile")
+    hierarchy = device.dump_hierarchy()
+    if signed_out(hierarchy, "x"):
+        raise RuntimeError("follow: the app is not signed in to X")
+    if x_follow_state(hierarchy, handle, screens["follow_button_id"]) in ("following", "pending"):
+        walk.home()
+        return {"done": True}
+    buttons = shapes(package, "(?i)^follow @%s\\.?$" % handle)
+    if screens["follow_button_id"]:
+        buttons.append({"resourceIdMatches": screens["follow_button_id"], "textMatches": "(?i)^(follow|follow back)$", "packageName": package})
+    buttons += shapes(package, "(?i)^(follow|follow back)$")
+    if not walk.final_first("Press Follow", selectors=buttons):
+        walk.home()
+        return {"done": False}
+    followed = False
+    waiting_until = time.time() + POST_LANDED_SECONDS
+    while time.time() < waiting_until:
+        time.sleep(1)
+        try:
+            if x_follow_state(device.dump_hierarchy(), handle, screens["follow_button_id"]) in ("following", "pending"):
+                followed = True
+                break
+        except Exception:  # A screen caught mid-change; look again.
+            continue
+    walk.shot("Looked for Following")
+    if not followed:
+        raise RuntimeError("follow: Follow was pressed but X did not show Following within %d seconds. Look at the profile before following again." % POST_LANDED_SECONDS)
+    try:
+        browse_app_feed(serial, walk, random.uniform(*APP_FEED_AFTER_SECONDS))
+    except Exception as failure:  # The follow stands either way.
+        log("The feed after following on %s: %s" % (serial, short_words(failure)))
+    walk.home()
+    return {"done": True}
+
+
+def action_x_warm_up(serial, args, walk):
+    """A warming account's day in the X app: its home feed read for a few
+    minutes. Nothing is written, liked, reposted or followed from a phone,
+    and the browser's search or two on the topic is left out."""
+    walk.screen().screen_on()
+    open_app(serial, "x")
+    walk.shot("Opened X")
+    if walk.rehearse:
+        walk.home()
+        return {"postsRead": 0, "problems": []}
+    browse_app_feed(serial, walk, random.uniform(150, 360))
+    walk.home()
+    return {"postsRead": 0, "problems": []}
+
+
+# X's rehearsals. The reply, the quote and the follow open what Promo sends
+# (an X post found in the last week, and its writer); without one, the reply
+# and the quote open the home feed's first post and the follow only opens
+# the app. x/quick_state is x/state's own step, so it is walked once.
+REHEARSALS.update({
+    "x/state": {},
+    "x/reply": {"replyToId": "", "text": ""},
+    "x/quote": {"postId": "", "text": ""},
+    "x/publish": {"text": "", "pictureUrl": "", "replyToId": "", "communityId": "", "poll": None},
+    "x/follow": {"handle": ""},
+    "x/warm_up": {"words": []},
+    "x/inbox": {"kind": "message", "via": "inbox", "handle": ""},
+    "x/reply_message": {"kind": "message", "thread": "", "author": "", "quote": "", "text": ""},
+})
+
+
+# ---------------------------------------------------------------------------
+# LinkedIn's app (LinkedIn task, part 2). The phone answers the same routine
+# names as the browser (src/server/social/linkedin/calls.ts) with the same
+# answers, so Promo does not care where a LinkedIn account runs. LinkedIn's id
+# for a comment or a post is not shown in the app after it is sent, so it is
+# "" here and Promo looks it up through a search account (linkedin/find_own).
+# A poll, a video, a repost, a group post, tags and anything as a company page
+# are made in a browser only, and are refused before anything opens. The
+# app's state reads the member's slug off the profile's own address, copied
+# from its More menu, because the app shows the name and never the address.
+# Messages go through the shared inbox steps, as X's do: linkedin/inbox reads
+# them and linkedin/reply_message answers one. None of this has run on a real
+# phone yet.
+
+LINKEDIN_POST_ID = re.compile(r"^\d{10,25}$")
+LINKEDIN_COMMENT_ID = re.compile(r"^\d{5,40}$")
+LINKEDIN_SLUG = re.compile(r"^[\w-]{3,100}$", re.UNICODE)
+LINKEDIN_PROFILE_ADDRESS = re.compile(r"linkedin\.com/in/([^/?#\s]+)", re.IGNORECASE)
+LINKEDIN_FOLLOWERS = re.compile(r"(?i)^([\d,.]+\s*[km]?)\+?\s+followers?$")
+LINKEDIN_POSTED = ("post successful", "your post was shared", "posted", "comment posted", "your comment was posted", "reply posted")
+LINKEDIN_POST_FAILED = ("couldn't be posted", "could not be posted", "couldn't post", "couldn't be shared", "something went wrong", "failed to post")
+LINKEDIN_CODE_WORDS = ("enter the code", "enter code", "we sent a code", "verification code", "enter the 6-digit code", "check your email")
+LINKEDIN_PREMIUM_WORDS = ("premium", "premium member", "linkedin premium member")
+LINKEDIN_NOT_CHECKED = {
+    "checked": False, "slug": None, "name": "", "blocked": False, "reason": "", "banScreen": None,
+    "codeAsked": False, "pages": None, "premium": None, "followers": None,
+}
+LINKEDIN_BAN_WORDS = {"restricted": "restricted", "confirm": "asking to verify it's you"}
+# Said by every error after Post or Send was pressed, so nobody sends twice blind.
+LINKEDIN_MAY_BE_SENT = "It may already be on LinkedIn; look before sending again."
+# A request shows on the profile as one of these once it is out, or the two are connected.
+LINKEDIN_ASKED = ("pending", "withdraw", "invitation sent")
+# "1st", or "· 1st" beside the name, is a first-degree connection already.
+LINKEDIN_CONNECTED = re.compile(r"^(·\s*)?1st( degree( connection)?)?$|^remove connection$")
+# How many waiting requests one read opens, each for its profile's address.
+LINKEDIN_INVITES_MAX = 10
+
+
+def linkedin_slug_from(text):
+    """The member's slug out of a profile address, or None."""
+    found = LINKEDIN_PROFILE_ADDRESS.search(text or "")
+    if not found:
+        return None
+    slug = found.group(1).strip("/")
+    try:
+        slug = urllib.parse.unquote(slug)
+    except Exception:  # A broken escape is no slug.
+        return None
+    return slug if LINKEDIN_SLUG.match(slug) else None
+
+
+def linkedin_name(hierarchy_xml, name_id):
+    """The member's name on a profile, by its view id. "" when it has no id to match (an iPhone)."""
+    if not name_id:
+        return ""
+    for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
+        if own_node(node, app_packages("linkedin")) and re.match(name_id, node.get("resource-id") or ""):
+            words = node_words(node)
+            if words:
+                return words[:200]
+    return ""
+
+
+def linkedin_followers(hierarchy_xml):
+    """The followers a profile shows ("1,204 followers"), or None."""
+    for line in screen_lines(hierarchy_xml, app_packages("linkedin")):
+        found = LINKEDIN_FOLLOWERS.match(line.strip())
+        if found:
+            return parse_count(found.group(1).replace(" ", ""))
+    return None
+
+
+def linkedin_premium(hierarchy_xml):
+    """True when the profile shows the Premium badge. None, never False, when it does not: a badge not seen is not a badge missing."""
+    lines = [plain(line) for line in screen_lines(hierarchy_xml, app_packages("linkedin"))]
+    return True if any(line in LINKEDIN_PREMIUM_WORDS for line in lines) else None
+
+
+def linkedin_code_asked(hierarchy_xml):
+    """True on LinkedIn's "enter the code we emailed" screen."""
+    return screen_says(hierarchy_xml, "linkedin", LINKEDIN_CODE_WORDS) is not None
+
+
+def clear_clipboard(device):
+    """Empties the phone's clipboard. False when this screen has no clipboard
+    to empty or read (an iPhone), so a copy can never be checked there."""
+    if not hasattr(device, "clipboard"):
+        return False
+    try:
+        setter = getattr(device, "set_clipboard", None)
+        if callable(setter):
+            setter("")
+        else:
+            device.clipboard = ""
+        return not str(device.clipboard or "")
+    except Exception:  # A phone that would not take it; the copy can't be trusted.
+        return False
+
+
+def linkedin_copy_profile_link(serial, walk, screens, previous=None):
+    """The open profile's own address, through its More menu: Copy link when
+    the menu has it, else the system's share sheet and its Copy. The slug, or
+    None when the app would not give it.
+
+    The clipboard is emptied first, so a copy that silently did nothing reads
+    as nothing rather than as the last address copied, which would file one
+    person under another's profile. A slug equal to `previous`, the one copied
+    just before, is the same mistake by another road and is dropped too."""
+    device = walk.screen()
+    if not clear_clipboard(device):
+        log("Could not empty the clipboard on %s, so a copied address can't be trusted" % serial)
+        return None
+    walk.tap_first("Open the profile's menu", selectors=screens["profile_more"])
+    time.sleep(1.5)
+    try:
+        walk.tap_first("Copy the profile's link", timeout=3, selectors=screens["copy_link"])
+    except StepFailed:
+        walk.tap_first("Share the profile", selectors=screens["share_profile"])
+        time.sleep(2)
+        walk.tap_first("Copy the address", selectors=LINKEDIN_SYSTEM_COPY)
+    time.sleep(1)
+    try:
+        copied = str(device.clipboard or "")
+    except Exception:  # A screen that cannot read the clipboard.
+        return None
+    slug = linkedin_slug_from(copied)
+    if slug and previous and slug.lower() == previous.lower():
+        log("The address copied on %s was the one copied before, so it was dropped" % serial)
+        return None
+    return slug
+
+
+def read_linkedin_profile(serial, walk):
+    """Opens LinkedIn on the member's own profile, through the menu behind its
+    picture, and reads the slug, the name, the followers and the Premium
+    badge. A ban screen or the code screen in the way is read instead."""
+    empty = {"slug": None, "name": "", "followers": None, "premium": None, "ban": None, "codeAsked": False}
+    open_app(serial, "linkedin")
+    walk.shot("Opened LinkedIn")
+    device = walk.screen()
+    hierarchy = device.dump_hierarchy()
+    # The code screen first: its "quick verification" heading must never be
+    # read as an identity ban, which stops the account for good.
+    if linkedin_code_asked(hierarchy):
+        return dict(empty, codeAsked=True)
+    ban = ban_screen_in(hierarchy, "linkedin", package_for(serial, "linkedin"))
+    if ban:
+        return dict(empty, ban=ban)
+    if signed_out(hierarchy, "linkedin"):
+        return empty
+    screens = app_screens(serial, "linkedin")
+    walk.tap_first("Open the menu", selectors=screens["drawer"])
+    time.sleep(1.5)
+    walk.tap_first("Open the profile", selectors=screens["profile_entry"])
+    time.sleep(2.5)
+    hierarchy = device.dump_hierarchy()
+    reading = {
+        "name": linkedin_name(hierarchy, screens["name_id"]),
+        "followers": linkedin_followers(hierarchy),
+        "premium": linkedin_premium(hierarchy),
+    }
+    walk.shot("Read the profile")
+    slug = linkedin_copy_profile_link(serial, walk, screens)
+    if not slug:
+        raise StepFailed("Copy the profile's link", "The profile's address was not on the clipboard.")
+    return dict(empty, slug=slug, **reading)
+
+
+def action_linkedin_state(serial, args, walk):
+    """Who the LinkedIn app is signed in as, its name, followers and Premium
+    badge, off its own profile; asked after every LinkedIn job too, as
+    linkedin/quick_state. A restricted or verify screen is answered as
+    blocked, with LinkedIn's own words; the emailed-code screen as
+    codeAsked. The company pages a member runs are not shown in the app, so
+    pages is None. An app that cannot be read says "not checked", so a failed
+    look is never written down as signed out; a rehearsal that cannot read it
+    is broken."""
+    try:
+        walk.screen().screen_on()
+        reading = read_linkedin_profile(serial, walk)
+        walk.home()
+    except Cancelled:
+        raise
+    except Exception as failure:  # Not checked rather than signed out.
+        if walk.rehearse:
+            raise
+        log("Could not read who is signed in to LinkedIn on %s: %s" % (serial, failure))
+        return dict(LINKEDIN_NOT_CHECKED)
+    ban = reading["ban"]
+    return {
+        "checked": True,
+        "slug": reading["slug"],
+        "name": reading["name"],
+        "blocked": bool(ban) or reading["codeAsked"],
+        "reason": "LinkedIn shows the account %s" % LINKEDIN_BAN_WORDS.get(ban["kind"], "stopped") if ban
+        else ("LinkedIn is asking for the code it emailed" if reading["codeAsked"] else ""),
+        "banScreen": ban["words"] if ban else None,
+        "codeAsked": reading["codeAsked"],
+        "pages": None,
+        "premium": reading["premium"],
+        "followers": reading["followers"],
+    }
+
+
+def linkedin_lines(hierarchy_xml):
+    """The LinkedIn app's own lines on screen, kept from before a press so the lines after it can be told apart."""
+    return set(screen_lines(hierarchy_xml, app_packages("linkedin")))
+
+
+def linkedin_landed(hierarchy_xml, package, text, before, shown_before=()):
+    """What the screen says after Post was pressed: ("sent", ""), ("failed",
+    LinkedIn's words), or ("", "") while neither shows. Only lines that were
+    not on screen before the press are read, so a post that says "couldn't be
+    posted" is not LinkedIn's notice. The words showing more times than
+    before also count as sent."""
+    fresh = [plain(line) for line in screen_lines(hierarchy_xml, app_packages("linkedin")) if line not in shown_before]
+    failed = next((line for line in fresh if any(phrase in line for phrase in LINKEDIN_POST_FAILED)), None)
+    if failed:
+        return "failed", failed
+    if any(line in LINKEDIN_POSTED or line.startswith("post successful") for line in fresh) or (
+        text and times_shown(hierarchy_xml, package, text) > before
+    ):
+        return "sent", ""
+    return "", ""
+
+
+def linkedin_wait_landed(walk, package, text, before, verb, shown_before=()):
+    """Waits for LinkedIn to say it went. A failure LinkedIn names fails the job; True once sent; False when nothing showed in time."""
+    device = walk.screen()
+    waiting_until = time.time() + POST_LANDED_SECONDS
+    while time.time() < waiting_until:
+        time.sleep(1)
+        try:
+            state, words = linkedin_landed(device.dump_hierarchy(), package, text, before, shown_before)
+        except Exception:  # A screen caught mid-change; look again.
+            continue
+        if state == "failed":
+            walk.shot("LinkedIn said it failed")
+            raise RuntimeError("%s: LinkedIn said it did not go: %s. %s" % (verb, words, LINKEDIN_MAY_BE_SENT))
+        if state == "sent":
+            walk.shot("Looked for it")
+            return True
+    walk.shot("Looked for it")
+    return False
+
+
+def linkedin_after_press(verb, look):
+    """Runs the look after Post or Send was pressed. Whatever fails in it says
+    the words may be on LinkedIn already."""
+    try:
+        return look()
+    except Cancelled:
+        raise
+    except Exception as failure:
+        words = str(failure) or failure.__class__.__name__
+        if "It may already be on LinkedIn" in words:
+            raise
+        raise RuntimeError("%s: %s. %s" % (verb, words.rstrip("."), LINKEDIN_MAY_BE_SENT))
+
+
+def linkedin_feed_before(serial, walk, visit):
+    """A little of the home feed before a comment, which never stops it."""
+    started = time.monotonic()
+    try:
+        open_app(serial, "linkedin")
+        walk.shot("Opened LinkedIn")
+        browse_app_feed(serial, walk, random.uniform(*APP_READ_FEED_SECONDS))
+    except Cancelled:
+        raise
+    except Exception as failure:  # The comment still goes.
+        visit["problems"].append("the feed before: %s" % short_words(failure))
+    visit["beforeSeconds"] = int(time.monotonic() - started)
+
+
+def linkedin_feed_after(serial, walk, visit):
+    """A little scrolling after the press, which can never fail what is already on LinkedIn."""
+    started = time.monotonic()
+    try:
+        go_back(serial)
+        time.sleep(1.5)
+        browse_app_feed(serial, walk, random.uniform(*APP_FEED_AFTER_SECONDS))
+    except Exception as failure:  # Includes a cancel: it is on LinkedIn either way.
+        visit["problems"].append("the feed after: %s" % short_words(failure))
+    visit["afterSeconds"] = int(time.monotonic() - started)
+
+
+def linkedin_post_url(post_id, comment_id=""):
+    """A post's address, or one comment under it, which the app opens with that comment first."""
+    url = "https://www.linkedin.com/feed/update/urn:li:activity:%s/" % post_id
+    if comment_id:
+        url += "?commentUrn=" + urllib.parse.quote("urn:li:comment:(activity:%s,%s)" % (post_id, comment_id), safe="")
+    return url
+
+
+def linkedin_open_post(serial, walk, post_id, comment_id=""):
+    """Opens a post by its link in the app, with one comment first when named.
+    With no post (a rehearsal when Promo found none lately) the first post of
+    the home feed is opened."""
+    walk.check()
+    if post_id:
+        open_link(serial, "linkedin", linkedin_post_url(post_id, comment_id))
+        walk.shot("Opened the post")
+        return
+    open_app(serial, "linkedin")
+    walk.shot("Opened LinkedIn")
+    if not open_feed_post(serial, walk, "linkedin"):
+        raise StepFailed("Open a post", "No post was on LinkedIn's home feed to open.")
+
+
+def selector_hits(hierarchy_xml, selector):
+    """The bounds of every node on screen one uiautomator2-style selector
+    finds, read off the dump, in screen order. Only the words the LinkedIn
+    screens use: text, description, view id, class and package."""
+    found = []
+    for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
+        bounds = parse_bounds(node.get("bounds"))
+        if not bounds:
+            continue
+        text = node.get("text") or ""
+        description = node.get("content-desc") or node.get("label") or ""
+        kind = node.get("class") or node.get("type") or ""
+        tests = {
+            "textMatches": lambda wanted: re.fullmatch(wanted, text) is not None,
+            "descriptionMatches": lambda wanted: re.fullmatch(wanted, description) is not None,
+            "resourceIdMatches": lambda wanted: re.fullmatch(wanted, node.get("resource-id") or "") is not None,
+            "className": lambda wanted: kind == wanted,
+            "classNameMatches": lambda wanted: re.fullmatch(wanted, kind) is not None,
+            "packageName": lambda wanted: own_node(node, wanted),
+        }
+        if all(key in tests and tests[key](wanted) for key, wanted in selector.items()):
+            found.append(bounds)
+    return found
+
+
+def same_row(a, b, slack=40):
+    """True when two places on screen sit on one line: their middles within `slack` pixels."""
+    return abs((a[1] + a[3]) / 2 - (b[1] + b[3]) / 2) <= slack
+
+
+def linkedin_post_like(hierarchy_xml, package, screens):
+    """The post's own Like on screen: ("like", bounds) to press, ("liked",
+    None) when the account reacted already, or (None, None) when it is not on
+    screen. Only a Like on the same row as a Repost counts, since that row is
+    the post's own action bar; a comment's Like sits beside its Reply, never
+    beside a Repost. The topmost such row is the post's."""
+    reposts = [bounds for selector in shapes(package, "(?i)^repost( .*)?$") for bounds in selector_hits(hierarchy_xml, selector)]
+    if not reposts:
+        return None, None
+    rows = []
+    for state, key in (("liked", "liked"), ("like", "like")):
+        for selector in screens[key]:
+            for bounds in selector_hits(hierarchy_xml, selector):
+                if any(same_row(bounds, repost) for repost in reposts):
+                    rows.append((bounds[1], state, bounds))
+    if not rows:
+        return None, None
+    top = min(row[0] for row in rows)
+    states = set(row[1] for row in rows if row[0] == top)
+    if "liked" in states:
+        return "liked", None
+    return "like", next(row[2] for row in rows if row[0] == top)
+
+
+def linkedin_react_first(serial, walk, screens, visit):
+    """Likes the post a few seconds before the comment is typed (part 26),
+    unless the account already reacted to it. Never in a rehearsal, and never
+    stops the comment. Only the post's own Like is pressed (linkedin_post_like);
+    when it can't be told apart on screen nothing is liked and that is noted,
+    rather than guessing and liking somebody's comment."""
+    if walk.rehearse:
+        return
+    try:
+        state, bounds = linkedin_post_like(walk.screen().dump_hierarchy(), package_for(serial, "linkedin"), screens)
+        if state == "liked":
+            return
+        if state is None:
+            visit["problems"].append("the like before: the post's own Like was not on screen, so nothing was liked")
+            return
+        walk.current = "Like the post"
+        press_bounds(walk, bounds)
+        walk.shot("Liked the post")
+        time.sleep(random.uniform(2.0, 6.0))
+    except Cancelled:
+        raise
+    except Exception as failure:  # The comment still goes.
+        visit["problems"].append("the like before: %s" % short_words(failure))
+
+
+def linkedin_composer_send(hierarchy_xml, screens, height):
+    """Where Post is for the comment box on screen: the first shape of the
+    send button (its view id before its words) found beside the box, on its
+    row or just under it, never above, where the post's own action bar has a
+    Send of its own. One place, or a StepFailed: two of them, or none, is
+    refused rather than guessed, since a wrong press could send a comment
+    somewhere else."""
+    boxes = next((hits for selector in screens["comment_box"] for hits in [selector_hits(hierarchy_xml, selector)] if hits), [])
+    if not boxes:
+        raise StepFailed("Find Post", "The comment box was not on the screen, so Post beside it could not be told apart.")
+    box = boxes[0]
+    low, high = box[1] - 30, box[3] + height * 0.10
+    for selector in screens["comment_send"]:
+        near = []
+        for bounds in selector_hits(hierarchy_xml, selector):
+            middle = (bounds[1] + bounds[3]) / 2
+            if low <= middle <= high and bounds != box and bounds not in near:
+                near.append(bounds)
+        if len(near) == 1:
+            return near[0]
+        if len(near) > 1:
+            raise StepFailed("Find Post", "%d buttons beside the comment box could be Post, so none was pressed." % len(near))
+    raise StepFailed("Find Post", "No Post button was beside the comment box.")
+
+
+def final_at(walk, step, bounds):
+    """final_first for a place read off the screen: pressed once in a real run,
+    only found in a rehearsal, which returns False."""
+    walk.current = step
+    if walk.rehearse:
+        walk.shot("%s (found, not pressed)" % step)
+        return False
+    press_bounds(walk, bounds)
+    time.sleep(1)
+    walk.shot(step)
+    return True
+
+
+def action_linkedin_comment(serial, args, walk):
+    """Writes one comment under a post in the LinkedIn app, inside a visit: a
+    little home feed, the post by its link, read for a while, a Like first
+    when `react` asks (part 26), the box under the post, the words typed with
+    a person's rhythm, and Post pressed once. A reply under one comment
+    (`parentCommentId`) opens the post with that comment first and presses
+    its Reply. Words of ours already under the post (an earlier try that went
+    out without saying so) count as sent, and nothing is typed. It counts as
+    sent when LinkedIn says so or the words show. Its id is "".
+
+    Comment as a company page is done in a browser, and is refused before
+    anything opens. In a rehearsal nothing is typed or liked: the post opens
+    (the feed's first post when none was sent), the box is found, Post is
+    found and not pressed.
+    """
+    post_id = str(args.get("postId") or "").strip()
+    parent = str(args.get("parentCommentId") or "").strip()
+    text = str(args.get("text") or "").strip()
+    if str(args.get("asPageId") or "").strip():
+        raise RuntimeError("comment: a comment as a company page is made in a browser, not the LinkedIn app")
+    if post_id and not LINKEDIN_POST_ID.match(post_id):
+        raise RuntimeError("comment: that is not a LinkedIn post id")
+    if parent and not LINKEDIN_COMMENT_ID.match(parent):
+        raise RuntimeError("comment: that is not a LinkedIn comment id")
+    if not walk.rehearse and (not post_id or not text):
+        raise RuntimeError("comment: a comment needs its post and its words")
+    device = walk.screen()
+    device.screen_on()
+    screens = app_screens(serial, "linkedin")
+    package = package_for(serial, "linkedin")
+    visit = new_visit()
+    if not walk.rehearse:
+        linkedin_feed_before(serial, walk, visit)
+    before = 0
+    shown = set()
+    try:
+        linkedin_open_post(serial, walk, post_id, parent)
+        hierarchy = device.dump_hierarchy()
+        if signed_out(hierarchy, "linkedin"):
+            raise RuntimeError("comment: the app is not signed in to LinkedIn")
+        if not walk.rehearse:
+            if x_words_under(hierarchy, package, text):
+                walk.shot("Our words are under the post already")
+                walk.home()
+                return {"commentId": "", "url": "", "visit": visit}
+            # The Like before reading, while the post's own action bar is on
+            # screen and no comment's Like has scrolled in beside it.
+            if args.get("react"):
+                linkedin_react_first(serial, walk, screens, visit)
+            read_post(serial, walk, len(" ".join(screen_lines(hierarchy, app_packages("linkedin")))), visit)
+            hierarchy = device.dump_hierarchy()
+            if x_words_under(hierarchy, package, text):
+                walk.shot("Our words are under the post already")
+                walk.home()
+                return {"commentId": "", "url": "", "visit": visit}
+            if parent:
+                # The comment the link named shows first; its Reply opens the box under it.
+                walk.tap_first("Open the reply", selectors=screens["comment_reply"])
+                time.sleep(1.5)
+            hierarchy = device.dump_hierarchy()
+            before = times_shown(hierarchy, package, text)
+            shown = linkedin_lines(hierarchy)
+        box = walk.find_first("Find the comment box", selectors=screens["comment_box"])
+        if not walk.rehearse:
+            walk.press(box)
+            gaps = type_like_a_person(serial, device, text, walk.check)
+            walk.shot("Typed the comment")
+            log("linkedin comment typed: %d characters, gaps %.2f to %.2f seconds" % (len(text), min(gaps or [0]), max(gaps or [0])))
+            time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
+            shown |= linkedin_lines(device.dump_hierarchy())
+        _, height = screen_size(device)
+        pressed = final_at(walk, "Press Post", linkedin_composer_send(device.dump_hierarchy(), screens, height))
+    except Cancelled:
+        raise
+    except Exception:
+        # Stopped before the last button: the draft is thrown away and nothing was sent.
+        if not walk.rehearse:
+            leave_app_screen(serial, walk, "linkedin", times=3)
+        raise
+    finally:
+        if walk.rehearse:
+            leave_app_screen(serial, walk, "linkedin", times=3)
+    if not pressed:
+        walk.home()
+        return {"commentId": "", "url": ""}
+    if not linkedin_after_press("comment", lambda: linkedin_wait_landed(walk, package, text, before, "comment", shown)):
+        raise RuntimeError(
+            "comment: Post was pressed but LinkedIn did not say it was posted, and the words did not show within %d seconds. %s"
+            % (POST_LANDED_SECONDS, LINKEDIN_MAY_BE_SENT)
+        )
+    linkedin_feed_after(serial, walk, visit)
+    walk.home()
+    return {"commentId": "", "url": "", "visit": visit}
+
+
+def linkedin_publish_refusal(args):
+    """Why the app can't make this post, or "": a poll, a video, a repost, a
+    group post, tags and a company page are made in a browser."""
+    if args.get("poll"):
+        return "a poll"
+    if str(args.get("videoUrl") or "").strip():
+        return "a video post"
+    if str(args.get("repostOf") or "").strip():
+        return "a repost"
+    if str(args.get("groupId") or "").strip():
+        return "a post into a group"
+    if args.get("tags"):
+        return "a post with tags"
+    if str(args.get("asPageId") or "").strip():
+        return "a post as a company page"
+    return ""
+
+
+def action_linkedin_publish(serial, args, walk):
+    """One post of the account's own, from LinkedIn's Start a post: a picture
+    from `pictureUrl` put on the phone first and picked in the post box, then
+    the words typed, and Post pressed once. It counts as sent when LinkedIn
+    says so or the words show on the feed. Its id is "".
+
+    A poll, a video, a repost, a group post, tags and a company page are made
+    in a browser, and are refused here before anything opens. In a rehearsal
+    no picture is fetched, nothing is typed, and Post is found, not pressed.
+    """
+    refused = linkedin_publish_refusal(args)
+    if refused:
+        raise RuntimeError("publish: %s is made in a browser, not the LinkedIn app" % refused)
+    text = str(args.get("text") or "").strip()
+    picture = str(args.get("pictureUrl") or "").strip()
+    if not walk.rehearse and not text:
+        raise RuntimeError("publish: a post needs its words")
+    device = walk.screen()
+    device.screen_on()
+    has_picture = bool(picture) and not walk.rehearse
+    if has_picture:
+        x_put_picture(serial, walk, picture)
+    screens = app_screens(serial, "linkedin")
+    package = package_for(serial, "linkedin")
+    visit = new_visit()
+    try:
+        open_app(serial, "linkedin")
+        walk.shot("Opened LinkedIn")
+        hierarchy = device.dump_hierarchy()
+        if signed_out(hierarchy, "linkedin"):
+            raise RuntimeError("publish: the app is not signed in to LinkedIn")
+        shown = linkedin_lines(hierarchy)
+        walk.tap_first("Start a post", selectors=screens["new_post"])
+        time.sleep(2)
+        box = walk.find_first("Find the post box", selectors=screens["composer_box"])
+        if not walk.rehearse:
+            if has_picture:
+                walk.tap_first("Open the photos", selectors=screens["media"])
+                time.sleep(2)
+                walk.tap_first("Pick the newest picture", selectors=screens["media_first"])
+                time.sleep(1.5)
+                try:
+                    walk.tap_first("Add the picture", timeout=4, selectors=screens["media_done"])
+                    time.sleep(1.5)
+                except StepFailed:
+                    pass  # Added on the pick on this version.
+                box = walk.find_first("Find the post box", selectors=screens["composer_box"])
+            walk.press(box)
+            gaps = type_like_a_person(serial, device, text, walk.check)
+            walk.shot("Typed the words")
+            log("linkedin post typed: %d characters, gaps %.2f to %.2f seconds" % (len(text), min(gaps or [0]), max(gaps or [0])))
+            time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
+            shown |= linkedin_lines(device.dump_hierarchy())
+        pressed = walk.final_first("Press Post", selectors=screens["post_button"])
+    except Cancelled:
+        raise
+    except Exception:
+        if not walk.rehearse:
+            leave_app_screen(serial, walk, "linkedin", times=3)
+        raise
+    finally:
+        if walk.rehearse:
+            leave_app_screen(serial, walk, "linkedin", times=3)
+    if not pressed:
+        walk.home()
+        return {"postId": "", "url": ""}
+    if not linkedin_after_press("publish", lambda: linkedin_wait_landed(walk, package, text, 0, "publish", shown)):
+        raise RuntimeError("publish: Post was pressed but LinkedIn did not say it was posted, and the words did not show. %s" % LINKEDIN_MAY_BE_SENT)
+    linkedin_feed_after(serial, walk, visit)
+    walk.home()
+    return {"postId": "", "url": "", "visit": visit}
+
+
+def linkedin_profile_state(hierarchy_xml):
+    """What a person's profile says about the account and them: "connected"
+    ("· 1st" or Remove connection), "asked" (a request is out), "following"
+    (followed, which is not connected: a creator's page offers Follow first
+    and Connect only by its own words), or "" for none of them."""
+    lines = [plain(line) for line in screen_lines(hierarchy_xml, app_packages("linkedin"))]
+    if any(LINKEDIN_CONNECTED.match(line) for line in lines):
+        return "connected"
+    if any(line in LINKEDIN_ASKED or line.startswith("pending") for line in lines):
+        return "asked"
+    if "following" in lines:
+        return "following"
+    return ""
+
+
+def linkedin_wait_asked(walk):
+    """True once the profile shows Pending, the request being out."""
+    device = walk.screen()
+    waiting_until = time.time() + POST_LANDED_SECONDS
+    while time.time() < waiting_until:
+        time.sleep(1)
+        try:
+            if linkedin_profile_state(device.dump_hierarchy()) in ("asked", "connected"):
+                return True
+        except Exception:  # A screen caught mid-change; look again.
+            continue
+    return False
+
+
+def action_linkedin_connect(serial, args, walk):
+    """One connection request from the person's profile, opened by its link
+    (part 39). Connect pressed once; when LinkedIn then asks about a note,
+    Add a note, the note typed and Send, or Send without a note. It counts as
+    done when the profile shows Pending. Somebody connected or asked already
+    is `already`, with no press. A rehearsal finds Connect and never presses
+    it; with no slug sent it only opens the app."""
+    slug = str(args.get("slug") or "").strip()
+    note = str(args.get("note") or "").strip()
+    if slug and not LINKEDIN_SLUG.match(slug):
+        raise RuntimeError("connect: that is not a LinkedIn profile")
+    if not walk.rehearse and not slug:
+        raise RuntimeError("connect: a request needs the person's profile")
+    device = walk.screen()
+    device.screen_on()
+    screens = app_screens(serial, "linkedin")
+    if not slug:
+        open_app(serial, "linkedin")
+        walk.shot("Opened LinkedIn")
+        walk.home()
+        return {"done": False, "already": False}
+    walk.check()
+    open_link(serial, "linkedin", "https://www.linkedin.com/in/%s/" % urllib.parse.quote(slug))
+    walk.shot("Opened the profile")
+    hierarchy = device.dump_hierarchy()
+    if signed_out(hierarchy, "linkedin"):
+        raise RuntimeError("connect: the app is not signed in to LinkedIn")
+    # Followed is not connected, so a creator's page still needs Connect by its
+    # words; with none on screen nothing is pressed (find_first refuses).
+    if linkedin_profile_state(hierarchy) in ("connected", "asked"):
+        walk.home()
+        return {"done": True, "already": True}
+    if not walk.final_first("Press Connect", selectors=screens["connect"]):
+        walk.home()
+        return {"done": False, "already": False}
+
+    def finish():
+        time.sleep(2)
+        if any(device(**selector).exists for selector in screens["send_invite"] + screens["add_note"]):
+            if note:
+                walk.tap_first("Add a note", selectors=screens["add_note"])
+                time.sleep(1.5)
+                box = walk.find_first("Find the note box", selectors=screens["note_box"])
+                walk.press(box)
+                type_like_a_person(serial, device, note, walk.check)
+                walk.shot("Typed the note")
+                time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
+            # Connect only opened the question; Send is what sends the request.
+            send = walk.find_first("Press Send", selectors=screens["send_invite"])
+            walk.press(send)
+            time.sleep(1)
+            walk.shot("Pressed Send")
+        elif note:
+            log("LinkedIn sent the request from %s with no note box, so the note was left off" % serial)
+        return linkedin_wait_asked(walk)
+
+    if not linkedin_after_press("connect", finish):
+        raise RuntimeError("connect: Connect was pressed but the profile did not show Pending within %d seconds. %s" % (POST_LANDED_SECONDS, LINKEDIN_MAY_BE_SENT))
+    walk.shot("Looked for Pending")
+    walk.home()
+    return {"done": True, "already": False}
+
+
+def linkedin_invitation_rows(hierarchy_xml, height):
+    """The waiting requests the invitations screen shows, each as the bounds
+    of the person's name and the lines under it: their headline and note.
+    A row is told by its Accept button."""
+    root = ElementTree.fromstring(hierarchy_xml)
+    parents = {child: parent for parent in root.iter() for child in parent}
+    rows = []
+    for node in root.iter("node"):
+        if not own_node(node, app_packages("linkedin")) or not re.match(r"(?i)^accept( .+)?$", node_words(node)):
+            continue
+        holder = parents.get(node)
+        for _ in range(3):
+            if holder is None:
+                break
+            lines = [node_words(child) for child in holder.iter("node") if node_words(child) and child is not node]
+            words = [line for line in lines if plain(line) not in ("accept", "ignore") and not plain(line).startswith(("accept ", "ignore "))]
+            if words:
+                first = next(child for child in holder.iter("node") if node_words(child) == words[0])
+                bounds = parse_bounds(first.get("bounds"))
+                if bounds and height * 0.12 < (bounds[1] + bounds[3]) / 2 < height * 0.92:
+                    rows.append({"bounds": bounds, "name": words[0][:200], "headline": (words[1] if len(words) > 1 else "")[:300], "note": " ".join(words[2:])[:1000]})
+                break
+            holder = parents.get(holder)
+    return rows
+
+
+def action_linkedin_invites(serial, args, walk):
+    """The connection requests waiting on the account (part 40): My Network,
+    the invitations, and each row's profile opened for its address, which the
+    app shows nowhere else, then Back. Read only: nothing is accepted here. A
+    rehearsal opens the invitations and reads nothing."""
+    most = max(0, min(int(args.get("max") or LINKEDIN_INVITES_MAX), LINKEDIN_INVITES_MAX))
+    device = walk.screen()
+    device.screen_on()
+    screens = app_screens(serial, "linkedin")
+    open_app(serial, "linkedin")
+    walk.shot("Opened LinkedIn")
+    if signed_out(device.dump_hierarchy(), "linkedin"):
+        raise RuntimeError("invites: the app is not signed in to LinkedIn")
+    walk.tap_first("Open My Network", selectors=screens["network"])
+    time.sleep(2)
+    walk.tap_first("Open the invitations", selectors=screens["invitations"])
+    time.sleep(2)
+    walk.shot("Opened the invitations")
+    invites = []
+    if walk.rehearse:
+        walk.home()
+        return {"invites": invites}
+    _, height = screen_size(device)
+    seen = set()
+    slugs = set()
+    previous = None
+    for row in linkedin_invitation_rows(device.dump_hierarchy(), height)[:most]:
+        if row["name"] in seen:
+            continue
+        seen.add(row["name"])
+        press_bounds(walk, row["bounds"])
+        time.sleep(2.5)
+        try:
+            slug = linkedin_copy_profile_link(serial, walk, screens, previous)
+        except StepFailed as failure:
+            log("Could not read the address of %s's profile on %s: %s" % (row["name"], serial, short_words(failure)))
+            slug = None
+        go_back(serial)
+        time.sleep(1.5)
+        # A slug already given to another row is never stored twice: Accept on
+        # one would accept the other.
+        if slug and slug.lower() not in slugs:
+            slugs.add(slug.lower())
+            previous = slug
+            invites.append({"slug": slug, "name": row["name"], "headline": row["headline"], "note": row["note"]})
+    walk.home()
+    return {"invites": invites}
+
+
+def action_linkedin_accept(serial, args, walk):
+    """Accepts one waiting request from the person's profile, opened by its
+    link, where LinkedIn shows Accept beside Ignore (part 40). Accept pressed
+    once; done when the profile shows them connected. Somebody connected
+    already is done with no press. A rehearsal finds Accept and never presses
+    it; with no slug sent it only opens the app."""
+    slug = str(args.get("slug") or "").strip()
+    if slug and not LINKEDIN_SLUG.match(slug):
+        raise RuntimeError("accept: that is not a LinkedIn profile")
+    if not walk.rehearse and not slug:
+        raise RuntimeError("accept: an accept needs the person's profile")
+    device = walk.screen()
+    device.screen_on()
+    screens = app_screens(serial, "linkedin")
+    if not slug:
+        open_app(serial, "linkedin")
+        walk.shot("Opened LinkedIn")
+        walk.home()
+        return {"done": False}
+    walk.check()
+    open_link(serial, "linkedin", "https://www.linkedin.com/in/%s/" % urllib.parse.quote(slug))
+    walk.shot("Opened the profile")
+    hierarchy = device.dump_hierarchy()
+    if signed_out(hierarchy, "linkedin"):
+        raise RuntimeError("accept: the app is not signed in to LinkedIn")
+    if linkedin_profile_state(hierarchy) == "connected":
+        walk.home()
+        return {"done": True}
+    had_message = "message" in [plain(line) for line in screen_lines(hierarchy, app_packages("linkedin"))]
+    if not walk.final_first("Press Accept", selectors=screens["accept"]):
+        walk.home()
+        return {"done": False}
+
+    def look():
+        """Only proof counts: "· 1st" or Remove connection on the profile, or
+        a Message button that was not there before the press. Accept merely
+        gone from the screen is any screen change, and proves nothing."""
+        waiting_until = time.time() + POST_LANDED_SECONDS
+        while time.time() < waiting_until:
+            time.sleep(1)
+            try:
+                hierarchy = device.dump_hierarchy()
+            except Exception:  # A screen caught mid-change; look again.
+                continue
+            if linkedin_profile_state(hierarchy) == "connected":
+                return True
+            if not had_message and "message" in [plain(line) for line in screen_lines(hierarchy, app_packages("linkedin"))]:
+                return True
+        return False
+
+    accepted = linkedin_after_press("accept", look)
+    walk.shot("Looked for the connection")
+    if not accepted:
+        raise RuntimeError(
+            "accept: Accept was pressed but the profile did not show the two connected within %d seconds. %s" % (POST_LANDED_SECONDS, LINKEDIN_MAY_BE_SENT)
+        )
+    walk.home()
+    return {"done": True}
+
+
+def action_linkedin_warm_up(serial, args, walk):
+    """A warming account's day in the LinkedIn app: its home feed read for a
+    few minutes. Nothing is written, liked, followed or connected from a
+    phone, and the browser's search or two on the topic is left out."""
+    walk.screen().screen_on()
+    open_app(serial, "linkedin")
+    walk.shot("Opened LinkedIn")
+    if walk.rehearse:
+        walk.home()
+        return {"postsRead": 0, "problems": []}
+    browse_app_feed(serial, walk, random.uniform(150, 360))
+    walk.home()
+    return {"postsRead": 0, "problems": []}
+
+
+# LinkedIn's rehearsals. The comment and the connect open what Promo sends (a
+# LinkedIn post found in the last week, and its writer); without one, the
+# comment opens the home feed's first post and the connect only opens the
+# app. The post walks to Post. linkedin/quick_state is linkedin/state's own
+# step, so it is walked once.
+REHEARSALS.update({
+    "linkedin/state": {},
+    "linkedin/comment": {"postId": "", "parentCommentId": "", "text": "", "react": False, "asPageId": ""},
+    "linkedin/publish": {"text": "", "pictureUrl": "", "videoUrl": "", "poll": None, "tags": [], "repostOf": "", "groupId": "", "asPageId": ""},
+    "linkedin/connect": {"slug": "", "note": ""},
+    "linkedin/invites": {"max": LINKEDIN_INVITES_MAX},
+    "linkedin/accept": {"slug": ""},
+    "linkedin/warm_up": {"words": []},
+    "linkedin/inbox": {"kind": "message", "via": "inbox", "handle": ""},
+    "linkedin/reply_message": {"kind": "message", "thread": "", "author": "", "quote": "", "text": ""},
+})
+
+
 ACTIONS = {
     "phone/list": action_list,
     "phone/health": action_health,
@@ -4081,6 +5664,31 @@ for _app in ("instagram", "tiktok"):
         "%s/inbox" % _app: action_app_inbox(_app),
         "%s/reply" % _app: action_app_reply(_app),
     })
+ACTIONS.update({
+    "x/state": action_x_state,
+    "x/quick_state": action_x_state,
+    "x/reply": action_x_reply,
+    "x/quote": action_x_quote,
+    "x/publish": action_x_publish,
+    "x/follow": action_x_follow,
+    "x/warm_up": action_x_warm_up,
+    # Direct messages, through the shared inbox steps (see above).
+    "x/inbox": action_app_inbox("x"),
+    "x/reply_message": action_app_reply("x"),
+})
+ACTIONS.update({
+    "linkedin/state": action_linkedin_state,
+    "linkedin/quick_state": action_linkedin_state,
+    "linkedin/comment": action_linkedin_comment,
+    "linkedin/publish": action_linkedin_publish,
+    "linkedin/connect": action_linkedin_connect,
+    "linkedin/invites": action_linkedin_invites,
+    "linkedin/accept": action_linkedin_accept,
+    "linkedin/warm_up": action_linkedin_warm_up,
+    # Messages, through the shared inbox steps (see above).
+    "linkedin/inbox": action_app_inbox("linkedin"),
+    "linkedin/reply_message": action_app_reply("linkedin"),
+})
 
 
 # ---------------------------------------------------------------------------
@@ -4123,6 +5731,61 @@ BAN_SCREENS = [
     ]),
     ("medium", "confirm", ["verify it's you", "confirm it's you"]),
 ]
+
+# X's (X task, part 7), each with and without the full stop X ends some of
+# them with. Left out: "Account suspended" and "This account is temporarily
+# restricted", which X shows on anybody's profile, not only the account's own.
+X_BAN_PHRASES = [
+    ("suspended", [
+        "your account is suspended",
+        "your account has been suspended",
+        "your account is permanently suspended",
+        "your account has been permanently suspended",
+    ]),
+    ("locked", [
+        "your account is locked",
+        "your account has been locked",
+        "your account is temporarily locked",
+        "we've temporarily limited some of your account features",
+    ]),
+    ("confirm", [
+        "confirm it's you",
+        "verify it's you",
+        "help us confirm it's you",
+        "we need to confirm it's you",
+        "confirm your identity",
+        "verify your identity",
+        "authenticate your account",
+    ]),
+]
+BAN_SCREENS += [("x", kind, [form for phrase in phrases for form in (phrase, phrase + ".")]) for kind, phrases in X_BAN_PHRASES]
+
+# LinkedIn's (LinkedIn task, part 5), each with and without a full stop.
+# "Restricted" is LinkedIn's word for an account it stopped; its identity
+# and security checks ask the member to prove it is them. Left out: "This
+# profile is not available", which LinkedIn shows for anybody it hides, and
+# "Let's do a quick verification", which heads the emailed-code screen
+# (linkedin_code_asked), a sign-in step and no ban.
+LINKEDIN_BAN_PHRASES = [
+    ("restricted", [
+        "your account has been restricted",
+        "your account is restricted",
+        "your account has been temporarily restricted",
+        "your account is temporarily restricted",
+        "we've restricted your account",
+        "we've temporarily restricted your account",
+        "your account has been suspended",
+    ]),
+    ("confirm", [
+        "verify your identity",
+        "we need to verify your identity",
+        "help us verify your identity",
+        "let's do a quick security check",
+        "security verification",
+        "security check",
+    ]),
+]
+BAN_SCREENS += [("linkedin", kind, [form for phrase in phrases for form in (phrase, phrase + ".")]) for kind, phrases in LINKEDIN_BAN_PHRASES]
 
 # A ban screen is a page of a few lines. A feed has many more.
 BAN_SCREEN_MAX_LINES = 30

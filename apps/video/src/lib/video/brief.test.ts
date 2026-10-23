@@ -12,7 +12,10 @@ import {
   type BriefLanding,
   type StoredScene,
 } from "@/lib/video/brief"
+import { DEFAULT_CAPTION_SETTINGS } from "@/lib/video/caption-look"
 import { MAX_TIMELINE_TRACKS, type ProjectTimeline } from "@/lib/video/timeline-schema"
+
+const CAPTIONS = { ...DEFAULT_CAPTION_SETTINGS, aspect: "9:16" as const }
 
 type Tracks = ProjectTimeline["tracks"]
 
@@ -93,7 +96,8 @@ describe("laying scenes on the timeline", () => {
     const landed = landBriefScenes(
       BUSY,
       { scenes: [made("one", 3000), made("two", 2000)], landing: { startMs: 9000, lanes: {} } },
-      ids()
+      ids(),
+      CAPTIONS
     )!
     expect(landed.placed).toEqual(["one", "two"])
     // What was there is exactly where it was.
@@ -122,7 +126,7 @@ describe("laying scenes on the timeline", () => {
 
   it("uses empty lanes first, so a new project's three lanes are filled", () => {
     const empty: Tracks = ["x", "y", "z"].map((id) => ({ id, muted: false, clips: [] }))
-    const landed = landBriefScenes(empty, { scenes: [made("one", 3000)], landing: EMPTY_LANDING }, ids())!
+    const landed = landBriefScenes(empty, { scenes: [made("one", 3000)], landing: EMPTY_LANDING }, ids(), CAPTIONS)!
     expect(landed.tracks.map((track) => track.id)).toEqual(["x", "y", "z"])
     expect(landed.landing.lanes).toEqual({ words: "x", pictures: "y", voice: "z" })
   })
@@ -131,17 +135,19 @@ describe("laying scenes on the timeline", () => {
     const landed = landBriefScenes(
       [],
       { scenes: [made("one", 3000), made("two", 2000, "failed"), made("three", 2000)], landing: EMPTY_LANDING },
-      ids()
+      ids(),
+      CAPTIONS
     )!
     expect(landed.placed).toEqual(["one"])
   })
 
   it("starts a later scene after the scenes already placed", () => {
-    const first = landBriefScenes([], { scenes: [made("one", 3000)], landing: EMPTY_LANDING }, ids())!
+    const first = landBriefScenes([], { scenes: [made("one", 3000)], landing: EMPTY_LANDING }, ids(), CAPTIONS)!
     const second = landBriefScenes(
       first.tracks,
       { scenes: [made("one", 3000, "placed"), made("two", 2000)], landing: first.landing },
-      ids()
+      ids(),
+      CAPTIONS
     )!
     expect(second.placed).toEqual(["two"])
     const pictures = second.tracks.find((track) => track.id === first.landing.lanes.pictures)!
@@ -150,7 +156,7 @@ describe("laying scenes on the timeline", () => {
   })
 
   it("goes on a lane of its own when something is in the way, and remakes a deleted lane with its name", () => {
-    const first = landBriefScenes([], { scenes: [made("one", 3000)], landing: EMPTY_LANDING }, ids())!
+    const first = landBriefScenes([], { scenes: [made("one", 3000)], landing: EMPTY_LANDING }, ids(), CAPTIONS)!
     const { words, pictures } = first.landing.lanes
     const blocked = first.tracks
       // The words lane was deleted.
@@ -170,7 +176,8 @@ describe("laying scenes on the timeline", () => {
     const second = landBriefScenes(
       blocked,
       { scenes: [made("one", 3000, "placed"), made("two", 2000)], landing: first.landing },
-      ids()
+      ids(),
+      CAPTIONS
     )!
     expect(second.landing.lanes.words).toBe(words)
     expect(second.landing.lanes.pictures).not.toBe(pictures)
@@ -185,7 +192,7 @@ describe("laying scenes on the timeline", () => {
       muted: false,
       clips: BUSY[0].clips,
     }))
-    expect(landBriefScenes(full, { scenes: [made("one", 3000)], landing: { startMs: 9000, lanes: {} } }, ids())).toBeNull()
+    expect(landBriefScenes(full, { scenes: [made("one", 3000)], landing: { startMs: 9000, lanes: {} } }, ids(), CAPTIONS)).toBeNull()
   })
 })
 

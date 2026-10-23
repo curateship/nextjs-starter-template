@@ -65,6 +65,31 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  * account on a phone, whose app shows neither when it joined nor where a
  * response landed.
  *
+ * The `x_` kinds are X's (`workspace/tasks/X/01-x-features.md`). X shows
+ * nothing to a visitor who is not signed in, so its reads run in a search
+ * account's browser (`X_SEARCHER_JOB_KINDS`), never the signed-out reader
+ * and never an account that posts: a keyword's search, one post read with its
+ * top replies, a sent reply or post read again, the posts naming an account,
+ * the trends, a look-up of accounts, a community's rules, and the search-ban
+ * look. From the account's own browser or phone: the sign-in code, a reply,
+ * quote or answer, a post or thread of its own, an edit, a delete, a follow,
+ * the daily warm-up, and an account put on its public list. X's direct
+ * messages use `inbox_read` and `inbox_reply`, in a browser as on a phone.
+ *
+ * The `linkedin_` kinds are LinkedIn's
+ * (`workspace/tasks/LinkedIn/01-linkedin-features.md`). LinkedIn shows almost
+ * nothing to a visitor who is not signed in, so its reads run in a search
+ * account's browser, as X's do (`LINKEDIN_SEARCHER_JOB_KINDS`): a keyword's
+ * search, one post read with its top comments, a sent comment or post read
+ * again, a look-up of people and pages, a group's rules, and the weekly look
+ * at whether an account's comments still show. From the account's own
+ * browser or phone: the emailed sign-in code, a comment, a reply or an
+ * answer, a post, repost or newsletter issue of its own, an edit, a delete,
+ * a connection request, reading and accepting the requests waiting on it,
+ * who viewed its profile, its own numbers, its own feed, and the daily
+ * warm-up. LinkedIn's messages use `inbox_read` and `inbox_reply`, in a
+ * browser as on a phone.
+ *
  * `READER_JOB_KINDS` run in the signed-out reader browser, never in the
  * account's own: the account Reddit sees commenting never searches.
  */
@@ -109,6 +134,40 @@ export type JobKind =
   | "medium_publication"
   | "medium_profile"
   | "medium_find"
+  | "x_search"
+  | "x_read"
+  | "x_check"
+  | "x_mentions"
+  | "x_trends"
+  | "x_lookup"
+  | "x_community"
+  | "x_reach"
+  | "x_code"
+  | "x_reply"
+  | "x_publish"
+  | "x_edit"
+  | "x_delete"
+  | "x_follow"
+  | "x_warm_up"
+  | "x_list_add"
+  | "linkedin_search"
+  | "linkedin_read"
+  | "linkedin_check"
+  | "linkedin_lookup"
+  | "linkedin_group"
+  | "linkedin_seen"
+  | "linkedin_code"
+  | "linkedin_comment"
+  | "linkedin_publish"
+  | "linkedin_edit"
+  | "linkedin_delete"
+  | "linkedin_connect"
+  | "linkedin_invites"
+  | "linkedin_accept"
+  | "linkedin_viewers"
+  | "linkedin_numbers"
+  | "linkedin_feed"
+  | "linkedin_warm_up"
 
 /** The kinds that run in the reader browser, signed in to nobody. */
 export const READER_JOB_KINDS: readonly JobKind[] = [
@@ -125,6 +184,34 @@ export const READER_JOB_KINDS: readonly JobKind[] = [
   "medium_check",
   "medium_profile",
   "medium_find",
+]
+
+/**
+ * X's reads, which run in a search account's browser: signed in to a
+ * throwaway X account that never posts (parts 3 to 5).
+ */
+export const X_SEARCHER_JOB_KINDS: readonly JobKind[] = [
+  "x_search",
+  "x_read",
+  "x_check",
+  "x_mentions",
+  "x_trends",
+  "x_lookup",
+  "x_community",
+  "x_reach",
+]
+
+/**
+ * LinkedIn's reads, which run in a search account's browser: signed in to a
+ * spare LinkedIn account that never comments or posts (part 3).
+ */
+export const LINKEDIN_SEARCHER_JOB_KINDS: readonly JobKind[] = [
+  "linkedin_search",
+  "linkedin_read",
+  "linkedin_check",
+  "linkedin_lookup",
+  "linkedin_group",
+  "linkedin_seen",
 ]
 
 /**
@@ -146,6 +233,18 @@ export const WRITE_JOB_KINDS: readonly JobKind[] = [
   "medium_edit",
   "medium_delete",
   "medium_list_add",
+  "x_reply",
+  "x_publish",
+  "x_edit",
+  "x_delete",
+  "x_follow",
+  "x_list_add",
+  "linkedin_comment",
+  "linkedin_publish",
+  "linkedin_edit",
+  "linkedin_delete",
+  "linkedin_connect",
+  "linkedin_accept",
 ]
 
 /**

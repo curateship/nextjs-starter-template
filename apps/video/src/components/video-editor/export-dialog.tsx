@@ -34,6 +34,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import {
   DEFAULT_FRAME_RATE,
+  DEFAULT_RENDER_QUALITY,
   estimateExportSeconds,
   EXPORT_SHAPES,
   EXPORT_TITLE_MAX,
@@ -81,7 +82,9 @@ export function ExportDialog({
   jobs: RenderJobSummary[]
   onJobsChange: (jobs: RenderJobSummary[]) => void
 }) {
-  const [quality, setQuality] = React.useState<RenderQuality>("high")
+  const [quality, setQuality] = React.useState<RenderQuality>(
+    DEFAULT_RENDER_QUALITY
+  )
   const [frameRate, setFrameRate] =
     React.useState<RenderFrameRate>(DEFAULT_FRAME_RATE)
   const [normalize, setNormalize] = React.useState(true)

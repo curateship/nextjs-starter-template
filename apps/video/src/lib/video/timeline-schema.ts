@@ -23,6 +23,11 @@ import { CAPTION_ANIMATION_IDS } from "./caption-animations"
 import { clipOriginSchema } from "./clip-origin"
 import { MAX_CAPTION_WORDS } from "./caption-words"
 import { TEXT_FONT_IDS } from "./text-fonts"
+import {
+  TEXT_STROKE_WIDTH_MAX,
+  TEXT_WRAP_WIDTH,
+  TEXT_WRAP_WIDTH_MIN,
+} from "./text-lines"
 
 /**
  * What a project's timeline is allowed to be.
@@ -109,6 +114,13 @@ export const clipSchema = z
     color: z.string().max(32).optional(),
     // A block of colour drawn behind the whole line; unset = no box.
     highlightColor: z.string().max(32).optional(),
+    // An outline round each letter, its colour and how thick it shows outside
+    // the letter in the 1080-tall design space. Unset means none.
+    strokeColor: z.string().max(32).optional(),
+    strokeWidth: z.number().min(0).max(TEXT_STROKE_WIDTH_MAX).optional(),
+    // How much of the frame's width a line may take before it wraps. Unset
+    // means 90%. Captions fitted into a platform's safe box get less.
+    wrapWidth: z.number().min(TEXT_WRAP_WIDTH_MIN).max(TEXT_WRAP_WIDTH).optional(),
     // How the words arrive on screen. Unset means they simply appear.
     animation: z.enum(CAPTION_ANIMATION_IDS).optional(),
     // When each word of the text is said, matched to the words by position

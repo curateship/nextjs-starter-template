@@ -78,7 +78,7 @@ export function ReplyBox({ match, automate, busy, actions }: { match: MatchDetai
   if (match.unmatchedAt) {
     return (
       <p className="border-t p-4 text-sm text-muted-foreground">
-        {match.unmatchedBy === "them" ? `${match.theirName} unmatched you: the chat is gone from Tinder. Nothing can be sent.` : `You unmatched ${match.theirName}, so nothing can be sent.`}
+        {match.unmatchedBy === "them" ? `${match.theirName} unmatched you: the chat is gone from the app. Nothing can be sent.` : `You unmatched ${match.theirName}, so nothing can be sent.`}
       </p>
     )
   }

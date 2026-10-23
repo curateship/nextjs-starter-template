@@ -28,14 +28,10 @@ import { AiChoiceField } from "@/components/video-editor/ai-choice-field"
 import { CaptionLookFields } from "@/components/video-editor/caption-look-fields"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
-import {
-  captionClipStyle,
-  DEFAULT_CAPTION_LOOK,
-  type CaptionLook,
-} from "@/lib/video/caption-look"
-import { captionClipWordTimes } from "@/lib/video/caption-words"
-import { captionClipName, findCaptionSource } from "@/lib/video/captions"
+import { captionTextClips, type CaptionLook } from "@/lib/video/caption-look"
+import { findCaptionSource } from "@/lib/video/captions"
 import { editorId } from "@/lib/video/timeline-utils"
+import { useCaptionPlacement } from "@/components/video-editor/caption-settings-context"
 import {
   useEditorRuntime,
   useEditorSelector,
@@ -49,9 +45,9 @@ import { hasSavedWords } from "@/lib/video/transcripts"
 /**
  * Writing the captions, and how they should look when they land.
  *
- * The look starts from the standard one every time the window opens. A change
- * made here is for this one run and is not kept. Any of it can still be
- * changed afterwards on a single caption in the inspector.
+ * The look starts from the one saved on Settings → Captions every time the
+ * window opens. A change made here is for this one run and is not kept. Any
+ * of it can still be changed afterwards on a single caption in the inspector.
  */
 export function CaptionsDialog({
   open,
@@ -64,18 +60,19 @@ export function CaptionsDialog({
 }) {
   const { projectId, dispatch, saveNow } = useEditorRuntime()
   const tracks = useEditorSelector((state) => state.tracks)
-  const [look, setLook] = React.useState<CaptionLook>(DEFAULT_CAPTION_LOOK)
+  const placement = useCaptionPlacement()
+  const [look, setLook] = React.useState<CaptionLook>(placement.look)
   const [writing, setWriting] = React.useState(false)
   const [pickedTranscriber, setPickedTranscriber] = React.useState<
     TranscriberId | undefined
   >()
 
-  // Every opening starts from the standard look again.
+  // Every opening starts from the saved look again.
   const [wasOpen, setWasOpen] = React.useState(open)
   if (wasOpen !== open) {
     setWasOpen(open)
     if (open) {
-      setLook(DEFAULT_CAPTION_LOOK)
+      setLook(placement.look)
       setPickedTranscriber(undefined)
     }
   }
@@ -106,21 +103,13 @@ export function CaptionsDialog({
       // The server reads the saved timeline, so anything still waiting to be
       // sent goes first.
       await saveNow()
-      const { captions } = await writeCaptions(projectId)
-      dispatch({
-        type: "INSERT_CAPTIONS",
-        captions: captions.map((line) => ({
-          id: editorId(),
-          kind: "text" as const,
-          name: captionClipName(line.text),
-          text: line.text,
-          startMs: line.startMs,
-          durationMs: line.endMs - line.startMs,
-          trimStartMs: 0,
-          wordTimes: captionClipWordTimes(line),
-          ...captionClipStyle(look),
-        })),
-      })
+      const { captions: lines } = await writeCaptions(projectId)
+      const captions = captionTextClips(
+        lines,
+        { ...placement, look },
+        { newId: editorId }
+      )
+      dispatch({ type: "INSERT_CAPTIONS", captions })
       dismissErrorToast()
       toast.success(
         `${captions.length} ${plural(captions.length, "caption", "captions")} added. Undo takes them all back off.`
@@ -165,8 +154,8 @@ export function CaptionsDialog({
             <CardHeader>
               <CardTitle>How they look</CardTitle>
               <CardDescription>
-                Starts from the standard look. Changes here are for this time
-                only.
+                Starts from the look saved in Settings, Captions. Changes here
+                are for this time only.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -174,6 +163,8 @@ export function CaptionsDialog({
                 idPrefix="captions"
                 look={look}
                 onChange={setLook}
+                safeBoxes={placement.safeBoxes}
+                aspect={placement.aspect}
               />
             </CardContent>
           </Card>

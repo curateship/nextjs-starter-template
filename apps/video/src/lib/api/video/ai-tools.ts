@@ -31,10 +31,18 @@ import {
   TRANSLATE_LANGUAGES,
   TRANSLATE_LINE_MAX,
   TRANSLATE_LINES_MAX,
+  TRANSLATE_NOTHING_TO_SAY_MESSAGE,
+  TRANSLATE_TOO_LONG_TO_SPEAK_MESSAGE,
   TRANSLATE_VOICE_MODEL,
+  translationScript,
   type TranslateLanguage,
 } from "@/lib/video/translate"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import {
+  NOTHING_TO_EXPORT_MESSAGE,
+  QUEUE_FULL_MESSAGE,
+  TIMELINE_TOO_LONG_MESSAGE,
+} from "@/lib/video/render"
 import { isVoiceOrigin } from "@/lib/video/clip-origin"
 import {
   REMAKE_NOT_FOUND_MESSAGE,
@@ -62,6 +70,12 @@ import { adminPost, userGet, userPost } from "@/server/guards"
 import { getAiKeysSaved } from "@/server/video/ai-keys-saved"
 import { writeProjectCaptions } from "@/server/video/captions"
 import { requireProjectBudget } from "@/server/video/project-spend"
+import { getExportErrorMessage } from "@/lib/api/video/exports"
+import {
+  checkLanguageCopy,
+  makeLanguageCopy,
+  type LanguageCopyResult,
+} from "@/server/video/language-copies"
 import { getOwnedProject } from "@/server/video/projects"
 import {
   getAiDefaults,
@@ -89,7 +103,7 @@ import {
  * their own budget.
  */
 
-export type { CaptionsResult }
+export type { CaptionsResult, LanguageCopyResult }
 
 /** The project a tool is used in, when it is used in one. */
 const optionalProjectId = z.string().min(1).max(36).optional()
@@ -101,6 +115,13 @@ const optionalProjectId = z.string().min(1).max(36).optional()
 async function budget(userId: string, projectId: string | undefined, nextCents: number) {
   if (projectId) await requireProjectBudget(userId, projectId, nextCents)
 }
+
+/** Make all asks whether a copy's export would be taken before paying. */
+const LANGUAGE_COPY_EXPORT_REFUSALS = new Set([
+  NOTHING_TO_EXPORT_MESSAGE,
+  TIMELINE_TOO_LONG_MESSAGE,
+  QUEUE_FULL_MESSAGE,
+])
 
 /**
  * What went wrong, in words worth reading.
@@ -118,6 +139,7 @@ export function getAiToolErrorMessage(error: unknown) {
   if (SAFE_HOOK_ERRORS.has(message)) return message
   if (SAFE_SCRIPT_CHECK_ERRORS.has(message)) return message
   if (SAFE_TRANSLATE_ERRORS.has(message)) return message
+  if (LANGUAGE_COPY_EXPORT_REFUSALS.has(message)) return message
   if (AI_KEY_MISSING_MESSAGES.has(message)) return message
   if (message === PROJECT_NOT_FOUND_MESSAGE) return message
   if (message === REMAKE_NOT_FOUND_MESSAGE) return message
@@ -452,6 +474,91 @@ async function speakTranslated(
 export function speakTranslation(text: string, voice: Voice, projectId?: string) {
   return speakTranslationFn({
     data: { text, voiceId: voice.id, voiceName: voice.name, projectId },
+  })
+}
+
+const makeLanguageCopyFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      projectId: z.string().min(1).max(36),
+      /** The talking that was translated, turned down on the copy. */
+      sourceClipId: z.string().min(1).max(64),
+      language: z.enum(TRANSLATE_LANGUAGES),
+      lines: z
+        .array(
+          z.object({
+            startMs: z.number().nonnegative().finite(),
+            text: z.string().max(TRANSLATE_LINE_MAX),
+          })
+        )
+        .min(1)
+        .max(TRANSLATE_LINES_MAX),
+      voiceId: z.string().min(1).max(64),
+      voiceName: z.string().min(1).max(255),
+    })
+  )
+  .handler(async ({ data, context }): Promise<LanguageCopyResult> => {
+    const userId = context.user.id
+    // Everything that can be refused is refused before the voice is paid for.
+    const startsAtMs = Math.min(...data.lines.map((line) => line.startMs))
+    await checkLanguageCopy({
+      userId,
+      projectId: data.projectId,
+      sourceClipId: data.sourceClipId,
+      startsAtMs,
+    })
+    const script = translationScript(data.lines)
+    if (!script) throw new Error(TRANSLATE_NOTHING_TO_SAY_MESSAGE)
+    if (script.length > VOICE_TEXT_MAX) {
+      throw new Error(TRANSLATE_TOO_LONG_TO_SPEAK_MESSAGE)
+    }
+    const settings = rememberedVoiceSettings(await getVoiceDefaults())
+    const said = await speakTranslated(userId, {
+      voiceId: data.voiceId,
+      voiceName: data.voiceName,
+      text: script,
+      settings,
+      projectId: data.projectId,
+    })
+    const made = await makeLanguageCopy({
+      userId,
+      projectId: data.projectId,
+      sourceClipId: data.sourceClipId,
+      language: data.language,
+      said,
+      startsAtMs,
+    })
+    return {
+      ...made,
+      // Only words written for people leave the server.
+      exportProblem: made.exportProblem
+        ? getExportErrorMessage(new Error(made.exportProblem))
+        : null,
+    }
+  })
+
+/**
+ * One language of Make all: reads the corrected translation aloud and makes
+ * a copy of the project with it laid over the original, then queues the
+ * copy's export. The project open in the editor is never changed.
+ */
+export function makeLanguageCopyOf(data: {
+  projectId: string
+  sourceClipId: string
+  language: TranslateLanguage
+  lines: { startMs: number; text: string }[]
+  voice: Voice
+}) {
+  return makeLanguageCopyFn({
+    data: {
+      projectId: data.projectId,
+      sourceClipId: data.sourceClipId,
+      language: data.language,
+      lines: data.lines,
+      voiceId: data.voice.id,
+      voiceName: data.voice.name,
+    },
   })
 }
 

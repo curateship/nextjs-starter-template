@@ -16,6 +16,7 @@ import {
   makePairCode,
   removeSampleData,
   resume,
+  sharePhone,
   switchDateInControl,
   takePicture,
   unpair,
@@ -23,7 +24,7 @@ import {
   type PhoneView,
 } from "@/lib/api/dating/phone"
 import { datingErrorMessage } from "@/lib/dating/errors"
-import { ACTION_STATUS_WORDS, ACTION_WORDS, STOP_REASON_WORDS, WALK_WORDS, type WalkKind } from "@/lib/dating/options"
+import { ACTION_STATUS_WORDS, ACTION_WORDS, DATING_APP_WORDS, FACEBOOK_PACE, stopReasonWords, WALK_WORDS, type WalkKind } from "@/lib/dating/options"
 import { formatDuration } from "@/lib/format/format-time"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -45,6 +46,11 @@ const EVERY_MS = 4_000
  * away, Resume after a Tinder screen stopped it, the "Date is in control"
  * switch, the screen window, a picture, pairing and unpairing), Swiping,
  * what the phone did, and the sample data.
+ *
+ * A profile with no phone can use one already paired for another profile,
+ * such as a Facebook profile on the Tinder phone (part 2 of "facebook/01").
+ * A Facebook profile also shows Facebook Dating's own break as the phone last
+ * read it, and a break the phone could not set (part 22).
  */
 export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChanged: () => void }) {
   const [screen, setScreen] = React.useState<PhoneScreenData | null>(null)
@@ -54,6 +60,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
   const [screenOpen, setScreenOpen] = React.useState(false)
   const [picture, setPicture] = React.useState<{ id: string; title: string } | null>(null)
   const phone = screen?.phone ?? null
+  const appName = DATING_APP_WORDS[data.profile.app].name
 
   React.useEffect(() => {
     let live = true
@@ -104,29 +111,29 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
             <FlatSection storageId="date-phone-phone" title="Phone" meta={phone?.paired ? (phone.here ? "here" : "away") : "not paired"}>
               <p className="text-muted-foreground">
                 {phone
-                  ? "The Android phone the AI runs Tinder on. It dials out to Date; nothing on the phone is reachable from outside."
-                  : "Date runs Tinder from an Android phone with the Date app on it. Pair one to start."}
+                  ? `The Android phone the AI runs ${appName} on. It dials out to Date; nothing on the phone is reachable from outside.`
+                  : `Date runs ${appName} from an Android phone with the Date app on it. Pair one to start.`}
               </p>
               {phone ? <PhoneFacts phone={phone} /> : null}
               {phone?.stoppedReason ? (
                 <div className="grid gap-2 rounded-lg border p-3">
                   <p className="flex gap-2 font-medium">
                     <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
-                    {STOP_REASON_WORDS[phone.stoppedReason]} ({whenWords(phone.stoppedAt)}).
+                    {stopReasonWords(phone.stoppedReason, data.profile.app)} ({whenWords(phone.stoppedAt)}).
                   </p>
                   {phone.stoppedWords ? <p className="text-muted-foreground">{phone.stoppedWords}</p> : null}
                   {phone.stoppedPictureId ? (
                     <button
                       type="button"
                       className="justify-self-start overflow-hidden rounded-md border"
-                      aria-label="See what Tinder showed"
-                      onClick={() => setPicture({ id: phone.stoppedPictureId as string, title: "What Tinder showed" })}
+                      aria-label={`See what ${appName} showed`}
+                      onClick={() => setPicture({ id: phone.stoppedPictureId as string, title: `What ${appName} showed` })}
                     >
                       <DatingPicture pictureId={phone.stoppedPictureId} alt="" className="h-32 w-20" />
                     </button>
                   ) : null}
-                  <p className="text-muted-foreground">Nothing runs on the phone until you sort it out on the phone itself and press Resume.</p>
-                  <Button type="button" size="sm" className="justify-self-start" disabled={busy === "resume"} onClick={() => void act("resume", () => resume(), "Resumed. The phone looks at Tinder again now.")}>
+                  <p className="text-muted-foreground">Nothing runs for this profile until you sort it out on the phone itself and press Resume.</p>
+                  <Button type="button" size="sm" className="justify-self-start" disabled={busy === "resume"} onClick={() => void act("resume", () => resume(), `Resumed. The phone looks at ${appName} again now.`)}>
                     {busy === "resume" ? <Loader2Icon className="animate-spin" /> : <PlayIcon />}
                     Resume
                   </Button>
@@ -173,6 +180,29 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                 )}
               </div>
               {code ? <PairingSteps code={code} /> : null}
+              {!phone && screen.shareable.length ? (
+                <div className="grid gap-2">
+                  <p className="text-muted-foreground">Or run this profile on a phone you already paired. The phone runs one app at a time, each profile in its own swiping hours.</p>
+                  <ul className="grid gap-1.5">
+                    {screen.shareable.map((item) => (
+                      <li key={item.id} className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={busy === `share:${item.id}`}
+                          onClick={() => void act(`share:${item.id}`, () => sharePhone(item.id), `${appName} runs on ${item.name} now.`)}
+                        >
+                          {busy === `share:${item.id}` ? <Loader2Icon className="animate-spin" /> : null}
+                          Use this phone
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {phone && data.profile.app === "facebook" ? <BreakLine screen={screen} paused={data.profile.paused} /> : null}
             </FlatSection>
 
             {phone ? (
@@ -183,7 +213,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
 
             {phone ? (
               <FlatSection storageId="date-phone-log" title="What the phone did" meta={screen.walks.length}>
-                <p className="text-xs text-muted-foreground">Tinder walks newest first, then each plain step. A step that failed keeps a picture of where it stopped.</p>
+                <p className="text-xs text-muted-foreground">{appName} walks newest first, then each plain step. A step that failed keeps a picture of where it stopped.</p>
                 {screen.walks.length ? (
                   <ul className="grid divide-y rounded-lg border">
                     {screen.walks.map((walk) => (
@@ -286,6 +316,7 @@ function PhoneFacts({ phone }: { phone: PhoneView }) {
     ["Model", [phone.model, phone.androidVersion ? `Android ${phone.androidVersion}` : ""].filter(Boolean).join(", ") || "Not known yet"],
     ["Battery", phone.batteryPercent === null ? "Not known yet" : `${phone.batteryPercent}%`],
     ["Tinder", phone.tinderVersion ? `${phone.tinderVersion}${phone.tinderInFront ? ", in front now" : ""}` : phone.lastSeenAt ? "Not installed" : "Not known yet"],
+    ["Facebook", phone.facebookVersion ? `${phone.facebookVersion}${phone.facebookInFront ? ", in front now" : ""}` : phone.lastSeenAt ? "Not installed" : "Not known yet"],
     ["On the phone itself", phone.phoneSwitchOn ? "Date is switched on" : "Date is switched off in the app"],
     ["Date app", phone.appVersion || "Not known yet"],
     ["Paired", phone.pairedAt ? whenWords(phone.pairedAt) : "Not paired"],
@@ -334,12 +365,41 @@ export function PairingSteps({ code }: { code: { code: string; expiresAt: Date }
 
 function discoveryWords(data: DatingDashboard): string {
   const { discovery, settings } = data
+  const app = DATING_APP_WORDS[data.profile.app].name
   const wanted = `${settings.maxDistanceKm} km, ages ${settings.ageMin} to ${settings.ageMax}`
-  if (discovery.state === "setting") return `Setting Tinder to ${wanted} now.`
-  if (discovery.state === "owed") return `Tinder is set to ${wanted} once the phone is free.`
-  if (discovery.state === "set") return `Tinder set to ${discovery.distance}, ages ${discovery.ageMin} to ${discovery.ageMax}${discovery.at ? `, ${whenWords(discovery.at)}` : ""}.`
-  if (discovery.state === "failed") return `Setting Tinder's distance and ages failed${discovery.at ? ` ${whenWords(discovery.at)}` : ""}: ${discovery.error} Change a setting or press Resume to try again.`
-  return `Not set on Tinder yet. The phone sets ${wanted} once it is paired.`
+  if (discovery.state === "setting") return `Setting ${app} to ${wanted} now.`
+  if (discovery.state === "owed") return `${app} is set to ${wanted} once the phone is free.`
+  if (discovery.state === "set") return `${app} set to ${discovery.distance}, ages ${discovery.ageMin} to ${discovery.ageMax}${discovery.at ? `, ${whenWords(discovery.at)}` : ""}.`
+  if (discovery.state === "failed") return `Setting ${app}'s distance and ages failed${discovery.at ? ` ${whenWords(discovery.at)}` : ""}: ${discovery.error} Change a setting or press Resume to try again.`
+  return `Not set on ${app} yet. The phone sets ${wanted} once it is paired.`
+}
+
+/**
+ * Facebook Dating's own break, which Pause turns on and Resume turns off
+ * (Tyler, 22 Oct 2026: "Yes, both ways"). A set that failed says so, because
+ * then the profile may still be hidden, or still showing.
+ */
+function BreakLine({ screen, paused }: { screen: PhoneScreenData; paused: boolean }) {
+  const last = screen.walks.find((walk) => walk.kind === "set-break")
+  const { on, at } = screen.appBreak
+  const state = on === null ? "not read by the phone yet" : on ? "on, so nobody sees your profile" : "off, so your profile shows"
+  return (
+    <div className="grid gap-0.5">
+      <p>
+        Facebook Dating's break: {state}
+        {at ? ` (${whenWords(at)})` : ""}.
+      </p>
+      {last && (last.status === "waiting" || last.status === "running") ? (
+        <p className="text-muted-foreground">The phone is turning it {paused ? "on" : "off"} now.</p>
+      ) : on !== paused && (paused || on !== null) ? (
+        // Pause asks for the break on and Resume for it off; anything else means the phone did not get there.
+        <p className="text-destructive">
+          It should be {paused ? "on" : "off"}, but the phone {last?.status === "failed" ? `could not set it: ${last.error}` : "was not able to set it"}.{" "}
+          {paused ? "Resume and Pause again once the phone runs, to try once more." : "Pause and Resume again once the phone runs, to try once more."}
+        </p>
+      ) : null}
+    </div>
+  )
 }
 
 /**
@@ -389,6 +449,11 @@ export function SwipingDetails({ data }: { data: DatingDashboard }) {
           : "Not learning from your swipes yet. Like or pass a card against the AI's score and it is shown as an example next time."}
       </p>
       <p className="text-muted-foreground">{discoveryWords(data)}</p>
+      {data.profile.app === "facebook" ? (
+        <p className="text-muted-foreground">
+          Facebook Dating's pace: at most {FACEBOOK_PACE.swipesPerDay} swipes a day and {FACEBOOK_PACE.swipesPerHour} an hour, {FACEBOOK_PACE.gapMs.min / 1000} to {FACEBOOK_PACE.gapMs.max / 1000} seconds apart, because a ban there loses your whole Facebook account.
+        </p>
+      ) : null}
       {current ? (
         <p className="text-muted-foreground">
           <Loader2Icon className="mr-1.5 inline size-4 animate-spin" />

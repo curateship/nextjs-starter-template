@@ -13,6 +13,7 @@ import {
   timestamp,
   uniqueIndex,
   varchar,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core"
 
 import type {
@@ -23,8 +24,14 @@ import type {
   StoredScene,
 } from "@/lib/video/brief"
 import type { AiPart } from "@/lib/video/ai-parts"
+import type { ExportScene } from "@/lib/video/export-scenes"
 import type { ExtraPicks, SentExtra } from "@/lib/video/extras"
 import type { ClipOutcome } from "@/lib/video/moving-still"
+import type {
+  RetentionPoint,
+  StoredYoutubeConnection,
+  StoredYoutubeOauthClient,
+} from "@/lib/video/retention"
 import type { ScriptCheck } from "@/lib/video/script-check"
 import { customShellMedia, customShellUsers } from "@/server/schema"
 
@@ -384,6 +391,13 @@ export const videoProjects = pgTable(
     // The extras picked in the AI clip panel, one extra id per kind, so a
     // series keeps the same outfit and place (drizzle/0124).
     extraPicks: jsonb("extra_picks").$type<ExtraPicks>().notNull().default({}),
+    // The project this one is a language copy of, and the language it speaks
+    // (drizzle/0141). Deleting the original blanks the link; the copy stays.
+    languageOf: varchar("language_of", { length: 36 }).references(
+      (): AnyPgColumn => videoProjects.id,
+      { onDelete: "set null" }
+    ),
+    language: varchar("language", { length: 40 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -398,6 +412,7 @@ export const videoProjects = pgTable(
     ),
     check("video_projects_version_check", sql`${table.version} >= 1`),
     index("ix_video_projects_user_updated").on(table.userId, table.updatedAt),
+    index("ix_video_projects_language_of").on(table.languageOf),
   ]
 )
 
@@ -693,6 +708,20 @@ export const videoSettings = pgTable(
     // The words the script check flags, as a JSON list. NULL until somebody
     // saves a list on Settings → Scripts; the starter words apply until then.
     scriptBannedWords: jsonb("script_banned_words"),
+    // The look new captions take, saved on Settings → Captions. NULL until
+    // somebody saves one; the standard look applies until then.
+    captionLook: jsonb("caption_look"),
+    // How far in from each edge each platform covers a tall frame. NULL until
+    // somebody edits a number; the starting numbers apply until then.
+    safeBoxes: jsonb("safe_boxes"),
+    // The Google sign-in client pasted on Settings → YouTube, its secret
+    // scrambled. NULL until somebody pastes one (drizzle/0142).
+    youtubeOauthClient: jsonb(
+      "youtube_oauth_client"
+    ).$type<StoredYoutubeOauthClient>(),
+    // The one YouTube channel the app reads retention from, its refresh token
+    // scrambled. NULL while no channel is connected.
+    youtubeOauth: jsonb("youtube_oauth").$type<StoredYoutubeConnection>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -1064,6 +1093,9 @@ export const videoRenderJobs = pgTable(
     aiParts: jsonb("ai_parts").$type<AiPart[]>(),
     // Whether the copied paragraph says a person edited them too.
     aiHandEdited: boolean("ai_hand_edited").notNull().default(true),
+    // Where the picture changes in the file, worked out by the render from
+    // the timeline it drew. Null before drizzle/0142 and on carousel exports.
+    scenes: jsonb("scenes").$type<ExportScene[]>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
@@ -1117,6 +1149,39 @@ export const videoRenderJobs = pgTable(
  * A PNG unless `type` says it is a video slide's MP4.
  */
 export type CarouselSlideRange = { start: number; size: number; type?: "video" }
+
+/**
+ * The YouTube video an export became, and the retention curve YouTube
+ * measured for it (`workspace/docs/retention-curve.md`). Written when the link
+ * is pasted; the curve and the totals stay NULL until they are first read, and
+ * reopening the export reads them from here, never from YouTube.
+ */
+export const videoExportYoutube = pgTable(
+  "video_export_youtube",
+  {
+    exportId: varchar("export_id", { length: 36 })
+      .primaryKey()
+      .references(() => videoRenderJobs.id, { onDelete: "cascade" }),
+    youtubeVideoId: varchar("youtube_video_id", { length: 20 }).notNull(),
+    // The channel the video was checked against when the link was pasted.
+    channelId: varchar("channel_id", { length: 64 }).notNull(),
+    videoTitle: varchar("video_title", { length: 200 }).notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull(),
+    lengthSeconds: integer("length_seconds").notNull(),
+    points: jsonb("points").$type<RetentionPoint[]>(),
+    views: bigint("views", { mode: "number" }),
+    averageViewSeconds: integer("average_view_seconds"),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_export_youtube_length_check",
+      sql`${table.lengthSeconds} >= 0`
+    ),
+  ]
+)
 
 /**
  * A link to one finished export that anybody holding it can watch without an

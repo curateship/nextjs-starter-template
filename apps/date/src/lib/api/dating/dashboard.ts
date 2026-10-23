@@ -10,11 +10,12 @@ import {
   loadMatchDetail,
   loadProfileDetail,
   markMatchSeen,
+  onSecondLook,
   type DatingDashboard,
   type MatchDetail,
   type ProfileDetail,
 } from "@/server/dating/dashboard"
-import { addToAboutMe } from "@/server/dating/settings"
+import { addToAboutMe, readDatingSettings } from "@/server/dating/settings"
 import { startLoop, stopLoopByHand } from "@/server/dating/worker"
 import { inWords } from "@/server/dating/words"
 import { db } from "@/server/db"
@@ -94,6 +95,8 @@ const swipeFn = createServerFn({ method: "POST" })
       const card = await ownCard(context.user.id, data.profileId)
       if (card.sample) throw new Error(SAMPLE_WORDS)
       if (card.swipe !== "none") throw new Error(`${card.name} was already ${swipedWord(card.swipe)}.`)
+      // Facebook's weekly surprise match is a match already, never swiped.
+      if (card.source === "weekly") throw new Error(`${card.name} is your weekly match already. Write to them in the chat.`)
       if (!card.phoneId) throw new Error("No phone read this card, so it cannot be swiped.")
       await queueWalk({ userId: context.user.id, accountId: card.accountId, phoneId: card.phoneId, kind: data.decision, input: { profileId: card.id }, askedBy: "member" })
     })
@@ -156,9 +159,55 @@ export function refreshConversation(matchId: string) {
   return matchWalkFn({ data: { matchId, kind: "read-conversation" } })
 }
 
-/** Unmatches through Tinder's own menu, after the dashboard's confirm. */
+/** Unmatches through the app's own menu, after the dashboard's confirm. */
 export function unmatchOnPhone(matchId: string) {
   return matchWalkFn({ data: { matchId, kind: "unmatch" } })
+}
+
+const reportFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(matchInput)
+  .handler(async ({ data, context }) =>
+    inWords(async () => {
+      const match = await ownMatch(context.user.id, data.matchId)
+      if (match.sample) throw new Error(SAMPLE_WORDS)
+      if (match.flaggedReason !== "scam") throw new Error(`${match.theirName}'s chat is not flagged as a scam, so there is nothing to report.`)
+      if (match.reportedAt) throw new Error(`${match.theirName} was already reported.`)
+      if (match.unmatchedAt) throw new Error(`You already unmatched ${match.theirName}.`)
+      if (!match.phoneId) throw new Error("No phone read this match.")
+      await queueWalk({ userId: context.user.id, accountId: match.accountId, phoneId: match.phoneId, kind: "report", input: { matchId: match.id }, askedBy: "member" })
+    })
+  )
+
+/**
+ * Report on a chat flagged as a scam, after the dashboard's confirm: the
+ * phone reports them to Facebook as a scam and unmatches (part 20 of
+ * "facebook/01", Tyler's "Report and unmatch"). Never asked for by the AI.
+ */
+export function reportScam(matchId: string) {
+  return reportFn({ data: { matchId } })
+}
+
+const secondLookFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ profileId: z.string().min(1).max(40) }))
+  .handler(async ({ data, context }) =>
+    inWords(async () => {
+      const card = await ownCard(context.user.id, data.profileId)
+      if (card.sample) throw new Error(SAMPLE_WORDS)
+      const account = await ownAccount(context.user.id, card.workspaceId, card.accountId)
+      if (account.app !== "facebook") throw new Error("Second Look is Facebook Dating's.")
+      const settings = await readDatingSettings(account.id)
+      const [listed] = await db.select({ id: dateProfiles.id }).from(dateProfiles).where(and(eq(dateProfiles.id, card.id), onSecondLook(account.id, settings.likeAbove, new Date()))).limit(1)
+      if (!listed) throw new Error(`${card.name} is not on Second Look.`)
+      if (!account.phoneId) throw new Error("No phone is paired for this profile yet. Pair one in the dashboard's Phone panel first.")
+      await queueWalk({ userId: context.user.id, accountId: account.id, phoneId: account.phoneId, kind: "like", input: { profileId: card.id, secondLook: true }, askedBy: "member" })
+    })
+  )
+
+/** Like on Second Look: the phone opens Second Look, finds them and likes them (part 14, "You decide"). */
+export function likeFromSecondLook(profileId: string) {
+  return secondLookFn({ data: { profileId } })
 }
 
 const sendFn = createServerFn({ method: "POST" })

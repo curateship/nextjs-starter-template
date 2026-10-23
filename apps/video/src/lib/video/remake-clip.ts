@@ -1,3 +1,8 @@
+import {
+  captionText,
+  splitCaptionLines,
+  type CaptionLook,
+} from "@/lib/video/caption-look"
 import { captionClipWordTimes } from "@/lib/video/caption-words"
 import { captionClipName, type CaptionLine } from "@/lib/video/captions"
 import { clipSpeed } from "@/lib/video/clip-playback"
@@ -79,6 +84,9 @@ function captionLook(clip: Clip): Partial<Clip> {
     fontSize: clip.fontSize,
     color: clip.color,
     highlightColor: clip.highlightColor,
+    strokeColor: clip.strokeColor,
+    strokeWidth: clip.strokeWidth,
+    wrapWidth: clip.wrapWidth,
     animation: clip.animation,
     activeWordColor: clip.activeWordColor,
     x: clip.x,
@@ -151,7 +159,17 @@ function lay(
  */
 export function landVoiceLine(
   tracks: Tracks,
-  remake: { clipId: string; line: SpokenLine; newId: () => string }
+  remake: {
+    clipId: string
+    line: SpokenLine
+    newId: () => string
+    /**
+     * The saved caption look. The new captions keep the old ones' own look
+     * and place, and take only its words at a time and capitals, which are
+     * about how the words are cut and written rather than how they look.
+     */
+    look: CaptionLook
+  }
 ): { tracks: Tracks; newLane: boolean } | null {
   const lane = tracks.find((track) => track.clips.some((clip) => clip.id === remake.clipId))
   const old = lane?.clips.find((clip) => clip.id === remake.clipId)
@@ -201,20 +219,24 @@ export function landVoiceLine(
   let laid = lay(cleared, lane.id, [voice], "below", remake.newId)
   if (words.length) {
     const look = captionLook(words[0].clip)
-    const captions = line.captions.map(
-      (caption): Clip => ({
+    const captions = splitCaptionLines(
+      line.captions,
+      remake.look.wordsPerCaption
+    ).map((caption): Clip => {
+      const text = captionText(remake.look, caption.text)
+      return {
         ...look,
         id: remake.newId(),
         kind: "text",
-        name: captionClipName(caption.text),
-        text: caption.text,
+        name: captionClipName(text),
+        text,
         startMs: voice.startMs + caption.startMs,
         durationMs: caption.endMs - caption.startMs,
         trimStartMs: 0,
         wordTimes: captionClipWordTimes(caption),
         spokenBy: voice.id,
-      })
-    )
+      }
+    })
     const placed = lay(laid.tracks, words[0].laneId, captions, "above", remake.newId)
     laid = { tracks: placed.tracks, newLane: laid.newLane || placed.newLane }
   }

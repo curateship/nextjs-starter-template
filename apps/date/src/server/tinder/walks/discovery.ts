@@ -3,7 +3,8 @@ import { z } from "zod"
 import { findNode, isVisible, type NodeMatch, type ScreenNode, type ScreenRead } from "../screen"
 import { AGE_RANGE_VALUE, DISTANCE_VALUE, TINDER_SLIDERS, TINDER_WORDS } from "../screen-words"
 import { onProfileTab, toProfileTab } from "./account"
-import { onDiscover, WalkError, type Seen, type WalkContext, type WalkKit } from "./kit"
+import { onDiscover } from "../app-screens"
+import { WalkError, type Seen, type WalkContext, type WalkKit } from "./kit"
 
 /**
  * Sets Tinder's own distance and age range to Date's (part 4 of
@@ -27,20 +28,20 @@ export const discoveryInput = z.object({
 })
 export type DiscoveryInput = z.infer<typeof discoveryInput>
 
-const KM_PER_MILE = 1.609344
+export const KM_PER_MILE = 1.609344
 
 /** Moves of one thumb before the walk gives up on it. Each corrects its aim by how far the last one missed. */
 const MOVES = 5
 
-/** Scrolls down Tinder's settings looking for a slider. */
+/** Scrolls down the app's settings looking for a slider. */
 const SCROLLS = 4
 
-type Range = { min: number; max: number }
+export type Range = { min: number; max: number }
 
 /** One slider on screen: its track, and the numbers its label shows (one for distance, two for ages). */
-type SliderRead = { track: ScreenNode; values: number[]; unit: "km" | "mi" | "age" }
+export type SliderRead = { track: ScreenNode; values: number[]; unit: "km" | "mi" | "age" }
 
-function readSlider(screen: ScreenRead, heading: NodeMatch, slider: NodeMatch, kind: "distance" | "age"): SliderRead | null {
+export function readSlider(screen: ScreenRead, heading: NodeMatch, slider: NodeMatch, kind: "distance" | "age"): SliderRead | null {
   const title = findNode(screen, heading)
   if (!title) return null
   const visible = screen.nodes.filter((node) => isVisible(node, screen))
@@ -77,7 +78,7 @@ function xAt(track: ScreenNode, range: Range, value: number): number {
  * of the track that still reads short of the target is at Tinder's own end,
  * and that end is kept.
  */
-async function setThumb(
+export async function setThumb(
   kit: WalkKit,
   seen: Seen,
   read: (screen: ScreenRead) => SliderRead | null,
@@ -88,7 +89,7 @@ async function setThumb(
 ): Promise<Seen> {
   let current = seen
   let slider = read(current.screen)
-  if (!slider) throw new WalkError(`Could not read ${what} in Tinder's settings. The words for it may have changed.`, current.shot)
+  if (!slider) throw new WalkError(`Could not read ${what} in ${kit.app.appName}'s settings. The words for it may have changed.`, current.shot)
   let aim = target
   for (let move = 0; move < MOVES; move += 1) {
     const now = slider.values[thumb]
@@ -97,21 +98,21 @@ async function setThumb(
     const to = Math.min(Math.max(xAt(slider.track, range, aim), slider.track.bounds[0]), slider.track.bounds[2])
     current = await kit.drag({ x: xAt(slider.track, range, now), y }, { x: to, y })
     slider = read(current.screen)
-    if (!slider) throw new WalkError(`${what} went off Tinder's screen while it was being set.`, current.shot)
+    if (!slider) throw new WalkError(`${what} went off ${kit.app.appName}'s screen while it was being set.`, current.shot)
     const landed = slider.values[thumb]
     if (landed === target) return current
     const atEnd = (aim >= range.max && landed < target) || (aim <= range.min && landed > target)
     if (atEnd && landed === now) return current
     aim += target - landed
   }
-  throw new WalkError(`${what} in Tinder reads ${slider.values[thumb]} after ${MOVES} tries to set it to ${target}. Nothing else was changed.`, current.shot)
+  throw new WalkError(`${what} in ${kit.app.appName} reads ${slider.values[thumb]} after ${MOVES} tries to set it to ${target}. Nothing else was changed.`, current.shot)
 }
 
-/** Scrolls Tinder's settings until a slider is on screen. */
-async function scrollTo(kit: WalkKit, seen: Seen, read: (screen: ScreenRead) => SliderRead | null, what: string): Promise<Seen> {
+/** Scrolls the app's settings until a slider is on screen. */
+export async function scrollTo(kit: WalkKit, seen: Seen, read: (screen: ScreenRead) => SliderRead | null, what: string): Promise<Seen> {
   let current = seen
   for (let scrolls = 0; scrolls < SCROLLS && !read(current.screen); scrolls += 1) current = await kit.scroll(current, "up", 600)
-  if (!read(current.screen)) throw new WalkError(`Could not find ${what} in Tinder's settings. The words for it may have changed.`, current.shot)
+  if (!read(current.screen)) throw new WalkError(`Could not find ${what} in ${kit.app.appName}'s settings. The words for it may have changed.`, current.shot)
   return current
 }
 

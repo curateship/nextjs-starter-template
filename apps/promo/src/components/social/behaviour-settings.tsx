@@ -27,6 +27,9 @@ import { clockText, isAwake, nextWakeAt, zoneClockText } from "@/lib/social/waki
 import { accountAgeText, whenText } from "@/lib/social/wording"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
+import { LinkedinBehaviourCard } from "./linkedin/linkedin-behaviour-card"
+import { XBehaviourCard } from "./x/x-behaviour-card"
+
 /**
  * Settings → Behaviour: how every account acts, wherever it runs.
  *
@@ -300,6 +303,10 @@ function BehaviourSettingsPanel() {
             : `An account under ${settings.youngDays} days old may send ${settings.youngPerHour} comments an hour and ${settings.youngPerDay} a day. Past either, Post is refused and says when the next one is allowed. Comments waiting for the account's morning count too. Older accounts only get the warning past ${settings.warnPerHour} in an hour.`}
         </p>
       </CollapsibleSettingsCard>
+
+      <XBehaviourCard profiles={readers.filter((profile) => profile.id !== settings.readerProfileId)} />
+
+      <LinkedinBehaviourCard profiles={readers.filter((profile) => profile.id !== settings.readerProfileId)} />
     </CardGroup>
   )
 }

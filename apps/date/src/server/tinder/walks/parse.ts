@@ -1,9 +1,10 @@
+import { MESSAGE_KIND_WORDS, type MessageKind } from "@/lib/dating/options"
 import type { Bounds } from "@/server/phone/pictures"
-import type { ProfileHandles, ProfileSection } from "../schema"
+import type { ProfileHandles, ProfilePrompt, ProfileSection } from "../schema"
 
+import { TINDER_SCREENS, type AppScreens } from "../app-screens"
 import { findNode, isVisible, nodeWords, screenTexts, type ScreenNode, type ScreenRead } from "../screen"
 import {
-  CHAT_CHROME_LINES,
   DISTANCE_LINE,
   NAME_AGE_LINE,
   SECTION_HEADINGS,
@@ -15,7 +16,8 @@ import {
 /**
  * Turning Tinder's screens into a card, a profile and a conversation. Pure
  * functions of a screen, so each is tested on its own against the screens in
- * `../fixtures/`.
+ * `../fixtures/`. A conversation and the chat list are read the same way on
+ * Facebook Dating, with its own words (`AppScreens`).
  */
 
 export type CardFace = {
@@ -31,8 +33,8 @@ export type CardFace = {
   pass: ScreenNode
 }
 
-function isChrome(line: string): boolean {
-  return TINDER_CHROME_LINES.some((pattern) => pattern.test(line))
+function isChrome(line: string, lines: readonly RegExp[] = TINDER_CHROME_LINES): boolean {
+  return lines.some((pattern) => pattern.test(line))
 }
 
 /** The card in front on the Discover screen, or null when there is no card. */
@@ -120,19 +122,24 @@ export type ParsedProfile = {
   handles: ProfileHandles
 }
 
-const HEADINGS = new Map(SECTION_HEADINGS.map((heading) => [heading.toLowerCase(), heading]))
+/** The headings, the app's own lines and its distance line a profile is laid out by. Tinder's unless an app says otherwise. */
+export type ProfileWords = { headings: readonly string[]; chrome: readonly RegExp[]; distance: RegExp }
+
+const TINDER_PROFILE_WORDS: ProfileWords = { headings: SECTION_HEADINGS, chrome: TINDER_CHROME_LINES, distance: DISTANCE_LINE }
 
 /**
- * A full profile's lines, laid out under Tinder's headings. Lines before the
+ * A full profile's lines, laid out under the app's headings. Lines before the
  * first heading belong to the card itself. Everything is also kept as plain
  * lines, so nothing a heading missed is lost to the AI.
  */
-export function parseProfileLines(cardLines: string[], profileLines: string[]): ParsedProfile {
+export function parseProfileLines(cardLines: string[], profileLines: string[], words: ProfileWords = TINDER_PROFILE_WORDS): ParsedProfile {
+  const headings = new Map(words.headings.map((heading) => [heading.toLowerCase(), heading]))
+  const chrome = (line: string) => words.chrome.some((pattern) => pattern.test(line))
   const sections: ProfileSection[] = []
   let current: ProfileSection | null = null
   for (const line of profileLines) {
-    if (isChrome(line) || DISTANCE_LINE.test(line)) continue
-    const heading = HEADINGS.get(line.trim().toLowerCase())
+    if (chrome(line) || words.distance.test(line)) continue
+    const heading = headings.get(line.trim().toLowerCase())
     if (heading) {
       current = { heading, items: [] }
       sections.push(current)
@@ -142,15 +149,15 @@ export function parseProfileLines(cardLines: string[], profileLines: string[]): 
   }
 
   const section = (heading: string) => sections.find((item) => item.heading === heading)?.items ?? []
-  const allLines = [...cardLines, ...profileLines].filter((line) => !isChrome(line))
+  const allLines = [...cardLines, ...profileLines].filter((line) => !chrome(line))
 
   const aboutMe = section("About me").join("\n")
   const longest = allLines
-    .filter((line) => line.length >= 40 && !DISTANCE_LINE.test(line) && !HEADINGS.has(line.toLowerCase()))
+    .filter((line) => line.length >= 40 && !words.distance.test(line) && !headings.has(line.toLowerCase()))
     .sort((a, b) => b.length - a.length)[0]
 
   const livesInLine = allLines.find((line) => /^lives in\s+/i.test(line))
-  const jobTitle = section("Job title")[0] ?? ""
+  const jobTitle = section("Job title")[0] ?? section("Work")[0] ?? ""
   const company = section("Company")[0] ?? ""
   const jobLine = cardLines.find((line) => /\s(at|@)\s/.test(line) && !/^lives in/i.test(line))
   const schoolLine = cardLines.find((line) => /(university|college|school|academy|institute)/i.test(line))
@@ -167,37 +174,76 @@ export function parseProfileLines(cardLines: string[], profileLines: string[]): 
   return {
     bio: aboutMe || longest || "",
     job: jobTitle ? (company ? `${jobTitle} at ${company}` : jobTitle) : (jobLine ?? (company || "")),
-    school: section("School")[0] ?? schoolLine ?? "",
+    school: section("School")[0] ?? section("Education")[0] ?? schoolLine ?? "",
     livesIn: section("Lives in")[0] ?? livesInLine?.replace(/^lives in\s+/i, "") ?? "",
     sections,
     handles,
   }
 }
 
-export type Bubble = { direction: "in" | "out"; text: string }
+/** The words under one heading of a profile, such as the bio under "About me", or empty. */
+export function sectionText(sections: ProfileSection[], heading: string): string {
+  return sections.find((section) => section.heading === heading)?.items.join("\n") ?? ""
+}
+
+/**
+ * The member's prompts, read from the "Prompts" section of their own
+ * profile: its lines in pairs, Tinder's question and then the answer. A
+ * guess until the edit screen is read on a real phone, like Tinder's labels.
+ */
+export function promptsOf(sections: ProfileSection[]): ProfilePrompt[] {
+  const lines = sections.find((section) => section.heading === "Prompts")?.items ?? []
+  const prompts: ProfilePrompt[] = []
+  for (let index = 0; index < lines.length; index += 2) prompts.push({ question: lines[index], answer: lines[index + 1] ?? "" })
+  return prompts
+}
+
+/** A message on screen. A photo, voice note and the like has words saying what it is, such as "Sent a photo". */
+export type Bubble = { direction: "in" | "out"; text: string; kind?: MessageKind }
+
+/**
+ * A message that is not words, told by its spoken label (part 17 of
+ * "facebook/01"). Only a box at least this share of the screen wide counts,
+ * so the small round picture beside their messages is never taken for one.
+ */
+const MEDIA_LABELS: Array<{ kind: Exclude<MessageKind, "text">; pattern: RegExp }> = [
+  { kind: "voice", pattern: /voice (message|note|clip)|audio/i },
+  { kind: "video", pattern: /^video\b|video message/i },
+  { kind: "gif", pattern: /\bgif\b/i },
+  { kind: "sticker", pattern: /sticker/i },
+  { kind: "photo", pattern: /photo|image|picture/i },
+]
+const MEDIA_MIN_WIDTH = 0.15
 
 /**
  * The messages on a conversation screen, oldest at the top. Theirs sit on
  * the left and ours on the right, which is how they are told apart. Times,
- * "Sent" and "Seen" are Tinder's, not a message.
+ * "Sent" and "Seen" are the app's, not a message. A photo, voice note,
+ * sticker, video or GIF is kept as one, with words saying which.
  */
-export function readBubbles(screen: ScreenRead, input: ScreenNode | null): Bubble[] {
+export function readBubbles(screen: ScreenRead, input: ScreenNode | null, app: AppScreens, skip: (line: string) => boolean = () => false): Bubble[] {
   const top = Math.round(screen.screenHeight * 0.1)
   const bottom = input ? input.bounds[1] : Math.round(screen.screenHeight * 0.88)
   const bubbles: Bubble[] = []
   for (const node of screen.nodes) {
-    if (!isVisible(node, screen) || !node.text.trim() || node.edit) continue
+    if (!isVisible(node, screen) || node.edit) continue
     if (node.bounds[1] < top || node.bounds[3] > bottom) continue
-    const text = node.text.trim()
-    if (CHAT_CHROME_LINES.some((pattern) => pattern.test(text))) continue
     const middle = (node.bounds[0] + node.bounds[2]) / 2
-    bubbles.push({ direction: middle >= screen.screenWidth / 2 ? "out" : "in", text })
+    const direction = middle >= screen.screenWidth / 2 ? "out" : "in"
+    const text = node.text.trim()
+    if (!text) {
+      const media = node.desc.trim() && node.bounds[2] - node.bounds[0] >= screen.screenWidth * MEDIA_MIN_WIDTH ? MEDIA_LABELS.find((label) => label.pattern.test(node.desc)) : undefined
+      if (media) bubbles.push({ direction, text: MESSAGE_KIND_WORDS[media.kind], kind: media.kind })
+      continue
+    }
+    if (app.chatChromeLines.some((pattern) => pattern.test(text)) || skip(text)) continue
+    bubbles.push({ direction, text })
   }
   return bubbles
 }
 
 function sameBubble(a: Bubble, b: Bubble): boolean {
-  return a.direction === b.direction && a.text === b.text
+  return a.direction === b.direction && a.text === b.text && (a.kind ?? "text") === (b.kind ?? "text")
 }
 
 /**
@@ -225,11 +271,13 @@ export type ChatRow = { name: string; preview: string; node: ScreenNode; avatar:
 /**
  * The chat list: the row of new matches across the top, which have no
  * messages yet, and the list of conversations under "Messages", each a name
- * and its last line.
+ * and its last line. Facebook Dating's Matches tab is laid out the same way,
+ * under its own headings.
  */
-export function readChatList(screen: ScreenRead): ChatRow[] {
-  const newHeading = findNode(screen, TINDER_WORDS.newMatchesHeading)
-  const messagesHeading = findNode(screen, TINDER_WORDS.messagesHeading)
+export function readChatList(screen: ScreenRead, app: AppScreens = TINDER_SCREENS): ChatRow[] {
+  const newHeading = findNode(screen, app.words.newMatchesHeading)
+  const messagesHeading = findNode(screen, app.words.messagesHeading)
+  const chrome = (line: string) => isChrome(line, app.chromeLines)
   const rows: ChatRow[] = []
   const visible = screen.nodes.filter((node) => isVisible(node, screen) && nodeWords(node))
 
@@ -238,7 +286,7 @@ export function readChatList(screen: ScreenRead): ChatRow[] {
     for (const node of visible) {
       if (node === newHeading || !node.text.trim()) continue
       if (node.bounds[1] <= newHeading.bounds[3] || node.bounds[3] > bandBottom) continue
-      if (isChrome(node.text) || /^\d+\+?$/.test(node.text.trim())) continue
+      if (chrome(node.text) || /^\d+\+?$/.test(node.text.trim())) continue
       const width = node.bounds[2] - node.bounds[0]
       // The picture sits right above the name, as wide as the name's column.
       const avatar: Bounds = [node.bounds[0], Math.max(newHeading.bounds[3], node.bounds[1] - width), node.bounds[2], node.bounds[1]]
@@ -251,7 +299,7 @@ export function readChatList(screen: ScreenRead): ChatRow[] {
     // Lines that share a row's height belong to one conversation: the name, then its last line.
     const used = new Set<ScreenNode>()
     for (const node of below) {
-      if (used.has(node) || isChrome(node.text)) continue
+      if (used.has(node) || chrome(node.text)) continue
       const rowTop = node.bounds[1]
       const rowBottom = rowTop + (node.bounds[3] - node.bounds[1]) * 3
       const preview = below.find(

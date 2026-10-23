@@ -14,6 +14,7 @@ import {
   DISTANCE_TRACK,
   EDIT_TILES,
   editProfile,
+  promptEditor,
   fullProfile,
   HEIGHT,
   homeScreen,
@@ -33,6 +34,7 @@ import {
   type FakeCard,
   type FakeChat,
   type FakeDiscovery,
+  type FakeEdit,
 } from "./screens"
 
 /**
@@ -54,6 +56,7 @@ type Screen =
   | "confirm"
   | "profile-tab"
   | "edit"
+  | "prompt"
   | "verification"
   | "signed-out"
   | "super-out"
@@ -66,7 +69,12 @@ export type FakeTinderSetup = {
   superLikesLeft?: number
   /** Tinder's own distance and ages, as its settings screen shows them. */
   discovery?: FakeDiscovery
-  me?: { name: string; age: number; photos: number; pages: string[][] }
+  /** The member's own profile: how many photos, each drawn differently, and the words on the edit screen. */
+  me?: { name: string; age: number; photos: number; bio?: string; prompts?: FakeEdit["prompts"]; sections?: FakeEdit["sections"] }
+  /** A dragged photo swaps places with the one it is dropped on, instead of being put in front of it. */
+  photoDragSwaps?: boolean
+  /** Done on the edit screen leaves it without saving anything. */
+  editsNotSaved?: boolean
   installed?: boolean
   signedIn?: boolean
   verificationWall?: boolean
@@ -101,6 +109,12 @@ export class FakeTinder {
   chatScroll = 0
   editPage = 0
   typed = ""
+  /** The member's own profile as saved on Tinder. Photos are numbers, each drawn differently. */
+  mine: FakeEdit
+  /** What the edit screen holds before Done. */
+  editing: FakeEdit
+  openPrompt = -1
+  promptTyped = ""
   likesLeft: number
   superLikesLeft: number
   discovery: FakeDiscovery
@@ -127,6 +141,18 @@ export class FakeTinder {
     if (setup.signedIn === false) this.screen = "signed-out"
     if (setup.verificationWall) this.screen = "verification"
     if (setup.otherAppInFront) this.foreground = setup.otherAppInFront
+    const me = setup.me
+    this.mine = {
+      photos: Array.from({ length: me?.photos ?? 0 }, (_, index) => index),
+      bio: me?.bio ?? "",
+      prompts: (me?.prompts ?? []).map((prompt) => ({ ...prompt })),
+      sections: me?.sections ?? [],
+    }
+    this.editing = this.copyOfMine()
+  }
+
+  private copyOfMine(): FakeEdit {
+    return { ...this.mine, photos: [...this.mine.photos], prompts: this.mine.prompts.map((prompt) => ({ ...prompt })) }
   }
 
   get card(): FakeCard | undefined {
@@ -159,7 +185,9 @@ export class FakeTinder {
       case "profile-tab":
         return profileTab(this.setup.me?.name ?? "Tyler", this.setup.me?.age ?? 30)
       case "edit":
-        return editProfile(this.setup.me?.photos ?? 0, this.editPage, this.setup.me?.pages ?? [])
+        return editProfile(this.editing, this.editPage)
+      case "prompt":
+        return promptEditor(this.editing.prompts[this.openPrompt]?.question ?? "", this.promptTyped)
       case "verification":
         return verificationWall()
       case "signed-out":
@@ -194,7 +222,7 @@ export class FakeTinder {
       }
     }
     if (this.foreground === "com.tinder" && this.screen === "edit" && this.editPage === 0) {
-      EDIT_TILES.slice(0, this.setup.me?.photos ?? 0).forEach((bounds, index) => box(bounds, 50 + index * 40, index * 3))
+      this.editing.photos.forEach((photo, index) => box(EDIT_TILES[index], 50 + photo * 40, photo * 3))
     }
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH * SCALE}" height="${HEIGHT * SCALE}"><rect width="100%" height="100%" fill="rgb(230,230,230)"/>${shapes.join("")}</svg>`
     return (await sharp(Buffer.from(svg)).jpeg({ quality: 90 }).toBuffer()).toString("base64")
@@ -301,6 +329,19 @@ export class FakeTinder {
     } else if (tag === "edit-profile") {
       this.screen = "edit"
       this.editPage = 0
+      this.editing = this.copyOfMine()
+    } else if (tag === "edit-done") {
+      if (!this.setup.editsNotSaved) this.mine = this.editing
+      this.editing = this.copyOfMine()
+      this.screen = "profile-tab"
+    } else if (tag.startsWith("prompt:")) {
+      this.openPrompt = Number(tag.slice("prompt:".length))
+      this.promptTyped = this.editing.prompts[this.openPrompt]?.answer ?? ""
+      this.screen = "prompt"
+    } else if (tag === "prompt-done") {
+      const prompt = this.editing.prompts[this.openPrompt]
+      if (prompt) prompt.answer = this.promptTyped
+      this.screen = "edit"
     } else if (tag === "back") {
       this.back()
     }
@@ -310,7 +351,11 @@ export class FakeTinder {
     if (this.screen === "profile") this.screen = "discover"
     else if (this.screen === "conversation") this.screen = "chats"
     else if (this.screen === "menu" || this.screen === "confirm") this.screen = "conversation"
-    else if (this.screen === "edit") this.screen = "profile-tab"
+    else if (this.screen === "edit") {
+      // Back leaves without saving.
+      this.editing = this.copyOfMine()
+      this.screen = "profile-tab"
+    } else if (this.screen === "prompt") this.screen = "edit"
     else if (this.screen === "match") this.screen = "discover"
     else if (this.screen === "super-out") this.screen = "discover"
     else if (this.screen === "settings") this.screen = "profile-tab"
@@ -328,6 +373,20 @@ export class FakeTinder {
       // The thumbs never pass each other.
       if (Math.abs(x1 - at(this.discovery.ageMin)) <= Math.abs(x1 - at(this.discovery.ageMax))) this.discovery.ageMin = Math.min(value, this.discovery.ageMax)
       else this.discovery.ageMax = Math.max(value, this.discovery.ageMin)
+    }
+  }
+
+  /** A photo long-pressed on one tile and let go on another: put in front of it, or swapped with it. */
+  private movePhoto(from: string | undefined, to: string | undefined) {
+    if (!from?.startsWith("tile:") || !to?.startsWith("tile:")) return
+    const a = Number(from.slice(5))
+    const b = Number(to.slice(5))
+    const photos = this.editing.photos
+    if (this.setup.photoDragSwaps) {
+      ;[photos[a], photos[b]] = [photos[b], photos[a]]
+    } else {
+      const [moved] = photos.splice(a, 1)
+      photos.splice(b, 0, moved)
     }
   }
 
@@ -356,7 +415,11 @@ export class FakeTinder {
         const up = Number(payload.y2) < Number(payload.y1)
         if (this.screen === "profile" && up) this.profilePage += 1
         if (this.screen === "chats") this.chatPage = up ? this.chatPage + 1 : Math.max(this.chatPage - 1, 0)
-        if (this.screen === "edit" && up) this.editPage += 1
+        if (this.screen === "edit" && Number(payload.holdMs) > 0) {
+          this.movePhoto(this.tagAt(Number(payload.x1), Number(payload.y1)), this.tagAt(Number(payload.x2), Number(payload.y2)))
+          return this.answer({ done: true }, thenRead)
+        }
+        if (this.screen === "edit") this.editPage = up ? this.editPage + 1 : Math.max(this.editPage - 1, 0)
         if (this.screen === "conversation" && !up) {
           const chat = this.chats[this.openChat]
           if (chat && (this.chatScroll + 1) * 4 < chat.bubbles.length) this.chatScroll += 1
@@ -365,8 +428,10 @@ export class FakeTinder {
       }
       case "type": {
         const tag = typeof payload.node === "string" ? this.lastTags.get(payload.node) : undefined
-        if (tag !== "input") throw new Error("The phone found no box to type into.")
-        this.typed = String(payload.text)
+        if (tag === "input") this.typed = String(payload.text)
+        else if (tag === "bio") this.editing.bio = String(payload.text)
+        else if (tag === "prompt-answer") this.promptTyped = String(payload.text)
+        else throw new Error("The phone found no box to type into.")
         return this.answer({ done: true }, thenRead)
       }
       case "back":
@@ -375,6 +440,9 @@ export class FakeTinder {
       case "home":
         this.foreground = "home"
         return this.answer({ done: true }, thenRead)
+      case "close-app":
+        this.foreground = "home"
+        return this.answer({ closed: true }, thenRead)
     }
   }
 }

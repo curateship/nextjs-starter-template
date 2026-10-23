@@ -17,6 +17,7 @@ const FONT_FILES: Record<TextFontId, string> = {
   "playfair-display": "PlayfairDisplay-SemiBold.ttf",
   "space-grotesk": "SpaceGrotesk-SemiBold.ttf",
   caveat: "Caveat-SemiBold.ttf",
+  anton: "Anton-Regular.ttf",
 }
 
 /**

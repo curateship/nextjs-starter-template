@@ -23,6 +23,8 @@ import {
 } from "@/server/social/projects"
 import { setProjectNetworkPaused, setProjectPaused } from "@/server/social/pause"
 import { readMediumCounts } from "@/server/social/medium/module"
+import { readLinkedinCounts } from "@/server/social/linkedin/module"
+import { readXCounts } from "@/server/social/x/module"
 import {
   listPromoThreads,
   queuePromoThreadReads,
@@ -102,9 +104,20 @@ const viewFn = createServerFn({ method: "GET" })
     const actor = await actorFor(context.caller, data.projectId)
     const view = await readProjectView(actor.userId, data.projectId)
     if (actor.guest) return guestProjectView(view, data.projectId)
-    if (!view.project.networks.includes("medium")) return view
-    const counts = await readMediumCounts(actor.userId, data.projectId)
-    return { ...view, networkCounts: { medium: counts.strong + counts.toAnswer } }
+    const networkCounts: ProjectView["networkCounts"] = {}
+    if (view.project.networks.includes("medium")) {
+      const counts = await readMediumCounts(actor.userId, data.projectId)
+      networkCounts.medium = counts.strong + counts.toAnswer
+    }
+    if (view.project.networks.includes("x")) {
+      const counts = await readXCounts(actor.userId, data.projectId)
+      networkCounts.x = counts.strong + counts.toAnswer
+    }
+    if (view.project.networks.includes("linkedin")) {
+      const counts = await readLinkedinCounts(actor.userId, data.projectId)
+      networkCounts.linkedin = counts.strong + counts.toAnswer + counts.invites
+    }
+    return Object.keys(networkCounts).length ? { ...view, networkCounts } : view
   })
 
 /** One project with its accounts, best to comment from first, and what the queue is doing. */

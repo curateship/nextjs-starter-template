@@ -7,9 +7,15 @@ edited where it stands, with no settings screen.
 
 ## Using it
 
-- **Editing is off until you turn it on.** The cog at the bottom right of the
-  menu opens a dropdown, and its "Edit the menu" item switches editing on and
-  off, with a tick while it is on. The cog is a dropdown so Personal's other
+- **Editing is off until you turn it on.** Two switches do it. The pencil at
+  the right end of the logo row shows when the row is hovered (Tyler, 22 Oct
+  2026: "Add an icon on hover over here ... that when I click, I enable tab
+  editing"). While editing is on, the pencil stays shown, filled in dark,
+  and a second click turns editing off. The cog at the bottom right of the
+  menu does the same with its "Edit the menu" item, which has a tick while
+  editing is on. The pencil is `src/components/sidebar.tsx`. The UI rules say
+  a cog for edit, but the logo row's cog already opens its name and logo
+  form, so Tyler picked a pencil to keep the two apart. The cog is a dropdown so Personal's other
   admin controls can join it later. Off, the menu shows only its sections and
   links: no Add link, no Add section (its row at the bottom of the menu goes
   too), no drag handles and no link cogs. Tyler asked for this on 16 Oct
@@ -61,8 +67,9 @@ edited where it stands, with no settings screen.
   focusing the edge and pressing the left and right arrow keys, 8 pixels a
   press. It runs from 144 to 420 pixels and starts at 218, Custom Shell's
   numbers. The width is saved to the menu file once the drag ends, or half a
-  second after the last arrow press, so every browser gets it. Unlike Custom
-  Shell, clicking the edge does not fold the menu away.
+  second after the last arrow press, so every browser gets it. Clicking the
+  edge folds the menu to its icons, as in Custom Shell (see "Fold the menu
+  to icons" below). A press that moves under 3 pixels counts as a click.
 - **Make the menu lighter or darker** with the cog at the bottom, "Menu
   shade", which opens a slider. It changes the menu as it moves. It goes 10
   steps each way, and the cog's row says where it stands, such as "3 lighter".
@@ -80,6 +87,36 @@ edited where it stands, with no settings screen.
     `src/app.tsx`. `src/theme.css` is Custom Shell's and is not changed, and
     the slider is Custom Shell's `src/components/ui/slider.tsx`, copied over
     unchanged.
+- **Fold the menu to icons.** Tyler asked for it on 22 Oct 2026: "Add
+  ability to collapse the sidebar to only show the icons like how normal app
+  does it".
+  - **Three ways to fold it:** the fold button that shows next to the pencil
+    when the logo row is hovered, a click on the menu's right edge, or a
+    double-click on the empty space under the links. Enter or Space on the
+    focused edge does it too.
+  - **Folded, the menu is 48 pixels wide**, Custom Shell's 3rem. It shows
+    Pinned, then each section's links, then the links at the bottom, each as
+    its icon with its name in a tooltip. A link with no icon shows its first
+    letter. Section names and sub-links hide. A link stays marked while one of
+    its sub-links is open.
+  - **The bottom row keeps only the cog**, Tyler's pick. Back, Forward and
+    Reload come back when the menu unfolds. A save under way shows as a
+    spinner. A failed save shows as a red mark, whose tooltip gives the reason
+    and whose click tries again.
+  - **To unfold it,** hover the logo and click: the logo turns into the
+    unfold button. A click on the edge or a double-click on the empty space
+    unfolds it too. Folded, the logo no longer goes home.
+  - **Editing unfolds it.** Turning on "Edit the menu" in the cog opens the
+    menu again, since the folded menu has no room for the edit controls.
+  - **A folded menu doesn't resize.** The edge only unfolds it.
+  - **Only beside the page.** Under 768 pixels wide the menu opens over the
+    page, and it always opens whole there. The fold button doesn't show.
+  - **This browser remembers it**, under `personal-sidebar` in localStorage,
+    so another browser keeps its own choice. With storage blocked, the fold
+    lasts until the reload.
+  - **Code:** `src/components/folded-sidebar.tsx`, the fold state in
+    `src/app.tsx`, the edge in `src/components/sidebar-resize-handle.tsx`,
+    and what counts as empty space in `src/lib/blank-space.ts`.
 - **Hovering the edge draws no line**, only the resize pointer. Tyler had the
   thick hover line taken out on 18 Oct 2026. Focusing the edge with Tab still
   draws it, so the keyboard can see where it is.

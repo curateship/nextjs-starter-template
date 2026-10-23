@@ -10,6 +10,8 @@ import { WRITE_JOB_KINDS, type JobKind, type JobStatus } from "@/lib/social/opti
 import { readBrowserProgram, type BrowserProgramState } from "./browser-program"
 import { JOB_MAX_ATTEMPTS } from "./jobs"
 import { promoAccounts, promoComments, promoFinds, promoJobs, promoKeywords, promoProjects } from "./schema"
+import { takeBackLinkedinJob } from "./linkedin/settle"
+import { takeBackXJob } from "./x/settle"
 
 /**
  * The browser program's queue, for the Jobs dashboard: what is running,
@@ -273,7 +275,12 @@ export async function cancelJobs(
   const removed = await db
     .delete(promoJobs)
     .where(and(eq(promoJobs.userId, userId), inArray(promoJobs.id, ids), eq(promoJobs.status, "queued")))
-    .returning({ id: promoJobs.id })
+    .returning({ id: promoJobs.id, kind: promoJobs.kind })
+  // An X or LinkedIn write made its row before its job, so the row is taken back too.
+  for (const job of removed) {
+    await takeBackXJob(job, db)
+    await takeBackLinkedinJob(job, db)
+  }
   const done = new Set(removed.map((row) => row.id))
   return { completed: [...done], skipped: ids.filter((id) => !done.has(id)) }
 }

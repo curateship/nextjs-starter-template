@@ -9,7 +9,8 @@ import { cancelPhoneActions, phoneIsHere } from "@/server/phone/link"
 import { deletePictures } from "@/server/phone/pictures"
 import { datePhones } from "@/server/phone/schema"
 import { customShellSavedViews } from "@/server/schema"
-import { cancelWalks } from "@/server/tinder/jobs"
+import { appHasWalk, cancelProfileWalks, queueWalk } from "@/server/tinder/jobs"
+import { swipeLimits } from "@/server/tinder/limits"
 import { dateMatches, dateOwnProfiles, dateProfiles } from "@/server/tinder/schema"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
@@ -102,12 +103,15 @@ export async function createAccount(
   const name = input.name.trim().replace(/\s+/g, " ")
   if (!name) throw new Error("Give the profile a name.")
   if (name.length > PROFILE_NAME_MAX) throw new Error(`A profile's name is at most ${PROFILE_NAME_MAX} letters.`)
-  if (!DATING_APP_WORDS[input.app].ready) throw new Error(`${DATING_APP_WORDS[input.app].name} isn't ready yet. Date runs Tinder only for now.`)
+  if (!DATING_APP_WORDS[input.app].ready) throw new Error(`${DATING_APP_WORDS[input.app].name} isn't ready yet. Date runs Tinder and Facebook Dating for now.`)
   const [account] = await db
     .insert(dateAccounts)
     .values({ id: uuid(), userId: from.userId, workspaceId: from.workspaceId, app: input.app, name, createdAt: now, updatedAt: now })
     .returning()
-  const settings = await readDatingSettings(from.id, db)
+  const copied = await readDatingSettings(from.id, db)
+  // Facebook Dating starts at its own pace, 50 a day and 20 an hour (task "facebook/01", part 4).
+  const limits = swipeLimits(input.app, copied)
+  const settings = { ...copied, swipesPerDay: limits.perDay, swipesPerHour: limits.perHour }
   // Copied straight, not through the settings check: the new profile has no
   // phone yet, so its hours can clash with nobody.
   await db.insert(dateSettings).values({ accountId: account.id, userId: account.userId, workspaceId: account.workspaceId, values: settings, updatedAt: now })
@@ -127,21 +131,29 @@ const PAUSED_WORDS = "The profile was paused."
 
 /**
  * Pause stops a profile's swiping, replies and AI calls until Resume: the
- * background pass skips it, its phone's loop stops, and what is waiting on
- * the phone is called off. Resume starts nothing by itself; the schedule or
+ * background pass skips it, its loop stops, and its walks waiting on the
+ * phone are called off. Resume starts nothing by itself; the schedule or
  * Start does.
+ *
+ * On Facebook Dating, Pause also turns on Dating's own break so nobody sees
+ * the profile while Date isn't answering, and Resume turns it off (part 22 of
+ * "facebook/01", Tyler's "Yes, both ways"). The phone reads the switch back;
+ * a break it could not set shows as a failed walk in the Phone panel.
  */
 export async function setAccountPaused(account: DatingAccount, paused: boolean, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
   await db
     .update(dateAccounts)
-    .set({ pausedAt: paused ? now : null, updatedAt: now })
+    .set({ pausedAt: paused ? now : null, ...(paused ? { running: false, stopWhy: PAUSED_WORDS, stopWhyAt: now } : {}), updatedAt: now })
     .where(eq(dateAccounts.id, account.id))
-  if (!paused || !account.phoneId) return
-  await db
-    .update(datePhones)
-    .set({ running: false, stopWhy: PAUSED_WORDS, stopWhyAt: now, updatedAt: now })
-    .where(eq(datePhones.id, account.phoneId))
-  await cancelWalks(account.phoneId, `${PAUSED_WORDS} Nothing was done.`, db, now)
+  if (!account.phoneId) return
+  if (paused) await cancelProfileWalks(account.id, `${PAUSED_WORDS} Nothing was done.`, db, now)
+  if (!appHasWalk(account.app, "set-break")) return
+  try {
+    await queueWalk({ userId: account.userId, accountId: account.id, phoneId: account.phoneId, kind: "set-break", input: { on: paused }, askedBy: "member" }, db, now)
+  } catch (error) {
+    // Paused all the same on Date's side: the Phone panel shows the break as not set.
+    console.error(`Facebook Dating's break could not be put on phone ${account.phoneId}'s list`, error)
+  }
 }
 
 /** What Delete takes with it, for the confirm's words. */
@@ -165,16 +177,17 @@ export async function accountCounts(accountId: string, db: CustomShellDb = defau
  * opens their first profile, or a new one when this was the last.
  */
 export async function deleteAccount(account: DatingAccount, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
-  const [cards, chats, own, phone] = await Promise.all([
-    db.select({ photoIds: dateProfiles.photoIds }).from(dateProfiles).where(eq(dateProfiles.accountId, account.id)),
+  const [cards, chats, own] = await Promise.all([
+    db.select({ photoIds: dateProfiles.photoIds, instagramPhotoIds: dateProfiles.instagramPhotoIds }).from(dateProfiles).where(eq(dateProfiles.accountId, account.id)),
     db.select({ photoId: dateMatches.photoId }).from(dateMatches).where(eq(dateMatches.accountId, account.id)),
     db.select({ photoIds: dateOwnProfiles.photoIds }).from(dateOwnProfiles).where(eq(dateOwnProfiles.accountId, account.id)),
-    account.phoneId ? db.select({ stoppedPictureId: datePhones.stoppedPictureId }).from(datePhones).where(eq(datePhones.id, account.phoneId)) : Promise.resolve([]),
   ])
+  // The stop screen's picture is the profile's own and goes with it.
   const pictures = new Set([
-    ...cards.flatMap((card) => card.photoIds),
+    ...cards.flatMap((card) => [...card.photoIds, ...card.instagramPhotoIds]),
     ...chats.flatMap((chat) => (chat.photoId ? [chat.photoId] : [])),
     ...own.flatMap((row) => row.photoIds),
+    ...(account.stoppedPictureId ? [account.stoppedPictureId] : []),
   ])
 
   await db.delete(dateAccounts).where(eq(dateAccounts.id, account.id))
@@ -187,8 +200,6 @@ export async function deleteAccount(account: DatingAccount, db: CustomShellDb = 
     if (!shared) {
       await cancelPhoneActions(account.phoneId, "The profile was deleted.", db, now)
       await db.delete(datePhones).where(eq(datePhones.id, account.phoneId))
-      // The stop screen's picture goes with the phone; a phone that stays keeps it.
-      for (const row of phone) if (row.stoppedPictureId) pictures.add(row.stoppedPictureId)
     }
   }
 
@@ -210,11 +221,14 @@ async function deleteUnshownPictures(userId: string, ids: string[], db: CustomSh
   if (!ids.length) return
   const asked = sql`array(select jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb))`
   const [stillCards, stillChats, stillOwn] = await Promise.all([
-    db.select({ photoIds: dateProfiles.photoIds }).from(dateProfiles).where(and(eq(dateProfiles.userId, userId), sql`${dateProfiles.photoIds} ?| ${asked}`)),
+    db
+      .select({ photoIds: dateProfiles.photoIds, instagramPhotoIds: dateProfiles.instagramPhotoIds })
+      .from(dateProfiles)
+      .where(and(eq(dateProfiles.userId, userId), sql`(${dateProfiles.photoIds} ?| ${asked} or ${dateProfiles.instagramPhotoIds} ?| ${asked})`)),
     db.select({ photoId: dateMatches.photoId }).from(dateMatches).where(and(eq(dateMatches.userId, userId), sql`${dateMatches.photoId} = any(${asked})`)),
     db.select({ photoIds: dateOwnProfiles.photoIds }).from(dateOwnProfiles).where(eq(dateOwnProfiles.userId, userId)),
   ])
-  const shown = new Set([...stillCards.flatMap((row) => row.photoIds), ...stillChats.map((row) => row.photoId), ...stillOwn.flatMap((row) => row.photoIds)])
+  const shown = new Set([...stillCards.flatMap((row) => [...row.photoIds, ...row.instagramPhotoIds]), ...stillChats.map((row) => row.photoId), ...stillOwn.flatMap((row) => row.photoIds)])
   await deletePictures(
     ids.filter((id) => !shown.has(id)),
     db

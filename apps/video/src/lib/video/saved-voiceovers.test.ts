@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { DEFAULT_CAPTION_LOOK } from "@/lib/video/caption-look"
+import { DEFAULT_CAPTION_SETTINGS } from "@/lib/video/caption-look"
 import {
   readSavedCaptions,
   VOICEOVER_NO_ROOM_MESSAGE,
@@ -8,6 +8,8 @@ import {
   voiceoverName,
   voiceoverRefusal,
 } from "@/lib/video/saved-voiceovers"
+
+const PLACEMENT = { ...DEFAULT_CAPTION_SETTINGS, aspect: "9:16" as const }
 
 const voiceover = {
   mediaId: "media-1",
@@ -30,7 +32,7 @@ const voiceover = {
 
 describe("voiceoverClips", () => {
   it("starts the sound at the playhead and moves every caption with it", () => {
-    const { audio, captions } = voiceoverClips(voiceover, 5000, DEFAULT_CAPTION_LOOK)
+    const { audio, captions } = voiceoverClips(voiceover, 5000, PLACEMENT)
 
     expect(audio).toMatchObject({
       kind: "audio",
@@ -47,26 +49,26 @@ describe("voiceoverClips", () => {
   })
 
   it("keeps each word's time measured from its own caption", () => {
-    const { captions } = voiceoverClips(voiceover, 5000, DEFAULT_CAPTION_LOOK)
+    const { captions } = voiceoverClips(voiceover, 5000, PLACEMENT)
     expect(captions[0]).toMatchObject({
       wordTimes: [
         { startMs: 0, endMs: 500 },
         { startMs: 500, endMs: 1200 },
       ],
     })
-    expect(captions[1]).toMatchObject({ wordTimes: undefined })
+    expect(captions[1].wordTimes).toBeUndefined()
   })
 
   it("lands at a whole millisecond, never before the start", () => {
-    expect(voiceoverClips(voiceover, 1234.6, DEFAULT_CAPTION_LOOK).audio.startMs).toBe(1235)
-    expect(voiceoverClips(voiceover, -40, DEFAULT_CAPTION_LOOK).audio.startMs).toBe(0)
+    expect(voiceoverClips(voiceover, 1234.6, PLACEMENT).audio.startMs).toBe(1235)
+    expect(voiceoverClips(voiceover, -40, PLACEMENT).audio.startMs).toBe(0)
   })
 
   it("brings no captions when none were kept", () => {
     const { captions } = voiceoverClips(
       { ...voiceover, captions: [] },
       0,
-      DEFAULT_CAPTION_LOOK
+      PLACEMENT
     )
     expect(captions).toEqual([])
   })

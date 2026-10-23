@@ -28,6 +28,30 @@ vi.mock("@/lib/api/social/behaviour", () => ({
   getBehaviourErrorMessage: (error: unknown) => (error instanceof Error ? error.message : "failed"),
 }))
 
+const xApi = vi.hoisted(() => ({
+  loadXBehaviour: vi.fn(),
+  saveXBehaviour: vi.fn(),
+  changeXSearcher: vi.fn(),
+}))
+vi.mock("@/lib/api/social/x", () => ({
+  ...xApi,
+  getXErrorMessage: (error: unknown) => (error instanceof Error ? error.message : "failed"),
+}))
+
+const X_START = { repliesPerDay: 100, repliesPerHour: 10, viewsPerDay: 500, followsPerDay: 5 }
+
+const linkedinApi = vi.hoisted(() => ({
+  loadLinkedinBehaviour: vi.fn(),
+  saveLinkedinBehaviour: vi.fn(),
+  changeLinkedinSearcher: vi.fn(),
+}))
+vi.mock("@/lib/api/social/linkedin", () => ({
+  ...linkedinApi,
+  getLinkedinErrorMessage: (error: unknown) => (error instanceof Error ? error.message : "failed"),
+}))
+
+const LINKEDIN_START = { commentsPerDay: 20, viewsPerDay: 300, connectsPerWeek: 20 }
+
 import BehaviourSettingsPanel from "./behaviour-settings"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
@@ -86,6 +110,14 @@ describe("Settings → Behaviour", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     api.loadBehaviour.mockReset()
     api.saveBehaviourFn.mockReset()
+    xApi.loadXBehaviour.mockReset()
+    xApi.saveXBehaviour.mockReset()
+    xApi.changeXSearcher.mockReset()
+    xApi.loadXBehaviour.mockResolvedValue({ searchers: [], settings: X_START })
+    linkedinApi.loadLinkedinBehaviour.mockReset()
+    linkedinApi.saveLinkedinBehaviour.mockReset()
+    linkedinApi.changeLinkedinSearcher.mockReset()
+    linkedinApi.loadLinkedinBehaviour.mockResolvedValue({ searchers: [], settings: LINKEDIN_START })
     toasts.shown.length = 0
     container = document.createElement("div")
     document.body.appendChild(container)
@@ -158,5 +190,94 @@ describe("Settings → Behaviour", () => {
 
     expect(toasts.shown).toEqual(["Waking hours have to start and end at different times."])
     expect(container.textContent).not.toContain("Off. Accounts may comment from their first day.")
+  })
+
+  it("lists X's search accounts with their views today, and says when there is none", async () => {
+    api.loadBehaviour.mockResolvedValue(view())
+    xApi.loadXBehaviour.mockResolvedValue({
+      searchers: [
+        {
+          id: "s1",
+          profileId: "p9",
+          profileName: "X reader 1",
+          handle: "quiet_reader",
+          viewsToday: 312,
+          viewsPerDay: 500,
+          stoppedReason: "",
+          lastUsedAt: null,
+        },
+      ],
+      settings: X_START,
+    })
+    await render()
+
+    const text = container.textContent ?? ""
+    expect(text).toContain("X reader 1 · signed in as @quiet_reader")
+    expect(text).toContain("312 of 500 views today")
+    expect(text).toContain("A young X account may send 10 an hour and 100 a day.")
+    expect(text).not.toContain("There is no X search account")
+  })
+
+  it("saves X's numbers 700ms after one is typed, with no Save button", async () => {
+    api.loadBehaviour.mockResolvedValue(view())
+    xApi.saveXBehaviour.mockImplementation(async (settings) => settings)
+    await render()
+    expect(container.textContent).toContain("There is no X search account, so nothing on X is read")
+
+    type("promo-x-viewsPerDay", "300")
+    expect(xApi.saveXBehaviour).not.toHaveBeenCalled()
+    await act(async () => {
+      vi.advanceTimersByTime(700)
+      await Promise.resolve()
+    })
+
+    expect(xApi.saveXBehaviour).toHaveBeenCalledTimes(1)
+    expect(xApi.saveXBehaviour.mock.calls[0][0]).toEqual({ ...X_START, viewsPerDay: 300 })
+    expect(container.textContent).toContain("Each search account sees up to 300 posts a day")
+  })
+
+  it("lists LinkedIn's search accounts with their views today, and shows the workday hours", async () => {
+    api.loadBehaviour.mockResolvedValue(view())
+    linkedinApi.loadLinkedinBehaviour.mockResolvedValue({
+      searchers: [
+        {
+          id: "l1",
+          profileId: "p8",
+          profileName: "LinkedIn reader 1",
+          slug: "quiet-reader",
+          viewsToday: 120,
+          viewsPerDay: 300,
+          stoppedReason: "",
+          lastUsedAt: null,
+        },
+      ],
+      settings: LINKEDIN_START,
+    })
+    await render()
+
+    const text = container.textContent ?? ""
+    expect(text).toContain("LinkedIn reader 1 · signed in as in/quiet-reader")
+    expect(text).toContain("120 of 300 views today")
+    expect(text).toContain("A young LinkedIn account may send 20 a day.")
+    expect(text).toContain("Weekdays, 8:00 to 18:00 on the account's own clock")
+    expect(text).not.toContain("There is no LinkedIn search account")
+  })
+
+  it("saves LinkedIn's numbers 700ms after one is typed, with no Save button", async () => {
+    api.loadBehaviour.mockResolvedValue(view())
+    linkedinApi.saveLinkedinBehaviour.mockImplementation(async (settings) => settings)
+    await render()
+    expect(container.textContent).toContain("There is no LinkedIn search account, so nothing on LinkedIn is read")
+
+    type("promo-linkedin-connectsPerWeek", "15")
+    expect(linkedinApi.saveLinkedinBehaviour).not.toHaveBeenCalled()
+    await act(async () => {
+      vi.advanceTimersByTime(700)
+      await Promise.resolve()
+    })
+
+    expect(linkedinApi.saveLinkedinBehaviour).toHaveBeenCalledTimes(1)
+    expect(linkedinApi.saveLinkedinBehaviour.mock.calls[0][0]).toEqual({ ...LINKEDIN_START, connectsPerWeek: 15 })
+    expect(container.textContent).toContain("sends up to 15 connection requests a week")
   })
 })

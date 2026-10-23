@@ -6,6 +6,8 @@ import { loadFailedWords } from "@/lib/api/social/comments"
 import { getProjectErrorMessage, loadProject } from "@/lib/api/social/projects"
 import { loadKeywords } from "@/lib/api/social/reddit/keywords"
 import { MEDIUM_VIEWS } from "@/lib/social/medium/options"
+import { LINKEDIN_VIEWS } from "@/lib/social/linkedin/options"
+import { X_VIEWS } from "@/lib/social/x/options"
 import { isNetwork } from "@/lib/social/networks"
 
 type Search = ProjectSearch & { post?: string; retry?: string; newPost?: string }
@@ -34,8 +36,9 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T | und
  * window, `?comment=<id>` one comment, and `?window=jobs` the Jobs window.
  * `?post=<id>` opens that post, which is how the bell leads here. `?retry=<job id>` also puts a failed comment's words
  * back in the box; nothing is sent until Post is pressed. `?newPost=<job id>`
- * opens New post with a failed post's words. Medium's module keeps its own
- * tab as `?tab=` and the record open beside it as `?open=<id>`.
+ * opens New post with a failed post's words. Medium's, X's and LinkedIn's
+ * modules keep their own tab as `?tab=` and the record open beside it as
+ * `?open=<id>`.
  */
 export const Route = createFileRoute("/_authenticated/admin/projects_/$projectId")({
   validateSearch: (search: Record<string, unknown>): Search => ({
@@ -48,7 +51,7 @@ export const Route = createFileRoute("/_authenticated/admin/projects_/$projectId
     post: id(search.post),
     retry: id(search.retry),
     newPost: id(search.newPost),
-    tab: oneOf(search.tab, MEDIUM_VIEWS.filter((view) => view !== "new")),
+    tab: oneOf(search.tab, [...MEDIUM_VIEWS, ...X_VIEWS, ...LINKEDIN_VIEWS].filter((view) => view !== "new")),
     open: id(search.open),
   }),
   loaderDeps: ({ search }) => ({ retry: search.retry }),

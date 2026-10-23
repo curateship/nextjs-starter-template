@@ -32,6 +32,7 @@ import { formatClock } from "@/lib/video/timeline-utils"
 import { EXPORT_TITLE_MAX } from "@/lib/video/render"
 import { ExportAiPartsCard } from "@/components/video-editor/export-ai-parts-card"
 import { ExportCover } from "@/components/video-editor/export-cover"
+import { ExportYoutubeCard } from "@/components/video-retention/export-youtube-card"
 
 /** Stands in while there is no cover picture to show. */
 function CoverPlaceholder() {
@@ -44,7 +45,8 @@ function CoverPlaceholder() {
 
 /**
  * One export: what it is called, what it is about, which moment of it
- * stands in for it in the gallery, and, for a video, what AI made in it.
+ * stands in for it in the gallery, and, for a video, what AI made in it and
+ * how it held its viewers once posted on YouTube.
  *
  * The cover is chosen by picking a moment rather than by uploading a picture —
  * a still from the video itself always belongs to it, and there is nothing to
@@ -189,6 +191,10 @@ export function ExportDetailsDialog({
               {carousel ? null : (
                 <ExportAiPartsCard item={item} onSaved={onSaved} />
               )}
+
+              {!carousel && item.status === "ready" ? (
+                <ExportYoutubeCard key={item.id} item={item} />
+              ) : null}
 
               <Card size="sm">
                 <CardHeader>

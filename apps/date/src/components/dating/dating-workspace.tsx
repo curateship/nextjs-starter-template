@@ -29,8 +29,10 @@ import {
   readCardAgain,
   readCardInFront,
   readMatchesNow,
+  likeFromSecondLook,
   readMyProfile,
   refreshConversation,
+  reportScam,
   reviewMyProfile,
   sendFromPhone,
   startSwiping,
@@ -41,12 +43,14 @@ import {
   type MatchDetail,
   type ProfileDetail,
 } from "@/lib/api/dating/dashboard"
+import { applyProfileSuggestion, startFirstPhotoTest, stopFirstPhotoTest, undoProfileApply } from "@/lib/api/dating/own-profile"
 import { resume } from "@/lib/api/dating/phone"
 import { deleteProfile, loadProfileCounts, pickProfile, setProfilePaused } from "@/lib/api/dating/profiles"
 import type { SavedView } from "@/lib/api/saved-views"
 import { datingErrorMessage } from "@/lib/dating/errors"
+import { changeKey } from "@/lib/dating/own-profile"
 import { readLeadView, shownLeads, type LeadListItem, type LeadView } from "@/lib/dating/leads"
-import { DATING_PANEL_LAYOUT_KEY, DATING_PLACE_KEY, GOOGLE_RETURN_WORDS, type GoogleReturn } from "@/lib/dating/options"
+import { DATING_APP_WORDS, DATING_PANEL_LAYOUT_KEY, DATING_PLACE_KEY, GOOGLE_RETURN_WORDS, type GoogleReturn } from "@/lib/dating/options"
 import { useListSearchNavigate } from "@/lib/nav/list-search"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
@@ -119,7 +123,8 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
   const view = readLeadView(search)
   const shown = shownLeads(data.leads, view)
   // A link from the Calendar screen or Ask Date names the chat, which is the same lead as its card.
-  const panelView = PANEL_VIEWS.find((item) => item === search.open) ?? null
+  // A Facebook Dating profile has no My profile (left out on 22 Oct 2026), so a link to it opens the lead list's first lead instead.
+  const panelView = PANEL_VIEWS.find((item) => item === search.open && !(item === "me" && data.profile.app === "facebook")) ?? null
   const lead = search.open && !panelView ? (data.leads.find((item) => item.id === search.open || item.matchId === search.open) ?? null) : null
   const openProfileId = lead?.profileId ?? null
   const openMatchId = lead?.matchId ?? null
@@ -273,7 +278,7 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
     if (!profileValue) return
     void act("swipe", () => swipeCard(profileValue.id, decision), decision === "like" ? "Like sent to the phone." : "Pass sent to the phone.")
   }
-  const canSwipe = Boolean(profileValue && profileValue.swipe === "none" && !profileValue.pendingSwipe && busy !== "swipe")
+  const canSwipe = Boolean(profileValue && profileValue.swipe === "none" && !profileValue.pendingSwipe && profileValue.source !== "weekly" && busy !== "swipe")
 
   // The newest of each, so the one listener below never goes stale.
   const openId = lead?.id ?? search.open
@@ -302,13 +307,14 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
     return () => window.removeEventListener("keydown", onKey)
   }, [])
 
+  const appName = DATING_APP_WORDS[data.profile.app].name
   const actions: LeadActions = {
     swipe,
     readCardAgain: () => void act("read-again", () => readCardAgain(profileValue?.id ?? ""), "The AI read the card again."),
     refresh: () => void act("refresh", () => refreshConversation(matchValue?.id ?? ""), "The phone will read this chat again."),
     unmatch: () => act("unmatch", () => unmatchOnPhone(matchValue?.id ?? ""), `Unmatching ${matchValue?.theirName ?? ""} on the phone.`),
     movedToText: (moved) =>
-      void act("moved", () => markMovedToText(matchValue?.id ?? "", moved), moved ? "Moved to text. The AI writes nothing more here." : "Back on Tinder. The AI drafts here again."),
+      void act("moved", () => markMovedToText(matchValue?.id ?? "", moved), moved ? "Moved to text. The AI writes nothing more here." : `Back on ${appName}. The AI drafts here again.`),
     notOver: () => void act("not-over", () => markNotOver(matchValue?.id ?? ""), "Not over. The AI drafts here again on its next pass."),
     send: (text) => act("send", () => sendFromPhone(matchValue?.id ?? "", text), "Sent to the phone. It types and sends it now."),
     showThree: () => void act("three", () => showThreeDrafts(matchValue?.id ?? ""), "Three drafts. Step through them with Next, then Use this."),
@@ -333,6 +339,7 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
     answer: (answer) => act("answer", () => answerAiQuestion(matchValue?.id ?? "", answer), "Added to About me. The AI drafted again."),
     letDraft: () => void act("let-draft", () => letAiDraftAgain(matchValue?.id ?? ""), "The AI drafts here again on its next pass."),
     openPicture: setPicture,
+    report: () => act("report", () => reportScam(matchValue?.id ?? ""), `Reporting ${matchValue?.theirName ?? ""} and unmatching on the phone.`),
   }
 
   return (
@@ -360,6 +367,8 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
             onPickProfile={switchProfile}
             onNewProfile={() => setNewOpen(true)}
             onResumeProfile={() => void act("pause", () => setProfilePaused(false), "Resumed. The profile runs again; Start or its schedule starts swiping.")}
+            onSecondLookLike={(id, name) => void act(`second-look:${id}`, () => likeFromSecondLook(id), `The phone opens Second Look and likes ${name}.`)}
+            onChangeHours={() => setSettingsOpen(true)}
           />
         ),
       }}
@@ -375,7 +384,7 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
             busy={busy}
             onView={setView}
             onOpen={(id) => openLead(id)}
-            onResume={() => void act("resume", () => resume(), "Resumed. The phone looks at Tinder again now.")}
+            onResume={() => void act("resume", () => resume(), `Resumed. The phone looks at ${appName} again now.`)}
             onOpenPicture={setPicture}
             onMovedToText={async (ids) => {
               const result = await fetchIt("mass", () => markManyMovedToText(ids))
@@ -399,9 +408,14 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
             busy={busy}
             onReadAgain={() => void act("read-own", readMyProfile, "The phone will read your profile.")}
             onReviewAgain={() => void act("review", reviewMyProfile, "The AI reviewed your profile again.")}
+            onApply={(what) => void act(`apply:${changeKey(what)}`, () => applyProfileSuggestion(what), "The phone will make this change, then read your profile back to check it.")}
+            onUndo={() => void act("undo", undoProfileApply, "The phone will put back what was there before.")}
+            onStartTest={() => void act("photo-test", startFirstPhotoTest, "The test has started. The phone puts photo 1 first to begin week 1.")}
+            onStopTest={() => act("photo-test", stopFirstPhotoTest, "The test is stopped. The phone puts your old order back.")}
           />
         ) : (
           <LeadPanel
+            app={data.profile.app}
             lead={lead}
             missing={Boolean(search.open && !lead)}
             loading={loading}
@@ -473,7 +487,7 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
         open={clearing !== null}
         onOpenChange={(open) => !open && setClearing(null)}
         title={`Unmatch the dead ones of ${clearing?.length ?? 0} ${clearing?.length === 1 ? "chat" : "chats"}?`}
-        description="Only a chat with no message either way in 30 days is unmatched; the rest are left as they are. The phone unmatches each one through Tinder's own menu, one at a time. Tinder cannot undo an unmatch."
+        description={`Only a chat with no message either way in 30 days is unmatched; the rest are left as they are. The phone unmatches each one through ${appName}'s own menu, one at a time. An unmatch cannot be undone.`}
         confirmLabel="Unmatch the dead ones"
         loading={busy === "clear-dead"}
         onConfirm={() => {

@@ -63,6 +63,57 @@ the repo's `docs/`, and is never copied here.
   addresses, what was proved against the real site and what waits for a real
   account, and the tests.
 
+## X
+
+- [The X module](x/x-module.md): Tyler's answers of 21 Oct 2026, the three
+  kinds of keyword, watched accounts and their bell, ideas and trends, the
+  order with freshness first, what never reaches To look at (closed replies,
+  older than 12 hours, hidden accounts), Today and the AI spend.
+- [Search accounts](x/search-accounts.md): why X needs a signed-in account that
+  only reads, the views it may spend a day, the rate limit, several taking
+  turns, and what a day's reading costs.
+- [Replies on X](x/replies.md): the post and its top replies, drafts, Help
+  only, quotes, every check on Post (no links, 280 characters, warm-up, pace,
+  one account per post, too similar warns), follow back, the Replies tab,
+  answers, mentions, edit, delete and Try again.
+- [Posts of your own on X](x/posts.md): posts and threads, pictures, starting
+  from a Medium article or a Reddit comment, polls, a set hour, communities
+  and their rules, and the public list.
+- [X accounts](x/accounts.md): adding one in a browser or on a phone, the
+  sign-in code, lock screens, the daily look from outside, paid, follow back,
+  direct messages, moving to a phone, and the warm-up.
+- [How X is read](x/how-x-is-read.md): X's own data in the browser, the X app
+  on a phone, what was checked, and that nothing has run against the real X
+  yet.
+
+## LinkedIn
+
+- [The LinkedIn module](linkedin/linkedin-module.md): Tyler's answers of
+  22 Oct 2026, the four kinds of keyword, watched people and pages, who the
+  project sells to, the order with the writer's job title, what never reaches
+  To look at (comments closed, bare reposts, older than 2 days, hidden
+  people), an account's own feed, Today and the AI spend.
+- [Search accounts](linkedin/search-accounts.md): why LinkedIn is read by a
+  spare signed-in account that never comments, the 300 views a day, when one
+  stops, and several taking turns.
+- [Comments on LinkedIn](linkedin/comments.md): drafts, Help only, answering
+  a top comment, the best comments as examples, every check on Post, reacting
+  first, the Comments tab, answers, edit, delete, Try again, and the weekly
+  look at whether the comments still show.
+- [Posts of your own on LinkedIn](linkedin/posts.md): posts with a picture, a
+  video or a poll, the link in the first comment, tags, reposts, starting from
+  a Medium article or a Reddit comment, post ideas, newsletter issues, groups
+  and company pages.
+- [People on LinkedIn](linkedin/people.md): connection requests with an AI note, under
+  a weekly number in Settings → Behaviour (20 to begin with), accepting the
+  requests waiting, and who viewed a profile.
+- [LinkedIn accounts](linkedin/accounts.md): adding one, the emailed code,
+  restriction screens, the warm-up, workday hours, Premium, the numbers week
+  by week, important and throwaway, moving to a phone, and messages.
+- [How LinkedIn is read](linkedin/how-linkedin-is-read.md): the browser
+  routines, the LinkedIn app on a phone, and that nothing has run against the
+  real LinkedIn yet.
+
 ## Messages
 
 - [The Messages dashboard](messages-dashboard.md): every phone account's

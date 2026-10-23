@@ -61,7 +61,11 @@ import { projectSpendMetadata, requireProjectBudget } from "@/server/video/proje
 import { getOwnedProject, writeProjectTimeline } from "@/server/video/projects"
 import { videoBriefs, videoEditorWindows, type VideoBriefRow } from "@/server/video/schema"
 import { checkScript } from "@/server/video/script-check"
-import { getAiDefaults, getScriptBannedWords } from "@/server/video/settings"
+import {
+  getAiDefaults,
+  getCaptionSettings,
+  getScriptBannedWords,
+} from "@/server/video/settings"
 import { speak } from "@/server/video/voice"
 import { askWriter } from "@/server/video/writer"
 
@@ -704,7 +708,13 @@ async function landBriefNow(briefId: string) {
     if (!row?.landing) return
     const project = await getOwnedProject(row.userId, row.projectId, tx)
     const { timeline } = parseTimelineForReset(project.timeline)
-    const landed = landBriefScenes(timeline.tracks, { scenes: row.scenes, landing: row.landing }, uuid)
+    const captions = { ...(await getCaptionSettings(tx)), aspect: timeline.aspect }
+    const landed = landBriefScenes(
+      timeline.tracks,
+      { scenes: row.scenes, landing: row.landing },
+      uuid,
+      captions
+    )
     if (!landed) {
       console.error("A brief's scenes have no lane left to land on", row.id)
       return

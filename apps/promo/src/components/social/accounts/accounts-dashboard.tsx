@@ -8,6 +8,7 @@ import {
   EyeIcon,
   EyeOffIcon,
   HandHelpingIcon,
+  KeyRoundIcon,
   Loader2Icon,
   PauseIcon,
   PlayIcon,
@@ -55,6 +56,7 @@ import {
   type RedditAccountRow,
   type RedditAccountsPage,
 } from "@/lib/api/social/reddit-accounts"
+import { actOnXAccount, getXErrorMessage } from "@/lib/api/social/x"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
@@ -75,6 +77,8 @@ import { AccountStatusBadge } from "./account-status-badge"
 import { AddAccountDialog } from "./add-account-dialog"
 import { HelpPostsDialog } from "./help-posts-dialog"
 import { AccountSettingsDialog } from "./account-settings-dialog"
+import { LINKEDIN_SEEN_WORDS } from "@/lib/social/linkedin/options"
+import { X_REACH_HINT, xReachWords } from "../x/x-words"
 import { MediumSignInButton } from "../medium/medium-sign-in-button"
 
 type SortColumn = "account" | "status" | "project" | "profile" | "age" | "karma" | "last"
@@ -273,6 +277,19 @@ export function RedditAccountsDashboard({
       await refresh(showRetired)
     } catch (failure) {
       showErrorToast(getRedditAccountsErrorMessage(failure))
+    } finally {
+      setRowBusy(null)
+    }
+  }
+
+  /** X's six-digit sign-in code, typed in the account's own browser (part 6 of the X task). */
+  async function sendXCode(id: string) {
+    setRowBusy(id)
+    try {
+      await actOnXAccount(id, "code")
+      toast.success("Typing X's sign-in code in the account's browser.")
+    } catch (failure) {
+      showErrorToast(getXErrorMessage(failure))
     } finally {
       setRowBusy(null)
     }
@@ -520,6 +537,7 @@ export function RedditAccountsDashboard({
                     )
                   }
                   onHelp={() => setHelpFor(row.id)}
+                  onSignInCode={() => void sendXCode(row.id)}
                   onRunsOn={() => setRunsOnFor(row)}
                   onPause={(paused) =>
                     void oneRow(
@@ -583,6 +601,7 @@ function AccountRow({
   onVoice,
   onCheck,
   onHelp,
+  onSignInCode,
   onRunsOn,
   onPause,
   onRetire,
@@ -596,6 +615,8 @@ function AccountRow({
   onCheck: () => void
   /** Opens the account's help-only posts. */
   onHelp: () => void
+  /** Types X's sign-in code in an X account's browser. */
+  onSignInCode: () => void
   /** Opens the window that moves it to another profile or phone. */
   onRunsOn: () => void
   onPause: (paused: boolean) => void
@@ -603,6 +624,10 @@ function AccountRow({
 }) {
   const reddit = row.platform === "reddit"
   const medium = row.platform === "medium"
+  const x = row.platform === "x"
+  const linkedin = row.platform === "linkedin"
+  // X's reach guess shows as its own line, so the status warning saying the same is left out.
+  const reachGuess = (x && (row.x.reach === "hidden" || row.x.reach === "folded")) || (linkedin && row.linkedin.seen === "hidden")
   const name = row.handle ? handleWords(row.platform, row.handle) : "Not signed in"
   const lastWord = reddit ? "comment" : medium ? "response or article" : "post"
   // Instagram and TikTok show no account age; their reading is followers and
@@ -615,6 +640,14 @@ function AccountRow({
       ? row.mediumJoinedAt
         ? `${accountAgeText(new Date(row.mediumJoinedAt))} on Medium`
         : "Joined date not read yet"
+      : x
+        ? row.x.joinedAt
+          ? `${accountAgeText(new Date(row.x.joinedAt))} on X`
+          : "Joined date not read yet"
+      : linkedin
+        ? row.signedInAt
+          ? `first seen signed in ${formatTimeAgo(row.signedInAt)}`
+          : "Not seen signed in yet"
       : row.postCount === null
       ? "posts not read yet"
       : `${countWords(row.postCount)} posts`
@@ -690,7 +723,41 @@ function AccountRow({
                 Shadowbanned
               </span>
             </Hint>
-          ) : row.status.warning ? (
+          ) : null}
+          {x && row.x.reach ? (
+            <Hint label={X_REACH_HINT}>
+              <span
+                className={
+                  reachGuess
+                    ? "flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+                    : "flex items-center gap-1 text-xs text-muted-foreground"
+                }
+              >
+                {reachGuess ? <EyeOffIcon className="size-3" aria-hidden="true" /> : <EyeIcon className="size-3" aria-hidden="true" />}
+                {xReachWords(row.x.reach)}
+              </span>
+            </Hint>
+          ) : null}
+          {x && row.x.paid ? <span className="text-xs text-muted-foreground">Paid</span> : null}
+          {linkedin && row.linkedin.seen ? (
+            <Hint label="Promo's best guess from its weekly look for the account's latest comments, as a stranger sees them. LinkedIn never says.">
+              <span
+                className={
+                  row.linkedin.seen === "hidden"
+                    ? "flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+                    : "flex items-center gap-1 text-xs text-muted-foreground"
+                }
+              >
+                {row.linkedin.seen === "hidden" ? <EyeOffIcon className="size-3" aria-hidden="true" /> : <EyeIcon className="size-3" aria-hidden="true" />}
+                {LINKEDIN_SEEN_WORDS[row.linkedin.seen]}
+              </span>
+            </Hint>
+          ) : null}
+          {linkedin && row.linkedin.premium ? <span className="text-xs text-muted-foreground">Premium</span> : null}
+          {linkedin && row.linkedin.codeAsked ? (
+            <span className="text-xs text-amber-600 dark:text-amber-400">Wants the code LinkedIn emailed. Open its settings.</span>
+          ) : null}
+          {row.shadowbanned || reachGuess ? null : row.status.warning ? (
             <Hint label={row.status.warning}>
               <span className="block max-w-48 truncate text-xs text-amber-600 dark:text-amber-400">
                 {row.status.warning}
@@ -809,7 +876,11 @@ function AccountRow({
                   ? "Check now: read its karma, age and profile again"
                   : medium
                     ? "Check now: read who is signed in, when it joined Medium and its followers"
-                    : "Check now: read its followers, posts and Account status page again"
+                    : x
+                      ? "Check now: look for its latest reply from outside, to see whether X hides it, and read its followers"
+                      : linkedin
+                        ? "Check now: look for its latest comments from outside, to see whether LinkedIn still shows them"
+                        : "Check now: read its followers, posts and Account status page again"
               }
             >
               <Button
@@ -824,6 +895,20 @@ function AccountRow({
               </Button>
             </Hint>
             {medium && row.profile ? <MediumSignInButton accountId={row.id} name={name} /> : null}
+            {x && row.profile && row.twoFactor ? (
+              <Hint label="Send sign-in code: type X's current six-digit code in its browser, when X asks for one">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  onClick={onSignInCode}
+                  aria-label={`Send X's sign-in code for ${name}`}
+                >
+                  <KeyRoundIcon className="size-4" />
+                </Button>
+              </Hint>
+            ) : null}
             {reddit ? (
               <Hint label="Help-only posts: answer posts in its own subreddits, never mentioning what you make">
                 <Button

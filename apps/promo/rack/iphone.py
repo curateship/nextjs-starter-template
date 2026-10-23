@@ -279,6 +279,8 @@ TRACKED_APPS = {
     "com.reddit.Reddit": "reddit",
     "com.burbn.instagram": "instagram",
     "com.zhiliaoapp.musically": "tiktok",
+    "com.atebits.Tweetie2": "x",
+    "com.linkedin.LinkedIn": "linkedin",
 }
 
 _NO_VERSIONS_LOGGED = set()

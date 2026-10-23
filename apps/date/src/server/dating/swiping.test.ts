@@ -30,6 +30,7 @@ import { customShellAiUsageEvents } from "@/server/schema"
 import { fakeCard, FakeTinder, type FakeTinderSetup } from "@/server/tinder/fixtures/fake-tinder"
 import { walkRefusal } from "@/server/tinder/limits"
 import { dateMatches, dateProfiles, dateWalks } from "@/server/tinder/schema"
+import { dateAccounts } from "@/server/dating/schema"
 
 import { scoreCard, type AiAsk } from "./ai"
 import { scoreBands } from "./dashboard"
@@ -89,7 +90,7 @@ describe("swiping and scoring", () => {
     workspaceId = (await insertWorkspace(db)).id
     phoneId = uuid()
     clock = T0
-    await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0, discoveryOwed: false })
+    await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0 })
     account = await insertAccount(db, { userId, workspaceId, phoneId })
     asked = []
     scores = {}
@@ -122,8 +123,9 @@ describe("swiping and scoring", () => {
     return id
   }
 
+  /** The profile's row, which holds the loop's state since part 2 of "facebook/01". */
   async function phoneRow() {
-    return (await db.select().from(datePhones))[0]
+    return (await db.select().from(dateAccounts).where(eq(dateAccounts.id, account.id)))[0]
   }
 
   describe("part 1, learning from the member's swipes", () => {
@@ -182,7 +184,7 @@ describe("swiping and scoring", () => {
     it("never starts a phone stopped on out of likes", async () => {
       phone({ cards: [], chats: [] })
       await settings({ scheduleStart: 19, scheduleEnd: 22 })
-      await db.update(datePhones).set({ stoppedReason: "out_of_likes", stoppedAt: T0 }).where(eq(datePhones.id, phoneId))
+      await db.update(dateAccounts).set({ stoppedReason: "out_of_likes", stoppedAt: T0 }).where(eq(dateAccounts.id, account.id))
       await at(19)
       await at(20)
       expect(await phoneRow()).toMatchObject({ running: false, stoppedReason: "out_of_likes" })
@@ -207,9 +209,9 @@ describe("swiping and scoring", () => {
       await at(19)
       // What the loop does when the hour's swipes run out: it stops and says when the next is allowed.
       await db
-        .update(datePhones)
+        .update(dateAccounts)
         .set({ running: false, stopWhy: "60 swipes in the last hour, the most allowed.", resumeAt: new Date(Date.UTC(2099, 0, 1, 20, 30)) })
-        .where(eq(datePhones.id, phoneId))
+        .where(eq(dateAccounts.id, account.id))
       await at(20)
       expect((await phoneRow()).running).toBe(false)
       await at(20, 31)
@@ -297,7 +299,7 @@ describe("swiping and scoring", () => {
     it("sets 25 km and ages 28 to 36 on Tinder, reads them back, and goes back to the cards", async () => {
       phone({ cards: [fakeCard("Maya")], chats: [], discovery: { distance: 80, unit: "km", ageMin: 18, ageMax: 50 } })
       await settings({ maxDistanceKm: 25, ageMin: 28, ageMax: 36 })
-      await db.update(datePhones).set({ discoveryOwed: true }).where(eq(datePhones.id, phoneId))
+      await db.update(dateAccounts).set({ discoveryOwed: true }).where(eq(dateAccounts.id, account.id))
       await pass()
       await pass()
       expect(fake.discovery).toEqual({ distance: 25, unit: "km", ageMin: 28, ageMax: 36 })
@@ -313,7 +315,7 @@ describe("swiping and scoring", () => {
     it("sets the distance in miles when Tinder counts in miles", async () => {
       phone({ cards: [], chats: [], discovery: { distance: 50, unit: "mi", ageMin: 30, ageMax: 40 } })
       await settings({ maxDistanceKm: 25, ageMin: 45, ageMax: 50 })
-      await db.update(datePhones).set({ discoveryOwed: true }).where(eq(datePhones.id, phoneId))
+      await db.update(dateAccounts).set({ discoveryOwed: true }).where(eq(dateAccounts.id, account.id))
       await pass()
       await pass()
       // 25 km is 16 miles; the new youngest is above the old oldest, so the top thumb moves first.
@@ -351,11 +353,12 @@ describe("swiping and scoring", () => {
         await card({ name: `Day${index}`, swipe: "pass", swipedBy: "ai", swipedAt: new Date(Date.UTC(2099, 0, 1, 1) + index * 60_000) })
       }
       const [row] = await db.select().from(datePhones)
-      const refusal = await walkRefusal(row, "like", { ...DEFAULT_DATING_SETTINGS, quietStart: 0, quietEnd: 0 }, db, clock)
+      const owner = { accountId: account.id, app: account.app, timeZone: row.timeZone }
+      const refusal = await walkRefusal(owner, "like", { ...DEFAULT_DATING_SETTINGS, quietStart: 0, quietEnd: 0 }, db, clock)
       expect(refusal).toMatchObject({ limit: "day", words: "150 swipes today, the most allowed. Allowed again at 00:00." })
       expect(refusal?.until.toISOString()).toBe("2099-01-02T00:00:00.000Z")
       // Yesterday's swipes do not count.
-      expect(await walkRefusal(row, "like", { ...DEFAULT_DATING_SETTINGS, quietStart: 0, quietEnd: 0 }, db, new Date("2099-01-02T12:00:00Z"))).toBeNull()
+      expect(await walkRefusal(owner, "like", { ...DEFAULT_DATING_SETTINGS, quietStart: 0, quietEnd: 0 }, db, new Date("2099-01-02T12:00:00Z"))).toBeNull()
     })
   })
 

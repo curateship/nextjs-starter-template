@@ -2,6 +2,7 @@ package app.date.phone
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.app.ActivityManager
 import android.content.Intent
 import android.graphics.Path
 import android.os.Bundle
@@ -18,7 +19,7 @@ import org.json.JSONObject
 
 /**
  * Runs one plain action the server handed the phone: open an app, read the
- * screen, tap, swipe, type, back, home or take a picture. Everything that
+ * screen, tap, swipe, type, back, home, take a picture or close an app. Everything that
  * knows what Tinder looks like is on the server; this only does what it is
  * told and says what happened, in words when it could not.
  *
@@ -52,6 +53,8 @@ class ActionRunner(private val service: DateAccessibilityService) {
     private suspend fun perform(kind: String, payload: JSONObject): Outcome = when (kind) {
         "open-app" -> openApp(payload)
         "read-screen" -> {
+            // A second look at a screen still drawing waits a moment first.
+            delay(payload.optLong("settleMs", 0L).coerceIn(0L, MAX_SETTLE_MS))
             val (screen, picture) = readWithPicture()
             Outcome(true, JSONObject().put("screen", screen), "", picture)
         }
@@ -77,6 +80,7 @@ class ActionRunner(private val service: DateAccessibilityService) {
             finish(payload, JSONObject())
         }
         "screenshot" -> screenshot()
+        "close-app" -> closeApp(payload)
         else -> throw StepFailed("This phone does not know how to \"$kind\". Update the Date app on the phone.")
     }
 
@@ -112,6 +116,22 @@ class ActionRunner(private val service: DateAccessibilityService) {
         withContext(Dispatchers.Main) { service.startActivity(intent) }
         answer.put("installed", true).put("opened", true)
         return finish(payload, answer)
+    }
+
+    /**
+     * Closes an app that froze: home first, so it is in the background, then
+     * Android is asked to end it. Opening it again starts it fresh. Android
+     * only ends an app in the background, which is why home comes first.
+     */
+    private suspend fun closeApp(payload: JSONObject): Outcome {
+        val packageName = payload.optString("package").trim()
+        if (packageName.isEmpty()) throw StepFailed("No app was named to close.")
+        global(AccessibilityService.GLOBAL_ACTION_HOME, "go to the home screen")
+        delay(CLOSE_WAIT_MS)
+        val manager = service.getSystemService(ActivityManager::class.java)
+            ?: throw StepFailed("Android would not let the Date app close another app.")
+        manager.killBackgroundProcesses(packageName)
+        return finish(payload, JSONObject().put("closed", true))
     }
 
     private suspend fun readScreen(): JSONObject {
@@ -171,15 +191,24 @@ class ActionRunner(private val service: DateAccessibilityService) {
         if (!stroke(path, TAP_MS)) throw StepFailed("The phone did not take the tap.")
     }
 
+    /**
+     * A finger moved from one point to another. With `holdMs`, the finger
+     * first rests on the start that long, a long press, and then moves
+     * without lifting: how a photo is picked up and dragged to a new place.
+     */
     private suspend fun swipe(payload: JSONObject) {
         val missing = "The swipe had no start or end on the screen."
         val (width, height) = Screenshots.displaySize(service)
+        val x1 = clamp(number(payload, "x1", missing), width)
+        val y1 = clamp(number(payload, "y1", missing), height)
         val path = Path().apply {
-            moveTo(clamp(number(payload, "x1", missing), width), clamp(number(payload, "y1", missing), height))
+            moveTo(x1, y1)
             lineTo(clamp(number(payload, "x2", missing), width), clamp(number(payload, "y2", missing), height))
         }
         val duration = payload.optLong("durationMs", DEFAULT_SWIPE_MS).coerceIn(MIN_SWIPE_MS, MAX_SWIPE_MS)
-        if (!stroke(path, duration)) throw StepFailed("The phone did not take the swipe.")
+        val hold = payload.optLong("holdMs", 0L).coerceIn(0L, MAX_HOLD_MS)
+        val taken = if (hold > 0L) holdThenStroke(x1, y1, path, hold, duration) else stroke(path, duration)
+        if (!taken) throw StepFailed("The phone did not take the swipe.")
     }
 
     /**
@@ -218,10 +247,13 @@ class ActionRunner(private val service: DateAccessibilityService) {
         if (!done) throw StepFailed("The phone did not $words.")
     }
 
-    private suspend fun stroke(path: Path, durationMs: Long): Boolean = withContext(Dispatchers.Main) {
+    private suspend fun stroke(path: Path, durationMs: Long): Boolean =
+        dispatch(GestureDescription.StrokeDescription(path, 0L, durationMs))
+
+    private suspend fun dispatch(stroke: GestureDescription.StrokeDescription): Boolean = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine<Boolean> { continuation ->
             val gesture = GestureDescription.Builder()
-                .addStroke(GestureDescription.StrokeDescription(path, 0L, durationMs))
+                .addStroke(stroke)
                 .build()
             val sent = service.dispatchGesture(
                 gesture,
@@ -240,6 +272,17 @@ class ActionRunner(private val service: DateAccessibilityService) {
         }
     }
 
+    /**
+     * A long press that turns into a drag: one stroke that rests on the start
+     * and says it will go on, then its continuation along the path. Android
+     * keeps the finger down between the two.
+     */
+    private suspend fun holdThenStroke(x: Float, y: Float, path: Path, holdMs: Long, durationMs: Long): Boolean {
+        val held = GestureDescription.StrokeDescription(Path().apply { moveTo(x, y) }, 0L, holdMs, true)
+        if (!dispatch(held)) return false
+        return dispatch(held.continueStroke(path, 0L, durationMs, false))
+    }
+
     /** A gesture may not start off the screen, so a place is pulled back inside it. */
     private fun clamp(value: Float, size: Int): Float = value.coerceIn(0f, (size - 1).coerceAtLeast(0).toFloat())
 
@@ -250,9 +293,11 @@ class ActionRunner(private val service: DateAccessibilityService) {
         const val DEFAULT_SWIPE_MS = 300L
         const val MIN_SWIPE_MS = 50L
         const val MAX_SWIPE_MS = 10_000L
+        const val MAX_HOLD_MS = 3_000L
         const val FOCUS_SETTLE_MS = 300L
         const val ROOT_TRIES = 5
         const val ROOT_WAIT_MS = 150L
+        const val CLOSE_WAIT_MS = 1_000L
 
         /** Pictures for the server: big enough to cut a card's photos from. */
         const val ACTION_PICTURE_WIDTH = 1080

@@ -7,6 +7,7 @@ import { promoProfiles } from "@/server/browser/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoPhones } from "@/server/phones/schema"
 
+import { promoLinkedinComments, promoLinkedinConnects, promoLinkedinPosts } from "./linkedin/schema"
 import { promoAccounts, promoComments, promoFinds, promoJobs, promoPosts } from "./schema"
 
 /**
@@ -311,6 +312,140 @@ export async function refuseInteraction(
       throw new Refusal(
         `${APART}: the ${effectiveGroup(other)} account ${name(other)} already commented under this post${other.waiting ? ", or has a comment on its way" : ""}, and ${name(account)} is ${group}. Two groups under one post is a link.`
       )
+    }
+  }
+}
+
+/**
+ * X's own checks (X task, part 8). A throwaway X account never replies to or
+ * quotes a post by an important account, never names it as @name, and never
+ * links its x.com page or one of its posts. Two of the person's accounts
+ * never meet under one post at all on X (`refuseSecondAccountOnPost` in
+ * `x/posting.ts`), so the two groups cannot meet there either.
+ */
+export async function refuseXInteraction(
+  userId: string,
+  account: Pick<AccountRow, "id" | "handle" | "importance" | "movingToPhoneId">,
+  what: { postAuthor?: string; words: string[] },
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  if (effectiveGroup(account) !== "throwaway") return
+  const rows = await db
+    .select({ handle: promoAccounts.handle })
+    .from(promoAccounts)
+    .where(and(eq(promoAccounts.userId, userId), eq(promoAccounts.platform, "x"), otherGroup("throwaway"), ne(promoAccounts.handle, "")))
+  if (!rows.length) return
+  const handles = new Map(rows.map((row) => [row.handle.toLowerCase(), row.handle]))
+  const author = what.postAuthor?.toLowerCase()
+  if (author && handles.has(author)) {
+    throw new Refusal(
+      `${APART}: that post is by your important account @${handles.get(author)}, and ${name(account)} is a throwaway. Reply from an important account instead.`
+    )
+  }
+  const words = what.words.join("\n").toLowerCase()
+  for (const [handle, shown] of handles) {
+    const escaped = handle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    const named = new RegExp(`(^|[^a-z0-9_])(@|(?:x|twitter)\\.com/)${escaped}(?![a-z0-9_])`, "i")
+    if (named.test(words)) {
+      throw new Refusal(
+        `${APART}: the words name your important account @${shown}, or link to its page or a post, and ${name(account)} is a throwaway. Take that out first.`
+      )
+    }
+  }
+}
+
+/**
+ * LinkedIn's own checks (LinkedIn task, part 6). A throwaway LinkedIn account
+ * never comments on, reacts to or reposts a post by an important account,
+ * never connects with one, never tags one, and never links its page. Two of
+ * the person's accounts never meet under one post at all on LinkedIn
+ * (`refuseSecondAccountOnPost` in `linkedin/posting.ts`), and an important
+ * account never connects with a throwaway either, so the two groups cannot
+ * meet there. Nor do the two groups ever ask the same person to connect, or
+ * repost a post the other group commented on or reposted.
+ */
+export async function refuseLinkedinInteraction(
+  userId: string,
+  account: Pick<AccountRow, "id" | "handle" | "importance" | "movingToPhoneId">,
+  what: { postAuthor?: string; connectTo?: string; repostOf?: string; words: string[]; tags?: string[] },
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  const group = effectiveGroup(account)
+  const who = name({ handle: account.handle, platform: "linkedin" })
+  const rows = await db
+    .select({ id: promoAccounts.id, handle: promoAccounts.handle })
+    .from(promoAccounts)
+    .where(and(eq(promoAccounts.userId, userId), eq(promoAccounts.platform, "linkedin"), otherGroup(group), ne(promoAccounts.handle, "")))
+  if (!rows.length) return
+  const others = new Map(rows.map((row) => [row.handle.toLowerCase(), row.handle]))
+  const otherIds = rows.map((row) => row.id)
+  const otherWord = group === "throwaway" ? "an important" : "a throwaway"
+  const connectTo = what.connectTo?.toLowerCase()
+  if (connectTo && others.has(connectTo)) {
+    throw new Refusal(
+      `${APART}: in/${others.get(connectTo)} is your ${group === "throwaway" ? "important" : "throwaway"} account, and ${who} is ${group === "throwaway" ? "a throwaway" : "important"}. The two never connect.`
+    )
+  }
+  if (connectTo) {
+    const [asked] = await db
+      .select({ id: promoLinkedinConnects.id })
+      .from(promoLinkedinConnects)
+      .where(
+        and(
+          eq(promoLinkedinConnects.userId, userId),
+          inArray(promoLinkedinConnects.accountId, otherIds),
+          inArray(promoLinkedinConnects.status, ["waiting", "sent"]),
+          sql`lower(${promoLinkedinConnects.slug}) = ${connectTo}`
+        )
+      )
+      .limit(1)
+    if (asked) throw new Refusal(`${APART}: ${otherWord} account of yours already asked this person to connect, so ${who} does not.`)
+  }
+  if (what.repostOf) {
+    const [commented] = await db
+      .select({ id: promoLinkedinComments.id })
+      .from(promoLinkedinComments)
+      .where(
+        and(
+          eq(promoLinkedinComments.userId, userId),
+          inArray(promoLinkedinComments.accountId, otherIds),
+          eq(promoLinkedinComments.targetId, what.repostOf),
+          inArray(promoLinkedinComments.status, ["waiting", "posted"])
+        )
+      )
+      .limit(1)
+    const [reposted] = await db
+      .select({ id: promoLinkedinPosts.id })
+      .from(promoLinkedinPosts)
+      .where(
+        and(
+          eq(promoLinkedinPosts.userId, userId),
+          inArray(promoLinkedinPosts.accountId, otherIds),
+          eq(promoLinkedinPosts.repostOf, what.repostOf),
+          inArray(promoLinkedinPosts.status, ["waiting", "posted"])
+        )
+      )
+      .limit(1)
+    if (commented || reposted) {
+      throw new Refusal(`${APART}: ${otherWord} account of yours already ${commented ? "commented on" : "reposted"} this post, so ${who} does not repost it.`)
+    }
+  }
+  if (group !== "throwaway") return
+  const author = what.postAuthor?.toLowerCase()
+  if (author && others.has(author)) {
+    throw new Refusal(
+      `${APART}: that post is by your important account in/${others.get(author)}, and ${who} is a throwaway. Comment from an important account instead.`
+    )
+  }
+  for (const tag of what.tags ?? []) {
+    const shown = others.get(tag.toLowerCase())
+    if (shown) throw new Refusal(`${APART}: the post tags your important account in/${shown}, and ${who} is a throwaway. Take the tag out first.`)
+  }
+  const words = what.words.join("\n").toLowerCase()
+  for (const [handle, shown] of others) {
+    const escaped = handle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    if (new RegExp(`linkedin\\.com/in/${escaped}(?![\\p{L}\\p{N}_-])`, "iu").test(words)) {
+      throw new Refusal(`${APART}: the words link to your important account in/${shown}, and ${who} is a throwaway. Take that out first.`)
     }
   }
 }

@@ -29,8 +29,10 @@ import {
 } from "@/lib/menu"
 import { useFavicon } from "@/lib/use-favicon"
 import { useMenu } from "@/lib/use-menu"
+import { useWideScreen } from "@/lib/use-menu-form-side"
 import { useOpenScreen } from "@/lib/use-open-screen"
 import { usePanelView } from "@/lib/use-panel-view"
+import { useRememberedOpen } from "@/lib/use-remembered-open"
 import { useSession } from "@/lib/use-session"
 import { cn } from "@/lib/utils"
 
@@ -140,7 +142,21 @@ function Personal({
   const [menuOpen, setMenuOpen] = React.useState(false)
   // Adding, editing and dragging links only show while this is on. It starts
   // off on every visit, so the menu reads as a plain menu.
-  const [editing, setEditing] = React.useState(false)
+  const [editing, setEditingState] = React.useState(false)
+  // Folded down to icons, remembered by this browser (Tyler's pick, 22 Oct
+  // 2026). Only beside the page: a phone's menu opens over it, always whole.
+  const [unfolded, setUnfolded] = useRememberedOpen("personal-sidebar")
+  const wide = useWideScreen()
+  const folded = wide && !unfolded
+  const setFolded = (next: boolean) => {
+    if (wide) setUnfolded(!next)
+  }
+  // The folded menu has no room for the edit controls, so switching editing
+  // on unfolds it.
+  const setEditing = (next: boolean) => {
+    setEditingState(next)
+    if (next) setFolded(false)
+  }
 
   const sidebarWidth = menu.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH
   const sidebarShade = sidebarShadeColor(menu.sidebarShade ?? 0)
@@ -227,7 +243,9 @@ function Personal({
                 // The menu's edge is the theme's line at half strength: Tyler
                 // asked for it fainter on 16 Oct 2026. The theme file is Custom
                 // Shell's, so it stays as it is.
-                "w-(--sidebar-width) shrink-0 border-r border-sidebar-border/50 bg-sidebar",
+                "shrink-0 border-r border-sidebar-border/50 bg-sidebar",
+                // Folded is Custom Shell's 3rem: a 32px icon and 8px either side.
+                folded ? "w-12" : "w-(--sidebar-width)",
                 // On a phone the menu opens over the page; from 768px it always
                 // sits in its own column, even if it was left open on a phone.
                 menuOpen ? "fixed inset-y-0 left-0 z-40 block md:static md:z-auto" : "hidden md:block"
@@ -238,6 +256,9 @@ function Personal({
                   menu={shown}
                   update={update}
                   editing={editing}
+                  onEditingChange={setEditing}
+                  folded={folded}
+                  onFoldedChange={setFolded}
                   onHome={() => {
                     setMenuOpen(false)
                     goHome()
@@ -250,12 +271,15 @@ function Personal({
                       editing={editing}
                       onEditingChange={setEditing}
                       onSignOut={onSignOut}
+                      folded={folded}
                     />
                   }
                 />
                 <SidebarResizeHandle
                   width={sidebarWidth}
                   onCommit={(width) => update((m) => ({ ...m, sidebarWidth: width }))}
+                  folded={folded}
+                  onToggleFolded={() => setFolded(!folded)}
                 />
               </div>
             </aside>

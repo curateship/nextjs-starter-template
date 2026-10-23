@@ -48,4 +48,35 @@ describe("Instagram and TikTok limits", () => {
     expect(phoneStepRefusal("instagram/follow", "Pixel 8a")).toContain("Pixel 8a cannot do instagram/follow yet")
     expect(phoneStepRefusal("reddit/reply", "Pixel 8a")).toContain("answering a reply")
   })
+
+  it("lets a phone take X's app steps and refuses X's browser-only ones", () => {
+    for (const routine of ["x/state", "x/quick_state", "x/reply", "x/quote", "x/publish", "x/follow", "x/warm_up", "x/inbox", "x/reply_message"]) {
+      expect(phoneStepRefusal(routine, "Pixel 8a")).toBeNull()
+    }
+    expect(phoneStepRefusal("x/edit", "Pixel 8a")).toBe(
+      "Pixel 8a cannot do editing an X post: on a phone, the X app reads who is signed in, replies, quotes, posts, follows, warms up, and reads and answers messages. Searches, reading posts again, edits, deletes, lists and sign-in codes are done in a browser. Nothing was sent."
+    )
+    expect(phoneStepRefusal("x/search", "Pixel 8a")).toContain("cannot do searching X")
+  })
+
+  it("lets a phone take LinkedIn's app steps and refuses LinkedIn's browser-only ones", () => {
+    for (const routine of [
+      "linkedin/state",
+      "linkedin/quick_state",
+      "linkedin/comment",
+      "linkedin/publish",
+      "linkedin/connect",
+      "linkedin/invites",
+      "linkedin/accept",
+      "linkedin/warm_up",
+      "linkedin/inbox",
+      "linkedin/reply_message",
+    ]) {
+      expect(phoneStepRefusal(routine, "Pixel 8a")).toBeNull()
+    }
+    expect(phoneStepRefusal("linkedin/viewers", "Pixel 8a")).toBe(
+      "Pixel 8a cannot do reading who viewed the profile: on a phone, the LinkedIn app reads who is signed in, comments, posts with words and a picture, sends and accepts connection requests, warms up, and reads and answers messages. Who viewed the profile, the account's numbers, its own feed, searches, reading posts again, edits, deletes, newsletters and the emailed sign-in code are done in a browser. Nothing was sent."
+    )
+    expect(phoneStepRefusal("linkedin/newsletter", "Pixel 8a")).toContain("cannot do publishing a newsletter issue")
+  })
 })
