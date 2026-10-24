@@ -271,7 +271,8 @@ the site admin to Teams, and My dashboard is first in the admins' left menu
 again (a menu pass marked `:admin-my-dashboard`). His answers are in
 `workspace/tasks/Admin/03-admin-dashboard.md`.
 
-- **Three panels, the same frame.** Left: the site admin and ten cards.
+- **Three panels, the same frame.** Left: the site admin, the cards with
+  something in them, and the Inbox.
   Middle: their tasks. Right: the open task, with no cross. Below 1280px wide
   one panel at a time, with Me, My tasks and Task tabs.
 - **The header** shows their photo, name and "Site admin". The cog opens My
@@ -328,13 +329,25 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   theirs changes elsewhere; the site admin's loads with the page, since the
   live stream is per team and theirs spans every team.
 
-### The ten cards
+### The cards
 
 Top to bottom, Tyler's "act first" order. Each counts across every team,
-folds and is remembered open or shut in this browser, shows its five most
-urgent rows then "Show all 12" for the rest, and shrinks to one line
-("No one on it · None") when it has nothing. A task in a card opens on the
+folds and is remembered open or shut in this browser, and shows its five most
+urgent rows then "Show all 12" for the rest. A task in a card opens on the
 right.
+
+**A card with nothing in it is not drawn.** When all nine are empty, one
+"All clear" line stands in for them, above the Inbox, which always shows.
+Tyler on 24 Oct 2026, when every empty card still showed as "Waiting on you ·
+None" and the like: "this is way too many cards. we need to simplify it".
+
+**Each card is tinted by how much it matters**, the same day: "each card
+should be a color based on their importance like the done card should have a
+green card". Red needs the site admin now: Waiting on you, Needs attention,
+Projects running late. Amber is for soon: No one on it, Invites not taken, Due
+this week. Blue is to know about: Meetings today, Milestones this month. Green
+is Done today. The Inbox and "All clear" stay grey. The tints are see-through
+(`TONE` in `admin-cards.tsx`), so they work in light and dark.
 
 1. **Waiting on you:** asks for more time that fall to them: nobody else
    handed the task out, they handed it out themselves, or whoever did can no

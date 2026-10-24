@@ -23,15 +23,29 @@ import { countLate, projectPace } from "@/lib/project/project-pace"
 import { cn } from "@/lib/utils"
 
 /**
- * The site admin's ten cards on the left of their My dashboard, in Tyler's
- * "act first" order (23 Oct 2026). Each counts across every team, shows its
- * five most urgent rows with "Show all" for the rest, and shrinks to one line
- * when it has nothing. A task in a card opens in the right panel. The Inbox,
- * the tenth, is drawn by the screen.
+ * The site admin's cards on the left of their My dashboard, in Tyler's "act
+ * first" order (23 Oct 2026). Each counts across every team and shows its five
+ * most urgent rows with "Show all" for the rest. A card with nothing in it is
+ * left out, and with all nine empty one "All clear" line stands in for them
+ * (24 Oct 2026, "this is way too many cards"). A task in a card opens in the
+ * right panel. The Inbox, always drawn, comes from the screen.
  */
 
 /** Rows a card shows before "Show all". */
 const ROWS = 5
+
+/**
+ * Each card's tint by how much it matters (Tyler, 24 Oct 2026: "each card
+ * should be a color based on their importance like the done card should have
+ * a green card"). Red needs the site admin now, amber soon, blue is to know
+ * about, green is done. See-through tints, so both themes work.
+ */
+const TONE = {
+  now: "bg-red-500/10",
+  soon: "bg-amber-500/10",
+  know: "bg-blue-500/10",
+  done: "bg-emerald-500/10",
+} as const
 
 type Cards = AdminDashboard["cards"]
 
@@ -45,6 +59,20 @@ export function AdminCards({
   zone: string
   onOpenTask: (taskId: string) => void
 }) {
+  const late = lateProjects(cards.projects)
+  const anything =
+    late.length > 0 ||
+    [
+      cards.waiting,
+      cards.attention,
+      cards.unassigned,
+      cards.invites,
+      cards.meetings,
+      cards.dueThisWeek,
+      cards.milestones,
+      cards.doneToday,
+    ].some((rows) => rows.length > 0)
+  if (!anything) return <PanelCard storageId="project-admin-clear" title="All clear" empty />
   return (
     <>
       <WaitingCard asks={cards.waiting} onOpenTask={onOpenTask} />
@@ -63,7 +91,7 @@ export function AdminCards({
         }
         onOpenTask={onOpenTask}
       />
-      <LateProjectsCard projects={cards.projects} />
+      <LateProjectsCard late={late} />
       <MilestonesCard milestones={cards.milestones} />
       <DoneTodayCard people={cards.doneToday} onOpenTask={onOpenTask} />
     </>
@@ -101,7 +129,7 @@ function WaitingCard({ asks, onOpenTask }: { asks: WaitingAsk[]; onOpenTask: (ta
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [saying, setSaying] = React.useState<WaitingAsk | null>(null)
-  if (asks.length === 0) return <PanelCard storageId="project-admin-waiting" title="Waiting on you" meta="None" empty />
+  if (asks.length === 0) return null
 
   async function answer(work: () => Promise<unknown>, done: string) {
     const ok = await run(work, done)
@@ -110,7 +138,7 @@ function WaitingCard({ asks, onOpenTask }: { asks: WaitingAsk[]; onOpenTask: (ta
   }
 
   return (
-    <PanelCard storageId="project-admin-waiting" title="Waiting on you" meta={asks.length}>
+    <PanelCard storageId="project-admin-waiting" className={TONE.now} title="Waiting on you" meta={asks.length}>
       <Rows items={asks}>
         {(ask) => (
           <li key={ask.taskId} className="grid gap-1.5 rounded-md px-2 py-1.5">
@@ -173,7 +201,7 @@ function WaitingCard({ asks, onOpenTask }: { asks: WaitingAsk[]; onOpenTask: (ta
 
 function AttentionCard({ teams }: { teams: Cards["attention"] }) {
   const navigate = useNavigate()
-  if (teams.length === 0) return <PanelCard storageId="project-admin-attention" title="Needs attention" meta="None" empty />
+  if (teams.length === 0) return null
   // A count opens that team on its Needs attention tab, as the Teams dashboard's numbers do.
   const openAttention = (teamId: string) => {
     try {
@@ -184,7 +212,7 @@ function AttentionCard({ teams }: { teams: Cards["attention"] }) {
     void navigate({ to: "/teams/$teamId", params: { teamId } })
   }
   return (
-    <PanelCard storageId="project-admin-attention" title="Needs attention" meta={teams.length}>
+    <PanelCard storageId="project-admin-attention" className={TONE.now} title="Needs attention" meta={teams.length}>
       <Rows items={teams}>
         {(team) => (
           <li key={team.teamId} className="grid gap-1 rounded-md px-2 py-1.5">
@@ -214,9 +242,9 @@ function AttentionCard({ teams }: { teams: Cards["attention"] }) {
 function UnassignedCard({ tasks, onOpenTask }: { tasks: Cards["unassigned"]; onOpenTask: (taskId: string) => void }) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  if (tasks.length === 0) return <PanelCard storageId="project-admin-unassigned" title="No one on it" meta="None" empty />
+  if (tasks.length === 0) return null
   return (
-    <PanelCard storageId="project-admin-unassigned" title="No one on it" meta={tasks.length}>
+    <PanelCard storageId="project-admin-unassigned" className={TONE.soon} title="No one on it" meta={tasks.length}>
       <Rows items={tasks}>
         {(task) => (
           <li key={task.taskId} className="grid gap-1.5">
@@ -258,9 +286,9 @@ function UnassignedCard({ tasks, onOpenTask }: { tasks: Cards["unassigned"]; onO
 
 function InvitesCard({ invites }: { invites: Cards["invites"] }) {
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  if (invites.length === 0) return <PanelCard storageId="project-admin-invites" title="Invites not taken" meta="None" empty />
+  if (invites.length === 0) return null
   return (
-    <PanelCard storageId="project-admin-invites" title="Invites not taken" meta={invites.length}>
+    <PanelCard storageId="project-admin-invites" className={TONE.soon} title="Invites not taken" meta={invites.length}>
       <Rows items={invites}>
         {(invite) => (
           <li key={invite.userId} className="flex items-center gap-2 rounded-md px-2 py-1.5">
@@ -293,9 +321,9 @@ function InvitesCard({ invites }: { invites: Cards["invites"] }) {
 }
 
 function MeetingsCard({ meetings, zone }: { meetings: Cards["meetings"]; zone: string }) {
-  if (meetings.length === 0) return <PanelCard storageId="project-admin-meetings" title="Meetings today" meta="None" empty />
+  if (meetings.length === 0) return null
   return (
-    <PanelCard storageId="project-admin-meetings" title="Meetings today" meta={meetings.length}>
+    <PanelCard storageId="project-admin-meetings" className={TONE.know} title="Meetings today" meta={meetings.length}>
       <Rows items={meetings}>
         {(meeting) => {
           const day = localNow(new Date(meeting.startsAt), zone).day
@@ -336,9 +364,9 @@ function TaskListCard({
   line: (task: TaskCard) => string
   onOpenTask: (taskId: string) => void
 }) {
-  if (tasks.length === 0) return <PanelCard storageId={storageId} title={title} meta="None" empty />
+  if (tasks.length === 0) return null
   return (
-    <PanelCard storageId={storageId} title={title} meta={tasks.length}>
+    <PanelCard storageId={storageId} title={title} meta={tasks.length} className={TONE.soon}>
       <Rows items={tasks}>
         {(task) => (
           <li key={task.id}>
@@ -350,20 +378,22 @@ function TaskListCard({
   )
 }
 
-function LateProjectsCard({ projects }: { projects: Cards["projects"] }) {
+/** The projects not on track, most late first. */
+function lateProjects(projects: Cards["projects"]) {
   // Late is counted on this browser's clock, as the Projects dashboard counts it.
-  const late = projects
+  return projects
     .map((project) => {
       const count = countLate(project.dated)
       return { project, late: count, pace: projectPace(count, project) }
     })
     .filter((row) => row.pace !== "on_track")
     .sort((a, b) => b.late - a.late || a.project.name.localeCompare(b.project.name))
-  if (late.length === 0) {
-    return <PanelCard storageId="project-admin-late" title="Projects running late" meta="None" empty />
-  }
+}
+
+function LateProjectsCard({ late }: { late: ReturnType<typeof lateProjects> }) {
+  if (late.length === 0) return null
   return (
-    <PanelCard storageId="project-admin-late" title="Projects running late" meta={late.length}>
+    <PanelCard storageId="project-admin-late" className={TONE.now} title="Projects running late" meta={late.length}>
       <Rows items={late}>
         {({ project, late: count, pace }) => (
           <li key={project.id}>
@@ -389,11 +419,9 @@ function LateProjectsCard({ projects }: { projects: Cards["projects"] }) {
 }
 
 function MilestonesCard({ milestones }: { milestones: Cards["milestones"] }) {
-  if (milestones.length === 0) {
-    return <PanelCard storageId="project-admin-milestones" title="Milestones this month" meta="None" empty />
-  }
+  if (milestones.length === 0) return null
   return (
-    <PanelCard storageId="project-admin-milestones" title="Milestones this month" meta={milestones.length}>
+    <PanelCard storageId="project-admin-milestones" className={TONE.know} title="Milestones this month" meta={milestones.length}>
       <Rows items={milestones}>
         {(milestone) => (
           <li key={milestone.id}>
@@ -416,10 +444,10 @@ function MilestonesCard({ milestones }: { milestones: Cards["milestones"] }) {
 }
 
 function DoneTodayCard({ people, onOpenTask }: { people: Cards["doneToday"]; onOpenTask: (taskId: string) => void }) {
-  if (people.length === 0) return <PanelCard storageId="project-admin-done" title="Done today" meta="None" empty />
+  if (people.length === 0) return null
   const total = people.reduce((sum, person) => sum + person.tasks.length, 0)
   return (
-    <PanelCard storageId="project-admin-done" title="Done today" meta={total}>
+    <PanelCard storageId="project-admin-done" className={TONE.done} title="Done today" meta={total}>
       <Rows items={people}>
         {(person) => (
           <li key={person.userId ?? "nobody"}>
