@@ -12,6 +12,7 @@ What Date does and why, one file per part. Tyler's decisions of 17 Oct 2026 are 
 - [ai/swiping-and-scoring.md](ai/swiping-and-scoring.md): learning from overruled swipes, Sonnet's first look and Opus's second, People I know, Super Likes, the swiping schedule, Tinder's own distance and ages, passed photos deleted after 30 days, What's working and what a match costs.
 - [ai/spend.md](ai/spend.md): what the AI costs and the monthly cap.
 - [your-profile.md](your-profile.md): the AI's suggestions for your own profile with before and after, Apply and Undo on the phone, new prompt answers from About me only, and the first-photo test.
+- [launch.md](launch.md): the live site at date.barelycompany.com, where it runs, every live value and the release record.
 - [settings.md](settings.md): the Dating settings, in the window the dashboard's cog opens.
 - [profiles.md](profiles.md): several dating profiles for one member, each one app's account with its own phone, settings, leads, spend and swipe loop; two profiles sharing one phone; the picker, New profile, Pause and Delete.
 - [dating-dashboard.md](dating-dashboard.md): the one three-column dashboard and Tyler's rules for it: leads and their status, the summary with the stats, the phone and My profile in the right panel, the Dates calendar, the cog's settings window, and the sample data.
