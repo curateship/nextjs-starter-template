@@ -51,6 +51,8 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, "..", "..", "..", "..")
 
 const POLL_EVERY_MS = 10_000
+/** A long build says it is still going once a minute, so a wait never looks like a hang. */
+const STILL_GOING_EVERY_MS = 60_000
 const GIVE_UP_AFTER_MS = 25 * 60_000
 const HEALTH_TRIES = 12
 const HEALTH_GAP_MS = 10_000
@@ -226,6 +228,7 @@ function developCommit() {
 async function waitForDeployment(settings, label, deploymentUuid) {
   const startedAt = Date.now()
   let said = null
+  let saidAt = startedAt
   while (Date.now() - startedAt < GIVE_UP_AFTER_MS) {
     const record = await coolify(settings, "GET", `/deployments/${deploymentUuid}`)
     const status = record?.status ?? "unknown"
@@ -233,6 +236,12 @@ async function waitForDeployment(settings, label, deploymentUuid) {
     if (status !== said) {
       console.log(`  ${line}`)
       said = status
+      saidAt = Date.now()
+    } else if (Date.now() - saidAt >= STILL_GOING_EVERY_MS) {
+      // With Coolify's latest step, such as "Building docker image started."
+      const [step] = buildLogTail(record?.logs, 1)
+      console.log(`  ${line}${step ? `: ${step}` : ""}`)
+      saidAt = Date.now()
     }
     if (deploymentOver(status)) {
       const tail = buildLogTail(record?.logs, status === "finished" ? 4 : 30)

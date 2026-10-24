@@ -155,8 +155,16 @@ so when there are some.
 
 Trade has its own script: `cd apps/trade && npm run deploy` (engine, then
 worker, then web). Pomodoro's first builds took about 9 minutes for the
-website and 8 for the worker, including the image's 300-second health-check
-start period.
+website and 8 for the worker, when the image's health check made Coolify sit
+out 300 seconds before looking.
+
+**Waiting:** while a resource builds, the script prints its status once a
+minute with Coolify's latest step, so a quiet minute is not a hang. Coolify
+reads only the first HEALTHCHECK in the root Dockerfile (the website's), for
+workers too, and sleeps out its start period before checking. That start is
+30 seconds, and the long allowance for a first deploy's migrations sits in the
+retries instead, so Coolify stops waiting as soon as the container is healthy
+(24 Oct 2026).
 
 ## The left menu
 

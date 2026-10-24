@@ -107,13 +107,20 @@ EXPOSE 3000
 # src/routes/api/health.ts for why the second half matters. Written with Node's
 # own fetch because this image has no curl and does not need one.
 #
-# The start window is generous because the database update runs before the
-# server does, and a first deploy applies every migration there has ever been
-# over a network link. A container killed part-way through that is a failed
-# release that looks like a mystery. Nothing is at risk while it starts: a
-# container in its start window has never been healthy, so it has never taken
-# traffic from the one already serving.
-HEALTHCHECK --interval=15s --timeout=5s --start-period=300s --retries=3 \
+# The wait is generous because the database update runs before the server
+# does, and a first deploy applies every migration there has ever been over a
+# network link. A container killed part-way through that is a failed release
+# that looks like a mystery. Nothing is at risk while it starts: a container
+# that has never been healthy has never taken traffic from the one already
+# serving.
+#
+# The wait is held in the retries, not the start period: a 30s start, then 21
+# misses 15s apart, is the same 345s. Coolify reads only the first HEALTHCHECK
+# in this file, for every app and the workers too, and sleeps out its start
+# period before it looks at all, but stops polling the moment the container is
+# healthy. With a 300s start every deploy, worker included, sat idle for five
+# minutes; with 30s it waits only as long as the server takes (24 Oct 2026).
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=21 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # Update the database, then serve. `&&` is doing real work: a failed update
