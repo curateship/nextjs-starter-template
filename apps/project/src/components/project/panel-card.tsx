@@ -57,7 +57,7 @@ export function PanelCard({
   settings?: boolean
   /**
    * Nothing in it: the heading alone on one line, with no arrow to open it,
-   * such as "No one on it · None" on the site admin's My dashboard.
+   * such as "All clear" on the site admin's My dashboard.
    */
   empty?: boolean
   className?: string

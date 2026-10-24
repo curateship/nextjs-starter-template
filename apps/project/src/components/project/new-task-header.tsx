@@ -10,6 +10,7 @@ import { loadNewTaskProjects, type NewTaskProject } from "@/lib/api/project/task
 import type { TaskType } from "@/lib/project/task-types"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import type { TaskStatus } from "@/lib/project/rules"
 import { lastProject, rememberProject } from "@/lib/project/new-task-project"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -42,6 +43,7 @@ export function NewTaskWithProjectPicker({
   children,
   openAtOnce = false,
   onClosed,
+  start: startsAs,
 }: {
   align: "start" | "end"
   /** The button, told while the projects load. */
@@ -50,6 +52,8 @@ export function NewTaskWithProjectPicker({
   openAtOnce?: boolean
   /** Told when it shuts, or couldn't open. */
   onClosed?: () => void
+  /** The status and due date it starts on, from the My dashboard heading it was opened under. */
+  start?: { status?: TaskStatus; due?: string | null }
 }) {
   const here = useParams({ strict: false }).projectId
   const [projects, setProjects] = React.useState<NewTaskProject[] | null>(null)
@@ -104,6 +108,8 @@ export function NewTaskWithProjectPicker({
         projects={projects ?? []}
         types={types}
         initialProjectId={initial}
+        status={startsAs?.status}
+        due={startsAs?.due}
         open={open}
         onOpenChange={(next) => {
           if (next) void start()

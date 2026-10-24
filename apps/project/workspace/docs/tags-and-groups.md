@@ -78,6 +78,16 @@ number.
   person" switch, moved into the row.
 - **Each List heading has a "+"** while pointed at, which starts a new task
   in that group (see [Making tasks quickly](projects-and-tasks.md#making-tasks-quickly)).
+- **Each List heading has an arrow** beside its "+" that folds the heading
+  shut and opens it again; the count stays in view (Tyler, 24 Oct 2026:
+  "beside the + icon, there should be a arrow collapse icon to collapse the
+  section too"). This browser remembers the folds per project and per
+  grouping, since a heading only means something in its own grouping ("the
+  collapse doesnt remember"). With Mass select on, the tick box that selects
+  all takes only the tasks in view, never those under a folded heading. The
+  buttons are in
+  `src/components/project/task-list-heading.tsx`, the state in
+  `src/lib/project/use-folded-headings.ts`.
 - **The rule** is `groupTasks` in `src/lib/project/task-groups.ts`.
 
 ## Sections, before 19 Oct 2026

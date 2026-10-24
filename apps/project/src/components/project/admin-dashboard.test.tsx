@@ -80,6 +80,33 @@ const empty: AdminDashboard["cards"] = {
   doneToday: [],
 }
 
+/** One row in every card, so each one draws. */
+const FULL: AdminDashboard["cards"] = {
+  waiting: [
+    { taskId: "w1", projectId: "p1", projectName: "Acme · Website", title: "Ask", askedByName: "Ben", day: "2099-03-06", dueDate: null, reason: null },
+  ],
+  attention: [{ teamId: "acme", teamName: "Acme", stuck: 1, overdue: 0, untouched: 0 }],
+  unassigned: [{ taskId: "u1", projectId: "p1", projectName: "Acme · Website", title: "Loose", dueDate: null, people: [] }],
+  invites: [{ userId: "cara", name: "Cara", email: "cara@example.test", teamId: "acme", teamName: "Acme" }],
+  meetings: [
+    { meetingId: "m1", title: "Standup", color: "blue", teamId: "acme", teamName: "Acme", startsAt: "2099-03-02T09:00:00Z", endsAt: "2099-03-02T09:15:00Z" },
+  ],
+  dueThisWeek: [card("d1", "Due task", { dueDate: "2099-03-04" })],
+  projects: [
+    {
+      id: "p1",
+      name: "Website",
+      color: "blue",
+      team: { name: "Acme" },
+      dated: [{ dueDate: "2000-01-01", status: "todo" }],
+      slowingAt: 1,
+      behindAt: 3,
+    } as unknown as AdminDashboard["cards"]["projects"][number],
+  ],
+  milestones: [{ id: "ms1", name: "Launch", dueDate: "2099-03-20", projectId: "p1", projectName: "Acme · Website", openTasks: 2 }],
+  doneToday: [{ userId: "ben", name: "Ben", avatarUrl: "", tasks: [{ taskId: "x1", title: "Done", projectId: "p1", projectName: "Acme · Website" }] }],
+}
+
 function dashboard(cards: Partial<AdminDashboard["cards"]> = {}): AdminDashboard {
   return {
     me: { id: "tyler", name: "Tyler", email: "tyler@example.test", avatarUrl: "" },
@@ -180,6 +207,16 @@ describe("the site admin's My dashboard", () => {
     expect(html).toContain(`data-task-id="t1"`)
   })
 
+  it("puts a + on the List's headings a new task can start in, as on a project's List", () => {
+    const data = dashboard()
+    data.tasks.push(card("t3", "Late one", { dueDate: "2000-01-01" }))
+    const html = render(data)
+    expect(html).toContain('aria-label="Add a task to No date"')
+    // A new task can't start overdue.
+    expect(html).toContain("Overdue<")
+    expect(html).not.toContain('aria-label="Add a task to Overdue"')
+  })
+
   it("shows 6 notices in the Inbox, with Load more for the rest", () => {
     const notices = Array.from({ length: 8 }, (_, n) => notice(n))
     const html = render(dashboard(), { notifications: notices, nextCursor: null })
@@ -192,16 +229,32 @@ describe("the site admin's My dashboard", () => {
     expect(render(dashboard(), { notifications: notices.slice(0, 3), nextCursor: "c1" })).toContain(">Load more<")
   })
 
-  it("draws the ten cards in Tyler's order, each empty one on one line", () => {
+  it("draws only All clear and the Inbox when every card is empty", () => {
     const html = render(dashboard())
+    expect(html).toContain("All clear<")
+    expect(html).toContain("Inbox<")
+    for (const title of ["Waiting on you", "No one on it", "Due this week", "Done today"]) {
+      expect(html).not.toContain(`${title}<`)
+    }
+  })
+
+  it("leaves out empty cards and All clear when one card has rows", () => {
+    const html = render(dashboard({ dueThisWeek: [card("d1", "Due task", { dueDate: "2099-03-04" })] }))
+    expect(html).toContain("Due this week<")
+    expect(html).not.toContain("All clear<")
+    expect(html).not.toContain("No one on it<")
+  })
+
+  it("draws the cards in Tyler's order", () => {
+    const html = render(dashboard(FULL))
     const order = [
       "Waiting on you",
       "Needs attention",
+      "Projects running late",
       "No one on it",
       "Invites not taken",
-      "Meetings today",
       "Due this week",
-      "Projects running late",
+      "Meetings today",
       "Milestones this month",
       "Done today",
       "Inbox",
@@ -209,7 +262,11 @@ describe("the site admin's My dashboard", () => {
     const at = order.map((title) => html.indexOf(`${title}<`))
     expect(at.every((index) => index >= 0)).toBe(true)
     expect([...at].sort((a, b) => a - b)).toEqual(at)
-    expect(html).toContain("No one on it<span class=\"font-normal text-muted-foreground\"> · None</span>")
+    // Tinted by how much each matters: three red, three amber, two blue, Done today green.
+    expect(html.match(/bg-red-500\/10/g)).toHaveLength(3)
+    expect(html.match(/bg-amber-500\/10/g)).toHaveLength(3)
+    expect(html.match(/bg-blue-500\/10/g)).toHaveLength(2)
+    expect(html.match(/bg-emerald-500\/10/g)).toHaveLength(1)
   })
 
   it("shows five rows and Show all for the rest, with Yes and No on an ask and Hand to on a loose task", () => {

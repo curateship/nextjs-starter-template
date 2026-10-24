@@ -38,7 +38,7 @@ import { clientChoices } from "@/lib/project/clients"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import type { ListDrop } from "@/lib/project/list-drop"
 import { canMove, dropChange, inMyOrder, isMyHeading, takesDrops, type MyPlace } from "@/lib/project/my-task-order"
-import { MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
+import { MY_TASK_FOLDS_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
 import type { TaskStatus } from "@/lib/project/rules"
 import { pickedWordsUnder, readRightClick } from "@/lib/project/right-click"
 import { viewHasFilters } from "@/lib/project/saved-views"
@@ -244,6 +244,26 @@ export function MyTasksPanel({
     if (!ok) setTasks(before)
     await router.invalidate()
     return ok
+  }
+
+  /**
+   * A heading's "+", as on a project's List (Tyler, 24 Oct 2026: "My dashboard
+   * is missing the "+" icon in the section like project dashboard"). The new
+   * task starts as a drop under that heading would leave it: Today due today,
+   * This week tomorrow, Later eight days on, No date with none, Done done.
+   * Overdue, Waiting and today's picks can't be started in, so have no "+".
+   */
+  function addUnder(heading: string, button: React.ReactNode) {
+    const change = dropChange(heading, myDay)
+    if (!change) return null
+    return (
+      <NewTaskWithProjectPicker
+        align="start"
+        start={"status" in change ? { status: change.status } : { due: change.dueDate }}
+      >
+        {() => button}
+      </NewTaskWithProjectPicker>
+    )
   }
 
   /**
@@ -494,6 +514,7 @@ export function MyTasksPanel({
             onDrop={onDrop}
             canMove={canMove}
             showsEmpty={takesDrops}
+            foldsKey={MY_TASK_FOLDS_KEY}
             orderLabel="my order"
             selectedSlot={selectedSlot}
             onOpenTask={(task) => onOpenTask(task.id)}
@@ -503,6 +524,7 @@ export function MyTasksPanel({
             showProject
             projectColumn={source.table.project}
             showSteps={false}
+            addTask={addUnder}
             myUserId={source.myUserId}
             onDelete={(task) => setDeleting(task)}
             canDelete={source.canDelete}
@@ -521,6 +543,7 @@ export function MyTasksPanel({
             onOpenTask={(task) => onOpenTask(task.id)}
             groups={LIST_GROUPS}
             groupOf={headingOf}
+            addTask={addUnder}
             emptyText={
               filtered
                 ? `No tasks match ${filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the filters to see them all.`
