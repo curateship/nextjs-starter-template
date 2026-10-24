@@ -228,7 +228,7 @@ describe("the board's field lines (Features 16 Oct, part 8)", () => {
 describe("the list", () => {
   it("hides the tick boxes and drag handles until Mass select turns them on", () => {
     const html = renderToStaticMarkup(
-      <TaskList tasks={tasks} readOnly={false} onOpenTask={() => {}} onReorder={() => {}} />
+      <TaskList tasks={tasks} readOnly={false} onOpenTask={() => {}} onDrop={() => {}} />
     )
     expect(html).toContain(">Mass select<")
     expect(html).toContain(`aria-pressed="false"`)

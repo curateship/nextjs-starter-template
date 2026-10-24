@@ -108,6 +108,7 @@ export const PROJECT_ERRORS = {
   stuckTaskNotYours: "Only people on that task's project can reply about it.",
   tooManyReplies: "That's a lot of replies in an hour. Wait a while, then try again.",
   notTodaysPicks: "Those tasks aren't all in today's picks. Reload the page and try again.",
+  notMyTasks: "Those tasks aren't all yours any more. Reload the page and try again.",
   weekTooFarBack: "My week goes back 12 weeks at most.",
   holidayTaken: "There's already a holiday on that day.",
   holidayInThePast: "Pick today or a later day for a holiday.",

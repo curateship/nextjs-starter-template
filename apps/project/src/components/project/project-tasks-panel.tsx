@@ -36,7 +36,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { loadProjectChatUnread } from "@/lib/api/project/chat"
 import { saveStatusOrder, type ProjectPage } from "@/lib/api/project/projects"
-import { saveTaskOrder } from "@/lib/api/project/sorting"
+import { saveTaskTypeOf } from "@/lib/api/project/task-types"
+import { saveTaskLabels, saveTaskOrder } from "@/lib/api/project/sorting"
 import {
   assignProjectTask,
   deleteProjectTask,
@@ -53,10 +54,12 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { rememberProject } from "@/lib/project/new-task-project"
 import { BOARD_GROUP_KEY, PROJECT_TASK_VIEW_KEY, taskGroupingKey } from "@/lib/project/panel-keys"
 import { todayKey } from "@/lib/project/dates"
+import type { ListDrop } from "@/lib/project/list-drop"
+import { dropChange } from "@/lib/project/my-task-order"
 import { runsTheTeam, type TaskPriority, type TaskStatus } from "@/lib/project/rules"
 import { filterTasks, hasTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
 import { overDoingLimit } from "@/lib/project/doing-limit"
-import { TASK_GROUPINGS, groupTasks, type TaskGrouping } from "@/lib/project/task-groups"
+import { TASK_GROUPINGS, canMoveInGroup, groupTasks, type TaskGrouping } from "@/lib/project/task-groups"
 import { placesAfterReorder } from "@/lib/project/task-order"
 import { offeredTypes } from "@/lib/project/task-types"
 import { useFieldColumns, useTimeColumn } from "@/lib/project/use-field-columns"
@@ -255,6 +258,72 @@ export function ProjectTasksPanel({
     const ok = await run(() => saveTaskOrder(page.project.id, taskIds))
     if (!ok) setTasks(before)
     else await router.invalidate()
+  }
+
+  /**
+   * A List row let go: a new order inside its heading, or under another
+   * heading a change to what it is grouped by, then its place there (Tyler,
+   * 24 Oct 2026). Each change is the same save as the task's own picker, so
+   * Stuck asks why and a new person is asked "Hand it over?" first.
+   */
+  function dropRow(drop: ListDrop) {
+    const task = tasks.find((t) => t.id === drop.taskId)
+    if (!task) return
+    if (drop.from === drop.to) return void reorder(drop.taskIds)
+    const order = drop.taskIds
+    const none = drop.to === "none"
+    switch (grouping) {
+      case "status":
+        return requestStatus(task, drop.to as TaskStatus, order)
+      case "assignee": {
+        const person = none ? null : people.find((p) => p.id === drop.to)
+        // Someone no longer on the project: nobody to hand it to, so the drop is ignored rather than unassigning.
+        if (person === undefined) return
+        return setHandingOver({ task, person: person && { id: person.id, name: person.name }, status: task.status, order })
+      }
+      case "priority": {
+        const priority = drop.to as TaskPriority
+        return void moveTask(task, { priority }, () => saveTask({ taskId: task.id, priority }), order)
+      }
+      case "due": {
+        const change = dropChange(drop.to, todayKey())
+        if (!change || !("dueDate" in change)) return
+        const { dueDate } = change
+        return void moveTask(task, { dueDate, dueAt: null }, () => saveTask({ taskId: task.id, dueDate }), order)
+      }
+      case "type": {
+        const type = none ? null : page.taskTypes.find((t) => t.id === drop.to)
+        if (type === undefined) return
+        return void moveTask(task, { type }, () => saveTaskTypeOf(task.id, type?.id ?? null), order)
+      }
+      case "tags": {
+        const labels = [
+          ...task.labels.filter((label) => label.id !== drop.from),
+          ...page.labels.filter((label) => label.id === drop.to),
+        ]
+        const ids = labels.map((label) => label.id)
+        return void moveTask(task, { labels }, () => saveTaskLabels(task.id, ids), order)
+      }
+    }
+  }
+
+  /** One change from a List drop and the task's place under its new heading: shown at once, put back if refused. */
+  async function moveTask(task: TaskCard, patch: Partial<TaskCard>, save: () => Promise<unknown>, order: string[]) {
+    const before = tasks
+    const places = placesAfterReorder(tasks, order)
+    setTasks((current) =>
+      current.map((t) => ({
+        ...t,
+        ...(t.id === task.id ? patch : null),
+        ...(places.has(t.id) ? { position: places.get(t.id)! } : null),
+      }))
+    )
+    const ok = await run(async () => {
+      await save()
+      await saveTaskOrder(page.project.id, order)
+    })
+    if (!ok) setTasks(before)
+    await router.invalidate()
   }
 
   /** A new status, and with `order` (the new column's tasks, from the Board) its place there too. */
@@ -668,8 +737,9 @@ export function ProjectTasksPanel({
               onOpenTask={(task) => onOpenTask(task.id)}
               groups={grouped?.groups}
               groupsOf={grouped?.groupsOf}
-              // Grouped by tags a task can sit under several headings, so rows don't drag then.
-              onReorder={readOnly || grouping === "tags" ? undefined : (taskIds) => void reorder(taskIds)}
+              ordered={!readOnly}
+              onDrop={readOnly ? undefined : dropRow}
+              canMove={(_from, to, task) => canMoveInGroup(grouping, to, task)}
               bulk={{
                 people,
                 projects: page.otherProjects,

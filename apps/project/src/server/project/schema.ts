@@ -1132,3 +1132,23 @@ export const projectSiteAdminPrefs = pgTable("project_site_admin_prefs", {
   statusOrder: text("status_order").array().$type<TaskStatus[]>().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
+
+/**
+ * My dashboard's List in each person's own order, set by dragging
+ * (`drizzle/0132_project_my_task_order.sql`). A place counts only under the
+ * heading it was set in, so a task that moves heading goes to its bottom.
+ */
+export const projectMyTaskOrder = pgTable(
+  "project_my_task_order",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    taskId: varchar("task_id", { length: 36 })
+      .notNull()
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
+    heading: varchar("heading", { length: 16 }).notNull(),
+    position: integer("position").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.taskId] })]
+)

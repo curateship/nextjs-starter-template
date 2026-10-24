@@ -2,17 +2,19 @@ import * as React from "react"
 import {
   closestCenter,
   DndContext,
+  DragOverlay,
   PointerSensor,
+  useDroppable,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from "@dnd-kit/core"
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { useRouter } from "@tanstack/react-router"
 import { CheckIcon, ChevronRightIcon, HourglassIcon, ListChecksIcon, PlayIcon } from "lucide-react"
 
 import {
   DueDate,
+  HeldTaskGhost,
   LabelChip,
   PickedDaysBadge,
   PriorityMark,
@@ -35,8 +37,11 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { pauseTaskClock } from "@/lib/api/project/clock"
 import { reportBulkOutcome } from "@/lib/project/bulk-outcome"
 import { todayKey } from "@/lib/project/dates"
+import { HEADING_DROP, type ListDrop } from "@/lib/project/list-drop"
+import { canMove, takesDrops } from "@/lib/project/my-task-order"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { DUE_MOVED_MANY, TASK_STATUS_LABEL } from "@/lib/project/rules"
+import { useListDrop } from "@/lib/project/use-list-drop"
 import { cn } from "@/lib/utils"
 
 export type RowGroup = { key: string; label: string }
@@ -59,7 +64,8 @@ const GROUP_DOT: Record<string, string> = {
  * round tick box, the title with the project and its chips under it, then the
  * due date, steps, status and an arrow. Clicking a row opens the task. Ticked
  * rows can be marked Done, handed over, dated or given a status together.
- * With `onReorder`, rows drag up or down to set my own order (Today).
+ * With `onDrop`, rows drag up or down to set my own order, or into another
+ * heading (`lib/project/my-task-order.ts`).
  */
 export function MyTaskRows({
   tasks,
@@ -67,8 +73,7 @@ export function MyTaskRows({
   groups,
   groupOf,
   onOpenTask,
-  onReorder,
-  reorderGroup,
+  onDrop,
   bulk,
   emptyText,
 }: {
@@ -78,10 +83,8 @@ export function MyTaskRows({
   groups?: readonly RowGroup[]
   groupOf?: (task: TaskCard) => string
   onOpenTask: (task: TaskCard) => void
-  /** The rows in their new order. Left out, rows don't drag. */
-  onReorder?: (taskIds: string[]) => void
-  /** With groups, the one group whose rows drag, such as today's picks. */
-  reorderGroup?: string
+  /** A row let go inside its heading or under another. Left out, rows don't drag. */
+  onDrop?: (drop: ListDrop) => void
   bulk: BulkTargets
   emptyText: string
 }) {
@@ -94,7 +97,7 @@ export function MyTaskRows({
   const ids = tasks.map((task) => task.id)
   const selectedIds = ids.filter((id) => selection.selected.has(id))
 
-  const sections = React.useMemo(() => {
+  const grouped = React.useMemo(() => {
     if (!groups || !groupOf) return [{ key: "all", label: null as string | null, rows: tasks }]
     return groups
       .map((group) => ({
@@ -104,6 +107,8 @@ export function MyTaskRows({
       }))
       .filter((group) => group.rows.length > 0)
   }, [groupOf, groups, tasks])
+  const drop = useListDrop(grouped, { groups, onDrop, canMove, showsEmpty: takesDrops })
+  const sections = drop.sections
 
   /** The row's own Pause, for a clock left running (Task panel task 01, part 6). */
   async function pauseClock(task: TaskCard) {
@@ -125,16 +130,6 @@ export function MyTaskRows({
     await router.invalidate()
   }
 
-  function handleDragEnd(event: DragEndEvent) {
-    const overId = event.over?.id
-    if (!onReorder || overId === undefined || overId === event.active.id) return
-    // Rows move within their own group: the order sent is that group's.
-    const group = sections.find((section) => section.rows.some((task) => task.id === event.active.id))
-    const groupIds = (group?.rows ?? tasks).map((task) => task.id)
-    if (!groupIds.includes(String(overId))) return
-    onReorder(arrayMove(groupIds, groupIds.indexOf(String(event.active.id)), groupIds.indexOf(String(overId))))
-  }
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {selectedIds.length ? (
@@ -153,15 +148,15 @@ export function MyTaskRows({
         {tasks.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">{emptyText}</p>
         ) : (
-          <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} {...drop.context}>
             {sections.map((section) => (
               <section key={section.key} aria-label={section.label ?? undefined}>
                 {section.label !== null ? (
-                  <h3 className="flex items-center gap-2 border-b bg-muted/40 px-4 py-2 text-xs font-medium tracking-wide uppercase">
+                  <GroupHeading groupKey={section.key} dropZone={Boolean(drop.held)}>
                     <span aria-hidden className={cn("size-2 rounded-full", GROUP_DOT[section.key] ?? GROUP_DOT.none)} />
                     {section.label}
                     <span className="font-normal text-muted-foreground">{section.rows.length}</span>
-                  </h3>
+                  </GroupHeading>
                 ) : null}
                 <SortableContext items={section.rows.map((task) => task.id)} strategy={verticalListSortingStrategy}>
                   <ul>
@@ -169,7 +164,7 @@ export function MyTaskRows({
                       <Row
                         key={task.id}
                         task={task}
-                        canDrag={Boolean(onReorder) && (!reorderGroup || section.key === reorderGroup)}
+                        canDrag={Boolean(onDrop) && !busy}
                         open={task.id === openTaskId}
                         selected={selection.selected.has(task.id)}
                         onToggle={() => selection.toggle(task.id)}
@@ -181,10 +176,32 @@ export function MyTaskRows({
                 </SortableContext>
               </section>
             ))}
+            <DragOverlay dropAnimation={null}>{drop.held ? <HeldTaskGhost task={drop.held} /> : null}</DragOverlay>
           </DndContext>
         )}
       </ScrollArea>
     </div>
+  )
+}
+
+/** A heading; while a row is held, one with no rows still takes it, at its top. */
+function GroupHeading({
+  groupKey,
+  dropZone,
+  children,
+}: {
+  groupKey: string
+  dropZone: boolean
+  children: React.ReactNode
+}) {
+  const { setNodeRef } = useDroppable({ id: `${HEADING_DROP}${groupKey}`, disabled: !dropZone })
+  return (
+    <h3
+      ref={setNodeRef}
+      className="flex items-center gap-2 border-b bg-muted/40 px-4 py-2 text-xs font-medium tracking-wide uppercase"
+    >
+      {children}
+    </h3>
   )
 }
 
@@ -205,6 +222,7 @@ function Row({
   onOpen: () => void
   onPauseClock: () => void
 }) {
+  // The rows slide apart for the held one, whose place shows dimmed while a copy follows the pointer.
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     disabled: !canDrag,
@@ -224,7 +242,7 @@ function Row({
         "flex items-center gap-3 border-b px-4 py-3 hover:bg-muted/40",
         // Open beside the list: a bar down its left edge, as the Board outlines its card.
         open && "bg-muted/60 shadow-[inset_2px_0_0_var(--foreground)]",
-        isDragging && "relative z-10 bg-background shadow-md"
+        isDragging && "opacity-40"
       )}
     >
       <Checkbox

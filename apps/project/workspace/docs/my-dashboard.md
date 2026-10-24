@@ -111,19 +111,58 @@ moved 5 times", "Waiting on 1 task", "3 new"), then the due date ("Overdue ·
 Oct 12" in red), the steps ("0/2"), the status with its dot, and an arrow.
 On a phone the date and steps give way. Group headings are small capitals
 with a dot: OVERDUE red, TODAY orange, THIS WEEK blue, LATER purple, NO DATE
-grey, and WAITING FOR MY ANSWER yellow. Rows sort soonest first.
+grey, and WAITING FOR MY ANSWER yellow. Under each group the rows come in
+my own order (below), then any I haven't placed, soonest first.
 
 - **Picked for today** comes first: what I picked on today's check-in, in my
-  own order. Those rows drag up and down to set that order, which only I see;
-  rows in other groups don't drag. Dragging is off while a search or filter is
+  own order, from the check-in. Those rows drag up and down to set that
+  order, and never leave the group. Dragging is off while a search or filter is
   on. A picked task shows only here, not again under its due date.
 - **Then every other open task of mine**, split into Waiting for my answer,
   Overdue, Today, This week (the next seven days), Later and No date, then
-  **Done** last, each with its count. Empty groups are hidden. **Accept all 9 tasks**
+  **Done** last, each with its count. Today, This week, Later, No date and
+  Done show even when empty, so a task can be dragged into them; the other
+  empty groups are hidden. On the site admin's table those empty ones show
+  only while Mass select is on, since only then can a row be dragged (Tyler,
+  24 Oct 2026: "when mass select is off. Hide the empty sections"). **Accept all 9 tasks**
   sits beside "9 tasks are waiting for you…", on a grey line: each is accepted on its own, so
   each writes its history line, and the result says "9 accepted", or names one
   that changed hands since with the reason. "Today" is my own day,
   in my time zone, the same day the check-in uses.
+- **Dragging rows** (Tyler, 23 Oct 2026: "I want to be able to drag and drop
+  tasks into different order and sections"). On an employee's List any row
+  can be grabbed and dragged, and a plain click still opens it. On the site
+  admin's table, rows drag by the handle that shows once **Mass select** is
+  pressed, as on a project's List (Tyler, 24 Oct 2026: "bring back the old
+  pattern of pressing mass select to move").
+  - **Up or down inside its group**, it sets my own order there, which only
+    I see and which lasts after a reload. Teammates and the project page keep
+    theirs (`project_my_task_order`, migration 0132).
+  - **Under another group**, it takes that group's date: Today is due today,
+    This week tomorrow, Later eight days from today, No date clears the date,
+    and Done marks it Done. It is the same save as the Due cell or the Done
+    tick, so it loses any "Due by" time, counts toward "Date moved 3 times",
+    and a Done a required field refuses is put back with the reason.
+  - **Overdue and Waiting for my answer take no drops**, and rows under
+    Waiting, Done and Picked for today stay in their group, since their date
+    would not move them.
+  - **The rows slide apart to make room** (Tyler, 24 Oct 2026: "why cant we
+    use the old drag and drop animation and still keep sections in place?").
+    While a row is held, a small copy with its status dot and title follows
+    the pointer, and the row's own place shows faded in a gap that opens
+    where it will land, in its own group or in another that takes it. Over
+    an empty group's heading, the gap opens under it. A group that takes no
+    drops never opens a gap, and Escape puts everything back. The headings
+    stay put: only the groups the row leaves and enters change by one row.
+  - **A task that arrives some other way** (someone changes its date, a new
+    task, the day rolls over) goes to the bottom of its group, and my order
+    above it stays. A place counts only under the group it was set in.
+  - **Off while a search or filter is on**, since hidden rows would make the
+    place a guess, and while a change is saving. On the site admin's table,
+    sorting by a column turns it off too, with a "Use my order" button back.
+  - The rules are `src/lib/project/my-task-order.ts`; the save is
+    `orderMyTasks` in `src/server/project/my-task-order.ts`, which takes only
+    tasks assigned to me.
 - **Catch up** sits at the end of a red line, "9 tasks are overdue.", above
   every view, while anything is overdue and no search or filter is on. It opens a
   window listing those tasks, the same ones as the Overdue group, all
@@ -251,7 +290,8 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   project page's table** (Tyler, 23 Oct 2026: "The tasks table have to look
   like the project's tasks table"), grouped under Overdue, Today, This week,
   Later, No date and Done, with Mass select, each cell changing its task, and
-  a cog and a bin in Actions. Its columns are Task, **Project**, Status,
+  a cog and a bin in Actions. Ticked rows gather in the "1 selected" button in
+  the header, left of the search, as on a project page. Its columns are Task, **Project**, Status,
   Priority, Due and Actions. Tyler first asked for Team and Project as their
   own columns, then had Assigned to, Steps and Team taken off ("remove the
   assigned to, steps and my team col"). The Project cell is a chip with the
@@ -266,7 +306,8 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   fields, which belong to its old team. Only a task the site admin is doing
   can go into their list; one someone else is doing stays shared. The Board, Calendar and Timeline still name the team with the
   project ("Acme · Website").
-  There are no picks for today, so nothing drags up or down. Filter offers
+  There are no picks for today; rows drag as on an employee's List, once
+  Mass select is on (Dragging rows, above). Filter offers
   every team's tags and types. Saved views are kept under their own id
   (`admin-tasks:<their id>`), so nobody else can save there.
 - **Their own list is on no team.** Every list in the app belongs to a team,

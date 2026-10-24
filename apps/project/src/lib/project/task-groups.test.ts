@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { groupTasks, type GroupableTask } from "@/lib/project/task-groups"
+import { canMoveInGroup, groupTasks, type GroupableTask } from "@/lib/project/task-groups"
 
 const NOW = new Date("2026-10-19T12:00:00")
 
@@ -65,5 +65,37 @@ describe("grouping tasks, as Filter's Group row does", () => {
 
   it("is one plain list for None", () => {
     expect(groupTasks(tasks, "none", NOW)).toBeNull()
+  })
+})
+
+describe("dragging a row under another heading (Tyler, 24 Oct 2026)", () => {
+  const [fixLogin, callSam, plan] = tasks
+
+  it("takes any status, priority, person or type", () => {
+    expect(canMoveInGroup("status", "stuck", plan)).toBe(true)
+    expect(canMoveInGroup("priority", "low", plan)).toBe(true)
+    expect(canMoveInGroup("assignee", "none", callSam)).toBe(true)
+    expect(canMoveInGroup("type", "none", plan)).toBe(true)
+  })
+
+  it("takes Today, This week, Later and No due date, never Overdue or Earlier", () => {
+    expect(["overdue", "today", "week", "later", "earlier", "none"].filter((key) => canMoveInGroup("due", key, plan))).toEqual([
+      "today",
+      "week",
+      "later",
+      "none",
+    ])
+  })
+
+  it("swaps a tag: never onto a tag it has, and to No tags only from its one tag", () => {
+    expect(canMoveInGroup("tags", "client", fixLogin)).toBe(false)
+    expect(canMoveInGroup("tags", "bug", callSam)).toBe(true)
+    expect(canMoveInGroup("tags", "none", fixLogin)).toBe(false)
+    expect(canMoveInGroup("tags", "none", callSam)).toBe(true)
+    expect(canMoveInGroup("tags", "bug", plan)).toBe(true)
+  })
+
+  it("has nowhere else to go with no grouping", () => {
+    expect(canMoveInGroup("none", "all", plan)).toBe(false)
   })
 })

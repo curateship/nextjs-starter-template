@@ -97,6 +97,19 @@ export function StatusDot({ status, className }: { status: TaskStatus; className
   return <span aria-hidden className={cn("inline-block size-2 shrink-0 rounded-full", STATUS_DOT[status], className)} />
 }
 
+/** The copy of a List row that follows the pointer while it is dragged. */
+export function HeldTaskGhost({ task }: { task: { title: string; status: TaskStatus } }) {
+  return (
+    <div
+      aria-hidden
+      className="flex w-max max-w-96 cursor-grabbing items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm font-medium shadow-lg"
+    >
+      <StatusDot status={task.status} />
+      <span className="truncate">{task.title}</span>
+    </div>
+  )
+}
+
 export function WaitingBadge() {
   return (
     <Badge variant="outline">

@@ -3,22 +3,19 @@ import { createPortal } from "react-dom"
 import {
   closestCenter,
   DndContext,
+  DragOverlay,
   PointerSensor,
+  useDroppable,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from "@dnd-kit/core"
-import {
-  arrayMove,
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { GripVerticalIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 
 import {
   DueChip,
   DueMovesMark,
+  HeldTaskGhost,
   LabelChip,
   PersonChip,
   PickedDaysBadge,
@@ -67,10 +64,12 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { todayKey } from "@/lib/project/dates"
 import { clockSeconds } from "@/lib/project/clock"
+import { HEADING_DROP, type ListDrop } from "@/lib/project/list-drop"
 import { TASK_STATUSES, priorityRank, type ProjectColor } from "@/lib/project/rules"
 import { fieldSortValue, fieldValueText, type FieldRule } from "@/lib/project/task-fields"
 import type { TaskGroup } from "@/lib/project/task-groups"
 import { byPosition } from "@/lib/project/task-order"
+import { useListDrop } from "@/lib/project/use-list-drop"
 import { cn } from "@/lib/utils"
 
 /**
@@ -155,12 +154,13 @@ function compare(
  *
  * `groupsOf` puts the rows under headings, in `groups` order, from Filter's
  * Group row (`lib/project/task-groups.ts`); a task with several tags is under
- * each. With `onReorder` the rows start in the project's own order and drag
- * up or down inside their heading to change it, for everyone on the project.
+ * each. With `onDrop` rows drag up or down inside their heading to change the
+ * order, or under another heading that `canMove` allows: on a project page
+ * that changes what the row is grouped by, on My dashboard its date.
  *
  * The tick boxes and drag handles stay hidden until the "Mass select" chip,
  * shown when the pointer is over the Task heading, turns them on (Tyler,
- * 19 Oct 2026).
+ * 19 Oct 2026, and again 24 Oct 2026).
  *
  * Unless `readOnly`, a status dot before each title and the Status, Priority,
  * Assigned to and Due cells each open a dropdown that changes that one thing
@@ -175,7 +175,10 @@ export function TaskList({
   emptyText = "No tasks yet.",
   groups,
   groupsOf,
-  onReorder,
+  ordered = false,
+  onDrop,
+  canMove = sameHeading,
+  showsEmpty,
   orderLabel = "the project's order",
   bulk = NO_TARGETS,
   fieldColumns = NO_FIELD_COLUMNS,
@@ -197,7 +200,14 @@ export function TaskList({
   emptyText?: string
   groups?: readonly TaskGroup[]
   groupsOf?: (task: TaskCard) => string[]
-  onReorder?: (taskIds: string[]) => void
+  /** The rows come in an order of their own, in `position`, which the first sort keeps. */
+  ordered?: boolean
+  /** A row let go inside its heading or under another (`lib/project/list-drop.ts`). Left out, rows don't drag. */
+  onDrop?: (drop: ListDrop) => void
+  /** Whether a task may be dropped under another heading; left out, rows only reorder. */
+  canMove?: (from: string, to: string, task: TaskCard) => boolean
+  /** Headings that show even with no rows while rows can be dragged, so a row can be dropped there. */
+  showsEmpty?: (key: string) => boolean
   /** What the dragged order is called: "the project's order", or "my order" on My dashboard's Today. */
   orderLabel?: string
   /** The people and projects that Hand to and Move to project offer for ticked rows. */
@@ -228,7 +238,7 @@ export function TaskList({
   showSteps?: boolean
 }) {
   const { sort, direction, toggleSort } = useTableSort<TaskColumn>(
-    onReorder ? "order" : showProject ? "due" : "status"
+    ordered ? "order" : showProject ? "due" : "status"
   )
   const selection = useSelection()
   useClearSelectionOnListChange(selection.setSelected, tasks.map((t) => t.id).join(","))
@@ -236,7 +246,7 @@ export function TaskList({
   const dndId = React.useId()
   const [editing, setEditing] = React.useState(false)
   const canEdit = editing && !readOnly
-  const canDrag = canEdit && Boolean(onReorder) && sort === "order"
+  const canDrag = canEdit && Boolean(onDrop) && sort === "order"
 
   function toggleEditing() {
     if (editing) selection.clear()
@@ -299,16 +309,28 @@ export function TaskList({
         a.title.localeCompare(b.title)
     )
   }, [direction, fieldColumns, projectColumn, sort, tasks])
-  const sections = React.useMemo(() => {
-    if (!groups || !groupsOf) return [{ key: "all", label: null, rows }]
+  // A task with several tags is under each of their headings, so each row
+  // drags by its heading and task together.
+  const grouped = React.useMemo(() => {
+    const under = (key: string, tasks: TaskCard[]) => tasks.map((task) => ({ id: `${key}|${task.id}`, task }))
+    if (!groups || !groupsOf) return [{ key: "all", label: null, rows: under("all", rows) }]
     return groups
       .map((group) => ({
         key: group.key,
         label: group.label as string | null,
-        rows: rows.filter((row) => groupsOf(row).includes(group.key)),
+        rows: under(group.key, rows.filter((row) => groupsOf(row).includes(group.key))),
       }))
       .filter((group) => group.rows.length > 0)
   }, [groupsOf, groups, rows])
+  const drop = useListDrop(grouped, {
+    groups,
+    onDrop,
+    canMove: (from, to, row) => canMove(from, to, row.task),
+    // Empty headings only matter as somewhere to drop, so they show only with Mass select on.
+    showsEmpty: canDrag ? showsEmpty : undefined,
+    taskIdOf: (row) => row.task.id,
+  })
+  const sections = drop.sections
   const ids = rows.map((row) => row.id)
   const selectedIds = ids.filter((id) => selection.selected.has(id))
   const colSpan = columns.length + (canEdit ? 2 : 1)
@@ -317,24 +339,12 @@ export function TaskList({
       <TaskBulkMenu taskIds={selectedIds} targets={bulk} onDone={selection.clear} />
     ) : null
 
-  function handleDragEnd(event: DragEndEvent) {
-    const overId = event.over?.id
-    if (!onReorder || overId === undefined || overId === event.active.id) return
-    const group = sections.find((g) => g.rows.some((row) => row.id === event.active.id))
-    // A row moves inside its own heading; dragging never changes what it is grouped by.
-    if (!group || !group.rows.some((row) => row.id === overId)) return
-    const groupIds = group.rows.map((row) => row.id)
-    onReorder(
-      arrayMove(groupIds, groupIds.indexOf(String(event.active.id)), groupIds.indexOf(String(overId)))
-    )
-  }
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {selectedMenu && selectedSlot ? createPortal(selectedMenu, selectedSlot) : null}
       {selectedMenu && !selectedSlot ? (
         <div className="flex items-center justify-end border-b px-3 py-2">{selectedMenu}</div>
-      ) : canEdit && onReorder && sort !== "order" ? (
+      ) : canEdit && onDrop && sort !== "order" ? (
         <div className="flex items-center gap-2 border-b px-3 py-2 text-sm text-muted-foreground">
           Sorted by a column, so rows can't be dragged.
           <Button type="button" variant="ghost" size="sm" onClick={() => toggleSort("order")}>
@@ -343,13 +353,20 @@ export function TaskList({
         </div>
       ) : null}
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext
+          id={dndId}
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          {...drop.context}
+        >
           {/* The first column sits 16px in, where the List tab's word starts, and the
               last 12px in, the header's own padding, so the table lines up with the
-              header above it (Tyler, 19 Oct 2026). */}
+              header above it (Tyler, 19 Oct 2026). With Mass select on, the tick box
+              column is only as wide as the box, and the cell after it starts 8px
+              on, so the drag handle sits close to the box (Tyler, 24 Oct 2026). */}
           <Table
             containerClassName="overflow-visible"
-            className="[&_td:first-child]:pl-4 [&_td:last-child]:pr-3 [&_th:first-child]:pl-4 [&_th:last-child]:pr-3"
+            className="[&_td:first-child]:pl-4 [&_td:last-child]:pr-3 [&_th:first-child]:pl-4 [&_th:last-child]:pr-3 [&_[data-column=select]]:w-8 [&_[data-column=select]]:min-w-8 [&_[data-column=select]+*]:pl-2"
           >
             <SortableTableHeader
               columns={columns}
@@ -379,19 +396,24 @@ export function TaskList({
                 sections.map((group) => (
                   <React.Fragment key={group.key}>
                     {group.label !== null ? (
-                      // The shell's group heading, its label 16px in like the List's first column.
-                      <TableGroupRow colSpan={colSpan} inset="1rem" label={group.label} data-new-group={group.key}>
+                      <GroupHeading
+                        groupKey={group.key}
+                        label={group.label}
+                        colSpan={colSpan}
+                        dropZone={Boolean(drop.held)}
+                      >
                         <span className="text-muted-foreground">{group.rows.length}</span>
                         {readOnly ? null : addTask?.(group.key, <HeadingAddButton label={group.label} />)}
-                      </TableGroupRow>
+                      </GroupHeading>
                     ) : null}
                     <SortableContext
                       items={group.rows.map((row) => row.id)}
                       strategy={verticalListSortingStrategy}
                     >
-                      {group.rows.map((task) => (
+                      {group.rows.map(({ id, task }) => (
                         <TaskRow
-                          key={task.id}
+                          key={id}
+                          dragId={id}
                           task={task}
                           project={showProject ? (projectColumn?.of(task) ?? { name: task.projectName, color: "slate" }) : null}
                           projectChoices={projectColumn?.choices?.(task) ?? null}
@@ -418,6 +440,9 @@ export function TaskList({
               )}
             </TableBody>
           </Table>
+          {onDrop ? (
+            <DragOverlay dropAnimation={null}>{drop.held ? <HeldTaskGhost task={drop.held.task} /> : null}</DragOverlay>
+          ) : null}
         </DndContext>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
@@ -426,6 +451,7 @@ export function TaskList({
 }
 
 function TaskRow({
+  dragId,
   task,
   project,
   projectChoices,
@@ -443,6 +469,8 @@ function TaskRow({
   fieldColumns,
   showTime,
 }: {
+  /** The row's heading and task together, since a task can sit under several tags. */
+  dragId: string
   task: TaskCard
   /** The Project column's chip, or null without the column. */
   project: { name: string; color: ProjectColor } | null
@@ -464,7 +492,7 @@ function TaskRow({
   showTime: boolean
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
-    useSortable({ id: task.id, disabled: !canDrag || dragLocked })
+    useSortable({ id: dragId, disabled: !canDrag || dragLocked })
   const style: React.CSSProperties | undefined = transform
     ? { transform: `translate3d(0, ${transform.y}px, 0)`, transition }
     : undefined
@@ -475,7 +503,11 @@ function TaskRow({
       style={style}
       data-task-id={task.id}
       // A little tighter than the shell's rows (Tyler, 19 Oct 2026).
-      className={cn("group [&>td]:py-1", isDragging && "relative z-10 bg-background")}
+      className={cn(
+        "group [&>td]:py-1",
+        // Its place shows dimmed in the gap while a copy follows the pointer.
+        isDragging && "opacity-40"
+      )}
       rowAction={onOpen}
     >
       {canSelect ? (
@@ -594,6 +626,37 @@ function TaskRow({
       </TableCell>
     </TableRow>
   )
+}
+
+/**
+ * The shell's group heading, its label 16px in like the List's first column.
+ * While a row is held, a heading that takes drops is a drop zone too, so an
+ * empty one can take it.
+ */
+function GroupHeading({
+  groupKey,
+  label,
+  colSpan,
+  dropZone,
+  children,
+}: {
+  groupKey: string
+  label: string
+  colSpan: number
+  dropZone: boolean
+  children: React.ReactNode
+}) {
+  const { setNodeRef } = useDroppable({ id: `${HEADING_DROP}${groupKey}`, disabled: !dropZone })
+  return (
+    <TableGroupRow ref={setNodeRef} colSpan={colSpan} inset="1rem" label={label} data-new-group={groupKey}>
+      {children}
+    </TableGroupRow>
+  )
+}
+
+/** Without its own rule, a row only moves inside its heading. */
+function sameHeading() {
+  return false
 }
 
 /** A heading's "+", faint until the heading is pointed at; always there on a phone. */

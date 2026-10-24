@@ -108,6 +108,7 @@ export function AdminDashboardScreen({
               tasks: dashboard.tasks,
               picks: [],
               orderPicks: null,
+              myOrder: dashboard.myOrder,
               today: dashboard.today,
               people: dashboard.people,
               labels: dashboard.labels,

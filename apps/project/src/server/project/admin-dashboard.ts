@@ -1,6 +1,7 @@
 import { and, asc, count, eq, gte, inArray, isNull, lt, lte, ne, or, sql, type SQL } from "drizzle-orm"
 
 import { addDays, localNow, momentOf } from "@/lib/project/days"
+import type { MyPlace } from "@/lib/project/my-task-order"
 import type { NoticeSwitchId } from "@/lib/project/notice-switches"
 import { boardStatusOrder, PERSONAL_PROJECT_NAME, priorityRank, type ProjectColor, type TaskStatus } from "@/lib/project/rules"
 import type { TaskType } from "@/lib/project/task-types"
@@ -10,6 +11,7 @@ import { inTeam, requireSiteAdmin, whoCanStillSee, type ProjectDb } from "@/serv
 import { listTeamLabels, type Label } from "@/server/project/labels"
 import { occurrencesBetween } from "@/server/project/meetings"
 import { handedOutBy, openAsk } from "@/server/project/more-time"
+import { loadMyTaskOrder } from "@/server/project/my-task-order"
 import { loadNoticesOff } from "@/server/project/notice-switches"
 import { loadProjectsPage, type ProjectListRow } from "@/server/project/projects"
 import { listTeamNames } from "@/server/project/record-team"
@@ -94,6 +96,8 @@ export type AdminDashboard = {
   zone: string
   today: string
   tasks: TaskCard[]
+  /** My own order on the List, per heading. */
+  myOrder: MyPlace[]
   /** Every team's labels and types, for Filter. */
   labels: Label[]
   taskTypes: TaskType[]
@@ -171,6 +175,7 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
     today,
     // Waiting first, as on an employee's My dashboard: those need an answer first.
     tasks: label([...mine.filter((card) => card.waiting), ...mine.filter((card) => !card.waiting)]),
+    myOrder: await loadMyTaskOrder(userId, database),
     labels: (await Promise.all(teamIds.map((id) => listTeamLabels(id, database)))).flat(),
     taskTypes: (await Promise.all(teamIds.map((id) => listTeamTypes(id, database)))).flat(),
     views: (await listSavedViews(userId, adminViewScreen(userId), database)) as SavedView[],

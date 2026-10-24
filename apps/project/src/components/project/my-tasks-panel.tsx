@@ -26,6 +26,7 @@ import {
   acceptTasks,
   deleteProjectTask,
   duplicateProjectTask,
+  saveMyTaskOrder,
   saveTask,
   setStatus,
   type TaskCard,
@@ -35,6 +36,8 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { clientChoices } from "@/lib/project/clients"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import type { ListDrop } from "@/lib/project/list-drop"
+import { canMove, dropChange, inMyOrder, isMyHeading, takesDrops, type MyPlace } from "@/lib/project/my-task-order"
 import { MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
 import type { TaskStatus } from "@/lib/project/rules"
 import { pickedWordsUnder, readRightClick } from "@/lib/project/right-click"
@@ -62,6 +65,8 @@ export type MyTasksSource = {
   /** Today's picks from the check-in, in my own order, and how a drag saves that order. */
   picks: TaskCard[]
   orderPicks: ((taskIds: string[]) => Promise<unknown>) | null
+  /** My own order on the List, per heading, which a drag saves. */
+  myOrder: MyPlace[]
   /** My own day, so "Today" and a snooze's day mean the same as in the check-in. */
   today: string
   /** Who the bulk menu's Hand to offers. */
@@ -123,6 +128,8 @@ export function MyTasksPanel({
     return task ? [{ ...task, position }] : []
   })
   const myDay = source.today
+  const [myOrder, setMyOrder] = useSyncedDraft(source.myOrder)
+  const [selectedSlot, setSelectedSlot] = React.useState<HTMLDivElement | null>(null)
   const notDone = tasks.filter((task) => task.status !== "done")
   // A snoozed task stays out of Open until the morning of its day.
   const open = notDone.filter((task) => !task.snoozedUntil || task.snoozedUntil <= myDay)
@@ -162,6 +169,51 @@ export function MyTasksPanel({
     const ok = await run(() => save(next))
     if (!ok) setOrder(null)
     else await router.invalidate()
+  }
+
+  /**
+   * A row let go on the List. Inside its heading it takes a new place in my
+   * order (today's picks keep their own, from the check-in). Under another
+   * heading it takes that heading's date, or Done, then its place there. Both
+   * show at once and go back if the server refuses.
+   */
+  async function dropRow(drop: ListDrop) {
+    const moved = drop.from !== drop.to
+    if (!moved && drop.to === PICKED_GROUP) {
+      if (orderPicks) await reorder(orderPicks, drop.taskIds)
+      return
+    }
+    const heading = drop.to
+    const change = moved ? dropChange(heading, myDay) : null
+    if (!isMyHeading(heading) || (moved && !change)) return
+    const beforeTasks = tasks
+    const beforeOrder = myOrder
+    if (change) {
+      setTasks((current) =>
+        current.map((t) => {
+          if (t.id !== drop.taskId) return t
+          // A new date drops the "Due by" time, as the server does.
+          return "status" in change ? { ...t, status: change.status } : { ...t, dueDate: change.dueDate, dueAt: null }
+        })
+      )
+    }
+    setMyOrder((current) => [
+      ...current.filter((place) => !drop.taskIds.includes(place.taskId) && place.heading !== heading),
+      ...drop.taskIds.map((taskId, position) => ({ taskId, heading, position })),
+    ])
+    const ok = await run(async () => {
+      if (change) {
+        await ("status" in change
+          ? setStatus({ taskId: drop.taskId, status: change.status, stuckReason: null })
+          : saveTask({ taskId: drop.taskId, dueDate: change.dueDate }))
+      }
+      await saveMyTaskOrder(heading, drop.taskIds)
+    })
+    if (!ok) {
+      setTasks(beforeTasks)
+      setMyOrder(beforeOrder)
+    }
+    await router.invalidate()
   }
 
   /** Each waiting task is accepted on its own; one that changed hands is refused alone. */
@@ -266,13 +318,28 @@ export function MyTasksPanel({
   }
 
   const filtered = hasTaskFilters(filters)
-  // The List: today's picks first, in my own order, then my open tasks by when
-  // they are due, then Done. A pick is listed once, under the picks.
+  // The List: today's picks first, in my own order, then my open tasks under
+  // when they are due, then Done. Under each heading the tasks I placed come
+  // in my order and the rest after them by due date. A pick is listed once,
+  // under the picks.
   const picked = new Set(today.map((task) => task.id))
+  const headingOf = (task: TaskCard) =>
+    picked.has(task.id) ? PICKED_GROUP : task.status === "done" ? "done" : dueGroupOf(task, myDay)
+  const unpicked = [...open.filter((task) => !picked.has(task.id)).sort(byDueDate), ...done]
   const listRows = filterTasks(
-    [...today, ...open.filter((task) => !picked.has(task.id)).sort(byDueDate), ...done],
+    LIST_GROUPS.flatMap((group) =>
+      group.key === PICKED_GROUP
+        ? today
+        : inMyOrder(
+            unpicked.filter((task) => headingOf(task) === group.key),
+            group.key,
+            myOrder
+          )
+    ),
     filters
   )
+  // Dragging is off while a search or filter hides rows, and while a change saves.
+  const onDrop = filtered || busy ? undefined : (drop: ListDrop) => void dropRow(drop)
   const rowIds = listRows.map((task) => task.id).join(",")
   React.useEffect(() => {
     onRows(rowIds ? rowIds.split(",") : [])
@@ -300,6 +367,8 @@ export function MyTasksPanel({
           ]}
         />
         <div className="flex shrink-0 items-center gap-1">
+          {/* The site admin's List puts its "3 selected" button here, left of the search, as a project page does. */}
+          {view === "list" && source.table ? <div ref={setSelectedSlot} className="contents" /> : null}
           <SearchToggle value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
           <TaskFilterPopover
             filters={filters}
@@ -418,11 +487,18 @@ export function MyTasksPanel({
           />
         ) : source.table ? (
           <TaskList
-            tasks={listRows}
+            // The table's first sort keeps the List's own order, my order under each heading.
+            tasks={listRows.map((task, position) => ({ ...task, position }))}
             readOnly={busy}
+            ordered
+            onDrop={onDrop}
+            canMove={canMove}
+            showsEmpty={takesDrops}
+            orderLabel="my order"
+            selectedSlot={selectedSlot}
             onOpenTask={(task) => onOpenTask(task.id)}
             groups={TABLE_GROUPS}
-            groupsOf={(task) => [task.status === "done" ? "done" : dueGroupOf(task, myDay)]}
+            groupsOf={(task) => [headingOf(task)]}
             bulk={bulk}
             showProject
             projectColumn={source.table.project}
@@ -441,11 +517,10 @@ export function MyTasksPanel({
             openTaskId={openTaskId}
             tasks={listRows}
             bulk={bulk}
-            onReorder={filtered || !orderPicks ? undefined : (next) => void reorder(orderPicks, next)}
-            reorderGroup={PICKED_GROUP}
+            onDrop={onDrop}
             onOpenTask={(task) => onOpenTask(task.id)}
             groups={LIST_GROUPS}
-            groupOf={(task) => (picked.has(task.id) ? PICKED_GROUP : task.status === "done" ? "done" : dueGroupOf(task, myDay))}
+            groupOf={headingOf}
             emptyText={
               filtered
                 ? `No tasks match ${filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the filters to see them all.`

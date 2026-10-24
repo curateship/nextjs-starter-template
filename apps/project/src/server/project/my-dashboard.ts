@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
+import type { MyPlace } from "@/lib/project/my-task-order"
 import type { NoticeSwitchId } from "@/lib/project/notice-switches"
 import { boardStatusOrder, type TaskStatus } from "@/lib/project/rules"
 import { db } from "@/server/db"
@@ -13,6 +14,7 @@ import type { TaskType } from "@/lib/project/task-types"
 import { listTimeOffFor, loadCheckinRecord, type CheckinRecord } from "@/server/project/time-off"
 import { projectTeamMembers, projectTeams } from "@/server/project/schema"
 import { loadMyWork, type TaskCard } from "@/server/project/tasks"
+import { loadMyTaskOrder } from "@/server/project/my-task-order"
 import { loadNoticesOff } from "@/server/project/notice-switches"
 import { customShellUsers } from "@/server/schema"
 
@@ -33,6 +35,8 @@ export type MyDashboard = {
     title: string | null
   }
   tasks: TaskCard[]
+  /** My own order on the List, per heading. */
+  myOrder: MyPlace[]
   checkin: CheckinPage
   /** The team's labels, for the Label filter. */
   labels: Label[]
@@ -81,6 +85,7 @@ export async function loadMyDashboard(userId: string, database = db): Promise<My
       title: row.title,
     },
     tasks: await loadMyWork(userId, database),
+    myOrder: await loadMyTaskOrder(userId, database),
     checkin: await loadCheckinPage(userId, database),
     labels: await listTeamLabels(membership.teamId, database),
     taskTypes: await listTeamTypes(membership.teamId, database),

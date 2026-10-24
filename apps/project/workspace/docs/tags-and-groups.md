@@ -65,7 +65,7 @@ number.
   after), Later, Earlier (Done tasks whose day has passed) and No due date,
   on the reader's own clock, the same as the red due dates.
 - **Tags** lists each tag by name, then No tags. A task with two tags shows
-  under both, so while grouped by Tags the List's rows don't drag.
+  under both, and its row drags from either.
 - **Assigned to** lists each person by name, then Nobody; **Type** each type,
   then No type.
 - **The choice is kept per project** in this browser (`project-task-grouping-<id>`),
@@ -96,7 +96,20 @@ tells everyone what comes first.
 
 - **Drag a card up or down in its Board column**, or a row by its handle on the
   List tab inside its heading, and everyone on the project sees the new order
-  after a reload.
+  after a reload. The List's handles show once **Mass select** is pressed.
+- **Dragging a List row under another heading changes what it is grouped by**
+  (Tyler, 24 Oct 2026), and puts it where it was let go there. While it is
+  held, a copy follows the pointer and the rows slide apart to make room. Each
+  change is the same save as the task's own picker:
+  - **Status:** that status. Dropped on Stuck, it waits for the reason.
+  - **Priority** and **Type:** that one. No type takes the type off.
+  - **Assigned to:** asks "Hand this task to Sam?" first, as the Board does;
+    Nobody asks "Take everyone off this task?".
+  - **Due date:** Today is due today, This week tomorrow, Later eight days on,
+    and No due date clears it. Overdue and Earlier take no drops.
+  - **Tags:** the tag it was under is swapped for the new one, and its other
+    tags stay. A heading it is already under takes no drop, and No tags only
+    takes a task whose one tag it leaves.
 - **Dragging a card to another column changes its status** and puts it where it
   was let go in that column. While it is held, a copy follows the pointer and
   the column it is over makes room for it, so it never shows back in its old
@@ -105,8 +118,7 @@ tells everyone what comes first.
 - **New tasks go last.**
 - **Only the dragged tasks move.** They swap among the places they already
   held (`placesAfterReorder` in `src/lib/project/task-order.ts`), so
-  reordering one column or one group never shuffles the rest. Dragging never
-  changes what a task is grouped by.
+  reordering one column or one group never shuffles the rest.
 - **Sorting the List by a column** stops the dragging, and "Use the project's
   order" puts it back.
 - **No keyboard dragging.** Enter on a card opens it. The order can only be set

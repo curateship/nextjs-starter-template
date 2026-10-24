@@ -18,6 +18,7 @@ import {
   updateTaskSchema,
 } from "@/lib/project/rules"
 import { teamScope } from "@/lib/api/project/scope"
+import { MY_HEADINGS, type MyHeading } from "@/lib/project/my-task-order"
 import { newTaskSchema } from "@/lib/project/task-types"
 import { userGet, userPost } from "@/server/guards"
 import { findMembership, isSiteAdmin } from "@/server/project/access"
@@ -39,6 +40,7 @@ import {
   restoreTask,
   setRepeat,
 } from "@/server/project/planning"
+import { orderMyTasks } from "@/server/project/my-task-order"
 import { followTask, unfollowTask } from "@/server/project/task-followers"
 import { listNoteVersions, restoreNoteVersion } from "@/server/project/task-note-versions"
 import { answerMoreTime, askForMoreTime } from "@/server/project/more-time"
@@ -368,4 +370,17 @@ export function answerMoreTaskTime(data: z.input<typeof answerTimeSchema>) {
 }
 export function thankForProjectTask(taskId: string) {
   return thankFn({ data: { taskId } })
+}
+
+const orderMyTasksFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    // A heading of one person's tasks; a thousand is far past any real list.
+    z.object({ heading: z.enum(MY_HEADINGS), taskIds: z.array(z.string().min(1).max(36)).min(1).max(1000) })
+  )
+  .handler(async ({ data, context }) => orderMyTasks(context.user.id, data.heading, data.taskIds))
+
+/** One heading of My dashboard's List in my own order, which only I see. */
+export function saveMyTaskOrder(heading: MyHeading, taskIds: string[]) {
+  return orderMyTasksFn({ data: { heading, taskIds } })
 }

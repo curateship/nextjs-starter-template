@@ -86,6 +86,7 @@ function dashboard(cards: Partial<AdminDashboard["cards"]> = {}): AdminDashboard
     savedZone: "UTC",
     zone: "UTC",
     today: "2099-03-02",
+    myOrder: [],
     tasks: [
       card("t1", "Send the contract", { projectId: "own", projectName: "Just me" }),
       card("t2", "Review the logo", { projectId: "p2", projectName: "Brand · Logo" }),

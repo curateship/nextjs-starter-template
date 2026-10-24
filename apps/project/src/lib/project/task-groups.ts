@@ -134,3 +134,28 @@ export function groupTasks<T extends GroupableTask>(
   const used = new Set(tasks.flatMap(groupsOf))
   return { groups: all.filter((group) => used.has(group.key)), groupsOf }
 }
+
+/** The due-date headings a task can be dropped under; nothing is made Overdue or Earlier by hand. */
+const DUE_DROPS = new Set(["today", "week", "later", NONE])
+
+/**
+ * Whether a task dragged on a project's List may go under another heading,
+ * which changes what it is grouped by (Tyler, 24 Oct 2026). By tags it swaps
+ * the tag it was under for the new one, so a heading it is already under
+ * refuses it, and No tags takes it only when that was its one tag.
+ */
+export function canMoveInGroup(grouping: TaskGrouping, to: string, task: GroupableTask) {
+  switch (grouping) {
+    case "status":
+    case "priority":
+    case "assignee":
+    case "type":
+      return true
+    case "due":
+      return DUE_DROPS.has(to)
+    case "tags":
+      return to === NONE ? task.labels.length === 1 : !task.labels.some((label) => label.id === to)
+    default:
+      return false
+  }
+}

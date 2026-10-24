@@ -143,6 +143,7 @@ function Dashboard({
                 tasks: dashboard.tasks,
                 picks: todaysPicks(dashboard.checkin),
                 orderPicks: orderMyPicks,
+                myOrder: dashboard.myOrder,
                 today: dashboard.checkin.today.day,
                 people: dashboard.checkin.people,
                 labels: dashboard.labels,
