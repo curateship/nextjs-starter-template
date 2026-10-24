@@ -27,6 +27,7 @@ import {
   changeManyTasks,
   createTasksFromLines as createTasksFromLinesOnServer,
   duplicateTask,
+  justMeChoice,
   listNewTaskProjects,
   moveTask,
   promoteStep,
@@ -181,7 +182,8 @@ const loadNewTaskProjectsFn = createServerFn({ method: "GET" })
     const me = { id: context.user.id, name: context.user.name, avatarUrl: context.user.avatarUrl ?? "" }
     // The site admin is on no team. On a team's page it offers that team's
     // projects; the header's button is on every page, so it offers every team's.
-    const teamIds = (await isSiteAdmin(context.user.id))
+    const siteAdmin = await isSiteAdmin(context.user.id)
+    const teamIds = siteAdmin
       ? data.teamId
         ? [data.teamId]
         : (await listTeamNames()).map((team) => team.id)
@@ -197,10 +199,10 @@ const loadNewTaskProjectsFn = createServerFn({ method: "GET" })
           types: await listTeamTypes(membership.teamId),
         }))
     )
-    return {
-      projects: parts.flatMap((part) => part.projects).sort((a, b) => a.name.localeCompare(b.name)),
-      types: parts.flatMap((part) => part.types),
-    }
+    const projects = parts.flatMap((part) => part.projects).sort((a, b) => a.name.localeCompare(b.name))
+    // Off a team's page, the site admin's own list comes first (Tyler, 23 Oct 2026).
+    const own = siteAdmin && !data.teamId ? [justMeChoice(me, [])] : []
+    return { projects: [...own, ...projects], types: parts.flatMap((part) => part.types) }
   })
 
 const deleteStepFn = createServerFn({ method: "POST" })

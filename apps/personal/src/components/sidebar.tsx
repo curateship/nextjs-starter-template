@@ -25,6 +25,7 @@ import {
 import { LinkIconPicture } from "@/components/link-icon"
 import {
   AddLinkButton,
+  LinkEditButton,
   linkAnchorProps,
   OpenInNewTab,
   OwnTabMark,
@@ -41,7 +42,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { isBlankSpace } from "@/lib/blank-space"
 import {
   addSection,
@@ -50,12 +50,14 @@ import {
   opensInTab,
   personalPath,
   pinnedLinks,
+  placeOf,
   removeSection,
   renameSection,
   setPinned,
   type Menu,
   type MenuLink,
   type MenuSection,
+  type Place,
 } from "@/lib/menu"
 import { plural } from "@/lib/plural"
 import { useMenuFormSide } from "@/lib/use-menu-form-side"
@@ -204,14 +206,18 @@ function SidebarSection({
  * switched to Pinned in their edit form, in the order they were pinned. It
  * replaced the last three opened links on 19 Oct 2026: Tyler, "Instead of
  * 'recent' lets replace it with 'Pinned'". Each link stays in its own section
- * too, and is edited there. While editing is on, hovering a row shows a
- * handle that drags it into a new place in Pinned, and an × that unpins it.
+ * too. While editing is on, hovering a row shows a handle that drags it into
+ * a new place in Pinned, the same cog as the link has in its section (Tyler
+ * asked for it on 23 Oct 2026), and an × that unpins it.
  */
 export function PinnedLinks({
   links,
+  placeOf,
   onUnpin,
 }: {
   links: MenuLink[]
+  /** Where the link stands in the menu, which its edit form starts on. */
+  placeOf: (linkId: string) => Place | null
   onUnpin: (id: string) => void
 }) {
   const [open, setOpen] = useRememberedOpen("personal-sidebar-pinned")
@@ -236,7 +242,12 @@ export function PinnedLinks({
           >
             <ul className="flex flex-col gap-0.5">
               {links.map((link) => (
-                <PinnedRow key={link.id} link={link} onUnpin={() => onUnpin(link.id)} />
+                <PinnedRow
+                  key={link.id}
+                  link={link}
+                  place={placeOf(link.id)}
+                  onUnpin={() => onUnpin(link.id)}
+                />
               ))}
             </ul>
           </SortableContext>
@@ -246,8 +257,16 @@ export function PinnedLinks({
   )
 }
 
-/** One row of Pinned: the link, and while editing its drag handle and ×. */
-function PinnedRow({ link, onUnpin }: { link: MenuLink; onUnpin: () => void }) {
+/** One row of Pinned: the link, and while editing its drag handle, cog and ×. */
+function PinnedRow({
+  link,
+  place,
+  onUnpin,
+}: {
+  link: MenuLink
+  place: Place | null
+  onUnpin: () => void
+}) {
   const { editing, activeId, open } = useMenuActions()
   const data: PinnedDragData = { kind: "pinned", linkId: link.id }
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -269,7 +288,7 @@ function PinnedRow({ link, onUnpin }: { link: MenuLink; onUnpin: () => void }) {
         data-active={activeId === link.id ? "" : undefined}
         className={cn(
           "flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden group-hover/pinned:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0",
-          editing && "group-hover/pinned:pr-14"
+          editing && "group-hover/pinned:pr-20"
         )}
       >
         <LinkIconPicture name={link.icon} />
@@ -288,7 +307,7 @@ function PinnedRow({ link, onUnpin }: { link: MenuLink; onUnpin: () => void }) {
       {editing ? (
         <div
           className={cn(
-            "absolute top-1/2 right-1 flex -translate-y-1/2 items-center opacity-0 group-hover/pinned:opacity-100 focus-within:opacity-100",
+            "absolute top-1/2 right-1 flex -translate-y-1/2 items-center rounded-md bg-sidebar-accent opacity-0 group-hover/pinned:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100",
             isDragging && "opacity-100"
           )}
         >
@@ -301,6 +320,7 @@ function PinnedRow({ link, onUnpin }: { link: MenuLink; onUnpin: () => void }) {
           >
             <GripVerticalIcon className="size-3.5" />
           </button>
+          {place ? <LinkEditButton link={link} place={place} /> : null}
           <Button
             variant="ghost"
             size="icon-xs"
@@ -316,21 +336,19 @@ function PinnedRow({ link, onUnpin }: { link: MenuLink; onUnpin: () => void }) {
   )
 }
 
-/** One of the logo row's icon buttons, with its name in a tooltip. */
+/**
+ * One of the logo row's icon buttons. It has no tooltip: Tyler asked for them
+ * gone on 23 Oct 2026, so its name is only read out to a screen reader.
+ */
 function BrandRowButton({
   label,
   children,
   ...props
 }: React.ComponentProps<typeof Button> & { label: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon-xs" aria-label={label} {...props}>
-          {children}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+    <Button variant="ghost" size="icon-xs" aria-label={label} {...props}>
+      {children}
+    </Button>
   )
 }
 
@@ -479,6 +497,7 @@ export function Sidebar({
         <nav aria-label="Screens" className="flex flex-col p-2">
           <PinnedLinks
             links={pinnedLinks(menu)}
+            placeOf={(id) => placeOf(menu, id)}
             onUnpin={(id) => update((m) => setPinned(m, id, false))}
           />
           <SortableContext

@@ -190,7 +190,12 @@ async function teamToday(
 export async function listTeams(userId: string, database = db, at = new Date()): Promise<TeamListRow[]> {
   await requireSiteAdmin(userId, database)
   const [teams, people, projects, tasks] = await Promise.all([
-    database.select().from(projectTeams).orderBy(asc(projectTeams.name), asc(projectTeams.id)),
+    // A site admin's own space for their personal list is no team.
+    database
+      .select()
+      .from(projectTeams)
+      .where(isNull(projectTeams.personalUserId))
+      .orderBy(asc(projectTeams.name), asc(projectTeams.id)),
     database
       .select({ teamId: projectTeamMembers.teamId, n: count() })
       .from(projectTeamMembers)

@@ -674,8 +674,7 @@ goes, so it no longer ends up on whatever task was open.
 ## Opening a task
 
 On the project page and My dashboard a task opens in the right panel,
-beside the Board or My tasks (Tyler, 13 Oct 2026, from his drawing). On My
-dashboard it takes the inbox's place, and closing it brings the inbox back.
+beside the Board or My tasks (Tyler, 13 Oct 2026, from his drawing).
 Neither puts a window over the page.
 
 - **The task panel.** Along the top: the task's name at the left, then the
@@ -687,9 +686,10 @@ Neither puts a window over the page.
   open a dropdown of Add tags, Add note (only while the task has no notes),
   Add comment (only while the chat has no messages) and Add files with the
   number of files; the one picked takes the dropdown's place, with an arrow
-  back to the list. The project page has no cross: the task stays open until
-  another is picked. My dashboard keeps its cross, since closing the task
-  there brings the inbox back. Follow is in the cog's dropdown (Tyler, 14
+  back to the list. Neither page has a cross: the task stays open until
+  another is picked (the project page since 20 Oct 2026, My dashboard since
+  23 Oct: "There is no 'x' icon to close the right panel to show an empty
+  panel"). Follow is in the cog's dropdown (Tyler, 14
   Oct 2026). Down the panel: anything that needs an answer (a
   hand-over to accept, a review, the Stuck reason row, the Move and Remind
   me cards), then Notes once the task has some, Steps ("Steps · 0 of 2
@@ -765,16 +765,13 @@ Neither puts a window over the page.
   Remind me were not in the drawing; they are kept there because nothing
   else on the page reaches them.
 - **Opening another task** while one is open swaps it in place, with no new
-  step in the browser's history, so the cross returns to the list rather
-  than to the task before.
-- **The cross, and the browser's own back button,** close the task.
-  Opening a task from the list adds a step to the browser's history, and
-  the cross takes that step back. A task that arrived by link closes without
-  leaving the page.
+  step in the browser's history.
+- **The browser's own back button** closes a task opened from the list,
+  since opening it added a step to the history.
 - **A link to a task still opens it.** The address is `?task=<id>`, so a
   pasted link or a bell notice opens the task on its project page.
 - **Narrow screens.** Below 1280px both pages switch to their Task tab when
-  a task opens, and back to the task list's tab when it closes.
+  a task is picked, and back to the task list's tab when it closes.
 - **A task that's gone** shows "That task is gone or you can't see it." with
   Close, which takes `?task` out of the address. There's no Try again and no
   red message, since trying again can't bring it back.
@@ -986,7 +983,11 @@ Neither puts a window over the page.
   them. When the new project doesn't offer the task's type, the card says so
   and the task keeps it. Past check-in lines keep the old project, because that's where
   the task was that day. On the old project's page, the page follows the task
-  to its new one.
+  to its new one. The site admin's My dashboard can also move a task to
+  another team's project, or a task they're doing into their own Just me
+  list, from its Project chip; another team's move drops the task's tags,
+  type and field values, which belong to the old team (see
+  [My dashboard](my-dashboard.md#the-site-admins-my-dashboard)).
 - **Make it a task.** A step that grew too big becomes its own task in the
   same project, from the step's own menu, with the step's text, person and
   date. The step leaves the old task, and both histories link to each other.
@@ -1326,12 +1327,12 @@ Projects, Team and Task types to the members' menu and to each admin menu.
 - **Each menu gets the section once.** The job writes down which menus it has
   done in `project_navigation_added`. An admin who later removes a link in
   Settings keeps it removed.
-- **My dashboard left the admins' menus** on 16 Oct 2026 (Tyler: "remove my
-  dashboard from my menu"), by a pass of its own
-  (`workspace:<id>:no-my-dashboard`). The site admin has no check-in, so
-  the page only forwarded them to Team, and it stays out of their menu even
-  now they can take tasks (Tyler, 19 Oct 2026: "I dont need my own dashboard"). The members' menu and
-  the employee menu keep it.
+- **My dashboard is first in the admins' menus again** since 23 Oct 2026,
+  when the site admin got a My dashboard of their own (see
+  [My dashboard](my-dashboard.md#the-site-admins-my-dashboard)). It had left
+  them on 16 Oct 2026 by a pass marked `workspace:<id>:no-my-dashboard`; the
+  pass marked `workspace:<id>:admin-my-dashboard` puts it back first where it
+  is missing.
 - **A link added later gets its own pass.** Task types (12 Oct 2026) went
   after Team in menus that already had the section, once each, with a marker
   of its own (`members:task-types`, `workspace:<id>:task-types`). A menu

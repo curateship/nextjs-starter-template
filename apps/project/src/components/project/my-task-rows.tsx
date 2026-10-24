@@ -218,6 +218,8 @@ function Row({
     <li
       ref={setNodeRef}
       style={style}
+      // Read by a right-click, which opens the task's Duplicate and Delete.
+      data-task-id={task.id}
       className={cn(
         "flex items-center gap-3 border-b px-4 py-3 hover:bg-muted/40",
         // Open beside the list: a bar down its left edge, as the Board outlines its card.

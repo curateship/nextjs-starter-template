@@ -339,11 +339,14 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
   pointer (a phone) always shows them. `PanelCard` does this for every card;
   there is no switch to turn it off. The title, its note and its badge always
   show.
-- **The right panel** with nothing open has a `DashboardCardTitleHeader` naming
-  what will show there, then a centred icon and one line, such as "Click a task
-  to see its steps and chat here." With a record open, its header holds the
-  status or title on the left, the record's action icons, a cog, then an × that
-  closes it.
+- **The right panel has no × and is never emptied by hand.** Tyler, 23 Oct
+  2026: "There is no 'x' icon to close the right panel to show an empty panel.
+  The first load always show the first task and then it remembers what task
+  I'm on afterwards." With a record open, its header holds the status or title
+  on the left, the record's action icons, then a cog. Only a list with no
+  records at all leaves it empty: a `DashboardCardTitleHeader` naming what will
+  show there, then a centred icon and one line, such as "Click a task to see
+  its steps and chat here."
 - **Every three-column dashboard opens a record on arrival and goes back to
   where it was.** Tyler, 19 Oct 2026: "Make the first load on contact to load
   the first contact on the load so that the right sidebar has something to
@@ -356,8 +359,8 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
   - With no record open after that, the first row of the list opens, so the
     right panel is never empty on arrival. A remembered record that has gone
     gives way to the first row.
-  - Only on arrival: closing the record afterwards leaves the empty right
-    panel above.
+  - After arrival the open record changes only when another is picked; there
+    is nothing that closes it.
   - On a narrow screen the list stays in front; the record opened by itself
     waits behind its pill.
   - The place is kept per browser, per person and per site, and the open

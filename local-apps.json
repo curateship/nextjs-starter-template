@@ -21,5 +21,6 @@
   "personal": 3021,
   "fitness": 3022,
   "date": 3023,
-  "note": 3024
+  "note": 3024,
+  "task": 3025
 }

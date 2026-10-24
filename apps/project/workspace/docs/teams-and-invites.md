@@ -20,8 +20,9 @@ two kinds of people, both ordinary shell accounts signing in on the one
 - **The site admin** runs every team without being on any. It is the shell's
   `admin` role. Tyler: "Im admin, I should be able to see everything" and
   "What tasks? if i only overseeas the team, why would I get tasks?" The site
-  admin is in no member list or count, has no "Just me" list
-  and no check-in, and My dashboard sends them to the Team dashboard. They
+  admin is in no member list or count and has no check-in. Since 23 Oct 2026
+  they have a My dashboard of their own, with a "Just me" list on no team
+  (see [My dashboard](my-dashboard.md#the-site-admins-my-dashboard)). They
   can take a task on any project themselves without joining it (Tyler,
   19 Oct 2026: "I should be able to assign myself (admin)"). They then show
   as "Admin (you)" in Assigned to, the List's members dropdown and New task,
@@ -48,8 +49,9 @@ two kinds of people, both ordinary shell accounts signing in on the one
   opens that team's own dashboard at `/teams/<id>`, with Members at
   `/teams/<id>/members`. The cog opens the team's settings window, the same
   one its dashboard opens, kept in the address (`/teams?settings=<id>`) so
-  each change made in it shows straight away. The site admin landing on `/team` or My dashboard
-  goes to `/teams`.
+  each change made in it shows straight away. The site admin landing on `/team`
+  goes to `/teams`. A site admin's own space for their "Just me" list is never
+  listed here.
 - **Every team's morning on the Teams dashboard** (Tyler, 20 Oct 2026: three
   columns rather than a page of their own). "Checked in today" reads "5 of 6",
   counted the way the team's own calendar counts today; "Not yet" before the

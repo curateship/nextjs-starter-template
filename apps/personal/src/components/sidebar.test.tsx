@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest"
 import { MenuActionsContext } from "@/components/menu-links"
 import { PinnedLinks } from "@/components/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { defaultMenu, pinnedLinks } from "@/lib/menu"
+import { defaultMenu, pinnedLinks, placeOf } from "@/lib/menu"
 
 function render(
   ids: string[],
@@ -25,7 +25,11 @@ function render(
   return renderToStaticMarkup(
     <TooltipProvider>
       <MenuActionsContext.Provider value={actions}>
-        <PinnedLinks links={pinnedLinks(menu)} onUnpin={() => {}} />
+        <PinnedLinks
+          links={pinnedLinks(menu)}
+          placeOf={(id) => placeOf(menu, id)}
+          onUnpin={() => {}}
+        />
       </MenuActionsContext.Provider>
     </TooltipProvider>
   )
@@ -43,11 +47,14 @@ describe("Pinned in the left menu", () => {
     expect(html).toMatch(/href="\/localhost:3015\/admin\/listings"[^>]*data-active=""/)
   })
 
-  it("gives each link a drag handle and an × that unpins it only while editing", () => {
+  it("gives each link a drag handle, a cog and an × that unpins it only while editing", () => {
     const ids = ["link-cms-listings", "link-project-dashboard"]
     expect(render(ids)).not.toContain("Unpin")
     expect(render(ids)).not.toContain("Drag")
+    expect(render(ids)).not.toContain("Edit ")
     const html = render(ids, { editing: true })
+    expect(html).toContain('aria-label="Edit Listings"')
+    expect(html).toContain('aria-label="Edit My dashboard"')
     expect(html).toContain('aria-label="Unpin Listings"')
     expect(html).toContain('aria-label="Unpin My dashboard"')
     expect(html).toContain('aria-label="Drag Listings"')

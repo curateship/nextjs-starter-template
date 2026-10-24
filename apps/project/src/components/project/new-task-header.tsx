@@ -40,10 +40,16 @@ export default function NewTaskHeader(_props: AppHeaderActionProps) {
 export function NewTaskWithProjectPicker({
   align,
   children,
+  openAtOnce = false,
+  onClosed,
 }: {
   align: "start" | "end"
   /** The button, told while the projects load. */
   children: (loading: boolean) => React.ReactNode
+  /** Opens as it appears, as from a right-click on empty space on My dashboard. */
+  openAtOnce?: boolean
+  /** Told when it shuts, or couldn't open. */
+  onClosed?: () => void
 }) {
   const here = useParams({ strict: false }).projectId
   const [projects, setProjects] = React.useState<NewTaskProject[] | null>(null)
@@ -59,14 +65,30 @@ export function NewTaskWithProjectPicker({
       found = loaded.projects
       setTypes(loaded.types)
     })
-    if (!ok) return
+    if (!ok) {
+      onClosed?.()
+      return
+    }
     if (found.length === 0) {
       showErrorToast("There's no open project to put a task in yet. Make a project first.")
+      onClosed?.()
       return
     }
     setProjects(found)
     setOpen(true)
   }
+
+  // Once, as it appears. `start` is fresh each render, so the effect reads the latest.
+  const startRef = React.useRef(start)
+  React.useEffect(() => {
+    startRef.current = start
+  })
+  const started = React.useRef(false)
+  React.useEffect(() => {
+    if (!openAtOnce || started.current) return
+    started.current = true
+    void startRef.current()
+  }, [openAtOnce])
 
   // The list holds only open projects, so an archived one on screen falls through.
   const remembered = lastProject()
@@ -83,7 +105,13 @@ export function NewTaskWithProjectPicker({
         types={types}
         initialProjectId={initial}
         open={open}
-        onOpenChange={(next) => (next ? void start() : setOpen(false))}
+        onOpenChange={(next) => {
+          if (next) void start()
+          else {
+            setOpen(false)
+            onClosed?.()
+          }
+        }}
         onMoreOptions={(projectId, draft) => setFull({ projectId, start: draft })}
         onCreated={rememberProject}
         align={align}

@@ -74,6 +74,14 @@ export const projectTeams = pgTable("project_teams", {
     onDelete: "set null",
   }),
   announcementAt: timestamp("announcement_at", { withTimezone: true }),
+  /**
+   * Set on a site admin's own space, which holds only their personal list:
+   * no members, and left out of every list of teams
+   * (`drizzle/0131_project_admin_dashboard.sql`).
+   */
+  personalUserId: varchar("personal_user_id", { length: 36 }).references(userRef, {
+    onDelete: "cascade",
+  }),
 })
 
 /** Each join through a team's link, for the daily cap. */
@@ -1107,5 +1115,20 @@ export const projectSiteAdminTeams = pgTable("project_site_admin_teams", {
     .references(() => projectTeams.id, { onDelete: "cascade" }),
   /** The Team calendar's "Due dates" switch, which an employee keeps on their team row. */
   calendarDueDates: boolean("calendar_due_dates").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * What an employee keeps on their team row and the site admin, on no team,
+ * keeps here: their own time zone and their Board's column order
+ * (`drizzle/0131_project_admin_dashboard.sql`).
+ */
+export const projectSiteAdminPrefs = pgTable("project_site_admin_prefs", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(userRef, { onDelete: "cascade" }),
+  /** Null until My dashboard first saves the browser's zone. */
+  timeZone: text("time_zone"),
+  statusOrder: text("status_order").array().$type<TaskStatus[]>().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
