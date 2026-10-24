@@ -5,6 +5,7 @@ import {
   buildLogTail,
   deploymentLine,
   deploymentOver,
+  waitForDeployment,
 } from "./deploy-trade.mjs"
 
 describe("deploying all three Trade apps", () => {
@@ -46,5 +47,36 @@ describe("deploying all three Trade apps", () => {
     ])
     expect(buildLogTail("plain\ntext\nlog", 2)).toEqual(["text", "log"])
     expect(buildLogTail(null)).toEqual([])
+  })
+
+  it("keeps waiting when Coolify answers one status check with a 504", async () => {
+    const answers = [
+      { status: "in_progress" },
+      new Error("Coolify answered 504 to GET /deployments/abc: Gateway Time-out"),
+      { status: "finished" },
+    ]
+    const get = async () => {
+      const next = answers.shift()
+      if (next instanceof Error) throw next
+      return next
+    }
+    await expect(waitForDeployment({}, "web", "abc", { get, every: 0 })).resolves.toBe("finished")
+  })
+
+  it("gives up when Coolify stops answering altogether", async () => {
+    const get = async () => {
+      throw new Error("Coolify answered 504")
+    }
+    await expect(waitForDeployment({}, "web", "abc", { get, every: 0 })).rejects.toThrow("504")
+  })
+
+  it("stops at once when Coolify refuses the token", async () => {
+    let checks = 0
+    const get = async () => {
+      checks += 1
+      throw new Error("Coolify answered 401 to GET /deployments/abc: Unauthenticated")
+    }
+    await expect(waitForDeployment({}, "web", "abc", { get, every: 0 })).rejects.toThrow("401")
+    expect(checks).toBe(1)
   })
 })
