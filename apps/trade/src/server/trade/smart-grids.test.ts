@@ -1265,6 +1265,27 @@ describe("the stop", () => {
     expect((await positions())[0].slPx).toBeCloseTo(60, 9)
   })
 
+  it("keeps a stop a hand set on a grid placed without one", async () => {
+    // USELESS, 23 Oct 2026: a stop set by hand on a grid with no stop was
+    // cancelled on the engine's next passes, four times in a row.
+    await place({ stopLoss: null })
+    await priceTo(109)
+    expect((await positions())[0].slPx).toBeNull()
+
+    await database
+      .update(tradePaperPositions)
+      .set({ slPx: 70 })
+      .where(eq(tradePaperPositions.userId, userId))
+    await settle()
+    await settle()
+
+    const grid = await onlyGrid()
+    expect(grid.plan.stopLoss?.mode).toBe("fixed")
+    expect(grid.plan.stopLoss?.px).toBeCloseTo(70, 9)
+    expect(grid.plan.stopLoss?.underPct).toBeCloseTo(12.5, 9)
+    expect((await positions())[0].slPx).toBeCloseTo(70, 9)
+  })
+
   it("keeps aiming its stop after the position closed and reopened", async () => {
     // For a ladder this is an edge case; for a grid, going flat and back is
     // the ordinary weekly path. Left unhandled, the reopened position looks

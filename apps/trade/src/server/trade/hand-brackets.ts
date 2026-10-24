@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm"
 
-import type { GridPlan } from "@/lib/trade/grid"
+import { gridStopSetByHand, type GridPlan } from "@/lib/trade/grid"
 import type { LadderPlan } from "@/lib/trade/dca"
 import { readSmartPlan } from "@/lib/trade/smart-plan"
 import type { TradeWallet } from "@/lib/trade/wallets"
@@ -196,9 +196,8 @@ function aimLadderByHand(
  */
 function aimGridByHand(plan: GridPlan, slPx: number | null): void {
   if (nearNullable(plan.aimedSlPx, slPx)) return
-  if (plan.stopLoss && slPx !== null && slPx > 0) {
-    plan.stopLoss.mode = "fixed"
-    plan.stopLoss.px = slPx
+  if (slPx !== null && slPx > 0) {
+    gridStopSetByHand(plan, slPx)
     plan.aimedSlPx = slPx
     return
   }

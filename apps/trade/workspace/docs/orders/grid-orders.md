@@ -1110,7 +1110,9 @@ finished, so nothing was changed."
 **The Stop loss card has its own on/off box** (Tyler, 22 Sep 2026). Ticked,
 which is how the window opens on a first visit, the grid is placed with a stop.
 Unticked, the card folds shut and the grid is placed with no stop at all: it
-then ends only at End Grid, or when somebody ends it by hand. The box also
+then ends only at End Grid, or when somebody ends it by hand. A stop set by
+hand on the position later becomes the grid's stop, at the price it was set.
+See `position-protection.md`. The box also
 drops a drawing-alert stop when it is switched off, because a line alert is a
 stop and leaving one behind an unticked box would place a stop the window says
 is not there.

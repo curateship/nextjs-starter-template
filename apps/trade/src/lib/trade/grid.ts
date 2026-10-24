@@ -1948,6 +1948,35 @@ export function gridStopBeyond(
 }
 
 /**
+ * Writes down a stop a hand set, as the grid's own stop from then on.
+ *
+ * A grid placed with the stop switched off has no stop to move, so a stop set
+ * by hand used to be ignored. The engine then read the position's stop as one
+ * it did not want and cancelled it about 17 seconds later, on USELESS on
+ * 23 Oct 2026. The hand's price becomes a fixed stop instead. `underPct` is
+ * only filled in so the stop is a whole one; a fixed stop never reads it.
+ */
+export function gridStopSetByHand(
+  plan: Pick<GridPlan, "direction" | "topPx" | "bottomPx" | "stopLoss">,
+  px: number
+): void {
+  if (plan.stopLoss) {
+    plan.stopLoss.mode = "fixed"
+    plan.stopLoss.px = px
+    return
+  }
+  const edge = lossEdge(plan.direction, plan)
+  const pastPct =
+    plan.direction === "long" ? (1 - px / edge) * 100 : (px / edge - 1) * 100
+  plan.stopLoss = {
+    mode: "fixed",
+    underPct: Math.min(MAX_GRID_STOP_UNDER_PCT, Math.max(0, pastPct)),
+    px,
+    base: null,
+  }
+}
+
+/**
  * Put End Grid past both today's price and the working range, on the winning
  * side: above them for a buying grid, below them for a selling one.
  *

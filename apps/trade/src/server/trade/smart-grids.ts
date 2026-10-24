@@ -14,6 +14,7 @@ import {
   gridStepPct,
   gridStopBeyond,
   gridStopPx,
+  gridStopSetByHand,
   gridTakeProfitPx,
   heldWrongWay,
   holdsEntry,
@@ -953,10 +954,7 @@ export async function advanceGrid(
         (px) => {
           // A hand may move the stop; it cannot take it away. Only a real price
           // is written down, so a grid never loses its stop through this door.
-          if (plan.stopLoss && px !== null && px > 0) {
-            plan.stopLoss.mode = "fixed"
-            plan.stopLoss.px = px
-          }
+          if (px !== null && px > 0) gridStopSetByHand(plan, px)
         },
         "replace"
       ) ||

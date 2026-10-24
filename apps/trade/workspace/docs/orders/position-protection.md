@@ -90,6 +90,11 @@ price put back. Four times in one evening.
 - **A grid keeps the price a hand gives it.** The stop stops following the
   range and stays where it was put. A hand may move a grid's stop; it cannot
   take it away, so pulling one off gets it back on the next pass.
+- **A grid placed with no stop takes the one a hand sets.** The hand's price
+  becomes the grid's fixed stop, and from then on it is kept like any other
+  grid stop. Before 23 Oct 2026 a grid with no stop ignored the hand's price
+  and the engine cancelled it on its next passes, so the stop vanished about
+  17 seconds after it was set (USELESS on Hyperliquid, four times in a row).
 - **A ladder keeps both lines.** A dragged stop or target freezes that side,
   and clearing a ladder's stop is honoured, because a ladder's stop is
   optional.
