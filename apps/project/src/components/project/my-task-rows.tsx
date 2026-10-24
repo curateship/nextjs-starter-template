@@ -26,6 +26,7 @@ import {
   WaitingBadge,
 } from "@/components/project/task-bits"
 import { RowClock } from "@/components/project/task-clock"
+import { HeadingAddButton, HeadingFoldButton } from "@/components/project/task-list-heading"
 import { TaskBulkBar, type BulkTargets } from "@/components/project/task-bulk-bar"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -39,8 +40,10 @@ import { reportBulkOutcome } from "@/lib/project/bulk-outcome"
 import { todayKey } from "@/lib/project/dates"
 import { HEADING_DROP, type ListDrop } from "@/lib/project/list-drop"
 import { canMove, takesDrops } from "@/lib/project/my-task-order"
+import { MY_TASK_FOLDS_KEY } from "@/lib/project/panel-keys"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { DUE_MOVED_MANY, TASK_STATUS_LABEL } from "@/lib/project/rules"
+import { useFoldedHeadings } from "@/lib/project/use-folded-headings"
 import { useListDrop } from "@/lib/project/use-list-drop"
 import { cn } from "@/lib/utils"
 
@@ -76,6 +79,7 @@ export function MyTaskRows({
   onDrop,
   bulk,
   emptyText,
+  addTask,
 }: {
   tasks: TaskCard[]
   /** The task open in the right panel, whose row is marked. */
@@ -87,6 +91,8 @@ export function MyTaskRows({
   onDrop?: (drop: ListDrop) => void
   bulk: BulkTargets
   emptyText: string
+  /** A heading's "+": wraps `button` in a New task that lands under that heading, or null where none can. */
+  addTask?: (groupKey: string, button: React.ReactNode) => React.ReactNode
 }) {
   const router = useRouter()
   const selection = useSelection()
@@ -109,6 +115,7 @@ export function MyTaskRows({
   }, [groupOf, groups, tasks])
   const drop = useListDrop(grouped, { groups, onDrop, canMove, showsEmpty: takesDrops })
   const sections = drop.sections
+  const folds = useFoldedHeadings(MY_TASK_FOLDS_KEY)
 
   /** The row's own Pause, for a clock left running (Task panel task 01, part 6). */
   async function pauseClock(task: TaskCard) {
@@ -156,11 +163,17 @@ export function MyTaskRows({
                     <span aria-hidden className={cn("size-2 rounded-full", GROUP_DOT[section.key] ?? GROUP_DOT.none)} />
                     {section.label}
                     <span className="font-normal text-muted-foreground">{section.rows.length}</span>
+                    {addTask?.(section.key, <HeadingAddButton label={section.label} />)}
+                    <HeadingFoldButton
+                      label={section.label}
+                      folded={folds.folded(section.key)}
+                      onClick={() => folds.toggle(section.key)}
+                    />
                   </GroupHeading>
                 ) : null}
                 <SortableContext items={section.rows.map((task) => task.id)} strategy={verticalListSortingStrategy}>
                   <ul>
-                    {section.rows.map((task) => (
+                    {(folds.folded(section.key) ? [] : section.rows).map((task) => (
                       <Row
                         key={task.id}
                         task={task}
@@ -198,7 +211,7 @@ function GroupHeading({
   return (
     <h3
       ref={setNodeRef}
-      className="flex items-center gap-2 border-b bg-muted/40 px-4 py-2 text-xs font-medium tracking-wide uppercase"
+      className="group/table-group flex items-center gap-2 border-b bg-muted/40 px-4 py-2 text-xs font-medium tracking-wide uppercase"
     >
       {children}
     </h3>

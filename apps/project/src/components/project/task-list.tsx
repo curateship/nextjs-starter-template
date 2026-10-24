@@ -10,7 +10,7 @@ import {
   useSensors,
 } from "@dnd-kit/core"
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { GripVerticalIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import { GripVerticalIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 
 import {
   DueChip,
@@ -31,6 +31,7 @@ import {
   WaitingBadge,
   WaitingOnBadge,
 } from "@/components/project/task-bits"
+import { HeadingAddButton, HeadingFoldButton } from "@/components/project/task-list-heading"
 import { TaskBulkMenu, type BulkTargets } from "@/components/project/task-bulk-bar"
 import { ClockReadout, ClockRunningChip } from "@/components/project/task-clock"
 import {
@@ -69,6 +70,7 @@ import { TASK_STATUSES, priorityRank, type ProjectColor } from "@/lib/project/ru
 import { fieldSortValue, fieldValueText, type FieldRule } from "@/lib/project/task-fields"
 import type { TaskGroup } from "@/lib/project/task-groups"
 import { byPosition } from "@/lib/project/task-order"
+import { useFoldedHeadings } from "@/lib/project/use-folded-headings"
 import { useListDrop } from "@/lib/project/use-list-drop"
 import { cn } from "@/lib/utils"
 
@@ -179,6 +181,7 @@ export function TaskList({
   onDrop,
   canMove = sameHeading,
   showsEmpty,
+  foldsKey,
   orderLabel = "the project's order",
   bulk = NO_TARGETS,
   fieldColumns = NO_FIELD_COLUMNS,
@@ -208,6 +211,8 @@ export function TaskList({
   canMove?: (from: string, to: string, task: TaskCard) => boolean
   /** Headings that show even with no rows while rows can be dragged, so a row can be dropped there. */
   showsEmpty?: (key: string) => boolean
+  /** Where this browser keeps the headings folded shut; left out, folds last only while the screen is open. */
+  foldsKey?: string
   /** What the dragged order is called: "the project's order", or "my order" on My dashboard's Today. */
   orderLabel?: string
   /** The people and projects that Hand to and Move to project offer for ticked rows. */
@@ -331,7 +336,13 @@ export function TaskList({
     taskIdOf: (row) => row.task.id,
   })
   const sections = drop.sections
+  const folds = useFoldedHeadings(foldsKey)
   const ids = rows.map((row) => row.id)
+  // Select all ticks only the tasks in view, never those under a folded heading.
+  // A section row's id is its heading and task together, so the task's own id is taken.
+  const shownIds = [
+    ...new Set(sections.flatMap((group) => (folds.folded(group.key) ? [] : group.rows.map((row) => row.task.id)))),
+  ]
   const selectedIds = ids.filter((id) => selection.selected.has(id))
   const colSpan = columns.length + (canEdit ? 2 : 1)
   const selectedMenu =
@@ -378,8 +389,8 @@ export function TaskList({
                   <SelectAllTableHead
                     noun="tasks"
                     disabled={rows.length === 0}
-                    checked={selection.selectAllState(ids)}
-                    onCheckedChange={() => selection.toggleVisible(ids)}
+                    checked={selection.selectAllState(shownIds)}
+                    onCheckedChange={() => selection.toggleVisible(shownIds)}
                   />
                 ) : null
               }
@@ -404,13 +415,18 @@ export function TaskList({
                       >
                         <span className="text-muted-foreground">{group.rows.length}</span>
                         {readOnly ? null : addTask?.(group.key, <HeadingAddButton label={group.label} />)}
+                        <HeadingFoldButton
+                          label={group.label}
+                          folded={folds.folded(group.key)}
+                          onClick={() => folds.toggle(group.key)}
+                        />
                       </GroupHeading>
                     ) : null}
                     <SortableContext
                       items={group.rows.map((row) => row.id)}
                       strategy={verticalListSortingStrategy}
                     >
-                      {group.rows.map(({ id, task }) => (
+                      {(folds.folded(group.key) ? [] : group.rows).map(({ id, task }) => (
                         <TaskRow
                           key={id}
                           dragId={id}
@@ -657,20 +673,4 @@ function GroupHeading({
 /** Without its own rule, a row only moves inside its heading. */
 function sameHeading() {
   return false
-}
-
-/** A heading's "+", faint until the heading is pointed at; always there on a phone. */
-function HeadingAddButton({ label, ...props }: { label: string } & React.ComponentProps<"button">) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-xs"
-      aria-label={`Add a task to ${label}`}
-      className="opacity-0 group-hover/table-group:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100"
-      {...props}
-    >
-      <PlusIcon className="size-3.5" />
-    </Button>
-  )
 }

@@ -129,6 +129,21 @@ my own order (below), then any I haven't placed, soonest first.
   each writes its history line, and the result says "9 accepted", or names one
   that changed hands since with the reason. "Today" is my own day,
   in my time zone, the same day the check-in uses.
+- **A heading's "+"**, as on a project's List (Tyler, 24 Oct 2026: "My
+  dashboard is missing the "+" icon in the section like project dashboard").
+  It shows while the heading is pointed at and opens New task with the
+  Project picker, on the employee's List and the site admin's table alike.
+  The task starts where a drop under that heading would leave it: Today due
+  today, This week tomorrow, Later eight days on, No date with no date, Done
+  as Done. Waiting, Overdue and Picked for today have no "+", since a new task
+  can't start there (`addUnder` in `my-tasks-panel.tsx`).
+- **A heading's arrow** beside the "+" folds that heading shut, and the same
+  arrow, pointing right, opens it again (Tyler, 24 Oct 2026: "beside the +
+  icon, there should be a arrow collapse icon to collapse the section too").
+  The count stays in view. This browser remembers which headings are folded
+  (Tyler, the same day: "the collapse doesnt remember"), one set for My
+  dashboard, shared by the employee's List and the site admin's table.
+  Project Lists have the same arrow.
 - **Dragging rows** (Tyler, 23 Oct 2026: "I want to be able to drag and drop
   tasks into different order and sections"). On an employee's List any row
   can be grabbed and dragged, and a plain click still opens it. On the site
@@ -331,7 +346,9 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
 
 ### The cards
 
-Top to bottom, Tyler's "act first" order. Each counts across every team,
+Top to bottom, red first, then amber, blue and green (Tyler, 24 Oct 2026:
+"red card should be on top"), keeping his "act first" order inside each
+colour. Each counts across every team,
 folds and is remembered open or shut in this browser, and shows its five most
 urgent rows then "Show all 12" for the rest. A task in a card opens on the
 right.
@@ -358,18 +375,18 @@ is Done today. The Inbox and "All clear" stay grey. The tints are see-through
 2. **Needs attention:** each team with Stuck, Overdue or Untouched tasks,
    counted exactly as that team's Attention tab counts them, the most first.
    A count opens the team on its Needs attention tab.
-3. **No one on it:** open tasks with nobody on them, soonest due first. Each
-   has a **Hand to** picker with the project's people and the site admin;
-   picking one hands it over the same way the task's own Hand to does.
-4. **Invites not taken:** people put on a team who haven't set a password,
-   the longest waiting first, with **Resend**, which makes a fresh link.
-5. **Meetings today:** every team's meetings on their today, earliest first,
-   with the time in their zone. A row opens that team's calendar on that day.
-6. **Due this week:** open tasks in any team due today to six days on,
-   soonest first, then High before Normal before Low.
-7. **Projects running late:** shared open projects whose status is Slowing
+3. **Projects running late:** shared open projects whose status is Slowing
    down or Behind, the most late tasks first, counted on this browser's clock
    as the Projects page counts them. A row opens the project.
+4. **No one on it:** open tasks with nobody on them, soonest due first. Each
+   has a **Hand to** picker with the project's people and the site admin;
+   picking one hands it over the same way the task's own Hand to does.
+5. **Invites not taken:** people put on a team who haven't set a password,
+   the longest waiting first, with **Resend**, which makes a fresh link.
+6. **Due this week:** open tasks in any team due today to six days on,
+   soonest first, then High before Normal before Low.
+7. **Meetings today:** every team's meetings on their today, earliest first,
+   with the time in their zone. A row opens that team's calendar on that day.
 8. **Milestones this month:** milestones due today to 30 days on, with how
    many of their tasks aren't Done ("All done" when none are left).
 9. **Done today:** tasks finished in their today, by person ("Carla · 3"),

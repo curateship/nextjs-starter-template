@@ -52,7 +52,7 @@ import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { rememberProject } from "@/lib/project/new-task-project"
-import { BOARD_GROUP_KEY, PROJECT_TASK_VIEW_KEY, taskGroupingKey } from "@/lib/project/panel-keys"
+import { BOARD_GROUP_KEY, PROJECT_TASK_VIEW_KEY, taskFoldsKey, taskGroupingKey } from "@/lib/project/panel-keys"
 import { todayKey } from "@/lib/project/dates"
 import type { ListDrop } from "@/lib/project/list-drop"
 import { dropChange } from "@/lib/project/my-task-order"
@@ -736,6 +736,7 @@ export function ProjectTasksPanel({
               busy={busy}
               onOpenTask={(task) => onOpenTask(task.id)}
               groups={grouped?.groups}
+              foldsKey={taskFoldsKey(page.project.id, grouping)}
               groupsOf={grouped?.groupsOf}
               ordered={!readOnly}
               onDrop={readOnly ? undefined : dropRow}

@@ -24,11 +24,13 @@ import { cn } from "@/lib/utils"
 
 /**
  * The site admin's cards on the left of their My dashboard, in Tyler's "act
- * first" order (23 Oct 2026). Each counts across every team and shows its five
- * most urgent rows with "Show all" for the rest. A card with nothing in it is
- * left out, and with all nine empty one "All clear" line stands in for them
- * (24 Oct 2026, "this is way too many cards"). A task in a card opens in the
- * right panel. The Inbox, always drawn, comes from the screen.
+ * first" order (23 Oct 2026), the red ones on top (24 Oct 2026, "red card
+ * should be on top"), then amber, blue and green. Each counts across every
+ * team and shows its five most urgent rows with "Show all" for the rest. A
+ * card with nothing in it is left out, and with all nine empty one "All
+ * clear" line stands in for them (24 Oct 2026, "this is way too many cards").
+ * A task in a card opens in the right panel. The Inbox, always drawn, comes
+ * from the screen.
  */
 
 /** Rows a card shows before "Show all". */
@@ -77,9 +79,9 @@ export function AdminCards({
     <>
       <WaitingCard asks={cards.waiting} onOpenTask={onOpenTask} />
       <AttentionCard teams={cards.attention} />
+      <LateProjectsCard late={late} />
       <UnassignedCard tasks={cards.unassigned} onOpenTask={onOpenTask} />
       <InvitesCard invites={cards.invites} />
-      <MeetingsCard meetings={cards.meetings} zone={zone} />
       <TaskListCard
         storageId="project-admin-due-week"
         title="Due this week"
@@ -91,7 +93,7 @@ export function AdminCards({
         }
         onOpenTask={onOpenTask}
       />
-      <LateProjectsCard late={late} />
+      <MeetingsCard meetings={cards.meetings} zone={zone} />
       <MilestonesCard milestones={cards.milestones} />
       <DoneTodayCard people={cards.doneToday} onOpenTask={onOpenTask} />
     </>

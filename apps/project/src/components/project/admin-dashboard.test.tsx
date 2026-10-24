@@ -207,6 +207,16 @@ describe("the site admin's My dashboard", () => {
     expect(html).toContain(`data-task-id="t1"`)
   })
 
+  it("puts a + on the List's headings a new task can start in, as on a project's List", () => {
+    const data = dashboard()
+    data.tasks.push(card("t3", "Late one", { dueDate: "2000-01-01" }))
+    const html = render(data)
+    expect(html).toContain('aria-label="Add a task to No date"')
+    // A new task can't start overdue.
+    expect(html).toContain("Overdue<")
+    expect(html).not.toContain('aria-label="Add a task to Overdue"')
+  })
+
   it("shows 6 notices in the Inbox, with Load more for the rest", () => {
     const notices = Array.from({ length: 8 }, (_, n) => notice(n))
     const html = render(dashboard(), { notifications: notices, nextCursor: null })
@@ -240,11 +250,11 @@ describe("the site admin's My dashboard", () => {
     const order = [
       "Waiting on you",
       "Needs attention",
+      "Projects running late",
       "No one on it",
       "Invites not taken",
-      "Meetings today",
       "Due this week",
-      "Projects running late",
+      "Meetings today",
       "Milestones this month",
       "Done today",
       "Inbox",

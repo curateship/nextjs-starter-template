@@ -38,6 +38,12 @@ export const BOARD_GROUP_KEY = "project-board-group"
 /** What a project's List and Timeline group by, from Filter's Group row, kept per project. */
 export const taskGroupingKey = (projectId: string) => `project-task-grouping-${projectId}`
 
+/** The List headings folded shut on a project, per grouping, since a heading's key only means something in its own. */
+export const taskFoldsKey = (projectId: string, grouping: string) => `project-task-folds-${projectId}-${grouping}`
+
+/** The headings folded shut on My dashboard's List, the employee's rows and the site admin's table alike. */
+export const MY_TASK_FOLDS_KEY = "project-my-dashboard-task-folds"
+
 /** The Team dashboard's middle tab (Calendar or Activity) and the calendar's Month or Week. */
 export const TEAM_MIDDLE_TAB_KEY = "project-team-middle-tab"
 export const TEAM_CALENDAR_VIEW_KEY = "project-team-calendar-view"
