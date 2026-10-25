@@ -54,6 +54,12 @@ const POLL_EVERY_MS = 10_000
 /** A long build says it is still going once a minute, so a wait never looks like a hang. */
 const STILL_GOING_EVERY_MS = 60_000
 const GIVE_UP_AFTER_MS = 25 * 60_000
+/**
+ * How long Coolify may stay unreachable while a build is watched. On 24 Oct
+ * 2026 the German Coolify answered 500 to everything for a few minutes in the
+ * middle of a Project deploy, and the script quit on the first one.
+ */
+const OUTAGE_LIMIT_MS = 10 * 60_000
 const HEALTH_TRIES = 12
 const HEALTH_GAP_MS = 10_000
 
@@ -117,6 +123,14 @@ export function copiesMenu(app, resources, skipMenu) {
 /** The AI keys copy after any deploy of an app with a database to copy into. */
 export function copiesAiKeys(app, skipAiKeys) {
   return !skipAiKeys && Boolean(app.database?.uuid)
+}
+
+/**
+ * Whether a failed status check is worth trying again: Coolify answered 500 or
+ * higher, or never answered at all. A 4xx, such as a wrong token, is not.
+ */
+export function coolifyMayRecover(error) {
+  return error?.status === undefined || error.status >= 500
 }
 
 /** Finished, failed or cancelled means Coolify has stopped working on it. */
@@ -229,8 +243,26 @@ async function waitForDeployment(settings, label, deploymentUuid) {
   const startedAt = Date.now()
   let said = null
   let saidAt = startedAt
+  let downSince = null
+  let saidDown = false
   while (Date.now() - startedAt < GIVE_UP_AFTER_MS) {
-    const record = await coolify(settings, "GET", `/deployments/${deploymentUuid}`)
+    let record
+    try {
+      record = await coolify(settings, "GET", `/deployments/${deploymentUuid}`)
+    } catch (error) {
+      if (!coolifyMayRecover(error)) throw error
+      downSince ??= Date.now()
+      if (Date.now() - downSince >= OUTAGE_LIMIT_MS) {
+        throw new Error(`${label}: Coolify has not answered for ${OUTAGE_LIMIT_MS / 60_000} minutes. Last: ${error.message}`)
+      }
+      if (!saidDown) console.log(`  ${label}: Coolify isn't answering (${error.message}). Still trying.`)
+      saidDown = true
+      await new Promise((done) => setTimeout(done, POLL_EVERY_MS))
+      continue
+    }
+    if (saidDown) console.log(`  ${label}: Coolify is answering again.`)
+    downSince = null
+    saidDown = false
     const status = record?.status ?? "unknown"
     const line = `${label}: ${status} after ${Math.round((Date.now() - startedAt) / 1000)}s`
     if (status !== said) {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import { buildLogTail, copiesAiKeys, copiesMenu, deployPlan, deploymentOver, migrationsBetween, parseEnvText, readFlags, resourcesToDeploy } from "./deploy.mjs"
+import { buildLogTail, coolifyMayRecover, copiesAiKeys, copiesMenu, deployPlan, deploymentOver, migrationsBetween, parseEnvText, readFlags, resourcesToDeploy } from "./deploy.mjs"
 
 const pomodoro = {
   resources: [
@@ -109,4 +109,13 @@ test("finds the migrations a release carries, wherever the command was typed", (
   } finally {
     process.chdir(before)
   }
+})
+
+test("keeps watching a build through a Coolify outage, but not a refusal", () => {
+  // 24 Oct 2026: one 500 from Coolify mid-build ended a Project deploy.
+  assert.equal(coolifyMayRecover(Object.assign(new Error("Server Error"), { status: 500 })), true)
+  assert.equal(coolifyMayRecover(Object.assign(new Error("Bad Gateway"), { status: 502 })), true)
+  assert.equal(coolifyMayRecover(new TypeError("fetch failed")), true)
+  assert.equal(coolifyMayRecover(Object.assign(new Error("Unauthenticated."), { status: 401 })), false)
+  assert.equal(coolifyMayRecover(Object.assign(new Error("Not found"), { status: 404 })), false)
 })

@@ -166,6 +166,14 @@ workers too, and sleeps out its start period before checking. That start is
 retries instead, so Coolify stops waiting as soon as the container is healthy
 (24 Oct 2026).
 
+**Coolify going quiet mid-build:** a 500 or no answer while a build is watched
+is retried every 10 seconds for up to 10 minutes, with one line when it stops
+answering and one when it is back. A 4xx, such as a bad token, still stops at
+once. On 24 Oct 2026 the German Coolify answered 500 to every request for a
+few minutes during a Project deploy; the script quit, and the web build it had
+started was left "in progress" for good and the worker "queued" behind it.
+When that happens, cancel both deployments in Coolify and run the deploy again.
+
 ## The left menu
 
 Tyler, 8 Oct 2026: the deployed app's left menu must match the local one. The
