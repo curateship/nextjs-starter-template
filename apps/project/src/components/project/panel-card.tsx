@@ -36,7 +36,6 @@ export function PanelCard({
   action,
   actionOpen = false,
   settings = false,
-  empty = false,
   className,
   children,
 }: {
@@ -55,28 +54,12 @@ export function PanelCard({
   actionOpen?: boolean
   /** A cog that opens the footer of buttons. */
   settings?: boolean
-  /**
-   * Nothing in it: the heading alone on one line, with no arrow to open it,
-   * such as "All clear" on the site admin's My dashboard.
-   */
-  empty?: boolean
   className?: string
-  /** Left out only on an `empty` card. */
   children?: React.ReactNode
 }) {
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(storageId))
   const [footerOpen, setFooterOpen] = React.useState(false)
   const quietClass = "opacity-0 transition-opacity group-hover/card:opacity-100 group-has-[:focus-visible]/card:opacity-100 [@media(hover:none)]:opacity-100"
-  if (empty) {
-    return (
-      <div className={cn("min-w-0 rounded-lg border bg-muted/40 p-4", className)}>
-        <h2 className="truncate text-[15px] font-semibold">
-          {title}
-          {meta ? <span className="font-normal text-muted-foreground"> · {meta}</span> : null}
-        </h2>
-      </div>
-    )
-  }
   return (
     <Collapsible
       open={open}

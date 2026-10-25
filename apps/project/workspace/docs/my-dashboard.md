@@ -358,8 +358,10 @@ folds and is remembered open or shut in this browser, and shows its five most
 urgent rows then "Show all 12" for the rest. A task in a card opens on the
 right.
 
-**A card with nothing in it is not drawn.** When all nine are empty, one
-"All clear" line stands in for them, above the Inbox, which always shows.
+**A card with nothing in it is not drawn.** When all nine are empty, nothing
+stands in for them and the Inbox, which always shows, is the only card
+(Tyler, 25 Oct 2026, of the "All clear" card that used to: "Just dont show
+anything").
 Tyler on 24 Oct 2026, when every empty card still showed as "Waiting on you ·
 None" and the like: "this is way too many cards. we need to simplify it".
 
@@ -368,7 +370,7 @@ should be a color based on their importance like the done card should have a
 green card". Red needs the site admin now: Waiting on you, Needs attention,
 Projects running late. Amber is for soon: No one on it, Invites not taken, Due
 this week. Blue is to know about: Meetings today, Milestones this month. Green
-is Done today. The Inbox and "All clear" stay grey. The tints are see-through
+is Done today. The Inbox stays grey. The tints are see-through
 (`TONE` in `admin-cards.tsx`), so they work in light and dark.
 
 1. **Waiting on you:** asks for more time that fall to them: nobody else

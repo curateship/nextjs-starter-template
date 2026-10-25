@@ -74,7 +74,8 @@ export function AdminCards({
       cards.milestones,
       cards.doneToday,
     ].some((rows) => rows.length > 0)
-  if (!anything) return <PanelCard storageId="project-admin-clear" title="All clear" empty />
+  // Nothing to act on draws nothing, and the Inbox moves up (Tyler, 25 Oct 2026: "Just dont show anything").
+  if (!anything) return null
   return (
     <>
       <WaitingCard asks={cards.waiting} onOpenTask={onOpenTask} />

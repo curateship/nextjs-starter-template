@@ -229,19 +229,18 @@ describe("the site admin's My dashboard", () => {
     expect(render(dashboard(), { notifications: notices.slice(0, 3), nextCursor: "c1" })).toContain(">Load more<")
   })
 
-  it("draws only All clear and the Inbox when every card is empty", () => {
+  it("draws only the Inbox when every card is empty", () => {
     const html = render(dashboard())
-    expect(html).toContain("All clear<")
+    expect(html).not.toContain("All clear")
     expect(html).toContain("Inbox<")
     for (const title of ["Waiting on you", "No one on it", "Due this week", "Done today"]) {
       expect(html).not.toContain(`${title}<`)
     }
   })
 
-  it("leaves out empty cards and All clear when one card has rows", () => {
+  it("leaves out empty cards when one card has rows", () => {
     const html = render(dashboard({ dueThisWeek: [card("d1", "Due task", { dueDate: "2099-03-04" })] }))
     expect(html).toContain("Due this week<")
-    expect(html).not.toContain("All clear<")
     expect(html).not.toContain("No one on it<")
   })
 
