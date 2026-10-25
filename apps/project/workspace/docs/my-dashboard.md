@@ -291,10 +291,23 @@ the site admin to Teams, and My dashboard is first in the admins' left menu
 again (a menu pass marked `:admin-my-dashboard`). His answers are in
 `workspace/tasks/Admin/03-admin-dashboard.md`.
 
-- **Three panels, the same frame.** Left: the site admin, the cards with
-  something in them, and the Inbox.
+- **Three panels, the same frame.** Left: the site admin and the cards with
+  something in them, or the Inbox in their place.
   Middle: their tasks. Right: the open task, with no cross. Below 1280px wide
   one panel at a time, with Me, My tasks and Task tabs.
+- **The inbox icon** in the header, left of the cog, swaps the cards for the
+  Inbox, and pressed again brings the cards back (Tyler, 25 Oct 2026: "add an
+  inbox icon here with red bubble notification. the inbox open in that tab
+  instead of card it currantly does"). A red bubble on it counts unread
+  notices, "9+" past nine, and drops as they are read here. The Inbox there
+  has no card around it: its heading, Mark all read, the tabs and the rows
+  sit straight in the panel. The page opens on the cards. While the Inbox
+  shows, the icon morphs into a cross (Tyler, 25 Oct 2026: "make the inbox
+  morphed into an x when its in the inbox tab", then "make it morph"): the
+  tray's outline folds flat into one stroke and its dip straightens into the
+  other, over about a quarter of a second, and back again on the way out
+  (`inbox-morph-icon.tsx`). The bubble hides while it is a cross; the cross
+  brings the cards back.
 - **The header** shows their photo, name and "Site admin". The cog opens My
   settings: their email, then **Time zone** and **Bell notices** as rows that
   fold open. There is no check-in time or job title. The bell notices include
@@ -359,9 +372,8 @@ urgent rows then "Show all 12" for the rest. A task in a card opens on the
 right.
 
 **A card with nothing in it is not drawn.** When all nine are empty, nothing
-stands in for them and the Inbox, which always shows, is the only card
-(Tyler, 25 Oct 2026, of the "All clear" card that used to: "Just dont show
-anything").
+stands in for them and the panel is blank below the header (Tyler, 25 Oct
+2026, of the "All clear" card that used to: "Just dont show anything").
 Tyler on 24 Oct 2026, when every empty card still showed as "Waiting on you ·
 None" and the like: "this is way too many cards. we need to simplify it".
 
@@ -370,7 +382,7 @@ should be a color based on their importance like the done card should have a
 green card". Red needs the site admin now: Waiting on you, Needs attention,
 Projects running late. Amber is for soon: No one on it, Invites not taken, Due
 this week. Blue is to know about: Meetings today, Milestones this month. Green
-is Done today. The Inbox stays grey. The tints are see-through
+is Done today. The tints are see-through
 (`TONE` in `admin-cards.tsx`), so they work in light and dark.
 
 1. **Waiting on you:** asks for more time that fall to them: nobody else
@@ -398,7 +410,7 @@ is Done today. The Inbox stays grey. The tints are see-through
    many of their tasks aren't Done ("All done" when none are left).
 9. **Done today:** tasks finished in their today, by person ("Carla · 3"),
    the most first. A name folds open its tasks.
-10. **Inbox:** the employees' Inbox card.
+The Inbox is not among them: it is behind the header's inbox icon.
 
 ## Where it lives
 

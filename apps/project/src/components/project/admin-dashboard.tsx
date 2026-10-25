@@ -4,6 +4,7 @@ import { SettingsIcon } from "lucide-react"
 
 import { AdminCards } from "@/components/project/admin-cards"
 import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
+import { InboxMorphIcon } from "@/components/project/inbox-morph-icon"
 import { MyNoticeSwitches } from "@/components/project/my-notice-switches"
 import { MyTasksPanel } from "@/components/project/my-tasks-panel"
 import { OptionCard } from "@/components/project/option-card"
@@ -172,7 +173,13 @@ function useFirstZone(savedZone: string | null) {
   }, [savedZone, router])
 }
 
-/** The left panel: me with My settings behind the cog, the ten cards, then my inbox. */
+/**
+ * The left panel: me with my inbox and My settings in the header, then the
+ * cards. The inbox icon swaps the cards for the inbox, and again for the
+ * cards (Tyler, 25 Oct 2026: "add an inbox icon here with red bubble
+ * notification. the inbox open in that tab instead of card"). Both stay
+ * mounted, so what was read here keeps the bubble right on the way back.
+ */
 function AdminPanel({
   dashboard,
   inbox,
@@ -183,6 +190,8 @@ function AdminPanel({
   onOpenTask: (taskId: string) => void
 }) {
   const { me } = dashboard
+  const [inboxOpen, setInboxOpen] = React.useState(false)
+  const [unread, setUnread] = React.useState(() => inbox.notifications.filter((item) => !item.read_at).length)
   return (
     <>
       <DashboardCardHeader>
@@ -191,15 +200,49 @@ function AdminPanel({
           <span className="truncate text-sm font-medium">{me.name}</span>
           <span className="truncate text-xs text-muted-foreground">Site admin</span>
         </div>
+        <InboxButton unread={unread} open={inboxOpen} onToggle={() => setInboxOpen((open) => !open)} />
         <AdminSettingsMenu dashboard={dashboard} />
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <div className="grid gap-3 p-3">
+        <div className={cn("grid gap-3 p-3", inboxOpen && "hidden")}>
           <AdminCards cards={dashboard.cards} zone={dashboard.zone} onOpenTask={onOpenTask} />
-          <InboxCard inbox={inbox} />
+        </div>
+        <div className={cn("p-4", !inboxOpen && "hidden")}>
+          <InboxCard inbox={inbox} bare onUnread={setUnread} />
         </div>
       </ScrollArea>
     </>
+  )
+}
+
+/** The inbox icon, with a red bubble counting unread notices; a cross while the inbox shows. */
+function InboxButton({ unread, open, onToggle }: { unread: number; open: boolean; onToggle: () => void }) {
+  const label = open ? "Back to my cards" : unread ? `Inbox, ${unread} unread` : "Inbox"
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={label}
+          aria-pressed={open}
+          className={cn("relative", open && "bg-muted")}
+          onClick={onToggle}
+        >
+          <InboxMorphIcon open={open} />
+          {unread && !open ? (
+            <span
+              aria-hidden
+              className="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none font-semibold text-white tabular-nums"
+            >
+              {unread > 9 ? "9+" : unread}
+            </span>
+          ) : null}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{open ? "Back to my cards" : "Inbox"}</TooltipContent>
+    </Tooltip>
   )
 }
 

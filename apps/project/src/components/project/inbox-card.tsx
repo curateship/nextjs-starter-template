@@ -42,14 +42,25 @@ function inboxTabOf(item: NotificationItem, categoryId: string | undefined): Inb
  * All, Unread, Tasks (Project's own notices), Flows (automations waiting or
  * failed) and News (updates and announcements). Clicking one goes where the
  * bell would take it and marks it read. A card on the left since 23 Oct 2026,
- * when the right panel became the open task's alone. It shows 6, and Load
+ * when the right panel became the open task's alone; on the site admin's, behind
+ * an inbox icon instead (25 Oct 2026). It shows 6, and Load
  * more shows 6 more, fetching the next page once the loaded ones run out
  * (Tyler, 23 Oct 2026: "the inbox should have 6 open and a button to load more").
  */
 /** The first page of my notices, loaded with My dashboard, and where the next page starts (null with no more). */
 export type InboxPage = { notifications: NotificationItem[]; nextCursor: string | null }
 
-export function InboxCard({ inbox }: { inbox: InboxPage }) {
+export function InboxCard({
+  inbox,
+  bare = false,
+  onUnread,
+}: {
+  inbox: InboxPage
+  /** Drawn straight into the panel, with no card around it: the site admin's inbox tab. */
+  bare?: boolean
+  /** Told the unread count whenever it changes, for the site admin's red bubble. */
+  onUnread?: (unread: number) => void
+}) {
   const { notifications: firstPage, nextCursor } = inbox
   const navigate = useNavigate()
   const router = useRouter()
@@ -70,6 +81,7 @@ export function InboxCard({ inbox }: { inbox: InboxPage }) {
   const [markingAll, setMarkingAll] = React.useState(false)
   const isUnread = (item: NotificationItem) => !item.read_at && !readHere[item.id]
   const unread = notifications.filter(isUnread).length
+  React.useEffect(() => onUnread?.(unread), [unread, onUnread])
   const shown = notifications.filter((item) =>
     tab === "all" ? true : tab === "unread" ? isUnread(item) : inboxTabOf(item, details[item.id]?.categoryId) === tab
   )
@@ -149,30 +161,26 @@ export function InboxCard({ inbox }: { inbox: InboxPage }) {
     }
   }
 
-  return (
-    <PanelCard
-      storageId="project-my-inbox"
-      title="Inbox"
-      meta={unread ? `${unread} unread` : undefined}
-      action={
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              aria-label="Mark all read"
-              disabled={markingAll}
-              onClick={() => void markAllRead()}
-            >
-              {markingAll ? <Loader2Icon className="size-4 animate-spin" /> : <CheckCheckIcon className="size-4" />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Mark all read</TooltipContent>
-        </Tooltip>
-      }
-    >
+  const markAllButton = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-7"
+          aria-label="Mark all read"
+          disabled={markingAll}
+          onClick={() => void markAllRead()}
+        >
+          {markingAll ? <Loader2Icon className="size-4 animate-spin" /> : <CheckCheckIcon className="size-4" />}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Mark all read</TooltipContent>
+    </Tooltip>
+  )
+  const body = (
+    <>
       <Tabs
         value={tab}
         onValueChange={(value) => {
@@ -220,6 +228,26 @@ export function InboxCard({ inbox }: { inbox: InboxPage }) {
           Load more
         </Button>
       ) : null}
+    </>
+  )
+  const meta = unread ? `${unread} unread` : undefined
+  if (bare) {
+    return (
+      <section className="grid min-w-0 gap-3" aria-label="Inbox">
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold">
+            Inbox
+            {meta ? <span className="font-normal text-muted-foreground"> · {meta}</span> : null}
+          </h2>
+          {markAllButton}
+        </div>
+        {body}
+      </section>
+    )
+  }
+  return (
+    <PanelCard storageId="project-my-inbox" title="Inbox" meta={meta} action={markAllButton}>
+      {body}
     </PanelCard>
   )
 }

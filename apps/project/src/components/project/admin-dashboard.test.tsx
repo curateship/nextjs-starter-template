@@ -229,13 +229,24 @@ describe("the site admin's My dashboard", () => {
     expect(render(dashboard(), { notifications: notices.slice(0, 3), nextCursor: "c1" })).toContain(">Load more<")
   })
 
-  it("draws only the Inbox when every card is empty", () => {
+  it("draws no card when every card is empty", () => {
     const html = render(dashboard())
     expect(html).not.toContain("All clear")
-    expect(html).toContain("Inbox<")
     for (const title of ["Waiting on you", "No one on it", "Due this week", "Done today"]) {
       expect(html).not.toContain(`${title}<`)
     }
+  })
+
+  it("puts the inbox behind a header icon with a red bubble, and shows the cards first", () => {
+    const notices = Array.from({ length: 12 }, (_, n) => notice(n))
+    const html = render(dashboard(), { notifications: notices, nextCursor: null })
+    expect(html).toContain('aria-label="Inbox, 12 unread"')
+    expect(html).toContain('aria-pressed="false"')
+    expect(html).toMatch(/bg-destructive[^>]*>9\+</)
+    // The inbox waits hidden in the panel, with no card around it.
+    expect(html).toMatch(/class="p-4 hidden"><section[^>]*aria-label="Inbox"/)
+    expect(html).not.toContain("project-my-inbox")
+    expect(render(dashboard())).toContain('aria-label="Inbox"')
   })
 
   it("leaves out empty cards when one card has rows", () => {
@@ -256,7 +267,6 @@ describe("the site admin's My dashboard", () => {
       "Meetings today",
       "Milestones this month",
       "Done today",
-      "Inbox",
     ]
     const at = order.map((title) => html.indexOf(`${title}<`))
     expect(at.every((index) => index >= 0)).toBe(true)
