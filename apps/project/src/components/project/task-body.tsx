@@ -86,6 +86,7 @@ import {
   TASK_STATUS_LABEL,
   type TaskPriority,
   type TaskStatus,
+  isOpenStatus,
 } from "@/lib/project/rules"
 import { readTaskNotes, taskNotesAreEmpty } from "@/lib/project/notes"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
@@ -865,7 +866,7 @@ function TaskForm({
         />
         <DueMovesMark moves={task.dueMoves} status={task.status} />
       </div>
-      {task.status === "done" ? null : <DayOffNote note={dayOffNote(daysOff, task.dueDate, task.assignee)} />}
+      {!isOpenStatus(task.status) ? null : <DayOffNote note={dayOffNote(daysOff, task.dueDate, task.assignee)} />}
     </div>
   )
 

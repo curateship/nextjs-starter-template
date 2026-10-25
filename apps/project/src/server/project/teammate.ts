@@ -1,7 +1,8 @@
-import { and, desc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm"
+import { and, desc, eq, inArray, isNotNull, isNull, notInArray } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { TeamRole } from "@/lib/project/rules"
+import { CLOSED_TASK_STATUSES } from "@/lib/project/rules"
 import { db } from "@/server/db"
 import { requireMembership, visibleProjectIds } from "@/server/project/access"
 import { loadClock, personDay } from "@/server/project/checkins"
@@ -60,7 +61,7 @@ export async function loadTeammate(viewerId: string, userId: string, database = 
           inArray(projectTasks.projectId, visible),
           isNull(projectProjects.personalUserId),
           isNull(projectProjects.archivedAt),
-          ne(projectTasks.status, "done")
+          notInArray(projectTasks.status, CLOSED_TASK_STATUSES)
         ),
         database
       )

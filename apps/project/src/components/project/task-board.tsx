@@ -67,6 +67,7 @@ import {
   TASK_STATUS_LABEL,
   isTaskStatus,
   type TaskStatus,
+  isOpenStatus,
 } from "@/lib/project/rules"
 import { dueDayOf, todayKey } from "@/lib/project/dates"
 import type { DoingWarning } from "@/lib/project/doing-limit"
@@ -445,7 +446,7 @@ function columnOf(columns: Record<string, string[]>, id: UniqueIdentifier) {
 
 /** "2 Doing · 1 Stuck", the row's summary while folded and beside its name. */
 function laneCounts(tasks: TaskCard[]) {
-  const open = tasks.filter((task) => task.status !== "done")
+  const open = tasks.filter((task) => isOpenStatus(task.status))
   const doing = open.filter((task) => task.status === "doing").length
   const stuck = open.filter((task) => task.status === "stuck").length
   if (open.length === 0) return "Nothing open"
@@ -724,7 +725,7 @@ function CardContent({
   showProject?: boolean
 }) {
   const chips = task.type || task.priority === "high" || task.labels.length
-  const slipping = task.dueMoves >= DUE_MOVED_MANY && task.status !== "done"
+  const slipping = task.dueMoves >= DUE_MOVED_MANY && isOpenStatus(task.status)
   return (
     <>
       <span

@@ -39,7 +39,7 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import type { ListDrop } from "@/lib/project/list-drop"
 import { canMove, dropChange, inMyOrder, isMyHeading, takesDrops, type MyPlace } from "@/lib/project/my-task-order"
 import { MY_TASK_FOLDS_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
-import type { TaskStatus } from "@/lib/project/rules"
+import { isOpenStatus, type TaskStatus } from "@/lib/project/rules"
 import { pickedWordsUnder, readRightClick } from "@/lib/project/right-click"
 import { viewHasFilters } from "@/lib/project/saved-views"
 import {
@@ -130,7 +130,7 @@ export function MyTasksPanel({
   const myDay = source.today
   const [myOrder, setMyOrder] = useSyncedDraft(source.myOrder)
   const [selectedSlot, setSelectedSlot] = React.useState<HTMLDivElement | null>(null)
-  const notDone = tasks.filter((task) => task.status !== "done")
+  const notDone = tasks.filter((task) => isOpenStatus(task.status))
   // A snoozed task stays out of Open until the morning of its day.
   const open = notDone.filter((task) => !task.snoozedUntil || task.snoozedUntil <= myDay)
   const snoozed = notDone.length - open.length
@@ -486,8 +486,9 @@ export function MyTasksPanel({
             onReorder={() => undefined}
             cardOrder="due"
             showProject
-            statusOrder={statusOrder}
-            onStatusOrder={(next) => void changeStatusOrder(next)}
+            // Archived tasks never come to My dashboard, so neither does their column.
+            statusOrder={statusOrder.filter((status) => status !== "archived")}
+            onStatusOrder={(next) => void changeStatusOrder([...next, "archived"])}
           />
         ) : view === "calendar" ? (
           <TaskCalendar

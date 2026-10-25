@@ -233,7 +233,7 @@ a task becomes Done, ready-made types, field changes in the task's history, a
 type's default person and due date, a warning when a task's type changes,
 search inside fields, number totals, date field reminders, changing the type
 of many tasks at once, types shared between teams, extra statuses per type
-(his four statuses stay), and field values on the Team dashboard or in the
+(the team's five statuses stay), and field values on the Team dashboard or in the
 check-in.
 
 ## Where it lives

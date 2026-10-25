@@ -19,6 +19,7 @@ import { moveTask } from "@/server/project/task-changes"
 import { assignTask, createTask, loadTaskDetail, setTaskStatus } from "@/server/project/tasks"
 import { listTeams } from "@/server/project/teams"
 import { insertSiteAdmin, startTeam } from "@/server/project/test-people"
+import { loadMyDays } from "@/server/project/task-reminders"
 import { saveSavedView } from "@/server/saved-views"
 import type { CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -132,7 +133,7 @@ describe("the middle", () => {
     await setAdminStatusOrder(tyler.id, ["done", "todo", "doing", "stuck"], database)
     await setAdminTimeZone(tyler.id, "Pacific/Auckland", database)
     const dashboard = await loadAdminDashboard(tyler.id, database, new Date(`${MONDAY}T20:00:00Z`))
-    expect(dashboard.statusOrder).toEqual(["done", "todo", "doing", "stuck"])
+    expect(dashboard.statusOrder).toEqual(["done", "todo", "doing", "stuck", "archived"])
     // 8pm in London on Monday is Tuesday morning in Auckland.
     expect(dashboard.today).toBe("2099-03-03")
   })
@@ -162,6 +163,18 @@ describe("the middle", () => {
     await expect(
       saveSavedView(other.id, { screen: `admin-tasks:${tyler.id}`, name: "Mine", filters: { priority: "high" } }, database, screens)
     ).rejects.toThrow()
+  })
+})
+
+describe("quick due dates", () => {
+  // He is on no team, so Today and Tomorrow use his own zone and Monday to Friday.
+  it("works out his days without a team", async () => {
+    await setAdminTimeZone(tyler.id, "Pacific/Auckland", database)
+    expect(await loadMyDays(tyler.id, database)).toEqual({
+      zone: "Pacific/Auckland",
+      workDays: [1, 2, 3, 4, 5],
+      holidays: [],
+    })
   })
 })
 

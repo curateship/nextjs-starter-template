@@ -1,13 +1,15 @@
-import { and, asc, count, eq, inArray, isNull, lte, ne } from "drizzle-orm"
+import { and, asc, count, eq, inArray, isNull, lte, notInArray } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import {
+  CLOSED_TASK_STATUSES,
   PERSONAL_PROJECT_NAME,
   boardStatusOrder,
   type ProjectColor,
   type TaskStatus,
   type TeamRole,
+  isOpenStatus,
 } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
@@ -173,7 +175,7 @@ export async function loadProjectsPage(
           and(
             inArray(projectTasks.projectId, ids),
             isNull(projectTasks.deletedAt),
-            ne(projectTasks.status, "done"),
+            notInArray(projectTasks.status, CLOSED_TASK_STATUSES),
             lte(projectTasks.dueDate, tomorrowUtc)
           )
         )
@@ -187,7 +189,7 @@ export async function loadProjectsPage(
     teams,
     teamFilter: filter,
     projects: visible.map((project) => {
-      const counts: Record<TaskStatus, number> = { todo: 0, doing: 0, done: 0, stuck: 0 }
+      const counts: Record<TaskStatus, number> = { todo: 0, doing: 0, done: 0, stuck: 0, archived: 0 }
       for (const row of statusRows) {
         if (row.projectId === project.id) counts[row.status] = row.total
       }
@@ -417,13 +419,13 @@ export async function loadProjectPage(
       email: "",
       avatarUrl: siteAdminMe.avatarUrl,
       title: null,
-      openTasks: tasks.filter((task) => task.assignee?.id === userId && task.status !== "done").length,
+      openTasks: tasks.filter((task) => task.assignee?.id === userId && isOpenStatus(task.status)).length,
     },
     members: memberRows.map((row) => ({
       ...row,
       avatarUrl: row.avatarUrl ?? "",
       openTasks: tasks.filter(
-        (task) => task.assignee?.id === row.userId && task.status !== "done"
+        (task) => task.assignee?.id === row.userId && isOpenStatus(task.status)
       ).length,
     })),
     addable: teamMembers

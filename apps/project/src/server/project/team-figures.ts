@@ -1,6 +1,7 @@
-import { and, count, eq, gte, isNotNull, isNull, lte, lt, ne, or } from "drizzle-orm"
+import { and, count, eq, gte, isNotNull, isNull, lt, lte, notInArray, or } from "drizzle-orm"
 
 import { addDays, daysBetween, localNow, momentOf, weekdayOf } from "@/lib/project/days"
+import { CLOSED_TASK_STATUSES } from "@/lib/project/rules"
 import { db } from "@/server/db"
 import { visibleProjectsWhere } from "@/server/project/access"
 import { loadClock, personDay } from "@/server/project/checkins"
@@ -71,7 +72,7 @@ export async function loadTeamFigures(
       .from(projectTasks)
       .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
       .where(where)
-  const open = and(sharedAndSeen, isNull(projectProjects.archivedAt), ne(projectTasks.status, "done"))
+  const open = and(sharedAndSeen, isNull(projectProjects.archivedAt), notInArray(projectTasks.status, CLOSED_TASK_STATUSES))
   const [[openTasks], [dueThisWeek], [completed]] = await Promise.all([
     tasksIn(open),
     tasksIn(and(open, gte(projectTasks.dueDate, monday), lte(projectTasks.dueDate, sunday))),

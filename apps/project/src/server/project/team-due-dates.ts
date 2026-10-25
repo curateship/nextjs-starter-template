@@ -1,7 +1,8 @@
-import { and, asc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm"
+import { and, asc, eq, gte, inArray, isNull, lte, notInArray, sql } from "drizzle-orm"
 
 import type { ProjectColor, TaskStatus } from "@/lib/project/rules"
 import { now } from "@/server/auth/security"
+import { CLOSED_TASK_STATUSES } from "@/lib/project/rules"
 import { db } from "@/server/db"
 import { requireMembership, visibleProjectIds, type Membership, type ProjectDb } from "@/server/project/access"
 import {
@@ -97,7 +98,7 @@ export async function loadTeamDueDates(
         isNull(projectProjects.personalUserId),
         isNull(projectProjects.archivedAt),
         isNull(projectTasks.deletedAt),
-        ne(projectTasks.status, "done"),
+        notInArray(projectTasks.status, CLOSED_TASK_STATUSES),
         gte(projectTasks.dueDate, first),
         lte(projectTasks.dueDate, last)
       )

@@ -29,6 +29,7 @@ import {
   type ProjectColor,
   type TaskPriority,
   type TaskStatus,
+  isOpenStatus,
 } from "@/lib/project/rules"
 import { dueDayOf, isOverdue, localTimeOf } from "@/lib/project/dates"
 import type { TaskTypeChip } from "@/lib/project/task-types"
@@ -91,6 +92,7 @@ const STATUS_DOT: Record<TaskStatus, string> = {
   doing: "bg-blue-500",
   done: "bg-green-600",
   stuck: "bg-red-500",
+  archived: "bg-muted-foreground/50",
 }
 
 export function StatusDot({ status, className }: { status: TaskStatus; className?: string }) {
@@ -262,7 +264,7 @@ export function PickedDaysBadge({
   pickedDays: number
   status: TaskStatus
 }) {
-  if (pickedDays < PICKED_MANY_DAYS || status === "done") return null
+  if (pickedDays < PICKED_MANY_DAYS || !isOpenStatus(status)) return null
   return (
     <Badge variant="outline">
       <RepeatIcon aria-hidden />
@@ -386,7 +388,7 @@ export function ProjectChip({ name, color }: { name: string; color: ProjectColor
 
 /** "Date moved 3 times", beside the date of a task not Done that keeps slipping. */
 export function DueMovesMark({ moves, status }: { moves: number; status: TaskStatus }) {
-  if (moves < DUE_MOVED_MANY || status === "done") return null
+  if (moves < DUE_MOVED_MANY || !isOpenStatus(status)) return null
   return (
     <Badge variant="outline">
       <CalendarClockIcon aria-hidden />

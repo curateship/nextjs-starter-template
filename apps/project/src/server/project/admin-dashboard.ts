@@ -1,9 +1,9 @@
-import { and, asc, count, eq, gte, inArray, isNull, lt, lte, ne, or, sql, type SQL } from "drizzle-orm"
+import { and, asc, count, eq, gte, inArray, isNull, lt, lte, ne, notInArray, or, sql, type SQL } from "drizzle-orm"
 
 import { addDays, localNow, momentOf } from "@/lib/project/days"
 import type { MyPlace } from "@/lib/project/my-task-order"
 import type { NoticeSwitchId } from "@/lib/project/notice-switches"
-import { boardStatusOrder, PERSONAL_PROJECT_NAME, priorityRank, type ProjectColor, type TaskStatus } from "@/lib/project/rules"
+import { CLOSED_TASK_STATUSES, boardStatusOrder, PERSONAL_PROJECT_NAME, priorityRank, type ProjectColor, type TaskStatus } from "@/lib/project/rules"
 import type { TaskType } from "@/lib/project/task-types"
 import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
@@ -163,6 +163,7 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
     and(
       eq(projectTasks.assigneeUserId, userId),
       isNull(projectProjects.archivedAt),
+      ne(projectTasks.status, "archived"),
       or(isNull(projectProjects.personalUserId), eq(projectProjects.personalUserId, userId))
     ),
     database
@@ -205,7 +206,7 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
           await listTaskCards(
             and(
               sharedOpen,
-              ne(projectTasks.status, "done"),
+              notInArray(projectTasks.status, CLOSED_TASK_STATUSES),
               gte(projectTasks.dueDate, today),
               lte(projectTasks.dueDate, addDays(today, 6))
             ),
@@ -283,7 +284,7 @@ async function waitingOn(userId: string, sharedOpen: SQL, database: ProjectDb) {
     .from(projectTasks)
     .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
     .innerJoin(customShellUsers, eq(customShellUsers.id, projectTasks.moreTimeByUserId))
-    .where(and(sharedOpen, isNull(projectTasks.deletedAt), ne(projectTasks.status, "done")))
+    .where(and(sharedOpen, isNull(projectTasks.deletedAt), notInArray(projectTasks.status, CLOSED_TASK_STATUSES)))
     .orderBy(asc(projectTasks.moreTimeAskedAt))
   const asks: WaitingAsk[] = []
   for (const { task, project, askedByName } of rows) {
@@ -334,7 +335,7 @@ async function attentionByTeam(
 async function unassigned(userId: string, sharedOpen: SQL, database: ProjectDb) {
   const cards = (
     await listTaskCards(
-      and(sharedOpen, ne(projectTasks.status, "done"), isNull(projectTasks.assigneeUserId)),
+      and(sharedOpen, notInArray(projectTasks.status, CLOSED_TASK_STATUSES), isNull(projectTasks.assigneeUserId)),
       database
     )
   ).sort(bySoonest)
@@ -419,7 +420,7 @@ async function milestonesDue(today: string, sharedOpen: SQL, database: ProjectDb
   const open = database
     .select({ milestoneId: projectTasks.milestoneId, n: count().as("n") })
     .from(projectTasks)
-    .where(and(isNull(projectTasks.deletedAt), ne(projectTasks.status, "done")))
+    .where(and(isNull(projectTasks.deletedAt), notInArray(projectTasks.status, CLOSED_TASK_STATUSES)))
     .groupBy(projectTasks.milestoneId)
     .as("open")
   const rows = await database

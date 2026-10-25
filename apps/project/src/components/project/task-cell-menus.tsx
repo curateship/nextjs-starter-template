@@ -39,6 +39,7 @@ import {
   TASK_STATUS_LABEL,
   type ProjectColor,
   type TaskStatus,
+  isOpenStatus,
 } from "@/lib/project/rules"
 import { useDaysOff } from "@/lib/project/use-days-off"
 import { useQuickDays } from "@/lib/project/use-quick-days"
@@ -349,7 +350,7 @@ export function DueCellMenu({ task }: { task: TaskCard }) {
     setOpen(false)
     if (dueDate === task.dueDate) return
     // The picker has closed, so a day off is said once the date has saved (Seven features, part 1).
-    const note = task.status === "done" ? null : dayOffNote(daysOff, dueDate, task.assignee)
+    const note = !isOpenStatus(task.status) ? null : dayOffNote(daysOff, dueDate, task.assignee)
     void change(() => saveTask({ taskId: task.id, dueDate })).then((ok) => {
       if (ok && note) toast.warning(note)
     })

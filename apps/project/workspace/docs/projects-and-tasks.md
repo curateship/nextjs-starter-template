@@ -92,8 +92,8 @@
   Progress column. The project's due date sat under it until Tyler took it
   off on 19 Oct 2026; it is still set in Project settings. The project page's
   details panel has no task counts (Tyler removed them 11 Oct 2026). Done
-  counts Done tasks; To do, Doing and Stuck are open; tasks in the bin don't
-  count.
+  counts Done tasks; To do, Doing and Stuck are open; Archived tasks and
+  tasks in the bin don't count.
 
 ## Project status
 
@@ -792,7 +792,19 @@ Neither puts a window over the page.
   fields.
   The chat, following, notes and files are in [Task chat](task-chat.md), and
   types and their fields in [Task types](task-types.md).
-- **Four statuses.** To do, Doing, Done and Stuck.
+- **Five statuses.** To do, Doing, Done, Stuck and Archived. Archived came
+  last (Tyler, 25 Oct 2026: "add another status called 'Archived'").
+- **Archived is out of the way, not finished.** An archived task has its own
+  Board column on the project, last unless someone drags it, and shows in
+  the project's List, Calendar and Timeline, dashed and grey. It is never
+  late, never on My dashboard (no column there either), never in a check-in
+  or the morning list, and left out of progress, open-task counts, the
+  late-task project status and the Team dashboard's figures. Archiving
+  needs no "needed before Done" fields and no review, and clears the
+  finished date. Done and Archived are the closed statuses
+  (`CLOSED_TASK_STATUSES` and `isOpenStatus` in `src/lib/project/rules.ts`);
+  everything that asks "is this still work?" uses them. A Board order saved
+  before Archived existed gets it at the end.
 - **Stuck needs a reason.** Marking a task Stuck asks for one line. The reason
   shows on the task until it leaves Stuck. Whoever handed the task out gets a
   bell notice, or whoever made it when nobody handed it out.
@@ -1184,8 +1196,8 @@ So whoever hands out work can check it before it counts as finished.
   it, or sends it back to Doing with a one-line reason, and the person
   assigned gets "Anna sent a task back to you" with the reason. Both write
   history.
-- **A mark on Done, never a fifth status.** Tyler's rule is four statuses. A
-  task waiting for review counts as Done in progress bars and the four
+- **A mark on Done, never a status of its own.** Waiting for review is not a
+  status (Archived, the fifth, is unrelated). A task waiting for review counts as Done in progress bars and the four
   figures (Tyler's choice, 11 Oct 2026).
 - **Nobody to review it confirms itself**: when the reviewer marks it Done
   themselves, or has left the project, it just stays Done. Turning the switch

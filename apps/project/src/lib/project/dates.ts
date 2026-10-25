@@ -1,4 +1,4 @@
-import type { TaskStatus } from "@/lib/project/rules"
+import { isOpenStatus, type TaskStatus } from "@/lib/project/rules"
 
 /**
  * A due date is a whole day, stored as "YYYY-MM-DD" and read in the reader's
@@ -17,7 +17,7 @@ export function todayKey(now = new Date()) {
  * today by 3:00 PM is overdue from 3:00 PM (Tyler, 13 Oct 2026).
  */
 export function isOverdue(dueDate: string | null, status: TaskStatus, dueAt: string | null = null, now = new Date()) {
-  if (!dueDate || status === "done") return false
+  if (!dueDate || !isOpenStatus(status)) return false
   return dueAt ? new Date(dueAt) < now : dueDate < todayKey(now)
 }
 

@@ -1,7 +1,8 @@
-import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm"
+import { and, asc, eq, inArray, isNull, notInArray } from "drizzle-orm"
 
 import { getProjectErrorMessage, PROJECT_ERRORS } from "@/lib/project/errors"
 import {
+  CLOSED_TASK_STATUSES,
   LIMITS,
   PERSONAL_PROJECT_ID,
   PERSONAL_PROJECT_NAME,
@@ -14,7 +15,6 @@ import { db } from "@/server/db"
 import {
   isProjectMember,
   isSiteAdmin,
-  requireMembership,
   requireOpenProject,
   requireTaskAccess,
   visibleProjectsWhere,
@@ -427,23 +427,31 @@ export async function changeManyTasks(
     }
   }
   if (change.kind === "due" && change.dueDate && outcome.changed.length) {
-    const onDaysOff = await countOnDaysOff(actor.id, outcome.changed, change.dueDate, database)
+    const onDaysOff = await countOnDaysOff(outcome.changed, change.dueDate, database)
     if (onDaysOff) outcome.onDaysOff = onDaysOff
   }
   return outcome
 }
 
-/** How many of these tasks are due on a team holiday, or on their person's time off, that day. */
-async function countOnDaysOff(actorId: string, taskIds: string[], day: string, database: ProjectDb) {
-  const { teamId } = await requireMembership(actorId, database)
+/**
+ * How many of these tasks are due on their team's holiday, or on their
+ * person's time off, that day. The team comes from each task's project, since
+ * the site admin is on no team and one change can cover tasks from several.
+ */
+async function countOnDaysOff(taskIds: string[], day: string, database: ProjectDb) {
   const tasks = await database
-    .select({ assigneeUserId: projectTasks.assigneeUserId })
+    .select({ assigneeUserId: projectTasks.assigneeUserId, teamId: projectProjects.teamId })
     .from(projectTasks)
-    .where(and(inArray(projectTasks.id, taskIds), ne(projectTasks.status, "done")))
-  if (await holidayOn(teamId, day, database)) return tasks.length
+    .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
+    .where(and(inArray(projectTasks.id, taskIds), notInArray(projectTasks.status, CLOSED_TASK_STATUSES)))
+  const teams = [...new Set(tasks.map((task) => task.teamId))]
+  const holidayTeams = new Set<string>()
+  for (const teamId of teams) if (await holidayOn(teamId, day, database)) holidayTeams.add(teamId)
   const people = [...new Set(tasks.map((task) => task.assigneeUserId).filter((id): id is string => Boolean(id)))]
   const away = people.length ? await awayOn(people, day, database) : new Set<string>()
-  return tasks.filter((task) => task.assigneeUserId && away.has(task.assigneeUserId)).length
+  return tasks.filter(
+    (task) => holidayTeams.has(task.teamId) || (task.assigneeUserId && away.has(task.assigneeUserId))
+  ).length
 }
 
 /** Open projects this person can make a task in, with who can be handed it. */

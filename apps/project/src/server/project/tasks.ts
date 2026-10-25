@@ -1,4 +1,4 @@
-import { and, asc, count, countDistinct, eq, inArray, isNull, max, type SQL } from "drizzle-orm"
+import { and, asc, count, countDistinct, eq, inArray, isNull, max, ne, type SQL } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import { addDays } from "@/lib/project/days"
@@ -6,7 +6,7 @@ import { dueMoveReason } from "@/lib/project/due-moves"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import type { TaskNoticeKind } from "@/lib/project/notices"
 import { taskNotesText } from "@/lib/project/notes"
-import { LIMITS, runsTheTeam, type TaskPriority, type TaskStatus } from "@/lib/project/rules"
+import { LIMITS, runsTheTeam, type TaskPriority, type TaskStatus, isOpenStatus } from "@/lib/project/rules"
 import type { FieldValues } from "@/lib/project/task-fields"
 import type { TaskTypeChip } from "@/lib/project/task-types"
 import type { TaskClock } from "@/lib/project/clock"
@@ -321,7 +321,7 @@ function waitingOnOf(projectId: string, waits: WaitRow[]) {
       title: wait.projectId === projectId ? wait.title : null,
       done: wait.status === "done",
     })),
-    ready: waits.every((wait) => wait.status === "done"),
+    ready: waits.every((wait) => !isOpenStatus(wait.status)),
   }
 }
 
@@ -554,7 +554,8 @@ export async function loadMyWork(userId: string, database = db): Promise<TaskCar
       and(
         eq(projectTasks.assigneeUserId, userId),
         eq(projectProjects.teamId, membership.teamId),
-        isNull(projectProjects.archivedAt)
+        isNull(projectProjects.archivedAt),
+        ne(projectTasks.status, "archived")
       ),
       database
     ),

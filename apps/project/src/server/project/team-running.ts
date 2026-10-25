@@ -1,17 +1,11 @@
-import { and, count, eq, gte, inArray, isNotNull, isNull, lte, max, ne, sql } from "drizzle-orm"
+import { and, count, eq, gte, inArray, isNotNull, isNull, lte, max, notInArray, sql } from "drizzle-orm"
 
 import { matchesClient } from "@/lib/project/clients"
 import type { DaysOff } from "@/lib/project/days-off"
 import { addDays, localNow, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { teamJoinedHeading, MEMBERS_HREF, onTeamHref } from "@/lib/project/notices"
-import {
-  INVITE_LIFETIME_DAYS,
-  JOINS_PER_LINK_PER_DAY,
-  PICKED_MANY_DAYS,
-  UNTOUCHED_DAYS,
-  runsTheTeam,
-} from "@/lib/project/rules"
+import { CLOSED_TASK_STATUSES, INVITE_LIFETIME_DAYS, JOINS_PER_LINK_PER_DAY, PICKED_MANY_DAYS, UNTOUCHED_DAYS, runsTheTeam } from "@/lib/project/rules"
 import { appUrlFor } from "@/server/app-url"
 import { RateLimitError, enforceRateLimit } from "@/server/auth/rate-limit"
 import { createSecretToken, hashToken, now } from "@/server/auth/security"
@@ -72,7 +66,7 @@ async function clientProjects(membership: Membership, client: string, database: 
 
 /** Open tasks in the team's shared, open projects that this person can see. */
 async function openTeamTasks(membership: Membership, database: ProjectDb) {
-  return listTaskCards(and(sharedOpenProjects(membership), ne(projectTasks.status, "done")), database)
+  return listTaskCards(and(sharedOpenProjects(membership), notInArray(projectTasks.status, CLOSED_TASK_STATUSES)), database)
 }
 
 /** Done tasks still waiting for their reviewer, with when the wait began. */
@@ -382,7 +376,7 @@ export async function loadPeopleRoom(
         isNull(projectProjects.personalUserId),
         isNull(projectProjects.archivedAt),
         isNull(projectTasks.deletedAt),
-        ne(projectTasks.status, "done")
+        notInArray(projectTasks.status, CLOSED_TASK_STATUSES)
       )
     )
     .groupBy(projectTasks.assigneeUserId)
@@ -482,7 +476,7 @@ export async function handOverAllTasks(
         isNull(projectProjects.personalUserId),
         isNull(projectProjects.archivedAt),
         eq(projectTasks.assigneeUserId, input.fromUserId),
-        ne(projectTasks.status, "done")
+        notInArray(projectTasks.status, CLOSED_TASK_STATUSES)
       ),
       tx
     )

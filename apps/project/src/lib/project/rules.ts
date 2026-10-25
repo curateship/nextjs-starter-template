@@ -24,10 +24,12 @@ export function runsTheTeam(role: TeamRole | null | undefined) {
 }
 
 /**
- * Four statuses, in board order. Tyler chose status plus optional steps over a
+ * Five statuses, in board order. Tyler chose status plus optional steps over a
  * percentage, because "60% done" is a guess and "3 of 5 steps done" is a count.
+ * Archived came last (Tyler, 25 Oct 2026: "add another status called
+ * 'Archived'"): its own Board column on a project, and out of everything else.
  */
-export const TASK_STATUSES = ["todo", "doing", "done", "stuck"] as const
+export const TASK_STATUSES = ["todo", "doing", "done", "stuck", "archived"] as const
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 
 export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
@@ -35,6 +37,17 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   doing: "Doing",
   done: "Done",
   stuck: "Stuck",
+  archived: "Archived",
+}
+
+/**
+ * The statuses that are no longer work: Done and Archived. Every other status
+ * is open, and only open tasks are late, picked, counted or listed as mine.
+ */
+export const CLOSED_TASK_STATUSES: TaskStatus[] = ["done", "archived"]
+
+export function isOpenStatus(status: TaskStatus) {
+  return !CLOSED_TASK_STATUSES.includes(status)
 }
 
 /**

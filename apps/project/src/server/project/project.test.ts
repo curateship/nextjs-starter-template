@@ -309,8 +309,8 @@ describe("handing tasks over", () => {
   it("keeps my own Board column order on My dashboard, which nobody else gets", async () => {
     await projectWithBen()
     await setMyStatusOrder(ben.id, ["doing", "todo", "stuck", "done"], database)
-    expect((await loadMyDashboard(ben.id, database)).statusOrder).toEqual(["doing", "todo", "stuck", "done"])
-    expect((await loadMyDashboard(anna.id, database)).statusOrder).toEqual(["todo", "doing", "done", "stuck"])
+    expect((await loadMyDashboard(ben.id, database)).statusOrder).toEqual(["doing", "todo", "stuck", "done", "archived"])
+    expect((await loadMyDashboard(anna.id, database)).statusOrder).toEqual(["todo", "doing", "done", "stuck", "archived"])
   })
 
   it("takes an archived project's tasks off My dashboard, and brings them back with it", async () => {

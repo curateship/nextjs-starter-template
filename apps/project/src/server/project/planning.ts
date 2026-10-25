@@ -1,9 +1,9 @@
-import { and, count, desc, eq, ilike, inArray, isNotNull, isNull, ne, notExists } from "drizzle-orm"
+import { and, count, desc, eq, ilike, inArray, isNotNull, isNull, ne, notExists, notInArray } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { localNow } from "@/lib/project/days"
-import { LIMITS, runsTheTeam, type RepeatEvery, type TaskStatus } from "@/lib/project/rules"
+import { CLOSED_TASK_STATUSES, isOpenStatus, LIMITS, runsTheTeam, type RepeatEvery, type TaskStatus } from "@/lib/project/rules"
 import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
@@ -225,7 +225,7 @@ export async function tellWaitingTasks(actor: Actor, doneTaskId: string, tx: Pro
       and(
         eq(projectTaskWaits.waitingOnTaskId, doneTaskId),
         isNull(projectTasks.deletedAt),
-        ne(projectTasks.status, "done")
+        notInArray(projectTasks.status, CLOSED_TASK_STATUSES)
       )
     )
   const waits = await waitsFor(
@@ -234,7 +234,7 @@ export async function tellWaitingTasks(actor: Actor, doneTaskId: string, tx: Pro
   )
   const notices: TaskNotice[] = []
   for (const { task, project } of waiting) {
-    if ((waits.get(task.id) ?? []).some((wait) => wait.status !== "done")) continue
+    if ((waits.get(task.id) ?? []).some((wait) => isOpenStatus(wait.status))) continue
     const [recipient] = await whoCanStillSee(project, [task.assigneeUserId], tx)
     if (recipient) {
       notices.push({ kind: "task_ready", recipientUserId: recipient, actor, task: taskRef(task) })

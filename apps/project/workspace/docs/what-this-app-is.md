@@ -26,7 +26,7 @@ the code. If the code disagrees with a line here, the code is wrong.
   no email, browser pop-up or Slack reminder.
 - **Handing out tasks.** Anyone on the team can hand a task to anyone else. The
   task always records who handed it out.
-- **Progress.** A task's status is To do, Doing, Done or Stuck. A task can also
+- **Progress.** A task's status is To do, Doing, Done, Stuck or Archived. A task can also
   carry an optional checklist of steps, so progress reads as "3 of 5 steps
   done". There is no percentage slider.
 - **Check-out.** The evening check-out is optional. It was left out of the

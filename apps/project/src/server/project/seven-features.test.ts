@@ -122,6 +122,22 @@ describe("part 1, a due date on a day off", () => {
     expect(outcome.changed).toHaveLength(2)
     expect(outcome.onDaysOff).toBe(1)
   })
+
+  // The site admin is on no team and names none here, so the holiday check
+  // takes each task's team from its project.
+  it("lets the site admin bulk-change due dates and counts the team holiday", async () => {
+    await inTeam(teamId, () => addHoliday(admin.id, { day: NEXT_MONDAY, name: "Founders Day" }, database))
+    const bens = await task("Ben's")
+    const annas = await task("Anna's", { to: anna })
+    const outcome = await changeManyTasks(
+      actor(admin),
+      { taskIds: [bens, annas], change: { kind: "due", dueDate: NEXT_MONDAY } },
+      database
+    )
+    expect(outcome.refused).toEqual([])
+    expect(outcome.changed).toHaveLength(2)
+    expect(outcome.onDaysOff).toBe(2)
+  })
 })
 
 describe("part 2, ask for more time", () => {

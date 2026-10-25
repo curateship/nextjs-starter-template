@@ -121,7 +121,7 @@ describe("a project's due date and progress", () => {
     )
     await updateProject(admin.id, { projectId: website, dueDate: "2099-11-30" }, database)
     let row = (await loadProjectsPage(anna.id, database)).projects[0]
-    expect(row.counts).toEqual({ todo: 2, doing: 0, done: 0, stuck: 0 })
+    expect(row.counts).toEqual({ todo: 2, doing: 0, done: 0, stuck: 0, archived: 0 })
     await setTaskStatus(actor(ben), { taskId: a, status: "done", stuckReason: null }, database)
     row = (await loadProjectsPage(anna.id, database)).projects[0]
     expect(row.counts.done).toBe(1)

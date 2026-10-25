@@ -42,7 +42,7 @@ import { HEADING_DROP, type ListDrop } from "@/lib/project/list-drop"
 import { canMove, takesDrops } from "@/lib/project/my-task-order"
 import { MY_TASK_FOLDS_KEY } from "@/lib/project/panel-keys"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { DUE_MOVED_MANY, TASK_STATUS_LABEL } from "@/lib/project/rules"
+import { DUE_MOVED_MANY, TASK_STATUS_LABEL, isOpenStatus } from "@/lib/project/rules"
 import { useFoldedHeadings } from "@/lib/project/use-folded-headings"
 import { useListDrop } from "@/lib/project/use-list-drop"
 import { cn } from "@/lib/utils"
@@ -243,7 +243,7 @@ function Row({
   const style: React.CSSProperties | undefined = transform
     ? { transform: `translate3d(0, ${transform.y}px, 0)`, transition }
     : undefined
-  const slipping = task.dueMoves >= DUE_MOVED_MANY && task.status !== "done"
+  const slipping = task.dueMoves >= DUE_MOVED_MANY && isOpenStatus(task.status)
 
   return (
     <li

@@ -2,12 +2,13 @@ import { and, eq } from "drizzle-orm"
 
 import { addDays, localNow } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
+import { DEFAULT_WORK_DAYS } from "@/lib/project/rules"
 import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { requireTaskAccess, type ProjectDb } from "@/server/project/access"
+import { findMembership, isSiteAdmin, requireTaskAccess, type ProjectDb } from "@/server/project/access"
 import { loadClock } from "@/server/project/checkins"
 import { holidaysBetween } from "@/server/project/holidays"
-import { projectTaskReminders } from "@/server/project/schema"
+import { projectSiteAdminPrefs, projectTaskReminders } from "@/server/project/schema"
 
 /**
  * "Remind me": anyone who can see a task picks a day, and on that day, at
@@ -78,6 +79,15 @@ export async function loadMyDays(
   userId: string,
   database: ProjectDb = db
 ): Promise<{ zone: string; workDays: number[]; holidays: string[] }> {
+  // The site admin is on no team: their own zone from My settings, the usual
+  // Monday to Friday, and no one team's holidays.
+  if (!(await findMembership(userId, database)) && (await isSiteAdmin(userId, database))) {
+    const [prefs] = await database
+      .select({ timeZone: projectSiteAdminPrefs.timeZone })
+      .from(projectSiteAdminPrefs)
+      .where(eq(projectSiteAdminPrefs.userId, userId))
+    return { zone: prefs?.timeZone ?? "UTC", workDays: [...DEFAULT_WORK_DAYS], holidays: [] }
+  }
   const clock = await myClock(userId, database)
   const today = localNow(now(), clock.zone).day
   const holidays = await holidaysBetween(

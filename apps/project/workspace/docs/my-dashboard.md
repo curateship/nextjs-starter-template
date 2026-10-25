@@ -182,7 +182,12 @@ my own order (below), then any I haven't placed, soonest first.
   every view, while anything is overdue and no search or filter is on. It opens a
   window listing those tasks, the same ones as the Overdue group, all
   ticked. Untick any to keep, then pick one new due date and press "Move 7
-  tasks", or press "Leave with no date". It is the bulk bar's due date
+  tasks", or press "Leave with no date". Today and Tomorrow sit on the
+  date picker's line and pick in one click (Tyler, 25 Oct 2026); the picked
+  one is shaded, and Move then moves to it. There is no No date button
+  beside them, because "Leave with no date" in the footer does that. Tomorrow skips the team's days off. The site admin, on no
+  team, gets their own time zone from My settings and Monday to Friday
+  (`loadMyDays` in `src/server/project/task-reminders.ts`). It is the bulk bar's due date
   change (`changeManyTasks`), so each task is checked on its own, a refused
   one is named in the error, and every move counts toward "Date moved 3
   times" (Tyler's choice, 13 Oct 2026, so slipped work stays visible). A

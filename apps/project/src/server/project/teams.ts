@@ -1,13 +1,8 @@
-import { and, asc, count, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-orm"
+import { and, asc, count, eq, inArray, isNull, notInArray, sql, type SQL } from "drizzle-orm"
 
 import { localNow } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
-import {
-  DEFAULT_CHECKIN_TIME,
-  DEFAULT_WORK_DAYS,
-  runsTheTeam,
-  type TeamRole,
-} from "@/lib/project/rules"
+import { CLOSED_TASK_STATUSES, DEFAULT_CHECKIN_TIME, DEFAULT_WORK_DAYS, runsTheTeam, type TeamRole } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { isOwnedImageUrl } from "@/server/media/library"
@@ -162,7 +157,7 @@ async function teamTaskCounts(database: ProjectDb, at: Date) {
     .where(
       and(
         isNull(projectTasks.deletedAt),
-        ne(projectTasks.status, "done"),
+        notInArray(projectTasks.status, CLOSED_TASK_STATUSES),
         isNull(projectProjects.personalUserId),
         isNull(projectProjects.archivedAt)
       )

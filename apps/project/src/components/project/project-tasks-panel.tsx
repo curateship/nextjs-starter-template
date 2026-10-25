@@ -56,7 +56,7 @@ import { BOARD_GROUP_KEY, PROJECT_TASK_VIEW_KEY, taskFoldsKey, taskGroupingKey }
 import { todayKey } from "@/lib/project/dates"
 import type { ListDrop } from "@/lib/project/list-drop"
 import { dropChange } from "@/lib/project/my-task-order"
-import { runsTheTeam, type TaskPriority, type TaskStatus } from "@/lib/project/rules"
+import { runsTheTeam, type TaskPriority, type TaskStatus, isOpenStatus } from "@/lib/project/rules"
 import { filterTasks, hasTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
 import { overDoingLimit } from "@/lib/project/doing-limit"
 import { TASK_GROUPINGS, canMoveInGroup, groupTasks, type TaskGrouping } from "@/lib/project/task-groups"
@@ -533,7 +533,7 @@ export function ProjectTasksPanel({
   const canDelete = (task: TaskCard) => task.createdByUserId === page.myUserId || runsTheTeam(page.myRole)
 
   // Open tasks for the members dropdown, counted before any filter.
-  const openTasks = tasks.filter((task) => task.status !== "done")
+  const openTasks = tasks.filter((task) => isOpenStatus(task.status))
 
   // What the Group row shows on this tab, which a saved view keeps with the filters.
   const viewGroup: TaskGrouping | undefined =

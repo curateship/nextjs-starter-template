@@ -25,6 +25,7 @@ const STATUS_BAR: Record<TaskStatus, string> = {
   doing: "border border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300",
   stuck: "border border-destructive/40 bg-destructive/10 text-destructive",
   done: "border bg-muted text-muted-foreground line-through",
+  archived: "border border-dashed bg-muted text-muted-foreground",
 }
 
 export type TimelineGroup = { key: string; label: string }

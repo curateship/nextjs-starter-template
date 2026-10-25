@@ -22,7 +22,7 @@ import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { clockIn, longDayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { LIMITS } from "@/lib/project/rules"
+import { LIMITS, isOpenStatus } from "@/lib/project/rules"
 import { todaysPicks } from "@/lib/project/todays-picks"
 
 /**
@@ -51,7 +51,7 @@ export function CheckoutDialog({
   const [note, setNote] = React.useState(savedNote)
   const [plan, setPlan] = React.useState<Set<string>>(() => new Set(savedPlan))
   // Everything still open and mine, the same list the check-in offers.
-  const openTasks = page.groups.flatMap((group) => group.tasks).filter((task) => task.status !== "done")
+  const openTasks = page.groups.flatMap((group) => group.tasks).filter((task) => isOpenStatus(task.status))
 
   // Each opening starts from what is saved.
   const [wasOpen, setWasOpen] = React.useState(open)

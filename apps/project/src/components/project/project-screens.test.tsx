@@ -399,7 +399,7 @@ describe("the Projects dashboard", () => {
               archived: false,
               personal: false,
               starred: false,
-              counts: { todo: 2, doing: 1, done: 4, stuck: 1 },
+              counts: { todo: 2, doing: 1, done: 4, stuck: 1, archived: 0 },
               dated: ["2020-01-02", "2020-01-03", "2020-01-04", "2099-01-01"].map((dueDate) => ({
                 dueDate,
                 dueAt: null,
@@ -419,7 +419,7 @@ describe("the Projects dashboard", () => {
               archived: true,
               personal: false,
               starred: false,
-              counts: { todo: 0, doing: 0, done: 2, stuck: 0 },
+              counts: { todo: 0, doing: 0, done: 2, stuck: 0, archived: 0 },
               dated: [],
               slowingAt: 1,
               behindAt: 3,

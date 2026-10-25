@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm"
 import { dayLabel } from "@/lib/project/days"
 import { dueMoveReason } from "@/lib/project/due-moves"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
-import { runsTheTeam, type TeamRole } from "@/lib/project/rules"
+import { runsTheTeam, type TeamRole, isOpenStatus } from "@/lib/project/rules"
 import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
@@ -53,7 +53,7 @@ type AskRow = Pick<
  */
 export function openAsk(task: AskRow) {
   if (!task.moreTimeDay || !task.moreTimeByUserId) return null
-  if (task.status === "done" || task.deletedAt || task.moreTimeByUserId !== task.assigneeUserId) return null
+  if (!isOpenStatus(task.status) || task.deletedAt || task.moreTimeByUserId !== task.assigneeUserId) return null
   if (task.dueDate && task.dueDate >= task.moreTimeDay) return null
   return { day: task.moreTimeDay, reason: task.moreTimeReason ?? "", byUserId: task.moreTimeByUserId }
 }
@@ -65,7 +65,7 @@ export function handedOutBy(task: Pick<TaskRow, "assignedByUserId" | "assigneeUs
 
 /** May ask: the person assigned, on a task not Done with a due date to move. */
 export function canAskForTime(task: Pick<TaskRow, "status" | "assigneeUserId" | "dueDate">, userId: string) {
-  return task.assigneeUserId === userId && task.status !== "done" && Boolean(task.dueDate)
+  return task.assigneeUserId === userId && isOpenStatus(task.status) && Boolean(task.dueDate)
 }
 
 /** May answer: whoever handed it out, or the site admin (anyone who runs the team). */

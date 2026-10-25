@@ -23,12 +23,17 @@ import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { reportBulkOutcome } from "@/lib/project/bulk-outcome"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { useQuickDays } from "@/lib/project/use-quick-days"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * My overdue tasks in one window, all ticked, moved to one day or left with
  * no date. It is the bulk bar's due date change, so each move is checked on
  * its own and counts toward "Date moved 3 times" (Tyler, 13 Oct 2026).
+ *
+ * Today and Tomorrow sit beside the date and pick it in one click (Tyler,
+ * 25 Oct 2026). No date is the footer's "Leave with no date". Tomorrow skips
+ * the team's days off, as everywhere else.
  */
 export function CatchUpDialog({
   open,
@@ -43,6 +48,7 @@ export function CatchUpDialog({
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [unticked, setUnticked] = React.useState<ReadonlySet<string>>(() => new Set())
   const [day, setDay] = React.useState<string | null>(null)
+  const quick = useQuickDays(open)
   const [dayMissing, setDayMissing] = React.useState(false)
   const ticked = tasks.filter((task) => !unticked.has(task.id))
 
@@ -137,16 +143,36 @@ export function CatchUpDialog({
             <CardContent className="grid gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="catch-up-day">New due date</Label>
-                <DueDayPicker
-                  id="catch-up-day"
-                  value={day}
-                  disabled={busy}
-                  aria-invalid={dayMissing}
-                  onChange={(next) => {
-                    setDay(next)
-                    setDayMissing(false)
-                  }}
-                />
+                <div className="flex gap-2">
+                  <DueDayPicker
+                    id="catch-up-day"
+                    className="w-auto min-w-0 flex-1"
+                    value={day}
+                    disabled={busy}
+                    aria-invalid={dayMissing}
+                    onChange={(next) => {
+                      setDay(next)
+                      setDayMissing(false)
+                    }}
+                  />
+                  {quick
+                    ?.filter((option) => option.key === "today" || option.key === "tomorrow")
+                    .map((option) => (
+                      <Button
+                        key={option.key}
+                        type="button"
+                        variant={day === option.day ? "secondary" : "outline"}
+                        aria-pressed={day === option.day}
+                        disabled={busy}
+                        onClick={() => {
+                          setDay(option.day)
+                          setDayMissing(false)
+                        }}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                </div>
               </div>
             </CardContent>
           </Card>

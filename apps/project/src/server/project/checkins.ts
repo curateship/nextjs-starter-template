@@ -1,10 +1,11 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, max, ne, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, max, notInArray, or, sql } from "drizzle-orm"
 
 import { clockTotal } from "@/lib/project/clock"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { suggestPicks } from "@/lib/project/suggested-picks"
 import { localNow, momentOf } from "@/lib/project/days"
 import {
+  CLOSED_TASK_STATUSES,
   LIMITS,
   PERSONAL_PROJECT_ID,
   PERSONAL_PROJECT_NAME,
@@ -267,7 +268,7 @@ export async function loadCheckinPage(
         and(
           inArray(projectTasks.projectId, openProjectIds),
           eq(projectTasks.assigneeUserId, userId),
-          ne(projectTasks.status, "done"),
+          notInArray(projectTasks.status, CLOSED_TASK_STATUSES),
           or(isNull(projectTasks.snoozedUntil), lte(projectTasks.snoozedUntil, today.day))
         ),
         database
@@ -581,7 +582,7 @@ async function leftoversFor(
     await listTaskCards(
       and(
         inArray(projectTasks.id, ids),
-        ne(projectTasks.status, "done"),
+        notInArray(projectTasks.status, CLOSED_TASK_STATUSES),
         isNull(projectProjects.archivedAt)
       ),
       database
@@ -873,7 +874,7 @@ export async function checkOut(
             inArray(projectTasks.id, tomorrow),
             eq(projectTasks.assigneeUserId, actor.id),
             isNull(projectTasks.deletedAt),
-            ne(projectTasks.status, "done")
+            notInArray(projectTasks.status, CLOSED_TASK_STATUSES)
           )
         )
       if (mine.filter((task) => visible.has(task.projectId)).length !== tomorrow.length) {
