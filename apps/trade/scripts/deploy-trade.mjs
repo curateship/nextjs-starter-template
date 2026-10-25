@@ -40,6 +40,10 @@ const ORDER = ["engine", "worker", "web"]
 
 const POLL_EVERY_MS = 5_000
 const GIVE_UP_AFTER_MS = 20 * 60_000
+// A busy box answers a status check with a 504 now and then while a build is
+// still running. Only this many failed checks in a row end the wait. A 4xx,
+// such as a wrong token, ends it at once.
+const FAILED_CHECKS_ALLOWED = 24
 
 async function envFile(name) {
   try {
@@ -173,11 +177,28 @@ export function buildLogTail(logs, count = 40) {
     .slice(-count)
 }
 
-async function waitForDeployment(settings, name, deploymentUuid) {
+export async function waitForDeployment(
+  settings,
+  name,
+  deploymentUuid,
+  { get = (route) => coolify(settings, "GET", route), every = POLL_EVERY_MS } = {}
+) {
   const startedAt = Date.now()
   let lastSaid = null
+  let failedChecks = 0
   while (Date.now() - startedAt < GIVE_UP_AFTER_MS) {
-    const record = await coolify(settings, "GET", `/deployments/${deploymentUuid}`)
+    let record
+    try {
+      record = await get(`/deployments/${deploymentUuid}`)
+      failedChecks = 0
+    } catch (error) {
+      failedChecks += 1
+      const refused = error instanceof Error && /answered 4\d\d/.test(error.message)
+      if (refused || failedChecks >= FAILED_CHECKS_ALLOWED) throw error
+      console.log(`  ${name}: Coolify did not answer the status check, asking again (${error instanceof Error ? error.message.slice(0, 80) : error})`)
+      await new Promise((done) => setTimeout(done, every))
+      continue
+    }
     const line = deploymentLine(name, record)
     if (line !== lastSaid) {
       console.log(`  ${line}`)
@@ -195,7 +216,7 @@ async function waitForDeployment(settings, name, deploymentUuid) {
       }
       return record?.status
     }
-    await new Promise((done) => setTimeout(done, POLL_EVERY_MS))
+    await new Promise((done) => setTimeout(done, every))
   }
   throw new Error(`${name}: still building after ${GIVE_UP_AFTER_MS / 60_000} minutes; look at Coolify.`)
 }

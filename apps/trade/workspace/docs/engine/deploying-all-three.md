@@ -64,6 +64,22 @@ types it, or asks for it in the same message. It needs, in the gitignored
 - `COOLIFY_TRADE_ENGINE`, `COOLIFY_TRADE_WORKER`, `COOLIFY_TRADE_WEB` — the
   three app uuids; the defaults are today's.
 
+While a build runs, the script asks Coolify for its status every five
+seconds. A busy box sometimes answers one of those checks with a 504 even
+though the build is fine, which on 24 Oct 2026 ended a run while the website
+was still building. The script now prints the failed check and asks again,
+and stops only after 24 failed checks in a row, about two minutes of
+silence. An answer that refuses the request, such as a 401 for a wrong
+token, stops it at once.
+
+A worker that fails its health check with "the database did not answer" is
+usually not the build. On 24 Oct 2026 at 19:42 UTC the German box's disk
+filled, Trade DB stopped with "No space left on device" and could not start
+again, and every deploy's new worker then failed its check. Coolify still
+listed the database as running. `docker logs --tail 80 01afudykcdh8fxrqvr2v9jyw`
+in Coolify's server Terminal shows why it stopped. Once disk space is free, a
+restart of Trade DB in Coolify brings it back.
+
 Pressing the three buttons in Coolify by hand still works. The rule is the
 same either way: all three, engine first.
 

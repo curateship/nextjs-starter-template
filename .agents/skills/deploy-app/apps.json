@@ -121,5 +121,23 @@
     "database": {
       "uuid": "o6fpwrpa6xfddszyrqqpwpvj"
     }
+  },
+  "date": {
+    "server": "de",
+    "project": "Date",
+    "healthUrl": "https://date.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "5jj7njinhnx6eruy8jyirkgl"
+      },
+      {
+        "role": "worker",
+        "uuid": "obj0mfcjfjhx79bro3at3amk"
+      }
+    ],
+    "database": {
+      "uuid": "qgmm1hiolawbjwhyq4ffhllh"
+    }
   }
 }
