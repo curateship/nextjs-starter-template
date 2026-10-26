@@ -677,6 +677,14 @@ On the project page and My dashboard a task opens in the right panel,
 beside the Board or My tasks (Tyler, 13 Oct 2026, from his drawing).
 Neither puts a window over the page.
 
+- **No loading spinner.** A task opened before, since the page last loaded,
+  shows straight away from the last copy while a fresh one loads behind it
+  and replaces it (Tyler, 26 Oct 2026: "the task panel should not load every
+  time i load it and the loading circle is not nessarry"). A task opened for
+  the first time shows an empty panel for the moment it takes to arrive,
+  never a spinner. The last 50 tasks opened are kept, in
+  `task-body.tsx`. A browser refresh starts that list over.
+
 - **The task panel.** Along the top: the task's name at the left, then the
   three-dot button and the cog at the right (Tyler, 20 Oct 2026; the status
   sat there earlier that day, `assets/pasted-image-1792504237260017000.png`).
