@@ -636,6 +636,107 @@ describe("placing", () => {
     )
   })
 
+  it("states the position's own leverage when adding on isolated", async () => {
+    // KuCoin refuses an isolated add that states no leverage with "100001
+    // Leverage parameter invalid". That kept every rung after the first off a
+    // ZEC grid from 22 to 25 Oct 2026. KuCoin reports 2.09 on a position
+    // opened at 2x and takes only whole numbers.
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "ISOLATED" }),
+        },
+        {
+          path: "/api/v1/position",
+          answer: ok({ symbol: "XBTUSDTM", currentQty: 1, leverage: 2.09 }),
+        },
+        { path: "/api/v1/orders", answer: ok({ orderId: "ord-11" }) },
+        {
+          path: "/api/v1/orders/ord-11",
+          answer: ok({
+            id: "ord-11",
+            symbol: "XBTUSDTM",
+            status: "open",
+            isActive: true,
+            filledSize: 0,
+            filledValue: 0,
+          }),
+        },
+      ],
+      sent
+    )
+
+    await placeKucoinOrder("mainnet", AUTH, {
+      marketId: "XBTUSDTM",
+      side: "buy",
+      kind: "limit",
+      px: 60_000,
+      sz: 0.012,
+      reduceOnly: false,
+      leverage: null,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const placed = sent.find(
+      (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
+    )
+    expect((placed?.body as Record<string, unknown>).leverage).toBe(2)
+  })
+
+  it("states no leverage on an isolated reduce-only order", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "ISOLATED" }),
+        },
+        { path: "/api/v1/orders", answer: ok({ orderId: "ord-12" }) },
+        {
+          path: "/api/v1/orders/ord-12",
+          answer: ok({
+            id: "ord-12",
+            symbol: "XBTUSDTM",
+            status: "open",
+            isActive: true,
+            filledSize: 0,
+            filledValue: 0,
+          }),
+        },
+      ],
+      sent
+    )
+
+    await placeKucoinOrder("mainnet", AUTH, {
+      marketId: "XBTUSDTM",
+      side: "sell",
+      kind: "limit",
+      px: 70_000,
+      sz: 0.012,
+      reduceOnly: true,
+      leverage: null,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const placed = sent.find(
+      (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
+    )
+    expect(placed?.body as Record<string, unknown>).not.toHaveProperty(
+      "leverage"
+    )
+    expect(
+      sent.some((one) => one.url.pathname === "/api/v1/position")
+    ).toBe(false)
+  })
+
   it("lets a resting order actually rest, at the price asked", async () => {
     // The other half of the same rule. A market order is capped and taken
     // immediately; a postOnly order must sit on the book at the price asked

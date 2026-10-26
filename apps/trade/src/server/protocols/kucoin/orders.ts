@@ -382,6 +382,37 @@ async function applyAskedLeverage(
   }
 }
 
+/**
+ * The leverage an order adding to an isolated position has to state.
+ *
+ * **KuCoin wants a leverage on every isolated order that is not a close.** Its
+ * order reference: "Used to calculate the margin to be frozen for the order.
+ * If you are to close the position, this parameter is not required." The rest
+ * of the app leaves the leverage out when adding to a position, because the
+ * add runs at the position's own number. Sent that way to KuCoin, the add is
+ * refused with `100001 Leverage parameter invalid`. That is what kept every
+ * rung after the first off a ZEC grid from 22 to 25 Oct 2026.
+ *
+ * So the position's own leverage is read back and stated, as a whole number
+ * because KuCoin takes no other kind. A position that cannot be found gets 1x:
+ * the most margin held behind the order, which is the smaller promise.
+ */
+async function isolatedAddLeverage(
+  network: NetworkId,
+  credential: KucoinCredential,
+  symbol: string
+): Promise<number> {
+  const answer = (await kucoinSigned(
+    network,
+    credential,
+    "GET",
+    "/api/v1/position",
+    { symbol }
+  )) as { leverage?: unknown; realLeverage?: unknown } | null
+  const held = num(answer?.leverage) ?? num(answer?.realLeverage)
+  return held !== null && held > 0 ? Math.max(1, Math.round(held)) : 1
+}
+
 async function sendOrder(
   network: NetworkId,
   credential: KucoinCredential,
@@ -395,6 +426,19 @@ async function sendOrder(
   const marginMode = symbol
     ? await marginModeOf(network, credential, symbol)
     : null
+  // An isolated order that opens or adds states a leverage, or KuCoin refuses
+  // it — see `isolatedAddLeverage`. Here for the same reason as the margin
+  // mode: an add and a moved buy both come through, and neither can forget.
+  // Closes and protection legs need none.
+  const needsLeverage =
+    marginMode === "ISOLATED" &&
+    body.leverage === undefined &&
+    body.reduceOnly !== true &&
+    body.closeOrder !== true &&
+    body.stop === undefined
+  const leverage = needsLeverage
+    ? await isolatedAddLeverage(network, credential, symbol)
+    : null
 
   const answer = (await kucoinSigned(
     network,
@@ -405,6 +449,7 @@ async function sendOrder(
     {
       clientOid: randomUUID(),
       ...(marginMode ? { marginMode } : {}),
+      ...(leverage !== null ? { leverage } : {}),
       ...body,
     }
   )) as { orderId?: unknown } | null
@@ -519,11 +564,16 @@ export async function placeKucoinOrder(
     // and the caller sends null then.
     ...(params.leverage !== null ? { leverage: params.leverage } : {}),
   }
-
   let placed: PlacedLeg
   try {
     placed = await sendOrder(network, credential, body)
   } catch (error) {
+    // KuCoin's own words, kept in the log beside the sentence the screens
+    // show. The sentence is a guess at the meaning, and on 25 Oct 2026 it
+    // guessed wrong with nothing left to check it against.
+    console.warn(
+      `[kucoin] order refused ${params.marketId}: ${scrubbedMessage(error)}`
+    )
     throw refusedError(error)
   }
 
