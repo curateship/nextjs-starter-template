@@ -71,6 +71,29 @@ leverage, or reduce the position and try again." 100001 is KuCoin's general
 bad-parameter code, so only an answer with the word "leverage" in it gets that
 sentence.
 
+KuCoin sends the same `100001 Leverage parameter invalid.` when an order on
+an isolated position states no leverage at all. Isolated means only the money
+put behind that trade can be lost. KuCoin's order reference says the leverage
+is "used to calculate the margin to be frozen for the order. If you are to
+close the position, this parameter is not required", so every isolated order
+that opens or adds has to carry one. The rest of Trade leaves the leverage out
+when adding to a position, because an add runs at the position's own number.
+That kept a ZEC grid on KuCoin from 22 to 25 Oct 2026 at its first rung. The
+first buy went through at 2x, and every later rung was refused and shown as
+"pick a lower leverage", which was not the reason.
+
+Trade now reads the position's own leverage from KuCoin and states it on every
+isolated order that is not a close, a reduce-only order or a stop. KuCoin
+reports a 2x position as 2.09 and only takes whole numbers, so the number is
+rounded. A buy moved to a new price goes through the same rule. If KuCoin
+shows no position, the order states 1x, the most money held behind it. The
+code is `isolatedAddLeverage` in `src/server/protocols/kucoin/orders.ts`.
+
+Each refused order also writes KuCoin's own words to the engine log as
+`[kucoin] order refused <market>: <words>`. The sentence on screen is Trade's
+reading of the code. The log line is what to check when that reading looks
+wrong.
+
 An unknown code keeps KuCoin's scrubbed words after a sentence that says Trade
 does not recognize the reason and names the code once. The `KUCOIN_100001:`
 prefix the app puts on the raw answer is stripped before it is shown, because
