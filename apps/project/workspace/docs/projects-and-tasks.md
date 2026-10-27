@@ -476,7 +476,10 @@ So the site admin sees how a project's work overlaps over the coming weeks.
 - **A start day on any task.** Inside the task, "Start day" sits above
   "Due date" in the cog's Dates card. A set day shows a small cross at the
   right end of its box that empties it, in place of a Clear button under it
-  (Tyler, 14 Oct 2026); New task's due date has the same cross. It can be left empty, and it can never be
+  (Tyler, 14 Oct 2026); New task's due date has the same cross. A day box
+  writes the day short, "Oct 27, 2026", so it fits the half-width box in the
+  New task dropdown beside the cross; anything longer is cut with "…" inside
+  the box rather than running past its edge. It can be left empty, and it can never be
   after the due date: setting either end the wrong way round, from the task,
   the Calendar, the Timeline or a bulk change, is refused with "The start
   day can't be after the due day. Move the due day first." A bulk change

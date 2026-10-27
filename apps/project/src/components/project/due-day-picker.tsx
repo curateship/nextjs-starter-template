@@ -67,7 +67,7 @@ export function DueDayPicker({
         aria-invalid={ariaInvalid || undefined}
         className={cn(
           // The field edge, as the Inputs and Selects beside it; the outline button's own is a divider line.
-          "w-full justify-start border-input px-2.5 font-normal",
+          "w-full min-w-0 justify-start overflow-hidden border-input px-2.5 font-normal",
           !value && "text-muted-foreground",
           // Room for the cross, so a long date never runs under it.
           clearable && "pr-9",
@@ -75,7 +75,8 @@ export function DueDayPicker({
         )}
       >
         <CalendarIcon className="size-4 text-muted-foreground" />
-        {value ? format(dateFromKey(value)!, "PPP") : placeholder}
+        {/* "Oct 27, 2026", short enough for a half-width field; truncated rather than spilling past the edge. */}
+        <span className="min-w-0 truncate">{value ? format(dateFromKey(value)!, "PP") : placeholder}</span>
       </Button>
     </PopoverTrigger>
   )
