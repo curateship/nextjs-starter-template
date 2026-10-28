@@ -273,6 +273,12 @@ Everything here needs editing switched on.
   fold button show no name on hover; Tyler asked for them gone on 23 Oct
   2026. A screen reader still reads their names. The folded menu keeps its
   tooltips, since there the icon is all that shows.
+- **A tooltip closes as soon as the pointer leaves its button.** Before
+  27 Oct 2026 a tooltip waited to see the pointer move on, in case it was
+  heading onto the tooltip. The folded menu's tooltips open to the right over
+  the app in the middle, and Personal can't see the pointer once it is over
+  that app, so "Hide Pinned" and the link names stayed up. `TooltipProvider`
+  in `src/main.tsx` sets `disableHoverableContent` for every tooltip.
 - **Pinned:** a switch in every link's form, above the two below. Turned on,
   the link also shows in Pinned at the top of the menu; see Pinned above.
 - **Personal opens here:** a switch in a panel link's form. Turned on, a visit

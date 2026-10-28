@@ -37,7 +37,6 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Select,
   SelectContent,
@@ -192,6 +191,24 @@ type Loaded =
   | { state: "ready"; detail: TaskDetail }
 
 /**
+ * The tasks already opened since the page loaded, so opening one again draws
+ * it at once from the last copy while a fresh copy loads behind it (Tyler,
+ * 26 Oct 2026: "the task panel should not load every time"). Capped so a long
+ * session doesn't keep every task it ever opened.
+ */
+const openedTasks = new Map<string, TaskDetail>()
+const OPENED_TASKS_KEPT = 50
+
+function rememberTask(taskId: string, detail: TaskDetail) {
+  openedTasks.delete(taskId)
+  openedTasks.set(taskId, detail)
+  if (openedTasks.size > OPENED_TASKS_KEPT) {
+    const oldest = openedTasks.keys().next().value
+    if (oldest !== undefined) openedTasks.delete(oldest)
+  }
+}
+
+/**
  * Loads one task and hands its pieces to `children`. Every field saves on its
  * own as it is changed. Reasons for Stuck and for handing back are typed in
  * the task itself, never in a window on top of it.
@@ -209,7 +226,10 @@ export function TaskView({
   const router = useRouter()
   const navigate = useNavigate()
   const me = authenticatedRoute.useLoaderData().user
-  const [loaded, setLoaded] = React.useState<Loaded>({ state: "loading" })
+  const [loaded, setLoaded] = React.useState<Loaded>(() => {
+    const kept = openedTasks.get(taskId)
+    return kept ? { state: "ready", detail: kept } : { state: "loading" }
+  })
   const [reloads, setReloads] = React.useState(0)
   const onLoadedRef = React.useRef(onLoaded)
   React.useEffect(() => {
@@ -221,6 +241,7 @@ export function TaskView({
     let live = true
     loadTask(taskId).then(
       (detail) => {
+        rememberTask(taskId, detail)
         if (!live) return
         setLoaded({ state: "ready", detail })
         if (firstLoad.current) {
@@ -228,8 +249,10 @@ export function TaskView({
           onLoadedRef.current?.(taskId)
         }
       },
-      (error: unknown) =>
-        live && setLoaded({ state: "error", message: getProjectErrorMessage(error) })
+      (error: unknown) => {
+        openedTasks.delete(taskId)
+        if (live) setLoaded({ state: "error", message: getProjectErrorMessage(error) })
+      }
     )
     return () => {
       live = false
@@ -260,10 +283,10 @@ export function TaskView({
     title: "Task",
     badges: null,
     description: null,
+    // A task opened for the first time shows nothing for the moment it takes
+    // to arrive, with no spinner (Tyler, 26 Oct 2026).
     body:
-      loaded.state === "loading" ? (
-        <LoadingRow label="Loading the task…" />
-      ) : GONE.has(loaded.message) ? (
+      loaded.state === "loading" ? null : GONE.has(loaded.message) ? (
         // Trying again can't bring it back, so this offers the way out instead.
         <div className="grid justify-items-center gap-3 px-4 py-8 text-center">
           <p className="text-sm text-muted-foreground">

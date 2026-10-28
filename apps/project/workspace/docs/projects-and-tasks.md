@@ -476,7 +476,10 @@ So the site admin sees how a project's work overlaps over the coming weeks.
 - **A start day on any task.** Inside the task, "Start day" sits above
   "Due date" in the cog's Dates card. A set day shows a small cross at the
   right end of its box that empties it, in place of a Clear button under it
-  (Tyler, 14 Oct 2026); New task's due date has the same cross. It can be left empty, and it can never be
+  (Tyler, 14 Oct 2026); New task's due date has the same cross. A day box
+  writes the day short, "Oct 27, 2026", so it fits the half-width box in the
+  New task dropdown beside the cross; anything longer is cut with "…" inside
+  the box rather than running past its edge. It can be left empty, and it can never be
   after the due date: setting either end the wrong way round, from the task,
   the Calendar, the Timeline or a bulk change, is refused with "The start
   day can't be after the due day. Move the due day first." A bulk change
@@ -676,6 +679,14 @@ goes, so it no longer ends up on whatever task was open.
 On the project page and My dashboard a task opens in the right panel,
 beside the Board or My tasks (Tyler, 13 Oct 2026, from his drawing).
 Neither puts a window over the page.
+
+- **No loading spinner.** A task opened before, since the page last loaded,
+  shows straight away from the last copy while a fresh one loads behind it
+  and replaces it (Tyler, 26 Oct 2026: "the task panel should not load every
+  time i load it and the loading circle is not nessarry"). A task opened for
+  the first time shows an empty panel for the moment it takes to arrive,
+  never a spinner. The last 50 tasks opened are kept, in
+  `task-body.tsx`. A browser refresh starts that list over.
 
 - **The task panel.** Along the top: the task's name at the left, then the
   three-dot button and the cog at the right (Tyler, 20 Oct 2026; the status
