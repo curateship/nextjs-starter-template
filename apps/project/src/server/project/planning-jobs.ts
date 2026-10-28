@@ -2,6 +2,7 @@ import { and, asc, eq, isNotNull, lt, sql } from "drizzle-orm"
 
 import { addDays, daysBetween, localNow, momentOf } from "@/lib/project/days"
 import { BIN_DAYS } from "@/lib/project/rules"
+import { copyStepFields } from "@/lib/project/step-fields"
 import { uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import type { ProjectDb } from "@/server/project/access"
@@ -171,6 +172,7 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
           position: projectTaskSteps.position,
           assigneeUserId: projectTaskSteps.assigneeUserId,
           dueDate: projectTaskSteps.dueDate,
+          fields: projectTaskSteps.fields,
         })
         .from(projectTaskSteps)
         .where(eq(projectTaskSteps.taskId, holder.id))
@@ -194,6 +196,7 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
             createdAt: at,
             assigneeUserId: step.assigneeUserId && members.has(step.assigneeUserId) ? step.assigneeUserId : null,
             dueDate: step.dueDate && shift !== null ? addDays(step.dueDate, shift) : null,
+            fields: copyStepFields(step.fields),
           }))
         )
       }

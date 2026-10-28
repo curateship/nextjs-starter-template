@@ -17,6 +17,7 @@ import {
   type FieldValues,
   type WhoCanChange,
 } from "@/lib/project/task-fields"
+import type { StartingStepFields } from "@/lib/project/step-fields"
 import type { TaskType, TaskTypeChip, TaskTypeField, TypeIcon } from "@/lib/project/task-types"
 import { placesAfterReorder } from "@/lib/project/task-order"
 import { now, uuid } from "@/server/auth/security"
@@ -40,6 +41,7 @@ import {
   projectTaskFieldValues,
   projectTaskFiles,
   projectTaskFollowers,
+  projectTaskSteps,
   projectTaskTypeFields,
   projectTaskTypes,
   projectTasks,
@@ -107,6 +109,7 @@ export async function listTeamTypes(
     ...toChip(type),
     archived: Boolean(type.archivedAt),
     steps: type.steps,
+    stepFields: type.stepFields,
     notes: type.notes,
     fields: fields
       .filter((field) => field.typeId === type.id)
@@ -232,6 +235,90 @@ export async function createTaskType(
   })
 }
 
+/**
+ * "Save as task template", from a task's cog (Tyler, 28 Oct 2026, Misc 4:
+ * "its template not task type"). A new template takes the task's steps with
+ * their fields, its notes, and the fields of the template it was made from,
+ * with that template's icon and colour. Field values stay on the task: a
+ * template's fields start empty on every new task. Whoever runs the team
+ * saves one, as they make any template, from a task on a shared project; a
+ * new one is offered in every project, since a project lists only the
+ * templates it leaves out.
+ */
+export async function saveTaskAsType(
+  userId: string,
+  input: { taskId: string; name: string },
+  database = db
+): Promise<{ id: string }> {
+  return database.transaction(async (tx) => {
+    const { project, task } = await requireTaskAccess(userId, input.taskId, tx, { allowArchived: true })
+    // A "Just me" list is on no real team, so its templates would show nowhere.
+    requireSharedProject(project)
+    const membership = await requireTeamRunner(userId, tx, project.teamId)
+    const [{ total, last }] = await tx
+      .select({ total: countDistinct(projectTaskTypes.id), last: max(projectTaskTypes.position) })
+      .from(projectTaskTypes)
+      .where(eq(projectTaskTypes.teamId, membership.teamId))
+    if (total >= LIMITS.typesPerTeam) throw new Error(PROJECT_ERRORS.tooManyTypes)
+    await requireTypeNameFree(membership.teamId, input.name, tx)
+    const [from] = task.typeId
+      ? await tx.select().from(projectTaskTypes).where(eq(projectTaskTypes.id, task.typeId)).limit(1)
+      : []
+    const steps = await tx
+      .select({ text: projectTaskSteps.text, fields: projectTaskSteps.fields })
+      .from(projectTaskSteps)
+      .where(eq(projectTaskSteps.taskId, task.id))
+      .orderBy(asc(projectTaskSteps.position))
+    const stepFields: StartingStepFields = {}
+    for (const step of steps) {
+      if (step.fields.length) stepFields[step.text] = step.fields
+    }
+    const id = uuid()
+    const at = now()
+    await tx.insert(projectTaskTypes).values({
+      id,
+      teamId: membership.teamId,
+      name: input.name,
+      icon: from?.icon ?? "file",
+      color: from?.color ?? "blue",
+      position: (last ?? 0) + 1,
+      steps: steps.map((step) => step.text),
+      stepFields,
+      notes: task.notes,
+      createdByUserId: userId,
+      createdAt: at,
+    })
+    if (from) {
+      const fields = await tx
+        .select()
+        .from(projectTaskTypeFields)
+        .where(eq(projectTaskTypeFields.typeId, from.id))
+        .orderBy(asc(projectTaskTypeFields.position))
+      // "Show only when" names another field by id, so it follows that field to its copy.
+      const copyOf = new Map(fields.map((field) => [field.id, uuid()]))
+      if (fields.length) {
+        await tx.insert(projectTaskTypeFields).values(
+          fields.map((field) => {
+            const when = field.settings.showWhen
+            const whenField = when ? copyOf.get(when.fieldId) : undefined
+            return {
+              ...field,
+              id: copyOf.get(field.id) ?? uuid(),
+              typeId: id,
+              settings: {
+                ...field.settings,
+                showWhen: when && whenField ? { ...when, fieldId: whenField } : null,
+              },
+              createdAt: at,
+            }
+          })
+        )
+      }
+    }
+    return { id }
+  })
+}
+
 export async function updateTaskType(
   userId: string,
   input: {
@@ -250,7 +337,20 @@ export async function updateTaskType(
     const { typeId, ...fields } = input
     if (fields.name) await requireTypeNameFree(membership.teamId, fields.name, tx, typeId)
     if (Object.values(fields).every((value) => value === undefined)) return
-    await tx.update(projectTaskTypes).set(fields).where(eq(projectTaskTypes.id, typeId))
+    // A starting step taken off the list takes its fields with it.
+    let stepFields: StartingStepFields | undefined
+    if (fields.steps) {
+      const [type] = await tx
+        .select({ stepFields: projectTaskTypes.stepFields })
+        .from(projectTaskTypes)
+        .where(eq(projectTaskTypes.id, typeId))
+      const kept = new Set(fields.steps)
+      stepFields = Object.fromEntries(Object.entries(type?.stepFields ?? {}).filter(([text]) => kept.has(text)))
+    }
+    await tx
+      .update(projectTaskTypes)
+      .set({ ...fields, ...(stepFields ? { stepFields } : {}) })
+      .where(eq(projectTaskTypes.id, typeId))
   })
 }
 

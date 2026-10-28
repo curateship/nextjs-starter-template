@@ -9,11 +9,10 @@ import {
   projectTaskTypeFields,
   projectTaskTypes,
   projectTeams,
-  projectTemplates,
 } from "@/server/project/schema"
 
 /**
- * The team a label, template, step list, task type or field belongs to, so a
+ * The team a label, step list, task type or field belongs to, so a
  * change to one answers for its own team. The site admin is on no team, so
  * without this they would have to say which; everyone else is still checked
  * against their own team by the caller. A record that doesn't exist is refused
@@ -40,20 +39,6 @@ export function labelTeam(userId: string, labelId: string, database: ProjectDb) 
     () =>
       database.select({ teamId: projectLabels.teamId }).from(projectLabels).where(eq(projectLabels.id, labelId)).limit(1),
     PROJECT_ERRORS.labelNotFound
-  )
-}
-
-export function templateTeam(userId: string, templateId: string, database: ProjectDb) {
-  return teamOf(
-    userId,
-    database,
-    () =>
-      database
-        .select({ teamId: projectTemplates.teamId })
-        .from(projectTemplates)
-        .where(eq(projectTemplates.id, templateId))
-        .limit(1),
-    PROJECT_ERRORS.templateNotFound
   )
 }
 

@@ -620,7 +620,7 @@ describe("the project page", () => {
   })
 })
 
-describe("the Task types dashboard", () => {
+describe("the Task templates dashboard", () => {
   const types: TaskType[] = [
     {
       id: "ty1",
@@ -629,6 +629,7 @@ describe("the Task types dashboard", () => {
       color: "red",
       archived: false,
       steps: ["Rough cut"],
+      stepFields: {},
       notes: "",
       fields: [
         {
@@ -651,7 +652,7 @@ describe("the Task types dashboard", () => {
         },
       ],
     },
-    { id: "ty2", name: "Research", icon: "search", color: "blue", archived: true, steps: [], notes: "", fields: [] },
+    { id: "ty2", name: "Research", icon: "search", color: "blue", archived: true, steps: [], stepFields: {}, notes: "", fields: [] },
   ]
   const draw = (myRole: "owner" | "member", selectedId?: string) =>
     renderToStaticMarkup(
@@ -662,7 +663,7 @@ describe("the Task types dashboard", () => {
 
   it("lets the site admin change types, starting on the first live one", () => {
     const html = draw("owner")
-    expect(html).toContain(`aria-label="New task type"`)
+    expect(html).toContain(`aria-label="New task template"`)
     expect(html).toContain(`aria-label="Video editing settings"`)
     expect(html).toContain(`aria-label="Drag Video editing to change the order"`)
     // An archived type sits apart and isn't dragged.
@@ -674,7 +675,7 @@ describe("the Task types dashboard", () => {
 
   it("shows an employee every type as words, with nothing to change", () => {
     const html = draw("member")
-    expect(html).not.toContain(`aria-label="New task type"`)
+    expect(html).not.toContain(`aria-label="New task template"`)
     expect(html).not.toContain(`aria-label="Video editing settings"`)
     expect(html).not.toContain("to change the order")
     expect(html).not.toContain(`aria-label="Field name: Platform"`)

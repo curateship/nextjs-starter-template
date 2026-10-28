@@ -1,4 +1,17 @@
-# Task types
+# Task templates (task types)
+
+**Called Task templates on screen since 28 Oct 2026.** Tyler, Misc 4: "So why
+dont we just change it to proper name then? its template not task type". A
+type already held what a template holds (fields, starting steps, starting
+notes, an icon and a colour), so the words changed and nothing underneath
+did: the left menu, the dashboard, New task's "Template" picker ("No
+template" in place of "Plain task"), the Filter's Template row, the Group row's
+Template and the cog's "Priority and template". The dashboard's right panel
+is "Steps and notes" (it was "Starts with"). Tables, columns, saved filters
+and the `/task-types` address keep their names, so links and pins still work.
+A pass in `src/server/project/navigation.ts` renamed the saved left menu link,
+unless an admin had renamed it themselves. "Task type" below means the same
+thing.
 
 A team makes its own kinds of task, such as "Research" or "Video editing",
 and each kind asks for its own fields. A Research task asks for a question and
@@ -28,7 +41,7 @@ card that sat in Team settings.
   colour, and Archive or Bring back. Each change in that window saves as it is
   made, with the Saving… line at its top, so it ends with Done. Tyler asked
   for both on 12 Oct 2026. Below 1280px wide
-  they become Types, Fields and Starts with tabs.
+  they become Templates, Fields and Steps and notes tabs.
 - **The picked type is in the address** (`/task-types?type=<id>`), so a pasted
   link opens it. With none, the first type is open.
 - **Everyone on the team can open it** (Tyler's choice, 12 Oct 2026) and reads
@@ -140,10 +153,35 @@ Each field's cog holds four settings:
   Part 7) is built later, a type should point at one of those lists instead of
   keeping its own.
 
+## Save as task template
+
+Tyler, 28 Oct 2026 (Misc 4): "Save task as a template".
+
+- **"Save as task template"** is in a task's cog, under Remind me, for whoever
+  runs the team (the site admin), as they make every template. It opens in
+  place into a name box started on the task's title, with Save and Cancel.
+- **The new template holds** the task's steps with each step's fields, its
+  notes, and the fields of the template the task was made from, with that
+  template's icon and colour ("file" and blue for a task with none). Field
+  values stay on the task: a template's fields start empty on every new task.
+  A field that shows only when another dropdown says so points at the copy of
+  that dropdown.
+- **It is offered at once** in New task, in every project, since a project
+  lists only the templates it leaves out.
+- **Refused** for anyone else ("Only the site admin can do that"), for a name
+  the team already has, and past 50 templates.
+- **A template's starting steps can carry fields.** The Steps and notes panel
+  shows their names under the step ("Link"). Picking the template in New task
+  gives each step the fields saved under the same words; a step typed by
+  hand starts with none. Taking a step off the template takes its fields too.
+  Saved in `project_task_types.step_fields` by the step's words
+  (`drizzle/0135_project_step_fields.sql`); `saveTaskAsType` in
+  `src/server/project/task-types.ts`.
+
 ## A task's type
 
 - **New task has a Type picker** once the project offers any type, starting on
-  the project's default. "Plain task" is no type.
+  the project's default. "No template" is no type.
 - **The Task card has a Type field** for a task that exists. It lists the
   types the project offers, and the task's own type even when it is archived
   or the project no longer offers it.

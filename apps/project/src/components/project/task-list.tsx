@@ -32,6 +32,7 @@ import {
   WaitingOnBadge,
 } from "@/components/project/task-bits"
 import { HeadingAddButton, HeadingFoldButton } from "@/components/project/task-list-heading"
+import { FOLDING_HEADING_CLASS, foldOnHeadingClick } from "@/lib/project/heading-fold"
 import { TaskBulkMenu, type BulkTargets } from "@/components/project/task-bulk-bar"
 import { ClockReadout, ClockRunningChip } from "@/components/project/task-clock"
 import {
@@ -412,6 +413,7 @@ export function TaskList({
                         label={group.label}
                         colSpan={colSpan}
                         dropZone={Boolean(drop.held)}
+                        onToggle={() => folds.toggle(group.key)}
                       >
                         <span className="text-muted-foreground">{group.rows.length}</span>
                         {readOnly ? null : addTask?.(group.key, <HeadingAddButton label={group.label} />)}
@@ -654,17 +656,27 @@ function GroupHeading({
   label,
   colSpan,
   dropZone,
+  onToggle,
   children,
 }: {
   groupKey: string
   label: string
   colSpan: number
   dropZone: boolean
+  onToggle: () => void
   children: React.ReactNode
 }) {
   const { setNodeRef } = useDroppable({ id: `${HEADING_DROP}${groupKey}`, disabled: !dropZone })
   return (
-    <TableGroupRow ref={setNodeRef} colSpan={colSpan} inset="1rem" label={label} data-new-group={groupKey}>
+    <TableGroupRow
+      ref={setNodeRef}
+      colSpan={colSpan}
+      inset="1rem"
+      label={label}
+      data-new-group={groupKey}
+      className={FOLDING_HEADING_CLASS}
+      onClick={foldOnHeadingClick(onToggle)}
+    >
       {children}
     </TableGroupRow>
   )

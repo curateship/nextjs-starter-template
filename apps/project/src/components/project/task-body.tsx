@@ -7,12 +7,13 @@ import { ChatThread, TaskChatCard } from "@/components/project/task-chat"
 import { TaskFieldsCard, TaskTypeField } from "@/components/project/task-fields-card"
 import { TaskFileDrop, TaskFilesCard } from "@/components/project/task-files-card"
 import { TaskHistoryCard } from "@/components/project/task-history-card"
-import { TaskNotesField } from "@/components/project/task-notes"
+import { LiveTaskNotes, type NotesHandle } from "@/components/project/task-notes"
 import { AskTimeCard, MoveTaskCard, ReminderCard, TaskMoreMenu } from "@/components/project/task-more-menu"
 import { PanelCardFooter } from "@/components/project/panel-card"
 import { StepListActions } from "@/components/project/step-list-actions"
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { TaskPlanCard } from "@/components/project/task-plan-card"
+import { StepFields } from "@/components/project/step-fields"
 import { StepMenu } from "@/components/project/step-menu"
 import { TaskTagList, TaskTagsField } from "@/components/project/task-tags-field"
 import { TaskLinkButton, TaskLinkField } from "@/components/project/task-link"
@@ -156,10 +157,14 @@ export type TaskSide = {
   link: React.ReactNode
   /** A hand-over to accept, a review, the Stuck reason row, and the Move and Remind me cards. */
   notices: React.ReactNode
+  /**
+   * The notes, the panel's own body under the title, always open to type in
+   * (Misc 4, 28 Oct 2026). The header's pencil sets `toolbar`, and its ⋮ reaches
+   * Earlier versions and Delete through `handle`.
+   */
   notes: {
     empty: boolean
-    /** `adding` opens the editor at once, for "Add note". */
-    field: (options: { adding: boolean; onFinished: () => void }) => React.ReactNode
+    field: (options: { toolbar: boolean; handle: React.Ref<NotesHandle> }) => React.ReactNode
   }
   /** `meta` is "0 of 2 done", or null with no steps. */
   steps: { meta: string | null; content: React.ReactNode }
@@ -1024,7 +1029,7 @@ function TaskForm({
           {datesAndPriority}
           {sortingFields}
           {linkField}
-          <TaskNotesField key={task.id} notes={task.notes} readOnly={readOnly} onSave={saveNotes} task={noteLinks} />
+          <LiveTaskNotes key={task.id} notes={task.notes} readOnly={readOnly} onSave={saveNotes} task={noteLinks} />
           {handBackButton}
         </CardContent>
       </Card>
@@ -1078,16 +1083,16 @@ function TaskForm({
     ),
     notes: {
       empty: taskNotesAreEmpty(readTaskNotes(task.notes)),
-      field: ({ adding, onFinished }) => (
-        <TaskNotesField
+      field: ({ toolbar, handle }) => (
+        <LiveTaskNotes
           key={task.id}
           notes={task.notes}
           readOnly={readOnly}
           onSave={saveNotes}
           task={noteLinks}
-          startEditing={adding}
-          onFinished={onFinished}
-          hideLabel
+          panel
+          toolbar={toolbar}
+          handle={handle}
         />
       ),
     },
@@ -1154,7 +1159,7 @@ function TaskForm({
         </OptionCard>
         <OptionCard
           id="task-settings-sorting"
-          title="Priority and type"
+          title="Priority and template"
           description="How it's sorted and found: its priority and the kind of task. Its tags are under its title."
           summary={[TASK_PRIORITY_LABEL[task.priority], task.type?.name]
             .filter(Boolean)
@@ -1469,8 +1474,9 @@ function StepRow({
 }) {
   const [text, setText] = useSyncedDraft(step.text)
   const checkboxId = `step-${step.id}`
+  // Each step is its own card on the grey Steps card (Tyler, 28 Oct 2026, Misc 4).
   return (
-    <li className="grid gap-1">
+    <li className="grid gap-1 rounded-md border bg-background px-2 py-1.5">
       <div className="flex items-center gap-2">
         <Checkbox
           id={checkboxId}
@@ -1516,6 +1522,9 @@ function StepRow({
           {step.dueDate ? <DueDate dueDate={step.dueDate} status={step.done ? "done" : "todo"} /> : null}
         </p>
       ) : null}
+      <div className="pl-6">
+        <StepFields stepId={step.id} fields={step.fields} readOnly={readOnly} change={change} />
+      </div>
     </li>
   )
 }

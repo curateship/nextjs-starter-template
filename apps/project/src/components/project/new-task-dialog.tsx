@@ -513,13 +513,13 @@ export function NewTaskDialog({
                       </p>
                     ) : (
                       <div className="grid gap-2">
-                        <Label htmlFor="new-task-type">Type</Label>
+                        <Label htmlFor="new-task-type">Template</Label>
                         <Select value={typeId} onValueChange={(value) => applyType(value)}>
                           <SelectTrigger id="new-task-type" className="w-full sm:w-fit">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value={NO_TYPE}>Plain task</SelectItem>
+                            <SelectItem value={NO_TYPE}>No template</SelectItem>
                             {offered(project).map((option) => (
                               <SelectItem key={option.id} value={option.id}>
                                 <TypeIconGlyph icon={option.icon} color={option.color} />

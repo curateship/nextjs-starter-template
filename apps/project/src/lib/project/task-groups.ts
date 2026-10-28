@@ -24,7 +24,7 @@ export const TASK_GROUPING_LABEL: Record<TaskGrouping, string> = {
   tags: "Tags",
   due: "Due date",
   assignee: "Assigned to",
-  type: "Type",
+  type: "Template",
 }
 
 export type TaskGroup = { key: string; label: string }
@@ -126,7 +126,7 @@ export function groupTasks<T extends GroupableTask>(
     case "type":
       all = byName(
         tasks.flatMap((task) => (task.type ? [task.type] : [])),
-        "No type",
+        "No template",
         tasks.some((task) => !task.type)
       )
       break

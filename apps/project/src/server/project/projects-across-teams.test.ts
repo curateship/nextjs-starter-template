@@ -14,7 +14,6 @@ import {
 import { searchTasks } from "@/server/project/search"
 import { createTaskType, updateTaskType } from "@/server/project/task-types"
 import { createTask } from "@/server/project/tasks"
-import { listMyTeamTemplates, renameTemplate, saveTemplate } from "@/server/project/templates"
 import { insertSiteAdmin, startTeam } from "@/server/project/test-people"
 import type { CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -81,23 +80,17 @@ describe("a project page names its own team", () => {
     )
   })
 
-  it("changes a label, type or template in its own team without the page naming it", async () => {
+  it("changes a label or type in its own team without the page naming it", async () => {
     const label = await inTeam(beta, () => createLabel(tyler.id, { name: "Bug", color: "red" }, database))
     await updateLabel(tyler.id, { labelId: label.id, name: "Defect" }, database)
     const type = await inTeam(beta, () =>
       createTaskType(tyler.id, { name: "Research", icon: "search", color: "blue" }, database)
     )
     await updateTaskType(tyler.id, { typeId: type.id, name: "Study" }, database)
-    const template = await saveTemplate(tyler.id, { projectId: shop, name: "Shop plan" }, database)
-    await renameTemplate(tyler.id, { templateId: template.id, name: "Store plan" }, database)
 
     const page = await loadProjectPage(tyler.id, shop, database)
     expect(page.labels.map((l) => l.name)).toEqual(["Defect"])
     expect(page.taskTypes.map((t) => t.name)).toEqual(["Study"])
-    expect((await inTeam(beta, () => listMyTeamTemplates(tyler.id, database))).map((t) => t.name)).toEqual([
-      "Store plan",
-    ])
-    expect(await inTeam(acme, () => listMyTeamTemplates(tyler.id, database))).toEqual([])
   })
 
   it("refuses a team-wide change from the site admin when no team is named", async () => {

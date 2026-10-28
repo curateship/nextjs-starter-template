@@ -16,15 +16,14 @@
   site admin's Projects table has a Team column and a team filter, "All
   teams" then each team by name, kept in the address (`?team=<id>`) so a
   reload or a pasted link keeps it. Employees are on one team and see
-  neither. New project asks which team, starting on the filter's team, and
-  offers that team's templates.
+  neither. New project asks which team, starting on the filter's team.
 - **The toolbar's order:** the search first (Tyler, 19 Oct 2026), then
   Archive for ticked rows, the team filter, the client menu and New project.
 - **A project's settings are the site admin's alone** (Tyler, 16 Oct 2026:
   "Employees dont even see the settings cog or page. Only admin see it"):
   the name, colour, description, due date, Doing limit, client, members,
-  lead, "Everyone on the team", status rule, task types, Save as
-  template and Archive. Employees see no cog, and the server refuses each
+  lead, "Everyone on the team", status rule, task templates and Archive.
+  Employees see no cog, and the server refuses each
   one: "Only the site admin changes a project's settings."
   (`requireProjectSettings` in `src/server/project/access.ts`). A person's
   own "Just me" list keeps its settings in their hands.
@@ -205,7 +204,7 @@ So a long project shows whether it's on time well before its end date.
   Each send is claimed in `project_milestone_reminders`
   (`drizzle/0118_project_features_16_oct.sql`) by `sendMilestoneReminders`
   in `src/server/project/reminder-jobs.ts`.
-- **Copy project and templates** copy milestones with no date, the same rule
+- **Copy project** copies milestones with no date, the same rule
   as tasks, and keep which tasks belong to each.
 - **A milestone is not a tag.** A tag says what a task is; a milestone is
   when a set of tasks must be finished (see
@@ -242,32 +241,17 @@ So an agency with many projects for a few clients finds things fast.
   `visibleClients` in `src/server/project/clients.ts`.
 - **Saved** in `project_projects.client`.
 
-## Templates
+## Project templates are gone
 
-So a team that runs the same kind of job starts each one in a click.
-
-- **"Save as template"** in Project settings, beside Archive, asks for a name
-  (the project's own, selected) and keeps the project's plan: its colour,
-  description, milestones, tasks with their steps, tags, type,
-  field values and priority, and its pick of task types. That is what Copy
-  project carries (Tyler, 15 Oct 2026).
-- **A template is a copy taken when it was saved**, so changing the project
-  afterwards never changes the template.
-- **New project offers "Start from"**: an empty project or one of the
-  team's templates. A template brings its colour and description, so those
-  two fields hide once one is picked. Every task starts To do, with nobody
-  assigned and no dates, and the person starting it is the only member.
-- **A template never shows on the Projects page.** Team settings lists them
-  under Project templates; the site admin renames and deletes them there,
-  everyone else reads the list. Deleting one leaves the projects already
-  started from it.
-- **Templates stay inside one team.** Another team's template answers as
-  gone.
-- **Anything a template names that the team has since deleted** (a label, a
-  type's field) is left out when a project starts from it.
-- **Saved** in `project_templates`, its plan as JSON. The rules are in
-  `src/server/project/templates.ts`, and the reading and writing of a plan,
-  shared with Copy project, in `src/server/project/project-plans.ts`.
+Tyler, 28 Oct 2026 (Misc 4): "We need to remove the project templates feature
+too, its redeundent". Copy project starts a project from another one, with
+the same plan: colour, description, milestones, and tasks with their steps,
+step fields, tags, template, field values and priority. Save as template left
+Project settings, "Start from" left New project, and the Project templates
+card left Team settings. Migration `drizzle/0134_project_drop_templates.sql`
+dropped `project_templates`, since no real project had used one ("there is
+no real project here so nothing need to be kept"). The plan Copy project
+reads and writes is in `src/server/project/project-plans.ts`.
 
 ## The project page
 
@@ -289,11 +273,10 @@ show out of the left panel and into that header.
   the status (when there is no avatar), the lead and the client, then the
   Milestones card at the bottom, which folds and remembers in this browser
   whether it was left open. The Status card that was here went with the
-  manual status on 19 Oct 2026 (see Project status). Tyler took Save as template off this panel on
-  15 Oct 2026; it is in Project settings. The pin in the header pins the project for me
+  manual status on 19 Oct 2026 (see Project status). The pin in the header pins the project for me
   (see Pins below). The cog opens Project settings, a window with the name,
   colour, description, client, due date, Doing limit, Everyone on the team,
-  Save as template, Archive, its status rule, its pictures, its members and its task types. Tyler, 10 Oct 2026: "add a
+  Archive, its status rule, its pictures, its members and its task types. Tyler, 10 Oct 2026: "add a
   cog icon here and put all the project settings there". Each field saves when
   it is left, and the colour, due date and pictures the moment they are picked, so the window ends with
   Done. Each card in the window (Project, Status, Pictures, Members, Task types) folds shut from its heading, with an arrow that shows on hover, and
@@ -694,7 +677,7 @@ Neither puts a window over the page.
   Along the bottom, pinned while the rest scrolls: the status as a pill with
   its dot, the task clock, Start or Pause, and Completed (see
   [The task clock](task-clock.md)). The three dots
-  open a dropdown of Add tags, Add note (only while the task has no notes),
+  open a dropdown of Add tags,
   Add comment (only while the chat has no messages) and Add files with the
   number of files; the one picked takes the dropdown's place, with an arrow
   back to the list. Neither page has a cross: the task stays open until
@@ -703,7 +686,7 @@ Neither puts a window over the page.
   panel"). Follow is in the cog's dropdown (Tyler, 14
   Oct 2026). Down the panel: anything that needs an answer (a
   hand-over to accept, a review, the Stuck reason row, the Move and Remind
-  me cards), then Notes once the task has some, Steps ("Steps · 0 of 2
+  me cards), then Notes, always there to write in, Steps ("Steps · 0 of 2
   done") and Chat ("Chat · 4") once it has a message, each a card that folds shut and stays shut
   in this browser. The task's title is in the header, in bold (it was the
   panel's first line from 14 Oct 2026, `assets/pasted-image-1792006071437749000.png`,
@@ -718,34 +701,42 @@ Neither puts a window over the page.
 - **A card's arrow and cog show only while it is pointed at**, folded or
   open (Tyler, 14 Oct 2026, `assets/pasted-image-1791995305794293000.png`).
   The cog has no background. Clicking it, and only it, opens the card's
-  footer, a row of its buttons under a line: Notes has Edit notes (a pencil),
-  Earlier versions and Delete, each stretched so together they fill the row
-  and wrap onto a second one in a narrow panel (Tyler, 20 Oct 2026: "the
-  buttons should fill all the space"). Delete asks first, then empties the
-  notes for everyone and the Notes card goes; the words are kept as an
-  earlier version, as every save keeps them. Steps has Add a step list
+  footer, a row of its buttons under a line, each stretched so together they
+  fill the row and wrap onto a second one in a narrow panel (Tyler, 20 Oct
+  2026: "the buttons should fill all the space"). Steps has Add a step list
   and Save these steps as a list. On a folded card the cog opens the card
   with its footer showing. The cog stays while its footer is open, so it can
   close it again. Chat has no buttons, so only its arrow. Moving onto a card
   with the keyboard shows them too, and a screen with no pointer always
   shows them (`src/components/project/panel-card.tsx`).
-- **Add note** opens the editor ready in the three-dot dropdown
-  (Tyler, 13 Oct 2026). Done saves, and only then does the Notes card appear
-  in the panel, as it shows from then on. Closed with nothing typed, nothing
-  appears. Typing and then clicking away saves too, so nothing written is
-  lost. The dropdown opens leftward from the three dots, 16px clear of the
-  window's edge. The editor opens with a cursor at the end of the note, so
-  the formatting bar shows only once words are selected. Double-clicking the
-  notes opens the editor too, without the cog (Tyler, 19 Oct 2026: "double
-  clicking on the note should let me edit it"); a double-click on a link in
-  the notes follows the link instead. While notes are being written,
-  Done sits at the right of the Notes card's footer whatever the cog says,
-  under the notes, so the formatting bar over the first line never covers
-  it.
+- **The notes are the panel's own body**, like a note in the Note app (Tyler,
+  28 Oct 2026, Misc 4: "Change add note ui (in card) like note ui app",
+  `assets/pasted-image-1793200989332143000.png`, then "note card not what i
+  showed you"). The panel is the card: the task's title in the header with a
+  pencil, the ⋮ and the cog, and the writing area straight under it, with no
+  box or label of its own, before Steps and Chat. It is there on every task,
+  empty ones included, with "Write, or type # to link a task" in grey, in
+  15px writing. Empty, it is two lines tall, and it grows as you write
+  (Tyler, 28 Oct 2026: "make the default row for the note 2 row").
+- **Click and type.** The notes save a second after the typing stops and
+  again when the box is left, with no Edit or Done. Each spell of writing,
+  from clicking in to clicking away, keeps one earlier version. Notes another
+  person saves, or Bring back, are drawn fresh unless you are writing in the
+  box. In the box a click places the cursor, so a link opens with Cmd-click
+  (Ctrl-click off a Mac).
+- **The pencil** shows the text toolbar at the top of the notes: bold,
+  italic, strikethrough, two headings, bullet and numbered lists, and quote.
+  Selecting words still offers a link. Pressed again, it hides.
+- **The ⋮** has "Earlier versions of the notes" and "Delete the notes" under
+  its Add rows. Delete asks first, then empties the notes for everyone; the
+  words are kept as an earlier version. Add note left it.
+- **Someone who can't change the task** reads the notes as before, and sees
+  nothing there while there are none. The Team dashboard's window has the
+  same box under a Notes label (`LiveTaskNotes` in
+  `src/components/project/task-notes.tsx`).
 - **Add files** shows "1 file", the limit, the task's files and the place to
   drop more (Tyler, 14 Oct 2026; it was a window, then the paperclip).
-- **Add comment** works like Add note (Tyler, 14 Oct 2026, as the chat
-  icon): while the chat has no messages, it holds the box to write the first
+- **Add comment** (Tyler, 14 Oct 2026, as the chat icon): while the chat has no messages, it holds the box to write the first
   one, and once one is sent the dropdown closes, the Chat card appears and
   Add comment leaves the list. A deleted message doesn't count, so a chat
   holding only "Message deleted" still offers Add comment, shows the deleted
@@ -763,14 +754,16 @@ Neither puts a window over the page.
   name and its answer on the right with an arrow; open, a line saying what
   it is for and its fields one per row. Person ("Admin", or "· waiting")
   holds Assigned to, the hand-over note and Hand back; Dates ("Oct 14 to Oct
-  23") holds Start day, Due date and Due by; Priority and type ("Normal ·
-  Video editing") holds Priority and Type, the tags being under the title; Needs
-  review is a tick box with nothing to open; then the task type's own fields
+  23") holds Start day, Due date and Due by; Priority and template ("Normal ·
+  Video editing") holds Priority and Template, the tags being under the title; Needs
+  review is a tick box with nothing to open; then the task template's own fields
   ("3 fields"), and Plan ("Repeats · Reminder set", or "Nothing set") with
   repeat, snooze, waiting on and my reminder. Each card starts shut and
   remembers in this browser whether it was left open
   (`src/components/project/option-card.tsx`). The dropdown is 384px wide. Then
-  Duplicate task, Move to project, Remind me and Delete task. Its
+  Duplicate task, Move to project, Remind me, Save as task template (for
+  whoever runs the team; see [Task templates](task-types.md)) and Delete
+  task. Its
   History tab holds the task's history. Every field saves on its own, and
   closing the dropdown saves the field being typed in. Move to project and
   Remind me were not in the drawing; they are kept there because nothing
@@ -897,7 +890,7 @@ Neither puts a window over the page.
   Tags work as under a task's title: type and press Enter for a pill with an
   ×; a new name becomes the team's tag when the task is made. Enter in the
   title or Create task makes it, with the type picked (the project's own
-  until another is picked, or Plain task) and that type's steps, and with
+  until another is picked, or No template) and that type's steps, and with
   its priority and tags in the same save.
 - **Description** is the same writing box as the task's notes: select words
   to make them bold, a list or a link. It saves as the task's notes. It
@@ -1104,6 +1097,38 @@ Each task has a Plan card with three fields that save the moment they change.
   emptied, files in a task type's File fields included.
 - **A check-in line about a binned task** keeps its title but can't be
   opened, and its day doesn't count it as a blocker.
+
+### Each step is a card with its own fields
+
+Tyler, 28 Oct 2026 (Misc 4): "Make each step its own card and add ability to
+add fields to each step", then "name and value".
+
+- **Each step is a white card** on the grey Steps card: the tick, the step's
+  words and its "..." on top, then its person and date, then its fields.
+- **"Add field" lists five kinds** (Tyler: "the step fields should have a
+  few options like url field"): Text, Link, Number, Date and Tick box. The
+  pick puts a row of that kind under the step, its icon first, with the
+  cursor in its Name box: "Cut" and a Dropbox address, "Approved" and a
+  tick, "Shoot day" and Oct 15. Nothing is set up ahead, and any step can
+  have its own, up to 10. A field's kind is fixed; another kind means
+  removing it and adding a new one.
+- **Text, Link and Number save when their boxes are left; a Date or a Tick
+  box saves the moment it is picked.** A row with neither a name nor a value
+  is dropped. A value with no name is refused with "Give the field a name."
+  and kept to fix. The server refuses a Number that isn't a number and a
+  Date that isn't a real day.
+- **A Link** gets an arrow at the end of its row that opens it in a new tab,
+  with "https://" added when it was typed without. The arrow shows only when
+  the row is pointed at, like the cross beside it (Tyler, 28 Oct 2026: "we
+  dont need this", then "there was a hover over outbound link").
+- **Fields travel with the step.** Duplicate, a repeating task's next copy,
+  Copy project and a task template all bring them. Make it a task writes
+  them into the new task's notes, one "Name: value" line each (a tick as
+  Yes or No), since a task
+  has no fields of that kind. A saved step list keeps only the steps' words.
+- **Saved** on the step, `project_task_steps.fields`
+  (`drizzle/0135_project_step_fields.sql`); the boxes are
+  `src/components/project/step-fields.tsx`.
 
 ### Steps with a person and a date
 

@@ -16,7 +16,7 @@ two kinds of people, both ordinary shell accounts signing in on the one
   features: no Billing, plan or Upgrade, no AI usage, Feedback, Changelog or
   workspaces. Their Account window holds their name, photo and password, and
   Security has the password and "sign out other devices" only. Their left menu
-  is Project's: My dashboard, Projects, Team and Task types.
+  is Project's: My dashboard, Projects, Team and Task templates.
 - **The site admin** runs every team without being on any. It is the shell's
   `admin` role. Tyler: "Im admin, I should be able to see everything" and
   "What tasks? if i only overseeas the team, why would I get tasks?" The site
@@ -70,7 +70,7 @@ two kinds of people, both ordinary shell accounts signing in on the one
   Employees have one team and send nothing.
 - **Deleting a team.** The bin asks "Delete Beta?" and the team goes for good
   with everything left in it: archived projects and their tasks, "Just me"
-  lists, check-ins, meetings, labels, task types, templates, step lists, days
+  lists, check-ins, meetings, labels, task templates, step lists, days
   off and saved views. It is refused while anyone is on the team or a shared
   project is still open: the window says "Sample team can't be deleted yet",
   names what is left, and links to Members and to Projects filtered to that

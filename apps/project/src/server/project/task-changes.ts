@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNull, notInArray } from "drizzle-orm"
 
 import { getProjectErrorMessage, PROJECT_ERRORS } from "@/lib/project/errors"
+import { copyStepFields, stepFieldText } from "@/lib/project/step-fields"
 import {
   CLOSED_TASK_STATUSES,
   LIMITS,
@@ -131,7 +132,7 @@ export async function duplicateTask(actor: Actor, taskId: string, database = db)
     })
     await copyFieldValues(tx, [{ from: task.id, to: id }], actor.id)
     const steps = await tx
-      .select({ text: projectTaskSteps.text, position: projectTaskSteps.position })
+      .select({ text: projectTaskSteps.text, position: projectTaskSteps.position, fields: projectTaskSteps.fields })
       .from(projectTaskSteps)
       .where(eq(projectTaskSteps.taskId, task.id))
       .orderBy(asc(projectTaskSteps.position))
@@ -144,6 +145,7 @@ export async function duplicateTask(actor: Actor, taskId: string, database = db)
           done: false,
           position: step.position,
           createdAt: at,
+          fields: copyStepFields(step.fields),
         }))
       )
     }
@@ -304,15 +306,17 @@ export async function moveTask(
 
 /**
  * A step that grew too big becomes its own task in the same project, with
- * the step's text, person and due date. The step leaves the old task, and
- * both tasks' histories say so with a link to the other.
+ * the step's text, person and due date. The step's fields become the new
+ * task's notes, one "Name: value" line each, since a task has no fields of
+ * that kind. The step leaves the old task, and both tasks' histories say so
+ * with a link to the other.
  */
 export async function promoteStep(actor: Actor, stepId: string, database = db) {
   return database.transaction(async (tx) => {
     const step = await requireStep(actor.id, stepId, tx)
     const { task: parent } = await requireTaskAccess(actor.id, step.taskId, tx)
     const [full] = await tx
-      .select({ dueDate: projectTaskSteps.dueDate })
+      .select({ dueDate: projectTaskSteps.dueDate, fields: projectTaskSteps.fields })
       .from(projectTaskSteps)
       .where(eq(projectTaskSteps.id, step.id))
     const { id } = await createTask(
@@ -320,7 +324,7 @@ export async function promoteStep(actor: Actor, stepId: string, database = db) {
       {
         projectId: parent.projectId,
         title: step.text,
-        notes: "",
+        notes: (full?.fields ?? []).map((field) => `${field.name}: ${stepFieldText(field)}`).join("\n"),
         assigneeUserId: step.assigneeUserId,
         dueDate: full?.dueDate ?? null,
         steps: [],

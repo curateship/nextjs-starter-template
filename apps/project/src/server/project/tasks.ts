@@ -7,6 +7,7 @@ import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import type { TaskNoticeKind } from "@/lib/project/notices"
 import { taskNotesText } from "@/lib/project/notes"
 import { LIMITS, runsTheTeam, type TaskPriority, type TaskStatus, isOpenStatus } from "@/lib/project/rules"
+import { copyStepFields, type StartingStepFields, type StepField } from "@/lib/project/step-fields"
 import type { FieldValues } from "@/lib/project/task-fields"
 import type { TaskTypeChip } from "@/lib/project/task-types"
 import type { TaskClock } from "@/lib/project/clock"
@@ -80,6 +81,7 @@ import {
   projectTaskFollowers,
   projectTaskLabels,
   projectTaskSteps,
+  projectTaskTypes,
   projectTasks,
   projectTeamMembers,
 } from "@/server/project/schema"
@@ -363,6 +365,8 @@ export type TaskStep = {
   /** Someone on the project doing this step. It shows only inside the task. */
   assignee: Person | null
   dueDate: string | null
+  /** The step's own name-and-value fields, on its card. */
+  fields: StepField[]
 }
 
 export type TaskDetail = {
@@ -407,6 +411,8 @@ export type TaskDetail = {
   link: TaskLink | null
   /** I may point it at a record: the site admin, on an open project. */
   canSetLink: boolean
+  /** "Save as task template" in the cog, for whoever runs the team, as they make every template. */
+  canSaveTemplate: boolean
   /**
    * I may start and pause its clock: the person assigned and the site admin.
    * Anyone on the project may start a task nobody has, which makes it theirs.
@@ -452,6 +458,7 @@ export async function loadTaskDetail(
       assigneeId: projectTaskSteps.assigneeUserId,
       assigneeName: assignee.name,
       assigneeAvatar: assignee.avatarUrl,
+      fields: projectTaskSteps.fields,
     })
     .from(projectTaskSteps)
     .leftJoin(assignee, eq(assignee.id, projectTaskSteps.assigneeUserId))
@@ -462,6 +469,7 @@ export async function loadTaskDetail(
     text: row.text,
     done: row.done,
     dueDate: row.dueDate,
+    fields: row.fields,
     assignee:
       row.assigneeId && row.assigneeName !== null
         ? { id: row.assigneeId, name: row.assigneeName, avatarUrl: row.assigneeAvatar ?? "" }
@@ -532,6 +540,7 @@ export async function loadTaskDetail(
     milestones: await listMilestones(project.id, database),
     link: taskLinkFor(task, { userId, siteAdmin: membership.siteAdmin }),
     canSetLink: membership.siteAdmin && !archived,
+    canSaveTemplate: runsTheTeam(membership.role) && !project.personalUserId,
     canRunClock: !archived && (!task.assigneeUserId || task.assigneeUserId === userId || membership.siteAdmin),
     canFixClock: !archived && (task.assigneeUserId === userId || membership.siteAdmin),
     moreTime: archived ? null : await loadMoreTimeAsk(task, viewer, database),
@@ -664,6 +673,8 @@ export async function createTask(
     }
     await recordTaskEvent(tx, { taskId: task.id, kind: "created", actorUserId: actor.id })
     if (input.steps.length) {
+      // A step that came from the task's template brings that step's fields.
+      const startingFields = input.typeId ? await startingStepFields(input.typeId, tx) : {}
       await tx.insert(projectTaskSteps).values(
         input.steps.map((text, position) => ({
           id: uuid(),
@@ -672,6 +683,7 @@ export async function createTask(
           done: false,
           position,
           createdAt: at,
+          fields: copyStepFields(startingFields[text] ?? []),
         }))
       )
     }
@@ -1015,7 +1027,7 @@ export async function addStep(
     }
     await tx.insert(projectTaskSteps).values(step)
     await touchTask(task.id, tx)
-    return { id: step.id, text: step.text, done: step.done, assignee: null, dueDate: null }
+    return { id: step.id, text: step.text, done: step.done, assignee: null, dueDate: null, fields: [] }
   })
 }
 
@@ -1027,6 +1039,8 @@ export async function updateStep(
     done?: boolean
     assigneeUserId?: string | null
     dueDate?: string | null
+    /** The step's own fields, saved whole. */
+    fields?: StepField[]
   },
   database = db
 ) {
@@ -1073,6 +1087,16 @@ export async function requireStep(userId: string, stepId: string, database: Proj
   if (!step) throw new Error(PROJECT_ERRORS.stepNotFound)
   await requireTaskAccess(userId, step.taskId, database)
   return step
+}
+
+/** A task template's fields for its starting steps, by the step's words. */
+async function startingStepFields(typeId: string, database: ProjectDb): Promise<StartingStepFields> {
+  const [type] = await database
+    .select({ stepFields: projectTaskTypes.stepFields })
+    .from(projectTaskTypes)
+    .where(eq(projectTaskTypes.id, typeId))
+    .limit(1)
+  return type?.stepFields ?? {}
 }
 
 export async function touchTask(taskId: string, database: ProjectDb) {

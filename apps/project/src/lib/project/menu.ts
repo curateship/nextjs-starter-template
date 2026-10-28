@@ -16,7 +16,7 @@ export function taskTypesItem(): ShellSection["entries"][number] {
   return {
     type: "item",
     id: TASK_TYPES_ITEM_ID,
-    label: "Task types",
+    label: "Task templates",
     href: "/task-types",
     icon: "shapes",
     visible: true,

@@ -92,7 +92,7 @@ export function openView(
     delete filters.label
   }
   if (filters.type && !here.types.some((type) => type.id === filters.type)) {
-    missing.push(view.names.type ? `The type "${view.names.type}" is gone` : "Its task type is gone")
+    missing.push(view.names.type ? `The template "${view.names.type}" is gone` : "Its task template is gone")
     delete filters.type
   }
   return { filters, missing }

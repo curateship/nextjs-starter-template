@@ -61,7 +61,7 @@ import {
   type FieldKind,
   type WhoCanChange,
 } from "@/lib/project/task-fields"
-import type { TaskType, TaskTypeField } from "@/lib/project/task-types"
+import { stepFieldNames, type TaskType, type TaskTypeField } from "@/lib/project/task-types"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -84,7 +84,7 @@ export function TypeBasicsCard({ type, save }: { type: TaskType; save: Track }) 
     if (next === type.name) return
     if (!next) {
       setInvalid(true)
-      showErrorToast("A type needs a name.")
+      showErrorToast("A template needs a name.")
       return
     }
     if (!(await save(() => saveTaskType({ typeId: type.id, name: next })))) setInvalid(true)
@@ -93,7 +93,7 @@ export function TypeBasicsCard({ type, save }: { type: TaskType; save: Track }) 
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>Type</CardTitle>
+        <CardTitle>Template</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="grid gap-2">
@@ -532,7 +532,7 @@ function FieldOptions({
         <div className="flex items-center justify-between gap-4">
           <FieldLabel
             htmlFor={`${base}-when-made`}
-            hint="New task shows it once this type is picked, and won't make the task without it."
+            hint="New task shows it once this template is picked, and won't make the task without it."
           >
             Needed when made
           </FieldLabel>
@@ -794,7 +794,12 @@ export function TypeSteps({ type, save }: { type: TaskType; save: Track }) {
           <ol className="grid gap-2">
             {type.steps.map((step, index) => (
               <li key={`${index}-${step}`} className="flex items-center gap-2 text-sm">
-                <span className="min-w-0 flex-1 break-words">{step}</span>
+                <span className="min-w-0 flex-1 break-words">
+                  {step}
+                  {stepFieldNames(type, step) ? (
+                    <span className="block text-xs text-muted-foreground">{stepFieldNames(type, step)}</span>
+                  ) : null}
+                </span>
                 <Button
                   type="button"
                   variant="ghost"
@@ -809,7 +814,7 @@ export function TypeSteps({ type, save }: { type: TaskType; save: Track }) {
           </ol>
         ) : (
           <p className="text-sm text-muted-foreground">
-            None. Steps added here fill a new task's Steps when this type is picked.
+            None. Steps added here fill a new task's Steps when this template is picked.
           </p>
         )}
         {full ? (

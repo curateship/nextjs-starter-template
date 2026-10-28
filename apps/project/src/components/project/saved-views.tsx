@@ -159,7 +159,7 @@ function describeView(view: { filters: SavedViewFilters; names: SavedViewNames }
     parts.push(here.labels.find((label) => label.id === filters.label)?.name ?? names.label ?? "A deleted label")
   }
   if (filters.type) {
-    parts.push(here.types.find((type) => type.id === filters.type)?.name ?? names.type ?? "A deleted type")
+    parts.push(here.types.find((type) => type.id === filters.type)?.name ?? names.type ?? "A deleted template")
   }
   if (filters.group) parts.push(`Group: ${TASK_GROUPING_LABEL[filters.group]}`)
   return parts.join(" · ")
