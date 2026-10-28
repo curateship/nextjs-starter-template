@@ -1025,6 +1025,44 @@ export async function fetchAsterOrderInfo(
   }
 }
 
+/**
+ * Whether one order has ended on Aster, asked by its number.
+ *
+ * Aster accepts a waiting-only (GTX) order whose price would trade at once,
+ * hands back an order number, and expires it straight away. On 28 Oct 2026 a
+ * 0.4 SNDK close at $1,365.67 came back EXPIRED with nothing sold, and the
+ * close waited on it for good because a missing waiting-only order is never
+ * assumed gone. Aster's own answer for that one order is what lets it go.
+ */
+const ASTER_ENDED = new Set(["FILLED", "CANCELED", "EXPIRED", "REJECTED"])
+const ASTER_WORKING = new Set(["NEW", "PARTIALLY_FILLED"])
+
+export async function asterOrderEnded(
+  network: NetworkId,
+  address: string,
+  orderId: string,
+  marketId: string,
+  credentialFn: () => string | null
+): Promise<{ ended: boolean; filledSz: number } | null> {
+  const blob = credentialFn()
+  if (!blob) throw new Error("LIVE_WALLET_KEY")
+  const answer = await asterSigned(
+    network,
+    address,
+    parseAsterCredential(blob),
+    "GET",
+    "/fapi/v3/order",
+    1,
+    { symbol: marketId, orderId }
+  )
+  const row = orderSchema.safeParse(answer).data
+  const status = row?.status ?? ""
+  const filledSz = num(row?.executedQty) ?? 0
+  if (ASTER_ENDED.has(status)) return { ended: true, filledSz }
+  if (ASTER_WORKING.has(status)) return { ended: false, filledSz }
+  return null
+}
+
 export function clearAsterOrderState(): void {
   leverageCache.clear()
   marginModeCache.clear()

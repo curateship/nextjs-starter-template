@@ -173,6 +173,7 @@ import {
   closeKucoinPosition,
   fetchKucoinOrderFills,
   fetchKucoinOrderInfo,
+  kucoinOrderEnded,
   fetchKucoinPortfolio,
   modifyKucoinOrder,
   placeKucoinOrder,
@@ -219,6 +220,7 @@ import {
   closeAsterPosition,
   fetchAsterOrderFills,
   fetchAsterOrderInfo,
+  asterOrderEnded,
   fetchAsterOrderPortfolio,
   modifyAsterOrder,
   placeAsterOrder,
@@ -870,6 +872,21 @@ export type ProtocolEntry = {
       marketId: string,
       credential: () => string | null
     ): Promise<WalletOrderInfo>
+    /**
+     * Whether one order has ended on the exchange, asked by its own number,
+     * and how many coins it traded before it did. `ended` is true when the
+     * exchange states it finished (filled, cancelled or expired) and false
+     * when it says the order is still working. Null is no clear answer. Only venues that accept a waiting-only order and
+     * then cancel it a moment later need it (Aster, KuCoin). See
+     * `workspace/docs/orders/part-close.md`.
+     */
+    orderEnded?(
+      network: NetworkId,
+      address: string,
+      orderId: string,
+      marketId: string,
+      credential: () => string | null
+    ): Promise<{ ended: boolean; filledSz: number } | null>
     /** Opens the venue's private fill stream and keeps this listener current. */
     watchFills?(
       network: NetworkId,
@@ -1157,6 +1174,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       portfolio: fetchKucoinPortfolio,
       fills: fetchKucoinOrderFills,
       orderInfo: fetchKucoinOrderInfo,
+      orderEnded: kucoinOrderEnded,
       watchFills: watchKucoinFills,
       fillsNeedRecovery: kucoinFillsNeedRecovery,
     },
@@ -1207,6 +1225,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       portfolio: fetchAsterOrderPortfolio,
       fills: fetchAsterOrderFills,
       orderInfo: fetchAsterOrderInfo,
+      orderEnded: asterOrderEnded,
       watchFills: watchAsterFills,
       fillsNeedRecovery: asterFillsNeedRecovery,
     },

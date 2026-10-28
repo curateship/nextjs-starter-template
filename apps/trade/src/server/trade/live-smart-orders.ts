@@ -1339,6 +1339,7 @@ export async function reconcileLiveLaddersOnce(
     return ref ? [ref.marketId] : []
   })
   const orderApi = ordersOf(protocol)
+  const askOrderEnded = orderApi.orderEnded
   const shouldReadFills =
     orderApi.fillsNeedRecovery?.(wallet.network, wallet.address, credential) !==
     false
@@ -1823,6 +1824,22 @@ export async function reconcileLiveLaddersOnce(
             )
           }
         },
+        ...(askOrderEnded
+          ? {
+              orderEnded: async (marketKey: string, orderId: string) => {
+                const marketId = parseMarketKey(marketKey)?.marketId
+                if (!marketId || !wallet.address) return null
+                // A failed read is no answer at all, never "it ended".
+                return askOrderEnded(
+                  wallet.network,
+                  wallet.address,
+                  orderId,
+                  marketId,
+                  credential
+                ).catch(() => null)
+              },
+            }
+          : {}),
         insertOrder: async (input) => {
           const tempId = `pending:${randomUUID()}`
           pendingPlaces.push({ tempId, input })
