@@ -1551,6 +1551,35 @@ async function kucoinFillsFromRows(
   return fills
 }
 
+/**
+ * Whether one order has ended on KuCoin, asked by its number.
+ *
+ * KuCoin accepts a post-only order that would trade at once and cancels it a
+ * moment later ("Post-only order conditions not met"). A missing post-only
+ * order is never assumed gone, so without KuCoin's own answer the close waits
+ * on it for good. See `asterOrderEnded`, which is the same question on Aster.
+ */
+export async function kucoinOrderEnded(
+  network: NetworkId,
+  _address: string,
+  orderId: string,
+  marketId: string,
+  credential: () => string | null
+): Promise<{ ended: boolean; filledSz: number } | null> {
+  const blob = credential()
+  if (!blob) throw new Error("LIVE_WALLET_KEY")
+  const row = await orderById(network, parseKucoinCredential(blob), orderId)
+  if (!row) return null
+  // KuCoin counts what traded in whole contracts.
+  const { lot } = await kucoinMarketRules(network, marketId)
+  const filledSz = coinsOf(num(row.filledSize) ?? num(row.dealSize) ?? 0, lot)
+  if (row.isActive === false || row.status === "done") {
+    return { ended: true, filledSz }
+  }
+  if (row.isActive === true) return { ended: false, filledSz }
+  return null
+}
+
 export async function fetchKucoinOrderInfo(
   network: NetworkId,
   _address: string,
