@@ -78,11 +78,10 @@ after the cog, and it appears only while there is something to clear. A broom
 rather than a bin, because the bin on a single result's menu deletes that one
 match and two bins would have said the same thing about different jobs.
 
-**It asks first**, through the shared confirmation window, and names how many
-markets are about to go. There is no undo, the list can be an hour of matches,
-and a broom beside a cog is an easy thing to hit by mistake. The window says
-the scanner keeps watching and a market comes back only if it meets the
-conditions again. Every market it clears goes on the same dismissed list one-by-one
+**It clears at once, without asking.** Tyler asked for the confirmation window
+to go on 29 Oct 2026: "remove the confirmation modal for the clear all matches
+scanner icon". There is no undo. The scanner keeps watching, and a market comes
+back only if it meets the conditions again. Every market it clears goes on the same dismissed list one-by-one
 deletion uses, so the next pass does not put them all straight back.
 The same ongoing
 match is suppressed until fresh data shows the condition is no longer met. A later
