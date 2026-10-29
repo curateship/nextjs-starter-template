@@ -538,6 +538,14 @@ export const statusOrderSchema = z.object({ projectId: id, statusOrder: statusLi
 /** My dashboard's own column order, which only I see. */
 export const myStatusOrderSchema = z.object({ statusOrder: statusListSchema })
 
+/** The site admin's Projects card: the projects hidden from it, or its own order. Ids only, no repeats. */
+export const adminProjectListSchema = z.object({
+  projectIds: z
+    .array(id)
+    .max(1000)
+    .refine((ids) => new Set(ids).size === ids.length, "A project is listed twice."),
+})
+
 const lateTasksSchema = z
   .number()
   .int("Type a whole number.")

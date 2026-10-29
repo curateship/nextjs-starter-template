@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { findCurrentUser } from "@/server/auth/security"
-import { watchForPerson, type MyLiveWatch } from "@/server/project/my-live"
+import { watchEveryTeam, watchForPerson, type MyLiveChange, type MyLiveWatch } from "@/server/project/my-live"
 
 /**
  * One person's live updates, held open by My dashboard or the Team dashboard
@@ -11,7 +11,8 @@ import { watchForPerson, type MyLiveWatch } from "@/server/project/my-live"
  * Server-Sent Events: `data: mine` or `data: team`. Lines starting `:` open
  * the stream and keep it alive. Which projects the person can see is looked
  * at again on every heartbeat, so a project they join is heard within a
- * heartbeat and one they leave goes quiet. Someone with no team gets a 404,
+ * heartbeat and one they leave goes quiet. The site admin, naming no team,
+ * hears every team and every project. Someone with no team gets a 404,
  * and EventSource never retries a refused request.
  */
 const HEARTBEAT_MS = 25_000
@@ -57,7 +58,11 @@ export const Route = createFileRoute("/api/project/my-live")({
         // The site admin's page names its team; an employee's is their own.
         const team = new URL(request.url).searchParams.get("team")
         const teamId = team && team.length <= 36 ? team : undefined
-        watch = await watchForPerson(user.id, (change) => send(`data: ${change}\n\n`), undefined, teamId)
+        const tell = (change: MyLiveChange) => send(`data: ${change}\n\n`)
+        // With no team named, the site admin's My dashboard hears every team.
+        watch = teamId
+          ? await watchForPerson(user.id, tell, undefined, teamId)
+          : ((await watchEveryTeam(user.id, tell)) ?? (await watchForPerson(user.id, tell)))
         if (!watch) return Response.json({ detail: "You're not on a team." }, { status: 404 })
 
         const stream = new ReadableStream<Uint8Array>({

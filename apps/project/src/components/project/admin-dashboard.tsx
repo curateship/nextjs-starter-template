@@ -3,6 +3,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 import { SettingsIcon } from "lucide-react"
 
 import { AdminCards } from "@/components/project/admin-cards"
+import { ProjectsCard } from "@/components/project/admin-project-cards"
 import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
 import { InboxMorphIcon } from "@/components/project/inbox-morph-icon"
 import { MyNoticeSwitches } from "@/components/project/my-notice-switches"
@@ -14,7 +15,8 @@ import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskSidePanel } from "@/components/project/task-side-panel"
 import { ThreePanels } from "@/components/project/three-panels"
 import { TimeZoneSelect } from "@/components/project/time-zone-select"
-import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import type { FilterProject } from "@/components/project/task-filter-popover"
+import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -22,14 +24,19 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { saveAdminStatusOrder, saveAdminTimeZone, type AdminDashboard } from "@/lib/api/project/admin-dashboard"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
+import { useWideScreen } from "@/lib/layout/wide-screen"
 import { adminProjectColumn } from "@/lib/project/admin-projects"
 import { browserTimeZone } from "@/lib/project/days"
 import { ADMIN_DASHBOARD_PANEL_LAYOUT_KEY, ADMIN_OPEN_TASK_KEY } from "@/lib/project/panel-keys"
 import type { TaskFilters } from "@/lib/project/task-filters"
 import { TeamScope } from "@/lib/project/team-scope"
+import { useMyLive } from "@/lib/project/use-my-live"
 import { useRememberedTask } from "@/lib/project/use-remembered-task"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { cn } from "@/lib/utils"
+
+/** The route whose data loads again on a live change. */
+const DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
 
 /** The site admin's My dashboard address: filters and the open task, as an employee's. */
 export type AdminDashboardSearch = Omit<TaskFilters, "person"> & { task?: string }
@@ -56,6 +63,13 @@ export function AdminDashboardScreen({
   const [rows, setRows] = React.useState<string[] | null>(null)
   const quietTask = useRememberedTask({ storageKey: ADMIN_OPEN_TASK_KEY, taskId: search.task, ids: rows })
   useFirstZone(dashboard.savedZone)
+  const wide = useWideScreen()
+  // Any change in any team loads the page again, so the cards and the Projects
+  // card never go stale (task "My dashboard/01 Project cards", Tyler's pick).
+  useMyLive(
+    () => true,
+    () => void router.invalidate({ filter: (match) => match.routeId === DASHBOARD_ROUTE_ID })
+  )
 
   // The open task asks its own team's questions (its tags, its people), as on its
   // project page. Only the right panel is scoped: New task in the middle offers
@@ -76,6 +90,7 @@ export function AdminDashboardScreen({
   const openTeam = openProject ? dashboard.projectTeams[openProject] : undefined
 
   const projectColumn = React.useMemo(() => adminProjectColumn(dashboard), [dashboard])
+  const filterProjects = React.useMemo(() => filterProjectsOf(dashboard), [dashboard])
 
   const setFilters = (patch: Partial<AdminDashboardSearch>) =>
     void navigate({
@@ -87,6 +102,15 @@ export function AdminDashboardScreen({
         return next
       },
     })
+  const projectsCard = dashboard.cards.projects.length ? (
+    <ProjectsCard
+      projects={dashboard.cards.projects}
+      extras={dashboard.cards.projectCards}
+      today={dashboard.today}
+      picked={search.project}
+      onPick={(project) => setFilters({ project })}
+    />
+  ) : null
   const taskLoaded = (taskId: string) => {
     if (dashboard.tasks.some((task) => task.id === taskId && task.unread > 0)) void router.invalidate()
   }
@@ -96,11 +120,35 @@ export function AdminDashboardScreen({
       layoutKey={ADMIN_DASHBOARD_PANEL_LAYOUT_KEY}
       // A task opened on arrival leaves a narrow screen on the list.
       showRightFor={search.task === quietTask ? undefined : search.task}
+      // Picking a project on a phone's Projects tab shows its tasks at once.
+      showMiddleFor={search.project}
       left={{
         label: "Me",
         showLabel: "Show my cards",
-        content: <AdminPanel dashboard={dashboard} inbox={inbox} onOpenTask={taskAddress.open} />,
+        content: (
+          <AdminPanel
+            dashboard={dashboard}
+            inbox={inbox}
+            projectsCard={wide ? projectsCard : null}
+            onOpenTask={taskAddress.open}
+          />
+        ),
       }}
+      narrowTab={
+        !wide && projectsCard
+          ? {
+              label: "Projects",
+              content: (
+                <>
+                  <DashboardCardTitleHeader title="Projects" />
+                  <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
+                    <div className="grid gap-3 p-3">{projectsCard}</div>
+                  </ScrollArea>
+                </>
+              ),
+            }
+          : undefined
+      }
       middle={{
         label: "My tasks",
         content: (
@@ -122,6 +170,7 @@ export function AdminDashboardScreen({
               // The site admin may delete any task.
               canDelete: () => true,
               table: { project: projectColumn },
+              projects: filterProjects,
             }}
             openTaskId={search.task}
             filters={{
@@ -132,6 +181,7 @@ export function AdminDashboardScreen({
               type: search.type,
               due: search.due,
               client: search.client,
+              project: search.project,
             }}
             onFilters={setFilters}
             onOpenTask={taskAddress.open}
@@ -152,6 +202,24 @@ export function AdminDashboardScreen({
       }}
     />
   )
+}
+
+/**
+ * Filter's Project row: every project the Projects card shows and every one
+ * holding a task of theirs, named as the table's Project chip names it, with
+ * its team ("Acme · Website", or "Just me" for their own list).
+ */
+function filterProjectsOf(dashboard: AdminDashboard): FilterProject[] {
+  const ids = new Set([
+    ...dashboard.cards.projects.map((project) => project.id),
+    ...dashboard.tasks.map((task) => task.projectId),
+  ])
+  return [...ids]
+    .flatMap((id) => {
+      const info = dashboard.projectInfo[id]
+      return info ? [{ id, name: info.teamName ? `${info.teamName} · ${info.name}` : info.name, color: info.color }] : []
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /**
@@ -183,10 +251,13 @@ function useFirstZone(savedZone: string | null) {
 function AdminPanel({
   dashboard,
   inbox,
+  projectsCard,
   onOpenTask,
 }: {
   dashboard: AdminDashboard
   inbox: InboxPage
+  /** The Projects card, in the cards on a wide screen; on a phone it has a tab of its own. */
+  projectsCard: React.ReactNode
   onOpenTask: (taskId: string) => void
 }) {
   const { me } = dashboard
@@ -205,7 +276,12 @@ function AdminPanel({
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <div className={cn("grid gap-3 p-3", inboxOpen && "hidden")}>
-          <AdminCards cards={dashboard.cards} zone={dashboard.zone} onOpenTask={onOpenTask} />
+          <AdminCards
+            cards={dashboard.cards}
+            zone={dashboard.zone}
+            projectsCard={projectsCard}
+            onOpenTask={onOpenTask}
+          />
         </div>
         <div className={cn("p-4", !inboxOpen && "hidden")}>
           <InboxCard inbox={inbox} bare onUnread={setUnread} />
@@ -234,7 +310,9 @@ function InboxButton({ unread, open, onToggle }: { unread: number; open: boolean
           {unread && !open ? (
             <span
               aria-hidden
-              className="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none font-semibold text-white tabular-nums"
+              // 12px, under the 16px tray, so the count marks the icon without covering it
+              // (Tyler, 29 Oct 2026: "the notification bubble is a bit too big").
+              className="absolute top-0.5 right-0.5 flex h-3 min-w-3 items-center justify-center rounded-full bg-destructive px-[3px] text-[8px] leading-none font-semibold text-white tabular-nums"
             >
               {unread > 9 ? "9+" : unread}
             </span>

@@ -1120,6 +1120,10 @@ export const projectSiteAdminPrefs = pgTable("project_site_admin_prefs", {
   /** Null until My dashboard first saves the browser's zone. */
   timeZone: text("time_zone"),
   statusOrder: text("status_order").array().$type<TaskStatus[]>().notNull().default([]),
+  /** Projects hidden from My dashboard's Projects card (`drizzle/0136_project_admin_project_cards.sql`). */
+  hiddenProjectIds: text("hidden_project_ids").array().notNull().default([]),
+  /** That card's projects in the order they dragged them; empty is late first. */
+  projectOrder: text("project_order").array().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 

@@ -4,7 +4,6 @@ import { ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 
 import { PanelCard } from "@/components/project/panel-card"
-import { ProjectPaceMark } from "@/components/project/project-pace"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { ProjectDot } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
@@ -19,7 +18,6 @@ import { focusRingInset } from "@/lib/layout/focus-ring"
 import { clockIn, dayLabel, localNow } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { TEAM_RIGHT_TAB_KEY } from "@/lib/project/panel-keys"
-import { countLate, projectPace } from "@/lib/project/project-pace"
 import { cn } from "@/lib/utils"
 
 /**
@@ -54,16 +52,18 @@ type Cards = AdminDashboard["cards"]
 export function AdminCards({
   cards,
   zone,
+  projectsCard,
   onOpenTask,
 }: {
   cards: Cards
   /** The site admin's own zone, for meeting times. */
   zone: string
+  /** The Projects card, first, above the red cards; null when there is none to draw. */
+  projectsCard: React.ReactNode
   onOpenTask: (taskId: string) => void
 }) {
-  const late = lateProjects(cards.projects)
   const anything =
-    late.length > 0 ||
+    Boolean(projectsCard) ||
     [
       cards.waiting,
       cards.attention,
@@ -78,9 +78,10 @@ export function AdminCards({
   if (!anything) return null
   return (
     <>
+      {/* First, above the red cards (Tyler, 29 Oct 2026: "the project card should be above all the red cards"). */}
+      {projectsCard}
       <WaitingCard asks={cards.waiting} onOpenTask={onOpenTask} />
       <AttentionCard teams={cards.attention} />
-      <LateProjectsCard late={late} />
       <UnassignedCard tasks={cards.unassigned} onOpenTask={onOpenTask} />
       <InvitesCard invites={cards.invites} />
       <TaskListCard
@@ -374,46 +375,6 @@ function TaskListCard({
         {(task) => (
           <li key={task.id}>
             <RowButton title={task.title} line={line(task)} onClick={() => onOpenTask(task.id)} />
-          </li>
-        )}
-      </Rows>
-    </PanelCard>
-  )
-}
-
-/** The projects not on track, most late first. */
-function lateProjects(projects: Cards["projects"]) {
-  // Late is counted on this browser's clock, as the Projects dashboard counts it.
-  return projects
-    .map((project) => {
-      const count = countLate(project.dated)
-      return { project, late: count, pace: projectPace(count, project) }
-    })
-    .filter((row) => row.pace !== "on_track")
-    .sort((a, b) => b.late - a.late || a.project.name.localeCompare(b.project.name))
-}
-
-function LateProjectsCard({ late }: { late: ReturnType<typeof lateProjects> }) {
-  if (late.length === 0) return null
-  return (
-    <PanelCard storageId="project-admin-late" className={TONE.now} title="Projects running late" meta={late.length}>
-      <Rows items={late}>
-        {({ project, late: count, pace }) => (
-          <li key={project.id}>
-            <Link
-              to="/projects/$projectId"
-              params={{ projectId: project.id }}
-              className={cn(ROW_CLASS, focusRingInset)}
-            >
-              <span className="flex min-w-0 items-center gap-2 text-sm">
-                <ProjectDot color={project.color} />
-                <span className="truncate">{project.name}</span>
-              </span>
-              <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-                <span className="truncate">{project.team.name} ·</span>
-                <ProjectPaceMark pace={pace} late={count} />
-              </span>
-            </Link>
           </li>
         )}
       </Rows>

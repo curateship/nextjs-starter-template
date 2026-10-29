@@ -16,12 +16,16 @@ import {
   TASK_PRIORITY_LABEL,
   TASK_STATUSES,
   TASK_STATUS_LABEL,
+  type ProjectColor,
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
 import { DUE_FILTERS, type DueFilter, type TaskFilters } from "@/lib/project/task-filters"
 import { TASK_GROUPING_LABEL, type TaskGrouping } from "@/lib/project/task-groups"
 import type { TaskType } from "@/lib/project/task-types"
+
+/** A project the Project row offers. */
+export type FilterProject = { id: string; name: string; color: ProjectColor }
 
 const ALL = "all"
 
@@ -34,6 +38,7 @@ const NO_TASK_FILTERS: Partial<TaskFilters> = {
   label: undefined,
   type: undefined,
   client: undefined,
+  project: undefined,
 }
 
 /**
@@ -49,7 +54,8 @@ const NO_TASK_FILTERS: Partial<TaskFilters> = {
  * 2026. Who the task is for is still a dropdown of its own in the project
  * page's header (Tyler, 14 Oct 2026), so Clear leaves it alone. My dashboard adds
  * a Client row (Features 16 Oct, part 9), since its tasks come from many
- * projects.
+ * projects, and the site admin's a Project row, which its Projects card sets
+ * too (task "My dashboard/01 Project cards", 29 Oct 2026).
  */
 export function TaskFilterPopover({
   filters,
@@ -61,6 +67,7 @@ export function TaskFilterPopover({
   extra,
   onSaveView,
   clients,
+  projects,
   buttonVariant = "outline",
 }: {
   filters: TaskFilters
@@ -81,12 +88,20 @@ export function TaskFilterPopover({
   onSaveView: () => void
   /** The clients of the projects shown, for a Client row. Left out, there is no row. */
   clients?: string[]
+  /** The projects offered in a Project row. Left out, there is no row. */
+  projects?: readonly FilterProject[]
   /** Ghost in the project page's header, where every control is. */
   buttonVariant?: "outline" | "ghost"
 }) {
-  const count = [filters.status, filters.priority, filters.due, filters.label, filters.type, clients && filters.client].filter(
-    Boolean
-  ).length
+  const count = [
+    filters.status,
+    filters.priority,
+    filters.due,
+    filters.label,
+    filters.type,
+    clients && filters.client,
+    projects && filters.project,
+  ].filter(Boolean).length
 
   return (
     <Popover>
@@ -117,6 +132,7 @@ export function TaskFilterPopover({
           labels={labels}
           types={types}
           clients={clients}
+          projects={projects}
         />
         {group || extra ? (
           <>
@@ -158,7 +174,7 @@ export function TaskFilterPopover({
 
 /**
  * The filter rows, label beside choice: Status, Priority, Due, Tags and Type,
- * and Client where `clients` is given. The Filter popover and the Edit view
+ * Client where `clients` is given, and Project where `projects` is. The Filter popover and the Edit view
  * window both draw these, so a view is edited with the same choices it was
  * made with.
  */
@@ -169,6 +185,7 @@ export function TaskFilterFields({
   labels,
   types,
   clients,
+  projects,
   children,
 }: {
   /** Starts each row's id, so two sets on one page never share one. */
@@ -178,6 +195,7 @@ export function TaskFilterFields({
   labels: TaskLabel[]
   types: TaskType[]
   clients?: readonly string[]
+  projects?: readonly FilterProject[]
   /** More rows after Type and Client, such as the Edit view window's Assigned to. */
   children?: React.ReactNode
 }) {
@@ -288,6 +306,27 @@ export function TaskFilterFields({
           />
         </FilterRow>
       ) : null}
+      {projects ? (
+        <FilterRow id={`${idPrefix}-project`} label="Project">
+          <Select
+            value={filters.project ?? ALL}
+            onValueChange={(value) => onChange({ project: value === ALL ? undefined : value })}
+          >
+            <SelectTrigger id={`${idPrefix}-project`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Any project</SelectItem>
+              {projectsWith(projects, filters.project).map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  <ProjectDot color={project.color} />
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterRow>
+      ) : null}
       {children}
     </div>
   )
@@ -302,4 +341,10 @@ export function FilterRow({ id, label, children }: { id: string; label: string; 
       {children}
     </>
   )
+}
+
+/** The projects offered, plus the one picked if it has since gone, so the choice never reads blank. */
+function projectsWith(projects: readonly FilterProject[], picked: string | undefined): readonly FilterProject[] {
+  if (!picked || projects.some((project) => project.id === picked)) return projects
+  return [...projects, { id: picked, name: "A closed project", color: "slate" }]
 }

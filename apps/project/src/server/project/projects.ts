@@ -67,6 +67,10 @@ export type ProjectListRow = {
   behindAt: number
   lead: { id: string; name: string; avatarUrl: string } | null
   client: string | null
+  /** The project's own due date, shown on the site admin's Projects card. */
+  dueDate: string | null
+  /** The project's round picture from its settings, shown on the site admin's Projects card. */
+  avatarUrl: string | null
   /** The project's team, shown in the site admin's Team column. */
   team: { id: string; name: string }
   /** Seconds on the clock across its tasks, for the Time column (Seven features, part 4). */
@@ -210,6 +214,8 @@ export async function loadProjectsPage(
             ? { id: project.leadUserId, name: project.leadName, avatarUrl: project.leadAvatar ?? "" }
             : null,
         client: project.client,
+        dueDate: project.dueDate,
+        avatarUrl: project.avatarUrl,
         team: { id: project.teamId, name: project.teamName },
         clockSeconds: clocked.get(project.id) ?? 0,
       }

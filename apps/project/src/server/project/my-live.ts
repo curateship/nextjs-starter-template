@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm"
 
 import { db } from "@/server/db"
-import { findMembership, visibleProjectIds } from "@/server/project/access"
+import { findMembership, isSiteAdmin, visibleProjectIds } from "@/server/project/access"
 import { subscribeToProject, subscribeToTeam } from "@/server/project/live"
-import { projectProjectMembers } from "@/server/project/schema"
+import { projectProjectMembers, projectProjects, projectTeams } from "@/server/project/schema"
 
 /**
  * One person's live updates for My dashboard and the Team dashboard
@@ -72,4 +72,52 @@ export async function watchForPerson(
       watching.clear()
     },
   }
+}
+
+/**
+ * The site admin's My dashboard, which counts across every team: every team's
+ * own changes and every project's, each told as "mine" so the page loads
+ * again (task "My dashboard/01 Project cards", Tyler, 29 Oct 2026: live
+ * across every team). Null for anyone else.
+ */
+export async function watchEveryTeam(
+  userId: string,
+  send: (change: MyLiveChange) => void,
+  database = db
+): Promise<MyLiveWatch | null> {
+  if (!(await isSiteAdmin(userId, database))) return null
+  const teams = new Map<string, () => void>()
+  const projects = new Map<string, () => void>()
+
+  async function refresh() {
+    if (!(await isSiteAdmin(userId, database))) return false
+    const [teamRows, projectRows] = await Promise.all([
+      database.select({ id: projectTeams.id }).from(projectTeams),
+      database.select({ id: projectProjects.id }).from(projectProjects),
+    ])
+    follow(teams, teamRows, (id) => subscribeToTeam(id, () => send("mine")))
+    follow(projects, projectRows, (id) => subscribeToProject(id, () => send("mine")))
+    return true
+  }
+
+  await refresh()
+  return {
+    refresh,
+    stop: () => {
+      for (const stop of [...teams.values(), ...projects.values()]) stop()
+      teams.clear()
+      projects.clear()
+    },
+  }
+}
+
+/** Listens to every id in `rows` and stops listening to any no longer there. */
+function follow(watching: Map<string, () => void>, rows: { id: string }[], start: (id: string) => () => void) {
+  const now = new Set(rows.map((row) => row.id))
+  for (const [id, stop] of watching) {
+    if (now.has(id)) continue
+    stop()
+    watching.delete(id)
+  }
+  for (const id of now) if (!watching.has(id)) watching.set(id, start(id))
 }

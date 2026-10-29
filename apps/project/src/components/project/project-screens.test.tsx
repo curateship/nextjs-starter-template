@@ -410,6 +410,8 @@ describe("the Projects dashboard", () => {
               lead: { id: "u2", name: "Priya", avatarUrl: "" },
               client: "Hart Dental",
               team: { id: "team", name: "Acme" },
+              dueDate: null,
+              avatarUrl: null,
               clockSeconds: 0,
             },
             {
@@ -426,6 +428,8 @@ describe("the Projects dashboard", () => {
               lead: null,
               client: null,
               team: { id: "team2", name: "Beta" },
+              dueDate: null,
+              avatarUrl: null,
               clockSeconds: 0,
             },
           ],

@@ -11,7 +11,7 @@ import { ReasonDialog } from "@/components/project/reason-dialog"
 import { SaveViewDialog, SavedViewsControls } from "@/components/project/saved-views"
 import { TaskBoard } from "@/components/project/task-board"
 import { TaskCalendar } from "@/components/project/task-calendar"
-import { TaskFilterPopover } from "@/components/project/task-filter-popover"
+import { TaskFilterPopover, type FilterProject } from "@/components/project/task-filter-popover"
 import { TaskList, type ProjectColumn } from "@/components/project/task-list"
 import { PointAnchor, TaskRightClickMenu } from "@/components/project/task-right-click"
 import { SearchToggle } from "@/components/project/task-header-controls"
@@ -88,6 +88,8 @@ export type MyTasksSource = {
    * ("remove the assigned to, steps and my team col").
    */
   table?: { project: ProjectColumn }
+  /** The site admin's projects, for Filter's Project row, which their Projects card sets too. */
+  projects?: FilterProject[]
 }
 
 /**
@@ -162,7 +164,13 @@ export function MyTasksPanel({
     types: source.taskTypes.filter((type) => !type.archived),
   }
   const clients = clientChoices([...open, ...done].map((task) => task.projectClient))
-  const here = { screen: source.viewScreen, labels: source.labels, types: source.taskTypes, clients }
+  const here = {
+    screen: source.viewScreen,
+    labels: source.labels,
+    types: source.taskTypes,
+    clients,
+    projects: source.projects,
+  }
 
   async function reorder(save: (taskIds: string[]) => Promise<unknown>, next: string[]) {
     setOrder({ from: savedOrder, ids: next })
@@ -398,6 +406,7 @@ export function MyTasksPanel({
             buttonVariant="ghost"
             onSaveView={saveView}
             clients={clients}
+            projects={source.projects}
           />
           <SavedViewsControls
             views={source.views}
