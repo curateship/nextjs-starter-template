@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { isRealDay } from "@/lib/project/days"
 import { storedTaskNotes } from "@/lib/project/notes"
+import { STEP_FIELD_KINDS } from "@/lib/project/step-fields"
 
 /**
  * Project's fixed lists and the limits on what people type, shared by the
@@ -270,6 +271,10 @@ export const LIMITS = {
   taskNotes: 50_000,
   stepText: 200,
   stepsPerTask: 50,
+  /** A step's own name-and-value fields (Misc 4, 28 Oct 2026). */
+  fieldsPerStep: 10,
+  stepFieldName: 40,
+  stepFieldValue: 500,
   comment: 4000,
   reason: 200,
   /** Tasks one check-in can pick. A small team's day is never near this. */
@@ -343,8 +348,6 @@ export const LIMITS = {
   clientName: 60,
   milestoneName: 80,
   milestonesPerProject: 30,
-  templateName: 80,
-  templatesPerTeam: 50,
 } as const
 
 /** The five fixed reactions under a chat message, in the order they are offered. */
@@ -522,8 +525,6 @@ export const createProjectSchema = z.object({
   name: trimmed(LIMITS.projectName, "The project name"),
   color: projectColorSchema,
   description: z.string().trim().max(LIMITS.projectDescription).default(""),
-  /** Start from a saved template: its colour and description win over the two above. */
-  templateId: id.nullable().default(null),
 })
 
 /** Every Board column once, in a new order. */
@@ -602,11 +603,6 @@ export const updateMilestoneSchema = z.object({
 })
 
 export const taskMilestoneSchema = z.object({ taskId: id, milestoneId: id.nullable() })
-
-const templateNameSchema = trimmed(LIMITS.templateName, "The template's name")
-
-export const saveTemplateSchema = z.object({ projectId: id, name: templateNameSchema })
-export const renameTemplateSchema = z.object({ templateId: id, name: templateNameSchema })
 
 export const reasonSchema = trimmed(LIMITS.reason, "The reason")
 
@@ -733,12 +729,35 @@ export const createTasksFromLinesSchema = z.object({
   handoverNote: handoverNoteSchema,
 })
 
+/** A step's fields, saved whole each time one changes. */
+export const stepFieldsSchema = z
+  .array(
+    z.object({
+      id,
+      name: trimmed(LIMITS.stepFieldName, "A field's name"),
+      value: z.string().trim().max(LIMITS.stepFieldValue, `A field's value can be at most ${LIMITS.stepFieldValue} characters.`),
+      kind: z.enum(STEP_FIELD_KINDS),
+    })
+    // A number, a date or a tick box holds only what its kind can.
+    .refine((field) => field.kind !== "number" || field.value === "" || Number.isFinite(Number(field.value)), {
+      message: "A Number field holds a number.",
+    })
+    .refine((field) => field.kind !== "date" || field.value === "" || isRealDay(field.value), {
+      message: "Pick a date from the calendar.",
+    })
+    .refine((field) => field.kind !== "tick" || field.value === "" || field.value === "yes", {
+      message: "A Tick box is ticked or not.",
+    })
+  )
+  .max(LIMITS.fieldsPerStep, `A step can have at most ${LIMITS.fieldsPerStep} fields.`)
+
 export const updateStepSchema = z.object({
   stepId: id,
   text: trimmed(LIMITS.stepText, "A step").optional(),
   done: z.boolean().optional(),
   assigneeUserId: id.nullable().optional(),
   dueDate: dueDateSchema.optional(),
+  fields: stepFieldsSchema.optional(),
 })
 
 export const bulkChangeSchema = z.object({

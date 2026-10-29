@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { CustomShellDb } from "@/server/db"
 import { inTeam } from "@/server/project/access"
-import { createLabel, setTaskLabels } from "@/server/project/labels"
 import {
   createMilestone,
   deleteMilestone,
@@ -29,15 +28,9 @@ import { customShellNotifications } from "@/server/schema"
 import { projectNoticeLinks } from "@/server/project/schema"
 import { followTask } from "@/server/project/task-followers"
 import { moveTask } from "@/server/project/task-changes"
-import { addStep, assignTask, createTask, loadTaskDetail, setTaskStatus } from "@/server/project/tasks"
+import { createTask, loadTaskDetail, setTaskStatus } from "@/server/project/tasks"
 import { removeTeamMember } from "@/server/project/teams"
 import { insertEmployee, joinTeam, projectFor, startTeam } from "@/server/project/test-people"
-import {
-  deleteTemplate,
-  listMyTeamTemplates,
-  renameTemplate,
-  saveTemplate,
-} from "@/server/project/templates"
 import type { CustomShellUser } from "@/server/schema"
 import { createTestDatabase } from "@/server/test-support"
 
@@ -297,70 +290,6 @@ describe("whole-team projects", () => {
       await setWholeTeam(admin.id, { projectId: office, wholeTeam: true }, database)
       await removeTeamMember(admin.id, carla.id, database)
       expect((await loadProjectPage(ben.id, office, database)).members.map((m) => m.name)).toEqual(["Anna", "Ben"])
-    })
-  })
-})
-
-describe("project templates", () => {
-  it("saves a plan that never shows as a project and starts new ones like Copy project", async () => {
-    const signedOff = await createMilestone(ben.id, { projectId: website, name: "Signed off", dueDate: "2026-11-15" }, database)
-    const label = await createLabel(ben.id, { name: "Client", color: "pink" }, database)
-    const logo = await task("Logo")
-    await assignTask(actor(anna), { taskId: logo, assigneeUserId: ben.id }, database)
-    await setTaskMilestone(ben.id, { taskId: logo, milestoneId: signedOff.id }, database)
-    await setTaskLabels(ben.id, { taskId: logo, labelIds: [label.id] }, database)
-    await addStep(actor(ben), { taskId: logo, text: "Sketch" }, database)
-    await setTaskStatus(actor(ben), { taskId: logo, status: "done", stuckReason: null }, database)
-
-    const saved = await saveTemplate(admin.id, { projectId: website, name: "Client website" }, database)
-    expect(await listMyTeamTemplates(carla.id, database)).toEqual([
-      { id: saved.id, name: "Client website", taskCount: 1, color: "pink" },
-    ])
-    expect((await loadProjectsPage(anna.id, database)).projects.map((p) => p.name)).toEqual(["Website"])
-
-    // Changing the source afterwards leaves the template as it was saved.
-    await task("Added later")
-    const started = await projectFor(
-      admin,
-      carla.id,
-      { name: "Website for Bloom", color: "blue", description: "", templateId: saved.id },
-      database
-    )
-    const page = await loadProjectPage(carla.id, started.id, database)
-    expect(page.project).toMatchObject({ color: "pink", description: "Hart Dental's site" })
-    expect(page.milestones).toMatchObject([{ name: "Signed off", dueDate: null, total: 1 }])
-    expect(page.tasks.map((t) => [t.title, t.status, t.assignee])).toEqual([["Logo", "todo", null]])
-    const detail = await loadTaskDetail(carla.id, page.tasks[0].id, database)
-    expect(detail.steps.map((s) => [s.text, s.done])).toEqual([["Sketch", false]])
-    expect(detail.task.labels.map((l) => l.name)).toEqual(["Client"])
-    expect(page.members.map((m) => m.name)).toEqual(["Carla"])
-  })
-
-  it("is saved, renamed and deleted by the site admin only, and stays in its team", async () => {
-    await inTeam(teamId, async () => {
-      await expect(saveTemplate(ben.id, { projectId: website, name: "Client website" }, database)).rejects.toThrow(
-        PROJECT_ERRORS.onlySiteAdminSettings
-      )
-      const saved = await saveTemplate(admin.id, { projectId: website, name: "Client website" }, database)
-      await expect(saveTemplate(admin.id, { projectId: website, name: "client WEBSITE" }, database)).rejects.toThrow(
-        PROJECT_ERRORS.templateNameTaken
-      )
-      await expect(renameTemplate(ben.id, { templateId: saved.id, name: "Site" }, database)).rejects.toThrow(
-        PROJECT_ERRORS.notRunningTeam
-      )
-      await renameTemplate(admin.id, { templateId: saved.id, name: "Site" }, database)
-
-      const outsider = await insertEmployee(database, { name: "Olga", email: "olga@example.test" })
-      const other = await startTeam(database, [outsider], { name: "Other" })
-      await expect(
-        inTeam(other.team.id, () =>
-          createProject(other.admin.id, { name: "Stolen", color: "blue", description: "", templateId: saved.id }, database)
-        )
-      ).rejects.toThrow(PROJECT_ERRORS.templateNotFound)
-
-      await expect(deleteTemplate(anna.id, saved.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-      await deleteTemplate(admin.id, saved.id, database)
-      expect(await listMyTeamTemplates(anna.id, database)).toEqual([])
     })
   })
 })

@@ -56,6 +56,7 @@ const bug: TaskType = {
   color: "red",
   archived: false,
   steps: [],
+  stepFields: {},
   notes: bugNotes,
   fields: [],
 } as unknown as TaskType

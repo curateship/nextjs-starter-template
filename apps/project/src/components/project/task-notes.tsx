@@ -1,7 +1,21 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import type { Editor } from "@tiptap/react"
-import { HistoryIcon, ListTodoIcon, Loader2Icon, PencilIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import {
+  BoldIcon,
+  Heading2Icon,
+  Heading3Icon,
+  HistoryIcon,
+  ItalicIcon,
+  ListIcon,
+  ListOrderedIcon,
+  ListTodoIcon,
+  Loader2Icon,
+  PlusIcon,
+  SettingsIcon,
+  StrikethroughIcon,
+  TextQuoteIcon,
+} from "lucide-react"
 
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { PanelCardFooter } from "@/components/project/panel-card"
@@ -50,7 +64,8 @@ import { useTeamId } from "@/lib/project/team-scope"
  *
  * On a task (`task`), typing # links another task, a link to a task opens it
  * here, and "Earlier versions" lists the notes as they were before each
- * editing session, with Bring back.
+ * editing session, with Bring back. A task's notes are written in
+ * `LiveTaskNotes` below; this field draws them for someone who can only read.
  *
  * A meeting's notes use the same field, drawn line by line (`reading`) so
  * each line can become a task.
@@ -65,8 +80,6 @@ export function TaskNotesField({
   links,
   placeholder,
   reading,
-  startEditing: editingAtStart = false,
-  onFinished,
   hideLabel = false,
 }: {
   notes: string
@@ -83,20 +96,14 @@ export function TaskNotesField({
   placeholder?: string
   /** Draws formatted notes for reading, in place of the plain drawing. */
   reading?: (body: WrittenPageNode) => React.ReactNode
-  /** Opens with the editor ready, as "Add note" on the project page does. */
-  startEditing?: boolean
-  /** After Done has saved and the editor has closed. */
-  onFinished?: () => void
   /** The label stays for screen readers only, under a card already called Notes. */
   hideLabel?: boolean
 }) {
   const navigate = useNavigate()
   const saved = readTaskNotes(notes)
-  const [editing, setEditing] = React.useState(editingAtStart)
-  const [session, setSession] = React.useState(() => (editingAtStart ? crypto.randomUUID() : ""))
+  const [editing, setEditing] = React.useState(false)
+  const [session, setSession] = React.useState("")
   const [versionsOpen, setVersionsOpen] = React.useState(false)
-  const [confirmDelete, setConfirmDelete] = React.useState(false)
-  const [deleting, setDeleting] = React.useState(false)
   // Null until something is typed, so leaving an untouched editor saves nothing.
   const [draft, setDraft] = React.useState<WrittenPageNode | null>(null)
   const editorBox = React.useRef<HTMLDivElement>(null)
@@ -150,16 +157,6 @@ export function TaskNotesField({
     setFinishing(false)
     if (!ok) return
     setEditing(false)
-    onFinished?.()
-  }
-
-  // Deleting saves empty notes, so the Notes card leaves the panel; the
-  // words are kept as an earlier version, as any save keeps them.
-  async function deleteNotes() {
-    setDeleting(true)
-    const ok = await onSave(emptyWrittenPageBody(), crypto.randomUUID())
-    setDeleting(false)
-    if (ok) setConfirmDelete(false)
   }
 
   const versionsButton = (
@@ -179,12 +176,6 @@ export function TaskNotesField({
         <>
           <PlusIcon className="size-4" />
           Add notes
-        </>
-      ) : hideLabel ? (
-        // Tyler drew a pencil here, where the card's own cog already means settings.
-        <>
-          <PencilIcon className="size-4" />
-          Edit notes
         </>
       ) : (
         <>
@@ -283,25 +274,7 @@ export function TaskNotesField({
         <PanelCardFooter always={editing} className={editing ? "justify-end" : "[&>button]:flex-1"}>
           {doneOrEdit}
           {task && !editing ? versionsButton : null}
-          {/* Row actions end with Delete (Tyler, 20 Oct 2026: "the note card is missing a delete button"). */}
-          {task && !editing && !readOnly && !taskNotesAreEmpty(saved) ? (
-            <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDelete(true)}>
-              <Trash2Icon className="size-4" />
-              Delete
-            </Button>
-          ) : null}
         </PanelCardFooter>
-      ) : null}
-      {hideLabel && task && !readOnly ? (
-        <ConfirmDialog
-          open={confirmDelete}
-          onOpenChange={setConfirmDelete}
-          title="Delete these notes?"
-          description="The notes are emptied for everyone on the task, and the Notes card goes from the panel. Add note in the three-dot button starts new ones."
-          confirmLabel="Delete notes"
-          loading={deleting}
-          onConfirm={() => void deleteNotes()}
-        />
       ) : null}
       {task ? (
         <NoteVersionsDialog
@@ -312,6 +285,314 @@ export function TaskNotesField({
           onClose={() => setVersionsOpen(false)}
         />
       ) : null}
+    </div>
+  )
+}
+
+/** How long the notes wait after the last key before saving themselves. */
+const LIVE_SAVE_DELAY_MS = 1000
+
+/** What the task panel's header and ⋮ ask of the notes under them. */
+export type NotesHandle = { showVersions: () => void; askDelete: () => void }
+
+/**
+ * A task's own notes, always open to write in, like a note in the Note app
+ * (Tyler, 28 Oct 2026, Misc 4: `assets/pasted-image-1793200989332143000.png`).
+ * Click and type: the notes save a second after the typing stops and again as
+ * the box is left, with no Edit or Done. Each spell of writing, from clicking
+ * in to clicking away, keeps one earlier version however often it saves.
+ *
+ * In the task panel (`panel`) the notes are the panel's own body, straight
+ * under the task's title as a note's words sit under its name, with no card or
+ * label; the header's pencil shows the text toolbar (`toolbar`) and its ⋮
+ * reaches Earlier versions and Delete through `handle`. In the Team
+ * dashboard's window they sit among the fields under a Notes label.
+ *
+ * Saved notes that change while nobody is writing here (another person's
+ * edit, Bring back, Delete) are drawn fresh; while someone is writing, their
+ * words are never replaced. In the box a click places the cursor, so a link
+ * opens with Cmd-click (Ctrl-click off a Mac). Someone who can't change the
+ * task reads the notes as before.
+ */
+export function LiveTaskNotes({
+  notes,
+  readOnly,
+  onSave,
+  task,
+  panel = false,
+  toolbar = false,
+  handle,
+}: {
+  notes: string
+  readOnly: boolean
+  onSave: (notes: WrittenPageNode, session: string) => Promise<boolean>
+  task: { id: string; links: Record<string, string>; change: Change }
+  panel?: boolean
+  toolbar?: boolean
+  handle?: React.Ref<NotesHandle>
+}) {
+  const navigate = useNavigate()
+  const linking = useNotesLinking(true)
+  const [versionsOpen, setVersionsOpen] = React.useState(false)
+  const [confirmDelete, setConfirmDelete] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
+  // Drawn again from the saved notes whenever this changes.
+  const [drawn, setDrawn] = React.useState({ notes, version: 0 })
+  const editorBox = React.useRef<HTMLDivElement>(null)
+  // In the box, or typed words not yet saved: the saved notes wait to be drawn.
+  const [writing, setWriting] = React.useState(false)
+  const [unsaved, setUnsaved] = React.useState(false)
+  const draft = React.useRef<WrittenPageNode | null>(null)
+  const session = React.useRef("")
+  const timer = React.useRef(0)
+  // One save at a time, in the order typed.
+  const saving = React.useRef<Promise<unknown>>(Promise.resolve())
+  const save = React.useRef(onSave)
+  React.useEffect(() => {
+    save.current = onSave
+  })
+  React.useImperativeHandle(handle, () => ({
+    showVersions: () => setVersionsOpen(true),
+    askDelete: () => setConfirmDelete(true),
+  }))
+
+  if (notes !== drawn.notes && !writing && !unsaved) {
+    setDrawn({ notes, version: drawn.version + 1 })
+  }
+
+  const flush = React.useCallback(() => {
+    window.clearTimeout(timer.current)
+    const next = draft.current
+    if (!next) return
+    const spell = session.current || crypto.randomUUID()
+    saving.current = saving.current.then(async () => {
+      const ok = await save.current(next, spell)
+      // A newer draft typed while this one saved stays to be saved itself.
+      if (ok && draft.current === next) {
+        draft.current = null
+        setUnsaved(false)
+      }
+    })
+  }, [])
+
+  // Moving to another task, or away from the page, saves what was typed.
+  React.useEffect(() => flush, [flush])
+
+  function changed(body: WrittenPageNode) {
+    draft.current = body
+    setUnsaved(true)
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(flush, LIVE_SAVE_DELAY_MS)
+  }
+
+  // Waits behind any save still on its way, so a late save can't bring the notes back.
+  async function deleteNotes() {
+    setDeleting(true)
+    window.clearTimeout(timer.current)
+    draft.current = null
+    setUnsaved(false)
+    const emptied = saving.current.then(() => save.current(emptyWrittenPageBody(), crypto.randomUUID()))
+    saving.current = emptied
+    const ok = await emptied
+    setDeleting(false)
+    if (ok) setConfirmDelete(false)
+  }
+
+  const versions = (
+    <NoteVersionsDialog
+      open={versionsOpen}
+      taskId={task.id}
+      readOnly={readOnly}
+      change={task.change}
+      onClose={() => setVersionsOpen(false)}
+    />
+  )
+
+  if (readOnly) {
+    if (!panel) return <TaskNotesField notes={notes} readOnly onSave={onSave} task={task} />
+    return (
+      <div className="px-1">
+        <TaskNotesField notes={notes} readOnly onSave={onSave} task={task} hideLabel />
+        {versions}
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid gap-2" role="group" aria-labelledby="task-notes-label">
+      {panel ? (
+        <Label id="task-notes-label" asChild className="sr-only">
+          <span>Notes</span>
+        </Label>
+      ) : (
+        <div className="flex min-h-7 items-center justify-between gap-2">
+          <Label id="task-notes-label" asChild>
+            <span>Notes</span>
+          </Label>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setVersionsOpen(true)}>
+            <HistoryIcon className="size-4" />
+            Earlier versions
+          </Button>
+        </div>
+      )}
+      {panel && toolbar ? <NotesToolbar box={editorBox} /> : null}
+      <div
+        ref={editorBox}
+        data-notes-editor=""
+        className={cn(
+          "relative",
+          // A plain writing area, no box: the panel around it is the note.
+          "[&>div:first-of-type]:rounded-none [&>div:first-of-type]:border-0 [&>div:first-of-type]:bg-transparent",
+          // The Note app's writing: 15px with room to breathe.
+          "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]",
+          // Two lines tall when empty (Tyler, 28 Oct 2026: "make the default row for the note 2 row").
+          panel
+            ? "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-1 [&_.page-rte_.tiptap]:!pt-1 [&_.page-rte_.tiptap]:!pb-4"
+            : "[&_.page-rte_.tiptap]:!min-h-[3.3em] [&_.page-rte_.tiptap]:!px-0 [&_.page-rte_.tiptap]:!py-0"
+        )}
+        onFocus={() => {
+          if (writing) return
+          setWriting(true)
+          session.current = crypto.randomUUID()
+        }}
+        onBlur={(event) => {
+          const next = event.relatedTarget
+          // The link box and the # list sit outside the writing area, so moving into them isn't leaving.
+          if (next instanceof Element && (event.currentTarget.contains(next) || next.closest("[data-slot=popover-content]"))) {
+            return
+          }
+          setWriting(false)
+          flush()
+        }}
+        onClickCapture={(event) => {
+          const link = (event.target as Element).closest("a")
+          if (!link || !(event.metaKey || event.ctrlKey)) return
+          event.preventDefault()
+          const taskId = linkedTaskOf(link.getAttribute("href") ?? "")
+          const projectId = taskId ? task.links[taskId] : undefined
+          if (taskId && projectId) {
+            void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: taskId } })
+          } else if (!taskId) {
+            window.open(link.href, "_blank", "noopener,noreferrer")
+          }
+        }}
+      >
+        <DocumentEditor
+          key={drawn.version}
+          value={notesForEditor(readTaskNotes(drawn.notes))}
+          onChange={changed}
+          extensions={linking.extensions}
+          placeholder="Write, or type # to link a task"
+        />
+        {linking.list}
+      </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete these notes?"
+        description="The notes are emptied for everyone on the task. They are kept in Earlier versions."
+        confirmLabel="Delete notes"
+        loading={deleting}
+        onConfirm={() => void deleteNotes()}
+      />
+      {versions}
+    </div>
+  )
+}
+
+type ToolbarAction = {
+  label: string
+  icon: React.ReactNode
+  active: (editor: Editor) => boolean
+  run: (editor: Editor) => void
+}
+
+const TOOLBAR_ACTIONS: ToolbarAction[] = [
+  { label: "Bold", icon: <BoldIcon />, active: (e) => e.isActive("bold"), run: (e) => e.chain().focus().toggleBold().run() },
+  { label: "Italic", icon: <ItalicIcon />, active: (e) => e.isActive("italic"), run: (e) => e.chain().focus().toggleItalic().run() },
+  {
+    label: "Strikethrough",
+    icon: <StrikethroughIcon />,
+    active: (e) => e.isActive("strike"),
+    run: (e) => e.chain().focus().toggleStrike().run(),
+  },
+  {
+    label: "Heading",
+    icon: <Heading2Icon />,
+    active: (e) => e.isActive("heading", { level: 2 }),
+    run: (e) => e.chain().focus().toggleHeading({ level: 2 }).run(),
+  },
+  {
+    label: "Subheading",
+    icon: <Heading3Icon />,
+    active: (e) => e.isActive("heading", { level: 3 }),
+    run: (e) => e.chain().focus().toggleHeading({ level: 3 }).run(),
+  },
+  {
+    label: "Bullet list",
+    icon: <ListIcon />,
+    active: (e) => e.isActive("bulletList"),
+    run: (e) => e.chain().focus().toggleBulletList().run(),
+  },
+  {
+    label: "Numbered list",
+    icon: <ListOrderedIcon />,
+    active: (e) => e.isActive("orderedList"),
+    run: (e) => e.chain().focus().toggleOrderedList().run(),
+  },
+  {
+    label: "Quote",
+    icon: <TextQuoteIcon />,
+    active: (e) => e.isActive("blockquote"),
+    run: (e) => e.chain().focus().toggleBlockquote().run(),
+  },
+]
+
+/**
+ * The pencil's text toolbar, in the flow at the top of the notes so it never
+ * covers a line (Tyler, 20 Oct 2026, for the Note app: "Just add an edit icon
+ * here and if clicked the tool appears at the top"). Links are made by
+ * selecting words, as before. A press keeps the cursor in the notes.
+ */
+function NotesToolbar({ box }: { box: React.RefObject<HTMLDivElement | null> }) {
+  const [editor, setEditor] = React.useState<Editor | null>(null)
+  const [, redraw] = React.useReducer((n: number) => n + 1, 0)
+
+  // The editor draws itself a moment after it mounts, so it is looked for until it is there.
+  React.useEffect(() => {
+    let found: Editor | null = null
+    const timer = window.setInterval(() => {
+      const area = box.current?.querySelector<HTMLElement & { editor?: Editor }>(".tiptap")
+      if (!area?.editor) return
+      window.clearInterval(timer)
+      found = area.editor
+      found.on("transaction", redraw)
+      setEditor(found)
+    }, 25)
+    return () => {
+      window.clearInterval(timer)
+      found?.off("transaction", redraw)
+    }
+  }, [box])
+
+  return (
+    <div role="toolbar" aria-label="Text" className="flex flex-wrap items-center gap-0.5 rounded-md border px-1 py-0.5">
+      {TOOLBAR_ACTIONS.map((action) => (
+        <Button
+          key={action.label}
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={action.label}
+          aria-pressed={editor ? action.active(editor) : false}
+          disabled={!editor}
+          className="aria-pressed:bg-muted"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => editor && action.run(editor)}
+        >
+          {action.icon}
+        </Button>
+      ))}
     </div>
   )
 }

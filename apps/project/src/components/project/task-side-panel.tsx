@@ -2,9 +2,10 @@ import * as React from "react"
 import {
   ArrowLeftIcon,
   EllipsisVerticalIcon,
+  HistoryIcon,
   MessageSquarePlusIcon,
   PaperclipIcon,
-  PenLineIcon,
+  PencilLineIcon,
   SettingsIcon,
   SquareMousePointerIcon,
   TagIcon,
@@ -19,6 +20,7 @@ import {
   type TaskSide,
 } from "@/components/project/task-body"
 import { PanelCard } from "@/components/project/panel-card"
+import type { NotesHandle } from "@/components/project/task-notes"
 import { ASK_TIME_DAY_ID, MOVE_PICKER_ID, TaskMoreRows } from "@/components/project/task-more-menu"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
@@ -92,6 +94,9 @@ function SidePanel({
   const { side } = parts
   const frame = React.useRef<HTMLDivElement>(null)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
+  // The pencil's text toolbar over the notes, as in the Note app (Misc 4).
+  const [toolbar, setToolbar] = React.useState(false)
+  const notes = React.useRef<NotesHandle>(null)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   // A pick in Task settings that opens a card in the panel: the keyboard goes
   // there instead of back to the cog as the window closes.
@@ -118,7 +123,20 @@ function SidePanel({
         {side ? (
           <div className="flex min-w-0 flex-1 items-start gap-1">
             <div className="min-w-0 flex-1">{side.title}</div>
-            <TaskAddMenu side={side} />
+            {side.readOnly ? null : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={toolbar ? "Hide the text toolbar" : "Show the text toolbar"}
+                aria-pressed={toolbar}
+                className="aria-pressed:bg-muted"
+                onClick={() => setToolbar((shown) => !shown)}
+              >
+                <PencilLineIcon className="size-4" />
+              </Button>
+            )}
+            <TaskAddMenu side={side} notes={notes} />
             <TaskSettingsMenu
               side={side}
               open={settingsOpen}
@@ -160,7 +178,7 @@ function SidePanel({
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <div className="grid gap-3 p-3">
-          {side ? <SideBody side={side} /> : parts.body}
+          {side ? <SideBody side={side} toolbar={toolbar} notes={notes} /> : parts.body}
         </div>
       </ScrollArea>
       {/* Stays at the bottom while the rest scrolls (Tyler, 20 Oct 2026). */}
@@ -187,17 +205,23 @@ function SidePanel({
   )
 }
 
-function SideBody({ side }: { side: TaskSide }) {
+function SideBody({
+  side,
+  toolbar,
+  notes,
+}: {
+  side: TaskSide
+  toolbar: boolean
+  notes: React.Ref<NotesHandle>
+}) {
   return (
     <>
       {side.tagList}
       {side.link}
       {side.notices}
-      {side.notes.empty ? null : (
-        <PanelCard storageId="project-task-notes" title="Notes" settings>
-          {side.notes.field({ adding: false, onFinished: () => undefined })}
-        </PanelCard>
-      )}
+      {/* The panel's own body under the title, always there to write in, as a
+          note's words sit under its name in the Note app (Tyler, 28 Oct 2026). */}
+      {side.notes.empty && side.readOnly ? null : side.notes.field({ toolbar, handle: notes })}
       <PanelCard storageId="project-task-steps" title="Steps" meta={side.steps.meta} settings={!side.readOnly}>
         <StepsBox>{side.steps.content}</StepsBox>
       </PanelCard>
@@ -210,26 +234,23 @@ function SideBody({ side }: { side: TaskSide }) {
   )
 }
 
-type Adding = "tags" | "note" | "chat" | "files"
+type Adding = "tags" | "chat" | "files"
 
 /**
  * The three-dot button (Tyler, 20 Oct 2026): a dropdown of Add tags, Add
- * note, Add comment and Add files, and the one picked takes the dropdown's
- * place.
+ * comment and Add files, and the one picked takes the dropdown's place. Add
+ * note left it on 28 Oct 2026, when the Notes card became always there to
+ * write in.
  * - **Add tags** holds the tags box: Enter places a tag, its × takes it off.
  *   The tags show under the title.
- * - **Add note** (only while the task has no notes) opens the editor ready.
- *   Done saves, and only then does the Notes card appear in the panel; closed
- *   with nothing typed, nothing appears.
  * - **Add comment** (only while the chat is empty) holds the chat's box to
  *   write the first message. Once one is sent the Chat card appears.
  * - **Add files** lists the task's files with the place to drop more, its
  *   count beside it.
  */
-function TaskAddMenu({ side }: { side: TaskSide }) {
+function TaskAddMenu({ side, notes }: { side: TaskSide; notes: React.RefObject<NotesHandle | null> }) {
   const [open, setOpen] = React.useState(false)
   const [adding, setAdding] = React.useState<Adding | null>(null)
-  const canNote = side.notes.empty && !side.readOnly
   const canChat = side.chat.count === 0 && !side.readOnly
   const filesCount = side.files.count
   const filesLabel = filesCount ? `${filesCount} ${plural(filesCount, "file")}` : "Files"
@@ -244,7 +265,6 @@ function TaskAddMenu({ side }: { side: TaskSide }) {
 
   const rows: { key: Adding; label: string; icon: React.ReactNode; meta?: number }[] = [
     ...(side.readOnly ? [] : [{ key: "tags" as const, label: "Add tags", icon: <TagIcon /> }]),
-    ...(canNote ? [{ key: "note" as const, label: "Add note", icon: <PenLineIcon /> }] : []),
     ...(canChat ? [{ key: "chat" as const, label: "Add comment", icon: <MessageSquarePlusIcon /> }] : []),
     { key: "files", label: "Add files", icon: <PaperclipIcon />, meta: filesCount },
   ]
@@ -265,7 +285,7 @@ function TaskAddMenu({ side }: { side: TaskSide }) {
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>Add tags, a note, a comment or files</TooltipContent>
+        <TooltipContent>Add tags, a comment or files</TooltipContent>
       </Tooltip>
       {/* It opens leftward from the button and keeps 16px off the window's edge. */}
       <PopoverContent
@@ -275,19 +295,49 @@ function TaskAddMenu({ side }: { side: TaskSide }) {
         className={cn("gap-3", adding ? "w-[min(24rem,calc(100vw-2rem))] p-3" : "w-56 gap-0 p-1")}
       >
         {adding === null ? (
-          rows.map((row) => (
+          <>
+            {rows.map((row) => (
+              <Button
+                key={row.key}
+                type="button"
+                variant="ghost"
+                className="w-full justify-start font-normal [&_svg]:text-muted-foreground"
+                onClick={() => setAdding(row.key)}
+              >
+                {row.icon}
+                <span className="flex-1 text-left">{row.label}</span>
+                {row.meta ? <span className="text-xs text-muted-foreground">{row.meta}</span> : null}
+              </Button>
+            ))}
+            {/* The notes' own two, which sat in their card's footer before the notes became the panel's body. */}
+            <div className="-mx-1 my-1 border-t" />
             <Button
-              key={row.key}
               type="button"
               variant="ghost"
               className="w-full justify-start font-normal [&_svg]:text-muted-foreground"
-              onClick={() => setAdding(row.key)}
+              onClick={() => {
+                toggle(false)
+                notes.current?.showVersions()
+              }}
             >
-              {row.icon}
-              <span className="flex-1 text-left">{row.label}</span>
-              {row.meta ? <span className="text-xs text-muted-foreground">{row.meta}</span> : null}
+              <HistoryIcon />
+              <span className="flex-1 text-left">Earlier versions of the notes</span>
             </Button>
-          ))
+            {side.readOnly || side.notes.empty ? null : (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full justify-start font-normal [&_svg]:text-muted-foreground"
+                onClick={() => {
+                  toggle(false)
+                  notes.current?.askDelete()
+                }}
+              >
+                <Trash2Icon />
+                <span className="flex-1 text-left">Delete the notes</span>
+              </Button>
+            )}
+          </>
         ) : (
           <>
             <div className="flex items-center gap-1">
@@ -314,8 +364,6 @@ function TaskAddMenu({ side }: { side: TaskSide }) {
               </>
             ) : adding === "tags" ? (
               side.tags
-            ) : adding === "note" ? (
-              side.notes.field({ adding: true, onFinished: () => toggle(false) })
             ) : (
               side.chat.content
             )}

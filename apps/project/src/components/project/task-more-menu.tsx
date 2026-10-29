@@ -5,6 +5,7 @@ import {
   CalendarClockIcon,
   CopyIcon,
   FolderInputIcon,
+  LayoutTemplateIcon,
   Loader2Icon,
   MoreHorizontalIcon,
 } from "lucide-react"
@@ -37,6 +38,7 @@ import {
   type TaskDetail,
 } from "@/lib/api/project/tasks"
 import { setReminder } from "@/lib/api/project/planning"
+import { saveTaskAsTemplate } from "@/lib/api/project/task-types"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { shortDayLabel } from "@/lib/project/days"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
@@ -228,7 +230,88 @@ export function TaskMoreRows({
           Ask for more time
         </Button>
       ) : null}
+      {detail.canSaveTemplate ? <SaveAsTemplateRow detail={detail} onSaved={onPicked} /> : null}
     </>
+  )
+}
+
+/**
+ * "Save as task template" (Tyler, 28 Oct 2026, Misc 4). The row opens in
+ * place into a name box, started on the task's title and selected, with Save
+ * and Cancel. The new template holds the task's steps with their fields, its
+ * notes, and its template's fields, and New task offers it at once.
+ */
+function SaveAsTemplateRow({ detail, onSaved }: { detail: TaskDetail; onSaved: () => void }) {
+  const [naming, setNaming] = React.useState(false)
+  const [name, setName] = React.useState("")
+  const [run, saving] = useAsyncAction(getProjectErrorMessage)
+  const router = useRouter()
+
+  async function save() {
+    const next = name.trim()
+    if (!next) {
+      showErrorToast("Give the template a name.")
+      return
+    }
+    const ok = await run(
+      () => saveTaskAsTemplate(detail.task.id, next),
+      `Saved "${next}". Pick it as the template in New task.`
+    )
+    if (!ok) return
+    setNaming(false)
+    onSaved()
+    await router.invalidate()
+  }
+
+  if (!naming) {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        className="justify-start"
+        onClick={() => {
+          setName(detail.task.title.slice(0, LIMITS.typeName))
+          setNaming(true)
+        }}
+      >
+        <LayoutTemplateIcon className="size-4" />
+        Save as task template
+      </Button>
+    )
+  }
+  return (
+    <form
+      className="grid gap-2 rounded-md p-2"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void save()
+      }}
+    >
+      <Label htmlFor="save-task-template-name">Template name</Label>
+      <Input
+        id="save-task-template-name"
+        value={name}
+        maxLength={LIMITS.typeName}
+        autoFocus
+        onFocus={(event) => event.currentTarget.select()}
+        onChange={(event) => setName(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.stopPropagation()
+            setNaming(false)
+          }
+        }}
+      />
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" disabled={saving} onClick={() => setNaming(false)}>
+          Cancel
+        </Button>
+        <Button type="submit" size="sm" disabled={saving}>
+          {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
+          Save
+        </Button>
+      </div>
+    </form>
   )
 }
 

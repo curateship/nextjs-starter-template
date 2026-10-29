@@ -258,7 +258,7 @@ export function TaskFilterFields({
           </SelectContent>
         </Select>
       </FilterRow>
-      <FilterRow id={`${idPrefix}-type`} label="Type">
+      <FilterRow id={`${idPrefix}-type`} label="Template">
         <Select
           value={filters.type ?? ALL}
           onValueChange={(value) => onChange({ type: value === ALL ? undefined : value })}
@@ -267,7 +267,7 @@ export function TaskFilterFields({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>Any type</SelectItem>
+            <SelectItem value={ALL}>Any template</SelectItem>
             {types.map((type) => (
               <SelectItem key={type.id} value={type.id}>
                 <TypeIconGlyph icon={type.icon} color={type.color} />

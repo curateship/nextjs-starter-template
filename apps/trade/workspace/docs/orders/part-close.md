@@ -167,9 +167,41 @@ waiting order is sent:
   before.
 
 The price can still move in the split second between the read and the order
-arriving, and KuCoin can still cancel the order then. That case is not handled
-yet: the close keeps waiting, as described under "A missing order does not mean
-a part close is gone". The × on the close ends it.
+arriving, and KuCoin can still cancel the order then. That case is handled
+below.
+
+### When the exchange cancels the waiting order straight away
+
+Aster does the same as KuCoin. It accepts a waiting-only order whose price
+would trade at once, hands back an order number, and expires it the same
+instant. On 28 Oct 2026 a 0.4 SNDK close on Aster went out at $1,365.67 while a
+buyer was already paying that. Aster's own record for the order reads
+"EXPIRED", 0 sold. The order dropped off the open-orders list. Under "A missing
+order does not mean a part close is gone" Trade waits for the whole piece to
+leave the position, which never happened, so the chart said "Placing order..."
+for good.
+
+So on Aster and KuCoin, a waiting-only order that is missing gets one more
+check:
+
+- After it has been missing for 2 seconds, Trade asks the exchange about that
+  one order by its number. It asks again at most every 5 seconds.
+- If the exchange says the order is still working, or gives no clear answer,
+  Trade keeps waiting as before.
+- If the exchange says the order has ended (filled, cancelled or expired),
+  Trade lets go of the number. The next pass sends a fresh order for whatever
+  is still to sell, priced off the current price.
+- An order that sold part of its amount before it ended is let go only once the
+  position shows that sale. With 0.1 of 0.4 sold and the position still reading
+  0.4, Trade waits. Once it reads 0.3, the fresh order is for 0.3, not 0.4.
+
+Copies' opening orders use the same chase, so they get the same check. The
+other exchanges refuse a takeable waiting-only order outright, and the retry
+above already covers them.
+
+`endedOnTheExchange` in `src/server/trade/smart-watch.ts` asks the question.
+`asterOrderEnded` in `src/server/protocols/aster/orders.ts` and
+`kucoinOrderEnded` in `src/server/protocols/kucoin/orders.ts` answer it.
 
 `fetchKucoinBookTop` in `src/server/protocols/kucoin/markets.ts` reads the book,
 and `placeLiveOrder` in `src/server/trade/live-orders.ts` moves the price when

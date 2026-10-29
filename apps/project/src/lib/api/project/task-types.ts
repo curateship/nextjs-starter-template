@@ -8,6 +8,7 @@ import {
   projectTypesSchema,
   reorderFieldsSchema,
   reorderSchema,
+  saveTaskAsTypeSchema,
   setFieldValueSchema,
   setTaskTypeSchema,
   updateFieldSchema,
@@ -25,6 +26,7 @@ import {
   loadTaskTypesPage,
   reorderTaskTypes,
   reorderTypeFields,
+  saveTaskAsType,
   setProjectTypes,
   setTaskFieldValue,
   setTaskType,
@@ -116,6 +118,15 @@ const setProjectTypesFn = createServerFn({ method: "POST" })
   .inputValidator(projectTypesSchema)
   .handler(async ({ data, context }) => setProjectTypes(context.user.id, data))
 
+const saveTaskAsTypeFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(saveTaskAsTypeSchema)
+  .handler(async ({ data, context }) => saveTaskAsType(context.user.id, data))
+
+/** "Save as task template" from a task's cog: a new template from the task. */
+export function saveTaskAsTemplate(taskId: string, name: string) {
+  return saveTaskAsTypeFn({ data: { taskId, name } })
+}
 export function makeTaskType(data: z.input<typeof createTypeSchema>, teamId?: string) {
   return createTypeFn({ data: { ...data, teamId } })
 }

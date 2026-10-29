@@ -199,6 +199,19 @@ export type LadderEngineDeps = {
    * 15 Oct 2026).
    */
   cashSkipped?: (skip: GridCashSkip) => Promise<void>
+  /**
+   * Asks the exchange whether one missing order has ended, by its number, and
+   * how many coins it traded first. Null is no clear answer.
+   *
+   * Only the real-money engine passes it, and only for venues that accept a
+   * waiting-only order and cancel it a moment later (Aster, KuCoin). A
+   * waiting-only close that goes missing is otherwise never let go, because
+   * absence alone is not proof (`judgeOrder`).
+   */
+  orderEnded?: (
+    marketKey: string,
+    orderId: string
+  ) => Promise<{ ended: boolean; filledSz: number } | null>
   /** Writes the order's plan and status down, for the same reason. */
   saveLadder: (
     row: SmartRow,

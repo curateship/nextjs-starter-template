@@ -140,6 +140,11 @@ my own order (below), then any I haven't placed, soonest first.
 - **A heading's arrow** beside the "+" folds that heading shut, and the same
   arrow, pointing right, opens it again (Tyler, 24 Oct 2026: "beside the +
   icon, there should be a arrow collapse icon to collapse the section too").
+  The arrow shows only while the heading is pointed at, folded too (Tyler,
+  28 Oct 2026: "this icon should only appear on hover",
+  `assets/pasted-image-1793203487769342000.png`); a phone always shows it.
+  One click anywhere on the heading folds or opens it ("Make section one
+  click to uncollapsed"); a click on the "+" or the arrow does only that.
   The count stays in view. This browser remembers which headings are folded
   (Tyler, the same day: "the collapse doesnt remember"), one set for My
   dashboard, shared by the employee's List and the site admin's table.

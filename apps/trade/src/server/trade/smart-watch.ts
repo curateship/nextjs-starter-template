@@ -38,9 +38,57 @@ import type {
 /** When each wallet last moved an order, so a chase cannot outrun the exchange. */
 const walletChasedAt = new Map<string, number>()
 
+/** When each missing order was last asked about by its own number. */
+const endedAskedAt = new Map<string, number>()
+
 /** Test support: forgets every wallet's gate. */
 export function resetWatchChaseGate(): void {
   walletChasedAt.clear()
+  endedAskedAt.clear()
+}
+
+/**
+ * How long a waiting-only order is missing before the exchange is asked about
+ * it by number, and how often after that. The open-orders list lags a second
+ * or two, so the first ask waits that out; one ask per order every five
+ * seconds keeps a stuck close off the exchange's request limit.
+ */
+const ENDED_ASK_AFTER_MS = 2_000
+const ENDED_ASK_EVERY_MS = 5_000
+
+/**
+ * Whether a missing waiting-only order has provably ended, so its number can
+ * be let go and a fresh one placed for what is still to trade.
+ *
+ * Aster and KuCoin accept a waiting-only order whose price would trade at
+ * once and cancel it a moment later, without calling it a refusal. A missing
+ * waiting-only order is never let go on absence alone (`judgeOrder`), so on
+ * 28 Oct 2026 a 0.4 SNDK close on Aster sat on "Placing order..." for good
+ * behind an order Aster had expired the instant it arrived.
+ *
+ * The exchange's own answer for that one order is the proof, with one more
+ * condition: whatever the order traded before it ended must already show in
+ * the position. The position is what sizes the next order, and a read that
+ * has not caught up with a fill would size the replacement as if the fill
+ * never happened.
+ */
+async function endedOnTheExchange(
+  deps: LadderEngineDeps,
+  marketKey: string,
+  plan: WatchPlan,
+  positionSzi: number,
+  now: number
+): Promise<boolean> {
+  const orderId = plan.orderId
+  if (!deps.orderEnded || !orderId || orderId.startsWith("pending:")) {
+    return false
+  }
+  if (now - plan.missingSince < ENDED_ASK_AFTER_MS) return false
+  if (now - (endedAskedAt.get(orderId) ?? 0) < ENDED_ASK_EVERY_MS) return false
+  rememberEngineTimestamp(endedAskedAt, orderId, now)
+  const answer = await deps.orderEnded(marketKey, orderId)
+  if (!answer?.ended) return false
+  return Math.abs(positionSzi - plan.heldWhenPlaced) + 1e-9 >= answer.filledSz
 }
 
 export type WatchRow = {
@@ -178,9 +226,29 @@ export async function advanceWatch(
       changed = true
     } else if (seen.presence === "unproven" && plan.phase !== "stopping") {
       // Missing, and nothing yet says what became of it. Placing a
-      // replacement here is exactly how the same money gets spent twice.
-      if (changed) await deps.saveLadder(row, "active", now)
-      return
+      // replacement here is exactly how the same money gets spent twice,
+      // unless the exchange itself says the order has ended.
+      if (
+        plan.maker &&
+        (await endedOnTheExchange(
+          deps,
+          row.marketKey,
+          plan,
+          position?.szi ?? 0,
+          now
+        ))
+      ) {
+        plan.orderId = null
+        plan.orderPx = null
+        plan.missingSince = 0
+        // The exchange's own word that the order is over is as good as a
+        // confirmed cancel, which is the only other thing that clears this.
+        plan.sent = false
+        changed = true
+      } else {
+        if (changed) await deps.saveLadder(row, "active", now)
+        return
+      }
     }
   }
 

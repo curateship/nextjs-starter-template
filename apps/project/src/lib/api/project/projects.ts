@@ -7,8 +7,6 @@ import {
   createProjectSchema,
   projectClientSchema,
   projectLeadSchema,
-  renameTemplateSchema,
-  saveTemplateSchema,
   statusOrderSchema,
   taskMilestoneSchema,
   updateMilestoneSchema,
@@ -40,12 +38,6 @@ import {
   setWholeTeam,
   updateProject,
 } from "@/server/project/projects"
-import {
-  deleteTemplate,
-  listMyTeamTemplates,
-  renameTemplate,
-  saveTemplate,
-} from "@/server/project/templates"
 
 export type {
   ActivityEntry,
@@ -54,7 +46,6 @@ export type {
   TaskActivityEntry,
 } from "@/server/project/project-activity"
 export type { Milestone } from "@/server/project/milestones"
-export type { TemplateRow } from "@/lib/project/templates"
 export type {
   LateCandidate,
   ProjectListRow,
@@ -173,26 +164,6 @@ const taskMilestoneFn = createServerFn({ method: "POST" })
   .inputValidator(taskMilestoneSchema)
   .handler(async ({ data, context }) => setTaskMilestone(context.user.id, data))
 
-const listTemplatesFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
-  .inputValidator(z.object(teamScope))
-  .handler(async ({ data, context }) => inTeam(data.teamId, () => listMyTeamTemplates(context.user.id)))
-
-const saveTemplateFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(saveTemplateSchema)
-  .handler(async ({ data, context }) => saveTemplate(context.user.id, data))
-
-const renameTemplateFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(renameTemplateSchema)
-  .handler(async ({ data, context }) => renameTemplate(context.user.id, data))
-
-const deleteTemplateFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ templateId: id }))
-  .handler(async ({ data, context }) => deleteTemplate(context.user.id, data.templateId))
-
 export function loadProjectsDashboard(team?: string) {
   return loadProjectsPageFn({ data: { team } })
 }
@@ -246,16 +217,4 @@ export function removeMilestone(milestoneId: string) {
 }
 export function saveTaskMilestone(taskId: string, milestoneId: string | null) {
   return taskMilestoneFn({ data: { taskId, milestoneId } })
-}
-export function loadTemplates(teamId?: string) {
-  return listTemplatesFn({ data: { teamId } })
-}
-export function saveAsTemplate(projectId: string, name: string) {
-  return saveTemplateFn({ data: { projectId, name } })
-}
-export function renameProjectTemplate(templateId: string, name: string) {
-  return renameTemplateFn({ data: { templateId, name } })
-}
-export function deleteProjectTemplate(templateId: string) {
-  return deleteTemplateFn({ data: { templateId } })
 }

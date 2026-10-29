@@ -52,7 +52,6 @@ const TEAM_TABLES = [
   schema.projectTeamJoins,
   schema.projectTeamMembers,
   schema.projectTeamMorningNotices,
-  schema.projectTemplates,
   schema.projectTimeOff,
 ] as const
 

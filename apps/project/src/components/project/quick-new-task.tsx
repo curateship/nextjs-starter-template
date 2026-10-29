@@ -419,7 +419,7 @@ export function QuickNewTask({
           {/* The type brings its starting steps and notes (Tyler, 20 Oct 2026). */}
           {offeredTypes.length ? (
             <div className="grid gap-2">
-              <Label htmlFor="quick-task-type">Type</Label>
+              <Label htmlFor="quick-task-type">Template</Label>
               <Select
                 value={typeId ?? NO_TYPE}
                 onValueChange={(value) => setPickedTypeId(value === NO_TYPE ? null : value)}
@@ -428,7 +428,7 @@ export function QuickNewTask({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_TYPE}>Plain task</SelectItem>
+                  <SelectItem value={NO_TYPE}>No template</SelectItem>
                   {offeredTypes.map((option) => (
                     <SelectItem key={option.id} value={option.id}>
                       <TypeIconGlyph icon={option.icon} color={option.color} />

@@ -18,7 +18,7 @@ import { customShellSettings, customShellWorkspaces } from "@/server/schema"
 
 /**
  * Puts Project's dashboards in the left menu: My dashboard, Projects, Team
- * and Task types, with Teams in place of Team in the admins' menus. An employee's menu comes from `roles` in `src/app/options.ts`.
+ * and Task templates, with Teams in place of Team in the admins' menus. An employee's menu comes from `roles` in `src/app/options.ts`.
  *
  * The shell keeps its menus in the database, not in code. Members share one
  * list on the settings row and an admin sees their workspace's own list, and
@@ -90,6 +90,27 @@ function withTeamsLink(sections: unknown): ShellSection[] | null {
 }
 
 /**
+ * Task types became Task templates (Tyler, 28 Oct 2026, Misc 4: "its template
+ * not task type"). A link an admin renamed themselves keeps their name.
+ */
+function withTaskTemplatesName(sections: unknown): ShellSection[] | null {
+  if (!Array.isArray(sections)) return null
+  const list = sections as ShellSection[]
+  return list.map((section) =>
+    section?.id === PROJECT_NAV_SECTION_ID && Array.isArray(section.entries)
+      ? {
+          ...section,
+          entries: section.entries.map((entry) =>
+            entry?.id === TASK_TYPES_ITEM_ID && entry.type === "item" && entry.label === "Task types"
+              ? { ...entry, label: taskTypesItem().label }
+              : entry
+          ),
+        }
+      : section
+  )
+}
+
+/**
  * Each change to the menus, with the marker that says a menu has had it.
  * `adminsOnly` leaves the members' menu alone: a workspace's menu is the one
  * its admins see.
@@ -99,6 +120,7 @@ const PASSES: readonly { suffix: string; change: MenuChange; adminsOnly?: true }
   { suffix: ":task-types", change: withTaskTypesLink },
   { suffix: ":admin-my-dashboard", change: withMyDashboardFirst, adminsOnly: true },
   { suffix: ":teams", change: withTeamsLink, adminsOnly: true },
+  { suffix: ":task-templates-name", change: withTaskTemplatesName },
 ]
 
 /** The section goes first, ahead of whatever the menu already holds. */

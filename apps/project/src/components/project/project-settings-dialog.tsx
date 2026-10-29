@@ -1,12 +1,11 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { ArchiveIcon, ArchiveRestoreIcon, LayoutTemplateIcon } from "lucide-react"
+import { ArchiveIcon, ArchiveRestoreIcon } from "lucide-react"
 
 import { ClientSelect } from "@/components/project/client-select"
 import { ProjectColorSelect } from "@/components/project/project-form-fields"
 import { ProjectMembersCard } from "@/components/project/project-members-card"
 import { ProjectTaskTypesCard } from "@/components/project/project-task-types-card"
-import { SaveTemplateDialog } from "@/components/project/save-template-dialog"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
@@ -44,7 +43,7 @@ type Project = ProjectPage["project"]
 
 /**
  * The project's name, colour, description, client, due date, Doing limit,
- * "Everyone on the team", Save as template, Archive, its status rule, its banner and avatar,
+ * "Everyone on the team", Archive, its status rule, its banner and avatar,
  * members (with the lead) and task types, in a window
  * opened from the cog on the project page's details panel. Each field saves when it
  * is left or Enter is pressed, and the colour, due date and pictures the moment they are picked, so the
@@ -104,7 +103,6 @@ function ProjectSettingsFields({ project, teamClients }: { project: Project; tea
   const [limitInvalid, setLimitInvalid] = React.useState(false)
   const [nameInvalid, setNameInvalid] = React.useState(false)
   const [confirmingWholeTeam, setConfirmingWholeTeam] = React.useState(false)
-  const [savingTemplate, setSavingTemplate] = React.useState(false)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const readOnly = project.archived
 
@@ -293,9 +291,6 @@ function ProjectSettingsFields({ project, teamClients }: { project: Project; tea
           onCheckedChange={(on) => (on ? setConfirmingWholeTeam(true) : void setWholeTeam(false))}
         />
       </div>
-      {savingTemplate ? (
-        <SaveTemplateDialog project={project} open onClose={() => setSavingTemplate(false)} />
-      ) : null}
       <ConfirmDialog
         open={confirmingWholeTeam}
         onOpenChange={setConfirmingWholeTeam}
@@ -306,10 +301,6 @@ function ProjectSettingsFields({ project, teamClients }: { project: Project; tea
         onConfirm={() => setWholeTeam(true)}
       />
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" disabled={busy} onClick={() => setSavingTemplate(true)}>
-          <LayoutTemplateIcon className="size-4" />
-          Save as template
-        </Button>
         <Button type="button" variant="outline" disabled={busy} onClick={() => void toggleArchived()}>
           {project.archived ? (
             <ArchiveRestoreIcon className="size-4" />

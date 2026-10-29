@@ -58,6 +58,7 @@ const {
   fetchKucoinOrderFills,
   fetchKucoinPushedFill,
   fetchKucoinPortfolio,
+  kucoinOrderEnded,
   placeKucoinOrder,
   setKucoinBrackets,
   setKucoinLeverage,
@@ -852,6 +853,79 @@ describe("placing", () => {
     expect(stop?.stopPriceType).toBe("MP")
     expect(target?.stop).toBe("up")
     expect(outcome.protection).toBe("ok")
+  })
+})
+
+describe("whether one order has ended", () => {
+  const cred = () => AUTH.agentKey
+
+  it("says a post-only order KuCoin cancelled at once has ended, with nothing sold", async () => {
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v1/orders/ord-gone",
+          answer: ok({
+            id: "ord-gone",
+            symbol: "XBTUSDTM",
+            status: "done",
+            isActive: false,
+            filledSize: 0,
+          }),
+        },
+      ],
+      []
+    )
+    expect(
+      await kucoinOrderEnded("mainnet", "", "ord-gone", "XBTUSDTM", cred)
+    ).toEqual({ ended: true, filledSz: 0 })
+  })
+
+  it("counts what traded in coins, not contracts", async () => {
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v1/orders/ord-part",
+          answer: ok({
+            id: "ord-part",
+            symbol: "XBTUSDTM",
+            status: "done",
+            isActive: false,
+            filledSize: 5,
+          }),
+        },
+      ],
+      []
+    )
+    expect(
+      await kucoinOrderEnded("mainnet", "", "ord-part", "XBTUSDTM", cred)
+    ).toEqual({ ended: true, filledSz: 0.005 })
+  })
+
+  it("says a working order is still working, and gives no answer for nothing", async () => {
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v1/orders/ord-open",
+          answer: ok({
+            id: "ord-open",
+            symbol: "XBTUSDTM",
+            status: "open",
+            isActive: true,
+            filledSize: 0,
+          }),
+        },
+      ],
+      []
+    )
+    expect(
+      await kucoinOrderEnded("mainnet", "", "ord-open", "XBTUSDTM", cred)
+    ).toEqual({ ended: false, filledSz: 0 })
+    expect(
+      await kucoinOrderEnded("mainnet", "", "ord-none", "XBTUSDTM", cred)
+    ).toBeNull()
   })
 })
 

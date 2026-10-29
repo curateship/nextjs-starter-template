@@ -28,7 +28,7 @@ import type {
   TeamRole,
 } from "@/lib/project/rules"
 import type { SavedViewFilters, SavedViewNames } from "@/lib/project/saved-views"
-import type { TemplateContent } from "@/lib/project/templates"
+import type { StartingStepFields, StepField } from "@/lib/project/step-fields"
 import type { FieldKind, FieldSettings, WhoCanChange } from "@/lib/project/task-fields"
 import { customShellNotifications, customShellUsers } from "@/server/schema"
 
@@ -214,20 +214,6 @@ export const projectProjectEvents = pgTable("project_project_events", {
   /** The new status; null when it was taken off. */
   health: varchar("health", { length: 16 }).$type<ProjectHealth>(),
   note: varchar("note", { length: 200 }),
-  createdAt: createdAt(),
-})
-
-/** A saved project template: a copy of a project's plan, taken when it was saved. */
-export const projectTemplates = pgTable("project_templates", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  teamId: varchar("team_id", { length: 36 })
-    .notNull()
-    .references(() => projectTeams.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  content: jsonb("content").$type<TemplateContent>().notNull(),
-  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(userRef, {
-    onDelete: "set null",
-  }),
   createdAt: createdAt(),
 })
 
@@ -438,6 +424,8 @@ export const projectTaskTypes = pgTable("project_task_types", {
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   /** The steps and notes New task starts with when the type is picked. */
   steps: text("steps").array().notNull().default([]),
+  /** The fields each starting step brings, by the step's words (`drizzle/0135_project_step_fields.sql`). */
+  stepFields: jsonb("step_fields").$type<StartingStepFields>().notNull().default({}),
   notes: text("notes").notNull().default(""),
   createdByUserId: varchar("created_by_user_id", { length: 36 }).references(userRef, {
     onDelete: "set null",
@@ -558,6 +546,8 @@ export const projectTaskSteps = pgTable("project_task_steps", {
     onDelete: "set null",
   }),
   dueDate: date("due_date", { mode: "string" }),
+  /** The step's own name-and-value fields (`drizzle/0135_project_step_fields.sql`). */
+  fields: jsonb("fields").$type<StepField[]>().notNull().default([]),
 })
 
 /**

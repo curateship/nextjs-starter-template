@@ -11,8 +11,6 @@ import { requireKnownZone } from "@/server/project/checkins"
 import { holidayOn, listHolidays, type Holiday } from "@/server/project/holidays"
 import { listTeamLabels, type Label } from "@/server/project/labels"
 import { listStepLists, type StepList } from "@/server/project/step-lists"
-import { listTemplates } from "@/server/project/templates"
-import type { TemplateRow } from "@/lib/project/templates"
 import { clearPersonValues } from "@/server/project/task-types"
 import { pauseClocksOf } from "@/server/project/task-clock-runs"
 import { projectViewScreen } from "@/server/project/saved-views"
@@ -76,8 +74,6 @@ export type TeamDashboard = {
   labels: Label[]
   /** The team's saved step lists, renamed and deleted in Team settings. */
   stepLists: StepList[]
-  /** The team's saved project templates, renamed and deleted in Team settings. */
-  templates: TemplateRow[]
   /** The join link's state, for the site admin; null for everyone else. */
   joinLink: JoinLinkState | null
   /** The team's holidays from today on. */
@@ -229,8 +225,8 @@ export async function listTeams(userId: string, database = db, at = new Date()):
  * refused while anyone is on the team or a shared project is still open, so a
  * slip can't take live work with it. What is left goes with the team row: its
  * archived projects and their tasks, "Just me" lists, check-ins, meetings,
- * labels, task types, templates, step lists, days off and saved views, every
- * one of the 16 tables holding a team's rows deleting with it (`onDelete:
+ * labels, task types, step lists, days off and saved views, every
+ * one of the 15 tables holding a team's rows deleting with it (`onDelete:
  * "cascade"` in `src/server/project/schema.ts`).
  */
 export async function deleteTeam(userId: string, teamId: string, database = db) {
@@ -283,7 +279,6 @@ export async function loadTeamDashboard(
     members,
     labels: await listTeamLabels(membership.teamId, database),
     stepLists: await listStepLists(membership.teamId, database),
-    templates: await listTemplates(membership.teamId, database),
     joinLink: runsTheTeam(membership.role) ? await joinLinkState(membership.teamId, database) : null,
     holidays: await listHolidays(
       membership.teamId,
