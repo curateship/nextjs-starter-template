@@ -92,6 +92,35 @@ edited where it stands, with no settings screen.
     `src/app.tsx`. `src/theme.css` is Custom Shell's and is not changed, and
     the slider is Custom Shell's `src/components/ui/slider.tsx`, copied over
     unchanged.
+- **The cog's layout** is Tyler's drawing of 28 Oct 2026 ("fix ui", then
+  "doesnt match the screenshot"), copied by measuring the picture: 300px
+  wide with 6px inside, 36px rows with 10px sides, a grey icon 10px from each
+  name, lines held 10px in from the edges, and small grey capitals over each
+  group. A row that opens a list shows its value and an arrow on the right.
+  Open in its own tab, Recent screens and Pin to the menu come first. Under
+  "View" sit Zoom, Phone view and Screens kept loaded. Under "Appearance" sit
+  Colour mode, Menu shade and Edit the menu. Sign out is last, in red.
+  `CogMenu` in `src/components/sidebar-footer.tsx`, with the sizes in
+  `COG_ROW` and `COG_LINE` there.
+  - **Phone view is a small switch** (28 by 16) at the row's end. Pressing the
+    row flips it and leaves the cog open. `RowSwitch` only draws the state;
+    the row is the tick box a screen reader reads. The shell's own switch is
+    bigger, so it is not used here.
+  - **The Colour mode icon** is a circle with its left half filled, drawn in
+    the file (`HalfCircleIcon`), since Lucide has no such icon.
+- **Pick light, dark or system** with the three small square buttons on the
+  Colour mode row: a screen to follow the Mac, a sun for light, a moon for
+  dark, in one bordered box. The one in use is raised. Picking keeps the cog
+  open, so the change shows behind it. Before then Personal always followed
+  the Mac. `ColourModeButtons` in `src/components/sidebar-footer.tsx`; the
+  shell's round sliding pill was tried first and did not match the drawing.
+  - **Kept by this browser**, under `personal-colour-mode` in localStorage,
+    like the zoom. It is read before the page first draws, so a dark pick
+    never flashes light, and the sign-in screen follows it too.
+  - **Only Personal changes.** The app in the middle panel keeps its own
+    look; Personal never changes other apps.
+  - **Code:** `src/lib/colour-mode.ts`, started in `src/main.tsx`, with the
+    row in the cog in `src/components/sidebar-footer.tsx`.
 - **Fold the menu to icons.** Tyler asked for it on 22 Oct 2026: "Add
   ability to collapse the sidebar to only show the icons like how normal app
   does it".
