@@ -5,7 +5,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { PERSONAL_PROJECT_ID } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
 import { inTeam } from "@/server/project/access"
-import { loadAdminDashboard, setAdminStatusOrder, setAdminTimeZone } from "@/server/project/admin-dashboard"
+import {
+  FINISHED_DAYS,
+  loadAdminDashboard,
+  setAdminHiddenProjects,
+  setAdminProjectOrder,
+  setAdminStatusOrder,
+  setAdminTimeZone,
+} from "@/server/project/admin-dashboard"
 import { createInvite } from "@/server/project/invites"
 import { createLabel } from "@/server/project/labels"
 import { createMeeting } from "@/server/project/meetings"
@@ -251,6 +258,32 @@ describe("the cards", () => {
     ])
     expect(monday.cards.dueThisWeek.map((card) => card.title)).toEqual(["Due Wednesday"])
     expect(monday.cards.meetings.map((meeting) => [meeting.title, meeting.teamName])).toEqual([["Standup", "Acme"]])
+  })
+})
+
+describe("the Projects card", () => {
+  it("names each project's people, counts what got finished today, and keeps his hidden ones and his order", async () => {
+    const done = (await inTeam(acme, () => createTask(actor(tyler), task(website, "Hero image", ben.id), database))).id
+    await setTaskStatus(actor(ben), { taskId: done, status: "done", stuckReason: null }, database)
+    await setAdminHiddenProjects(tyler.id, [logo], database)
+    await setAdminProjectOrder(tyler.id, [logo, website], database)
+
+    const { cards } = await loadAdminDashboard(tyler.id, database, new Date())
+    expect(cards.projects.map((project) => [project.name, project.dueDate])).toEqual([
+      ["Logo", null],
+      ["Website", null],
+    ])
+    expect(cards.projectCards.people[website]).toEqual({ faces: [{ id: ben.id, name: "Ben", avatarUrl: "" }], total: 1 })
+    expect(cards.projectCards.finished[website]).toHaveLength(FINISHED_DAYS)
+    expect(cards.projectCards.finished[website].at(-1)).toBe(1)
+    expect(cards.projectCards.finished[logo]).toBeUndefined()
+    expect(cards.projectCards.hidden).toEqual([logo])
+    expect(cards.projectCards.order).toEqual([logo, website])
+  })
+
+  it("is the site admin's alone", async () => {
+    await expect(setAdminHiddenProjects(ben.id, [website], database)).rejects.toThrow()
+    await expect(setAdminProjectOrder(ben.id, [website], database)).rejects.toThrow()
   })
 })
 

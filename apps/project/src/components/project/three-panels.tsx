@@ -28,7 +28,9 @@ type Side = { label: string; content: React.ReactNode; showLabel: string }
  * The page fills the screen and each panel scrolls on its own. Below 1280px
  * one panel shows at a time, with a tab for each. All three stay mounted and
  * the hidden two are `inert`, so switching tabs keeps each panel's own tab,
- * scroll and loaded lists instead of starting it over.
+ * scroll and loaded lists instead of starting it over. A screen may add one
+ * more tab there, after the left panel's, for a card that gets a tab of its
+ * own on a phone, such as the site admin's Projects.
  */
 export function ThreePanels({
   layoutKey,
@@ -37,6 +39,7 @@ export function ThreePanels({
   right,
   showMiddleFor,
   showRightFor,
+  narrowTab,
   children,
 }: {
   layoutKey: string
@@ -54,11 +57,13 @@ export function ThreePanels({
    * project page's task does.
    */
   showRightFor?: string
+  /** A fourth tab below 1280px, after the left panel's; the screen draws its content in no panel when wide. */
+  narrowTab?: { label: string; content: React.ReactNode }
   /** Windows that open over the screen. */
   children?: React.ReactNode
 }) {
   const wide = useWideScreen()
-  const [narrowView, setNarrowView] = React.useState<"left" | "middle" | "right">("middle")
+  const [narrowView, setNarrowView] = React.useState<"left" | "middle" | "right" | "extra">("middle")
   const [shownFor, setShownFor] = React.useState(showMiddleFor)
   if (showMiddleFor !== shownFor) {
     setShownFor(showMiddleFor)
@@ -87,16 +92,22 @@ export function ThreePanels({
           <TabsList>
             <TabsTrigger value="middle">{middle.label}</TabsTrigger>
             <TabsTrigger value="left">{left.label}</TabsTrigger>
+            {narrowTab ? <TabsTrigger value="extra">{narrowTab.label}</TabsTrigger> : null}
             <TabsTrigger value="right">{right.label}</TabsTrigger>
           </TabsList>
         </Tabs>
-        {(["middle", "left", "right"] as const).map((side) => (
+        {[
+          { side: "middle", content: middle.content },
+          { side: "left", content: left.content },
+          ...(narrowTab ? [{ side: "extra", content: narrowTab.content }] : []),
+          { side: "right", content: right.content },
+        ].map(({ side, content }) => (
           <WorkspacePanel
             key={side}
             className={narrowView === side ? "flex min-w-0 flex-1 flex-col" : "hidden"}
             inert={narrowView !== side}
           >
-            {side === "middle" ? middle.content : side === "left" ? left.content : right.content}
+            {content}
           </WorkspacePanel>
         ))}
         {children}
