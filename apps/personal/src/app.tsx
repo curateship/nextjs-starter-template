@@ -10,6 +10,7 @@ import { Sidebar } from "@/components/sidebar"
 import { SidebarFooter, type PanelControls } from "@/components/sidebar-footer"
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle"
 import { Button } from "@/components/ui/button"
+import { useColourMode } from "@/lib/colour-mode"
 import {
   activeLinkId,
   addLink,
@@ -131,6 +132,7 @@ function Personal({
   onSignOut: () => void
 } & Pick<ReturnType<typeof useMenu>, "saveStatus" | "retrySave">) {
   const view = usePanelView()
+  const colour = useColourMode()
   const screens = useOpenScreen(
     startLink(menu)?.url ?? null,
     stayLoadedLink(menu)?.url ?? null,
@@ -206,6 +208,8 @@ function Personal({
     setKept: view.setKept,
     shade: menu.sidebarShade ?? 0,
     setShade: (shade) => update((m) => setSidebarShade(m, shade)),
+    colourMode: colour.mode,
+    setColourMode: colour.setMode,
   }
 
   const appMenu: AppMenuControls = {
