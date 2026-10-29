@@ -514,8 +514,11 @@ export async function loadTaskDetail(
     files: await listTaskFiles(viewer, taskId, archived, database),
     assignable: [
       ...assignable.map((row) => ({ ...row, avatarUrl: row.avatarUrl ?? "" })),
-      // The site admin can take the task themselves, so they are in their own list.
-      ...(membership.siteAdmin ? [{ ...(await siteAdminPerson(userId, database)), title: null }] : []),
+      // The site admin can take the task themselves, so they are in their own list,
+      // once: a site admin who joined the project is already in it.
+      ...(membership.siteAdmin && !assignable.some((row) => row.id === userId)
+        ? [{ ...(await siteAdminPerson(userId, database)), title: null }]
+        : []),
     ],
     following: Boolean(follow),
     archived,

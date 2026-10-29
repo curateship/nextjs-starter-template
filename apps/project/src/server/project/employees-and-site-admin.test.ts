@@ -216,6 +216,15 @@ describe("the site admin", () => {
         ben.id,
         tyler.id,
       ])
+      // On the project's people too, they are in the Person list once, not twice (29 Oct 2026).
+      await database.insert(projectProjectMembers).values({ projectId: launch, userId: tyler.id, addedAt: new Date() })
+      expect((await loadTaskDetail(tyler.id, mine, database)).assignable.map((person) => person.id)).toEqual([
+        ben.id,
+        tyler.id,
+      ])
+      // The project page lists only the team's people, so there they were once already.
+      const again = await loadProjectPage(tyler.id, launch, database)
+      expect([...again.members, again.siteAdminMe].map((person) => person?.userId)).toEqual([ben.id, tyler.id])
       // Moved to a project they aren't on either, the task stays theirs.
       expect(await moveTask(actor(tyler), { taskId: mine, projectId: later }, database)).toEqual({ keptAssignee: true })
     }))

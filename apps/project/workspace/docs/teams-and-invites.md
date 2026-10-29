@@ -26,7 +26,8 @@ two kinds of people, both ordinary shell accounts signing in on the one
   can take a task on any project themselves without joining it (Tyler,
   19 Oct 2026: "I should be able to assign myself (admin)"). They then show
   as "Admin (you)" in Assigned to, the List's members dropdown and New task,
-  only to themselves; nobody else can hand them a task, and a task of theirs
+  only to themselves, and once even when they are also on the project's
+  people; nobody else can hand them a task, and a task of theirs
   moved to another project stays theirs. The rule is `requireAssignable` in
   `src/server/project/tasks.ts`.
 
