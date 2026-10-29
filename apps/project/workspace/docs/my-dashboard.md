@@ -148,7 +148,9 @@ my own order (below), then any I haven't placed, soonest first.
   The count stays in view. This browser remembers which headings are folded
   (Tyler, the same day: "the collapse doesnt remember"), one set for My
   dashboard, shared by the employee's List and the site admin's table.
-  Project Lists have the same arrow.
+  Project Lists have the same arrow. A folded heading at the bottom of a
+  List keeps its lines above and below (Tyler, 28 Oct 2026: "bottom section
+  is missing border", then "missing top borader").
 - **Dragging rows** (Tyler, 23 Oct 2026: "I want to be able to drag and drop
   tasks into different order and sections"). On an employee's List any row
   can be grabbed and dragged, and a plain click still opens it. On the site
