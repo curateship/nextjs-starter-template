@@ -35,6 +35,7 @@ import {
   useMovingStills,
   type MovingStillsValue,
 } from "@/components/video-editor/moving-stills-context"
+import { ShotModelFields } from "@/components/video-editor/ai-shot-model-fields"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { useProjectSettings } from "@/components/video-editor/project-settings-context"
 import {
@@ -42,23 +43,18 @@ import {
   deleteGenerations,
   getGenerationErrorMessage,
   listStillShots,
+  loadVideoChoices,
   retryGeneration,
   settleStillShot,
   type GenerationItem,
+  type VideoChoices,
 } from "@/lib/api/video/generations"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
-  DEFAULT_VIDEO_QUALITY,
-  pieceCostCents,
-  qualityPrice,
+  makingPriceLine,
   shotCostCents,
   shotPieces,
-  shotPriceLine,
-  VIDEO_MODEL,
-  VIDEO_QUALITIES,
-  videoQualityName,
   type ShotLengthSeconds,
-  type VideoQuality,
 } from "@/lib/video/asset-factories"
 import { isMovingOrigin, type MovingOrigin } from "@/lib/video/clip-origin"
 import {
@@ -70,7 +66,9 @@ import {
 } from "@/lib/video/moving-still"
 import { REMAKE_BUSY_MESSAGE } from "@/lib/video/remake-clip"
 import { formatCents, isProjectSpendLimitMessage } from "@/lib/video/project-spend"
+import { startingPick, type ShotMakingPick } from "@/lib/video/shot-making"
 import { editorId, formatClock } from "@/lib/video/timeline-utils"
+import { companyOf, sizeFor, VIDEO_MODELS } from "@/lib/video/video-models"
 
 /**
  * Making a picture on the timeline move where it sits
@@ -120,7 +118,8 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
   const { openSettings, refreshSpend } = useProjectSettings()
   const lock = useEditorLock()
   const [shots, setShots] = React.useState<GenerationItem[]>([])
-  const [quality, setQuality] = React.useState<VideoQuality>(DEFAULT_VIDEO_QUALITY)
+  // Which companies have a key and what each starts on, for the window.
+  const [choices, setChoices] = React.useState<VideoChoices | null>(null)
   const [editing, setEditing] = React.useState<Editing | null>(null)
   // Shots this window has started landing, so a later answer that still
   // lists one never lands it twice.
@@ -142,9 +141,14 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
     let active = true
     listStillShots(projectId)
       .then((loaded) => {
-        if (!active) return
-        setShots(loaded.shots)
-        setQuality(loaded.quality)
+        if (active) setShots(loaded.shots)
+      })
+      .catch(() => undefined)
+    // Loaded on its own, so shots still land when this fails. Opening the
+    // window then says so instead of doing nothing.
+    loadVideoChoices()
+      .then((loaded) => {
+        if (active) setChoices(loaded)
       })
       .catch(() => undefined)
     return () => {
@@ -236,6 +240,10 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
           reportError(clip.kind === "image" ? MOVING_STILL_BUSY_MESSAGE : REMAKE_BUSY_MESSAGE)
           return
         }
+        if (!choices) {
+          reportError("The AI video models could not be loaded. Reload the page and try again.")
+          return
+        }
         setEditing({ clip, again })
       },
       retry: (shot) => {
@@ -256,7 +264,7 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
           .catch((error: unknown) => reportError(getGenerationErrorMessage(error)))
       },
     }
-  }, [shots, store, reportError])
+  }, [shots, store, reportError, choices])
 
   async function make(draft: StillDraft) {
     if (!editing) return
@@ -269,9 +277,24 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
       clipId: clip.id,
       prompts: draft.prompts,
       lengthSeconds: draft.lengthSeconds,
-      quality: draft.quality,
+      quality: draft.pick.quality,
+      company: draft.pick.company,
+      sound: draft.pick.sound,
     })
-    setQuality(draft.quality)
+    // Google's next shot starts on the size just used, as the server saved.
+    if (draft.pick.company === "gemini") {
+      setChoices((current) =>
+        current
+          ? {
+              ...current,
+              starts: {
+                ...current.starts,
+                gemini: { ...current.starts.gemini, size: draft.pick.quality },
+              },
+            }
+          : current
+      )
+    }
     setShots((current) => [
       ...current.filter((item) => item.clip?.id !== clip.id),
       shot,
@@ -285,12 +308,12 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
   return (
     <MovingStillsContext.Provider value={value}>
       {children}
-      {editing ? (
+      {editing && choices ? (
         <AnimateStillDialog
           key={editing.clip.id}
           clip={editing.clip}
           again={editing.again}
-          startQuality={editing.again?.quality ?? quality}
+          choices={choices}
           onClose={() => setEditing(null)}
           onMake={make}
           onError={(error) => reportError(getGenerationErrorMessage(error))}
@@ -303,7 +326,17 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
 type StillDraft = {
   prompts: string[]
   lengthSeconds: ShotLengthSeconds
-  quality: VideoQuality
+  pick: ShotMakingPick
+}
+
+/**
+ * What the window starts on: a clip made again keeps the company, size and
+ * sound it was made with; a picture starts on Settings → AI video's.
+ */
+function startPick(choices: VideoChoices, again: MovingOrigin | null): ShotMakingPick {
+  if (!again) return startingPick(choices)
+  const company = companyOf(again.model) ?? "gemini"
+  return { company, quality: sizeFor(company, again.quality), sound: again.sound ?? true }
 }
 
 /**
@@ -315,14 +348,14 @@ type StillDraft = {
 function AnimateStillDialog({
   clip,
   again,
-  startQuality,
+  choices,
   onClose,
   onMake,
   onError,
 }: {
   clip: EditorClip
   again: MovingOrigin | null
-  startQuality: VideoQuality
+  choices: VideoChoices
   onClose: () => void
   onMake: (draft: StillDraft) => Promise<void>
   onError: (error: unknown) => void
@@ -330,7 +363,7 @@ function AnimateStillDialog({
   const { project } = useProjectSettings()
   const lengths = stillShotLengths(clip.durationMs)
   const [lengthSeconds, setLengthSeconds] = React.useState<ShotLengthSeconds>(lengths[0])
-  const [quality, setQuality] = React.useState<VideoQuality>(startQuality)
+  const [pick, setPick] = React.useState<ShotMakingPick>(() => startPick(choices, again))
   // Every piece starts on the clip's own direction, however long a shot is picked.
   const mostPieces = shotPieces(lengths[lengths.length - 1]).count
   const startDirections = again
@@ -341,8 +374,9 @@ function AnimateStillDialog({
   const [busy, setBusy] = React.useState(false)
 
   const pieces = shotPieces(lengthSeconds).count
-  const shotCents = shotCostCents(lengthSeconds)
-  const secondCents = pieceCostCents(VIDEO_MODEL, 1)
+  const model = VIDEO_MODELS[pick.company]
+  const sound = model.soundSwitch ? pick.sound : true
+  const shotCents = shotCostCents(lengthSeconds, model.id, pick.quality, sound)
   const seconds = (clip.durationMs / 1000).toFixed(1)
   const dirty = again
     ? directions.some((line, index) => line !== startDirections[index])
@@ -361,7 +395,7 @@ function AnimateStillDialog({
     }
     setBusy(true)
     try {
-      await onMake({ prompts: sent, lengthSeconds, quality })
+      await onMake({ prompts: sent, lengthSeconds, pick })
     } catch (error) {
       onError(error)
     } finally {
@@ -473,32 +507,20 @@ function AnimateStillDialog({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="still-quality">Quality</Label>
-                      <Select
-                        value={quality}
-                        onValueChange={(next) => setQuality(next as VideoQuality)}
-                        disabled={busy}
-                      >
-                        <SelectTrigger id="still-quality">
-                          <SelectValue>{videoQualityName(quality)}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {VIDEO_QUALITIES.map((item) => (
-                            <SelectItem key={item.id} value={item.id}>
-                              {item.label} {item.id} ·{" "}
-                              {qualityPrice(item.id, secondCents, shotCents)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
                   </div>
+                  <ShotModelFields
+                    idPrefix="still"
+                    choices={choices}
+                    pick={pick}
+                    onPick={setPick}
+                    lengthSeconds={lengthSeconds}
+                    disabled={busy}
+                  />
                   <p className="text-xs text-muted-foreground">
                     {lengthSeconds * 1000 > clip.durationMs
                       ? `Trimmed back to the ${again ? "clip" : "picture"}'s ${seconds} seconds when it lands. `
                       : ""}
-                    {shotPriceLine(quality, lengthSeconds, secondCents, shotCents)}
+                    {makingPriceLine(pick.company, pick.quality, lengthSeconds, sound)}
                   </p>
                   {project.look?.style ? (
                     <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
@@ -584,7 +606,7 @@ export function MakeItMoveCard({ clip }: { clip: EditorClip }) {
   return (
     <InspectorCard
       title="Make it move"
-      description={`Google turns this picture into a moving shot in the same place, from ${formatCents(shotCostCents(shortest))}.`}
+      description={`An AI video model turns this picture into a moving shot in the same place, from ${formatCents(shotCostCents(shortest))} on Google. The next step picks the model.`}
     >
       <Button type="button" variant="outline" className="w-full" onClick={() => stills.open(clip.id)}>
         <FilmIcon />

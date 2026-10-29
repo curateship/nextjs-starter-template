@@ -40,6 +40,7 @@ import {
   videoEditorWindows,
   videoProjectMedia,
 } from "@/server/video/schema"
+import { saveVideoKey } from "@/server/video/settings"
 
 vi.mock("@/server/media/storage", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/media/storage")>()),
@@ -565,5 +566,80 @@ describe("making a moving clip again", () => {
     const seven = (await savedTimeline(project.id)).timeline.tracks[0].clips[1]
     expect(seven).toMatchObject({ kind: "video", mediaId: piece.outputMediaId })
     expect(seven.origin).toBeUndefined()
+  })
+})
+
+describe("making a picture move on Seedance", () => {
+  const savedSecret = process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY
+  beforeEach(() => {
+    process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = "test-secret"
+  })
+  afterEach(() => {
+    if (savedSecret === undefined) delete process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY
+    else process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = savedSecret
+  })
+
+  it("makes it on Seedance without sound, lands it, and Make it again stays there", async () => {
+    const project = await seedProject()
+    await saveVideoKey("seedance", "ark-1234")
+    await createStillShot(user.id, {
+      projectId: project.id,
+      clipId: "seven",
+      prompts: ["Waves crashing, lamp turning"],
+      lengthSeconds: 4,
+      quality: "480p",
+      company: "seedance",
+      sound: false,
+    })
+    const [asked] = await database.select().from(videoAiGenerations)
+    expect(asked).toMatchObject({ model: "seedance-1.5-pro", resolution: "480p", withSound: false })
+
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "cgt-1" })))
+    await videoGenerationTick()
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) =>
+        String(input).endsWith("/tasks/cgt-1")
+          ? Response.json({
+              status: "succeeded",
+              content: { video_url: "https://ark-content.tos-ap-southeast-1.volces.com/a.mp4" },
+              usage: { completion_tokens: 40000 },
+            })
+          : new Response(MP4_START)
+      )
+    )
+    await videoGenerationTick()
+    await movingStillTick()
+    const seven = (await savedTimeline(project.id)).timeline.tracks[0].clips[1]
+    expect(seven.origin).toMatchObject({ model: "seedance-1.5-pro", quality: "480p", sound: false })
+
+    await createStillShot(user.id, {
+      projectId: project.id,
+      clipId: "seven",
+      prompts: ["Waves crashing, the lamp off"],
+      lengthSeconds: 4,
+      quality: "480p",
+    })
+    const remade = await database
+      .select()
+      .from(videoAiGenerations)
+      .where(eq(videoAiGenerations.status, "queued"))
+    expect(remade).toEqual([
+      expect.objectContaining({ model: "seedance-1.5-pro", withSound: false }),
+    ])
+  })
+
+  it("refuses Seedance with no key, saying where it goes", async () => {
+    const project = await seedProject()
+    await expect(
+      createStillShot(user.id, {
+        projectId: project.id,
+        clipId: "seven",
+        prompts: ["Waves"],
+        lengthSeconds: 4,
+        quality: "720p",
+        company: "seedance",
+      })
+    ).rejects.toThrow("Add a Seedance key in Settings → AI video first")
   })
 })

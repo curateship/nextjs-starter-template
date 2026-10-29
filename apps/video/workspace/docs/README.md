@@ -139,6 +139,11 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   warning the second window shows, what read-only stops, and the
   "(unsaved edits)" project that keeps the work of whichever window saves
   second.
+- [wan-and-seedance.md](wan-and-seedance.md) — the two other video models
+  beside Google's, Wan 2.7 and Seedance 1.5 Pro: their keys and regions on
+  Settings → AI video, what each takes (actor pictures, an end picture, a
+  voiceover), their prices, the meter rows Video writes for them, and Try on
+  all models.
 - [longer-ai-clips.md](longer-ai-clips.md) — the video model (Gemini Omni
   Flash, since Google switches Veo off on 22 Oct 2026), the Draft, Normal and
   Sharp sizes and their prices, and how a shot longer than eight seconds is

@@ -1,5 +1,17 @@
 import { aiCostCents, aiUnitCostCents, isUnitPricedModel } from "@/lib/ai/ai-models"
 import { formatCents } from "@/lib/video/project-spend"
+import {
+  companyOf,
+  GEMINI_VIDEO_MODEL,
+  keyedPieceCents,
+  keyedSecondPrice,
+  SEEDANCE_VIDEO_MODEL,
+  VIDEO_MODELS,
+  VIDEO_SIZES,
+  WAN_VIDEO_MODEL,
+  type VideoCompany,
+  type VideoSize,
+} from "@/lib/video/video-models"
 
 export const IMAGE_MODELS = [
   { id: "gemini-2.5-flash-image", label: "Nano Banana" },
@@ -81,11 +93,13 @@ export type VideoDurationSeconds = (typeof VIDEO_DURATIONS)[number]
  * 22 Oct 2026, so shots asked for before then name a Veo model on their rows
  * and are listed under it; `workspace/docs/longer-ai-clips.md` has the story.
  */
-export const VIDEO_MODEL = "gemini-omni-1.1-flash"
+export const VIDEO_MODEL = GEMINI_VIDEO_MODEL
 
 const VIDEO_MODEL_NAMES: Record<string, string> = {
   [VIDEO_MODEL]: "Omni Flash",
   "veo-3.1-generate-preview": "Veo 3.1",
+  [WAN_VIDEO_MODEL]: "Wan 2.7",
+  [SEEDANCE_VIDEO_MODEL]: "Seedance 1.5 Pro",
 }
 
 /** A shot's model in plain words, such as "Omni Flash". */
@@ -103,11 +117,9 @@ export const VIDEO_QUALITIES = [
   { id: "720p", label: "Normal" },
   { id: "1080p", label: "Sharp" },
 ] as const
-export type VideoQuality = (typeof VIDEO_QUALITIES)[number]["id"]
-export const VIDEO_QUALITY_IDS = VIDEO_QUALITIES.map((item) => item.id) as [
-  VideoQuality,
-  ...VideoQuality[],
-]
+/** Every size any model makes. Wan and Seedance have sizes Google has not. */
+export type VideoQuality = VideoSize
+export const VIDEO_QUALITY_IDS = VIDEO_SIZES
 export const DEFAULT_VIDEO_QUALITY: VideoQuality = "720p"
 
 /** "Normal 720p", or the size alone for one not on the list. */
@@ -131,19 +143,35 @@ export function videoTokens(seconds: number) {
 }
 
 /**
- * What one piece of a shot is expected to cost, in cents. A Veo piece from
- * before the switch is priced by the second, the way Veo charged it.
+ * What one piece of a shot is expected to cost, in cents. Wan and Seedance
+ * are priced by size (and Seedance by sound) from `video-models.ts`. A Veo
+ * piece from before the switch is priced by the second, the way Veo charged
+ * it, and Omni Flash by its tokens at 720p.
  */
-export function pieceCostCents(model: string, seconds: number) {
+export function pieceCostCents(
+  model: string,
+  seconds: number,
+  size: VideoQuality = DEFAULT_VIDEO_QUALITY,
+  sound = true
+) {
+  const company = companyOf(model)
+  if (company === "wan" || company === "seedance") {
+    return keyedPieceCents(company, size, seconds, sound)
+  }
   return isUnitPricedModel(model)
     ? aiUnitCostCents(model, seconds)
     : aiCostCents(model, 0, videoTokens(seconds))
 }
 
 /** What a whole new shot is expected to cost, piece by piece, in cents. */
-export function shotCostCents(length: ShotLengthSeconds) {
+export function shotCostCents(
+  length: ShotLengthSeconds,
+  model: string = VIDEO_MODEL,
+  size: VideoQuality = DEFAULT_VIDEO_QUALITY,
+  sound = true
+) {
   const pieces = shotPieces(length)
-  return pieces.count * pieceCostCents(VIDEO_MODEL, pieces.seconds)
+  return pieces.count * pieceCostCents(model, pieces.seconds, size, sound)
 }
 
 /**
@@ -191,6 +219,39 @@ export function shotPriceLine(
   return quality === "360p"
     ? `Draft is quicker and costs less than Normal. ${unpriced}`
     : `Sharp makes a bigger file and takes longer. ${unpriced}`
+}
+
+/**
+ * A size's name and price in a model's Size list. Google's sizes keep their
+ * Draft, Normal and Sharp names and Google's own wording about price.
+ */
+export function sizeOptionLabel(
+  company: VideoCompany,
+  size: VideoQuality,
+  lengthSeconds: ShotLengthSeconds,
+  sound: boolean
+) {
+  const model = VIDEO_MODELS[company]
+  const shotCents = shotCostCents(lengthSeconds, model.id, size, sound)
+  if (company === "gemini") {
+    return `${videoQualityName(size)} · ${qualityPrice(size, pieceCostCents(VIDEO_MODEL, 1), shotCents)}`
+  }
+  return `${size} · ${keyedSecondPrice(company, size, sound)}, ${formatCents(shotCents)}`
+}
+
+/** The line under a shot's choices: what it costs, worked out. */
+export function makingPriceLine(
+  company: VideoCompany,
+  size: VideoQuality,
+  lengthSeconds: ShotLengthSeconds,
+  sound: boolean
+) {
+  const model = VIDEO_MODELS[company]
+  const shotCents = shotCostCents(lengthSeconds, model.id, size, sound)
+  if (company === "gemini") {
+    return shotPriceLine(size, lengthSeconds, pieceCostCents(VIDEO_MODEL, 1), shotCents)
+  }
+  return `Costs about ${formatCents(shotCents)}: ${lengthSeconds} seconds at ${keyedSecondPrice(company, size, sound)}, paid for when it arrives.`
 }
 
 /**

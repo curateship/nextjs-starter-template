@@ -84,6 +84,7 @@ import {
 import { spokenScript, voicePausesRefusal } from "@/lib/video/voice-direction"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { editorId, formatClock } from "@/lib/video/timeline-utils"
+import { companyOf, VIDEO_MODELS } from "@/lib/video/video-models"
 
 /**
  * Make it again on a clip the AI made (`workspace/docs/regenerate-a-scene.md`).
@@ -119,7 +120,16 @@ function voiceLineCents(origin: VoiceOrigin, voice: Pick<Voice, "speaker">, mode
 /** What making this clip once more costs at the choices it was made with. */
 function remakeCents(clip: EditorClip, origin: ClipOrigin) {
   if (isPictureOrigin(origin)) return aiUnitCostCents(origin.model, 1)
-  if (isMovingOrigin(origin)) return shotCostCents(stillShotLengths(clip.durationMs)[0])
+  if (isMovingOrigin(origin)) {
+    // A Google clip is made again on today's model, whatever it was made on.
+    const company = companyOf(origin.model) ?? "gemini"
+    return shotCostCents(
+      stillShotLengths(clip.durationMs)[0],
+      VIDEO_MODELS[company].id,
+      origin.quality,
+      origin.sound ?? true
+    )
+  }
   return voiceLineCents(origin, origin.voice, origin.model, origin.prompt)
 }
 

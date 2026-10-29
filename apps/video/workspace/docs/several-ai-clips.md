@@ -5,6 +5,11 @@ six across all their projects. That lets you try three directions for the same
 first frame and look at all three, instead of waiting several minutes for each
 one in turn.
 
+Try on 2 models, or Try on all 3 models, uses the same room: it makes one shot
+on each model with a key, from one frame and one direction, and counts every
+one of them against the caps and the money before any starts
+(`wan-and-seedance.md`).
+
 ## The caps
 
 - **3 shots at once in one project.** The use case is three tries at one shot.

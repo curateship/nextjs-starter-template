@@ -32,6 +32,7 @@ import {
   listGenerations,
   omniRequestBody,
   retryGeneration,
+  videoChoices,
   videoGenerationTick,
   videoPrompt,
 } from "@/server/video/asset-factories/generations"
@@ -753,7 +754,7 @@ type OmniBody = {
 describe("the picture size", () => {
   it("makes the shot at the size picked, and the next shot starts on it", async () => {
     const project = await seedFirstFrame()
-    expect((await listGenerations(user.id, project.id)).quality).toBe("720p")
+    expect((await videoChoices()).starts.gemini.size).toBe("720p")
 
     await makeShot(project.id, "Waves crash", { quality: "360p" })
 
@@ -761,7 +762,7 @@ describe("the picture size", () => {
     expect(row.resolution).toBe("360p")
     expect(row.model).toBe(VIDEO_MODEL)
     const listed = await listGenerations(user.id, project.id)
-    expect(listed.quality).toBe("360p")
+    expect((await videoChoices()).starts.gemini.size).toBe("360p")
     expect(listed.generations[0].quality).toBe("Draft 360p")
     expect(listed.generations[0].model_name).toBe("Omni Flash")
 

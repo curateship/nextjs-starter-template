@@ -6,7 +6,6 @@ import { alias } from "drizzle-orm/pg-core"
 
 import {
   assetPrompt,
-  DEFAULT_VIDEO_QUALITY,
   FREE_KEY_MESSAGE,
   isFreeTierRefusal,
   PERSON_SHOTS_FULL_MESSAGE,
@@ -35,6 +34,18 @@ import {
   videoReferenceLine,
 } from "@/lib/video/extras"
 import type { MovingOrigin } from "@/lib/video/clip-origin"
+import {
+  COMPANY_NAMES,
+  companyOf,
+  isKeyedCompany,
+  keyedPieceCents,
+  seedanceTokenCents,
+  sizeFor,
+  VIDEO_MODELS,
+  wanSecondsCents,
+  type KeyedCompany,
+  type VideoCompany,
+} from "@/lib/video/video-models"
 import { styledPrompt } from "@/lib/video/visual-style"
 import {
   aiMonthSpendCents,
@@ -47,8 +58,8 @@ import {
 } from "@/server/ai/usage"
 import { getAiKey } from "@/server/ai/keys"
 import { now, uuid } from "@/server/auth/security"
-import { db } from "@/server/db"
-import { getFromR2 } from "@/server/media/storage"
+import { db, type CustomShellDb } from "@/server/db"
+import { getFromR2, getPublicMediaUrl } from "@/server/media/storage"
 import { customShellAiUsageEvents, customShellMedia } from "@/server/schema"
 import { runFfmpeg } from "@/server/video/ffmpeg"
 import {
@@ -56,7 +67,18 @@ import {
   type VideoMediaItem,
 } from "@/server/video/media-list"
 import { readProjectStyle } from "@/server/video/project-look"
-import { getAiDefaults, saveAiDefaults } from "@/server/video/settings"
+import { getAiDefaults, getVideoKey, saveAiDefaults } from "@/server/video/settings"
+import {
+  checkRequest,
+  companyMessage,
+  errorCode,
+  isCompanyResultUrl,
+  jobName,
+  readCheck,
+  startedJobId,
+  startRequest,
+} from "@/server/video/video-companies"
+import { recordVideoCharge } from "@/server/video/video-meter"
 import {
   projectSpendMetadata,
   requireProjectBudget,
@@ -82,6 +104,11 @@ const MAX_VIDEO_BYTES = 100 * 1024 * 1024
 // is a third bigger than the file, plus a little for the rest of the answer.
 const MAX_ANSWER_BYTES = Math.ceil((MAX_VIDEO_BYTES * 4) / 3) + 1024 * 1024
 const JOB_TIMEOUT_MS = 15 * 60 * 1000
+// Wan and Seedance queue jobs on busy days, so their pieces get longer. An
+// hour is also when Seedance is told to drop a job it has not started
+// (`execution_expires_after` in video-companies.ts), so a piece given up on
+// here is never made and billed there afterwards.
+const KEYED_JOB_TIMEOUT_MS = 60 * 60 * 1000
 const JOB_LEASE_MS = 5 * 60 * 1000
 const PROVIDER_REQUEST_TIMEOUT_MS = 90_000
 /**
@@ -181,6 +208,38 @@ export function omniRequestBody(options: {
   }
 }
 
+/**
+ * What Wan or Seedance is told for one piece: the project's style line, the
+ * direction, the person and what they wear, and the rule about the first
+ * frame. Neither company reads Google's picture tags, so there are none.
+ */
+export function keyedPrompt(
+  style: string | null,
+  direction: string,
+  lines: string[],
+  references: boolean
+) {
+  const rule = references
+    ? "Start exactly on the first frame. The reference pictures show who is in the shot: keep their face and clothes. Do not add captions or on-screen text."
+    : "Start exactly on the first frame. Do not add captions or on-screen text."
+  return styledPrompt(
+    { style },
+    [direction, ...(lines.length ? [lines.join("\n")] : []), rule].join("\n\n")
+  )
+}
+
+/** What one piece is expected to cost, at its own model, size and sound. */
+export function rowCents(
+  row: Pick<VideoAiGenerationRow, "model" | "durationSeconds" | "resolution" | "withSound">
+) {
+  return pieceCostCents(
+    row.model,
+    row.durationSeconds,
+    row.resolution as VideoQuality,
+    row.withSound
+  )
+}
+
 /** A piece after the first is "waiting" until the piece before it is ready. */
 export type PieceStatus = "waiting" | "queued" | "processing" | "ready" | "error"
 export type GenerationStatus = Exclude<PieceStatus, "waiting">
@@ -218,11 +277,16 @@ export type GenerationItem = {
   status: GenerationStatus
   error_message: string | null
   pieces: GenerationPiece[]
-  /** The model in plain words: "Omni Flash", or "Veo 3.1" on a shot asked for before the switch. */
+  /** The model in plain words: "Omni Flash", "Wan 2.7", or "Veo 3.1" on a shot asked for before the switch. */
   model_name: string
+  /** Which company makes it, so Try again and the rows can say so. */
+  company: VideoCompany
+  /** Whether it lands on a picked end picture, and whether someone says a voiceover in it. */
+  end_frame: boolean
+  voice: boolean
   /** The size in plain words, such as "Normal 720p". */
   quality: string
-  /** What Google has been paid for the pieces made so far, in cents. */
+  /** What the company has been paid for the pieces made so far, in cents. */
   charged_cents: number
   /** What the whole shot is expected to cost, in cents. */
   expected_cents: number
@@ -292,6 +356,7 @@ export function pieceOrigin(generation: VideoAiGenerationRow): MovingOrigin | nu
     extras: generation.extras,
     aspectRatio: generation.aspectRatio as AssetAspectRatio,
     quality: generation.resolution as VideoQuality,
+    ...(generation.withSound ? {} : { sound: false }),
   }
 }
 
@@ -376,13 +441,12 @@ export async function serializeShot(
     error_message: failed?.error_message ?? null,
     pieces,
     model_name: videoModelName(first.generation.model),
+    company: companyOf(first.generation.model) ?? "gemini",
+    end_frame: rows.some((row) => row.generation.endFrameMediaId),
+    voice: Boolean(first.generation.voiceMediaId),
     quality: videoQualityName(first.generation.resolution),
     charged_cents: names.charged.get(first.generation.shotId) ?? 0,
-    expected_cents: rows.reduce(
-      (sum, row) =>
-        sum + pieceCostCents(row.generation.model, row.generation.durationSeconds),
-      0
-    ),
+    expected_cents: rows.reduce((sum, row) => sum + rowCents(row.generation), 0),
     actor_name:
       names.actors.find((actor) => actor.id === first.generation.actorId)?.name ?? null,
     board_pictures: boardPictureIds(first.generation).length,
@@ -440,13 +504,11 @@ export async function listGenerations(userId: string, projectId: string) {
     asc(videoAiGenerations.shotId),
     asc(videoAiGenerations.shotIndex)
   )
-  const [names, defaults] = await Promise.all([shotNames(userId, rows), getAiDefaults()])
+  const names = await shotNames(userId, rows)
   return {
     generations: await Promise.all(
       groupShots(rows).map((shot) => serializeShot(shot, names))
     ),
-    /** The size the last shot was made at, which the next one starts on. */
-    quality: defaults.videoQuality ?? DEFAULT_VIDEO_QUALITY,
   }
 }
 
@@ -471,6 +533,8 @@ async function shotsBeingMade(userId: string, projectId: string) {
       shotId: videoAiGenerations.shotId,
       model: videoAiGenerations.model,
       durationSeconds: videoAiGenerations.durationSeconds,
+      resolution: videoAiGenerations.resolution,
+      withSound: videoAiGenerations.withSound,
       status: videoAiGenerations.status,
     })
     .from(videoAiGenerations)
@@ -484,7 +548,7 @@ async function shotsBeingMade(userId: string, projectId: string) {
   const runningShots = new Set(running.map((row) => row.shotId))
   const owed = rows.filter((row) => runningShots.has(row.shotId))
   const cents = (list: typeof rows) =>
-    list.reduce((sum, row) => sum + pieceCostCents(row.model, row.durationSeconds), 0)
+    list.reduce((sum, row) => sum + rowCents(row), 0)
   return {
     projectShots: running.filter((row) => row.projectId === projectId).length,
     personShots: running.length,
@@ -499,12 +563,17 @@ async function shotsBeingMade(userId: string, projectId: string) {
  * on the meter until they arrive, so the money checks add them in; otherwise
  * three presses in a row would each see the same untouched balance.
  */
-export async function requireRoomForShot(userId: string, projectId: string, nextCents: number) {
+export async function requireRoomForShot(
+  userId: string,
+  projectId: string,
+  nextCents: number,
+  shots = 1
+) {
   const making = await shotsBeingMade(userId, projectId)
-  if (making.projectShots >= SHOTS_AT_ONCE_PER_PROJECT) {
+  if (making.projectShots + shots > SHOTS_AT_ONCE_PER_PROJECT) {
     throw new Error(PROJECT_SHOTS_FULL_MESSAGE)
   }
-  if (making.personShots >= SHOTS_AT_ONCE_PER_PERSON) {
+  if (making.personShots + shots > SHOTS_AT_ONCE_PER_PERSON) {
     throw new Error(PERSON_SHOTS_FULL_MESSAGE)
   }
   await checkAiAllowance(userId)
@@ -544,23 +613,81 @@ export function rethrowShotsFull(error: unknown): never {
   throw error
 }
 
-export async function createGeneration(
-  userId: string,
-  payload: {
-    projectId: string
-    firstFrameId: string
-    prompts: string[]
-    lengthSeconds: ShotLengthSeconds
-    quality: VideoQuality
-  }
-) {
-  const pieces = shotPieces(payload.lengthSeconds)
-  if (payload.prompts.length !== pieces.count) {
-    throw new Error("Write one direction for each piece of the shot")
-  }
-  const prompts = payload.prompts.map(assetPrompt)
-  const project = await getOwnedProject(userId, payload.projectId)
+/**
+ * Which companies can make a shot right now: Google with a Gemini key in
+ * Settings → AI, Wan and Seedance with their keys in Settings → AI video.
+ */
+export async function companiesReady(): Promise<Record<VideoCompany, boolean>> {
+  const [gemini, wan, seedance] = await Promise.all([
+    getAiKey("gemini"),
+    getVideoKey("wan").catch(() => null),
+    getVideoKey("seedance").catch(() => null),
+  ])
+  return { gemini: Boolean(gemini), wan: Boolean(wan), seedance: Boolean(seedance) }
+}
 
+/**
+ * What the AI clip panel and Make it move start on: the companies with a
+ * key, the one new shots start on (Settings → AI video, or Google when that
+ * one has no key), and each company's starting size, length and sound.
+ */
+export type VideoChoices = {
+  ready: Record<VideoCompany, boolean>
+  company: VideoCompany
+  starts: Record<VideoCompany, { size: VideoQuality; length: ShotLengthSeconds | null; sound: boolean }>
+}
+
+export async function videoChoices(): Promise<VideoChoices> {
+  const [ready, defaults] = await Promise.all([companiesReady(), getAiDefaults()])
+  const saved = defaults.videoModel
+  const keyedStart = (company: KeyedCompany) => {
+    const start = defaults.videoModelDefaults?.[company]
+    return {
+      size: sizeFor(company, start?.size),
+      length: start?.length ?? null,
+      sound: start?.sound ?? true,
+    }
+  }
+  return {
+    ready,
+    company: saved && ready[saved] ? saved : "gemini",
+    starts: {
+      gemini: {
+        size: sizeFor("gemini", defaults.videoQuality),
+        length: null,
+        sound: true,
+      },
+      wan: keyedStart("wan"),
+      seedance: keyedStart("seedance"),
+    },
+  }
+}
+
+/** The refusal when a company has no key, saying where the key goes. */
+export function missingKeyMessage(company: VideoCompany) {
+  return company === "gemini"
+    ? "Add a Google Gemini key in Settings first"
+    : `Add a ${COMPANY_NAMES[company]} key in Settings → AI video first`
+}
+
+/** How one shot is to be made: by whom, at what size, and with what extras. */
+export type ShotMaking = {
+  company: VideoCompany
+  quality: VideoQuality
+  sound: boolean
+  /** A first frame of the same project the shot lands on. */
+  endFrameId: string | null
+  /** A voiceover in the person's own media the person in the shot says. */
+  voiceMediaId: string | null
+}
+
+/**
+ * The first frame and everything sent beside it. Each piece is sent what the
+ * frame was made from: the actor's angles and the extras worn or held on one
+ * board, then the backdrop. A frame made before its angles were written down
+ * is sent the actor's main picture.
+ */
+async function frameForShot(userId: string, projectId: string, firstFrameId: string) {
   const [frame] = await db
     .select({
       frame: videoFirstFrames,
@@ -584,23 +711,15 @@ export async function createGeneration(
     )
     .where(
       and(
-        eq(videoFirstFrames.id, payload.firstFrameId),
+        eq(videoFirstFrames.id, firstFrameId),
         eq(videoFirstFrames.userId, userId),
         // A first frame belongs to one project and only makes clips there.
-        eq(videoFirstFrames.projectId, project.id)
+        eq(videoFirstFrames.projectId, projectId)
       )
     )
     .limit(1)
   if (!frame) throw new Error("First frame not found")
   if (frame.media.fileType !== "image") throw new Error("First frame is not an image")
-  if (!(await getAiKey("gemini"))) {
-    throw new Error("Add a Google Gemini key in Settings first")
-  }
-  await requireRoomForShot(userId, project.id, shotCostCents(payload.lengthSeconds))
-
-  // Each piece is sent what the frame was made from: the actor's angles and
-  // the extras worn or held on one board, then the backdrop. A frame made
-  // before its angles were written down is sent the actor's main picture.
   const sentExtras = sendingOrder(frame.frame.extras)
   const backdrop = sentExtras.find((extra) => extra.kind === "backdrop")
   const referenceMediaIds = [
@@ -612,45 +731,243 @@ export async function createGeneration(
       .map((extra) => extra.media_id),
     ...(backdrop ? [backdrop.media_id] : []),
   ]
-  // The next shot starts on this size. Saved before the shot is written, so
-  // a save that fails never leaves a shot made behind an error.
-  await saveAiDefaults({ videoQuality: payload.quality })
+  return { frame, sentExtras, referenceMediaIds }
+}
 
+/**
+ * Checks what a shot asks for against what its company takes, and finds the
+ * end picture and voiceover. Returns the media ids the pieces carry.
+ */
+export async function shotExtras(
+  userId: string,
+  projectId: string,
+  making: ShotMaking,
+  pieces: number
+) {
+  const model = VIDEO_MODELS[making.company]
+  if (making.endFrameId && !model.endFrame) {
+    throw new Error(`${model.label} cannot land on an end picture`)
+  }
+  if (making.voiceMediaId && !model.voice) {
+    throw new Error(`${model.label} cannot make someone say a voiceover`)
+  }
+  if (making.voiceMediaId && pieces > 1) {
+    throw new Error("A voiceover can be said only in a shot of 8 seconds or less")
+  }
+  let endFrameMediaId: string | null = null
+  if (making.endFrameId) {
+    const [end] = await db
+      .select({ mediaId: videoFirstFrames.imageMediaId })
+      .from(videoFirstFrames)
+      .where(
+        and(
+          eq(videoFirstFrames.id, making.endFrameId),
+          eq(videoFirstFrames.userId, userId),
+          eq(videoFirstFrames.projectId, projectId)
+        )
+      )
+      .limit(1)
+    if (!end) throw new Error("The end picture is no longer in this project")
+    endFrameMediaId = end.mediaId
+  }
+  if (making.voiceMediaId) {
+    const [voice] = await db
+      .select({ id: customShellMedia.id })
+      .from(customShellMedia)
+      .where(
+        and(
+          eq(customShellMedia.id, making.voiceMediaId),
+          eq(customShellMedia.userId, userId),
+          eq(customShellMedia.fileType, "audio")
+        )
+      )
+      .limit(1)
+    if (!voice) throw new Error("That voiceover is no longer in your media")
+  }
+  return { endFrameMediaId, voiceMediaId: making.voiceMediaId }
+}
+
+/** Writes every piece of one shot. Only the first has a starting picture. */
+async function insertShot(
+  userId: string,
+  projectId: string,
+  framed: Awaited<ReturnType<typeof frameForShot>>,
+  prompts: string[],
+  lengthSeconds: ShotLengthSeconds,
+  making: ShotMaking,
+  sent: { endFrameMediaId: string | null; voiceMediaId: string | null },
+  database: Pick<CustomShellDb, "insert"> = db
+) {
+  const pieces = shotPieces(lengthSeconds)
   const at = now()
   const shotId = uuid()
-  // Every piece is written now, so the directions are kept. Only the first
-  // has a starting picture; each later one gets the last frame of the piece
-  // before it once that piece is ready.
-  const created = await db
+  const size = sizeFor(making.company, making.quality)
+  // Every piece is written now, so the directions are kept. Each later one
+  // gets the last frame of the piece before it once that piece is ready, and
+  // only the last one lands on the end picture.
+  const created = await database
     .insert(videoAiGenerations)
     .values(
       prompts.map((prompt, index) => ({
         id: index === 0 ? shotId : uuid(),
         userId,
-        projectId: payload.projectId,
-        firstFrameId: frame.frame.id,
-        firstFrameMediaId: index === 0 ? frame.media.id : null,
+        projectId,
+        firstFrameId: framed.frame.frame.id,
+        firstFrameMediaId: index === 0 ? framed.frame.media.id : null,
         prompt,
-        model: VIDEO_MODEL,
-        aspectRatio: frame.frame.aspectRatio,
+        model: VIDEO_MODELS[making.company].id,
+        aspectRatio: framed.frame.frame.aspectRatio,
         durationSeconds: pieces.seconds,
-        resolution: payload.quality,
+        resolution: size,
+        withSound: VIDEO_MODELS[making.company].soundSwitch ? making.sound : true,
+        endFrameMediaId: index === prompts.length - 1 ? sent.endFrameMediaId : null,
+        voiceMediaId: sent.voiceMediaId,
         shotId,
         shotIndex: index + 1,
         shotPieces: pieces.count,
         status: index === 0 ? "queued" : "waiting",
         attempts: 0,
-        actorId: frame.frame.actorId,
-        referenceMediaIds,
-        extras: sentExtras,
+        actorId: framed.frame.frame.actorId,
+        referenceMediaIds: framed.referenceMediaIds,
+        extras: framed.sentExtras,
         createdAt: at,
         updatedAt: at,
       }))
     )
     .returning()
     .catch(rethrowShotsFull)
-  const rows = created.map((generation) => ({ generation, output: null }))
+  return created.map((generation) => ({ generation, output: null }))
+}
+
+function shotCents(lengthSeconds: ShotLengthSeconds, making: ShotMaking) {
+  return shotCostCents(
+    lengthSeconds,
+    VIDEO_MODELS[making.company].id,
+    sizeFor(making.company, making.quality),
+    VIDEO_MODELS[making.company].soundSwitch ? making.sound : true
+  )
+}
+
+export async function createGeneration(
+  userId: string,
+  payload: {
+    projectId: string
+    firstFrameId: string
+    prompts: string[]
+    lengthSeconds: ShotLengthSeconds
+    quality: VideoQuality
+  } & Partial<Omit<ShotMaking, "quality">>
+) {
+  const making: ShotMaking = {
+    company: payload.company ?? "gemini",
+    quality: payload.quality,
+    sound: payload.sound ?? true,
+    endFrameId: payload.endFrameId ?? null,
+    voiceMediaId: payload.voiceMediaId ?? null,
+  }
+  const pieces = shotPieces(payload.lengthSeconds)
+  if (payload.prompts.length !== pieces.count) {
+    throw new Error("Write one direction for each piece of the shot")
+  }
+  const prompts = payload.prompts.map(assetPrompt)
+  const project = await getOwnedProject(userId, payload.projectId)
+  const framed = await frameForShot(userId, project.id, payload.firstFrameId)
+  if (!(await companiesReady())[making.company]) {
+    throw new Error(missingKeyMessage(making.company))
+  }
+  const sent = await shotExtras(userId, project.id, making, pieces.count)
+  await requireRoomForShot(userId, project.id, shotCents(payload.lengthSeconds, making))
+
+  // Google's next shot starts on this size. Saved before the shot is
+  // written, so a save that fails never leaves a shot made behind an error.
+  // Wan's and Seedance's start on what Settings → AI video says.
+  if (making.company === "gemini") {
+    await saveAiDefaults({ videoQuality: sizeFor("gemini", making.quality) })
+  }
+
+  const rows = await insertShot(
+    userId,
+    project.id,
+    framed,
+    prompts,
+    payload.lengthSeconds,
+    making,
+    sent
+  )
   return await serializeShot(rows, await shotNames(userId, rows))
+}
+
+/**
+ * The same frame and direction made once by every company with a key, so
+ * the shots show side by side. Each starts on its company's size from
+ * Settings: Google's last size, Wan's and Seedance's defaults. The money and
+ * the shots-at-once caps are checked for all of them before any is written.
+ */
+export async function createComparison(
+  userId: string,
+  payload: {
+    projectId: string
+    firstFrameId: string
+    prompts: string[]
+    lengthSeconds: ShotLengthSeconds
+  }
+) {
+  const pieces = shotPieces(payload.lengthSeconds)
+  if (payload.prompts.length !== pieces.count) {
+    throw new Error("Write one direction for each piece of the shot")
+  }
+  const prompts = payload.prompts.map(assetPrompt)
+  const project = await getOwnedProject(userId, payload.projectId)
+  const framed = await frameForShot(userId, project.id, payload.firstFrameId)
+  const [ready, defaults] = await Promise.all([companiesReady(), getAiDefaults()])
+  const makings: ShotMaking[] = (["gemini", "wan", "seedance"] as const)
+    .filter((company) => ready[company])
+    .map((company) => {
+      const saved = isKeyedCompany(company) ? defaults.videoModelDefaults?.[company] : undefined
+      return {
+        company,
+        quality: sizeFor(company, saved?.size ?? (company === "gemini" ? defaults.videoQuality : undefined)),
+        sound: saved?.sound ?? true,
+        endFrameId: null,
+        voiceMediaId: null,
+      }
+    })
+  if (makings.length < 2) {
+    throw new Error("Trying a shot on several models needs keys for at least two of them")
+  }
+  await requireRoomForShot(
+    userId,
+    project.id,
+    makings.reduce((sum, making) => sum + shotCents(payload.lengthSeconds, making), 0),
+    makings.length
+  )
+  // One step for all of them: when the database refuses one (two presses
+  // landing together), none is written and none is paid for.
+  const written = await db
+    .transaction(async (tx) => {
+      const all: GenerationJoin[][] = []
+      for (const making of makings) {
+        all.push(
+          await insertShot(
+            userId,
+            project.id,
+            framed,
+            prompts,
+            payload.lengthSeconds,
+            making,
+            { endFrameMediaId: null, voiceMediaId: null },
+            tx
+          )
+        )
+      }
+      return all
+    })
+    .catch(rethrowShotsFull)
+  const shots: GenerationItem[] = []
+  for (const rows of written) {
+    shots.push(await serializeShot(rows, await shotNames(userId, rows)))
+  }
+  return shots
 }
 
 /** Runs a shot's failed piece again. The pieces after it carry on from there. */
@@ -666,10 +983,14 @@ export async function retryGeneration(userId: string, shotId: string) {
     .where(failed)
     .limit(1)
   if (!piece) throw new Error("Only failed generations can be retried")
-  // The failed piece and every piece waiting behind it will be paid for, on
-  // today's model even when the shot was asked for on Veo.
+  // The failed piece and every piece waiting behind it will be paid for.
   const left = await db
-    .select({ durationSeconds: videoAiGenerations.durationSeconds })
+    .select({
+      model: videoAiGenerations.model,
+      durationSeconds: videoAiGenerations.durationSeconds,
+      resolution: videoAiGenerations.resolution,
+      withSound: videoAiGenerations.withSound,
+    })
     .from(videoAiGenerations)
     .where(
       and(
@@ -678,10 +999,17 @@ export async function retryGeneration(userId: string, shotId: string) {
         inArray(videoAiGenerations.status, ["error", "waiting"])
       )
     )
+  // A Google shot asked for on Veo is made again on today's model. Wan and
+  // Seedance shots stay on their own.
   await requireRoomForShot(
     userId,
     piece.projectId,
-    left.reduce((sum, row) => sum + pieceCostCents(VIDEO_MODEL, row.durationSeconds), 0)
+    left.reduce(
+      (sum, row) =>
+        sum +
+        rowCents(companyOf(row.model) === "gemini" ? { ...row, model: VIDEO_MODEL } : row),
+      0
+    )
   )
   const [updated] = await db
     .update(videoAiGenerations)
@@ -756,6 +1084,18 @@ async function failJob(job: ClaimedGeneration, error: unknown) {
     )
     .returning({ id: videoAiGenerations.id })
   if (!failed) return
+  const company = companyOf(job.model)
+  if (company === "wan" || company === "seedance") {
+    await recordVideoCharge({
+      userId: job.userId,
+      company,
+      model: job.model,
+      status: "failed",
+      cents: 0,
+      metadata: { ...projectSpendMetadata(job.projectId), generationId: job.id, error: message },
+    })
+    return
+  }
   await recordAiUsage({
     userId: job.userId,
     provider: "gemini",
@@ -773,6 +1113,11 @@ async function failJob(job: ClaimedGeneration, error: unknown) {
 }
 
 async function startJob(job: ClaimedGeneration) {
+  const company = companyOf(job.model)
+  if (company === "wan" || company === "seedance") {
+    await startKeyedJob(job, company)
+    return
+  }
   try {
     await checkAiAllowance(job.userId)
     const apiKey = await getAiKey("gemini")
@@ -937,11 +1282,128 @@ async function personFor(job: ClaimedGeneration) {
   }
 }
 
-async function readBytes(response: Response, limit = MAX_VIDEO_BYTES) {
+/** A stored picture of this person's, shrunk to a JPEG of at most 1536 pixels. */
+async function sentPicture(userId: string, mediaId: string, missing: string) {
+  const [media] = await db
+    .select()
+    .from(customShellMedia)
+    .where(
+      and(
+        eq(customShellMedia.id, mediaId),
+        eq(customShellMedia.userId, userId),
+        eq(customShellMedia.fileType, "image")
+      )
+    )
+    .limit(1)
+  if (!media) throw new Error(missing)
+  const shrunk = await shrinkReference(await readStoredPicture(media.storagePath))
+  return { mimeType: shrunk.mimeType, data: Buffer.from(shrunk.bytes).toString("base64") }
+}
+
+/**
+ * Starts one piece on Wan or Seedance. Every picture goes as a JPEG of at
+ * most 1536 pixels inside the request. A voiceover goes as its public
+ * address, which Wan fetches itself.
+ */
+async function startKeyedJob(job: ClaimedGeneration, company: KeyedCompany) {
+  try {
+    await checkAiAllowance(job.userId)
+    const key = await getVideoKey(company)
+    if (!key) throw new Error(missingKeyMessage(company))
+    const firstFrame = await sentPicture(
+      job.userId,
+      job.firstFrameMediaId ?? "",
+      "First frame image is missing"
+    )
+    const endFrame = job.endFrameMediaId
+      ? await sentPicture(job.userId, job.endFrameMediaId, "The end picture is no longer in your media")
+      : null
+    let voiceUrl: string | null = null
+    if (job.voiceMediaId) {
+      const [voice] = await db
+        .select({ storagePath: customShellMedia.storagePath })
+        .from(customShellMedia)
+        .where(
+          and(
+            eq(customShellMedia.id, job.voiceMediaId),
+            eq(customShellMedia.userId, job.userId)
+          )
+        )
+        .limit(1)
+      if (!voice) throw new Error("The voiceover is no longer in your media")
+      voiceUrl = await getPublicMediaUrl(voice.storagePath)
+    }
+    const style = await readProjectStyle(job.userId, job.projectId)
+    // Actor pictures go only where the company takes them beside a first
+    // frame: Wan, without an end picture or a voice.
+    const sendReferences =
+      VIDEO_MODELS[company].references && !endFrame && !voiceUrl && job.shotIndex === 1
+    const person = job.actorId ? await personFor(job) : null
+    const references = sendReferences ? (person?.referenceImages ?? []) : []
+    const request = startRequest(company, key.apiKey, key.region, {
+      prompt: keyedPrompt(style, job.prompt, person?.prompt.lines ?? [], references.length > 0),
+      firstFrame,
+      endFrame,
+      references,
+      voiceUrl,
+      size: sizeFor(company, job.resolution),
+      seconds: job.durationSeconds,
+      aspectRatio: job.aspectRatio as AssetAspectRatio,
+      sound: job.withSound,
+    })
+    const response = await fetch(request.url, {
+      method: "POST",
+      signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+      headers: request.headers,
+      body: JSON.stringify(request.body),
+    })
+    if (
+      response.status === 429 &&
+      now().getTime() - (job.startedAt ?? job.updatedAt).getTime() < KEYED_JOB_TIMEOUT_MS
+    ) {
+      // Too many jobs a minute: the piece waits its turn for a later pass.
+      await requeueJob(job)
+      return
+    }
+    if (!response.ok) {
+      throw new Error(
+        companyMessage(company, response.status, errorCode(company, await response.text()))
+      )
+    }
+    const id = startedJobId(company, await response.json().catch(() => null))
+    if (!id) throw new Error(`${COMPANY_NAMES[company]} did not return a video job`)
+    const [updated] = await db
+      .update(videoAiGenerations)
+      .set({
+        operationName: jobName(key.region, id),
+        leaseToken: null,
+        leaseExpiresAt: null,
+        startedAt: now(),
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(videoAiGenerations.id, job.id),
+          eq(videoAiGenerations.status, "processing"),
+          eq(videoAiGenerations.leaseToken, job.leaseToken)
+        )
+      )
+      .returning({ id: videoAiGenerations.id })
+    if (!updated) {
+      throw new Error(
+        `The video job lease expired before ${COMPANY_NAMES[company]} accepted it`
+      )
+    }
+  } catch (error) {
+    await failJob(job, error)
+  }
+}
+
+async function readBytes(response: Response, limit = MAX_VIDEO_BYTES, company = "Google") {
   const declared = Number(response.headers.get("content-length") ?? 0)
-  if (declared > limit) throw new Error("Google returned a video larger than 100MB")
+  if (declared > limit) throw new Error(`${company} returned a video larger than 100MB`)
   const reader = response.body?.getReader()
-  if (!reader) throw new Error("Google returned an empty video")
+  if (!reader) throw new Error(`${company} returned an empty video`)
   const chunks: Uint8Array[] = []
   let size = 0
   for (;;) {
@@ -950,7 +1412,7 @@ async function readBytes(response: Response, limit = MAX_VIDEO_BYTES) {
     size += value.byteLength
     if (size > limit) {
       await reader.cancel()
-      throw new Error("Google returned a video larger than 100MB")
+      throw new Error(`${company} returned a video larger than 100MB`)
     }
     chunks.push(value)
   }
@@ -960,7 +1422,7 @@ async function readBytes(response: Response, limit = MAX_VIDEO_BYTES) {
     bytes.set(chunk, offset)
     offset += chunk.byteLength
   }
-  if (!bytes.byteLength) throw new Error("Google returned an empty video")
+  if (!bytes.byteLength) throw new Error(`${company} returned an empty video`)
   return bytes
 }
 
@@ -1075,66 +1537,172 @@ async function releaseJob(job: ClaimedGeneration) {
     )
 }
 
+/** A finished piece's file, and how to put what it cost on the meter. */
+type FinishedPiece = { video: Uint8Array; charge: () => Promise<void> }
+
+/**
+ * Asks Google about one running piece. Null means it is still going, or
+ * Google asked to be asked less often, and the lease has been handed back.
+ */
+async function checkGooglePiece(job: ClaimedGeneration & { operationName: string }) {
+  // A Veo job still running when Omni Flash took over. Veo's own address
+  // for it goes dark on 22 Oct 2026, so the piece is made again instead.
+  if (job.operationName.startsWith("models/")) {
+    throw new Error(
+      "Google switched Veo off before this piece arrived. Press Try again to make it with Omni Flash."
+    )
+  }
+  const apiKey = await getAiKey("gemini")
+  if (!apiKey) throw new Error("Add a Google Gemini key in Settings first")
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/interactions/${encodeURIComponent(job.operationName)}`,
+    {
+      headers: { "x-goog-api-key": apiKey },
+      signal: AbortSignal.timeout(VIDEO_DOWNLOAD_TIMEOUT_MS),
+    }
+  )
+  if (response.status === 429) {
+    await refuseFreeKey(response)
+    // Google limits how often it is asked. The piece is asked about again
+    // on a later pass, inside the same 15 minutes.
+    await releaseJob(job)
+    return null
+  }
+  if (!response.ok) {
+    const detail = providerMessage(await response.text())
+    throw new Error(`Google could not check the video${detail ? `: ${detail}` : "."}`)
+  }
+  // A finished answer carries the clip itself, so it is read with the same
+  // size limit as a download.
+  const interaction = JSON.parse(
+    new TextDecoder().decode(await readBytes(response, MAX_ANSWER_BYTES))
+  ) as OmniInteraction
+  if (interaction.status === "in_progress") {
+    await releaseJob(job)
+    return null
+  }
+  if (interaction.status !== "completed") {
+    const detail = interaction.error?.message ?? interaction.status
+    throw new Error(`Google could not generate the video${detail ? `: ${detail}` : "."}`)
+  }
+  const video = await videoBytes(interaction, apiKey)
+  return {
+    video,
+    charge: () =>
+      recordDeferredAiSuccess(
+        {
+          userId: job.userId,
+          provider: "gemini",
+          model: VIDEO_MODEL,
+          feature: "video-generation",
+          metadata: {
+            ...projectSpendMetadata(job.projectId),
+            generationId: job.id,
+            shotId: job.shotId,
+            resolution: job.resolution,
+          },
+        },
+        omniUsage(interaction, job.durationSeconds)
+      ),
+  } satisfies FinishedPiece
+}
+
+/**
+ * Asks Wan or Seedance about one running piece, and fetches the file when
+ * it is done. The charge is what the company says it made: Wan's seconds,
+ * Seedance's tokens, or the expected price when the answer leaves it out.
+ */
+async function checkKeyedPiece(
+  job: ClaimedGeneration & { operationName: string },
+  company: KeyedCompany
+) {
+  const name = COMPANY_NAMES[company]
+  const key = await getVideoKey(company)
+  if (!key) throw new Error(missingKeyMessage(company))
+  const request = checkRequest(company, key.apiKey, job.operationName)
+  const response = await fetch(request.url, {
+    headers: request.headers,
+    signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+  })
+  if (response.status === 429) {
+    await releaseJob(job)
+    return null
+  }
+  if (!response.ok) {
+    throw new Error(
+      companyMessage(company, response.status, errorCode(company, await response.text()))
+    )
+  }
+  const answer = readCheck(company, await response.json().catch(() => null))
+  if (answer.state === "running") {
+    await releaseJob(job)
+    return null
+  }
+  if (answer.state === "failed") throw new Error(companyMessage(company, 200, answer.code))
+  if (!isCompanyResultUrl(company, answer.videoUrl)) {
+    throw new Error(`${name} returned an invalid video address`)
+  }
+  const download = await fetch(answer.videoUrl, {
+    signal: AbortSignal.timeout(VIDEO_DOWNLOAD_TIMEOUT_MS),
+  })
+  if (!download.ok) throw new Error(`${name} could not hand over the video. Press Try again.`)
+  const video = await readBytes(download, MAX_VIDEO_BYTES, name)
+  const size = sizeFor(company, job.resolution)
+  const cents =
+    company === "wan"
+      ? wanSecondsCents(size, answer.seconds ?? job.durationSeconds)
+      : answer.tokens !== null
+        ? seedanceTokenCents(answer.tokens, job.withSound)
+        : keyedPieceCents(company, size, job.durationSeconds, job.withSound)
+  return {
+    video,
+    charge: () =>
+      recordVideoCharge({
+        userId: job.userId,
+        company,
+        model: job.model,
+        status: "success",
+        cents,
+        ...(answer.tokens !== null ? { tokens: answer.tokens } : {}),
+        ...(answer.seconds !== null ? { seconds: answer.seconds } : {}),
+        metadata: {
+          ...projectSpendMetadata(job.projectId),
+          generationId: job.id,
+          shotId: job.shotId,
+          resolution: job.resolution,
+        },
+      }),
+  } satisfies FinishedPiece
+}
+
 async function pollJob(job: ClaimedGeneration) {
   let generatedMedia: Awaited<ReturnType<typeof saveGeneratedAsset>> | null = null
   let nextFrame: Awaited<ReturnType<typeof saveGeneratedAsset>> | null = null
+  const company = companyOf(job.model) ?? "gemini"
+  const name = COMPANY_NAMES[company]
   try {
-    if (!job.operationName) {
+    const operationName = job.operationName
+    if (!operationName) {
       if (
         now().getTime() - (job.startedAt ?? job.updatedAt).getTime() > 60_000
       ) {
-        throw new Error("The video job stopped before Google accepted it. Retry it.")
+        throw new Error(`The video job stopped before ${name} accepted it. Retry it.`)
       }
       await releaseJob(job)
       return
     }
-    if (
-      now().getTime() - (job.startedAt ?? job.updatedAt).getTime() >
-      JOB_TIMEOUT_MS
-    ) {
-      throw new Error("Google took longer than 15 minutes. Retry the video.")
-    }
-    // A Veo job still running when Omni Flash took over. Veo's own address
-    // for it goes dark on 22 Oct 2026, so the piece is made again instead.
-    if (job.operationName.startsWith("models/")) {
+    const timeout = isKeyedCompany(company) ? KEYED_JOB_TIMEOUT_MS : JOB_TIMEOUT_MS
+    if (now().getTime() - (job.startedAt ?? job.updatedAt).getTime() > timeout) {
       throw new Error(
-        "Google switched Veo off before this piece arrived. Press Try again to make it with Omni Flash."
+        `${name} took longer than ${timeout / 60_000} minutes. Retry the video.`
       )
     }
-    const apiKey = await getAiKey("gemini")
-    if (!apiKey) throw new Error("Add a Google Gemini key in Settings first")
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/interactions/${encodeURIComponent(job.operationName)}`,
-      {
-        headers: { "x-goog-api-key": apiKey },
-        signal: AbortSignal.timeout(VIDEO_DOWNLOAD_TIMEOUT_MS),
-      }
-    )
-    if (response.status === 429) {
-      await refuseFreeKey(response)
-      // Google limits how often it is asked. The piece is asked about again
-      // on a later pass, inside the same 15 minutes.
-      await releaseJob(job)
-      return
-    }
-    if (!response.ok) {
-      const detail = providerMessage(await response.text())
-      throw new Error(`Google could not check the video${detail ? `: ${detail}` : "."}`)
-    }
-    // A finished answer carries the clip itself, so it is read with the same
-    // size limit as a download.
-    const interaction = JSON.parse(
-      new TextDecoder().decode(await readBytes(response, MAX_ANSWER_BYTES))
-    ) as OmniInteraction
-    if (interaction.status === "in_progress") {
-      await releaseJob(job)
-      return
-    }
-    if (interaction.status !== "completed") {
-      const detail = interaction.error?.message ?? interaction.status
-      throw new Error(`Google could not generate the video${detail ? `: ${detail}` : "."}`)
-    }
-    const video = await videoBytes(interaction, apiKey)
+    const started = { ...job, operationName }
+    const finished = isKeyedCompany(company)
+      ? await checkKeyedPiece(started, company)
+      : await checkGooglePiece(started)
+    if (!finished) return
+    const { video } = finished
     const hasNext = job.shotIndex < job.shotPieces
     // Taken before anything is saved, so a frame that cannot be read fails
     // this piece, whose Retry makes it again, rather than leaving a ready
@@ -1156,7 +1724,7 @@ async function pollJob(job: ClaimedGeneration) {
         name: `AI shot frame ${job.shotIndex}`,
       })
     }
-    const finished = now()
+    const finishedAt = now()
     const outputId = generatedMedia.id
     const nextFrameId = nextFrame?.id ?? null
     const finishedJob = await db.transaction(async (tx) => {
@@ -1168,8 +1736,8 @@ async function pollJob(job: ClaimedGeneration) {
           leaseExpiresAt: null,
           outputMediaId: outputId,
           errorMessage: null,
-          updatedAt: finished,
-          finishedAt: finished,
+          updatedAt: finishedAt,
+          finishedAt,
         })
         .where(
           and(
@@ -1186,7 +1754,7 @@ async function pollJob(job: ClaimedGeneration) {
       if (done && nextFrameId) {
         await tx
           .update(videoAiGenerations)
-          .set({ status: "queued", firstFrameMediaId: nextFrameId, updatedAt: finished })
+          .set({ status: "queued", firstFrameMediaId: nextFrameId, updatedAt: finishedAt })
           .where(
             and(
               eq(videoAiGenerations.shotId, job.shotId),
@@ -1204,21 +1772,7 @@ async function pollJob(job: ClaimedGeneration) {
     }
     generatedMedia = null
     nextFrame = null
-    await recordDeferredAiSuccess(
-      {
-        userId: job.userId,
-        provider: "gemini",
-        model: VIDEO_MODEL,
-        feature: "video-generation",
-        metadata: {
-          ...projectSpendMetadata(job.projectId),
-          generationId: job.id,
-          shotId: job.shotId,
-          resolution: job.resolution,
-        },
-      },
-      omniUsage(interaction, job.durationSeconds)
-    )
+    await finished.charge()
   } catch (error) {
     if (generatedMedia) await discardGeneratedAsset(generatedMedia)
     if (nextFrame) await discardGeneratedAsset(nextFrame)

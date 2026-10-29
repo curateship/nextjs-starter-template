@@ -1,7 +1,9 @@
 # Longer AI clips, the video model and its price
 
-Every AI shot is made with Google's Gemini Omni Flash (`gemini-omni-1.1-flash`),
-in pieces of at most 8 seconds. A longer shot is several pieces joined end to
+Google's AI shots are made with Gemini Omni Flash (`gemini-omni-1.1-flash`),
+in pieces of at most 8 seconds. Wan 2.7 and Seedance 1.5 Pro make shots in the
+same 8 second pieces, chained the same way, and `wan-and-seedance.md` has
+their sizes and prices. A longer shot is several pieces joined end to
 end. This doc covers the model, the three picture sizes and what they cost,
 and how a longer shot is built.
 

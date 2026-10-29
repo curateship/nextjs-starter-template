@@ -705,6 +705,14 @@ export const videoSettings = pgTable(
     // The Pexels API key the B-roll tool searches stock video with, scrambled
     // the same way. NULL means no key, and B-roll asks for one.
     pexelsApiKey: text("pexels_api_key"),
+    // The Wan and Seedance keys for AI shots, scrambled the same way, and the
+    // site each came from, since a key works only there (drizzle/0143).
+    wanApiKey: text("wan_api_key"),
+    seedanceApiKey: text("seedance_api_key"),
+    wanRegion: varchar("wan_region", { length: 20 }).notNull().default("intl"),
+    seedanceRegion: varchar("seedance_region", { length: 20 })
+      .notNull()
+      .default("byteplus"),
     // The words the script check flags, as a JSON list. NULL until somebody
     // saves a list on Settings → Scripts; the starter words apply until then.
     scriptBannedWords: jsonb("script_banned_words"),
@@ -966,6 +974,18 @@ export const videoAiGenerations = pgTable(
     clipStartMs: doublePrecision("clip_start_ms"),
     clipDurationMs: doublePrecision("clip_duration_ms"),
     clipOutcome: varchar("clip_outcome", { length: 8 }).$type<ClipOutcome>(),
+    // On Wan and Seedance (drizzle/0143): whether the company makes sound,
+    // the picture the shot's last piece lands on, and a voiceover the person
+    // says. Google's shots always have sound and neither picture.
+    withSound: boolean("with_sound").notNull().default(true),
+    endFrameMediaId: varchar("end_frame_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    voiceMediaId: varchar("voice_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),

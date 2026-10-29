@@ -31,9 +31,14 @@ shut. A shut card stays shut for that browser.
    the main picture is picked to start with, and others can be added until
    the person board holds 4 pictures with the extras (see `extras.md`). Each
    frame says under its name which pictures and extras it was made from.
-3. **Make the shot.** Gemini Omni Flash brings the picked first frame to
-   life. Pick the length (4 to 32 seconds), the quality (Draft 360p, Normal
-   720p or Sharp 1080p) and say what happens; a shot longer than 8 seconds
+3. **Make the shot.** The picked model brings the first frame to life:
+   Google's Omni Flash, Wan 2.7 or Seedance 1.5 Pro, starting on the one
+   Settings → AI video names (`wan-and-seedance.md`). Wan and Seedance can
+   also land on an end picture ("Ends on"), and Wan can make the person say a
+   voiceover from the timeline ("Says"). Try on all models makes the same
+   shot once on every model with a key, side by side. Pick the length (4 to 32 seconds), the quality (Draft 360p, Normal
+   720p or Sharp 1080p on Google; each model lists its own sizes) and say
+   what happens; a shot longer than 8 seconds
    asks what happens in each 8 seconds. The price shows first: about $0.10 a
    second at Normal, so 8 seconds is $0.81 (`longer-ai-clips.md` has the
    sizes and their prices). The shot is sent the actor's pictures and the

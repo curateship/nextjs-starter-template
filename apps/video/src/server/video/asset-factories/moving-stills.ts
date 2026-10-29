@@ -2,14 +2,18 @@ import { and, asc, eq, gte, inArray, isNotNull, isNull, notExists } from "drizzl
 
 import {
   assetPrompt,
-  DEFAULT_VIDEO_QUALITY,
   shotCostCents,
   shotPieces,
-  VIDEO_MODEL,
   type ShotLengthSeconds,
   type VideoQuality,
 } from "@/lib/video/asset-factories"
 import { isMovingOrigin } from "@/lib/video/clip-origin"
+import {
+  companyOf,
+  sizeFor,
+  VIDEO_MODELS,
+  type VideoCompany,
+} from "@/lib/video/video-models"
 import { EDITOR_WINDOW_GONE_AFTER_MS } from "@/lib/video/editor-windows"
 import {
   landMovingShot,
@@ -29,21 +33,22 @@ import {
   REMAKE_START_GONE_MESSAGE,
 } from "@/lib/video/remake-clip"
 import { parseTimelineForReset } from "@/lib/video/timeline-schema"
-import { getAiKey } from "@/server/ai/keys"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { publishNotificationCreated } from "@/server/notifications/events"
 import { customShellMedia, customShellNotifications } from "@/server/schema"
 import { attachPastedMediaToProject } from "@/server/video/media-list"
 import { getOwnedProject, writeProjectTimeline } from "@/server/video/projects"
-import { getAiDefaults, saveAiDefaults } from "@/server/video/settings"
+import { saveAiDefaults } from "@/server/video/settings"
 import {
   videoActors,
   videoAiGenerations,
   videoEditorWindows,
 } from "@/server/video/schema"
 import {
+  companiesReady,
   generationRows,
+  missingKeyMessage,
   getShot,
   groupShots,
   pieceOrigin,
@@ -89,6 +94,9 @@ export async function createStillShot(
     prompts: string[]
     lengthSeconds: ShotLengthSeconds
     quality: VideoQuality
+    /** Who makes it. A clip made again stays with the company that made it. */
+    company?: VideoCompany
+    sound?: boolean
   }
 ) {
   const pieces = shotPieces(payload.lengthSeconds)
@@ -157,10 +165,17 @@ export async function createStillShot(
   if (earlier.some((row) => !failedShots.has(row.shotId))) {
     throw new Error(remade ? REMAKE_BUSY_MESSAGE : MOVING_STILL_BUSY_MESSAGE)
   }
-  if (!(await getAiKey("gemini"))) {
-    throw new Error("Add a Google Gemini key in Settings first")
-  }
-  await requireRoomForShot(userId, project.id, shotCostCents(payload.lengthSeconds))
+  const company =
+    payload.company ?? (remade ? companyOf(remade.model) : null) ?? "gemini"
+  const model = VIDEO_MODELS[company]
+  const size = sizeFor(company, payload.quality)
+  const sound = model.soundSwitch ? (payload.sound ?? remade?.sound ?? true) : true
+  if (!(await companiesReady())[company]) throw new Error(missingKeyMessage(company))
+  await requireRoomForShot(
+    userId,
+    project.id,
+    shotCostCents(payload.lengthSeconds, model.id, size, sound)
+  )
   const aspectRatio = remade
     ? remade.aspectRatio
     : await pictureSize(await readStoredPicture(media.storagePath)).then(
@@ -169,7 +184,7 @@ export async function createStillShot(
           throw new Error(MOVING_STILL_UNREADABLE_MESSAGE)
         }
       )
-  await saveAiDefaults({ videoQuality: payload.quality })
+  if (company === "gemini") await saveAiDefaults({ videoQuality: size })
 
   const at = now()
   const shotId = uuid()
@@ -194,10 +209,11 @@ export async function createStillShot(
           firstFrameId: null,
           firstFrameMediaId: index === 0 ? media.id : null,
           prompt,
-          model: VIDEO_MODEL,
+          model: model.id,
           aspectRatio,
           durationSeconds: pieces.seconds,
-          resolution: payload.quality,
+          resolution: size,
+          withSound: sound,
           shotId,
           shotIndex: index + 1,
           shotPieces: pieces.count,
@@ -237,11 +253,9 @@ export async function listStillShots(userId: string, projectId: string) {
       asc(videoAiGenerations.shotIndex)
     )
   ).filter((row) => row.generation.clipId && !row.generation.clipOutcome)
-  const [names, defaults] = await Promise.all([shotNames(userId, rows), getAiDefaults()])
+  const names = await shotNames(userId, rows)
   return {
     shots: await Promise.all(groupShots(rows).map((shot) => serializeShot(shot, names))),
-    /** The size the last shot was made at, which the next one starts on. */
-    quality: defaults.videoQuality ?? DEFAULT_VIDEO_QUALITY,
   }
 }
 

@@ -13,6 +13,11 @@ import { toast } from "sonner"
 
 import { AiClipExtras } from "@/components/video-editor/ai-clip-extras"
 import { AiClipNewActor } from "@/components/video-editor/ai-clip-new-actor"
+import {
+  EndFrameField,
+  ShotModelFields,
+  VoiceField,
+} from "@/components/video-editor/ai-shot-model-fields"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -71,34 +76,29 @@ import {
   type FirstFrameItem,
 } from "@/lib/api/video/first-frames"
 import {
+  createComparison,
   createGeneration,
   deleteGenerations,
   getGenerationErrorMessage,
   listGenerations,
+  loadVideoChoices,
   retryGeneration,
   SHOT_LENGTHS,
   type GenerationItem,
+  type VideoChoices,
 } from "@/lib/api/video/generations"
 import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   ASSET_ASPECT_RATIOS,
   DEFAULT_IMAGE_MODEL,
-  DEFAULT_VIDEO_QUALITY,
-  pieceCostCents,
+  makingPriceLine,
   PROJECT_SHOTS_FULL_MESSAGE,
   projectClipAspect,
-  qualityPrice,
-  shotCostCents,
   shotPieces,
-  shotPriceLine,
   SHOTS_AT_ONCE_PER_PROJECT,
-  VIDEO_MODEL,
-  VIDEO_QUALITIES,
-  videoQualityName,
   type AssetAspectRatio,
   type ShotLengthSeconds,
-  type VideoQuality,
 } from "@/lib/video/asset-factories"
 import {
   BOARD_FULL_MESSAGE,
@@ -111,6 +111,8 @@ import {
   isProjectSpendLimitMessage,
 } from "@/lib/video/project-spend"
 import { cn } from "@/lib/utils"
+import { startingPick, type ShotMakingPick } from "@/lib/video/shot-making"
+import { VIDEO_MODELS } from "@/lib/video/video-models"
 
 /**
  * The AI clip panel: an actor, a first frame of them, a moving shot from that
@@ -165,8 +167,15 @@ export function AiClipPanel() {
   const [framesBusy, setFramesBusy] = React.useState(false)
   const [pickedFrameId, setPickedFrameId] = React.useState<string | null>(null)
   const [lengthSeconds, setLengthSeconds] = React.useState<ShotLengthSeconds>(8)
-  // The size the last shot was made at, until another is picked.
-  const [quality, setQuality] = React.useState<VideoQuality>(DEFAULT_VIDEO_QUALITY)
+  // Which companies have a key, and what each one starts on.
+  const [choices, setChoices] = React.useState<VideoChoices | null>(null)
+  // The model, size and sound picked, starting on Settings → AI video's.
+  const [pick, setPick] = React.useState<ShotMakingPick | null>(null)
+  // A first frame of this project the shot lands on, and a voiceover on the
+  // timeline the person says, where the model takes them.
+  const [endFrameId, setEndFrameId] = React.useState<string | null>(null)
+  const [voiceMediaId, setVoiceMediaId] = React.useState<string | null>(null)
+  const [comparing, setComparing] = React.useState(false)
   const [directions, setDirections] = React.useState<string[]>([""])
   const [directionsInvalid, setDirectionsInvalid] = React.useState(false)
   const [shotBusy, setShotBusy] = React.useState(false)
@@ -182,15 +191,25 @@ export function AiClipPanel() {
       listGenerations(projectId),
       listExtras(),
       readProjectExtraPicks(projectId),
+      loadVideoChoices(),
     ])
-      .then(([actorList, frameList, shotList, extraList, picked]) => {
+      .then(([actorList, frameList, shotList, extraList, picked, videoChoices]) => {
         if (!active) return
         setActors(actorList.actors.filter((actor) => actor.status === "active"))
         setExtras(extraList.extras)
         setExtraPicks(picked.picks)
         setFrames(frameList.firstFrames)
         setShots(shotList.generations)
-        setQuality(shotList.quality)
+        setChoices(videoChoices)
+        const start = startingPick(videoChoices)
+        setPick(start)
+        const startLength = videoChoices.starts[start.company].length
+        if (startLength) {
+          setLengthSeconds(startLength)
+          setDirections((current) =>
+            Array.from({ length: shotPieces(startLength).count }, (_, index) => current[index] ?? "")
+          )
+        }
         setLoadFailed(false)
       })
       .catch((error) => {
@@ -257,8 +276,34 @@ export function AiClipPanel() {
   const projectShape = projectClipAspect(editorAspect)
   const pieces = shotPieces(lengthSeconds).count
   const frameCostCents = aiUnitCostCents(DEFAULT_IMAGE_MODEL, variants)
-  const shotCents = shotCostCents(lengthSeconds)
-  const secondCents = pieceCostCents(VIDEO_MODEL, 1)
+  const model = pick ? VIDEO_MODELS[pick.company] : null
+  const sound = pick && model?.soundSwitch ? pick.sound : true
+  // The end picture and the voiceover go only where the model takes them,
+  // and a voiceover only in a one-piece shot.
+  // A pick left behind (the frame became the first frame, or the voiceover
+  // left the timeline) is not sent.
+  const sentEndFrameId =
+    model?.endFrame && endFrameId !== frame?.id && frames?.some((item) => item.id === endFrameId)
+      ? endFrameId
+      : null
+  const voiceClips = useEditorSelector((state) => state.tracks)
+    .flatMap((track) => track.clips)
+    .filter((clip) => clip.kind === "audio" && clip.mediaId)
+  const fittingVoices = voiceClips.filter(
+    (clip) => (clip.sourceDurationMs ?? clip.durationMs) <= lengthSeconds * 1000
+  )
+  const voiceOptions = [
+    ...new Map(
+      fittingVoices.map((clip) => [clip.mediaId!, { id: clip.mediaId!, name: clip.name }])
+    ).values(),
+  ]
+  const sentVoiceId =
+    model?.voice && pieces === 1 && voiceOptions.some((option) => option.id === voiceMediaId)
+      ? voiceMediaId
+      : null
+  const comparable = choices
+    ? Object.values(choices.ready).filter(Boolean).length
+    : 0
   // The picked frame's newest shots, as many as can be made at once, so
   // directions tried side by side show side by side.
   const frameShots = frame
@@ -361,6 +406,7 @@ export function AiClipPanel() {
       reportError(PROJECT_SHOTS_FULL_MESSAGE)
       return
     }
+    if (!pick) return
     setShotBusy(true)
     try {
       const shot = await createGeneration({
@@ -368,7 +414,11 @@ export function AiClipPanel() {
         firstFrameId: frame.id,
         prompts: sent,
         lengthSeconds,
-        quality,
+        quality: pick.quality,
+        company: pick.company,
+        sound,
+        endFrameId: sentEndFrameId,
+        voiceMediaId: sentVoiceId,
       })
       setShots((current) => [shot, ...(current ?? [])])
       toast.success(
@@ -380,6 +430,41 @@ export function AiClipPanel() {
       reportError(getGenerationErrorMessage(error))
     } finally {
       setShotBusy(false)
+    }
+  }
+
+  /**
+   * The same frame and direction made once by every model with a key, so
+   * the shots show side by side under the button.
+   */
+  async function compareShot() {
+    if (!frame) return
+    const sent = directions.slice(0, pieces).map((line) => line.trim())
+    if (sent.length !== pieces || sent.some((line) => !line)) {
+      setDirectionsInvalid(true)
+      reportError(
+        pieces > 1
+          ? "Write what happens in each part of the shot."
+          : "Write what happens in the shot."
+      )
+      return
+    }
+    setComparing(true)
+    try {
+      const made = await createComparison({
+        projectId,
+        firstFrameId: frame.id,
+        prompts: sent,
+        lengthSeconds,
+      })
+      setShots((current) => [...made, ...(current ?? [])])
+      toast.success(
+        `${made.length} shots are being made, one on each model. They show side by side below when they arrive.`
+      )
+    } catch (error) {
+      reportError(getGenerationErrorMessage(error))
+    } finally {
+      setComparing(false)
     }
   }
 
@@ -719,28 +804,48 @@ export function AiClipPanel() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="ai-clip-quality">Quality</Label>
-                <Select
-                  value={quality}
-                  onValueChange={(value) => setQuality(value as VideoQuality)}
+              {choices && pick ? (
+                <ShotModelFields
+                  idPrefix="ai-clip"
+                  choices={choices}
+                  pick={pick}
+                  onPick={(next) => {
+                    // A company picked starts on its own length from Settings.
+                    const startLength = choices.starts[next.company].length
+                    if (next.company !== pick.company && startLength) changeLength(startLength)
+                    setPick(next)
+                  }}
+                  lengthSeconds={lengthSeconds}
                   disabled={!frame || shotBusy}
-                >
-                  {/* The closed list shows the size alone; the prices are in
-                      the open list and the line below, which have the room. */}
-                  <SelectTrigger id="ai-clip-quality">
-                    <SelectValue>{videoQualityName(quality)}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VIDEO_QUALITIES.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.label} {item.id} ·{" "}
-                        {qualityPrice(item.id, secondCents, shotCents)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                />
+              ) : null}
+              {model?.endFrame ? (
+                <EndFrameField
+                  id="ai-clip-end-frame"
+                  options={(frames ?? [])
+                    .filter((candidate) => candidate.id !== frame?.id)
+                    .map((candidate) => ({ id: candidate.id, name: candidate.name }))}
+                  value={sentEndFrameId}
+                  onChange={setEndFrameId}
+                  disabled={!frame || shotBusy}
+                />
+              ) : null}
+              {model?.voice && pieces === 1 ? (
+                <VoiceField
+                  id="ai-clip-voice"
+                  options={voiceOptions}
+                  value={sentVoiceId}
+                  onChange={setVoiceMediaId}
+                  disabled={!frame || shotBusy}
+                  note={
+                    voiceClips.length > fittingVoices.length
+                      ? `Voiceovers longer than ${lengthSeconds} seconds are left out.`
+                      : voiceClips.length
+                        ? null
+                        : "Put a voiceover on the timeline to have the person say it."
+                  }
+                />
+              ) : null}
               {directions.slice(0, pieces).map((line, index) => (
                 <div key={index} className="grid min-w-0 gap-2">
                   <Label htmlFor={`ai-clip-direction-${index}`}>
@@ -766,17 +871,30 @@ export function AiClipPanel() {
                   />
                 </div>
               ))}
-              <p className="text-xs text-muted-foreground">
-                {shotPriceLine(quality, lengthSeconds, secondCents, shotCents)}
-              </p>
+              {pick ? (
+                <p className="text-xs text-muted-foreground">
+                  {makingPriceLine(pick.company, pick.quality, lengthSeconds, sound)}
+                </p>
+              ) : null}
               <Button
                 type="button"
-                disabled={!frame || shotBusy}
+                disabled={!frame || shotBusy || comparing}
                 onClick={() => void makeShot()}
               >
                 {shotBusy ? <Loader2Icon className="animate-spin" /> : <FilmIcon />}
                 Make the shot
               </Button>
+              {comparable >= 2 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!frame || shotBusy || comparing}
+                  onClick={() => void compareShot()}
+                >
+                  {comparing ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+                  {comparable === 3 ? "Try on all 3 models" : `Try on ${comparable} models`}
+                </Button>
+              ) : null}
               {working ? (
                 <p className="text-xs text-muted-foreground">
                   Making {makingCount} of the {SHOTS_AT_ONCE_PER_PROJECT} shots
@@ -1084,7 +1202,9 @@ function shotSent(shot: GenerationItem) {
         ? "1 picture"
         : "words only"
   const extras = shot.extras.length ? `, with ${shot.extras.join(", ")}` : ""
-  return `${shot.actor_name}, ${pictures}${extras}`
+  const end = shot.end_frame ? ", ending on a picked frame" : ""
+  const voice = shot.voice ? ", saying a voiceover" : ""
+  return `${shot.actor_name}, ${pictures}${extras}${end}${voice}`
 }
 
 /**
