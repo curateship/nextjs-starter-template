@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { postsPerWeek, typical, type ViralCreator, type ViralVideo } from "./viral"
 import { scoreViralVideo } from "./viral-score"
-import { atAGlance, filterCreators, filterVideos, formatShortDay, sortVideos } from "./viral-view"
+import { filterCreators, filterVideos, formatShortDay, sortVideos } from "./viral-view"
 
 const NOW = new Date("2099-01-30T00:00:00Z")
 
@@ -130,13 +130,6 @@ describe("the figures", () => {
     const days = (count: number) => new Date(NOW.getTime() - count * 86_400_000).toISOString()
     expect(postsPerWeek([days(1), days(5)], NOW)).toBeNull()
     expect(postsPerWeek([days(1), days(8), days(15), days(22), days(60)], NOW)).toBe(1)
-  })
-
-  it("sums up the project at a glance", () => {
-    const glance = atAGlance([video("a", { views: 100 }), video("b", { views: 300 }), video("c", { views: 200 })], [])
-    expect(glance.videos).toBe(3)
-    expect(glance.typicalViews).toBe(200)
-    expect(glance.bestScore).not.toBeNull()
   })
 })
 

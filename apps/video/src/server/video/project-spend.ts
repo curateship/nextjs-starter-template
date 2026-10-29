@@ -106,24 +106,6 @@ export async function requireProjectBudget(
 }
 
 /**
- * A Viral project's AI spend: keyword ideas, the topic match and the
- * breakdowns pressed from it. Its limit works the same way as an editor
- * project's.
- */
-export async function readViralProjectSpend(
-  ownerId: string,
-  viralProjectId: string,
-  limitCents: number | null,
-  database: CustomShellDb = db
-) {
-  const rows = await spentByTool(ownerId, viralProjectId, database, "viralProjectId")
-  return {
-    total_cents: rows.reduce((sum, row) => sum + row.cents, 0),
-    limit_cents: limitCents,
-  }
-}
-
-/**
  * Refuses a Viral project's AI call that would pass its limit. The caller has
  * already proven the project is theirs and read its limit.
  */

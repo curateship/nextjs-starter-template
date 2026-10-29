@@ -5,7 +5,7 @@
  * can be tested on its own.
  */
 
-import { typical, type ViralCreator, type ViralVideo } from "./viral"
+import { type ViralCreator, type ViralVideo } from "./viral"
 
 /** A grid of covers or a list of rows, remembered per browser. */
 export const VIRAL_LAYOUTS = ["grid", "list"] as const
@@ -165,20 +165,6 @@ export function filterCreators(
     }
     return true
   })
-}
-
-/** The left panel's figures, from the videos as filtered. */
-export function atAGlance(videos: ViralVideo[], creators: ViralCreator[]) {
-  return {
-    videos: videos.length,
-    creators: creators.length,
-    bestScore: videos.length
-      ? Math.max(...videos.map((video) => video.score.score))
-      : null,
-    typicalViews: typical(
-      videos.flatMap((video) => (video.views === null ? [] : [video.views]))
-    ),
-  }
 }
 
 const SHORT_DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" })

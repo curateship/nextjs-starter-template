@@ -99,7 +99,6 @@ import {
   type ViralViewFilters,
 } from "@/lib/video/viral-saved-views"
 import {
-  atAGlance,
   filterCreators,
   filterVideos,
   sortVideos,
@@ -248,7 +247,6 @@ export function ViralProjectScreenView({
       ),
     [range, screen.creators, creatorSearch, watchOverride]
   )
-  const glance = atAGlance(projectVideos, screen.creators)
 
   const pickedCreator = screen.creators.find((creator) => creator.key === search.creator) ?? null
   // A sample channel is made up and has no uploads to read, so its videos are
@@ -586,7 +584,6 @@ export function ViralProjectScreenView({
   const left = (
     <ProjectPanel
       screen={screen}
-      glance={glance}
       activeKeyword={keywordFilter}
       busy={busy}
       onPickKeyword={(keyword) => setSearch({ keyword: keyword ?? undefined, creator: undefined })}
@@ -787,8 +784,10 @@ export function ViralProjectScreenView({
         <Loader2Icon className="size-4 animate-spin text-muted-foreground" aria-label="Searching" />
       ) : null}
       {/* The screen's one primary button, last, filled and worded at every width
-          (Tyler, 20 Oct 2026). A header too narrow for it slides the tabs sideways. */}
-      <DashboardToolbarButton type="button" onClick={addLink}>
+          (Tyler, 20 Oct 2026). A header too narrow for it slides the tabs sideways.
+          It stands 8px off the list and grid pair, not the toolbar's 4px: two
+          filled shapes 4px apart read as touching (Tyler, 29 Oct 2026). */}
+      <DashboardToolbarButton type="button" className="ml-1" onClick={addLink}>
         <LinkIcon className="size-4" />
         Add a link
       </DashboardToolbarButton>
