@@ -3,17 +3,13 @@ import {
   ChevronDownIcon,
   Loader2Icon,
   PlusIcon,
-  SettingsIcon,
-  Trash2Icon,
   XIcon,
 } from "lucide-react"
-import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DialogBody,
   DialogContent,
@@ -30,17 +26,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { FormDialog } from "@/components/ui/form-dialog"
-import {
-  CONTEXT_MENU_CONTENT_CLASS,
-  CONTEXT_MENU_DESTRUCTIVE_ITEM_CLASS,
-  CONTEXT_MENU_ITEM_CLASS,
-} from "@/components/shared/editor-media-context-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   addMediaToCollection,
   createMediaCollection,
-  deleteMediaCollection,
   getVideoMediaErrorMessage,
   removeMediaFromCollection,
   renameMediaCollection,
@@ -192,170 +182,6 @@ export function CollectionNameDialog({
         </DialogContent>
       )}
     </FormDialog>
-  )
-}
-
-// ------------------------------------------------------------- Chips ------
-
-/**
- * The collection filter chips. Right-clicking a collection's chip renames or
- * deletes it; making one is the Media header's + menu, so the chips only ever
- * act on a chip that exists.
- */
-export function CollectionChips({
-  collections,
-  value,
-  onChange,
-  onCollectionsChanged,
-}: {
-  collections: MediaCollectionSummary[]
-  /** "all", "uncollected", or a collection's id. */
-  value: string
-  onChange: (value: string) => void
-  /** A collection was renamed or deleted. */
-  onCollectionsChanged: () => void
-}) {
-  const [renaming, setRenaming] =
-    React.useState<MediaCollectionSummary | null>(null)
-  const [deleting, setDeleting] = React.useState<MediaCollectionSummary | null>(
-    null
-  )
-  const [deleteBusy, setDeleteBusy] = React.useState(false)
-
-  async function confirmDelete() {
-    if (!deleting) return
-    setDeleteBusy(true)
-    dismissErrorToast()
-    try {
-      await deleteMediaCollection(deleting.id)
-      if (value === deleting.id) onChange("all")
-      toast.success(
-        `Deleted “${deleting.name}”. Its files are still in your library.`
-      )
-      setDeleting(null)
-      onCollectionsChanged()
-    } catch (error) {
-      showErrorToast(getVideoMediaErrorMessage(error))
-    } finally {
-      setDeleteBusy(false)
-    }
-  }
-
-  if (!collections.length) return null
-
-  const options = [
-    { id: "all", label: "All" },
-    { id: "uncollected", label: "Uncollected" },
-    ...collections.map((collection) => ({
-      id: collection.id,
-      label: collection.name,
-    })),
-  ]
-
-  return (
-    <>
-      {/* Collections wrap rather than share a fixed row: there can be any
-          number of them, with names of any length. */}
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          gap: 5,
-          marginBottom: 15,
-        }}
-      >
-        {options.map((option) => {
-          const on = value === option.id
-          const chip = (
-            <button
-              key={option.id}
-              type="button"
-              aria-pressed={on}
-              onClick={() => onChange(option.id)}
-              title={option.label}
-              style={{
-                maxWidth: "100%",
-                padding: "5px 9px",
-                borderRadius: 8,
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: "pointer",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                border: on ? "1px solid var(--acc)" : "1px solid var(--line)",
-                background: on ? "var(--acc-soft)" : "var(--panel)",
-                color: on ? "var(--acc)" : "var(--ink2)",
-              }}
-            >
-              {option.label}
-            </button>
-          )
-          const collection = collections.find(
-            (candidate) => candidate.id === option.id
-          )
-          // All and Uncollected are views, not collections; there is nothing
-          // to rename or delete on them.
-          if (!collection) return chip
-          return (
-            <ContextMenuPrimitive.Root key={option.id}>
-              <ContextMenuPrimitive.Trigger asChild>
-                {chip}
-              </ContextMenuPrimitive.Trigger>
-              <ContextMenuPrimitive.Portal>
-                <ContextMenuPrimitive.Content
-                  className={CONTEXT_MENU_CONTENT_CLASS}
-                >
-                  <ContextMenuPrimitive.Item
-                    className={CONTEXT_MENU_ITEM_CLASS}
-                    onSelect={() => setRenaming(collection)}
-                  >
-                    <SettingsIcon />
-                    Rename
-                  </ContextMenuPrimitive.Item>
-                  <ContextMenuPrimitive.Item
-                    className={CONTEXT_MENU_DESTRUCTIVE_ITEM_CLASS}
-                    onSelect={() => setDeleting(collection)}
-                  >
-                    <Trash2Icon />
-                    Delete
-                  </ContextMenuPrimitive.Item>
-                </ContextMenuPrimitive.Content>
-              </ContextMenuPrimitive.Portal>
-            </ContextMenuPrimitive.Root>
-          )
-        })}
-      </div>
-
-      <CollectionNameDialog
-        open={renaming !== null}
-        onOpenChange={(open) => {
-          if (!open) setRenaming(null)
-        }}
-        collection={renaming}
-        onSaved={(saved) => {
-          toast.success(`Renamed to “${saved.name}”.`)
-          onCollectionsChanged()
-        }}
-      />
-
-      <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleting(null)
-        }}
-        title={`Delete “${deleting?.name ?? ""}”?`}
-        description={
-          deleting?.item_count
-            ? `The ${filesWord(deleting.item_count)} in it ${plural(deleting.item_count, "stays", "stay")} in your media library. Only the collection goes.`
-            : "It is empty, so nothing else changes."
-        }
-        confirmLabel="Delete collection"
-        loading={deleteBusy}
-        onConfirm={() => void confirmDelete()}
-      />
-    </>
   )
 }
 

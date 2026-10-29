@@ -98,8 +98,12 @@ so the sliders hide when one is picked.
 ## Your own voice
 
 The Voices panel on the editor's left rail starts with "Your voices": the
-voices made from your recordings, a play button for each recording, a delete
-button, and New voice, which opens "Make a voice of my own".
+voices made from your recordings, a play button for each recording and a
+delete button. The **+** at the top of the panel opens "Make a voice of my
+own". The search icon beside it searches the saved voiceovers by their words.
+Tyler asked on 29 Oct 2026 for the two to sit in the header as the Media
+panel's do; before that they were a New voice button and a search box in the
+panel.
 
 - **The window:** record from the microphone, or upload an MP3, WAV, M4A, OGG
   or WebM file, then name the voice and press Create voice.

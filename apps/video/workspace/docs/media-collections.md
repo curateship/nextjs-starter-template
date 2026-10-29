@@ -29,33 +29,35 @@ Deleting a file does take it out of every collection it was in.
 
 ## In the carousel editor
 
-The carousel editor's Image panel shows the collections as chips beside "This
-carousel". A collection's pictures come from the whole library, and one
+The carousel editor's Image panel lists the collections in its filter menu,
+under "This carousel". A collection's pictures come from the whole library, and one
 placed on a slide joins that carousel's shelf. Making, renaming and deleting
 collections stays in the video editor (see
 [carousel-pictures.md](carousel-pictures.md)).
 
 ## Where the buttons are
 
-Everything is in the editor's Media panel, under the All / Video / Image /
-Sound tabs. The shell's Admin > Media page is not touched, because it belongs
-to Custom Shell and the Video app may not edit it.
+Everything is in the editor's Media panel. The shell's Admin > Media page is
+not touched, because it belongs to Custom Shell and the Video app may not edit
+it.
 
 - **Making one:** press the **+** at the top of the panel and pick **New
-  collection**. The same menu holds **Upload media**; the + no longer opens
-  the file picker straight away.
-- **The chips:** once one exists, the chips read All, Uncollected, then each
-  collection by name. Uncollected shows the files that are in no collection.
-  With no collections there are no chips at all.
-- **Rename and delete:** right-click a collection's chip. All and Uncollected
-  are views, not collections, so right-clicking them does nothing.
+  collection**, or press **+ New collection** in the filter menu.
+- **Showing one:** open the funnel at the top of the panel. Its Collection
+  list reads All media, Uncollected, then each collection by name, each with
+  how many files it would show. Uncollected shows the files that are in no
+  collection, and only appears once a collection exists. Until 29 Oct 2026
+  this was a row of chips above the files
+  (see [media-panel.md](media-panel.md)).
+- **Rename and delete:** right-click a collection in the filter menu. All
+  media and Uncollected are views, not collections, so they have no menu.
 - **Putting many files in at once:** press **Select** beside the "Clips" count,
   tick files (or press **Select all**), then **Add to collection** and pick
   one. That is one request and one message, such as "Added 10 files to
   “Hooks”." Files already in it are counted apart: "2 were already in it."
 - **Making a collection from a selection:** **New collection** at the foot of
   the same menu creates it and puts the ticked files in, in one go.
-- **Taking many out:** while a collection's chip is picked, the same menu
+- **Taking many out:** while a collection is picked in the filter, the same menu
   offers **Remove from “Hooks”**.
 - **One file at a time:** right-click a file and open **Collections**. Each
   collection has a tick beside it if the file is in it. Clicking one adds or
@@ -63,10 +65,11 @@ to Custom Shell and the Video app may not edit it.
 
 ## Another tab
 
-The chips are fetched again whenever the tab is looked at again: switching
-back to it, or clicking into its window. A collection made or deleted in
-another tab shows up then, without a reload. A tab that sits on screen beside
-the other one, never clicked, keeps its old chips until it is clicked.
+The collections are fetched again whenever the tab is looked at again:
+switching back to it, or clicking into its window. A collection made or
+deleted in another tab shows up in the filter menu then, without a reload. A
+tab that sits on screen beside the other one, never clicked, keeps its old
+list until it is clicked.
 
 If the collection being shown is deleted elsewhere, the panel falls back to
 All.

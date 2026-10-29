@@ -362,19 +362,26 @@ export function polishCarouselText(
 // The pictures in one of the person's collections, from their whole library
 // rather than this carousel's shelf (workspace/docs/media-collections.md).
 // Only the caller's own files are listed, so another person's collection id
-// lists nothing.
+// lists nothing. Pictures and clips, unless the Image panel's Type row ticks
+// just one.
+const carouselMediaTypes = z
+  .array(z.enum(["image", "video"]))
+  .max(2)
+  .optional()
+
 const collectionPicturesFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(
     z.object({
       collectionId: z.string().min(1).max(36),
       search: z.string().trim().max(120).default(""),
+      fileTypes: carouselMediaTypes,
     })
   )
   .handler(async ({ data, context }) => {
     const page = await listVideoMedia({
       userId: context.user.id,
-      fileType: "image",
+      fileTypes: data.fileTypes?.length ? data.fileTypes : ["image", "video"],
       pageSize: 30,
       search: data.search,
       collectionId: data.collectionId,
@@ -382,8 +389,57 @@ const collectionPicturesFn = createServerFn({ method: "GET" })
     return page.media
   })
 
-export function listCollectionPictures(collectionId: string, search = "") {
-  return collectionPicturesFn({ data: { collectionId, search } })
+export function listCollectionPictures(
+  collectionId: string,
+  search = "",
+  fileTypes?: ("image" | "video")[]
+) {
+  return collectionPicturesFn({ data: { collectionId, search, fileTypes } })
+}
+
+// What each row of the Image panel's Collection list would show with the
+// same types and search: this carousel's shelf under "shelf", and each
+// collection, from the whole library, under its id.
+const carouselMediaCountsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(
+    carouselIdSchema.extend({
+      search: z.string().trim().max(120).default(""),
+      fileTypes: carouselMediaTypes,
+    })
+  )
+  .handler(async ({ data, context }) => {
+    const shelfTypes = data.fileTypes?.length
+      ? data.fileTypes
+      : (["image", "video"] as const)
+    const [shelf, library] = await Promise.all([
+      listVideoMedia({
+        userId: context.user.id,
+        scope: { type: "carousel", id: data.carouselId },
+        fileTypes: [...shelfTypes],
+        pageSize: 1,
+        search: data.search,
+      }),
+      listVideoMedia({
+        userId: context.user.id,
+        fileTypes: data.fileTypes?.length ? data.fileTypes : ["image", "video"],
+        pageSize: 1,
+        search: data.search,
+        withCounts: true,
+      }),
+    ])
+    return {
+      ...library.collection_counts?.by_collection,
+      shelf: shelf.total,
+    } as Record<string, number>
+  })
+
+export function loadCarouselMediaCounts(
+  carouselId: string,
+  search = "",
+  fileTypes?: ("image" | "video")[]
+) {
+  return carouselMediaCountsFn({ data: { carouselId, search, fileTypes } })
 }
 
 const stockSearchFn = createServerFn({ method: "GET" })

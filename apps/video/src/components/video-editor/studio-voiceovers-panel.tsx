@@ -1,5 +1,11 @@
 import * as React from "react"
-import { MicIcon, PauseIcon, PlayIcon, PlusIcon } from "lucide-react"
+import {
+  MicIcon,
+  PauseIcon,
+  PlayIcon,
+  PlusIcon,
+  SearchIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -19,7 +25,9 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { useCaptionPlacement } from "@/components/video-editor/caption-settings-context"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
@@ -44,6 +52,8 @@ export function VoiceoversPanel() {
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [refresh, setRefresh] = React.useState(0)
   const [playingId, setPlayingId] = React.useState<string | null>(null)
+  const [searchOpen, setSearchOpen] = React.useState(false)
+  const [makingVoice, setMakingVoice] = React.useState(false)
 
   React.useEffect(() => {
     const timer = setTimeout(() => setDebounced(search.trim()), 250)
@@ -94,20 +104,55 @@ export function VoiceoversPanel() {
       <DashboardCardTitleHeader
         icon={<MicIcon className="size-4" />}
         title="Voiceovers"
+        action={
+          // A search and a + in the header, as the Media panel has.
+          <div className="flex items-center gap-2">
+            {/* A popover rather than a box under the button, so it moves
+                clear of the rail when the panel is narrow. */}
+            <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Search voiceovers"
+                  title="Search voiceovers"
+                  aria-pressed={searchOpen}
+                >
+                  <SearchIcon className={search ? "text-foreground" : undefined} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-60 p-2">
+                <Input
+                  autoFocus
+                  type="search"
+                  value={search}
+                  maxLength={VOICEOVER_SEARCH_MAX}
+                  placeholder="Search the words"
+                  aria-label="Search voiceovers by what was said"
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </PopoverContent>
+            </Popover>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="New voice"
+                  onClick={() => setMakingVoice(true)}
+                >
+                  <PlusIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>New voice</TooltipContent>
+            </Tooltip>
+          </div>
+        }
       />
 
-      <OwnVoices />
-
-      <div className="border-b p-4">
-        <Input
-          type="search"
-          value={search}
-          maxLength={VOICEOVER_SEARCH_MAX}
-          placeholder="Search the words"
-          aria-label="Search voiceovers by what was said"
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
+      <OwnVoices making={makingVoice} onMakingChange={setMakingVoice} />
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-2 p-4">

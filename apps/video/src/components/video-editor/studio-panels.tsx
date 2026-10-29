@@ -39,6 +39,7 @@ import {
   getVideoMediaErrorMessage,
   listVideoMedia,
   retryMediaPreparation,
+  type MediaCollectionCounts,
   type VideoMediaItem,
 } from "@/lib/api/video/media"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -58,12 +59,18 @@ import { Card, CardContent } from "@/components/ui/card"
 import { buildMediaClip } from "@/components/video-editor/media-clip"
 import { StickerShelf } from "@/components/video-editor/studio-stickers"
 import {
-  CollectionChips,
   CollectionNameDialog,
   MediaSelectionBar,
   SelectTileOverlay,
 } from "@/components/video-editor/studio-media-collections"
 import { useMediaCollections } from "@/components/video-editor/use-media-collections"
+import { MediaFilterMenu } from "@/components/video-editor/studio-media-filter"
+import {
+  EDITOR_MEDIA_FILTER,
+  emptyMediaFilter,
+  readMediaTypes,
+  type MediaFilterValue,
+} from "@/lib/video/media-saved-views"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { useDragToTimeline } from "@/components/video-editor/use-drag-to-timeline"
 import {
@@ -152,27 +159,16 @@ function Label({
 
 // --------------------------------------------------------------- Media ------
 
-const MEDIA_FILTERS: {
-  id: "all" | "video" | "image" | "audio"
-  label: string
-}[] = [
-  { id: "all", label: "All" },
-  { id: "video", label: "Video" },
-  { id: "image", label: "Image" },
-  { id: "audio", label: "Sound" },
-]
-
 function MediaPanel() {
   const { dispatch, store, projectId } = useEditorRuntime()
   // A guest sent from Project uploads straight into this project and has no
   // collections, library or delete (`workspace/docs/project-guests.md`).
   const guest = useProjectGuest() !== null
-  const [filter, setFilter] = React.useState<
-    "all" | "video" | "image" | "audio"
-  >("all")
-  // "all" = every file, "uncollected" = the ones in no collection, anything
-  // else is a collection's id.
-  const [collectionFilter, setCollectionFilter] = React.useState("all")
+  const [mediaFilter, setMediaFilter] =
+    React.useState<MediaFilterValue>(() => emptyMediaFilter(EDITOR_MEDIA_FILTER))
+  const { types, collection: collectionFilter } = mediaFilter
+  const typesKey = types.join(",")
+  const soundOnly = typesKey === "audio"
   const { collections, reload: reloadCollections } = useMediaCollections({ enabled: !guest })
   const activeCollection =
     collections.find((collection) => collection.id === collectionFilter) ??
@@ -183,7 +179,7 @@ function MediaPanel() {
     collectionFilter !== "uncollected" &&
     !activeCollection
   ) {
-    setCollectionFilter("all")
+    setMediaFilter((current) => ({ ...current, collection: "all" }))
   }
   const [selecting, setSelecting] = React.useState(false)
   const selection = useSelection()
@@ -192,6 +188,7 @@ function MediaPanel() {
   const [debounced, setDebounced] = React.useState("")
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [items, setItems] = React.useState<VideoMediaItem[]>([])
+  const [counts, setCounts] = React.useState<MediaCollectionCounts>()
   const [previewingAudioId, setPreviewingAudioId] = React.useState<string | null>(
     null
   )
@@ -220,12 +217,14 @@ function MediaPanel() {
           : collectionFilter === "uncollected"
             ? null
             : collectionFilter,
-      fileType: filter === "all" ? undefined : filter,
+      fileTypes: typesKey ? readMediaTypes(typesKey) : undefined,
       search: debounced || undefined,
+      withCounts: !guest,
     })
       .then((data) => {
         if (active) {
           setItems(data.media)
+          setCounts(data.collection_counts)
           // A tick on a file that is no longer showing would be acted on
           // unseen, so it goes.
           setSelected(
@@ -251,7 +250,8 @@ function MediaPanel() {
     }
   }, [
     collectionFilter,
-    filter,
+    typesKey,
+    guest,
     debounced,
     projectId,
     refresh,
@@ -407,6 +407,30 @@ function MediaPanel() {
                 </>
               ) : null}
             </div>
+            <MediaFilterMenu
+              kind={EDITOR_MEDIA_FILTER}
+              baseRows={
+                collections.length
+                  ? [
+                      { id: "all", label: "All media" },
+                      { id: "uncollected", label: "Uncollected" },
+                    ]
+                  : [{ id: "all", label: "All media" }]
+              }
+              value={mediaFilter}
+              onChange={setMediaFilter}
+              collections={collections}
+              counts={
+                counts && {
+                  ...counts.by_collection,
+                  all: counts.all,
+                  uncollected: counts.uncollected,
+                }
+              }
+              guest={guest}
+              onCollectionsChanged={reloadCollections}
+              onNewCollection={() => setCreatingCollection(true)}
+            />
             {guest ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -466,51 +490,6 @@ function MediaPanel() {
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="p-4">
-        <div
-          style={{
-            display: "flex",
-            gap: 2,
-            padding: 3,
-            background: "var(--elev)",
-            borderRadius: 9,
-            marginBottom: 15,
-          }}
-        >
-          {MEDIA_FILTERS.map((option) => {
-            const on = filter === option.id
-            return (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => setFilter(option.id)}
-                style={{
-                  flex: 1,
-                  padding: "6px 8px",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  background: on ? "var(--panel)" : "transparent",
-                  color: on ? "var(--ink)" : "var(--ink2)",
-                  boxShadow: on ? "var(--sh-sm)" : "none",
-                }}
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
-
-        {guest ? null : (
-          <CollectionChips
-            collections={collections}
-            value={collectionFilter}
-            onChange={setCollectionFilter}
-            onCollectionsChanged={reloadCollections}
-          />
-        )}
-
         {items.length === 0 && activeCollection ? (
           <div
             style={{
@@ -525,7 +504,8 @@ function MediaPanel() {
               Nothing in “{activeCollection.name}” yet
             </div>
             <div style={{ fontSize: 11, color: "var(--mut)", marginTop: 2 }}>
-              Pick All, press Select, tick some files and add them here.
+              Pick All media in the filter, press Select, tick some files
+              and add them here.
             </div>
           </div>
         ) : items.length === 0 ? (
@@ -597,7 +577,7 @@ function MediaPanel() {
                 cover it exactly. */}
             <div
               style={
-                filter === "audio"
+                soundOnly
                   ? {
                       display: "grid",
                       gridTemplateColumns: "repeat(2,minmax(0,1fr))",
@@ -612,7 +592,7 @@ function MediaPanel() {
                     style={{
                       position: "relative",
                       breakInside: "avoid",
-                      marginBottom: filter === "audio" ? 0 : 9,
+                      marginBottom: soundOnly ? 0 : 9,
                     }}
                   >
                     {item.file_type === "audio" ? (

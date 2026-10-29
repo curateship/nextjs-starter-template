@@ -1,9 +1,58 @@
 # The Media panel
 
 The editor's Media panel holds every file attached to the project. This doc
-covers how files get in and how they reach the timeline. Collections, the
-named groups the chips filter by, have their own doc in
-[media-collections.md](media-collections.md).
+covers the filter menu and saved views, how files get in, and how they reach
+the timeline. Collections, the named groups the filter can show, have their
+own doc in [media-collections.md](media-collections.md).
+
+## The filter menu
+
+The funnel at the top of the panel, between search and +, opens one menu.
+Tyler drew it on 29 Oct 2026, and it replaced the All / Video / Image / Sound
+tabs and the row of collection chips that sat above the files.
+
+- **Views** come first, once you have saved one. Clicking a view sets its
+  types and collection. A tick marks the view that matches what is showing.
+- **Type** has Video, Image and Sound buttons, and any number can be on.
+  None on shows every type, the same as all three on.
+- **Collection** lists All media, Uncollected and each collection, with a
+  tick on the one showing. Uncollected only shows once a collection exists.
+- **The number beside each row** is how many files picking that row would
+  show in this project, with the types and search already applied. With
+  Video and Sound on, All media counts only the videos and sounds.
+- **+ New collection** opens the same window as the + menu's New collection.
+- **Right-click** a view or a collection for Rename and Delete.
+- **Clear filters** turns every type off and goes back to All media.
+- **A dot on the funnel** says a type or a collection is picked.
+- **The pick is not remembered.** Reopening the editor starts on every type
+  and All media. A saved view is the way to get back to a pick.
+
+The code is `MediaFilterMenu` in
+`src/components/video-editor/studio-media-filter.tsx`. The carousel editor's
+Image panel uses the same menu (see
+[carousel-pictures.md](carousel-pictures.md)).
+
+## Saved views
+
+Save view at the foot of the menu names the pick and keeps it. Tyler chose on
+29 Oct 2026 that a view is yours alone, shows in every project, and keeps the
+types and the collection but not the search words.
+
+- **Where they are kept:** the shell's `saved_views` table, the same one
+  Viral's views use, under the screen key `editor-media:library`. The rules
+  for what a view keeps are `mediaViewFilters` in
+  `src/lib/video/media-saved-views.ts`, and the server registers them in
+  `src/app/server-options.ts`. No migration was needed.
+- **Nothing picked:** Save view says "Pick a type or a collection first, then
+  save it as a view." A view of every type and All media would show the
+  same as no view.
+- **Its name** starts as what it shows, such as "Video, Sound · B-roll", and
+  can be typed over.
+- **A view whose collection was deleted** still opens. It shows All media
+  with its types, and a message names the collection that went.
+- **Limits** are the shell's: 30 views and a 60-character name.
+- **A guest sent from Project** sees the Type row and Clear filters only. A
+  guest has no collections and no views.
 
 ## Getting a file in
 

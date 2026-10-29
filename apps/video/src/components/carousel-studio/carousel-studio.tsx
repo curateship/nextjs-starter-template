@@ -99,6 +99,7 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -112,6 +113,7 @@ import {
   exportCarousel,
   getCarouselErrorMessage,
   listCollectionPictures,
+  loadCarouselMediaCounts,
   makeVideoFromCarousel,
   suggestFirstSlide,
   writeCaption,
@@ -149,6 +151,14 @@ import { attachEditorMedia, listVideoMedia } from "@/lib/api/video/media"
 import { LayersPanelBody } from "@/components/carousel-studio/layers-panel"
 import { StickerList } from "@/components/video-editor/studio-stickers"
 import { useMediaCollections } from "@/components/video-editor/use-media-collections"
+import { CollectionNameDialog } from "@/components/video-editor/studio-media-collections"
+import { MediaFilterMenu } from "@/components/video-editor/studio-media-filter"
+import {
+  CAROUSEL_MEDIA_FILTER,
+  emptyMediaFilter,
+  readMediaTypes,
+  type MediaFilterValue,
+} from "@/lib/video/media-saved-views"
 import type { Sticker } from "@/lib/api/video/stickers"
 import { PhonePreviewDialog } from "@/components/carousel-studio/phone-preview"
 import {
@@ -1502,6 +1512,23 @@ function CarouselContextPanel({
   const currentPanel = RAIL.find((item) => item.id === panel) ?? RAIL[0]
   const PanelIcon = currentPanel.Icon
 
+  // The Image panel puts search, its filter and + in the header, so it
+  // draws the header itself.
+  if (panel === "image") {
+    return (
+      <ImagePanel
+        icon={<PanelIcon className="size-4" />}
+        title={currentPanel.label}
+        carouselId={carouselId}
+        slide={slide}
+        format={format}
+        mediaVersion={mediaVersion}
+        onUpload={onUpload}
+        onAddItem={onAddItem}
+      />
+    )
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <DashboardCardTitleHeader
@@ -1544,15 +1571,6 @@ function CarouselContextPanel({
               format={format}
               onAddItem={onAddItem}
               onAddSlideNumbers={onAddSlideNumbers}
-            />
-          ) : panel === "image" ? (
-            <ImagePanelBody
-              carouselId={carouselId}
-              slide={slide}
-              format={format}
-              mediaVersion={mediaVersion}
-              onUpload={onUpload}
-              onAddItem={onAddItem}
             />
           ) : (
             <ShadowPanelBody onAddItem={onAddItem} />
@@ -2200,7 +2218,9 @@ function TextPanelBody({
 
 // -------------------------------------------------------- Image panel -------
 
-function ImagePanelBody({
+function ImagePanel({
+  icon,
+  title,
   carouselId,
   slide,
   format,
@@ -2208,6 +2228,8 @@ function ImagePanelBody({
   onUpload,
   onAddItem,
 }: {
+  icon: React.ReactNode
+  title: string
   carouselId: string
   slide: CarouselSlide | undefined
   format: CarouselFormat
@@ -2225,15 +2247,22 @@ function ImagePanelBody({
   const [dragOver, setDragOver] = React.useState(false)
   // Goes up when a Pexels photo joins the shelf from this panel.
   const [kept, setKept] = React.useState(0)
-  // "shelf" is this carousel's own uploads; a collection's id lists that
-  // collection's pictures from the whole library.
-  const [source, setSource] = React.useState("shelf")
-  const { collections } = useMediaCollections()
+  const [searchOpen, setSearchOpen] = React.useState(false)
+  // The filter menu's Collection row: "shelf" is this carousel's own
+  // uploads; a collection's id lists that collection from the whole library.
+  const [filter, setFilter] = React.useState<MediaFilterValue>(() =>
+    emptyMediaFilter(CAROUSEL_MEDIA_FILTER)
+  )
+  const typesKey = filter.types.join(",")
+  const [counts, setCounts] = React.useState<Record<string, number>>()
+  const [creatingCollection, setCreatingCollection] = React.useState(false)
+  const { collections, reload: reloadCollections } = useMediaCollections()
   const fileRef = React.useRef<HTMLInputElement>(null)
   // A collection deleted in another tab falls back to the shelf.
   const showing =
-    source === "shelf" || collections.some((item) => item.id === source)
-      ? source
+    filter.collection === "shelf" ||
+    collections.some((item) => item.id === filter.collection)
+      ? filter.collection
       : "shelf"
 
   React.useEffect(() => {
@@ -2243,16 +2272,19 @@ function ImagePanelBody({
 
   React.useEffect(() => {
     let active = true
+    const types = readMediaTypes(typesKey, CAROUSEL_MEDIA_FILTER.types) as (
+      | "image"
+      | "video"
+    )[]
     const request =
       showing === "shelf"
         ? listVideoMedia({
             scope: { type: "carousel", id: carouselId },
             pageSize: 30,
             search: debounced || undefined,
-          }).then((data) =>
-            data.media.filter((media) => media.file_type !== "audio")
-          )
-        : listCollectionPictures(showing, debounced)
+            fileTypes: types.length ? types : ["image", "video"],
+          }).then((data) => data.media)
+        : listCollectionPictures(showing, debounced, types)
     request
       .then((media) => {
         if (!active) return
@@ -2266,7 +2298,25 @@ function ImagePanelBody({
     return () => {
       active = false
     }
-  }, [carouselId, debounced, mediaVersion, showing, kept])
+  }, [carouselId, debounced, mediaVersion, showing, typesKey, kept])
+
+  // The filter menu's numbers. Read again when the collections are, so a
+  // file added to one in the video editor counts once this tab is looked at.
+  React.useEffect(() => {
+    let active = true
+    const types = readMediaTypes(typesKey, CAROUSEL_MEDIA_FILTER.types) as (
+      | "image"
+      | "video"
+    )[]
+    loadCarouselMediaCounts(carouselId, debounced, types)
+      .then((loaded) => {
+        if (active) setCounts(loaded)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [carouselId, debounced, mediaVersion, typesKey, kept, collections])
 
   // A picture from a collection joins this carousel's shelf as it goes on a
   // slide, so it is there next time without the collection.
@@ -2317,70 +2367,89 @@ function ImagePanelBody({
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            height: 34,
-            padding: "0 11px",
-            background: "var(--elev)",
-            borderRadius: 9,
-            minWidth: 0,
-          }}
-        >
-          <SearchIcon size={14} style={{ color: "var(--mut)", flex: "none" }} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search media"
-            style={{
-              flex: 1,
-              minWidth: 0,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              fontSize: 12,
-              color: "var(--ink)",
-            }}
-          />
-        </div>
-        <button
-          type="button"
-          className="st-hovbg"
-          onClick={() => fileRef.current?.click()}
-          title="Upload image"
-          style={{
-            height: 34,
-            width: 34,
-            display: "grid",
-            placeItems: "center",
-            background: "var(--elev)",
-            border: "none",
-            borderRadius: 9,
-            color: "var(--ink)",
-            cursor: "pointer",
-            flex: "none",
-          }}
-        >
-          <PlusIcon size={15} />
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*,video/mp4,video/quicktime,video/webm"
-          multiple
-          hidden
-          onChange={(e) => {
-            void handleUpload(e.target.files)
-            e.target.value = ""
-          }}
-        />
-      </div>
+    <div className="flex h-full min-h-0 flex-col">
+      <DashboardCardTitleHeader
+        icon={icon}
+        title={title}
+        action={
+          <div className="flex items-center gap-2">
+            <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Search media"
+                  title="Search media"
+                  aria-pressed={searchOpen}
+                >
+                  <SearchIcon className={search ? "text-foreground" : undefined} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-60 p-2">
+                <Input
+                  autoFocus
+                  type="search"
+                  value={search}
+                  placeholder="Search media"
+                  aria-label="Search media"
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </PopoverContent>
+            </Popover>
+            <MediaFilterMenu
+              kind={CAROUSEL_MEDIA_FILTER}
+              baseRows={[{ id: "shelf", label: "This carousel" }]}
+              value={{ ...filter, collection: showing }}
+              onChange={setFilter}
+              collections={collections}
+              counts={counts}
+              showClear={false}
+              typeDivider
+              onCollectionsChanged={reloadCollections}
+              onNewCollection={() => setCreatingCollection(true)}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={uploading}
+              aria-label="Upload image"
+              title="Upload image"
+              onClick={() => fileRef.current?.click()}
+            >
+              {uploading ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,video/mp4,video/quicktime,video/webm"
+              multiple
+              hidden
+              onChange={(e) => {
+                void handleUpload(e.target.files)
+                e.target.value = ""
+              }}
+            />
+          </div>
+        }
+      />
 
+      <CollectionNameDialog
+        open={creatingCollection}
+        onOpenChange={setCreatingCollection}
+        collection={null}
+        onSaved={(created) => {
+          toast.success(`Created “${created.name}”.`)
+          reloadCollections()
+        }}
+      />
+
+      <ScrollArea className="min-h-0 flex-1">
+      <div className="p-4">
+      {/* The drop box shows while the shelf is empty; files dropped on the
+          canvas join the shelf too. */}
+      {showing === "shelf" && !items.length && !search ? (
       <div
         className="st-hovcard"
         data-media-drop
@@ -2425,6 +2494,7 @@ function ImagePanelBody({
           PNG · JPG · WEBP · MP4 · MOV
         </div>
       </div>
+      ) : null}
 
       {error ? (
         <div
@@ -2434,40 +2504,9 @@ function ImagePanelBody({
         </div>
       ) : null}
 
-      {collections.length ? (
-        <div
-          role="group"
-          aria-label="Pictures from"
-          className="mb-4 flex flex-wrap gap-[5px]"
-        >
-          {[
-            { id: "shelf", label: "This carousel" },
-            ...collections.map((item) => ({ id: item.id, label: item.name })),
-          ].map((option) => {
-            const on = showing === option.id
-            return (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={on}
-                onClick={() => setSource(option.id)}
-                className="max-w-full truncate rounded-lg border px-[9px] py-[5px] text-[11px] font-semibold"
-                style={{
-                  borderColor: on ? "var(--acc)" : "var(--line)",
-                  background: on ? "var(--acc-soft)" : "var(--panel)",
-                  color: on ? "var(--acc)" : "var(--ink2)",
-                }}
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
-
       <StudioLabel>
         {showing === "shelf"
-          ? `Your media · ${items.length}`
+          ? `This carousel · ${items.length}`
           : `${collections.find((item) => item.id === showing)?.name ?? "Collection"} · ${items.length}`}
       </StudioLabel>
       {/* 2-col masonry so each thumbnail keeps its own aspect ratio (no crop). */}
@@ -2544,7 +2583,7 @@ function ImagePanelBody({
         <div style={{ fontSize: 12, color: "var(--mut)", padding: "8px 2px" }}>
           {showing === "shelf"
             ? "No images yet. Import one to place it on the slide."
-            : "No pictures in this collection yet."}
+            : "Nothing in this collection yet."}
         </div>
       ) : null}
 
@@ -2563,6 +2602,8 @@ function ImagePanelBody({
           setKept((count) => count + 1)
         }}
       />
+      </div>
+      </ScrollArea>
     </div>
   )
 }

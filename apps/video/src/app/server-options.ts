@@ -1,6 +1,11 @@
 import type { AppServerOptions } from "@/server/app-options"
 import { VIRAL_SAVED_VIEW_KIND } from "@/lib/video/viral-saved-views"
 import { viralSavedViewScreen } from "@/server/video/viral/saved-views"
+import {
+  CAROUSEL_MEDIA_FILTER,
+  EDITOR_MEDIA_FILTER,
+} from "@/lib/video/media-saved-views"
+import { mediaSavedViewScreen } from "@/server/video/media-saved-views"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -107,6 +112,13 @@ export const appServerOptions: AppServerOptions = {
       },
     ],
   },
-  // Views on a Viral project's videos.
-  savedViews: { screens: { [VIRAL_SAVED_VIEW_KIND]: viralSavedViewScreen } },
+  // Views on a Viral project's videos, the video editor's Media panel and
+  // the carousel editor's Image panel.
+  savedViews: {
+    screens: {
+      [VIRAL_SAVED_VIEW_KIND]: viralSavedViewScreen,
+      [EDITOR_MEDIA_FILTER.kind]: mediaSavedViewScreen(EDITOR_MEDIA_FILTER),
+      [CAROUSEL_MEDIA_FILTER.kind]: mediaSavedViewScreen(CAROUSEL_MEDIA_FILTER),
+    },
+  },
 }
