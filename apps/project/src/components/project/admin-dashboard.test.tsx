@@ -173,7 +173,6 @@ const DAILY: DailyCard = {
     milestone: null,
     today: { day: "2099-03-02", intention: "", rating: null, note: "", win: "", question: "", answer: "", bedAt: null, upAt: null },
     tomorrowIntention: "",
-    sleptMinutes: null,
     line: "Start with the task you keep walking around.",
     question: "What gave you energy today?",
     trend: [],

@@ -2,6 +2,7 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { MinusIcon, PlusIcon } from "lucide-react"
 
+import { DailySection } from "@/components/project/daily-section"
 import { HabitIconGlyph } from "@/components/project/habit-icons"
 import { PanelHeading } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
@@ -33,7 +34,7 @@ export function DailyHabits({ daily, part }: { daily: DailyCard; part: DayPart }
     .sort((a, b) => (a.atTime ?? "99").localeCompare(b.atTime ?? "99") || a.position - b.position)
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+    <DailySection>
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <PanelHeading>{yesterday ? `Yesterday's ${part}` : `${DAY_PART_LABEL[part]} routine`}</PanelHeading>
@@ -60,7 +61,7 @@ export function DailyHabits({ daily, part }: { daily: DailyCard; part: DayPart }
           Finished days: {admin.finished.current} in a row, best {admin.finished.best}.
         </p>
       ) : null}
-    </div>
+    </DailySection>
   )
 }
 

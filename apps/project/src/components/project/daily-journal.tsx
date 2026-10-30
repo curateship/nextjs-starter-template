@@ -1,8 +1,9 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { BedIcon, SunriseIcon } from "lucide-react"
+import { BedIcon, Loader2Icon } from "lucide-react"
 import { Line, LineChart, YAxis } from "recharts"
 
+import { DailySection } from "@/components/project/daily-section"
 import { RainbowEdge } from "@/components/project/rainbow-edge"
 import { SaveLine } from "@/components/project/save-line"
 import { PanelHeading } from "@/components/shared/panel-card"
@@ -14,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { markMySleep, rateMyDay, saveJournalWords, type DailyCard } from "@/lib/api/project/daily-card"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { DAILY_LIMITS, hoursAndMinutes, type DayPart, type JournalField } from "@/lib/project/daily-card"
+import { DAILY_LIMITS, type DayPart, type JournalField } from "@/lib/project/daily-card"
 import { addDays, clockIn, dayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -28,7 +29,7 @@ function reloadDashboard(router: ReturnType<typeof useRouter>) {
 }
 
 /**
- * The site admin's journal on the Daily card, theirs alone: Up and the
+ * The site admin's journal on the Daily card, theirs alone: the
  * morning's intention; at night tomorrow at a glance and the morning's
  * intention read back. The rest of the night sits behind Rate your day.
  */
@@ -38,8 +39,7 @@ export function DailyJournal({ daily, part }: { daily: DailyCard; part: DayPart 
   const day = daily.cardDay
   if (part === "morning") {
     return (
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
-        <SleepLine daily={daily} />
+      <DailySection className="gap-3">
         <JournalBox
           day={day}
           field="intention"
@@ -52,30 +52,64 @@ export function DailyJournal({ daily, part }: { daily: DailyCard; part: DayPart 
             A year ago today you wrote: <span className="text-foreground">{admin.onThisDay.text}</span>
           </p>
         ) : null}
-      </div>
+      </DailySection>
     )
   }
   if (part === "afternoon") {
     return admin.today.intention ? (
-      <p className="text-sm text-muted-foreground">
-        Today you want to: <span className="text-foreground">{admin.today.intention}</span>
-      </p>
+      <DailySection>
+        <p className="text-sm text-muted-foreground">
+          Today you want to: <span className="text-foreground">{admin.today.intention}</span>
+        </p>
+      </DailySection>
     ) : null
   }
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
       <TomorrowAtAGlance daily={daily} />
       {admin.today.intention ? (
-        <p className="text-sm text-muted-foreground">
-          This morning you wanted to: <span className="text-foreground">{admin.today.intention}</span>
-        </p>
+        <DailySection>
+          <p className="text-sm text-muted-foreground">
+            This morning you wanted to: <span className="text-foreground">{admin.today.intention}</span>
+          </p>
+        </DailySection>
       ) : null}
     </div>
   )
 }
 
 /**
- * At night, beside Look back: "Rate your day" in a moving rainbow, which
+ * Inside a RainbowEdge. Solid in every state, so only the edge shows the
+ * rainbow, and the focus ring is inset so the edge doesn't cut it off.
+ */
+const RAINBOW_BUTTON =
+  "relative w-full border-transparent bg-background hover:bg-muted focus-visible:ring-inset dark:bg-background dark:hover:bg-muted"
+
+/**
+ * Under the greeting until the site admin starts the day, and the only thing
+ * on the card below it until then (Tyler, 30 Oct 2026: "There
+ * should be a "Start day" button like a rate my day button"). It records the
+ * time the day began; it says nothing about sleep ("Remove the slept
+ * feature").
+ */
+export function StartDayButton() {
+  const router = useRouter()
+  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  async function press() {
+    if (await run(() => markMySleep("up"))) await reloadDashboard(router)
+  }
+  return (
+    <RainbowEdge className="min-w-0 flex-1 rounded-lg">
+      <Button type="button" variant="outline" className={RAINBOW_BUTTON} disabled={busy} onClick={() => void press()}>
+        {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+        Start day
+      </Button>
+    </RainbowEdge>
+  )
+}
+
+/**
+ * At night, at the foot of the card: "Rate your day" in a moving rainbow, which
  * opens the evening's journal (Tyler, 29 Oct 2026: "all these should be in a
  * dropdown in a button"): the rating with a note, the win, tonight's
  * question, tomorrow's intention, Going to bed and the last 30 days.
@@ -88,12 +122,7 @@ export function RateYourDayButton({ daily }: { daily: DailyCard }) {
     <Popover>
       <RainbowEdge className="min-w-0 flex-1 rounded-lg">
         <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            // Inset, so the ring isn't cut off by the rainbow's edge.
-            className="relative w-full border-transparent bg-background hover:bg-muted focus-visible:ring-inset dark:bg-background dark:hover:bg-muted"
-          >
+          <Button type="button" variant="outline" className={RAINBOW_BUTTON}>
             Rate your day
           </Button>
         </PopoverTrigger>
@@ -122,7 +151,7 @@ export function RateYourDayButton({ daily }: { daily: DailyCard }) {
           value={admin.tomorrowIntention}
           max={DAILY_LIMITS.intention}
         />
-        <SleepButton kind="bed" done={Boolean(admin.today.bedAt)} at={admin.today.bedAt} zone={daily.zone} />
+        <GoingToBed at={admin.today.bedAt} zone={daily.zone} />
         <RatingTrend trend={admin.trend} />
       </PopoverContent>
     </Popover>
@@ -180,6 +209,7 @@ function JournalBox({
       <Textarea
         id={id}
         rows={1}
+        className="bg-background dark:bg-background"
         value={draft}
         maxLength={max}
         onChange={(event) => setDraft(event.target.value)}
@@ -228,28 +258,13 @@ function RateYourDay({ day, rating }: { day: string; rating: number | null }) {
   )
 }
 
-/** "You slept 7h 20m" once Up is pressed, and Up until then. */
-function SleepLine({ daily }: { daily: DailyCard }) {
-  const admin = daily.admin!
-  if (admin.today.upAt) {
-    return (
-      <p className="text-sm">
-        {admin.sleptMinutes ? `You slept ${hoursAndMinutes(admin.sleptMinutes)}.` : `Up at ${clockIn(admin.today.upAt, daily.zone)}.`}
-      </p>
-    )
-  }
-  return <SleepButton kind="up" done={false} at={null} zone={daily.zone} />
-}
-
-function SleepButton({ kind, done, at, zone }: { kind: "bed" | "up"; done: boolean; at: string | null; zone: string }) {
+function GoingToBed({ at, zone }: { at: string | null; zone: string }) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   async function press() {
-    if (await run(() => markMySleep(kind))) {
-      await reloadDashboard(router)
-    }
+    if (await run(() => markMySleep("bed"))) await reloadDashboard(router)
   }
-  if (done && at) {
+  if (at) {
     return (
       <p className="text-sm text-muted-foreground">
         Going to bed at {clockIn(at, zone)}.{" "}
@@ -259,11 +274,10 @@ function SleepButton({ kind, done, at, zone }: { kind: "bed" | "up"; done: boole
       </p>
     )
   }
-  const Icon = kind === "bed" ? BedIcon : SunriseIcon
   return (
     <Button type="button" variant="outline" className="w-full" onClick={() => void press()} disabled={busy}>
-      <Icon className="size-4" />
-      {kind === "bed" ? "Going to bed" : "Up"}
+      <BedIcon className="size-4" />
+      Going to bed
     </Button>
   )
 }
@@ -273,7 +287,7 @@ function TomorrowAtAGlance({ daily }: { daily: DailyCard }) {
   const tomorrow = daily.admin!.tomorrow
   const nothing = !tomorrow.meetings.length && !tomorrow.due.length && !tomorrow.away.length && !tomorrow.holidays.length
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+    <DailySection>
       <PanelHeading>Tomorrow</PanelHeading>
       {nothing ? (
         <p className="text-sm text-muted-foreground">No meetings, due dates or days off tomorrow.</p>
@@ -306,7 +320,7 @@ function TomorrowAtAGlance({ daily }: { daily: DailyCard }) {
           ))}
         </ul>
       )}
-    </div>
+    </DailySection>
   )
 }
 

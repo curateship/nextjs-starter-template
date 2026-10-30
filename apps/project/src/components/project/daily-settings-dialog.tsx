@@ -321,8 +321,8 @@ function WordsCard({ kind, items }: { kind: "lines" | "questions"; items: string
       <CardContent className="grid gap-2">
         <Label htmlFor={id}>
           {kind === "lines"
-            ? "One per line. They join the card's own lines for the day."
-            : "One per line. They join the card's own questions at night."}
+            ? "One per line. Each morning shows one of them."
+            : "One per line. Each night asks one of them."}
         </Label>
         <Textarea id={id} rows={1} value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={() => void save()} />
       </CardContent>

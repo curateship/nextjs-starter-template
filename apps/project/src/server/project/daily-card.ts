@@ -11,7 +11,6 @@ import {
   JOURNAL_SEARCH_RESULTS,
   newMilestone,
   pickForDay,
-  sleptMinutes,
   streakOf,
   weekStartOf,
   type DayHours,
@@ -25,7 +24,7 @@ import {
   type WeatherKind,
   weatherKindOf,
 } from "@/lib/project/daily-card"
-import { DAILY_LINES, DAILY_QUESTIONS, READY_ROUTINES } from "@/lib/project/daily-words"
+import { READY_ROUTINES } from "@/lib/project/daily-words"
 import { addDays, localNow, momentOf, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { CLOSED_TASK_STATUSES } from "@/lib/project/rules"
@@ -132,8 +131,6 @@ export type SiteAdminDaily = {
   today: JournalDay
   /** Tomorrow's intention, written tonight. */
   tomorrowIntention: string
-  /** From last night's Going to bed until this morning's Up. */
-  sleptMinutes: number | null
   line: string
   question: string
   /** Ratings of the last 30 card days, oldest first; null where none was given. */
@@ -462,9 +459,9 @@ async function siteAdminDaily(
     milestone,
     today: todayRow,
     tomorrowIntention: journal.get(addDays(cardDay, 1))?.intention ?? "",
-    sleptMinutes: sleptMinutes(journal.get(yesterday)?.bedAt ?? null, todayRow.upAt),
-    line: pickForDay([...DAILY_LINES, ...settings.ownLines], cardDay) ?? "",
-    question: todayRow.question || (pickForDay([...DAILY_QUESTIONS, ...settings.ownQuestions], cardDay) ?? ""),
+    // Only the site admin's own; with none, the card shows no line and no question.
+    line: pickForDay(settings.ownLines, cardDay) ?? "",
+    question: todayRow.question || (pickForDay(settings.ownQuestions, cardDay) ?? ""),
     trend: Array.from({ length: 30 }, (_, index) => {
       const day = addDays(cardDay, index - 29)
       return { day, rating: journal.get(day)?.rating ?? null }
@@ -961,6 +958,7 @@ export async function saveJournalRating(userId: string, input: { day: string; ra
 }
 
 /** Going to bed or Up, at this moment, on the card's day. */
+/** Going to bed, or Start day, which records the time the day began in `up_at`. */
 export async function markSleep(userId: string, kind: "bed" | "up", database: ProjectDb = db, at = new Date()) {
   await requireSiteAdmin(userId, database)
   const day = await siteAdminCardDay(userId, database, at)

@@ -9,6 +9,13 @@ off doesn't load again. Tyler redrew all three panels on 13 Oct 2026
 (`assets/pasted-image-1791938818669097000.png`); what follows is that
 version.
 
+The left and right panels share one inside spacing, 15px from the panel's
+edges to its cards and between one card and the next, set in one place
+(`PANEL_GUTTER`, `src/lib/project/panel-gutter.ts`). Tyler, 30 Oct 2026:
+"all panels gutter needs to follow this size". The right panel is the same
+task panel the project and team pages open, so it has the spacing there too,
+and its footer uses the same padding so its edge lines up.
+
 The site admin has a My dashboard of their own at the same address, with no
 check-in. It is described in
 [The site admin's My dashboard](#the-site-admins-my-dashboard) below.

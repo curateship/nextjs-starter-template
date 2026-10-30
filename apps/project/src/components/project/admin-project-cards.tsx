@@ -37,6 +37,7 @@ import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { openTaskCount, projectCardList, projectDueLine, type PacedProject } from "@/lib/project/admin-project-cards"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { PANEL_GAP } from "@/lib/project/panel-gutter"
 import { PROJECT_PACE_LABEL, type ProjectPace } from "@/lib/project/project-pace"
 import { cn } from "@/lib/utils"
 
@@ -169,11 +170,11 @@ export function ProjectsCard({
       title="Projects"
       after={<span className="font-normal text-muted-foreground/70">{list.active.length + list.idle.length}</span>}
     >
-      <div className="grid gap-3">
+      <div className={cn("grid", PANEL_GAP)}>
         {list.active.length ? (
           <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}>
             <SortableContext items={blocks.map((row) => row.project.id)} strategy={verticalListSortingStrategy}>
-              <ul className="grid gap-3" aria-label="Projects with open tasks">
+              <ul className={cn("grid", PANEL_GAP)} aria-label="Projects with open tasks">
                 {blocks.map((row) => (
                   <ProjectBlock
                     key={row.project.id}

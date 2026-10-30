@@ -4,7 +4,7 @@ import { SettingsIcon } from "lucide-react"
 
 import { CheckinDialog, StatusLine } from "@/components/project/checkin-dialog"
 import { CheckoutDialog } from "@/components/project/checkout-dialog"
-import { DailyCard } from "@/components/project/daily-card"
+import { DailyCard, DailyEditButton, DailySkyBanner, useDailyNow } from "@/components/project/daily-card"
 import { DailyCityField } from "@/components/project/daily-city-field"
 import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
 import { MyTasksPanel } from "@/components/project/my-tasks-panel"
@@ -41,6 +41,7 @@ import { todaysPicks } from "@/lib/project/todays-picks"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { useMyLive } from "@/lib/project/use-my-live"
 import { useRememberedTask } from "@/lib/project/use-remembered-task"
+import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
 import { cn } from "@/lib/utils"
 import { useTeamId } from "@/lib/project/team-scope"
 
@@ -243,9 +244,12 @@ function MePanel({
           : today.pastDue
             ? { text: "Late", tone: "amber" as const }
             : null
+  const now = useDailyNow(daily)
   return (
-    <>
-      <DashboardCardHeader>
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <DailySkyBanner daily={daily} now={now} />
+      {/* The line goes see-through over the sky rather than away, so the header keeps its height. */}
+      <DashboardCardHeader className="relative border-b-transparent">
         <PersonAvatar name={me.name} avatarUrl={me.avatarUrl} size="default" />
         <div className="grid min-w-0 flex-1">
           <span className="truncate text-sm font-medium">{me.name}</span>
@@ -253,12 +257,14 @@ function MePanel({
             {[me.title, me.teamName].filter(Boolean).join(" · ")}
           </span>
         </div>
+        <DailyEditButton daily={daily} />
         <MySettingsMenu dashboard={dashboard} city={daily.settings.city} />
       </DashboardCardHeader>
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <div className="grid gap-3 p-3">
+      <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
+        <div className={cn("grid", PANEL_GUTTER)}>
           <DailyCard
             daily={daily}
+            now={now}
             deepWork={deepWork}
             picks={checkin.pickedTaskIds.length ? { done: picksDone, total: checkin.pickedTaskIds.length } : null}
             checkin={{ checkedIn: Boolean(checkin.checkin), checkedOut: Boolean(checkin.checkout?.at) }}
@@ -326,7 +332,7 @@ function MePanel({
           <InboxCard inbox={inbox} />
         </div>
       </ScrollArea>
-    </>
+    </div>
   )
 }
 

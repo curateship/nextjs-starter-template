@@ -3,7 +3,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 import { SettingsIcon } from "lucide-react"
 
 import { AdminCards } from "@/components/project/admin-cards"
-import { DailyCard } from "@/components/project/daily-card"
+import { DailyCard, DailyEditButton, DailyLookBackButton, DailySkyBanner, useDailyNow } from "@/components/project/daily-card"
 import { DailyCityField } from "@/components/project/daily-city-field"
 import { ProjectsCard } from "@/components/project/admin-project-cards"
 import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
@@ -38,6 +38,7 @@ import { TeamScope } from "@/lib/project/team-scope"
 import { useMyLive } from "@/lib/project/use-my-live"
 import { useRememberedTask } from "@/lib/project/use-remembered-task"
 import { useSaveLine } from "@/lib/project/use-save-line"
+import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
 import { cn } from "@/lib/utils"
 
 /** The route whose data loads again on a live change. */
@@ -152,7 +153,7 @@ export function AdminDashboardScreen({
                 <>
                   <DashboardCardTitleHeader title="Projects" />
                   <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-                    <div className="grid gap-3 p-3">{projectsCard}</div>
+                    <div className={cn("grid", PANEL_GUTTER)}>{projectsCard}</div>
                   </ScrollArea>
                 </>
               ),
@@ -275,20 +276,25 @@ function AdminPanel({
   const { me } = dashboard
   const [inboxOpen, setInboxOpen] = React.useState(false)
   const [unread, setUnread] = React.useState(() => inbox.notifications.filter((item) => !item.read_at).length)
+  const now = useDailyNow(daily)
   return (
-    <>
-      <DashboardCardHeader>
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {inboxOpen ? null : <DailySkyBanner daily={daily} now={now} />}
+      {/* The line goes see-through over the sky rather than away, so the header keeps its height. */}
+      <DashboardCardHeader className={cn("relative", !inboxOpen && "border-b-transparent")}>
         <PersonAvatar name={me.name} avatarUrl={me.avatarUrl} size="default" />
         <div className="grid min-w-0 flex-1">
           <span className="truncate text-sm font-medium">{me.name}</span>
           <span className="truncate text-xs text-muted-foreground">Site admin</span>
         </div>
+        <DailyLookBackButton />
+        <DailyEditButton daily={daily} />
         <InboxButton unread={unread} open={inboxOpen} onToggle={() => setInboxOpen((open) => !open)} />
         <AdminSettingsMenu dashboard={dashboard} city={daily.settings.city} />
       </DashboardCardHeader>
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <div className={cn("grid gap-3 p-3", inboxOpen && "hidden")}>
-          <DailyCard daily={daily} deepWork={mostUrgent(dashboard.tasks, dashboard.today)} picks={null} checkin={null} onOpenTask={onOpenTask} />
+      <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
+        <div className={cn("grid", PANEL_GUTTER, inboxOpen && "hidden")}>
+          <DailyCard daily={daily} now={now} deepWork={mostUrgent(dashboard.tasks, dashboard.today)} picks={null} checkin={null} onOpenTask={onOpenTask} />
           <AdminCards
             cards={dashboard.cards}
             zone={dashboard.zone}
@@ -300,7 +306,7 @@ function AdminPanel({
           <InboxCard inbox={inbox} bare onUnread={setUnread} />
         </div>
       </ScrollArea>
-    </>
+    </div>
   )
 }
 

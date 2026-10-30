@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { cardDayOf, dailySkySchema, greetingOf, partOfDay, skyPhase, streakOf, DEFAULT_HOURS, type StreakDay } from "@/lib/project/daily-card"
-import { DAILY_LINES, DAILY_QUESTIONS } from "@/lib/project/daily-words"
 import { noticeKindFromWords, routineReminderHeading } from "@/lib/project/notices"
 import { PERSONAL_PROJECT_ID } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
@@ -26,6 +25,7 @@ import {
   saveDailyHours,
   saveJournalRating,
   saveJournalText,
+  saveOwnWords,
   searchJournal,
   setHabitCount,
 } from "@/server/project/daily-card"
@@ -129,13 +129,6 @@ describe("the rules", () => {
 
   it("never breaks a streak on today, still in progress", () => {
     expect(streakOf("2099-03-02", "2099-03-03", (day) => (day === "2099-03-02" ? "done" : "missed")).current).toBe(1)
-  })
-
-  it("ships a line for every day of the year and about 60 questions, none repeated", () => {
-    expect(DAILY_LINES).toHaveLength(365)
-    expect(new Set(DAILY_LINES).size).toBe(365)
-    expect(DAILY_QUESTIONS.length).toBeGreaterThanOrEqual(60)
-    expect([...DAILY_LINES, ...DAILY_QUESTIONS].some((line) => /[–—]/.test(line))).toBe(false)
   })
 
   it("takes only a web or site address for an own sky photo", () => {
@@ -282,6 +275,17 @@ describe("the site admin's habits", () => {
 })
 
 describe("the site admin's journal", () => {
+  it("shows no line or question of its own, only the site admin's", async () => {
+    let card = await loadDailyCard(tyler.id, database, NINE)
+    expect(card.admin!.line).toBe("")
+    expect(card.admin!.question).toBe("")
+    await saveOwnWords(tyler.id, "lines", ["Ship one thing"], database)
+    await saveOwnWords(tyler.id, "questions", ["What surprised you?"], database)
+    card = await loadDailyCard(tyler.id, database, NINE)
+    expect(card.admin!.line).toBe("Ship one thing")
+    expect(card.admin!.question).toBe("What surprised you?")
+  })
+
   it("saves today's words and tomorrow's intention, and nothing for a day gone", async () => {
     await saveJournalText(tyler.id, { day: MONDAY, field: "intention", text: "Finish the homepage" }, database, NINE)
     await saveJournalText(tyler.id, { day: "2099-03-03", field: "intention", text: "Call Hart Dental" }, database, NINE)
@@ -302,11 +306,11 @@ describe("the site admin's journal", () => {
     expect((await loadYearOfRatings(tyler.id, 2099, database)).ratings).toEqual({ [MONDAY]: 4 })
   })
 
-  it("counts the night's sleep from Going to bed until Up", async () => {
-    await markSleep(tyler.id, "bed", database, at(MONDAY, "23:30"))
-    await markSleep(tyler.id, "up", database, at("2099-03-03", "07:00"))
-    const card = await loadDailyCard(tyler.id, database, at("2099-03-03", "08:00"))
-    expect(card.admin!.sleptMinutes).toBe(450)
+  it("starts the day once, on the card's day, even past midnight", async () => {
+    await markSleep(tyler.id, "up", database, at("2099-03-03", "01:30"))
+    expect((await loadDailyCard(tyler.id, database, at("2099-03-03", "02:00"))).admin!.today.upAt).not.toBeNull()
+    // Before morning starts it is still Monday on the card, so Tuesday has not started.
+    expect((await loadDailyCard(tyler.id, database, at("2099-03-03", "08:00"))).admin!.today.upAt).toBeNull()
   })
 
   it("finds words, treating % and _ as plain letters", async () => {
