@@ -26,7 +26,9 @@ Daily card", and that file wins wherever the two disagree.
   missing border"). The line for the day and the buttons sit on the panel itself
   (`daily-section.tsx`).
 - **The pencil** sits in the panel's header, before the inbox and the cog
-  ("put pen icon here"). **The fold arrow** sits beside the greeting.
+  ("put pen icon here"). **The fold arrow** sits beside the greeting and
+  shows only while the greeting is pointed at ("the good morning toggle icon
+  shoukld only appear on hover over"), or on a phone, always.
 - **The parts of the day follow each person's own hours.** Morning starts at
   5 AM, afternoon at 12 PM and night at 6 PM until the person changes them
   behind the card's pencil. Night runs past midnight until morning starts,
@@ -44,7 +46,7 @@ Daily card", and that file wins wherever the two disagree.
   blue sky, gold for the last 90 minutes of the afternoon, a sunset for the
   first hour of the night, then stars (`daily-sky.tsx`). It is drawn faint,
   so the header and greeting read in their usual colours over it. While the
-  site admin's inbox is open in the panel, the sky is left out.
+  site admin's inbox or Look back is open in the panel, the sky is left out.
 - **The weather.** A City field in My settings, behind the cog beside the
   name. The card's sky then shows that city's weather, such as clouds, rain,
   snow or fog, and "12°, rain in Toronto" under the greeting. The browser
@@ -77,7 +79,9 @@ Daily card", and that file wins wherever the two disagree.
   off". On a team holiday it reads "Enjoy Christmas Day". It shows no deep
   work and no check-in nudge that day. The site admin is on no team, so
   their day off is their own time off, or a holiday every team has that day.
-- **Fold it.** The arrow beside the greeting folds everything below it away.
+- **Fold it.** Pressing the greeting or its date line folds everything below
+  it away, and pressing it again opens it ("clicking on the text area should
+  uncollpase it"); the arrow beside it does the same.
   This browser remembers it, like the other cards.
 - **On a phone** the site admin's My dashboard opens on the Me tab, where the
   Daily card is first. An employee's still opens on My tasks.
@@ -181,9 +185,23 @@ a team screen or sent to anyone.
   for the days it was set), the typical rating and the top wins.
 - **Look back** is the graph in the panel's header, before the pencil ("Add
   another icon here with the graph icon"); the card has no Look back button
-  ("remove the look back button"). It opens a window with three tabs.
-  Month shows every habit as a row of ticks for the month. Year shows a
-  square for every day, stronger for a better rating, with the number in it.
+  ("remove the look back button"). It swaps the panel's cards for Look back,
+  and pressing it again, or the inbox, swaps them back, the way the inbox
+  does; it is never a window ("Dont put the look back into modal but instead
+  put it inline in the left panel like inbox", `daily-look-back.tsx`). While
+  it is open the graph bends into a cross, and back again when it shuts, the
+  way the inbox's tray does ("clicking on the graph icon shoulkd morhp like
+  the inbox icon", `inbox-morph-icon.tsx`). It
+  has three tabs. Month is one calendar, Monday first, each day shaded by how
+  many of its habits were done, with a line per habit under it: its name,
+  "Done 18 of 26 days" (the days it was set for so far, today included), and
+  a thin bar ("If there is 10 habits,
+  its too long"). Pressing a habit shows only its days; pressing it again
+  goes back to all. Year is twelve small month calendars, each day's square
+  stronger for a better rating, with a 1 to 5 key above them ("fix the year
+  tab"). Both fill the panel's width ("it has to be responsive to the size of
+  the panel"): the month calendar up to a comfortable size, the year two
+  months across in a narrow panel and more as it widens.
   Search finds a word in intentions, wins, notes and answers.
 
 ### Behind the pencil, for the site admin

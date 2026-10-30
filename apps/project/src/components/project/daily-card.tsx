@@ -1,17 +1,17 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { ChevronDown, LineChartIcon, Loader2Icon, PauseIcon, PencilIcon, PlayIcon } from "lucide-react"
+import { ChevronDown, Loader2Icon, PauseIcon, PencilIcon, PlayIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { DailyHabits } from "@/components/project/daily-habits"
 import { DailyJournal, RateYourDayButton, StartDayButton } from "@/components/project/daily-journal"
-import { DailyLookBackDialog } from "@/components/project/daily-look-back-dialog"
 import { DailySection } from "@/components/project/daily-section"
 import { DailySettingsDialog } from "@/components/project/daily-settings-dialog"
 import { DailySky } from "@/components/project/daily-sky"
+import { GraphMorphIcon } from "@/components/project/inbox-morph-icon"
 import { PanelHeading } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { pauseTaskClock, startTaskClock } from "@/lib/api/project/clock"
 import { loadMyWeather, milestoneShown, type DailyCard as DailyCardData, type DailyWeather } from "@/lib/api/project/daily-card"
@@ -81,22 +81,27 @@ export function DailySkyBanner({ daily, now }: { daily: DailyCardData; now: Dail
 /**
  * The graph in the site admin's panel header, before the pencil (Tyler, 30
  * Oct 2026: "Add another icon here with the graph icon that will open up the
- * look back modal"). It is the only way in to Look back.
+ * look back modal"). It swaps the panel's cards for Look back and back again,
+ * the way the inbox does ("put it inline in the left panel like inbox").
  */
-export function DailyLookBackButton() {
-  const [open, setOpen] = React.useState(false)
+export function DailyLookBackButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
-    <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" aria-label="Look back" onClick={() => setOpen(true)}>
-            <LineChartIcon className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Look back</TooltipContent>
-      </Tooltip>
-      <DailyLookBackDialog open={open} onClose={() => setOpen(false)} />
-    </>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={open ? "Back to my cards" : "Look back"}
+          aria-pressed={open}
+          className={cn(open && "bg-muted")}
+          onClick={onToggle}
+        >
+          <GraphMorphIcon open={open} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{open ? "Back to my cards" : "Look back"}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -166,25 +171,34 @@ export function DailyCard({
     <Collapsible open={open} onOpenChange={setOpen} asChild>
       <section ref={cardRef} aria-label="Daily card" className="relative grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3.75">
         {/* Down in the sky's lower half, where the fade has made it quiet enough to read on. */}
-        <div className="mt-6 flex items-start gap-2">
-          <div className="grid min-w-0 flex-1 gap-0.5">
-            <h2 className="text-base leading-tight font-semibold">{greeting}</h2>
-            <p className="text-sm text-muted-foreground">
-              {fullDayLabel(local.day)}
-              {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}
-            </p>
-          </div>
+        <div className="group/greeting mt-6 flex items-start gap-2">
+          {/* The greeting is the button that folds and opens the card, like a
+              panel card's heading (Tyler, 30 Oct 2026: "clicking on the text
+              area should uncollpase it"); the arrow is the same press. */}
+          <h2 className="min-w-0 flex-1 text-base leading-tight font-semibold">
+            <CollapsibleTrigger asChild>
+              <button type="button" className={cn("grid w-full cursor-pointer gap-0.5 rounded-md text-left", focusRingInset)}>
+                <span>{greeting}</span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  {fullDayLabel(local.day)}
+                  {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}
+                </span>
+              </button>
+            </CollapsibleTrigger>
+          </h2>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                aria-label={open ? "Fold the Daily card" : "Open the Daily card"}
-                aria-expanded={open}
+                tabIndex={-1}
+                aria-hidden
                 onClick={() => setOpen(!open)}
-                // Plain, open or folded, like a panel card's arrow.
-                className="aria-expanded:bg-transparent aria-expanded:text-foreground dark:aria-expanded:bg-transparent"
+                // Plain, open or folded, like a panel card's arrow. Shown only while
+                // the greeting is pointed at or has the keyboard's focus (Tyler, 30 Oct
+                // 2026); always on a screen with no pointer.
+                className="opacity-0 transition-opacity group-hover/greeting:opacity-100 group-has-[:focus-visible]/greeting:opacity-100 aria-expanded:bg-transparent aria-expanded:text-foreground dark:aria-expanded:bg-transparent [@media(hover:none)]:opacity-100"
               >
                 <ChevronDown className={cn("size-4 transition-transform duration-200", !open && "-rotate-90")} />
               </Button>

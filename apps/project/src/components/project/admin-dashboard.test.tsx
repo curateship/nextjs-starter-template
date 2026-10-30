@@ -378,7 +378,7 @@ describe("the site admin's My dashboard", () => {
     expect(html).toContain("Lead: Priya.")
     expect(html).toContain("+5")
     expect(html).toContain("10 tasks finished in the last two weeks.")
-    // Nothing open: a thin line under the blocks. Hidden: behind "Hidden 1".
+    // Nothing open: a thin line under the blocks. Hidden: behind "Hidden 1" at the heading's right.
     expect(html).toContain(", nothing open. Show it in full.")
     expect(html.indexOf(">Archive photos<")).toBeGreaterThan(html.indexOf(">Brochure<"))
     expect(html).toMatch(/Hidden<span class="text-muted-foreground\/70">1</)

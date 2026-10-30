@@ -449,11 +449,12 @@ my dashboard". He picked 14 ideas; the task is
 open projects, in place of Projects running late, pressing a project filters
 My tasks, and live across every team.
 
-It has no box of its own: the "Projects 3" heading and its fold arrow sit
-straight on the panel, and each project below is a card of its own, 15px
-apart like the panel's other cards (Tyler, 30 Oct 2026: "Put the label and
-toggle outside and have the project in its own card (not nested inside
-project car)").
+It has no box and no fold of its own: the "Projects 3" heading sits straight
+on the panel, at the Daily card greeting's 16px, and each project below is a
+card of its own, 15px apart like the panel's other cards (Tyler, 30 Oct 2026:
+"Put the label and toggle outside and have the project in its own card (not
+nested inside project car)", then "The project section (not hidden) project
+does not need to be toggled").
 
 - **Which projects.** Every team's open, shared projects, the same list as the
   Projects page: no archived project and nobody's "Just me" list. With none at
@@ -500,10 +501,14 @@ project car)").
   a handle to drag it, **+** for New task already on that project, **Hide**,
   and an arrow that opens the project page. The name makes room for them only
   while they show.
-- **Hide** takes a project off the card at once. "Hidden 2 ▾" at the bottom
-  opens the hidden ones, each with its colour, name, open task count ("2
-  open") and a grey **Show** button. Hiding
-  the project My tasks is filtered to clears that filter.
+- **Hide** takes a project off the card at once. "Hidden 2 >" at the right of
+  the Projects heading ("Put the hidden project toggle here") opens the
+  hidden ones just under the heading, its arrow turning down. It shows only
+  while the heading is pointed at, or while the hidden ones are open
+  ("toggle to be hover over and change the toggle icon to something that
+  looks better"), and always on a phone. Each hidden one shows its colour,
+  name, open task count ("2 open") and a grey **Show** button. Hiding the
+  project My tasks is filtered to clears that filter.
 - **Their own order.** Dragging a block saves the order, and from then on it
   wins over late first; a project they haven't placed goes after the placed
   ones, late first. The thin lines keep their places for when they get tasks
