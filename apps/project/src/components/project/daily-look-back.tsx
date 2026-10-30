@@ -1,13 +1,15 @@
 import * as React from "react"
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
 import { HabitIconGlyph } from "@/components/project/habit-icons"
+import { PanelTabsRow } from "@/components/project/panel-tabs-row"
+import { PanelHeading } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   findInJournal,
   loadMonthOfTicksPage,
@@ -59,34 +61,31 @@ const MONTH_WORDS: Record<WeekDot, string> = {
  * of ratings, and a search through the journal. Only they can open it. It
  * opens in the left panel in place of the cards, like the inbox, from the
  * graph in the panel's header (Tyler, 30 Oct 2026: "Dont put the look back
- * into modal but instead put it inline in the left panel like inbox"). It is
- * mounted only while shown, so each opening loads fresh.
+ * into modal but instead put it inline in the left panel like inbox"), with
+ * its tabs in a header under the panel's own and its own scrolling below. It
+ * is mounted only while shown, so each opening loads fresh.
  */
 export function DailyLookBack() {
+  const [tab, setTab] = React.useState<"month" | "year" | "search">("month")
   return (
-    // minmax(0, 1fr): the month and year grids scroll sideways inside the panel instead of widening it.
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
-      <div className="grid gap-0.5">
-        <h2 className="text-base leading-tight font-semibold">Look back</h2>
-        <p className="text-sm text-muted-foreground">Your habits, ratings and journal. Only you see these.</p>
-      </div>
-      <Tabs defaultValue="month" className="grid grid-cols-[minmax(0,1fr)] gap-4">
-        <TabsList>
-          <TabsTrigger value="month">Month</TabsTrigger>
-          <TabsTrigger value="year">Year</TabsTrigger>
-          <TabsTrigger value="search">Search</TabsTrigger>
-        </TabsList>
-        <TabsContent value="month" className="min-w-0">
-          <MonthTab />
-        </TabsContent>
-        <TabsContent value="year" className="min-w-0">
-          <YearTab />
-        </TabsContent>
-        <TabsContent value="search" className="min-w-0">
-          <SearchTab />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <>
+      {/* Underlined, on the right, as List and Board sit over My tasks. */}
+      <PanelTabsRow
+        value={tab}
+        onValueChange={(value) => setTab(value as typeof tab)}
+        tabs={[
+          { value: "month", label: "Month" },
+          { value: "year", label: "Year" },
+          { value: "search", label: "Search" },
+        ]}
+      />
+      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
+        {/* minmax(0, 1fr): nothing here widens the panel. */}
+        <div className="grid grid-cols-[minmax(0,1fr)] p-4">
+          {tab === "month" ? <MonthTab /> : tab === "year" ? <YearTab /> : <SearchTab />}
+        </div>
+      </ScrollArea>
+    </>
   )
 }
 
@@ -156,11 +155,10 @@ function shareLook(done: number, counted: number) {
 }
 
 /**
- * The month as one calendar, Monday first, and a line per habit under it
- * (Tyler, 30 Oct 2026, after one calendar per habit: "If there is 10
- * habits, its too long"; he picked one calendar and a habit list). Each day
- * is shaded by how many of its habits were done. Pressing a habit shows only
- * its days; pressing it again goes back to all. The calendar fills the panel
+ * The month as one calendar, Monday first, with Today's habits under it
+ * while it shows this month (Tyler, 30 Oct 2026, after one calendar per
+ * habit: "If there is 10 habits, its too long"). Each day is shaded by how
+ * many of its habits were done. The calendar fills the panel
  * up to a comfortable size ("it has to be responsive to the size of the
  * panel").
  */
@@ -168,6 +166,8 @@ function MonthGrid({ month }: { month: MonthOfTicks }) {
   const [picked, setPicked] = React.useState<string | null>(null)
   if (month.habits.length === 0) return <p className="text-sm text-muted-foreground">No habits in {monthLabel(month.month)}.</p>
   const habit = month.habits.find((item) => item.id === picked) ?? null
+  // Today's place in this month, or -1 when looking back at another month.
+  const todayAt = month.days.indexOf(month.today)
   const [year, monthNumber] = month.month.split("-").map(Number)
   // Blank cells before the 1st, so it lands under its weekday.
   const lead = (new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay() + 6) % 7
@@ -186,11 +186,14 @@ function MonthGrid({ month }: { month: MonthOfTicks }) {
           <MonthDay key={day} day={day} cells={habit ? [habit.cells[index]] : month.habits.map((item) => item.cells[index])} single={Boolean(habit)} />
         ))}
       </ol>
-      <ul className="grid gap-1" aria-label="Habits this month">
-        {month.habits.map((item) => (
-          <HabitMonthLine key={item.id} habit={item} picked={item.id === picked} onPick={() => setPicked((shown) => (shown === item.id ? null : item.id))} />
-        ))}
-      </ul>
+      {todayAt >= 0 ? (
+        <TodaysHabits
+          habits={month.habits.filter((item) => item.cells[todayAt] !== "off")}
+          todayAt={todayAt}
+          picked={picked}
+          onPick={(id) => setPicked((shown) => (shown === id ? null : id))}
+        />
+      ) : null}
     </div>
   )
 }
@@ -217,35 +220,62 @@ function MonthDay({ day, cells, single }: { day: string; cells: WeekDot[]; singl
   )
 }
 
-/** "10 min run   Done 18 of 26 days" with a thin bar; pressing it shows only that habit's days. */
-function HabitMonthLine({ habit, picked, onPick }: { habit: MonthHabit; picked: boolean; onPick: () => void }) {
-  const done = habit.cells.filter((cell) => cell === "done").length
-  const counted = countedDays(habit.cells)
+/**
+ * Under the calendar while it shows this month: each habit set for today,
+ * done or not yet (Tyler, 30 Oct 2026: "Replace this section for something
+ * easier to read. Make it "Today's habit"", of a line per habit with "Done
+ * 0 of 1 day" and a bar). Pressing one shows only its days on the calendar;
+ * pressing it again goes back to all.
+ */
+function TodaysHabits({
+  habits,
+  todayAt,
+  picked,
+  onPick,
+}: {
+  habits: MonthHabit[]
+  todayAt: number
+  picked: string | null
+  onPick: (habitId: string) => void
+}) {
   return (
-    <li>
-      <button
-        type="button"
-        aria-pressed={picked}
-        onClick={onPick}
-        className={cn(
-          "grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
-          picked && "bg-muted",
-          focusRingInset
-        )}
-      >
-        <span className="flex min-w-0 items-center gap-1.5">
-          <HabitIconGlyph icon={habit.icon} className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className={cn("truncate", habit.retired && "text-muted-foreground")}>{habit.name}</span>
-        </span>
-        {/* Said in words, not "0/2" (Tyler, 30 Oct 2026: "i dont understsnd what 0/2 means for habit"). */}
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {counted ? `Done ${done} of ${counted} ${counted === 1 ? "day" : "days"}` : "No days yet"}
-        </span>
-        <span aria-hidden className="col-span-2 h-1 overflow-hidden rounded-full bg-muted-foreground/15">
-          <span className="block h-full rounded-full bg-primary" style={{ width: `${counted ? (done / counted) * 100 : 0}%` }} />
-        </span>
-      </button>
-    </li>
+    <div className="grid gap-2">
+      <PanelHeading>Today's habits</PanelHeading>
+      {habits.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nothing set for today.</p>
+      ) : (
+        <ul className="grid gap-1" aria-label="Today's habits">
+          {habits.map((habit) => {
+            const done = habit.cells[todayAt] === "done"
+            return (
+              <li key={habit.id}>
+                <button
+                  type="button"
+                  aria-pressed={habit.id === picked}
+                  onClick={() => onPick(habit.id)}
+                  className={cn(
+                    "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
+                    habit.id === picked && "bg-muted",
+                    focusRingInset
+                  )}
+                >
+                  <HabitIconGlyph icon={habit.icon} className="size-4 shrink-0 text-muted-foreground" />
+                  <span className={cn("min-w-0 flex-1 truncate", habit.retired && "text-muted-foreground")}>{habit.name}</span>
+                  {done ? (
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium">
+                      <CheckIcon className="size-3.5" aria-hidden />
+                      Done
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-xs text-muted-foreground">Not yet</span>
+                  )}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
   )
 }
 

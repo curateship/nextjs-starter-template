@@ -288,8 +288,9 @@ describe("the site admin's My dashboard", () => {
     expect(html).toContain('aria-label="Inbox, 12 unread"')
     expect(html).toContain('aria-pressed="false"')
     expect(html).toMatch(/bg-destructive[^>]*>9\+</)
-    // The inbox waits hidden in the panel, with no card around it.
-    expect(html).toMatch(/class="p-4 hidden"><section[^>]*aria-label="Inbox"/)
+    // The inbox waits hidden in the panel, with no card around it, its tabs underlined.
+    expect(html).toMatch(/hidden"><section[^>]*aria-label="Inbox"/)
+    expect(html).toMatch(/aria-label="Inbox"(?:(?!<\/section>).)*data-slot="dashboard-tab"/)
     expect(html).not.toContain("project-my-inbox")
     expect(render(dashboard())).toContain('aria-label="Inbox"')
   })

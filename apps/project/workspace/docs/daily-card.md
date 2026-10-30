@@ -45,8 +45,10 @@ Daily card", and that file wins wherever the two disagree.
 - **The sky.** It is a drawing: a sunrise for the first hour of the morning,
   blue sky, gold for the last 90 minutes of the afternoon, a sunset for the
   first hour of the night, then stars (`daily-sky.tsx`). It is drawn faint,
-  so the header and greeting read in their usual colours over it. While the
-  site admin's inbox or Look back is open in the panel, the sky is left out.
+  so the header and greeting read in their usual colours over it. The sky
+  stays while the site admin's inbox or Look back is open in the panel ("the
+  panel background image should not disapeared when i click on the graph or
+  the inbox tab").
 - **The weather.** A City field in My settings, behind the cog beside the
   name. The card's sky then shows that city's weather, such as clouds, rain,
   snow or fog, and "12°, rain in Toronto" under the greeting. The browser
@@ -133,9 +135,11 @@ a team screen or sent to anyone.
 - **Finished days.** A day is finished when every habit set for that day is
   ticked. Tasks don't count. A day with no habits set doesn't count either
   way.
-- **Each habit's streak** counts only the days it is set for, with its best
-  beside it ("12 days in a row, best 31"). Nothing shows before a habit's
-  first tick.
+- **Each habit's streak** counts only the days it is set for. It is an orange
+  chip at the end of the habit's row, "2 days streak" (Tyler, 30 Oct 2026:
+  "put the streak here and make it chip styling and call it like "2 days
+  streak""). Nothing shows while the streak is at nothing; the best streak is
+  kept but no longer shown on the card.
 - **Grace.** One missed day per Monday-to-Sunday week keeps a streak going and
   adds nothing to it. A second miss in the same week breaks it.
 - **Days off pause streaks.** A day off is skipped, never counted as a miss.
@@ -143,9 +147,9 @@ a team screen or sent to anyone.
 - **Milestones.** At 7, 30 and 100 days in a row, a short burst of confetti
   over the card, shown once per streak and milestone. A device that asks for
   less motion gets the toast without the confetti.
-- **A week of dots** after each habit, Monday first: filled for done, a ring
-  for missed, a dashed ring for today not done yet, a dash for a day that
-  doesn't count, and a small dot for days still to come.
+- **No week of dots.** A habit on the card shows its tick and its streak
+  chip; the row of seven dots under it was taken off (Tyler, 30
+  Oct 2026: "remove this").
 
 ### The journal
 
@@ -192,12 +196,15 @@ a team screen or sent to anyone.
   it is open the graph bends into a cross, and back again when it shuts, the
   way the inbox's tray does ("clicking on the graph icon shoulkd morhp like
   the inbox icon", `inbox-morph-icon.tsx`). It
-  has three tabs. Month is one calendar, Monday first, each day shaded by how
-  many of its habits were done, with a line per habit under it: its name,
-  "Done 18 of 26 days" (the days it was set for so far, today included), and
-  a thin bar ("If there is 10 habits,
-  its too long"). Pressing a habit shows only its days; pressing it again
-  goes back to all. Year is twelve small month calendars, each day's square
+  has three tabs, Month, Year and Search, underlined in a header of their own
+  under the panel's, like List and Board over My tasks ("put tabs here using
+  underline styling"), on the right in a row lower than a panel header ("tabs
+  align right and reduce tab height"); there is no "Look back" title. Month is one calendar, Monday first, each day shaded by how
+  many of its habits were done ("If there is 10 habits, its too long"). While
+  it shows this month, Today's habits sits under it: each habit set for
+  today with Done or Not yet ("Replace this section for something easier to
+  read. Make it "Today's habit""). Pressing one shows only its days on the
+  calendar; pressing it again goes back to all. Year is twelve small month calendars, each day's square
   stronger for a better rating, with a 1 to 5 key above them ("fix the year
   tab"). Both fill the panel's width ("it has to be responsive to the size of
   the panel"): the month calendar up to a comfortable size, the year two

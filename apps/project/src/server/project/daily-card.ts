@@ -79,7 +79,7 @@ export type DailySettings = {
 
 export type DailyMeeting = { meetingId: string; title: string; startsAt: string; endsAt: string }
 
-/** One of the week's seven dots, Monday first. */
+/** How a habit did on one day of Look back's month. */
 export type WeekDot = "done" | "missed" | "off" | "open" | "later"
 
 export type DailyHabit = {
@@ -96,7 +96,6 @@ export type DailyHabit = {
   count: number
   /** Set yesterday, and how many then, for "Tick yesterday". */
   yesterday: { set: boolean; count: number }
-  week: WeekDot[]
   streak: Streak
 }
 
@@ -425,14 +424,6 @@ async function siteAdminDaily(
       setToday: habitIsSetFor(habit, cardDay),
       count: count(cardDay),
       yesterday: { set: habitIsSetFor(habit, yesterday), count: count(yesterday) },
-      week: Array.from({ length: 7 }, (_, index): WeekDot => {
-        const day = addDays(weekStart, index)
-        if (day > cardDay) return "later"
-        const state = dayIs(day)
-        if (state === "done") return "done"
-        if (state === "skip") return "off"
-        return day === cardDay ? "open" : "missed"
-      }),
       streak: streakOf(habit.firstDay, cardDay, dayIs),
     }
   })
@@ -645,6 +636,8 @@ async function tomorrowAtAGlance(
 
 export type MonthOfTicks = {
   month: string
+  /** The site admin's card day, for Today's habits under the calendar. */
+  today: string
   days: string[]
   habits: { id: string; name: string; icon: HabitIcon | null; retired: boolean; cells: WeekDot[] }[]
 }
@@ -666,6 +659,7 @@ export async function loadMonthOfTicks(userId: string, month: string, database: 
   const daysOff = await siteAdminDaysOff(userId, teams.length, database)
   return {
     month,
+    today: cardDay,
     days,
     habits: habitRows
       .filter((habit) => habit.firstDay <= days[days.length - 1] && (!habit.retiredDay || habit.retiredDay > first))

@@ -320,8 +320,12 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   inbox icon here with red bubble notification. the inbox open in that tab
   instead of card it currantly does"). A red bubble on it counts unread
   notices, "9+" past nine, and drops as they are read here. The Inbox there
-  has no card around it: its heading, Mark all read, the tabs and the rows
-  sit straight in the panel. The page opens on the cards. While the Inbox
+  has no card or heading around it: All, Unread (with its count), Tasks,
+  Flows and News are underlined tabs on the right of a low row under the
+  header, with Mark all read right of them, and the rows scroll under it
+  ("fix the inbox tabs too", "put the mark all as read icons on the right of
+  the tabs", 30 Oct 2026; the same row as Look back's, `panel-tabs-row.tsx`).
+  The Daily card's sky stays behind the header while it shows. The page opens on the cards. While the Inbox
   shows, the icon morphs into a cross (Tyler, 25 Oct 2026: "make the inbox
   morphed into an x when its in the inbox tab", then "make it morph"): the
   tray's outline folds flat into one stroke and its dip straightens into the

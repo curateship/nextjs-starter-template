@@ -283,9 +283,12 @@ function AdminPanel({
   const now = useDailyNow(daily)
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      {view === "cards" ? <DailySkyBanner daily={daily} now={now} /> : null}
+      {/* The sky stays with the inbox and Look back open too (Tyler, 30 Oct 2026:
+          "the panel background image should not disapeared when i click on the
+          graph or the inbox tab"). */}
+      <DailySkyBanner daily={daily} now={now} />
       {/* The line goes see-through over the sky rather than away, so the header keeps its height. */}
-      <DashboardCardHeader className={cn("relative", view === "cards" && "border-b-transparent")}>
+      <DashboardCardHeader className="relative border-b-transparent">
         <PersonAvatar name={me.name} avatarUrl={me.avatarUrl} size="default" />
         <div className="grid min-w-0 flex-1">
           <span className="truncate text-sm font-medium">{me.name}</span>
@@ -296,8 +299,14 @@ function AdminPanel({
         <InboxButton unread={unread} open={inboxOpen} onToggle={() => showView("inbox")} />
         <AdminSettingsMenu dashboard={dashboard} city={daily.settings.city} />
       </DashboardCardHeader>
-      <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-        <div className={cn("grid", PANEL_GUTTER, view !== "cards" && "hidden")}>
+      {/* Look back and the inbox bring their own tab rows and scrolling. The inbox
+          and the cards stay mounted while hidden, so what was read keeps the bubble right. */}
+      {view === "lookBack" ? <DailyLookBack /> : null}
+      <div className={cn("relative flex min-h-0 flex-1 flex-col", !inboxOpen && "hidden")}>
+        <InboxCard inbox={inbox} bare onUnread={setUnread} />
+      </div>
+      <ScrollArea className={cn("relative min-h-0 flex-1", view !== "cards" && "hidden")} viewportClassName="h-full">
+        <div className={cn("grid", PANEL_GUTTER)}>
           <DailyCard daily={daily} now={now} deepWork={mostUrgent(dashboard.tasks, dashboard.today)} picks={null} checkin={null} onOpenTask={onOpenTask} />
           <AdminCards
             cards={dashboard.cards}
@@ -306,14 +315,6 @@ function AdminPanel({
             onOpenTask={onOpenTask}
           />
         </div>
-        <div className={cn("p-4", !inboxOpen && "hidden")}>
-          <InboxCard inbox={inbox} bare onUnread={setUnread} />
-        </div>
-        {view === "lookBack" ? (
-          <div className="p-4">
-            <DailyLookBack />
-          </div>
-        ) : null}
       </ScrollArea>
     </div>
   )

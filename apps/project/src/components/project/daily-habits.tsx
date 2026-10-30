@@ -4,12 +4,13 @@ import { MinusIcon, PlusIcon } from "lucide-react"
 
 import { DailySection } from "@/components/project/daily-section"
 import { HabitIconGlyph } from "@/components/project/habit-icons"
+import { TintChip } from "@/components/project/task-bits"
 import { PanelHeading } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { countHabit, type DailyCard, type DailyHabit, type WeekDot } from "@/lib/api/project/daily-card"
+import { countHabit, type DailyCard, type DailyHabit } from "@/lib/api/project/daily-card"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { DAY_PART_LABEL, WEEKDAY_SHORT, type DayPart } from "@/lib/project/daily-card"
+import { DAY_PART_LABEL, type DayPart } from "@/lib/project/daily-card"
 import { addDays, clockLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -20,8 +21,8 @@ const DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
 /**
  * The site admin's routine for this part of the day (Tyler, 29 Oct 2026:
  * "Add a habit tracker or routine to morning, afternoon and night"): each
- * habit set for today with its tick or count, its streak and best, and the
- * week as seven dots. "Tick yesterday" switches the list to yesterday's, and
+ * habit set for today with its tick or count and a streak chip, with no
+ * row of week dots (Tyler, 30 Oct 2026: "remove this"). "Tick yesterday" switches the list to yesterday's, and
  * no day before that can be changed.
  */
 export function DailyHabits({ daily, part }: { daily: DailyCard; part: DayPart }) {
@@ -125,47 +126,14 @@ function HabitRow({ habit, day, count }: { habit: DailyHabit; day: string; count
             </Button>
           </>
         )}
-      </div>
-      <div className="flex items-center gap-2 pl-6 text-xs text-muted-foreground">
-        <WeekDots week={habit.week} />
-        {habit.streak.best ? (
-          <span className="ml-auto whitespace-nowrap">
-            {habit.streak.current} {habit.streak.current === 1 ? "day" : "days"} in a row
-            {habit.streak.best > habit.streak.current ? `, best ${habit.streak.best}` : null}
-          </span>
+        {/* At the row's end as a chip (Tyler, 30 Oct 2026: "put the streak here and
+            make it chip styling and call it like "2 days streak""). */}
+        {habit.streak.current ? (
+          <TintChip color="orange">
+            {habit.streak.current} {habit.streak.current === 1 ? "day" : "days"} streak
+          </TintChip>
         ) : null}
       </div>
     </li>
-  )
-}
-
-const DOT_WORDS: Record<WeekDot, string> = {
-  done: "done",
-  missed: "missed",
-  off: "not counted",
-  open: "today, not done yet",
-  later: "still to come",
-}
-
-/** Monday to Sunday: filled for done, a ring for missed, a dash for a day that doesn't count. */
-function WeekDots({ week }: { week: WeekDot[] }) {
-  return (
-    <ol className="flex items-center gap-1" aria-label="This week">
-      {week.map((dot, index) => (
-        <li key={index} aria-label={`${WEEKDAY_SHORT[(index + 1) % 7]}: ${DOT_WORDS[dot]}`} className="flex size-2.5 items-center justify-center">
-          {dot === "done" ? (
-            <span className="size-2.5 rounded-full bg-primary" />
-          ) : dot === "missed" ? (
-            <span className="size-2.5 rounded-full border border-muted-foreground" />
-          ) : dot === "open" ? (
-            <span className="size-2.5 rounded-full border border-dashed border-primary" />
-          ) : dot === "off" ? (
-            <span className="h-px w-2 bg-muted-foreground/60" />
-          ) : (
-            <span className="size-1 rounded-full bg-muted-foreground/40" />
-          )}
-        </li>
-      ))}
-    </ol>
   )
 }

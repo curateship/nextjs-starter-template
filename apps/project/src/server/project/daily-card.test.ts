@@ -224,8 +224,6 @@ describe("the site admin's habits", () => {
     expect(shown.Walk.streak.current).toBe(2)
     // Counted up to its number and no further.
     expect(shown.Water.count).toBe(8)
-    expect(shown.Walk.week[0]).toBe("done")
-    expect(shown.Walk.week[1]).toBe("later")
   })
 
   it("counts a finished day only when every habit set that day is ticked, and a day off never breaks it", async () => {
