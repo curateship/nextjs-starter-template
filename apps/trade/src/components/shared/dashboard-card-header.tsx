@@ -92,7 +92,8 @@ export function DashboardCardTitleHeader({
   action,
   className,
 }: {
-  icon: React.ReactNode
+  /** Left out, the title starts the row, as the Contacts list's does. */
+  icon?: React.ReactNode
   /**
    * Turns the icon into the way out. A header opened from a list — one email,
    * one automation, one backtest — has an icon that only repeats what the
@@ -113,33 +114,35 @@ export function DashboardCardTitleHeader({
 }) {
   return (
     <DashboardCardHeader className={cn("gap-2.5", className)}>
-      <DashboardCardHeaderIcon
-        interactive={back !== undefined}
-        className={back ? "size-8" : undefined}
-      >
-        {back ? (
-          back.to !== undefined ? (
-            <Link
-              to={back.to}
-              aria-label={back.label}
-              className={cn(backTargetClassName, focusRing)}
-            >
-              <ArrowLeftIcon className="size-4" />
-            </Link>
+      {icon === undefined && back === undefined ? null : (
+        <DashboardCardHeaderIcon
+          interactive={back !== undefined}
+          className={back ? "size-8" : undefined}
+        >
+          {back ? (
+            back.to !== undefined ? (
+              <Link
+                to={back.to}
+                aria-label={back.label}
+                className={cn(backTargetClassName, focusRing)}
+              >
+                <ArrowLeftIcon className="size-4" />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={back.onClick}
+                aria-label={back.label}
+                className={cn(backTargetClassName, focusRing)}
+              >
+                <ArrowLeftIcon className="size-4" />
+              </button>
+            )
           ) : (
-            <button
-              type="button"
-              onClick={back.onClick}
-              aria-label={back.label}
-              className={cn(backTargetClassName, focusRing)}
-            >
-              <ArrowLeftIcon className="size-4" />
-            </button>
-          )
-        ) : (
-          icon
-        )}
-      </DashboardCardHeaderIcon>
+            icon
+          )}
+        </DashboardCardHeaderIcon>
+      )}
       <h2 className={cn("min-w-0 truncate", dashboardCardHeadingClassName)}>
         {title}
       </h2>

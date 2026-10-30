@@ -29,6 +29,7 @@ import {
   DARK_SHADES,
   darkShade,
   DEFAULT_DASHBOARD_TABS,
+  DEFAULT_SIDEBAR_SHADE,
   isDarkShadeId,
   isDashboardTabStyle,
   MAX_CARD_BORDER_WIDTH,
@@ -55,6 +56,8 @@ export function StylingSettings({
   const tabStyle = styling.dashboardTabs ?? DEFAULT_DASHBOARD_TABS
   const [previewTab, setPreviewTab] = React.useState("list")
   const shade = darkShade(styling.darkShade)
+  const sidebarShade = styling.sidebarShade ?? DEFAULT_SIDEBAR_SHADE
+  const railPreview = `color-mix(in oklab, var(--card) ${sidebarShade}%, var(--shell-canvas))`
 
   const update = (patch: Partial<ShellStyling>) =>
     onConfigChange({ ...config, styling: { ...styling, ...patch } })
@@ -269,6 +272,47 @@ export function StylingSettings({
           </Select>
         </FieldGroup>
         <p className="text-sm text-muted-foreground">{shade.help}</p>
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="styling-sidebar-shade"
+        title="Left menu shade"
+        description="The background of the left menu and the bar along the top. The whole admin area recolors live as you adjust this."
+        contentClassName="space-y-6"
+      >
+        <SliderRow
+          label="Shade"
+          value={sidebarShade}
+          min={0}
+          max={100}
+          valueLabel={`${sidebarShade}%`}
+          onChange={(value) => update({ sidebarShade: value })}
+          help="0% matches the page behind the cards and 100% matches a card. It stays between the two in light and dark mode."
+        />
+
+        <FieldGroup label="Preview" className="gap-2">
+          <div className="shell-canvas flex h-32 max-w-lg overflow-hidden rounded-lg border">
+            <div
+              className="w-1/4 border-r"
+              style={{ background: railPreview }}
+              aria-hidden="true"
+            />
+            <div className="flex flex-1 flex-col">
+              <div
+                className="h-8 border-b"
+                style={{ background: railPreview }}
+                aria-hidden="true"
+              />
+              <div className="flex-1 p-3">
+                <Card size="sm" className="h-full">
+                  <CardContent className="text-sm text-muted-foreground">
+                    A card, for comparison.
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </div>
+        </FieldGroup>
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard

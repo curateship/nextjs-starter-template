@@ -58,6 +58,7 @@ import {
   type ShellStyling,
 } from "@/lib/layout/styling-values"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
+import { ROLE_ID_PATTERN, type Role } from "@/lib/role-id"
 import { DEFAULT_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import {
   createDefaultNotificationTypeVisibility,
@@ -258,10 +259,6 @@ function getDynamicLucideIconLabel(value: string) {
     .join(" ")
 }
 
-export const SHELL_ROLES = ["admin", "member"] as const
-
-export type ShellRole = (typeof SHELL_ROLES)[number]
-
 export type ShellChildItem = {
   id: string
   label: string
@@ -270,7 +267,7 @@ export type ShellChildItem = {
   /** Switched off in navigation. Absent on older saved links means visible. */
   visible?: boolean
   /** Who sees this item. Absent means everyone. */
-  roles?: ShellRole[]
+  roles?: Role[]
 }
 
 export type ShellItem = {
@@ -281,7 +278,7 @@ export type ShellItem = {
   icon: ShellIcon
   visible: boolean
   /** Who sees this item. Absent means everyone. */
-  roles?: ShellRole[]
+  roles?: Role[]
   children?: ShellChildItem[]
 }
 
@@ -297,13 +294,13 @@ export function isAdminHref(href: string | undefined) {
  * and the /admin route guard refuses them a second time server-side.
  */
 export function canSeeShellEntry(
-  entry: { href?: string; roles?: ShellRole[] },
+  entry: { href?: string; roles?: Role[] },
   role: string
 ) {
   if (role === "admin") {
     return true
   }
-  if (entry.roles?.length && !entry.roles.includes(role as ShellRole)) {
+  if (entry.roles?.length && !entry.roles.includes(role)) {
     return false
   }
 
@@ -396,6 +393,12 @@ export type ShellTopRightAppAction = {
   type: "app"
   id: string
   visible: boolean
+  /**
+   * Where it goes on a phone, chosen in the Top right menu: true for the
+   * three-dot dropdown, false for the row. Unset follows the app's own
+   * `foldsOnPhone`, and it is read only for a control with `phoneChoice`.
+   */
+  foldsOnPhone?: boolean
 }
 
 /**
@@ -547,6 +550,13 @@ export type ShellConfig = {
    * then edit.
    */
   memberSections: ShellSection[]
+  /**
+   * The left menu of each app role, keyed by the role's id, built by an admin
+   * and saved app-wide like `memberSections`. A role with no saved menu gets
+   * the `menu` its app declared. Ids the app no longer declares are kept, so
+   * a role switched off and back on finds its menu again.
+   */
+  roleSections: Record<Role, ShellSection[]>
   /**
    * Whether a browser holds a connection open so the bell lights up the moment
    * something happens. Off, the bell still updates — just on its slow check
@@ -922,6 +932,7 @@ export function createDefaultShellConfig(): ShellConfig {
     // the real starting point — a fresh install has no settings row to read it
     // from, and members would otherwise open the app to nothing at all.
     memberSections: createDefaultMemberSections(),
+    roleSections: {},
     liveNotifications: true,
     passkeySignIn: true,
     notificationTypes: createDefaultNotificationTypeVisibility(),
@@ -984,6 +995,22 @@ export function createDefaultMemberSections(): ShellSection[] {
 }
 
 /**
+ * The saved role menus, keeping every entry that is a role id holding a list.
+ * Anything else in the row, such as a hand-edited value, is dropped rather
+ * than drawn. Saved is saved per role, an empty list included.
+ */
+export function normalizeRoleSections(
+  value: unknown
+): Record<Role, ShellSection[]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      ([role, sections]) => ROLE_ID_PATTERN.test(role) && Array.isArray(sections)
+    )
+  )
+}
+
+/**
  * Reads whatever the row holds back into the two-way union, keeping the saved
  * order. A built-in is matched by its id alone, so a row saved in the old
  * `{ id, visible }` shape — before links existed — reads exactly the same as
@@ -1029,10 +1056,14 @@ export function normalizeTopRightNavigation(
 
     if (appIds.has(id)) {
       seenIds.add(id)
+      const { foldsOnPhone } = raw as { foldsOnPhone?: unknown }
       kept.push({
         type: "app",
         id,
         visible: item.visible !== false,
+        // Only a saved choice is carried. Unset is how the app's own default
+        // keeps applying, so nothing is written until somebody picks.
+        ...(typeof foldsOnPhone === "boolean" ? { foldsOnPhone } : {}),
       })
       continue
     }

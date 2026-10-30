@@ -239,8 +239,13 @@
     --shell-canvas: oklch(0.970 0 0);
     /* The rail and the sticky bar, halfway between the page and a card, so
        they read as off white here and off black in the dark block without
-       either being set by hand twice. */
-    --shell-rail: color-mix(in oklab, var(--card) 50%, var(--shell-canvas));
+       either being set by hand twice. Settings -> Styling -> Left menu shade
+       moves them along that line through --shell-rail-card-share. */
+    --shell-rail: color-mix(
+      in oklab,
+      var(--card) var(--shell-rail-card-share, 50%),
+      var(--shell-canvas)
+    );
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
@@ -312,7 +317,11 @@
        do in light mode. It carries the shade lift like every other grey, and
        --shell-rail is derived from it, so all three tiers lift together. */
     --shell-canvas: oklch(calc(0.162 + var(--shell-dark-lift, 0)) 0 0);
-    --shell-rail: color-mix(in oklab, var(--card) 50%, var(--shell-canvas));
+    --shell-rail: color-mix(
+      in oklab,
+      var(--card) var(--shell-rail-card-share, 50%),
+      var(--shell-canvas)
+    );
     --card: oklch(calc(0.205 + var(--shell-dark-lift, 0)) 0 0);
     --card-foreground: oklch(0.985 0 0);
     --popover: oklch(calc(0.205 + var(--shell-dark-lift, 0)) 0 0);
@@ -626,61 +635,110 @@ html[data-public-button-casing="uppercase"] [data-slot="button"] {
 }
 
 /*
- * The table's heading row is fenced off from what is above and below it with
- * a divider line, so it takes --border, the colour Settings → Styling →
- * Divider lines writes, at 1px like every `border-b`. It used to take the card
- * border's colour and width, which put two different lines a heading's height
- * apart under a panel header and read as a double border (Tyler, 14 Oct 2026).
+ * Every table line is one shade, wherever it is drawn: under and over the
+ * heading row, round a group row such as "Today", and over the footer (Tyler,
+ * 30 Oct 2026, after the fifth round of one line coming out darker than
+ * another: "You changed one border and it messes up another"; he picked the
+ * footer's shade for all of them).
  *
- * Drawn as inset shadows on the cells rather than borders on the row, because a
- * table that fills its column makes those cells `position: sticky` — a sticky
- * cell in a collapsed-border table drops its borders, and the heading would
- * lose its lines exactly where it matters most.
+ * Why it kept happening: --border, the colour Settings → Styling → Divider
+ * lines writes, is see-through, so a line takes the shade of whatever is
+ * under it. The heading's line sat on the card, the footer's on the grey
+ * band, a group row's on a lighter grey, and each fix tuned one of them.
+ * Now each line is painted as its own stack (the divider colour over the
+ * heading's grey band over the card), so what is under it no longer matters.
+ *
+ * Each line is the divider colour at 1px, never the card border's colour or
+ * width, which once put two different lines a heading's height apart under a
+ * panel header (14 Oct 2026). Painted as background layers on the cells
+ * rather than borders on the row,
+ * because a table that fills its column makes cells `position: sticky`, and a
+ * sticky cell in a collapsed-border table drops its borders.
  */
-[data-slot="table-header"] th {
-  --shell-table-header-line: var(--border);
-  /* The divider colour is see-through, so drawn over the grey heading band it
-     came out darker than every other divider and, beside the band's edge,
-     read as a double line. A one-pixel strip of the card colour under it
-     makes it the same line the panel header draws. */
-  background-image: linear-gradient(var(--card), var(--card));
-  background-position: bottom;
+[data-slot="table-header"] th,
+[data-slot="table-group-row"] > td,
+[data-slot="table-footer"],
+[data-slot="dashboard-card-header"]:has(+ * [data-slot="table-header"]) {
+  --shell-table-band: color-mix(in oklab, var(--muted) 50%, transparent);
+  --shell-table-line:
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--shell-table-band), var(--shell-table-band)),
+    linear-gradient(var(--card), var(--card));
   background-size: 100% 1px;
   background-repeat: no-repeat;
-  /* Drawn twice, so the line under a table's heading row is a step stronger
-     than an ordinary divider and still follows the Divider lines setting
-     (Tyler, 19 Oct 2026: the header's bottom line "is not there"). */
-  box-shadow:
-    inset 0 -1px 0 var(--shell-table-header-line),
-    inset 0 -1px 0 var(--shell-table-header-line);
+}
+
+/* A line under the heading row, and under a group row or the footer's top. */
+[data-slot="table-header"] th {
+  background-image: var(--shell-table-line);
+  background-position: bottom;
 }
 
 /*
- * The line above only exists when something is above it: a heading row sitting
- * at the very top of its surface is already fenced by the surface's own border,
- * and a second hairline one pixel inside it reads as one thick smudged line.
- * `> * ~ *` is "not in the surface's first block", which covers the toolbar, the
- * error banner, and anything later put between them.
+ * The line above the heading only exists when something is above it: a
+ * heading row at the very top of its surface is already fenced by the
+ * surface's own border, and a second hairline one pixel inside it reads as
+ * one thick smudged line. `> * ~ *` is "not in the surface's first block",
+ * which covers the toolbar, the error banner, and anything later put between
+ * them.
  */
-[data-slot="table-surface"] > * ~ * [data-slot="table-header"] th {
-  background-image:
-    linear-gradient(var(--card), var(--card)),
-    linear-gradient(var(--card), var(--card));
-  background-position: top, bottom;
-  background-size: 100% 1px;
-  box-shadow:
-    inset 0 1px 0 var(--shell-table-header-line),
-    inset 0 -1px 0 var(--shell-table-header-line),
-    inset 0 -1px 0 var(--shell-table-header-line);
+[data-slot="table-surface"] > * ~ * [data-slot="table-header"] th,
+[data-slot="table-group-row"] > td {
+  background-image: var(--shell-table-line), var(--shell-table-line);
+  background-position: top, top, top, bottom, bottom, bottom;
+}
+
+/* The first group sits right under the heading's line, so it draws only its own below. */
+[data-slot="table-group-row"]:first-child > td {
+  background-image: var(--shell-table-line);
+  background-position: bottom;
 }
 
 /*
- * The pagination/summary strip is fenced off from the rows above it by the same
- * divider line. A plain border here, not an inset shadow: nothing about this strip
- * is sticky, and a real border keeps the last row from butting into the line.
+ * Two lines never touch. A folded group right under another group shares the
+ * line between them, and a last group right on the footer leaves the line to
+ * the footer; drawn twice they read as one thick line (Tyler, 30 Oct 2026:
+ * "when sections are collapsed. the border gets too thick because its stick
+ * together").
+ */
+[data-slot="table-group-row"] + [data-slot="table-group-row"] > td {
+  background-image: var(--shell-table-line);
+  background-position: bottom;
+}
+[data-slot="table-surface"]:has([data-slot="table-footer"]) [data-slot="table-group-row"]:last-child > td {
+  background-image: var(--shell-table-line);
+  background-position: top;
+}
+[data-slot="table-surface"]:has([data-slot="table-footer"]) [data-slot="table-group-row"]:first-child:last-child > td {
+  background-image: none;
+}
+[data-slot="table-surface"]:has([data-slot="table-footer"]) [data-slot="table-group-row"] + [data-slot="table-group-row"]:last-child > td {
+  background-image: none;
+}
+
+/*
+ * A panel header with a table under it, such as My dashboard's List, Board
+ * and Calendar tabs over the task list: its bottom line is the table's top
+ * line, so it is drawn the same way rather than as the header's own border,
+ * which over the white header came out fainter than every other table line
+ * (Tyler, 30 Oct 2026: "I still dont get why the border here is faint").
+ * The border stays, see-through, so the header keeps its height; the line is
+ * painted into it.
+ */
+[data-slot="dashboard-card-header"]:has(+ * [data-slot="table-header"]) {
+  border-bottom-color: transparent;
+  background-image: var(--shell-table-line);
+  background-position: bottom;
+  background-origin: border-box;
+}
+
+/*
+ * The pagination/summary strip is fenced off from the rows above it by the
+ * same line. Nothing about this strip is sticky.
  */
 [data-slot="table-footer"] {
-  border-top: 1px solid var(--border);
+  background-image: var(--shell-table-line);
+  background-position: top;
 }
 
 /*
@@ -754,12 +812,13 @@ html[data-public-button-casing="uppercase"] [data-slot="button"] {
 
 /* gutter = 0 → flat mode: no card chrome. */
 [data-content-styling][data-flat="true"] [data-slot="card"],
-[data-content-styling][data-flat="true"] [data-slot="table-surface"],
-[data-content-styling][data-flat="true"] [data-slot="table-header"] th {
+[data-content-styling][data-flat="true"] [data-slot="table-surface"] {
   box-shadow: none;
 }
+[data-content-styling][data-flat="true"] [data-slot="table-header"] th,
+[data-content-styling][data-flat="true"] [data-slot="table-group-row"] > td,
 [data-content-styling][data-flat="true"] [data-slot="table-footer"] {
-  border-top-width: 0;
+  background-image: none;
 }
 [data-content-styling][data-flat="true"] [data-slot="workspace-panel"],
 [data-content-styling][data-flat="true"] [data-dashboard-panel] [data-slot="card"],

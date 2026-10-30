@@ -20,7 +20,7 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
-import { adminPost, userGet, userPost } from "@/server/guards"
+import { adminPost, featureGet, featurePost } from "@/server/guards"
 import {
   findWorkspaceIdForRequest,
   workspaceIdForRequest,
@@ -189,7 +189,7 @@ export function getFeedbackErrorMessage(error: unknown) {
 }
 
 const listFeedbackFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([featureGet("feedback")])
   .inputValidator(listFeedbackSchema)
   .handler(async ({ data, context }): Promise<FeedbackListResponse> => {
     // The site's own board, always. This filter is the whole boundary for the
@@ -233,7 +233,7 @@ const listFeedbackFn = createServerFn({ method: "GET" })
   })
 
 const createFeedbackFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([featurePost("feedback")])
   .inputValidator(createFeedbackSchema)
   .handler(async ({ data, context }): Promise<FeedbackItem> => {
     const message = data.message.trim()
@@ -388,7 +388,7 @@ const deleteFeedbackManyFn = createServerFn({ method: "POST" })
   })
 
 const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([featurePost("feedback")])
   .inputValidator(feedbackIdSchema)
   .handler(async ({ data, context }): Promise<FeedbackItem> => {
     const row = await requireFeedback(
@@ -598,7 +598,7 @@ const mergeFeedbackFn = createServerFn({ method: "POST" })
   })
 
 const listFeedbackCommentsFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([featureGet("feedback")])
   .inputValidator(feedbackIdSchema)
   .handler(async ({ data, context }): Promise<FeedbackCommentListResponse> => {
     // Checked through the parent rather than on the comment: a comment has no
@@ -618,7 +618,7 @@ const listFeedbackCommentsFn = createServerFn({ method: "GET" })
   })
 
 const createFeedbackCommentFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([featurePost("feedback")])
   .inputValidator(createFeedbackCommentSchema)
   .handler(async ({ data, context }): Promise<FeedbackCommentItem> => {
     const message = data.message.trim()
@@ -673,7 +673,7 @@ const createFeedbackCommentFn = createServerFn({ method: "POST" })
   })
 
 const updateFeedbackCommentFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([featurePost("feedback")])
   .inputValidator(updateFeedbackCommentSchema)
   .handler(async ({ data, context }): Promise<FeedbackCommentItem> => {
     const message = data.message.trim()
@@ -702,7 +702,7 @@ const updateFeedbackCommentFn = createServerFn({ method: "POST" })
   })
 
 const deleteFeedbackCommentFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([featurePost("feedback")])
   .inputValidator(feedbackCommentIdSchema)
   .handler(
     async ({ data, context }): Promise<{ commentId: string; feedbackId: string }> => {

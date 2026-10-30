@@ -13,10 +13,11 @@ import {
 } from "@/lib/nav/list-search"
 import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import { routeErrorComponent } from "@/components/shell/route-error"
+import type { Role } from "@/lib/role-id"
+import { allRoles } from "@/lib/roles"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
 
-export const USER_ROLE_FILTERS = ["all", "admin", "member"] as const
 export const USER_STATUS_FILTERS = [
   "all",
   "active",
@@ -37,7 +38,7 @@ export const USER_SORT_COLUMNS = [
 type UsersSearch = {
   open?: string
   q?: string
-  role?: (typeof USER_ROLE_FILTERS)[number]
+  role?: "all" | Role
   status?: (typeof USER_STATUS_FILTERS)[number]
   sort?: (typeof USER_SORT_COLUMNS)[number]
   direction?: "asc" | "desc"
@@ -54,7 +55,11 @@ export function readUsersSearch(search: Record<string, unknown>): UsersSearch {
   return {
     ...readOpenSearch(search),
     q: readSearchText(search.q),
-    role: readOneOf(search.role, USER_ROLE_FILTERS),
+    // Read when the address is, not at import: the list is the app's.
+    role: readOneOf(search.role, [
+      "all",
+      ...allRoles().map((role) => role.id),
+    ]),
     status: readOneOf(search.status, USER_STATUS_FILTERS),
     sort: readOneOf(search.sort, USER_SORT_COLUMNS),
     direction: readDirection(search.direction),

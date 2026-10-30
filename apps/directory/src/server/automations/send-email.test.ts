@@ -198,19 +198,21 @@ async function execute(
 }
 
 describe("Send Email executor", () => {
-  it("personalises a test for the member but sends only to the admin", async () => {
+  it("personalises a test for the contact but sends only to the admin", async () => {
     const member = await insertUser(db, {
       email: "subject@example.test",
       name: "Sam Subject",
     })
     const send = vi.fn(async () => ({ success: true, messageId: "test-sent" }))
     setEmailProviderFactoryForTests(() => ({ send }))
+    await syncContactsFromUsers(site, db)
     const [memberBefore] = await db
       .select()
       .from(customShellContacts)
       .where(eq(customShellContacts.userId, member.id))
     const run = await insertRun({
       withAudience: false,
+      subjectContactId: memberBefore.id,
       subjectUserId: member.id,
       testRecipientEmail: owner.email,
     })
@@ -218,7 +220,7 @@ describe("Send Email executor", () => {
     const result = await execute(run, SETTINGS, true)
 
     expect(result.summary).toBe(
-      `Sent a test email to ${owner.email} for subject@example.test. The member received nothing.`
+      `Sent a test email to ${owner.email} for subject@example.test. The contact received nothing.`
     )
     expect(send).toHaveBeenCalledTimes(1)
     expect(send).toHaveBeenCalledWith(
@@ -248,11 +250,15 @@ describe("Send Email executor", () => {
     expect(memberAfter).toEqual(memberBefore)
   })
 
-  it("sends no test email when the member does not match the audience", async () => {
+  it("sends no test email when the contact does not match the audience", async () => {
     const member = await insertUser(db, { email: "free@example.test" })
     const send = vi.fn(async () => ({ success: true, messageId: "not-used" }))
     setEmailProviderFactoryForTests(() => ({ send }))
     await syncContactsFromUsers(site, db)
+    const [contact] = await db
+      .select()
+      .from(customShellContacts)
+      .where(eq(customShellContacts.userId, member.id))
     const payingConfig = config(true)
     payingConfig.nodes.audience.settings = {
       audience: "paying",
@@ -261,6 +267,7 @@ describe("Send Email executor", () => {
       segmentName: "",
     }
     const run = await insertRun({
+      subjectContactId: contact.id,
       subjectUserId: member.id,
       testRecipientEmail: owner.email,
       configOverride: payingConfig,
@@ -270,6 +277,41 @@ describe("Send Email executor", () => {
 
     expect(result.summary).toContain("did not match this email's audience")
     expect(send).not.toHaveBeenCalled()
+  })
+
+  it("tests with an address-only contact and still emails only the admin", async () => {
+    const timestamp = now()
+    const contactId = uuid()
+    await db.insert(customShellContacts).values({
+      id: contactId,
+      workspaceId: site,
+      email: "lead@example.test",
+      firstName: "Lee",
+      status: "subscribed",
+      tags: [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    const send = vi.fn(async () => ({ success: true, messageId: "test-lead" }))
+    setEmailProviderFactoryForTests(() => ({ send }))
+    const run = await insertRun({
+      withAudience: false,
+      subjectContactId: contactId,
+      testRecipientEmail: owner.email,
+    })
+
+    const result = await execute(run, SETTINGS, true)
+
+    expect(result.summary).toBe(
+      `Sent a test email to ${owner.email} for lead@example.test. The contact received nothing.`
+    )
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: owner.email,
+        subject: "[TEST for lead@example.test] A small update",
+      })
+    )
   })
 
   it("isolates failures, skips unconfirmed members, and does not resend on retry", async () => {

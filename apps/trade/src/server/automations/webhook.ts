@@ -64,6 +64,14 @@ export async function executeWebhookNode(
       summary: `Would have called ${settings.url}.`,
     }
   }
+  // A test is about one real contact, and the address on the other end cannot
+  // tell a test from the real thing. Calling it would act on that person.
+  if (context.testRun) {
+    return {
+      type: "next",
+      summary: `Would have called ${settings.url}. Skipped in this test.`,
+    }
+  }
 
   const startedAt = dependencies.elapsed()
   const controller = new AbortController()

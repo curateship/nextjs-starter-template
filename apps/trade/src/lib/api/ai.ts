@@ -25,7 +25,7 @@ import {
   type MyAiRecentCall,
   type MyAiUsage,
 } from "@/server/ai/usage"
-import { adminGet, adminPost, userGet } from "@/server/guards"
+import { adminGet, adminPost, featureGet } from "@/server/guards"
 
 export { AI_USAGE_RANGES }
 export type {
@@ -156,7 +156,7 @@ export function saveAiAllowanceOverride(
 // at all: the account it reads is the one the session says, so a hand-made
 // request cannot name somebody else.
 const loadMyAiUsageFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([featureGet("aiUsage")])
   .handler(async ({ context }): Promise<MyAiUsage> => {
     return loadMyAiUsageQuery(context.user.id)
   })

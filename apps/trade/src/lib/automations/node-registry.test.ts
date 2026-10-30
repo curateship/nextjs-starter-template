@@ -81,12 +81,14 @@ describe("an app that adds nothing", () => {
     expect(automationPaletteItems().map((item) => item.key)).toEqual([
       "trigger-billing-moment",
       "trigger-joined-segment",
+      "trigger-segment-drip",
       "trigger-member-event",
       "trigger-time-activate",
       "action-member-tag",
       "action-send-email",
       "action-webhook",
       "flow-audience",
+      "flow-wait",
       "flow-approval",
       "step-ai",
       "step-placeholder",
@@ -100,6 +102,7 @@ describe("an app that adds nothing", () => {
     expect(automationKindCanStartManually("billingMoment")).toBe(false)
     expect(automationKindCanStartManually("memberEvent")).toBe(false)
     expect(automationKindCanStartManually("memberTag")).toBe(false)
+    expect(automationKindCanStartManually("segmentDrip")).toBe(false)
     expect(automationKindCanStartManually("unknown-step")).toBe(true)
   })
 })

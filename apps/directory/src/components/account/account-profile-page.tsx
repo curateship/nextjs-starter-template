@@ -29,6 +29,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { formatDateTime } from "@/lib/format/format-time"
 import type { AuthUser } from "@/lib/api/auth/auth"
+import { roleLabel, roleMay } from "@/lib/roles"
 
 export function AccountProfilePage({
   user,
@@ -53,6 +54,7 @@ export function AccountProfilePage({
     dirty: boolean
   }) => void
 }) {
+  const mayBill = roleMay(user.role, "billing")
   const [name, setName] = React.useState(user.name)
   const [avatarUrl, setAvatarUrl] = React.useState(user.avatarUrl)
   const [saved, setSaved] = React.useState(false)
@@ -84,24 +86,30 @@ export function AccountProfilePage({
       <Card>
         <CardHeader>
           <CardTitle as="h3">Account</CardTitle>
-          <CardDescription>Your profile and current plan.</CardDescription>
+          <CardDescription>
+            {mayBill ? "Your profile and current plan." : "Your profile."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2">
-          <Badge variant={isPaid ? "default" : "secondary"}>{planName}</Badge>
-          <Badge variant="outline">
-            {user.role === "admin" ? "Admin" : "Member"}
-          </Badge>
+          {/* An app role whose app gave it no billing has no plan to show and
+              nothing to manage, so the card is its role alone. */}
+          {mayBill ? (
+            <Badge variant={isPaid ? "default" : "secondary"}>{planName}</Badge>
+          ) : null}
+          <Badge variant="outline">{roleLabel(user.role)}</Badge>
           {user.emailVerified ? null : (
             <Badge variant="outline">Email not verified</Badge>
           )}
-          <Button
-            type="button"
-            variant="outline"
-            className="ml-auto"
-            onClick={onManageBilling}
-          >
-            Manage billing
-          </Button>
+          {mayBill ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="ml-auto"
+              onClick={onManageBilling}
+            >
+              Manage billing
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -147,7 +155,9 @@ export function AccountProfilePage({
         </form>
       </Card>
 
-      <EmailCard email={user.email} hasPassword={user.hasPassword} />
+      {roleMay(user.role, "emailChange") ? (
+        <EmailCard email={user.email} hasPassword={user.hasPassword} />
+      ) : null}
     </CardGroup>
   )
 }

@@ -327,3 +327,20 @@ copy imports the CRM sample script Video does not carry and names the shell's
 own database. `src/app/open-endpoints.ts` stays Video's own, and gained the
 export window's "Edited by hand" save, which the guard test found missing from
 its list of endpoints guarded deeper.
+
+## Shell merge, 30 October 2026
+
+Video already had nearly every shell change. Five files were replaced, one test
+was added and two files deleted.
+
+- **Settings → Styling → Left menu shade**, a slider that sets the left menu
+  and top bar between the page colour and a card's colour. `src/theme.css`
+  took it by a three-way merge on top of Video's own font faces.
+- **Every table line is drawn from one rule**, and a panel header's bottom line
+  becomes the table's top line when a table sits right under it.
+- **The panel view is gone.** `src/lib/layout/panel-view.ts` and its test are
+  deleted, and the shell layout no longer reads them, because Personal no
+  longer frames apps that way.
+
+No migration was new. `scripts/setup-database.mjs`, `src/app/open-endpoints.ts`
+and `public/fonts/README.md` stay Video's own.

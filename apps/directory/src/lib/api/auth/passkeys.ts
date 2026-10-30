@@ -26,6 +26,7 @@ import {
   setSessionCookie,
 } from "@/server/auth/security"
 import { readBranding, readShellGlobals } from "@/server/shell-settings"
+import { requireRoleFeature } from "@/server/people/roles"
 
 /** One passkey as the Security tab shows it. */
 export type PasskeyListItem = {
@@ -108,6 +109,9 @@ const beginPasskeyRegistrationFn = createServerFn({ method: "POST" }).handler(
     const rp = await requestRelyingParty()
     await requirePasskeysOn()
     const user = await requireOwnAccount()
+    // Adding a passkey is part of the full Security tab, which an app role
+    // gets only when its app says so.
+    requireRoleFeature(user, "security")
 
     // Every call writes a challenge row, so a runaway loop is capped. Keyed on
     // the account: this endpoint only works signed in.
@@ -132,6 +136,9 @@ const finishPasskeyRegistrationFn = createServerFn({ method: "POST" })
     const rp = await requestRelyingParty()
     await requirePasskeysOn()
     const user = await requireOwnAccount()
+    // Adding a passkey is part of the full Security tab, which an app role
+    // gets only when its app says so.
+    requireRoleFeature(user, "security")
 
     const saved = await verifyAndSavePasskey(
       user,
