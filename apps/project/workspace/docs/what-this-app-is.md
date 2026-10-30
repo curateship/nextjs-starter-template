@@ -492,3 +492,39 @@ the recommended answer on every question.
   and Plan: "move all of these outside the cards (flatten it)". Each is a row
   with a line under it running edge to edge, in the task's cog and in My
   settings alike.
+
+## Choices for the Daily card
+
+Tyler asked for the Daily card on 29 Oct 2026: "Add a sort of a "Daily card"
+like a personal assistent. For example, the card has a greeting that says
+"Good morning tyler, this is your deep work tasks and the card can have a
+sunny sky in the background and later in the afternoon, it can say something
+else and at night it reminds me to wind down." Then: "Focus more on admin
+daily card. Admin should have its own daily card with different features",
+"Add a habit tracker or routine to morning, afternoon and night", "what?
+there is only one card?" and "The habits is admin only". Tyler picked 46 parts
+and the recommended answer to every question except two: photo skies are
+built-in sets plus Tyler's own uploads ("Both"), and tonight's questions are
+built in plus Tyler's own ("Both"). How it works is in
+[The Daily card](daily-card.md).
+
+- **One card.** Everyone sees one Daily card at the top of My dashboard's left
+  panel. The site admin's has every shared part plus their own parts.
+- **The habits, streaks and journal are the site admin's only.**
+- **Deep work** is an employee's check-in picks, and the site admin's three
+  most urgent open tasks.
+- **Times of day** are each person's own hours, starting at 5 AM, 12 PM and
+  6 PM.
+- **Weather** comes from a city typed in My settings. The browser never asks
+  for a location.
+- **Setting up** is a pencil on the card that opens a window.
+- **Lines for the day:** 365 built in, plus the site admin's own.
+- **A finished day** is every habit set for that day ticked. Tasks don't
+  count.
+- **Grace:** one missed day per Monday-to-Sunday week.
+- **Sunday look back** shows all of Sunday.
+- **Going to bed and Up** only record the times.
+- **Milestones:** one short burst of confetti at 7, 30 and 100 days.
+- **The journal is private.** Only the site admin sees it.
+- **Routine bell reminder:** a time per routine, starting at 10 AM, 3 PM and
+  9 PM, each changeable or off.

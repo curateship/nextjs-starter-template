@@ -42,7 +42,7 @@ export const Route = createFileRoute("/_pomodoro/groups")({
       create: search.create === "group" ? "group" : undefined,
     }
   },
-  head: () => ({ meta: [{ title: "Groups - Pomoder" }] }),
+  head: () => ({ meta: [{ title: "Groups - Flowfly" }] }),
   component: GroupsRoute,
 })
 

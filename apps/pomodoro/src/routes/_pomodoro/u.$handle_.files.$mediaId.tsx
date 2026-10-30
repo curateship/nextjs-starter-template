@@ -37,8 +37,8 @@ export const Route = createFileRoute("/_pomodoro/u/$handle_/files/$mediaId")({
     const title = `${file.name} ${creditLabel({ handle: owner.handle })}`
     const description =
       file.purpose === "sound"
-        ? `A focus sound ${owner.name} shared on Pomoder.`
-        : `A focus background ${owner.name} shared on Pomoder.`
+        ? `A focus sound ${owner.name} shared on Flowfly.`
+        : `A focus background ${owner.name} shared on Flowfly.`
     // A picture is its own preview, a clip its middle frame, and a sound
     // gets a drawn card, because no preview service plays sound.
     const image =

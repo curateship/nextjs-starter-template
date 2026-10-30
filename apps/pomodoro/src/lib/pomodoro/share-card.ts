@@ -70,7 +70,7 @@ export function renderShareCardSvg({
   const hours = `${hoursThisMonth.toLocaleString("en-GB")}`
   const streak = `${currentStreak.toLocaleString("en-GB")}`
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_CARD_WIDTH}" height="${SHARE_CARD_HEIGHT}" viewBox="0 0 ${SHARE_CARD_WIDTH} ${SHARE_CARD_HEIGHT}" role="img" aria-label="${safeName} on Pomoder">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_CARD_WIDTH}" height="${SHARE_CARD_HEIGHT}" viewBox="0 0 ${SHARE_CARD_WIDTH} ${SHARE_CARD_HEIGHT}" role="img" aria-label="${safeName} on Flowfly">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#1b1714"/>
@@ -85,7 +85,7 @@ export function renderShareCardSvg({
   <text x="80" y="446" font-family="Helvetica, Arial, sans-serif" font-size="28" fill="rgba(255,255,255,0.62)">hours focused this month</text>
   <text x="620" y="398" font-family="Helvetica, Arial, sans-serif" font-size="104" font-weight="700" fill="#ffffff">${streak}</text>
   <text x="620" y="446" font-family="Helvetica, Arial, sans-serif" font-size="28" fill="rgba(255,255,255,0.62)">day streak</text>
-  <text x="80" y="566" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="rgba(255,255,255,0.45)">Pomoder</text>
+  <text x="80" y="566" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="rgba(255,255,255,0.45)">Flowfly</text>
 </svg>`
 }
 
@@ -113,7 +113,7 @@ export function renderSoundCardSvg({
       return `<rect x="${x}" y="${470 - tall / 2}" width="12" height="${tall}" rx="6" fill="#ff5a3c" opacity="${(0.55 + height * 0.45).toFixed(2)}"/>`
     })
     .join("")
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_CARD_WIDTH}" height="${SHARE_CARD_HEIGHT}" viewBox="0 0 ${SHARE_CARD_WIDTH} ${SHARE_CARD_HEIGHT}" role="img" aria-label="${safeName} on Pomoder">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_CARD_WIDTH}" height="${SHARE_CARD_HEIGHT}" viewBox="0 0 ${SHARE_CARD_WIDTH} ${SHARE_CARD_HEIGHT}" role="img" aria-label="${safeName} on Flowfly">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#1b1714"/>
@@ -125,7 +125,7 @@ export function renderSoundCardSvg({
   <text x="80" y="170" font-family="Helvetica, Arial, sans-serif" font-size="68" font-weight="700" fill="#ffffff">${safeName}</text>
   <text x="80" y="226" font-family="monospace" font-size="30" fill="rgba(255,255,255,0.62)">${safeCredit}</text>
   ${bars}
-  <text x="80" y="600" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="rgba(255,255,255,0.45)">A sound on Pomoder</text>
+  <text x="80" y="600" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="rgba(255,255,255,0.45)">A sound on Flowfly</text>
 </svg>`
 }
 

@@ -4,6 +4,8 @@ import { SettingsIcon } from "lucide-react"
 
 import { CheckinDialog, StatusLine } from "@/components/project/checkin-dialog"
 import { CheckoutDialog } from "@/components/project/checkout-dialog"
+import { DailyCard } from "@/components/project/daily-card"
+import { DailyCityField } from "@/components/project/daily-city-field"
 import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
 import { MyTasksPanel } from "@/components/project/my-tasks-panel"
 import { MyWeekSection } from "@/components/project/my-week-card"
@@ -26,6 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { orderMyPicks, saveMyStatusOrder, type MyDashboard as MyDashboardData } from "@/lib/api/project/checkins"
+import type { DailyCard as DailyCardData } from "@/lib/api/project/daily-card"
 import { saveMemberTitle } from "@/lib/api/project/team-running"
 import { formatDate } from "@/lib/format/format-time"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
@@ -61,23 +64,27 @@ const MY_DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
 
 export function MyDashboardScreen({
   dashboard,
+  daily,
   inbox,
   search,
 }: {
   dashboard: MyDashboardData | null
+  daily: DailyCardData | null
   inbox: InboxPage
   search: MyDashboardSearch
 }) {
-  if (!dashboard) return <TeamStart />
-  return <Dashboard dashboard={dashboard} inbox={inbox} search={search} />
+  if (!dashboard || !daily) return <TeamStart />
+  return <Dashboard dashboard={dashboard} daily={daily} inbox={inbox} search={search} />
 }
 
 function Dashboard({
   dashboard,
+  daily,
   inbox,
   search,
 }: {
   dashboard: MyDashboardData
+  daily: DailyCardData
   inbox: InboxPage
   search: MyDashboardSearch
 }) {
@@ -129,9 +136,11 @@ function Dashboard({
           content: (
             <MePanel
               dashboard={dashboard}
+              daily={daily}
               inbox={inbox}
               onCheckIn={() => go({ checkin: true })}
               onCheckOut={() => go({ checkout: true })}
+              onOpenTask={taskAddress.open}
             />
           ),
         }}
@@ -202,16 +211,23 @@ function Dashboard({
  */
 function MePanel({
   dashboard,
+  daily,
   inbox,
   onCheckIn,
   onCheckOut,
+  onOpenTask,
 }: {
   dashboard: MyDashboardData
+  daily: DailyCardData
   inbox: InboxPage
   onCheckIn: () => void
   onCheckOut: () => void
+  onOpenTask: (taskId: string) => void
 }) {
   const { me, checkin } = dashboard
+  // Today's picks are the Daily card's deep work; those finished today count toward the afternoon's progress.
+  const deepWork = todaysPicks(checkin).filter((task) => task.status !== "done" && task.status !== "archived")
+  const picksDone = daily.finishedToday.filter((task) => checkin.pickedTaskIds.includes(task.taskId)).length
   const { clock, today } = checkin
   const due = clockLabel(clock.time)
   const badge = checkin.checkin
@@ -237,10 +253,19 @@ function MePanel({
             {[me.title, me.teamName].filter(Boolean).join(" · ")}
           </span>
         </div>
-        <MySettingsMenu dashboard={dashboard} />
+        <MySettingsMenu dashboard={dashboard} city={daily.settings.city} />
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <div className="grid gap-3 p-3">
+          <DailyCard
+            daily={daily}
+            deepWork={deepWork}
+            picks={checkin.pickedTaskIds.length ? { done: picksDone, total: checkin.pickedTaskIds.length } : null}
+            checkin={{ checkedIn: Boolean(checkin.checkin), checkedOut: Boolean(checkin.checkout?.at) }}
+            onCheckIn={onCheckIn}
+            onCheckOut={onCheckOut}
+            onOpenTask={onOpenTask}
+          />
           <PanelCard
             storageId="project-my-checkin"
             title="Today's check-in"
@@ -310,7 +335,7 @@ function MePanel({
  * check-in time and zone, and which notices reach my bell. Each saves on its
  * own, as before, in a dropdown like a task's cog.
  */
-function MySettingsMenu({ dashboard }: { dashboard: MyDashboardData }) {
+function MySettingsMenu({ dashboard, city }: { dashboard: MyDashboardData; city: string | null }) {
   const { me, checkin } = dashboard
   const [open, setOpen] = React.useState(false)
   // Leaving a field saves it, so closing first leaves the field being typed in.
@@ -362,6 +387,14 @@ function MySettingsMenu({ dashboard }: { dashboard: MyDashboardData }) {
               summary={`${clockLabel(checkin.clock.time)}, ${checkin.clock.zone.replaceAll("_", " ")}`}
             >
               <MyCheckinTime clock={checkin.clock} />
+            </OptionCard>
+            <OptionCard
+              id="my-settings-city"
+              title="City for the weather"
+              description="The Daily card's sky shows the weather there."
+              summary={city ?? "None"}
+            >
+              <DailyCityField city={city} />
             </OptionCard>
             <OptionCard
               id="my-settings-notices"

@@ -421,7 +421,7 @@ async function pendingInvites(teamIds: string[], teamName: Map<string, string>, 
 }
 
 /** Every team's meetings falling on the site admin's today, earliest first. */
-async function meetingsOn(
+export async function meetingsOn(
   today: string,
   zone: string,
   teamIds: string[],

@@ -354,7 +354,7 @@ one switch.
 - **A new handle breaks old links.** The window says so as soon as the handle
   differs: the old `/u/<handle>` stops answering the moment it is saved,
   including any link the owner already shared.
-- **The owner is told in the bell**, naming what changed: "The Pomoder team
+- **The owner is told in the bell**, naming what changed: "The Flowfly team
   changed your public profile: address, bio." It never says which admin.
   A save that changes nothing writes nothing and tells nobody.
 - **Hide profile** hides the page at once, the same hide a report leads to,

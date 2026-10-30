@@ -1,6 +1,7 @@
 import {
   boolean,
   date,
+  doublePrecision,
   integer,
   jsonb,
   type AnyPgColumn,
@@ -27,6 +28,7 @@ import type {
   TaskStatus,
   TeamRole,
 } from "@/lib/project/rules"
+import type { DayPart, HabitIcon, SkyKind } from "@/lib/project/daily-card"
 import type { SavedViewFilters, SavedViewNames } from "@/lib/project/saved-views"
 import type { StartingStepFields, StepField } from "@/lib/project/step-fields"
 import type { FieldKind, FieldSettings, WhoCanChange } from "@/lib/project/task-fields"
@@ -1145,4 +1147,94 @@ export const projectMyTaskOrder = pgTable(
     position: integer("position").notNull(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.taskId] })]
+)
+
+/**
+ * The Daily card (`drizzle/0137_project_daily_card.sql`): each person's hours,
+ * city and sky. The habits, streaks and journal below are the site admin's
+ * alone (Tyler, 29 Oct 2026).
+ */
+export const projectDailyCards = pgTable("project_daily_cards", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(userRef, { onDelete: "cascade" }),
+  morningAt: varchar("morning_at", { length: 5 }).notNull().default("05:00"),
+  afternoonAt: varchar("afternoon_at", { length: 5 }).notNull().default("12:00"),
+  nightAt: varchar("night_at", { length: 5 }).notNull().default("18:00"),
+  city: text("city"),
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
+  sky: varchar("sky", { length: 16 }).$type<SkyKind>().notNull().default("drawn"),
+  ownSkyMorning: text("own_sky_morning").notNull().default(""),
+  ownSkyAfternoon: text("own_sky_afternoon").notNull().default(""),
+  ownSkyNight: text("own_sky_night").notNull().default(""),
+  ownLines: text("own_lines").array().notNull().default([]),
+  ownQuestions: text("own_questions").array().notNull().default([]),
+  reminderMorning: varchar("reminder_morning", { length: 5 }).default("10:00"),
+  reminderAfternoon: varchar("reminder_afternoon", { length: 5 }).default("15:00"),
+  reminderNight: varchar("reminder_night", { length: 5 }).default("21:00"),
+  celebrated: text("celebrated").array().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+export const projectHabits = pgTable("project_habits", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  userId: varchar("user_id", { length: 36 })
+    .notNull()
+    .references(userRef, { onDelete: "cascade" }),
+  name: varchar("name", { length: 60 }).notNull(),
+  part: varchar("part", { length: 12 }).$type<DayPart>().notNull(),
+  position: integer("position").notNull(),
+  icon: varchar("icon", { length: 32 }).$type<HabitIcon>(),
+  target: smallint("target").notNull().default(1),
+  days: smallint("days").array().notNull().default([]),
+  atTime: varchar("at_time", { length: 5 }),
+  firstDay: date("first_day", { mode: "string" }).notNull(),
+  retiredDay: date("retired_day", { mode: "string" }),
+  createdAt: createdAt(),
+})
+
+export const projectHabitDays = pgTable(
+  "project_habit_days",
+  {
+    habitId: varchar("habit_id", { length: 36 })
+      .notNull()
+      .references(() => projectHabits.id, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    count: smallint("count").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.habitId, table.day] })]
+)
+
+export const projectJournalDays = pgTable(
+  "project_journal_days",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    intention: varchar("intention", { length: 200 }).notNull().default(""),
+    rating: smallint("rating"),
+    note: varchar("note", { length: 500 }).notNull().default(""),
+    win: varchar("win", { length: 200 }).notNull().default(""),
+    question: varchar("question", { length: 200 }).notNull().default(""),
+    answer: varchar("answer", { length: 500 }).notNull().default(""),
+    bedAt: timestamp("bed_at", { withTimezone: true }),
+    upAt: timestamp("up_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.day] })]
+)
+
+export const projectRoutineReminders = pgTable(
+  "project_routine_reminders",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    part: varchar("part", { length: 12 }).$type<DayPart>().notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.day, table.part] })]
 )

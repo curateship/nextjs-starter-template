@@ -20,7 +20,10 @@ value, and what has been proven so far.
   reach it. The System Everything database was not used, because its SSL is
   off and turning it on would restart the live System Everything site.
 - **First admin:** typham2@gmail.com. Tyler, 8 Oct 2026.
-- **Domain:** pomoder.com. Tyler, 8 Oct 2026. It's registered at Namecheap,
+- **Domain:** flowfly.app since 29 Oct 2026, and the app is called Flowfly.
+  Tyler bought it at Namecheap that day and picked "Domain and name
+  together". See "The move to flowfly.app" below. Before that the domain was
+  pomoder.com. Tyler, 8 Oct 2026. It's registered at Namecheap,
   and on 8 Oct its DNS was Namecheap's own (`dns1.registrar-servers.com`),
   showing a parking page, with Namecheap email forwarding (MX `eforward*`) and
   its SPF record.
@@ -197,6 +200,45 @@ What the laptop could not prove:
 - **Uploads.** There was no R2 bucket. The FFmpeg conversion itself was proven
   inside the worker image in the FFmpeg task.
 - **Cloudflare.** The room's live updates through Cloudflare, and HTTPS.
+
+## The move to flowfly.app, 29 Oct 2026
+
+pomoder.com stays registered and stays in Cloudflare for good. Two things on
+it can never move:
+
+- **`media.pomoder.com`** serves every uploaded file, and the database saves
+  full addresses (profile photos, the logo and favicons in the settings row,
+  181 catalogue files). Moving it would break them all.
+- **`simulated.pomoder.com`** is the made-up members' email domain, saved on
+  130 accounts.
+
+What the move needs, and where each part stands:
+
+- **Cloudflare zone:** flowfly.app was added on 29 Oct 2026, zone
+  `7af3fe509eacf46dadbabe8ad6f34db7`, SSL "full" like pomoder.com. A
+  `flowfly.app` → 5.78.189.158 and CNAME `www` → `flowfly.app`, both proxied.
+  Cloudflare gave this zone `hera.ns.cloudflare.com` and
+  `marty.ns.cloudflare.com`, not pomoder.com's pair, so Namecheap must list
+  those two before the domain answers.
+- **Turnstile:** the widget, now named "Flowfly", lists `flowfly.app`,
+  `pomoder.com` and `pomodoro.barelycompany.com`. The keys did not change.
+- **Coolify:** Pomoder Web answers on `flowfly.app`, `www.flowfly.app`,
+  `pomoder.com`, `www.pomoder.com` and `pomodoro.barelycompany.com`.
+  `CUSTOM_SHELL_APP_ORIGINS` lists all five. `CUSTOM_SHELL_EMAIL_FROM` is
+  `Flowfly <hello@pomoder.com>` on both resources.
+- **`CUSTOM_SHELL_APP_URL`** becomes `https://flowfly.app` on both resources
+  only once flowfly.app answers, because every email link is built from it.
+- **Resend:** refused flowfly.app with "You have reached the domain limit of
+  your plan". The account holds three sending domains (barelycompany.com,
+  pomoder.com, systemeverything.com). Until Tyler upgrades or frees one,
+  emails go out from hello@pomoder.com.
+- **The redirect:** pomoder.com and www.pomoder.com send every page to the
+  same path on flowfly.app, except `/api/webhooks/*`. Stripe treats a
+  redirect as a failed delivery, so its webhook keeps working on pomoder.com
+  until Tyler points it at `https://flowfly.app/api/webhooks/stripe` and
+  pastes the new signing secret in Settings → Payments.
+- **Members are signed out once.** A sign-in belongs to the domain it was
+  made on, so everybody signs in again on flowfly.app.
 
 ## Release record
 

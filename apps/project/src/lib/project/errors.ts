@@ -166,6 +166,12 @@ export const PROJECT_ERRORS = {
   linkedOpenNotAllowed: "Only the person the task is assigned to, or the site admin, can open its record.",
   noLinkedRecord: "This task doesn't point at a record any more. Close it and open it again.",
   linkedWhileViewingAs: "Stop viewing the app as someone else first, so the record opens as you.",
+  cityNotFound: "We couldn't find that city. Try its name alone, such as Toronto.",
+  weatherUnavailable: "The weather service didn't answer. Try again in a minute.",
+  habitNotFound: "That habit no longer exists. Reload the page to see your habits.",
+  tooManyHabits: "A routine can have at most 12 habits. Retire one to add another.",
+  habitDayGone: "Only today and yesterday can be ticked.",
+  journalDayGone: "That day has passed, so it can't be changed now. Reload the page to see today.",
 } as const
 
 /**

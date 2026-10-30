@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_pomodoro/settings")({
     const tab = parseSettingsTab(search.tab)
     return { tab: tab && tab !== DEFAULT_SETTINGS_TAB ? tab : undefined }
   },
-  head: () => ({ meta: [{ title: "Settings - Pomoder" }] }),
+  head: () => ({ meta: [{ title: "Settings - Flowfly" }] }),
   component: SettingsRoute,
 })
 

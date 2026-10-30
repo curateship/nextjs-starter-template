@@ -114,7 +114,7 @@ export async function startPurchase(
           price_data: {
             currency: "usd",
             unit_amount: item.amountCents,
-            product_data: { name: `Pomoder: ${item.label}`, tax_code: TAX_CODE },
+            product_data: { name: `Flowfly: ${item.label}`, tax_code: TAX_CODE },
           },
         },
       ],

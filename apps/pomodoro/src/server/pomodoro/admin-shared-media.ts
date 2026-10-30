@@ -315,7 +315,7 @@ export async function copySharedFileToCatalogue({
   const stored = await storeCatalogBytes(await body.transformToByteArray())
   const kind = row.purpose === "sound" ? ("sound" as const) : ("theme" as const)
   const still = kind === "theme" && stored.kind === "image"
-  const credit = row.handle ? `@${row.handle}` : "A Pomoder member"
+  const credit = row.handle ? `@${row.handle}` : "A Flowfly member"
 
   const id = await db.transaction(async (tx) => {
     const [last] = await tx
@@ -343,7 +343,7 @@ export async function copySharedFileToCatalogue({
         artist: credit,
         sourceUrl: row.handle ? sharedFilePath(row.handle, mediaId) : null,
         licence: "other",
-        licenceNote: `Shared on Pomoder by ${credit}, who confirmed they made it or have the right to share it.`,
+        licenceNote: `Shared on Flowfly by ${credit}, who confirmed they made it or have the right to share it.`,
       })
       .returning({ id: pomodoroCatalogItems.id })
     await logCatalogAct(tx, actorUserId, "catalog_from_share", [item.id])

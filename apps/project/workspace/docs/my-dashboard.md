@@ -22,7 +22,11 @@ check-in. It is described in
   since 20 Oct 2026): Job title ("None"), Check-in time ("9:00 AM,
   America/Toronto") and Bell notices ("All on" or "3 off"), each with its
   answer on the right while shut. The dropdown is 384px wide. Closing it saves
-  the field being typed in.
+  the field being typed in. Since 29 Oct 2026 it also has City for the
+  weather, for the Daily card.
+- **The Daily card comes first**, above every other card, on an employee's My
+  dashboard and the site admin's alike. How it works is in
+  [The Daily card](daily-card.md).
 - **Under it, three cards that fold**, each remembered open or shut in this
   browser (`src/components/project/panel-card.tsx`, the shell's grey card
   with a muted note and a badge in its heading).

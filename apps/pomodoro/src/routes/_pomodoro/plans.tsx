@@ -70,7 +70,7 @@ export const Route = createFileRoute("/_pomodoro/plans")({
   },
   head: () => ({
     meta: [
-      { title: "Pricing - Pomoder" },
+      { title: "Pricing - Flowfly" },
       {
         name: "description",
         content: PLANS_PAGE_SUMMARY,

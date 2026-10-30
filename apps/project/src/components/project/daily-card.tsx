@@ -1,0 +1,494 @@
+import * as React from "react"
+import { useRouter } from "@tanstack/react-router"
+import { ChevronDown, HistoryIcon, Loader2Icon, PauseIcon, PencilIcon, PlayIcon } from "lucide-react"
+import { toast } from "sonner"
+
+import { DailyHabits } from "@/components/project/daily-habits"
+import { DailyJournal, RateYourDayButton } from "@/components/project/daily-journal"
+import { DailyLookBackDialog } from "@/components/project/daily-look-back-dialog"
+import { DailySettingsDialog } from "@/components/project/daily-settings-dialog"
+import { DailySky } from "@/components/project/daily-sky"
+import { PanelHeading } from "@/components/shared/panel-card"
+import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { pauseTaskClock, startTaskClock } from "@/lib/api/project/clock"
+import { loadMyWeather, milestoneShown, type DailyCard as DailyCardData, type DailyWeather } from "@/lib/api/project/daily-card"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import {
+  greetingOf,
+  hoursAndMinutes,
+  isAfterMidnight,
+  partOfDay,
+  skyPhase,
+  weatherWords,
+  type DayPart,
+} from "@/lib/project/daily-card"
+import { clockIn, fullDayLabel, localNow } from "@/lib/project/days"
+import { getProjectErrorMessage } from "@/lib/project/errors"
+import { focusRingInset } from "@/lib/layout/focus-ring"
+import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
+import type { TaskCard } from "@/lib/api/project/tasks"
+import { cn } from "@/lib/utils"
+
+/** The route whose data loads again after a change on the card. */
+const DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
+
+/** The pencil and the fold arrow sit on the sky, so they keep a dark backing in every state. */
+const SKY_BUTTON =
+  "bg-black/30 text-white hover:bg-black/45 hover:text-white aria-expanded:bg-black/45 aria-expanded:text-white dark:bg-black/30 dark:hover:bg-black/45"
+
+/** How often the card looks at the clock, so the sky and greeting turn over on time. */
+const TICK_MS = 30_000
+
+/**
+ * The Daily card at the top of My dashboard (task "Daily card/01", Tyler,
+ * 29 Oct 2026: "like a personal assistent"). Everyone has one: a greeting
+ * and a sky that follow their own hours, today's deep work with Start, the
+ * next meeting, the afternoon's progress, and a wind-down at night. The site
+ * admin's adds their routines, streaks and journal, which nobody else sees.
+ * How it works is in `workspace/docs/daily-card.md`.
+ */
+export function DailyCard({
+  daily,
+  deepWork,
+  picks,
+  checkin,
+  onCheckIn,
+  onCheckOut,
+  onOpenTask,
+}: {
+  daily: DailyCardData
+  /** What to work on today: an employee's check-in picks, the site admin's three most urgent tasks. */
+  deepWork: TaskCard[]
+  /** An employee's picks done of picked, for the afternoon's progress; null for the site admin. */
+  picks: { done: number; total: number } | null
+  /** An employee's check-in today; null for the site admin, who has none. */
+  checkin: { checkedIn: boolean; checkedOut: boolean } | null
+  onCheckIn?: () => void
+  onCheckOut?: () => void
+  onOpenTask: (taskId: string) => void
+}) {
+  const nowMs = useNow(daily.loadedAt)
+  const weather = useWeather(daily.settings.city)
+  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-daily-card"))
+  const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const [lookBackOpen, setLookBackOpen] = React.useState(false)
+  const cardRef = React.useRef<HTMLElement>(null)
+
+  const local = localNow(new Date(nowMs), daily.zone)
+  const { hours } = daily.settings
+  const part = partOfDay(local.time, hours)
+  const phase = skyPhase(local.time, hours)
+  const greeting = greetingOf(daily.firstName, part, daily.cardDay, isAfterMidnight(local.time, hours))
+  useMilestone(daily.admin?.milestone ?? null, cardRef)
+
+  const quiet = "opacity-0 transition-opacity group-hover/card:opacity-100 group-has-[:focus-visible]/card:opacity-100 [@media(hover:none)]:opacity-100"
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      asChild
+    >
+      <section
+        ref={cardRef}
+        aria-label="Daily card"
+        className="group/card relative min-w-0 overflow-hidden rounded-lg border bg-muted/40"
+      >
+        <div className={cn("relative overflow-hidden", open ? "h-28" : "h-16")}>
+          <DailySky
+            phase={phase}
+            part={part}
+            weather={weather?.kind ?? null}
+            sky={daily.admin ? daily.settings.sky : "drawn"}
+            ownPhoto={daily.settings.ownSkies[part]}
+          />
+          {/* The fade that keeps the words readable over any sky or photo. */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent" aria-hidden />
+          <div className="absolute inset-x-0 bottom-0 grid gap-0.5 px-4 pb-3 text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.6)]">
+            <h2 className="text-[15px] leading-tight font-semibold">{greeting}</h2>
+            {open ? (
+              <p className="text-xs text-white/90">
+                {fullDayLabel(local.day)}
+                {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}
+              </p>
+            ) : null}
+          </div>
+          <div className="absolute top-2 right-2 flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Edit the Daily card"
+                  onClick={() => setSettingsOpen(true)}
+                  className={cn(SKY_BUTTON, quiet)}
+                >
+                  <PencilIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Edit the Daily card</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={open ? "Fold the Daily card" : "Open the Daily card"}
+                  aria-expanded={open}
+                  onClick={() => setOpen(!open)}
+                  className={cn(SKY_BUTTON, focusRingInset, quiet)}
+                >
+                  <ChevronDown className={cn("size-4 transition-transform duration-200", !open && "-rotate-90")} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{open ? "Fold it to the greeting" : "Open it again"}</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+        <CollapsibleContent data-collapse-key={noFlashKey}>
+          {/* minmax(0, 1fr): a long task title truncates instead of widening the card. */}
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4">
+            {daily.admin?.lookBack ? <SundayLookBack daily={daily} /> : null}
+            {daily.admin?.monthly ? <MonthlyReview daily={daily} /> : null}
+            {daily.admin?.line && part === "morning" ? <p className="text-sm text-muted-foreground italic">{daily.admin.line}</p> : null}
+            <DayBody
+              daily={daily}
+              part={part}
+              nowMs={nowMs}
+              deepWork={deepWork}
+              picks={picks}
+              checkin={checkin}
+              onCheckIn={onCheckIn}
+              onCheckOut={onCheckOut}
+              onOpenTask={onOpenTask}
+            />
+            {daily.admin ? (
+              <>
+                <DailyHabits daily={daily} part={part} />
+                <DailyJournal daily={daily} part={part} />
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" className="min-w-0 flex-1" onClick={() => setLookBackOpen(true)}>
+                    {/* At night the icon makes way for Rate your day beside it. */}
+                    {part === "night" ? null : <HistoryIcon className="size-4" />}
+                    Look back
+                  </Button>
+                  {part === "night" ? <RateYourDayButton daily={daily} /> : null}
+                </div>
+              </>
+            ) : null}
+          </div>
+        </CollapsibleContent>
+        <DailySettingsDialog daily={daily} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        {daily.admin ? <DailyLookBackDialog open={lookBackOpen} onClose={() => setLookBackOpen(false)} /> : null}
+      </section>
+    </Collapsible>
+  )
+}
+
+/** The moment the card draws: the load's own moment first, then the browser's, every 30 seconds. */
+function useNow(loadedAt: string) {
+  const [now, setNow] = React.useState(() => Date.parse(loadedAt))
+  React.useEffect(() => {
+    const first = window.setTimeout(() => setNow(Date.now()), 0)
+    const timer = window.setInterval(() => setNow(Date.now()), TICK_MS)
+    return () => {
+      window.clearTimeout(first)
+      window.clearInterval(timer)
+    }
+  }, [])
+  return now
+}
+
+/** The weather in the person's city, loaded after the card so the page never waits for it. */
+function useWeather(city: string | null) {
+  const [weather, setWeather] = React.useState<{ city: string; value: DailyWeather | null } | null>(null)
+  React.useEffect(() => {
+    if (!city) return
+    let live = true
+    // Quietly: without an answer the sky just follows the clock.
+    loadMyWeather().then(
+      (value) => live && setWeather({ city, value }),
+      () => live && setWeather({ city, value: null })
+    )
+    return () => {
+      live = false
+    }
+  }, [city])
+  return city && weather?.city === city ? weather.value : null
+}
+
+/** A streak milestone's confetti, once: shown, then remembered so it never shows again. */
+function useMilestone(milestone: string | null, cardRef: React.RefObject<HTMLElement | null>) {
+  const shown = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (!milestone || shown.current === milestone || !cardRef.current) return
+    shown.current = milestone
+    burstConfetti(cardRef.current)
+    const days = milestone.split(":").pop()
+    toast.success(`${days} days in a row.`)
+    void milestoneShown(milestone).catch(() => undefined)
+  }, [milestone, cardRef])
+}
+
+const CONFETTI_COLORS = ["#f43f5e", "#f59e0b", "#10b981", "#3b82f6", "#a855f7"]
+
+/** A short burst of confetti over the card, left out for anyone whose device asks for less motion. */
+function burstConfetti(card: HTMLElement) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+  const layer = document.createElement("div")
+  layer.setAttribute("aria-hidden", "true")
+  layer.className = "pointer-events-none absolute inset-0 overflow-hidden"
+  card.appendChild(layer)
+  const pieces = Array.from({ length: 40 }, (_, index) => {
+    const piece = document.createElement("span")
+    piece.className = "absolute top-0 block size-1.5 rounded-[1px]"
+    piece.style.left = `${(index * 37) % 100}%`
+    piece.style.background = CONFETTI_COLORS[index % CONFETTI_COLORS.length]
+    layer.appendChild(piece)
+    return piece.animate(
+      [
+        { transform: "translateY(-10px) rotate(0deg)", opacity: 1 },
+        { transform: `translateY(${180 + ((index * 23) % 120)}px) rotate(${(index % 2 ? 1 : -1) * 540}deg)`, opacity: 0 },
+      ],
+      { duration: 1400 + ((index * 41) % 600), easing: "cubic-bezier(.2,.6,.4,1)", fill: "forwards" }
+    ).finished
+  })
+  void Promise.allSettled(pieces).then(() => layer.remove())
+}
+
+/** The part of the card that follows the time of day for everyone. */
+function DayBody({
+  daily,
+  part,
+  nowMs,
+  deepWork,
+  picks,
+  checkin,
+  onCheckIn,
+  onCheckOut,
+  onOpenTask,
+}: {
+  daily: DailyCardData
+  part: DayPart
+  nowMs: number
+  deepWork: TaskCard[]
+  picks: { done: number; total: number } | null
+  checkin: { checkedIn: boolean; checkedOut: boolean } | null
+  onCheckIn?: () => void
+  onCheckOut?: () => void
+  onOpenTask: (taskId: string) => void
+}) {
+  if (daily.dayOff) {
+    return <p className="text-sm">{daily.dayOff}. Nothing here needs you today.</p>
+  }
+  const clockedSeconds =
+    daily.clock.seconds + (daily.clock.running ? Math.max(0, Math.floor((nowMs - Date.parse(daily.loadedAt)) / 1000)) : 0)
+  return (
+    <>
+      {checkin && !checkin.checkedIn && part !== "night" ? (
+        <Button type="button" className="w-full" onClick={onCheckIn}>
+          Check in to plan your day
+        </Button>
+      ) : null}
+      {part === "afternoon" ? <Progress picks={picks} finished={daily.finishedToday.length} clockedSeconds={clockedSeconds} /> : null}
+      {part !== "night" ? <DeepWork tasks={deepWork} onOpenTask={onOpenTask} /> : null}
+      <NextMeeting daily={daily} nowMs={nowMs} />
+      {part === "night" ? (
+        <WindDown daily={daily} checkin={checkin} onCheckOut={onCheckOut} onOpenTask={onOpenTask} />
+      ) : null}
+    </>
+  )
+}
+
+/** "2 of 3 done, 3h 10m clocked today"; nothing while there is nothing to count. */
+function Progress({ picks, finished, clockedSeconds }: { picks: { done: number; total: number } | null; finished: number; clockedSeconds: number }) {
+  const parts = [
+    picks ? `${picks.done} of ${picks.total} done` : finished ? `${finished} done today` : null,
+    clockedSeconds >= 60 ? `${hoursAndMinutes(Math.floor(clockedSeconds / 60))} clocked today` : null,
+  ].filter(Boolean)
+  return parts.length ? <p className="text-sm">{parts.join(", ")}</p> : null
+}
+
+function DeepWork({ tasks, onOpenTask }: { tasks: TaskCard[]; onOpenTask: (taskId: string) => void }) {
+  const router = useRouter()
+  const [run] = useAsyncAction(getProjectErrorMessage)
+  const [starting, setStarting] = React.useState<string | null>(null)
+  if (tasks.length === 0) return null
+  async function start(task: TaskCard) {
+    setStarting(task.id)
+    let paused: string | null = null
+    const ok = await run(async () => {
+      paused = (await startTaskClock(task.id)).pausedTitle
+    })
+    setStarting(null)
+    if (!ok) return
+    toast.success(paused ? `Started "${task.title}" and paused "${paused}".` : `Started "${task.title}".`)
+    await router.invalidate({ filter: (match) => match.routeId === DASHBOARD_ROUTE_ID })
+  }
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+      <PanelHeading>Deep work</PanelHeading>
+      <ul className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
+        {tasks.map((task) => {
+          const running = Boolean(task.clock.runningSince)
+          return (
+            <li key={task.id} className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onOpenTask(task.id)}
+                className={cn("min-w-0 flex-1 cursor-pointer truncate rounded-md text-left text-sm hover:underline", focusRingInset)}
+              >
+                {task.title}
+              </button>
+              {running ? (
+                <span className="text-xs text-muted-foreground">Doing</span>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() => void start(task)}
+                  aria-label={`Start ${task.title}`}
+                >
+                  {starting === task.id ? <Loader2Icon className="size-3 animate-spin" /> : <PlayIcon className="size-3" />}
+                  Start
+                </Button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+/** "Standup in 25 minutes", "Standup now", or "Standup at 3:00 PM"; nothing once the day's meetings are over. */
+function NextMeeting({ daily, nowMs }: { daily: DailyCardData; nowMs: number }) {
+  const next = daily.meetings.find((meeting) => Date.parse(meeting.endsAt) > nowMs)
+  if (!next) return null
+  const minutes = Math.ceil((Date.parse(next.startsAt) - nowMs) / 60_000)
+  const when =
+    minutes <= 0 ? "now" : minutes < 60 ? `in ${minutes} ${minutes === 1 ? "minute" : "minutes"}` : `at ${clockIn(next.startsAt, daily.zone)}`
+  return (
+    <p className="text-sm">
+      <span className="font-medium">{next.title}</span> {when}
+    </p>
+  )
+}
+
+/** At night: what got finished, a clock still running, and an employee's check-out. */
+function WindDown({
+  daily,
+  checkin,
+  onCheckOut,
+  onOpenTask,
+}: {
+  daily: DailyCardData
+  checkin: { checkedIn: boolean; checkedOut: boolean } | null
+  onCheckOut?: () => void
+  onOpenTask: (taskId: string) => void
+}) {
+  const router = useRouter()
+  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  const running = daily.clock.running
+  async function pause() {
+    if (!running) return
+    if (await run(() => pauseTaskClock(running.taskId), `Paused "${running.title}".`)) {
+      await router.invalidate({ filter: (match) => match.routeId === DASHBOARD_ROUTE_ID })
+    }
+  }
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+      <PanelHeading>Done today</PanelHeading>
+      {daily.finishedToday.length ? (
+        <ul className="grid gap-1">
+          {daily.finishedToday.map((task) => (
+            <li key={task.taskId}>
+              <button
+                type="button"
+                onClick={() => onOpenTask(task.taskId)}
+                className={cn("w-full cursor-pointer truncate rounded-md text-left text-sm hover:underline", focusRingInset)}
+              >
+                {task.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">Nothing marked Done today. Tomorrow is a fresh start.</p>
+      )}
+      {running ? (
+        <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
+          <span className="min-w-0 flex-1">
+            Your clock is still running on <span className="font-medium">{running.title}</span>.
+          </span>
+          <Button type="button" variant="outline" size="xs" onClick={() => void pause()} disabled={busy}>
+            <PauseIcon className="size-3" />
+            Pause
+          </Button>
+        </div>
+      ) : null}
+      {checkin?.checkedIn && !checkin.checkedOut && onCheckOut ? (
+        <Button type="button" variant="outline" className="w-full" onClick={onCheckOut}>
+          Check out and plan tomorrow
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+/** All of Sunday: the week's ratings and wins together, above the usual card. */
+function SundayLookBack({ daily }: { daily: DailyCardData }) {
+  const days = daily.admin?.lookBack ?? []
+  const rated = days.filter((day) => day.rating)
+  const wins = days.filter((day) => day.win)
+  return (
+    <div className="grid gap-2 rounded-md border bg-background p-3">
+      <PanelHeading>Your week</PanelHeading>
+      <ol className="grid grid-cols-7 gap-1 text-center text-xs" aria-label="This week's ratings">
+        {days.map((day) => (
+          <li key={day.day} className="grid gap-1">
+            <span className="text-muted-foreground">{new Date(`${day.day}T12:00:00Z`).toLocaleDateString("en", { weekday: "short", timeZone: "UTC" })}</span>
+            <span className="font-medium">{day.rating ?? ""}</span>
+          </li>
+        ))}
+      </ol>
+      <p className="text-sm text-muted-foreground">
+        {rated.length ? `You rated ${rated.length} of 7 days.` : "No days rated this week."}
+      </p>
+      {wins.length ? (
+        <ul className="grid list-disc gap-1 pl-5 text-sm">
+          {wins.map((day) => (
+            <li key={day.day}>{day.win}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
+/** The first of the month: last month's best habit, typical rating and top wins. */
+function MonthlyReview({ daily }: { daily: DailyCardData }) {
+  const review = daily.admin?.monthly
+  if (!review) return null
+  const month = new Date(`${review.month}-15T12:00:00Z`).toLocaleDateString("en", { month: "long", timeZone: "UTC" })
+  return (
+    <div className="grid gap-2 rounded-md border bg-background p-3">
+      <PanelHeading>{month} in review</PanelHeading>
+      <ul className="grid gap-1 text-sm">
+        <li>
+          {review.bestHabit
+            ? `Best habit: ${review.bestHabit.name}, ${review.bestHabit.done} of ${review.bestHabit.of} days.`
+            : "No habits were set last month."}
+        </li>
+        <li>{review.typicalRating ? `A typical day: ${review.typicalRating} out of 5.` : "No days were rated."}</li>
+        {review.wins.map((win) => (
+          <li key={win}>Win: {win}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}

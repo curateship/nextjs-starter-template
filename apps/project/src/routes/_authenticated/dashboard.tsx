@@ -7,6 +7,7 @@ import { routeErrorComponent } from "@/components/shell/route-error"
 import { listNotificationPage } from "@/lib/api/notification"
 import { loadAdminDashboardPage } from "@/lib/api/project/admin-dashboard"
 import { loadMyDashboardPage } from "@/lib/api/project/checkins"
+import { loadDailyCardPage } from "@/lib/api/project/daily-card"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { readTaskFilters } from "@/lib/project/task-filters"
 import { pageTitleHead } from "@/lib/project/page-title"
@@ -41,11 +42,13 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
     const { user } = (await parentMatchPromise).loaderData ?? {}
     const inbox = listNotificationPage({ limit: 30 })
     if (user?.role === "admin") {
-      const [admin, firstPage] = await Promise.all([loadAdminDashboardPage(), inbox])
-      return { admin, dashboard: null, inbox: inboxOf(firstPage) }
+      const [admin, daily, firstPage] = await Promise.all([loadAdminDashboardPage(), loadDailyCardPage(), inbox])
+      return { admin, daily, dashboard: null, inbox: inboxOf(firstPage) }
     }
     const [page, firstPage] = await Promise.all([loadMyDashboardPage(), inbox])
-    return { admin: null, dashboard: page.dashboard, inbox: inboxOf(firstPage) }
+    // Someone on no team sees how to get started, with no card to load.
+    const daily = page.dashboard ? await loadDailyCardPage() : null
+    return { admin: null, daily, dashboard: page.dashboard, inbox: inboxOf(firstPage) }
   },
   head: ({ matches }) => pageTitleHead("My dashboard", matches),
   component: DashboardRoute,
@@ -53,12 +56,12 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 })
 
 function DashboardRoute() {
-  const { admin, dashboard, inbox } = Route.useLoaderData()
+  const { admin, daily, dashboard, inbox } = Route.useLoaderData()
   const search = Route.useSearch()
   if (admin) {
     // The admin's address has no check-in or check-out to open.
     const { checkin: _checkin, checkout: _checkout, ...adminSearch } = search
-    return <AdminDashboardScreen dashboard={admin} inbox={inbox} search={adminSearch} />
+    return <AdminDashboardScreen dashboard={admin} daily={daily} inbox={inbox} search={adminSearch} />
   }
-  return <MyDashboardScreen dashboard={dashboard} inbox={inbox} search={search} />
+  return <MyDashboardScreen dashboard={dashboard} daily={daily} inbox={inbox} search={search} />
 }
