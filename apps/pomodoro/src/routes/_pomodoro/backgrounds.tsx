@@ -4,6 +4,6 @@ import { BackgroundsPage } from "@/components/pomodoro/backgrounds-page"
 
 /** The eight background scenes; four free, four Pro. */
 export const Route = createFileRoute("/_pomodoro/backgrounds")({
-  head: () => ({ meta: [{ title: "Backgrounds - Pomoder" }] }),
+  head: () => ({ meta: [{ title: "Backgrounds - Flowfly" }] }),
   component: BackgroundsPage,
 })

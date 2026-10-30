@@ -8,6 +8,6 @@ import { RoomInvitePage } from "@/components/pomodoro/room-invite-page"
  * invite would render inside the browse screen instead of on its own.
  */
 export const Route = createFileRoute("/_pomodoro/rooms_/$slug")({
-  head: () => ({ meta: [{ title: "Room invite - Pomoder" }] }),
+  head: () => ({ meta: [{ title: "Room invite - Flowfly" }] }),
   component: RoomInvitePage,
 })

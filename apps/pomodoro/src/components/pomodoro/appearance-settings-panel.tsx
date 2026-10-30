@@ -77,7 +77,7 @@ export default function AppearanceSettingsPanel() {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Pomoder is dark for visitors. Log in to choose light mode.
+            Flowfly is dark for visitors. Log in to choose light mode.
           </p>
         )}
         <div className="grid gap-2">

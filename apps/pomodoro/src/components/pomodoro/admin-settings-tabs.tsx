@@ -265,7 +265,7 @@ function SettingsTab({ children }: { children: (loaded: Loaded) => React.ReactNo
         {error ? (
           <ErrorRow message={error} onRetry={() => setReloads((count) => count + 1)} />
         ) : (
-          <LoadingRow label="Loading Pomoder settings…" />
+          <LoadingRow label="Loading Flowfly settings…" />
         )}
       </CardContent>
     </Card>

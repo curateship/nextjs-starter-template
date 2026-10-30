@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_pomodoro/history")({
     const range = reportRanges.find((option) => option === search.range)
     return { range: range && range !== DEFAULT_RANGE ? range : undefined }
   },
-  head: () => ({ meta: [{ title: "Stats - Pomoder" }] }),
+  head: () => ({ meta: [{ title: "Stats - Flowfly" }] }),
   component: HistoryRoute,
 })
 

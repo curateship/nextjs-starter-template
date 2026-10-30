@@ -105,9 +105,9 @@ export function MessageLiveRoomsDialog({
             <DialogTitle>Message live rooms</DialogTitle>
             <DialogDescription>
               {countFailed
-                ? "The number of open rooms could not be loaded. It goes to every room open when you send it, pinned at the top of the chat from Pomoder with a STAFF label."
+                ? "The number of open rooms could not be loaded. It goes to every room open when you send it, pinned at the top of the chat from Flowfly with a STAFF label."
                 : count
-                ? `It goes to the ${count} ${plural(count, "room", "rooms")} open now, pinned at the top of the chat from Pomoder with a STAFF label, until the room ends or you delete it from that room's chat.`
+                ? `It goes to the ${count} ${plural(count, "room", "rooms")} open now, pinned at the top of the chat from Flowfly with a STAFF label, until the room ends or you delete it from that room's chat.`
                 : "No room is open right now, so it would reach nobody."}
             </DialogDescription>
           </DialogHeader>
@@ -130,7 +130,7 @@ export function MessageLiveRoomsDialog({
                     rows={3}
                     maxLength={500}
                     value={body}
-                    placeholder="Pomoder will be down for ten minutes at 9pm UTC."
+                    placeholder="Flowfly will be down for ten minutes at 9pm UTC."
                     onChange={(event) => setBody(event.target.value)}
                   />
                 </CardContent>
