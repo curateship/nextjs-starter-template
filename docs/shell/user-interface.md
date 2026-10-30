@@ -50,7 +50,10 @@
   border and it messes up another"). Each line is now painted as its own
   stack, the divider colour over the heading's grey band over the card, so
   every line is the footer's shade wherever it sits. He picked the footer's
-  shade for all of them. **To change table lines, change that one rule; never
+  shade for all of them. A panel header sitting right above a table, such as
+  My dashboard's List, Board and Calendar tabs, draws its bottom line the same
+  way, because that line is the table's top line ("I still dont get why the
+  border here is faint"). **To change table lines, change that one rule; never
   give one line its own strip, shadow or border.** Check by reading pixel
   shades down one column (heading, group rows, footer) in light and dark.
 - **A group heading inside a table is `TableGroupRow`** from
