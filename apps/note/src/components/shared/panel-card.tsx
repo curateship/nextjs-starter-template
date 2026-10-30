@@ -8,6 +8,14 @@ import { focusRingInset } from "@/lib/layout/focus-ring"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
+/** The grey box itself, shared by the folding card and the plain one. */
+const panelBoxClassName = cn(
+  "min-w-0 rounded-lg border bg-muted/40 p-4",
+  // Fields sit on the page background, so a box to type in never looks
+  // like part of the grey card.
+  "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
+)
+
 /** Whether the card's footer is open, read by `PanelCardFooter` inside it. */
 const FooterOpen = React.createContext<boolean | null>(null)
 
@@ -21,11 +29,12 @@ const FooterOpen = React.createContext<boolean | null>(null)
  * Contacts on 19 Oct 2026.
  *
  * `settings` puts a cog beside the arrow that opens the card's footer, the
- * row of its buttons (`PanelCardFooter`), and `quiet` shows the cog and the
- * arrow only while the card is pointed at, or holds the keyboard's visible
- * focus (a click leaves none), as Tyler
- * drew the task panel's cards on 14 Oct 2026, folded or open. On a screen
- * with no pointer to hover, they always show.
+ * row of its buttons (`PanelCardFooter`). The cog, the card's own buttons
+ * and the arrow show only while the card is pointed at, or holds the
+ * keyboard's visible focus (a click leaves none), folded or open. Tyler drew
+ * the task panel's cards that way on 14 Oct 2026 and made it every card's
+ * rule on 20 Oct 2026; a button whose dropdown or footer is open stays in
+ * view. On a screen with no pointer to hover, they always show.
  */
 export function PanelCard({
   storageId,
@@ -36,7 +45,6 @@ export function PanelCard({
   action,
   actionOpen = false,
   settings = false,
-  quiet = false,
   className,
   children,
 }: {
@@ -55,27 +63,17 @@ export function PanelCard({
   actionOpen?: boolean
   /** A cog that opens the footer of buttons. */
   settings?: boolean
-  /** The cog and arrow only on hover or focus. */
-  quiet?: boolean
   className?: string
   children: React.ReactNode
 }) {
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(storageId))
   const [footerOpen, setFooterOpen] = React.useState(false)
-  const quietClass = quiet
-    ? "opacity-0 transition-opacity group-hover/card:opacity-100 group-has-[:focus-visible]/card:opacity-100 [@media(hover:none)]:opacity-100"
-    : undefined
+  const quietClass = "opacity-0 transition-opacity group-hover/card:opacity-100 group-has-[:focus-visible]/card:opacity-100 [@media(hover:none)]:opacity-100"
   return (
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className={cn(
-        "group/card min-w-0 rounded-lg border bg-muted/40 p-4",
-        // Fields sit on the page background, so a box to type in never looks
-        // like part of the grey card.
-        "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background",
-        className
-      )}
+      className={cn("group/card", panelBoxClassName, className)}
     >
       <div className="flex items-center gap-2">
         <h2 className="min-w-0 flex-1 text-[15px] font-semibold">
@@ -143,6 +141,14 @@ export function PanelCard({
       </CollapsibleContent>
     </Collapsible>
   )
+}
+
+/**
+ * The same grey box with no heading and no fold, for a record's opening card
+ * whose first line is the record's own name, as the open contact's is.
+ */
+export function PanelBox({ className, children }: { className?: string; children: React.ReactNode }) {
+  return <div className={cn(panelBoxClassName, className)}>{children}</div>
 }
 
 /**

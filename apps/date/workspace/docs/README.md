@@ -18,3 +18,4 @@ What Date does and why, one file per part. Tyler's decisions of 17 Oct 2026 are 
 - [dating-dashboard.md](dating-dashboard.md): the one three-column dashboard and Tyler's rules for it: leads and their status, the summary with the stats, the phone and My profile in the right panel, the Dates calendar, the cog's settings window, and the sample data.
 - [chats/chats-and-replies.md](chats/chats-and-replies.md): openers, the one follow-up, what they told you, chats that are over or scams, they unmatched, Show 3, tone, Tidy, the member's voice, warming or cooling, Ask Date, dead matches and the Openers card.
 - [chats/dates-and-calendar.md](chats/dates-and-calendar.md): a yes to a date, the Dates tab, Before your date, the Dates tab's month and Google Calendar.
+- [Shell integration](shell-integration.md) — each shell merge into Date: what arrived, what stayed Date's own.

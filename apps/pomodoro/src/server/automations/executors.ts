@@ -10,6 +10,8 @@ import {
 import { sendEmailNode } from "@/lib/automations/nodes/send-email"
 import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
 import { joinedSegmentNode } from "@/lib/automations/nodes/joined-segment"
+import { segmentDripNode } from "@/lib/automations/nodes/segment-drip"
+import { waitNode } from "@/lib/automations/nodes/wait"
 import {
   MEMBER_EVENT_LABELS,
   memberEventNode,
@@ -24,8 +26,8 @@ import {
 import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import { appAutomationExecutors } from "@/server/app-options"
 import {
+  contactMatchesAutomationAudience,
   countAutomationAudience,
-  memberMatchesAutomationAudience,
   readAutomationAudience,
   requireAudienceSegment,
 } from "@/server/automations/audience"
@@ -42,6 +44,7 @@ import {
 } from "@/lib/automations/schedule"
 import { executeSendEmailNode } from "@/server/automations/send-email"
 import { executeWebhookNode } from "@/server/automations/webhook"
+import { executeWaitNode } from "@/server/automations/wait"
 import { changeMemberTag } from "@/server/people/member-tags"
 import { normalizeMemberTag } from "@/lib/member-tags"
 
@@ -75,6 +78,17 @@ export type AutomationExecutorResult =
    * occupies nothing while it waits, and auto-rejects it at `deadlineAt`.
    */
   | { type: "park"; summary: string; deadlineAt: Date }
+  /**
+   * Done for now, and come back to this same step at `until`. The engine hands
+   * the claim back with the run's wake-up time moved, so a run asleep for two
+   * days occupies nothing, the same as one parked at an approval.
+   */
+  | {
+      type: "sleep"
+      summary: string
+      until: Date
+      output?: AutomationRunOutput
+    }
 
 export type AutomationExecutor = (
   context: AutomationExecutorContext
@@ -99,8 +113,8 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
    * spotted the date. This writes the first line of the history, and it is the
    * line that names the moment and the person.
    *
-   * A one-member test has no real billing moment on purpose. It names the
-   * chosen member and carries on without pretending a payment event happened.
+   * A one-contact test has no real billing moment on purpose. It names the
+   * chosen contact and carries on without pretending a payment event happened.
    */
   [billingMomentNode.kind]: async ({ run, settings, testRun }) => {
     const facts = run.triggerFacts
@@ -158,6 +172,25 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     }
   },
 
+  [segmentDripNode.kind]: async ({ run, testRun }) => {
+    const who = run.subjectLabel?.trim()
+    if (testRun && who) {
+      return {
+        type: "next",
+        summary: `Testing this flow with ${who}. They were not really let in from the segment.`,
+      }
+    }
+    if (!who) {
+      throw new Error(
+        "This segment run has no contact, so it cannot continue safely."
+      )
+    }
+    return {
+      type: "next",
+      summary: `${who} was let in from the segment.`,
+    }
+  },
+
   [memberEventNode.kind]: async ({ run, settings, testRun }) => {
     const who = run.subjectLabel?.trim()
     const event = readMemberEvent(settings)
@@ -187,6 +220,12 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       throw new Error(
         "This tag step has incomplete settings, so it cannot continue."
       )
+    }
+    if (testRun && !run.subjectUserId) {
+      return {
+        type: "next",
+        summary: `Would ${mode} the '${tag}' tag, but ${who} has no account to tag, so a real run would stop here. No tag was changed in this test.`,
+      }
     }
     if (!run.subjectUserId) {
       throw new Error(
@@ -246,7 +285,7 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     // that column falls back to its owner's — looking it up every time is how a
     // flow's audience used to change when its owner switched workspace.
     const workspaceId = await workspaceForRun(run, database)
-    // A test must not "helpfully" create or update the chosen member's contact.
+    // A test must not "helpfully" create or update the chosen contact.
     // It reads exactly what exists and says when that means they do not match.
     if (!testRun) await syncContactsFromUsers(workspaceId, database)
 
@@ -259,12 +298,17 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       database
     )
     const timestamp = now()
+    if (testRun && !run.subjectContactId) {
+      throw new Error(
+        "This test has no chosen contact, so it cannot check the audience. Start a new test."
+      )
+    }
     const subjectMatched =
-      testRun && run.subjectUserId
-        ? await memberMatchesAutomationAudience(
+      testRun && run.subjectContactId
+        ? await contactMatchesAutomationAudience(
             audience,
             workspaceId,
-            run.subjectUserId,
+            run.subjectContactId,
             database,
             timestamp,
             segment
@@ -288,7 +332,7 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     )
 
     if (subjectMatched !== null) {
-      const subject = run.subjectLabel?.trim() || "The chosen member"
+      const subject = run.subjectLabel?.trim() || "The chosen contact"
       return {
         type: "next",
         summary: subjectMatched
@@ -309,6 +353,8 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
   [sendEmailNode.kind]: executeSendEmailNode,
 
   [webhookNode.kind]: executeWebhookNode,
+
+  [waitNode.kind]: executeWaitNode,
 
   [waitForApprovalNode.kind]: async ({ settings, now }) => {
     const summary =
@@ -335,6 +381,8 @@ const TEST_RUN_SAFE_KINDS = new Set([
   memberEventNode.kind,
   memberTagNode.kind,
   timeActivateNode.kind,
+  segmentDripNode.kind,
+  waitNode.kind,
   audienceNode.kind,
   sendEmailNode.kind,
   webhookNode.kind,

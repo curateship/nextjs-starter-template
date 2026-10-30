@@ -176,4 +176,21 @@ describe("Webhook executor", () => {
     expect(resolveTarget).not.toHaveBeenCalled()
     expect(send).not.toHaveBeenCalled()
   })
+
+  it("skips the call in a test run", async () => {
+    const resolveTarget = vi.fn(async () => target)
+    const send = vi.fn(async () => 204)
+    await expect(
+      executeWebhookNode(
+        context({ testRun: true }),
+        dependencies(send, { resolveTarget })
+      )
+    ).resolves.toEqual({
+      type: "next",
+      summary:
+        "Would have called https://hooks.example.com/automation. Skipped in this test.",
+    })
+    expect(resolveTarget).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+  })
 })

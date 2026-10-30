@@ -12,6 +12,11 @@ vi.mock("@tanstack/react-router", () => ({
 // group measuring a window jsdom does not have. The panels themselves are the
 // same components either way.
 vi.mock("@/lib/layout/wide-screen", () => ({ useWideScreen: () => false }))
+// The open buttons read the site being edited off the signed-in route, which
+// this test does not mount. A path coming back unchanged is the one-site answer.
+vi.mock("@/lib/hooks/use-site-address", () => ({
+  useSiteAddress: () => (path: string) => path,
+}))
 // The editor reports its Saving…/Saved into the sticky header, which lives on
 // the shell this test does not mount.
 vi.mock("@/components/shell/shell-layout", () => ({
@@ -171,6 +176,7 @@ async function open(config: ShellConfig = createDefaultShellConfig()) {
           page={page}
           writtenPage={null}
           initialBlocks={[]}
+          pageChoices={[]}
           config={config}
           onConfigChange={() => undefined}
         />

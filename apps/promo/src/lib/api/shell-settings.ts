@@ -4,9 +4,10 @@ import { eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { appPublicTheme } from "@/lib/app-options"
+import { ROLE_ID_PATTERN } from "@/lib/role-id"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  SHELL_ROLES,
+  TOP_LEFT_MODES,
   TOP_LEFT_NAV_LIMIT_OPTIONS,
   TOP_RIGHT_NAVIGATION_ITEM_IDS,
   type ShellConfig,
@@ -99,6 +100,7 @@ import {
   MAX_MODAL_PADDING,
   MIN_CONTENT_GUTTER,
   DARK_SHADE_IDS,
+  DASHBOARD_TAB_STYLES,
   DEFAULT_DARK_SHADE,
   SHELL_BACKGROUND_MODES,
 } from "@/lib/layout/styling-values"
@@ -139,7 +141,10 @@ const publicFontAssetSchema = z
   })
   .nullable()
 
-const shellRolesSchema = z.array(z.enum(SHELL_ROLES)).optional()
+// The shape only, not the app's list: a menu link still naming a role the app
+// has stopped declaring must not refuse the whole settings save.
+const roleIdSchema = z.string().regex(ROLE_ID_PATTERN)
+const shellRolesSchema = z.array(roleIdSchema).optional()
 
 const shellChildItemSchema = z.object({
   id: z.string().min(1),
@@ -192,6 +197,7 @@ const shellTopRightItemSchema = z.discriminatedUnion("type", [
     type: z.literal("app"),
     id: z.string().trim().min(1).max(64),
     visible: z.boolean(),
+    foldsOnPhone: z.boolean().optional(),
   }),
   z.object({
     type: z.literal("link"),
@@ -201,6 +207,15 @@ const shellTopRightItemSchema = z.discriminatedUnion("type", [
     icon: shellIconSchema,
   }),
 ])
+
+/** One link in the top-left shortcuts row. */
+const shellTopLeftShortcutSchema = z.object({
+  id: z.string().min(1).max(64),
+  label: z.string().max(80),
+  href: z.string().max(2048),
+  icon: shellIconSchema,
+  visible: z.boolean(),
+})
 
 const shellBackgroundSchema = z.object({
   mode: z.enum(["default", "muted", "custom"]),
@@ -230,6 +245,8 @@ const shellStylingSchema = z.object({
   content: shellBackgroundSchema,
   chrome: shellBackgroundSchema,
   modal: shellModalStylingSchema,
+  dashboardTabs: z.enum(DASHBOARD_TAB_STYLES).optional(),
+  sidebarShade: z.number().int().min(0).max(100).optional(),
 })
 
 const publicNavigationLinkSchema = z.object({
@@ -426,6 +443,11 @@ const shellConfigSchema = z.object({
       value as (typeof TOP_LEFT_NAV_LIMIT_OPTIONS)[number]
     )
   ),
+  // Optional, and the saved value is kept when one is missing, so a settings
+  // tab opened before these existed cannot wipe them on its next save.
+  topLeftMode: z.enum(TOP_LEFT_MODES).optional(),
+  memberTopLeftMode: z.enum(TOP_LEFT_MODES).optional(),
+  topLeftShortcuts: z.array(shellTopLeftShortcutSchema).max(50).optional(),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
   workspaceLogo: z.string().trim().max(2048),
@@ -511,7 +533,11 @@ const shellConfigSchema = z.object({
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
   memberSections: z.array(shellSectionSchema),
+  // Optional so a settings tab left open from before role menus existed
+  // still saves; the handler keeps the stored menus when it sends none.
+  roleSections: z.record(roleIdSchema, z.array(shellSectionSchema)).optional(),
   liveNotifications: z.boolean(),
+  passkeySignIn: z.boolean(),
   notificationTypes: z.object(
     Object.fromEntries(
       NOTIFICATION_TYPES.map((type) => [type, z.boolean()])
@@ -716,6 +742,12 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
                 : "",
           publicTheme: nextPublicTheme,
           automationPause: existingGlobals.automationPause,
+          topLeftMode: data.topLeftMode ?? existingGlobals.topLeftMode,
+          memberTopLeftMode:
+            data.memberTopLeftMode ?? existingGlobals.memberTopLeftMode,
+          topLeftShortcuts:
+            data.topLeftShortcuts ?? existingGlobals.topLeftShortcuts,
+          roleSections: data.roleSections ?? existingGlobals.roleSections,
         }),
         publicTheme: publicThemeOverrides(nextPublicTheme, appPublicTheme()),
         maintenance: {

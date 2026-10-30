@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mediaApi = vi.hoisted(() => ({
   listMedia: vi.fn(),
+  uploadMedia: vi.fn(),
 }))
 const errorToast = vi.hoisted(() => ({
   dismiss: vi.fn(),
@@ -15,7 +16,7 @@ const errorToast = vi.hoisted(() => ({
 vi.mock("@/lib/api/media/media", () => ({
   getMediaErrorMessage: (error: unknown) => String(error),
   listMedia: mediaApi.listMedia,
-  uploadMedia: vi.fn(),
+  uploadMedia: mediaApi.uploadMedia,
 }))
 
 vi.mock("@/lib/toast/error-toast", () => ({
@@ -80,6 +81,7 @@ describe("MediaPicker", () => {
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
     mediaApi.listMedia.mockReset()
+    mediaApi.uploadMedia.mockReset()
     errorToast.show.mockReset()
   })
 
@@ -212,6 +214,75 @@ describe("MediaPicker", () => {
     expect(errorToast.show).toHaveBeenCalledWith(
       "Choose a file before selecting it."
     )
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("shows how far a video has got, and the × cancels it quietly", async () => {
+    mediaApi.listMedia.mockResolvedValue(page())
+    // The preview is a blob address; jsdom has no such thing.
+    URL.createObjectURL = vi.fn(() => "blob:preview")
+    URL.revokeObjectURL = vi.fn()
+    let uploadSignal: AbortSignal | undefined
+    mediaApi.uploadMedia.mockImplementation(
+      (
+        _file: File,
+        _altText: string,
+        options: { onProgress: (fraction: number) => void; signal: AbortSignal }
+      ) => {
+        uploadSignal = options.signal
+        options.onProgress(0.42)
+        return new Promise((_resolve, reject) => {
+          options.signal.addEventListener("abort", () =>
+            reject(new DOMException("Upload cancelled", "AbortError"))
+          )
+        })
+      }
+    )
+    const onSelectMedia = vi.fn()
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <Dialog open>
+          <MediaPicker open onOpenChange={vi.fn()} onSelectMedia={onSelectMedia} />
+        </Dialog>
+      )
+    })
+    await act(async () => await Promise.resolve())
+
+    const input = picker().querySelector<HTMLInputElement>('input[type="file"]')
+    expect(input).not.toBeNull()
+    const video = new File(["video"], "beach.mp4", { type: "video/mp4" })
+    Object.defineProperty(input, "files", { value: [video], configurable: true })
+    await act(async () => {
+      input?.dispatchEvent(new Event("change", { bubbles: true }))
+    })
+
+    const send = Array.from(picker().querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Upload and select"
+    )
+    expect(send).toBeDefined()
+    await act(async () => send?.click())
+
+    expect(mediaApi.uploadMedia).toHaveBeenCalledWith(video, "", expect.anything())
+    expect(picker().textContent).toContain("Uploading, 42%")
+
+    const cancel = Array.from(picker().querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Cancel upload"
+    )
+    expect(cancel).toBeDefined()
+    await act(async () => cancel?.click())
+    await act(async () => await Promise.resolve())
+
+    expect(uploadSignal?.aborted).toBe(true)
+    expect(picker().textContent).not.toContain("Uploading, 42%")
+    expect(picker().textContent).not.toContain("beach.mp4")
+    expect(errorToast.show).not.toHaveBeenCalled()
+    expect(onSelectMedia).not.toHaveBeenCalled()
 
     await act(async () => root.unmount())
     host.remove()

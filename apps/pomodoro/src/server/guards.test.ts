@@ -110,7 +110,14 @@ const OPEN_TO_EVERYONE: Record<string, string> = {
 }
 
 /** The shared guards. Anything else in a `.middleware([...])` is not a guard. */
-const GUARDS = ["adminGet", "adminPost", "userGet", "userPost"]
+const GUARDS = [
+  "adminGet",
+  "adminPost",
+  "userGet",
+  "userPost",
+  "featureGet",
+  "featurePost",
+]
 
 /** A check written into the handler instead of attached as middleware. */
 const INLINE_GUARD = /\brequire(Admin|User|OwnAccount|SessionOwner|Billing)\w*\(/

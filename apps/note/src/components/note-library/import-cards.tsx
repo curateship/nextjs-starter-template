@@ -95,9 +95,6 @@ export function SourceCard({
     <PanelCard
       storageId={x ? "note-library-post" : "note-library-video"}
       title={x ? "Post" : "Video"}
-      // The icons and the arrow show only while the card is pointed at
-      // (Tyler, 20 Oct 2026), and always on a screen that cannot hover.
-      quiet
       action={
         <span className="flex items-center">
           {detail.sourceUrl ? (
@@ -444,7 +441,7 @@ export function AiCards({
   return (
     <>
       {merged ? null : (
-        <PanelCard quiet storageId="note-library-summary" title="Summary">
+        <PanelCard storageId="note-library-summary" title="Summary">
           {detail.summary.length ? (
             <ul className="grid list-disc gap-1.5 pl-5 text-sm">
               {detail.summary.map((line, index) => (
@@ -462,7 +459,6 @@ export function AiCards({
         </PanelCard>
       )}
       <PanelCard
-        quiet
         storageId="note-library-plan"
         title="Action plan"
         meta={detail.actionPlan.length ? `${detail.actionPlan.filter((step) => step.done).length} of ${detail.actionPlan.length} done` : undefined}
@@ -497,7 +493,7 @@ export function AiCards({
         )}
       </PanelCard>
       {merged ? null : (
-        <PanelCard quiet storageId="note-library-quotes" title="Quotes">
+        <PanelCard storageId="note-library-quotes" title="Quotes">
           {detail.quotes.length ? (
             <div className="grid gap-2">
               {detail.quotes.map((quote, index) => (
@@ -525,7 +521,6 @@ export function AiCards({
       )}
       {spoken ? (
         <PanelCard
-          quiet
           storageId="note-library-transcript"
           title="Transcript"
           meta={detail.transcript.length ? `${detail.transcript.length} ${plural(detail.transcript.length, "line")}` : undefined}

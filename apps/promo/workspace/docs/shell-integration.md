@@ -303,3 +303,38 @@ app was exactly seven files behind and gained one new file.
 Nothing was deleted and nothing forked. CMS's `lib/format/bulk-result.ts` is no
 longer a fork at all: the previous merge folded its "already that way" count
 into the shell's own copy, and this merge confirms the two are identical again.
+
+## Shell merge, 30 October 2026
+
+Every shell change up to 30 Oct is in Promo: 142 files replaced, 75 added and 6 deleted. Each replaced file was first matched against every version of that file in the shell's history, and each was an unedited older shell copy.
+
+**What arrived.**
+
+- **Contacts and Segments are one three-column dashboard**, with CSV import,
+  notes on a contact, Filter, New and mass select. The old contacts page,
+  segments page and contact window are deleted.
+- **App roles.** An app can add its own kinds of account beside admin and
+  member. Promo declares none, so every account works as before.
+- **Big video uploads** go to storage in pieces, up to 5GB, which needs
+  `@aws-sdk/s3-request-presigner`, added to `package.json` at the shell's
+  version.
+- **An automation's test run picks a contact**, and webhooks skip in tests.
+- **Saved views and a Dashboard tabs setting** for three-column dashboards.
+- **The front page and `/login` are the sign-in card alone**, and a web app
+  manifest is served at `/manifest.webmanifest`, added to
+  `src/routeTree.gen.ts` by a three-way merge with no other change.
+- **The worker build drops stylesheets**, so a CSS import can no longer stop
+  the worker from starting.
+- **Every table line is drawn from one rule**, and a panel header's bottom line
+  becomes the table's top line when a table sits right under it.
+- **Settings → Styling → Left menu shade**, a slider that sets the left menu
+  and top bar between the page colour and a card's colour.
+- **The panel view is gone.** Personal no longer frames apps that way, so the
+  shell deleted `src/lib/layout/panel-view.ts` and its test, and the shell
+  layout always draws the left menu and top bar.
+- **A three-column dashboard's `place` can say `ready`**, for a screen that
+  loads its own list. Nothing changes for a dashboard that does not pass it.
+
+**Migrations owed:** `0127_custom_shell_written_page_picture.sql` (shell 0092), `0128_custom_shell_written_page_description.sql` (shell 0093), `0129_custom_shell_app_roles.sql` (shell 0094), `0130_custom_shell_test_run_contact.sql` (shell 0095), `0131_custom_shell_contact_notes.sql` (shell 0096), `0132_custom_shell_saved_views.sql` (shell 0097). None is applied, locally or live.
+
+**Kept as Promo's own.** `scripts/setup-database.mjs` stays Promo's own, because the shell's copy names the shell's own database; `src/app/` stays Promo's own.

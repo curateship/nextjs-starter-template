@@ -93,7 +93,9 @@ function Table({
       <table
         data-slot="table"
         className={cn(
-          "w-full caption-bottom text-sm [&_tbody_tr:first-child_td]:pt-4 [&_tbody_tr:last-child_td]:pb-4 [&_td:first-child]:pl-6 [&_td:last-child]:pr-6 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6",
+          // The first and last rows get extra room, but a group heading never
+          // does: it keeps one height wherever it falls (`TableGroupRow`).
+          "w-full caption-bottom text-sm [&_tbody_tr:first-child:not([data-slot=table-group-row])_td]:pt-4 [&_tbody_tr:last-child:not([data-slot=table-group-row])_td]:pb-4 [&_td:first-child]:pl-6 [&_td:last-child]:pr-6 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6",
           className
         )}
         {...props}
@@ -119,12 +121,51 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      // The heading row's own top and bottom hairlines are drawn in `theme.css`
-      // from the same variables the card's border uses, so a change in the
-      // Styling settings moves both together.
+      // The heading row's own top and bottom lines are drawn in `theme.css`
+      // in the Divider lines colour, like every other dividing line.
       className={cn("[&_tr]:bg-muted/50", className)}
       {...props}
     />
+  )
+}
+
+/**
+ * A heading row inside a table's body, naming the group of rows under it, such
+ * as a status or a client. It spans every column, is a pale band with a divider
+ * line above and below, and holds its label at the table's left edge when the
+ * table scrolls sideways. The first one drops its top line, since the header's
+ * line is already there. `inset` is the label's distance from the left, which
+ * matches the table's first-column padding (24px unless the table sets its own).
+ * Anything after the label, such as a count or an add button, goes in
+ * `children`; a button can show on hover with `group-hover/table-group`.
+ */
+function TableGroupRow({
+  label,
+  colSpan,
+  inset = "1.5rem",
+  className,
+  children,
+  ...props
+}: Omit<React.ComponentProps<"tr">, "children"> & {
+  label: React.ReactNode
+  colSpan: number
+  inset?: string
+  children?: React.ReactNode
+}) {
+  return (
+    <tr
+      data-slot="table-group-row"
+      // Its lines above and below are drawn in theme.css, the one rule every table line follows.
+      className={cn("group/table-group bg-muted/15", className)}
+      {...props}
+    >
+      <td colSpan={colSpan} className="py-1.5 align-middle text-xs font-medium whitespace-nowrap">
+        <span className="sticky inline-flex items-center gap-2" style={{ left: inset }}>
+          {label}
+          {children}
+        </span>
+      </td>
+    </tr>
   )
 }
 
@@ -297,6 +338,7 @@ export {
   TableHead,
   TableSortButton,
   TableRow,
+  TableGroupRow,
   TableCell,
 }
 export type { TableSortDirection }

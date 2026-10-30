@@ -103,6 +103,17 @@ describe("Navigation settings", () => {
     expect(html).toContain("Member top right menu")
     expect(html).not.toContain("Your sidebar")
     expect(html).not.toContain("Top left max items")
+    expect(html).not.toContain("Top left shortcuts")
+    // Members get their own Top left shows, separate from the admin's.
+    expect(html).toContain('id="member-top-left-mode"')
+  })
+
+  it("puts the admin's Top left shows beside max items, and the shortcuts editor", () => {
+    const html = markup("navigation")
+    expect(html).toContain('id="admin-top-left-mode"')
+    expect(html).toContain("Top left max items")
+    expect(html).toContain("Top left shortcuts")
+    expect(html).not.toContain('id="member-top-left-mode"')
   })
 
   it("changes the overflow boundary through the actual setting", async () => {
@@ -120,6 +131,7 @@ describe("Navigation settings", () => {
           <TopLeftNavigationSettings
             config={config}
             onConfigChange={setConfig}
+            audience="admin"
           />
           <StickyHeaderLeftNav
             limit={config.topLeftNavLimit}

@@ -26,8 +26,8 @@ import {
 import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import { appAutomationExecutors } from "@/server/app-options"
 import {
+  contactMatchesAutomationAudience,
   countAutomationAudience,
-  memberMatchesAutomationAudience,
   readAutomationAudience,
   requireAudienceSegment,
 } from "@/server/automations/audience"
@@ -113,8 +113,8 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
    * spotted the date. This writes the first line of the history, and it is the
    * line that names the moment and the person.
    *
-   * A one-member test has no real billing moment on purpose. It names the
-   * chosen member and carries on without pretending a payment event happened.
+   * A one-contact test has no real billing moment on purpose. It names the
+   * chosen contact and carries on without pretending a payment event happened.
    */
   [billingMomentNode.kind]: async ({ run, settings, testRun }) => {
     const facts = run.triggerFacts
@@ -221,6 +221,12 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
         "This tag step has incomplete settings, so it cannot continue."
       )
     }
+    if (testRun && !run.subjectUserId) {
+      return {
+        type: "next",
+        summary: `Would ${mode} the '${tag}' tag, but ${who} has no account to tag, so a real run would stop here. No tag was changed in this test.`,
+      }
+    }
     if (!run.subjectUserId) {
       throw new Error(
         "This run has no member for the tag step to change, so it cannot continue."
@@ -279,7 +285,7 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     // that column falls back to its owner's — looking it up every time is how a
     // flow's audience used to change when its owner switched workspace.
     const workspaceId = await workspaceForRun(run, database)
-    // A test must not "helpfully" create or update the chosen member's contact.
+    // A test must not "helpfully" create or update the chosen contact.
     // It reads exactly what exists and says when that means they do not match.
     if (!testRun) await syncContactsFromUsers(workspaceId, database)
 
@@ -292,12 +298,17 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       database
     )
     const timestamp = now()
+    if (testRun && !run.subjectContactId) {
+      throw new Error(
+        "This test has no chosen contact, so it cannot check the audience. Start a new test."
+      )
+    }
     const subjectMatched =
-      testRun && run.subjectUserId
-        ? await memberMatchesAutomationAudience(
+      testRun && run.subjectContactId
+        ? await contactMatchesAutomationAudience(
             audience,
             workspaceId,
-            run.subjectUserId,
+            run.subjectContactId,
             database,
             timestamp,
             segment
@@ -321,7 +332,7 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     )
 
     if (subjectMatched !== null) {
-      const subject = run.subjectLabel?.trim() || "The chosen member"
+      const subject = run.subjectLabel?.trim() || "The chosen contact"
       return {
         type: "next",
         summary: subjectMatched

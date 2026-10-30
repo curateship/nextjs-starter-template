@@ -15,16 +15,20 @@ import {
  *
  * Tyler, 19 Oct 2026: the rows use the words the list's badges use, and
  * "New this month" counts the last 30 days. Marked it spam has no row; Filter
- * still reaches it.
+ * still reaches it. His mock of 20 Oct 2026 adds "All people" first, which is
+ * no rules at all and so is on whenever the list is unfiltered, and "Never
+ * emailed" last.
  */
 export const NEW_CONTACT_DAYS = 30
 
 export type ContactShortcutKey =
+  | "all"
   | "subscribed"
   | "unsubscribed"
   | "bounced"
   | "cold"
   | "new"
+  | "never"
 
 export type ContactShortcut = {
   key: ContactShortcutKey
@@ -33,6 +37,7 @@ export type ContactShortcut = {
 }
 
 export const CONTACT_SHORTCUTS: readonly ContactShortcut[] = [
+  { key: "all", label: "All people", rules: { conditions: [] } },
   {
     key: "subscribed",
     label: segmentStatusLabels.subscribed,
@@ -58,6 +63,14 @@ export const CONTACT_SHORTCUTS: readonly ContactShortcut[] = [
     label: "New this month",
     rules: {
       conditions: [{ type: "joined", operator: "within", days: NEW_CONTACT_DAYS }],
+    },
+  },
+  {
+    key: "never",
+    label: "Never emailed",
+    rules: {
+      // `days` means nothing to "never"; the rule carries it all the same.
+      conditions: [{ type: "emailed", operator: "never", days: 90 }],
     },
   },
 ]

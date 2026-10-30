@@ -50,6 +50,7 @@ import {
 import { isCroppableImage } from "@/lib/media/crop-image"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { getMediaUploadError, mediaAccept } from "@/lib/media/media-upload"
+import { isUploadCancelled } from "@/lib/media/upload-in-parts"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { cn } from "@/lib/utils"
 
@@ -103,6 +104,9 @@ function MediaPickerSession({
   } | null>(null)
   const [altText, setAltText] = React.useState("")
   const [runUpload, uploading] = useAsyncAction(getMediaErrorMessage)
+  /** How far a video has got. Images go in one request and never report. */
+  const [uploadPercent, setUploadPercent] = React.useState<number | null>(null)
+  const uploadStopRef = React.useRef<AbortController | null>(null)
   /** The one video allowed to play at a time, so tiles never talk over each other. */
   const [playingId, setPlayingId] = React.useState<string | null>(null)
   const pageSize = 12
@@ -117,8 +121,8 @@ function MediaPickerSession({
   const loading = requestKey !== null && loadedRequest !== requestKey
   const visibleError = loadedRequest === requestKey ? error : null
 
-  // The preview points at the file rather than holding it: reading a 100MB
-  // video into a data URL would cost well over 100MB of memory as text. A blob
+  // The preview points at the file rather than holding it: reading a big
+  // video into a data URL would cost more memory than the file as text. A blob
   // address has to be handed back or the file stays in memory until reload.
   const previewUrl = upload?.previewUrl
   React.useEffect(() => {
@@ -197,7 +201,12 @@ function MediaPickerSession({
       mediaItems.find((item) => item.url === currentMediaUrl) ??
       null
 
+  // Closing the window or clearing the file cancels a video on its way up,
+  // so nothing keeps sending once nobody is looking.
+  React.useEffect(() => () => uploadStopRef.current?.abort(), [])
+
   function clearUpload() {
+    uploadStopRef.current?.abort()
     setUpload(null)
     setAltText("")
   }
@@ -239,11 +248,23 @@ function MediaPickerSession({
   async function handleUpload() {
     if (!upload) return
 
+    const stop = new AbortController()
+    uploadStopRef.current = stop
     await runUpload(async () => {
-      const item = await uploadMedia(upload.file, altText)
-      onSelectMedia(item.url, item.alt_text ?? undefined)
-      clearUpload()
-      onOpenChange(false)
+      try {
+        const item = await uploadMedia(upload.file, altText, {
+          signal: stop.signal,
+          onProgress: (fraction) => setUploadPercent(Math.floor(fraction * 100)),
+        })
+        onSelectMedia(item.url, item.alt_text ?? undefined)
+        clearUpload()
+        onOpenChange(false)
+      } catch (error) {
+        if (!isUploadCancelled(error)) throw error
+      } finally {
+        if (uploadStopRef.current === stop) uploadStopRef.current = null
+        setUploadPercent(null)
+      }
     })
   }
 
@@ -271,6 +292,7 @@ function MediaPickerSession({
         setCropFile(null)
         return
       }
+      if (!nextOpen) uploadStopRef.current?.abort()
       onOpenChange(nextOpen)
     },
     [cropFile, onOpenChange]
@@ -383,7 +405,9 @@ function MediaPickerSession({
                             onClick={clearUpload}
                           >
                             <XIcon className="size-4" />
-                            <span className="sr-only">Clear upload</span>
+                            <span className="sr-only">
+                              {uploading ? "Cancel upload" : "Clear upload"}
+                            </span>
                           </Button>
                         </div>
                         <div className="grid gap-1.5">
@@ -408,7 +432,9 @@ function MediaPickerSession({
                           ) : (
                             <UploadIcon className="size-4" />
                           )}
-                          Upload and select
+                          {uploadPercent === null
+                            ? "Upload and select"
+                            : `Uploading, ${uploadPercent}%`}
                         </Button>
                       </div>
                     </div>

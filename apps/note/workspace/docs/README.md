@@ -29,3 +29,4 @@ Posts became notes kept in libraries.
 - [launch.md](launch.md): the live site on note.barelycompany.com. Where it
   runs, every live value, why the worker needs curl_cffi, how to deploy, and
   the release record.
+- [Shell integration](shell-integration.md) — each shell merge into Note: what arrived, what stayed Note's own.

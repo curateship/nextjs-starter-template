@@ -271,21 +271,20 @@ export const segmentStatusLabels: Record<ContactSegmentStatus, string> = {
 }
 
 /**
- * How each status is drawn wherever one is shown as a badge.
+ * The coloured dot drawn before a status's words, in the list, the open
+ * contact's status menu and its header (Tyler's mock, 20 Oct 2026).
  *
- * Gone quiet is `outline`, not `destructive`. Red says something went wrong, and
- * nothing did: they are still on the list and still being mailed. The three
- * that really are a problem keep the red.
+ * Gone quiet is amber, not red. Red says something went wrong, and nothing
+ * did: they are still on the list and still being mailed. Opted out is grey,
+ * because they chose it. The dot always sits beside the words, so the colour
+ * is never the only way to tell.
  */
-export const segmentStatusBadgeVariant: Record<
-  ContactSegmentStatus,
-  "secondary" | "destructive" | "outline"
-> = {
-  subscribed: "secondary",
-  unsubscribed: "destructive",
-  bounced: "destructive",
-  complained: "destructive",
-  cold: "outline",
+export const segmentStatusDotClassName: Record<ContactSegmentStatus, string> = {
+  subscribed: "bg-emerald-500 dark:bg-emerald-400",
+  unsubscribed: "bg-muted-foreground/60",
+  bounced: "bg-destructive",
+  complained: "bg-destructive",
+  cold: "bg-amber-500 dark:bg-amber-400",
 }
 
 /**
@@ -491,4 +490,39 @@ export function segmentReferences(rules: SegmentRules): string[] {
     }
   }
   return [...ids]
+}
+
+/**
+ * The filter that shows one segment's people on the contacts list, which is
+ * what pressing a segment there applies.
+ *
+ * A rules segment is its own rules, so changing a rule and pressing "Update"
+ * saves the list as it now stands. A hand-picked one has no rules to show, so
+ * it is the "in this segment" rule, and its people change through mass select
+ * instead.
+ */
+export function rulesShowingSegment(segment: {
+  id: string
+  kind: SegmentKind
+  rules: SegmentRules
+}): SegmentRules {
+  return segment.kind === "static"
+    ? { conditions: [{ type: "in", segmentIds: [segment.id] }] }
+    : segment.rules
+}
+
+/** Two rule sets that select the same people, however they were written down. */
+export function sameSegmentRules(a: SegmentRules, b: SegmentRules): boolean {
+  return (
+    segmentRulesMatch(a) === segmentRulesMatch(b) &&
+    JSON.stringify(a.conditions) === JSON.stringify(b.conditions)
+  )
+}
+
+/** Rules as the address and a saved segment store them: "all" is left unsaid. */
+export function cleanSegmentRules(rules: SegmentRules): SegmentRules {
+  return {
+    ...(segmentRulesMatch(rules) === "any" ? { match: "any" as const } : {}),
+    conditions: rules.conditions,
+  }
 }

@@ -68,11 +68,15 @@ three are pills.
 - A reload, a shared link and a bell notice come back to the same place
   (`src/lib/note/library/address.ts`).
 - **The dashboard remembers where it was** in this browser, one place per
-  library. Opened at its bare address it goes back there. Once that place's
-  list has arrived, the first row opens when no note is open, or when the
-  remembered note has gone from the list (UI standard, three-column
-  dashboards). Both moves replace the address, so Back leaves the dashboard,
-  and on a phone the list stays in front of the note opened by itself.
+  library, person and site. Opened at its bare address it goes back there.
+  Once that place's list has arrived, the first row opens when no note is
+  open, or when the remembered note has gone from the list (UI standard,
+  three-column dashboards). Both moves replace the address, so Back leaves
+  the dashboard, and on a phone the list stays in front of the note opened by
+  itself. The shell's `ThreePanels` does all of this through its `place`,
+  under `libraryPlaceKey` in `src/lib/note/view-key.ts`. The list loads in the
+  screen rather than in the route's loader, so `library-dashboard.tsx` passes
+  `ready` only once the rows shown are the ones for the address.
 - **Opening the dashboard marks the library as the one opened last**, which is
   where the Save to Note button saves.
 

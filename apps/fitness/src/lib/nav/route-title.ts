@@ -37,7 +37,6 @@ const ROUTE_TITLES: Record<string, string> = {
   "/_authenticated/admin/pages": "Pages",
   "/_authenticated/admin/plans": "Plans",
   "/_authenticated/admin/referrals": "Referrals",
-  "/_authenticated/admin/segments": "Segments",
   "/_authenticated/admin/settings": "Settings",
   "/_authenticated/admin/settings/$tab": "Settings",
   "/_authenticated/admin/system-emails": "System emails",

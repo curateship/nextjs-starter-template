@@ -40,12 +40,13 @@ import { type CustomShellDb } from "@/server/db"
 import {
   customShellAutomationRuns,
   customShellAutomations,
+  customShellContacts,
   customShellNotifications,
 } from "@/server/schema"
 import { createTestDatabase, insertWorkspace, insertUser } from "@/server/test-support"
 import { now, uuid } from "@/server/auth/security"
 import { getNotificationPage } from "@/server/notifications/inbox"
-import { listActiveWorkspaceMembers } from "@/server/people/workspace-users"
+import { listAutomationTestContacts } from "@/server/automations/test-contacts"
 
 let client: PGlite
 let db: CustomShellDb
@@ -92,6 +93,35 @@ const approval = {
     summary: "Sends the changelog email to 42 paying members.",
     timeoutDays: 3,
   },
+}
+
+async function insertContact(
+  values: {
+    email: string
+    firstName?: string
+    lastName?: string
+    userId?: string
+    status?: "subscribed" | "unsubscribed" | "cold"
+    workspaceId?: string
+  }
+) {
+  const timestamp = now()
+  const [contact] = await db
+    .insert(customShellContacts)
+    .values({
+      id: uuid(),
+      workspaceId: values.workspaceId ?? site,
+      userId: values.userId ?? null,
+      email: values.email,
+      firstName: values.firstName ?? null,
+      lastName: values.lastName ?? null,
+      status: values.status ?? "subscribed",
+      tags: [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .returning()
+  return contact
 }
 
 async function insertAutomation(
@@ -154,7 +184,7 @@ describe("running a flow", () => {
     expect(automationExecutorMayRunInTest("future-member-write")).toBe(false)
   })
 
-  it("starts a test run with one active member and the admin's saved address", async () => {
+  it("starts a test run with one contact and the admin's saved address", async () => {
     const admin = await insertUser(db, {
       role: "admin",
       email: "admin@example.test",
@@ -163,22 +193,70 @@ describe("running a flow", () => {
       email: "member@example.test",
       name: "Sam Member",
     })
+    const contact = await insertContact({
+      email: "member@example.test",
+      firstName: "Sam",
+      lastName: "Member",
+      userId: member.id,
+    })
     const automation = await insertAutomation(admin.id, [placeholder])
 
     const run = await startAutomationTestRun(
       site,
       admin.id,
       automation.id,
-      member.id,
+      contact.id,
       db
     )
 
     expect(run).toMatchObject({
       testRun: true,
       testRecipientEmail: "admin@example.test",
+      subjectContactId: contact.id,
       subjectUserId: member.id,
       subjectLabel: "Sam Member (member@example.test)",
     })
+  })
+
+  it("tests with a contact that has no account", async () => {
+    const admin = await insertUser(db, { role: "admin" })
+    const lead = await insertContact({ email: "lead@example.test" })
+    const automation = await insertAutomation(admin.id, [placeholder])
+
+    expect(await listAutomationTestContacts(site, "lead", db)).toEqual([
+      { id: lead.id, userId: null, name: "", email: "lead@example.test" },
+    ])
+    await expect(
+      startAutomationTestRun(site, admin.id, automation.id, lead.id, db)
+    ).resolves.toMatchObject({
+      testRun: true,
+      subjectContactId: lead.id,
+      subjectUserId: null,
+      subjectLabel: "lead@example.test",
+    })
+  })
+
+  it("tells a test on a contact with no account that the tag step would stop", async () => {
+    const admin = await insertUser(db, { role: "admin" })
+    const lead = await insertContact({ email: "lead@example.test" })
+    const automation = await insertAutomation(admin.id, [
+      { kind: "memberTag", settings: { mode: "add", tag: "vip" } },
+    ])
+
+    const run = await startAutomationTestRun(
+      site,
+      admin.id,
+      automation.id,
+      lead.id,
+      db
+    )
+    await runAutomationTick(db)
+
+    const detail = await getAutomationRun(site, run.id, db)
+    expect(detail?.status).toBe("completed")
+    expect(detail?.steps[0].summary).toBe(
+      "Would add the 'vip' tag, but lead@example.test has no account to tag, so a real run would stop here. No tag was changed in this test."
+    )
   })
 
   it("refuses Run when the flow needs a real member event", async () => {
@@ -186,7 +264,7 @@ describe("running a flow", () => {
       role: "admin",
       email: "admin@example.test",
     })
-    const member = await insertUser(db, { email: "member@example.test" })
+    const contact = await insertContact({ email: "member@example.test" })
     const automation = await insertAutomation(admin.id, [
       {
         kind: "billingMoment",
@@ -199,38 +277,50 @@ describe("running a flow", () => {
       startAutomationRun(site, admin.id, automation.id, db)
     ).rejects.toThrow("REQUIRES_SUBJECT")
     await expect(
-      startAutomationTestRun(site, admin.id, automation.id, member.id, db)
-    ).resolves.toMatchObject({ testRun: true, subjectUserId: member.id })
+      startAutomationTestRun(site, admin.id, automation.id, contact.id, db)
+    ).resolves.toMatchObject({ testRun: true, subjectContactId: contact.id })
   })
 
-  it("refuses an admin or inactive account as a test member", async () => {
+  it("refuses a contact a real send could not reach", async () => {
     const admin = await insertUser(db, { role: "admin" })
     const inactive = await insertUser(db, { status: "suspended" })
-    const automation = await insertAutomation(admin.id, [placeholder])
-
-    await expect(
-      startAutomationTestRun(site, admin.id, automation.id, admin.id, db)
-    ).rejects.toThrow("MEMBER_NOT_FOUND")
-    await expect(
-      startAutomationTestRun(site, admin.id, automation.id, inactive.id, db)
-    ).rejects.toThrow("MEMBER_NOT_FOUND")
-  })
-
-  it("does not reveal or test a member from another workspace", async () => {
-    const admin = await insertUser(db, { role: "admin" })
-    const otherSite = await insertWorkspace(db)
-    const otherMember = await insertUser(db, {
-      email: "other-site@example.test",
-      currentWorkspaceId: otherSite.id,
+    const adminContact = await insertContact({
+      email: "admin-contact@example.test",
+      userId: admin.id,
+    })
+    const inactiveContact = await insertContact({
+      email: "inactive@example.test",
+      userId: inactive.id,
+    })
+    const unsubscribed = await insertContact({
+      email: "gone@example.test",
+      status: "unsubscribed",
     })
     const automation = await insertAutomation(admin.id, [placeholder])
 
-    expect(await listActiveWorkspaceMembers(site, "other-site", db)).toEqual(
+    expect(await listAutomationTestContacts(site, "", db)).toEqual([])
+    for (const contact of [adminContact, inactiveContact, unsubscribed]) {
+      await expect(
+        startAutomationTestRun(site, admin.id, automation.id, contact.id, db)
+      ).rejects.toThrow("CONTACT_NOT_FOUND")
+    }
+  })
+
+  it("does not reveal or test a contact from another workspace", async () => {
+    const admin = await insertUser(db, { role: "admin" })
+    const otherSite = await insertWorkspace(db)
+    const otherContact = await insertContact({
+      email: "other-site@example.test",
+      workspaceId: otherSite.id,
+    })
+    const automation = await insertAutomation(admin.id, [placeholder])
+
+    expect(await listAutomationTestContacts(site, "other-site", db)).toEqual(
       []
     )
     await expect(
-      startAutomationTestRun(site, admin.id, automation.id, otherMember.id, db)
-    ).rejects.toThrow("MEMBER_NOT_FOUND")
+      startAutomationTestRun(site, admin.id, automation.id, otherContact.id, db)
+    ).rejects.toThrow("CONTACT_NOT_FOUND")
   })
 
   it("walks a two-step flow end to end and records what each step did", async () => {

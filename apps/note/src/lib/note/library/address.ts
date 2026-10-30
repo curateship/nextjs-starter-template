@@ -80,8 +80,3 @@ export function sortParam(sort: NoteSort | undefined) {
 export function listKeyOf(search: LibrarySearch) {
   return JSON.stringify({ scope: scopeOf(search), q: search.q ?? "", filters: filtersOf(search), sort: search.sort ?? "" })
 }
-
-/** Whether the address says anything at all, so a remembered place should not replace it. */
-export function saysAnything(search: LibrarySearch) {
-  return Object.values(search).some((value) => value !== undefined)
-}

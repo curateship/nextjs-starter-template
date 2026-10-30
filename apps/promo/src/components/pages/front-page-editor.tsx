@@ -4,6 +4,7 @@ import { FileTextIcon, LayersIcon, LayoutGridIcon } from "lucide-react"
 import { arrayMove } from "@dnd-kit/sortable"
 
 import { FrontPageBlockInspector } from "@/components/pages/front-page-block-inspector"
+import type { FrontPageListedPageChoice } from "@/components/pages/front-page-listed-pages-editor"
 import {
   APP_KIND_PREFIX,
   FrontPageBlockKinds,
@@ -131,6 +132,7 @@ export function FrontPageEditor({
   page,
   writtenPage,
   initialBlocks,
+  pageChoices,
   config,
   onConfigChange,
 }: {
@@ -139,6 +141,8 @@ export function FrontPageEditor({
   writtenPage: WrittenPage | null
   /** This page's blocks as the loader read them, hidden ones included. */
   initialBlocks: FrontPageRow[]
+  /** Every page added to this site, for a Pages list block to pick from. */
+  pageChoices: readonly FrontPageListedPageChoice[]
   config: ShellConfig
   onConfigChange: (config: ShellConfig) => void
 }) {
@@ -450,6 +454,7 @@ export function FrontPageEditor({
       first={rows.length === 0 || rows[0]?.id === selection.id}
       pageGap={config.publicTheme.frontPageRowGap}
       heldBack={!hasSavable}
+      pageChoices={pageChoices}
       onChange={(draft) =>
         setSelection((current) => (current ? { ...current, draft } : current))
       }

@@ -285,14 +285,14 @@ describe("Wait", () => {
     )
   })
 
-  it("does not wait in a test with one member", async () => {
+  it("does not wait in a test with one contact", async () => {
     await insertSequence()
-    const member = await insertUser(database, { name: "Sam Member" })
+    const contactId = await addToSegment("sam")
     const test = await startAutomationTestRun(
       workspaceId,
       ownerId,
       automationId,
-      member.id,
+      contactId,
       database
     )
     await runAutomationTick(database)

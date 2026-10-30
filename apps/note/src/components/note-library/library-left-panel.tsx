@@ -346,7 +346,6 @@ export function LibraryLeftPanel({
             </div>
           ) : null}
           <PanelCard
-            quiet
             storageId="note-library-pinned"
             title="Pinned"
             meta={pinned.length || undefined}
@@ -374,7 +373,7 @@ export function LibraryLeftPanel({
           </PanelCard>
 
           {/* The same folding card as the others (Tyler, 20 Oct 2026: "library should use the same card Ui"). */}
-          <PanelCard quiet storageId="note-library-library" title="Library">
+          <PanelCard storageId="note-library-library" title="Library">
             <nav aria-label="Folders" className="-mx-2 -my-1 grid grid-cols-[minmax(0,1fr)] gap-1">
               {fixedRow("all")}
               {fixedRow("loose")}
@@ -447,7 +446,7 @@ export function LibraryLeftPanel({
             onRename={(author) => setRenaming({ kind: "author", name: author.name })}
           />
 
-          <PanelCard quiet storageId="note-library-recent" title="Recently opened" meta={page.recent.length || undefined}>
+          <PanelCard storageId="note-library-recent" title="Recently opened" meta={page.recent.length || undefined}>
             {page.recent.length ? (
               <ul className="grid gap-2">
                 {page.recent.map((note) => (
@@ -475,7 +474,7 @@ export function LibraryLeftPanel({
             )}
           </PanelCard>
 
-          <PanelCard quiet storageId="note-library-tags" title="Tags" meta={page.tags.length || undefined}>
+          <PanelCard storageId="note-library-tags" title="Tags" meta={page.tags.length || undefined}>
             {page.tags.length ? (
               <ul className="flex flex-wrap gap-1.5">
                 {page.tags.map((each) => {
@@ -744,7 +743,7 @@ function AuthorsCard({
 }) {
   const pickedKey = picked?.replace(/\s+/g, " ").trim().toLowerCase()
   return (
-    <PanelCard quiet storageId="note-library-authors" title="Authors" meta={authors.length || undefined}>
+    <PanelCard storageId="note-library-authors" title="Authors" meta={authors.length || undefined}>
       {authors.length ? (
         <ul className="-mx-2 -my-1 grid grid-cols-[minmax(0,1fr)]">
           {authors.map((author) => {

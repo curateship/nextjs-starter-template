@@ -17,6 +17,10 @@ const AppFrame = React.lazy(() => {
 /**
  * Shared frame for every signed-out page: sign in, register, verify, reset.
  * An app may draw its own around the card through `signIn.frame`.
+ *
+ * `bare` draws the card alone in the middle of the page, with no menu and no
+ * footer. `/login` and the shell's own front page use it, and it wins over an
+ * app's `signIn.frame`.
  */
 export function AuthShell({
   title,
@@ -25,6 +29,7 @@ export function AuthShell({
   footer,
   children,
   onSubmit,
+  bare,
 }: {
   title: string
   description?: string
@@ -32,6 +37,7 @@ export function AuthShell({
   footer?: React.ReactNode
   children: React.ReactNode
   onSubmit?: (event: React.FormEvent<HTMLFormElement>) => void
+  bare?: boolean
 }) {
   const body = (
     <>
@@ -75,6 +81,7 @@ export function AuthShell({
     </div>
   )
 
+  if (bare) return <BareAuthPage>{card}</BareAuthPage>
   if (!signInFrameLoader()) return <PublicPageFrame>{card}</PublicPageFrame>
   // Nothing rather than the public frame while the app's loads, so the page
   // never flashes the look it is about to replace.
@@ -82,6 +89,15 @@ export function AuthShell({
     <React.Suspense fallback={null}>
       <AppFrame>{card}</AppFrame>
     </React.Suspense>
+  )
+}
+
+/** A card on its own, centred on the page, with nothing around it. */
+export function BareAuthPage({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="flex min-h-svh w-full items-center justify-center p-4">
+      {children}
+    </main>
   )
 }
 

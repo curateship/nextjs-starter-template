@@ -60,6 +60,8 @@ export const AUDIO_TYPES = new Set([
   "audio/webm",
   "audio/ogg",
   "audio/mp4",
+  // What macOS and Chrome call an .m4a file, which is the same container.
+  "audio/x-m4a",
   "audio/aac",
 ])
 export const ALLOWED_TYPES = new Set([
@@ -152,10 +154,42 @@ export function validateMediaContent(mimeType: string, data: Uint8Array) {
       hasAscii(data, 0, "RIFF") &&
       hasAscii(data, 8, "AVI ") ||
     mimeType === "video/x-matroska" &&
-      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3])
+      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3]) ||
+    AUDIO_TYPES.has(mimeType) && looksLikeSound(mimeType, data)
 
   if (!valid) {
     throw new Error("File content does not match the selected media type.")
+  }
+}
+
+/**
+ * Whether the first bytes are the sound format the type claims. Each format
+ * starts with its own mark: an ID3 tag or a frame sync for MP3, RIFF and WAVE
+ * for WAV, OggS for Ogg, the Matroska mark for WebM, `ftyp` for MP4 and M4A,
+ * and a frame sync for bare AAC. Before these were checked every sound upload
+ * was refused, because only pictures and video were known.
+ */
+function looksLikeSound(mimeType: string, data: Uint8Array) {
+  // MPEG and ADTS frames both open with eleven set bits.
+  const frameSync = data.length >= 2 && data[0] === 0xff && (data[1] & 0xe0) === 0xe0
+  switch (mimeType) {
+    case "audio/mpeg":
+    case "audio/mp3":
+      return hasAscii(data, 0, "ID3") || frameSync
+    case "audio/wav":
+    case "audio/x-wav":
+      return hasAscii(data, 0, "RIFF") && hasAscii(data, 8, "WAVE")
+    case "audio/ogg":
+      return hasAscii(data, 0, "OggS")
+    case "audio/webm":
+      return hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3])
+    case "audio/mp4":
+    case "audio/x-m4a":
+      return hasAscii(data, 4, "ftyp")
+    case "audio/aac":
+      return frameSync || hasAscii(data, 0, "ID3")
+    default:
+      return false
   }
 }
 

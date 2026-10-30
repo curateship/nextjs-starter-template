@@ -87,6 +87,9 @@ export async function loadMembershipSummary(
     database
       .select({
         admins: sql<number>`count(*) filter (where ${customShellUsers.role} = 'admin')`,
+        // Named rather than "everyone who is not an admin": an app's own
+        // roles, such as employees, are neither, and are not on a plan.
+        members: sql<number>`count(*) filter (where ${customShellUsers.role} = 'member')`,
         // Both counts ride the one pass over this table rather than a query
         // each.
         suspended: sql<number>`count(*) filter (where ${customShellUsers.status} = 'suspended')`,
@@ -119,13 +122,20 @@ export async function loadMembershipSummary(
   ])
 
   const admins = Number(accountCounts?.admins ?? 0)
+  const members = Number(accountCounts?.members ?? 0)
+  // People in the app's own roles. They hold no plan, so they are left out of
+  // the free plan's head count below.
+  const appRolePeople = Math.max(0, revenue.totalUsers - admins - members)
   const livePlans = plans.filter((plan) => plan.active)
   const paidBreakdown = new Map(
     revenue.planBreakdown.map((row) => [row.planId, row])
   )
   // Anyone without a live paid subscription is on the free plan, whether or not
   // they have a subscription row at all.
-  const unsubscribed = Math.max(0, revenue.totalUsers - revenue.paidSubscribers)
+  const unsubscribed = Math.max(
+    0,
+    revenue.totalUsers - revenue.paidSubscribers - appRolePeople
+  )
 
   const byDay = joinedByDay(signupRows)
   const joined = buildSignupHistory(signupRows, byDay, today)
@@ -134,9 +144,9 @@ export async function loadMembershipSummary(
   return {
     revenue,
     admins,
-    // Everyone who is not an admin, so the two always add up to the account
-    // total the Users page shows.
-    members: Math.max(0, revenue.totalUsers - admins),
+    // Members by name. With no app roles, admins and members still add up to
+    // the account total the Users page shows.
+    members,
     suspended: Number(accountCounts?.suspended ?? 0),
     livePlans: livePlans.length,
     paidPlans: livePlans.filter(isPaidPlan).length,

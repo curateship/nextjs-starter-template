@@ -94,6 +94,7 @@ import {
   alertPasswordChanged,
   startSessionWithAlert,
 } from "@/server/auth/security-alerts"
+import { requireRoleFeature } from "@/server/people/roles"
 import {
   markReferralJoined,
   recordReferralRegistration,
@@ -667,7 +668,10 @@ const resetPasswordFn = createServerFn({ method: "POST" })
       )
 
       const [before] = await tx
-        .select({ emailVerifiedAt: customShellUsers.emailVerifiedAt })
+        .select({
+          emailVerifiedAt: customShellUsers.emailVerifiedAt,
+          passwordHash: customShellUsers.passwordHash,
+        })
         .from(customShellUsers)
         .where(eq(customShellUsers.id, consumed.userId))
         .limit(1)
@@ -685,6 +689,8 @@ const resetPasswordFn = createServerFn({ method: "POST" })
           id: customShellUsers.id,
           name: customShellUsers.name,
           email: customShellUsers.email,
+          role: customShellUsers.role,
+          status: customShellUsers.status,
           currentWorkspaceId: customShellUsers.currentWorkspaceId,
         })
 
@@ -699,6 +705,8 @@ const resetPasswordFn = createServerFn({ method: "POST" })
         .where(eq(customShellSessions.userId, consumed.userId))
 
       return account
+        ? { ...account, firstPassword: !before?.passwordHash }
+        : undefined
     })
 
     clearSessionCookie()
@@ -713,7 +721,22 @@ const resetPasswordFn = createServerFn({ method: "POST" })
         changed.name
       )
     }
-    return { ok: true }
+
+    // An account that had no password at all was made for somebody, by an
+    // admin or by the app's own invite, and this link is how they open it.
+    // Opening the mailed link proves the inbox, so they are signed straight
+    // in and `/home` sends them to their role's landing page. A reset of a
+    // password that already existed still ends signed out, as it always has.
+    if (changed?.firstPassword && isActiveAccount(changed)) {
+      const sessionToken = await startSessionWithAlert(
+        changed,
+        describeRequestOrigin()
+      )
+      await startWorkspaceFor(changed)
+      setSessionCookie(sessionToken)
+      return { ok: true, signedIn: true }
+    }
+    return { ok: true, signedIn: false }
   })
 
 const updateProfileFn = createServerFn({ method: "POST" })
@@ -823,6 +846,7 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
     // suspended or closing account is refused before either email-change token
     // is created or either address is mailed.
     const user = await requireOwnAccount()
+    requireRoleFeature(user, "emailChange")
     const workspaceId = await workspaceIdForRequest(user.id)
     const linkContext = await getAuthLinkContext(db, workspaceId)
 
@@ -1074,6 +1098,9 @@ const deleteAccountFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAppOrigin()
     const user = await requireUser()
+    // The site admin removes app-role people; they do not delete themselves,
+    // unless their app gave them the full Security tab.
+    requireRoleFeature(user, "security")
 
     if (!(await confirmsDeletion(user, data.confirmation))) {
       throw new Error("INVALID_CREDENTIALS")
