@@ -162,8 +162,13 @@
     --shell-canvas: oklch(0.970 0 0);
     /* The rail and the sticky bar, halfway between the page and a card, so
        they read as off white here and off black in the dark block without
-       either being set by hand twice. */
-    --shell-rail: color-mix(in oklab, var(--card) 50%, var(--shell-canvas));
+       either being set by hand twice. Settings -> Styling -> Left menu shade
+       moves them along that line through --shell-rail-card-share. */
+    --shell-rail: color-mix(
+      in oklab,
+      var(--card) var(--shell-rail-card-share, 50%),
+      var(--shell-canvas)
+    );
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
@@ -235,7 +240,11 @@
        do in light mode. It carries the shade lift like every other grey, and
        --shell-rail is derived from it, so all three tiers lift together. */
     --shell-canvas: oklch(calc(0.162 + var(--shell-dark-lift, 0)) 0 0);
-    --shell-rail: color-mix(in oklab, var(--card) 50%, var(--shell-canvas));
+    --shell-rail: color-mix(
+      in oklab,
+      var(--card) var(--shell-rail-card-share, 50%),
+      var(--shell-canvas)
+    );
     --card: oklch(calc(0.205 + var(--shell-dark-lift, 0)) 0 0);
     --card-foreground: oklch(0.985 0 0);
     --popover: oklch(calc(0.205 + var(--shell-dark-lift, 0)) 0 0);

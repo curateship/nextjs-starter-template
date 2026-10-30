@@ -54,9 +54,11 @@ import {
   getBorderStyleVars,
   getDarkShadeVars,
   getModalStyleVars,
+  getSidebarShadeVars,
   MODAL_STYLE_VAR_NAMES,
   normalizeStyling,
   resolveBackground,
+  SIDEBAR_SHADE_VAR_NAMES,
   type ShellModalStyling,
   type ShellStyling,
 } from "@/lib/layout/styling-values"
@@ -280,6 +282,7 @@ export function ShellLayout({
   useModalStyleVars(config.styling.modal)
   useBorderStyleVars(config.styling)
   useDarkShadeVars(config.styling)
+  useSidebarShadeVars(config.styling)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -969,6 +972,16 @@ function useBorderStyleVars(styling: ShellStyling) {
 function useDarkShadeVars(styling: ShellStyling) {
   React.useEffect(
     () => applyRootStyleVars(DARK_SHADE_VAR_NAMES, getDarkShadeVars(styling)),
+    [styling]
+  )
+}
+
+// The left menu and sticky bar shade. --shell-rail in theme.css is declared on
+// the root, so the share it reads has to be set there too.
+function useSidebarShadeVars(styling: ShellStyling) {
+  React.useEffect(
+    () =>
+      applyRootStyleVars(SIDEBAR_SHADE_VAR_NAMES, getSidebarShadeVars(styling)),
     [styling]
   )
 }
