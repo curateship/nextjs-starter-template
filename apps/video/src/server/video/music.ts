@@ -8,7 +8,7 @@ import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { serializeMedia, type MediaItem } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
-import { videoMusicTracks } from "@/server/video/schema"
+import { videoMediaBeats, videoMusicTracks } from "@/server/video/schema"
 
 /**
  * The music shelf: the sound files a person has marked as music. The files
@@ -83,6 +83,26 @@ export async function markAsMusic(
     .insert(videoMusicTracks)
     .values({ mediaId, createdAt: now() })
     .onConflictDoNothing()
+  // Its beats are queued now rather than at the worker's next look round,
+  // so an editor asking straight away hears "being found", not "none"
+  // (beat-snapping.md). Marking it again is how beats that failed get
+  // another go.
+  const at = now()
+  await database
+    .insert(videoMediaBeats)
+    .values({ mediaId, status: "queued", createdAt: at, updatedAt: at })
+    .onConflictDoUpdate({
+      target: videoMediaBeats.mediaId,
+      set: {
+        status: "queued",
+        attempts: 0,
+        error: null,
+        leaseToken: null,
+        leaseExpiresAt: null,
+        updatedAt: at,
+      },
+      setWhere: eq(videoMediaBeats.status, "error"),
+    })
 }
 
 /** Takes the mark off. The file stays in the media library. */

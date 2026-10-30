@@ -6355,6 +6355,38 @@ describe("custom shell media helpers", () => {
     expect(() =>
       validateMediaContent("image/png", new Uint8Array([0xff, 0xd8, 0xff]))
     ).toThrow("File content does not match")
+    const ascii = (text: string, length = 16) => {
+      const bytes = new Uint8Array(length)
+      bytes.set(new TextEncoder().encode(text))
+      return bytes
+    }
+    // Every sound format the library takes is recognised by its first bytes.
+    expect(() => validateMediaContent("audio/mpeg", ascii("ID3"))).not.toThrow()
+    expect(() =>
+      validateMediaContent("audio/mpeg", new Uint8Array([0xff, 0xfb, 0x90, 0x00]))
+    ).not.toThrow()
+    const wav = ascii("RIFF")
+    wav.set(new TextEncoder().encode("WAVE"), 8)
+    expect(() => validateMediaContent("audio/wav", wav)).not.toThrow()
+    expect(() => validateMediaContent("audio/x-wav", wav)).not.toThrow()
+    expect(() => validateMediaContent("audio/ogg", ascii("OggS"))).not.toThrow()
+    expect(() =>
+      validateMediaContent("audio/webm", new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]))
+    ).not.toThrow()
+    const m4a = new Uint8Array(12)
+    m4a.set(new TextEncoder().encode("ftypM4A "), 4)
+    expect(() => validateMediaContent("audio/mp4", m4a)).not.toThrow()
+    expect(() => validateMediaContent("audio/x-m4a", m4a)).not.toThrow()
+    expect(() =>
+      validateMediaContent("audio/aac", new Uint8Array([0xff, 0xf1, 0x50, 0x80]))
+    ).not.toThrow()
+    // A sound type over something else is still refused.
+    expect(() => validateMediaContent("audio/wav", ascii("OggS"))).toThrow(
+      "File content does not match"
+    )
+    expect(() => validateMediaContent("audio/mpeg", ascii("hello"))).toThrow(
+      "File content does not match"
+    )
     const unsafeSvg = new TextEncoder().encode(
       '<svg viewBox="0 0 1 1"><script>alert(1)</script><path d="M0 0h1v1z" onclick="alert(1)" /></svg>'
     )

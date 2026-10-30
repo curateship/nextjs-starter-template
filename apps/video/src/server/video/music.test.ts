@@ -15,7 +15,7 @@ import {
   insertWorkspace,
 } from "@/server/test-support"
 import { listMusicShelf, markAsMusic, unmarkMusic } from "@/server/video/music"
-import { videoMusicTracks } from "@/server/video/schema"
+import { videoMediaBeats, videoMusicTracks } from "@/server/video/schema"
 
 let client: PGlite
 let database: CustomShellDb
@@ -145,5 +145,39 @@ describe("the music shelf", () => {
     await markAsMusic(user.id, song.id, database)
     await database.delete(customShellMedia).where(eq(customShellMedia.id, song.id))
     expect(await database.select().from(videoMusicTracks)).toEqual([])
+  })
+})
+
+describe("marking a file as music", () => {
+  it("queues its beats at once, so the editor hears they are being found", async () => {
+    const sound = await insertSound(user.id)
+    await markAsMusic(user.id, sound.id, database)
+    await markAsMusic(user.id, sound.id, database)
+    const rows = await database.select().from(videoMediaBeats)
+    expect(rows.map((row) => [row.mediaId, row.status])).toEqual([[sound.id, "queued"]])
+  })
+
+  it("gives beats that failed another go when the file is marked again", async () => {
+    const sound = await insertSound(user.id)
+    const ready = await insertSound(user.id)
+    await markAsMusic(user.id, sound.id, database)
+    await markAsMusic(user.id, ready.id, database)
+    await database
+      .update(videoMediaBeats)
+      .set({ status: "error", attempts: 3, error: "Beats generation failed" })
+      .where(eq(videoMediaBeats.mediaId, sound.id))
+    await database
+      .update(videoMediaBeats)
+      .set({ status: "ready", beats: [500] })
+      .where(eq(videoMediaBeats.mediaId, ready.id))
+
+    await unmarkMusic(user.id, sound.id, database)
+    await markAsMusic(user.id, sound.id, database)
+    await markAsMusic(user.id, ready.id, database)
+
+    const rows = await database.select().from(videoMediaBeats)
+    const byId = new Map(rows.map((row) => [row.mediaId, row]))
+    expect(byId.get(sound.id)).toMatchObject({ status: "queued", attempts: 0, error: null })
+    expect(byId.get(ready.id)).toMatchObject({ status: "ready", beats: [500] })
   })
 })
