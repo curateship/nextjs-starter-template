@@ -40,6 +40,7 @@ export function ThreePanels({
   showMiddleFor,
   showRightFor,
   narrowTab,
+  narrowStart = "middle",
   children,
 }: {
   layoutKey: string
@@ -59,11 +60,13 @@ export function ThreePanels({
   showRightFor?: string
   /** A fourth tab below 1280px, after the left panel's; the screen draws its content in no panel when wide. */
   narrowTab?: { label: string; content: React.ReactNode }
+  /** The tab a narrow screen opens on; the site admin's My dashboard opens on its Daily card. */
+  narrowStart?: "left" | "middle"
   /** Windows that open over the screen. */
   children?: React.ReactNode
 }) {
   const wide = useWideScreen()
-  const [narrowView, setNarrowView] = React.useState<"left" | "middle" | "right" | "extra">("middle")
+  const [narrowView, setNarrowView] = React.useState<"left" | "middle" | "right" | "extra">(narrowStart)
   const [shownFor, setShownFor] = React.useState(showMiddleFor)
   if (showMiddleFor !== shownFor) {
     setShownFor(showMiddleFor)

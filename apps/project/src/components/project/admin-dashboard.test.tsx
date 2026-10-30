@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import type { InboxPage } from "@/components/project/inbox-card"
 import type { NotificationItem } from "@/lib/api/notification"
 import type { AdminDashboard } from "@/lib/api/project/admin-dashboard"
+import type { DailyCard } from "@/lib/api/project/daily-card"
 import type { TaskCard } from "@/lib/api/project/tasks"
 
 vi.mock("@tanstack/react-router", () => ({
@@ -144,10 +145,49 @@ function dashboard(cards: Partial<AdminDashboard["cards"]> = {}): AdminDashboard
 
 const NO_INBOX = { notifications: [], nextCursor: null }
 
+/** The Daily card at 9 AM on a Monday, with nothing on it yet. */
+const DAILY: DailyCard = {
+  loadedAt: "2099-03-02T09:00:00.000Z",
+  firstName: "Tyler",
+  siteAdmin: true,
+  zone: "UTC",
+  today: "2099-03-02",
+  cardDay: "2099-03-02",
+  settings: {
+    hours: { morning: "05:00", afternoon: "12:00", night: "18:00" },
+    city: null,
+    sky: "drawn",
+    ownSkies: { morning: "", afternoon: "", night: "" },
+    ownLines: [],
+    ownQuestions: [],
+    reminders: { morning: "10:00", afternoon: "15:00", night: "21:00" },
+  },
+  meetings: [],
+  clock: { seconds: 0, running: null },
+  finishedToday: [],
+  dayOff: null,
+  admin: {
+    habits: [],
+    retired: [],
+    finished: { current: 0, best: 0 },
+    milestone: null,
+    today: { day: "2099-03-02", intention: "", rating: null, note: "", win: "", question: "", answer: "", bedAt: null, upAt: null },
+    tomorrowIntention: "",
+    sleptMinutes: null,
+    line: "Start with the task you keep walking around.",
+    question: "What gave you energy today?",
+    trend: [],
+    onThisDay: null,
+    lookBack: null,
+    monthly: null,
+    tomorrow: { meetings: [], due: [], moreDue: 0, away: [], holidays: [] },
+  },
+}
+
 function render(data: AdminDashboard, inbox: InboxPage = NO_INBOX) {
   return renderToStaticMarkup(
     <TooltipProvider>
-      <AdminDashboardScreen dashboard={data} inbox={inbox} search={{}} />
+      <AdminDashboardScreen daily={DAILY} dashboard={data} inbox={inbox} search={{}} />
     </TooltipProvider>
   )
 }
@@ -354,13 +394,15 @@ describe("the site admin's My dashboard", () => {
   it("marks the project My tasks is filtered to, and offers it in Filter", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
-        <AdminDashboardScreen dashboard={dashboard(FULL)} inbox={NO_INBOX} search={{ project: "p1" }} />
+        <AdminDashboardScreen daily={DAILY} dashboard={dashboard(FULL)} inbox={NO_INBOX} search={{ project: "p1" }} />
       </TooltipProvider>
     )
     expect(html).toContain("Showing only this project&#x27;s tasks. Press to show them all.")
     expect(html).toContain('aria-pressed="true"')
     // Both of the site admin's tasks are in other projects, so the List is empty.
-    expect(html).not.toContain("Send the contract")
+    // The Daily card on the left still names them: deep work follows no filter.
+    const middle = html.slice(html.indexOf('id="middle"'), html.indexOf('id="right"'))
+    expect(middle).not.toContain("Send the contract")
     expect(html).toContain('aria-label="Filter, 1 set"')
   })
 
@@ -406,7 +448,7 @@ describe("the site admin's My dashboard", () => {
   it("opens a task with no cross on the right", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
-        <AdminDashboardScreen dashboard={dashboard()} inbox={NO_INBOX} search={{ task: "t1" }} />
+        <AdminDashboardScreen daily={DAILY} dashboard={dashboard()} inbox={NO_INBOX} search={{ task: "t1" }} />
       </TooltipProvider>
     )
     expect(html).not.toContain("Close the task")
