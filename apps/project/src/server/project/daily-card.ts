@@ -100,8 +100,6 @@ export type DailyHabit = {
   /** Set for the card's day; a habit on other weekdays isn't shown that day. */
   setToday: boolean
   count: number
-  /** Set yesterday, and how many then, for "Tick yesterday". */
-  yesterday: { set: boolean; count: number }
   streak: Streak
 }
 
@@ -138,8 +136,6 @@ export type SiteAdminDaily = {
   tomorrowIntention: string
   line: string
   question: string
-  /** Ratings of the last 30 card days, oldest first; null where none was given. */
-  trend: { day: string; rating: number | null }[]
   onThisDay: { day: string; text: string } | null
   /** On Sunday: this week's ratings and wins, Monday first. */
   lookBack: { day: string; rating: number | null; win: string }[] | null
@@ -414,7 +410,6 @@ async function siteAdminDaily(
     .orderBy(asc(projectHabits.position), asc(projectHabits.createdAt))
   const counts = await habitCounts(habitRows.map((habit) => habit.id), database)
   const active = habitRows.filter((habit) => !habit.retiredDay)
-  const yesterday = addDays(cardDay, -1)
   const weekStart = weekStartOf(cardDay)
 
   const habits: DailyHabit[] = active.map((habit) => {
@@ -431,7 +426,6 @@ async function siteAdminDaily(
       atTime: habit.atTime,
       setToday: habitIsSetFor(habit, cardDay),
       count: count(cardDay),
-      yesterday: { set: habitIsSetFor(habit, yesterday), count: count(yesterday) },
       streak: streakOf(habit.firstDay, cardDay, dayIs),
     }
   })
@@ -461,10 +455,6 @@ async function siteAdminDaily(
     // Only the site admin's own; with none, the card shows no line and no question.
     line: pickForDay(settings.ownLines, cardDay) ?? "",
     question: todayRow.question || (pickForDay(settings.ownQuestions, cardDay) ?? ""),
-    trend: Array.from({ length: 30 }, (_, index) => {
-      const day = addDays(cardDay, index - 29)
-      return { day, rating: journal.get(day)?.rating ?? null }
-    }),
     // The intention is the editor's document, so its plain words stand in for it.
     onThisDay: past && (past.intention || past.win) ? { day: past.day, text: past.win || taskNotesText(past.intention) } : null,
     lookBack:
@@ -645,13 +635,15 @@ async function tomorrowAtAGlance(
 
 export type MonthOfTicks = {
   month: string
-  /** The site admin's card day, for Today's habits under the calendar. */
+  /** The site admin's card day; the day cards under the calendar stop there. */
   today: string
   days: string[]
   habits: { id: string; name: string; icon: HabitIcon | null; retired: boolean; cells: WeekDot[] }[]
+  /** The month's journal, by day, for the days anything was written or rated. */
+  journal: Record<string, JournalDay>
 }
 
-/** Each habit for a whole month as a row of ticks, retired ones included while they had ticks or days then. */
+/** Each habit for a whole month as a row of ticks, retired ones included while they had ticks or days then, and the month's journal. */
 export async function loadMonthOfTicks(userId: string, month: string, database: ProjectDb = db, at = new Date()): Promise<MonthOfTicks> {
   await requireSiteAdmin(userId, database)
   const cardDay = await siteAdminCardDay(userId, database, at)
@@ -666,10 +658,12 @@ export async function loadMonthOfTicks(userId: string, month: string, database: 
   const counts = await habitCounts(habitRows.map((habit) => habit.id), database)
   const teams = await listTeamNames(database)
   const daysOff = await siteAdminDaysOff(userId, teams.length, database)
+  const journal = await journalDays(userId, first, days[days.length - 1], database)
   return {
     month,
     today: cardDay,
     days,
+    journal: Object.fromEntries(journal),
     habits: habitRows
       .filter((habit) => habit.firstDay <= days[days.length - 1] && (!habit.retiredDay || habit.retiredDay > first))
       .sort((a, b) => DAY_PARTS.indexOf(a.part) - DAY_PARTS.indexOf(b.part) || a.position - b.position)
@@ -898,8 +892,9 @@ export async function orderHabits(userId: string, part: DayPart, habitIds: strin
 }
 
 /**
- * Ticks or counts a habit for the card's day, or for yesterday ("Tick
- * yesterday"), never for any day before. 0 takes the tick away.
+ * Ticks or counts a habit for the card's day only; no day before can be
+ * changed (Tyler, 30 Oct 2026: "remove the going back to yesterday to check
+ * off habit feature"). 0 takes the tick away.
  */
 export async function setHabitCount(
   userId: string,
@@ -909,7 +904,7 @@ export async function setHabitCount(
 ) {
   const habit = await ownHabit(userId, input.habitId, database)
   const cardDay = await siteAdminCardDay(userId, database, at)
-  if (input.day !== cardDay && input.day !== addDays(cardDay, -1)) throw new Error(PROJECT_ERRORS.habitDayGone)
+  if (input.day !== cardDay) throw new Error(PROJECT_ERRORS.habitDayGone)
   if (habit.retiredDay) throw new Error(PROJECT_ERRORS.habitNotFound)
   const count = Math.min(input.count, habit.target)
   if (count === 0) {
@@ -969,11 +964,21 @@ export async function saveJournalRating(userId: string, input: { day: string; ra
   await saveJournal(userId, input.day, { rating: input.rating }, database)
 }
 
-/** Going to bed or Up, at this moment, on the card's day. */
-/** Going to bed, or Start day, which records the time the day began in `up_at`. */
+/**
+ * Start day records when the day began in `up_at`. Rate day, which needs the
+ * day's rating first, records when the day was rated in `bed_at`, the column
+ * Going to bed used before Rate day took its place (Tyler, 30 Oct 2026).
+ */
 export async function markSleep(userId: string, kind: "bed" | "up", database: ProjectDb = db, at = new Date()) {
   await requireSiteAdmin(userId, database)
   const day = await siteAdminCardDay(userId, database, at)
+  if (kind === "bed") {
+    const [row] = await database
+      .select({ rating: projectJournalDays.rating })
+      .from(projectJournalDays)
+      .where(and(eq(projectJournalDays.userId, userId), eq(projectJournalDays.day, day)))
+    if (!row?.rating) throw new Error(PROJECT_ERRORS.rateFirst)
+  }
   await saveJournal(userId, day, kind === "bed" ? { bedAt: at } : { upAt: at }, database)
 }
 

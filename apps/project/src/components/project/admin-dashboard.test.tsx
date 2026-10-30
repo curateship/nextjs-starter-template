@@ -176,7 +176,6 @@ const DAILY: DailyCard = {
     tomorrowIntention: "",
     line: "Start with the task you keep walking around.",
     question: "What gave you energy today?",
-    trend: [],
     onThisDay: null,
     lookBack: null,
     monthly: null,

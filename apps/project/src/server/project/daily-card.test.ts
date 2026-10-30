@@ -210,19 +210,18 @@ describe("everyone's card", () => {
 })
 
 describe("the site admin's habits", () => {
-  it("ticks today and yesterday, never earlier, and counts a habit with a number", async () => {
+  it("ticks today only, and counts a habit with a number", async () => {
     const { id: walk } = await createHabit(tyler.id, habit("Walk"), database, at("2099-02-20", "09:00"))
     const { id: water } = await createHabit(tyler.id, habit("Water", { target: 8 }), database, at("2099-02-20", "09:00"))
     await setHabitCount(tyler.id, { habitId: walk, day: MONDAY, count: 1 }, database, NINE)
-    await setHabitCount(tyler.id, { habitId: walk, day: "2099-03-01", count: 1 }, database, NINE)
-    await expect(setHabitCount(tyler.id, { habitId: walk, day: "2099-02-28", count: 1 }, database, NINE)).rejects.toThrow(
-      "Only today and yesterday"
+    await expect(setHabitCount(tyler.id, { habitId: walk, day: "2099-03-01", count: 1 }, database, NINE)).rejects.toThrow(
+      "Only today"
     )
     await setHabitCount(tyler.id, { habitId: water, day: MONDAY, count: 20 }, database, NINE)
     const card = await loadDailyCard(tyler.id, database, NINE)
     const shown = Object.fromEntries(card.admin!.habits.map((h) => [h.name, h]))
     expect(shown.Walk.count).toBe(1)
-    expect(shown.Walk.streak.current).toBe(2)
+    expect(shown.Walk.streak.current).toBe(1)
     // Counted up to its number and no further.
     expect(shown.Water.count).toBe(8)
   })
@@ -298,6 +297,7 @@ describe("the site admin's journal", () => {
     await saveJournalText(tyler.id, { day: "2099-03-03", field: "intention", text: "Call Hart Dental" }, database, NINE)
     await saveJournalText(tyler.id, { day: MONDAY, field: "answer", text: "The walk", question: "What gave you energy today?" }, database, NINE)
     await saveJournalRating(tyler.id, { day: MONDAY, rating: 4 }, database, NINE)
+    await expect(saveJournalRating(tyler.id, { day: MONDAY, rating: 11 }, database, NINE)).rejects.toThrow()
     await expect(saveJournalText(tyler.id, { day: "2099-03-01", field: "win", text: "late" }, database, NINE)).rejects.toThrow(
       "That day has passed"
     )
@@ -309,8 +309,18 @@ describe("the site admin's journal", () => {
     expect(card.admin!.tomorrowIntention).toBe("Call Hart Dental")
     expect(card.admin!.today.rating).toBe(4)
     expect(card.admin!.question).toBe("What gave you energy today?")
-    expect(card.admin!.trend.at(-1)).toEqual({ day: MONDAY, rating: 4 })
     expect((await loadYearOfRatings(tyler.id, 2099, database)).ratings).toEqual({ [MONDAY]: 4 })
+  })
+
+  it("rates the day only once it has a rating, and shows the day in the month", async () => {
+    await expect(markSleep(tyler.id, "bed", database, NINE)).rejects.toThrow("Pick how your day went")
+    await saveJournalRating(tyler.id, { day: MONDAY, rating: 10 }, database, NINE)
+    await saveJournalText(tyler.id, { day: MONDAY, field: "win", text: "Shipped it" }, database, NINE)
+    await markSleep(tyler.id, "bed", database, NINE)
+    expect((await loadDailyCard(tyler.id, database, NINE)).admin!.today.bedAt).not.toBeNull()
+    const month = await loadMonthOfTicks(tyler.id, "2099-03", database, NINE)
+    expect(month.journal[MONDAY]).toMatchObject({ rating: 10, win: "Shipped it" })
+    expect(month.journal["2099-03-01"]).toBeUndefined()
   })
 
   it("starts the day once, on the card's day, even past midnight", async () => {

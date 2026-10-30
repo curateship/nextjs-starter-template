@@ -1,24 +1,23 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { BedIcon, Loader2Icon } from "lucide-react"
-import { Line, LineChart, YAxis } from "recharts"
+import { CheckIcon, Loader2Icon, StarIcon } from "lucide-react"
+import { toast } from "sonner"
 
+import { burstConfetti } from "@/components/project/confetti"
 import { DailySection } from "@/components/project/daily-section"
 import { RainbowEdge } from "@/components/project/rainbow-edge"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { SaveLine } from "@/components/project/save-line"
-import { PanelHeading } from "@/components/shared/panel-card"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { Button } from "@/components/ui/button"
-import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Textarea } from "@/components/ui/textarea"
 import { markMySleep, rateMyDay, saveIntention, saveJournalWords, type DailyCard } from "@/lib/api/project/daily-card"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { DAILY_LIMITS, type DayPart, type JournalField } from "@/lib/project/daily-card"
-import { addDays, clockIn, dayLabel } from "@/lib/project/days"
+import { DAILY_LIMITS, DAY_RATING_TOP, type DayPart, type JournalField } from "@/lib/project/daily-card"
+import { addDays, clockIn } from "@/lib/project/days"
 import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { notesForEditor, readTaskNotes } from "@/lib/project/notes"
@@ -108,21 +107,35 @@ export function StartDayButton() {
  * At night, at the foot of the card: "Rate your day" in a moving rainbow, which
  * opens the evening's journal (Tyler, 29 Oct 2026: "all these should be in a
  * dropdown in a button"): the rating with a note, the win, tonight's
- * question, tomorrow's intention, Going to bed and the last 30 days.
+ * question, tomorrow's intention, and Rate day at the foot; no chart of the
+ * last 30 days (Tyler, 30 Oct 2026: "remove").
+ * Once the day is rated the button says so, plain, and still opens the
+ * journal to change it.
  */
 export function RateYourDayButton({ daily }: { daily: DailyCard }) {
+  const [open, setOpen] = React.useState(false)
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
   const admin = daily.admin
   if (!admin) return null
   const day = daily.cardDay
+  const rated = Boolean(admin.today.bedAt && admin.today.rating)
+  const trigger = (
+    <PopoverTrigger asChild>
+      <Button ref={triggerRef} type="button" variant="outline" className={rated ? "w-full" : RAINBOW_BUTTON}>
+        {rated ? (
+          <>
+            <CheckIcon className="size-4" />
+            Day rated {admin.today.rating} of {DAY_RATING_TOP}
+          </>
+        ) : (
+          "Rate your day"
+        )}
+      </Button>
+    </PopoverTrigger>
+  )
   return (
-    <Popover>
-      <RainbowEdge className="min-w-0 flex-1 rounded-lg">
-        <PopoverTrigger asChild>
-          <Button type="button" variant="outline" className={RAINBOW_BUTTON}>
-            Rate your day
-          </Button>
-        </PopoverTrigger>
-      </RainbowEdge>
+    <Popover open={open} onOpenChange={setOpen}>
+      {rated ? <div className="min-w-0 flex-1">{trigger}</div> : <RainbowEdge className="min-w-0 flex-1 rounded-lg">{trigger}</RainbowEdge>}
       <PopoverContent
         align="end"
         className="grid max-h-[var(--radix-popover-content-available-height)] w-80 grid-cols-[minmax(0,1fr)] gap-3 overflow-y-auto"
@@ -141,8 +154,13 @@ export function RateYourDayButton({ daily }: { daily: DailyCard }) {
           />
         ) : null}
         <IntentionBox day={addDays(day, 1)} label="Tomorrow I want to..." value={admin.tomorrowIntention} />
-        <GoingToBed at={admin.today.bedAt} zone={daily.zone} />
-        <RatingTrend trend={admin.trend} />
+        <RateDay
+          onRated={() => {
+            setOpen(false)
+            const card = triggerRef.current?.closest("section")
+            if (card) burstConfetti(card)
+          }}
+        />
       </PopoverContent>
     </Popover>
   )
@@ -223,7 +241,7 @@ export function IntentionBox({
 }
 
 /** An intention as written: formatted when it was written in the editor, plain words when written before. */
-function IntentionText({ value }: { value: string }) {
+export function IntentionText({ value }: { value: string }) {
   const notes = readTaskNotes(value)
   if (notes.kind === "text") return <p className="text-sm whitespace-pre-line">{notes.text}</p>
   return <WrittenPageBody body={notes.body} />
@@ -310,15 +328,15 @@ function RateYourDay({ day, rating }: { day: string; rating: number | null }) {
         <SaveLine state={state} />
       </div>
       <div role="group" aria-labelledby="daily-rate-label" className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((value) => (
+        {Array.from({ length: DAY_RATING_TOP }, (_, index) => index + 1).map((value) => (
           <Button
             key={value}
             type="button"
             size="sm"
             variant={shown === value ? "default" : "outline"}
             aria-pressed={shown === value}
-            aria-label={`${value} out of 5`}
-            className="flex-1"
+            aria-label={`${value} out of ${DAY_RATING_TOP}`}
+            className="min-w-0 flex-1 px-0"
             onClick={() => void rate(value)}
           >
             {value}
@@ -329,26 +347,27 @@ function RateYourDay({ day, rating }: { day: string; rating: number | null }) {
   )
 }
 
-function GoingToBed({ at, zone }: { at: string | null; zone: string }) {
+/**
+ * The journal's last step (Tyler, 30 Oct 2026, of the Going to bed button:
+ * "rename this button to "Rate day" and change the icon", and "Clicking on
+ * rate my date also should have some action, it just does nothing but save
+ * it"). It needs a rating first; then it closes the journal, sets off the
+ * confetti and says good night, and the card's button reads Day rated. The
+ * day then shows in the look back's Month tab.
+ */
+function RateDay({ onRated }: { onRated: () => void }) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   async function press() {
-    if (await run(() => markMySleep("bed"))) await reloadDashboard(router)
-  }
-  if (at) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Going to bed at {clockIn(at, zone)}.{" "}
-        <button type="button" className="cursor-pointer underline" onClick={() => void press()} disabled={busy}>
-          Not yet? Press again later.
-        </button>
-      </p>
-    )
+    if (!(await run(() => markMySleep("bed")))) return
+    onRated()
+    toast.success("Day rated. Good night.")
+    await reloadDashboard(router)
   }
   return (
-    <Button type="button" variant="outline" className="w-full" onClick={() => void press()} disabled={busy}>
-      <BedIcon className="size-4" />
-      Going to bed
+    <Button type="button" className="w-full" onClick={() => void press()} disabled={busy}>
+      {busy ? <Loader2Icon className="size-4 animate-spin" /> : <StarIcon className="size-4" />}
+      Rate day
     </Button>
   )
 }
@@ -391,27 +410,5 @@ function TomorrowAtAGlance({ daily }: { daily: DailyCard }) {
         </ul>
       )}
     </DailySection>
-  )
-}
-
-const TREND_CONFIG = { rating: { label: "Rating", color: "var(--chart-1)" } } satisfies ChartConfig
-
-/** The last 30 days of ratings as a small line, drawn with the shared chart pieces. */
-function RatingTrend({ trend }: { trend: { day: string; rating: number | null }[] }) {
-  const rated = trend.filter((point) => point.rating !== null)
-  if (rated.length < 2) return null
-  return (
-    <div className="grid gap-1">
-      <PanelHeading>Last 30 days</PanelHeading>
-      <ChartContainer config={TREND_CONFIG} className={cn("aspect-auto h-14 w-full")}>
-        <LineChart data={trend} margin={{ top: 4, right: 4, bottom: 4, left: 4 }} accessibilityLayer>
-          <YAxis domain={[1, 5]} hide />
-          <Line dataKey="rating" type="monotone" stroke="var(--color-rating)" strokeWidth={2} dot={false} connectNulls />
-        </LineChart>
-      </ChartContainer>
-      <p className="text-xs text-muted-foreground">
-        {rated.length} days rated since {dayLabel(trend[0].day)}.
-      </p>
-    </div>
   )
 }

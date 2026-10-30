@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { countHabit, type DailyCard, type DailyHabit } from "@/lib/api/project/daily-card"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { DAY_PART_LABEL, type DayPart } from "@/lib/project/daily-card"
-import { addDays, clockLabel } from "@/lib/project/days"
+import { DAY_PARTS } from "@/lib/project/daily-card"
+import { clockLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -18,41 +18,37 @@ import { cn } from "@/lib/utils"
 const DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
 
 /**
- * The site admin's routine for this part of the day (Tyler, 29 Oct 2026:
- * "Add a habit tracker or routine to morning, afternoon and night"): each
- * habit set for today with its tick or count and a streak chip, with no
- * row of week dots (Tyler, 30 Oct 2026: "remove this"). "Tick yesterday" switches the list to yesterday's, and
- * no day before that can be changed.
+ * The site admin's habits for today (Tyler, 29 Oct 2026: "Add a habit
+ * tracker or routine to morning, afternoon and night"): every habit set for
+ * today, morning's first, then afternoon's and night's, whatever the time
+ * of day (Tyler, 30 Oct 2026: "show all habits and not just morning or
+ * afternoon"), each with its tick or count and a streak chip. Only today
+ * can be ticked ("remove the going back to yesterday to check off habit
+ * feature").
  */
-export function DailyHabits({ daily, part }: { daily: DailyCard; part: DayPart }) {
+export function DailyHabits({ daily }: { daily: DailyCard }) {
   const admin = daily.admin
-  const [yesterday, setYesterday] = React.useState(false)
   if (!admin) return null
-  const day = yesterday ? addDays(daily.cardDay, -1) : daily.cardDay
+  const day = daily.cardDay
   const habits = admin.habits
-    .filter((habit) => habit.part === part && (yesterday ? habit.yesterday.set : habit.setToday))
-    .sort((a, b) => (a.atTime ?? "99").localeCompare(b.atTime ?? "99") || a.position - b.position)
+    .filter((habit) => habit.setToday)
+    .sort(
+      (a, b) =>
+        DAY_PARTS.indexOf(a.part) - DAY_PARTS.indexOf(b.part) ||
+        (a.atTime ?? "99").localeCompare(b.atTime ?? "99") ||
+        a.position - b.position
+    )
 
   return (
-    <DailySection
-      title={yesterday ? `Yesterday's ${part}` : `${DAY_PART_LABEL[part]} routine`}
-      foldId="routine"
-      action={
-        admin.habits.some((habit) => habit.part === part && habit.yesterday.set) ? (
-          <Button type="button" variant="ghost" size="xs" onClick={() => setYesterday((shown) => !shown)}>
-            {yesterday ? "Back to today" : "Tick yesterday"}
-          </Button>
-        ) : null
-      }
-    >
+    <DailySection title="Today's habits" foldId="routine">
       {admin.habits.length === 0 ? (
         <p className="text-sm text-muted-foreground">Add your morning, afternoon and night habits with the pencil above.</p>
       ) : habits.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nothing set for this part of the day.</p>
+        <p className="text-sm text-muted-foreground">No habits set for today.</p>
       ) : (
         <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">
           {habits.map((habit) => (
-            <HabitRow key={`${habit.id}:${day}`} habit={habit} day={day} count={yesterday ? habit.yesterday.count : habit.count} />
+            <HabitRow key={habit.id} habit={habit} day={day} count={habit.count} />
           ))}
         </ul>
       )}

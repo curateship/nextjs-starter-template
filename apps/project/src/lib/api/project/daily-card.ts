@@ -53,6 +53,7 @@ export type {
   DailyCard,
   DailyHabit,
   DailyWeather,
+  JournalDay,
   JournalHit,
   MonthOfTicks,
   WeekDot,

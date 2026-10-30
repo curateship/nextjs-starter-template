@@ -534,7 +534,8 @@ went (below). How it works is in
   count.
 - **Grace:** one missed day per Monday-to-Sunday week.
 - **Sunday look back** shows all of Sunday.
-- **Going to bed and Start day** only record the times.
+- **Start day and Rate day** only record the times. Going to bed became Rate day
+  (30 Oct 2026).
 - **Milestones:** one short burst of confetti at 7, 30 and 100 days.
 - **The journal is private.** Only the site admin sees it.
 - **Routine bell reminder:** a time per routine, starting at 10 AM, 3 PM and

@@ -41,7 +41,7 @@ Daily card", and that file wins wherever the two disagree.
   afternoon before night.
 - **The card's day.** Before morning starts it is still last night on the
   card. A night habit ticked at 1 AM counts for the evening before, and
-  Going to bed at 12:30 AM lands on that evening too. Tasks and meetings
+  Rate day pressed at 12:30 AM lands on that evening too. Tasks and meetings
   still use the calendar day.
 - **The greeting.** "Good morning Tyler, it's Thursday", then "Good afternoon
   Tyler", then "Good evening Tyler, time to wind down". After midnight it
@@ -101,9 +101,11 @@ a team screen or sent to anyone.
 
 ### Routines
 
-- **Three lists of habits: morning, afternoon and night.** The card shows the
-  list for the current part of the day, with a tick for each habit. Ticks
-  start again each card day.
+- **Three lists of habits: morning, afternoon and night.** The card's
+  "Today's habits" shows every habit set for today at any time of day,
+  morning's first, then afternoon's and night's ("show all habits and not
+  just morning or afternoon"), with a tick for each. Ticks start again each
+  card day.
 - **Habits you count.** A habit can have a number, such as 8 glasses of
   water. Plus and minus change the count, and the habit is done at its
   number.
@@ -111,9 +113,9 @@ a team screen or sent to anyone.
   gym on Monday, Wednesday and Friday. On other days it doesn't show and
   doesn't count. A habit can carry a time, "Stretch at 3 PM", and habits
   with times come first, in time order.
-- **Tick yesterday.** "Tick yesterday" switches the list to yesterday's, and
-  no earlier day can be changed. A tick for yesterday counts as if it had
-  been made on time.
+- **Only today can be ticked.** There is no going back to yesterday ("remove
+  the going back to yesterday to check off habit feature"); the server
+  refuses a tick for any other day.
 - **Setting them up** is behind the pencil in the panel's header. Each routine has "Add a
   habit", and each habit has a cog to change it, a handle to drag it into
   order, and Retire. A routine holds at most 12 habits.
@@ -185,10 +187,19 @@ a team screen or sent to anyone.
   ("Due: Thank-you notes · Spring launch"), who is off, and holidays.
 - **Rate your day** is a button with a moving rainbow edge at the foot of
   the card, at night only ("all these should be in a dropdown in a button").
-  It opens the rest of the evening: Rate your day from 1 to 5 with a note,
+  It opens the rest of the evening: Rate your day from 1 to 10 ("rating should be out of 10, not 5") with a note,
   the win of the day, tonight's question with an answer, "Tomorrow I want
-  to...", Going to bed, and a small line of the last 30 days' ratings. A box
-  still being typed in when the window closes is saved too.
+  to...", and Rate day at the
+  foot, with a star, where Going to bed was ("rename this button to "Rate
+  day" and change the icon"). Rate day needs a rating first ("Pick how your
+  day went, from 1 to 10, first."). Then it closes the window, sets off the
+  confetti, says "Day rated. Good night.", and the card's button turns plain
+  and reads "Day rated 8 of 10", still opening the window to change it
+  ("Clicking on rate my date also should have some action, it just does
+  nothing but save it"). There is no chart of the last 30 days' ratings in
+  the window (Tyler, 30 Oct 2026: "remove"). The time it was pressed is kept in `bed_at`, the
+  column Going to bed used, and isn't shown anywhere. A box still being
+  typed in when the window closes is saved too.
 - **Tonight's question** comes only from the site admin's own questions;
   with none, no question shows. A question is saved with its answer, so
   changing the list never changes an old answer.
@@ -213,14 +224,19 @@ a team screen or sent to anyone.
   under the panel's, like List and Board over My tasks ("put tabs here using
   underline styling"), on the right in a row lower than a panel header ("tabs
   align right and reduce tab height"); there is no "Look back" title. Month is one calendar, Monday first, each day shaded by how
-  many of its habits were done ("If there is 10 habits, its too long"). While
-  it shows this month, Today's habits sits under it: each habit set for
-  today with Done or Not yet ("Replace this section for something easier to
-  read. Make it "Today's habit""). Pressing one shows only its days on the
-  calendar; pressing it again goes back to all. Year is twelve small month calendars, each day's square
-  stronger for a better rating, with a 1 to 5 key above them ("fix the year
-  tab"). Both fill the panel's width ("it has to be responsive to the size of
-  the panel"): the month calendar up to a comfortable size, the year two
+  many of its habits were done ("If there is 10 habits, its too long"). Under
+  it is a folded card for each day of the month so far, newest first, with
+  the day on the left and its rating on the right ("replace it with
+  collapsible card for each day of the month. Day on the left and rating on
+  the right, uncollapse it to show all the checked habits and notes for that
+  day"). Opened, a day shows the habits done that day, the intention, the
+  win, the note and tonight's question with its answer. This is where the
+  journal's past days are read ("we need a place to show the journal days
+  history too"). Year is twelve small month calendars, each day's square
+  stronger for a better rating and showing its number ("place the rating
+  here"), with a 1 to 10 key above them ("fix the year tab"). Both fill the panel's width ("it has to be responsive to the size of
+  the panel"): the month calendar and its row of arrows the full width ("this
+  should be full width"), the year two
   months across in a narrow panel and more as it widens.
   Search finds a word in intentions, wins, notes and answers.
 
@@ -256,6 +272,9 @@ change at any time of day here, while the card offers it in the morning only
   `drizzle/0138_project_daily_sections.sql`).
 - `project_habits` and `project_habit_days`: the site admin's habits and one
   row per habit per day ticked or counted.
-- `project_journal_days`: one row per card day.
+- `project_journal_days`: one row per card day. The rating is 1 to 10 and
+  the intention holds up to 20,000 characters of the editor's document since
+  `drizzle/0139_project_day_rating_ten.sql`, which doubled the 1 to 5 ratings
+  already given.
 - `project_routine_reminders`: one row per routine reminder sent, written
   with the bell notice so it is sent once.

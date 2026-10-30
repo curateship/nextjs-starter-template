@@ -374,7 +374,9 @@ export const journalIntentionSchema = z.object({
     .transform(storedTaskNotes)
     .refine((text) => text.length <= DAILY_LIMITS.intention, "That's too long to save."),
 })
-export const journalRatingSchema = z.object({ day, rating: z.number().int().min(1).max(5).nullable() })
+/** A day's rating, 1 to 10 (Tyler, 30 Oct 2026: "rating should be out of 10, not 5"). */
+export const DAY_RATING_TOP = 10
+export const journalRatingSchema = z.object({ day, rating: z.number().int().min(1).max(DAY_RATING_TOP).nullable() })
 export const sleepSchema = z.object({ kind: z.enum(["bed", "up"]) })
 export const milestoneSchema = z.object({ id: z.string().min(1).max(80) })
 export const monthSchema = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) })

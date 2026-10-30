@@ -1214,7 +1214,7 @@ export const projectJournalDays = pgTable(
       .notNull()
       .references(userRef, { onDelete: "cascade" }),
     day: date("day", { mode: "string" }).notNull(),
-    intention: varchar("intention", { length: 200 }).notNull().default(""),
+    intention: varchar("intention", { length: 20000 }).notNull().default(""),
     rating: smallint("rating"),
     note: varchar("note", { length: 500 }).notNull().default(""),
     win: varchar("win", { length: 200 }).notNull().default(""),

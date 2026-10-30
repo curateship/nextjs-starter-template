@@ -170,8 +170,9 @@ export const PROJECT_ERRORS = {
   weatherUnavailable: "The weather service didn't answer. Try again in a minute.",
   habitNotFound: "That habit no longer exists. Reload the page to see your habits.",
   tooManyHabits: "A routine can have at most 12 habits. Retire one to add another.",
-  habitDayGone: "Only today and yesterday can be ticked.",
+  habitDayGone: "Only today can be ticked.",
   journalDayGone: "That day has passed, so it can't be changed now. Reload the page to see today.",
+  rateFirst: "Pick how your day went, from 1 to 10, first.",
 } as const
 
 /**
