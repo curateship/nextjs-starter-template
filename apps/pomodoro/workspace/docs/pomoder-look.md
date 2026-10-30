@@ -16,7 +16,7 @@ screens (dashboard, rooms, sounds, tasks and the rest), not the admin.
 
 Tyler, 11 Oct 2026: "I dont like the em dashes. Scan the codes and replace it
 with a single dash." Text a member or admin reads in Pomoder's own files uses a
-plain dash: "Public - listed for everyone", "Dashboard - Pomoder", and a lone
+plain dash: "Public - listed for everyone", "Dashboard - Flowfly", and a lone
 "-" where a table has no value. Code comments are not shown, so they keep
 theirs. Em dashes in the shell's own files (most of them on the admin and
 Settings screens) are a shell change, made in `apps/shell` and merged
@@ -24,11 +24,20 @@ in, never edited here.
 
 ## The name and the tab icon
 
-People see the app called Pomoder: "pomoder." in the left menu and the phone
-header, the front page and Plans titles, the end-of-focus notification and the
-share picture. Tyler's words: "Change the name to Pomoder. Favicon is not
-wired on the frontend." He chose only what people see, so the folder, the web
-addresses, the port entry and every code name stay `pomodoro`.
+People see the app called Flowfly: "flowfly." in the left menu and the phone
+header, every tab title, the front page, the end-of-focus notification, the
+share picture, room broadcasts and the bell's admin notices. The live site's
+name is saved in the database too (`workspaces.name`, and `appName` and
+`workspaceName` in the settings row), so emails and footers read it from there.
+
+The name was Pomoder from 8 Oct 2026 and became Flowfly on 29 Oct 2026, when
+the site moved to flowfly.app. Tyler picked "Domain and name together". Only
+what people see changed. The folder, the port entry and every code name stay
+`pomodoro`, and internal names such as `PomoderDb` stay as they were. Stored
+data keeps the old name where it is an address: the made-up members' emails
+at `simulated.pomoder.com` and every file at `media.pomoder.com`. Notices
+saved before the rename still say "the Pomoder team", and the bell reads them
+back as the same kind (`noticeKindFromWords` in `src/lib/pomodoro/notices.ts`).
 
 The tab icon is the tomato with clock hands from the left menu (`TomatoMark`
 in `pomodoro-shell.tsx`), saved as `public/favicon.ico` (16, 32 and 48px) and

@@ -457,7 +457,7 @@ export function roomChangedMessage(roomName: string, what: "changed" | "closed")
  * Admin task 05. A warning's own words go in the notice's detail, under this
  * heading. A suspension names its end, or says it lasts until lifted.
  */
-export const ADMIN_WARNING_MESSAGE = "You have a warning from the Pomoder team."
+export const ADMIN_WARNING_MESSAGE = "You have a warning from the Flowfly team."
 export const PROFILE_RESTORED_MESSAGE = "Your public profile is visible again."
 const SUSPENDED_PREFIX = "You can't use rooms "
 export function roomsSuspendedMessage(until: string | null) {
@@ -468,7 +468,7 @@ export function roomsSuspendedMessage(until: string | null) {
  * Admin task 06. An admin changed your public profile's handle, name or bio,
  * put back a streak day, or deleted a group you were in. None says which admin.
  */
-const PROFILE_EDITED_PREFIX = "The Pomoder team changed your public profile"
+const PROFILE_EDITED_PREFIX = "The Flowfly team changed your public profile"
 export function profileEditedMessage(fields: readonly string[]) {
   return `${PROFILE_EDITED_PREFIX}: ${fields.join(", ")}.`
 }
@@ -477,7 +477,7 @@ const STREAK_RESTORED_SUFFIX = " to your streak."
 export function streakRestoredMessage(day: string) {
   return `${STREAK_RESTORED_PREFIX}${day}${STREAK_RESTORED_SUFFIX}`
 }
-const GROUP_DELETED_PREFIX = "The Pomoder team deleted the group "
+const GROUP_DELETED_PREFIX = "The Flowfly team deleted the group "
 export function groupDeletedMessage(groupName: string) {
   return `${GROUP_DELETED_PREFIX}${groupName}.`
 }
@@ -557,20 +557,20 @@ export function groupMilestoneMessage(groupName: string, hours: number) {
  * and none says which admin.
  */
 const PROJECT_CHANGED_PATTERN =
-  /^The Pomoder team (renamed|changed|changed the target on|archived|brought back) your project /
-const PROJECT_DELETED_PREFIX = "The Pomoder team deleted your project "
+  /^The Flowfly team (renamed|changed|changed the target on|archived|brought back) your project /
+const PROJECT_DELETED_PREFIX = "The Flowfly team deleted your project "
 export function projectChangedMessage(
   projectName: string,
   change: { name?: string; target?: boolean; archived?: boolean }
 ) {
   const { name, target } = change
   if (change.archived !== undefined)
-    return `The Pomoder team ${change.archived ? "archived" : "brought back"} your project ${projectName}.`
+    return `The Flowfly team ${change.archived ? "archived" : "brought back"} your project ${projectName}.`
   if (name !== undefined && !target)
-    return `The Pomoder team renamed your project ${projectName} to ${name}.`
+    return `The Flowfly team renamed your project ${projectName} to ${name}.`
   if (name === undefined)
-    return `The Pomoder team changed the target on your project ${projectName}.`
-  return `The Pomoder team changed your project ${projectName}: it is now ${name}, with a new target.`
+    return `The Flowfly team changed the target on your project ${projectName}.`
+  return `The Flowfly team changed your project ${projectName}: it is now ${name}, with a new target.`
 }
 export function projectDeletedMessage(projectName: string) {
   return `${PROJECT_DELETED_PREFIX}${projectName}. Its tasks are kept.`
@@ -612,7 +612,9 @@ export function noticeKindFromWords(notice: {
   type: string
   message: string | null
 }): PomodoroNoticeKind | null {
-  const message = notice.message
+  // Notices saved before the app was renamed on 29 Oct 2026 still say
+  // "the Pomoder team", so they read back as the same kind.
+  const message = notice.message?.replace("Pomoder team", "Flowfly team")
   if (notice.type !== "app_activity" || !message) return null
   if (message.includes(ROOM_JOIN_INFIX)) return "room_join"
   if (message.includes(ROOM_LEAVE_INFIX)) return "room_leave"

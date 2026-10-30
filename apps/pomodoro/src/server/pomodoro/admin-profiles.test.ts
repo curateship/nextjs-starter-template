@@ -55,7 +55,7 @@ describe("saving an admin's fix to a profile", () => {
       { actorUserId: admin, action: "edit", resource: "pomodoro_profile", recordIds: [owner] },
     ])
     expect(await noticesFor(owner)).toEqual([
-      { kind: "profile_edited", message: "The Pomoder team changed your public profile: address." },
+      { kind: "profile_edited", message: "The Flowfly team changed your public profile: address." },
     ])
   })
 

@@ -321,7 +321,7 @@ export function RoomChatPanel({
           key={line.id}
           className="flex flex-wrap items-baseline gap-x-2 rounded-md border px-3 py-2 text-sm"
         >
-          <span className="font-semibold">Pomoder</span>
+          <span className="font-semibold">Flowfly</span>
           <StaffLabel />
           <span className="basis-full break-words">{line.body}</span>
         </p>

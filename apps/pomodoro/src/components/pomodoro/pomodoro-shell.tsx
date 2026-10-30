@@ -345,11 +345,11 @@ export function PomodoroShell({
         <Link
           to="/timer"
           className="mb-[22px] flex items-center gap-2.5 whitespace-nowrap px-1.5 text-[19px] font-bold tracking-tight"
-          aria-label="Pomoder dashboard"
+          aria-label="Flowfly dashboard"
         >
           <TomatoMark className="size-9 shrink-0" />
           <span className={cn(collapsed && "lg:hidden")}>
-            pomoder<span className="text-[var(--p-accent)]">.</span>
+            flowfly<span className="text-[var(--p-accent)]">.</span>
           </span>
         </Link>
         <Button
@@ -469,7 +469,7 @@ export function PomodoroShell({
               to="/timer"
               className="whitespace-nowrap text-[21px] font-bold tracking-tight max-sm:hidden"
             >
-              pomoder<span className="text-[var(--p-accent)]">.</span>
+              flowfly<span className="text-[var(--p-accent)]">.</span>
             </Link>
           </div>
           <div className="mx-auto flex items-center gap-2.5 min-[1440px]:mx-0">

@@ -90,7 +90,7 @@ export function LeaderboardPage({
           <p className="text-muted-foreground">
             {scope === "following"
               ? "Focus time across the people you follow."
-              : "Focus time across everyone on Pomoder."}
+              : "Focus time across everyone on Flowfly."}
           </p>
         </div>
         {authenticated ? (

@@ -1104,7 +1104,7 @@ export function HostRoomDialog({
                     <SelectContent position="popper">
                       {housePresets.map((preset) => (
                         <SelectItem key={preset.id} value={preset.id}>
-                          Pomoder: {preset.name} · {roomPresetSummary(preset)}
+                          Flowfly: {preset.name} · {roomPresetSummary(preset)}
                         </SelectItem>
                       ))}
                       {[...builtinTimerPresets, ...ownPresets].map((preset) => (
@@ -1116,7 +1116,7 @@ export function HostRoomDialog({
                   </Select>
                   {houseFailed ? (
                     <span className="text-xs text-muted-foreground">
-                      Pomoder presets could not be loaded.
+                      Flowfly presets could not be loaded.
                     </span>
                   ) : null}
                   {presetsFailed ? (
