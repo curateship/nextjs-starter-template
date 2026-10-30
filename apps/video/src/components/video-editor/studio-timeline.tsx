@@ -15,6 +15,7 @@ import {
   Redo2,
   Scissors,
   Trash2,
+  Shapes,
   Type,
   Undo2,
   Volume2,
@@ -43,6 +44,13 @@ import {
   snapThresholdMs,
   type SnapIndex,
 } from "@/lib/video/timeline-snapping"
+import { beatTimelineTimes } from "@/lib/video/beats"
+import { cleanSoundKey } from "@/lib/video/voice-clean"
+import {
+  beatTimesOnTimeline,
+  useCleanSounds,
+  useMusicBeats,
+} from "@/components/video-editor/sound-tool-store"
 import {
   CUT_CURSOR,
   MAX_PX_PER_SECOND,
@@ -116,6 +124,7 @@ const ACCENTS = {
   text: "var(--warn)",
   audio: "var(--good)",
   image: "var(--violet)",
+  shape: "var(--warn)",
   mixed: "var(--mut)",
 } as const
 
@@ -140,7 +149,9 @@ function trackKind(track: EditorTrack): keyof typeof ACCENTS {
         ? "audio"
         : only === "image"
           ? "image"
-          : "text"
+          : only === "shape"
+            ? "shape"
+            : "text"
   }
   return "mixed"
 }
@@ -157,6 +168,8 @@ function trackIcon(kind: keyof typeof ACCENTS, size = 16) {
       return <ImageIcon size={size} />
     case "text":
       return <Type size={size} />
+    case "shape":
+      return <Shapes size={size} />
     default:
       return <LayersIcon size={size} />
   }
@@ -172,9 +185,20 @@ function trackName(track: EditorTrack, index: number) {
       return "Pictures"
     case "text":
       return "Text"
+    case "shape":
+      return "Shapes"
     default:
       return `Track ${index + 1}`
   }
+}
+
+const NO_MEDIA: string[] = []
+
+/** One short tick per beat inside the clip, as an SVG path in pixels. */
+function beatTicksPath(clip: EditorClip, beats: number[], pps: number) {
+  return beatTimelineTimes(clip, beats)
+    .map((ms) => `M${(msToPx(ms - clip.startMs, pps) + 0.5).toFixed(1)} 0V7`)
+    .join("")
 }
 
 function clipLabel(clip: EditorClip) {
@@ -208,6 +232,19 @@ const SnapGuideContext = React.createContext<SnapGuideApi | null>(null)
  */
 export function StudioTimeline({ readOnly = false }: { readOnly?: boolean }) {
   const tracks = useEditorSelector((state) => state.tracks)
+  // Every sound clip's beats are asked for here, once for the whole
+  // timeline, so a music clip scrolled out of view still gives a dragged
+  // clip its beats to snap to.
+  const soundMediaIds = React.useMemo(
+    () =>
+      tracks.flatMap((track) =>
+        track.clips
+          .filter((clip) => clip.kind === "audio" && clip.mediaId)
+          .map((clip) => clip.mediaId!)
+      ),
+    [tracks]
+  )
+  useMusicBeats(soundMediaIds)
   const pps = useEditorSelector((state) => state.pxPerSecond)
   const durationMs = useEditorDurationMs()
   const { dispatch, clock } = useEditorRuntime()
@@ -911,13 +948,27 @@ const ClipChip = React.memo(function ClipChip({
     [snapGuide]
   )
 
+  // The cleaned copy of this clip's sound, while the worker makes it.
+  const cleanClips = React.useMemo(
+    () => [{ kind, mediaId, voiceClean: clip.voiceClean }],
+    [kind, mediaId, clip.voiceClean]
+  )
+  const cleanStates = useCleanSounds(cleanClips)
+  const cleanState =
+    mediaId && clip.voiceClean
+      ? cleanStates.get(cleanSoundKey(mediaId, clip.voiceClean))
+      : undefined
+  // A music clip's beats, drawn as ticks along it.
+  const beats = useMusicBeats(kind === "audio" && mediaId ? [mediaId] : NO_MEDIA)
+  const clipBeats = mediaId ? beats.get(mediaId) : undefined
+
   // The clip's sound is off: its own switch, its lane's, or its volume at 0.
   const silent = trackMuted || !!clip.muted || clip.volume === 0
   const left = msToPx(clip.startMs, pps)
   const width = Math.max(6, msToPx(clip.durationMs, pps))
   const showDuration = width > 76
   const showLabel = width > 34
-  const stripNote =
+  const framesNote =
     kind === "video" && frames.length === 0 && width > 60
       ? stripState === "building"
         ? "Getting frames ready"
@@ -925,6 +976,19 @@ const ClipChip = React.memo(function ClipChip({
           ? "Frames failed, retry in Media"
           : null
       : null
+  // The frames come first: a clip with neither shows the one note it has.
+  const cleanNote =
+    width > 60 && cleanState
+      ? cleanState.status === "preparing"
+        ? "Cleaning the voice"
+        : cleanState.status === "failed"
+          ? "Cleaning failed, retry on the right"
+          : null
+      : null
+  const stripNote = framesNote ?? cleanNote
+  const noteBusy = framesNote
+    ? stripState === "building"
+    : cleanState?.status === "preparing"
 
   // The fill: video and pictures get a tinted block, audio a waveform, text a
   // card with a coloured edge.
@@ -1022,8 +1086,13 @@ const ClipChip = React.memo(function ClipChip({
       snap: buildSnapIndex({
         tracks: store.getSnapshot().state.tracks,
         excludeClipId: clip.id,
-        // The start of the project and the playhead are worth landing on too.
-        extraMs: [0, clock.getTime()],
+        // The start of the project, the playhead and the music's beats are
+        // worth landing on too.
+        extraMs: [
+          0,
+          clock.getTime(),
+          ...beatTimesOnTimeline(store.getSnapshot().state.tracks, clip.id),
+        ],
       }),
     }
     ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
@@ -1337,6 +1406,29 @@ const ClipChip = React.memo(function ClipChip({
           </svg>
         </div>
       ) : null}
+      {clipBeats ? (
+        // The music's beats, as faint ticks a dragged edge snaps to.
+        <svg
+          aria-hidden
+          data-clip-beats={clipBeats.length}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+            overflow: "hidden",
+          }}
+        >
+          <path
+            d={beatTicksPath(clip, clipBeats, pps)}
+            stroke="currentColor"
+            strokeWidth={1}
+            opacity={0.45}
+            style={{ color: labelColor }}
+          />
+        </svg>
+      ) : null}
       {overlay ? <div style={overlay} /> : null}
       {showLabel ? (
         <span
@@ -1383,7 +1475,7 @@ const ClipChip = React.memo(function ClipChip({
             textShadow: "0 1px 3px rgba(0,0,0,.6)",
           }}
         >
-          {stripState === "building" ? (
+          {noteBusy ? (
             <Loader2
               aria-hidden
               className="shrink-0 motion-safe:animate-spin"

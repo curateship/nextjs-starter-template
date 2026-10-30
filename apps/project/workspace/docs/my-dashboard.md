@@ -161,7 +161,11 @@ my own order (below), then any I haven't placed, soonest first.
   dashboard, shared by the employee's List and the site admin's table.
   Project Lists have the same arrow. A folded heading at the bottom of a
   List keeps its lines above and below (Tyler, 28 Oct 2026: "bottom section
-  is missing border", then "missing top borader").
+  is missing border", then "missing top borader"), and two folded headings
+  share the one line between them. All of them come from the shell's one
+  table line rule; the List draws none of its own, since its own sat beside
+  the shell's and read as a thick line (30 Oct 2026: "when collapsed the
+  border is too thick").
 - **Dragging rows** (Tyler, 23 Oct 2026: "I want to be able to drag and drop
   tasks into different order and sections"). On an employee's List any row
   can be grabbed and dragged, and a plain click still opens it. On the site
@@ -397,7 +401,11 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
 
 The Projects card comes first (Tyler, 29 Oct 2026: "the project card should
 be above all the red cards"); see [The Projects card](#the-projects-card),
-which replaced "Projects running late" the same day. Then the rest, top to
+which replaced "Projects running late" the same day. Then a "Need your
+attention" heading, the size of Projects with room above it, shown only while
+a card below it has anything (Tyler, 30 Oct 2026: "Add a label that says "Need
+your attention" here", "add some padding above. also if there is nothing there
+(no cards) hide the label"). Then the rest, top to
 bottom, red first, then amber, blue and green (Tyler, 24 Oct 2026:
 "red card should be on top"), keeping his "act first" order inside each
 colour. Each counts across every team,
@@ -413,7 +421,7 @@ None" and the like: "this is way too many cards. we need to simplify it".
 
 **Each card is tinted by how much it matters**, the same day: "each card
 should be a color based on their importance like the done card should have a
-green card". Red needs the site admin now: Waiting on you, Needs attention.
+green card". Red needs the site admin now: Waiting on you, Urgent.
 Amber is for soon: No one on it, Invites not taken, Due
 this week. Blue is to know about: Meetings today, Milestones this month. Green
 is Done today. The Projects card has no tint or box of its own: each project
@@ -426,7 +434,8 @@ under its heading is tinted instead. The tints are see-through
    the reason, and **Yes** and **No** in the card. Yes moves the date; No opens
    a box for an optional reason. Both are the task's own answer, with its
    history line and its notice.
-2. **Needs attention:** each team with Stuck, Overdue or Untouched tasks,
+2. **Urgent** (called Needs attention until 30 Oct 2026: "rename the card
+   "Need your attention" to "Urgent""): each team with Stuck, Overdue or Untouched tasks,
    counted exactly as that team's Attention tab counts them, the most first.
    A count opens the team on its Needs attention tab.
 3. **No one on it:** open tasks with nobody on them, soonest due first. Each

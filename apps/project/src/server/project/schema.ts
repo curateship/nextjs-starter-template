@@ -28,7 +28,7 @@ import type {
   TaskStatus,
   TeamRole,
 } from "@/lib/project/rules"
-import type { DayPart, HabitIcon, SkyKind } from "@/lib/project/daily-card"
+import type { DailySection, DayPart, HabitIcon, SkyKind } from "@/lib/project/daily-card"
 import type { SavedViewFilters, SavedViewNames } from "@/lib/project/saved-views"
 import type { StartingStepFields, StepField } from "@/lib/project/step-fields"
 import type { FieldKind, FieldSettings, WhoCanChange } from "@/lib/project/task-fields"
@@ -1174,6 +1174,7 @@ export const projectDailyCards = pgTable("project_daily_cards", {
   reminderAfternoon: varchar("reminder_afternoon", { length: 5 }).default("15:00"),
   reminderNight: varchar("reminder_night", { length: 5 }).default("21:00"),
   celebrated: text("celebrated").array().notNull().default([]),
+  sectionOrder: text("section_order").array().$type<DailySection[]>().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 

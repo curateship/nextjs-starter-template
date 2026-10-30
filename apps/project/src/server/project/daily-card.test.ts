@@ -26,6 +26,7 @@ import {
   saveJournalRating,
   saveJournalText,
   saveOwnWords,
+  saveSectionOrder,
   searchJournal,
   setHabitCount,
 } from "@/server/project/daily-card"
@@ -273,6 +274,14 @@ describe("the site admin's habits", () => {
 })
 
 describe("the site admin's journal", () => {
+  it("keeps the site admin's section order, and refuses it from anyone else", async () => {
+    expect((await loadDailyCard(tyler.id, database, NINE)).settings.sections[0]).toBe("line")
+    const order = ["routine", "journal", "deepWork", "meeting", "line", "progress", "windDown"] as const
+    await saveSectionOrder(tyler.id, [...order], database)
+    expect((await loadDailyCard(tyler.id, database, NINE)).settings.sections).toEqual([...order])
+    await expect(saveSectionOrder(ben.id, [...order], database)).rejects.toThrow()
+  })
+
   it("shows no line or question of its own, only the site admin's", async () => {
     let card = await loadDailyCard(tyler.id, database, NINE)
     expect(card.admin!.line).toBe("")

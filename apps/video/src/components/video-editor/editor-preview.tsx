@@ -20,9 +20,14 @@ import {
   soundFadeGain,
   type FadePair,
 } from "@/lib/video/clip-fades"
-import { clipFit } from "@/lib/video/clip-frame-fit"
 import {
-  clipScale,
+  clipFillFocus,
+  clipFit,
+  fillFocusCss,
+  storedFillFocus,
+} from "@/lib/video/clip-frame-fit"
+import {
+  clipBoxRatio,
   containedShare,
   isPlacedPicture,
   pictureBoxCss,
@@ -46,6 +51,11 @@ import {
 } from "@/lib/video/clip-transitions"
 import type { PlaybackSeekMode } from "@/lib/video/playback-clock"
 import {
+  progressBarShare,
+  progressBarThicknessPx,
+  progressBarTopPx,
+} from "@/lib/video/progress-bar"
+import {
   captionEntranceProgress,
   captionWordAnimation,
   captionWordTransformCss,
@@ -54,6 +64,11 @@ import {
 } from "@/lib/video/caption-animations"
 import { captionWordHighlight, litWordAt } from "@/lib/video/caption-words"
 import { SAFE_BOX_ASPECT, safeBoxShares } from "@/lib/video/safe-box"
+import {
+  shapeDesignFrame,
+  shapePathsMarkup,
+  shapeProgress,
+} from "@/lib/video/shapes"
 import { requireTextFont } from "@/lib/video/text-fonts"
 import {
   TEXT_LINE_HEIGHT,
@@ -65,6 +80,9 @@ import {
   stageSnapThreshold,
 } from "@/lib/video/timeline-snapping"
 import { DESIGN_HEIGHT } from "@/lib/video/timeline-utils"
+import { cn } from "@/lib/utils"
+import { cleanSoundKey } from "@/lib/video/voice-clean"
+import { useCleanSounds } from "@/components/video-editor/sound-tool-store"
 import { useCaptionSettings } from "@/components/video-editor/caption-settings-context"
 import {
   timelineDurationMs,
@@ -106,6 +124,11 @@ type MediaEntry = {
   order: number
   transition?: ClipTransition | null
   fades: FadePair
+  /**
+   * A video whose sound plays from its cleaned copy instead (voice-clean.ts),
+   * so its own element stays silent.
+   */
+  soundElsewhere?: boolean
 }
 // Pictures and text are still — they only need to know what covers what.
 type VisualEntry = {
@@ -121,6 +144,7 @@ type PlaybackFrame = {
   audios: Map<string, MediaEntry>
   images: Map<string, VisualEntry>
   texts: Map<string, VisualEntry>
+  shapes: Map<string, VisualEntry>
   preparedVideos: Map<string, MediaEntry>
   preparedAudios: Map<string, MediaEntry>
 }
@@ -128,6 +152,7 @@ type PlaybackEntry =
   | { kind: "media"; entry: MediaEntry }
   | { kind: "image"; entry: VisualEntry }
   | { kind: "text"; entry: VisualEntry }
+  | { kind: "shape"; entry: VisualEntry }
 type FastSeekMediaElement = HTMLMediaElement & {
   fastSeek?: (time: number) => void
 }
@@ -171,6 +196,43 @@ function seekPreviewMedia(
   requests.set(element, { mode, targetS })
 }
 
+// The two ends of a shape, each with a handle of its own while it is picked.
+const SHAPE_ENDS = ["from", "to"] as const
+
+/** Where a shape's dashed box and its two end dots sit, in percent. */
+function shapeHandleCss(clip: EditorClip) {
+  const fromX = clip.x ?? 0.5
+  const fromY = clip.y ?? 0.5
+  const toX = clip.toX ?? 0.5
+  const toY = clip.toY ?? 0.5
+  return {
+    box: {
+      left: `calc(${Math.min(fromX, toX) * 100}% - 8px)`,
+      top: `calc(${Math.min(fromY, toY) * 100}% - 8px)`,
+      width: `calc(${Math.abs(toX - fromX) * 100}% + 16px)`,
+      height: `calc(${Math.abs(toY - fromY) * 100}% + 16px)`,
+    },
+    from: { left: `${fromX * 100}%`, top: `${fromY * 100}%` },
+    to: { left: `${toX * 100}%`, top: `${toY * 100}%` },
+  }
+}
+
+/** Moves a dragged shape's box and dots without a render. */
+function placeShapeHandles(stage: HTMLElement, clip: EditorClip) {
+  const css = shapeHandleCss(clip)
+  const parts = [
+    ["box", css.box],
+    ["from", css.from],
+    ["to", css.to],
+  ] as const
+  for (const [part, style] of parts) {
+    const element = stage.querySelector<HTMLElement>(
+      `[data-shape-handle="${clip.id}:${part}"]`
+    )
+    if (element) Object.assign(element.style, style)
+  }
+}
+
 /** How far before its end a file is parked to hold its last frame. */
 const HOLD_LAST_FRAME_S = 0.05
 
@@ -189,10 +251,15 @@ function holdsLastFrame(element: HTMLMediaElement, targetS: number) {
 
 // Flatten the lanes into draw order (the top lane covers the ones below it),
 // working out the blend entering each clip from the one before it on its lane.
-function flattenTracks(tracks: EditorTrack[]) {
+// A clip whose voice is cleaned plays its sound from the cleaned copy once
+// the worker has made it: a sound clip simply plays that file, and a video
+// is drawn as before with a sound clip of the copy laid alongside it, timed
+// and trimmed the same, so the picture and the cleaned sound stay together.
+function flattenTracks(tracks: EditorTrack[], cleanUrls: Map<string, string>) {
   const media: MediaEntry[] = []
   const images: VisualEntry[] = []
   const texts: VisualEntry[] = []
+  const shapes: VisualEntry[] = []
   const dips: DipWindow[] = []
   tracks.forEach((track, trackIndex) => {
     const zIndex = tracks.length - trackIndex
@@ -205,9 +272,25 @@ function flattenTracks(tracks: EditorTrack[]) {
       }
       if (clip.kind === "text") {
         texts.push({ clip, zIndex, fades })
+      } else if (clip.kind === "shape") {
+        shapes.push({ clip, zIndex, fades })
       } else if (clip.kind === "image" && clip.url) {
         images.push({ clip, zIndex, transition, fades })
       } else if (clip.url) {
+        const cleanUrl =
+          clip.voiceClean && clip.mediaId
+            ? cleanUrls.get(cleanSoundKey(clip.mediaId, clip.voiceClean))
+            : undefined
+        if (cleanUrl && clip.kind === "audio") {
+          media.push({
+            clip: { ...clip, url: cleanUrl },
+            track,
+            zIndex,
+            order: media.length,
+            fades,
+          })
+          return
+        }
         media.push({
           clip,
           track,
@@ -215,16 +298,26 @@ function flattenTracks(tracks: EditorTrack[]) {
           order: media.length,
           transition,
           fades,
+          soundElsewhere: !!cleanUrl,
         })
+        if (cleanUrl) {
+          media.push({
+            clip: { ...clip, id: `${clip.id}:clean`, kind: "audio", url: cleanUrl },
+            track,
+            zIndex,
+            order: media.length,
+            fades,
+          })
+        }
       }
     })
   })
-  return { media, images, texts, dips }
+  return { media, images, texts, shapes, dips }
 }
 
 // Keep a map of live elements. The ref is read in the callback (after the
 // element exists), never during render.
-function registerRef<K, T extends HTMLElement>(
+function registerRef<K, T extends Element>(
   refs: { current: Map<K, T> },
   key: K
 ) {
@@ -252,6 +345,29 @@ function colourFilterCss(clip: EditorClip) {
     : ""
 }
 
+// Where a filled picture's crop sits; a fitted one is always centred.
+function objectPositionCss(clip: EditorClip) {
+  return clipFit(clip) === "cover" ? fillFocusCss(clipFillFocus(clip)) : "50% 50%"
+}
+
+/**
+ * How much of its box a picture or video covers once fitted, so its box can
+ * hug it. Only for one fitted inside and holding still: a filled one covers
+ * its whole box, and a moving one is moved as a whole frame, the way the
+ * export draws it.
+ */
+function fittedShare(
+  ratios: Map<string, number>,
+  clip: EditorClip,
+  frameRatio: number
+): FrameShare {
+  const pictureRatio = clip.url ? ratios.get(clip.url) : undefined
+  if (!pictureRatio || clipFit(clip) !== "contain" || clipMotion(clip)) {
+    return { width: 1, height: 1 }
+  }
+  return containedShare(pictureRatio, clipBoxRatio(clip, frameRatio))
+}
+
 function clamp01(value: number) {
   return Math.min(1, Math.max(0, value))
 }
@@ -270,6 +386,8 @@ function playbackFrameAt(frames: PlaybackFrame[], timeMs: number) {
 export function EditorPreview() {
   const tracks = useEditorSelector((state) => state.tracks)
   const aspect = useEditorSelector((state) => state.aspect)
+  const selectedClipId = useEditorSelector((state) => state.selectedClipId)
+  const progressBar = useEditorSelector((state) => state.progressBar)
   const { clock, dispatch } = useEditorRuntime()
 
   const containerRef = React.useRef<HTMLDivElement>(null)
@@ -278,22 +396,50 @@ export function EditorPreview() {
   const audioRefs = React.useRef(new Map<string, HTMLAudioElement>())
   const imageRefs = React.useRef(new Map<string, HTMLImageElement>())
   const textRefs = React.useRef(new Map<string, HTMLDivElement>())
+  const shapeRefs = React.useRef(new Map<string, SVGSVGElement>())
   // The black layer a dip-to-black seam drives.
   const dipRef = React.useRef<HTMLDivElement>(null)
+  // The progress bar's filled part, widened by the frame loop.
+  const progressFillRef = React.useRef<HTMLDivElement>(null)
   const syncFrameRef = React.useRef<() => void>(() => undefined)
-  // A text overlay, or a picture smaller than the frame, being dragged. Its
-  // position moves directly on the element during the drag and is written to
-  // the store once, on release. `scale` is set for a picture, whose element is
-  // placed by its corner rather than its middle.
+  // A text overlay, or a picture or video smaller than the frame, being
+  // dragged. Its position moves directly on the element during the drag and
+  // is written to the store once, on release. `box` is set for a picture or
+  // video, whose element is placed by its corner rather than its middle.
   const overlayDragRef = React.useRef<{
     clipId: string
-    scale: number | null
+    element: HTMLElement
+    box: EditorClip | null
     share: FrameShare
     offsetX: number
     offsetY: number
     startX: number
     startY: number
     moved: boolean
+  } | null>(null)
+  // A filled picture or video having its crop slid inside its box. The same
+  // rule as above: the element moves during the drag, the store hears once.
+  const focusDragRef = React.useRef<{
+    clipId: string
+    element: HTMLElement
+    axis: "x" | "y"
+    overflowPx: number
+    startX: number
+    startY: number
+    startFocus: number
+    focus: number
+    moved: boolean
+  } | null>(null)
+  // A shape, or one of its two ends, being moved. The same rule again: the
+  // frame loop draws it from `patch` during the drag, and the store hears
+  // once on release, as one undo step.
+  const shapeDragRef = React.useRef<{
+    clip: EditorClip
+    part: "whole" | "from" | "to"
+    startX: number
+    startY: number
+    moved: boolean
+    patch: Partial<EditorClip>
   } | null>(null)
   // The two centre lines a dragged overlay locks onto. Shown and hidden
   // directly for the same reason the drag is: state here would re-render the
@@ -308,6 +454,8 @@ export function EditorPreview() {
   const [pictureRatios, setPictureRatios] = React.useState(
     () => new Map<string, number>()
   )
+  // The same numbers for the frame loop, which runs outside React's renders.
+  const pictureRatiosRef = React.useRef(pictureRatios)
 
   // Watch the space the stage has. The stage is sized in code because CSS
   // cannot fit a box to a shape against both a maximum width and height.
@@ -333,10 +481,24 @@ export function EditorPreview() {
     stageWidth = stageHeight * ratio
   }
 
-  const { media, images, texts, dips } = React.useMemo(
-    () => flattenTracks(tracks),
+  const allClips = React.useMemo(
+    () => tracks.flatMap((track) => track.clips),
     [tracks]
   )
+  const cleanSounds = useCleanSounds(allClips)
+  const cleanUrls = React.useMemo(() => {
+    const urls = new Map<string, string>()
+    for (const [key, state] of cleanSounds) {
+      if (state.status === "ready") urls.set(key, state.url)
+    }
+    return urls
+  }, [cleanSounds])
+  const { media, images, texts, shapes, dips } = React.useMemo(
+    () => flattenTracks(tracks, cleanUrls),
+    [tracks, cleanUrls]
+  )
+  const projectDurationMs = React.useMemo(() => timelineDurationMs(tracks), [tracks])
+  const shapeFrame = React.useMemo(() => shapeDesignFrame(ratio), [ratio])
 
   /**
    * What is on screen only changes where a clip starts or ends. Build one
@@ -381,6 +543,7 @@ export function EditorPreview() {
     for (const entry of media) add({ kind: "media", entry })
     for (const entry of images) add({ kind: "image", entry })
     for (const entry of texts) add({ kind: "text", entry })
+    for (const entry of shapes) add({ kind: "shape", entry })
     if (!events.has(0)) {
       events.set(0, { enter: [], leave: [], prepare: [], release: [] })
     }
@@ -389,6 +552,7 @@ export function EditorPreview() {
     const preparedMedia = new Map<string, MediaEntry>()
     const activeImages = new Map<string, VisualEntry>()
     const activeTexts = new Map<string, VisualEntry>()
+    const activeShapes = new Map<string, VisualEntry>()
     const frames: PlaybackFrame[] = []
     for (const startMs of [...events.keys()].sort((a, b) => a - b)) {
       const event = events.get(startMs)!
@@ -396,6 +560,7 @@ export function EditorPreview() {
       for (const item of event.leave) {
         if (item.kind === "media") activeMedia.delete(item.entry.clip.id)
         else if (item.kind === "image") activeImages.delete(item.entry.clip.id)
+        else if (item.kind === "shape") activeShapes.delete(item.entry.clip.id)
         else activeTexts.delete(item.entry.clip.id)
       }
       for (const entry of event.prepare) preparedMedia.set(entry.clip.id, entry)
@@ -404,6 +569,8 @@ export function EditorPreview() {
           activeMedia.set(item.entry.clip.id, item.entry)
         } else if (item.kind === "image") {
           activeImages.set(item.entry.clip.id, item.entry)
+        } else if (item.kind === "shape") {
+          activeShapes.set(item.entry.clip.id, item.entry)
         } else {
           activeTexts.set(item.entry.clip.id, item.entry)
         }
@@ -443,12 +610,13 @@ export function EditorPreview() {
         audios,
         images: new Map(activeImages),
         texts: new Map(activeTexts),
+        shapes: new Map(activeShapes),
         preparedVideos,
         preparedAudios,
       })
     }
     return frames
-  }, [media, images, texts])
+  }, [media, images, texts, shapes])
 
   /**
    * "Duck under voice", while editing rather than only in the finished film:
@@ -494,6 +662,14 @@ export function EditorPreview() {
     () => playbackFrames[0]
   )
   React.useLayoutEffect(() => syncFrameRef.current(), [preparedFrame])
+  // A bar switched on while paused is filled to the playhead at once.
+  React.useLayoutEffect(() => syncFrameRef.current(), [progressBar])
+  // The picked clip, for the frame loop: a shape being placed shows whole.
+  const selectedRef = React.useRef(selectedClipId)
+  React.useLayoutEffect(() => {
+    selectedRef.current = selectedClipId
+    syncFrameRef.current()
+  }, [selectedClipId])
 
   /**
    * Let the sound lead. The clock follows whichever element is actually
@@ -557,6 +733,13 @@ export function EditorPreview() {
     return () => clock.setTimeSource(null)
   }, [clock, playbackFrames])
 
+  // The frame loop reads the shapes from the ref, so it sees new ones without
+  // being rebuilt; a render reads the state (fittedShare, below).
+  const shareOf = React.useCallback(
+    (clip: EditorClip) => fittedShare(pictureRatiosRef.current, clip, ratio),
+    [ratio]
+  )
+
   // The one per-frame loop, driven by the clock: it ticks while playing and
   // fires once per seek. Everything in here touches the DOM directly.
   React.useEffect(() => {
@@ -586,6 +769,12 @@ export function EditorPreview() {
     for (const element of textRefs.current.values()) {
       element.style.visibility = "hidden"
     }
+    for (const element of shapeRefs.current.values()) {
+      element.style.visibility = "hidden"
+    }
+    // How far drawn each shape's paths were last written, so a shape that is
+    // whole is not redrawn on every frame.
+    const drawnShapes = new WeakMap<SVGSVGElement, string>()
 
     function syncFrame() {
       const timeMs = clock.getTime()
@@ -633,7 +822,45 @@ export function EditorPreview() {
             element.style.visibility = "visible"
           }
         }
+        for (const [clipId] of previousFrame?.shapes ?? []) {
+          if (frame.shapes.has(clipId)) continue
+          const element = shapeRefs.current.get(clipId)
+          if (element && element.style.visibility !== "hidden") {
+            element.style.visibility = "hidden"
+          }
+        }
+        for (const [clipId] of frame.shapes) {
+          if (previousFrame?.shapes.has(clipId)) continue
+          const element = shapeRefs.current.get(clipId)
+          if (element && element.style.visibility !== "visible") {
+            element.style.visibility = "visible"
+          }
+        }
         previousFrame = frame
+      }
+
+      // Shapes drawing themselves on, from the same sums the export draws
+      // its pictures with, and fading the way a picture does. A shape that
+      // is picked while the video is paused shows whole, because one that
+      // lands at the playhead would otherwise be nothing yet, with nothing
+      // to see while it is placed.
+      for (const [clipId, entry] of frame.shapes) {
+        const element = shapeRefs.current.get(clipId)
+        if (!element) continue
+        const drag = shapeDragRef.current
+        const clip =
+          drag?.clip.id === clipId ? { ...entry.clip, ...drag.patch } : entry.clip
+        const intoMs = timeMs - clip.startMs
+        const placing = !playing && clipId === selectedRef.current
+        const progress = placing ? 1 : shapeProgress(clip, intoMs)
+        const markup = shapePathsMarkup(clip, shapeFrame, progress)
+        if (drawnShapes.get(element) !== markup) {
+          drawnShapes.set(element, markup)
+          element.innerHTML = markup
+        }
+        const level = fadeLevelAt(entry.fades, entry.clip.durationMs, intoMs)
+        const opacity = level === 1 ? "" : String(level)
+        if (element.style.opacity !== opacity) element.style.opacity = opacity
       }
 
       // The entrance. Every visible line is moved from the same numbers the
@@ -713,9 +940,13 @@ export function EditorPreview() {
           if (element.style.opacity !== opacity) element.style.opacity = opacity
           const zIndex = String(entry.zIndex + 1)
           if (element.style.zIndex !== zIndex) element.style.zIndex = zIndex
-          const transform = state.translateXPct
-            ? `translateX(${state.translateXPct}%)`
-            : ""
+          // A placed video has further to come than its own width, the same
+          // as a small picture below.
+          const transform = !state.translateXPct
+            ? ""
+            : isPlacedPicture(clip)
+              ? `translateX(${((stageRef.current?.clientWidth ?? 0) - element.offsetLeft) * (state.translateXPct / 100)}px)`
+              : `translateX(${state.translateXPct}%)`
           if (element.style.transform !== transform) {
             element.style.transform = transform
           }
@@ -728,17 +959,34 @@ export function EditorPreview() {
           if (element.style.zIndex !== zIndex) element.style.zIndex = zIndex
           if (element.style.transform) element.style.transform = ""
         }
-        // Fit or fill. Written here rather than on the element because clips
-        // of the same file share one element, and two clips of that file may
-        // be set differently.
+        // Fit or fill, the crop's spot and the clip's box. Written here
+        // rather than on the element because clips of the same file share one
+        // element, and two clips of that file may be set differently.
         const objectFit = clipFit(clip)
         if (element.style.objectFit !== objectFit) {
           element.style.objectFit = objectFit
         }
+        // A video being dragged, or having its crop slid, is moved by the
+        // drag itself until release; writing the stored place here would
+        // snap it back every frame while it plays.
+        const dragging =
+          overlayDragRef.current?.element === element ||
+          focusDragRef.current?.element === element
+        if (!dragging) {
+          const objectPosition = objectPositionCss(clip)
+          if (element.style.objectPosition !== objectPosition) {
+            element.style.objectPosition = objectPosition
+          }
+          const box = pictureBoxCss(clip, shareOf(clip))
+          if (element.style.left !== box.left) element.style.left = box.left
+          if (element.style.top !== box.top) element.style.top = box.top
+          if (element.style.width !== box.width) element.style.width = box.width
+          if (element.style.height !== box.height) element.style.height = box.height
+        }
         // Colour, for the same reason: it belongs to the clip, not the file.
         const filter = colourFilterCss(clip)
         if (element.style.filter !== filter) element.style.filter = filter
-        const muted = entry.track.muted || !!clip.muted
+        const muted = entry.track.muted || !!clip.muted || !!entry.soundElsewhere
         if (element.muted !== muted) element.muted = muted
         const volume =
           clipVolume(clip) *
@@ -854,6 +1102,14 @@ export function EditorPreview() {
         }
       }
 
+      // The progress bar, measured against the whole video the way the
+      // export measures it.
+      const progressFill = progressFillRef.current
+      if (progressFill) {
+        const width = `${progressBarShare(timeMs, projectDurationMs) * 100}%`
+        if (progressFill.style.width !== width) progressFill.style.width = width
+      }
+
       // Dip to black: one full-frame black layer, at whichever seam is nearest.
       const dipElement = dipRef.current
       if (dipElement) {
@@ -878,31 +1134,25 @@ export function EditorPreview() {
       }
       unsubscribe()
     }
-  }, [clock, playbackFrames, dips, duckEnvelope])
+  }, [clock, playbackFrames, dips, duckEnvelope, shareOf, projectDurationMs, shapeFrame])
 
-  // How much of the frame a small picture covers once fitted, so its box can
-  // hug it. Only for a picture fitted inside and holding still: a filled one
-  // covers its whole box, and a moving one is moved as a whole frame, the way
-  // the export draws it.
-  function pictureShare(clip: EditorClip): FrameShare {
-    const pictureRatio = clip.url ? pictureRatios.get(clip.url) : undefined
-    if (!pictureRatio || clipFit(clip) !== "contain" || clipMotion(clip)) {
-      return { width: 1, height: 1 }
-    }
-    return containedShare(pictureRatio, ratio)
+  // Each file's own shape, learned as it loads: a picture's natural size, a
+  // video's frame size. Kept twice, for the render and for the frame loop.
+  function learnPictureRatio(url: string | undefined, width: number, height: number) {
+    if (!url || !width || !height) return
+    const pictureRatio = width / height
+    if (pictureRatiosRef.current.get(url) === pictureRatio) return
+    const next = new Map(pictureRatiosRef.current)
+    next.set(url, pictureRatio)
+    pictureRatiosRef.current = next
+    setPictureRatios(next)
+    syncFrameRef.current()
   }
 
-  function learnPictureRatio(clip: EditorClip, element: HTMLImageElement) {
-    const url = clip.url
-    const { naturalWidth, naturalHeight } = element
-    if (!url || !naturalWidth || !naturalHeight) return
-    const pictureRatio = naturalWidth / naturalHeight
-    setPictureRatios((current) => {
-      if (current.get(url) === pictureRatio) return current
-      const next = new Map(current)
-      next.set(url, pictureRatio)
-      return next
-    })
+  // The one clip of a file the preview is showing right now, for a press on
+  // the file's shared `<video>`.
+  function videoClipAt(url: string) {
+    return playbackFrameAt(playbackFrames, clock.getTime()).videos.get(url)?.clip
   }
 
   // --- Dragging text, or a small picture, around the frame ------------------
@@ -920,8 +1170,9 @@ export function EditorPreview() {
     const centerY = (clip.y ?? 0.5) * rect.height
     overlayDragRef.current = {
       clipId: clip.id,
-      scale: clip.kind === "image" ? clipScale(clip) : null,
-      share: pictureShare(clip),
+      element: event.currentTarget as HTMLElement,
+      box: clip.kind === "text" ? null : clip,
+      share: shareOf(clip),
       offsetX: centerX - (event.clientX - rect.left),
       offsetY: centerY - (event.clientY - rect.top),
       startX: event.clientX,
@@ -968,22 +1219,16 @@ export function EditorPreview() {
     }
     drag.moved = true
     const snapped = resolveOverlayDrag(drag, event, stage.getBoundingClientRect())
-    if (drag.scale === null) {
-      const element = textRefs.current.get(drag.clipId)
-      if (element) {
-        element.style.left = `${snapped.x * 100}%`
-        element.style.top = `${snapped.y * 100}%`
-      }
+    if (!drag.box) {
+      drag.element.style.left = `${snapped.x * 100}%`
+      drag.element.style.top = `${snapped.y * 100}%`
     } else {
-      const element = imageRefs.current.get(drag.clipId)
-      if (element) {
-        const box = pictureBoxCss(
-          { kind: "image", scale: drag.scale, x: snapped.x, y: snapped.y },
-          drag.share
-        )
-        element.style.left = box.left
-        element.style.top = box.top
-      }
+      const box = pictureBoxCss(
+        { ...drag.box, x: snapped.x, y: snapped.y },
+        drag.share
+      )
+      drag.element.style.left = box.left
+      drag.element.style.top = box.top
     }
     paintCenterGuides(snapped.snappedX, snapped.snappedY)
   }
@@ -1005,7 +1250,159 @@ export function EditorPreview() {
     })
   }
 
-  const hasClips = media.length > 0 || images.length > 0 || texts.length > 0
+  // --- Sliding a filled clip's crop ------------------------------------------
+  // Only on the clip already picked, so a stray press on the picture never
+  // moves anything. Returns false when the clip does not overflow its box.
+  function handleFocusDown(event: React.PointerEvent, clip: EditorClip) {
+    if (event.button !== 0 || clipFit(clip) !== "cover" || !clip.url) return false
+    const pictureRatio = pictureRatiosRef.current.get(clip.url)
+    const element = event.currentTarget as HTMLElement
+    const rect = element.getBoundingClientRect()
+    if (!pictureRatio || !rect.width || !rect.height) return false
+    const boxRatio = rect.width / rect.height
+    if (Math.abs(pictureRatio - boxRatio) < 0.01) return false
+    const axis = pictureRatio > boxRatio ? "x" : "y"
+    const overflowPx =
+      axis === "x"
+        ? rect.height * pictureRatio - rect.width
+        : rect.width / pictureRatio - rect.height
+    const focus = clipFillFocus(clip)
+    focusDragRef.current = {
+      clipId: clip.id,
+      element,
+      axis,
+      overflowPx,
+      startX: event.clientX,
+      startY: event.clientY,
+      startFocus: focus,
+      focus,
+      moved: false,
+    }
+    element.setPointerCapture(event.pointerId)
+    return true
+  }
+
+  function handleFocusMove(event: React.PointerEvent) {
+    const drag = focusDragRef.current
+    if (!drag) return false
+    const delta =
+      drag.axis === "x" ? event.clientX - drag.startX : event.clientY - drag.startY
+    if (!drag.moved && Math.abs(delta) < 4) return true
+    drag.moved = true
+    // Dragging the picture right shows more of its left side.
+    drag.focus = clamp01(drag.startFocus - delta / drag.overflowPx)
+    drag.element.style.objectPosition = fillFocusCss(drag.focus)
+    return true
+  }
+
+  function handleFocusUp(event: React.PointerEvent) {
+    const drag = focusDragRef.current
+    if (!drag) return false
+    focusDragRef.current = null
+    drag.element.releasePointerCapture(event.pointerId)
+    if (drag.moved) {
+      dispatch({
+        type: "UPDATE_CLIP",
+        clipId: drag.clipId,
+        patch: { fillFocus: storedFillFocus(drag.focus) },
+      })
+    }
+    return true
+  }
+
+  // Every picture and video gets the same three handlers: a placed one drags,
+  // a filled one that is picked slides its crop, and anything else just
+  // selects nothing new.
+  function handleBoxDown(event: React.PointerEvent, clip: EditorClip | undefined) {
+    if (!clip) return
+    if (isPlacedPicture(clip)) {
+      handleOverlayDown(event, clip)
+    } else if (clip.id === selectedClipId) {
+      handleFocusDown(event, clip)
+    }
+  }
+  function handleBoxMove(event: React.PointerEvent) {
+    if (!handleFocusMove(event)) handleOverlayMove(event)
+  }
+  function handleBoxUp(event: React.PointerEvent) {
+    if (!handleFocusUp(event)) handleOverlayUp(event)
+  }
+
+  // --- Moving a shape, or one of its two ends --------------------------------
+  function handleShapeDown(
+    event: React.PointerEvent,
+    clip: EditorClip,
+    part: "whole" | "from" | "to"
+  ) {
+    if (event.button !== 0) return
+    event.stopPropagation()
+    // A drag must not start the browser selecting the page's text.
+    event.preventDefault()
+    dispatch({ type: "SELECT_CLIP", clipId: clip.id })
+    shapeDragRef.current = {
+      clip,
+      part,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      patch: {},
+    }
+    ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  }
+
+  function handleShapeMove(event: React.PointerEvent) {
+    const drag = shapeDragRef.current
+    const stage = stageRef.current
+    if (!drag || !stage) return
+    if (
+      !drag.moved &&
+      Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 4
+    ) {
+      return
+    }
+    drag.moved = true
+    const rect = stage.getBoundingClientRect()
+    const dx = (event.clientX - drag.startX) / rect.width
+    const dy = (event.clientY - drag.startY) / rect.height
+    const { clip } = drag
+    const fromX = clip.x ?? 0.5
+    const fromY = clip.y ?? 0.5
+    const toX = clip.toX ?? 0.5
+    const toY = clip.toY ?? 0.5
+    let patch: Partial<EditorClip>
+    if (drag.part === "from") {
+      patch = { x: clamp01(fromX + dx), y: clamp01(fromY + dy) }
+    } else if (drag.part === "to") {
+      patch = { toX: clamp01(toX + dx), toY: clamp01(toY + dy) }
+    } else {
+      // The whole shape moves as one, and stops at the frame's edge rather
+      // than squashing against it.
+      const moveX = Math.min(Math.max(dx, -Math.min(fromX, toX)), 1 - Math.max(fromX, toX))
+      const moveY = Math.min(Math.max(dy, -Math.min(fromY, toY)), 1 - Math.max(fromY, toY))
+      patch = {
+        x: fromX + moveX,
+        y: fromY + moveY,
+        toX: toX + moveX,
+        toY: toY + moveY,
+      }
+    }
+    drag.patch = patch
+    placeShapeHandles(stage, { ...clip, ...patch })
+    syncFrameRef.current()
+  }
+
+  function handleShapeUp(event: React.PointerEvent) {
+    const drag = shapeDragRef.current
+    if (!drag) return
+    shapeDragRef.current = null
+    ;(event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId)
+    if (drag.moved) {
+      dispatch({ type: "UPDATE_CLIP", clipId: drag.clip.id, patch: drag.patch })
+    }
+  }
+
+  const hasClips =
+    media.length > 0 || images.length > 0 || texts.length > 0 || shapes.length > 0
   const colouredClips = [...media, ...images]
     .map((entry) => entry.clip)
     .filter((clip) => colourFilterCss(clip) !== "")
@@ -1035,12 +1432,20 @@ export function EditorPreview() {
             ref={registerRef(videoRefs, url)}
             src={url}
             preload="auto"
-            onLoadedMetadata={() => syncFrameRef.current()}
+            onLoadedMetadata={(event) => {
+              const element = event.currentTarget
+              learnPictureRatio(url, element.videoWidth, element.videoHeight)
+              syncFrameRef.current()
+            }}
             onClick={() => {
               if (clock.playing) clock.pause()
             }}
+            onPointerDown={(event) => handleBoxDown(event, videoClipAt(url))}
+            onPointerMove={handleBoxMove}
+            onPointerUp={handleBoxUp}
+            onPointerCancel={handleBoxUp}
             playsInline
-            className="absolute inset-0 h-full w-full"
+            className="absolute inset-0 h-full w-full touch-none"
             style={{ opacity: 0, objectFit: "contain" }}
           />
         ))}
@@ -1060,6 +1465,10 @@ export function EditorPreview() {
             when clicked, the way it never has. */}
         {images.map(({ clip, zIndex }) => {
           const placed = isPlacedPicture(clip)
+          const slides = !placed && clip.id === selectedClipId && clipFit(clip) === "cover"
+          // A picture taller than its box slides up and down, not across.
+          const slidesDown =
+            (pictureRatios.get(clip.url ?? "") ?? Infinity) < clipBoxRatio(clip, ratio)
           return (
             <img
               key={clip.id}
@@ -1067,24 +1476,33 @@ export function EditorPreview() {
               src={clip.url}
               alt={clip.name}
               draggable={false}
-              onPointerDown={
-                placed ? (event) => handleOverlayDown(event, clip) : undefined
-              }
-              onPointerMove={placed ? handleOverlayMove : undefined}
-              onPointerUp={placed ? handleOverlayUp : undefined}
-              onPointerCancel={placed ? handleOverlayUp : undefined}
+              onPointerDown={(event) => handleBoxDown(event, clip)}
+              onPointerMove={handleBoxMove}
+              onPointerUp={handleBoxUp}
+              onPointerCancel={handleBoxUp}
               // Learned for every picture, so one that is shrunk later
               // already knows its shape.
-              onLoad={(event) => learnPictureRatio(clip, event.currentTarget)}
-              title={placed ? "Drag to move" : undefined}
+              onLoad={(event) =>
+                learnPictureRatio(
+                  clip.url,
+                  event.currentTarget.naturalWidth,
+                  event.currentTarget.naturalHeight
+                )
+              }
               className={
                 placed
                   ? "absolute cursor-move touch-none select-none"
-                  : "absolute"
+                  : slides
+                    ? cn(
+                        "absolute touch-none select-none",
+                        slidesDown ? "cursor-ns-resize" : "cursor-ew-resize"
+                      )
+                    : "absolute"
               }
               style={{
-                ...pictureBoxCss(clip, pictureShare(clip)),
+                ...pictureBoxCss(clip, fittedShare(pictureRatios, clip, ratio)),
                 objectFit: clipFit(clip),
+                objectPosition: objectPositionCss(clip),
                 filter: colourFilterCss(clip) || undefined,
                 zIndex,
                 visibility: isActive(clip, timeMs) ? "visible" : "hidden",
@@ -1140,6 +1558,64 @@ export function EditorPreview() {
           )
         })}
 
+        {/* Shapes: the lines are drawn by the frame loop, in the same pixels
+            the export uses. The dashed box round the two ends takes the
+            press that moves it, so while a shape is on screen anything under
+            that box is picked from the timeline instead. */}
+        {shapes.map(({ clip, zIndex }) => {
+          const handles = shapeHandleCss(clip)
+          const selected = clip.id === selectedClipId
+          const active = isActive(clip, timeMs)
+          return (
+            <React.Fragment key={clip.id}>
+              <svg
+                ref={registerRef(shapeRefs, clip.id)}
+                aria-hidden="true"
+                viewBox={`0 0 ${shapeFrame.width} ${shapeFrame.height}`}
+                preserveAspectRatio="none"
+                className="pointer-events-none absolute inset-0 h-full w-full"
+                style={{ zIndex, visibility: active ? "visible" : "hidden" }}
+              />
+              {active ? (
+                <div
+                  data-shape-handle={`${clip.id}:box`}
+                  aria-label={`Move the ${clip.name.toLowerCase()}`}
+                  onPointerDown={(event) => handleShapeDown(event, clip, "whole")}
+                  onPointerMove={handleShapeMove}
+                  onPointerUp={handleShapeUp}
+                  onPointerCancel={handleShapeUp}
+                  className={cn(
+                    "absolute cursor-move touch-none outline-1 outline-dashed select-none",
+                    selected ? "outline-white/70" : "outline-transparent hover:outline-white/40"
+                  )}
+                  style={{ ...handles.box, zIndex }}
+                />
+              ) : null}
+              {active && selected
+                ? SHAPE_ENDS.map((part) => (
+                    <div
+                      key={part}
+                      data-shape-handle={`${clip.id}:${part}`}
+                      aria-label={
+                        clip.shape === "arrow"
+                          ? part === "from"
+                            ? "Move the arrow's tail"
+                            : "Move the arrow's tip"
+                          : "Resize the circle"
+                      }
+                      onPointerDown={(event) => handleShapeDown(event, clip, part)}
+                      onPointerMove={handleShapeMove}
+                      onPointerUp={handleShapeUp}
+                      onPointerCancel={handleShapeUp}
+                      className="absolute size-3 -translate-x-1/2 -translate-y-1/2 cursor-crosshair touch-none rounded-full border-2 border-white bg-black/60 select-none"
+                      style={{ ...handles[part], zIndex: 93 }}
+                    />
+                  ))
+                : null}
+            </React.Fragment>
+          )
+        })}
+
         {/* The colour matrices the clips above point at. `sRGB` makes the
             sums run on the stored values, as `eq` does, rather than on the
             browser's default linear light. */}
@@ -1192,6 +1668,26 @@ export function EditorPreview() {
           className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/80"
           style={{ display: "none", zIndex: 95 }}
         />
+
+        {/* The progress bar, over everything the way the export draws it. */}
+        {progressBar && stageHeight > 0 ? (
+          <div
+            aria-hidden="true"
+            data-progress-bar={progressBar.edge}
+            className="pointer-events-none absolute inset-x-0"
+            style={{
+              top: progressBarTopPx(progressBar, { width: stageWidth, height: stageHeight }),
+              height: progressBarThicknessPx(progressBar, { width: stageWidth, height: stageHeight }),
+              zIndex: 91,
+            }}
+          >
+            <div
+              ref={progressFillRef}
+              className="h-full"
+              style={{ width: 0, backgroundColor: progressBar.color }}
+            />
+          </div>
+        ) : null}
 
         {/* The dip-to-black layer, above every clip so the frame really does
             pass through black. */}

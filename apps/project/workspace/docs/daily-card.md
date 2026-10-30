@@ -19,6 +19,11 @@ Daily card", and that file wins wherever the two disagree.
   `admin-dashboard.tsx`; both draw `DailySkyBanner` and `DailyCard` from
   `daily-card.tsx`. It loads with the page (`loadDailyCard`,
   `src/server/project/daily-card.ts`).
+- **Each section with a heading folds**: pressing the heading, or the arrow
+  that shows while it is pointed at, folds it down to its heading, and this
+  browser remembers it ("Add collapsible to the cards in my daily card").
+  The cards in the pencil window fold the same way ("add collasiple to cards
+  in modal too").
 - **Each part sits on its own light gray box with a border**, drawn like the
   panel's other cards, such as deep work, the next meeting, the routine and
   the journal ("It looks too busy with all the sections, we need to clean it
@@ -161,11 +166,19 @@ a team screen or sent to anyone.
   night, and the next card day starts hidden again. It records the time in
   `up_at` and says nothing about sleep: there is no "You slept" ("Remove the
   slept feature"). An employee's card has no Start day.
+- **Today I want to... and Tomorrow I want to...** are written in the editor
+  task notes use: select words for bold, a list or a link, with lines and
+  spacing kept as typed ("Make that field using tip tap editor so I can add
+  more advanced text and spacing"). The box starts two lines tall and grows
+  ("the field should only be 2 row"). It is saved as the editor's document;
+  an intention written before 30 Oct 2026 is plain words and shows as typed.
+  Look back's search and On this day read its words alone.
 - **Morning:** "Today I want to...", and a line for the day. The line comes
   only from the site admin's own lines, one per day in turn; with none, no
   line shows. There are no built-in lines or questions ("Remove all of the
   premade morning and night lines", 30 Oct 2026).
-- **Afternoon:** the morning's intention, read back.
+- **Afternoon:** the morning's intention, read back on its own, with no label
+  before it ("remove this label "Today you want to:"").
 - **Night:** tomorrow at a glance and the morning's intention sit on the card.
   Tomorrow lists every team's meetings ("Meeting: 3:00 PM Sprint retro ·
   Sample team"), tasks due across the teams and the site admin's own list
@@ -213,9 +226,21 @@ a team screen or sent to anyone.
 
 ### Behind the pencil, for the site admin
 
-Your hours, Habits, Reminders, Sky, Your own lines and Your own night
-questions. Everything saves itself, apart from a habit, which has Create
-habit and Save changes. An employee's pencil holds Your hours only.
+Today, Sections, Your hours, Habits, Reminders, Sky, Your own lines and Your
+own night questions, in that order. Today holds "Today I want to...", open to
+change at any time of day here, while the card offers it in the morning only
+("It should be edible in the modal").
+
+- **Sections** lists the card's parts: Line for the day, Afternoon progress,
+  Deep work, Next meeting, Done today at night, Routine, and Today I want
+  to... with Tomorrow. Dragging one sets the order the card shows them in, in
+  the panel, saved in the site admin's account so every computer and phone
+  shows the same order ("whats the point of dragging the cards in the modal
+  if its not reflected in the panel?"; he picked the account). The Sunday and
+  monthly look-backs stay on top, and Start day and Rate your day at the
+  foot. An employee's card keeps the card's own order.
+- **Everything saves itself**, apart from a habit, which has Create habit and
+  Save changes. An employee's pencil holds Your hours only.
 
 - **Sky** picks the drawn sky or one of four scenes along the bottom of it:
   beach, city, mountains or forest. The scenes are drawn too. "My own photos"
@@ -226,7 +251,9 @@ habit and Save changes. An employee's pencil holds Your hours only.
 `drizzle/0137_project_daily_card.sql`:
 
 - `project_daily_cards`: each person's hours, city, sky and photos, own lines
-  and questions, reminder times, and the milestones already celebrated.
+  and questions, reminder times, the milestones already celebrated, and the
+  site admin's section order (`section_order`, from
+  `drizzle/0138_project_daily_sections.sql`).
 - `project_habits` and `project_habit_days`: the site admin's habits and one
   row per habit per day ticked or counted.
 - `project_journal_days`: one row per card day.

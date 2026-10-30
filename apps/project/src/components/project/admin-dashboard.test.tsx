@@ -161,6 +161,7 @@ const DAILY: DailyCard = {
     ownLines: [],
     ownQuestions: [],
     reminders: { morning: "10:00", afternoon: "15:00", night: "21:00" },
+    sections: ["line", "progress", "deepWork", "meeting", "windDown", "routine", "journal"],
   },
   meetings: [],
   clock: { seconds: 0, running: null },
@@ -306,7 +307,7 @@ describe("the site admin's My dashboard", () => {
     const order = [
       "Projects",
       "Waiting on you",
-      "Needs attention",
+      "Urgent",
       "No one on it",
       "Invites not taken",
       "Due this week",

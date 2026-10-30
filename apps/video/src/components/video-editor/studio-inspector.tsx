@@ -1,5 +1,11 @@
 import * as React from "react"
-import { FilmIcon, Replace, RotateCcw, SlidersHorizontal } from "lucide-react"
+import {
+  FilmIcon,
+  Loader2Icon,
+  Replace,
+  RotateCcw,
+  SlidersHorizontal,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -36,9 +42,11 @@ import {
   storedPlaybackValue,
 } from "@/lib/video/clip-playback"
 import {
+  clipFillFocus,
   clipFit,
   CLIP_FIT_OPTIONS,
   storedClipFit,
+  storedFillFocus,
   type ClipFit,
 } from "@/lib/video/clip-frame-fit"
 import {
@@ -48,6 +56,40 @@ import {
   MIN_CLIP_SCALE,
   storedClipScale,
 } from "@/lib/video/clip-size"
+import {
+  layoutPatches,
+  splitPartner,
+  VIDEO_LAYOUTS,
+  type VideoLayoutId,
+} from "@/lib/video/video-layouts"
+import { usePlatformInset } from "@/components/video-editor/caption-settings-context"
+import {
+  retryCleanSound,
+  useCleanSounds,
+} from "@/components/video-editor/sound-tool-store"
+import {
+  cleanSoundKey,
+  DEFAULT_VOICE_CLEAN,
+  VOICE_CLEAN_OPTIONS,
+  type VoiceCleanStrength,
+} from "@/lib/video/voice-clean"
+import {
+  MAX_PROGRESS_BAR_THICKNESS,
+  MIN_PROGRESS_BAR_THICKNESS,
+  newProgressBar,
+  PROGRESS_BAR_EDGE_OPTIONS,
+  type ProgressBar,
+  type ProgressBarEdge,
+} from "@/lib/video/progress-bar"
+import {
+  DEFAULT_SHAPE_COLOR,
+  MAX_SHAPE_LINE_WIDTH,
+  MIN_SHAPE_LINE_WIDTH,
+  SHAPE_KINDS,
+  SHAPE_LABELS,
+  shapeLineWidth,
+  type ShapeKind,
+} from "@/lib/video/shapes"
 import {
   CLIP_COLOUR_STEP,
   clipColour,
@@ -145,6 +187,7 @@ const CLIP_KIND_LABEL: Record<EditorClip["kind"], string> = {
   audio: "Audio",
   image: "Picture",
   text: "Text",
+  shape: "Shape",
 }
 
 export function StudioInspector() {
@@ -168,6 +211,8 @@ export function StudioInspector() {
             <ProjectProps />
           ) : clip.kind === "text" ? (
             <TextInspector clip={clip} />
+          ) : clip.kind === "shape" ? (
+            <ShapeInspector clip={clip} />
           ) : (
             <MediaInspector clip={clip} />
           )}
@@ -221,6 +266,133 @@ function ProjectProps() {
         />
         <ProjectSpendRow />
       </InspectorCard>
+      <ProgressBarCard />
+    </>
+  )
+}
+
+/**
+ * The bar along one edge that fills as the video plays. It belongs to the
+ * project, so it is set here with no clip picked. The Text panel's Progress
+ * bar button is the other way to switch it on.
+ */
+function ProgressBarCard() {
+  const { dispatch } = useEditorRuntime()
+  const bar = useEditorSelector((state) => state.progressBar)
+  const inset = usePlatformInset()
+
+  function set(next: ProgressBar | null) {
+    dispatch({ type: "SET_PROGRESS_BAR", progressBar: next })
+  }
+
+  return (
+    <InspectorCard
+      title="Progress bar"
+      description="A thin bar that fills as the video plays."
+    >
+      <SwitchField
+        id="progress-bar-on"
+        label="Show a progress bar"
+        description="It runs the whole length of the video."
+        checked={!!bar}
+        onChange={(on) => set(on ? newProgressBar(inset.bottom) : null)}
+      />
+      {bar ? (
+        <>
+          <Tabs
+            value={bar.edge}
+            onValueChange={(edge) =>
+              set({
+                ...bar,
+                edge: edge as ProgressBarEdge,
+                // Kept clear of the platform's strip on whichever edge it moves to.
+                inset: newProgressBar(edge === "top" ? inset.top : inset.bottom).inset,
+              })
+            }
+          >
+            <TabsList aria-label="Which edge the bar runs along">
+              {PROGRESS_BAR_EDGE_OPTIONS.map((option) => (
+                <TabsTrigger key={option.id} value={option.id}>
+                  {option.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <ColorField
+            label="Colour"
+            value={bar.color}
+            onChange={(color) => set({ ...bar, color })}
+          />
+          <SliderField
+            id="progress-bar-thickness"
+            label="Thickness"
+            value={bar.thickness}
+            min={MIN_PROGRESS_BAR_THICKNESS}
+            max={MAX_PROGRESS_BAR_THICKNESS}
+            onChange={(thickness) => set({ ...bar, thickness })}
+          />
+        </>
+      ) : null}
+    </InspectorCard>
+  )
+}
+
+/**
+ * An arrow or a circle drawn over the video. It is moved on the preview: the
+ * box round it drags the whole shape, and the two dots drag its ends.
+ */
+function ShapeInspector({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+
+  function patch(next: Partial<EditorClip>, transient = false) {
+    dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: next, transient })
+  }
+
+  return (
+    <>
+      <InspectorCard
+        title="Shape"
+        description="Drag it on the preview, or drag a dot to move one end."
+      >
+        <Tabs
+          value={clip.shape ?? "arrow"}
+          onValueChange={(shape) =>
+            patch({ shape: shape as ShapeKind, name: SHAPE_LABELS[shape as ShapeKind] })
+          }
+        >
+          <TabsList aria-label="Which shape">
+            {SHAPE_KINDS.map((kind) => (
+              <TabsTrigger key={kind} value={kind}>
+                {SHAPE_LABELS[kind]}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <ColorField
+          label="Colour"
+          value={clip.color ?? DEFAULT_SHAPE_COLOR}
+          onChange={(color) => patch({ color }, true)}
+        />
+        <SliderField
+          id="shape-line-width"
+          label="Line thickness"
+          value={shapeLineWidth(clip)}
+          min={MIN_SHAPE_LINE_WIDTH}
+          max={MAX_SHAPE_LINE_WIDTH}
+          onChange={(lineWidth) => patch({ lineWidth }, true)}
+        />
+        <SwitchField
+          id="shape-draw-on"
+          label="Draws itself on"
+          description="Over its first half second. Off, it is simply there."
+          checked={!!clip.drawOn}
+          onChange={(drawOn) => patch({ drawOn: drawOn || undefined })}
+        />
+      </InspectorCard>
+
+      <FadesSection clip={clip} />
+
+      <Timing clip={clip} />
     </>
   )
 }
@@ -539,6 +711,83 @@ function VolumeField({ clip }: { clip: EditorClip }) {
 }
 
 /**
+ * Taking hum, hiss and room noise out of the clip's sound (voice-clean.ts).
+ * The export cleans the sound itself; the preview waits for the background
+ * worker's cleaned copy and says so on the clip until it arrives.
+ */
+function VoiceCleanField({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  const states = useCleanSounds(React.useMemo(() => [clip], [clip]))
+  if ((clip.kind !== "video" && clip.kind !== "audio") || !clip.mediaId) {
+    return null
+  }
+  const mediaId = clip.mediaId
+  const strength = clip.voiceClean
+  const state = strength ? states.get(cleanSoundKey(mediaId, strength)) : undefined
+
+  return (
+    <>
+      <SwitchField
+        id="clip-voice-clean"
+        label="Clean up the voice"
+        description="Takes out hum, hiss and steady room noise."
+        checked={!!strength}
+        onChange={(on) =>
+          dispatch({
+            type: "UPDATE_CLIP",
+            clipId: clip.id,
+            patch: { voiceClean: on ? DEFAULT_VOICE_CLEAN : undefined },
+          })
+        }
+      />
+      {strength ? (
+        <>
+          <Tabs
+            value={strength}
+            onValueChange={(next) =>
+              dispatch({
+                type: "UPDATE_CLIP",
+                clipId: clip.id,
+                patch: { voiceClean: next as VoiceCleanStrength },
+              })
+            }
+          >
+            <TabsList aria-label="How strongly the voice is cleaned">
+              {VOICE_CLEAN_OPTIONS.map((option) => (
+                <TabsTrigger key={option.id} value={option.id}>
+                  {option.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          {state?.status === "preparing" ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+              <Loader2Icon className="size-4 motion-safe:animate-spin" aria-hidden />
+              Getting the cleaned sound ready to play here. The export cleans it either way.
+            </p>
+          ) : state?.status === "failed" ? (
+            <div className="grid gap-2" role="status">
+              <p className="text-sm text-muted-foreground">
+                The cleaned sound could not be made: {state.error}. The preview plays the sound as recorded.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => retryCleanSound(mediaId, strength)}
+              >
+                <RotateCcw />
+                Try again
+              </Button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </>
+  )
+}
+
+/**
  * How fast this clip plays, and therefore how much of the timeline it takes.
  *
  * The line under the slider is the point: the clip keeps the same stretch of
@@ -589,9 +838,12 @@ function SpeedSection({ clip }: { clip: EditorClip }) {
  * pays for it by cutting the sides off. Only a clip with a picture gets the
  * choice.
  *
- * A still picture can also be smaller than the frame, which is how a picture
- * sticker arrives. Below full size it is dragged around the preview like text.
- * Video stays the whole frame (see clip-size.ts).
+ * A filled clip also has a crop spot: which part of the overflow stays on
+ * screen, the same number dragging the picture in the preview sets.
+ *
+ * A picture or video can also be smaller than the frame, which is how a
+ * picture sticker arrives. Below full size it is dragged around the preview
+ * like text (see clip-size.ts).
  */
 function FrameFitSection({ clip }: { clip: EditorClip }) {
   const { dispatch } = useEditorRuntime()
@@ -620,25 +872,94 @@ function FrameFitSection({ clip }: { clip: EditorClip }) {
           ))}
         </TabsList>
       </Tabs>
-      {clip.kind === "image" ? (
+      {clipFit(clip) === "cover" ? (
         <FractionSliderField
-          id="clip-scale"
-          label="Size"
-          value={clipScale(clip)}
-          min={MIN_CLIP_SCALE}
-          max={MAX_CLIP_SCALE}
-          step={CLIP_SCALE_STEP}
-          format={formatPercent}
-          onChange={(scale, firstOfDrag) =>
+          id="clip-fill-focus"
+          label="Which part shows"
+          value={clipFillFocus(clip)}
+          min={0}
+          max={1}
+          step={0.01}
+          format={formatFillFocus}
+          onChange={(focus, firstOfDrag) =>
             dispatch({
               type: "UPDATE_CLIP",
               clipId: clip.id,
-              patch: { scale: storedClipScale(scale) },
+              patch: { fillFocus: storedFillFocus(focus) },
               transient: !firstOfDrag,
             })
           }
         />
       ) : null}
+      <FractionSliderField
+        id="clip-scale"
+        label="Size"
+        value={clipScale(clip)}
+        min={MIN_CLIP_SCALE}
+        max={MAX_CLIP_SCALE}
+        step={CLIP_SCALE_STEP}
+        format={formatPercent}
+        onChange={(scale, firstOfDrag) =>
+          dispatch({
+            type: "UPDATE_CLIP",
+            clipId: clip.id,
+            patch: { scale: storedClipScale(scale) },
+            transient: !firstOfDrag,
+          })
+        }
+      />
+    </InspectorCard>
+  )
+}
+
+// 0 keeps one edge, 1 the other, and the middle is what filling always kept.
+function formatFillFocus(value: number) {
+  if (value === 0.5) return "Middle"
+  return `${Math.round(value * 100)}%`
+}
+
+/**
+ * One-press places for a picture or video over another: a corner box kept
+ * clear of the platform's buttons, the two splits, and back to full frame. A
+ * split also places the clip under this one on the lane below, in one Undo.
+ */
+function LayoutSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  const tracks = useEditorSelector((state) => state.tracks)
+  const inset = usePlatformInset()
+  if (clip.kind !== "video" && clip.kind !== "image") return null
+
+  function apply(layout: VideoLayoutId) {
+    const partner =
+      layout === "stacked" || layout === "side-by-side"
+        ? splitPartner(tracks, clip.id)
+        : null
+    dispatch({
+      type: "UPDATE_CLIPS",
+      patches: layoutPatches(layout, clip, partner, inset),
+    })
+    if ((layout === "stacked" || layout === "side-by-side") && !partner) {
+      toast("Only this clip moved. Put another clip on the lane below to fill the other half.")
+    }
+  }
+
+  return (
+    <InspectorCard
+      title="Layout"
+      description="A split puts the clip on the lane below in the other half."
+    >
+      <div className="grid grid-cols-2 gap-2">
+        {VIDEO_LAYOUTS.map((layout) => (
+          <Button
+            key={layout.id}
+            type="button"
+            variant="outline"
+            onClick={() => apply(layout.id)}
+          >
+            {layout.label}
+          </Button>
+        ))}
+      </div>
     </InspectorCard>
   )
 }
@@ -840,6 +1161,8 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
 
       <FrameFitSection clip={clip} />
 
+      <LayoutSection clip={clip} />
+
       <MotionSection clip={clip} />
 
       <ColourSection clip={clip} />
@@ -855,6 +1178,7 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
           }
         />
         <VolumeField clip={clip} />
+        <VoiceCleanField clip={clip} />
         {track ? (
           <SwitchField
             id="track-duck"
@@ -1015,7 +1339,10 @@ function FadesSection({ clip }: { clip: EditorClip }) {
   )
   const sound = clip.kind === "video" || clip.kind === "audio"
   const picture =
-    clip.kind === "video" || clip.kind === "image" || clip.kind === "text"
+    clip.kind === "video" ||
+    clip.kind === "image" ||
+    clip.kind === "text" ||
+    clip.kind === "shape"
   if (!sound && !picture) return null
 
   const index = laneClips?.findIndex((candidate) => candidate.id === clip.id)

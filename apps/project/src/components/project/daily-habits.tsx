@@ -5,7 +5,6 @@ import { MinusIcon, PlusIcon } from "lucide-react"
 import { DailySection } from "@/components/project/daily-section"
 import { HabitIconGlyph } from "@/components/project/habit-icons"
 import { TintChip } from "@/components/project/task-bits"
-import { PanelHeading } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { countHabit, type DailyCard, type DailyHabit } from "@/lib/api/project/daily-card"
@@ -35,17 +34,17 @@ export function DailyHabits({ daily, part }: { daily: DailyCard; part: DayPart }
     .sort((a, b) => (a.atTime ?? "99").localeCompare(b.atTime ?? "99") || a.position - b.position)
 
   return (
-    <DailySection>
-      <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <PanelHeading>{yesterday ? `Yesterday's ${part}` : `${DAY_PART_LABEL[part]} routine`}</PanelHeading>
-        </div>
-        {admin.habits.some((habit) => habit.part === part && habit.yesterday.set) ? (
+    <DailySection
+      title={yesterday ? `Yesterday's ${part}` : `${DAY_PART_LABEL[part]} routine`}
+      foldId="routine"
+      action={
+        admin.habits.some((habit) => habit.part === part && habit.yesterday.set) ? (
           <Button type="button" variant="ghost" size="xs" onClick={() => setYesterday((shown) => !shown)}>
             {yesterday ? "Back to today" : "Tick yesterday"}
           </Button>
-        ) : null}
-      </div>
+        ) : null
+      }
+    >
       {admin.habits.length === 0 ? (
         <p className="text-sm text-muted-foreground">Add your morning, afternoon and night habits with the pencil above.</p>
       ) : habits.length === 0 ? (

@@ -22,6 +22,7 @@ import { landMovingShot, type MovingPiece } from "@/lib/video/moving-still"
 import { landVoiceLine, type SpokenLine } from "@/lib/video/remake-clip"
 import { layVoiceover, voiceoverRefusal } from "@/lib/video/saved-voiceovers"
 import { PlaybackClock } from "@/lib/video/playback-clock"
+import type { ProgressBar } from "@/lib/video/progress-bar"
 import {
   MAX_TIMELINE_TRACKS,
   MAX_TRACK_CLIPS,
@@ -58,6 +59,9 @@ export type EditorState = {
   selectedClipIds: string[]
   pxPerSecond: number
   aspect: AspectRatio
+  // The bar that fills along one edge as the video plays, or none. Like the
+  // shape, it belongs to the project and is not part of undo.
+  progressBar: ProgressBar | null
   // The cut tool: clicking a clip splits it where the pointer is.
   cutMode: boolean
   // Undo and redo hold whole copies of `tracks` — the only part that is
@@ -81,6 +85,12 @@ export type EditorAction =
       clipId: string
       patch: Partial<EditorClip>
       transient?: boolean
+    }
+  // Several clips changed together as one undo step, such as the two halves
+  // of a split laid out at once (video-layouts.ts).
+  | {
+      type: "UPDATE_CLIPS"
+      patches: { clipId: string; patch: Partial<EditorClip> }[]
     }
   // Playing a clip faster or slower changes how much timeline room it needs,
   // which is why it is its own action rather than a patch on UPDATE_CLIP.
@@ -189,6 +199,7 @@ export type EditorAction =
   | { type: "SET_CUT_MODE"; on: boolean }
   | { type: "SET_ZOOM"; pxPerSecond: number }
   | { type: "SET_ASPECT"; aspect: AspectRatio }
+  | { type: "SET_PROGRESS_BAR"; progressBar: ProgressBar | null }
   // An earlier version from History, put on screen as one edit. Undo takes
   // back the clips; the shape, like SET_ASPECT, is not part of undo.
   | { type: "RESTORE_TIMELINE"; timeline: ProjectTimeline }
@@ -215,6 +226,7 @@ export function createInitialEditorState(
     selectedClipIds: [],
     pxPerSecond: DEFAULT_PX_PER_SECOND,
     aspect: timeline?.aspect ?? "9:16",
+    progressBar: timeline?.progressBar ?? null,
     cutMode: false,
     past: [],
     future: [],
@@ -759,7 +771,9 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       const found = findClip(state.tracks, action.clipId)
       // Any footage clip; a text clip has nothing to replace. The picker only
       // offers files of a compatible kind, so nothing odd arrives here.
-      if (!found || found.clip.kind === "text") return state
+      if (!found || found.clip.kind === "text" || found.clip.kind === "shape") {
+        return state
+      }
       const { fileType } = action.media
       // Video and audio bring their own length, which caps the clip; a picture
       // fills whatever length the clip already had.
@@ -775,6 +789,8 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         motion: fileType === "image" ? found.clip.motion : undefined,
         // Another file was not made by the AI, so there is nothing to make again.
         origin: undefined,
+        // A starter sound swapped for a file is that file from now on.
+        stockSound: undefined,
         // Only a picture can be smaller than the frame and placed on it, so a
         // swap to footage goes back to the full frame.
         ...(fileType === "image"
@@ -843,6 +859,27 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         ),
       }))
       return action.transient ? { ...state, tracks } : pushUndo(state, tracks)
+    }
+
+    case "UPDATE_CLIPS": {
+      const patches = new Map(
+        action.patches.map(({ clipId, patch }) => [clipId, patch])
+      )
+      let changed = false
+      const tracks = state.tracks.map((track) => {
+        if (!track.clips.some((clip) => patches.has(clip.id))) return track
+        changed = true
+        return {
+          ...track,
+          clips: sortClips(
+            track.clips.map((clip) => {
+              const patch = patches.get(clip.id)
+              return patch ? { ...clip, ...patch } : clip
+            })
+          ),
+        }
+      })
+      return changed ? pushUndo(state, tracks) : state
     }
 
     case "SET_CLIP_SPEED": {
@@ -1020,10 +1057,14 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
     case "SET_ASPECT":
       return { ...state, aspect: action.aspect }
 
+    case "SET_PROGRESS_BAR":
+      return { ...state, progressBar: action.progressBar }
+
     case "RESTORE_TIMELINE":
       return {
         ...pushUndo(state, action.timeline.tracks),
         aspect: action.timeline.aspect,
+        progressBar: action.timeline.progressBar ?? null,
         selectedClipId: null,
         selectedClipIds: [],
       }
@@ -1128,7 +1169,8 @@ export function createEditorStore(
       if (
         snapshot.lock &&
         (nextState.tracks !== snapshot.state.tracks ||
-          nextState.aspect !== snapshot.state.aspect)
+          nextState.aspect !== snapshot.state.aspect ||
+          nextState.progressBar !== snapshot.state.progressBar)
       ) {
         onLockedEdit()
         return

@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, notInArray, o
 import {
   cardDayOf,
   DAILY_LIMITS,
+  DAILY_SECTIONS,
   DAY_PARTS,
   DEFAULT_HOURS,
   DEFAULT_REMINDERS,
@@ -11,8 +12,10 @@ import {
   JOURNAL_SEARCH_RESULTS,
   newMilestone,
   pickForDay,
+  sectionsInOrder,
   streakOf,
   weekStartOf,
+  type DailySection,
   type DayHours,
   type DayPart,
   type HabitIcon,
@@ -27,6 +30,7 @@ import {
 import { READY_ROUTINES } from "@/lib/project/daily-words"
 import { addDays, localNow, momentOf, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
+import { taskNotesText } from "@/lib/project/notes"
 import { CLOSED_TASK_STATUSES } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
@@ -75,6 +79,8 @@ export type DailySettings = {
   ownLines: string[]
   ownQuestions: string[]
   reminders: RoutineReminders
+  /** The panel's sections in the site admin's order, every one named once. */
+  sections: DailySection[]
 }
 
 export type DailyMeeting = { meetingId: string; title: string; startsAt: string; endsAt: string }
@@ -178,6 +184,7 @@ const DEFAULT_SETTINGS: DailySettings = {
   ownLines: [],
   ownQuestions: [],
   reminders: DEFAULT_REMINDERS,
+  sections: [...DAILY_SECTIONS],
 }
 
 /** How many tasks due tomorrow are named before "and 3 more". */
@@ -197,6 +204,7 @@ function settingsOf(row: SettingsRow | undefined): DailySettings {
     ownLines: row.ownLines,
     ownQuestions: row.ownQuestions,
     reminders: { morning: row.reminderMorning, afternoon: row.reminderAfternoon, night: row.reminderNight },
+    sections: sectionsInOrder(row.sectionOrder),
   }
 }
 
@@ -457,7 +465,8 @@ async function siteAdminDaily(
       const day = addDays(cardDay, index - 29)
       return { day, rating: journal.get(day)?.rating ?? null }
     }),
-    onThisDay: past && (past.intention || past.win) ? { day: past.day, text: past.win || past.intention } : null,
+    // The intention is the editor's document, so its plain words stand in for it.
+    onThisDay: past && (past.intention || past.win) ? { day: past.day, text: past.win || taskNotesText(past.intention) } : null,
     lookBack:
       weekdayOf(cardDay) === 0
         ? Array.from({ length: 7 }, (_, index) => {
@@ -726,10 +735,13 @@ export async function searchJournal(userId: string, q: string, database: Project
     .orderBy(desc(projectJournalDays.day))
     .limit(JOURNAL_SEARCH_RESULTS)
   const needle = q.toLowerCase()
+  // The intention is searched by its words, not its saved document, which also
+  // holds names such as "paragraph" that nobody wrote.
   return rows.flatMap((row) =>
     (["intention", "win", "note", "answer"] as const)
-      .filter((field) => row[field].toLowerCase().includes(needle))
-      .map((field) => ({ day: row.day, field, text: row[field] }))
+      .map((field) => ({ field, text: field === "intention" ? taskNotesText(row.intention) : row[field] }))
+      .filter((hit) => hit.text.toLowerCase().includes(needle))
+      .map((hit) => ({ day: row.day, ...hit }))
   )
 }
 
@@ -780,6 +792,12 @@ export async function saveRoutineReminders(userId: string, reminders: RoutineRem
     { reminderMorning: reminders.morning, reminderAfternoon: reminders.afternoon, reminderNight: reminders.night },
     database
   )
+}
+
+/** The order of the Daily card's sections in the panel, the site admin's alone. */
+export async function saveSectionOrder(userId: string, order: DailySection[], database: ProjectDb = db) {
+  await requireSiteAdmin(userId, database)
+  await saveSettings(userId, { sectionOrder: order }, database)
 }
 
 /** The site admin's own lines for the day, or their own night questions. */

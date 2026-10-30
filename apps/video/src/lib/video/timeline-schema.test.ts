@@ -273,12 +273,18 @@ describe("requireCanonicalTimeline", () => {
 })
 
 describe("createTimelineSnapshot", () => {
-  it("carries only the two fields that are saved", () => {
+  it("carries only the fields that are saved", () => {
     const snapshot = createTimelineSnapshot({
       ...timeline([VIDEO_CLIP]),
       aspect: "16:9",
     } as never)
     expect(Object.keys(snapshot).sort()).toEqual(["aspect", "tracks"])
+  })
+
+  it("carries the progress bar when the project has one", () => {
+    const progressBar = { edge: "bottom", color: "#ffffff", thickness: 8, inset: 0 } as const
+    const snapshot = createTimelineSnapshot({ ...timeline([VIDEO_CLIP]), progressBar } as never)
+    expect(snapshot.progressBar).toEqual(progressBar)
   })
 })
 

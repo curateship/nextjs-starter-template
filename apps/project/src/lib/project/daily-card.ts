@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { addDays, isRealDay, weekdayOf } from "@/lib/project/days"
+import { storedTaskNotes } from "@/lib/project/notes"
 
 /**
  * The Daily card's rules, shared by the server that keeps its rows and the
@@ -78,7 +79,12 @@ export const DAILY_LIMITS = {
   habitName: 60,
   habitsPerPart: 12,
   habitTarget: 99,
-  intention: 200,
+  /**
+   * The intention is the editor's document saved as JSON text, so the limit is
+   * on that text, the same as a task's notes (Tyler, 30 Oct 2026: "Make that
+   * field using tip tap editor so I can add more advanced text and spacing").
+   */
+  intention: 20_000,
   note: 500,
   win: 200,
   answer: 500,
@@ -288,6 +294,38 @@ export const dailySkySchema = z.object({
 
 export const dailyRemindersSchema = z.object({ morning: time.nullable(), afternoon: time.nullable(), night: time.nullable() })
 
+/**
+ * The Daily card's sections in the left panel, in the card's own order, which
+ * the site admin can drag into another in the pencil window (Tyler, 30 Oct
+ * 2026). Some show only at one part of the day: progress in the afternoon,
+ * Done today at night.
+ */
+export const DAILY_SECTIONS = ["line", "progress", "deepWork", "meeting", "windDown", "routine", "journal"] as const
+export type DailySection = (typeof DAILY_SECTIONS)[number]
+
+export const DAILY_SECTION_LABEL: Record<DailySection, string> = {
+  line: "Line for the day",
+  progress: "Afternoon progress",
+  deepWork: "Deep work",
+  meeting: "Next meeting",
+  windDown: "Done today, at night",
+  routine: "Routine",
+  journal: "Today I want to... and Tomorrow",
+}
+
+/** A saved order with any unknown name dropped and any section it doesn't name added at the end. */
+export function sectionsInOrder(saved: readonly string[]): DailySection[] {
+  const known = saved.filter((name): name is DailySection => (DAILY_SECTIONS as readonly string[]).includes(name))
+  return [...new Set([...known, ...DAILY_SECTIONS])]
+}
+
+export const dailySectionOrderSchema = z.object({
+  order: z
+    .array(z.enum(DAILY_SECTIONS))
+    .length(DAILY_SECTIONS.length)
+    .refine((order) => new Set(order).size === order.length, "Each section once."),
+})
+
 export const dailyOwnWordsSchema = z.object({
   kind: z.enum(["lines", "questions"]),
   items: z.array(z.string().trim().min(1).max(DAILY_LIMITS.ownLine)).max(DAILY_LIMITS.ownLines),
@@ -316,18 +354,26 @@ export const habitCountSchema = z.object({
 })
 export const readyRoutinesSchema = z.object({})
 
-const JOURNAL_FIELDS = ["intention", "note", "win", "answer"] as const
-export type JournalField = (typeof JOURNAL_FIELDS)[number]
-const JOURNAL_MAX: Record<JournalField, number> = {
-  intention: DAILY_LIMITS.intention,
+/** The fields written as plain words; the intention has the editor's own schema below. */
+const PLAIN_JOURNAL_FIELDS = ["note", "win", "answer"] as const
+export type JournalField = "intention" | (typeof PLAIN_JOURNAL_FIELDS)[number]
+const JOURNAL_MAX: Record<(typeof PLAIN_JOURNAL_FIELDS)[number], number> = {
   note: DAILY_LIMITS.note,
   win: DAILY_LIMITS.win,
   answer: DAILY_LIMITS.answer,
 }
 
 export const journalTextSchema = z
-  .object({ day, field: z.enum(JOURNAL_FIELDS), text: z.string().trim(), question: z.string().max(200).optional() })
+  .object({ day, field: z.enum(PLAIN_JOURNAL_FIELDS), text: z.string().trim(), question: z.string().max(200).optional() })
   .refine((input) => input.text.length <= JOURNAL_MAX[input.field], "That's too long to save.")
+/** An intention as the editor's document, cleaned to what notes may hold and saved as text ("" when empty). */
+export const journalIntentionSchema = z.object({
+  day,
+  body: z
+    .unknown()
+    .transform(storedTaskNotes)
+    .refine((text) => text.length <= DAILY_LIMITS.intention, "That's too long to save."),
+})
 export const journalRatingSchema = z.object({ day, rating: z.number().int().min(1).max(5).nullable() })
 export const sleepSchema = z.object({ kind: z.enum(["bed", "up"]) })
 export const milestoneSchema = z.object({ id: z.string().min(1).max(80) })
