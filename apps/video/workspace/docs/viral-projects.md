@@ -89,7 +89,9 @@ project has already spent on AI no longer shows anywhere on the Viral screen.
   keyword that found new videos shows "3 new". Clicking a keyword narrows the
   middle panel to the videos it found. The arrow searches that keyword again
   on its own. The cross removes it, after a window saying how many videos go
-  with it. Below the rows, side by side, **Add keywords** and **Search every
+  with it. While one keyword's arrow or cross is working, only that keyword's
+  buttons grey out. Searching every keyword, Break it down and Follow each
+  lock only their own button, so the rest of the screen stays usable. Below the rows, side by side, **Add keywords** and **Search every
   keyword** (Tyler, 20 Oct 2026). A panel too narrow for both, which is the
   left panel at its usual width, puts Search on its own row under Add keywords
   rather than cutting its words. Add keywords shows a box for a keyword above
@@ -127,7 +129,12 @@ should change color"). The Hooks tab has
 no list and grid switch, because it is one list of words either way.
 
 The Videos tab has a list of rows or a grid of covers. A browser that never
-chose opens on the list (Tyler, 20 Oct 2026). The choice is remembered in this
+chose opens on the list (Tyler, 20 Oct 2026). While any keyword is searching,
+a small spinner sits on the Videos tab beside its count. It sits on the tab
+and not in the toolbar, so the toolbar's buttons never move as a search starts
+and ends. A cover that will not load, which TikTok's do after a few days,
+shows a film icon in the list, the grid, the Hooks board and the right panel,
+and the chart icon on the Viral projects list. The choice is remembered in this
 browser, and so is the grid's card size (small, medium or large), which is the
 last row of the Filter dropdown.
 

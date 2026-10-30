@@ -1,4 +1,3 @@
-import * as React from "react"
 import { CopyIcon, FilmIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -11,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { creatorPlatformLabels, formatCount } from "@/lib/video/creators"
 import type { ViralVideo } from "@/lib/video/viral"
 import { formatTimecode } from "@/lib/video/viral-breakdown"
+import { CoverImage } from "@/components/video-viral/cover-image"
 
 /**
  * The Hooks tab (viral task 16): the opening words of every broken-down video
@@ -60,8 +60,6 @@ function HookRow({
   selected: boolean
   onOpen: (video: ViralVideo, startMs: number) => void
 }) {
-  const [broken, setBroken] = React.useState(false)
-
   async function copy() {
     try {
       await navigator.clipboard.writeText(hook.text)
@@ -80,19 +78,15 @@ function HookRow({
         className={cn("flex min-w-0 flex-1 items-start gap-3 py-3 pl-3 text-left", focusRing)}
       >
         <span className="aspect-[9/16] w-10 shrink-0 overflow-hidden rounded-md bg-muted">
-          {video.thumbnailUrl && !broken ? (
-            <img
-              src={video.thumbnailUrl}
-              alt=""
-              loading="lazy"
-              className="size-full object-cover"
-              onError={() => setBroken(true)}
-            />
-          ) : (
-            <span className="grid size-full place-items-center">
-              <FilmIcon className="size-4 text-muted-foreground" />
-            </span>
-          )}
+          <CoverImage
+            src={video.thumbnailUrl}
+            className="size-full object-cover"
+            fallback={
+              <span className="grid size-full place-items-center">
+                <FilmIcon className="size-4 text-muted-foreground" />
+              </span>
+            }
+          />
         </span>
         <span className="grid min-w-0 flex-1 gap-1">
           <span className="text-sm font-medium leading-snug">“{hook.text}”</span>

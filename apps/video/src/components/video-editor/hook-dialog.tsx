@@ -274,7 +274,15 @@ export function HookDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // A paid request carries on after its window shuts, so the window
+        // stays open until the answer lands (the History window's rule).
+        if (!next && thinking || saying !== null) return
+        onOpenChange(next)
+      }}
+    >
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Another way to open</DialogTitle>
@@ -318,7 +326,7 @@ export function HookDialog({
                           {(voices ?? []).map((voice) => (
                             <SelectItem key={voice.id} value={voice.id}>
                               {voice.name}
-                              {voice.description ? ` — ${voice.description}` : ""}
+                              {voice.description ? ` - ${voice.description}` : ""}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -392,6 +400,7 @@ export function HookDialog({
           <Button
             type="button"
             variant="outline"
+            disabled={thinking || saying !== null}
             onClick={() => onOpenChange(false)}
           >
             Cancel

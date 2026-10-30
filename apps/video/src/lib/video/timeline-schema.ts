@@ -204,7 +204,7 @@ export const SAVED_TIMELINE_INVALID_MESSAGE =
 // rejection, stop saving and keep its work as a new project instead of
 // retrying forever.
 export const PROJECT_CONFLICT_MESSAGE =
-  "This project changed elsewhere — reload to continue"
+  "This project changed elsewhere - reload to continue"
 
 export function createEmptyTimeline(): ProjectTimeline {
   return { tracks: [], aspect: "9:16" }

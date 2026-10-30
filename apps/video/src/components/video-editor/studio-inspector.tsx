@@ -216,7 +216,6 @@ function ProjectProps() {
           rows={[
             ["Shape", aspect],
             ["Size", RESOLUTION[aspect]],
-            ["Frame rate", "30 fps"],
             ["Length", formatClock(durationMs)],
           ]}
         />
@@ -346,7 +345,7 @@ function TextInspector({ clip }: { clip: EditorClip }) {
             <SelectContent>
               {CAPTION_ANIMATIONS.map((option) => (
                 <SelectItem key={option.id} value={option.id}>
-                  {option.label} — {option.description}
+                  {option.label} - {option.description}
                 </SelectItem>
               ))}
             </SelectContent>

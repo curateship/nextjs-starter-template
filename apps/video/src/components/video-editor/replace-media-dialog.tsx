@@ -125,7 +125,7 @@ export function ReplaceMediaDialog({
         <DialogHeader>
           <DialogTitle>Replace media</DialogTitle>
           <DialogDescription>
-            The clip keeps where it sits and how long it runs — only the footage
+            The clip keeps where it sits and how long it runs - only the footage
             changes.
           </DialogDescription>
         </DialogHeader>

@@ -123,7 +123,15 @@ export function CaptionsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // A paid request carries on after its window shuts, so the window
+        // stays open until the answer lands (the History window's rule).
+        if (!next && writing) return
+        onOpenChange(next)
+      }}
+    >
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Write the captions</DialogTitle>
@@ -173,6 +181,7 @@ export function CaptionsDialog({
           <Button
             type="button"
             variant="outline"
+            disabled={writing}
             onClick={() => onOpenChange(false)}
           >
             Cancel

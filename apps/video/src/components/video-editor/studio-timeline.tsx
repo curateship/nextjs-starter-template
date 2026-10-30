@@ -68,6 +68,7 @@ import {
   type Waveform,
 } from "@/lib/video/waveforms"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { Hint } from "@/components/video-assets/hint"
 import {
   useEditorDurationMs,
   useEditorRuntime,
@@ -168,7 +169,7 @@ function trackName(track: EditorTrack, index: number) {
     case "audio":
       return "Audio"
     case "image":
-      return "Images"
+      return "Pictures"
     case "text":
       return "Text"
     default:
@@ -675,20 +676,21 @@ function TimelineRow({
         }}
       >
         {readOnly ? null : (
-          <span
-            onPointerDown={gripDown}
-            onPointerMove={gripMove}
-            onPointerUp={gripUp}
-            title="Drag to reorder track"
-            style={{
-              ...gutterCell,
-              color: "var(--mut)",
-              cursor: "grab",
-              touchAction: "none",
-            }}
-          >
-            <GripVertical size={13} />
-          </span>
+          <Hint label="Drag to reorder track">
+            <span
+              onPointerDown={gripDown}
+              onPointerMove={gripMove}
+              onPointerUp={gripUp}
+              style={{
+                ...gutterCell,
+                color: "var(--mut)",
+                cursor: "grab",
+                touchAction: "none",
+              }}
+            >
+              <GripVertical size={13} />
+            </span>
+          </Hint>
         )}
         <span
           title={trackName(track, index)}
@@ -708,34 +710,36 @@ function TimelineRow({
           ) : null
         ) : (
           <>
-            <button
-              type="button"
-              className="st-hovbg"
-              onClick={() =>
-                dispatch({ type: "TOGGLE_TRACK_MUTE", trackId: track.id })
-              }
-              style={gutterIconBtn}
-              aria-label={track.muted ? "Unmute this track" : "Mute this track"}
-              title={track.muted ? "Unmute this track" : "Mute this track"}
-            >
-              {track.muted ? (
-                <VolumeX size={13} />
-              ) : kind === "audio" ? (
-                <Volume2 size={13} />
-              ) : (
-                <Eye size={13} />
-              )}
-            </button>
-            <button
-              type="button"
-              className="st-hovbg"
-              onClick={() => dispatch({ type: "DELETE_TRACK", trackId: track.id })}
-              style={gutterIconBtn}
-              aria-label="Delete this track"
-              title="Delete this track"
-            >
-              <Trash2 size={13} />
-            </button>
+            <Hint label={track.muted ? "Unmute this track" : "Mute this track"}>
+              <button
+                type="button"
+                className="st-hovbg"
+                onClick={() =>
+                  dispatch({ type: "TOGGLE_TRACK_MUTE", trackId: track.id })
+                }
+                style={gutterIconBtn}
+                aria-label={track.muted ? "Unmute this track" : "Mute this track"}
+              >
+                {track.muted ? (
+                  <VolumeX size={13} />
+                ) : kind === "audio" ? (
+                  <Volume2 size={13} />
+                ) : (
+                  <Eye size={13} />
+                )}
+              </button>
+            </Hint>
+            <Hint label="Delete this track">
+              <button
+                type="button"
+                className="st-hovbg"
+                onClick={() => dispatch({ type: "DELETE_TRACK", trackId: track.id })}
+                style={gutterIconBtn}
+                aria-label="Delete this track"
+              >
+                <Trash2 size={13} />
+              </button>
+            </Hint>
           </>
         )}
       </div>
@@ -1726,24 +1730,25 @@ function ToolbarButton({
   children: React.ReactNode
 }) {
   return (
-    <button
-      type="button"
-      className="st-hovbg"
-      aria-label={label}
-      title={label}
-      aria-pressed={pressed}
-      disabled={disabled}
-      onClick={onClick}
-      style={{
-        ...iconBtn,
-        background: pressed ? "var(--acc-soft)" : "transparent",
-        color: pressed ? "var(--acc)" : "var(--ink2)",
-        opacity: disabled ? 0.4 : 1,
-        cursor: disabled ? "default" : "pointer",
-      }}
-    >
-      {children}
-    </button>
+    <Hint label={label} disabled={disabled}>
+      <button
+        type="button"
+        className="st-hovbg"
+        aria-label={label}
+        aria-pressed={pressed}
+        disabled={disabled}
+        onClick={onClick}
+        style={{
+          ...iconBtn,
+          background: pressed ? "var(--acc-soft)" : "transparent",
+          color: pressed ? "var(--acc)" : "var(--ink2)",
+          opacity: disabled ? 0.4 : 1,
+          cursor: disabled ? "default" : "pointer",
+        }}
+      >
+        {children}
+      </button>
+    </Hint>
   )
 }
 

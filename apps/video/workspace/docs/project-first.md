@@ -120,6 +120,8 @@ project's.
 - **Archive** takes a project off the list without deleting anything. Archived
   in the folder dropdown lists them, and Bring back returns one. Archiving
   takes the pin off. Several ticked projects archive in one press.
+- **While Pin, Duplicate or Archive runs**, only that row's buttons lock and
+  the pressed one spins. Every other row stays usable.
 
 ## Deleting and duplicating
 

@@ -40,6 +40,7 @@ import {
   savedVideoStatusLabels,
 } from "@/lib/video/creators"
 import type { ViralVideo } from "@/lib/video/viral"
+import { CoverImage } from "@/components/video-viral/cover-image"
 
 /**
  * The right panel as Tyler drew it on 20 Oct 2026: the title with its
@@ -298,7 +299,7 @@ function PlayerBody({
             <Figure label="Views" value={formatCount(video.views)} />
             <Figure label="Likes" value={formatCount(video.likes)} />
             <Figure label="Comments" value={formatCount(video.comments)} />
-            <Figure label="Fits" value={video.topicMatch === null ? "—" : String(video.topicMatch)} />
+            <Figure label="Fits" value={video.topicMatch === null ? "-" : String(video.topicMatch)} />
           </dl>
 
           <div className="border-b p-4">
@@ -309,7 +310,7 @@ function PlayerBody({
               part of the panel says what it is (Tyler, 20 Oct 2026). */}
           <FlatSection storageId="viral-video-details" title="Details">
             <dl className="grid gap-2 text-sm">
-              <Detail label="Length" value={formatDuration(video.durationSeconds) || "—"} />
+              <Detail label="Length" value={formatDuration(video.durationSeconds) || "-"} />
               <Detail label="Views a day" value={formatCount(video.score.viewsPerDay)} />
               {video.keywords.length ? (
                 <Detail label="Found by" value={video.keywords.map((keyword) => `“${keyword}”`).join(", ")} />
@@ -526,13 +527,11 @@ function Player({
   const platform = creatorPlatformLabels[video.platform]
   return (
     <div className="flex flex-col items-center gap-3 border-b p-3">
-      {video.thumbnailUrl ? (
-        <img
-          src={video.thumbnailUrl}
-          alt=""
-          className="max-h-[40vh] rounded-md object-contain"
-        />
-      ) : null}
+      <CoverImage
+        src={video.thumbnailUrl}
+        className="max-h-[40vh] rounded-md object-contain"
+        fallback={null}
+      />
       <p className="text-center text-xs text-muted-foreground">
         {platform} videos only play on their own site until you save one.
       </p>

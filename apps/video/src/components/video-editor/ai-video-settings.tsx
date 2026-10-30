@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { useSaveAfterTyping } from "@/components/video-editor/use-save-after-typing"
 import {
   getAiVideoSettingsErrorMessage,
   loadAiVideoSettings,
@@ -252,9 +253,7 @@ function KeyCard({
   const [verdict, setVerdict] = React.useState("")
   const [removing, setRemoving] = React.useState(false)
   const setSaveStatus = useReportedSaveStatus()
-  const timer = React.useRef<ReturnType<typeof setTimeout>>(undefined)
-
-  React.useEffect(() => () => clearTimeout(timer.current), [])
+  const typing = useSaveAfterTyping(SAVE_DELAY_MS)
 
   // `value` rides in as an argument: the timer saves exactly what was typed
   // when it was set.
@@ -279,7 +278,7 @@ function KeyCard({
   }
 
   function flushSave() {
-    clearTimeout(timer.current)
+    typing.cancel()
     if (!draft.trim() || saving) return
     void save(draft)
   }
@@ -373,10 +372,8 @@ function KeyCard({
                 const value = event.target.value
                 setDraft(value)
                 setVerdict("")
-                clearTimeout(timer.current)
-                if (value.trim()) {
-                  timer.current = setTimeout(() => void save(value), SAVE_DELAY_MS)
-                }
+                if (value.trim()) typing.later(() => void save(value))
+                else typing.cancel()
               }}
               onKeyDown={(event) => {
                 if (event.key === "Enter") flushSave()

@@ -352,7 +352,7 @@ function SoundRow({
           {showLength
             ? lengthMs
               ? formatClock(lengthMs)
-              : "—"
+              : "-"
             : formatFileSize(file.file_size)}
         </span>
       </div>

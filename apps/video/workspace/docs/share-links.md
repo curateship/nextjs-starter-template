@@ -44,8 +44,10 @@ anyone can.
 
 ## Switching it off
 
-- **Turn off link** in the same window. The next request for the page or the
-  file is refused, including the next piece of a video that is already
+- **Turn off link** in the same window. It asks first, inside that window
+  rather than in a second one on top: anyone who has the link can no longer
+  open it, and a new link is a different address. **Turn it off** goes ahead,
+  **Keep it** backs out. The next request for the page or the file is refused, including the next piece of a video that is already
   playing. The player then gives way to the "no longer available" notice.
 - **An expiry** does the same thing on its own when the time passes. The window
   then says when the last link stopped working.

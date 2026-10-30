@@ -65,8 +65,17 @@ Picking a collection lists its pictures and clips from your whole library,
 not only this carousel's uploads. Until 29 Oct 2026 a collection listed
 pictures only. A file placed from a collection joins this carousel's shelf.
 
-The dashed "Drop or import media" box only shows while this carousel has no
-files of its own. Files dropped on the canvas still join the shelf.
+The panel shows a loading row until its first list arrives, so nothing says
+"empty" before it has looked. A list that fails to load says why, with Try
+again. After that:
+
+- **No files of its own:** the dashed "Drop or import media" box is the only
+  message. It shows with no search typed and no type picked in the filter.
+- **A search or filter that finds nothing:** "Nothing here matches the search
+  or filter."
+- **An empty collection:** "Nothing in this collection yet."
+
+Files dropped on the canvas still join the shelf.
 
 The collections task (`#archive/features/25-collections-you-can-make.md`)
 only ever covered the video editor's Media panel. No reason for leaving

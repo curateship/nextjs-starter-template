@@ -138,6 +138,6 @@ describe("formatShortDay", () => {
   it("leaves the year off this year's days and keeps it on others", () => {
     expect(formatShortDay("2026-10-15T12:00:00Z", now)).toBe("Oct 15")
     expect(formatShortDay("2025-12-30T12:00:00Z", now)).toBe("Dec 30, 2025")
-    expect(formatShortDay(null, now)).toBe("—")
+    expect(formatShortDay(null, now)).toBe("-")
   })
 })

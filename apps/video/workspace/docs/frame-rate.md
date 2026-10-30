@@ -7,6 +7,10 @@ Smoother movement, larger file". Thirty is picked when a project is opened in
 the editor. A different pick stays picked each time the window reopens, until
 the editor is left, the same as the quality choice.
 
+The editor's Project card, in the right-hand panel when no clip is picked,
+shows no frame rate. It used to say "30 fps" whatever was picked on export, so
+Tyler had the row taken off on 29 Oct 2026.
+
 ## What the choice does
 
 - **60 keeps footage shot at 60 at 60.** A phone clip shot at 60 used to come

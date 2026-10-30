@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -77,6 +78,7 @@ import {
   useEditorRuntime,
   useEditorStoreSelector,
 } from "@/components/video-editor/editor-store"
+import { Hint } from "@/components/video-assets/hint"
 
 /**
  * The panel beside the tool rail. Which one is showing is the rail's business;
@@ -373,40 +375,37 @@ function MediaPanel() {
         title="Media"
         action={
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Search media"
-                title="Search media"
-                aria-pressed={searchOpen}
-                onClick={() => setSearchOpen((open) => !open)}
-              >
-                <Search className={search ? "text-foreground" : undefined} />
-              </Button>
-              {searchOpen ? (
-                <>
-                  {/* A click anywhere else puts the box away. */}
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setSearchOpen(false)}
-                  />
-                  <div className="absolute top-[calc(100%+6px)] right-0 z-50 w-60 rounded-xl border bg-popover p-2 shadow-md">
-                    <Input
-                      autoFocus
-                      value={search}
-                      placeholder="Search media"
+            {/* A popover rather than a box under the button, so it moves
+                clear of the rail when the panel is narrow (the Voiceovers
+                panel's search). */}
+            <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
                       aria-label="Search media"
-                      onChange={(event) => setSearch(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") setSearchOpen(false)
-                      }}
-                    />
-                  </div>
-                </>
-              ) : null}
-            </div>
+                      aria-pressed={searchOpen}
+                    >
+                      <Search className={search ? "text-foreground" : undefined} />
+                    </Button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Search media</TooltipContent>
+              </Tooltip>
+              <PopoverContent align="start" className="w-60 p-2">
+                <Input
+                  autoFocus
+                  type="search"
+                  value={search}
+                  placeholder="Search media"
+                  aria-label="Search media"
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </PopoverContent>
+            </Popover>
             <MediaFilterMenu
               kind={EDITOR_MEDIA_FILTER}
               baseRows={
@@ -449,18 +448,19 @@ function MediaPanel() {
               </Tooltip>
             ) : (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={uploading}
-                  aria-label="Add media or collection"
-                  title="Add"
-                >
-                  {uploading ? <Loader2 className="animate-spin" /> : <Plus />}
-                </Button>
-              </DropdownMenuTrigger>
+              <Hint label="Add" disabled={uploading}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={uploading}
+                    aria-label="Add media or collection"
+                  >
+                    {uploading ? <Loader2 className="animate-spin" /> : <Plus />}
+                  </Button>
+                </DropdownMenuTrigger>
+              </Hint>
               <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuItem onSelect={() => fileRef.current?.click()}>
                   <Upload />
@@ -607,7 +607,7 @@ function MediaPanel() {
                         type="button"
                         className="st-hovlift"
                         {...dragHandlers(item)}
-                        title={`${item.original_name} — drag onto a track, or right-click for collections and delete`}
+                        title={`${item.original_name} - drag onto a track, or right-click for collections and delete`}
                         style={{
                           position: "relative",
                           display: "block",
@@ -830,7 +830,7 @@ function AudioMediaCard({
   return (
     <Card
       size="sm"
-      title={`${item.original_name} — drag onto a track, or right-click for collections and delete`}
+      title={`${item.original_name} - drag onto a track, or right-click for collections and delete`}
       className="st-hovlift cursor-grab gap-3"
       style={{ touchAction: "none" }}
       {...pointerProps}
@@ -894,7 +894,7 @@ function AudioMediaCard({
             {item.original_name}
           </span>
           <span className="mt-0.5 block text-[10px] text-muted-foreground">
-            {durationMs ? formatClock(durationMs) : "—"} ·{" "}
+            {durationMs ? formatClock(durationMs) : "-"} ·{" "}
             {formatFileSize(item.file_size)}
           </span>
         </div>
