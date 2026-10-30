@@ -167,6 +167,12 @@ export function ProjectsCard({
   return (
     <PanelCard
       storageId="project-admin-projects"
+      // No box of its own: the heading and its arrow sit on the panel and each
+      // project is a card of its own (Tyler, 30 Oct 2026: "Put the label and
+      // toggle outside and have the project in its own card").
+      className="rounded-none border-0 bg-transparent p-0"
+      // The same size as the Daily card's greeting above it (Tyler, 30 Oct 2026).
+      titleClassName="text-base leading-tight"
       title="Projects"
       after={<span className="font-normal text-muted-foreground/70">{list.active.length + list.idle.length}</span>}
     >

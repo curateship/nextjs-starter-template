@@ -168,7 +168,7 @@ export function DailyCard({
         {/* Down in the sky's lower half, where the fade has made it quiet enough to read on. */}
         <div className="mt-6 flex items-start gap-2">
           <div className="grid min-w-0 flex-1 gap-0.5">
-            <h2 className="text-lg leading-tight font-semibold">{greeting}</h2>
+            <h2 className="text-base leading-tight font-semibold">{greeting}</h2>
             <p className="text-sm text-muted-foreground">
               {fullDayLabel(local.day)}
               {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}

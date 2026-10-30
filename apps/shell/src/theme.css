@@ -609,6 +609,28 @@ html[data-public-button-casing="uppercase"] [data-slot="button"] {
 }
 
 /*
+ * Two lines never touch. A folded group right under another group shares the
+ * line between them, and a last group right on the footer leaves the line to
+ * the footer; drawn twice they read as one thick line (Tyler, 30 Oct 2026:
+ * "when sections are collapsed. the border gets too thick because its stick
+ * together").
+ */
+[data-slot="table-group-row"] + [data-slot="table-group-row"] > td {
+  background-image: var(--shell-table-line);
+  background-position: bottom;
+}
+[data-slot="table-surface"]:has([data-slot="table-footer"]) [data-slot="table-group-row"]:last-child > td {
+  background-image: var(--shell-table-line);
+  background-position: top;
+}
+[data-slot="table-surface"]:has([data-slot="table-footer"]) [data-slot="table-group-row"]:first-child:last-child > td {
+  background-image: none;
+}
+[data-slot="table-surface"]:has([data-slot="table-footer"]) [data-slot="table-group-row"] + [data-slot="table-group-row"]:last-child > td {
+  background-image: none;
+}
+
+/*
  * A panel header with a table under it, such as My dashboard's List, Board
  * and Calendar tabs over the task list: its bottom line is the table's top
  * line, so it is drawn the same way rather than as the header's own border,

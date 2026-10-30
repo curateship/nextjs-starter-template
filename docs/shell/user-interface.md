@@ -53,7 +53,10 @@
   shade for all of them. A panel header sitting right above a table, such as
   My dashboard's List, Board and Calendar tabs, draws its bottom line the same
   way, because that line is the table's top line ("I still dont get why the
-  border here is faint"). **To change table lines, change that one rule; never
+  border here is faint"). Two lines never touch: a folded group right under
+  another group shares the line between them, and a last group on the footer
+  leaves its line to the footer ("when sections are collapsed. the border gets
+  too thick because its stick together"). **To change table lines, change that one rule; never
   give one line its own strip, shadow or border.** Check by reading pixel
   shades down one column (heading, group rows, footer) in light and dark.
 - **A group heading inside a table is `TableGroupRow`** from

@@ -37,6 +37,7 @@ export function PanelCard({
   actionOpen = false,
   settings = false,
   className,
+  titleClassName,
   children,
 }: {
   /** Plain characters only; it names the card's remembered open or shut state. */
@@ -55,6 +56,8 @@ export function PanelCard({
   /** A cog that opens the footer of buttons. */
   settings?: boolean
   className?: string
+  /** The heading's size, where a card sits beside a bigger heading, such as Projects under the Daily card's greeting. */
+  titleClassName?: string
   children?: React.ReactNode
 }) {
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(storageId))
@@ -73,7 +76,7 @@ export function PanelCard({
       )}
     >
       <div className="flex items-center gap-2">
-        <h2 className="min-w-0 flex-1 text-[15px] font-semibold">
+        <h2 className={cn("min-w-0 flex-1 text-[15px] font-semibold", titleClassName)}>
           <CollapsibleTrigger asChild>
             <button
               type="button"

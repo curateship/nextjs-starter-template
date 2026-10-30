@@ -412,8 +412,8 @@ should be a color based on their importance like the done card should have a
 green card". Red needs the site admin now: Waiting on you, Needs attention.
 Amber is for soon: No one on it, Invites not taken, Due
 this week. Blue is to know about: Meetings today, Milestones this month. Green
-is Done today. The Projects card has no tint of its own: each project inside
-it is tinted instead. The tints are see-through
+is Done today. The Projects card has no tint or box of its own: each project
+under its heading is tinted instead. The tints are see-through
 (`TONE` in `admin-cards.tsx`), so they work in light and dark.
 
 1. **Waiting on you:** asks for more time that fall to them: nobody else
@@ -448,6 +448,12 @@ my dashboard". He picked 14 ideas; the task is
 `workspace/tasks/My dashboard/01-project-cards.md`. His answers: every team's
 open projects, in place of Projects running late, pressing a project filters
 My tasks, and live across every team.
+
+It has no box of its own: the "Projects 3" heading and its fold arrow sit
+straight on the panel, and each project below is a card of its own, 15px
+apart like the panel's other cards (Tyler, 30 Oct 2026: "Put the label and
+toggle outside and have the project in its own card (not nested inside
+project car)").
 
 - **Which projects.** Every team's open, shared projects, the same list as the
   Projects page: no archived project and nobody's "Just me" list. With none at
