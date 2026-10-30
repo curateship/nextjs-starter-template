@@ -27,7 +27,11 @@ const AUTOSAVE_DEBOUNCE_MS = 1500
 
 /** One way of writing a timeline out, so two of them can be compared. */
 function serializeTimeline(timeline: ProjectTimeline) {
-  return JSON.stringify({ tracks: timeline.tracks, aspect: timeline.aspect })
+  return JSON.stringify({
+    tracks: timeline.tracks,
+    aspect: timeline.aspect,
+    progressBar: timeline.progressBar,
+  })
 }
 
 const CONFLICT_NOTICE =
@@ -41,8 +45,8 @@ function showReadOnlyNotice() {
 }
 
 function timelineOf(store: EditorStore): ProjectTimeline {
-  const { tracks, aspect } = store.getSnapshot().state
-  return { tracks, aspect }
+  const { tracks, aspect, progressBar } = store.getSnapshot().state
+  return { tracks, aspect, ...(progressBar ? { progressBar } : {}) }
 }
 
 /** The project the editor opens on. */
@@ -141,6 +145,10 @@ export function EditorProvider({
   const aspect = useEditorStoreSelector(
     store,
     (snapshot) => snapshot.state.aspect
+  )
+  const progressBar = useEditorStoreSelector(
+    store,
+    (snapshot) => snapshot.state.progressBar
   )
   // The version this editor's saves are built on. It moves forward with every
   // accepted save; a refusal means somebody else wrote first.
@@ -250,7 +258,11 @@ export function EditorProvider({
   // Auto-save: every edit re-arms the timer. What is sent is the whole
   // timeline, so a later save heals an earlier one that failed.
   React.useEffect(() => {
-    const snapshot: ProjectTimeline = { tracks, aspect }
+    const snapshot: ProjectTimeline = {
+      tracks,
+      aspect,
+      ...(progressBar ? { progressBar } : {}),
+    }
     const serialized = serializeTimeline(snapshot)
     // Nothing has actually changed — opening a project is not an edit.
     if (serialized === lastSavedRef.current) return
@@ -262,7 +274,7 @@ export function EditorProvider({
     const timer = setTimeout(() => void saveNow(), AUTOSAVE_DEBOUNCE_MS)
 
     return () => clearTimeout(timer)
-  }, [saveNow, tracks, aspect, locked])
+  }, [saveNow, tracks, aspect, progressBar, locked])
 
   // Work still inside the debounce window when the editor closes — going back
   // to the list, say — is sent on the way out.
