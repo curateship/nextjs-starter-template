@@ -44,6 +44,16 @@ export const appOptions: AppOptions = {
         panel: () => import("@/components/video-editor/pexels-settings"),
       }),
       /**
+       * The Wan and Seedance keys for AI shots, which company new shots start
+       * on, and what a Wan or Seedance shot starts with. Kept off the shell's
+       * AI key list on purpose: those two companies are Video's alone.
+       */
+      defineSettingsTab({
+        id: "ai-video",
+        label: "AI video",
+        panel: () => import("@/components/video-editor/ai-video-settings"),
+      }),
+      /**
        * The look every caption window starts from (presets, font, outline,
        * words at a time, platform) and the platforms' safe boxes.
        */

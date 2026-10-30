@@ -112,3 +112,12 @@ making the sheet's missing angles in one press, adding a first frame to the
 sheet, sending the sheet on Re-pose, the same-person check, and a description
 kept apart from the pose. Sending the sheet with a shot was built by task
 `ai-generation/04-veo-keeps-the-character.md`; `extras.md` says how.
+
+## On Wan and Seedance
+
+A shot made on Wan 2.7 is sent the same person board and backdrop as a Google
+shot, beside its first frame, on the first piece only. With an end picture or a
+voiceover, Wan takes neither, so the first frame alone shows who it is. A shot
+made on Seedance 1.5 Pro is never sent the board: Seedance refuses a first
+frame and reference pictures in one request. `wan-and-seedance.md` has the
+details.

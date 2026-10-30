@@ -21,6 +21,7 @@ export function CreatorCard({
   creator,
   postsPerWeek,
   busy,
+  hiding,
   onFollow,
   onUnfollow,
   onHide,
@@ -28,7 +29,10 @@ export function CreatorCard({
   creator: ViralCreator
   /** Worked out from the uploads on screen when the card has none of its own. */
   postsPerWeek: number | null
+  /** Following or unfollowing is running. */
   busy: boolean
+  /** Hiding the channel is running. */
+  hiding: boolean
   onFollow: () => void
   onUnfollow: () => void
   onHide: () => void
@@ -71,7 +75,7 @@ export function CreatorCard({
             <Figure label="Hits here" value={String(creator.hits)} />
             <Figure
               label="Per week"
-              value={rate === null ? "—" : String(rate)}
+              value={rate === null ? "-" : String(rate)}
             />
           </dl>
           {rate === null ? (
@@ -82,12 +86,12 @@ export function CreatorCard({
 
           <div className="grid gap-2">
             {creator.followedId ? (
-              <Button variant="outline" disabled={busy} onClick={onUnfollow}>
+              <Button variant="outline" disabled={busy || hiding} onClick={onUnfollow}>
                 {busy ? <Loader2Icon className="animate-spin" /> : null}
                 Unfollow in this project
               </Button>
             ) : (
-              <Button disabled={busy} onClick={onFollow}>
+              <Button disabled={busy || hiding} onClick={onFollow}>
                 {busy ? <Loader2Icon className="animate-spin" /> : null}
                 Follow
               </Button>
@@ -104,8 +108,8 @@ export function CreatorCard({
                 </a>
               </Button>
             ) : null}
-            <Button variant="ghost" disabled={busy} onClick={onHide}>
-              <EyeOffIcon />
+            <Button variant="ghost" disabled={busy || hiding} onClick={onHide}>
+              {hiding ? <Loader2Icon className="animate-spin" /> : <EyeOffIcon />}
               Hide from this project
             </Button>
           </div>
@@ -116,7 +120,9 @@ export function CreatorCard({
           >
             <p className="text-sm text-muted-foreground">
               {creator.hits
-                ? `${creator.hits} of this project's videos are theirs, with a typical score of ${creator.typicalScore ?? "—"}.`
+                ? creator.typicalScore === null
+                  ? `${creator.hits} of this project's videos are theirs, with no typical score yet.`
+                  : `${creator.hits} of this project's videos are theirs, with a typical score of ${creator.typicalScore}.`
                 : "None of this project's search results are theirs yet."}
             </p>
           </InspectorCard>

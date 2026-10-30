@@ -114,11 +114,12 @@ It does the whole deploy in one go:
 1. Pushes the branch to `develop`, fast-forward only. If `develop` has
    commits the branch lacks, it stops before deploying anything.
 2. Says what is live now and how many commits ship.
-3. Builds the website and the worker **at the same time** when no new
-   database migration ships, which takes about 10 minutes instead of 18.
-   When a migration ships, the website goes first, because it applies the
-   migration on its way in, and the worker follows once it is healthy. The
-   plan line says which, and why.
+3. Builds the website, then the worker once the website is healthy, **one
+   at a time**. The website goes first because it applies any new migration
+   on its way in. Two builds side by side ran the German server out of
+   memory and npm timed out the website's build (29 Oct 2026; Tyler: "change
+   the deploy script so that it deploy one by one"). If one fails, the rest
+   are not started and keep the build they have.
 4. Checks the live health address and prints the answer.
 5. Copies the local left menu to live, so the live site's menu matches the
    one on this Mac. See "The left menu" below.
@@ -127,8 +128,7 @@ It does the whole deploy in one go:
    and 6 share one opening of the database port.
 
 Useful extras, each after `npm run deploy --`: `--dry-run` shows the plan and
-deploys nothing, `--only worker` deploys one resource, `--in-order` never
-builds both at once, `--force` rebuilds without Docker's cache,
+deploys nothing, `--only worker` deploys one resource, `--force` rebuilds without Docker's cache,
 `--skip-menu` leaves the live menu as it is, and `--skip-ai-keys` leaves the
 live AI keys as they are. Uncommitted changes never ship, and the script says
 so when there are some.

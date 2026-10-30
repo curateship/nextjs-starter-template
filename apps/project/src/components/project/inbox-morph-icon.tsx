@@ -49,13 +49,8 @@ function ease(t: number) {
   return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2
 }
 
-/**
- * The inbox tray, which bends into a cross while the inbox is open and back
- * again when it shuts (Tyler, 25 Oct 2026: "make it morph"). The lines move
- * point by point rather than one icon fading over the other. Reduced motion
- * jumps straight to the end on the next frame.
- */
-export function InboxMorphIcon({ open, className }: { open: boolean; className?: string }) {
+/** How far through the morph the icon is, 0 shut to 1 open, eased over MORPH_MS. */
+function useMorph(open: boolean) {
   const [progress, setProgress] = React.useState(open ? 1 : 0)
   const current = React.useRef(progress)
 
@@ -77,7 +72,23 @@ export function InboxMorphIcon({ open, className }: { open: boolean; className?:
     return () => cancelAnimationFrame(frame)
   }, [open])
 
-  const t = ease(progress)
+  return ease(progress)
+}
+
+/** Lines that bend, point by point, into the cross. */
+function CrossMorph({
+  open,
+  lines,
+  shut,
+  className,
+}: {
+  open: boolean
+  lines: [Point[], Point[]][]
+  /** What `data-morph` says while shut, such as "inbox". */
+  shut: string
+  className?: string
+}) {
+  const t = useMorph(open)
   return (
     <svg
       viewBox="0 0 24 24"
@@ -87,11 +98,69 @@ export function InboxMorphIcon({ open, className }: { open: boolean; className?:
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
-      data-morph={open ? "x" : "inbox"}
+      data-morph={open ? "x" : shut}
       className={cn("size-4", className)}
     >
-      <polyline points={blend(TRAY, TRAY_AS_X, t)} />
-      <polyline points={blend(DIP, DIP_AS_X, t)} />
+      {lines.map(([from, to], index) => (
+        <polyline key={index} points={blend(from, to, t)} />
+      ))}
     </svg>
+  )
+}
+
+/**
+ * The inbox tray, which bends into a cross while the inbox is open and back
+ * again when it shuts (Tyler, 25 Oct 2026: "make it morph"). The lines move
+ * point by point rather than one icon fading over the other. Reduced motion
+ * jumps straight to the end on the next frame.
+ */
+export function InboxMorphIcon({ open, className }: { open: boolean; className?: string }) {
+  return (
+    <CrossMorph
+      open={open}
+      shut="inbox"
+      className={className}
+      lines={[
+        [TRAY, TRAY_AS_X],
+        [DIP, DIP_AS_X],
+      ]}
+    />
+  )
+}
+
+/** The graph's axes, top of the upright down and along the bottom, as lucide's chart line draws them. */
+const AXES: Point[] = [
+  [3, 3],
+  [3, 19],
+  [5, 21],
+  [21, 21],
+]
+/** The graph's line, left to right. */
+const TREND: Point[] = [
+  [7, 13],
+  [10, 10],
+  [14, 14],
+  [19, 9],
+]
+const AXES_AS_X = along([6, 6], [18, 18], [0, 0.5, 1, 0.5])
+const TREND_AS_X = along([6, 18], [18, 6], [0, 1 / 3, 2 / 3, 1])
+
+/**
+ * Look back's graph, which bends into a cross while Look back is open in
+ * the panel and back again when it shuts, the same way the inbox's tray does
+ * (Tyler, 30 Oct 2026: "clicking on the graph icon shoulkd morhp like the
+ * inbox icon").
+ */
+export function GraphMorphIcon({ open, className }: { open: boolean; className?: string }) {
+  return (
+    <CrossMorph
+      open={open}
+      shut="graph"
+      className={className}
+      lines={[
+        [AXES, AXES_AS_X],
+        [TREND, TREND_AS_X],
+      ]}
+    />
   )
 }

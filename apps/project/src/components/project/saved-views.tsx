@@ -1,4 +1,4 @@
-import { FilterRow, TaskFilterFields } from "@/components/project/task-filter-popover"
+import { FilterRow, TaskFilterFields, type FilterProject } from "@/components/project/task-filter-popover"
 import {
   SaveViewDialog as ShellSaveViewDialog,
   SavedViewsControls as ShellSavedViewsControls,
@@ -34,6 +34,8 @@ type Here = {
   types: TaskType[]
   /** The clients of the tasks shown, for Edit view's Client row. Only My tasks has one. */
   clients?: readonly string[]
+  /** The projects for Edit view's Project row. Only the site admin's My tasks has one. */
+  projects?: readonly FilterProject[]
   /** The Group row's choices, for Edit view. My tasks has none. */
   groups?: readonly TaskGrouping[]
 }
@@ -82,6 +84,7 @@ export function SavedViewsControls({
       type: undefined,
       due: undefined,
       client: undefined,
+      project: undefined,
       ...next,
     })
     if (group) onGroup?.(group)
@@ -159,7 +162,10 @@ function describeView(view: { filters: SavedViewFilters; names: SavedViewNames }
     parts.push(here.labels.find((label) => label.id === filters.label)?.name ?? names.label ?? "A deleted label")
   }
   if (filters.type) {
-    parts.push(here.types.find((type) => type.id === filters.type)?.name ?? names.type ?? "A deleted type")
+    parts.push(here.types.find((type) => type.id === filters.type)?.name ?? names.type ?? "A deleted template")
+  }
+  if (filters.project) {
+    parts.push(here.projects?.find((project) => project.id === filters.project)?.name ?? "A closed project")
   }
   if (filters.group) parts.push(`Group: ${TASK_GROUPING_LABEL[filters.group]}`)
   return parts.join(" · ")
@@ -191,6 +197,7 @@ function editFields(here: Here): EditFields {
           labels={here.labels}
           types={here.types}
           clients={here.clients}
+          projects={here.projects}
         >
           {here.people ? (
             <FilterRow id="edit-view-person" label="Assigned to">

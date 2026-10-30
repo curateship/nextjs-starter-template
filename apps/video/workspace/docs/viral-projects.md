@@ -57,7 +57,7 @@ changed most recently.
 `/admin/video-viral/<project id>` is a three-column dashboard, built on the
 shell's pieces like every other one (the UI standard's "Three-column
 dashboards", `docs/shell/three-column-dashboards.md`). The left panel holds the
-project, its keywords and its creators. The middle holds the videos, and the
+project's keywords and its creators. The middle holds the videos, and the
 right holds the video or creator you picked. Drag the dividers and the sizes
 come back next time. Double-click a side panel's empty space to shut it, and a
 tab on the middle panel's edge opens it again.
@@ -77,14 +77,21 @@ heading has a muted count where it has one ("Keywords · 3"), and its own
 buttons and fold arrow show only while it is pointed at. Each remembers
 whether it is open (`src/components/video-viral/flat-section.tsx`).
 
-- **About:** the description.
+Two sections: Keywords, then Creators. Tyler took the About, Filters, At a
+glance and Made from this sections off on 29 Oct 2026. The description and
+the filters are still in Project settings, under the cog in the panel's
+header, and so is the AI spend limit, on its Spending card. How much the
+project has already spent on AI no longer shows anywhere on the Viral screen.
+
 - **Keywords:** one plain row per keyword with how its last search went:
   "Waiting to search", "Searching", "12 found · Oct 17", or "Failed" with the
   reason. The picked keyword's row is grey. A
   keyword that found new videos shows "3 new". Clicking a keyword narrows the
   middle panel to the videos it found. The arrow searches that keyword again
   on its own. The cross removes it, after a window saying how many videos go
-  with it. Below the rows, side by side, **Add keywords** and **Search every
+  with it. While one keyword's arrow or cross is working, only that keyword's
+  buttons grey out. Searching every keyword, Break it down and Follow each
+  lock only their own button, so the rest of the screen stays usable. Below the rows, side by side, **Add keywords** and **Search every
   keyword** (Tyler, 20 Oct 2026). A panel too narrow for both, which is the
   left panel at its usual width, puts Search on its own row under Add keywords
   rather than cutting its words. Add keywords shows a box for a keyword above
@@ -102,13 +109,6 @@ whether it is open (`src/components/video-viral/flat-section.tsx`).
   together with Add creator. Under the list, **Filter** shows a search box and
   the subscriber range, and **Add creator** opens a small dropdown to add a
   creator by profile link. "Creators" below has the rest.
-- **Filters:** what the project asks YouTube for and which videos show, with a
-  button to change them.
-- **At a glance:** a row each for how many videos and creators, the best
-  score, the typical views (the middle number of all of them), the YouTube
-  units used and the AI spend.
-- **Made from this:** every editor project Make this a template made from this project,
-  each one a link into the editor.
 
 ### The middle panel
 
@@ -129,7 +129,12 @@ should change color"). The Hooks tab has
 no list and grid switch, because it is one list of words either way.
 
 The Videos tab has a list of rows or a grid of covers. A browser that never
-chose opens on the list (Tyler, 20 Oct 2026). The choice is remembered in this
+chose opens on the list (Tyler, 20 Oct 2026). While any keyword is searching,
+a small spinner sits on the Videos tab beside its count. It sits on the tab
+and not in the toolbar, so the toolbar's buttons never move as a search starts
+and ends. A cover that will not load, which TikTok's do after a few days,
+shows a film icon in the list, the grid, the Hooks board and the right panel,
+and the chart icon on the Viral projects list. The choice is remembered in this
 browser, and so is the grid's card size (small, medium or large), which is the
 last row of the Filter dropdown.
 
@@ -560,7 +565,7 @@ This replaced viral task 14, Named shortlists.
 
 Make this a template from a Viral project makes an editor project that remembers both
 the video and the Viral project (`video_projects.source_viral_project_id`).
-The project shows under **Made from this** on the left. In the editor, the
+The Viral screen no longer lists those projects. In the editor, the
 Copy panel's **Open Viral** opens that Viral project with the copied video
 playing. A project copied from anywhere else, or whose Viral project was
 deleted, opens the list instead. Deleting either project never deletes the

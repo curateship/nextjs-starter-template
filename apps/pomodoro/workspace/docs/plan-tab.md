@@ -14,7 +14,7 @@ row opens it. Guests never see the tab.
 | Pro, set to end | Pro, paid yearly | "Pro ends on 9 October 2027. You won't be charged again." | Manage billing, Change plan |
 | Pro on a free trial | Pro, paid monthly | "Your free trial ends on 14 October 2026. Then $9 is charged." | Manage billing, Change plan |
 | Pro, card declined | Pro, paid monthly | "Your card was declined. Update it to keep Pro." in red | Manage billing, Change plan |
-| Pro an admin granted | Pro | "Given to you by the Pomoder team until …. Nothing is billed." | none |
+| Pro an admin granted | Pro | "Given to you by the Flowfly team until …. Nothing is billed." | none |
 | Admin with no plan | Pro, as an admin | "Your account reads as Pro because it is an admin account." | none |
 | Plan on hold | Pro, paused | "Nothing is billed while it is paused." | Manage billing |
 

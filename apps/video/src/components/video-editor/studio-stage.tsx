@@ -26,6 +26,7 @@ import {
   useEditorSelector,
   type EditorTrack,
 } from "@/components/video-editor/editor-store"
+import { Hint } from "@/components/video-assets/hint"
 
 const FRAME_MS = 1000 / 30
 const RATES = [1, 1.5, 2, 0.5]
@@ -260,16 +261,17 @@ function TransportBar({
         boxShadow: "var(--sh)",
       }}
     >
-      <button
-        type="button"
-        className="st-hovbg"
-        style={transportBtn}
-        aria-label="Back one frame"
-        title="Back one frame"
-        onClick={() => clock.seek(clock.getTime() - FRAME_MS)}
-      >
-        <ChevronLeft size={16} />
-      </button>
+      <Hint label="Back one frame">
+        <button
+          type="button"
+          className="st-hovbg"
+          style={transportBtn}
+          aria-label="Back one frame"
+          onClick={() => clock.seek(clock.getTime() - FRAME_MS)}
+        >
+          <ChevronLeft size={16} />
+        </button>
+      </Hint>
       <button
         type="button"
         className="st-hovbright"
@@ -294,16 +296,17 @@ function TransportBar({
           <Play size={15} fill="currentColor" />
         )}
       </button>
-      <button
-        type="button"
-        className="st-hovbg"
-        style={transportBtn}
-        aria-label="Forward one frame"
-        title="Forward one frame"
-        onClick={() => clock.seek(clock.getTime() + FRAME_MS)}
-      >
-        <ChevronRight size={16} />
-      </button>
+      <Hint label="Forward one frame">
+        <button
+          type="button"
+          className="st-hovbg"
+          style={transportBtn}
+          aria-label="Forward one frame"
+          onClick={() => clock.seek(clock.getTime() + FRAME_MS)}
+        >
+          <ChevronRight size={16} />
+        </button>
+      </Hint>
       <div
         style={{
           width: 1,
@@ -313,28 +316,29 @@ function TransportBar({
         }}
       />
       <Timecode clock={clock} />
-      <button
-        type="button"
-        className="st-hovbg"
-        onClick={cycleRate}
-        style={{
-          height: 32,
-          padding: "0 8px",
-          background: "transparent",
-          border: "none",
-          borderRadius: 8,
-          color: "var(--ink2)",
-          fontSize: 12,
-          fontWeight: 600,
-          cursor: "pointer",
-          fontVariantNumeric: "tabular-nums",
-          marginLeft: 2,
-        }}
-        aria-label={`Playback speed, now ${rate} times`}
-        title="Playback speed"
-      >
-        {rate}×
-      </button>
+      <Hint label="Playback speed">
+        <button
+          type="button"
+          className="st-hovbg"
+          onClick={cycleRate}
+          style={{
+            height: 32,
+            padding: "0 8px",
+            background: "transparent",
+            border: "none",
+            borderRadius: 8,
+            color: "var(--ink2)",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontVariantNumeric: "tabular-nums",
+            marginLeft: 2,
+          }}
+          aria-label={`Playback speed, now ${rate} times`}
+        >
+          {rate}×
+        </button>
+      </Hint>
       <div
         style={{
           width: 1,
@@ -382,21 +386,22 @@ function SaveFrameButton({ clock }: { clock: PlaybackClock }) {
   }
 
   return (
-    <button
-      type="button"
-      className="st-hovbg"
-      style={transportBtn}
-      aria-label="Save this frame as a picture"
-      title="Save this frame as a picture"
-      disabled={busy}
-      onClick={() => void saveFrame()}
-    >
-      {busy ? (
-        <Loader2Icon size={16} className="animate-spin" />
-      ) : (
-        <ImageDown size={16} />
-      )}
-    </button>
+    <Hint label="Save this frame as a picture" disabled={busy}>
+      <button
+        type="button"
+        className="st-hovbg"
+        style={transportBtn}
+        aria-label="Save this frame as a picture"
+        disabled={busy}
+        onClick={() => void saveFrame()}
+      >
+        {busy ? (
+          <Loader2Icon size={16} className="animate-spin" />
+        ) : (
+          <ImageDown size={16} />
+        )}
+      </button>
+    </Hint>
   )
 }
 

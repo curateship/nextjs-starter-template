@@ -16,7 +16,7 @@ type ProjectSearch = TaskFilters & {
 
 function readProjectSearch(search: Record<string, unknown>): ProjectSearch {
   // Every task on a project has the project's one client, so the page has no Client filter.
-  const { client: _client, ...filters } = readTaskFilters(search)
+  const { client: _client, project: _project, ...filters } = readTaskFilters(search)
   const result: ProjectSearch = filters
   if (typeof search.task === "string" && search.task.length <= 36) result.task = search.task
   if (search.chat === 1 || search.chat === "1") result.chat = 1

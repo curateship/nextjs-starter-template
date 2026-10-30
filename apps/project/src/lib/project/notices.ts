@@ -16,6 +16,7 @@ import {
   MessageSquareIcon,
   MessageSquareReplyIcon,
   PlayIcon,
+  SunriseIcon,
   TimerOffIcon,
   UndoIcon,
   UserCheckIcon,
@@ -70,6 +71,7 @@ const APP_NOTICE_KINDS = [
   "project_health",
   "milestone_due",
   "clock_paused",
+  "routine_reminder",
 ] as const
 
 const PROJECT_NOTICE_KINDS = [...TASK_NOTICE_KINDS, ...APP_NOTICE_KINDS] as const
@@ -173,6 +175,13 @@ const CLOCK_PAUSED_START = "Clock paused at midnight: "
 export function clockPausedHeading(title: string) {
   return `${CLOCK_PAUSED_START}${title}`
 }
+
+const ROUTINE_REMINDER_WORDS = /^Your (morning|afternoon|night) routine isn't done yet$/
+
+/** "Your morning routine isn't done yet", the site admin's own routine on the Daily card. */
+export function routineReminderHeading(part: "morning" | "afternoon" | "night") {
+  return `Your ${part} routine isn't done yet`
+}
 const TASKS_HANDED_WORDS = / gave you \d+ tasks$/
 
 const WEEKDAY_NAMES = [
@@ -232,6 +241,7 @@ export function noticeKindFromWords(
   // First, because a task's own title could end like another notice.
   if (notice.message.startsWith(TASK_REMINDER_START)) return "task_reminder"
   if (notice.message.startsWith(CLOCK_PAUSED_START)) return "clock_paused"
+  if (ROUTINE_REMINDER_WORDS.test(notice.message)) return "routine_reminder"
   if (DUE_SOON_WORDS.test(notice.message)) return "due_soon"
   if (OVERDUE_WORDS.test(notice.message)) return "overdue"
   if (MILESTONE_DUE_WORDS.test(notice.message)) return "milestone_due"
@@ -419,6 +429,12 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
     icon: TimerOffIcon,
     toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     categoryId: "tasks",
+  },
+  routine_reminder: {
+    icon: SunriseIcon,
+    toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    categoryId: "tasks",
+    href: "/dashboard",
   },
 }
 

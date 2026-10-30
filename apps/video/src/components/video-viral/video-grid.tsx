@@ -37,6 +37,7 @@ import {
   type ViralVideo,
 } from "@/lib/video/viral"
 import { formatShortDay, type ViralCardSize, type ViralSort } from "@/lib/video/viral-view"
+import { CoverImage } from "@/components/video-viral/cover-image"
 
 /**
  * The middle panel's two ways to show videos, a grid of covers or a list of
@@ -145,9 +146,6 @@ export function VideoGrid({
 function Cover({ video }: { video: ViralVideo }) {
   const length = formatDuration(video.durationSeconds)
   const wide = (video.durationSeconds ?? 0) > SHORT_MAX_SECONDS
-  // TikTok's cover addresses expire after a few days, so a cover that will
-  // not load shows the plain film icon instead of a broken picture.
-  const [broken, setBroken] = React.useState(false)
   return (
     <span
       className={cn(
@@ -155,19 +153,15 @@ function Cover({ video }: { video: ViralVideo }) {
         wide ? "aspect-video" : "aspect-[9/16]"
       )}
     >
-      {video.thumbnailUrl && !broken ? (
-        <img
-          src={video.thumbnailUrl}
-          alt=""
-          loading="lazy"
-          className="size-full object-cover"
-          onError={() => setBroken(true)}
-        />
-      ) : (
-        <span className="grid size-full place-items-center">
-          <FilmIcon className="size-6 text-muted-foreground" />
-        </span>
-      )}
+      <CoverImage
+        src={video.thumbnailUrl}
+        className="size-full object-cover"
+        fallback={
+          <span className="grid size-full place-items-center">
+            <FilmIcon className="size-6 text-muted-foreground" />
+          </span>
+        }
+      />
       <span className="absolute bottom-1 left-1 rounded bg-black/75 px-1.5 py-0.5 text-[11px] font-medium text-white tabular-nums">
         {video.score.score}
       </span>
@@ -317,14 +311,15 @@ export function VideoList({
               <TableCell column="main" className="w-full max-w-0 min-w-56">
                 <div className="flex items-center gap-3">
                   <span className="size-8 shrink-0 overflow-hidden rounded-md bg-muted">
-                    {video.thumbnailUrl ? (
-                      <img
-                        src={video.thumbnailUrl}
-                        alt=""
-                        loading="lazy"
-                        className="size-full object-cover"
-                      />
-                    ) : null}
+                    <CoverImage
+                      src={video.thumbnailUrl}
+                      className="size-full object-cover"
+                      fallback={
+                        <span className="grid size-full place-items-center">
+                          <FilmIcon className="size-4 text-muted-foreground" />
+                        </span>
+                      }
+                    />
                   </span>
                   <span className="grid min-w-0 gap-0.5">
                     <span className="flex min-w-0 items-center gap-1.5">
@@ -359,7 +354,7 @@ export function VideoList({
                 <ViralScoreCell score={video.score} />
               </TableCell>
               <TableCell column="meta" className="tabular-nums">
-                {video.topicMatch ?? "—"}
+                {video.topicMatch ?? "-"}
               </TableCell>
               <TableCell column="meta" className="tabular-nums">
                 {formatCount(video.views)}
@@ -371,7 +366,7 @@ export function VideoList({
                 {formatShortDay(video.postedAt)}
               </TableCell>
               <TableCell column="meta" className="tabular-nums">
-                {formatDuration(video.durationSeconds) || "—"}
+                {formatDuration(video.durationSeconds) || "-"}
               </TableCell>
               {props.cardAction ? (
                 <TableCell column="actions">{props.cardAction(video)}</TableCell>
@@ -450,7 +445,7 @@ export function CreatorList({
                   {[
                     creator.subscribers !== null ? `${formatCount(creator.subscribers)} subs` : null,
                     `${creator.hits} ${creator.hits === 1 ? "hit" : "hits"}`,
-                    watched ? `${creator.typicalScore ?? "—"} typical` : null,
+                    watched ? `${creator.typicalScore ?? "-"} typical` : null,
                     watched ? checkedAgo(creator.lastCheckedAt) : null,
                   ]
                     .filter(Boolean)
@@ -459,7 +454,7 @@ export function CreatorList({
               </span>
               {watched ? null : (
                 <span className="grid shrink-0 text-right leading-tight">
-                  <span className="text-sm font-semibold tabular-nums">{creator.typicalScore ?? "—"}</span>
+                  <span className="text-sm font-semibold tabular-nums">{creator.typicalScore ?? "-"}</span>
                   <span className="text-xs text-muted-foreground">typical</span>
                 </span>
               )}

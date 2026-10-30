@@ -32,6 +32,7 @@ import {
   WaitingOnBadge,
 } from "@/components/project/task-bits"
 import { HeadingAddButton, HeadingFoldButton } from "@/components/project/task-list-heading"
+import { FOLDING_HEADING_CLASS, foldOnHeadingClick } from "@/lib/project/heading-fold"
 import { TaskBulkMenu, type BulkTargets } from "@/components/project/task-bulk-bar"
 import { ClockReadout, ClockRunningChip } from "@/components/project/task-clock"
 import {
@@ -396,7 +397,11 @@ export function TaskList({
               }
               trailing={<TableHead column="meta">Actions</TableHead>}
             />
-            <TableBody>
+            {/* The table takes every line off its last row; a folded heading at the bottom keeps
+                both of its own, or its grey band looks cut off (Tyler, 28 Oct 2026: "bottom
+                section is missing border", then "missing top borader"). The top one stays off
+                when it is the only heading, under the header's line. */}
+            <TableBody className="[&_tr[data-slot=table-group-row]:last-child]:border-b [&_tr[data-slot=table-group-row]:last-child:not(:first-child)]:border-t">
               {rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={colSpan} className="text-muted-foreground">
@@ -412,6 +417,7 @@ export function TaskList({
                         label={group.label}
                         colSpan={colSpan}
                         dropZone={Boolean(drop.held)}
+                        onToggle={() => folds.toggle(group.key)}
                       >
                         <span className="text-muted-foreground">{group.rows.length}</span>
                         {readOnly ? null : addTask?.(group.key, <HeadingAddButton label={group.label} />)}
@@ -654,17 +660,27 @@ function GroupHeading({
   label,
   colSpan,
   dropZone,
+  onToggle,
   children,
 }: {
   groupKey: string
   label: string
   colSpan: number
   dropZone: boolean
+  onToggle: () => void
   children: React.ReactNode
 }) {
   const { setNodeRef } = useDroppable({ id: `${HEADING_DROP}${groupKey}`, disabled: !dropZone })
   return (
-    <TableGroupRow ref={setNodeRef} colSpan={colSpan} inset="1rem" label={label} data-new-group={groupKey}>
+    <TableGroupRow
+      ref={setNodeRef}
+      colSpan={colSpan}
+      inset="1rem"
+      label={label}
+      data-new-group={groupKey}
+      className={FOLDING_HEADING_CLASS}
+      onClick={foldOnHeadingClick(onToggle)}
+    >
       {children}
     </TableGroupRow>
   )

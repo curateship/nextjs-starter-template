@@ -12,6 +12,7 @@ import {
   Loader2Icon,
   LockIcon,
   MicIcon,
+  AudioLines,
   Music,
   Share2,
   SparklesIcon,
@@ -100,6 +101,7 @@ const LAYOUT_KEY = {
 const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
   { id: "media", label: "Media", Icon: FilmIcon },
   { id: "music", label: "Music", Icon: Music },
+  { id: "sounds", label: "Sounds", Icon: AudioLines },
   { id: "voiceovers", label: "Voices", Icon: MicIcon },
   { id: "text", label: "Text", Icon: Type },
   { id: "transcript", label: "Transcript", Icon: CaptionsIcon },

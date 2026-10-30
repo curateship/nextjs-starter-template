@@ -45,10 +45,37 @@ crop position (`pictureRect` in `src/server/video/carousel-export.ts`).
 
 ## Pictures from your collections
 
-The Image panel shows chips once you have a media collection: "This carousel"
-and then each collection by name. Picking a collection lists its pictures
-from your whole library, not only this carousel's uploads. A picture placed
-from a collection joins this carousel's shelf.
+The Image panel's header has search, a funnel and +, the same as the video
+editor's Media panel. The + uploads files. The funnel opens the same filter
+menu the Media panel has (see [media-panel.md](media-panel.md)), drawn from
+Tyler's picture of 29 Oct 2026, with two differences:
+
+- **Type** has only Video and Image, because sound never goes on a slide.
+  None on shows both.
+- **Collection** starts with This carousel, then each collection, then **+
+  New collection**. There is no All media, no Uncollected and no Clear
+  filters. Picking This carousel and turning the types off is the reset.
+- **The numbers:** This carousel counts this carousel's own files. A
+  collection counts its files from your whole library. Both use the ticked
+  types and the search.
+- **Saved views** are kept apart from the Media panel's, under
+  `carousel-media:library`, and show in every carousel.
+
+Picking a collection lists its pictures and clips from your whole library,
+not only this carousel's uploads. Until 29 Oct 2026 a collection listed
+pictures only. A file placed from a collection joins this carousel's shelf.
+
+The panel shows a loading row until its first list arrives, so nothing says
+"empty" before it has looked. A list that fails to load says why, with Try
+again. After that:
+
+- **No files of its own:** the dashed "Drop or import media" box is the only
+  message. It shows with no search typed and no type picked in the filter.
+- **A search or filter that finds nothing:** "Nothing here matches the search
+  or filter."
+- **An empty collection:** "Nothing in this collection yet."
+
+Files dropped on the canvas still join the shelf.
 
 The collections task (`#archive/features/25-collections-you-can-make.md`)
 only ever covered the video editor's Media panel. No reason for leaving

@@ -178,9 +178,6 @@ export type ViralHiddenChannel = {
   channelName: string
 }
 
-/** An editor project Copy this made from this Viral project. */
-export type ViralMadeProject = { id: string; name: string }
-
 /** Everything the project screen opens with. */
 export type ViralProjectScreen = {
   project: ViralProjectItem
@@ -188,8 +185,6 @@ export type ViralProjectScreen = {
   videos: ViralVideo[]
   creators: ViralCreator[]
   hidden: ViralHiddenChannel[]
-  made: ViralMadeProject[]
-  spend: { total_cents: number; limit_cents: number | null }
 }
 
 /** "Video" or "Videos", with the count. */

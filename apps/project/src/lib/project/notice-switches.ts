@@ -54,6 +54,7 @@ export const NOTICE_SWITCH_IDS = [
   "project_health",
   "team_morning",
   "team_joined",
+  "routine_reminder",
 ] as const satisfies readonly ProjectNoticeKind[]
 export type NoticeSwitchId = (typeof NOTICE_SWITCH_IDS)[number]
 
@@ -81,6 +82,8 @@ export const NOTICE_SWITCHES: NoticeSwitch[] = [
   { id: "team_announcement", label: "Posted an announcement", group: "team" },
   { id: "team_morning", label: "Who checked in this morning", group: "team", runsTheTeam: true },
   { id: "team_joined", label: "Joined the team through the link", group: "team", runsTheTeam: true },
+  // The Daily card's habits are the site admin's alone (Tyler, 29 Oct 2026).
+  { id: "routine_reminder", label: "A routine on your Daily card isn't done", group: "dates", runsTheTeam: true },
 ]
 
 /** "Gave you 3 tasks" is the same notice as "Gave you a task", so one switch covers both. */

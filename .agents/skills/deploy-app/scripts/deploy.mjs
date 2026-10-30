@@ -5,7 +5,6 @@
  *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --push
  *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --dry-run
  *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --only worker
- *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --in-order
  *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --force
  *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --skip-menu
  *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --skip-ai-keys
@@ -15,11 +14,11 @@
  * Without it, the script refuses to start when this branch and `develop`
  * differ.
  *
- * Both resources build at the same time, unless the release carries a new
- * database migration (`apps/<app>/drizzle/` changed since the live commit) or
- * the live commit is unknown. Then the website goes first, because it applies
- * the migrations on its way in, and the worker follows once it is healthy.
- * `--in-order` always does it that way.
+ * The resources build one at a time, in `apps.json` order: the website first,
+ * because it applies the migrations on its way in, then the worker once the
+ * website is healthy. Two builds side by side ran the German server out of
+ * memory and npm timed out the website's build (29 Oct 2026; Tyler: "change
+ * the deploy script so that it deploy one by one").
  *
  * After a healthy website deploy it copies the local left menu to live with
  * `copy-menu.mjs`, because the menu is saved in the database and a deploy
@@ -68,13 +67,12 @@ const HEALTH_GAP_MS = 10_000
  * `npm_package_name` (the app's folder name, see the root Dockerfile) fills it.
  */
 export function readFlags(argv, packageName = null) {
-  const flags = { app: null, only: null, force: false, dryRun: false, push: false, inOrder: false, skipMenu: false, skipAiKeys: false }
+  const flags = { app: null, only: null, force: false, dryRun: false, push: false, skipMenu: false, skipAiKeys: false }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === "--force") flags.force = true
     else if (arg === "--dry-run") flags.dryRun = true
     else if (arg === "--push") flags.push = true
-    else if (arg === "--in-order") flags.inOrder = true
     else if (arg === "--skip-menu") flags.skipMenu = true
     else if (arg === "--skip-ai-keys") flags.skipAiKeys = true
     else if (arg === "--only") flags.only = argv[++i] ?? ""
@@ -99,20 +97,6 @@ export function resourcesToDeploy(app, only) {
     throw new Error(`Unknown resource ${unknown.join(", ")}. Choose from ${order.join(", ")}.`)
   }
   return app.resources.filter((one) => wanted.includes(one.role))
-}
-
-/**
- * Together or one after another. Together is only safe when no migration
- * ships, because a worker that starts first would meet the old database.
- */
-export function deployPlan({ count, inOrder, liveCommit, migrations }) {
-  if (count < 2) return { together: false, why: "one resource" }
-  if (inOrder) return { together: false, why: "--in-order" }
-  if (!liveCommit) return { together: false, why: "the live commit is unknown, so new migrations cannot be ruled out" }
-  if (migrations.length) {
-    return { together: false, why: `${migrations.length} new migration${migrations.length === 1 ? "" : "s"} (${migrations.slice(0, 3).join(", ")}), so the website goes first` }
-  }
-  return { together: true, why: "no new migrations since the live commit" }
 }
 
 /** The menu copy runs when the website was deployed and the app has a database to copy into. */
@@ -358,16 +342,17 @@ async function main() {
   }
 
   const live = await liveCommit(settings, app.resources[0].uuid)
-  let migrations = []
   if (live) {
     // A dry run has not pushed, so it measures what the push would ship.
     const target = git("rev-parse", commit.mismatch && flags.dryRun ? "HEAD" : "origin/develop")
     const shipping = git("rev-list", "--count", `${live}..${target}`)
-    migrations = migrationsBetween(live, target, flags.app)
-    console.log(`Live now: ${live.slice(0, 9)}. Shipping ${shipping} commit${shipping === "1" ? "" : "s"}.`)
+    const migrations = migrationsBetween(live, target, flags.app)
+    console.log(
+      `Live now: ${live.slice(0, 9)}. Shipping ${shipping} commit${shipping === "1" ? "" : "s"}` +
+        `${migrations.length ? ` and ${migrations.length} migration${migrations.length === 1 ? "" : "s"} (${migrations.slice(0, 3).join(", ")})` : ""}.`
+    )
   }
-  const plan = deployPlan({ count: resources.length, inOrder: flags.inOrder, liveCommit: live, migrations })
-  console.log(`Plan: ${resources.length > 1 ? (plan.together ? "both at the same time" : "one after another") : resources[0].role} (${plan.why}).`)
+  console.log(`Plan: ${resources.map((one) => one.role).join(", then ")}, one at a time.`)
   const menu = copiesMenu(app, resources, flags.skipMenu)
   console.log(`Left menu: ${menu ? "copied from local to live after the deploy" : "left as it is on live"}.`)
   const aiKeys = copiesAiKeys(app, flags.skipAiKeys)
@@ -378,19 +363,10 @@ async function main() {
     return
   }
 
-  if (plan.together) {
-    console.log(`\nDeploying ${resources.map((one) => one.role).join(" and ")} together${flags.force ? " without cache" : ""}...`)
-    const started = []
-    for (const resource of resources) started.push([resource, await deployOne(settings, resource, flags.force)])
-    const results = await Promise.all(started.map(([resource, id]) => waitForDeployment(settings, resource.role, id)))
-    const failed = started.map(([resource], i) => [resource.role, results[i]]).filter(([, status]) => status !== "finished").map(([role, status]) => `${role} ${status}`)
-    if (failed.length) throw new Error(`${failed.join(", ")}. Look at Coolify before deploying again.`)
-  } else {
-    for (const resource of resources) {
-      console.log(`\nDeploying ${resource.role}${flags.force ? " without cache" : ""}...`)
-      const status = await waitForDeployment(settings, resource.role, await deployOne(settings, resource, flags.force))
-      if (status !== "finished") throw new Error(`${resource.role} ${status}. Stopped, so the rest keep the build they have.`)
-    }
+  for (const resource of resources) {
+    console.log(`\nDeploying ${resource.role}${flags.force ? " without cache" : ""}...`)
+    const status = await waitForDeployment(settings, resource.role, await deployOne(settings, resource, flags.force))
+    if (status !== "finished") throw new Error(`${resource.role} ${status}. Stopped, so the rest keep the build they have.`)
   }
 
   if (app.healthUrl) console.log(`\nHealth ${app.healthUrl}: ${await checkHealth(app.healthUrl)}`)

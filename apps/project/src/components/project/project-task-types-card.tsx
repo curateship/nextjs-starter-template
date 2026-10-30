@@ -49,10 +49,10 @@ export function ProjectTaskTypesCard({ page }: { page: ProjectPage }) {
   }
 
   return (
-    <CollapsibleSettingsCard storageId="project-settings-task-types" title="Task types" size="sm" contentClassName="grid gap-4">
+    <CollapsibleSettingsCard storageId="project-settings-task-types" title="Task templates" size="sm" contentClassName="grid gap-4">
       <fieldset className="grid gap-2">
         <legend className="mb-2 text-sm text-muted-foreground">
-          The types New task offers here. Tasks that already have a type keep it.
+          The templates New task offers here. Tasks that already have one keep it.
         </legend>
         {live.map((type) => {
           const id = `project-type-${type.id}`
@@ -73,7 +73,7 @@ export function ProjectTaskTypesCard({ page }: { page: ProjectPage }) {
         })}
       </fieldset>
       <div className="grid gap-2">
-        <FieldLabel htmlFor="project-default-type" hint="New task starts on this type in this project.">
+        <FieldLabel htmlFor="project-default-type" hint="New task starts on this template in this project.">
           Default type
         </FieldLabel>
         <Select
@@ -89,7 +89,7 @@ export function ProjectTaskTypesCard({ page }: { page: ProjectPage }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NO_DEFAULT}>Plain task</SelectItem>
+            <SelectItem value={NO_DEFAULT}>No template</SelectItem>
             {offered.map((type) => (
               <SelectItem key={type.id} value={type.id}>
                 <TypeIconGlyph icon={type.icon} color={type.color} />

@@ -230,6 +230,107 @@ export const videoMusicTracks = pgTable("video_music_tracks", {
 })
 
 /**
+ * Sound files marked as sound effects, for the editor's Sounds panel (see
+ * `src/server/video/sound-effects.ts`). The same kind of mark as music: the
+ * file's owner owns it, and deleting the file removes it. The starter pack
+ * is files shipped with the app, not rows here (migration 0144).
+ */
+export const videoSoundEffects = pgTable("video_sound_effects", {
+  mediaId: varchar("media_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellMedia.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * A copy of one file's sound with the hum and hiss taken out at one strength,
+ * built by the media worker when a clip's "Clean up the voice" is switched
+ * on, so the preview plays what the export will (migration 0144). `id` is
+ * `<media_id>:<strength>`.
+ */
+export const videoMediaCleanSounds = pgTable(
+  "video_media_clean_sounds",
+  {
+    id: varchar("id", { length: 48 }).primaryKey(),
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    strength: varchar("strength", { length: 10 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    storagePath: text("storage_path"),
+    error: text("error"),
+    attempts: integer("attempts").notNull().default(0),
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    generatedAt: timestamp("generated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_media_clean_sounds_strength_check",
+      sql`${table.strength} in ('light', 'medium', 'strong')`
+    ),
+    check(
+      "video_media_clean_sounds_status_check",
+      sql`${table.status} in ('queued', 'generating', 'ready', 'error')`
+    ),
+    check(
+      "video_media_clean_sounds_id_check",
+      sql`${table.id} = ${table.mediaId} || ':' || ${table.strength}`
+    ),
+    check(
+      "video_media_clean_sounds_ready_check",
+      sql`${table.status} <> 'ready' or ${table.storagePath} is not null`
+    ),
+    check("video_media_clean_sounds_attempts_check", sql`${table.attempts} >= 0`),
+    index("ix_video_media_clean_sounds_status_created").on(
+      table.status,
+      table.createdAt
+    ),
+  ]
+)
+
+/**
+ * Where the beats fall in each file marked as music, found by the media
+ * worker so clip edges can snap to them (migration 0144). `beats` is a list
+ * of milliseconds from the start of the file; empty means no steady beat.
+ */
+export const videoMediaBeats = pgTable(
+  "video_media_beats",
+  {
+    mediaId: varchar("media_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 20 }).notNull(),
+    beats: jsonb("beats").$type<number[]>(),
+    tempo: doublePrecision("tempo"),
+    error: text("error"),
+    attempts: integer("attempts").notNull().default(0),
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    generatedAt: timestamp("generated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_media_beats_status_check",
+      sql`${table.status} in ('queued', 'generating', 'ready', 'error')`
+    ),
+    check(
+      "video_media_beats_ready_check",
+      sql`${table.status} <> 'ready' or ${table.beats} is not null`
+    ),
+    check("video_media_beats_attempts_check", sql`${table.attempts} >= 0`),
+    index("ix_video_media_beats_status_created").on(
+      table.status,
+      table.createdAt
+    ),
+  ]
+)
+
+/**
  * The voiceover shelf (see `src/server/video/voiceovers.ts`): what a
  * voiceover said, who said it and the captions that came back with it, kept
  * beside the sound file so it can be reused without being read again. The
@@ -705,6 +806,14 @@ export const videoSettings = pgTable(
     // The Pexels API key the B-roll tool searches stock video with, scrambled
     // the same way. NULL means no key, and B-roll asks for one.
     pexelsApiKey: text("pexels_api_key"),
+    // The Wan and Seedance keys for AI shots, scrambled the same way, and the
+    // site each came from, since a key works only there (drizzle/0143).
+    wanApiKey: text("wan_api_key"),
+    seedanceApiKey: text("seedance_api_key"),
+    wanRegion: varchar("wan_region", { length: 20 }).notNull().default("intl"),
+    seedanceRegion: varchar("seedance_region", { length: 20 })
+      .notNull()
+      .default("byteplus"),
     // The words the script check flags, as a JSON list. NULL until somebody
     // saves a list on Settings → Scripts; the starter words apply until then.
     scriptBannedWords: jsonb("script_banned_words"),
@@ -966,6 +1075,18 @@ export const videoAiGenerations = pgTable(
     clipStartMs: doublePrecision("clip_start_ms"),
     clipDurationMs: doublePrecision("clip_duration_ms"),
     clipOutcome: varchar("clip_outcome", { length: 8 }).$type<ClipOutcome>(),
+    // On Wan and Seedance (drizzle/0143): whether the company makes sound,
+    // the picture the shot's last piece lands on, and a voiceover the person
+    // says. Google's shots always have sound and neither picture.
+    withSound: boolean("with_sound").notNull().default(true),
+    endFrameMediaId: varchar("end_frame_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    voiceMediaId: varchar("voice_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),

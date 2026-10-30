@@ -74,6 +74,8 @@ const movingOriginSchema = z
     extras: z.array(sentExtraSchema).max(EXTRA_KINDS.length),
     aspectRatio: z.enum(ASSET_ASPECT_RATIOS),
     quality: z.enum(VIDEO_QUALITY_IDS),
+    /** Whether the company made sound. Left out on shots that always have it. */
+    sound: z.boolean().optional(),
   })
   .strict()
 

@@ -96,9 +96,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
+import { DisabledReason } from "@/components/ui/disabled-reason"
+import { Hint } from "@/components/video-assets/hint"
 import { Input } from "@/components/ui/input"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -112,6 +117,7 @@ import {
   exportCarousel,
   getCarouselErrorMessage,
   listCollectionPictures,
+  loadCarouselMediaCounts,
   makeVideoFromCarousel,
   suggestFirstSlide,
   writeCaption,
@@ -149,6 +155,14 @@ import { attachEditorMedia, listVideoMedia } from "@/lib/api/video/media"
 import { LayersPanelBody } from "@/components/carousel-studio/layers-panel"
 import { StickerList } from "@/components/video-editor/studio-stickers"
 import { useMediaCollections } from "@/components/video-editor/use-media-collections"
+import { CollectionNameDialog } from "@/components/video-editor/studio-media-collections"
+import { MediaFilterMenu } from "@/components/video-editor/studio-media-filter"
+import {
+  CAROUSEL_MEDIA_FILTER,
+  emptyMediaFilter,
+  readMediaTypes,
+  type MediaFilterValue,
+} from "@/lib/video/media-saved-views"
 import type { Sticker } from "@/lib/api/video/stickers"
 import { PhonePreviewDialog } from "@/components/carousel-studio/phone-preview"
 import {
@@ -838,10 +852,6 @@ export function CarouselBuilderPage({
   }
 
   function addSlide() {
-    if (state.slides.length >= 20) {
-      showErrorToast("A carousel can have at most 20 slides.")
-      return
-    }
     dispatch({ type: "ADD_SLIDE" })
   }
 
@@ -854,10 +864,8 @@ export function CarouselBuilderPage({
   }
 
   async function polishSelectedText() {
-    if (!selectedSlide || selectedItem?.type !== "text") {
-      showErrorToast("Select a text layer first.")
-      return
-    }
+    // The button is greyed until a text layer is picked.
+    if (!selectedSlide || selectedItem?.type !== "text") return
     setPolishing(true)
     try {
       await flushSave()
@@ -1289,22 +1297,23 @@ function CarouselStageHeader({
   return (
     <DashboardCardHeader className="grid grid-cols-[1fr_auto_1fr]">
       <div className="flex min-w-0 items-center gap-2.5">
-        <Button asChild variant="ghost" size="icon">
-          <Link
-            to="/admin/video-carousels"
-            search={{
-              q: undefined,
-              sort: undefined,
-              direction: undefined,
-              page: undefined,
-              account: undefined,
-            }}
-            aria-label="Back to carousels"
-            title="Back to carousels"
-          >
-            <ArrowLeftIcon />
-          </Link>
-        </Button>
+        <Hint label="Back to carousels">
+          <Button asChild variant="ghost" size="icon">
+            <Link
+              to="/admin/video-carousels"
+              search={{
+                q: undefined,
+                sort: undefined,
+                direction: undefined,
+                page: undefined,
+                account: undefined,
+              }}
+              aria-label="Back to carousels"
+            >
+              <ArrowLeftIcon />
+            </Link>
+          </Button>
+        </Hint>
         <span
           className="font-heading min-w-0 truncate text-[0.99rem] leading-snug font-medium"
           title={name}
@@ -1314,56 +1323,66 @@ function CarouselStageHeader({
       </div>
 
       <div className="flex items-center gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          disabled={!canUndo}
-          onClick={onUndo}
-          aria-label="Undo"
-          title="Undo"
-        >
-          <Undo2Icon />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          disabled={!canRedo}
-          onClick={onRedo}
-          aria-label="Redo"
-          title="Redo"
-        >
-          <Redo2Icon />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onReset}
-          aria-label="Reset slide to defaults"
-          title="Reset slide to defaults"
-        >
-          <RotateCcwIcon />
-        </Button>
+        <Hint label="Undo" disabled={!canUndo}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            disabled={!canUndo}
+            onClick={onUndo}
+            aria-label="Undo"
+          >
+            <Undo2Icon />
+          </Button>
+        </Hint>
+        <Hint label="Redo" disabled={!canRedo}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            disabled={!canRedo}
+            onClick={onRedo}
+            aria-label="Redo"
+          >
+            <Redo2Icon />
+          </Button>
+        </Hint>
+        <Hint label="Reset slide to defaults">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onReset}
+            aria-label="Reset slide to defaults"
+          >
+            <RotateCcwIcon />
+          </Button>
+        </Hint>
       </div>
 
       <div className="flex items-center justify-end gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
+        <Hint
+          label="Polish selected text"
           disabled={!canPolish || polishing}
-          onClick={onPolish}
-          aria-label="Polish selected text"
-          title="Polish selected text"
+          disabledReason={
+            canPolish ? null : "Pick a text layer on the slide to polish its words."
+          }
         >
-          {polishing ? (
-            <Loader2Icon className="animate-spin" />
-          ) : (
-            <SparklesIcon />
-          )}
-        </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            disabled={!canPolish || polishing}
+            onClick={onPolish}
+            aria-label="Polish selected text"
+          >
+            {polishing ? (
+              <Loader2Icon className="animate-spin" />
+            ) : (
+              <SparklesIcon />
+            )}
+          </Button>
+        </Hint>
         <DropdownMenu>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -1502,6 +1521,23 @@ function CarouselContextPanel({
   const currentPanel = RAIL.find((item) => item.id === panel) ?? RAIL[0]
   const PanelIcon = currentPanel.Icon
 
+  // The Image panel puts search, its filter and + in the header, so it
+  // draws the header itself.
+  if (panel === "image") {
+    return (
+      <ImagePanel
+        icon={<PanelIcon className="size-4" />}
+        title={currentPanel.label}
+        carouselId={carouselId}
+        slide={slide}
+        format={format}
+        mediaVersion={mediaVersion}
+        onUpload={onUpload}
+        onAddItem={onAddItem}
+      />
+    )
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <DashboardCardTitleHeader
@@ -1545,15 +1581,6 @@ function CarouselContextPanel({
               onAddItem={onAddItem}
               onAddSlideNumbers={onAddSlideNumbers}
             />
-          ) : panel === "image" ? (
-            <ImagePanelBody
-              carouselId={carouselId}
-              slide={slide}
-              format={format}
-              mediaVersion={mediaVersion}
-              onUpload={onUpload}
-              onAddItem={onAddItem}
-            />
           ) : (
             <ShadowPanelBody onAddItem={onAddItem} />
           )}
@@ -1596,19 +1623,19 @@ function SlidesViewToggle({
       ).map(([id, Icon, label]) => {
         const on = view === id
         return (
-          <Button
-            key={id}
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onChange(id)}
-            aria-label={label}
-            aria-pressed={on}
-            title={label}
-            className={on ? "bg-muted text-foreground" : undefined}
-          >
-            <Icon />
-          </Button>
+          <Hint key={id} label={label}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => onChange(id)}
+              aria-label={label}
+              aria-pressed={on}
+              className={on ? "bg-muted text-foreground" : undefined}
+            >
+              <Icon />
+            </Button>
+          </Hint>
         )
       })}
     </div>
@@ -1654,16 +1681,22 @@ function SlidesPanelBody({
   }
 
   const addButton = (
-    <Button
-      type="button"
-      variant="outline"
-      className="mt-2 w-full border-dashed"
+    <DisabledReason
       disabled={slides.length >= 20}
-      onClick={onAddSlide}
+      reason="A carousel can have at most 20 slides."
+      className="w-full"
     >
-      <PlusIcon />
-      Add slide
-    </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="mt-2 w-full border-dashed"
+        disabled={slides.length >= 20}
+        onClick={onAddSlide}
+      >
+        <PlusIcon />
+        Add slide
+      </Button>
+    </DisabledReason>
   )
 
   return (
@@ -1891,31 +1924,39 @@ function SlideListRow({
         </div>
       </button>
       <div style={{ display: "flex", flex: "none", gap: 2 }}>
-        <button
-          type="button"
-          className="st-hovbg"
-          onClick={onDuplicate}
-          aria-label="Duplicate slide"
-          title="Duplicate slide"
-          style={slideRowIconBtn}
-        >
-          <CopyIcon size={14} />
-        </button>
-        <button
-          type="button"
-          className="st-hovbg"
-          onClick={onDelete}
+        <Hint label="Duplicate slide">
+          <button
+            type="button"
+            className="st-hovbg"
+            onClick={onDuplicate}
+            aria-label="Duplicate slide"
+            style={slideRowIconBtn}
+          >
+            <CopyIcon size={14} />
+          </button>
+        </Hint>
+        <Hint
+          label="Delete slide"
           disabled={!canDelete}
-          aria-label="Delete slide"
-          title="Delete slide"
-          style={{
-            ...slideRowIconBtn,
-            opacity: canDelete ? 1 : 0.35,
-            cursor: canDelete ? "pointer" : "default",
-          }}
+          disabledReason="A carousel keeps at least one slide."
         >
-          <Trash2Icon size={14} />
-        </button>
+          <button
+            type="button"
+            className="st-hovbg"
+            onClick={onDelete}
+            disabled={!canDelete}
+            aria-label="Delete slide"
+            style={{
+              ...slideRowIconBtn,
+              opacity: canDelete ? 1 : 0.35,
+              cursor: canDelete ? "pointer" : "default",
+              // The pointer has to reach the wrapper that explains why.
+              pointerEvents: canDelete ? undefined : "none",
+            }}
+          >
+            <Trash2Icon size={14} />
+          </button>
+        </Hint>
       </div>
     </div>
   )
@@ -2009,31 +2050,39 @@ function SlideGridCard({
         >
           <GripVerticalIcon size={12} />
         </button>
-        <button
-          type="button"
-          className="st-hovbright"
-          onClick={onDuplicate}
-          aria-label="Duplicate slide"
-          title="Duplicate slide"
-          style={gridCardIconBtn}
-        >
-          <CopyIcon size={12} />
-        </button>
-        <button
-          type="button"
-          className="st-hovbright"
-          onClick={onDelete}
+        <Hint label="Duplicate slide">
+          <button
+            type="button"
+            className="st-hovbright"
+            onClick={onDuplicate}
+            aria-label="Duplicate slide"
+            style={gridCardIconBtn}
+          >
+            <CopyIcon size={12} />
+          </button>
+        </Hint>
+        <Hint
+          label="Delete slide"
           disabled={!canDelete}
-          aria-label="Delete slide"
-          title="Delete slide"
-          style={{
-            ...gridCardIconBtn,
-            opacity: canDelete ? 1 : 0.4,
-            cursor: canDelete ? "pointer" : "default",
-          }}
+          disabledReason="A carousel keeps at least one slide."
         >
-          <Trash2Icon size={12} />
-        </button>
+          <button
+            type="button"
+            className="st-hovbright"
+            onClick={onDelete}
+            disabled={!canDelete}
+            aria-label="Delete slide"
+            style={{
+              ...gridCardIconBtn,
+              opacity: canDelete ? 1 : 0.4,
+              cursor: canDelete ? "pointer" : "default",
+              // The pointer has to reach the wrapper that explains why.
+              pointerEvents: canDelete ? undefined : "none",
+            }}
+          >
+            <Trash2Icon size={12} />
+          </button>
+        </Hint>
       </div>
     </div>
   )
@@ -2200,7 +2249,9 @@ function TextPanelBody({
 
 // -------------------------------------------------------- Image panel -------
 
-function ImagePanelBody({
+function ImagePanel({
+  icon,
+  title,
   carouselId,
   slide,
   format,
@@ -2208,6 +2259,8 @@ function ImagePanelBody({
   onUpload,
   onAddItem,
 }: {
+  icon: React.ReactNode
+  title: string
   carouselId: string
   slide: CarouselSlide | undefined
   format: CarouselFormat
@@ -2219,21 +2272,31 @@ function ImagePanelBody({
 }) {
   const [search, setSearch] = React.useState("")
   const [debounced, setDebounced] = React.useState("")
-  const [items, setItems] = React.useState<MediaItem[]>([])
+  // Null until the first list arrives, so nothing says "empty" before it
+  // has been read.
+  const [items, setItems] = React.useState<MediaItem[] | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+  const [reloads, setReloads] = React.useState(0)
   const [uploading, setUploading] = React.useState(false)
   const [dragOver, setDragOver] = React.useState(false)
   // Goes up when a Pexels photo joins the shelf from this panel.
   const [kept, setKept] = React.useState(0)
-  // "shelf" is this carousel's own uploads; a collection's id lists that
-  // collection's pictures from the whole library.
-  const [source, setSource] = React.useState("shelf")
-  const { collections } = useMediaCollections()
+  const [searchOpen, setSearchOpen] = React.useState(false)
+  // The filter menu's Collection row: "shelf" is this carousel's own
+  // uploads; a collection's id lists that collection from the whole library.
+  const [filter, setFilter] = React.useState<MediaFilterValue>(() =>
+    emptyMediaFilter(CAROUSEL_MEDIA_FILTER)
+  )
+  const typesKey = filter.types.join(",")
+  const [counts, setCounts] = React.useState<Record<string, number>>()
+  const [creatingCollection, setCreatingCollection] = React.useState(false)
+  const { collections, reload: reloadCollections } = useMediaCollections()
   const fileRef = React.useRef<HTMLInputElement>(null)
   // A collection deleted in another tab falls back to the shelf.
   const showing =
-    source === "shelf" || collections.some((item) => item.id === source)
-      ? source
+    filter.collection === "shelf" ||
+    collections.some((item) => item.id === filter.collection)
+      ? filter.collection
       : "shelf"
 
   React.useEffect(() => {
@@ -2243,16 +2306,19 @@ function ImagePanelBody({
 
   React.useEffect(() => {
     let active = true
+    const types = readMediaTypes(typesKey, CAROUSEL_MEDIA_FILTER.types) as (
+      | "image"
+      | "video"
+    )[]
     const request =
       showing === "shelf"
         ? listVideoMedia({
             scope: { type: "carousel", id: carouselId },
             pageSize: 30,
             search: debounced || undefined,
-          }).then((data) =>
-            data.media.filter((media) => media.file_type !== "audio")
-          )
-        : listCollectionPictures(showing, debounced)
+            fileTypes: types.length ? types : ["image", "video"],
+          }).then((data) => data.media)
+        : listCollectionPictures(showing, debounced, types)
     request
       .then((media) => {
         if (!active) return
@@ -2266,7 +2332,25 @@ function ImagePanelBody({
     return () => {
       active = false
     }
-  }, [carouselId, debounced, mediaVersion, showing, kept])
+  }, [carouselId, debounced, mediaVersion, showing, typesKey, kept, reloads])
+
+  // The filter menu's numbers. Read again when the collections are, so a
+  // file added to one in the video editor counts once this tab is looked at.
+  React.useEffect(() => {
+    let active = true
+    const types = readMediaTypes(typesKey, CAROUSEL_MEDIA_FILTER.types) as (
+      | "image"
+      | "video"
+    )[]
+    loadCarouselMediaCounts(carouselId, debounced, types)
+      .then((loaded) => {
+        if (active) setCounts(loaded)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [carouselId, debounced, mediaVersion, typesKey, kept, collections])
 
   // A picture from a collection joins this carousel's shelf as it goes on a
   // slide, so it is there next time without the collection.
@@ -2317,70 +2401,95 @@ function ImagePanelBody({
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            height: 34,
-            padding: "0 11px",
-            background: "var(--elev)",
-            borderRadius: 9,
-            minWidth: 0,
-          }}
-        >
-          <SearchIcon size={14} style={{ color: "var(--mut)", flex: "none" }} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search media"
-            style={{
-              flex: 1,
-              minWidth: 0,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              fontSize: 12,
-              color: "var(--ink)",
-            }}
-          />
-        </div>
-        <button
-          type="button"
-          className="st-hovbg"
-          onClick={() => fileRef.current?.click()}
-          title="Upload image"
-          style={{
-            height: 34,
-            width: 34,
-            display: "grid",
-            placeItems: "center",
-            background: "var(--elev)",
-            border: "none",
-            borderRadius: 9,
-            color: "var(--ink)",
-            cursor: "pointer",
-            flex: "none",
-          }}
-        >
-          <PlusIcon size={15} />
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*,video/mp4,video/quicktime,video/webm"
-          multiple
-          hidden
-          onChange={(e) => {
-            void handleUpload(e.target.files)
-            e.target.value = ""
-          }}
-        />
-      </div>
+    <div className="flex h-full min-h-0 flex-col">
+      <DashboardCardTitleHeader
+        icon={icon}
+        title={title}
+        action={
+          <div className="flex items-center gap-2">
+            <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+              <Hint label="Search media">
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Search media"
+                    aria-pressed={searchOpen}
+                  >
+                    <SearchIcon className={search ? "text-foreground" : undefined} />
+                  </Button>
+                </PopoverTrigger>
+              </Hint>
+              <PopoverContent align="start" className="w-60 p-2">
+                <Input
+                  autoFocus
+                  type="search"
+                  value={search}
+                  placeholder="Search media"
+                  aria-label="Search media"
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </PopoverContent>
+            </Popover>
+            <MediaFilterMenu
+              kind={CAROUSEL_MEDIA_FILTER}
+              baseRows={[{ id: "shelf", label: "This carousel" }]}
+              value={{ ...filter, collection: showing }}
+              onChange={setFilter}
+              collections={collections}
+              counts={counts}
+              showClear={false}
+              typeDivider
+              onCollectionsChanged={reloadCollections}
+              onNewCollection={() => setCreatingCollection(true)}
+            />
+            <Hint label="Upload image" disabled={uploading}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={uploading}
+                aria-label="Upload image"
+                onClick={() => fileRef.current?.click()}
+              >
+                {uploading ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
+              </Button>
+            </Hint>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,video/mp4,video/quicktime,video/webm"
+              multiple
+              hidden
+              onChange={(e) => {
+                void handleUpload(e.target.files)
+                e.target.value = ""
+              }}
+            />
+          </div>
+        }
+      />
 
+      <CollectionNameDialog
+        open={creatingCollection}
+        onOpenChange={setCreatingCollection}
+        collection={null}
+        onSaved={(created) => {
+          toast.success(`Created “${created.name}”.`)
+          reloadCollections()
+        }}
+      />
+
+      <ScrollArea className="min-h-0 flex-1">
+      <div className="p-4">
+      {/* The drop box is the empty shelf's message; files dropped on the
+          canvas join the shelf too. */}
+      {showing === "shelf" &&
+      items?.length === 0 &&
+      !error &&
+      !search &&
+      !typesKey ? (
       <div
         className="st-hovcard"
         data-media-drop
@@ -2425,49 +2534,23 @@ function ImagePanelBody({
           PNG · JPG · WEBP · MP4 · MOV
         </div>
       </div>
+      ) : null}
 
       {error ? (
-        <div
-          style={{ fontSize: 11.5, color: "var(--coral)", marginBottom: 12 }}
-        >
-          {error}
-        </div>
-      ) : null}
-
-      {collections.length ? (
-        <div
-          role="group"
-          aria-label="Pictures from"
-          className="mb-4 flex flex-wrap gap-[5px]"
-        >
-          {[
-            { id: "shelf", label: "This carousel" },
-            ...collections.map((item) => ({ id: item.id, label: item.name })),
-          ].map((option) => {
-            const on = showing === option.id
-            return (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={on}
-                onClick={() => setSource(option.id)}
-                className="max-w-full truncate rounded-lg border px-[9px] py-[5px] text-[11px] font-semibold"
-                style={{
-                  borderColor: on ? "var(--acc)" : "var(--line)",
-                  background: on ? "var(--acc-soft)" : "var(--panel)",
-                  color: on ? "var(--acc)" : "var(--ink2)",
-                }}
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
-
+        <ErrorRow
+          message={error}
+          onRetry={() => {
+            setError(null)
+            setReloads((reload) => reload + 1)
+          }}
+        />
+      ) : items === null ? (
+        <LoadingRow label="Loading media" />
+      ) : (
+      <>
       <StudioLabel>
         {showing === "shelf"
-          ? `Your media · ${items.length}`
+          ? `This carousel · ${items.length}`
           : `${collections.find((item) => item.id === showing)?.name ?? "Collection"} · ${items.length}`}
       </StudioLabel>
       {/* 2-col masonry so each thumbnail keeps its own aspect ratio (no crop). */}
@@ -2529,7 +2612,7 @@ function ImagePanelBody({
               mediaName={item.original_name}
               onDeleted={(mediaId) =>
                 setItems((current) =>
-                  current.filter((media) => media.id !== mediaId)
+                  current && current.filter((media) => media.id !== mediaId)
                 )
               }
             >
@@ -2540,13 +2623,16 @@ function ImagePanelBody({
           )
         })}
       </div>
-      {!items.length && !error ? (
+      {/* One empty line, and none while the drop box already says it. */}
+      {!items.length && (showing !== "shelf" || search || typesKey) ? (
         <div style={{ fontSize: 12, color: "var(--mut)", padding: "8px 2px" }}>
-          {showing === "shelf"
-            ? "No images yet. Import one to place it on the slide."
-            : "No pictures in this collection yet."}
+          {search || typesKey
+            ? "Nothing here matches the search or filter."
+            : "Nothing in this collection yet."}
         </div>
       ) : null}
+      </>
+      )}
 
       <StudioLabel style={{ marginTop: 18 }}>Free photos</StudioLabel>
       <StockPhotoSearch
@@ -2563,6 +2649,8 @@ function ImagePanelBody({
           setKept((count) => count + 1)
         }}
       />
+      </div>
+      </ScrollArea>
     </div>
   )
 }
@@ -4624,16 +4712,17 @@ function LayerControls({
         <ArrowDownIcon />
         Back
       </Button>
-      <Button
-        type="button"
-        variant="destructive"
-        size="icon"
-        onClick={onDelete}
-        aria-label="Delete layer"
-        title="Delete layer"
-      >
-        <Trash2Icon />
-      </Button>
+      <Hint label="Delete layer">
+        <Button
+          type="button"
+          variant="destructive"
+          size="icon"
+          onClick={onDelete}
+          aria-label="Delete layer"
+        >
+          <Trash2Icon />
+        </Button>
+      </Hint>
     </div>
   )
 }
@@ -4735,36 +4824,37 @@ function ColorField({
           />
         )
       })}
-      <label
-        title="Custom colour"
-        style={{
-          position: "relative",
-          width: 32,
-          height: 32,
-          borderRadius: 9,
-          cursor: "pointer",
-          overflow: "hidden",
-          display: "grid",
-          placeItems: "center",
-          background: known ? "var(--panel2)" : value,
-          border: `2px solid ${known ? "var(--line2)" : "var(--acc2)"}`,
-          boxShadow: known ? "none" : "0 0 0 2px var(--acc-soft)",
-          color: known ? "var(--mut)" : "transparent",
-        }}
-      >
-        <PlusIcon size={14} />
-        <input
-          type="color"
-          value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
-          onChange={(event) => onChange(event.target.value)}
+      <Hint label="Custom colour">
+        <label
           style={{
-            position: "absolute",
-            inset: 0,
-            opacity: 0,
+            position: "relative",
+            width: 32,
+            height: 32,
+            borderRadius: 9,
             cursor: "pointer",
+            overflow: "hidden",
+            display: "grid",
+            placeItems: "center",
+            background: known ? "var(--panel2)" : value,
+            border: `2px solid ${known ? "var(--line2)" : "var(--acc2)"}`,
+            boxShadow: known ? "none" : "0 0 0 2px var(--acc-soft)",
+            color: known ? "var(--mut)" : "transparent",
           }}
-        />
-      </label>
+        >
+          <PlusIcon size={14} />
+          <input
+            type="color"
+            value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
+            onChange={(event) => onChange(event.target.value)}
+            style={{
+              position: "absolute",
+              inset: 0,
+              opacity: 0,
+              cursor: "pointer",
+            }}
+          />
+        </label>
+      </Hint>
     </div>
   )
 }

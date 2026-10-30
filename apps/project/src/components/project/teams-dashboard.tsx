@@ -257,7 +257,6 @@ export function TeamsDashboard({
             team={settings.team}
             labels={settings.labels}
             stepLists={settings.stepLists}
-            templates={settings.templates}
             joinLink={settings.joinLink}
             holidays={settings.holidays}
             canEdit
@@ -370,8 +369,8 @@ function DeleteTeam({ team, onClose }: { team: TeamListRow; onClose: () => void 
       title={`Delete ${team.name}?`}
       description={
         team.archivedProjects
-          ? `It goes for good, with its ${plural(team.archivedProjects, "archived project", "archived projects")} and their tasks, check-ins, meetings, labels and task types. This can't be undone.`
-          : "It goes for good, with its check-ins, meetings, labels and task types. This can't be undone."
+          ? `It goes for good, with its ${plural(team.archivedProjects, "archived project", "archived projects")} and their tasks, check-ins, meetings, labels and task templates. This can't be undone.`
+          : "It goes for good, with its check-ins, meetings, labels and task templates. This can't be undone."
       }
       confirmLabel="Delete team"
       loading={busy}

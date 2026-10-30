@@ -165,7 +165,7 @@ describe("warnings and suspensions", () => {
     const result = await warnMembers({ userIds: [sam], message: "Please be kind.", actorUserId: admin, database: db })
     expect(result.warned).toHaveLength(1)
     expect(await noticesFor(sam)).toEqual([
-      { message: "You have a warning from the Pomoder team.", detail: "Please be kind.", kind: "admin_warning" },
+      { message: "You have a warning from the Flowfly team.", detail: "Please be kind.", kind: "admin_warning" },
     ])
     expect(await db.select({ message: pomodoroWarnings.message }).from(pomodoroWarnings)).toEqual([{ message: "Please be kind." }])
   })

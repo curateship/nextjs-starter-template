@@ -192,7 +192,7 @@ export const VOICE_NO_TEXT_MESSAGE = "Write something for the voice to read"
 export const VOICE_NO_VOICE_MESSAGE = "Pick a voice first"
 export const VOICE_FAILED_MESSAGE = "That could not be read aloud"
 export const VOICE_NO_VOICES_MESSAGE =
-  "That key has no voices on it — add one in your ElevenLabs account"
+  "That key has no voices on it - add one in your ElevenLabs account"
 export const VOICE_TOO_MANY_PAUSES_MESSAGE =
   "A script can hold 10 pauses at most, because more make the voice speed up or crackle"
 export const VOICE_NOT_YOURS_MESSAGE =

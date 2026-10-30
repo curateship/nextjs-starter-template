@@ -22,6 +22,7 @@ import {
 } from "@/components/shared/sortable-table-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
+import { Hint } from "@/components/video-assets/hint"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -417,83 +418,89 @@ export function ExportsPage({
                 </TableCell>
                 <TableCell column="meta">
                   <span className="block max-w-40 truncate" title={sourceName(item)}>
-                    {sourceName(item) || "—"}
+                    {sourceName(item) || "-"}
                   </span>
                 </TableCell>
                 <TableCell column="meta">{item.aspect}</TableCell>
                 <TableCell column="meta">
-                  {item.file_size ? formatFileSize(item.file_size) : "—"}
+                  {item.file_size ? formatFileSize(item.file_size) : "-"}
                 </TableCell>
                 <TableCell column="meta" className="hidden 2xl:table-cell">
                   {item.kind === "carousel"
                     ? describeSlides(item)
                     : item.duration_ms
                       ? formatClock(item.duration_ms)
-                      : "—"}
+                      : "-"}
                 </TableCell>
                 <TableCell column="meta">
-                  {item.finished_at ? formatDate(item.finished_at) : "—"}
+                  {item.finished_at ? formatDate(item.finished_at) : "-"}
                 </TableCell>
                 <TableCell column="actions">
                   <div className="flex items-center gap-1">
                     {item.status === "ready" ? (
                       <>
-                        <Button asChild variant="ghost" size="icon">
-                          <a
-                            href={`/api/v1/video/exports/${item.id}/file?filename=${encodeURIComponent(item.title ?? "export")}`}
-                            download
-                            aria-label={`Download ${item.title ?? "this export"}`}
-                            title={`Download ${item.title ?? "this export"}`}
-                          >
-                            <DownloadIcon className="size-4" />
-                          </a>
-                        </Button>
-                        {item.kind === "carousel" ? (
-                          // LinkedIn takes a carousel as a PDF, one slide a page.
+                        <Hint label="Download">
                           <Button asChild variant="ghost" size="icon">
                             <a
-                              href={`/api/v1/video/exports/${item.id}/file?format=pdf&filename=${encodeURIComponent(item.title ?? "export")}`}
+                              href={`/api/v1/video/exports/${item.id}/file?filename=${encodeURIComponent(item.title ?? "export")}`}
                               download
-                              aria-label={`Download ${item.title ?? "this export"} as a PDF`}
+                              aria-label={`Download ${item.title ?? "this export"}`}
                             >
-                              <FileTextIcon className="size-4" />
+                              <DownloadIcon className="size-4" />
                             </a>
                           </Button>
+                        </Hint>
+                        {item.kind === "carousel" ? (
+                          // LinkedIn takes a carousel as a PDF, one slide a page.
+                          <Hint label="Download as a PDF">
+                            <Button asChild variant="ghost" size="icon">
+                              <a
+                                href={`/api/v1/video/exports/${item.id}/file?format=pdf&filename=${encodeURIComponent(item.title ?? "export")}`}
+                                download
+                                aria-label={`Download ${item.title ?? "this export"} as a PDF`}
+                              >
+                                <FileTextIcon className="size-4" />
+                              </a>
+                            </Button>
+                          </Hint>
                         ) : null}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setSharing(item)}
-                          aria-label={`Share ${item.title ?? "this export"}`}
-                          title="Share link"
-                        >
-                          <Link2Icon className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setEditing(item)}
-                          aria-label={`Edit ${item.title ?? "this export"}`}
-                          title={`Edit ${item.title ?? "this export"}`}
-                        >
-                          <SettingsIcon className="size-4" />
-                        </Button>
+                        <Hint label="Share link">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setSharing(item)}
+                            aria-label={`Share ${item.title ?? "this export"}`}
+                          >
+                            <Link2Icon className="size-4" />
+                          </Button>
+                        </Hint>
+                        <Hint label="Edit">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setEditing(item)}
+                            aria-label={`Edit ${item.title ?? "this export"}`}
+                          >
+                            <SettingsIcon className="size-4" />
+                          </Button>
+                        </Hint>
                       </>
                     ) : null}
                     {item.status === "error" ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        disabled={busy}
-                        onClick={() => void handleRetry(item)}
-                        aria-label={`Try ${item.title ?? "this export"} again`}
-                        title="Try again"
-                      >
-                        <RotateCwIcon className="size-4" />
-                      </Button>
+                      <Hint label="Try again" disabled={busy}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={busy}
+                          onClick={() => void handleRetry(item)}
+                          aria-label={`Try ${item.title ?? "this export"} again`}
+                        >
+                          <RotateCwIcon className="size-4" />
+                        </Button>
+                      </Hint>
                     ) : null}
                     {isExportActive(item) ? (
                       <Button
@@ -506,16 +513,17 @@ export function ExportsPage({
                         Stop export
                       </Button>
                     ) : (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setDeleteTargets([item])}
-                        aria-label={`Delete ${item.title ?? "this export"}`}
-                        title={`Delete ${item.title ?? "this export"}`}
-                      >
-                        <Trash2Icon className="size-4" />
-                      </Button>
+                      <Hint label="Delete">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeleteTargets([item])}
+                          aria-label={`Delete ${item.title ?? "this export"}`}
+                        >
+                          <Trash2Icon className="size-4" />
+                        </Button>
+                      </Hint>
                     )}
                   </div>
                 </TableCell>

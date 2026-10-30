@@ -5,6 +5,12 @@ for example "Write them · about 2¢". Tyler chose "on the button itself" on
 18 Oct 2026. The figure changes the moment another AI is picked in the window,
 and it reads "no charge" when nothing will be spent.
 
+Once one of these windows is working, it stays open until the answer lands.
+Cancel greys out, and Escape or a click outside does nothing. Closing it used
+to leave the request running, so the charge and the captions still arrived
+after the window was gone. This covers Captions, Hook, Voice (reading aloud
+and Check it) and Jump cuts.
+
 ## What each button says
 
 - **Captions, "Write them":** writing down the whole recording behind the

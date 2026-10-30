@@ -11,7 +11,6 @@ import { SaveLine } from "@/components/project/save-line"
 import { TimeZoneSelect } from "@/components/project/time-zone-select"
 import { TeamLabelsCard } from "@/components/project/team-labels-card"
 import { TeamStepListsCard } from "@/components/project/team-step-lists-card"
-import { TeamTemplatesCard } from "@/components/project/team-templates-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -28,7 +27,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { Label as TeamLabel } from "@/lib/api/project/sorting"
 import type { StepList } from "@/lib/api/project/planning"
-import type { TemplateRow } from "@/lib/api/project/projects"
 import type { Holiday, JoinLinkState } from "@/lib/api/project/team-running"
 import { updateProjectTeam, type TeamSummary } from "@/lib/api/project/teams"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
@@ -39,7 +37,7 @@ import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * The team's name, check-in time, time zone, work days, check-in boxes,
- * holidays, starter tasks, labels, step lists and project templates, in a window opened from the Team
+ * holidays, starter tasks, labels and step lists, in a window opened from the Team
  * dashboard. Each field saves when it is left or picked, so the window ends
  * with Done. The owner and admins edit; everyone else reads.
  */
@@ -47,7 +45,6 @@ export function TeamSettingsDialog({
   team,
   labels,
   stepLists,
-  templates,
   joinLink,
   holidays,
   canEdit,
@@ -57,7 +54,6 @@ export function TeamSettingsDialog({
   team: TeamSummary
   labels: TeamLabel[]
   stepLists: StepList[]
-  templates: TemplateRow[]
   holidays: Holiday[]
   /** Null for anyone who doesn't run the team. */
   joinLink: JoinLinkState | null
@@ -93,7 +89,6 @@ export function TeamSettingsDialog({
           {joinLink && canEdit ? <JoinLinkCard state={joinLink} /> : null}
           <TeamLabelsCard labels={labels} canEdit={canEdit} />
           <TeamStepListsCard lists={stepLists} canEdit={canEdit} />
-          <TeamTemplatesCard templates={templates} canEdit={canEdit} />
         </DialogBody>
         <DialogFooter>
           <Button type="button" onClick={close}>

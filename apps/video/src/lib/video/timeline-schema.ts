@@ -7,7 +7,12 @@ import {
   MIN_CLIP_VOLUME,
 } from "./clip-playback"
 import { CLIP_FITS } from "./clip-frame-fit"
-import { MAX_CLIP_SCALE, MIN_CLIP_SCALE } from "./clip-size"
+import {
+  MAX_CLIP_BOX,
+  MAX_CLIP_SCALE,
+  MIN_CLIP_BOX,
+  MIN_CLIP_SCALE,
+} from "./clip-size"
 import {
   MAX_CLIP_BRIGHTNESS,
   MAX_CLIP_CONTRAST,
@@ -21,6 +26,14 @@ import { MAX_FADE_MS, MIN_FADE_MS } from "./clip-fades"
 import { TRANSITION_KINDS } from "./clip-transitions"
 import { CAPTION_ANIMATION_IDS } from "./caption-animations"
 import { clipOriginSchema } from "./clip-origin"
+import { progressBarSchema } from "./progress-bar"
+import { STOCK_SOUND_IDS } from "./stock-sounds"
+import { VOICE_CLEAN_STRENGTHS } from "./voice-clean"
+import {
+  MAX_SHAPE_LINE_WIDTH,
+  MIN_SHAPE_LINE_WIDTH,
+  SHAPE_KINDS,
+} from "./shapes"
 import { MAX_CAPTION_WORDS } from "./caption-words"
 import { TEXT_FONT_IDS } from "./text-fonts"
 import {
@@ -46,10 +59,12 @@ const clipTransitionSchema = z
   })
   .strict()
 
+const CLIP_KINDS = ["video", "audio", "image", "text", "shape"] as const
+
 export const clipSchema = z
   .object({
     id: z.string().min(1).max(64),
-    kind: z.enum(["video", "audio", "image", "text"]),
+    kind: z.enum(CLIP_KINDS),
     name: z.string().max(255),
     // Where the clip sits on the timeline, and how long it runs for.
     startMs: z.number().nonnegative().finite(),
@@ -61,6 +76,9 @@ export const clipSchema = z
     // project is opened, so it is a convenience rather than the truth.
     mediaId: z.string().max(36).optional(),
     url: z.string().max(2048).optional(),
+    // A starter sound effect that ships with Video (stock-sounds.ts), on a
+    // sound clip with no file of anybody's. Absent on everything else.
+    stockSound: z.enum(STOCK_SOUND_IDS).optional(),
     muted: z.boolean().optional(),
     // How loud this clip's own sound plays, 0 silent and 1 as recorded. Absent
     // means 1, so every timeline saved before this existed still reads.
@@ -68,10 +86,16 @@ export const clipSchema = z
     // How fast it plays. 2 is twice as fast, which is half the timeline room.
     // Absent means 1.
     speed: z.number().min(MIN_CLIP_SPEED).max(MAX_CLIP_SPEED).optional(),
+    // Hum and hiss taken out of this clip's sound, at one of three strengths
+    // (voice-clean.ts). Absent means its sound plays as recorded.
+    voiceClean: z.enum(VOICE_CLEAN_STRENGTHS).optional(),
     // Whether a picture that is not the project's shape fits inside the frame
     // with black at the edges, or fills it and loses the overflow. Absent
     // means "contain", so a timeline saved before this reads unchanged.
     fit: z.enum(CLIP_FITS).optional(),
+    // Which part of a filled picture stays on screen, 0 to 1 along whichever
+    // way it overflows (see clip-frame-fit.ts). Absent means the middle.
+    fillFocus: z.number().min(0).max(1).optional(),
     // A slow move across a still picture over its time on screen. Absent
     // means it holds still, so a timeline saved before this reads unchanged.
     // Only picture clips move; the preview and the export ignore it elsewhere.
@@ -148,6 +172,11 @@ export const clipSchema = z
     // clip-size.ts). Absent means the full frame. A picture smaller than the
     // frame is placed by `x` and `y`, the same as text.
     scale: z.number().min(MIN_CLIP_SCALE).max(MAX_CLIP_SCALE).optional(),
+    // The box a picture or video is fitted into, as a share of the frame
+    // across and down (see clip-size.ts). A split's half is 1 by 0.5. Absent
+    // means the whole frame.
+    boxWidth: z.number().min(MIN_CLIP_BOX).max(MAX_CLIP_BOX).optional(),
+    boxHeight: z.number().min(MIN_CLIP_BOX).max(MAX_CLIP_BOX).optional(),
     transition: clipTransitionSchema.optional(),
     // How the AI made this clip, so Make it again can make it once more in
     // the same place (clip-origin.ts). Absent on everything uploaded, from
@@ -156,6 +185,18 @@ export const clipSchema = z
     // On a caption or an opening line: the voice line that says it, so making
     // that line again replaces these words too. Absent on words typed in.
     spokenBy: z.string().min(1).max(64).optional(),
+    // Shape clips (shapes.ts): which shape, the second of its two points
+    // (`x` and `y` are the first), how thick its line is, and whether it
+    // draws itself on. `color` is its line's colour.
+    shape: z.enum(SHAPE_KINDS).optional(),
+    toX: z.number().min(0).max(1).optional(),
+    toY: z.number().min(0).max(1).optional(),
+    lineWidth: z
+      .number()
+      .min(MIN_SHAPE_LINE_WIDTH)
+      .max(MAX_SHAPE_LINE_WIDTH)
+      .optional(),
+    drawOn: z.boolean().optional(),
   })
   .strict()
   .superRefine((clip, context) => {
@@ -164,6 +205,13 @@ export const clipSchema = z
         code: "custom",
         path: ["fontId"],
         message: "Text clips require a font",
+      })
+    }
+    if (clip.kind === "shape" && !clip.shape) {
+      context.addIssue({
+        code: "custom",
+        path: ["shape"],
+        message: "Shape clips require a shape",
       })
     }
   })
@@ -191,6 +239,10 @@ export const timelineSchema = z
       )
       .max(MAX_TIMELINE_TRACKS),
     aspect: z.enum(ASPECT_RATIOS),
+    // The bar along one edge that fills as the video plays (progress-bar.ts).
+    // One per project, so it lives here rather than on a lane. Absent means
+    // none, which is how every project before it reads.
+    progressBar: progressBarSchema.optional(),
   })
   .strict()
 
@@ -204,7 +256,7 @@ export const SAVED_TIMELINE_INVALID_MESSAGE =
 // rejection, stop saving and keep its work as a new project instead of
 // retrying forever.
 export const PROJECT_CONFLICT_MESSAGE =
-  "This project changed elsewhere — reload to continue"
+  "This project changed elsewhere - reload to continue"
 
 export function createEmptyTimeline(): ProjectTimeline {
   return { tracks: [], aspect: "9:16" }
@@ -216,6 +268,7 @@ export function createTimelineSnapshot(
   return requireCanonicalTimeline({
     tracks: timeline.tracks,
     aspect: timeline.aspect,
+    ...(timeline.progressBar ? { progressBar: timeline.progressBar } : {}),
   })
 }
 

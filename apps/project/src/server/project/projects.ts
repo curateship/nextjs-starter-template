@@ -31,7 +31,6 @@ import { listTeamLabels, type Label } from "@/server/project/labels"
 import { listMilestones, type Milestone } from "@/server/project/milestones"
 import { readProjectPlan, writeProjectPlan } from "@/server/project/project-plans"
 import { listTeamTypes } from "@/server/project/task-types"
-import { loadTemplatePlan } from "@/server/project/templates"
 import type { TaskType } from "@/lib/project/task-types"
 import { requireSharedProject } from "@/server/project/personal"
 import { listSavedViews, projectViewScreen, type SavedView } from "@/server/project/saved-views"
@@ -68,6 +67,10 @@ export type ProjectListRow = {
   behindAt: number
   lead: { id: string; name: string; avatarUrl: string } | null
   client: string | null
+  /** The project's own due date, shown on the site admin's Projects card. */
+  dueDate: string | null
+  /** The project's round picture from its settings, shown on the site admin's Projects card. */
+  avatarUrl: string | null
   /** The project's team, shown in the site admin's Team column. */
   team: { id: string; name: string }
   /** Seconds on the clock across its tasks, for the Time column (Seven features, part 4). */
@@ -211,6 +214,8 @@ export async function loadProjectsPage(
             ? { id: project.leadUserId, name: project.leadName, avatarUrl: project.leadAvatar ?? "" }
             : null,
         client: project.client,
+        dueDate: project.dueDate,
+        avatarUrl: project.avatarUrl,
         team: { id: project.teamId, name: project.teamName },
         clockSeconds: clocked.get(project.id) ?? 0,
       }
@@ -227,49 +232,32 @@ function justMeName(personName: string | null) {
 
 
 /**
- * A new project, empty or started from one of the team's saved templates.
- * A template brings its colour and description along with its plan. Only the
- * site admin makes projects (Tyler, 16 Oct 2026: "only I create projects").
+ * A new, empty project. Only the site admin makes projects (Tyler, 16 Oct
+ * 2026: "only I create projects").
  */
 export async function createProject(
   userId: string,
-  input: { name: string; color: ProjectColor; description: string; templateId?: string | null },
+  input: { name: string; color: ProjectColor; description: string },
   database = db
 ): Promise<{ id: string }> {
   return database.transaction(async (tx) => {
     const membership = await requireTeamRunner(userId, tx)
-    const plan = input.templateId ? await loadTemplatePlan(membership.teamId, input.templateId, tx) : null
     const at = now()
     const id = uuid()
     await tx.insert(projectProjects).values({
       id,
       teamId: membership.teamId,
       name: input.name,
-      color: plan?.color ?? input.color,
-      description: plan?.description ?? input.description,
+      color: input.color,
+      description: input.description,
       createdByUserId: userId,
       createdAt: at,
       updatedAt: at,
-      ...(plan ? await planTypeChoices(membership.teamId, plan, tx) : {}),
     })
     // The site admin sees every project without being on any, so a new
     // project starts with nobody on it until they add people.
-    if (plan) await writeProjectPlan(tx, { id, teamId: membership.teamId }, plan, userId)
     return { id }
   })
-}
-
-/** The project's own pick of types, keeping only types the team still has. */
-async function planTypeChoices(
-  teamId: string,
-  plan: { hiddenTypeIds: string[]; defaultTypeId: string | null },
-  tx: ProjectDb
-) {
-  const types = new Set((await listTeamTypes(teamId, tx)).map((type) => type.id))
-  return {
-    hiddenTypeIds: plan.hiddenTypeIds.filter((typeId) => types.has(typeId)),
-    defaultTypeId: plan.defaultTypeId && types.has(plan.defaultTypeId) ? plan.defaultTypeId : null,
-  }
 }
 
 export type ProjectMemberRow = {

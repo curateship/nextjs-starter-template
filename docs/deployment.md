@@ -153,9 +153,10 @@ As the app uses them:
 ## Releasing, in order
 
 For an app already live, `npm run deploy` in the app's folder does all of this
-in one command. It pushes the branch to `develop`, then builds the website and
-the worker together when no new migration ships, or the website first when one
-does. It ends with the live health check. The script and its rules are the
+in one command. It pushes the branch to `develop`, then builds the website and,
+once it is healthy, the worker, never both at once: two builds side by side ran
+the German server out of memory (29 Oct 2026). It ends with the live health
+check. The script and its rules are the
 `deploy-app` skill in `.agents/skills/deploy-app/`. Trade keeps its own
 `deploy` script, which runs engine, then worker, then web. The steps below are
 what it automates, and what to do by hand.

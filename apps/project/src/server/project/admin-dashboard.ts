@@ -1,6 +1,6 @@
 import { and, asc, count, eq, gte, inArray, isNull, lt, lte, ne, notInArray, or, sql, type SQL } from "drizzle-orm"
 
-import { addDays, localNow, momentOf } from "@/lib/project/days"
+import { addDays, daysBetween, localNow, momentOf } from "@/lib/project/days"
 import type { MyPlace } from "@/lib/project/my-task-order"
 import type { NoticeSwitchId } from "@/lib/project/notice-switches"
 import { CLOSED_TASK_STATUSES, boardStatusOrder, PERSONAL_PROJECT_NAME, priorityRank, type ProjectColor, type TaskStatus } from "@/lib/project/rules"
@@ -86,6 +86,24 @@ export type DonePerson = {
   tasks: (Named & { taskId: string; title: string })[]
 }
 
+/** A face on a Projects card. */
+export type ProjectFace = { id: string; name: string; avatarUrl: string }
+
+/**
+ * What the Projects card adds to each project (task "My dashboard/01 Project
+ * cards", Tyler, 29 Oct 2026): who's on it, and what got finished lately.
+ */
+export type AdminProjectCards = {
+  /** Projects the site admin hid from the card. Theirs alone. */
+  hidden: string[]
+  /** The card's projects in the order they dragged them; empty is late first. */
+  order: string[]
+  /** Up to four people on each project besides its lead, and how many that is in all. */
+  people: Record<string, { faces: ProjectFace[]; total: number }>
+  /** Tasks finished on each of the last 14 days in their zone, oldest first, today last. */
+  finished: Record<string, number[]>
+}
+
 export type AdminProject = { name: string; color: ProjectColor; teamName: string | null; movable: boolean }
 
 export type AdminDashboard = {
@@ -124,6 +142,7 @@ export type AdminDashboard = {
     dueThisWeek: TaskCard[]
     /** Every team's open shared projects, whose status the browser works out from late tasks. */
     projects: ProjectListRow[]
+    projectCards: AdminProjectCards
     milestones: MilestoneDue[]
     doneToday: DonePerson[]
   }
@@ -141,7 +160,12 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
     .from(customShellUsers)
     .where(eq(customShellUsers.id, userId))
   const [prefs] = await database
-    .select({ timeZone: projectSiteAdminPrefs.timeZone, statusOrder: projectSiteAdminPrefs.statusOrder })
+    .select({
+      timeZone: projectSiteAdminPrefs.timeZone,
+      statusOrder: projectSiteAdminPrefs.statusOrder,
+      hiddenProjectIds: projectSiteAdminPrefs.hiddenProjectIds,
+      projectOrder: projectSiteAdminPrefs.projectOrder,
+    })
     .from(projectSiteAdminPrefs)
     .where(eq(projectSiteAdminPrefs.userId, userId))
   const zone = prefs?.timeZone ?? FALLBACK_ZONE
@@ -158,6 +182,9 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
       )!
     : sql`false`
   const { label, projectTeams, projectInfo } = await projectLabeller(userId, database)
+  const projects = (await loadProjectsPage(userId, database)).projects.filter(
+    (project) => !project.personal && !project.archived
+  )
 
   const mine = await listTaskCards(
     and(
@@ -214,9 +241,12 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
           )
         ).sort(bySoonest)
       ),
-      projects: (await loadProjectsPage(userId, database)).projects.filter(
-        (project) => !project.personal && !project.archived
-      ),
+      projects,
+      projectCards: {
+        hidden: prefs?.hiddenProjectIds ?? [],
+        order: prefs?.projectOrder ?? [],
+        ...(await projectCardExtras(projects, today, zone, database)),
+      },
       milestones: label(await milestonesDue(today, sharedOpen, database)),
       doneToday: await doneOn(today, zone, sharedOpen, label, database),
     },
@@ -391,7 +421,7 @@ async function pendingInvites(teamIds: string[], teamName: Map<string, string>, 
 }
 
 /** Every team's meetings falling on the site admin's today, earliest first. */
-async function meetingsOn(
+export async function meetingsOn(
   today: string,
   zone: string,
   teamIds: string[],
@@ -446,6 +476,66 @@ async function milestonesDue(today: string, sharedOpen: SQL, database: ProjectDb
   return rows.map((row) => ({ ...row, dueDate: row.dueDate!, openTasks: Number(row.openTasks ?? 0) }))
 }
 
+/** Days on a Projects card's line of finished tasks, today included. */
+export const FINISHED_DAYS = 14
+/** Faces on a Projects card besides the lead's. */
+const FACES = 4
+
+/** Each project's people besides its lead, and its tasks finished per day over the last 14 days. */
+async function projectCardExtras(
+  projects: ProjectListRow[],
+  today: string,
+  zone: string,
+  database: ProjectDb
+): Promise<Pick<AdminProjectCards, "people" | "finished">> {
+  const ids = projects.map((project) => project.id)
+  if (ids.length === 0) return { people: {}, finished: {} }
+  const first = addDays(today, -(FINISHED_DAYS - 1))
+  const [members, done] = await Promise.all([
+    database
+      .select({
+        projectId: projectProjectMembers.projectId,
+        id: customShellUsers.id,
+        name: customShellUsers.name,
+        avatarUrl: customShellUsers.avatarUrl,
+      })
+      .from(projectProjectMembers)
+      .innerJoin(customShellUsers, eq(customShellUsers.id, projectProjectMembers.userId))
+      .where(inArray(projectProjectMembers.projectId, ids))
+      .orderBy(asc(customShellUsers.name)),
+    database
+      .select({ projectId: projectTasks.projectId, completedAt: projectTasks.completedAt })
+      .from(projectTasks)
+      .where(
+        and(
+          inArray(projectTasks.projectId, ids),
+          isNull(projectTasks.deletedAt),
+          eq(projectTasks.status, "done"),
+          gte(projectTasks.completedAt, momentOf(first, "00:00", zone))
+        )
+      ),
+  ])
+  const lead = new Map(projects.map((project) => [project.id, project.lead?.id]))
+  const people: AdminProjectCards["people"] = {}
+  for (const member of members) {
+    if (member.id === lead.get(member.projectId)) continue
+    const entry = (people[member.projectId] ??= { faces: [], total: 0 })
+    entry.total += 1
+    if (entry.faces.length < FACES) {
+      entry.faces.push({ id: member.id, name: member.name, avatarUrl: member.avatarUrl ?? "" })
+    }
+  }
+  const finished: AdminProjectCards["finished"] = {}
+  for (const row of done) {
+    if (!row.completedAt) continue
+    const index = daysBetween(first, localNow(row.completedAt, zone).day)
+    if (index < 0 || index >= FINISHED_DAYS) continue
+    const days = (finished[row.projectId] ??= Array<number>(FINISHED_DAYS).fill(0))
+    days[index] += 1
+  }
+  return { people, finished }
+}
+
 /** Tasks finished in the site admin's today, by person, the most first. */
 async function doneOn(
   today: string,
@@ -490,6 +580,26 @@ export async function setAdminTimeZone(userId: string, timeZone: string, databas
     .update(projectTeams)
     .set({ timeZone, updatedAt: at })
     .where(eq(projectTeams.personalUserId, userId))
+}
+
+/** Projects hidden from the site admin's Projects card, or shown on it again. Theirs alone. */
+export async function setAdminHiddenProjects(userId: string, hiddenProjectIds: string[], database = db) {
+  await requireSiteAdmin(userId, database)
+  const at = now()
+  await database
+    .insert(projectSiteAdminPrefs)
+    .values({ userId, hiddenProjectIds, updatedAt: at })
+    .onConflictDoUpdate({ target: projectSiteAdminPrefs.userId, set: { hiddenProjectIds, updatedAt: at } })
+}
+
+/** The Projects card's projects dragged into a new order: theirs alone. */
+export async function setAdminProjectOrder(userId: string, projectOrder: string[], database = db) {
+  await requireSiteAdmin(userId, database)
+  const at = now()
+  await database
+    .insert(projectSiteAdminPrefs)
+    .values({ userId, projectOrder, updatedAt: at })
+    .onConflictDoUpdate({ target: projectSiteAdminPrefs.userId, set: { projectOrder, updatedAt: at } })
 }
 
 /** The site admin's Board columns dragged into a new order: theirs alone. */

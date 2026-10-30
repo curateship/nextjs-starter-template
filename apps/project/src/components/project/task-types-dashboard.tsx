@@ -68,7 +68,7 @@ import {
   WHO_CAN_CHANGE_LABEL,
   type FieldRule,
 } from "@/lib/project/task-fields"
-import type { TaskType, TypeIcon } from "@/lib/project/task-types"
+import { stepFieldNames, type TaskType, type TypeIcon } from "@/lib/project/task-types"
 import { useTeamId } from "@/lib/project/team-scope"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -125,8 +125,8 @@ export function TaskTypesDashboard({
       layoutKey={TASK_TYPES_PANEL_LAYOUT_KEY}
       showMiddleFor={selectedId}
       left={{
-        label: "Types",
-        showLabel: "Show the task types",
+        label: "Templates",
+        showLabel: "Show the task templates",
         content: (
           <TypesListPanel
             teams={page.teams ?? []}
@@ -145,7 +145,7 @@ export function TaskTypesDashboard({
         content: <TypePanel type={selected} canEdit={canEdit} save={save} saveState={saveState} />,
       }}
       right={{
-        label: "Starts with",
+        label: "Steps and notes",
         showLabel: "Show the starting steps and notes",
         content: <StartsWithPanel type={selected} canEdit={canEdit} save={save} />,
       }}
@@ -210,7 +210,7 @@ function TypesListPanel({
     <>
       <DashboardCardTitleHeader
         icon={<ShapesIcon className="size-4" />}
-        title="Task types"
+        title="Task templates"
         action={
           canEdit ? (
             <div className="flex items-center gap-1">
@@ -233,11 +233,11 @@ function TypesListPanel({
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label="New task type"
+                aria-label="New task template"
                 onClick={() =>
                   full
                     ? showErrorToast(
-                        `A team can have at most ${LIMITS.typesPerTeam} task types, archived ones included.`
+                        `A team can have at most ${LIMITS.typesPerTeam} task templates, archived ones included.`
                       )
                     : setCreating(true)
                 }
@@ -263,8 +263,8 @@ function TypesListPanel({
         {live.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">
             {canEdit
-              ? 'No task types yet. Add one with the + above, such as "Research" or "Video editing".'
-              : "No task types yet. The owner and admins add them here."}
+              ? 'No task templates yet. Add one with the + above, such as "Research" or "Video editing".'
+              : "No task templates yet. The owner and admins add them here."}
           </p>
         ) : (
           <DndContext
@@ -415,13 +415,13 @@ function NewTypeDialog({
     const next = name.trim()
     if (!next) {
       setInvalid(true)
-      showErrorToast("Give the type a name.")
+      showErrorToast("Give the template a name.")
       return
     }
     let made: { id: string } | null = null
     const ok = await run(async () => {
       made = await makeTaskType({ name: next, icon, color }, teamId)
-    }, "Task type created.")
+    }, "Task template created.")
     if (!ok || !made) {
       setInvalid(true)
       return
@@ -436,7 +436,7 @@ function NewTypeDialog({
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>New task type</DialogTitle>
+            <DialogTitle>New task template</DialogTitle>
             <DialogDescription>
               A kind of task, such as "Research" or "Video editing". Give it fields once it's made.
             </DialogDescription>
@@ -451,7 +451,7 @@ function NewTypeDialog({
             <DialogBody>
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>Type</CardTitle>
+                  <CardTitle>Template</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   <div className="grid gap-2">
@@ -532,7 +532,7 @@ function TypeSettingsDialog({
     <Dialog open={open} onOpenChange={(next) => (next ? null : close())}>
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Task type settings</DialogTitle>
+          <DialogTitle>Task template settings</DialogTitle>
           <DialogDescription className="flex items-center justify-between gap-2">
             Changes save as you make them.
             <SaveLine state={saveState} />
@@ -557,7 +557,7 @@ function TypeSettingsDialog({
                   onClick={() => void save(() => archiveType(type.id, !type.archived))}
                 >
                   {type.archived ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />}
-                  {type.archived ? "Bring back" : "Archive type"}
+                  {type.archived ? "Bring back" : "Archive template"}
                 </Button>
               </div>
             </CardContent>
@@ -593,7 +593,7 @@ function TypePanel({
         <p className="p-4 text-sm text-muted-foreground">
           {canEdit
             ? "Add a type with the + on the left, then Add field here gives it what that kind of work needs."
-            : "When the team has task types, their fields show here."}
+            : "When the team has task templates, their fields show here."}
         </p>
       </>
     )
@@ -610,7 +610,7 @@ function TypePanel({
               type="button"
               onClick={() =>
                 type.fields.length >= LIMITS.fieldsPerType
-                  ? showErrorToast(`A task type can have at most ${LIMITS.fieldsPerType} fields.`)
+                  ? showErrorToast(`A task template can have at most ${LIMITS.fieldsPerType} fields.`)
                   : setAddingField(true)
               }
             >
@@ -693,7 +693,7 @@ function StartsWithPanel({
 }) {
   return (
     <>
-      <DashboardCardTitleHeader icon={<ListChecksIcon className="size-4" />} title="Starts with" />
+      <DashboardCardTitleHeader icon={<ListChecksIcon className="size-4" />} title="Steps and notes" />
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         {type ? (
           <div className="grid gap-4 p-4">
@@ -714,6 +714,9 @@ function StartsWithPanel({
                       {type.steps.map((step, index) => (
                         <li key={`${index}-${step}`} className="break-words">
                           {step}
+                          {stepFieldNames(type, step) ? (
+                            <span className="block text-xs text-muted-foreground">{stepFieldNames(type, step)}</span>
+                          ) : null}
                         </li>
                       ))}
                     </ol>

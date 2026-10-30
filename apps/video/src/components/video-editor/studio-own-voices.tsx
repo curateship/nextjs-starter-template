@@ -1,5 +1,5 @@
 import * as React from "react"
-import { PauseIcon, PlayIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { PauseIcon, PlayIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -16,15 +16,20 @@ import { VoiceCloneDialog } from "@/components/video-editor/voice-clone-dialog"
 
 /**
  * "Your voices", at the top of the Voices panel: the voices made from your
- * own recordings, each with its recording to hear and a delete, and the
- * New voice button, which opens "Make a voice of my own". They are picked in the Voice window, where
- * they are marked (yours).
+ * own recordings, each with its recording to hear and a delete. The panel
+ * header's + opens "Make a voice of my own" (`making`). They are picked in the
+ * Voice window, where they are marked (yours).
  */
-export function OwnVoices() {
+export function OwnVoices({
+  making,
+  onMakingChange,
+}: {
+  making: boolean
+  onMakingChange: (open: boolean) => void
+}) {
   const [voices, setVoices] = React.useState<ClonedVoice[] | null>(null)
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [refresh, setRefresh] = React.useState(0)
-  const [making, setMaking] = React.useState(false)
   const [deleting, setDeleting] = React.useState<ClonedVoice | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [playingId, setPlayingId] = React.useState<string | null>(null)
@@ -95,24 +100,14 @@ export function OwnVoices() {
         </ul>
       ) : (
         <p className="text-sm text-muted-foreground">
-          None yet. Record yourself for 10 to 60 seconds and read scripts in
-          your own voice.
+          None yet. Press + at the top to record yourself for 10 to 60
+          seconds and read scripts in your own voice.
         </p>
       )}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="w-full"
-        onClick={() => setMaking(true)}
-      >
-        <PlusIcon />
-        New voice
-      </Button>
 
       <VoiceCloneDialog
         open={making}
-        onOpenChange={setMaking}
+        onOpenChange={onMakingChange}
         onCreated={(voice) =>
           setVoices((current) => [voice, ...(current ?? [])])
         }

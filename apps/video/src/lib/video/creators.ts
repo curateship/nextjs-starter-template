@@ -62,7 +62,7 @@ export function isSavedVideoWorking(status: SavedVideoStatus): boolean {
  * platform hides are null and show as a dash, never a zero.
  */
 export function formatCount(value: number | null): string {
-  if (value === null) return "—"
+  if (value === null) return "-"
   if (value < 1_000) return String(value)
   if (value < 1_000_000) return `${trimZero(value / 1_000)}k`
   return `${trimZero(value / 1_000_000)}m`

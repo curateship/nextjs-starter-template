@@ -5,7 +5,7 @@
  * can be tested on its own.
  */
 
-import { typical, type ViralCreator, type ViralVideo } from "./viral"
+import { type ViralCreator, type ViralVideo } from "./viral"
 
 /** A grid of covers or a list of rows, remembered per browser. */
 export const VIRAL_LAYOUTS = ["grid", "list"] as const
@@ -167,20 +167,6 @@ export function filterCreators(
   })
 }
 
-/** The left panel's figures, from the videos as filtered. */
-export function atAGlance(videos: ViralVideo[], creators: ViralCreator[]) {
-  return {
-    videos: videos.length,
-    creators: creators.length,
-    bestScore: videos.length
-      ? Math.max(...videos.map((video) => video.score.score))
-      : null,
-    typicalViews: typical(
-      videos.flatMap((video) => (video.views === null ? [] : [video.views]))
-    ),
-  }
-}
-
 const SHORT_DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" })
 const SHORT_DAY_AND_YEAR = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -190,7 +176,7 @@ const SHORT_DAY_AND_YEAR = new Intl.DateTimeFormat("en-US", {
 
 /** "Oct 15" for this year, "Oct 15, 2025" for another, as the list and keywords show a day. */
 export function formatShortDay(value: string | null, now = new Date()) {
-  if (!value) return "—"
+  if (!value) return "-"
   const day = new Date(value)
   return (day.getFullYear() === now.getFullYear() ? SHORT_DAY : SHORT_DAY_AND_YEAR).format(day)
 }

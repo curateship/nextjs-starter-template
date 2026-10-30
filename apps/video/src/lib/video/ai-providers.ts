@@ -8,14 +8,14 @@
  */
 
 export const GEMINI_KEY_MISSING_MESSAGE =
-  "No Google Gemini key is saved — add one in Settings → AI"
+  "No Google Gemini key is saved - add one in Settings → AI"
 
 /**
  * Being turned away for asking too often. Not a fault to report as one — a
  * thing to wait out, which is more use to know than a number.
  */
 export const AI_TOO_BUSY_MESSAGE =
-  "Google is turning requests away right now — wait a minute and try again"
+  "Google is turning requests away right now - wait a minute and try again"
 
 /**
  * The free tier allows a couple of dozen requests a day, and waiting will not
@@ -23,16 +23,16 @@ export const AI_TOO_BUSY_MESSAGE =
  * that cannot work.
  */
 export const AI_DAY_USED_UP_MESSAGE =
-  "This key's free allowance for today is used up — it resets tomorrow, or add billing to the key. Whisper and cutting dead air still work"
+  "This key's free allowance for today is used up - it resets tomorrow, or add billing to the key. Whisper and cutting dead air still work"
 
 export const OPENAI_KEY_MISSING_MESSAGE =
-  "No OpenAI key is saved — add one in Settings → AI"
+  "No OpenAI key is saved - add one in Settings → AI"
 
 export const ELEVENLABS_KEY_MISSING_MESSAGE =
-  "No ElevenLabs key is saved — add one in Settings → AI"
+  "No ElevenLabs key is saved - add one in Settings → AI"
 
 export const ANTHROPIC_KEY_MISSING_MESSAGE =
-  "No Anthropic key is saved — add one in Settings → AI"
+  "No Anthropic key is saved - add one in Settings → AI"
 
 /** Every "add a key" sentence, so a tool can show whichever one it hit. */
 export const AI_KEY_MISSING_MESSAGES: ReadonlySet<string> = new Set([

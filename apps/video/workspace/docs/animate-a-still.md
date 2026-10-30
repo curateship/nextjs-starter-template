@@ -1,7 +1,9 @@
 # Animate a still where it sits
 
 Right-click a picture on the timeline, say what should move, and press Make it
-move. Gemini Omni Flash makes a moving shot from that exact picture, and when
+move. The model picked in the window (Google's Omni Flash, Wan 2.7 or
+Seedance 1.5 Pro, see `wan-and-seedance.md`) makes a moving shot from that
+exact picture, and when
 it arrives it takes the picture's place: same lane, same start, same length.
 Nothing else on the timeline moves.
 

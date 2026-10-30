@@ -36,7 +36,7 @@ export const Route = createFileRoute("/_authenticated/task-types")({
     const page = await loadTaskTypes(deps.team)
     return { page }
   },
-  head: ({ matches }) => pageTitleHead("Task types", matches),
+  head: ({ matches }) => pageTitleHead("Task templates", matches),
   component: TaskTypesRoute,
   errorComponent: routeErrorComponent(getProjectErrorMessage),
 })

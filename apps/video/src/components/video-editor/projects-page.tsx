@@ -5,6 +5,7 @@ import {
   ArchiveRestoreIcon,
   CopyIcon,
   FilmIcon,
+  Loader2Icon,
   PinIcon,
   PinOffIcon,
   PlusIcon,
@@ -24,6 +25,7 @@ import {
 } from "@/components/shared/sortable-table-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
+import { useKeyedAction } from "@/components/video-assets/use-keyed-action"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -51,7 +53,6 @@ import {
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
-import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import {
@@ -175,7 +176,12 @@ export function ProjectsPage({
   const [carouselChoice, setCarouselChoice] = React.useState<
     "keep" | "delete" | null
   >(null)
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  // A row's Pin, Duplicate and Archive lock that row only, so one project
+  // being copied leaves every other row usable.
+  const { run, isBusy } = useKeyedAction(getProjectErrorMessage)
+  const bulkBusy = isBusy("bulk") || isBusy("delete")
+  const rowBusy = (id: string) =>
+    isBusy(`pin:${id}`) || isBusy(`duplicate:${id}`) || isBusy(`archive:${id}`)
   const selection = useSelection()
 
   const projects = initial.projects
@@ -237,7 +243,7 @@ export function ProjectsPage({
   // title and a caption on the timeline, so the editor opens with the stage,
   // the lanes and the inspector all showing real work rather than empty boxes.
   async function createSampleProject() {
-    await run(async () => {
+    await run("sample", async () => {
       const created = await createProject("Sample project")
       const track = {
         id: editorId(),
@@ -281,14 +287,18 @@ export function ProjectsPage({
   }
 
   async function handlePin(project: ProjectItem) {
-    await run(async () => {
+    await run(`pin:${project.id}`, async () => {
       await pinProject(project.id, !project.pinned)
       await router.invalidate()
     })
   }
 
-  async function handleArchive(targets: ProjectItem[], archived: boolean) {
-    await run(async () => {
+  async function handleArchive(
+    targets: ProjectItem[],
+    archived: boolean,
+    key = "bulk"
+  ) {
+    await run(key, async () => {
       const { done_ids: done } = await archiveProjects(
         targets.map((project) => project.id),
         archived
@@ -308,7 +318,7 @@ export function ProjectsPage({
   }
 
   async function handleDuplicate(project: ProjectItem) {
-    await run(async () => {
+    await run(`duplicate:${project.id}`, async () => {
       const copy = await duplicateProject(project.id)
       await router.invalidate()
       toast.success(`"${copy.name}" created.`)
@@ -331,7 +341,7 @@ export function ProjectsPage({
       showErrorToast("Choose whether to keep or delete the carousels first.")
       return
     }
-    await run(async () => {
+    await run("delete", async () => {
       const { deleted_ids: deleted, failed_ids: failed } = await deleteProjects(
         deleteTargets.map((project) => project.id),
         carouselChoice === "delete"
@@ -393,7 +403,7 @@ export function ProjectsPage({
               <MoveToFolderMenu
                 projectIds={selectedProjects.map((project) => project.id)}
                 folders={folders}
-                disabled={busy}
+                disabled={bulkBusy}
                 onMoved={async () => {
                   selection.clear()
                   await router.invalidate()
@@ -404,7 +414,7 @@ export function ProjectsPage({
               <DashboardToolbarButton
                 type="button"
                 variant="outline"
-                disabled={busy}
+                disabled={bulkBusy}
                 onClick={() =>
                   void handleArchive(selectedProjects, !showingArchived)
                 }
@@ -421,7 +431,7 @@ export function ProjectsPage({
               <DashboardToolbarButton
                 type="button"
                 variant="destructive"
-                disabled={busy}
+                disabled={bulkBusy}
                 onClick={() => setDeleteTargets(selectedProjects)}
               >
                 <Trash2Icon className="size-4" />
@@ -470,7 +480,7 @@ export function ProjectsPage({
               <DashboardToolbarButton
                 type="button"
                 variant="outline"
-                disabled={busy}
+                disabled={isBusy("sample")}
                 onClick={() => void createSampleProject()}
               >
                 Add a sample project
@@ -628,7 +638,7 @@ export function ProjectsPage({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    disabled={busy}
+                    disabled={rowBusy(project.id)}
                     aria-pressed={project.pinned}
                     onClick={() => void handlePin(project)}
                     aria-label={
@@ -637,7 +647,9 @@ export function ProjectsPage({
                         : `Pin ${project.name} to the top`
                     }
                   >
-                    {project.pinned ? (
+                    {isBusy(`pin:${project.id}`) ? (
+                      <Loader2Icon className="size-4 animate-spin" />
+                    ) : project.pinned ? (
                       <PinOffIcon className="size-4" />
                     ) : (
                       <PinIcon className="size-4" />
@@ -648,19 +660,27 @@ export function ProjectsPage({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  disabled={busy}
+                  disabled={rowBusy(project.id)}
                   onClick={() => void handleDuplicate(project)}
                   aria-label={`Duplicate ${project.name}`}
                 >
-                  <CopyIcon className="size-4" />
+                  {isBusy(`duplicate:${project.id}`) ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <CopyIcon className="size-4" />
+                  )}
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  disabled={busy}
+                  disabled={rowBusy(project.id)}
                   onClick={() =>
-                    void handleArchive([project], !showingArchived)
+                    void handleArchive(
+                      [project],
+                      !showingArchived,
+                      `archive:${project.id}`
+                    )
                   }
                   aria-label={
                     showingArchived
@@ -668,7 +688,9 @@ export function ProjectsPage({
                       : `Archive ${project.name}`
                   }
                 >
-                  {showingArchived ? (
+                  {isBusy(`archive:${project.id}`) ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : showingArchived ? (
                     <ArchiveRestoreIcon className="size-4" />
                   ) : (
                     <ArchiveIcon className="size-4" />
@@ -678,6 +700,7 @@ export function ProjectsPage({
                   type="button"
                   variant="ghost"
                   size="icon"
+                  disabled={rowBusy(project.id)}
                   onClick={() => {
                     setEditing(project)
                     setFormOpen(true)
@@ -690,6 +713,7 @@ export function ProjectsPage({
                   type="button"
                   variant="ghost"
                   size="icon"
+                  disabled={rowBusy(project.id)}
                   onClick={() => setDeleteTargets([project])}
                   aria-label={`Delete ${project.name}`}
                 >
@@ -748,7 +772,7 @@ export function ProjectsPage({
         confirmLabel={
           deleteTargets.length > 1 ? "Delete projects" : "Delete project"
         }
-        loading={busy}
+        loading={isBusy("delete")}
         onConfirm={confirmDelete}
       >
         {deleteSummary?.carousels ? (

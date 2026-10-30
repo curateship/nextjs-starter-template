@@ -44,6 +44,7 @@ export function NewTaskWithProjectPicker({
   openAtOnce = false,
   onClosed,
   start: startsAs,
+  projectId,
 }: {
   align: "start" | "end"
   /** The button, told while the projects load. */
@@ -54,6 +55,8 @@ export function NewTaskWithProjectPicker({
   onClosed?: () => void
   /** The status and due date it starts on, from the My dashboard heading it was opened under. */
   start?: { status?: TaskStatus; due?: string | null }
+  /** The project it starts on, as from a project's own "+" on the site admin's Projects card. */
+  projectId?: string
 }) {
   const here = useParams({ strict: false }).projectId
   const [projects, setProjects] = React.useState<NewTaskProject[] | null>(null)
@@ -97,6 +100,7 @@ export function NewTaskWithProjectPicker({
   // The list holds only open projects, so an archived one on screen falls through.
   const remembered = lastProject()
   const initial =
+    projects?.find((project) => project.id === projectId)?.id ??
     projects?.find((project) => project.id === here)?.id ??
     projects?.find((project) => project.id === remembered)?.id ??
     projects?.[0]?.id ??

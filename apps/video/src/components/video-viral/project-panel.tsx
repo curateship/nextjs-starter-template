@@ -1,9 +1,7 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
 import {
   ChartNoAxesCombinedIcon,
   CircleAlertIcon,
-  FilmIcon,
   Loader2Icon,
   PlusIcon,
   RefreshCwIcon,
@@ -26,22 +24,20 @@ import { FlatSection } from "@/components/video-viral/flat-section"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
-import { formatCount } from "@/lib/video/creators"
-import { formatCents } from "@/lib/video/project-spend"
 import {
   isKeywordWorking,
   unitsPerKeyword,
   VIRAL_KEYWORD_MAX,
-  viralVideoLengthLabels,
   type ViralKeyword,
   type ViralProjectScreen,
 } from "@/lib/video/viral"
 import { formatShortDay } from "@/lib/video/viral-view"
 
 /**
- * The left panel: what the project is, its keywords and how each one's last
- * search went, its creators, the filters, the figures, and what was made from
- * it. Each group is a flat folding section (`FlatSection`), Tyler's design of
+ * The left panel: the project's keywords and how each one's last search
+ * went, then its creators. Tyler took the About, Filters, At a glance and
+ * Made from this sections off on 29 Oct 2026; the description and filters
+ * are still in the settings window. Each group is a flat folding section (`FlatSection`), Tyler's design of
  * 20 Oct 2026, split from the next by a line.
  *
  * A keyword chip narrows the middle panel to the videos it found; its arrow
@@ -49,9 +45,8 @@ import { formatShortDay } from "@/lib/video/viral-view"
  */
 export function ProjectPanel({
   screen,
-  glance,
   activeKeyword,
-  busy,
+  isBusy,
   onPickKeyword,
   onSearchAll,
   onRefreshKeyword,
@@ -61,14 +56,9 @@ export function ProjectPanel({
   creators,
 }: {
   screen: ViralProjectScreen
-  glance: {
-    videos: number
-    creators: number
-    bestScore: number | null
-    typicalViews: number | null
-  }
   activeKeyword: string | null
-  busy: boolean
+  /** Whether the action with this key is running: `search-all`, `add-keyword` or `keyword:<id>`. */
+  isBusy: (key: string) => boolean
   onPickKeyword: (keyword: string | null) => void
   onSearchAll: () => void
   onRefreshKeyword: (keyword: ViralKeyword) => void
@@ -79,7 +69,7 @@ export function ProjectPanel({
   /** The Creators card, after Keywords. */
   creators: React.ReactNode
 }) {
-  const { project, keywords, made, spend } = screen
+  const { project, keywords } = screen
   const [adding, setAdding] = React.useState("")
   // The field stays hidden until Add keywords is pressed (Tyler, 20 Oct 2026),
   // then stays open for the next keyword until it is left empty.
@@ -125,12 +115,6 @@ export function ProjectPanel({
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid grid-cols-[minmax(0,1fr)]">
-          <FlatSection storageId="viral-project-about" title="About">
-            <p className="text-sm whitespace-pre-wrap text-muted-foreground">
-              {project.description || "No description yet. Add one in the settings, so the AI can suggest keywords and judge how well each video fits."}
-            </p>
-          </FlatSection>
-
           <FlatSection storageId="viral-project-keywords" title="Keywords" meta={keywords.length}>
             {keywords.length ? (
               <ul className="-mx-2 grid gap-0.5">
@@ -139,7 +123,7 @@ export function ProjectPanel({
                     key={keyword.id}
                     keyword={keyword}
                     active={activeKeyword === keyword.keyword}
-                    busy={busy}
+                    busy={isBusy(`keyword:${keyword.id}`)}
                     perKeyword={perKeyword}
                     onPick={() =>
                       onPickKeyword(
@@ -190,13 +174,14 @@ export function ProjectPanel({
                       size="icon"
                       className="size-8 shrink-0"
                       aria-label="Add the keyword and search it"
-                      disabled={busy}
+                      disabled={isBusy("add-keyword")}
                     >
                       <PlusIcon className="size-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    Adds it and searches it, {perKeyword} units
+                    Adds it and searches it, using {perKeyword} units of
+                    your daily YouTube allowance
                   </TooltipContent>
                 </Tooltip>
               </form>
@@ -215,7 +200,7 @@ export function ProjectPanel({
                 <PlusIcon />
                 Add keywords
               </Button>
-              <Button className="grow" disabled={busy || searching} onClick={onSearchAll}>
+              <Button className="grow" disabled={isBusy("search-all") || searching} onClick={onSearchAll}>
                 {searching ? (
                   <Loader2Icon className="animate-spin" />
                 ) : (
@@ -228,73 +213,6 @@ export function ProjectPanel({
 
           {creators}
 
-          <FlatSection storageId="viral-project-filters" title="Filters">
-            <dl className="grid gap-1.5 text-sm">
-              <Row label="Posted within" value={`The last ${project.days} days`} />
-              <Row label="Videos" value={viralVideoLengthLabels[project.video_length]} />
-              <Row
-                label="Minimum views"
-                value={project.min_views ? project.min_views.toLocaleString() : "Any"}
-              />
-              <Row
-                label="Minimum score"
-                value={project.min_score ? String(project.min_score) : "Any"}
-              />
-              <Row
-                label="Hidden channels"
-                value={String(screen.hidden.length)}
-              />
-            </dl>
-            <Button variant="outline" onClick={onOpenSettings}>
-              <SettingsIcon />
-              Change filters
-            </Button>
-          </FlatSection>
-
-          <FlatSection storageId="viral-project-glance" title="At a glance">
-            <dl className="grid gap-2 text-sm">
-              <Row label="Videos" value={glance.videos.toLocaleString()} />
-              <Row label="Creators" value={glance.creators.toLocaleString()} />
-              <Row label="Best score" value={glance.bestScore === null ? "—" : String(glance.bestScore)} />
-              <Row label="Typical views" value={formatCount(glance.typicalViews)} />
-              <Row label="YouTube units used" value={project.units_spent.toLocaleString()} />
-              <Row
-                label="AI spend"
-                value={
-                  spend.limit_cents === null
-                    ? formatCents(spend.total_cents)
-                    : `${formatCents(spend.total_cents)} of ${formatCents(spend.limit_cents)}`
-                }
-              />
-            </dl>
-          </FlatSection>
-
-          <FlatSection storageId="viral-project-made" title="Made from this" meta={made.length}>
-            {made.length ? (
-              <ul className="-mx-1 grid gap-1">
-                {made.map((editorProject) => (
-                  <li key={editorProject.id}>
-                    <Link
-                      to="/admin/video-editor/$projectId"
-                      params={{ projectId: editorProject.id }}
-                      className={cn(
-                        "flex items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-muted",
-                        focusRing
-                      )}
-                    >
-                      <FilmIcon className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{editorProject.name}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Nothing yet. Make this a template under a video makes an
-                editor project and lists it here.
-              </p>
-            )}
-          </FlatSection>
         </div>
       </ScrollArea>
     </>
@@ -371,7 +289,10 @@ function KeywordRow({
             <RefreshCwIcon />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Search it again, {perKeyword} units</TooltipContent>
+        <TooltipContent>
+          Search it again, using {perKeyword} units of your daily YouTube
+          allowance
+        </TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -389,14 +310,5 @@ function KeywordRow({
         <TooltipContent>Remove it and the videos only it found</TooltipContent>
       </Tooltip>
     </li>
-  )
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-3">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right font-medium tabular-nums">{value}</dd>
-    </div>
   )
 }

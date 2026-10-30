@@ -26,18 +26,24 @@ import {
   REMAKE_START_GONE_MESSAGE,
 } from "@/lib/video/remake-clip"
 import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
+import { VIDEO_COMPANIES, type VideoCompany } from "@/lib/video/video-models"
 import { userGet, userPost } from "@/server/guards"
-import type { GenerationItem } from "@/server/video/asset-factories/generations"
+import type {
+  GenerationItem,
+  VideoChoices,
+} from "@/server/video/asset-factories/generations"
 
 export { SHOT_LENGTHS }
-export type { GenerationItem }
+export type { GenerationItem, VideoChoices }
 
 // A shot's id, which is its first piece's id.
 const idSchema = z.object({ generationId: z.string().min(1).max(36) })
 
 export function getGenerationErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ""
-  if (message.startsWith("Google ")) return message
+  if (/^(Google|Wan|Seedance) /.test(message)) return message
+  if (/^Add a .* key in Settings → AI video first$/.test(message)) return message
+  if (/^(Google Omni Flash|Wan 2\.7|Seedance 1\.5 Pro) cannot /.test(message)) return message
   if (isProjectSpendLimitMessage(message)) return message
   if (isShotAllowanceShortMessage(message)) return message
   if (
@@ -52,6 +58,10 @@ export function getGenerationErrorMessage(error: unknown) {
       "Write one direction for each piece of the shot",
       "A video that is still generating cannot be deleted",
       "Add a Google Gemini key in Settings first",
+      "A voiceover can be said only in a shot of 8 seconds or less",
+      "The end picture is no longer in this project",
+      "That voiceover is no longer in your media",
+      "Trying a shot on several models needs keys for at least two of them",
       MOVING_STILL_BUSY_MESSAGE,
       MOVING_STILL_NOT_FOUND_MESSAGE,
       MOVING_STILL_NOT_FULL_FRAME_MESSAGE,
@@ -74,6 +84,14 @@ const listFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ projectId: z.string().min(1).max(36) }))
   .handler(({ data, context }) => import("@/server/video/asset-factories/generations").then((m) => m.listGenerations(context.user.id, data.projectId)))
 
+/** Who makes a shot, and what goes beside its first frame. */
+const makingFields = {
+  company: z.enum(VIDEO_COMPANIES),
+  sound: z.boolean(),
+  endFrameId: z.string().min(1).max(36).nullable(),
+  voiceMediaId: z.string().min(1).max(36).nullable(),
+}
+
 const createFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({
@@ -82,8 +100,23 @@ const createFn = createServerFn({ method: "POST" })
     prompts: z.array(z.string().trim().min(1).max(5000)).min(1).max(4),
     lengthSeconds: z.union(SHOT_LENGTHS.map((value) => z.literal(value)) as [z.ZodLiteral<ShotLengthSeconds>, ...z.ZodLiteral<ShotLengthSeconds>[]]),
     quality: z.enum(VIDEO_QUALITY_IDS),
+    ...makingFields,
   }))
   .handler(({ data, context }) => import("@/server/video/asset-factories/generations").then((m) => m.createGeneration(context.user.id, data)))
+
+const compareFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({
+    projectId: z.string().min(1).max(36),
+    firstFrameId: z.string().min(1).max(36),
+    prompts: z.array(z.string().trim().min(1).max(5000)).min(1).max(4),
+    lengthSeconds: z.union(SHOT_LENGTHS.map((value) => z.literal(value)) as [z.ZodLiteral<ShotLengthSeconds>, ...z.ZodLiteral<ShotLengthSeconds>[]]),
+  }))
+  .handler(({ data, context }) => import("@/server/video/asset-factories/generations").then((m) => m.createComparison(context.user.id, data)))
+
+const choicesFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(() => import("@/server/video/asset-factories/generations").then((m) => m.videoChoices()))
 
 const retryFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -97,7 +130,11 @@ const deleteFn = createServerFn({ method: "POST" })
 
 /** This project's shots, newest first. */
 export function listGenerations(projectId: string) { return listFn({ data: { projectId } }) }
-export function createGeneration(data: { projectId: string; firstFrameId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality }) { return createFn({ data }) }
+export function createGeneration(data: { projectId: string; firstFrameId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality; company: VideoCompany; sound: boolean; endFrameId: string | null; voiceMediaId: string | null }) { return createFn({ data }) }
+/** The same frame and direction made by every company with a key, side by side. */
+export function createComparison(data: { projectId: string; firstFrameId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds }) { return compareFn({ data }) }
+/** Which companies can make a shot, which one new shots start on, and Wan's and Seedance's starting size, length and sound. */
+export function loadVideoChoices(): Promise<VideoChoices> { return choicesFn() }
 export function retryGeneration(generationId: string) { return retryFn({ data: { generationId } }) }
 export function deleteGenerations(generationIds: string[]) { return deleteFn({ data: { generationIds } }) }
 
@@ -109,6 +146,8 @@ const createStillFn = createServerFn({ method: "POST" })
     prompts: z.array(z.string().trim().min(1).max(5000)).min(1).max(4),
     lengthSeconds: z.union(SHOT_LENGTHS.map((value) => z.literal(value)) as [z.ZodLiteral<ShotLengthSeconds>, ...z.ZodLiteral<ShotLengthSeconds>[]]),
     quality: z.enum(VIDEO_QUALITY_IDS),
+    company: z.enum(VIDEO_COMPANIES).optional(),
+    sound: z.boolean().optional(),
   }))
   .handler(({ data, context }) => import("@/server/video/asset-factories/moving-stills").then((m) => m.createStillShot(context.user.id, data)))
 
@@ -123,7 +162,7 @@ const settleStillFn = createServerFn({ method: "POST" })
   .handler(({ data, context }) => import("@/server/video/asset-factories/moving-stills").then((m) => m.settleStillShot(context.user.id, data.generationId, data.outcome)))
 
 /** Asks for a moving shot of a picture, or of a moving clip made again, which takes that clip's place when it arrives. */
-export function createStillShot(data: { projectId: string; clipId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality }) { return createStillFn({ data }) }
+export function createStillShot(data: { projectId: string; clipId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality; company?: VideoCompany; sound?: boolean }) { return createStillFn({ data }) }
 /** This project's shots for timeline clips that have not landed yet. */
 export function listStillShots(projectId: string) { return listStillFn({ data: { projectId } }) }
 /** Records that this editor landed a finished shot. `settled` is false when the worker already had. */

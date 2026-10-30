@@ -209,6 +209,6 @@ function shareOnXHref(file: SharedMediaItem, handle: string) {
     sharedFilePath(handle, file.mediaId),
     window.location.origin
   ).toString()
-  const text = `${file.name}, a ${file.purpose === "sound" ? "focus sound" : "focus background"} on Pomoder`
+  const text = `${file.name}, a ${file.purpose === "sound" ? "focus sound" : "focus background"} on Flowfly`
   return `https://x.com/intent/post?${new URLSearchParams({ text, url: address })}`
 }

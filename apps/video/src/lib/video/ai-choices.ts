@@ -1,6 +1,7 @@
 import { z } from "zod"
 
-import { VIDEO_QUALITY_IDS } from "@/lib/video/asset-factories"
+import { SHOT_LENGTHS, VIDEO_QUALITY_IDS } from "@/lib/video/asset-factories"
+import { VIDEO_COMPANIES, VIDEO_SIZES } from "@/lib/video/video-models"
 
 /**
  * Which AI does what.
@@ -69,8 +70,31 @@ export const aiDefaultsSchema = z
     // The picture size the last AI shot was made at, so the next one starts
     // on it. Saved when the shot is asked for.
     videoQuality: z.enum(VIDEO_QUALITY_IDS).optional(),
+    // Which company new AI shots start on, set on Settings → AI video.
+    // Picking another in a panel is for that shot only.
+    videoModel: z.enum(VIDEO_COMPANIES).optional(),
+    // What a new Wan or Seedance shot starts with, set on the same tab.
+    videoModelDefaults: z
+      .object({
+        wan: videoModelDefaultSchema().optional(),
+        seedance: videoModelDefaultSchema().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
+
+function videoModelDefaultSchema() {
+  return z
+    .object({
+      size: z.enum(VIDEO_SIZES),
+      length: z.literal(SHOT_LENGTHS),
+      sound: z.boolean(),
+    })
+    .strict()
+}
+
+export type VideoModelDefault = z.infer<ReturnType<typeof videoModelDefaultSchema>>
 
 export type AiDefaults = z.infer<typeof aiDefaultsSchema>
 

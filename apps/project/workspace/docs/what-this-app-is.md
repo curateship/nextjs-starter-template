@@ -492,3 +492,50 @@ the recommended answer on every question.
   and Plan: "move all of these outside the cards (flatten it)". Each is a row
   with a line under it running edge to edge, in the task's cog and in My
   settings alike.
+
+## Choices for the Daily card
+
+Tyler asked for the Daily card on 29 Oct 2026: "Add a sort of a "Daily card"
+like a personal assistent. For example, the card has a greeting that says
+"Good morning tyler, this is your deep work tasks and the card can have a
+sunny sky in the background and later in the afternoon, it can say something
+else and at night it reminds me to wind down." Then: "Focus more on admin
+daily card. Admin should have its own daily card with different features",
+"Add a habit tracker or routine to morning, afternoon and night", "what?
+there is only one card?" and "The habits is admin only". Tyler picked 46 parts
+and the recommended answer to every question except two: photo skies are
+built-in sets plus Tyler's own uploads ("Both"), and tonight's questions were
+built in plus Tyler's own ("Both") until 30 Oct 2026, when the built-in ones
+went (below). How it works is in
+[The Daily card](daily-card.md).
+
+- **One card.** Everyone sees one Daily card at the top of My dashboard's left
+  panel. The site admin's has every shared part plus their own parts.
+- **The habits, streaks and journal are the site admin's only.**
+- **Deep work** is an employee's check-in picks, and the site admin's three
+  most urgent open tasks.
+- **Times of day** are each person's own hours, starting at 5 AM, 12 PM and
+  6 PM.
+- **Weather** comes from a city typed in My settings. The browser never asks
+  for a location.
+- **Setting up** is a pencil in the left panel's header, before the inbox
+  and the cog ("put pen icon here", 30 Oct), that opens a window.
+- **Not a card** (30 Oct): "I dont want this daily card in a card but more
+  of a permanent fixture like how we built project avatar and background".
+  The sky lies behind the left panel's header.
+- **Start day** (30 Oct, site admin only): nothing of the day shows until
+  it is pressed, and then it stays for the day. It counts as Up, but
+  "Just because I click start day does not mean thats how long I slept.
+  Remove the slept feature".
+- **Lines for the day and night questions:** only the site admin's own. The
+  365 built-in lines and 60 built-in questions were removed on 30 Oct 2026:
+  "Remove all of the premade morning and night lines".
+- **A finished day** is every habit set for that day ticked. Tasks don't
+  count.
+- **Grace:** one missed day per Monday-to-Sunday week.
+- **Sunday look back** shows all of Sunday.
+- **Going to bed and Start day** only record the times.
+- **Milestones:** one short burst of confetti at 7, 30 and 100 days.
+- **The journal is private.** Only the site admin sees it.
+- **Routine bell reminder:** a time per routine, starting at 10 AM, 3 PM and
+  9 PM, each changeable or off.

@@ -382,6 +382,42 @@ describe("the media list with video extras", () => {
     expect(uncollected.media.map((m) => m.id)).toEqual([loose.id])
   })
 
+  it("filters to several types and counts each Collection row", async () => {
+    const collection = await createOwnedCollection(user.id, "B-roll", database)
+    const video = await insertMedia(user.id)
+    const sound = await insertMedia(user.id, {
+      fileType: "audio",
+      mimeType: "audio/mpeg",
+    })
+    await insertMedia(user.id, { fileType: "image", mimeType: "image/png" })
+    await addMediaToOwnedCollection(
+      user.id,
+      collection.id,
+      [video.id],
+      database
+    )
+
+    const listed = await listVideoMedia({
+      userId: user.id,
+      fileTypes: ["video", "audio"],
+      collectionId: collection.id,
+      withCounts: true,
+      database,
+    })
+    expect(listed.media.map((m) => m.id)).toEqual([video.id])
+    // The counts ignore the picked collection but keep the types, so the
+    // image is in none of them.
+    expect(listed.collection_counts).toEqual({
+      all: 2,
+      uncollected: 1,
+      by_collection: { [collection.id]: 1 },
+    })
+    expect(
+      (await listVideoMedia({ userId: user.id, database })).collection_counts
+    ).toBeUndefined()
+    expect(sound.fileType).toBe("audio")
+  })
+
   it("never shows another person's media", async () => {
     const stranger = await insertUser(database)
     await insertMedia(stranger.id)

@@ -62,7 +62,7 @@ export function TaskTypeField({
   if (typeChoices.length === 0 && !type) return null
   return (
     <div className="grid content-start gap-2">
-      <Label htmlFor="task-type">Type</Label>
+      <Label htmlFor="task-type">Template</Label>
       <Select
         value={type?.id ?? NO_TYPE}
         onValueChange={(value) =>
@@ -74,7 +74,7 @@ export function TaskTypeField({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={NO_TYPE}>Plain task</SelectItem>
+          <SelectItem value={NO_TYPE}>No template</SelectItem>
           {typeChoices.map((choice) => (
             <SelectItem key={choice.id} value={choice.id}>
               <TypeIconGlyph icon={choice.icon} color={choice.color} />

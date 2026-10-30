@@ -15,6 +15,7 @@ import { collectionIdsByMedia } from "@/server/video/media-collections"
 import { requeueFailedPlaybackJobs } from "@/server/video/media-workers"
 import { videoPlaybackUrl } from "@/server/video/media-urls"
 import {
+  videoMediaCollectionItems,
   videoMediaFilmstrips,
   videoMediaProxies,
   videoCarouselMedia,
@@ -44,6 +45,20 @@ export type VideoMediaListResponse = {
   page: number
   page_size: number
   total_pages: number
+  /**
+   * How many files each Collection row in the Media filter would show, with
+   * the same type and search filters: every file, the ones in no collection,
+   * and each collection by id. Only when asked for (`withCounts`).
+   */
+  collection_counts?: MediaCollectionCounts
+}
+
+export type MediaFileType = "image" | "video" | "audio"
+
+export type MediaCollectionCounts = {
+  all: number
+  uncollected: number
+  by_collection: Record<string, number>
 }
 
 /** `undefined` = no filter, `null` = in no collection, a string = members of that one. */
@@ -59,17 +74,22 @@ export async function listVideoMedia({
   pageSize = 24,
   search = "",
   fileType,
+  fileTypes,
   collectionId,
   scope,
+  withCounts = false,
   database = db,
 }: {
   userId: string
   page?: number
   pageSize?: number
   search?: string
-  fileType?: "image" | "video" | "audio"
+  fileType?: MediaFileType
+  /** Any of these types. Empty or absent = every type. */
+  fileTypes?: MediaFileType[]
   collectionId?: CollectionFilter
   scope?: MediaScope
+  withCounts?: boolean
   database?: CustomShellDb
 }): Promise<VideoMediaListResponse> {
   const safePage = Math.max(1, Math.floor(page))
@@ -86,12 +106,18 @@ export async function listVideoMedia({
         page: safePage,
         page_size: safePageSize,
         total_pages: 1,
+        ...(withCounts
+          ? { collection_counts: { all: 0, uncollected: 0, by_collection: {} } }
+          : {}),
       }
     }
     filters.push(inArray(customShellMedia.id, mediaIds))
   }
   if (fileType) {
     filters.push(eq(customShellMedia.fileType, fileType))
+  }
+  if (fileTypes?.length) {
+    filters.push(inArray(customShellMedia.fileType, fileTypes))
   }
   const cleanedSearch = search.trim()
   if (cleanedSearch) {
@@ -103,6 +129,9 @@ export async function listVideoMedia({
     )
     if (matches) filters.push(matches)
   }
+  // The counts leave the collection filter out, so each Collection row says
+  // what picking it would show.
+  const countsWhere = and(...filters)
   if (collectionId !== undefined) {
     filters.push(
       collectionId === null
@@ -112,7 +141,7 @@ export async function listVideoMedia({
   }
 
   const where = and(...filters)
-  const [rows, [totals]] = await Promise.all([
+  const [rows, [totals], collectionCounts] = await Promise.all([
     database
       .select()
       .from(customShellMedia)
@@ -121,6 +150,7 @@ export async function listVideoMedia({
       .limit(safePageSize)
       .offset((safePage - 1) * safePageSize),
     database.select({ total: count() }).from(customShellMedia).where(where),
+    withCounts ? countByCollection(countsWhere, database) : undefined,
   ])
 
   const media = await serializeVideoMedia(rows, database)
@@ -132,6 +162,42 @@ export async function listVideoMedia({
     page: safePage,
     page_size: safePageSize,
     total_pages: Math.max(1, Math.ceil(total / safePageSize)),
+    ...(collectionCounts ? { collection_counts: collectionCounts } : {}),
+  }
+}
+
+/** Every file, the ones in no collection, and each collection, over one filter. */
+async function countByCollection(
+  where: SQL | undefined,
+  database: CustomShellDb
+): Promise<MediaCollectionCounts> {
+  const [[totals], perCollection] = await Promise.all([
+    database
+      .select({
+        all: count(),
+        uncollected: sql<number>`count(*) filter (where not exists (select 1 from video_media_collection_items i where i.media_id = ${customShellMedia.id}))`.mapWith(Number),
+      })
+      .from(customShellMedia)
+      .where(where),
+    database
+      .select({
+        collectionId: videoMediaCollectionItems.collectionId,
+        total: count(),
+      })
+      .from(videoMediaCollectionItems)
+      .innerJoin(
+        customShellMedia,
+        eq(customShellMedia.id, videoMediaCollectionItems.mediaId)
+      )
+      .where(where)
+      .groupBy(videoMediaCollectionItems.collectionId),
+  ])
+  return {
+    all: totals?.all ?? 0,
+    uncollected: totals?.uncollected ?? 0,
+    by_collection: Object.fromEntries(
+      perCollection.map((row) => [row.collectionId, row.total])
+    ),
   }
 }
 

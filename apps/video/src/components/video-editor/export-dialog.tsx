@@ -431,7 +431,7 @@ function ExportProgress({ job }: { job: RenderJobSummary }) {
       {job.status === "running"
         ? "Making it now…"
         : job.queue_position && job.queue_position > 1
-          ? `Waiting — ${job.queue_position - 1} ahead of it`
+          ? `Waiting - ${job.queue_position - 1} ahead of it`
           : "Waiting to start…"}
     </p>
   )

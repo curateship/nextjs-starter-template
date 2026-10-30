@@ -492,6 +492,43 @@ describe("left menu", () => {
     expect(await workEntries()).not.toContain("item-project-task-types")
   })
 
+  it("renames a saved Task types link to Task templates, but not one an admin renamed", async () => {
+    const workspace = await insertWorkspace(database, { settings: { sections: [] } })
+    await addProjectNavigation(database)
+    const linkLabel = async () => {
+      const [row] = await database.select().from(customShellWorkspaces).where(eq(customShellWorkspaces.id, workspace.id))
+      const sections = (row.settings as { sections: { id: string; entries: { id: string; label: string }[] }[] }).sections
+      return sections
+        .find((section) => section.id === PROJECT_NAV_SECTION_ID)!
+        .entries.find((entry) => entry.id === "item-project-task-types")?.label
+    }
+    expect(await linkLabel()).toBe("Task templates")
+
+    // A menu saved before the rename: the old label, and no marker for the pass.
+    const relabel = async (label: string) => {
+      const [row] = await database.select().from(customShellWorkspaces).where(eq(customShellWorkspaces.id, workspace.id))
+      const settings = row.settings as { sections: { id: string; entries: { id: string; label: string }[] }[] }
+      const sections = settings.sections.map((section) => ({
+        ...section,
+        entries: section.entries.map((entry) => (entry.id === "item-project-task-types" ? { ...entry, label } : entry)),
+      }))
+      await database
+        .update(customShellWorkspaces)
+        .set({ settings: { ...settings, sections } })
+        .where(eq(customShellWorkspaces.id, workspace.id))
+      await database
+        .delete(projectNavigationAdded)
+        .where(eq(projectNavigationAdded.scope, `workspace:${workspace.id}:task-templates-name`))
+    }
+    await relabel("Task types")
+    await addProjectNavigation(database)
+    expect(await linkLabel()).toBe("Task templates")
+
+    await relabel("Kinds of work")
+    await addProjectNavigation(database)
+    expect(await linkLabel()).toBe("Kinds of work")
+  })
+
   it("puts My dashboard first in the admins' menus, back where an older pass took it out", async () => {
     const workspace = await insertWorkspace(database, { settings: { sections: [] } })
     await addProjectNavigation(database)

@@ -197,7 +197,7 @@ export function AdminRoomChatDialog({
                           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                             <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
                               <span className="text-sm font-semibold text-foreground">
-                                {message.broadcast ? "Pomoder" : message.authorName}
+                                {message.broadcast ? "Flowfly" : message.authorName}
                               </span>
                               <time dateTime={new Date(message.createdAt).toISOString()}>
                                 {formatDateTime(message.createdAt)}

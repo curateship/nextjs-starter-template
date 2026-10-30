@@ -271,11 +271,11 @@ export function TaskBulkBar({
           disabled={busy}
           onValueChange={(value) => void apply({ kind: "type", typeId: value === NO_TYPE ? null : value }, "changed")}
         >
-          <DashboardToolbarSelectTrigger aria-label="Set the type of the ticked tasks">
-            <SelectValue placeholder="Type" />
+          <DashboardToolbarSelectTrigger aria-label="Set the template of the ticked tasks">
+            <SelectValue placeholder="Template" />
           </DashboardToolbarSelectTrigger>
           <SelectContent>
-            <SelectItem value={NO_TYPE}>Plain task</SelectItem>
+            <SelectItem value={NO_TYPE}>No template</SelectItem>
             {targets.types.map((type) => (
               <SelectItem key={type.id} value={type.id}>
                 {type.name}
@@ -502,7 +502,7 @@ export function TaskBulkMenu({
               ) : null}
               {page === "type" ? (
                 <ScrollArea className="max-h-72">
-                  <MenuRow onClick={() => act({ kind: "type", typeId: null }, "changed")}>Plain task</MenuRow>
+                  <MenuRow onClick={() => act({ kind: "type", typeId: null }, "changed")}>No template</MenuRow>
                   {targets.types.map((type) => (
                     <MenuRow key={type.id} onClick={() => act({ kind: "type", typeId: type.id }, "changed")}>
                       {type.name}
@@ -566,7 +566,7 @@ const MENU_TITLE: Record<Exclude<MenuPage, "main">, string> = {
   priority: "Priority",
   tag_on: "Add tag",
   tag_off: "Remove tag",
-  type: "Type",
+  type: "Template",
   move: "Move to project",
 }
 

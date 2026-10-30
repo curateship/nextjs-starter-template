@@ -27,6 +27,7 @@ import {
 } from "@/components/project/task-bits"
 import { RowClock } from "@/components/project/task-clock"
 import { HeadingAddButton, HeadingFoldButton } from "@/components/project/task-list-heading"
+import { FOLDING_HEADING_CLASS, foldOnHeadingClick } from "@/lib/project/heading-fold"
 import { TaskBulkBar, type BulkTargets } from "@/components/project/task-bulk-bar"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -159,7 +160,11 @@ export function MyTaskRows({
             {sections.map((section) => (
               <section key={section.key} aria-label={section.label ?? undefined}>
                 {section.label !== null ? (
-                  <GroupHeading groupKey={section.key} dropZone={Boolean(drop.held)}>
+                  <GroupHeading
+                    groupKey={section.key}
+                    dropZone={Boolean(drop.held)}
+                    onToggle={() => folds.toggle(section.key)}
+                  >
                     <span aria-hidden className={cn("size-2 rounded-full", GROUP_DOT[section.key] ?? GROUP_DOT.none)} />
                     {section.label}
                     <span className="font-normal text-muted-foreground">{section.rows.length}</span>
@@ -201,17 +206,23 @@ export function MyTaskRows({
 function GroupHeading({
   groupKey,
   dropZone,
+  onToggle,
   children,
 }: {
   groupKey: string
   dropZone: boolean
+  onToggle: () => void
   children: React.ReactNode
 }) {
   const { setNodeRef } = useDroppable({ id: `${HEADING_DROP}${groupKey}`, disabled: !dropZone })
   return (
     <h3
       ref={setNodeRef}
-      className="group/table-group flex items-center gap-2 border-b bg-muted/40 px-4 py-2 text-xs font-medium tracking-wide uppercase"
+      className={cn(
+        "group/table-group flex items-center gap-2 border-b bg-muted/40 px-4 py-2 text-xs font-medium tracking-wide uppercase",
+        FOLDING_HEADING_CLASS
+      )}
+      onClick={foldOnHeadingClick(onToggle)}
     >
       {children}
     </h3>

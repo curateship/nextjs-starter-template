@@ -28,6 +28,8 @@ import {
   deleteMediaFromScope,
   listVideoMedia as listVideoMediaQuery,
   retryOwnedMediaPreparation,
+  type MediaCollectionCounts,
+  type MediaFileType,
   type MediaScope,
   type VideoMediaItem,
   type VideoMediaListResponse,
@@ -36,7 +38,13 @@ import { kickVideoMediaWorker } from "@/server/video/media-workers"
 
 export type { MediaScope } from "@/server/video/media-list"
 
-export type { MediaCollectionSummary, VideoMediaItem, VideoMediaListResponse }
+export type {
+  MediaCollectionCounts,
+  MediaCollectionSummary,
+  MediaFileType,
+  VideoMediaItem,
+  VideoMediaListResponse,
+}
 
 /**
  * The studio's media endpoints: the library list with this app's extras
@@ -72,6 +80,9 @@ const listVideoMediaSchema = z
     pageSize: z.number().int().optional(),
     search: z.string().trim().max(120).default(""),
     fileType: z.enum(["image", "video", "audio"]).optional(),
+    // Any of these; the Media panel's Type row can pick more than one.
+    fileTypes: z.array(z.enum(["image", "video", "audio"])).max(3).optional(),
+    withCounts: z.boolean().optional(),
     // Absent = no filter; null = "Uncollected"; an id = that collection.
     collectionId: z.string().min(1).max(36).nullish(),
   })
@@ -128,8 +139,10 @@ const listVideoMediaFn = createServerFn({ method: "GET" })
       pageSize: data.pageSize ?? 24,
       search: data.search,
       fileType: data.fileType,
+      fileTypes: data.fileTypes,
       collectionId: data.collectionId,
       scope: data.scope,
+      withCounts: data.withCounts,
     })
   })
 
@@ -236,17 +249,30 @@ export function listVideoMedia({
   pageSize = 24,
   search,
   fileType,
+  fileTypes,
   collectionId,
+  withCounts,
 }: {
   scope: MediaScope
   page?: number
   pageSize?: number
   search?: string
-  fileType?: "image" | "video" | "audio"
+  fileType?: MediaFileType
+  fileTypes?: MediaFileType[]
   collectionId?: string | null
+  withCounts?: boolean
 }) {
   return listVideoMediaFn({
-    data: { scope, page, pageSize, search, fileType, collectionId },
+    data: {
+      scope,
+      page,
+      pageSize,
+      search,
+      fileType,
+      fileTypes,
+      collectionId,
+      withCounts,
+    },
   })
 }
 

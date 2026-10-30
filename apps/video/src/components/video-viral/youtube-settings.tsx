@@ -101,7 +101,7 @@ export default function YoutubeSettings() {
           <div className="grid gap-4">
             <p className="text-sm text-muted-foreground">
               {status.unreadable
-                ? "A key is saved but can no longer be read — the server's encryption key changed. Paste the key again."
+                ? "A key is saved but can no longer be read - the server's encryption key changed. Paste the key again."
                 : status.source === "settings"
                   ? `A key ending ${status.maskedKey} is saved here.`
                   : status.source === "env"

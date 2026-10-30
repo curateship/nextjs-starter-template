@@ -83,7 +83,7 @@ describe("focus groups", () => {
     expect(notices.map((notice) => notice.to).sort()).toEqual([owner, ana].sort())
     expect(notices[0]).toMatchObject({
       kind: "group_deleted",
-      message: "The Pomoder team deleted the group Study.",
+      message: "The Flowfly team deleted the group Study.",
     })
     const logs = await db.select().from(pomodoroAuditLogs)
     expect(logs).toEqual([expect.objectContaining({ resource: "groups", recordIds: [study] })])

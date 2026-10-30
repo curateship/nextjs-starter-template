@@ -17,11 +17,9 @@ import { hookLine } from "@/lib/video/viral-breakdown"
 import { scoreViralVideo } from "@/lib/video/viral-score"
 import { db } from "@/server/db"
 import { getPublicMediaUrl } from "@/server/media/storage"
-import { readViralProjectSpend } from "@/server/video/project-spend"
 import {
   videoCreatorPosts,
   videoCreators,
-  videoProjects,
   videoViralProjectCreators,
   videoViralProjectHiddenChannels,
   videoViralProjectKeywords,
@@ -56,7 +54,7 @@ export async function loadViralProjectScreen(
   projectId: string
 ): Promise<ViralProjectScreen> {
   const row = await requireOwnedViralProject(ownerId, projectId)
-  const [project, keywordRows, resultRows, hidden, followed, pastedRows, made, spend] =
+  const [project, keywordRows, resultRows, hidden, followed, pastedRows] =
     await Promise.all([
       getViralProjectItem(ownerId, projectId),
       db
@@ -102,17 +100,6 @@ export async function loadViralProjectScreen(
           )
         )
         .orderBy(desc(videoViralProjectLinks.createdAt)),
-      db
-        .select({ id: videoProjects.id, name: videoProjects.name })
-        .from(videoProjects)
-        .where(
-          and(
-            eq(videoProjects.sourceViralProjectId, projectId),
-            eq(videoProjects.userId, ownerId)
-          )
-        )
-        .orderBy(desc(videoProjects.updatedAt)),
-      readViralProjectSpend(ownerId, projectId, row.spendLimitCents),
     ])
 
   const hiddenKeys = new Set(
@@ -227,8 +214,6 @@ export async function loadViralProjectScreen(
           ]
         : []
     ),
-    made,
-    spend,
   }
 }
 

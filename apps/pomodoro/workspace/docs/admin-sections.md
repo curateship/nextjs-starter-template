@@ -240,7 +240,7 @@ Tyler's Polish 3 task 09, 10 Oct 2026: a button tells the truth while it works.
 | Focus data | The account's finished and cancelled runs, every daily total, every task's session count | The account, its tasks, projects, rooms, profile and earned badges, and a run still going | Nothing else to put right: every figure the member shows off reads zero |
 | Weekly rooms | The rule | Rooms it already booked, which still open | |
 | Repeating tasks | The rule | Tasks it already made | |
-| Projects | The project | Its tasks and repeating-task rules, with no project, and every hour in History under "No project" | The owner is told "The Pomoder team deleted your project Thesis. Its tasks are kept." A public project's held profile page is dropped so it stops showing at once |
+| Projects | The project | Its tasks and repeating-task rules, with no project, and every hour in History under "No project" | The owner is told "The Flowfly team deleted your project Thesis. Its tasks are kept." A public project's held profile page is dropped so it stops showing at once |
 
 ### Taking a session back off the totals
 
@@ -330,13 +330,13 @@ to the owner. None names the admin. An admin changing their own project is not
 told, because nobody is notified about their own action, and the window, the
 toasts and the delete window then leave out "is told in the bell".
 
-- A rename: "The Pomoder team renamed your project Thesis to PhD."
-- A new target: "The Pomoder team changed the target on your project Thesis."
-- Both in one save: "The Pomoder team changed your project Thesis: it is now
+- A rename: "The Flowfly team renamed your project Thesis to PhD."
+- A new target: "The Flowfly team changed the target on your project Thesis."
+- Both in one save: "The Flowfly team changed your project Thesis: it is now
   PhD, with a new target."
-- "The Pomoder team archived your project Thesis." and "… brought back your
+- "The Flowfly team archived your project Thesis." and "… brought back your
   project Thesis."
-- "The Pomoder team deleted your project Thesis. Its tasks are kept."
+- "The Flowfly team deleted your project Thesis. Its tasks are kept."
 
 A save that changes nothing writes nothing and tells nobody. A change to a
 public project drops the owner's held public page, so the new name shows at

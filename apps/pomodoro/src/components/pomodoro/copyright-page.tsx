@@ -135,12 +135,12 @@ export function CopyrightPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor={ids.address}>The file's address on Pomoder</Label>
+                  <Label htmlFor={ids.address}>The file's address on Flowfly</Label>
                   <Input
                     id={ids.address}
                     value={form.address}
                     maxLength={COPYRIGHT_URL_MAX}
-                    placeholder="https://pomoder.com/u/someone/files/…"
+                    placeholder="https://flowfly.app/u/someone/files/…"
                     aria-invalid={problems.has("address") || undefined}
                     onChange={(event) => change({ address: event.target.value })}
                   />

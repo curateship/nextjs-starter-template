@@ -11,6 +11,12 @@ import {
   readBannedWords,
   SCRIPT_STARTER_BANNED_WORDS,
 } from "@/lib/video/script-check"
+import {
+  DEFAULT_SEEDANCE_REGION,
+  DEFAULT_WAN_REGION,
+  regionsFor,
+  type KeyedCompany,
+} from "@/lib/video/video-models"
 import { readVoiceDefaults, type VoiceDefaults } from "@/lib/video/voice"
 import { now } from "@/server/auth/security"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
@@ -375,4 +381,149 @@ export async function removePexelsApiKey(
     .update(videoSettings)
     .set({ pexelsApiKey: null, updatedAt: now() })
     .where(eq(videoSettings.id, SETTINGS_ROW_ID))
+}
+
+/**
+ * The Wan and Seedance keys (`workspace/docs/wan-and-seedance.md`). Each one
+ * is kept scrambled beside the site it came from, because a key works only
+ * at that site's address.
+ */
+const KEY_COLUMNS = {
+  wan: { key: "wanApiKey", region: "wanRegion" },
+  seedance: { key: "seedanceApiKey", region: "seedanceRegion" },
+} as const
+
+const DEFAULT_REGIONS: Record<KeyedCompany, string> = {
+  wan: DEFAULT_WAN_REGION,
+  seedance: DEFAULT_SEEDANCE_REGION,
+}
+
+async function readVideoKeyRow(company: KeyedCompany, database: CustomShellDb) {
+  const columns = KEY_COLUMNS[company]
+  const [row] = await database
+    .select({
+      key: videoSettings[columns.key],
+      region: videoSettings[columns.region],
+    })
+    .from(videoSettings)
+    .where(eq(videoSettings.id, SETTINGS_ROW_ID))
+    .limit(1)
+  return { key: row?.key ?? null, region: row?.region ?? DEFAULT_REGIONS[company] }
+}
+
+/**
+ * The company's key and its site, or null when no key is saved. A saved key
+ * that can no longer be unscrambled throws. SERVER ONLY: the result is a live
+ * secret and must never be returned to the browser.
+ */
+export async function getVideoKey(
+  company: KeyedCompany,
+  database: CustomShellDb = db
+): Promise<{ apiKey: string; region: string } | null> {
+  const row = await readVideoKeyRow(company, database)
+  return row.key ? { apiKey: decryptSecret(row.key), region: row.region } : null
+}
+
+/**
+ * What the AI video tab may know about one key: that it exists, its last
+ * four characters and its site, never the key itself. `unreadable` means the
+ * server's encryption key changed, and the fix is pasting the key again.
+ */
+export type VideoKeyStatus = {
+  configured: boolean
+  maskedKey: string | null
+  unreadable: boolean
+  region: string
+}
+
+export async function getVideoKeyStatus(
+  company: KeyedCompany,
+  database: CustomShellDb = db
+): Promise<VideoKeyStatus> {
+  const row = await readVideoKeyRow(company, database)
+  if (!row.key) {
+    return { configured: false, maskedKey: null, unreadable: false, region: row.region }
+  }
+  try {
+    const key = decryptSecret(row.key)
+    return {
+      configured: true,
+      maskedKey: `••••${key.slice(-4)}`,
+      unreadable: false,
+      region: row.region,
+    }
+  } catch {
+    return { configured: false, maskedKey: null, unreadable: true, region: row.region }
+  }
+}
+
+async function writeVideoSettings(
+  set: Partial<typeof videoSettings.$inferInsert>,
+  database: CustomShellDb
+) {
+  const timestamp = now()
+  await database
+    .insert(videoSettings)
+    .values({ id: SETTINGS_ROW_ID, ...set, createdAt: timestamp, updatedAt: timestamp })
+    .onConflictDoUpdate({
+      target: videoSettings.id,
+      set: { ...set, updatedAt: timestamp },
+    })
+}
+
+/** Saves the key encrypted at rest, never as plain text. */
+export async function saveVideoKey(
+  company: KeyedCompany,
+  apiKey: string,
+  database: CustomShellDb = db
+): Promise<void> {
+  const trimmed = apiKey.trim()
+  if (!trimmed) throw new Error("EMPTY_KEY")
+  await writeVideoSettings({ [KEY_COLUMNS[company].key]: encryptSecret(trimmed) }, database)
+}
+
+/** Clears the saved key; the company's shots then ask for one again. */
+export async function removeVideoKey(
+  company: KeyedCompany,
+  database: CustomShellDb = db
+): Promise<void> {
+  await database
+    .update(videoSettings)
+    .set({ [KEY_COLUMNS[company].key]: null, updatedAt: now() })
+    .where(eq(videoSettings.id, SETTINGS_ROW_ID))
+}
+
+/** Saves which site the key came from. Refuses a site not on the list. */
+export async function saveVideoRegion(
+  company: KeyedCompany,
+  region: string,
+  database: CustomShellDb = db
+): Promise<void> {
+  if (!regionsFor(company).some((item) => item.id === region)) {
+    throw new Error("UNKNOWN_REGION")
+  }
+  await writeVideoSettings({ [KEY_COLUMNS[company].region]: region }, database)
+}
+
+/**
+ * Saves which company new shots start on, or one company's starting size,
+ * length and sound. The other company's starts are kept as they were.
+ */
+export async function saveVideoModelDefaults(
+  change: {
+    company?: AiDefaults["videoModel"]
+    starts?: Partial<NonNullable<AiDefaults["videoModelDefaults"]>>
+  },
+  database: CustomShellDb = db
+): Promise<AiDefaults> {
+  const current = await getAiDefaults(database)
+  return saveAiDefaults(
+    {
+      ...(change.company ? { videoModel: change.company } : {}),
+      ...(change.starts
+        ? { videoModelDefaults: { ...current.videoModelDefaults, ...change.starts } }
+        : {}),
+    },
+    database
+  )
 }

@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useKeyedAction } from "@/components/video-assets/use-keyed-action"
 import { CreatorCard } from "@/components/video-viral/creator-card"
 import { CreatorsCard } from "@/components/video-viral/creators-card"
 import { DeleteSavedVideosDialog } from "@/components/video-viral/delete-saved-videos-dialog"
@@ -75,7 +76,6 @@ import {
 } from "@/lib/api/video/viral-projects"
 import { saveVideos } from "@/lib/api/video/viral-videos"
 import { plural } from "@/lib/format/plural"
-import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { SAVED_VIEW_ERRORS, savedViewScreen, type SavedViewValues } from "@/lib/saved-views"
@@ -99,7 +99,6 @@ import {
   type ViralViewFilters,
 } from "@/lib/video/viral-saved-views"
 import {
-  atAGlance,
   filterCreators,
   filterVideos,
   sortVideos,
@@ -183,7 +182,7 @@ export function ViralProjectScreenView({
   const [pasting, setPasting] = React.useState(false)
   // A switch flipped here shows at once, before the screen reads itself again.
   const [watchOverride, setWatchOverride] = React.useState<Record<string, boolean>>({})
-  const [run, busy] = useAsyncAction(getViralErrorMessage)
+  const { run, isBusy } = useKeyedAction(getViralErrorMessage)
   // Typing stays instant; the address catches up a moment later.
   const [searchText, setSearchText] = useSearchBoxText(text, (next) =>
     setSearch({ q: next.trim() ? next : undefined })
@@ -248,7 +247,6 @@ export function ViralProjectScreenView({
       ),
     [range, screen.creators, creatorSearch, watchOverride]
   )
-  const glance = atAGlance(projectVideos, screen.creators)
 
   const pickedCreator = screen.creators.find((creator) => creator.key === search.creator) ?? null
   // A sample channel is made up and has no uploads to read, so its videos are
@@ -374,24 +372,24 @@ export function ViralProjectScreenView({
   const tickedVideos = middleVideos.filter((video) => ticked.has(video.key))
 
   async function searchAll() {
-    await run(async () => {
+    await run("search-all", async () => {
       const { queued, units } = await searchViralProject(project.id)
       await refresh()
-      toast.success(`Searching ${queued} ${plural(queued, "keyword")} for ${units.toLocaleString()} units. Keep browsing; the videos arrive as each one finishes.`)
+      toast.success(`Searching ${queued} ${plural(queued, "keyword")} using ${units.toLocaleString()} units of your daily YouTube allowance. Keep browsing; the videos arrive as each one finishes.`)
     })
   }
 
   async function refreshKeyword(keyword: ViralKeyword) {
-    await run(async () => {
+    await run(`keyword:${keyword.id}`, async () => {
       const { units } = await refreshViralKeyword(keyword.id)
       await refresh()
-      toast.success(`Searching “${keyword.keyword}” again for ${units} units.`)
+      toast.success(`Searching “${keyword.keyword}” again, using ${units} units of your daily YouTube allowance.`)
     })
   }
 
   async function addKeyword(value: string) {
     let added = false
-    await run(async () => {
+    await run("add-keyword", async () => {
       const { searchError } = await addViralKeywordFn(project.id, value)
       added = true
       await refresh()
@@ -407,7 +405,7 @@ export function ViralProjectScreenView({
   async function confirmRemove() {
     const keyword = removing
     if (!keyword) return
-    await run(async () => {
+    await run(`keyword:${keyword.id}`, async () => {
       await removeViralKeywordFn(keyword.id)
       setRemoving(null)
       await refresh()
@@ -416,9 +414,12 @@ export function ViralProjectScreenView({
     })
   }
 
-  async function hideChannels(videos: { platform: ViralVideo["platform"]; channelId: string; channelName: string }[]) {
+  async function hideChannels(
+    videos: { platform: ViralVideo["platform"]; channelId: string; channelName: string }[],
+    key = "hide"
+  ) {
     const unique = [...new Map(videos.map((one) => [`${one.platform}:${one.channelId}`, one])).values()]
-    await run(async () => {
+    await run(key, async () => {
       await hideViralChannelsFn(
         project.id,
         unique.map((one) => ({ platform: one.platform, channelId: one.channelId, channelName: one.channelName }))
@@ -438,7 +439,7 @@ export function ViralProjectScreenView({
 
   /** Download (no AI) or Break it down, for some videos in one request. */
   async function saveMany(videos: ViralVideo[], analyse: boolean) {
-    await run(async () => {
+    await run(videos.length === 1 ? `save:${videos[0].key}` : "save-many", async () => {
       const saving = videos.filter((video) => !video.sample)
       const saved = await saveVideos(
         saving.map((video) => video.url),
@@ -463,7 +464,7 @@ export function ViralProjectScreenView({
     const creatorId = creator.followedId
     if (!creatorId) return
     setWatchOverride((was) => ({ ...was, [creatorId]: watch }))
-    await run(async () => {
+    await run(`watch:${creatorId}`, async () => {
       try {
         await setViralCreatorWatch(creatorId, watch)
       } catch (error) {
@@ -492,7 +493,7 @@ export function ViralProjectScreenView({
 
   async function follow(creator: ViralCreator) {
     if (!creator.channelId) return
-    await run(async () => {
+    await run(`creator:${creator.key}`, async () => {
       await followViralChannel(project.id, creator.channelId as string)
       await refresh()
       toast.success(`Following ${creator.name} in this project.`)
@@ -501,7 +502,7 @@ export function ViralProjectScreenView({
 
   async function unfollow(creator: ViralCreator) {
     if (!creator.followedId) return
-    await run(async () => {
+    await run(`creator:${creator.key}`, async () => {
       await unfollowViralCreator(project.id, creator.followedId as string)
       await refresh()
       toast.success(`Unfollowed ${creator.name} in this project.`)
@@ -586,9 +587,8 @@ export function ViralProjectScreenView({
   const left = (
     <ProjectPanel
       screen={screen}
-      glance={glance}
       activeKeyword={keywordFilter}
-      busy={busy}
+      isBusy={isBusy}
       onPickKeyword={(keyword) => setSearch({ keyword: keyword ?? undefined, creator: undefined })}
       onSearchAll={() => void searchAll()}
       onRefreshKeyword={(keyword) => void refreshKeyword(keyword)}
@@ -656,7 +656,7 @@ export function ViralProjectScreenView({
     selecting && tickedVideos.length ? (
       <SelectedMenu
         count={tickedVideos.length}
-        busy={busy}
+        busy={isBusy("save-many") || isBusy("hide")}
         onClear={() => setTicked(new Set())}
         pages={{}}
         main={(menu) => (
@@ -783,12 +783,11 @@ export function ViralProjectScreenView({
       />
       {/* Hooks is one list of words, drawn the same in either layout. */}
       {view === "hooks" ? null : layoutToggle}
-      {searching ? (
-        <Loader2Icon className="size-4 animate-spin text-muted-foreground" aria-label="Searching" />
-      ) : null}
       {/* The screen's one primary button, last, filled and worded at every width
-          (Tyler, 20 Oct 2026). A header too narrow for it slides the tabs sideways. */}
-      <DashboardToolbarButton type="button" onClick={addLink}>
+          (Tyler, 20 Oct 2026). A header too narrow for it slides the tabs sideways.
+          It stands 8px off the list and grid pair, not the toolbar's 4px: two
+          filled shapes 4px apart read as touching (Tyler, 29 Oct 2026). */}
+      <DashboardToolbarButton type="button" className="ml-1" onClick={addLink}>
         <LinkIcon className="size-4" />
         Add a link
       </DashboardToolbarButton>
@@ -812,7 +811,7 @@ export function ViralProjectScreenView({
               type="button"
               variant="outline"
               size="sm"
-              disabled={busy}
+              disabled={isBusy(`save:${video.key}`)}
               onClick={() => void saveMany([video], true)}
             >
               <SparklesIcon />
@@ -930,7 +929,23 @@ export function ViralProjectScreenView({
               setSearch({ view: next === "videos" ? undefined : next })
             }}
             tabs={[
-              { value: "videos", label: "Videos", count: projectVideos.length },
+              // The search's spinner rides on the tab its videos land in, so
+              // the toolbar never grows and shrinks around Add a link.
+              {
+                value: "videos",
+                label: searching ? (
+                  <>
+                    Videos
+                    <Loader2Icon className="size-3.5 animate-spin text-muted-foreground" aria-hidden />
+                  </>
+                ) : (
+                  "Videos"
+                ),
+                count: projectVideos.length,
+                ariaLabel: searching
+                  ? `Videos, ${projectVideos.length}, still searching`
+                  : undefined,
+              },
               { value: "downloaded", label: "Downloaded", count: downloadedCount },
               { value: "broken", label: "Broken down", count: brokenDownCount },
               { value: "hooks", label: "Hooks", count: hookCount },
@@ -980,7 +995,8 @@ export function ViralProjectScreenView({
             ? postsPerWeek(creatorUploads.videos.map((video) => video.postedAt))
             : null
         }
-        busy={busy}
+        busy={isBusy(`creator:${pickedCreator.key}`)}
+        hiding={isBusy(`hide:${pickedCreator.key}`)}
         onFollow={() => void follow(pickedCreator)}
         onUnfollow={() => void unfollow(pickedCreator)}
         onHide={() =>
@@ -990,7 +1006,7 @@ export function ViralProjectScreenView({
               channelId: pickedCreator.key.split(":").slice(1).join(":"),
               channelName: pickedCreator.name,
             },
-          ])
+          ], `hide:${pickedCreator.key}`)
         }
       />
     )
@@ -1076,7 +1092,7 @@ export function ViralProjectScreenView({
             : "It has found nothing yet, so nothing else changes."
         }
         confirmLabel="Remove keyword"
-        loading={busy}
+        loading={removing ? isBusy(`keyword:${removing.id}`) : false}
         onConfirm={confirmRemove}
       />
 
@@ -1084,11 +1100,11 @@ export function ViralProjectScreenView({
         open={offerSearch}
         onOpenChange={setOfferSearch}
         title="Search again with the new settings?"
-        description={`What YouTube is asked for changed, so the videos on screen still follow the old settings. Searching every keyword again uses ${searchAgainCost.toLocaleString()} units.`}
+        description={`What YouTube is asked for changed, so the videos on screen still follow the old settings. Searching every keyword again uses ${searchAgainCost.toLocaleString()} units of your daily YouTube allowance.`}
         confirmLabel="Search again"
         cancelLabel="Not now"
         destructive={false}
-        loading={busy}
+        loading={isBusy("search-all")}
         onConfirm={async () => {
           setOfferSearch(false)
           await searchAll()

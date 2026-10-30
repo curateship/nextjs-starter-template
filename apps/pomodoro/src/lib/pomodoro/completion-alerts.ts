@@ -147,7 +147,7 @@ export function fireCompletionAlert(
   }
   try {
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      new Notification("Pomoder", { body: message, tag: "pomodoro-timer" })
+      new Notification("Flowfly", { body: message, tag: "pomodoro-timer" })
     }
   } catch {
     // Denied or unavailable notifications fail silently.

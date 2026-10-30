@@ -16,7 +16,7 @@ export const RENDER_QUALITIES: {
   label: string
   note: string
 }[] = [
-  { id: "high", label: "Best", note: "Full size — for posting" },
+  { id: "high", label: "Best", note: "Full size - for posting" },
   { id: "medium", label: "Good", note: "Two thirds the size" },
   { id: "low", label: "Small", note: "Quickest, for a check" },
 ]
@@ -142,7 +142,7 @@ export const MEDIA_MISSING_MESSAGE = "A clip's file is no longer in the library"
 export const TIMELINE_TOO_LONG_MESSAGE = `This project is longer than ${MAX_TIMELINE_MINUTES} minutes, which is as much as one export can take`
 export const NO_ACTIVE_EXPORT_MESSAGE = "There is no export to stop"
 export const QUEUE_FULL_MESSAGE =
-  "Too many exports waiting already — let some finish first"
+  "Too many exports waiting already - let some finish first"
 export const NO_SHAPE_MESSAGE = "Tick at least one shape to export"
 export const ONLY_FAILED_RETRY_MESSAGE =
   "Only an export that failed can be tried again"

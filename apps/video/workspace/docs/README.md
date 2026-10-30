@@ -19,7 +19,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   changes every sum that turns clip time into file time.
 - [clip-frame-fit.md](clip-frame-fit.md) — the choice between fitting a clip
   inside the frame and filling it, why fitting is the default, exactly how
-  much of a wide shot filling cuts off, and a picture's Size slider.
+  much of a wide shot filling cuts off, sliding which part of a filled clip
+  shows, and the Size slider on pictures and videos.
 - [clip-colour.md](clip-colour.md) — what the brightness, contrast and
   saturation sliders do, and how the preview matches the export's `eq` filter
   to within a few levels.
@@ -27,6 +28,15 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   picture, what happens when two fades are longer than the clip, why a
   transition wins over a picture fade at its seam, and how a split shares the
   fades out.
+- [video-on-video.md](video-on-video.md) — a video smaller than the frame
+  over another: the Size slider, the corner box and the two splits, the box
+  a split clip is fitted into, and how one shared player is placed per clip.
+- [shapes.md](shapes.md) — arrows and circles over the video: adding and
+  placing one, drawing itself on, and why a picked shape shows whole while
+  paused.
+- [progress-bar.md](progress-bar.md) — the bar that fills along one edge as
+  the video plays: one per project, where it sits against the safe box, and
+  how its thickness is counted.
 - [clip-motion.md](clip-motion.md) — the four slow moves a still picture can
   make across its time on screen, and why the export draws them with
   `perspective` rather than `zoompan`.
@@ -40,6 +50,15 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [waveforms.md](waveforms.md) — the shape of the sound drawn along a sound
   clip and in a strip along the bottom of a video clip, how the background
   worker builds it, and why trimming slides the shape instead of squashing it.
+- [clean-up-the-voice.md](clean-up-the-voice.md) — taking hum and hiss
+  out of a clip's sound at three strengths: the two ffmpeg stages, the
+  measured numbers, and the cleaned copy the preview waits for.
+- [sound-effects.md](sound-effects.md) — the Sounds panel: thirty starter
+  sounds made by a script, where they are kept, your own uploaded sounds, and
+  the shell fix that made sound uploads work.
+- [beat-snapping.md](beat-snapping.md) — beat ticks on music clips and clip
+  edges snapping to them: how the worker finds the beats, how well it does,
+  and what it has not been tried on.
 - [background-music.md](background-music.md) — the Music panel: where the
   tracks come from, why a track arrives ducked and at a quarter volume, and
   what happens when the music and the video are different lengths.
@@ -113,7 +132,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [saved-frames.md](saved-frames.md) — keeping one frame of an export or of
   the editor as a picture: where the two buttons are, what size the picture
   is, where it lands, and when the editor picture and the preview differ.
-- [media-panel.md](media-panel.md) — the editor's Media panel: the + menu
+- [media-panel.md](media-panel.md) — the editor's Media panel: the filter
+  menu and its saved views, the + menu
   that uploads files or makes a collection, and why only dragging, never a
   click, puts a file on the timeline.
 - [media-collections.md](media-collections.md) — named groups of your own
@@ -138,6 +158,11 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   warning the second window shows, what read-only stops, and the
   "(unsaved edits)" project that keeps the work of whichever window saves
   second.
+- [wan-and-seedance.md](wan-and-seedance.md) — the two other video models
+  beside Google's, Wan 2.7 and Seedance 1.5 Pro: their keys and regions on
+  Settings → AI video, what each takes (actor pictures, an end picture, a
+  voiceover), their prices, the meter rows Video writes for them, and Try on
+  all models.
 - [longer-ai-clips.md](longer-ai-clips.md) — the video model (Gemini Omni
   Flash, since Google switches Veo off on 22 Oct 2026), the Draft, Normal and
   Sharp sizes and their prices, and how a shot longer than eight seconds is

@@ -163,8 +163,8 @@ function planLines(plan: MyPlan): { text: string; alert?: boolean }[] {
   if (plan.granted)
     lines.push({
       text: plan.periodEnd
-        ? `Given to you by the Pomoder team until ${day(plan.periodEnd)}. Nothing is billed.`
-        : "Given to you by the Pomoder team. Nothing is billed.",
+        ? `Given to you by the Flowfly team until ${day(plan.periodEnd)}. Nothing is billed.`
+        : "Given to you by the Flowfly team. Nothing is billed.",
     })
   if (plan.endsAt)
     lines.push({

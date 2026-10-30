@@ -153,7 +153,7 @@ describe("changing a project", () => {
     expect(await noticesFor(ana)).toEqual([
       {
         kind: "project_changed",
-        message: "The Pomoder team changed your project Thesis: it is now PhD, with a new target.",
+        message: "The Flowfly team changed your project Thesis: it is now PhD, with a new target.",
       },
     ])
 
@@ -176,7 +176,7 @@ describe("changing a project", () => {
     await updateAdminProject({ projectId: bens.id, name: "Thesis", target: null, actorUserId: admin })
     expect(await noticesFor(ana)).toEqual([])
     expect(await noticesFor(ben)).toEqual([
-      { kind: "project_changed", message: "The Pomoder team renamed your project Notes to Thesis." },
+      { kind: "project_changed", message: "The Flowfly team renamed your project Notes to Thesis." },
     ])
   })
 
@@ -190,7 +190,7 @@ describe("changing a project", () => {
     ).rejects.toThrow("PROJECT_NAME_TAKEN")
     expect((await db.select().from(pomodoroAuditLogs)).map((row) => row.action)).toEqual(["archive"])
     expect(await noticesFor(ana)).toEqual([
-      { kind: "project_changed", message: "The Pomoder team archived your project Thesis." },
+      { kind: "project_changed", message: "The Flowfly team archived your project Thesis." },
     ])
   })
 })
@@ -226,7 +226,7 @@ describe("deleting projects", () => {
     expect((await db.select().from(pomodoroTaskRepeats))[0].projectId).toBeNull()
     expect(await db.select().from(focusSessions)).toHaveLength(1)
     expect(await noticesFor(ana)).toEqual([
-      { kind: "project_deleted", message: "The Pomoder team deleted your project Thesis. Its tasks are kept." },
+      { kind: "project_deleted", message: "The Flowfly team deleted your project Thesis. Its tasks are kept." },
     ])
     expect(await db.select().from(pomodoroAuditLogs)).toMatchObject([
       { action: "delete", resource: "projects" },
@@ -243,14 +243,23 @@ describe("deleting projects", () => {
 describe("the project notices", () => {
   it("are read back as their own kinds for the bell's first paint", () => {
     for (const message of [
-      "The Pomoder team renamed your project A to B.",
-      "The Pomoder team changed the target on your project A.",
-      "The Pomoder team archived your project A.",
-      "The Pomoder team brought back your project A.",
+      "The Flowfly team renamed your project A to B.",
+      "The Flowfly team changed the target on your project A.",
+      "The Flowfly team archived your project A.",
+      "The Flowfly team brought back your project A.",
     ])
       expect(noticeKindFromWords({ type: "app_activity", message })).toBe("project_changed")
     expect(
-      noticeKindFromWords({ type: "app_activity", message: "The Pomoder team deleted your project A. Its tasks are kept." })
+      noticeKindFromWords({ type: "app_activity", message: "The Flowfly team deleted your project A. Its tasks are kept." })
     ).toBe("project_deleted")
+  })
+
+  it("still read back when they were saved under the old Pomoder name", () => {
+    expect(
+      noticeKindFromWords({ type: "app_activity", message: "The Pomoder team archived your project A." })
+    ).toBe("project_changed")
+    expect(
+      noticeKindFromWords({ type: "app_activity", message: "You have a warning from the Pomoder team." })
+    ).toBe("admin_warning")
   })
 })

@@ -3,6 +3,7 @@ import { z } from "zod"
 import { createTaskSchema, LIMITS, PROJECT_COLORS, type ProjectColor } from "@/lib/project/rules"
 import { storedTaskNotes } from "@/lib/project/notes"
 import { FIELD_KINDS, WHO_CAN_CHANGE, type FieldRule } from "@/lib/project/task-fields"
+import type { StartingStepFields } from "@/lib/project/step-fields"
 
 /**
  * A team's kinds of task, such as "Research" or "Video editing", as the
@@ -62,8 +63,15 @@ export type TaskType = TaskTypeChip & {
   archived: boolean
   /** New task starts with these steps and these notes when the type is picked. */
   steps: string[]
+  /** The fields each starting step brings, by the step's words; saved from a task. */
+  stepFields: StartingStepFields
   notes: string
   fields: TaskTypeField[]
+}
+
+/** "Link · Length", the names of a starting step's fields, or "" with none. */
+export function stepFieldNames(type: Pick<TaskType, "stepFields">, step: string) {
+  return (type.stepFields[step] ?? []).map((field) => field.name).join(" · ")
 }
 
 /** The team's types a project offers: every live one it hasn't unticked. */
@@ -79,8 +87,10 @@ const named = (max: number, what: string) =>
     .min(1, `${what} can't be empty.`)
     .max(max, `${what} can be at most ${max} characters.`)
 
-const typeNameSchema = named(LIMITS.typeName, "The type's name")
+const typeNameSchema = named(LIMITS.typeName, "The template's name")
 const fieldNameSchema = named(LIMITS.fieldName, "The field's name")
+
+export const saveTaskAsTypeSchema = z.object({ taskId: z.string().min(1).max(36), name: typeNameSchema })
 
 export const createTypeSchema = z.object({
   name: typeNameSchema,
@@ -95,7 +105,7 @@ export const updateTypeSchema = z.object({
   color: z.enum(PROJECT_COLORS).optional(),
   steps: z
     .array(named(LIMITS.stepText, "A step"))
-    .max(LIMITS.stepsPerTask, `A type can start with at most ${LIMITS.stepsPerTask} steps.`)
+    .max(LIMITS.stepsPerTask, `A template can start with at most ${LIMITS.stepsPerTask} steps.`)
     .optional(),
   notes: z
     .unknown()
@@ -155,7 +165,7 @@ export const newTaskFieldValuesSchema = z
   .record(id, z.union([z.string().max(LIMITS.fieldLongText + 100), z.number(), z.boolean(), z.null()]))
   .refine(
     (values) => Object.keys(values).length <= LIMITS.fieldsPerType,
-    `A task type can have at most ${LIMITS.fieldsPerType} fields.`
+    `A task template can have at most ${LIMITS.fieldsPerType} fields.`
   )
 
 /** New task, with the type picked and the fields it needs when made. */
