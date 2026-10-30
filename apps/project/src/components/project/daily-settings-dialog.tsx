@@ -16,13 +16,15 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { ArchiveIcon, ArchiveRestoreIcon, GripVerticalIcon, PlusIcon, SettingsIcon } from "lucide-react"
+import { ArchiveIcon, ArchiveRestoreIcon, ChevronDown, GripVerticalIcon, PlusIcon, SettingsIcon } from "lucide-react"
 
+import { IntentionBox } from "@/components/project/daily-journal"
 import { HABIT_ICON_LOOK, HabitIconGlyph } from "@/components/project/habit-icons"
 import { SaveLine } from "@/components/project/save-line"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Dialog,
   DialogBody,
@@ -47,6 +49,7 @@ import {
   saveHabitOrder,
   saveMyHours,
   saveMyOwnWords,
+  saveMySectionOrder,
   saveMyReminders,
   saveMySky,
   type DailyCard,
@@ -56,6 +59,7 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import {
   DAILY_LIMITS,
+  DAILY_SECTION_LABEL,
   DAY_PART_LABEL,
   DAY_PARTS,
   HABIT_ICONS,
@@ -63,6 +67,7 @@ import {
   SKY_KINDS,
   SKY_LABEL,
   WEEKDAY_SHORT,
+  type DailySection,
   type DayHours,
   type DayPart,
   type HabitIcon,
@@ -73,6 +78,7 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
 const DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
@@ -106,6 +112,8 @@ export function DailySettingsDialog({ daily, open, onClose }: { daily: DailyCard
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-6">
+          {daily.admin ? <TodayCard daily={daily} /> : null}
+          {daily.admin ? <SectionsCard daily={daily} /> : null}
           <HoursCard hours={daily.settings.hours} />
           {daily.admin ? (
             <>
@@ -132,6 +140,143 @@ function useReload() {
   return React.useCallback(() => router.invalidate({ filter: (match) => match.routeId === DASHBOARD_ROUTE_ID }), [router])
 }
 
+/**
+ * One card in this window, folding to its title: press the title, or the
+ * arrow that shows while it is pointed at, and this browser remembers it
+ * (Tyler, 30 Oct 2026: "add collasiple to cards in modal too").
+ */
+function FoldCard({
+  id,
+  title,
+  action,
+  contentClassName,
+  children,
+}: {
+  id: string
+  title: React.ReactNode
+  action?: React.ReactNode
+  contentClassName?: string
+  children: React.ReactNode
+}) {
+  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(`project-daily-window-${id}`))
+  return (
+    // Around the card, never merged onto it: merged, the folding part's own name
+    // replaced the card's, and the window's card border and colour stopped applying
+    // (Tyler, 30 Oct 2026: "why did you change the borders in modal cards").
+    <Collapsible open={open} onOpenChange={setOpen} className="group/fold">
+      <Card size="sm">
+        <CardHeader className="flex items-center gap-2">
+          <CardTitle className="min-w-0 flex-1">
+            <CollapsibleTrigger asChild>
+              <button type="button" className={cn("flex w-full cursor-pointer items-center rounded-md text-left select-none", focusRingInset)}>
+                {title}
+              </button>
+            </CollapsibleTrigger>
+          </CardTitle>
+          {action}
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-hidden
+              className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md opacity-0 transition-opacity group-hover/fold:opacity-100 group-has-[:focus-visible]/fold:opacity-100 [@media(hover:none)]:opacity-100"
+            >
+              <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/fold:-rotate-90" />
+            </button>
+          </CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent data-collapse-key={noFlashKey}>
+          <CardContent className={contentClassName}>{children}</CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
+  )
+}
+
+/**
+ * The Daily card's sections, dragged into the order the panel shows them in,
+ * kept in the site admin's account (Tyler, 30 Oct 2026: "whats the point of
+ * dragging the cards in the modal if its not reflected in the panel?"; he
+ * picked the account over this browser, and the window's own cards back in a
+ * fixed order).
+ */
+function SectionsCard({ daily }: { daily: DailyCard }) {
+  const reload = useReload()
+  const [order, setOrder] = useSyncedDraft(daily.settings.sections)
+  const [state, track] = useSaveLine()
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+  const dndId = React.useId()
+  async function drop(event: DragEndEvent) {
+    const overId = event.over?.id
+    if (overId === undefined || overId === event.active.id) return
+    const before = order
+    const next = arrayMove(order, order.indexOf(event.active.id as DailySection), order.indexOf(overId as DailySection))
+    setOrder(next)
+    if (await track(() => saveMySectionOrder({ order: next }))) await reload()
+    else setOrder(before)
+  }
+  return (
+    <FoldCard
+      id="sections"
+      title="Sections"
+      contentClassName="grid gap-2"
+      action={<SaveLine state={state} />}
+    >
+      <p className="text-sm text-muted-foreground">Drag to set the order they show in on the card. Some show only at one part of the day.</p>
+      <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => void drop(event)}>
+        <SortableContext items={order} strategy={verticalListSortingStrategy}>
+          <ul className="grid gap-1.5" aria-label="Sections">
+            {order.map((name) => (
+              <SectionRow key={name} name={name} />
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
+    </FoldCard>
+  )
+}
+
+function SectionRow({ name }: { name: DailySection }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: name })
+  const style: React.CSSProperties | undefined = transform
+    ? { transform: `translate3d(0, ${transform.y}px, 0)`, transition }
+    : undefined
+  return (
+    <li ref={setNodeRef} style={style} className={cn("flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm", isDragging && "z-10 shadow-md")}>
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        {...listeners}
+        {...attributes}
+        aria-label={`Drag ${DAILY_SECTION_LABEL[name]} to change the order`}
+        className={cn("flex size-6 cursor-grab items-center justify-center rounded text-muted-foreground hover:text-foreground", focusRingInset)}
+      >
+        <GripVerticalIcon className="size-4" aria-hidden />
+      </button>
+      {DAILY_SECTION_LABEL[name]}
+    </li>
+  )
+}
+
+/**
+ * Today's intention, open to change at any time of day here, while the card
+ * itself offers the box in the morning only (Tyler, 30 Oct 2026: "It should
+ * be edible in the modal", of the "Today I want to..." box).
+ */
+function TodayCard({ daily }: { daily: DailyCard }) {
+  return (
+    <FoldCard
+      id="today"
+      title="Today"
+    >
+      <IntentionBox day={daily.cardDay} label="Today I want to..." value={daily.admin?.today.intention ?? ""} />
+    </FoldCard>
+  )
+}
+
 function HoursCard({ hours }: { hours: DayHours }) {
   const reload = useReload()
   const [draft, setDraft] = useSyncedDraft(hours)
@@ -152,33 +297,32 @@ function HoursCard({ hours }: { hours: DayHours }) {
     if (await track(() => saveMyHours(draft))) await reload()
   }
   return (
-    <Card size="sm">
-      <CardHeader className="flex items-center justify-between">
-        <CardTitle>Your hours</CardTitle>
-        <SaveLine state={state} />
-      </CardHeader>
-      <CardContent className="grid gap-4 sm:grid-cols-3">
-        {DAY_PARTS.map((part) => (
-          <div key={part} className="grid gap-2">
-            <Label htmlFor={`daily-hours-${part}`}>{DAY_PART_LABEL[part]} starts</Label>
-            <Input
-              id={`daily-hours-${part}`}
-              type="time"
-              value={draft[part]}
-              aria-invalid={invalid === part || undefined}
-              onChange={(event) => {
-                setDraft({ ...draft, [part]: event.target.value })
-                setInvalid(null)
-              }}
-              onBlur={() => void commit(part)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur()
-              }}
-            />
-          </div>
-        ))}
-      </CardContent>
-    </Card>
+    <FoldCard
+      id="hours"
+      title="Your hours"
+      contentClassName="grid gap-4 sm:grid-cols-3"
+      action={<SaveLine state={state} />}
+    >
+      {DAY_PARTS.map((part) => (
+        <div key={part} className="grid gap-2">
+          <Label htmlFor={`daily-hours-${part}`}>{DAY_PART_LABEL[part]} starts</Label>
+          <Input
+            id={`daily-hours-${part}`}
+            type="time"
+            value={draft[part]}
+            aria-invalid={invalid === part || undefined}
+            onChange={(event) => {
+              setDraft({ ...draft, [part]: event.target.value })
+              setInvalid(null)
+            }}
+            onBlur={() => void commit(part)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur()
+            }}
+          />
+        </div>
+      ))}
+    </FoldCard>
   )
 }
 
@@ -190,41 +334,40 @@ function SkyCard({ daily }: { daily: DailyCard }) {
     if (await track(() => saveMySky(next))) await reload()
   }
   return (
-    <Card size="sm">
-      <CardHeader className="flex items-center justify-between">
-        <CardTitle>Sky</CardTitle>
-        <SaveLine state={state} />
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="daily-sky">Behind the greeting</Label>
-          <Select value={sky} onValueChange={(value) => void save({ sky: value as SkyKind, own: ownSkies })}>
-            <SelectTrigger id="daily-sky" className="sm:w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SKY_KINDS.map((kind) => (
-                <SelectItem key={kind} value={kind}>
-                  {SKY_LABEL[kind]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {sky === "own" ? (
-          <div className="grid gap-4 sm:grid-cols-3">
-            {DAY_PARTS.map((part) => (
-              <ImageUpload
-                key={part}
-                label={DAY_PART_LABEL[part]}
-                value={ownSkies[part]}
-                onChange={(value) => void save({ sky, own: { ...ownSkies, [part]: value } })}
-              />
+    <FoldCard
+      id="sky"
+      title="Sky"
+      contentClassName="grid gap-4"
+      action={<SaveLine state={state} />}
+    >
+      <div className="grid gap-2">
+        <Label htmlFor="daily-sky">Behind the greeting</Label>
+        <Select value={sky} onValueChange={(value) => void save({ sky: value as SkyKind, own: ownSkies })}>
+          <SelectTrigger id="daily-sky" className="sm:w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SKY_KINDS.map((kind) => (
+              <SelectItem key={kind} value={kind}>
+                {SKY_LABEL[kind]}
+              </SelectItem>
             ))}
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+          </SelectContent>
+        </Select>
+      </div>
+      {sky === "own" ? (
+        <div className="grid gap-4 sm:grid-cols-3">
+          {DAY_PARTS.map((part) => (
+            <ImageUpload
+              key={part}
+              label={DAY_PART_LABEL[part]}
+              value={ownSkies[part]}
+              onChange={(value) => void save({ sky, own: { ...ownSkies, [part]: value } })}
+            />
+          ))}
+        </div>
+      ) : null}
+    </FoldCard>
   )
 }
 
@@ -239,53 +382,52 @@ function RemindersCard({ daily }: { daily: DailyCard }) {
     else setDraft(saved)
   }
   return (
-    <Card size="sm">
-      <CardHeader className="flex items-center justify-between">
-        <CardTitle>Reminders</CardTitle>
-        <SaveLine state={state} />
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <p className="text-sm text-muted-foreground">
-          A bell notice at this time if that routine still has habits not ticked.
-        </p>
-        {DAY_PARTS.map((part) => {
-          const time = draft[part]
-          return (
-            <div key={part} className="flex flex-wrap items-center gap-3">
-              <Switch
-                id={`daily-reminder-${part}`}
-                checked={time !== null}
-                onCheckedChange={(on) =>
-                  void save({ ...draft, [part]: on ? (saved[part] ?? { morning: "10:00", afternoon: "15:00", night: "21:00" }[part]) : null })
-                }
+    <FoldCard
+      id="reminders"
+      title="Reminders"
+      contentClassName="grid gap-4"
+      action={<SaveLine state={state} />}
+    >
+      <p className="text-sm text-muted-foreground">
+        A bell notice at this time if that routine still has habits not ticked.
+      </p>
+      {DAY_PARTS.map((part) => {
+        const time = draft[part]
+        return (
+          <div key={part} className="flex flex-wrap items-center gap-3">
+            <Switch
+              id={`daily-reminder-${part}`}
+              checked={time !== null}
+              onCheckedChange={(on) =>
+                void save({ ...draft, [part]: on ? (saved[part] ?? { morning: "10:00", afternoon: "15:00", night: "21:00" }[part]) : null })
+              }
+            />
+            <Label htmlFor={`daily-reminder-${part}`} className="w-24">
+              {DAY_PART_LABEL[part]}
+            </Label>
+            {time !== null ? (
+              <Input
+                type="time"
+                aria-label={`${DAY_PART_LABEL[part]} reminder time`}
+                className="w-36"
+                value={time}
+                onChange={(event) => setDraft({ ...draft, [part]: event.target.value })}
+                onBlur={() => {
+                  if (draft[part] === saved[part]) return
+                  if (!TIME.test(draft[part] ?? "")) {
+                    showErrorToast("Pick a time like 09:00.")
+                    return
+                  }
+                  void save(draft)
+                }}
               />
-              <Label htmlFor={`daily-reminder-${part}`} className="w-24">
-                {DAY_PART_LABEL[part]}
-              </Label>
-              {time !== null ? (
-                <Input
-                  type="time"
-                  aria-label={`${DAY_PART_LABEL[part]} reminder time`}
-                  className="w-36"
-                  value={time}
-                  onChange={(event) => setDraft({ ...draft, [part]: event.target.value })}
-                  onBlur={() => {
-                    if (draft[part] === saved[part]) return
-                    if (!TIME.test(draft[part] ?? "")) {
-                      showErrorToast("Pick a time like 09:00.")
-                      return
-                    }
-                    void save(draft)
-                  }}
-                />
-              ) : (
-                <span className="text-sm text-muted-foreground">Off</span>
-              )}
-            </div>
-          )
-        })}
-      </CardContent>
-    </Card>
+            ) : (
+              <span className="text-sm text-muted-foreground">Off</span>
+            )}
+          </div>
+        )
+      })}
+    </FoldCard>
   )
 }
 
@@ -313,20 +455,19 @@ function WordsCard({ kind, items }: { kind: "lines" | "questions"; items: string
     if (await track(() => saveMyOwnWords({ kind, items: next }))) await reload()
   }
   return (
-    <Card size="sm">
-      <CardHeader className="flex items-center justify-between">
-        <CardTitle>{kind === "lines" ? "Your own lines" : "Your own night questions"}</CardTitle>
-        <SaveLine state={state} />
-      </CardHeader>
-      <CardContent className="grid gap-2">
-        <Label htmlFor={id}>
-          {kind === "lines"
-            ? "One per line. Each morning shows one of them."
-            : "One per line. Each night asks one of them."}
-        </Label>
-        <Textarea id={id} rows={1} value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={() => void save()} />
-      </CardContent>
-    </Card>
+    <FoldCard
+      id={`words-${kind}`}
+      title={kind === "lines" ? "Your own lines" : "Your own night questions"}
+      contentClassName="grid gap-2"
+      action={<SaveLine state={state} />}
+    >
+      <Label htmlFor={id}>
+        {kind === "lines"
+          ? "One per line. Each morning shows one of them."
+          : "One per line. Each night asks one of them."}
+      </Label>
+      <Textarea id={id} rows={1} value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={() => void save()} />
+    </FoldCard>
   )
 }
 
@@ -344,64 +485,63 @@ function HabitsCard({ daily }: { daily: DailyCard }) {
   }
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Habits</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        {admin.habits.length === 0 && admin.retired.length === 0 ? (
-          <div className="grid gap-2">
-            <p className="text-sm text-muted-foreground">
-              No habits yet. Start from a sample morning, afternoon and night list and change it, or add your own below.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              className="justify-self-start"
-              disabled={busy}
-              onClick={() => void act(() => addSampleRoutines(), "Added the sample routines.")}
-            >
-              Start from the samples
-            </Button>
-          </div>
-        ) : null}
-        {DAY_PARTS.map((part) => (
-          <RoutineList
-            key={part}
-            part={part}
-            habits={admin.habits.filter((habit) => habit.part === part)}
-            editing={editing}
-            onEdit={setEditing}
-            adding={adding === part}
-            onAdd={(on) => setAdding(on ? part : null)}
-          />
-        ))}
-        {admin.retired.length ? (
-          <div className="grid gap-2">
-            <span className="text-sm font-medium">Retired</span>
-            <ul className="grid gap-1">
-              {admin.retired.map((habit) => (
-                <li key={habit.id} className="flex items-center gap-2 text-sm">
-                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                    {habit.name} · {DAY_PART_LABEL[habit.part]}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => void act(() => bringBackHabit(habit.id), `"${habit.name}" is back.`)}
-                  >
-                    <ArchiveRestoreIcon className="size-4" />
-                    Bring back
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+    <FoldCard
+      id="habits"
+      title="Habits"
+      contentClassName="grid gap-4"
+    >
+      {admin.habits.length === 0 && admin.retired.length === 0 ? (
+        <div className="grid gap-2">
+          <p className="text-sm text-muted-foreground">
+            No habits yet. Start from a sample morning, afternoon and night list and change it, or add your own below.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="justify-self-start"
+            disabled={busy}
+            onClick={() => void act(() => addSampleRoutines(), "Added the sample routines.")}
+          >
+            Start from the samples
+          </Button>
+        </div>
+      ) : null}
+      {DAY_PARTS.map((part) => (
+        <RoutineList
+          key={part}
+          part={part}
+          habits={admin.habits.filter((habit) => habit.part === part)}
+          editing={editing}
+          onEdit={setEditing}
+          adding={adding === part}
+          onAdd={(on) => setAdding(on ? part : null)}
+        />
+      ))}
+      {admin.retired.length ? (
+        <div className="grid gap-2">
+          <span className="text-sm font-medium">Retired</span>
+          <ul className="grid gap-1">
+            {admin.retired.map((habit) => (
+              <li key={habit.id} className="flex items-center gap-2 text-sm">
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                  {habit.name} · {DAY_PART_LABEL[habit.part]}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void act(() => bringBackHabit(habit.id), `"${habit.name}" is back.`)}
+                >
+                  <ArchiveRestoreIcon className="size-4" />
+                  Bring back
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </FoldCard>
   )
 }
 

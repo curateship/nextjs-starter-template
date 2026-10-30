@@ -62,8 +62,7 @@ export function AdminCards({
   projectsCard: React.ReactNode
   onOpenTask: (taskId: string) => void
 }) {
-  const anything =
-    Boolean(projectsCard) ||
+  const cardsWithRows =
     [
       cards.waiting,
       cards.attention,
@@ -75,11 +74,17 @@ export function AdminCards({
       cards.doneToday,
     ].some((rows) => rows.length > 0)
   // Nothing to act on draws nothing, and the Inbox moves up (Tyler, 25 Oct 2026: "Just dont show anything").
-  if (!anything) return null
+  if (!projectsCard && !cardsWithRows) return null
   return (
     <>
       {/* First, above the red cards (Tyler, 29 Oct 2026: "the project card should be above all the red cards"). */}
       {projectsCard}
+      {/* A heading over the cards below, the size of Projects, with room above it to
+          part it from the projects, and none at all while no card below has
+          anything (Tyler, 30 Oct 2026: "Add a label that says "Need your attention"
+          here", then "add some padding above. also if there is nothing there (no
+          cards) hide the label"). */}
+      {cardsWithRows ? <h2 className={cn("text-base leading-tight font-semibold", projectsCard && "mt-3")}>Need your attention</h2> : null}
       <WaitingCard asks={cards.waiting} onOpenTask={onOpenTask} />
       <AttentionCard teams={cards.attention} />
       <UnassignedCard tasks={cards.unassigned} onOpenTask={onOpenTask} />
@@ -206,6 +211,7 @@ function WaitingCard({ asks, onOpenTask }: { asks: WaitingAsk[]; onOpenTask: (ta
 function AttentionCard({ teams }: { teams: Cards["attention"] }) {
   const navigate = useNavigate()
   if (teams.length === 0) return null
+  // Called Urgent here (Tyler, 30 Oct 2026: "rename the card "Need your attention" to "Urgent"").
   // A count opens that team on its Needs attention tab, as the Teams dashboard's numbers do.
   const openAttention = (teamId: string) => {
     try {
@@ -216,7 +222,7 @@ function AttentionCard({ teams }: { teams: Cards["attention"] }) {
     void navigate({ to: "/teams/$teamId", params: { teamId } })
   }
   return (
-    <PanelCard storageId="project-admin-attention" className={TONE.now} title="Needs attention" meta={teams.length}>
+    <PanelCard storageId="project-admin-attention" className={TONE.now} title="Urgent" meta={teams.length}>
       <Rows items={teams}>
         {(team) => (
           <li key={team.teamId} className="grid gap-1 rounded-md px-2 py-1.5">

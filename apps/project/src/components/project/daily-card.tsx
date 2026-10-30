@@ -9,7 +9,6 @@ import { DailySection } from "@/components/project/daily-section"
 import { DailySettingsDialog } from "@/components/project/daily-settings-dialog"
 import { DailySky } from "@/components/project/daily-sky"
 import { GraphMorphIcon } from "@/components/project/inbox-morph-icon"
-import { PanelHeading } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -23,6 +22,7 @@ import {
   partOfDay,
   skyPhase,
   weatherWords,
+  type DailySection as DailySectionName,
   type DayPart,
 } from "@/lib/project/daily-card"
 import { clockIn, fullDayLabel, localNow } from "@/lib/project/days"
@@ -214,28 +214,32 @@ export function DailyCard({
               <>
                 {daily.admin?.lookBack ? <SundayLookBack daily={daily} /> : null}
                 {daily.admin?.monthly ? <MonthlyReview daily={daily} /> : null}
-                {daily.admin?.line && part === "morning" ? <p className="text-sm text-muted-foreground italic">{daily.admin.line}</p> : null}
-                <DayBody
-                  daily={daily}
-                  part={part}
-                  nowMs={nowMs}
-                  deepWork={deepWork}
-                  picks={picks}
-                  checkin={checkin}
-                  onCheckIn={onCheckIn}
-                  onCheckOut={onCheckOut}
-                  onOpenTask={onOpenTask}
-                />
+                {checkin && !checkin.checkedIn && part !== "night" && !daily.dayOff ? (
+                  <Button type="button" className="w-full" onClick={onCheckIn}>
+                    Check in to plan your day
+                  </Button>
+                ) : null}
+                {/* In the site admin's own order, dragged in the pencil window (Tyler, 30 Oct
+                    2026: "whats the point of dragging the cards in the modal if its not
+                    reflected in the panel?"); an employee's card keeps the card's own. */}
+                {daily.settings.sections.map((name) => (
+                    <DaySection
+                      key={name}
+                      name={name}
+                      daily={daily}
+                      part={part}
+                      nowMs={nowMs}
+                      deepWork={deepWork}
+                      picks={picks}
+                      checkin={checkin}
+                      onCheckOut={onCheckOut}
+                      onOpenTask={onOpenTask}
+                    />
+                ))}
               </>
             ) : null}
-            {daily.admin ? (
-              <>
-                {started ? <DailyHabits daily={daily} part={part} /> : null}
-                {started ? <DailyJournal daily={daily} part={part} /> : null}
-                {/* Look back lives in the panel's header (Tyler, 30 Oct 2026: "remove the look back button"). */}
-                {!started ? <StartDayButton /> : part === "night" ? <RateYourDayButton daily={daily} /> : null}
-              </>
-            ) : null}
+            {/* Look back lives in the panel's header (Tyler, 30 Oct 2026: "remove the look back button"). */}
+            {daily.admin ? !started ? <StartDayButton /> : part === "night" ? <RateYourDayButton daily={daily} /> : null : null}
           </div>
         </CollapsibleContent>
       </section>
@@ -315,47 +319,54 @@ function burstConfetti(card: HTMLElement) {
 }
 
 /** The part of the card that follows the time of day for everyone. */
-function DayBody({
+/**
+ * One of the card's sections, or nothing when it has nothing to show at this
+ * part of the day. On a day off, deep work's place says so and the other
+ * work sections stay away; the routine and journal still show.
+ */
+function DaySection({
+  name,
   daily,
   part,
   nowMs,
   deepWork,
   picks,
   checkin,
-  onCheckIn,
   onCheckOut,
   onOpenTask,
 }: {
+  name: DailySectionName
   daily: DailyCardData
   part: DayPart
   nowMs: number
   deepWork: TaskCard[]
   picks: { done: number; total: number } | null
   checkin: { checkedIn: boolean; checkedOut: boolean } | null
-  onCheckIn?: () => void
   onCheckOut?: () => void
   onOpenTask: (taskId: string) => void
 }) {
-  if (daily.dayOff) {
-    return <p className="text-sm">{daily.dayOff}. Nothing here needs you today.</p>
+  const work = !daily.dayOff
+  switch (name) {
+    case "line":
+      return daily.admin?.line && part === "morning" ? <p className="text-sm text-muted-foreground italic">{daily.admin.line}</p> : null
+    case "progress": {
+      if (!work || part !== "afternoon") return null
+      const clockedSeconds =
+        daily.clock.seconds + (daily.clock.running ? Math.max(0, Math.floor((nowMs - Date.parse(daily.loadedAt)) / 1000)) : 0)
+      return <Progress picks={picks} finished={daily.finishedToday.length} clockedSeconds={clockedSeconds} />
+    }
+    case "deepWork":
+      if (!work) return <p className="text-sm">{daily.dayOff}. Nothing here needs you today.</p>
+      return part !== "night" ? <DeepWork tasks={deepWork} onOpenTask={onOpenTask} /> : null
+    case "meeting":
+      return work ? <NextMeeting daily={daily} nowMs={nowMs} /> : null
+    case "windDown":
+      return work && part === "night" ? <WindDown daily={daily} checkin={checkin} onCheckOut={onCheckOut} onOpenTask={onOpenTask} /> : null
+    case "routine":
+      return <DailyHabits daily={daily} part={part} />
+    case "journal":
+      return <DailyJournal daily={daily} part={part} />
   }
-  const clockedSeconds =
-    daily.clock.seconds + (daily.clock.running ? Math.max(0, Math.floor((nowMs - Date.parse(daily.loadedAt)) / 1000)) : 0)
-  return (
-    <>
-      {checkin && !checkin.checkedIn && part !== "night" ? (
-        <Button type="button" className="w-full" onClick={onCheckIn}>
-          Check in to plan your day
-        </Button>
-      ) : null}
-      {part === "afternoon" ? <Progress picks={picks} finished={daily.finishedToday.length} clockedSeconds={clockedSeconds} /> : null}
-      {part !== "night" ? <DeepWork tasks={deepWork} onOpenTask={onOpenTask} /> : null}
-      <NextMeeting daily={daily} nowMs={nowMs} />
-      {part === "night" ? (
-        <WindDown daily={daily} checkin={checkin} onCheckOut={onCheckOut} onOpenTask={onOpenTask} />
-      ) : null}
-    </>
-  )
 }
 
 /** "2 of 3 done, 3h 10m clocked today"; nothing while there is nothing to count. */
@@ -388,8 +399,7 @@ function DeepWork({ tasks, onOpenTask }: { tasks: TaskCard[]; onOpenTask: (taskI
     await router.invalidate({ filter: (match) => match.routeId === DASHBOARD_ROUTE_ID })
   }
   return (
-    <DailySection>
-      <PanelHeading>Deep work</PanelHeading>
+    <DailySection title="Deep work" foldId="deep-work">
       <ul className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
         {tasks.map((task) => {
           const running = Boolean(task.clock.runningSince)
@@ -432,8 +442,7 @@ function NextMeeting({ daily, nowMs }: { daily: DailyCardData; nowMs: number }) 
   const when =
     minutes <= 0 ? "now" : minutes < 60 ? `in ${minutes} ${minutes === 1 ? "minute" : "minutes"}` : `at ${clockIn(next.startsAt, daily.zone)}`
   return (
-    <DailySection>
-      <PanelHeading>Next meeting</PanelHeading>
+    <DailySection title="Next meeting" foldId="next-meeting">
       <p className="text-sm">
         <span className="font-medium">{next.title}</span> {when}
       </p>
@@ -463,8 +472,7 @@ function WindDown({
     }
   }
   return (
-    <DailySection>
-      <PanelHeading>Done today</PanelHeading>
+    <DailySection title="Done today" foldId="done-today">
       {daily.finishedToday.length ? (
         <ul className="grid gap-1">
           {daily.finishedToday.map((task) => (
@@ -508,8 +516,7 @@ function SundayLookBack({ daily }: { daily: DailyCardData }) {
   const rated = days.filter((day) => day.rating)
   const wins = days.filter((day) => day.win)
   return (
-    <DailySection>
-      <PanelHeading>Your week</PanelHeading>
+    <DailySection title="Your week" foldId="your-week">
       <ol className="grid grid-cols-7 gap-1 text-center text-xs" aria-label="This week's ratings">
         {days.map((day) => (
           <li key={day.day} className="grid gap-1">
@@ -538,8 +545,7 @@ function MonthlyReview({ daily }: { daily: DailyCardData }) {
   if (!review) return null
   const month = new Date(`${review.month}-15T12:00:00Z`).toLocaleDateString("en", { month: "long", timeZone: "UTC" })
   return (
-    <DailySection>
-      <PanelHeading>{month} in review</PanelHeading>
+    <DailySection title={`${month} in review`} foldId="month-in-review">
       <ul className="grid gap-1 text-sm">
         <li>
           {review.bestHabit

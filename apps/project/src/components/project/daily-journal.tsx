@@ -5,19 +5,23 @@ import { Line, LineChart, YAxis } from "recharts"
 
 import { DailySection } from "@/components/project/daily-section"
 import { RainbowEdge } from "@/components/project/rainbow-edge"
+import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { SaveLine } from "@/components/project/save-line"
 import { PanelHeading } from "@/components/shared/panel-card"
+import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Textarea } from "@/components/ui/textarea"
-import { markMySleep, rateMyDay, saveJournalWords, type DailyCard } from "@/lib/api/project/daily-card"
+import { markMySleep, rateMyDay, saveIntention, saveJournalWords, type DailyCard } from "@/lib/api/project/daily-card"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { DAILY_LIMITS, type DayPart, type JournalField } from "@/lib/project/daily-card"
 import { addDays, clockIn, dayLabel } from "@/lib/project/days"
+import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { notesForEditor, readTaskNotes } from "@/lib/project/notes"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { cn } from "@/lib/utils"
@@ -39,14 +43,8 @@ export function DailyJournal({ daily, part }: { daily: DailyCard; part: DayPart 
   const day = daily.cardDay
   if (part === "morning") {
     return (
-      <DailySection className="gap-3">
-        <JournalBox
-          day={day}
-          field="intention"
-          label="Today I want to..."
-          value={admin.today.intention}
-          max={DAILY_LIMITS.intention}
-        />
+      <DailySection title="Today I want to..." foldId="intention">
+        <IntentionBox day={day} label="Today I want to..." value={admin.today.intention} hideLabel />
         {admin.onThisDay ? (
           <p className="text-sm text-muted-foreground">
             A year ago today you wrote: <span className="text-foreground">{admin.onThisDay.text}</span>
@@ -58,9 +56,8 @@ export function DailyJournal({ daily, part }: { daily: DailyCard; part: DayPart 
   if (part === "afternoon") {
     return admin.today.intention ? (
       <DailySection>
-        <p className="text-sm text-muted-foreground">
-          Today you want to: <span className="text-foreground">{admin.today.intention}</span>
-        </p>
+        {/* The intention alone, with no "Today you want to:" before it (Tyler, 30 Oct 2026). */}
+        <IntentionText value={admin.today.intention} />
       </DailySection>
     ) : null
   }
@@ -69,9 +66,8 @@ export function DailyJournal({ daily, part }: { daily: DailyCard; part: DayPart 
       <TomorrowAtAGlance daily={daily} />
       {admin.today.intention ? (
         <DailySection>
-          <p className="text-sm text-muted-foreground">
-            This morning you wanted to: <span className="text-foreground">{admin.today.intention}</span>
-          </p>
+          <p className="text-sm text-muted-foreground">This morning you wanted to:</p>
+          <IntentionText value={admin.today.intention} />
         </DailySection>
       ) : null}
     </div>
@@ -144,13 +140,7 @@ export function RateYourDayButton({ daily }: { daily: DailyCard }) {
             max={DAILY_LIMITS.answer}
           />
         ) : null}
-        <JournalBox
-          day={addDays(day, 1)}
-          field="intention"
-          label="Tomorrow I want to..."
-          value={admin.tomorrowIntention}
-          max={DAILY_LIMITS.intention}
-        />
+        <IntentionBox day={addDays(day, 1)} label="Tomorrow I want to..." value={admin.tomorrowIntention} />
         <GoingToBed at={admin.today.bedAt} zone={daily.zone} />
         <RatingTrend trend={admin.trend} />
       </PopoverContent>
@@ -158,8 +148,89 @@ export function RateYourDayButton({ daily }: { daily: DailyCard }) {
   )
 }
 
+/**
+ * "Today I want to..." or "Tomorrow I want to...", written in the editor task
+ * notes use: select words for bold, a list or a link, and lines and spacing as
+ * typed (Tyler, 30 Oct 2026: "Make that field using tip tap editor so I can
+ * add more advanced text and spacing"). It saves when left, with Saving…,
+ * Saved or Not saved, and a window closing before it is left saves it too.
+ */
+export function IntentionBox({
+  day,
+  label,
+  value,
+  hideLabel = false,
+}: {
+  day: string
+  label: string
+  value: string
+  /** Under a section already headed with the same words, kept for screen readers only. */
+  hideLabel?: boolean
+}) {
+  const labelId = React.useId()
+  const router = useRouter()
+  const [state, track] = useSaveLine()
+  // The editor takes its text once, as it opens; what is typed after that is its own.
+  const start = React.useMemo(() => notesForEditor(readTaskNotes(value)), [value])
+  // Null until something is typed, so leaving an untouched box saves nothing.
+  const [draft, setDraft] = React.useState<WrittenPageNode | null>(null)
+  async function save() {
+    if (!draft) return
+    if (await track(() => saveIntention({ day, body: draft }))) {
+      setDraft(null)
+      await reloadDashboard(router)
+    }
+  }
+  const unsaved = React.useRef(draft)
+  React.useEffect(() => {
+    unsaved.current = draft
+  }, [draft])
+  React.useEffect(
+    () => () => {
+      if (!unsaved.current) return
+      saveIntention({ day, body: unsaved.current }).then(
+        () => reloadDashboard(router),
+        (error: unknown) => showErrorToast(getProjectErrorMessage(error))
+      )
+    },
+    [day, router]
+  )
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-2" role="group" aria-labelledby={labelId}>
+      <div className="flex items-center justify-between gap-2">
+        <Label id={labelId} asChild className={cn(hideLabel && "sr-only")}>
+          <span>{label}</span>
+        </Label>
+        <SaveLine state={state} />
+      </div>
+      <div
+        // Two lines tall to start, growing as more is written (Tyler, 30 Oct 2026:
+        // "the field should only be 2 row"); the last paragraph keeps no space under
+        // it. Marked important: the editor's own sizes are plain CSS, which beats
+        // these classes otherwise.
+        className="[&_.page-rte_.tiptap]:min-h-14! [&_.page-rte_.tiptap]:px-3! [&_.page-rte_.tiptap]:py-2! [&_.page-rte_.tiptap]:text-sm! [&_.page-rte_.tiptap_p:last-child]:mb-0!"
+        onBlur={(event) => {
+          const next = event.relatedTarget
+          // The link box opens outside this box, so moving into it isn't leaving.
+          if (next instanceof Element && (event.currentTarget.contains(next) || next.closest("[data-slot=popover-content]"))) return
+          void save()
+        }}
+      >
+        <DocumentEditor value={start} onChange={setDraft} placeholder="Select words for bold, a list or a link." />
+      </div>
+    </div>
+  )
+}
+
+/** An intention as written: formatted when it was written in the editor, plain words when written before. */
+function IntentionText({ value }: { value: string }) {
+  const notes = readTaskNotes(value)
+  if (notes.kind === "text") return <p className="text-sm whitespace-pre-line">{notes.text}</p>
+  return <WrittenPageBody body={notes.body} />
+}
+
 /** A journal box that saves itself when left: Saving…, then Saved or Not saved. */
-function JournalBox({
+export function JournalBox({
   day,
   field,
   label,
@@ -168,7 +239,7 @@ function JournalBox({
   question,
 }: {
   day: string
-  field: JournalField
+  field: Exclude<JournalField, "intention">
   label: string
   value: string
   max: number
@@ -287,8 +358,7 @@ function TomorrowAtAGlance({ daily }: { daily: DailyCard }) {
   const tomorrow = daily.admin!.tomorrow
   const nothing = !tomorrow.meetings.length && !tomorrow.due.length && !tomorrow.away.length && !tomorrow.holidays.length
   return (
-    <DailySection>
-      <PanelHeading>Tomorrow</PanelHeading>
+    <DailySection title="Tomorrow" foldId="tomorrow">
       {nothing ? (
         <p className="text-sm text-muted-foreground">No meetings, due dates or days off tomorrow.</p>
       ) : (
