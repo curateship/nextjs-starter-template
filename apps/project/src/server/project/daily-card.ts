@@ -11,7 +11,6 @@ import {
   JOURNAL_SEARCH_RESULTS,
   newMilestone,
   pickForDay,
-  sleptMinutes,
   streakOf,
   weekStartOf,
   type DayHours,
@@ -25,7 +24,7 @@ import {
   type WeatherKind,
   weatherKindOf,
 } from "@/lib/project/daily-card"
-import { DAILY_LINES, DAILY_QUESTIONS, READY_ROUTINES } from "@/lib/project/daily-words"
+import { READY_ROUTINES } from "@/lib/project/daily-words"
 import { addDays, localNow, momentOf, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { CLOSED_TASK_STATUSES } from "@/lib/project/rules"
@@ -80,7 +79,7 @@ export type DailySettings = {
 
 export type DailyMeeting = { meetingId: string; title: string; startsAt: string; endsAt: string }
 
-/** One of the week's seven dots, Monday first. */
+/** How a habit did on one day of Look back's month. */
 export type WeekDot = "done" | "missed" | "off" | "open" | "later"
 
 export type DailyHabit = {
@@ -97,7 +96,6 @@ export type DailyHabit = {
   count: number
   /** Set yesterday, and how many then, for "Tick yesterday". */
   yesterday: { set: boolean; count: number }
-  week: WeekDot[]
   streak: Streak
 }
 
@@ -132,8 +130,6 @@ export type SiteAdminDaily = {
   today: JournalDay
   /** Tomorrow's intention, written tonight. */
   tomorrowIntention: string
-  /** From last night's Going to bed until this morning's Up. */
-  sleptMinutes: number | null
   line: string
   question: string
   /** Ratings of the last 30 card days, oldest first; null where none was given. */
@@ -428,14 +424,6 @@ async function siteAdminDaily(
       setToday: habitIsSetFor(habit, cardDay),
       count: count(cardDay),
       yesterday: { set: habitIsSetFor(habit, yesterday), count: count(yesterday) },
-      week: Array.from({ length: 7 }, (_, index): WeekDot => {
-        const day = addDays(weekStart, index)
-        if (day > cardDay) return "later"
-        const state = dayIs(day)
-        if (state === "done") return "done"
-        if (state === "skip") return "off"
-        return day === cardDay ? "open" : "missed"
-      }),
       streak: streakOf(habit.firstDay, cardDay, dayIs),
     }
   })
@@ -462,9 +450,9 @@ async function siteAdminDaily(
     milestone,
     today: todayRow,
     tomorrowIntention: journal.get(addDays(cardDay, 1))?.intention ?? "",
-    sleptMinutes: sleptMinutes(journal.get(yesterday)?.bedAt ?? null, todayRow.upAt),
-    line: pickForDay([...DAILY_LINES, ...settings.ownLines], cardDay) ?? "",
-    question: todayRow.question || (pickForDay([...DAILY_QUESTIONS, ...settings.ownQuestions], cardDay) ?? ""),
+    // Only the site admin's own; with none, the card shows no line and no question.
+    line: pickForDay(settings.ownLines, cardDay) ?? "",
+    question: todayRow.question || (pickForDay(settings.ownQuestions, cardDay) ?? ""),
     trend: Array.from({ length: 30 }, (_, index) => {
       const day = addDays(cardDay, index - 29)
       return { day, rating: journal.get(day)?.rating ?? null }
@@ -648,6 +636,8 @@ async function tomorrowAtAGlance(
 
 export type MonthOfTicks = {
   month: string
+  /** The site admin's card day, for Today's habits under the calendar. */
+  today: string
   days: string[]
   habits: { id: string; name: string; icon: HabitIcon | null; retired: boolean; cells: WeekDot[] }[]
 }
@@ -669,6 +659,7 @@ export async function loadMonthOfTicks(userId: string, month: string, database: 
   const daysOff = await siteAdminDaysOff(userId, teams.length, database)
   return {
     month,
+    today: cardDay,
     days,
     habits: habitRows
       .filter((habit) => habit.firstDay <= days[days.length - 1] && (!habit.retiredDay || habit.retiredDay > first))
@@ -961,6 +952,7 @@ export async function saveJournalRating(userId: string, input: { day: string; ra
 }
 
 /** Going to bed or Up, at this moment, on the card's day. */
+/** Going to bed, or Start day, which records the time the day began in `up_at`. */
 export async function markSleep(userId: string, kind: "bed" | "up", database: ProjectDb = db, at = new Date()) {
   await requireSiteAdmin(userId, database)
   const day = await siteAdminCardDay(userId, database, at)

@@ -4,6 +4,7 @@ import { CheckCheckIcon, ListChecksIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PanelCard } from "@/components/project/panel-card"
+import { PanelTabsRow } from "@/components/project/panel-tabs-row"
 import { NotificationRow } from "@/components/shared/notification-row"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
@@ -48,6 +49,14 @@ function inboxTabOf(item: NotificationItem, categoryId: string | undefined): Inb
  * (Tyler, 23 Oct 2026: "the inbox should have 6 open and a button to load more").
  */
 /** The first page of my notices, loaded with My dashboard, and where the next page starts (null with no more). */
+const INBOX_TABS: { value: InboxTab; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "unread", label: "Unread" },
+  { value: "tasks", label: "Tasks" },
+  { value: "flows", label: "Flows" },
+  { value: "news", label: "News" },
+]
+
 export type InboxPage = { notifications: NotificationItem[]; nextCursor: string | null }
 
 export function InboxCard({
@@ -179,28 +188,12 @@ export function InboxCard({
       <TooltipContent>Mark all read</TooltipContent>
     </Tooltip>
   )
-  const body = (
+  const changeTab = (value: string) => {
+    setTab(value as InboxTab)
+    setCount(INBOX_ROWS)
+  }
+  const list = (
     <>
-      <Tabs
-        value={tab}
-        onValueChange={(value) => {
-          setTab(value as InboxTab)
-          setCount(INBOX_ROWS)
-        }}
-      >
-        <ScrollArea>
-          <div className="pb-1">
-            <TabsList className="justify-start">
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="unread">Unread</TabsTrigger>
-              <TabsTrigger value="tasks">Tasks</TabsTrigger>
-              <TabsTrigger value="flows">Flows</TabsTrigger>
-              <TabsTrigger value="news">News</TabsTrigger>
-            </TabsList>
-          </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-      </Tabs>
       {notifications.length === 0 ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <ListChecksIcon className="size-4 shrink-0" aria-hidden />
@@ -230,24 +223,44 @@ export function InboxCard({
       ) : null}
     </>
   )
-  const meta = unread ? `${unread} unread` : undefined
   if (bare) {
+    // The site admin's inbox in place of the panel's cards: its tabs underlined
+    // on the right of a low row, as Look back's are, with Mark all read right of
+    // them, and the list scrolling under them (Tyler, 30 Oct 2026: "fix the
+    // inbox tabs too"). Unread carries its count.
     return (
-      <section className="grid min-w-0 gap-3" aria-label="Inbox">
-        <div className="flex min-w-0 items-center gap-2">
-          <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold">
-            Inbox
-            {meta ? <span className="font-normal text-muted-foreground"> · {meta}</span> : null}
-          </h2>
-          {markAllButton}
-        </div>
-        {body}
+      <section className="flex min-h-0 flex-1 flex-col" aria-label="Inbox">
+        <PanelTabsRow
+          value={tab}
+          onValueChange={changeTab}
+          after={markAllButton}
+          tight
+          tabs={INBOX_TABS.map((item) => (item.value === "unread" && unread ? { ...item, count: unread } : item))}
+        />
+        <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
+          <div className="grid min-w-0 gap-3 p-4">{list}</div>
+        </ScrollArea>
       </section>
     )
   }
+  const meta = unread ? `${unread} unread` : undefined
   return (
     <PanelCard storageId="project-my-inbox" title="Inbox" meta={meta} action={markAllButton}>
-      {body}
+      <Tabs value={tab} onValueChange={changeTab}>
+        <ScrollArea>
+          <div className="pb-1">
+            <TabsList className="justify-start">
+              {INBOX_TABS.map((item) => (
+                <TabsTrigger key={item.value} value={item.value}>
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      </Tabs>
+      {list}
     </PanelCard>
   )
 }

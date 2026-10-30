@@ -31,6 +31,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { plural } from "@/lib/format/plural"
 import { LIMITS } from "@/lib/project/rules"
+import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
 import { cn } from "@/lib/utils"
 
 /**
@@ -177,7 +178,7 @@ function SidePanel({
         )}
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <div className="grid gap-3 p-3">
+        <div className={cn("grid", PANEL_GUTTER)}>
           {side ? <SideBody side={side} toolbar={toolbar} notes={notes} /> : parts.body}
         </div>
       </ScrollArea>

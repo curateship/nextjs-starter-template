@@ -1,16 +1,17 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { ChevronDown, HistoryIcon, Loader2Icon, PauseIcon, PencilIcon, PlayIcon } from "lucide-react"
+import { ChevronDown, Loader2Icon, PauseIcon, PencilIcon, PlayIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { DailyHabits } from "@/components/project/daily-habits"
-import { DailyJournal, RateYourDayButton } from "@/components/project/daily-journal"
-import { DailyLookBackDialog } from "@/components/project/daily-look-back-dialog"
+import { DailyJournal, RateYourDayButton, StartDayButton } from "@/components/project/daily-journal"
+import { DailySection } from "@/components/project/daily-section"
 import { DailySettingsDialog } from "@/components/project/daily-settings-dialog"
 import { DailySky } from "@/components/project/daily-sky"
+import { GraphMorphIcon } from "@/components/project/inbox-morph-icon"
 import { PanelHeading } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { pauseTaskClock, startTaskClock } from "@/lib/api/project/clock"
 import { loadMyWeather, milestoneShown, type DailyCard as DailyCardData, type DailyWeather } from "@/lib/api/project/daily-card"
@@ -34,23 +35,111 @@ import { cn } from "@/lib/utils"
 /** The route whose data loads again after a change on the card. */
 const DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
 
-/** The pencil and the fold arrow sit on the sky, so they keep a dark backing in every state. */
-const SKY_BUTTON =
-  "bg-black/30 text-white hover:bg-black/45 hover:text-white aria-expanded:bg-black/45 aria-expanded:text-white dark:bg-black/30 dark:hover:bg-black/45"
-
 /** How often the card looks at the clock, so the sky and greeting turn over on time. */
 const TICK_MS = 30_000
+
+/** The clock, part of the day, sky and weather, worked out once for the sky behind the panel and the card in it. */
+export type DailyNow = {
+  nowMs: number
+  local: { day: string; time: string }
+  part: DayPart
+  phase: ReturnType<typeof skyPhase>
+  weather: DailyWeather | null
+}
+
+export function useDailyNow(daily: DailyCardData): DailyNow {
+  const nowMs = useNow(daily.loadedAt)
+  const weather = useWeather(daily.settings.city)
+  const local = localNow(new Date(nowMs), daily.zone)
+  return { nowMs, local, part: partOfDay(local.time, daily.settings.hours), phase: skyPhase(local.time, daily.settings.hours), weather }
+}
+
+/**
+ * The sky lies faintly behind the left panel's header and its top, and fades
+ * into the panel, the way a project's banner does (Tyler, 30 Oct 2026: "I
+ * dont want this daily card in a card but more of a permanent fixture like
+ * how we built project avatar and background"). The panel holding it is
+ * `relative`, and its header goes see-through at the foot.
+ */
+export function DailySkyBanner({ daily, now }: { daily: DailyCardData; now: DailyNow }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-40 overflow-hidden">
+      <div className="absolute inset-0 opacity-45">
+        <DailySky
+          phase={now.phase}
+          part={now.part}
+          weather={now.weather?.kind ?? null}
+          sky={daily.admin ? daily.settings.sky : "drawn"}
+          ownPhoto={daily.settings.ownSkies[now.part]}
+        />
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-card/40 to-card" />
+    </div>
+  )
+}
+
+/**
+ * The graph in the site admin's panel header, before the pencil (Tyler, 30
+ * Oct 2026: "Add another icon here with the graph icon that will open up the
+ * look back modal"). It swaps the panel's cards for Look back and back again,
+ * the way the inbox does ("put it inline in the left panel like inbox").
+ */
+export function DailyLookBackButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={open ? "Back to my cards" : "Look back"}
+          aria-pressed={open}
+          className={cn(open && "bg-muted")}
+          onClick={onToggle}
+        >
+          <GraphMorphIcon open={open} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{open ? "Back to my cards" : "Look back"}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+/**
+ * The pencil in the left panel's header, before the inbox and the cog
+ * (Tyler, 30 Oct 2026: "put pen icon here"). It opens the Daily card's
+ * window: the hours, and the site admin's habits, reminders, sky and lines.
+ */
+export function DailyEditButton({ daily }: { daily: DailyCardData }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button type="button" variant="ghost" size="icon" aria-label="Edit the Daily card" onClick={() => setOpen(true)}>
+            <PencilIcon className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Edit the Daily card</TooltipContent>
+      </Tooltip>
+      <DailySettingsDialog daily={daily} open={open} onClose={() => setOpen(false)} />
+    </>
+  )
+}
 
 /**
  * The Daily card at the top of My dashboard (task "Daily card/01", Tyler,
  * 29 Oct 2026: "like a personal assistent"). Everyone has one: a greeting
- * and a sky that follow their own hours, today's deep work with Start, the
- * next meeting, the afternoon's progress, and a wind-down at night. The site
- * admin's adds their routines, streaks and journal, which nobody else sees.
- * How it works is in `workspace/docs/daily-card.md`.
+ * that follows their own hours, today's deep work with Start, the next
+ * meeting, the afternoon's progress, and a wind-down at night. The site
+ * admin's adds their routines, streaks and journal, which nobody else sees,
+ * and shows none of it until they press Start day. It sits straight in the
+ * panel, under the sky drawn by DailySkyBanner. How it works is in
+ * `workspace/docs/daily-card.md`.
  */
 export function DailyCard({
   daily,
+  now,
   deepWork,
   picks,
   checkin,
@@ -59,6 +148,7 @@ export function DailyCard({
   onOpenTask,
 }: {
   daily: DailyCardData
+  now: DailyNow
   /** What to work on today: an employee's check-in picks, the site admin's three most urgent tasks. */
   deepWork: TaskCard[]
   /** An employee's picks done of picked, for the afternoon's progress; null for the site admin. */
@@ -69,120 +159,85 @@ export function DailyCard({
   onCheckOut?: () => void
   onOpenTask: (taskId: string) => void
 }) {
-  const nowMs = useNow(daily.loadedAt)
-  const weather = useWeather(daily.settings.city)
+  const { nowMs, local, part, weather } = now
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-daily-card"))
-  const [settingsOpen, setSettingsOpen] = React.useState(false)
-  const [lookBackOpen, setLookBackOpen] = React.useState(false)
   const cardRef = React.useRef<HTMLElement>(null)
-
-  const local = localNow(new Date(nowMs), daily.zone)
-  const { hours } = daily.settings
-  const part = partOfDay(local.time, hours)
-  const phase = skyPhase(local.time, hours)
-  const greeting = greetingOf(daily.firstName, part, daily.cardDay, isAfterMidnight(local.time, hours))
+  const greeting = greetingOf(daily.firstName, part, daily.cardDay, isAfterMidnight(local.time, daily.settings.hours))
   useMilestone(daily.admin?.milestone ?? null, cardRef)
+  // The day's own parts wait for Start day; an employee's card has no such button.
+  const started = !daily.admin || Boolean(daily.admin.today.upAt)
 
-  const quiet = "opacity-0 transition-opacity group-hover/card:opacity-100 group-has-[:focus-visible]/card:opacity-100 [@media(hover:none)]:opacity-100"
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      asChild
-    >
-      <section
-        ref={cardRef}
-        aria-label="Daily card"
-        className="group/card relative min-w-0 overflow-hidden rounded-lg border bg-muted/40"
-      >
-        <div className={cn("relative overflow-hidden", open ? "h-28" : "h-16")}>
-          <DailySky
-            phase={phase}
-            part={part}
-            weather={weather?.kind ?? null}
-            sky={daily.admin ? daily.settings.sky : "drawn"}
-            ownPhoto={daily.settings.ownSkies[part]}
-          />
-          {/* The fade that keeps the words readable over any sky or photo. */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent" aria-hidden />
-          <div className="absolute inset-x-0 bottom-0 grid gap-0.5 px-4 pb-3 text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.6)]">
-            <h2 className="text-[15px] leading-tight font-semibold">{greeting}</h2>
-            {open ? (
-              <p className="text-xs text-white/90">
-                {fullDayLabel(local.day)}
-                {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}
-              </p>
-            ) : null}
-          </div>
-          <div className="absolute top-2 right-2 flex items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Edit the Daily card"
-                  onClick={() => setSettingsOpen(true)}
-                  className={cn(SKY_BUTTON, quiet)}
-                >
-                  <PencilIcon className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Edit the Daily card</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={open ? "Fold the Daily card" : "Open the Daily card"}
-                  aria-expanded={open}
-                  onClick={() => setOpen(!open)}
-                  className={cn(SKY_BUTTON, focusRingInset, quiet)}
-                >
-                  <ChevronDown className={cn("size-4 transition-transform duration-200", !open && "-rotate-90")} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{open ? "Fold it to the greeting" : "Open it again"}</TooltipContent>
-            </Tooltip>
-          </div>
+    <Collapsible open={open} onOpenChange={setOpen} asChild>
+      <section ref={cardRef} aria-label="Daily card" className="relative grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3.75">
+        {/* Down in the sky's lower half, where the fade has made it quiet enough to read on. */}
+        <div className="group/greeting mt-6 flex items-start gap-2">
+          {/* The greeting is the button that folds and opens the card, like a
+              panel card's heading (Tyler, 30 Oct 2026: "clicking on the text
+              area should uncollpase it"); the arrow is the same press. */}
+          <h2 className="min-w-0 flex-1 text-base leading-tight font-semibold">
+            <CollapsibleTrigger asChild>
+              <button type="button" className={cn("grid w-full cursor-pointer gap-0.5 rounded-md text-left", focusRingInset)}>
+                <span>{greeting}</span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  {fullDayLabel(local.day)}
+                  {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}
+                </span>
+              </button>
+            </CollapsibleTrigger>
+          </h2>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                tabIndex={-1}
+                aria-hidden
+                onClick={() => setOpen(!open)}
+                // Plain, open or folded, like a panel card's arrow. Shown only while
+                // the greeting is pointed at or has the keyboard's focus (Tyler, 30 Oct
+                // 2026); always on a screen with no pointer.
+                className="opacity-0 transition-opacity group-hover/greeting:opacity-100 group-has-[:focus-visible]/greeting:opacity-100 aria-expanded:bg-transparent aria-expanded:text-foreground dark:aria-expanded:bg-transparent [@media(hover:none)]:opacity-100"
+              >
+                <ChevronDown className={cn("size-4 transition-transform duration-200", !open && "-rotate-90")} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{open ? "Fold it to the greeting" : "Open it again"}</TooltipContent>
+          </Tooltip>
         </div>
         <CollapsibleContent data-collapse-key={noFlashKey}>
-          {/* minmax(0, 1fr): a long task title truncates instead of widening the card. */}
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4">
-            {daily.admin?.lookBack ? <SundayLookBack daily={daily} /> : null}
-            {daily.admin?.monthly ? <MonthlyReview daily={daily} /> : null}
-            {daily.admin?.line && part === "morning" ? <p className="text-sm text-muted-foreground italic">{daily.admin.line}</p> : null}
-            <DayBody
-              daily={daily}
-              part={part}
-              nowMs={nowMs}
-              deepWork={deepWork}
-              picks={picks}
-              checkin={checkin}
-              onCheckIn={onCheckIn}
-              onCheckOut={onCheckOut}
-              onOpenTask={onOpenTask}
-            />
+          {/* minmax(0, 1fr): a long task title truncates instead of widening the panel.
+              15px apart, the same gutter as the panel's cards below and its edges. */}
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3.75">
+            {started ? (
+              <>
+                {daily.admin?.lookBack ? <SundayLookBack daily={daily} /> : null}
+                {daily.admin?.monthly ? <MonthlyReview daily={daily} /> : null}
+                {daily.admin?.line && part === "morning" ? <p className="text-sm text-muted-foreground italic">{daily.admin.line}</p> : null}
+                <DayBody
+                  daily={daily}
+                  part={part}
+                  nowMs={nowMs}
+                  deepWork={deepWork}
+                  picks={picks}
+                  checkin={checkin}
+                  onCheckIn={onCheckIn}
+                  onCheckOut={onCheckOut}
+                  onOpenTask={onOpenTask}
+                />
+              </>
+            ) : null}
             {daily.admin ? (
               <>
-                <DailyHabits daily={daily} part={part} />
-                <DailyJournal daily={daily} part={part} />
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" className="min-w-0 flex-1" onClick={() => setLookBackOpen(true)}>
-                    {/* At night the icon makes way for Rate your day beside it. */}
-                    {part === "night" ? null : <HistoryIcon className="size-4" />}
-                    Look back
-                  </Button>
-                  {part === "night" ? <RateYourDayButton daily={daily} /> : null}
-                </div>
+                {started ? <DailyHabits daily={daily} part={part} /> : null}
+                {started ? <DailyJournal daily={daily} part={part} /> : null}
+                {/* Look back lives in the panel's header (Tyler, 30 Oct 2026: "remove the look back button"). */}
+                {!started ? <StartDayButton /> : part === "night" ? <RateYourDayButton daily={daily} /> : null}
               </>
             ) : null}
           </div>
         </CollapsibleContent>
-        <DailySettingsDialog daily={daily} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-        {daily.admin ? <DailyLookBackDialog open={lookBackOpen} onClose={() => setLookBackOpen(false)} /> : null}
       </section>
     </Collapsible>
   )
@@ -309,7 +364,11 @@ function Progress({ picks, finished, clockedSeconds }: { picks: { done: number; 
     picks ? `${picks.done} of ${picks.total} done` : finished ? `${finished} done today` : null,
     clockedSeconds >= 60 ? `${hoursAndMinutes(Math.floor(clockedSeconds / 60))} clocked today` : null,
   ].filter(Boolean)
-  return parts.length ? <p className="text-sm">{parts.join(", ")}</p> : null
+  return parts.length ? (
+    <DailySection>
+      <p className="text-sm">{parts.join(", ")}</p>
+    </DailySection>
+  ) : null
 }
 
 function DeepWork({ tasks, onOpenTask }: { tasks: TaskCard[]; onOpenTask: (taskId: string) => void }) {
@@ -329,7 +388,7 @@ function DeepWork({ tasks, onOpenTask }: { tasks: TaskCard[]; onOpenTask: (taskI
     await router.invalidate({ filter: (match) => match.routeId === DASHBOARD_ROUTE_ID })
   }
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+    <DailySection>
       <PanelHeading>Deep work</PanelHeading>
       <ul className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
         {tasks.map((task) => {
@@ -361,7 +420,7 @@ function DeepWork({ tasks, onOpenTask }: { tasks: TaskCard[]; onOpenTask: (taskI
           )
         })}
       </ul>
-    </div>
+    </DailySection>
   )
 }
 
@@ -373,9 +432,12 @@ function NextMeeting({ daily, nowMs }: { daily: DailyCardData; nowMs: number }) 
   const when =
     minutes <= 0 ? "now" : minutes < 60 ? `in ${minutes} ${minutes === 1 ? "minute" : "minutes"}` : `at ${clockIn(next.startsAt, daily.zone)}`
   return (
-    <p className="text-sm">
-      <span className="font-medium">{next.title}</span> {when}
-    </p>
+    <DailySection>
+      <PanelHeading>Next meeting</PanelHeading>
+      <p className="text-sm">
+        <span className="font-medium">{next.title}</span> {when}
+      </p>
+    </DailySection>
   )
 }
 
@@ -401,7 +463,7 @@ function WindDown({
     }
   }
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+    <DailySection>
       <PanelHeading>Done today</PanelHeading>
       {daily.finishedToday.length ? (
         <ul className="grid gap-1">
@@ -436,7 +498,7 @@ function WindDown({
           Check out and plan tomorrow
         </Button>
       ) : null}
-    </div>
+    </DailySection>
   )
 }
 
@@ -446,7 +508,7 @@ function SundayLookBack({ daily }: { daily: DailyCardData }) {
   const rated = days.filter((day) => day.rating)
   const wins = days.filter((day) => day.win)
   return (
-    <div className="grid gap-2 rounded-md border bg-background p-3">
+    <DailySection>
       <PanelHeading>Your week</PanelHeading>
       <ol className="grid grid-cols-7 gap-1 text-center text-xs" aria-label="This week's ratings">
         {days.map((day) => (
@@ -466,7 +528,7 @@ function SundayLookBack({ daily }: { daily: DailyCardData }) {
           ))}
         </ul>
       ) : null}
-    </div>
+    </DailySection>
   )
 }
 
@@ -476,7 +538,7 @@ function MonthlyReview({ daily }: { daily: DailyCardData }) {
   if (!review) return null
   const month = new Date(`${review.month}-15T12:00:00Z`).toLocaleDateString("en", { month: "long", timeZone: "UTC" })
   return (
-    <div className="grid gap-2 rounded-md border bg-background p-3">
+    <DailySection>
       <PanelHeading>{month} in review</PanelHeading>
       <ul className="grid gap-1 text-sm">
         <li>
@@ -489,6 +551,6 @@ function MonthlyReview({ daily }: { daily: DailyCardData }) {
           <li key={win}>Win: {win}</li>
         ))}
       </ul>
-    </div>
+    </DailySection>
   )
 }

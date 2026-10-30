@@ -173,7 +173,6 @@ const DAILY: DailyCard = {
     milestone: null,
     today: { day: "2099-03-02", intention: "", rating: null, note: "", win: "", question: "", answer: "", bedAt: null, upAt: null },
     tomorrowIntention: "",
-    sleptMinutes: null,
     line: "Start with the task you keep walking around.",
     question: "What gave you energy today?",
     trend: [],
@@ -289,8 +288,9 @@ describe("the site admin's My dashboard", () => {
     expect(html).toContain('aria-label="Inbox, 12 unread"')
     expect(html).toContain('aria-pressed="false"')
     expect(html).toMatch(/bg-destructive[^>]*>9\+</)
-    // The inbox waits hidden in the panel, with no card around it.
-    expect(html).toMatch(/class="p-4 hidden"><section[^>]*aria-label="Inbox"/)
+    // The inbox waits hidden in the panel, with no card around it, its tabs underlined.
+    expect(html).toMatch(/hidden"><section[^>]*aria-label="Inbox"/)
+    expect(html).toMatch(/aria-label="Inbox"(?:(?!<\/section>).)*data-slot="dashboard-tab"/)
     expect(html).not.toContain("project-my-inbox")
     expect(render(dashboard())).toContain('aria-label="Inbox"')
   })
@@ -379,7 +379,7 @@ describe("the site admin's My dashboard", () => {
     expect(html).toContain("Lead: Priya.")
     expect(html).toContain("+5")
     expect(html).toContain("10 tasks finished in the last two weeks.")
-    // Nothing open: a thin line under the blocks. Hidden: behind "Hidden 1".
+    // Nothing open: a thin line under the blocks. Hidden: behind "Hidden 1" at the heading's right.
     expect(html).toContain(", nothing open. Show it in full.")
     expect(html.indexOf(">Archive photos<")).toBeGreaterThan(html.indexOf(">Brochure<"))
     expect(html).toMatch(/Hidden<span class="text-muted-foreground\/70">1</)

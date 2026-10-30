@@ -10,10 +10,25 @@ Daily card", and that file wins wherever the two disagree.
 
 ## One card, the same for everyone
 
-- **Where it is.** It is the first card on the left of My dashboard: an
-  employee's in `my-dashboard.tsx`, the site admin's in `admin-dashboard.tsx`.
-  Both draw the same `daily-card.tsx`. It loads with the page
-  (`loadDailyCard`, `src/server/project/daily-card.ts`).
+- **Where it is.** It is part of the left panel of My dashboard, not a card
+  inside it ("more of a permanent fixture like how we built project avatar
+  and background"). The sky lies faintly behind the panel's header and fades
+  into the panel, the way a project's banner does, and the greeting sits
+  under the header with the day's parts below it, above the other cards. An
+  employee's is in `my-dashboard.tsx`, the site admin's in
+  `admin-dashboard.tsx`; both draw `DailySkyBanner` and `DailyCard` from
+  `daily-card.tsx`. It loads with the page (`loadDailyCard`,
+  `src/server/project/daily-card.ts`).
+- **Each part sits on its own light gray box with a border**, drawn like the
+  panel's other cards, such as deep work, the next meeting, the routine and
+  the journal ("It looks too busy with all the sections, we need to clean it
+  up. try putting them in light gray bg", then "the daily section cards is
+  missing border"). The line for the day and the buttons sit on the panel itself
+  (`daily-section.tsx`).
+- **The pencil** sits in the panel's header, before the inbox and the cog
+  ("put pen icon here"). **The fold arrow** sits beside the greeting and
+  shows only while the greeting is pointed at ("the good morning toggle icon
+  shoukld only appear on hover over"), or on a phone, always.
 - **The parts of the day follow each person's own hours.** Morning starts at
   5 AM, afternoon at 12 PM and night at 6 PM until the person changes them
   behind the card's pencil. Night runs past midnight until morning starts,
@@ -29,8 +44,11 @@ Daily card", and that file wins wherever the two disagree.
   leaves the name out when there is none.
 - **The sky.** It is a drawing: a sunrise for the first hour of the morning,
   blue sky, gold for the last 90 minutes of the afternoon, a sunset for the
-  first hour of the night, then stars. A dark fade along the bottom keeps
-  the words readable over any sky (`daily-sky.tsx`).
+  first hour of the night, then stars (`daily-sky.tsx`). It is drawn faint,
+  so the header and greeting read in their usual colours over it. The sky
+  stays while the site admin's inbox or Look back is open in the panel ("the
+  panel background image should not disapeared when i click on the graph or
+  the inbox tab").
 - **The weather.** A City field in My settings, behind the cog beside the
   name. The card's sky then shows that city's weather, such as clouds, rain,
   snow or fog, and "12°, rain in Toronto" under the greeting. The browser
@@ -63,7 +81,9 @@ Daily card", and that file wins wherever the two disagree.
   off". On a team holiday it reads "Enjoy Christmas Day". It shows no deep
   work and no check-in nudge that day. The site admin is on no team, so
   their day off is their own time off, or a holiday every team has that day.
-- **Fold it.** The arrow on the sky folds the card down to the greeting line.
+- **Fold it.** Pressing the greeting or its date line folds everything below
+  it away, and pressing it again opens it ("clicking on the text area should
+  uncollpase it"); the arrow beside it does the same.
   This browser remembers it, like the other cards.
 - **On a phone** the site admin's My dashboard opens on the Me tab, where the
   Daily card is first. An employee's still opens on My tasks.
@@ -89,7 +109,7 @@ a team screen or sent to anyone.
 - **Tick yesterday.** "Tick yesterday" switches the list to yesterday's, and
   no earlier day can be changed. A tick for yesterday counts as if it had
   been made on time.
-- **Setting them up** is behind the pencil on the sky. Each routine has "Add a
+- **Setting them up** is behind the pencil in the panel's header. Each routine has "Add a
   habit", and each habit has a cog to change it, a handle to drag it into
   order, and Retire. A routine holds at most 12 habits.
 - **Ready-made routines.** With no habits yet, "Start from the samples" adds
@@ -115,9 +135,11 @@ a team screen or sent to anyone.
 - **Finished days.** A day is finished when every habit set for that day is
   ticked. Tasks don't count. A day with no habits set doesn't count either
   way.
-- **Each habit's streak** counts only the days it is set for, with its best
-  beside it ("12 days in a row, best 31"). Nothing shows before a habit's
-  first tick.
+- **Each habit's streak** counts only the days it is set for. It is an orange
+  chip at the end of the habit's row, "2 days streak" (Tyler, 30 Oct 2026:
+  "put the streak here and make it chip styling and call it like "2 days
+  streak""). Nothing shows while the streak is at nothing; the best streak is
+  kept but no longer shown on the card.
 - **Grace.** One missed day per Monday-to-Sunday week keeps a streak going and
   adds nothing to it. A second miss in the same week breaks it.
 - **Days off pause streaks.** A day off is skipped, never counted as a miss.
@@ -125,30 +147,38 @@ a team screen or sent to anyone.
 - **Milestones.** At 7, 30 and 100 days in a row, a short burst of confetti
   over the card, shown once per streak and milestone. A device that asks for
   less motion gets the toast without the confetti.
-- **A week of dots** after each habit, Monday first: filled for done, a ring
-  for missed, a dashed ring for today not done yet, a dash for a day that
-  doesn't count, and a small dot for days still to come.
+- **No week of dots.** A habit on the card shows its tick and its streak
+  chip; the row of seven dots under it was taken off (Tyler, 30
+  Oct 2026: "remove this").
 
 ### The journal
 
-- **Morning:** Up, then "You slept 7h 20m" from last night's Going to bed.
-  "Today I want to...", and a line for the day. The line comes from 365
-  built-in lines, one per day of the year, mixed with the site admin's own
-  (`daily-words.ts`, all written for Project).
+- **Start day.** Until the site admin presses it, the greeting is followed
+  only by a "Start day" button with a moving rainbow edge
+  ("There should be a "Start day" button like a rate my day button"). Once
+  pressed, the line for the day, deep work, the next meeting, the routine
+  and the journal show for the rest of the card day, morning, afternoon and
+  night, and the next card day starts hidden again. It records the time in
+  `up_at` and says nothing about sleep: there is no "You slept" ("Remove the
+  slept feature"). An employee's card has no Start day.
+- **Morning:** "Today I want to...", and a line for the day. The line comes
+  only from the site admin's own lines, one per day in turn; with none, no
+  line shows. There are no built-in lines or questions ("Remove all of the
+  premade morning and night lines", 30 Oct 2026).
 - **Afternoon:** the morning's intention, read back.
 - **Night:** tomorrow at a glance and the morning's intention sit on the card.
   Tomorrow lists every team's meetings ("Meeting: 3:00 PM Sprint retro ·
   Sample team"), tasks due across the teams and the site admin's own list
   ("Due: Thank-you notes · Spring launch"), who is off, and holidays.
-- **Rate your day** is a button with a moving rainbow edge, right of Look
-  back, at night only ("all these should be in a dropdown in a button").
+- **Rate your day** is a button with a moving rainbow edge at the foot of
+  the card, at night only ("all these should be in a dropdown in a button").
   It opens the rest of the evening: Rate your day from 1 to 5 with a note,
   the win of the day, tonight's question with an answer, "Tomorrow I want
   to...", Going to bed, and a small line of the last 30 days' ratings. A box
   still being typed in when the window closes is saved too.
-- **Tonight's question** comes from about 60 built in plus the site admin's
-  own. A question is saved with its answer, so changing the list never
-  changes an old answer.
+- **Tonight's question** comes only from the site admin's own questions;
+  with none, no question shows. A question is saved with its answer, so
+  changing the list never changes an old answer.
 - **Only today can be written.** The one day ahead is tomorrow's intention,
   written tonight. A box saves itself when left, with the usual Saving…,
   Saved or Not saved.
@@ -157,9 +187,28 @@ a team screen or sent to anyone.
 - **Sunday** shows the week's ratings and wins above the usual card, all day.
 - **The first of the month** shows last month's best habit (done most often
   for the days it was set), the typical rating and the top wins.
-- **Look back** at the bottom of the card opens a window with three tabs.
-  Month shows every habit as a row of ticks for the month. Year shows a
-  square for every day, stronger for a better rating, with the number in it.
+- **Look back** is the graph in the panel's header, before the pencil ("Add
+  another icon here with the graph icon"); the card has no Look back button
+  ("remove the look back button"). It swaps the panel's cards for Look back,
+  and pressing it again, or the inbox, swaps them back, the way the inbox
+  does; it is never a window ("Dont put the look back into modal but instead
+  put it inline in the left panel like inbox", `daily-look-back.tsx`). While
+  it is open the graph bends into a cross, and back again when it shuts, the
+  way the inbox's tray does ("clicking on the graph icon shoulkd morhp like
+  the inbox icon", `inbox-morph-icon.tsx`). It
+  has three tabs, Month, Year and Search, underlined in a header of their own
+  under the panel's, like List and Board over My tasks ("put tabs here using
+  underline styling"), on the right in a row lower than a panel header ("tabs
+  align right and reduce tab height"); there is no "Look back" title. Month is one calendar, Monday first, each day shaded by how
+  many of its habits were done ("If there is 10 habits, its too long"). While
+  it shows this month, Today's habits sits under it: each habit set for
+  today with Done or Not yet ("Replace this section for something easier to
+  read. Make it "Today's habit""). Pressing one shows only its days on the
+  calendar; pressing it again goes back to all. Year is twelve small month calendars, each day's square
+  stronger for a better rating, with a 1 to 5 key above them ("fix the year
+  tab"). Both fill the panel's width ("it has to be responsive to the size of
+  the panel"): the month calendar up to a comfortable size, the year two
+  months across in a narrow panel and more as it widens.
   Search finds a word in intentions, wins, notes and answers.
 
 ### Behind the pencil, for the site admin

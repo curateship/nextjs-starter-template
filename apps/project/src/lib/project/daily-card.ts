@@ -155,13 +155,6 @@ export function hoursInOrder(hours: DayHours) {
   return minutesOf(hours.morning) < minutesOf(hours.afternoon) && minutesOf(hours.afternoon) < minutesOf(hours.night)
 }
 
-/** "7h 20m" slept, from going to bed until up; null when either is missing or it makes no sense. */
-export function sleptMinutes(bedAt: string | null, upAt: string | null) {
-  if (!bedAt || !upAt) return null
-  const minutes = Math.round((Date.parse(upAt) - Date.parse(bedAt)) / 60_000)
-  return minutes > 0 && minutes < 24 * 60 ? minutes : null
-}
-
 export function hoursAndMinutes(minutes: number) {
   const hours = Math.floor(minutes / 60)
   const rest = minutes % 60
