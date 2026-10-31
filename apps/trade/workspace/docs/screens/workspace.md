@@ -32,9 +32,7 @@ these as well as an admin, and sees only their own wallets and orders there —
   with a first-letter circle when an exchange has no art), its name, a Folders
   button, an Alerts bell, and on the right the timeframe control (1m to 1d, remembered per browser, 4h the
   default) and a vertical three-dot chart menu before the wallet. The chart
-  menu sits in the same muted pill the timeframe control does, so the two read
-  as one pair rather than one control beside an unmarked patch of header. It
-  replaces the divider and holds labeled rows for Indicators, View options
+  menu replaces the divider and holds labeled rows for Indicators, View options
   and Saved layouts. A star beside each
   timeframe keeps that choice in the header as a shortcut. The browser
   remembers the stars. The timeframe menu arrow has its own fixed spot at the
@@ -54,9 +52,13 @@ these as well as an admin, and sees only their own wallets and orders there —
   creates a folder there and its cog opens the full manager. The siren opens the account's Alert and Fired lists on a click, never on hover;
   a red badge counts fired price and drawing alerts, and each tab can clear all
   of its own rows from the dropdown footer after confirmation. The Folders and
-  Alerts buttons have no hover messages. Each outlined control uses the muted gray inside its
-  border, while the rest of the header keeps the card background.
-  The market dropdown uses the same light gray as the other header buttons.
+  Alerts buttons have no hover messages. **No button in this header row has a
+  background or a border** (Tyler, 31 Oct 2026: "remove all the buttons bg",
+  then "remove the border too"), the timeframes and the wallet included. The
+  one exception is the market name with its info button: they share a light
+  gray background, still with no border ("put the bg back for the market
+  ticker and info icon"). A button turns gray only under the pointer or while
+  its menu is open, and the chosen timeframe sits on a light gray pill.
   The star is amber and filled when the market is in any folder and a hollow
   outline when it is not, so the two do not differ by colour alone. An empty
   star names the Fav action. A

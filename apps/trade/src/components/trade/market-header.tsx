@@ -137,16 +137,15 @@ export function MarketHeader({
           {onOpenMarkets ? (
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="icon"
               aria-label="Show markets"
-              className="bg-muted/60 dark:bg-muted/60"
               onClick={onOpenMarkets}
             >
               <ListIcon className="size-4" />
             </Button>
           ) : null}
-          <div className="flex h-8 min-w-0 flex-1 items-center rounded-lg border bg-muted/60">
+          <div className="flex h-8 min-w-0 flex-1 items-center rounded-lg bg-muted/60">
             <span className="flex h-full shrink-0 items-center pl-2">
               {star}
             </span>
@@ -156,10 +155,9 @@ export function MarketHeader({
           {onOpenSmartOrders ? (
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="icon"
               aria-label="Show smart orders"
-              className="bg-muted/60 dark:bg-muted/60"
               onClick={onOpenSmartOrders}
             >
               <BotIcon className="size-4" />
@@ -180,10 +178,9 @@ export function MarketHeader({
             <TooltipTrigger asChild>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 aria-label="Show markets"
-                className="bg-muted/60 dark:bg-muted/60"
                 onClick={onOpenMarkets}
               >
                 <ListIcon className="size-4" />
@@ -197,10 +194,9 @@ export function MarketHeader({
             <TooltipTrigger asChild>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 aria-label="Show smart orders"
-                className="bg-muted/60 dark:bg-muted/60"
                 onClick={onOpenSmartOrders}
               >
                 <BotIcon className="size-4" />
@@ -226,9 +222,9 @@ export function MarketHeader({
       <DashboardCardHeader className="flex-wrap sm:flex-nowrap">
         {star}
         <PinnedMarketButton marketKey={selection.row.key} />
-        <div className="flex h-8 min-w-0 items-center rounded-lg border bg-muted/60">
+        <div className="flex h-8 min-w-0 items-center rounded-lg bg-muted/60">
           {picker}
-          <span className="flex h-full shrink-0 items-center border-l">
+          <span className="flex h-full shrink-0 items-center">
             <MarketInfo selection={selection} />
           </span>
         </div>

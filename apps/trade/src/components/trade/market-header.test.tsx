@@ -131,7 +131,7 @@ function draw(selection: MarketSelection, favorites: string[]): string {
 describe("the market header's star", () => {
   it("names the exchange, network and quote asset and offers market rules", () => {
     const markup = draw(market, [])
-    expect(markup.match(/bg-muted\/60/g)?.length).toBeGreaterThanOrEqual(1)
+    expect(markup.match(/bg-muted\/60/g)?.length).toBe(1)
     expect(markup).toContain("BTC-USDC")
     expect(markup).toContain("text-xs font-medium text-muted-foreground")
     expect(markup).toContain("Hyperliquid")
@@ -141,7 +141,7 @@ describe("the market header's star", () => {
     )
   })
 
-  it("uses the same light gray as the other header buttons", () => {
+  it("draws the header buttons bare, the market name and info on gray", () => {
     const host = document.createElement("div")
     host.innerHTML = draw(market, [])
     const picker = host.querySelector<HTMLButtonElement>(
@@ -150,15 +150,16 @@ describe("the market header's star", () => {
 
     expect(picker?.className.split(/\s+/)).not.toContain("bg-muted")
     expect(picker?.parentElement?.className).toContain("bg-muted/60")
+    expect(picker?.parentElement?.className).not.toContain("border")
     expect(
       host.querySelector('button[aria-label="Add BTC to Fav"]')?.className
-    ).toContain("bg-muted/60")
+    ).not.toContain("bg-background")
     expect(
       host.querySelector('button[aria-label="Add BTC to Fav"]')?.className
-    ).toContain("border")
+    ).not.toContain("border-border")
     expect(
       host.querySelector('button[aria-label="Pin to header"]')?.className
-    ).toContain("bg-muted/60")
+    ).not.toContain("bg-background")
     expect(
       host.querySelector('button[aria-label="Pin to header"]')?.className
     ).toContain("text-amber-600")

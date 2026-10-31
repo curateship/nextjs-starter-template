@@ -80,10 +80,9 @@ export function MarketPhoneMenu({ children }: { children: React.ReactNode }) {
     <>
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         size="icon"
         aria-label="More market controls"
-        className="bg-muted/60 dark:bg-muted/60"
         onClick={() => setOpen(true)}
       >
         <EllipsisVerticalIcon className="size-4" />

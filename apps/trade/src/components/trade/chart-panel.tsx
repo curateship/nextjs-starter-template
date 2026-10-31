@@ -169,6 +169,7 @@ import {
   type IndicatorSettings,
 } from "@/lib/trade/indicators/registry"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 import {
   liveMarkOf,
   useLiveCatchUp,
@@ -348,9 +349,9 @@ export function IntervalPicker({
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             aria-label={`Candle interval, ${value}`}
-            className="h-8 shrink-0 bg-muted/60 px-3 font-medium dark:bg-muted/60"
+            className="h-8 shrink-0 px-3 font-medium"
           >
             {value}
           </Button>
@@ -366,17 +367,22 @@ export function IntervalPicker({
       onValueChange={(next) => onChange(next as ChartInterval)}
       className="gap-0"
     >
-      <div className="inline-flex h-8 w-fit items-center rounded-lg bg-muted/60 p-0.5 text-muted-foreground">
+      <div className="inline-flex h-8 w-fit items-center rounded-lg p-0.5 text-muted-foreground">
         <TabsList
           aria-label="Candle intervals"
-          className="h-7 rounded-none bg-transparent p-0"
+          // No tray behind the timeframes, like every other button in the
+          // header, so the chosen one sits on a grey pill instead of white.
+          className="h-7 rounded-none bg-transparent p-0 [&>[data-slot=tabs-pill]]:bg-muted [&>[data-slot=tabs-pill]]:shadow-none"
         >
           {headerIntervals.map((option) => (
             <TabsTrigger
               key={option}
               value={option}
               aria-label={`Show ${option} candles`}
-              className={option === value ? "px-2" : "hidden md:inline-flex"}
+              className={cn(
+                "in-data-[pill=pending]:data-[state=active]:bg-muted in-data-[pill=pending]:data-[state=active]:shadow-none",
+                option === value ? "px-2" : "hidden md:inline-flex"
+              )}
             >
               {option}
             </TabsTrigger>

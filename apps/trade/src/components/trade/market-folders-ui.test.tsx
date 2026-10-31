@@ -157,8 +157,8 @@ describe("the market folder controls", () => {
 
     const star = host.querySelector('button[aria-label="Add BTC to Fav"]')!
     expect(star.className).toContain("text-amber-600")
-    expect(star.className).toContain("bg-muted/60")
-    expect(star.className).toContain("border")
+    expect(star.className).not.toContain("bg-background")
+    expect(star.className).not.toContain("border-border")
     await act(async () => click(star))
     expect(quickAdd).toHaveBeenCalledOnce()
     expect(document.body.textContent).not.toContain("Save to folder")

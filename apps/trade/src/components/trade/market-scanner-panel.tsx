@@ -161,9 +161,9 @@ function ScannerPopover({
         ) : (
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="icon"
-            className="relative bg-muted/60 dark:bg-muted/60"
+            className="relative"
             aria-label={
               newCount > 0
                 ? `Open market scanner, ${newCount} new`
