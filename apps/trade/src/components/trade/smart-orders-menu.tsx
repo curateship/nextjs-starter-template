@@ -34,9 +34,8 @@ export function SmartOrdersMenu({ children }: { children: ReactNode }) {
       <PopoverTrigger asChild>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="icon"
-          className="bg-muted/60 dark:bg-muted/60"
           aria-label="Open smart and manual orders"
           onMouseEnter={openFromHover}
           onMouseLeave={closeFromHover}

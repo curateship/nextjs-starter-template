@@ -771,13 +771,13 @@ export function WalletManagement({
               <Button
                 ref={walletButtonRef}
                 type="button"
-                variant="outline"
+                variant="ghost"
                 aria-label={
                   activeWallet
                     ? `Manage wallets. ${activeWallet.label} is in use.`
                     : "Manage wallets"
                 }
-                className="max-w-72 min-w-0 bg-muted/60 dark:bg-muted/60"
+                className="max-w-72 min-w-0"
               >
                 <CreditCardIcon className="size-4" />
                 {/* The wallet's name only (Tyler, 15 Oct 2026: "Show the

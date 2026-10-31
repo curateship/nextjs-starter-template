@@ -102,9 +102,9 @@ export function PriceAlertsMenu({
           ) : (
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="icon"
-              className="relative bg-muted/60 dark:bg-muted/60"
+              className="relative"
               aria-label={
                 firedCount > 0
                   ? `Open alerts, ${firedCount} fired`

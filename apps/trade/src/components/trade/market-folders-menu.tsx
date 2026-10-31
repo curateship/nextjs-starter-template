@@ -107,9 +107,8 @@ export function MarketFoldersMenu({
         {trigger ?? (
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="icon"
-            className="bg-muted/60 dark:bg-muted/60"
             aria-label="Open folders"
           >
             <FolderIcon className="size-4" />
