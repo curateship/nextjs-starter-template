@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { isDynamicLucideIconName, isIconKey } from "@/lib/custom-shell"
 import { addDays, isRealDay, weekdayOf } from "@/lib/project/days"
 import { storedTaskNotes } from "@/lib/project/notes"
 
@@ -43,34 +44,16 @@ export const SKY_LABEL: Record<SkyKind, string> = {
 /** The stretch of sky the card draws, a finer cut than the three parts of the day. */
 export type SkyPhase = "sunrise" | "day" | "golden" | "sunset" | "night"
 
-/** The small icons a habit can carry, drawn by `habit-icons.tsx`. */
-export const HABIT_ICONS = [
-  "cup",
-  "droplet",
-  "stretch",
-  "walk",
-  "dumbbell",
-  "bike",
-  "list",
-  "inbox",
-  "pen",
-  "book",
-  "brain",
-  "sparkle",
-  "apple",
-  "pill",
-  "heart",
-  "smile",
-  "sun",
-  "moon",
-  "bed",
-  "leaf",
-  "music",
-  "phone",
-  "timer",
-  "check",
-] as const
-export type HabitIcon = (typeof HABIT_ICONS)[number]
+/**
+ * A habit's icon: any icon the shell's icon picker offers, a library key or a
+ * Lucide icon by name (Tyler, 31 Oct 2026: "reuse the existing icon picker we
+ * currently have with its custom icon function too"). Drawn by
+ * `habit-icons.tsx`.
+ */
+export const habitIconSchema = z
+  .string()
+  .max(64)
+  .refine((icon) => isIconKey(icon) || isDynamicLucideIconName(icon), "Pick an icon from the icon picker.")
 
 /** Streak milestones that set off the confetti, once each. */
 export const MILESTONE_DAYS = [7, 30, 100] as const
@@ -343,7 +326,7 @@ export const dailyOwnWordsSchema = z.object({
 const habitFields = {
   name: words(DAILY_LIMITS.habitName, "The habit's name").min(1, "Name the habit."),
   part,
-  icon: z.enum(HABIT_ICONS).nullable(),
+  icon: habitIconSchema.nullable(),
   target: z.number().int().min(1).max(DAILY_LIMITS.habitTarget),
   days: z
     .array(z.number().int().min(0).max(6))

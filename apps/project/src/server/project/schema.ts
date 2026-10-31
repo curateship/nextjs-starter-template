@@ -28,7 +28,7 @@ import type {
   TaskStatus,
   TeamRole,
 } from "@/lib/project/rules"
-import type { DailySection, DayPart, HabitIcon, SkyKind } from "@/lib/project/daily-card"
+import type { DailySection, DayPart, SkyKind } from "@/lib/project/daily-card"
 import type { SavedViewFilters, SavedViewNames } from "@/lib/project/saved-views"
 import type { StartingStepFields, StepField } from "@/lib/project/step-fields"
 import type { FieldKind, FieldSettings, WhoCanChange } from "@/lib/project/task-fields"
@@ -1187,7 +1187,8 @@ export const projectHabits = pgTable("project_habits", {
   name: varchar("name", { length: 60 }).notNull(),
   part: varchar("part", { length: 12 }).$type<DayPart>().notNull(),
   position: integer("position").notNull(),
-  icon: varchar("icon", { length: 32 }).$type<HabitIcon>(),
+  /** A shell icon: a library key or a Lucide icon name. */
+  icon: varchar("icon", { length: 64 }),
   target: smallint("target").notNull().default(1),
   days: smallint("days").array().notNull().default([]),
   atTime: varchar("at_time", { length: 5 }),

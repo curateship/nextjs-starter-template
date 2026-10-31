@@ -118,12 +118,27 @@ a team screen or sent to anyone.
   refuses a tick for any other day.
 - **Setting them up** is behind the pencil in the panel's header. Each routine has "Add a
   habit", and each habit has a cog to change it, a handle to drag it into
-  order, and Retire. A routine holds at most 12 habits.
+  order, and Retire. A routine holds at most 12 habits. The cog's form has
+  Habit, Part of the day and At a time on its first row, then How many a day
+  and the days beside it; no day picked is every day ("put the optional time
+  to the top row"). Every field saves itself like the rest of the window, with
+  no Save or Cancel: a pick at once, the name and the count when their box is
+  left or Enter is pressed, the time when its box is left. The Habits card
+  shows Saving… and Saved, and the window ends with Done alone (Tyler, 31 Oct
+  2026: "the save changes and then done makes no sense. its not following
+  modal standard"). "Add a habit" asks for a name with an Add button, the one
+  button left, since a habit must exist before it can save itself; the new
+  habit's form then opens. One form is open at a time.
 - **Ready-made routines.** With no habits yet, "Start from the samples" adds
   Drink water, Stretch and Plan the day in the morning, Walk, 8 glasses of
   water and Clear the inbox in the afternoon, and Tidy the desk, Read and
   Screens off at night. They're ordinary habits after that.
-- **Icons.** Each habit can carry one of 24 small icons, such as a cup.
+- **Icons.** Pressing a habit's icon on its row opens the icon picker the
+  shell's Settings use, and the pick saves at once: its library, search, and
+  any Lucide icon by name through "Add Lucide icon" (Tyler, 31 Oct 2026:
+  "reuse the existing icon picker we currently have with its custom icon
+  function too", "clicking the icon here should open up the icon picker").
+  A habit with none shows a tick. The form has no Icon field of its own.
 - **Retire a habit.** It leaves the card. Its ticks are kept and still show
   when looking back. Bring back puts it last in its routine, and its streak
   starts again that day.
@@ -259,8 +274,8 @@ change at any time of day here, while the card offers it in the morning only
   pressing it again brings it back ("Add an eye icon to the sections ... for
   me to hide or unhide a section"). A hidden row stays in the list, crossed
   out, so it can still be dragged. The choice is kept in the account too.
-- **Everything saves itself**, apart from a habit, which has Create habit and
-  Save changes. An employee's pencil holds Your hours only.
+- **Everything saves itself**, habits included; only a new habit's name has
+  an Add button. An employee's pencil holds Your hours only.
 
 - **Sky** picks the drawn sky or one of four scenes along the bottom of it:
   beach, city, mountains or forest. The scenes are drawn too. "My own photos"
@@ -275,6 +290,9 @@ change at any time of day here, while the card offers it in the morning only
   site admin's section order (`section_order`, from
   `drizzle/0138_project_daily_sections.sql`) and hidden sections
   (`hidden_sections`, from `drizzle/0140_project_daily_hidden_sections.sql`).
+  A habit's `icon` is a shell icon name up to 64 characters since
+  `drizzle/0141_project_habit_any_icon.sql`, which turned the old 24 names
+  into Lucide's (cup to cup-soda, book to book-open and so on).
 - `project_habits` and `project_habit_days`: the site admin's habits and one
   row per habit per day ticked or counted.
 - `project_journal_days`: one row per card day. The rating is 1 to 10 and

@@ -19,8 +19,8 @@ import {
 import { ArchiveIcon, ArchiveRestoreIcon, ChevronDown, EyeIcon, EyeOffIcon, GripVerticalIcon, PlusIcon, SettingsIcon } from "lucide-react"
 
 import { IntentionBox } from "@/components/project/daily-journal"
-import { HABIT_ICON_LOOK, HabitIconGlyph } from "@/components/project/habit-icons"
 import { SaveLine } from "@/components/project/save-line"
+import { ShellIconPicker } from "@/components/settings/shell-icon-picker"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -63,7 +63,6 @@ import {
   DAILY_SECTION_LABEL,
   DAY_PART_LABEL,
   DAY_PARTS,
-  HABIT_ICONS,
   hoursInOrder,
   SKY_KINDS,
   SKY_LABEL,
@@ -71,7 +70,6 @@ import {
   type DailySection,
   type DayHours,
   type DayPart,
-  type HabitIcon,
   type SkyKind,
 } from "@/lib/project/daily-card"
 import { clockLabel } from "@/lib/project/days"
@@ -83,6 +81,9 @@ import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choi
 import { cn } from "@/lib/utils"
 
 const DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
+
+/** The Habits card's save sign, which every habit change reports to. */
+const HabitSave = React.createContext<(work: () => Promise<unknown>) => Promise<boolean>>(async () => false)
 const TIME = /^([01][0-9]|2[0-3]):[0-5][0-9]$/
 
 /**
@@ -499,6 +500,7 @@ function HabitsCard({ daily }: { daily: DailyCard }) {
   const admin = daily.admin!
   const [adding, setAdding] = React.useState<DayPart | null>(null)
   const [editing, setEditing] = React.useState<string | null>(null)
+  const [state, track] = useSaveLine()
 
   async function act(work: () => Promise<unknown>, done?: string) {
     if (await run(work, done)) await reload()
@@ -509,58 +511,73 @@ function HabitsCard({ daily }: { daily: DailyCard }) {
       id="habits"
       title="Habits"
       contentClassName="grid gap-4"
+      action={<SaveLine state={state} />}
     >
-      {admin.habits.length === 0 && admin.retired.length === 0 ? (
-        <div className="grid gap-2">
-          <p className="text-sm text-muted-foreground">
-            No habits yet. Start from a sample morning, afternoon and night list and change it, or add your own below.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            className="justify-self-start"
-            disabled={busy}
-            onClick={() => void act(() => addSampleRoutines(), "Added the sample routines.")}
-          >
-            Start from the samples
-          </Button>
-        </div>
-      ) : null}
-      {DAY_PARTS.map((part) => (
-        <RoutineList
-          key={part}
-          part={part}
-          habits={admin.habits.filter((habit) => habit.part === part)}
-          editing={editing}
-          onEdit={setEditing}
-          adding={adding === part}
-          onAdd={(on) => setAdding(on ? part : null)}
-        />
-      ))}
-      {admin.retired.length ? (
-        <div className="grid gap-2">
-          <span className="text-sm font-medium">Retired</span>
-          <ul className="grid gap-1">
-            {admin.retired.map((habit) => (
-              <li key={habit.id} className="flex items-center gap-2 text-sm">
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                  {habit.name} · {DAY_PART_LABEL[habit.part]}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => void act(() => bringBackHabit(habit.id), `"${habit.name}" is back.`)}
-                >
-                  <ArchiveRestoreIcon className="size-4" />
-                  Bring back
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <HabitSave.Provider value={track}>
+        {admin.habits.length === 0 && admin.retired.length === 0 ? (
+          <div className="grid gap-2">
+            <p className="text-sm text-muted-foreground">
+              No habits yet. Start from a sample morning, afternoon and night list and change it, or add your own below.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="justify-self-start"
+              disabled={busy}
+              onClick={() => void act(() => addSampleRoutines(), "Added the sample routines.")}
+            >
+              Start from the samples
+            </Button>
+          </div>
+        ) : null}
+        {DAY_PARTS.map((part) => (
+          <RoutineList
+            key={part}
+            part={part}
+            habits={admin.habits.filter((habit) => habit.part === part)}
+            editing={editing}
+            // One habit form open at a time.
+            onEdit={(id) => {
+              setEditing(id)
+              if (id) setAdding(null)
+            }}
+            adding={adding === part}
+            onAdd={(on) => {
+              setAdding(on ? part : null)
+              if (on) setEditing(null)
+            }}
+            // A new habit opens its form, so the rest of it can be set.
+            onAdded={(id) => {
+              setAdding(null)
+              setEditing(id)
+            }}
+          />
+        ))}
+        {admin.retired.length ? (
+          <div className="grid gap-2">
+            <span className="text-sm font-medium">Retired</span>
+            <ul className="grid gap-1">
+              {admin.retired.map((habit) => (
+                <li key={habit.id} className="flex items-center gap-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                    {habit.name} · {DAY_PART_LABEL[habit.part]}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void act(() => bringBackHabit(habit.id), `"${habit.name}" is back.`)}
+                  >
+                    <ArchiveRestoreIcon className="size-4" />
+                    Bring back
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </HabitSave.Provider>
     </FoldCard>
   )
 }
@@ -572,6 +589,7 @@ function RoutineList({
   onEdit,
   adding,
   onAdd,
+  onAdded,
 }: {
   part: DayPart
   habits: DailyHabit[]
@@ -579,6 +597,7 @@ function RoutineList({
   onEdit: (habitId: string | null) => void
   adding: boolean
   onAdd: (on: boolean) => void
+  onAdded: (habitId: string) => void
 }) {
   const reload = useReload()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
@@ -633,7 +652,7 @@ function RoutineList({
       ) : (
         <p className="text-sm text-muted-foreground">No {part} habits.</p>
       )}
-      {adding ? <HabitEditor part={part} onDone={() => onAdd(false)} /> : null}
+      {adding ? <NewHabit part={part} onAdded={onAdded} /> : null}
     </div>
   )
 }
@@ -661,6 +680,7 @@ function HabitLine({
 }) {
   const reload = useReload()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  const track = React.useContext(HabitSave)
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: habit.id,
     disabled: dragDisabled || editing,
@@ -690,7 +710,29 @@ function HabitLine({
           </TooltipTrigger>
           <TooltipContent>Drag to change the order</TooltipContent>
         </Tooltip>
-        <HabitIconGlyph icon={habit.icon} className="size-4 shrink-0 text-muted-foreground" />
+        {/* Pressing the icon opens the shell's icon picker and saves the pick at once
+            (Tyler, 31 Oct 2026: "clicking the icon here should open up the icon picker"). */}
+        <ShellIconPicker
+          compact
+          ghost
+          allowEmpty
+          value={habit.icon ?? undefined}
+          onValueChange={(icon) =>
+            void track(() =>
+              changeHabit({
+                habitId: habit.id,
+                name: habit.name,
+                part: habit.part,
+                icon: icon ?? null,
+                target: habit.target,
+                days: habit.days,
+                atTime: habit.atTime,
+              })
+            ).then((ok) => {
+              if (ok) void reload()
+            })
+          }
+        />
         <span className="min-w-0 flex-1 truncate text-sm">
           {habit.name}
           <span className="text-muted-foreground"> · {habitSummary(habit)}</span>
@@ -723,53 +765,142 @@ function HabitLine({
           <TooltipContent>Retire it and keep its ticks</TooltipContent>
         </Tooltip>
       </div>
-      {editing ? <HabitEditor part={habit.part} habit={habit} onDone={() => onEdit(false)} /> : null}
+      {editing ? <HabitEditor habit={habit} /> : null}
     </li>
   )
 }
 
-/** A habit's name, part of the day, icon, how many a day, which days and an optional time. */
-function HabitEditor({ part, habit, onDone }: { part: DayPart; habit?: DailyHabit; onDone: () => void }) {
+/**
+ * A new habit: its name and Add, the one button the window keeps, since a
+ * habit has to exist before it can save itself. It is added with no icon,
+ * once a day, every day, and its form opens for the rest.
+ */
+function NewHabit({ part, onAdded }: { part: DayPart; onAdded: (habitId: string) => void }) {
   const reload = useReload()
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  const track = React.useContext(HabitSave)
   const prefix = React.useId()
-  const [name, setName] = React.useState(habit?.name ?? "")
-  const [nameInvalid, setNameInvalid] = React.useState(false)
-  const [where, setWhere] = React.useState<DayPart>(habit?.part ?? part)
-  const [icon, setIcon] = React.useState<HabitIcon | null>(habit?.icon ?? null)
-  const [target, setTarget] = React.useState(String(habit?.target ?? 1))
-  const [days, setDays] = React.useState<number[]>(habit?.days ?? [])
-  const [atTime, setAtTime] = React.useState(habit?.atTime ?? "")
+  const [name, setName] = React.useState("")
+  const [invalid, setInvalid] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
 
-  async function save() {
+  async function add(event: React.FormEvent) {
+    event.preventDefault()
     const trimmed = name.trim()
-    const count = Number(target)
+    if (!trimmed) {
+      setInvalid(true)
+      showErrorToast("Name the habit.")
+      return
+    }
+    setBusy(true)
+    let id = ""
+    const ok = await track(async () => {
+      id = (await addHabit({ name: trimmed, part, icon: null, target: 1, days: [], atTime: null })).id
+    })
+    setBusy(false)
+    if (!ok) return
+    await reload()
+    onAdded(id)
+  }
+
+  return (
+    <form className="flex items-end gap-2 rounded-md border bg-muted/40 p-3" onSubmit={(event) => void add(event)}>
+      <div className="grid min-w-0 flex-1 gap-2">
+        <Label htmlFor={`${prefix}-name`}>New {part} habit</Label>
+        <Input
+          id={`${prefix}-name`}
+          value={name}
+          maxLength={DAILY_LIMITS.habitName}
+          aria-invalid={invalid || undefined}
+          autoFocus
+          onChange={(event) => {
+            setName(event.target.value)
+            setInvalid(false)
+          }}
+        />
+      </div>
+      <Button type="submit" disabled={busy}>
+        <PlusIcon className="size-4" />
+        Add
+      </Button>
+    </form>
+  )
+}
+
+/**
+ * A habit's name, part of the day, time, how many a day and which days. Each
+ * saves itself like the rest of the window, so it has no Save or Cancel
+ * (Tyler, 31 Oct 2026: "the save changes and then done makes no sense. its
+ * not following modal standard"): a pick at once, the name and the count
+ * when their box is left or Enter is pressed, the time when its box is left.
+ * Its icon is picked on its row; none picked is every day.
+ */
+function HabitEditor({ habit }: { habit: DailyHabit }) {
+  const reload = useReload()
+  const track = React.useContext(HabitSave)
+  const prefix = React.useId()
+  const [name, setName] = React.useState(habit.name)
+  const [nameInvalid, setNameInvalid] = React.useState(false)
+  const [where, setWhere] = React.useState<DayPart>(habit.part)
+  const [target, setTarget] = React.useState(String(habit.target))
+  const [targetInvalid, setTargetInvalid] = React.useState(false)
+  const [days, setDays] = React.useState<number[]>(habit.days)
+  const [atTime, setAtTime] = React.useState(habit.atTime ?? "")
+  // What this form has sent so far, so a second change made before the first
+  // comes back builds on it instead of putting the first back.
+  const sent = React.useRef({ name: habit.name, part: habit.part, target: habit.target, days: habit.days, atTime: habit.atTime })
+
+  /**
+   * The habit with this change, saved; the change goes back if refused. The
+   * icon comes from the row, where it is picked.
+   */
+  async function save(change: Partial<typeof sent.current>, undo: () => void) {
+    const before = sent.current
+    sent.current = { ...before, ...change }
+    if (await track(() => changeHabit({ habitId: habit.id, icon: habit.icon, ...sent.current }))) {
+      await reload()
+      return
+    }
+    sent.current = before
+    undo()
+  }
+
+  function saveName() {
+    const trimmed = name.trim()
+    if (trimmed === sent.current.name) return
     if (!trimmed) {
       setNameInvalid(true)
       showErrorToast("Name the habit.")
       return
     }
+    void save({ name: trimmed }, () => setName(sent.current.name))
+  }
+
+  function saveTarget() {
+    const count = Number(target)
+    if (count === sent.current.target) return
     if (!Number.isInteger(count) || count < 1 || count > DAILY_LIMITS.habitTarget) {
+      setTargetInvalid(true)
       showErrorToast(`How many a day is a number from 1 to ${DAILY_LIMITS.habitTarget}.`)
       return
     }
+    void save({ target: count }, () => setTarget(String(sent.current.target)))
+  }
+
+  function saveTime() {
+    if ((atTime || null) === sent.current.atTime) return
     if (atTime && !TIME.test(atTime)) {
       showErrorToast("Pick a time like 09:00, or leave it empty.")
       return
     }
-    const input = { name: trimmed, part: where, icon, target: count, days, atTime: atTime || null }
-    const ok = await run(
-      () => (habit ? changeHabit({ habitId: habit.id, ...input }) : addHabit(input)),
-      habit ? undefined : `Added "${trimmed}".`
-    )
-    if (!ok) return
-    await reload()
-    onDone()
+    void save({ atTime: atTime || null }, () => setAtTime(sent.current.atTime ?? ""))
   }
 
   return (
     <div className="grid gap-4 rounded-md border bg-muted/40 p-3">
-      <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+      {/* The name, part of the day and time on top (Tyler, 31 Oct 2026: "put the
+          optional time to the top row"), then how many and the days side by side
+          ("move the days picker where it was"). */}
+      <div className="grid items-start gap-4 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
         <div className="grid gap-2">
           <Label htmlFor={`${prefix}-name`}>Habit</Label>
           <Input
@@ -777,19 +908,26 @@ function HabitEditor({ part, habit, onDone }: { part: DayPart; habit?: DailyHabi
             value={name}
             maxLength={DAILY_LIMITS.habitName}
             aria-invalid={nameInvalid || undefined}
-            autoFocus
             onChange={(event) => {
               setName(event.target.value)
               setNameInvalid(false)
             }}
+            onBlur={saveName}
             onKeyDown={(event) => {
-              if (event.key === "Enter") void save()
+              if (event.key === "Enter") saveName()
             }}
           />
         </div>
         <div className="grid gap-2">
           <Label htmlFor={`${prefix}-part`}>Part of the day</Label>
-          <Select value={where} onValueChange={(value) => setWhere(value as DayPart)}>
+          <Select
+            value={where}
+            onValueChange={(value) => {
+              const next = value as DayPart
+              setWhere(next)
+              void save({ part: next }, () => setWhere(sent.current.part))
+            }}
+          >
             <SelectTrigger id={`${prefix}-part`}>
               <SelectValue />
             </SelectTrigger>
@@ -802,8 +940,19 @@ function HabitEditor({ part, habit, onDone }: { part: DayPart; habit?: DailyHabi
             </SelectContent>
           </Select>
         </div>
+        <div className="grid gap-2">
+          <Label htmlFor={`${prefix}-time`}>At a time (optional)</Label>
+          <Input
+            id={`${prefix}-time`}
+            type="time"
+            className="w-32"
+            value={atTime}
+            onChange={(event) => setAtTime(event.target.value)}
+            onBlur={saveTime}
+          />
+        </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid items-start gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
         <div className="grid gap-2">
           <Label htmlFor={`${prefix}-target`}>How many a day</Label>
           <Input
@@ -813,64 +962,43 @@ function HabitEditor({ part, habit, onDone }: { part: DayPart; habit?: DailyHabi
             max={DAILY_LIMITS.habitTarget}
             className="w-24"
             value={target}
-            onChange={(event) => setTarget(event.target.value)}
+            aria-invalid={targetInvalid || undefined}
+            onChange={(event) => {
+              setTarget(event.target.value)
+              setTargetInvalid(false)
+            }}
+            onBlur={saveTarget}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") saveTarget()
+            }}
           />
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor={`${prefix}-time`}>At a time (optional)</Label>
-          <Input id={`${prefix}-time`} type="time" className="w-36" value={atTime} onChange={(event) => setAtTime(event.target.value)} />
-        </div>
-      </div>
-      <fieldset className="grid gap-2">
-        <legend className="mb-2 text-sm font-medium">Days</legend>
-        <div className="flex flex-wrap gap-1">
-          {[1, 2, 3, 4, 5, 6, 0].map((day) => {
-            const on = days.includes(day)
-            return (
-              <Button
-                key={day}
-                type="button"
-                size="sm"
-                variant={on ? "default" : "outline"}
-                aria-pressed={on}
-                onClick={() => setDays(on ? days.filter((d) => d !== day) : [...days, day])}
-              >
-                {WEEKDAY_SHORT[day]}
-              </Button>
-            )
-          })}
-        </div>
-        <span className="text-xs text-muted-foreground">{days.length ? "Only on the days picked." : "None picked is every day."}</span>
-      </fieldset>
-      <fieldset className="grid gap-2">
-        <legend className="mb-2 text-sm font-medium">Icon</legend>
-        <div className="flex flex-wrap gap-1">
-          {HABIT_ICONS.map((option) => (
-            <Tooltip key={option}>
-              <TooltipTrigger asChild>
+        {/* A label like the others, not a legend, so it lines up with them
+            (Tyler, 31 Oct 2026: "this is not aligned"). */}
+        <div role="group" aria-labelledby={`${prefix}-days`} className="grid min-w-0 gap-2">
+          <Label id={`${prefix}-days`}>Days</Label>
+          <div className="flex flex-wrap gap-1">
+            {[1, 2, 3, 4, 5, 6, 0].map((day) => {
+              const on = days.includes(day)
+              return (
                 <Button
+                  key={day}
                   type="button"
-                  size="icon-sm"
-                  variant={icon === option ? "default" : "outline"}
-                  aria-pressed={icon === option}
-                  aria-label={HABIT_ICON_LOOK[option].label}
-                  onClick={() => setIcon(icon === option ? null : option)}
+                  size="sm"
+                  variant={on ? "default" : "outline"}
+                  aria-pressed={on}
+                  onClick={() => {
+                    const next = on ? days.filter((d) => d !== day) : [...days, day]
+                    setDays(next)
+                    void save({ days: next }, () => setDays(sent.current.days))
+                  }}
                 >
-                  <HabitIconGlyph icon={option} className="size-4" />
+                  {WEEKDAY_SHORT[day]}
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>{HABIT_ICON_LOOK[option].label}</TooltipContent>
-            </Tooltip>
-          ))}
+              )
+            })}
+          </div>
         </div>
-      </fieldset>
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onDone}>
-          Cancel
-        </Button>
-        <Button type="button" disabled={busy} onClick={() => void save()}>
-          {habit ? "Save changes" : "Create habit"}
-        </Button>
       </div>
     </div>
   )

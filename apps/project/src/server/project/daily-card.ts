@@ -19,7 +19,6 @@ import {
   type DailySection,
   type DayHours,
   type DayPart,
-  type HabitIcon,
   type JournalField,
   type RoutineReminders,
   type SkyKind,
@@ -28,6 +27,7 @@ import {
   type WeatherKind,
   weatherKindOf,
 } from "@/lib/project/daily-card"
+import type { ShellIcon } from "@/lib/custom-shell"
 import { READY_ROUTINES } from "@/lib/project/daily-words"
 import { addDays, localNow, momentOf, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
@@ -96,7 +96,7 @@ export type DailyHabit = {
   name: string
   part: DayPart
   position: number
-  icon: HabitIcon | null
+  icon: ShellIcon | null
   target: number
   days: number[]
   atTime: string | null
@@ -643,7 +643,7 @@ export type MonthOfTicks = {
   /** The site admin's card day; the day cards under the calendar stop there. */
   today: string
   days: string[]
-  habits: { id: string; name: string; icon: HabitIcon | null; retired: boolean; cells: WeekDot[] }[]
+  habits: { id: string; name: string; icon: ShellIcon | null; retired: boolean; cells: WeekDot[] }[]
   /** The month's journal, by day, for the days anything was written or rated. */
   journal: Record<string, JournalDay>
 }
@@ -837,7 +837,7 @@ async function ownHabit(userId: string, habitId: string, database: ProjectDb) {
   return habit
 }
 
-type HabitInput = { name: string; part: DayPart; icon: HabitIcon | null; target: number; days: number[]; atTime: string | null }
+type HabitInput = { name: string; part: DayPart; icon: ShellIcon | null; target: number; days: number[]; atTime: string | null }
 
 async function nextPosition(userId: string, part: DayPart, database: ProjectDb) {
   const rows = await database
