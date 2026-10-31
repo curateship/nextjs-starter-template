@@ -148,6 +148,11 @@ export type TradingRule = z.infer<typeof tradingRuleSchema>
 
 export const tradingRulesSchema = z.object({
   list: z.array(tradingRuleSchema).max(MAX_TRADING_RULES),
+  /**
+   * Whether the chart shows a small summary card of the switched-on rules
+   * while the left panel is shut (Tyler, 31 Oct 2026). Missing means shown.
+   */
+  chartCard: z.boolean().optional(),
 })
 
 export type TradingRules = z.infer<typeof tradingRulesSchema>
@@ -345,6 +350,7 @@ export function readTradingRules(value: unknown): TradingRules {
   if (value === null || typeof value !== "object") return DEFAULT_TRADING_RULES
   const list = (value as { list?: unknown }).list
   if (!Array.isArray(list)) return { list: fromOldRules(value) }
+  const chartCard = (value as { chartCard?: unknown }).chartCard
   const rules: TradingRule[] = []
   for (const stored of list.slice(0, MAX_TRADING_RULES)) {
     const parsed = storedRuleSchema.safeParse(stored)
@@ -357,7 +363,14 @@ export function readTradingRules(value: unknown): TradingRules {
       }),
     })
   }
-  return { list: rules }
+  return typeof chartCard === "boolean"
+    ? { list: rules, chartCard }
+    : { list: rules }
+}
+
+/** The summary card on the chart is shown unless it was switched off. */
+export function showsRulesChartCard(rules: TradingRules): boolean {
+  return rules.chartCard !== false
 }
 
 export function anyTradingRuleOn(rules: TradingRules): boolean {

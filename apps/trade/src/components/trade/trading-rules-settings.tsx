@@ -87,6 +87,7 @@ import {
   RULE_PLACES,
   RULE_SIDES,
   ruleNameSchema,
+  showsRulesChartCard,
   type RuleEnd,
   type RulePlace,
   type RuleSide,
@@ -218,8 +219,14 @@ export default function TradingRulesSettings() {
 }
 
 function TradingRulesTable({ initial }: { initial: TradingRules }) {
-  const { rules, updateRule, addRule, duplicateRule, removeRules } =
-    useTradingRules(initial)
+  const {
+    rules,
+    updateRule,
+    addRule,
+    duplicateRule,
+    removeRules,
+    setChartCard,
+  } = useTradingRules(initial)
   const { sort, direction, toggleSort } = useTableSort<RuleSortColumn>("name")
   const selection = useSelection()
   const [openId, setOpenId] = React.useState<string | null>(null)
@@ -245,6 +252,18 @@ function TradingRulesTable({ initial }: { initial: TradingRules }) {
         onClearSelection={selection.clear}
         controls={
           <>
+            {/* Tyler, 31 Oct 2026: the card over the chart when the left
+                panel is shut is "an option to show or not". */}
+            <div className="flex h-8 items-center gap-2 px-1">
+              <Switch
+                id="rules-chart-card"
+                checked={showsRulesChartCard(rules)}
+                onCheckedChange={setChartCard}
+              />
+              <Label htmlFor="rules-chart-card" className="text-sm font-normal">
+                Card on chart
+              </Label>
+            </div>
             {selectedIds.length > 0 ? (
               <DashboardToolbarButton
                 type="button"

@@ -88,6 +88,7 @@ export function useTradingRules(initial: TradingRules) {
   const updateRule = React.useCallback(
     (id: string, update: (rule: TradingRule) => TradingRule) => {
       change({
+        ...rulesRef.current,
         list: rulesRef.current.list.map((rule) =>
           rule.id === id ? update(rule) : rule
         ),
@@ -101,7 +102,7 @@ export function useTradingRules(initial: TradingRules) {
     const list = rulesRef.current.list
     if (list.length >= MAX_TRADING_RULES) return null
     const rule = newTradingRule(newRuleId(), nextRuleName(list))
-    change({ list: [...list, rule] })
+    change({ ...rulesRef.current, list: [...list, rule] })
     return rule
   }, [change])
 
@@ -120,6 +121,7 @@ export function useTradingRules(initial: TradingRules) {
         cards: original.cards.map((card) => ({ ...card })),
       }
       change({
+        ...rulesRef.current,
         list: [...list.slice(0, index + 1), copy, ...list.slice(index + 1)],
       })
       return copy
@@ -129,12 +131,28 @@ export function useTradingRules(initial: TradingRules) {
 
   const removeRules = React.useCallback(
     (ids: ReadonlySet<string>) => {
-      change({ list: rulesRef.current.list.filter((rule) => !ids.has(rule.id)) })
+      change({
+        ...rulesRef.current,
+        list: rulesRef.current.list.filter((rule) => !ids.has(rule.id)),
+      })
     },
     [change]
   )
 
-  return { rules, updateRule, addRule, duplicateRule, removeRules }
+  /** Shows or hides the rules summary card on the chart. */
+  const setChartCard = React.useCallback(
+    (chartCard: boolean) => change({ ...rulesRef.current, chartCard }),
+    [change]
+  )
+
+  return {
+    rules,
+    updateRule,
+    addRule,
+    duplicateRule,
+    removeRules,
+    setChartCard,
+  }
 }
 
 /** "Weekly trend guard copy", then "copy 2", within the 40 letters a name allows. */

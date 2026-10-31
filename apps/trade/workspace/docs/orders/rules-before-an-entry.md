@@ -167,10 +167,11 @@ chart header.
 - **With nothing to check, the left panel still shows the box** and says why:
   "No trading rules are switched on", or "Rules only check trades in a
   real-money wallet" on a practice wallet.
-- **With the left panel shut, the box is not shown at all** (Tyler, 15 Oct
-  2026: "dont need to see this when collapsed"). It used to float over the
-  chart's top left. The window before an entry still checks every rule, so a
-  block still stops the order.
+- **With the left panel shut, the box is not shown** (Tyler, 15 Oct 2026:
+  "dont need to see this when collapsed"). A small summary card sits over the
+  chart's top left instead, described under "The summary card on the chart"
+  below. The window before an entry still checks every rule, so a block still
+  stops the order.
 - **Below the wide-screen line** the left panel is a sheet pulled out from the
   side. The box shows in that sheet while it is out, and nowhere while it is
   away.
@@ -228,6 +229,58 @@ Main Grid rule     [1 warning] [1 to tick] 2 rules
 It follows the price as it moves and the clock every second.
 
 The box remembers whether it is open only while the page is open.
+
+## The summary card on the chart
+
+Tyler, 31 Oct 2026: "if I have rule on and i collapsed the left panel. Show a
+card with the rules summary here", pointing at the chart's top left, and "i
+also want this card to be an option to show or not in the rules settings".
+
+Then the same day: "it should show me the rules thats ticked and the notes
+too", "move the blocking chip here" (beside the title), "Add collapsible arrow
+here that shows on hover over" (the title row's right end), "Replace the Rules
+text with the rules name itself", "pressing the whole header should collapsed
+or uncollapse the card", "remove the gray hover bg", then "Add light gray on
+hover for the whole card instead" and "Add a button in the footer to open up
+the rule modal".
+
+```
+(shield) Main Grid rule  [Blocking]          (v on hover)
+  ✗ At most 5 grids in this wallet
+  [ ] Must be 5 trusted stocks to be in trades
+  [ ] Watch for base breaks and grid down
+-------------------------------------------------
+Weekly trend guard                [All clear]
+  ✓ Price above the weekly line
+[        (cog) Edit rule                        ]
+```
+
+- **The title is the rule's own name**, with that rule's chip beside it. With
+  several rules switched on, the one whose chip is worst leads: Blocking,
+  then warnings, then Can't tell yet, then notes to tick, then All clear. Each
+  other rule follows under a line, with its name and its own chip.
+- **Under each name, every condition** with a green tick when it holds, a red
+  cross when it does not, and a question mark when it cannot tell, failed ones
+  first, for an entry placed now.
+- **Then the rule's notes as boxes to tick.** They are the same ticks as the
+  Rules box and the window before an entry, so ticking one here counts there.
+- **Pressing anywhere on the title row folds the card** down to that row, and
+  pressing it again opens it. Nothing in the card turns gray under the
+  pointer (Tyler, 31 Oct 2026: "remove the gray hover over"). An arrow at the row's right end shows only while the pointer is over the
+  card, or the keyboard is on it. The fold is remembered against the account
+  with the app's other folded cards (`rules-chart-card`), so a reload keeps it.
+- **Edit rule, at the card's foot**, opens the title rule's settings window,
+  the same one as the Rules box's cog. It hides while the card is folded, and
+  has no line above it ("remove the divider above button").
+- **Pressing another rule's name** lower down opens that rule's settings
+  window. The title row only folds.
+- **A long list scrolls inside the card**, which never grows past the chart.
+- **On a practice wallet** the card says "Rules only check trades in a
+  real-money wallet." instead of the lines.
+- **The switch:** Settings, Trading rules, "Card on chart", beside New rule.
+  It is on until switched off, saves as it changes, and is kept per account
+  with the rules (the `chartCard` field of the stored rules; missing means
+  on).
 
 The EMA conditions read their candles once per coin and timeframe, and again
 when that timeframe's candle closes, so a weekly EMA asks the exchange once a

@@ -1,10 +1,12 @@
 import * as React from "react"
 import {
+  ChevronDownIcon,
   SettingsIcon,
   ShieldCheckIcon,
   TriangleAlertIcon,
 } from "lucide-react"
 
+import { useCardFold } from "@/components/trade/card-folds-store"
 import { useNoteTicks } from "@/components/trade/note-ticks"
 import { RuleConditionLine } from "@/components/trade/rule-condition-line"
 import { RuleNoteChecklist } from "@/components/trade/rule-note-checklist"
@@ -94,8 +96,9 @@ function plural(count: number, one: string, many = `${one}s`): string {
  *
  * **It lives in the left panel** (Tyler, 15 Oct 2026), which the market
  * scanner used to fill. It fills the panel and stays on screen with nothing
- * to check, saying why. With the left panel shut it is not drawn at all; the
- * check before an entry still runs.
+ * to check, saying why. With the left panel shut it is not drawn; the
+ * `RulesChartCard` below sums it up over the chart instead, and the check
+ * before an entry still runs.
  */
 export function RulesWatchPanel({
   marketKey,
@@ -119,18 +122,14 @@ export function RulesWatchPanel({
     held: RuleHolding | null
   ) => RuleFacts
 }) {
-  const live = useLiveFigures(marketKey)
-  const price = live?.price ?? null
-  const [now, setNow] = React.useState(() => Date.now())
-  const ticked = useNoteTicks(marketKey)
+  const { switchedOn, sections, ticked } = useRuleSections({
+    marketKey,
+    rules,
+    holdings,
+    factsFor,
+  })
   const [pickedId, pick] = usePickedRule()
 
-  React.useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), TICK_MS)
-    return () => window.clearInterval(timer)
-  }, [])
-
-  const switchedOn = rules.list.filter((rule) => rule.on)
   const shellClass = "flex min-h-0 w-full flex-1 flex-col text-sm"
   if (switchedOn.length === 0 || idleNote) {
     return (
@@ -146,22 +145,6 @@ export function RulesWatchPanel({
       </div>
     )
   }
-
-  const entryFacts = factsFor(price, now, null)
-  const heldFacts = new Map(
-    holdings.map((held) => [held.id, factsFor(price, now, held)])
-  )
-  const sections = switchedOn.map((rule) => {
-    const entry = judgeRule(rule, entryFacts)
-    const broken = holdings.flatMap((held) => {
-      if (!ruleCovers(rule, held.entry)) return []
-      const facts = heldFacts.get(held.id)
-      if (!facts) return []
-      const result = judgeRule(rule, facts)
-      return result.state === "yes" ? [{ held, result }] : []
-    })
-    return { rule, entry, broken, notes: notesOf(rule) }
-  })
 
   const current =
     sections.find((one) => one.rule.id === pickedId) ?? sections[0]
@@ -244,6 +227,267 @@ type Section = {
   entry: RuleResult
   broken: { held: RuleHolding; result: RuleResult }[]
   notes: ReturnType<typeof notesOf>
+}
+
+type FactsFor = (
+  price: number | null,
+  now: number,
+  held: RuleHolding | null
+) => RuleFacts
+
+/**
+ * Every switched-on rule judged against the price on screen and the trades
+ * already held, once a second. The left panel's Rules box and the summary
+ * card on the chart both read this, so the two never disagree.
+ */
+function useRuleSections({
+  marketKey,
+  rules,
+  holdings,
+  factsFor,
+}: {
+  marketKey: string
+  rules: TradingRules
+  holdings: readonly RuleHolding[]
+  factsFor: FactsFor
+}) {
+  const live = useLiveFigures(marketKey)
+  const price = live?.price ?? null
+  const [now, setNow] = React.useState(() => Date.now())
+  const ticked = useNoteTicks(marketKey)
+
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), TICK_MS)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const switchedOn = rules.list.filter((rule) => rule.on)
+  const entryFacts = factsFor(price, now, null)
+  const heldFacts = new Map(
+    holdings.map((held) => [held.id, factsFor(price, now, held)])
+  )
+  const sections: Section[] = switchedOn.map((rule) => {
+    const entry = judgeRule(rule, entryFacts)
+    const broken = holdings.flatMap((held) => {
+      if (!ruleCovers(rule, held.entry)) return []
+      const facts = heldFacts.get(held.id)
+      if (!facts) return []
+      const result = judgeRule(rule, facts)
+      return result.state === "yes" ? [{ held, result }] : []
+    })
+    return { rule, entry, broken, notes: notesOf(rule) }
+  })
+  return { switchedOn, sections, ticked }
+}
+
+const RULES_CARD_FOLD_ID = "rules-chart-card"
+
+/** A rule's name in the chart card; pressing it opens the rule's settings. */
+function RuleName({
+  section,
+  onEditRule,
+  className,
+}: {
+  section: Section
+  onEditRule?: (ruleId: string) => void
+  className?: string
+}) {
+  if (!onEditRule) {
+    return (
+      <span className={cn("min-w-0 truncate", className)}>
+        {section.rule.name}
+      </span>
+    )
+  }
+  return (
+    <button
+      type="button"
+      className={cn(
+        "min-w-0 truncate rounded-sm text-left hover:underline",
+        className
+      )}
+      onClick={() => onEditRule(section.rule.id)}
+    >
+      {section.rule.name}
+    </button>
+  )
+}
+
+/**
+ * A rule's conditions, each with its tick, cross or question mark and the
+ * failed ones first, then its notes to tick (Tyler, 31 Oct 2026: "show me the
+ * rules thats ticked and the notes too").
+ */
+function RuleBody({
+  section,
+  marketKey,
+}: {
+  section: Section
+  marketKey: string
+}) {
+  return (
+    <>
+      {failedFirst(section.entry.allCards).map((card, index) => (
+        <RuleConditionLine key={index} card={card} className="px-1 text-xs" />
+      ))}
+      {section.notes.length > 0 ? (
+        <RuleNoteChecklist
+          marketKey={marketKey}
+          notes={section.notes}
+          showRuleNames={false}
+          className="px-1 pt-1"
+        />
+      ) : null}
+    </>
+  )
+}
+
+/** How bad a rule's chip is: Blocking 0 down to All clear 4. */
+function severityOf(section: Section, ticked: ReadonlySet<string>): number {
+  const attention = attentionOf(section, ticked)
+  if (section.entry.blocks) return 0
+  if (attention.warning > 0) return 1
+  if (section.entry.state === "unknown") return 2
+  if (attention.toTick > 0) return 3
+  return 4
+}
+
+/** The one chip that says most about a rule, worst first. */
+function SummaryChip({
+  section,
+  ticked,
+}: {
+  section: Section
+  ticked: ReadonlySet<string>
+}) {
+  const attention = attentionOf(section, ticked)
+  switch (severityOf(section, ticked)) {
+    case 0:
+      return <Badge className={LOST_MONEY_SURFACE}>Blocking</Badge>
+    case 1:
+      return (
+        <Badge className={WARNING_SURFACE}>
+          {plural(attention.warning, "warning")}
+        </Badge>
+      )
+    case 2:
+      return <Badge variant="secondary">Can't tell yet</Badge>
+    case 3:
+      return <Badge variant="secondary">{attention.toTick} to tick</Badge>
+    default:
+      return <Badge className={MADE_MONEY_SURFACE}>All clear</Badge>
+  }
+}
+
+/**
+ * The rules in one small card over the chart's top-left corner, for when the
+ * left panel, and the Rules box in it, is shut (Tyler, 31 Oct 2026). The
+ * worst switched-on rule's name is the title, with its chip and a fold arrow
+ * that shows under the pointer; pressing the title row folds the card. Under
+ * it, the rule's conditions and notes to tick, then any other switched-on
+ * rule the same way under its own name, which opens that rule's settings.
+ * Edit rule at the foot opens the title rule's. Ticks here and in the Rules
+ * box are the same ticks. It draws nothing when no rule is on, and Settings,
+ * Trading rules, "Card on chart" hides it.
+ */
+export function RulesChartCard({
+  marketKey,
+  rules,
+  holdings,
+  factsFor,
+  idleNote = null,
+  onEditRule,
+}: {
+  marketKey: string
+  rules: TradingRules
+  holdings: readonly RuleHolding[]
+  factsFor: FactsFor
+  idleNote?: string | null
+  onEditRule?: (ruleId: string) => void
+}) {
+  const { sections, ticked } = useRuleSections({
+    marketKey,
+    rules,
+    holdings,
+    factsFor,
+  })
+  // Remembered against the account, like every other folded card here.
+  const [open, setOpen] = useCardFold(RULES_CARD_FOLD_ID, true)
+  if (sections.length === 0) return null
+  // Worst rule first. Its name is the card's title (Tyler, 31 Oct 2026:
+  // "Replace the Rules text with the rules name itself") with its chip beside
+  // it ("move the blocking chip here"). Any other rule follows with its own.
+  const [lead, ...rest] = [...sections].sort(
+    (left, right) => severityOf(left, ticked) - severityOf(right, ticked)
+  )
+
+  return (
+    <div
+      data-rules-chart-card
+      className="group/rules-card absolute top-3 left-3 z-10 grid max-h-[calc(100%-1.5rem)] w-72 max-w-[calc(100%-1.5rem)] content-start gap-2 overflow-y-auto rounded-lg border bg-popover p-2 text-sm shadow-sm"
+    >
+      {/* The whole title row folds and opens the card (Tyler, 31 Oct 2026:
+          "pressing the whole header should collapsed or uncollapse the
+          card"). The arrow shows only under the pointer, and to the
+          keyboard when the row has focus. */}
+      <button
+        type="button"
+        aria-expanded={open}
+        className="flex min-h-8 w-full items-center gap-2 rounded-md px-1 text-left"
+        onClick={() => setOpen(!open)}
+      >
+        <ShieldCheckIcon className="size-4 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 truncate font-semibold">{lead.rule.name}</span>
+        {idleNote ? null : <SummaryChip section={lead} ticked={ticked} />}
+        <ChevronDownIcon
+          aria-hidden
+          className={cn(
+            "ml-auto size-4 shrink-0 text-muted-foreground opacity-0 transition group-hover/rules-card:opacity-100 group-focus-within/rules-card:opacity-100",
+            !open && "-rotate-90"
+          )}
+        />
+      </button>
+      {!open ? null : idleNote ? (
+        <p className="px-1 text-xs text-muted-foreground">{idleNote}</p>
+      ) : (
+        <>
+          <RuleBody section={lead} marketKey={marketKey} />
+          {rest.map((section) => (
+            <section
+              key={section.rule.id}
+              className="grid gap-1.5 border-t pt-2"
+            >
+              <div className="flex min-h-8 items-center justify-between gap-2 px-1">
+                <RuleName
+                  section={section}
+                  onEditRule={onEditRule}
+                  className="font-medium"
+                />
+                <SummaryChip section={section} ticked={ticked} />
+              </div>
+              <RuleBody section={section} marketKey={marketKey} />
+            </section>
+          ))}
+        </>
+      )}
+      {/* The rule's settings window from the card's foot (Tyler, 31 Oct
+          2026: "Add a button in the footer to open up the rule modal"). */}
+      {open && onEditRule ? (
+        <div className="px-1 pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => onEditRule(lead.rule.id)}
+          >
+            <SettingsIcon />
+            Edit rule
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 /** What one rule wants looked at: warnings, notes to tick, a block. */

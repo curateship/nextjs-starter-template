@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/trade/live-market", () => ({ useLiveFigures: () => null }))
 
-import { RulesWatchPanel } from "./rules-watch-panel"
+import { RulesChartCard, RulesWatchPanel } from "./rules-watch-panel"
 import {
   DEFAULT_TRADING_RULES,
   newTradingRule,
@@ -96,5 +96,62 @@ it("shows one rule at a time, with its counts in the body and a cog to edit it",
       .querySelector<HTMLButtonElement>('[aria-label="Edit Main Grid rule"]')!
       .click()
   )
+  expect(edit).toHaveBeenCalledWith("a")
+})
+
+/**
+ * **With the left panel shut, a card over the chart sums the rules up**
+ * (Tyler, 31 Oct 2026): one line per switched-on rule with its worst chip.
+ */
+it("sums the switched-on rules up in the chart card, and folds from its title", async () => {
+  const edit = vi.fn()
+  const draw = (rules: Parameters<typeof RulesChartCard>[0]["rules"]) =>
+    act(async () =>
+      root.render(
+        <RulesChartCard
+          marketKey="hyperliquid:mainnet:BTC"
+          rules={rules}
+          holdings={[]}
+          factsFor={factsFor}
+          onEditRule={edit}
+        />
+      )
+    )
+
+  await draw(DEFAULT_TRADING_RULES)
+  expect(host.querySelector("[data-rules-chart-card]")).toBeNull()
+
+  await draw({
+    list: [
+      { ...newTradingRule("a", "Main Grid rule"), notes: ["Check BTC"] },
+      { ...newTradingRule("c", "Off rule"), on: false },
+    ],
+  })
+  const card = host.querySelector("[data-rules-chart-card]")!
+  expect(card.textContent).toContain("Main Grid rule")
+  expect(card.textContent).toContain("1 to tick")
+  expect(card.textContent).not.toContain("Off rule")
+  // The notes are there to tick, as in the Rules box.
+  expect(card.textContent).toContain("Check BTC")
+  expect(card.querySelector('[role="checkbox"], input[type="checkbox"]')).not.toBeNull()
+
+  // The rule's own name is the title, with its chip beside it.
+  expect(card.firstElementChild!.textContent).toBe("Main Grid rule1 to tick")
+
+  // Pressing the title row folds the card down to that row, and opens it.
+  const title = card.querySelector<HTMLButtonElement>("button[aria-expanded]")!
+  await act(async () => title.click())
+  expect(title.getAttribute("aria-expanded")).toBe("false")
+  expect(card.textContent).not.toContain("Check BTC")
+  expect(card.textContent).toContain("1 to tick")
+  await act(async () => title.click())
+  expect(card.textContent).toContain("Check BTC")
+  expect(edit).not.toHaveBeenCalled()
+
+  // The footer button opens the rule's settings window.
+  const footer = [...card.querySelectorAll("button")].find(
+    (one) => one.textContent === "Edit rule"
+  )!
+  await act(async () => footer.click())
   expect(edit).toHaveBeenCalledWith("a")
 })

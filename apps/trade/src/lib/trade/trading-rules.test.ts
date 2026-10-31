@@ -18,6 +18,7 @@ import {
   overrodeNote,
   overrodeSchema,
   readTradingRules,
+  showsRulesChartCard,
   ruleCardLabel,
   tradingRulesSchema,
   unmetRulesHeading,
@@ -128,6 +129,12 @@ describe("reading saved trading rules", () => {
   it("starts with no rules", () => {
     expect(readTradingRules(null)).toEqual({ list: [] })
     expect(readTradingRules("junk")).toEqual({ list: [] })
+    // The chart card's switch is kept; missing reads as shown.
+    expect(readTradingRules({ list: [], chartCard: false })).toEqual({
+      list: [],
+      chartCard: false,
+    })
+    expect(showsRulesChartCard(readTradingRules({ list: [] }))).toBe(true)
   })
 
   it("turns each switched-on old rule into a Warn rule with the same numbers", () => {

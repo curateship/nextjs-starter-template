@@ -111,7 +111,10 @@ import {
 } from "@/components/shared/dashboard-card-header"
 import type { TradePosition } from "@/lib/trade/paper"
 import type { ChartOptions } from "@/lib/trade/chart-options"
-import type { TradingRules } from "@/lib/trade/trading-rules"
+import {
+  showsRulesChartCard,
+  type TradingRules,
+} from "@/lib/trade/trading-rules"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { LiveTrade } from "@/lib/trade/live-trades"
@@ -1471,6 +1474,13 @@ export function TradeWorkspace({
               desktop && (marketsCollapsed || chartFullscreen)
                 ? null
                 : rulesSlot
+            }
+            // With that panel shut, a card over the chart sums the rules up
+            // instead, unless Settings, Trading rules switched it off.
+            rulesCard={
+              desktop &&
+              (marketsCollapsed || chartFullscreen) &&
+              showsRulesChartCard(tradingRules)
             }
             cornerControl={
               <div className="flex items-center gap-2">

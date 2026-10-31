@@ -48,6 +48,7 @@ import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
 import { useLongPress } from "@/components/trade/use-long-press"
 import type { Trading } from "@/components/trade/use-trading"
 import {
+  RulesChartCard,
   RulesWatchPanel,
   type RuleHolding,
 } from "@/components/trade/rules-watch-panel"
@@ -501,6 +502,7 @@ export function ChartPanel({
   onOlderBars,
   cornerControl,
   rulesSlot = null,
+  rulesCard = false,
   onEditRule,
 }: {
   selectedKey: string | null
@@ -615,6 +617,11 @@ export function ChartPanel({
    * see this when collapsed"). The check before an entry still runs.
    */
   rulesSlot?: HTMLElement | null
+  /**
+   * Sums the rules up in a card over the chart, for when the left panel and
+   * its Rules box are shut on a wide screen.
+   */
+  rulesCard?: boolean
   /** The Rules box's cog: opens that rule's settings window. */
   onEditRule?: (ruleId: string) => void
 }) {
@@ -1008,6 +1015,11 @@ export function ChartPanel({
    * grid, each running DCA ladder, and each position that belongs to
    * neither, judged by the rules that cover that kind of entry.
    */
+  // Why the Rules box and the chart card check nothing, or null when they do.
+  const rulesIdleNote =
+    trading.wallet?.kind === "live"
+      ? null
+      : "Rules only check trades in a real-money wallet."
   const ruleHoldings = React.useMemo((): RuleHolding[] => {
     if (!rulesApply || !market) return []
     const coin = market.symbol
@@ -2522,6 +2534,17 @@ export function ChartPanel({
               {olderBars.volumeNote}
             </span>
           ) : null}
+          {market && rulesCard ? (
+            <RulesChartCard
+              key={market.key}
+              marketKey={market.key}
+              rules={tradingRules}
+              holdings={ruleHoldings}
+              factsFor={ruleFacts}
+              onEditRule={onEditRule}
+              idleNote={rulesIdleNote}
+            />
+          ) : null}
           <PriceChart
             candles={current.candles}
             options={options}
@@ -2554,11 +2577,7 @@ export function ChartPanel({
               holdings={ruleHoldings}
               factsFor={ruleFacts}
               onEditRule={onEditRule}
-              idleNote={
-                trading.wallet?.kind === "live"
-                  ? null
-                  : "Rules only check trades in a real-money wallet."
-              }
+              idleNote={rulesIdleNote}
             />,
             rulesSlot
           )
