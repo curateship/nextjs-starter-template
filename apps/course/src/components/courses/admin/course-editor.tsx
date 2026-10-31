@@ -44,7 +44,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 /** This screen's remembered panel widths. The app's own key, not the shell's list. */
-const COURSE_EDITOR_LAYOUT_KEY = "course-editor"
+const COURSE_EDITOR_LAYOUT_KEY = "course-editor-2"
 
 /** A chapter's words save this long after the last keystroke. */
 const SAVE_DELAY_MS = 1200
@@ -273,7 +273,7 @@ export function CourseEditor({ data }: { data: CourseForEdit }) {
             panelRef={outlineRef}
             collapsible
             collapsedSize="0%"
-            defaultSize="22%"
+            defaultSize="16%"
             minSize="16%"
             maxSize="34%"
             onResize={(size) => setOutlineCollapsed(size.asPercentage < 0.5)}
@@ -283,7 +283,7 @@ export function CourseEditor({ data }: { data: CourseForEdit }) {
             </WorkspacePanel>
           </ResizablePanel>
           <ResizableHandle gap collapsed={outlineCollapsed} />
-          <ResizablePanel id="write" defaultSize="50%" minSize="30%">
+          <ResizablePanel id="write" defaultSize="62%" minSize="30%">
             <WorkspacePanel className="relative flex flex-col">
               {writer}
               {outlineCollapsed ? (
@@ -300,7 +300,7 @@ export function CourseEditor({ data }: { data: CourseForEdit }) {
             panelRef={panelRef}
             collapsible
             collapsedSize="0%"
-            defaultSize="28%"
+            defaultSize="22%"
             minSize="22%"
             maxSize="45%"
             onResize={(size) => setPanelCollapsed(size.asPercentage < 0.5)}

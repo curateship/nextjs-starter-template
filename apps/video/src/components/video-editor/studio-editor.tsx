@@ -93,7 +93,7 @@ import "@/components/video-editor/text-fonts.css"
  * here rather than editing it.
  */
 const LAYOUT_KEY = {
-  horizontal: "video-editor-horizontal",
+  horizontal: "video-editor-horizontal-2",
   vertical: "video-editor-vertical",
 }
 
@@ -291,7 +291,7 @@ export function StudioEditor({
         panelRef={panelRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="21%"
+        defaultSize="16%"
         minSize="16%"
         maxSize="34%"
         onResize={(size) => setPanelCollapsed(size.asPercentage < 0.5)}
@@ -304,7 +304,7 @@ export function StudioEditor({
         </WorkspacePanel>
       </ResizablePanel>
       <ResizableHandle gap collapsed={panelCollapsed} />
-      <ResizablePanel id="stage" defaultSize="53%" minSize="30%">
+      <ResizablePanel id="stage" defaultSize="66%" minSize="30%">
         {stage}
       </ResizablePanel>
       <ResizableHandle gap collapsed={inspectorCollapsed} />
@@ -313,7 +313,7 @@ export function StudioEditor({
         panelRef={inspectorRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="26%"
+        defaultSize="18%"
         minSize="18%"
         maxSize="42%"
         onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}

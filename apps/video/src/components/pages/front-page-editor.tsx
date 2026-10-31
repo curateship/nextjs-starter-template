@@ -493,7 +493,7 @@ export function FrontPageEditor({
             panelRef={kindsPanelRef}
             collapsible
             collapsedSize="0%"
-            defaultSize="20%"
+            defaultSize="16%"
             minSize="16%"
             maxSize="30%"
             onResize={(size) => setKindsCollapsed(size.asPercentage < 0.5)}
@@ -506,7 +506,7 @@ export function FrontPageEditor({
             </WorkspacePanel>
           </ResizablePanel>
           <ResizableHandle gap collapsed={kindsCollapsed} />
-          <ResizablePanel id="blocks" defaultSize="42%" minSize="25%">
+          <ResizablePanel id="blocks" defaultSize="58%" minSize="25%">
             <WorkspacePanel className="relative flex flex-col">
               {list}
               {kindsCollapsed ? (
@@ -531,7 +531,7 @@ export function FrontPageEditor({
             panelRef={panelRef}
             collapsible
             collapsedSize="0%"
-            defaultSize="38%"
+            defaultSize="26%"
             minSize="26%"
             maxSize="50%"
             onResize={(size) => setPanelCollapsed(size.asPercentage < 0.5)}

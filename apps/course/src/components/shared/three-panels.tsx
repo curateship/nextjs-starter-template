@@ -22,7 +22,9 @@ type Side = { label: string; content: React.ReactNode; showLabel: string }
 
 /**
  * The three-column dashboard every app shares (UI standard, "Three-column
- * dashboards"): left 22%, middle 54%, right 24%. It started as Project's
+ * dashboards"): each side opens at its narrowest, 16%, and the middle takes
+ * the other 68% (Tyler, 31 Oct 2026: "The default width needs to be the
+ * narrowest width the panel have"). It started as Project's
  * project page and moved here for Contacts on 19 Oct 2026. The side panels
  * collapse by being dragged shut or by a double-click on blank space, come
  * back from a tab on the middle panel's edge, and their widths are remembered
@@ -149,7 +151,7 @@ export function ThreePanels({
           panelRef={leftRef}
           collapsible
           collapsedSize="0%"
-          defaultSize="22%"
+          defaultSize="16%"
           minSize="16%"
           maxSize="36%"
           onResize={leftState.onResize}
@@ -163,7 +165,7 @@ export function ThreePanels({
           </WorkspacePanel>
         </ResizablePanel>
         <ResizableHandle gap collapsed={leftState.collapsed} />
-        <ResizablePanel id="middle" defaultSize="54%" minSize="32%">
+        <ResizablePanel id="middle" defaultSize="68%" minSize="32%">
           <WorkspacePanel className="relative flex flex-col">
             {middle.content}
             {leftState.collapsed ? (
@@ -180,7 +182,7 @@ export function ThreePanels({
           panelRef={rightRef}
           collapsible
           collapsedSize="0%"
-          defaultSize="24%"
+          defaultSize="16%"
           minSize="16%"
           maxSize="36%"
           onResize={rightState.onResize}

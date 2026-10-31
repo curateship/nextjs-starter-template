@@ -47,7 +47,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 
 const SAVE_DEBOUNCE_MS = 700
-const HORIZONTAL_LAYOUT_KEY = "trade-recipe-editor-horizontal"
+const HORIZONTAL_LAYOUT_KEY = "trade-recipe-editor-horizontal-2"
 
 export function RecipeEditor({
   initial,
@@ -424,7 +424,7 @@ export function RecipeEditor({
         panelRef={palettePanelRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="16%"
+        defaultSize="14%"
         minSize="14%"
         maxSize="26%"
         onResize={(size) => setPaletteCollapsed(size.asPercentage < 0.5)}
@@ -442,7 +442,7 @@ export function RecipeEditor({
         </WorkspacePanel>
       </ResizablePanel>
       <ResizableHandle gap collapsed={paletteCollapsed} />
-      <ResizablePanel id="canvas" defaultSize="60%" minSize="30%">
+      <ResizablePanel id="canvas" defaultSize="68%" minSize="30%">
         <WorkspacePanel className="flex flex-col">
           {canvasHeader}
           <div className="relative flex min-h-0 flex-1">
@@ -471,7 +471,7 @@ export function RecipeEditor({
         panelRef={inspectorPanelRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="20%"
+        defaultSize="18%"
         minSize="18%"
         maxSize="34%"
         onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}

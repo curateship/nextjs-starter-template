@@ -3,7 +3,7 @@
  * rather than in the shell's `panelLayoutKey` list, because that list is a
  * shell file and an app never edits one.
  */
-export const PROGRAM_PANEL_LAYOUT_KEY = "fitness-program-horizontal"
+export const PROGRAM_PANEL_LAYOUT_KEY = "fitness-program-horizontal-2"
 
 /**
  * Where a program's dashboard was, for the shell's `useDashboardPlace`: one

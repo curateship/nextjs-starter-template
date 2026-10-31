@@ -477,7 +477,7 @@ export function CrmWorkspace({
           // A fifth narrower than it was, at Tyler's ask on 3 Oct 2026. A
           // conversation needs the room more than a list of names does, so the
           // 5 points come off here and go to the middle.
-          defaultSize="21%"
+          defaultSize="16%"
           minSize="16%"
           maxSize="40%"
           onResize={(size) => setInboxCollapsed(size.asPercentage < 0.5)}
@@ -492,7 +492,7 @@ export function CrmWorkspace({
 
         <ResizableHandle gap collapsed={inboxCollapsed} />
 
-        <ResizablePanel id="conversation" defaultSize="55%" minSize="30%">
+        <ResizablePanel id="conversation" defaultSize="66%" minSize="30%">
           <WorkspacePanel className="relative flex flex-col">
             {middle}
             {inboxCollapsed ? (
@@ -519,7 +519,7 @@ export function CrmWorkspace({
           panelRef={leadPanelRef}
           collapsible
           collapsedSize="0%"
-          defaultSize="24%"
+          defaultSize="18%"
           minSize="18%"
           maxSize="34%"
           onResize={(size) => setLeadCollapsed(size.asPercentage < 0.5)}

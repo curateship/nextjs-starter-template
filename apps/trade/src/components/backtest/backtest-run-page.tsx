@@ -505,7 +505,7 @@ export function BacktestRunPage({
         panelRef={statsPanelRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="20%"
+        defaultSize="14%"
         minSize="14%"
         maxSize="32%"
         onResize={(size) => setStatsCollapsed(size.asPercentage < 0.5)}
@@ -519,7 +519,7 @@ export function BacktestRunPage({
         </WorkspacePanel>
       </ResizablePanel>
       <ResizableHandle gap collapsed={statsCollapsed} className={NO_RING} />
-      <ResizablePanel id="chart" defaultSize="58%" minSize="30%">
+      <ResizablePanel id="chart" defaultSize="70%" minSize="30%">
         <WorkspacePanel className="relative flex min-w-0 flex-1 flex-col">
           {chartPanel}
           {/* Shown where a panel disappeared, so getting it back is findable
@@ -547,7 +547,7 @@ export function BacktestRunPage({
         panelRef={marketsPanelRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="22%"
+        defaultSize="16%"
         minSize="16%"
         maxSize="36%"
         onResize={(size) => setMarketsCollapsed(size.asPercentage < 0.5)}

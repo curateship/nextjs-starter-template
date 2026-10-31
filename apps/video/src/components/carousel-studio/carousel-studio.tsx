@@ -289,7 +289,7 @@ export type BuilderAction =
 
 type StudioPanel = "slides" | "layers" | "text" | "image" | "shadow"
 
-const LAYOUT_KEY = "video-carousel-studio-horizontal"
+const LAYOUT_KEY = "video-carousel-studio-horizontal-2"
 
 const AUTOSAVE_DEBOUNCE_MS = 1200
 const UNDO_LIMIT = 50
@@ -1121,7 +1121,7 @@ export function CarouselBuilderPage({
         panelRef={panelRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="21%"
+        defaultSize="16%"
         minSize="16%"
         maxSize="34%"
         onResize={(size) => setPanelCollapsed(size.asPercentage < 0.5)}
@@ -1134,7 +1134,7 @@ export function CarouselBuilderPage({
         </WorkspacePanel>
       </ResizablePanel>
       <ResizableHandle gap collapsed={panelCollapsed} />
-      <ResizablePanel id="stage" defaultSize="53%" minSize="30%">
+      <ResizablePanel id="stage" defaultSize="66%" minSize="30%">
         {stage}
       </ResizablePanel>
       <ResizableHandle gap collapsed={inspectorCollapsed} />
@@ -1143,7 +1143,7 @@ export function CarouselBuilderPage({
         panelRef={inspectorRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="26%"
+        defaultSize="18%"
         minSize="18%"
         maxSize="42%"
         onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}

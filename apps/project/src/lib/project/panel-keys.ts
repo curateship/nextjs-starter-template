@@ -2,12 +2,18 @@
  * Where Project's screens remember their layout in this browser. Kept here
  * rather than in the shell's `panelLayoutKey` list, because that list is a
  * shell file and an app never edits one.
+ *
+ * The `-2` is deliberate: a remembered layout outranks the default, so a
+ * browser that kept the old widths would never show new defaults. Changing
+ * the key drops the old widths once. Bump it again whenever the defaults in
+ * `three-panels.tsx` move (Tyler, 31 Oct 2026, after the narrowest-width
+ * default "is not fixed for the 5th time").
  */
-export const PROJECT_PANEL_LAYOUT_KEY = "project-page-horizontal"
-export const MY_DASHBOARD_PANEL_LAYOUT_KEY = "project-my-dashboard-horizontal"
-export const ADMIN_DASHBOARD_PANEL_LAYOUT_KEY = "project-admin-dashboard-horizontal"
-export const TEAM_PANEL_LAYOUT_KEY = "project-team-dashboard-horizontal"
-export const TASK_TYPES_PANEL_LAYOUT_KEY = "project-task-types-horizontal"
+export const PROJECT_PANEL_LAYOUT_KEY = "project-page-horizontal-2"
+export const MY_DASHBOARD_PANEL_LAYOUT_KEY = "project-my-dashboard-horizontal-2"
+export const ADMIN_DASHBOARD_PANEL_LAYOUT_KEY = "project-admin-dashboard-horizontal-2"
+export const TEAM_PANEL_LAYOUT_KEY = "project-team-dashboard-horizontal-2"
+export const TASK_TYPES_PANEL_LAYOUT_KEY = "project-task-types-horizontal-2"
 
 /** The Board or List tab the project page opened on last. */
 export const PROJECT_TASK_VIEW_KEY = "project-page-task-view"

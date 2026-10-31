@@ -55,39 +55,46 @@ export function useRememberedPanelLayout(key: string) {
 /**
  * Every panel layout this app remembers, in one place.
  *
+ * Every three-panel screen opens its side panels at the narrowest they can
+ * be dragged to (Tyler, 31 Oct 2026: "The default width needs to be the
+ * narrowest width the panel have"). A remembered layout outranks the default,
+ * so the three-panel keys below carry a number, bumped that day so browsers
+ * holding the old widths start from the new ones. Bump it again whenever a
+ * default moves.
+ *
  * A dashboard column takes the cards that are in it, because a layout saved for
  * three cards cannot be applied to two — the card that comes and goes would
  * leave the others sized for a divider that is no longer there — nor to three
  * different cards, which is what arranging the Overview's widgets produces.
  */
 export const panelLayoutKey = {
-  automationEditorHorizontal: "automation-editor-horizontal",
+  automationEditorHorizontal: "automation-editor-horizontal-2",
   automationEditorVertical: "automation-editor-vertical",
-  broadcastEditorHorizontal: "broadcast-editor-horizontal",
+  broadcastEditorHorizontal: "broadcast-editor-horizontal-2",
   broadcastEditorVertical: "broadcast-editor-vertical",
   // Its own keys, not the newsletter's. The bottom panel holds a different
   // thing and wants a different height, and a newsletter's sizing should not
   // follow you into an email you cannot send.
-  systemEmailEditorHorizontal: "system-email-editor-horizontal",
+  systemEmailEditorHorizontal: "system-email-editor-horizontal-2",
   systemEmailEditorVertical: "system-email-editor-vertical",
-  automationEmailEditorHorizontal: "automation-email-editor-horizontal",
+  automationEmailEditorHorizontal: "automation-email-editor-horizontal-2",
   // One key, not two: the CRM has no bottom panel, so there is no second
   // group whose height needs remembering.
   //
-  // The `-2` is deliberate. A remembered layout outranks the default, so a
+  // The number is deliberate. A remembered layout outranks the default, so a
   // browser that had already drawn the old proportions would keep them and
   // the new ones would appear to do nothing. Changing the key abandons the
   // old widths, which is right: they were measured against a layout that no
   // longer exists. Bump it again the next time the defaults move.
-  crmWorkspace: "crm-workspace-horizontal-2",
+  crmWorkspace: "crm-workspace-horizontal-3",
   // Contacts with its segments, the shell's first `ThreePanels` screen.
-  contactsWorkspace: "contacts-workspace-horizontal",
+  contactsWorkspace: "contacts-workspace-horizontal-2",
   // Not a layout: where the Contacts dashboard was, for `useDashboardPlace`.
   // Every `ThreePanels` screen has one, named `…Place`.
   contactsPlace: "contacts-workspace-place",
   // One key: the front page editor has no bottom panel, so there is no second
   // group whose height needs remembering.
-  frontPageEditor: "front-page-editor-horizontal",
+  frontPageEditor: "front-page-editor-horizontal-2",
   automationEmailEditorVertical: "automation-email-editor-vertical",
   dashboardColumns: (page: string) => `custom-shell-${page}-columns`,
   dashboardColumn: (page: string, side: "left" | "right", cards: string) =>
