@@ -80,7 +80,8 @@ Daily card", and that file wins wherever the two disagree.
   today". Clocked time is every stretch of the task clock since midnight,
   plus fixes made today. Nothing shows while there's nothing to count.
   Once a task is done, an arrow at the line's right folds open the list of
-  what was done, each opening its task; it starts folded and the browser
+  what was done, each on a white ground and opening its task ("put white bg
+  to the tasks done"); it starts folded and the browser
   remembers ("The done today doesnt have a toggle to show whats done").
 - **Wind-down at night.** What the person finished today, a line saying a
   task's clock is still running with Pause, and for an employee who checked

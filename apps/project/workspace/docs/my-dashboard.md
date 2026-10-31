@@ -416,7 +416,8 @@ which replaced "Projects running late" the same day. Then a "Need your
 attention" heading, the size of Projects with room above it, shown only while
 a card below it has anything (Tyler, 30 Oct 2026: "Add a label that says "Need
 your attention" here", "add some padding above. also if there is nothing there
-(no cards) hide the label"). The heading folds every card under it, and the
+(no cards) hide the label"). The Projects heading has the same room above
+it, parting it from the Daily card ("needs more space", 31 Oct 2026). The heading folds every card under it, and the
 Projects heading folds every project, the same way a Daily card section
 folds: press the heading, or the arrow at its right that shows while it is
 pointed at (Tyler, 31 Oct 2026: "add a toggle here to hide all the cards",

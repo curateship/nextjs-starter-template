@@ -94,7 +94,7 @@ export function AdminCards({
           "add a toggle here to hide all the cards", then "its arrow toggle"). */}
       {cardsWithRows ? (
         <Collapsible open={shown} onOpenChange={setShown} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
-          <FoldHeading title="Need your attention" count={cardCount} className={cn(projectsCard && "mt-3")} />
+          <FoldHeading title="Need your attention" count={cardCount} className="mt-3" />
           <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
             <AttentionCards cards={cards} zone={zone} onOpenTask={onOpenTask} />
           </CollapsibleContent>

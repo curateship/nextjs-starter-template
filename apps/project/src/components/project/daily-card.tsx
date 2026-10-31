@@ -399,7 +399,10 @@ function Progress({
   )
 }
 
-/** Today's finished tasks, each opening the task. */
+/**
+ * Today's finished tasks, each opening the task, on a white ground like the
+ * running clock's line (Tyler, 31 Oct 2026: "put white bg to the tasks done").
+ */
 function FinishedList({ tasks, onOpenTask }: { tasks: DailyCardData["finishedToday"]; onOpenTask: (taskId: string) => void }) {
   return (
     <ul className="grid gap-1">
@@ -408,7 +411,7 @@ function FinishedList({ tasks, onOpenTask }: { tasks: DailyCardData["finishedTod
           <button
             type="button"
             onClick={() => onOpenTask(task.taskId)}
-            className={cn("w-full cursor-pointer truncate rounded-md text-left text-sm hover:underline", focusRingInset)}
+            className={cn("w-full cursor-pointer truncate rounded-md border bg-background px-3 py-2 text-left text-sm hover:underline", focusRingInset)}
           >
             {task.title}
           </button>

@@ -178,10 +178,13 @@ export function ProjectsCard({
     // bit left so the arrow has more room").
     <Collapsible open={shown} onOpenChange={setShown} asChild>
       <section aria-labelledby={headingId} className={cn("grid", PANEL_GAP)}>
-        {/* The same size as the Daily card's greeting above it (Tyler, 30 Oct 2026). */}
+        {/* The same size as the Daily card's greeting above it (Tyler, 30 Oct 2026),
+            with the same room above it as Need your attention has, to part it from
+            the Daily card (Tyler, 31 Oct 2026: "needs more space"). */}
         <FoldHeading
           id={headingId}
           title="Projects"
+          className="mt-3"
           count={list.active.length + list.idle.length}
         >
           {shown && list.hidden.length ? (
