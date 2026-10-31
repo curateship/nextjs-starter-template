@@ -105,16 +105,29 @@ a team screen or sent to anyone.
 
 ### Routines
 
-- **Three lists of habits: morning, afternoon and night.** The card's
-  "Today's habits" shows every habit set for today at any time of day,
-  morning's first, then afternoon's and night's ("show all habits and not
-  just morning or afternoon"), with a tick for each. Afternoon's and night's
-  habits start under a small "Afternoon" or "Night" label; morning's need
-  none ("Add afternoon and night label to separate them ... dont need
-  morning"). Ticks start again each card day.
+- **Three lists of habits: morning, afternoon and night.** The card's habits
+  section shows every habit set for today at any time of day, morning's
+  first, then afternoon's and night's ("show all habits and not just morning
+  or afternoon"), with a tick for each. The section is named after its first
+  part, "Morning", rather than "Today's habits", and afternoon's and night's
+  habits start under a small "Afternoon" or "Night" label ("Add afternoon and
+  night label to separate them ... dont need morning", then "Change the
+  "Today's habit" to "Morning""). That first name is written like the labels,
+  not in capitals as other section headings are ("Morning is all cap. Make
+  it the same as the other time"). It reads "Today's habits" only while no
+  habit is set for today. Ticks start again each card day.
+- **Each part's starting hour.** Beside Morning, Afternoon and Night the card
+  shows the hour that part starts in Your hours, "Morning - 5:00 AM" ("put
+  the time beside the labels", then "the your hour should replace the hour
+  beside the labels"). The site admin sets those hours in the pencil window's
+  Habits card, in a time box beside each part's name ("put the hours
+  selection beside the label"), so their window has no Your hours card. An
+  employee, with no habits, keeps the Your hours card.
 - **Habits you count.** A habit can have a number, such as 8 glasses of
-  water. Plus and minus change the count, and the habit is done at its
-  number.
+  water. Plus counts up, and the habit is done at its number. It has a tick
+  box too: ticking it fills the whole count, and unticking empties it, which
+  is how a count goes down; there is no minus ("remove this") ("Add a checkbox even for habit with amounts ... if I
+  check the box then it checks all the whole amount").
 - **Days and times.** A habit can repeat on chosen weekdays only, such as the
   gym on Monday, Wednesday and Friday. On other days it doesn't show and
   doesn't count. A habit can carry a time, "Stretch at 3 PM", and habits
@@ -264,8 +277,8 @@ a team screen or sent to anyone.
 
 ### Behind the pencil, for the site admin
 
-Today, Sections, Your hours, Habits, Reminders, Sky, Your own lines and Your
-own night questions, in that order. Today holds "Today I want to...", open to
+Today, Sections, Habits (with each part's starting hour beside its name),
+Reminders, Sky, Your own lines and Your own night questions, in that order. Today holds "Today I want to...", open to
 change at any time of day here, while the card offers it in the morning only
 ("It should be edible in the modal").
 

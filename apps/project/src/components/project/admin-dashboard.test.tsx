@@ -422,7 +422,7 @@ describe("the site admin's My dashboard", () => {
     expect(html).not.toContain("Ship the homepage")
   })
 
-  it("labels afternoon's and night's habits, not morning's, and drops the finished days line", () => {
+  it("labels afternoon's and night's habits, not morning's, ticks counted ones too with no minus, names the section after its first part with each part's starting hour, and drops the finished days line", () => {
     const habit = (id: string, part: "morning" | "afternoon" | "night", position: number) => ({
       ...({} as NonNullable<DailyCard["admin"]>["habits"][number]),
       id,
@@ -442,7 +442,7 @@ describe("the site admin's My dashboard", () => {
         ...DAILY.admin!,
         today: { ...DAILY.admin!.today, upAt: "2099-03-02T08:00:00.000Z" },
         finished: { current: 3, best: 5 },
-        habits: [habit("a", "morning", 0), habit("b", "afternoon", 0), habit("c", "night", 0), habit("d", "night", 1)],
+        habits: [habit("a", "morning", 0), habit("b", "afternoon", 0), habit("c", "night", 0), { ...habit("d", "night", 1), target: 8, count: 3 }],
       },
     }
     const html = renderToStaticMarkup(
@@ -451,7 +451,12 @@ describe("the site admin's My dashboard", () => {
       </TooltipProvider>
     )
     const labels = [...html.matchAll(/<li class="pt-1[^"]*">([^<]+)<\/li>/g)].map((m) => m[1])
-    expect(labels).toEqual(["Afternoon", "Night"])
+    expect(labels).toEqual(["Afternoon - 12:00 PM", "Night - 6:00 PM"])
+    expect(html).toContain("Morning - 5:00 AM")
+    expect(html).not.toContain("Today&#x27;s habits")
+    expect(html.match(/role="checkbox"/g)?.length).toBe(4)
+    expect(html).toContain("One more Habit d")
+    expect(html).not.toContain("One less")
     expect(html).not.toContain("Finished days")
   })
 

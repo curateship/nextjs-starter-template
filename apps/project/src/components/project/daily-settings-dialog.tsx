@@ -109,14 +109,16 @@ export function DailySettingsDialog({ daily, open, onClose }: { daily: DailyCard
           <DialogTitle>Daily card</DialogTitle>
           <DialogDescription>
             {daily.admin
-              ? "Your hours, sky, habits, reminders and words. Only you see your habits and journal."
+              ? "Your habits and hours, sky, reminders and words. Only you see your habits and journal."
               : "When your morning, afternoon and night start."}
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-6">
           {daily.admin ? <TodayCard daily={daily} /> : null}
           {daily.admin ? <SectionsCard daily={daily} /> : null}
-          <HoursCard hours={daily.settings.hours} />
+          {/* The site admin sets these beside each part in Habits instead (Tyler, 31 Oct
+              2026: "put the hours selection beside the label"). */}
+          {daily.admin ? null : <HoursCard hours={daily.settings.hours} />}
           {daily.admin ? (
             <>
               <HabitsCard daily={daily} />
@@ -298,11 +300,14 @@ function TodayCard({ daily }: { daily: DailyCard }) {
   )
 }
 
-function HoursCard({ hours }: { hours: DayHours }) {
+/**
+ * When morning, afternoon and night start, each saved on leaving its box. The
+ * employee's Your hours card and the site admin's Habits card both use it.
+ */
+function useHours(hours: DayHours, track: (work: () => Promise<unknown>) => Promise<boolean>) {
   const reload = useReload()
   const [draft, setDraft] = useSyncedDraft(hours)
   const [invalid, setInvalid] = React.useState<DayPart | null>(null)
-  const [state, track] = useSaveLine()
   async function commit(part: DayPart) {
     if (draft[part] === hours[part]) return
     if (!TIME.test(draft[part])) {
@@ -317,6 +322,26 @@ function HoursCard({ hours }: { hours: DayHours }) {
     }
     if (await track(() => saveMyHours(draft))) await reload()
   }
+  return {
+    inputProps: (part: DayPart) => ({
+      type: "time",
+      value: draft[part],
+      "aria-invalid": invalid === part || undefined,
+      onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+        setDraft({ ...draft, [part]: event.target.value })
+        setInvalid(null)
+      },
+      onBlur: () => void commit(part),
+      onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === "Enter") event.currentTarget.blur()
+      },
+    }),
+  }
+}
+
+function HoursCard({ hours }: { hours: DayHours }) {
+  const [state, track] = useSaveLine()
+  const { inputProps } = useHours(hours, track)
   return (
     <FoldCard
       id="hours"
@@ -327,20 +352,7 @@ function HoursCard({ hours }: { hours: DayHours }) {
       {DAY_PARTS.map((part) => (
         <div key={part} className="grid gap-2">
           <Label htmlFor={`daily-hours-${part}`}>{DAY_PART_LABEL[part]} starts</Label>
-          <Input
-            id={`daily-hours-${part}`}
-            type="time"
-            value={draft[part]}
-            aria-invalid={invalid === part || undefined}
-            onChange={(event) => {
-              setDraft({ ...draft, [part]: event.target.value })
-              setInvalid(null)
-            }}
-            onBlur={() => void commit(part)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") event.currentTarget.blur()
-            }}
-          />
+          <Input id={`daily-hours-${part}`} {...inputProps(part)} />
         </div>
       ))}
     </FoldCard>
@@ -501,6 +513,7 @@ function HabitsCard({ daily }: { daily: DailyCard }) {
   const [adding, setAdding] = React.useState<DayPart | null>(null)
   const [editing, setEditing] = React.useState<string | null>(null)
   const [state, track] = useSaveLine()
+  const { inputProps } = useHours(daily.settings.hours, track)
 
   async function act(work: () => Promise<unknown>, done?: string) {
     if (await run(work, done)) await reload()
@@ -534,6 +547,7 @@ function HabitsCard({ daily }: { daily: DailyCard }) {
           <RoutineList
             key={part}
             part={part}
+            hours={inputProps(part)}
             habits={admin.habits.filter((habit) => habit.part === part)}
             editing={editing}
             // One habit form open at a time.
@@ -584,6 +598,7 @@ function HabitsCard({ daily }: { daily: DailyCard }) {
 
 function RoutineList({
   part,
+  hours,
   habits,
   editing,
   onEdit,
@@ -592,6 +607,8 @@ function RoutineList({
   onAdded,
 }: {
   part: DayPart
+  /** The box for when this part starts, the same hour as Your hours. */
+  hours: React.ComponentProps<typeof Input>
   habits: DailyHabit[]
   editing: string | null
   onEdit: (habitId: string | null) => void
@@ -625,7 +642,11 @@ function RoutineList({
   return (
     <div className="grid gap-2">
       <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 text-sm font-medium">{DAY_PART_LABEL[part]}</span>
+        <span className="text-sm font-medium">{DAY_PART_LABEL[part]}</span>
+        {/* When this part starts, shown beside its name on the card (Tyler, 31 Oct 2026:
+            "put the hours selection beside the label"). */}
+        <Input aria-label={`${DAY_PART_LABEL[part]} starts`} className="h-8 w-32" {...hours} />
+        <span className="flex-1" />
         {habits.length < DAILY_LIMITS.habitsPerPart ? (
           <Button type="button" variant="ghost" size="sm" onClick={() => onAdd(!adding)} aria-expanded={adding}>
             <PlusIcon className="size-4" />
