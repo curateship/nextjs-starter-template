@@ -21,7 +21,7 @@ import {
   type TaskStatus,
 } from "@/lib/project/rules"
 import { DUE_FILTERS, type DueFilter, type TaskFilters } from "@/lib/project/task-filters"
-import { TASK_GROUPING_LABEL, type TaskGrouping } from "@/lib/project/task-groups"
+import { TASK_GROUPING_LABEL } from "@/lib/project/task-groups"
 import type { TaskType } from "@/lib/project/task-types"
 
 /** A project the Project row offers. */
@@ -79,9 +79,11 @@ export function TaskFilterPopover({
   search?: boolean
   /** What the tab groups by and its choices; left out where a tab has no groups. */
   group?: {
-    value: TaskGrouping
-    options: readonly TaskGrouping[]
-    onChange: (next: TaskGrouping) => void
+    value: string
+    options: readonly string[]
+    /** Each choice's name; left out, the project List's names. */
+    labels?: Record<string, string>
+    onChange: (next: string) => void
   }
   /** More controls under the switch, such as the List's Columns menu. */
   extra?: React.ReactNode
@@ -140,14 +142,14 @@ export function TaskFilterPopover({
             {group ? (
               <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3">
                 <FilterRow id="filter-group" label="Group">
-                  <Select value={group.value} onValueChange={(value) => group.onChange(value as TaskGrouping)}>
+                  <Select value={group.value} onValueChange={group.onChange}>
                     <SelectTrigger id="filter-group" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {group.options.map((option) => (
                         <SelectItem key={option} value={option}>
-                          {TASK_GROUPING_LABEL[option]}
+                          {(group.labels ?? (TASK_GROUPING_LABEL as Record<string, string>))[option]}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -4,6 +4,7 @@ import type { z } from "zod"
 import {
   dailyCitySchema,
   dailyHoursSchema,
+  dailyHiddenSectionsSchema,
   dailyOwnWordsSchema,
   dailySectionOrderSchema,
   dailyRemindersSchema,
@@ -42,6 +43,7 @@ import {
   saveJournalRating,
   saveJournalText,
   saveOwnWords,
+  saveHiddenSections,
   saveSectionOrder,
   saveRoutineReminders,
   searchJournal,
@@ -112,6 +114,11 @@ const saveSectionOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(dailySectionOrderSchema)
   .handler(async ({ data, context }) => saveSectionOrder(context.user.id, data.order))
+
+const saveHiddenSectionsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(dailyHiddenSectionsSchema)
+  .handler(async ({ data, context }) => saveHiddenSections(context.user.id, data.hidden))
 
 const saveOwnWordsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -213,6 +220,11 @@ export function saveMyReminders(data: z.input<typeof dailyRemindersSchema>) {
 /** The site admin's order for the Daily card's sections in the panel. */
 export function saveMySectionOrder(data: z.input<typeof dailySectionOrderSchema>) {
   return saveSectionOrderFn({ data })
+}
+
+/** The sections the site admin hid from the Daily card in the panel. */
+export function saveMyHiddenSections(data: z.input<typeof dailyHiddenSectionsSchema>) {
+  return saveHiddenSectionsFn({ data })
 }
 
 export function saveMyOwnWords(data: z.input<typeof dailyOwnWordsSchema>) {

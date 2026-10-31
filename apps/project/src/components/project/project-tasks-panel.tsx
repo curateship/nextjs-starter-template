@@ -602,7 +602,7 @@ export function ProjectTasksPanel({
                           onChange: (next) => setGroup(next === "assignee" ? "person" : "status"),
                         }
                     : view === "list" || view === "timeline"
-                      ? { value: grouping, options: TASK_GROUPINGS, onChange: setGrouping }
+                      ? { value: grouping, options: TASK_GROUPINGS, onChange: (next) => setGrouping(next as TaskGrouping) }
                       : undefined
                 }
                 extra={

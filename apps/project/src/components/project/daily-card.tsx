@@ -223,8 +223,9 @@ export function DailyCard({
                 ) : null}
                 {/* In the site admin's own order, dragged in the pencil window (Tyler, 30 Oct
                     2026: "whats the point of dragging the cards in the modal if its not
-                    reflected in the panel?"); an employee's card keeps the card's own. */}
-                {daily.settings.sections.map((name) => (
+                    reflected in the panel?"); an employee's card keeps the card's own. A
+                    section hidden with the eye there is left out. */}
+                {daily.settings.sections.filter((name) => !daily.settings.hidden.includes(name)).map((name) => (
                     <DaySection
                       key={name}
                       name={name}

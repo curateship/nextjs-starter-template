@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { RainbowEdge } from "@/components/project/rainbow-edge"
@@ -13,6 +13,7 @@ import {
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
@@ -21,7 +22,9 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { keyFromDate } from "@/lib/project/dates"
 import { dayLabel, longDayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { plural } from "@/lib/format/plural"
 import {
+  BIN_DAYS,
   LIMITS,
   TASK_PRIORITIES,
   TASK_PRIORITY_LABEL,
@@ -59,13 +62,14 @@ function daysOffLine(count: number, changed: number) {
  * The changes both the bar and the menu make. Each task is changed on its own
  * on the server, so one that can't change is refused alone and the result names
  * it with the reason. Hand to asks for one optional note, which goes with every
- * ticked task; Stuck asks for one reason for all of them.
+ * ticked task; Stuck asks for one reason for all of them; Delete asks first.
  */
 function useBulkActions(taskIds: string[], onDone: () => void) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [askingStuck, setAskingStuck] = React.useState(false)
   const [handingTo, setHandingTo] = React.useState<{ id: string; name: string } | null>(null)
+  const [askingDelete, setAskingDelete] = React.useState(false)
   // The bar's pickers are actions, not settings, so each goes back to its label.
   const [reset, setReset] = React.useState(0)
 
@@ -81,6 +85,15 @@ function useBulkActions(taskIds: string[], onDone: () => void) {
     if (!ok) return false
     reportBulkOutcome(outcome, verb)
     if (outcome.onDaysOff) toast.warning(daysOffLine(outcome.onDaysOff, outcome.changed.length))
+    // A deleted task can't stay open in the right panel, as when one is deleted alone.
+    const openTaskId = (router.state.location.search as { task?: string }).task
+    if (change.kind === "delete" && openTaskId && outcome.changed.includes(openTaskId)) {
+      void router.navigate({
+        to: ".",
+        replace: true,
+        search: (previous: Record<string, unknown>) => ({ ...previous, task: undefined }),
+      })
+    }
     onDone()
     await router.invalidate()
     return true
@@ -88,6 +101,20 @@ function useBulkActions(taskIds: string[], onDone: () => void) {
 
   const dialogs = (
     <>
+      <ConfirmDialog
+        open={askingDelete}
+        onOpenChange={(open) => (open || busy ? undefined : setAskingDelete(false))}
+        title={`Delete ${taskIds.length} ${plural(taskIds.length, "task")}?`}
+        description={
+          taskIds.length === 1
+            ? `It moves to its project's bin with its steps, chat and files, and can be brought back for ${BIN_DAYS} days.`
+            : `Each moves to its project's bin with its steps, chat and files, and can be brought back for ${BIN_DAYS} days.`
+        }
+        confirmLabel={`Delete ${plural(taskIds.length, "task")}`}
+        destructive
+        loading={busy}
+        onConfirm={() => void apply({ kind: "delete" }, "deleted").then((ok) => ok && setAskingDelete(false))}
+      />
       <ReasonDialog
         open={Boolean(handingTo)}
         optional
@@ -140,7 +167,15 @@ function useBulkActions(taskIds: string[], onDone: () => void) {
     </>
   )
 
-  return { apply, busy, reset, askStuck: () => setAskingStuck(true), handTo: setHandingTo, dialogs }
+  return {
+    apply,
+    busy,
+    reset,
+    askStuck: () => setAskingStuck(true),
+    askDelete: () => setAskingDelete(true),
+    handTo: setHandingTo,
+    dialogs,
+  }
 }
 
 /**
@@ -314,8 +349,8 @@ type MenuPage = "main" | "status" | "hand" | "due" | "priority" | "tag_on" | "ta
  * The project List's ticked rows as one "3 selected" button in the header,
  * beside All time (Tyler, 19 Oct 2026). Its dropdown holds Mark Done, then
  * Status, Hand to, Due date, Priority, Add tag, Remove tag, Type and Move to
- * project, each stepping into its own list with a back arrow, then Clear
- * selection.
+ * project, each stepping into its own list with a back arrow, then Delete and
+ * Clear selection.
  */
 export function TaskBulkMenu({
   taskIds,
@@ -327,7 +362,7 @@ export function TaskBulkMenu({
   /** Clears the ticks: after a change, and from Clear selection. */
   onDone: () => void
 }) {
-  const { apply, busy, askStuck, handTo, dialogs } = useBulkActions(taskIds, onDone)
+  const { apply, busy, askStuck, askDelete, handTo, dialogs } = useBulkActions(taskIds, onDone)
   const room = usePeopleRoom()
   const [open, setOpen] = React.useState(false)
   const [page, setPage] = React.useState<MenuPage>("main")
@@ -425,6 +460,17 @@ export function TaskBulkMenu({
                 </MenuRow>
               ) : null}
               <div className="-mx-1 my-1 h-px bg-border" />
+              {/* Asks first, then puts each in its project's bin (Tyler, 31 Oct 2026: "Add a mass delete button"). */}
+              <MenuRow
+                className="text-destructive hover:text-destructive focus-visible:text-destructive"
+                onClick={() => {
+                  openChange(false)
+                  askDelete()
+                }}
+              >
+                <Trash2Icon className="size-4" />
+                Delete
+              </MenuRow>
               <MenuRow
                 onClick={() => {
                   openChange(false)

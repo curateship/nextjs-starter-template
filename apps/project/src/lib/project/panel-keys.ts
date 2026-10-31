@@ -43,6 +43,8 @@ export const taskFoldsKey = (projectId: string, grouping: string) => `project-ta
 
 /** The headings folded shut on My dashboard's List, the employee's rows and the site admin's table alike. */
 export const MY_TASK_FOLDS_KEY = "project-my-dashboard-task-folds"
+/** My dashboard's Group row, remembered in this browser. */
+export const MY_TASK_GROUPING_KEY = "project-my-dashboard-task-grouping"
 
 /** The Team dashboard's middle tab (Calendar or Activity) and the calendar's Month or Week. */
 export const TEAM_MIDDLE_TAB_KEY = "project-team-middle-tab"

@@ -166,6 +166,17 @@ my own order (below), then any I haven't placed, soonest first.
   table line rule; the List draws none of its own, since its own sat beside
   the shell's and read as a thick line (30 Oct 2026: "when collapsed the
   border is too thick").
+- **Filter's Group row** (Tyler, 31 Oct 2026: "my dashboard is missing
+  "Group" function in filter"), on the List tab, for employees and the site
+  admin alike. It starts on **My headings**, the groups above. The other
+  choices are the project List's (Status, Priority, Tags, Due date, Assigned
+  to, Template) plus **Project**, since these tasks come from many projects.
+  Tyler picked keeping My headings as the start. Under any other choice the
+  same rows sit under that choice's headings, a task with two tags shows
+  under both, rows don't drag and headings have no "+", since my order and a
+  heading's date belong to My headings. This browser remembers the choice,
+  and each grouping remembers its own folded headings. A saved view doesn't
+  keep it (`MY_GROUPINGS` in `lib/project/task-groups.ts`).
 - **Dragging rows** (Tyler, 23 Oct 2026: "I want to be able to drag and drop
   tasks into different order and sections"). On an employee's List any row
   can be grabbed and dragged, and a plain click still opens it. On the site

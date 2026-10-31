@@ -26,6 +26,7 @@ import {
   saveJournalRating,
   saveJournalText,
   saveOwnWords,
+  saveHiddenSections,
   saveSectionOrder,
   searchJournal,
   setHabitCount,
@@ -279,6 +280,15 @@ describe("the site admin's journal", () => {
     await saveSectionOrder(tyler.id, [...order], database)
     expect((await loadDailyCard(tyler.id, database, NINE)).settings.sections).toEqual([...order])
     await expect(saveSectionOrder(ben.id, [...order], database)).rejects.toThrow()
+  })
+
+  it("keeps the sections the site admin hid, and refuses them from anyone else", async () => {
+    expect((await loadDailyCard(tyler.id, database, NINE)).settings.hidden).toEqual([])
+    await saveHiddenSections(tyler.id, ["meeting", "progress"], database)
+    expect((await loadDailyCard(tyler.id, database, NINE)).settings.hidden).toEqual(["progress", "meeting"])
+    await saveHiddenSections(tyler.id, ["progress"], database)
+    expect((await loadDailyCard(tyler.id, database, NINE)).settings.hidden).toEqual(["progress"])
+    await expect(saveHiddenSections(ben.id, ["line"], database)).rejects.toThrow()
   })
 
   it("shows no line or question of its own, only the site admin's", async () => {

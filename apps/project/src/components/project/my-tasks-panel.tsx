@@ -38,10 +38,11 @@ import { clientChoices } from "@/lib/project/clients"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import type { ListDrop } from "@/lib/project/list-drop"
 import { canMove, dropChange, inMyOrder, isMyHeading, takesDrops, type MyPlace } from "@/lib/project/my-task-order"
-import { MY_TASK_FOLDS_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
+import { MY_TASK_FOLDS_KEY, MY_TASK_GROUPING_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
 import { isOpenStatus, type TaskStatus } from "@/lib/project/rules"
 import { pickedWordsUnder, readRightClick } from "@/lib/project/right-click"
 import { viewHasFilters } from "@/lib/project/saved-views"
+import { MY_GROUPINGS, MY_GROUPING_LABEL, groupMyTasks, type MyGrouping } from "@/lib/project/task-groups"
 import {
   DUE_GROUPS,
   dueGroupOf,
@@ -138,6 +139,7 @@ export function MyTasksPanel({
   const snoozed = notDone.length - open.length
   const done = tasks.filter((task) => task.status === "done")
   const [view, setView] = useRememberedChoice<MyView>(MY_TASK_VIEW_KEY, "list", MY_VIEWS)
+  const [grouping, setGrouping] = useRememberedChoice<MyGrouping>(MY_TASK_GROUPING_KEY, "mine", MY_GROUPINGS)
   const [statusOrder, setStatusOrder] = useSyncedDraft(source.statusOrder)
   // The task waiting for its Stuck reason, from a Board drop.
   const [stuck, setStuck] = React.useState<TaskCard | null>(null)
@@ -366,8 +368,14 @@ export function MyTasksPanel({
     ),
     filters
   )
+  // Any other grouping puts the same rows under its own headings. My order and
+  // a heading's date belong to My headings, so there rows don't drag and
+  // headings have no "+".
+  const regrouped = grouping === "mine" ? null : groupMyTasks(listRows, grouping)
+  const listGroups = regrouped?.groups
+  const listGroupsOf = regrouped?.groupsOf
   // Dragging is off while a search or filter hides rows, and while a change saves.
-  const onDrop = filtered || busy ? undefined : (drop: ListDrop) => void dropRow(drop)
+  const onDrop = filtered || busy || regrouped ? undefined : (drop: ListDrop) => void dropRow(drop)
   const rowIds = listRows.map((task) => task.id).join(",")
   React.useEffect(() => {
     onRows(rowIds ? rowIds.split(",") : [])
@@ -404,6 +412,16 @@ export function MyTasksPanel({
             labels={source.labels}
             types={source.taskTypes}
             buttonVariant="ghost"
+            group={
+              view === "list"
+                ? {
+                    value: grouping,
+                    options: MY_GROUPINGS,
+                    labels: MY_GROUPING_LABEL,
+                    onChange: (next) => setGrouping(next as MyGrouping),
+                  }
+                : undefined
+            }
             onSaveView={saveView}
             clients={clients}
             projects={source.projects}
@@ -524,17 +542,17 @@ export function MyTasksPanel({
             onDrop={onDrop}
             canMove={canMove}
             showsEmpty={takesDrops}
-            foldsKey={MY_TASK_FOLDS_KEY}
+            foldsKey={regrouped ? `${MY_TASK_FOLDS_KEY}-${grouping}` : MY_TASK_FOLDS_KEY}
             orderLabel="my order"
             selectedSlot={selectedSlot}
             onOpenTask={(task) => onOpenTask(task.id)}
-            groups={TABLE_GROUPS}
-            groupsOf={(task) => [headingOf(task)]}
+            groups={listGroups ?? TABLE_GROUPS}
+            groupsOf={listGroupsOf ?? ((task) => [headingOf(task)])}
             bulk={bulk}
             showProject
             projectColumn={source.table.project}
             showSteps={false}
-            addTask={addUnder}
+            addTask={regrouped ? undefined : addUnder}
             myUserId={source.myUserId}
             onDelete={(task) => setDeleting(task)}
             canDelete={source.canDelete}
@@ -551,9 +569,10 @@ export function MyTasksPanel({
             bulk={bulk}
             onDrop={onDrop}
             onOpenTask={(task) => onOpenTask(task.id)}
-            groups={LIST_GROUPS}
-            groupOf={headingOf}
-            addTask={addUnder}
+            groups={listGroups ?? LIST_GROUPS}
+            groupsOf={listGroupsOf ?? ((task) => [headingOf(task)])}
+            foldsKey={regrouped ? `${MY_TASK_FOLDS_KEY}-${grouping}` : MY_TASK_FOLDS_KEY}
+            addTask={regrouped ? undefined : addUnder}
             emptyText={
               filtered
                 ? `No tasks match ${filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the filters to see them all.`

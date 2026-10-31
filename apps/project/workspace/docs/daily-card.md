@@ -255,6 +255,10 @@ change at any time of day here, while the card offers it in the morning only
   if its not reflected in the panel?"; he picked the account). The Sunday and
   monthly look-backs stay on top, and Start day and Rate your day at the
   foot. An employee's card keeps the card's own order.
+  The eye at the end of each row hides that section from the card, and
+  pressing it again brings it back ("Add an eye icon to the sections ... for
+  me to hide or unhide a section"). A hidden row stays in the list, crossed
+  out, so it can still be dragged. The choice is kept in the account too.
 - **Everything saves itself**, apart from a habit, which has Create habit and
   Save changes. An employee's pencil holds Your hours only.
 
@@ -269,7 +273,8 @@ change at any time of day here, while the card offers it in the morning only
 - `project_daily_cards`: each person's hours, city, sky and photos, own lines
   and questions, reminder times, the milestones already celebrated, and the
   site admin's section order (`section_order`, from
-  `drizzle/0138_project_daily_sections.sql`).
+  `drizzle/0138_project_daily_sections.sql`) and hidden sections
+  (`hidden_sections`, from `drizzle/0140_project_daily_hidden_sections.sql`).
 - `project_habits` and `project_habit_days`: the site admin's habits and one
   row per habit per day ticked or counted.
 - `project_journal_days`: one row per card day. The rating is 1 to 10 and

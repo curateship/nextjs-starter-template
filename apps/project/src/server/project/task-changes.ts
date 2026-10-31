@@ -48,6 +48,7 @@ import { awayOn } from "@/server/project/time-off"
 import {
   assignTask,
   createTask,
+  deleteTask,
   requireStep,
   setTaskStatus,
   touchTask,
@@ -359,6 +360,7 @@ export type BulkChange =
   | { kind: "priority"; priority: TaskPriority }
   | { kind: "tag"; labelId: string; on: boolean }
   | { kind: "type"; typeId: string | null }
+  | { kind: "delete" }
 
 export type BulkOutcome = {
   changed: string[]
@@ -416,6 +418,9 @@ export async function changeManyTasks(
         // The same rule as one task: only whoever first handed it out and the
         // site admin change a type, so the rest are refused with the reason.
         await setTaskType(actor, { taskId, typeId: change.typeId }, database)
+      } else if (change.kind === "delete") {
+        // Into the project's bin, on the same rule as one task: its maker or the site admin.
+        await deleteTask(actor, taskId, database)
       } else {
         await moveTask(actor, { taskId, projectId: change.projectId }, database)
       }

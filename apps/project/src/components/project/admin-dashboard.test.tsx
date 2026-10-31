@@ -162,6 +162,7 @@ const DAILY: DailyCard = {
     ownQuestions: [],
     reminders: { morning: "10:00", afternoon: "15:00", night: "21:00" },
     sections: ["line", "progress", "deepWork", "meeting", "windDown", "routine", "journal"],
+    hidden: [],
   },
   meetings: [],
   clock: { seconds: 0, running: null },
@@ -389,6 +390,20 @@ describe("the site admin's My dashboard", () => {
     expect(html).toContain('aria-label="Hide Brochure from this card"')
     expect(html).toContain('aria-label="Open Brochure"')
     expect(html).toContain('aria-pressed="false"')
+  })
+
+  it("leaves a section hidden with the eye off the Daily card", () => {
+    const started = { ...DAILY, admin: { ...DAILY.admin!, today: { ...DAILY.admin!.today, upAt: "2099-03-02T08:00:00.000Z" } } }
+    const draw = (daily: DailyCard) =>
+      renderToStaticMarkup(
+        <TooltipProvider>
+          <AdminDashboardScreen daily={daily} dashboard={dashboard()} inbox={NO_INBOX} search={{}} />
+        </TooltipProvider>
+      )
+    expect(draw(started)).toContain("Start with the task you keep walking around.")
+    const hidden = draw({ ...started, settings: { ...started.settings, hidden: ["line"] } })
+    expect(hidden).not.toContain("Start with the task you keep walking around.")
+    expect(hidden).toContain("Today I want to...")
   })
 
   it("marks the project My tasks is filtered to, and offers it in Filter", () => {

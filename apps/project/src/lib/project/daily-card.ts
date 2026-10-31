@@ -319,6 +319,15 @@ export function sectionsInOrder(saved: readonly string[]): DailySection[] {
   return [...new Set([...known, ...DAILY_SECTIONS])]
 }
 
+/** The saved hidden sections, any unknown name dropped. */
+export function knownSections(saved: readonly string[]): DailySection[] {
+  return DAILY_SECTIONS.filter((name) => saved.includes(name))
+}
+
+export const dailyHiddenSectionsSchema = z.object({
+  hidden: z.array(z.enum(DAILY_SECTIONS)).max(DAILY_SECTIONS.length),
+})
+
 export const dailySectionOrderSchema = z.object({
   order: z
     .array(z.enum(DAILY_SECTIONS))

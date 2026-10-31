@@ -16,7 +16,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { ArchiveIcon, ArchiveRestoreIcon, ChevronDown, GripVerticalIcon, PlusIcon, SettingsIcon } from "lucide-react"
+import { ArchiveIcon, ArchiveRestoreIcon, ChevronDown, EyeIcon, EyeOffIcon, GripVerticalIcon, PlusIcon, SettingsIcon } from "lucide-react"
 
 import { IntentionBox } from "@/components/project/daily-journal"
 import { HABIT_ICON_LOOK, HabitIconGlyph } from "@/components/project/habit-icons"
@@ -47,6 +47,7 @@ import {
   changeHabit,
   retireMyHabit,
   saveHabitOrder,
+  saveMyHiddenSections,
   saveMyHours,
   saveMyOwnWords,
   saveMySectionOrder,
@@ -198,11 +199,14 @@ function FoldCard({
  * kept in the site admin's account (Tyler, 30 Oct 2026: "whats the point of
  * dragging the cards in the modal if its not reflected in the panel?"; he
  * picked the account over this browser, and the window's own cards back in a
- * fixed order).
+ * fixed order). The eye hides a section from the card and brings it back
+ * (Tyler, 31 Oct 2026: "Add an eye icon to the sections ... for me to hide or
+ * unhide a section"), also kept in the account.
  */
 function SectionsCard({ daily }: { daily: DailyCard }) {
   const reload = useReload()
   const [order, setOrder] = useSyncedDraft(daily.settings.sections)
+  const [hidden, setHidden] = useSyncedDraft(daily.settings.hidden)
   const [state, track] = useSaveLine()
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -218,6 +222,13 @@ function SectionsCard({ daily }: { daily: DailyCard }) {
     if (await track(() => saveMySectionOrder({ order: next }))) await reload()
     else setOrder(before)
   }
+  async function toggle(name: DailySection) {
+    const before = hidden
+    const next = hidden.includes(name) ? hidden.filter((other) => other !== name) : [...hidden, name]
+    setHidden(next)
+    if (await track(() => saveMyHiddenSections({ hidden: next }))) await reload()
+    else setHidden(before)
+  }
   return (
     <FoldCard
       id="sections"
@@ -225,12 +236,12 @@ function SectionsCard({ daily }: { daily: DailyCard }) {
       contentClassName="grid gap-2"
       action={<SaveLine state={state} />}
     >
-      <p className="text-sm text-muted-foreground">Drag to set the order they show in on the card. Some show only at one part of the day.</p>
+      <p className="text-sm text-muted-foreground">Drag to set the order they show in on the card, and use the eye to hide one. Some show only at one part of the day.</p>
       <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => void drop(event)}>
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
           <ul className="grid gap-1.5" aria-label="Sections">
             {order.map((name) => (
-              <SectionRow key={name} name={name} />
+              <SectionRow key={name} name={name} hidden={hidden.includes(name)} onToggle={() => void toggle(name)} />
             ))}
           </ul>
         </SortableContext>
@@ -239,7 +250,7 @@ function SectionsCard({ daily }: { daily: DailyCard }) {
   )
 }
 
-function SectionRow({ name }: { name: DailySection }) {
+function SectionRow({ name, hidden, onToggle }: { name: DailySection; hidden: boolean; onToggle: () => void }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: name })
   const style: React.CSSProperties | undefined = transform
     ? { transform: `translate3d(0, ${transform.y}px, 0)`, transition }
@@ -256,7 +267,16 @@ function SectionRow({ name }: { name: DailySection }) {
       >
         <GripVerticalIcon className="size-4" aria-hidden />
       </button>
-      {DAILY_SECTION_LABEL[name]}
+      <span className={cn("min-w-0 flex-1 truncate", hidden && "text-muted-foreground line-through")}>{DAILY_SECTION_LABEL[name]}</span>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={hidden}
+        aria-label={`${hidden ? "Show" : "Hide"} ${DAILY_SECTION_LABEL[name]} on the card`}
+        className={cn("flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground", focusRingInset)}
+      >
+        {hidden ? <EyeOffIcon className="size-4" aria-hidden /> : <EyeIcon className="size-4" aria-hidden />}
+      </button>
     </li>
   )
 }

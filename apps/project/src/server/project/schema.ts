@@ -1175,6 +1175,7 @@ export const projectDailyCards = pgTable("project_daily_cards", {
   reminderNight: varchar("reminder_night", { length: 5 }).default("21:00"),
   celebrated: text("celebrated").array().notNull().default([]),
   sectionOrder: text("section_order").array().$type<DailySection[]>().notNull().default([]),
+  hiddenSections: text("hidden_sections").array().$type<DailySection[]>().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 

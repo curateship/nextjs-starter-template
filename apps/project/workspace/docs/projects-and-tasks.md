@@ -592,7 +592,8 @@ goes, so it no longer ends up on whatever task was open.
   is also a filter"), listed as "Group: Priority". Opening it sets the List's
   and Timeline's Group, and the Board's rows by person when the group is
   Assigned to; a view with no group leaves the Group row as it is, as Clear
-  does. My tasks has no Group row, so its views keep none. Views are each person's own, kept per
+  does. My tasks' Group row is kept in the browser, not in a view, so its
+  views keep none. Views are each person's own, kept per
   project and on My tasks, and nobody else sees them. A view naming someone
   no longer on the project, a deleted label or a type that's gone opens
   without that filter and says so, such as "Leo isn't on this project any
@@ -947,7 +948,13 @@ Neither puts a window over the page.
   still when the device asks for less motion). Its dropdown holds Mark Done,
   Status, Hand to (with one optional note for all of them), Due date,
   Priority, Add tag, Remove tag, Type and Move to project, each after Mark
-  Done stepping into its own list with a back arrow, then Clear selection.
+  Done stepping into its own list with a back arrow, then Delete and Clear
+  selection. Delete, in red, asks "Delete 3 tasks?" first, then puts each
+  ticked task in its project's bin for 30 days, the same as deleting it alone
+  ("Add a mass delete button"). Only the task's maker and the site admin can
+  delete one, so a task someone else made is refused by name and the rest go.
+  A deleted task that was open on the right closes there, as when one is
+  deleted alone.
   Add tag and Remove tag touch only that one tag and leave the rest. Type
   follows the one-task rule: only whoever first handed a task out and the
   site admin change its type, so the rest are refused with that reason, and

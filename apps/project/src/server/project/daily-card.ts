@@ -12,6 +12,7 @@ import {
   JOURNAL_SEARCH_RESULTS,
   newMilestone,
   pickForDay,
+  knownSections,
   sectionsInOrder,
   streakOf,
   weekStartOf,
@@ -81,6 +82,8 @@ export type DailySettings = {
   reminders: RoutineReminders
   /** The panel's sections in the site admin's order, every one named once. */
   sections: DailySection[]
+  /** The sections the site admin hid with the eye; the card leaves them out. */
+  hidden: DailySection[]
 }
 
 export type DailyMeeting = { meetingId: string; title: string; startsAt: string; endsAt: string }
@@ -181,6 +184,7 @@ const DEFAULT_SETTINGS: DailySettings = {
   ownQuestions: [],
   reminders: DEFAULT_REMINDERS,
   sections: [...DAILY_SECTIONS],
+  hidden: [],
 }
 
 /** How many tasks due tomorrow are named before "and 3 more". */
@@ -201,6 +205,7 @@ function settingsOf(row: SettingsRow | undefined): DailySettings {
     ownQuestions: row.ownQuestions,
     reminders: { morning: row.reminderMorning, afternoon: row.reminderAfternoon, night: row.reminderNight },
     sections: sectionsInOrder(row.sectionOrder),
+    hidden: knownSections(row.hiddenSections),
   }
 }
 
@@ -792,6 +797,12 @@ export async function saveRoutineReminders(userId: string, reminders: RoutineRem
 export async function saveSectionOrder(userId: string, order: DailySection[], database: ProjectDb = db) {
   await requireSiteAdmin(userId, database)
   await saveSettings(userId, { sectionOrder: order }, database)
+}
+
+/** The Daily card's sections hidden from the panel, the site admin's alone. */
+export async function saveHiddenSections(userId: string, hidden: DailySection[], database: ProjectDb = db) {
+  await requireSiteAdmin(userId, database)
+  await saveSettings(userId, { hiddenSections: knownSections(hidden) }, database)
 }
 
 /** The site admin's own lines for the day, or their own night questions. */
