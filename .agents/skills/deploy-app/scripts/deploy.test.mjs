@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url"
 import {
   buildLogTail,
   coolifyMayRecover,
-  copiesAiKeys,
   copiesMenu,
   deploymentOver,
   migrationsBetween,
@@ -24,7 +23,7 @@ const pomodoro = {
 }
 
 test("reads the app and the options", () => {
-  assert.deepEqual(readFlags(["pomodoro"]), { app: "pomodoro", only: null, force: false, dryRun: false, push: false, skipMenu: false, skipAiKeys: false })
+  assert.deepEqual(readFlags(["pomodoro"]), { app: "pomodoro", only: null, force: false, dryRun: false, push: false, skipMenu: false })
   assert.deepEqual(readFlags(["pomodoro", "--only", "web", "--force", "--push"]), {
     app: "pomodoro",
     only: "web",
@@ -32,12 +31,12 @@ test("reads the app and the options", () => {
     dryRun: false,
     push: true,
     skipMenu: false,
-    skipAiKeys: false,
   })
   // Builds always go one at a time now, so the old switch is gone.
   assert.throws(() => readFlags(["pomodoro", "--in-order"]), /Unknown option --in-order/)
   assert.equal(readFlags(["pomodoro", "--skip-menu"]).skipMenu, true)
-  assert.equal(readFlags(["pomodoro", "--skip-ai-keys"]).skipAiKeys, true)
+  // The AI keys are written at launch only, so a deploy has no switch for them.
+  assert.throws(() => readFlags(["pomodoro", "--skip-ai-keys"]), /Unknown option --skip-ai-keys/)
   assert.equal(readFlags(["pomodoro", "--only=worker", "--dry-run"]).dryRun, true)
 })
 
@@ -57,12 +56,6 @@ test("copies the menu only after a website deploy, into an app with a database, 
   assert.equal(copiesMenu(withDatabase, resourcesToDeploy(withDatabase, "worker"), false), false)
   assert.equal(copiesMenu(withDatabase, resourcesToDeploy(withDatabase, null), true), false)
   assert.equal(copiesMenu({ ...pomodoro, database: undefined }, resourcesToDeploy(pomodoro, null), false), false)
-})
-
-test("copies the AI keys after any deploy of an app with a database, unless skipped", () => {
-  assert.equal(copiesAiKeys({ ...pomodoro, database: { uuid: "db" } }, false), true)
-  assert.equal(copiesAiKeys({ ...pomodoro, database: { uuid: "db" } }, true), false)
-  assert.equal(copiesAiKeys(pomodoro, false), false)
 })
 
 test("keeps the app's own order whatever order --only names them in", () => {

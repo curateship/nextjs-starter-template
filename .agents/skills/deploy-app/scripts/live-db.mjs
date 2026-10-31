@@ -85,8 +85,7 @@ const openClients = new Map()
 /**
  * Runs `work(client)` against the app's live database, port open only
  * meanwhile. Called inside another `withLiveDatabase` for the same app, it
- * reuses that connection, so `deploy.mjs` opens the port once for the menu
- * and the AI keys.
+ * reuses that connection, so one opening serves every copy made inside it.
  */
 export async function withLiveDatabase(appName, work) {
   const open = openClients.get(appName)

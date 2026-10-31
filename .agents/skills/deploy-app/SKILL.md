@@ -37,7 +37,7 @@ way inside a script, never by printing the file.
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | The Cloudflare account (typham2@gmail.com) and its one token for setting things up. |
 | `RESEND_API_KEY` | Resend (typham2@gmail.com), full access, so it can add sending domains. |
 | `FIRST_ADMIN_EMAIL`, `FIRST_ADMIN_NAME`, `FIRST_ADMIN_PASSWORD` | Tyler's admin account, created on every app by `create-admin.mjs`. Tyler, 8 Oct 2026. |
-| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `ELEVENLABS_API_KEY` | Tyler's AI provider keys, written into every live app's database by `copy-ai-keys.mjs`. Copied from custom-shell's local Settings → AI on 8 Oct 2026. |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `ELEVENLABS_API_KEY` | Tyler's AI provider keys, written into a live app's database once, at its launch, by `copy-ai-keys.mjs`. Copied from custom-shell's local Settings → AI on 8 Oct 2026. |
 
 - **A new Coolify server** gets its own pair, `COOLIFY_<NAME>_URL` and
   `COOLIFY_<NAME>_TOKEN`, a line in the table above, and its short name as
@@ -123,9 +123,9 @@ It does the whole deploy in one go:
 4. Checks the live health address and prints the answer.
 5. Copies the local left menu to live, so the live site's menu matches the
    one on this Mac. See "The left menu" below.
-6. Writes Tyler's AI keys from `secrets.env` into the live database, so
-   Settings → AI on live already has them. See "The AI keys" below. Steps 5
-   and 6 share one opening of the database port.
+
+It never writes the AI keys. They go in at launch only (see "The AI keys"
+below).
 
 Before building anything, it clears stuck deploys. A deploy of the same
 website or worker that Coolify still has as queued or running more than 30
@@ -137,8 +137,7 @@ cancelling it.
 
 Useful extras, each after `npm run deploy --`: `--dry-run` shows the plan and
 deploys nothing, `--only worker` deploys one resource, `--force` rebuilds without Docker's cache,
-`--skip-menu` leaves the live menu as it is, and `--skip-ai-keys` leaves the
-live AI keys as they are. Uncommitted changes never ship, and the script says
+and `--skip-menu` leaves the live menu as it is. Uncommitted changes never ship, and the script says
 so when there are some.
 
 ### When I deploy
@@ -153,10 +152,7 @@ so when there are some.
 5. **Check the menu copied.** The script prints "Copied to live" or "already
    the same". A "no page on develop yet" warning names a menu link that opens
    "not found" on live. Say so in the report.
-6. **Check the AI keys copied.** The script prints one line per provider:
-   "added", "replaces" or "already there", with the key's last four
-   characters only.
-7. **Check it in a real browser** with the `validate-app` skill, on the live
+6. **Check it in a real browser** with the `validate-app` skill, on the live
    domain. Sign in as Tyler and compare the left menu with the local one.
 8. **Record it** in the app's `launch.md` → Release record: the commit, the
    date, the deployment ids, and anything owed.
@@ -219,8 +215,11 @@ every deploy that includes the website.
 
 Tyler, 8 Oct 2026: copy the AI keys to the deployed app's database as well.
 The keys are saved in the database, encrypted, so a deploy alone never puts
-them there. `scripts/copy-ai-keys.mjs` writes them, and `deploy.mjs` runs it
-after every deploy of an app with a database in `apps.json`.
+them there. `scripts/copy-ai-keys.mjs` writes them **once, at an app's
+launch** (step 15 below). A repeat deploy never runs it (Tyler, 31 Oct 2026:
+"The script kept readding the api keys. The api keys are only for app launch
+only"), so a key changed or removed in live Settings → AI stays as he left
+it.
 
 - **Where the keys come from:** `secrets.env`, the four names in the table
   above. Not a local database: Pomodoro's local copy has no keys and no
@@ -230,12 +229,12 @@ after every deploy of an app with a database in `apps.json`.
   way the app's `encryptSecret` does it, into `ai_provider_keys`. That is the
   row Settings → AI writes, so live shows "Set ••••" and the last four
   characters, with a Remove button beside it.
-- **Which way:** `secrets.env` wins. A key pasted into live Settings → AI is
-  replaced by the next deploy when it differs. A provider missing from
+- **Which way:** when it runs, `secrets.env` wins. A provider missing from
   `secrets.env` is left alone on live.
-- **Changing a key:** edit its line in `secrets.env`, then run
-  `node .agents/skills/deploy-app/scripts/copy-ai-keys.mjs <app>`, or let the
-  next deploy do it. Add `--dry-run` to see what would change.
+- **Changing a key on a live app** is done in that app's Settings → AI, or
+  only when Tyler asks, by editing `secrets.env` and running
+  `node .agents/skills/deploy-app/scripts/copy-ai-keys.mjs <app>`. Add
+  `--dry-run` to see what would change.
 - **It never prints a key**, only the last four characters, the same mask
   Settings → AI shows.
 - **Run it from the worktree that holds `apps/<app>/.env.live`.** That file is
@@ -368,7 +367,7 @@ AI keys are already there, written by me straight after the first deploy.
     - **Never** run `scripts/setup-database.mjs` against a live database.
 15. **Write the AI keys:** run `copy-ai-keys.mjs <app>`. The first deploy
     skipped them, because `apps.json` had no database uuid until step 14.
-    Every later deploy writes them by itself.
+    This is the only time they are written; later deploys leave them alone.
 16. **Send Tyler the after-launch note:** sign in. The AI keys are already
     there, so he does not paste them. Once he has signed in, run
     `copy-menu.mjs <app>` so the live menu matches the local one. The first deploy cannot copy it, because his
