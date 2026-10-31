@@ -10,9 +10,7 @@ import {
   defaultMenu,
   hasLinkTo,
   menuSchema,
-  setSidebarShade,
-  sidebarShadeColor,
-  sidebarShadeLabel,
+  menuShadeLabel,
   moveLink,
   moveLinkTo,
   movePinned,
@@ -24,6 +22,7 @@ import {
   renameSection,
   screenName,
   setAppMenuWidth,
+  setMenuShade,
   setPinned,
   setStartLink,
   setStayLoadedLink,
@@ -415,22 +414,25 @@ describe("hiding an app's own left menu", () => {
 })
 
 describe("the menu's shade", () => {
-  it("saves a shade, keeps it in range, and leaves the file without it at 0", () => {
+  it("saves a shade in percent, keeps it in range, and leaves the file without it at 50%", () => {
     const menu = defaultMenu()
-    expect(setSidebarShade(menu, 3).sidebarShade).toBe(3)
-    expect(setSidebarShade(menu, -40).sidebarShade).toBe(-10)
-    expect(setSidebarShade(menu, 40).sidebarShade).toBe(10)
-    expect("sidebarShade" in setSidebarShade(setSidebarShade(menu, 3), 0)).toBe(false)
-    expect(setSidebarShade(menu, 0)).toBe(menu)
-    expect(menuSchema.safeParse({ ...menu, sidebarShade: 11 }).success).toBe(false)
+    expect(setMenuShade(menu, 10).menuShade).toBe(10)
+    expect(setMenuShade(menu, -40).menuShade).toBe(0)
+    expect(setMenuShade(menu, 140).menuShade).toBe(100)
+    expect("menuShade" in setMenuShade(setMenuShade(menu, 10), 50)).toBe(false)
+    expect(setMenuShade(menu, 50)).toBe(menu)
+    expect(menuSchema.safeParse({ ...menu, menuShade: 101 }).success).toBe(false)
   })
 
-  it("moves the theme's menu colour's lightness the same amount each step", () => {
-    expect(sidebarShadeColor(0)).toBeNull()
-    expect(sidebarShadeColor(2)).toBe("oklch(from var(--shell-rail) calc(l + 0.03) c h)")
-    expect(sidebarShadeColor(-7)).toBe("oklch(from var(--shell-rail) calc(l + -0.105) c h)")
-    expect(sidebarShadeLabel(0)).toBe("Default")
-    expect(sidebarShadeLabel(-3)).toBe("3 darker")
+  it("loads a file saved with the old 10 darker to 10 lighter shade at the default", () => {
+    const parsed = menuSchema.parse({ ...defaultMenu(), sidebarShade: 10 })
+    expect("sidebarShade" in parsed).toBe(false)
+    expect(parsed.menuShade).toBeUndefined()
+  })
+
+  it("names the default and every other shade by its percent", () => {
+    expect(menuShadeLabel(50)).toBe("Default")
+    expect(menuShadeLabel(10)).toBe("10%")
   })
 })
 

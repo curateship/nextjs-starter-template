@@ -38,12 +38,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { ColourMode } from "@/lib/colour-mode"
 import { KEPT_FRAME_CHOICES } from "@/lib/frames"
 import {
-  MAX_SIDEBAR_SHADE,
-  MIN_SIDEBAR_SHADE,
+  DEFAULT_MENU_SHADE,
+  MAX_MENU_SHADE,
+  menuShadeLabel,
+  MIN_MENU_SHADE,
   parseAppUrl,
   personalPath,
   placeKey,
-  sidebarShadeLabel,
   type Place,
 } from "@/lib/menu"
 import { recentScreenLabel, type RecentScreen } from "@/lib/recent-screens"
@@ -337,7 +338,8 @@ function StepOutItem({ label, onStep }: { label: string; onStep: () => void }) {
 
 /**
  * The slider that makes the left menu lighter or darker, changing it as it
- * moves. Tyler asked for it on 18 Oct 2026.
+ * moves. Tyler asked for it on 18 Oct 2026, and on 30 Oct 2026 it took the
+ * apps' 0% to 100% scale so the same number gives the same grey.
  */
 function ShadeControl({ panel }: { panel: PanelControls }) {
   return (
@@ -345,26 +347,26 @@ function ShadeControl({ panel }: { panel: PanelControls }) {
       <div className="flex flex-col gap-2 px-2 py-2">
         <Slider
           aria-label="Menu shade"
-          aria-valuetext={sidebarShadeLabel(panel.shade)}
-          min={MIN_SIDEBAR_SHADE}
-          max={MAX_SIDEBAR_SHADE}
+          aria-valuetext={menuShadeLabel(panel.shade)}
+          min={MIN_MENU_SHADE}
+          max={MAX_MENU_SHADE}
           step={1}
           value={[panel.shade]}
           onValueChange={([shade]) => panel.setShade(shade)}
         />
         <div className="flex justify-between text-xs text-muted-foreground">
           <span>Darker</span>
-          <span>{sidebarShadeLabel(panel.shade)}</span>
+          <span>{menuShadeLabel(panel.shade)}</span>
           <span>Lighter</span>
         </div>
       </div>
-      {panel.shade ? (
+      {panel.shade !== DEFAULT_MENU_SHADE ? (
         <>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault()
-              panel.setShade(0)
+              panel.setShade(DEFAULT_MENU_SHADE)
             }}
           >
             Back to the default shade
@@ -513,7 +515,7 @@ function CogMenu({
             <StepInItem
               icon={<PaletteIcon className={COG_ICON} />}
               label="Menu shade"
-              value={sidebarShadeLabel(panel.shade)}
+              value={menuShadeLabel(panel.shade)}
               onStep={() => setView("shade")}
             />
             <DropdownMenuCheckboxItem
