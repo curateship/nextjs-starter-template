@@ -154,7 +154,8 @@ The code is `src/components/sidebar-footer.tsx`.
   - **Screens kept loaded**: 3, 5, 8 or 10, the cap above. One number for
     every screen, kept by this browser under `personal-panel-kept`.
   - **Menu shade**, a 0% to 100% slider on the apps' own scale that makes
-    the left menu lighter or darker, saved in the menu file. `menu.md` has the rest.
+    the left menu lighter or darker, and **Dark mode**, the apps' four dark
+    shades, both saved in the menu file. `menu.md` has the rest.
   - **Edit the menu** and **Sign out**. The pencil in the logo row also
     flips Edit the menu (`menu.md`).
 - **With the menu folded to icons,** only the cog stays in this row. Back,

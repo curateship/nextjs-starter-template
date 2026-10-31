@@ -35,6 +35,26 @@ export const MIN_MENU_SHADE = 0
 export const MAX_MENU_SHADE = 100
 export const DEFAULT_MENU_SHADE = 50
 
+/**
+ * How dark the dark mode is: the four choices of an app's Settings -> Styling
+ * -> Dark mode, copied from Custom Shell's `DARK_SHADES` with their lifts, so
+ * Personal can be set to the shade of the app it shows. Every dark grey in
+ * `theme.css` is its own lightness plus the lift. Light mode ignores it.
+ */
+export const DARK_SHADES = [
+  { id: "black", label: "Near black", lift: 0, swatch: "#0b0b0e" },
+  { id: "charcoal", label: "Charcoal", lift: 0.055, swatch: "#17171a" },
+  { id: "graphite", label: "Graphite", lift: 0.098, swatch: "#212125" },
+  { id: "ash", label: "Soft grey", lift: 0.141, swatch: "#2b2b31" },
+] as const
+export type DarkShadeId = (typeof DARK_SHADES)[number]["id"]
+export const DEFAULT_DARK_SHADE: DarkShadeId = "black"
+const DARK_SHADE_IDS = DARK_SHADES.map((shade) => shade.id) as [DarkShadeId, ...DarkShadeId[]]
+
+export function darkShade(id: DarkShadeId | undefined) {
+  return DARK_SHADES.find((shade) => shade.id === id) ?? DARK_SHADES[0]
+}
+
 export function clampSidebarWidth(value: number) {
   return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(value)))
 }
@@ -121,6 +141,8 @@ export const menuSchema = z.object({
    * meant something else, so a file saved before then loads at the default.
    */
   menuShade: z.number().int().min(MIN_MENU_SHADE).max(MAX_MENU_SHADE).optional(),
+  /** How dark the dark mode is. Missing is Near black, the theme's own. */
+  darkShade: z.enum(DARK_SHADE_IDS).optional(),
   /** The link Personal opens on a visit to its bare address. Missing means the empty start page. */
   startLinkId: z.string().min(1).max(64).optional(),
   /**
@@ -327,6 +349,13 @@ export function setMenuShade(menu: Menu, shade: number): Menu {
   if ((menu.menuShade ?? DEFAULT_MENU_SHADE) === clamped) return menu
   const { menuShade: _old, ...rest } = menu
   return clamped === DEFAULT_MENU_SHADE ? rest : { ...rest, menuShade: clamped }
+}
+
+/** Saves the dark mode's shade. Near black leaves the file without it. */
+export function setDarkShade(menu: Menu, shade: DarkShadeId): Menu {
+  if ((menu.darkShade ?? DEFAULT_DARK_SHADE) === shade) return menu
+  const { darkShade: _old, ...rest } = menu
+  return shade === DEFAULT_DARK_SHADE ? rest : { ...rest, darkShade: shade }
 }
 
 /** What the cog calls a shade. */

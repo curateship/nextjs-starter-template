@@ -16,6 +16,7 @@ import {
   addLink,
   allLinks,
   appMenuWidth,
+  darkShade,
   DEFAULT_MENU_SHADE,
   DEFAULT_SIDEBAR_WIDTH,
   hasLinkTo,
@@ -23,6 +24,7 @@ import {
   parseAppUrl,
   screenName,
   setAppMenuWidth,
+  setDarkShade,
   setMenuShade,
   startLink,
   stayLoadedLink,
@@ -163,7 +165,7 @@ function Personal({
 
   const sidebarWidth = menu.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH
   const menuShade = menu.menuShade ?? DEFAULT_MENU_SHADE
-  useMenuShade(menuShade)
+  useMenuShade(menuShade, darkShade(menu.darkShade).lift)
   const activeId = activeLinkId(menu, screen?.url ?? null)
   useFavicon(menu.brand?.logo)
   const places = placesOf(menu)
@@ -210,6 +212,8 @@ function Personal({
     setKept: view.setKept,
     shade: menuShade,
     setShade: (shade) => update((m) => setMenuShade(m, shade)),
+    darkShade: darkShade(menu.darkShade).id,
+    setDarkShade: (shade) => update((m) => setDarkShade(m, shade)),
     colourMode: colour.mode,
     setColourMode: colour.setMode,
   }

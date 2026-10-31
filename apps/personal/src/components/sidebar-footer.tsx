@@ -38,7 +38,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { ColourMode } from "@/lib/colour-mode"
 import { KEPT_FRAME_CHOICES } from "@/lib/frames"
 import {
+  DARK_SHADES,
+  darkShade,
   DEFAULT_MENU_SHADE,
+  type DarkShadeId,
   MAX_MENU_SHADE,
   menuShadeLabel,
   MIN_MENU_SHADE,
@@ -77,6 +80,9 @@ export type PanelControls = {
   /** The left menu's shade, saved to the menu file. */
   shade: number
   setShade: (shade: number) => void
+  /** How dark the dark mode is, saved to the menu file. */
+  darkShade: DarkShadeId
+  setDarkShade: (shade: DarkShadeId) => void
   /** Light, dark or the Mac's setting, kept by this browser. */
   colourMode: ColourMode
   setColourMode: (mode: ColourMode) => void
@@ -186,7 +192,7 @@ function SaveState({ status, onRetry }: { status: SaveStatus; onRetry: () => voi
   )
 }
 
-type CogView = "main" | "recent" | "pin" | "zoom" | "kept" | "shade"
+type CogView = "main" | "recent" | "pin" | "zoom" | "kept" | "shade" | "dark"
 
 /**
  * The cog's main list is drawn to Tyler's picture of 28 Oct 2026, measured
@@ -457,6 +463,25 @@ function CogMenu({
             <StepOutItem label="Menu shade" onStep={() => setView("main")} />
             <ShadeControl panel={panel} />
           </>
+        ) : view === "dark" ? (
+          <>
+            <StepOutItem label="Dark mode" onStep={() => setView("main")} />
+            {DARK_SHADES.map((shade) => (
+              <DropdownMenuCheckboxItem
+                key={shade.id}
+                checked={panel.darkShade === shade.id}
+                onCheckedChange={() => panel.setDarkShade(shade.id)}
+                onSelect={(event) => event.preventDefault()}
+              >
+                <span
+                  className="size-4 shrink-0 rounded-full border border-border"
+                  style={{ background: shade.swatch }}
+                  aria-hidden="true"
+                />
+                {shade.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </>
         ) : (
           <>
             {screen ? (
@@ -517,6 +542,12 @@ function CogMenu({
               label="Menu shade"
               value={menuShadeLabel(panel.shade)}
               onStep={() => setView("shade")}
+            />
+            <StepInItem
+              icon={<MoonIcon className={COG_ICON} />}
+              label="Dark mode"
+              value={darkShade(panel.darkShade).label}
+              onStep={() => setView("dark")}
             />
             <DropdownMenuCheckboxItem
               checked={editing}

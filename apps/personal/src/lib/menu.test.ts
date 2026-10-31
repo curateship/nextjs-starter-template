@@ -7,6 +7,7 @@ import {
   appMenuWidth,
   appUrlFromPersonalPath,
   clampSidebarWidth,
+  darkShade,
   defaultMenu,
   hasLinkTo,
   menuSchema,
@@ -22,6 +23,7 @@ import {
   renameSection,
   screenName,
   setAppMenuWidth,
+  setDarkShade,
   setMenuShade,
   setPinned,
   setStartLink,
@@ -428,6 +430,16 @@ describe("the menu's shade", () => {
     const parsed = menuSchema.parse({ ...defaultMenu(), sidebarShade: 10 })
     expect("sidebarShade" in parsed).toBe(false)
     expect(parsed.menuShade).toBeUndefined()
+  })
+
+  it("saves the dark mode's shade and leaves the file without it at Near black", () => {
+    const menu = defaultMenu()
+    expect(setDarkShade(menu, "charcoal").darkShade).toBe("charcoal")
+    expect("darkShade" in setDarkShade(setDarkShade(menu, "charcoal"), "black")).toBe(false)
+    expect(setDarkShade(menu, "black")).toBe(menu)
+    expect(darkShade(undefined).lift).toBe(0)
+    expect(darkShade("charcoal").lift).toBe(0.055)
+    expect(menuSchema.safeParse({ ...menu, darkShade: "navy" }).success).toBe(false)
   })
 
   it("names the default and every other shade by its percent", () => {

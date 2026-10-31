@@ -88,13 +88,12 @@ edited where it stands, with no settings screen.
     then they should have the same shade but theyre not"). In dark mode
     Project at 10% was about 0.166 lightness and Personal at "10 lighter" was
     about 0.334.
-  - **An app's Dark mode setting still splits them.** An app's Settings ->
-    Styling -> Dark mode lifts every grey it draws, and Personal's greys stay
-    at Near black. On 30 Oct 2026 Project was on Charcoal, so at 100% its
-    menu was 0.26 lightness and Personal's 0.205. Personal had a Dark mode
-    choice of its own for an hour that day; Tyler had it removed. Personal
-    cannot read the app's settings, because the app is on another address
-    and loads them after sign-in.
+  - **Set Dark mode the same too.** An app's Settings -> Styling -> Dark mode
+    lifts every grey it draws, cards included, and 100% means "a card's
+    grey", so a matching percent alone is not enough. On 30 Oct 2026 Project
+    was on Charcoal, so at 100% its menu was 0.26 lightness and Personal's
+    0.205. Personal cannot read either setting from the app, because the app
+    is on another address and loads them after sign-in.
   - **Only the menu changes.** The middle panel keeps its own colour, and the
     highlight behind the open link stays as it is.
   - **Saved in the menu file** as `menuShade`, 0 to 100, half a second after
@@ -104,6 +103,19 @@ edited where it stands, with no settings screen.
     `--shell-rail-card-share` on the page, the variable Custom Shell's
     `src/theme.css` (copied over unchanged on 30 Oct 2026) reads for the
     menu colour. The slider is Custom Shell's `src/components/ui/slider.tsx`.
+- **Set how dark the dark mode is** with the cog's "Dark mode", under
+  Appearance. It lists the same four shades as an app's Settings -> Styling ->
+  Dark mode, each with its swatch: Near black, Charcoal, Graphite and Soft
+  grey. The cog's row names the one chosen. Light mode ignores it. Added 30 Oct
+  2026 so Personal can match the app it shows (it was taken out once that day
+  and put back when Tyler chose it over changing Project's Dark mode).
+  - **Every dark grey lifts together**, the menu, the cog and the popups, by
+    the same amount as in the apps: 0, 0.055, 0.098 or 0.141. With Charcoal
+    and 100% menu shade, Personal's menu and Project's are both 0.26.
+  - **Saved in the menu file** as `darkShade`. Near black leaves it out. The
+    choices and their lifts are `DARK_SHADES` in `src/lib/menu.ts`, copied
+    from Custom Shell's `src/lib/layout/styling-values.ts`; change them there
+    first. `useMenuShade` sets `--shell-dark-lift` on the page.
 - **The cog's layout** is Tyler's drawing of 28 Oct 2026 ("fix ui", then
   "doesnt match the screenshot"), copied by measuring the picture: 300px
   wide with 6px inside, 36px rows with 10px sides, a grey icon 10px from each
