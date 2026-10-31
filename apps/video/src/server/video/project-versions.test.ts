@@ -308,6 +308,28 @@ describe("project history", () => {
     ])
   })
 
+  it("keeps two cuts that differ only by the progress bar as two", async () => {
+    const project = await createOwnedProject(user.id, "Reel", database)
+    const withBar: ProjectTimeline = {
+      ...timelineOf(5),
+      progressBar: { edge: "bottom", color: "#ffffff", thickness: 8, inset: 0 },
+    }
+    await saveAt(project, new Date("2026-10-18T17:00:00Z"), timelineOf(5))
+    await saveAt(project, new Date("2026-10-19T09:00:00Z"), withBar)
+    await saveAt(project, new Date("2026-10-19T10:00:00Z"), timelineOf(5))
+
+    const versions = await listOwnedProjectVersions(user.id, project.id, database)
+    const bars = await Promise.all(
+      versions.map(async (version) =>
+        Boolean(
+          (await readOwnedProjectVersion(user.id, project.id, version.id, database))
+            .timeline.progressBar
+        )
+      )
+    )
+    expect(bars).toEqual([true, false])
+  })
+
   it("shows nobody else a project's versions", async () => {
     const project = await createOwnedProject(user.id, "Reel", database)
     await saveAt(project, new Date("2026-10-18T17:00:00Z"), timelineOf(5))

@@ -55,6 +55,7 @@ import {
 } from "@/lib/public-theme"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import type { ShellConfig } from "@/lib/custom-shell"
+import { useSiteAddress } from "@/lib/hooks/use-site-address"
 
 /**
  * The right panel with no block selected: the settings that belong to the page
@@ -76,6 +77,7 @@ export function FrontPageSettingsPanel({
   onConfigChange: (config: ShellConfig) => void
 }) {
   const router = useRouter()
+  const siteAddress = useSiteAddress()
   const [savingVisibility, setSavingVisibility] =
     React.useState<PageVisibility | null>(null)
   const [savingPage, setSavingPage] = React.useState(false)
@@ -230,7 +232,7 @@ export function FrontPageSettingsPanel({
                         onChange={(event) => setPath(event.target.value)}
                       />
                       <Button asChild variant="outline" size="sm">
-                        <a href={page.path} target="_blank" rel="noreferrer">
+                        <a href={siteAddress(page.path)} target="_blank" rel="noreferrer">
                           <ExternalLinkIcon className="size-4" />
                           Open
                         </a>
@@ -291,7 +293,7 @@ export function FrontPageSettingsPanel({
                         {page.path}
                       </code>
                       <Button asChild variant="outline" size="sm">
-                        <a href={page.path} target="_blank" rel="noreferrer">
+                        <a href={siteAddress(page.path)} target="_blank" rel="noreferrer">
                           <ExternalLinkIcon className="size-4" />
                           Open
                         </a>

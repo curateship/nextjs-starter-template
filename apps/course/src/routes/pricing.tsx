@@ -1,5 +1,10 @@
 import * as React from "react"
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
+import {
+  createFileRoute,
+  Link,
+  redirect,
+  useNavigate,
+} from "@tanstack/react-router"
 
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -21,6 +26,7 @@ import {
   type PlanChangePreview,
 } from "@/lib/api/billing/billing"
 import { requirePageVisible } from "@/lib/api/content/pages"
+import { roleMay } from "@/lib/roles"
 import {
   readPricingChoice,
   type BillingInterval,
@@ -39,6 +45,12 @@ export const Route = createFileRoute("/pricing")({
       requirePageVisible("/pricing"),
       loadCurrentUser(),
     ])
+    // Plans are not for an app role whose app gave it no billing, so the
+    // page sends it on to its own landing page rather than offering a
+    // checkout the server would refuse.
+    if (user && !roleMay(user.role, "billing")) {
+      throw redirect({ to: "/home", replace: true })
+    }
     // Plans are public; the overview needs the session, so only ask when signed
     // in, and run both together rather than one after the other.
     const [pricing, overview] = await Promise.all([

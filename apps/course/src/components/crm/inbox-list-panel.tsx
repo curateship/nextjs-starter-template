@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { DatePicker } from "@/components/ui/date-picker"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -27,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   CRM_DEFAULT_INBOX_SORT,
@@ -176,30 +176,26 @@ export function InboxListPanel({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <DashboardCardHeader className="gap-2">
-        <Tabs
+        <DashboardTabs
           value={filters.unreadOnly ? "unread" : "all"}
           onValueChange={(value) =>
             onFiltersChange({ unreadOnly: value === "unread" })
           }
-          className="min-w-0"
-        >
-          <TabsList>
-            <TabsTrigger
-              value="all"
-              aria-label={`All conversations, ${allCount}`}
-            >
-              All
-              <TabsCount>{allCount}</TabsCount>
-            </TabsTrigger>
-            <TabsTrigger
-              value="unread"
-              aria-label={`Unread conversations, ${unreadCount}`}
-            >
-              Unread
-              <TabsCount>{unreadCount}</TabsCount>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+          tabs={[
+            {
+              value: "all",
+              label: "All",
+              count: allCount,
+              ariaLabel: `All conversations, ${allCount}`,
+            },
+            {
+              value: "unread",
+              label: "Unread",
+              count: unreadCount,
+              ariaLabel: `Unread conversations, ${unreadCount}`,
+            },
+          ]}
+        />
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <Button

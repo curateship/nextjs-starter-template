@@ -32,6 +32,7 @@ import {
   timelineDurationMs,
   useEditorRuntime,
 } from "@/components/video-editor/editor-store"
+import { forgetBeats } from "@/components/video-editor/sound-tool-store"
 
 /**
  * The Music panel: the sound files marked as music, each one press away from
@@ -104,8 +105,12 @@ export function MusicPanel() {
   async function changeShelf(file: MusicShelfFile, toMusic: boolean) {
     setBusyId(file.id)
     try {
-      if (toMusic) await addToMusicShelf(file.id)
-      else await removeFromMusicShelf(file.id)
+      if (toMusic) {
+        await addToMusicShelf(file.id)
+        forgetBeats(file.id)
+      } else {
+        await removeFromMusicShelf(file.id)
+      }
     } catch (error) {
       showErrorToast(getMusicErrorMessage(error))
     } finally {
@@ -129,6 +134,7 @@ export function MusicPanel() {
           return
         }
         await addToMusicShelf(mediaId)
+        forgetBeats(mediaId)
       }
     } catch (error) {
       showErrorToast(getMusicErrorMessage(error))
@@ -352,7 +358,7 @@ function SoundRow({
           {showLength
             ? lengthMs
               ? formatClock(lengthMs)
-              : "—"
+              : "-"
             : formatFileSize(file.file_size)}
         </span>
       </div>

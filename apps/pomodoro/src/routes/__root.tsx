@@ -1,4 +1,4 @@
-import { capitalise, workspaceWord } from "@/lib/app-options"
+import { appHomeScreen, capitalise, workspaceWord } from "@/lib/app-options"
 import type { ReactNode } from "react"
 import {
   createRootRoute,
@@ -19,6 +19,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { loadBranding } from "@/lib/api/shell"
 import { resolveAppName, usePublicTheme } from "@/lib/branding"
+import { HOME_SCREEN_MANIFEST_PATH } from "@/lib/home-screen"
 import { focusRing } from "@/lib/layout/focus-ring"
 import {
   DEFAULT_FAVICON_MODE,
@@ -113,6 +114,14 @@ export const Route = createRootRoute({
         // console and which left the starting zoom unset on phones.
         { name: "viewport", content: "width=device-width, initial-scale=1" },
         { title: metadata.title },
+        // Added to a phone's home screen, the app opens full screen under
+        // this name (`src/lib/home-screen.ts`).
+        { name: "mobile-web-app-capable", content: "yes" },
+        { name: "apple-mobile-web-app-capable", content: "yes" },
+        {
+          name: "apple-mobile-web-app-title",
+          content: appHomeScreen().shortName ?? appName,
+        },
         ...(publicPage
           ? publicSocialMeta({
               title: metadata.title,
@@ -123,6 +132,7 @@ export const Route = createRootRoute({
             })
           : []),
       ],
+      links: [{ rel: "manifest", href: HOME_SCREEN_MANIFEST_PATH }],
     }
   },
   component: RootComponent,

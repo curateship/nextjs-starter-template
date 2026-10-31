@@ -11,6 +11,7 @@ import {
   restoreOwnAccount,
 } from "@/server/people/account-deletion"
 import { type CustomShellDb } from "@/server/db"
+import { appBillingReturnPaths } from "@/server/app-options"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   countOtherActiveAdmins,
@@ -27,6 +28,8 @@ import {
   applyStripeEvent,
   cancelSubscriptionByAdmin,
   cancelSubscriptionByMember,
+  checkoutSuccessPath,
+  confirmCheckout,
   findExpiringCard,
   setSubscriptionPaused,
   trialDaysFor,
@@ -712,6 +715,32 @@ describe("entitlements", () => {
   })
 })
 
+describe("where Stripe sends people back", () => {
+  it("uses the shell's own pages when the app names none", () => {
+    expect(appBillingReturnPaths({})).toEqual({
+      checkoutSuccess: "/account/billing/success",
+      checkoutCancel: "/pricing",
+      portalReturn: "/?account=billing",
+    })
+    expect(checkoutSuccessPath(appBillingReturnPaths({}))).toBe(
+      "/account/billing/success?session_id={CHECKOUT_SESSION_ID}"
+    )
+  })
+
+  it("keeps the session id on an app's own success page, with or without a query", () => {
+    const paths = appBillingReturnPaths({
+      billing: { returnPaths: { checkoutSuccess: "/plans?welcome=pro", checkoutCancel: "/plans" } },
+    })
+    expect(paths.portalReturn).toBe("/?account=billing")
+    expect(checkoutSuccessPath(paths)).toBe(
+      "/plans?welcome=pro&session_id={CHECKOUT_SESSION_ID}"
+    )
+    expect(checkoutSuccessPath({ checkoutSuccess: "/plans" })).toBe(
+      "/plans?session_id={CHECKOUT_SESSION_ID}"
+    )
+  })
+})
+
 describe("stripe webhooks", () => {
   function subscriptionEvent(
     userId: string,
@@ -774,6 +803,101 @@ describe("stripe webhooks", () => {
 
     const rows = await database.select().from(customShellSubscriptions)
     expect(rows).toHaveLength(1)
+  })
+
+  it("writes one history line when the same plan moves from monthly to yearly", async () => {
+    const user = await createUser()
+    await database
+      .update(customShellPlans)
+      .set({ stripePriceIdYearly: "price_pro_yearly" })
+      .where(eq(customShellPlans.slug, "pro"))
+    await applyStripeEvent(subscriptionEvent(user.id), database)
+
+    const yearly = {
+      ...(subscriptionEvent(user.id, {
+        items: { data: [{ price: { id: "price_pro_yearly" } }] },
+      }) as Record<string, unknown>),
+      id: "evt_yearly",
+      type: "customer.subscription.updated",
+    } as never
+    await applyStripeEvent(yearly, database)
+
+    const events = await listSubscriptionEvents(user.id, database)
+    // Newest first, as the history page lists them.
+    expect(events.map((event) => [event.kind, event.planName, event.detail])).toEqual([
+      ["plan_changed", "Pro yearly", "Pro monthly"],
+      ["subscribed", "Pro", null],
+    ])
+    const { entitlements } = await loadEntitlements(user.id, database)
+    expect(entitlements.interval).toBe("yearly")
+  })
+
+  describe("confirming a checkout on return", () => {
+    function checkoutApi(userId: string, owner = userId) {
+      return {
+        loadSession: async () =>
+          ({
+            id: "cs_123",
+            client_reference_id: owner,
+            subscription: "sub_123",
+          }) as never,
+        loadSubscription: async () =>
+          (subscriptionEvent(userId) as { data: { object: unknown } }).data
+            .object as never,
+      }
+    }
+
+    beforeEach(() => {
+      vi.stubEnv("CUSTOM_SHELL_BILLING_ENABLED", "true")
+    })
+
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it("unlocks the plan before the webhook lands", async () => {
+      const user = await createUser()
+
+      const result = await confirmCheckout(
+        user,
+        "cs_123",
+        database,
+        checkoutApi(user.id)
+      )
+
+      expect(result.confirmed).toBe(true)
+      const { entitlements } = await loadEntitlements(user.id, database)
+      expect(entitlements.planSlug).toBe("pro")
+      expect(entitlements.isPaid).toBe(true)
+      const events = await listSubscriptionEvents(user.id, database)
+      expect(events.map((event) => event.kind)).toEqual(["subscribed"])
+    })
+
+    it("leaves the later webhook nothing new to write", async () => {
+      const user = await createUser()
+      await confirmCheckout(user, "cs_123", database, checkoutApi(user.id))
+
+      expect(
+        await applyStripeEvent(subscriptionEvent(user.id), database)
+      ).toBe(true)
+
+      const rows = await database.select().from(customShellSubscriptions)
+      expect(rows).toHaveLength(1)
+      const events = await listSubscriptionEvents(user.id, database)
+      expect(events).toHaveLength(1)
+    })
+
+    it("refuses a session that belongs to somebody else", async () => {
+      const user = await createUser()
+      const other = await createUser({ email: "other@example.com" })
+
+      await expect(
+        confirmCheckout(user, "cs_123", database, checkoutApi(other.id))
+      ).rejects.toThrow("CHECKOUT_SESSION_NOT_FOUND")
+
+      const rows = await database.select().from(customShellSubscriptions)
+      expect(rows).toHaveLength(0)
+    })
   })
 
   it("updates the same row when the subscription is cancelled later", async () => {

@@ -115,10 +115,10 @@ export function SegmentSelectField({
         <InspectorNote>
           There are no segments yet. Make one in{" "}
           <Link
-            to="/admin/segments"
+            to="/admin/contacts"
             className="underline underline-offset-2 hover:text-foreground"
           >
-            Segments
+            Contacts
           </Link>
           .
         </InspectorNote>

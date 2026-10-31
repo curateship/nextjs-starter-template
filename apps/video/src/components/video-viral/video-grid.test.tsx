@@ -182,7 +182,7 @@ describe("the Creators list", () => {
       )
     )
     const rows = [...container.querySelectorAll("li")]
-    expect(rows[0].textContent).toContain("0 hits · — typical · 2h ago")
+    expect(rows[0].textContent).toContain("0 hits · - typical · 2h ago")
     expect(rows[0].querySelector('[role="switch"]')?.getAttribute("aria-label")).toBe(
       "Check watched for new posts"
     )

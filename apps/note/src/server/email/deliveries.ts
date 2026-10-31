@@ -63,6 +63,8 @@ export async function listContactDeliveries(
       subject: customShellDeliveries.subject,
       status: customShellDeliveries.status,
       bouncedAt: customShellDeliveries.bouncedAt,
+      openedAt: customShellDeliveries.openedAt,
+      clickedAt: customShellDeliveries.clickedAt,
       error: customShellDeliveries.error,
       createdAt: customShellDeliveries.createdAt,
     })

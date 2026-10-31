@@ -61,6 +61,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { ARCHIVED_PROJECTS, NO_FOLDER } from "@/lib/video/project-folders"
 import { countVideos, type ViralProjectItem } from "@/lib/video/viral"
+import { CoverImage } from "@/components/video-viral/cover-image"
 
 const listRoute = getRouteApi("/_authenticated/admin/video-viral/")
 
@@ -77,7 +78,7 @@ export type ViralProjectSortColumn = "name" | "videos" | "units" | "updated"
 const COLUMNS: SortableColumn<ViralProjectSortColumn>[] = [
   { key: "name", label: "Project", column: "main" },
   { key: "videos", label: "Videos", column: "meta" },
-  { key: "units", label: "YouTube units", column: "meta" },
+  { key: "units", label: "YouTube allowance used", column: "meta" },
   { key: "updated", label: "Changed", column: "meta" },
 ]
 
@@ -417,11 +418,11 @@ export function ViralProjectsPage({
             <TableCell column="main">
               <div className="flex items-center gap-3">
                 <span className="flex h-12 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-                  {project.cover_url ? (
-                    <img src={project.cover_url} alt="" className="size-full object-cover" />
-                  ) : (
-                    <ChartNoAxesCombinedIcon className="size-4 text-muted-foreground" />
-                  )}
+                  <CoverImage
+                    src={project.cover_url}
+                    className="size-full object-cover"
+                    fallback={<ChartNoAxesCombinedIcon className="size-4 text-muted-foreground" />}
+                  />
                 </span>
                 <div className="grid min-w-0 gap-1">
                   <button

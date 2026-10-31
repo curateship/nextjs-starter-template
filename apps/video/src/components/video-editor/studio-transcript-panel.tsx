@@ -161,7 +161,7 @@ export function TranscriptPanel() {
     )
     if (!removal) {
       showErrorToast(
-        "Those words are no longer in one piece of the clip — pick a shorter run"
+        "Those words are no longer in one piece of the clip - pick a shorter run"
       )
       return
     }
@@ -250,7 +250,7 @@ export function TranscriptPanel() {
                 {cutWords.size ? (
                   <>
                     {" "}
-                    Greyed-out words have already gone from the film — undo
+                    Greyed-out words have already gone from the film - undo
                     brings them back.
                   </>
                 ) : null}

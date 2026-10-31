@@ -5,8 +5,9 @@ mode. That is the rule, and the whole of this file exists to hold it.
 
 Three tiers, darkest first: the page, then the sidebar rail and the sticky
 bar, then the cards. `--shell-canvas` is the page and `--shell-rail` is the
-rail, sitting halfway between the page and a card. Neither is adjustable in
-Settings any more.
+rail, sitting between the page and a card. The page is not adjustable in
+Settings. The rail's place between the two is, through
+[the left menu shade](left-menu-shade.md), which starts at halfway.
 
 ## The greys, measured
 
@@ -61,7 +62,9 @@ as a page colour was.
   `src/components/shell/shell-layout.tsx` carry that class on the page and on
   the shell's outer wrapper.
 - `src/components/settings/styling-settings.tsx` no longer draws a "Main
-  content area" card or a "Sidebar & sticky bar" card.
+  content area" card or a "Sidebar & sticky bar" card. Its "Left menu shade"
+  card moves the rail between the page and a card instead of mixing in a fixed
+  grey.
 
 ## The two fields that stay
 

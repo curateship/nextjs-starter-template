@@ -1,11 +1,19 @@
+import { eq } from "drizzle-orm"
 import type { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { CSV_IMPORT_SOURCE } from "@/lib/contacts/contact-csv"
 import type { SegmentCondition } from "@/lib/contacts/contact-segments"
 import { createWorkspaceSegment } from "@/server/people/contact-segments"
 import {
+  countContactEmails,
+  countRecentContactChanges,
   deleteWorkspaceContactsMatching,
+  importWorkspaceContacts,
   listWorkspaceContacts,
+  setContactStatusMatching,
+  setWorkspaceContactNotes,
+  setWorkspaceContactTags,
 } from "@/server/people/contacts"
 import { type CustomShellDb } from "@/server/db"
 import {
@@ -691,5 +699,224 @@ describe("filtering by what they did with an email", () => {
     expect(
       await listed([{ type: "engaged", operator: "within", days: 30 }])
     ).toEqual([])
+  })
+})
+
+describe("setting the status of everybody the filter matches", () => {
+  it("changes exactly the people the same rules put on the list", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await insertContact("bob", { tags: ["beta"] })
+    await insertContact("cat")
+    await db.insert(customShellContacts).values({
+      id: "elsewhere",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "elsewhere@example.test",
+      status: "subscribed",
+      tags: ["beta"],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+    const conditions: SegmentCondition[] = [
+      { type: "tag", operator: "includes", tags: ["beta"] },
+    ]
+
+    expect(
+      await setContactStatusMatching(
+        WORKSPACE_ID,
+        { rules: { conditions } },
+        "unsubscribed",
+        db
+      )
+    ).toBe(2)
+    expect(
+      await listed([{ type: "status", operator: "is", status: "unsubscribed" }])
+    ).toEqual(["ada@example.test", "bob@example.test"])
+    const { contacts } = await listWorkspaceContacts(OTHER_WORKSPACE_ID, {}, db)
+    expect(contacts.map((contact) => contact.status)).toEqual(["subscribed"])
+  })
+})
+
+describe("saving one contact's tags", () => {
+  it("replaces the tags of that contact, found by id", async () => {
+    await insertContact("ada", { tags: ["old"] })
+    await setWorkspaceContactTags(WORKSPACE_ID, "ada", ["beta", " beta ", "vip"], db)
+    expect(await listed([{ type: "tag", operator: "includes", tags: ["vip"] }])).toEqual([
+      "ada@example.test",
+    ])
+    expect(await listed([{ type: "tag", operator: "includes", tags: ["old"] }])).toEqual([])
+  })
+
+  it("refuses a contact that is gone rather than adding them again", async () => {
+    await expect(
+      setWorkspaceContactTags(WORKSPACE_ID, "deleted-elsewhere", ["beta"], db)
+    ).rejects.toThrow("CONTACT_NOT_FOUND")
+    expect(await listed([])).toEqual([])
+  })
+
+  it("refuses another workspace's contact", async () => {
+    await db.insert(customShellContacts).values({
+      id: "theirs",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "theirs@example.test",
+      status: "subscribed",
+      tags: [],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+    await expect(
+      setWorkspaceContactTags(WORKSPACE_ID, "theirs", ["beta"], db)
+    ).rejects.toThrow("CONTACT_NOT_FOUND")
+  })
+})
+
+describe("importing a CSV file", () => {
+  async function contact(email: string) {
+    const rows = await db.select().from(customShellContacts)
+    return rows.find((row) => row.email === email)
+  }
+
+  it("adds new addresses on the list, saying where they came from", async () => {
+    const result = await importWorkspaceContacts(
+      WORKSPACE_ID,
+      [{ email: "New@Example.test", firstName: "New", tags: ["csv"] }],
+      db
+    )
+    expect(result).toEqual({ added: 1, updated: 0, unchanged: 0 })
+    expect(await contact("new@example.test")).toMatchObject({
+      firstName: "New",
+      tags: ["csv"],
+      status: "subscribed",
+      source: CSV_IMPORT_SOURCE,
+    })
+  })
+
+  it("never puts somebody who opted out back on the list", async () => {
+    await insertContact("gone", { status: "unsubscribed", tags: ["old"] })
+    const result = await importWorkspaceContacts(
+      WORKSPACE_ID,
+      [{ email: "GONE@example.test", lastName: "Away", tags: ["csv"] }],
+      db
+    )
+    expect(result).toEqual({ added: 0, updated: 1, unchanged: 0 })
+    expect(await contact("gone@example.test")).toMatchObject({
+      status: "unsubscribed",
+      lastName: "Away",
+      tags: ["old", "csv"],
+    })
+  })
+
+  it("leaves an account's name to the account", async () => {
+    const user = await insertUser(db, { email: "member@example.test" })
+    await insertContact("member", { userId: user.id, firstName: "Real", tags: ["member"] })
+    await importWorkspaceContacts(
+      WORKSPACE_ID,
+      [{ email: "member@example.test", firstName: "Wrong", tags: ["csv"] }],
+      db
+    )
+    expect(await contact("member@example.test")).toMatchObject({
+      firstName: "Real",
+      tags: ["member", "csv"],
+    })
+  })
+
+  it("counts a row that changes nothing, and one address twice as one person", async () => {
+    await insertContact("same", { tags: ["a"] })
+    const result = await importWorkspaceContacts(
+      WORKSPACE_ID,
+      [
+        { email: "same@example.test", tags: ["a"] },
+        { email: "twice@example.test", tags: ["x"] },
+        { email: "TWICE@example.test", firstName: "Two", tags: ["y"] },
+      ],
+      db
+    )
+    expect(result).toEqual({ added: 1, updated: 0, unchanged: 1 })
+    expect(await contact("twice@example.test")).toMatchObject({
+      firstName: "Two",
+      tags: ["x", "y"],
+    })
+  })
+
+  it("matches only this workspace's people", async () => {
+    await insertContact("shared", { workspaceId: OTHER_WORKSPACE_ID, status: "unsubscribed" })
+    const result = await importWorkspaceContacts(
+      WORKSPACE_ID,
+      [{ email: "shared@example.test" }],
+      db
+    )
+    expect(result.added).toBe(1)
+  })
+})
+
+describe("the dashboard's counts", () => {
+  async function send(
+    contactId: string,
+    overrides: Partial<typeof customShellDeliveries.$inferInsert> = {}
+  ) {
+    await db.insert(customShellDeliveries).values({
+      id: `${contactId}-${Math.random().toString(36).slice(2)}`,
+      workspaceId: WORKSPACE_ID,
+      broadcastId: null,
+      contactId,
+      toEmail: `${contactId}@example.test`,
+      subject: "A newsletter",
+      status: "sent",
+      createdAt: daysAgo(3),
+      ...overrides,
+    })
+  }
+
+  it("counts opens out of the sends that went, a click counting as an open", async () => {
+    await insertContact("ada")
+    await send("ada", { openedAt: daysAgo(2) })
+    await send("ada", { clickedAt: daysAgo(2) })
+    await send("ada")
+    await send("ada", { status: "failed" })
+
+    expect(await countContactEmails(WORKSPACE_ID, "ada", db)).toEqual({ sent: 3, opened: 2 })
+    const { contacts } = await listWorkspaceContacts(WORKSPACE_ID, {}, db)
+    expect(contacts[0]).toMatchObject({ emailsSent: 3, emailsOpened: 2 })
+  })
+
+  it("gives nobody-emailed a zero, not a blank", async () => {
+    await insertContact("new")
+    const { contacts } = await listWorkspaceContacts(WORKSPACE_ID, {}, db)
+    expect(contacts[0]).toMatchObject({ emailsSent: 0, emailsOpened: 0 })
+  })
+
+  it("counts the last 30 days' joins, opt-outs and bounced people", async () => {
+    await insertContact("joined", { createdAt: daysAgo(5) })
+    await insertContact("old", { createdAt: daysAgo(60) })
+    await insertContact("left", {
+      createdAt: daysAgo(60),
+      status: "unsubscribed",
+      unsubscribedAt: daysAgo(2),
+    })
+    await insertContact("left-long-ago", {
+      createdAt: daysAgo(90),
+      status: "unsubscribed",
+      unsubscribedAt: daysAgo(40),
+    })
+    await send("old", { bouncedAt: daysAgo(1) })
+    await send("old", { bouncedAt: daysAgo(2) })
+
+    expect(await countRecentContactChanges(WORKSPACE_ID, 30, db, TODAY)).toEqual({
+      joined: 1,
+      optedOut: 1,
+      bounced: 1,
+    })
+  })
+})
+
+describe("a contact's notes", () => {
+  it("saves the note and refuses another workspace's contact", async () => {
+    await insertContact("ada")
+    await insertContact("theirs", { workspaceId: OTHER_WORKSPACE_ID })
+    await setWorkspaceContactNotes(WORKSPACE_ID, "ada", "Guest on episode 12.", db)
+    const [row] = await db.select().from(customShellContacts).where(eq(customShellContacts.id, "ada"))
+    expect(row?.notes).toBe("Guest on episode 12.")
+    await expect(
+      setWorkspaceContactNotes(WORKSPACE_ID, "theirs", "x", db)
+    ).rejects.toThrow("CONTACT_NOT_FOUND")
   })
 })

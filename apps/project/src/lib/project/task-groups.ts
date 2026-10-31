@@ -159,3 +159,37 @@ export function canMoveInGroup(grouping: TaskGrouping, to: string, task: Groupab
       return false
   }
 }
+
+/**
+ * My dashboard's Group row (Tyler, 31 Oct 2026: "my dashboard is missing
+ * "Group" function in filter"). It starts on My headings, the List's own
+ * Picked for today, due date and Done headings with my order, and offers the
+ * project List's groupings plus Project, since its tasks come from many
+ * projects. He picked keeping My headings as the start.
+ */
+export const MY_GROUPINGS = ["mine", "status", "priority", "tags", "due", "assignee", "type", "project"] as const
+export type MyGrouping = (typeof MY_GROUPINGS)[number]
+
+export const MY_GROUPING_LABEL: Record<MyGrouping, string> = {
+  mine: "My headings",
+  status: TASK_GROUPING_LABEL.status,
+  priority: TASK_GROUPING_LABEL.priority,
+  tags: TASK_GROUPING_LABEL.tags,
+  due: TASK_GROUPING_LABEL.due,
+  assignee: TASK_GROUPING_LABEL.assignee,
+  type: TASK_GROUPING_LABEL.type,
+  project: "Project",
+}
+
+/** My dashboard's groups for any grouping but My headings, which the List draws itself. */
+export function groupMyTasks<T extends GroupableTask & { projectId: string; projectName: string }>(
+  tasks: readonly T[],
+  grouping: Exclude<MyGrouping, "mine">,
+  now = new Date()
+): { groups: TaskGroup[]; groupsOf: (task: T) => string[] } {
+  if (grouping !== "project") return groupTasks(tasks, grouping, now)!
+  return {
+    groups: byName(tasks.map((task) => ({ id: task.projectId, name: task.projectName })), "", false),
+    groupsOf: (task) => [task.projectId],
+  }
+}

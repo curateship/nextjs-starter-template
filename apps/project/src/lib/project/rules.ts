@@ -782,6 +782,7 @@ export const bulkChangeSchema = z.object({
     z.object({ kind: z.literal("priority"), priority: z.enum(TASK_PRIORITIES) }),
     z.object({ kind: z.literal("tag"), labelId: id, on: z.boolean() }),
     z.object({ kind: z.literal("type"), typeId: id.nullable() }),
+    z.object({ kind: z.literal("delete") }),
   ]),
 })
 

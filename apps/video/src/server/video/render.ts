@@ -24,8 +24,13 @@ import {
   sourceMsAt,
   sourceSpanMs,
 } from "@/lib/video/clip-playback"
-import { clipFit, frameFitFilter } from "@/lib/video/clip-frame-fit"
 import {
+  clipFillFocus,
+  clipFit,
+  frameFitFilter,
+} from "@/lib/video/clip-frame-fit"
+import {
+  pictureBoxSize,
   pictureOverlayPosition,
   pictureScaleFilter,
 } from "@/lib/video/clip-size"
@@ -63,6 +68,9 @@ import {
   type RenderFrameRate,
   type RenderQuality,
 } from "@/lib/video/render"
+import { progressBarFilters, type ProgressBar } from "@/lib/video/progress-bar"
+import { shapeExportWindows, shapeSvg } from "@/lib/video/shapes"
+import { voiceCleanFilter } from "@/lib/video/voice-clean"
 import { requireTextFont } from "@/lib/video/text-fonts"
 import {
   TEXT_LINE_HEIGHT,
@@ -86,6 +94,10 @@ import {
   runFfmpeg as runFfmpegCommand,
 } from "@/server/video/ffmpeg"
 import { downloadToFile } from "@/server/video/storage-files"
+import {
+  requireStockSoundFile,
+  STOCK_SOUND_MISSING_MESSAGE,
+} from "@/server/video/stock-sound-files"
 import {
   FONT_MISSING_MESSAGE,
   requireTextFontFiles,
@@ -142,6 +154,7 @@ export const SAFE_RENDER_ERRORS = new Set([
   FFMPEG_MISSING_MESSAGE,
   FONT_MISSING_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
+  STOCK_SOUND_MISSING_MESSAGE,
 ])
 
 function toEven(value: number) {
@@ -245,6 +258,8 @@ function flattenForRender(tracks: EditorTrack[]) {
         if (clip.text?.trim()) {
           visuals.push({ clip, muted: true, duck: false, fades })
         }
+      } else if (clip.kind === "shape") {
+        visuals.push({ clip, muted: true, duck: false, fades })
       } else if (clip.mediaId) {
         visuals.push({
           clip,
@@ -327,6 +342,7 @@ export async function renderTimeline({
       audioPresence,
       fps: frameRate,
       duckingGain: dbToGain(DEFAULT_DUCK_DB),
+      progressBar: timeline.progressBar,
     })
 
     const exportMs = exportDurationMs(durationMs)
@@ -419,6 +435,7 @@ export async function renderTimelineFrame({
       audioPresence: new Map(),
       fps: PREVIEW_FRAME_RATE,
       duckingGain: 1,
+      progressBar: timeline.progressBar,
       fromMs,
     })
     const out = path.join(dir, "frame.jpg")
@@ -596,6 +613,8 @@ async function buildFfmpegCommand(options: {
   audioPresence: Map<string, boolean>
   fps: RenderFrameRate
   duckingGain: number
+  /** The bar along one edge that fills as the film plays, if the project has one. */
+  progressBar?: ProgressBar
   /**
    * Where the film starts, on a frame. Zero for an export. A single saved
    * frame starts at its own moment, so nothing before it is drawn.
@@ -612,6 +631,7 @@ async function buildFfmpegCommand(options: {
     audioPresence,
     fps,
     duckingGain,
+    progressBar,
     fromMs = 0,
   } = options
   const durationS = durationMs / 1000
@@ -638,9 +658,9 @@ async function buildFfmpegCommand(options: {
   // A clip turned all the way down is silence, so it neither ducks anything
   // nor counts as the thing to duck under.
   const carriesSound = ({ clip }: RenderClip) => {
-    if (clipVolume(clip) === 0 || !clip.mediaId) return false
-    if (clip.kind === "audio") return true
-    return clip.kind === "video" && !!audioPresence.get(clip.mediaId)
+    if (clipVolume(clip) === 0) return false
+    if (clip.kind === "audio") return !!clip.mediaId || !!clip.stockSound
+    return clip.kind === "video" && !!clip.mediaId && !!audioPresence.get(clip.mediaId)
   }
 
   const voiceIntervals: Interval[] = []
@@ -662,14 +682,20 @@ async function buildFfmpegCommand(options: {
         )
       : null
 
-  // Order matters: the speed change comes first so the sound is the right
-  // length, then the clip's own level, then the delay that puts it in place,
-  // and only then the ducking curve, which is written against timeline time.
+  // Order matters: any cleaning first, then the speed change so the sound is
+  // the right length, then the clip's own level, then the delay that puts it
+  // in place, and only then the ducking curve, which is written against
+  // timeline time.
   const pushAudio = (inputIdx: number, clip: EditorClip, duck: boolean) => {
     const label = `[a${audioLabels.length}]`
     const speed = clipSpeed(clip)
     const volume = clipVolume(clip)
-    const stages = [...atempoFilters(speed)]
+    // Cleaning comes before anything else, on the sound as recorded, the
+    // same as the copy the preview plays (voice-clean.ts).
+    const stages = [
+      ...(clip.voiceClean ? [voiceCleanFilter(clip.voiceClean)] : []),
+      ...atempoFilters(speed),
+    ]
     if (volume !== DEFAULT_CLIP_VOLUME) {
       stages.push(`volume=${volume.toFixed(3)}`)
     }
@@ -811,6 +837,33 @@ async function buildFfmpegCommand(options: {
         `[${inputIndex}:v]${["format=rgba", `setpts=PTS-STARTPTS+${firstFrame / fps}/TB`, ...textFades].join(",")}[l${visualStep}]`,
         `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${(firstFrame - 0.5) / fps},${(endFrame - 0.5) / fps})'[v${visualStep + 1}]`
       )
+    } else if (clip.kind === "shape") {
+      // A shape is a picture of its lines: one per frame while it draws
+      // itself on, then one still for the rest, read by ffmpeg's `concat`
+      // reader the way a run of captions is (see shapes.ts).
+      const option = `option framerate ${fps}`
+      const lines = ["ffconcat version 1.0"]
+      const windows = shapeExportWindows(clip, fps)
+      for (const [index, window] of windows.entries()) {
+        const file = path.join(dir, `shape-${visualStep}-${index}.png`)
+        await writeFile(file, renderSvgPng(shapeSvg(clip, size, window.progress)))
+        lines.push(
+          `file '${path.basename(file)}'`,
+          option,
+          `duration ${((window.toMs - window.fromMs) / 1000).toFixed(6)}`
+        )
+      }
+      lines.push(lines.at(-3)!, option)
+      const listFile = path.join(dir, `shape-${visualStep}.txt`)
+      await writeFile(listFile, `${lines.join("\n")}\n`)
+      inputs.push("-threads", "1", "-f", "concat", "-safe", "0", "-i", listFile)
+      const shapeFades = hasFades(entry)
+        ? [`fps=${fps}`, ...pictureFadeStages(entry)]
+        : []
+      filters.push(
+        `[${inputIndex}:v]${["format=rgba", `setpts=PTS-STARTPTS+${startS}/TB`, ...shapeFades].join(",")}[l${visualStep}]`,
+        `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
+      )
     } else {
       const file = sourceFiles.get(clip.mediaId!)!
       // A still has no speed: there is nothing moving to play faster. A video
@@ -824,17 +877,20 @@ async function buildFfmpegCommand(options: {
       // A still that moves is drawn one frame per output frame, so the move
       // advances on every frame of the film rather than stepping at the
       // input's own 25 a second. A still that holds is left as it always was.
-      // A picture smaller than the frame is shrunk last, after it has been
-      // fitted, coloured and moved as a whole frame, so it is the same
-      // picture at a smaller size (see clip-size.ts).
+      // A picture or video smaller than the frame is shrunk last, after it
+      // has been fitted into its box, coloured and moved, so it is the same
+      // picture at a smaller size (see clip-size.ts). A split's half is a box
+      // of its own: the clip is fitted or filled into those pixels instead of
+      // the frame's.
       const colourFilter = colourEqFilter(clipColour(clip))
       const motion = clipMotion(clip)
       const scaleFilter = pictureScaleFilter(clip)
+      const box = pictureBoxSize(clip, size)
       const pictureFilter = [
-        frameFitFilter(clipFit(clip), size.width, size.height),
+        frameFitFilter(clipFit(clip), box.width, box.height, clipFillFocus(clip)),
         ...(colourFilter ? [colourFilter] : []),
         ...(motion
-          ? [motionFilter(motion, size.width, size.height, durS * fps)]
+          ? [motionFilter(motion, box.width, box.height, durS * fps)]
           : []),
         ...(scaleFilter ? [scaleFilter] : []),
       ].join(",")
@@ -932,8 +988,13 @@ async function buildFfmpegCommand(options: {
   }
 
   for (const { clip, muted, duck } of audio) {
-    if (muted || !clip.mediaId) continue
-    const file = sourceFiles.get(clip.mediaId)
+    if (muted) continue
+    // A starter sound effect is a file of the app's own, not anybody's upload.
+    const file = clip.stockSound
+      ? requireStockSoundFile(clip.stockSound)
+      : clip.mediaId
+        ? sourceFiles.get(clip.mediaId)
+        : undefined
     if (!file) continue
     inputs.push(
       "-ss",
@@ -945,6 +1006,23 @@ async function buildFfmpegCommand(options: {
     )
     pushAudio(inputIndex, clip, duck)
     inputIndex += 1
+  }
+
+  // The progress bar goes on last of all, over the dips too, so it never
+  // blinks out while the frame passes through black.
+  if (progressBar) {
+    filters.push(
+      ...progressBarFilters({
+        bar: progressBar,
+        frame: size,
+        durationS,
+        fromS,
+        fps,
+        inputLabel: `v${visualStep}`,
+        outputLabel: `v${visualStep + 1}`,
+      })
+    )
+    visualStep += 1
   }
 
   const finalVideo = `v${visualStep}`
@@ -1114,6 +1192,12 @@ function renderTextLayerPng(
   })
     .render()
     .asPng()
+}
+
+/** A drawing with no words in it, as a PNG. */
+function renderSvgPng(svg: string) {
+  const { Resvg } = loadResvg()
+  return new Resvg(svg).render().asPng()
 }
 
 // --- Running the tools ------------------------------------------------------

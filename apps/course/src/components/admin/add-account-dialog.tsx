@@ -37,6 +37,8 @@ import {
 } from "@/lib/api/people/admin-users"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import type { Role } from "@/lib/role-id"
+import { allRoles } from "@/lib/roles"
 
 /** The rule the sign-up and reset forms enforce, so all three agree. */
 const PASSWORD_MIN_LENGTH = 8
@@ -60,7 +62,7 @@ export function AddAccountDialog({
 }) {
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
-  const [role, setRole] = React.useState<"admin" | "member">("member")
+  const [role, setRole] = React.useState<Role>("member")
   const [password, setPassword] = React.useState("")
   const [nameTouched, setNameTouched] = React.useState(false)
   const [emailTouched, setEmailTouched] = React.useState(false)
@@ -211,12 +213,7 @@ export function AddAccountDialog({
                 <CardContent className="grid gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="add-account-role">Role</Label>
-                    <Select
-                      value={role}
-                      onValueChange={(value) =>
-                        setRole(value as "admin" | "member")
-                      }
-                    >
+                    <Select value={role} onValueChange={setRole}>
                       <SelectTrigger
                         id="add-account-role"
                         className="w-full sm:w-fit"
@@ -224,8 +221,11 @@ export function AddAccountDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        {allRoles().map((one) => (
+                          <SelectItem key={one.id} value={one.id}>
+                            {one.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

@@ -16,14 +16,16 @@ import {
   addLink,
   allLinks,
   appMenuWidth,
+  darkShade,
+  DEFAULT_MENU_SHADE,
   DEFAULT_SIDEBAR_WIDTH,
   hasLinkTo,
   newId,
   parseAppUrl,
   screenName,
   setAppMenuWidth,
-  setSidebarShade,
-  sidebarShadeColor,
+  setDarkShade,
+  setMenuShade,
   startLink,
   stayLoadedLink,
   type Menu,
@@ -31,6 +33,7 @@ import {
 import { useFavicon } from "@/lib/use-favicon"
 import { useMenu } from "@/lib/use-menu"
 import { useWideScreen } from "@/lib/use-menu-form-side"
+import { useMenuShade } from "@/lib/use-menu-shade"
 import { useOpenScreen } from "@/lib/use-open-screen"
 import { usePanelView } from "@/lib/use-panel-view"
 import { useRememberedOpen } from "@/lib/use-remembered-open"
@@ -161,7 +164,8 @@ function Personal({
   }
 
   const sidebarWidth = menu.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH
-  const sidebarShade = sidebarShadeColor(menu.sidebarShade ?? 0)
+  const menuShade = menu.menuShade ?? DEFAULT_MENU_SHADE
+  useMenuShade(menuShade, darkShade(menu.darkShade).lift)
   const activeId = activeLinkId(menu, screen?.url ?? null)
   useFavicon(menu.brand?.logo)
   const places = placesOf(menu)
@@ -206,8 +210,10 @@ function Personal({
     setPhone: view.setPhone,
     kept: view.kept,
     setKept: view.setKept,
-    shade: menu.sidebarShade ?? 0,
-    setShade: (shade) => update((m) => setSidebarShade(m, shade)),
+    shade: menuShade,
+    setShade: (shade) => update((m) => setMenuShade(m, shade)),
+    darkShade: darkShade(menu.darkShade).id,
+    setDarkShade: (shade) => update((m) => setDarkShade(m, shade)),
     colourMode: colour.mode,
     setColourMode: colour.setMode,
   }
@@ -228,9 +234,6 @@ function Personal({
             style={
               {
                 "--sidebar-width": `${sidebarWidth}px`,
-                // The theme's file is Custom Shell's, so the chosen shade
-                // replaces the menu's colour here instead.
-                ...(sidebarShade ? { "--sidebar": sidebarShade } : {}),
               } as React.CSSProperties
             }
           >

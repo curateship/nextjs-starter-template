@@ -158,7 +158,7 @@ export function CarouselExportDialog({
     >
       <DialogContent variant="admin" className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Export Carousel</DialogTitle>
+          <DialogTitle>Export carousel</DialogTitle>
           <DialogDescription>
             Every export is kept, the ZIP and the PDF in Carousel exports and a
             video in Exports, to download again or share by link.

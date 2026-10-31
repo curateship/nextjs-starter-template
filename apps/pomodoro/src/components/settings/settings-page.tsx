@@ -6,6 +6,7 @@ import { CollapsibleSettingsCard } from "@/components/settings/collapsible-setti
 import { EmailSettings } from "@/components/settings/email-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
+import { RoleNavigationSettings } from "@/components/settings/role-navigation-settings"
 import {
   PublicSeoSettings,
   PublicSocialSettings,
@@ -18,8 +19,15 @@ import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { WidgetSettings } from "@/components/settings/widget-settings"
 import { TopLeftNavigationSettings } from "@/components/settings/top-left-navigation-settings"
+import { TopLeftShortcutsSettings } from "@/components/settings/top-left-shortcuts-settings"
 import { CardGroup } from "@/components/ui/card"
-import { appHeaderRightActionsForRole, appSettingsTabs } from "@/lib/app-options"
+import {
+  appHeaderRightActionsForRole,
+  appRoles,
+  appSettingsTabs,
+  type AppRole,
+} from "@/lib/app-options"
+import { appRoleFor } from "@/lib/roles"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { pageGutter } from "@/lib/layout/shell-gutter"
@@ -96,6 +104,19 @@ const audienceTabs: readonly { id: SettingsTabId; label: string }[] =
 export type SettingsTabId =
   | (typeof settingsTabs)[number]["id"]
   | (typeof audienceGroups)[number]["tabs"][number]["id"]
+  | `${typeof ROLE_NAVIGATION_PREFIX}${string}`
+
+/**
+ * Each app role's own Navigation row is this followed by the role's id, under
+ * a heading of the role's name, between Members and Public.
+ */
+const ROLE_NAVIGATION_PREFIX = "role-navigation-"
+
+/** The app role whose Navigation row this is, or null for any other row. */
+function roleForTab(tab: string): AppRole | null {
+  if (!tab.startsWith(ROLE_NAVIGATION_PREFIX)) return null
+  return appRoleFor(tab.slice(ROLE_NAVIGATION_PREFIX.length))
+}
 
 /** Every id the shell itself owns — what an app's tab may not be called. */
 const shellSettingsTabIds: readonly string[] = [
@@ -122,7 +143,7 @@ const railRow = (tab: { id: string; label: string }) => ({
 
 /**
  * The blocks in the Platform card: the admin's own rows, then Members, then
- * Public.
+ * one block per role the app declared, then Public.
  *
  * The first block carries no heading, because the card's own title already
  * names it. A row the app has claimed keeps its position here rather than
@@ -133,12 +154,25 @@ function platformCardGroups(): readonly SettingsTabGroupSection[] {
   const own = extraTabs()
   const claim = (id: string) => own.find((tab) => tab.id === id)
 
+  const [members, ...rest] = audienceGroups.map((group) => ({
+    label: group.label,
+    tabs: group.tabs.map((tab) => railRow(claim(tab.id) ?? tab)),
+  }))
+  const roleGroups = appRoles().map((role) => ({
+    label: role.label,
+    tabs: [
+      {
+        id: `${ROLE_NAVIGATION_PREFIX}${role.id}` as const,
+        label: "Navigation",
+      },
+    ],
+  }))
+
   return [
     { tabs: settingsTabs.map(railRow) },
-    ...audienceGroups.map((group) => ({
-      label: group.label,
-      tabs: group.tabs.map((tab) => railRow(claim(tab.id) ?? tab)),
-    })),
+    members,
+    ...roleGroups,
+    ...rest,
   ]
 }
 
@@ -172,6 +206,7 @@ export function getSettingsTabFromPath(path: string): SettingsTabId {
   const segment = path.replace(/^\/admin\/settings\/?/, "")
   const known =
     shellSettingsTabIds.includes(segment) ||
+    roleForTab(segment) !== null ||
     extraTabs().some((tab) => tab.id === segment)
   return known ? (segment as SettingsTabId) : "general"
 }
@@ -221,6 +256,7 @@ export function SettingsPage({
   const adminHeaderActionIds = adminHeaderActions.map((action) => action.id)
   const memberHeaderActionIds = memberHeaderActions.map((action) => action.id)
   const appRows = appCardRows()
+  const navigationRole = roleForTab(activeTab)
 
   return (
     <div
@@ -350,6 +386,7 @@ export function SettingsPage({
                 <TopLeftNavigationSettings
                   config={config}
                   onConfigChange={onConfigChange}
+                  audience="admin"
                 />
               }
               sections={config.sections}
@@ -376,6 +413,13 @@ export function SettingsPage({
                     publicThemePresets: config.publicThemePresets,
                   }),
               }}
+            />
+            <TopLeftShortcutsSettings
+              shortcuts={config.topLeftShortcuts}
+              onShortcutsChange={(topLeftShortcuts) =>
+                changeConfig({ topLeftShortcuts })
+              }
+              onSaveConfig={onSaveConfig}
             />
             <TopRightSettings
               items={config.topRightNavigation}
@@ -435,6 +479,17 @@ export function SettingsPage({
                     ),
                   }),
               }}
+            />
+          </CardGroup>
+        ) : null}
+        {navigationRole ? (
+          <CardGroup>
+            <RoleNavigationSettings
+              key={navigationRole.id}
+              role={navigationRole}
+              config={config}
+              onConfigChange={onConfigChange}
+              onSaveConfig={onSaveConfig}
             />
           </CardGroup>
         ) : null}

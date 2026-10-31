@@ -4,6 +4,8 @@ import { ensureBackgroundTicker } from "@/server/ticker"
 import { maybeCleanUpOldData } from "@/server/cleanup"
 import { requireAppOrigin } from "@/server/auth/origin"
 import { requireAdmin, requireUser } from "@/server/auth/security"
+import type { RoleFeature } from "@/lib/role-id"
+import { requireRoleFeature } from "@/server/people/roles"
 
 /**
  * The door checks, done once instead of at the top of every handler.
@@ -16,7 +18,9 @@ import { requireAdmin, requireUser } from "@/server/auth/security"
  *       .middleware([adminGet])
  *       .handler(async ({ context }) => listThings(context.user.id))
  *
- * Four of them, because there are two questions and two kinds of request:
+ * Four of them, because there are two questions and two kinds of request,
+ * plus `featureGet` and `featurePost` for the parts of the shell an app role
+ * may not get:
  *
  * - **admin / user** — must this be an admin, or is any signed-in member fine?
  * - **Get / Post** — anything that *changes* something also checks the request
@@ -85,3 +89,29 @@ export const userPost = createMiddleware({ type: "function" }).server(
     return next({ context: { user: await requireUser() } })
   }
 )
+
+/**
+ * Reads behind a part of the shell an app role may not get, such as billing.
+ * Admins and members pass, as they always did; an app role passes only when
+ * its app gave it that feature. `src/server/role-features.test.ts` checks
+ * every billing, feedback, changelog and AI usage endpoint uses one of these.
+ */
+export function featureGet(feature: RoleFeature) {
+  return createMiddleware({ type: "function" }).server(async ({ next }) => {
+    ensureBackgroundTicker()
+    const user = await requireUser()
+    requireRoleFeature(user, feature)
+    return next({ context: { user } })
+  })
+}
+
+/** Changes behind a part of the shell an app role may not get. */
+export function featurePost(feature: RoleFeature) {
+  return createMiddleware({ type: "function" }).server(async ({ next }) => {
+    ensureBackgroundTicker()
+    requireAppOrigin()
+    const user = await requireUser()
+    requireRoleFeature(user, feature)
+    return next({ context: { user } })
+  })
+}

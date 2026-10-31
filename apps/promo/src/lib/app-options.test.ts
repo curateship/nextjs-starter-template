@@ -22,6 +22,7 @@ import {
   catchAllOverride,
   landingPageOverride,
   mayHaveWorkspace,
+  signInFrameLoader,
   whoMayHaveWorkspaces,
   capitalise,
   workspaceWord,
@@ -79,6 +80,10 @@ describe("an option nobody set means what the shell always did", () => {
 
   it("keeps the shell's own front page", () => {
     expect(landingPageOverride({})).toBeNull()
+  })
+
+  it("keeps the public frame around the signed-out pages", () => {
+    expect(signInFrameLoader({})).toBeNull()
   })
 
   it("adds no automation steps of its own", () => {

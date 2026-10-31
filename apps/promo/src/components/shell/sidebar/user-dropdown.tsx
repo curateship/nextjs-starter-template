@@ -67,6 +67,7 @@ export function UserDropdown({
   viewingAsMember,
   isAdmin,
   showUpgrade,
+  showBilling,
 }: {
   user: {
     name: string
@@ -78,6 +79,8 @@ export function UserDropdown({
   viewingAsMember: boolean
   isAdmin: boolean
   showUpgrade: boolean
+  /** Off for an app role whose app gave it no billing. */
+  showBilling: boolean
 }) {
   const { isMobile, setOpenMobile } = useSidebar()
   const openAccount = useOpenAccount()
@@ -159,12 +162,14 @@ export function UserDropdown({
                 <BadgeCheckIcon />
                 Account
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => openAccountFromSidebar("billing")}
-              >
-                <CreditCardIcon />
-                Billing
-              </DropdownMenuItem>
+              {showBilling ? (
+                <DropdownMenuItem
+                  onSelect={() => openAccountFromSidebar("billing")}
+                >
+                  <CreditCardIcon />
+                  Billing
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem
                 onSelect={() => openAccountFromSidebar("security")}
               >

@@ -438,3 +438,51 @@ and the diff is additions only.
 only when three apps' suites ran at once, and pass alone. **One test fails in the shell too.** `public-branding.test.ts` expects the
 public header settings without the `menuFontSize` field the shell now writes.
 It fails the same way in `apps/shell`.
+
+## Shell merge, 30 October 2026
+
+Every shell change since the 15 Oct merge is in Directory. 97 files were
+replaced, 65 added (four of them migrations) and 8 deleted. Each replaced file
+was first matched against every version of that file in the shell's history.
+`src/components/shell/shell-layout.tsx` was not a plain older copy: it carried
+a panel view addition the shell had made too, so a three-way merge came out as
+the shell's copy.
+
+**What arrived.**
+
+- **Contacts and Segments are one three-column dashboard**, with CSV import,
+  notes on a contact, Filter, New and mass select, and the old contacts page,
+  segments page and contact window deleted.
+- **App roles.** An app can add its own kinds of account beside admin and
+  member. Directory declares none yet, so every account works as before.
+- **Big video uploads** go to storage in pieces, up to 5GB, which needs
+  `@aws-sdk/s3-request-presigner`. It is added to `package.json` at the
+  version the shell uses.
+- **An automation's test run picks a contact**, and webhooks skip in tests.
+- **Saved views and a Dashboard tabs setting** for three-column dashboards.
+- **Every table line is drawn from one rule**, and a panel header's bottom line
+  becomes the table's top line when a table sits right under it.
+- **Settings → Styling → Left menu shade**, a slider that sets the left menu
+  and top bar between the page colour and a card's colour.
+- **The front page and `/login` are the sign-in card alone.**
+- **The worker build drops stylesheets**, so a CSS import can no longer stop
+  the worker from starting.
+
+**The panel view is gone.** `src/lib/layout/panel-view.ts` and its test are
+deleted, because the shell removed them on 30 Oct: Personal no longer frames
+apps that way.
+
+**Four migrations owed**, under Directory's next free numbers:
+`0132_custom_shell_app_roles.sql` (shell 0094),
+`0133_custom_shell_test_run_contact.sql` (shell 0095),
+`0134_custom_shell_contact_notes.sql` (shell 0096) and
+`0135_custom_shell_saved_views.sql` (shell 0097). None is applied yet, locally
+or live.
+
+**Kept as Directory's own.** `scripts/setup-database.mjs` stays Directory's,
+because the shell's copy now imports the CRM sample script Directory does not
+carry and names the shell's own database. `src/app/open-endpoints.ts` and
+`.prettierrc` stay Directory's own. `src/components/pages/site-search-page.tsx`
+is a shell file Directory edited to use its own card hover; the shell has not
+changed it since, so it was left as it is. No route was added, so
+`src/routeTree.gen.ts` is unchanged.

@@ -5,6 +5,14 @@ covers the filter menu and saved views, how files get in, and how they reach
 the timeline. Collections, the named groups the filter can show, have their
 own doc in [media-collections.md](media-collections.md).
 
+## Searching
+
+The magnifier at the top of the panel opens a search box in a pop-out, the
+same as the Voiceovers panel's. A pop-out moves itself clear of the left menu
+when the panel is narrow, which the box drawn under the button never did.
+Escape or a click anywhere else closes it, and the words stay until they are
+cleared.
+
 ## The filter menu
 
 The funnel at the top of the panel, between search and +, opens one menu.

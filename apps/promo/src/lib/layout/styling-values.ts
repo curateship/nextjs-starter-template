@@ -57,6 +57,34 @@ export type ShellStyling = {
   modal: ShellModalStyling
   /** How dark the dark mode is. Ignored in light mode. */
   darkShade: DarkShadeId
+  /**
+   * How a three-column dashboard draws the tabs in its panel headers. Unset
+   * reads as pills (`DEFAULT_DASHBOARD_TABS`). Optional, because a row saved
+   * before the choice existed, and a scaffold captured before it, have none.
+   */
+  dashboardTabs?: DashboardTabStyle
+  /**
+   * Where the left menu and the sticky bar sit between the page colour (0) and
+   * a card's colour (100). Unset reads as halfway (`DEFAULT_SIDEBAR_SHADE`).
+   * Optional for the same reason as `dashboardTabs`.
+   */
+  sidebarShade?: number
+}
+
+/**
+ * The two ways a dashboard's header tabs can be drawn: the grey track with a
+ * raised pill, or words with a line under the one showing. Tyler, 20 Oct
+ * 2026: "Line tab or pill tabs should be a choice all apps can make".
+ */
+export const DASHBOARD_TAB_STYLES = ["pills", "underline"] as const
+
+export type DashboardTabStyle = (typeof DASHBOARD_TAB_STYLES)[number]
+
+/** Pills, Tyler's pick on 20 Oct 2026 for a site that never chose. */
+export const DEFAULT_DASHBOARD_TABS: DashboardTabStyle = "pills"
+
+export function isDashboardTabStyle(value: unknown): value is DashboardTabStyle {
+  return DASHBOARD_TAB_STYLES.includes(value as DashboardTabStyle)
 }
 
 export type ShellModalStyling = {
@@ -159,6 +187,8 @@ export const DEFAULT_CARD_BORDER_WIDTH = 1
 export const MAX_MODAL_PADDING = 48
 export const DEFAULT_MODAL_PADDING = 20
 export const DEFAULT_MODAL_OVERLAY_OPACITY = 8
+/** Halfway between the page and a card, the shade the rail has always had. */
+export const DEFAULT_SIDEBAR_SHADE = 50
 // Fallback strength used when a stored value is missing/invalid.
 export const DEFAULT_CONTENT_BACKGROUND_STRENGTH = 60
 export const SHELL_BACKGROUND_MODES: readonly ShellBackgroundMode[] = [
@@ -190,6 +220,10 @@ export function clampModalPadding(value: unknown): number {
 
 export function clampOverlayOpacity(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_MODAL_OVERLAY_OPACITY)
+}
+
+export function clampSidebarShade(value: unknown): number {
+  return clampInt(value, 0, 100, DEFAULT_SIDEBAR_SHADE)
 }
 
 // The out-of-the-box look for a new workspace/app and every reset. These are the
@@ -286,6 +320,12 @@ export function normalizeStyling(value: unknown): ShellStyling {
     content: normalizeBackground(styling.content, fallback.content),
     chrome: normalizeBackground(styling.chrome, fallback.chrome),
     modal: normalizeModalStyling(styling.modal),
+    ...(isDashboardTabStyle(styling.dashboardTabs)
+      ? { dashboardTabs: styling.dashboardTabs }
+      : {}),
+    ...(styling.sidebarShade === undefined
+      ? {}
+      : { sidebarShade: clampSidebarShade(styling.sidebarShade) }),
   }
 }
 
@@ -445,3 +485,20 @@ export function getDarkShadeVars(styling: ShellStyling): Record<string, string> 
 
 /** The dark-shade CSS variable names, used to clear stale values. */
 export const DARK_SHADE_VAR_NAMES = ["--shell-dark-lift"] as const
+
+/**
+ * The left menu's shade, applied to the document root the same way as the
+ * dark shade. `--shell-rail` in theme.css mixes this much of `--card` into
+ * `--shell-canvas`, in both palettes, so the rail stays between the page and a
+ * card whatever the mode or the dark shade.
+ */
+export function getSidebarShadeVars(
+  styling: ShellStyling
+): Record<string, string> {
+  return {
+    "--shell-rail-card-share": `${clampSidebarShade(styling.sidebarShade)}%`,
+  }
+}
+
+/** The sidebar-shade CSS variable names, used to clear stale values. */
+export const SIDEBAR_SHADE_VAR_NAMES = ["--shell-rail-card-share"] as const

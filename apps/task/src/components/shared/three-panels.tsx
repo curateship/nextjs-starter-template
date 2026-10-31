@@ -50,9 +50,16 @@ export function ThreePanels({
    * Where the dashboard was, kept under `key`, one of `panelLayoutKey`'s
    * `…Place` keys: the route's own search, and the ids of the list's rows as
    * shown, first row first. The open record must be `?open=` and
-   * `showRightFor` its id.
+   * `showRightFor` its id. `ready` is false while the rows shown are still
+   * the ones from before the address changed, for a list the screen loads
+   * itself rather than through the route's loader.
    */
-  place: { key: string; search: Record<string, unknown>; ids: string[] }
+  place: {
+    key: string
+    search: Record<string, unknown>
+    ids: string[]
+    ready?: boolean
+  }
   left: Side
   middle: { label: string; content: React.ReactNode }
   right: Side
@@ -91,6 +98,7 @@ export function ThreePanels({
     placeKey: place.key,
     search: place.search,
     ids: place.ids,
+    ready: place.ready,
     onQuietOpen: setQuietRight,
   })
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)

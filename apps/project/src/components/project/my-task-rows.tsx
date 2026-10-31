@@ -75,7 +75,8 @@ export function MyTaskRows({
   tasks,
   openTaskId,
   groups,
-  groupOf,
+  groupsOf,
+  foldsKey = MY_TASK_FOLDS_KEY,
   onOpenTask,
   onDrop,
   bulk,
@@ -86,7 +87,10 @@ export function MyTaskRows({
   /** The task open in the right panel, whose row is marked. */
   openTaskId?: string
   groups?: readonly RowGroup[]
-  groupOf?: (task: TaskCard) => string
+  /** The headings a task sits under; a task with two tags shows under both. */
+  groupsOf?: (task: TaskCard) => string[]
+  /** Where the folded headings are remembered, one place per grouping. */
+  foldsKey?: string
   onOpenTask: (task: TaskCard) => void
   /** A row let go inside its heading or under another. Left out, rows don't drag. */
   onDrop?: (drop: ListDrop) => void
@@ -105,18 +109,18 @@ export function MyTaskRows({
   const selectedIds = ids.filter((id) => selection.selected.has(id))
 
   const grouped = React.useMemo(() => {
-    if (!groups || !groupOf) return [{ key: "all", label: null as string | null, rows: tasks }]
+    if (!groups || !groupsOf) return [{ key: "all", label: null as string | null, rows: tasks }]
     return groups
       .map((group) => ({
         key: group.key,
         label: group.label as string | null,
-        rows: tasks.filter((task) => groupOf(task) === group.key),
+        rows: tasks.filter((task) => groupsOf(task).includes(group.key)),
       }))
       .filter((group) => group.rows.length > 0)
-  }, [groupOf, groups, tasks])
+  }, [groupsOf, groups, tasks])
   const drop = useListDrop(grouped, { groups, onDrop, canMove, showsEmpty: takesDrops })
   const sections = drop.sections
-  const folds = useFoldedHeadings(MY_TASK_FOLDS_KEY)
+  const folds = useFoldedHeadings(foldsKey)
 
   /** The row's own Pause, for a clock left running (Task panel task 01, part 6). */
   async function pauseClock(task: TaskCard) {

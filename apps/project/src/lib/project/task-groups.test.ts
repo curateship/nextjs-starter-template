@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { canMoveInGroup, groupTasks, type GroupableTask } from "@/lib/project/task-groups"
+import { canMoveInGroup, groupMyTasks, groupTasks, type GroupableTask } from "@/lib/project/task-groups"
 
 const NOW = new Date("2026-10-19T12:00:00")
 
@@ -97,5 +97,22 @@ describe("dragging a row under another heading (Tyler, 24 Oct 2026)", () => {
 
   it("has nowhere else to go with no grouping", () => {
     expect(canMoveInGroup("none", "all", plan)).toBe(false)
+  })
+})
+
+describe("My dashboard's Group row", () => {
+  it("groups by project, by name, and the rest as a project's List does", () => {
+    const mine = [
+      { ...task({ title: "Logo" }), projectId: "b", projectName: "Brand" },
+      { ...task({ title: "Footer", status: "doing" }), projectId: "w", projectName: "Website" },
+      { ...task({ title: "Colours" }), projectId: "b", projectName: "Brand" },
+    ]
+    const byProject = groupMyTasks(mine, "project", NOW)
+    expect(byProject.groups).toEqual([
+      { key: "b", label: "Brand" },
+      { key: "w", label: "Website" },
+    ])
+    expect(mine.filter((t) => byProject.groupsOf(t).includes("b")).map((t) => t.title)).toEqual(["Logo", "Colours"])
+    expect(groupMyTasks(mine, "status", NOW).groups.map((g) => g.label)).toEqual(["To do", "Doing"])
   })
 })

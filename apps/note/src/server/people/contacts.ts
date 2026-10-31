@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm"
 
 import type { ContactSegmentStatus } from "@/lib/contacts/contact-segments"
 import type { ContactSortColumn } from "@/lib/contacts/contact-sort"
+import { CSV_IMPORT_SOURCE } from "@/lib/contacts/contact-csv"
 import {
   contactFilterConditions,
   type ContactListFilter,
@@ -231,6 +232,8 @@ export async function listWorkspaceContacts(
   //
   // The count beside it deliberately does not join: how many people match the
   // filters has nothing to do with what was sent to them.
+  //
+  // The same pass counts the row's "Opened 2 of 3": see `deliveryCounts`.
   const lastEmailed = database
     .select({
       contactId: customShellDeliveries.contactId,
@@ -241,6 +244,7 @@ export async function listWorkspaceContacts(
       at: sql<Date | null>`max(${customShellDeliveries.createdAt})`
         .mapWith(customShellDeliveries.createdAt)
         .as("last_emailed_at"),
+      ...deliveryCounts(),
     })
     .from(customShellDeliveries)
     .where(eq(customShellDeliveries.workspaceId, workspaceId))
@@ -279,7 +283,12 @@ export async function listWorkspaceContacts(
 
   const [rows, [countRow]] = await Promise.all([
     database
-      .select({ contact: customShellContacts, lastEmailedAt: lastEmailed.at })
+      .select({
+        contact: customShellContacts,
+        lastEmailedAt: lastEmailed.at,
+        emailsSent: lastEmailed.sent,
+        emailsOpened: lastEmailed.opened,
+      })
       .from(customShellContacts)
       // Left, not inner: somebody who has never been emailed is still on the
       // list, with nothing in this column.
@@ -300,8 +309,92 @@ export async function listWorkspaceContacts(
     contacts: rows.map((row) => ({
       ...row.contact,
       lastEmailedAt: row.lastEmailedAt,
+      // Null for somebody with no sends at all, whom the left join found nothing for.
+      emailsSent: row.emailsSent ?? 0,
+      emailsOpened: row.emailsOpened ?? 0,
     })),
     total: countRow?.total ?? 0,
+  }
+}
+
+/**
+ * How many emails somebody was sent and how many of those they opened, as
+ * columns of a query grouped by contact over `deliveries`.
+ *
+ * A send that failed before it was handed over never reached them, so it is
+ * not counted. A click counts as an open: an open is a hidden picture, which a
+ * mail client that blocks pictures never loads, and nobody clicks a link in
+ * an email they did not open. Newsletter sends only, the same table "Last
+ * emailed" reads.
+ */
+function deliveryCounts() {
+  return {
+    sent: sql<number>`(count(*) filter (where ${customShellDeliveries.status} <> 'failed'))::int`.as(
+      "emails_sent"
+    ),
+    opened: sql<number>`(count(*) filter (where ${customShellDeliveries.status} <> 'failed' and (${customShellDeliveries.openedAt} is not null or ${customShellDeliveries.clickedAt} is not null)))::int`.as(
+      "emails_opened"
+    ),
+  }
+}
+
+/** One person's "Opened 2 of 3", for the open contact's panel. */
+export async function countContactEmails(
+  workspaceId: string,
+  contactId: string,
+  database: CustomShellDb = db
+): Promise<{ sent: number; opened: number }> {
+  const [row] = await database
+    .select(deliveryCounts())
+    .from(customShellDeliveries)
+    .where(
+      and(
+        eq(customShellDeliveries.workspaceId, workspaceId),
+        eq(customShellDeliveries.contactId, contactId)
+      )
+    )
+  return { sent: row?.sent ?? 0, opened: row?.opened ?? 0 }
+}
+
+/**
+ * The Contacts dashboard's "Last 30 days" card: how many people joined, opted
+ * out and bounced in the last `days` days.
+ *
+ * Opted out reads the date the opt-out was made, so somebody who opted out
+ * and was put back is not counted. Bounced counts people, not bounces, from
+ * newsletter sends; an automation email records no bounce date to count.
+ */
+export async function countRecentContactChanges(
+  workspaceId: string,
+  days: number,
+  database: CustomShellDb = db,
+  timestamp: Date = now()
+): Promise<{ joined: number; optedOut: number; bounced: number }> {
+  const since = new Date(timestamp.getTime() - days * 24 * 60 * 60 * 1000)
+  const [[contactsRow], [bouncedRow]] = await Promise.all([
+    database
+      .select({
+        joined: sql<number>`(count(*) filter (where ${customShellContacts.createdAt} >= ${since}))::int`,
+        optedOut: sql<number>`(count(*) filter (where ${customShellContacts.status} = 'unsubscribed' and ${customShellContacts.unsubscribedAt} >= ${since}))::int`,
+      })
+      .from(customShellContacts)
+      .where(eq(customShellContacts.workspaceId, workspaceId)),
+    database
+      .select({
+        bounced: sql<number>`count(distinct ${customShellDeliveries.contactId})::int`,
+      })
+      .from(customShellDeliveries)
+      .where(
+        and(
+          eq(customShellDeliveries.workspaceId, workspaceId),
+          sql`${customShellDeliveries.bouncedAt} >= ${since}`
+        )
+      ),
+  ])
+  return {
+    joined: contactsRow?.joined ?? 0,
+    optedOut: contactsRow?.optedOut ?? 0,
+    bounced: bouncedRow?.bounced ?? 0,
   }
 }
 
@@ -476,6 +569,137 @@ export async function setWorkspaceContactTags(
     )
     .returning({ id: customShellContacts.id })
   if (updated.length === 0) throw new Error("CONTACT_NOT_FOUND")
+}
+
+/** Replaces one contact's note, found by id the way their tags are. */
+export async function setWorkspaceContactNotes(
+  workspaceId: string,
+  contactId: string,
+  notes: string,
+  database: CustomShellDb = db
+): Promise<void> {
+  const updated = await database
+    .update(customShellContacts)
+    .set({ notes, updatedAt: now() })
+    .where(
+      and(
+        eq(customShellContacts.workspaceId, workspaceId),
+        eq(customShellContacts.id, contactId)
+      )
+    )
+    .returning({ id: customShellContacts.id })
+  if (updated.length === 0) throw new Error("CONTACT_NOT_FOUND")
+}
+
+export type ContactImportRow = {
+  email: string
+  firstName?: string | null
+  lastName?: string | null
+  tags?: string[]
+}
+
+/**
+ * Adds a batch of rows from a CSV file, and updates the people already on
+ * the list (Tyler, 20 Oct 2026: "Build CSV import now").
+ *
+ * - **New addresses** are added on the list, with "CSV import" as where they
+ *   came from.
+ * - **Addresses already here** keep their status. Somebody who opted out
+ *   stays opted out: putting them back because their address was in a file is
+ *   exactly what an unsubscribe link promises will not happen. Their tags gain
+ *   the file's, and a name in the file replaces theirs, except on somebody with
+ *   an account, whose name the account owns (`syncContactsFromUsers`).
+ * - **The same address twice in one batch** is one person, the later row's
+ *   name winning and both rows' tags kept.
+ *
+ * Matching is case-insensitive, like the unique index. The browser sends the
+ * file in batches, so one batch is one request and each is complete on its own.
+ */
+export async function importWorkspaceContacts(
+  workspaceId: string,
+  rows: ContactImportRow[],
+  database: CustomShellDb = db
+): Promise<{ added: number; updated: number; unchanged: number }> {
+  const byEmail = new Map<string, ContactImportRow & { email: string }>()
+  for (const row of rows) {
+    const email = row.email.trim().toLowerCase()
+    if (!email) continue
+    const earlier = byEmail.get(email)
+    byEmail.set(email, {
+      email,
+      firstName: row.firstName?.trim() || earlier?.firstName || null,
+      lastName: row.lastName?.trim() || earlier?.lastName || null,
+      tags: [...(earlier?.tags ?? []), ...(row.tags ?? [])],
+    })
+  }
+  if (byEmail.size === 0) return { added: 0, updated: 0, unchanged: 0 }
+
+  const existing = await database
+    .select()
+    .from(customShellContacts)
+    .where(
+      and(
+        eq(customShellContacts.workspaceId, workspaceId),
+        inArray(sql`lower(${customShellContacts.email})`, [...byEmail.keys()])
+      )
+    )
+  const found = new Map(existing.map((row) => [row.email.trim().toLowerCase(), row]))
+
+  const timestamp = now()
+  const missing: (typeof customShellContacts.$inferInsert)[] = []
+  let updated = 0
+  let unchanged = 0
+
+  for (const row of byEmail.values()) {
+    const current = found.get(row.email)
+    if (!current) {
+      missing.push({
+        id: uuid(),
+        workspaceId,
+        email: row.email,
+        firstName: row.firstName ?? null,
+        lastName: row.lastName ?? null,
+        tags: cleanTags(row.tags ?? []),
+        source: CSV_IMPORT_SOURCE,
+        status: "subscribed",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      continue
+    }
+    const ownName = !current.userId
+    const firstName = ownName && row.firstName ? row.firstName : current.firstName
+    const lastName = ownName && row.lastName ? row.lastName : current.lastName
+    const tags = cleanTags([...current.tags, ...(row.tags ?? [])])
+    const same =
+      firstName === current.firstName &&
+      lastName === current.lastName &&
+      tags.length === current.tags.length
+    if (same) {
+      unchanged += 1
+      continue
+    }
+    await database
+      .update(customShellContacts)
+      .set({ firstName, lastName, tags, updatedAt: timestamp })
+      .where(eq(customShellContacts.id, current.id))
+    updated += 1
+  }
+
+  let added = 0
+  if (missing.length) {
+    const inserted = await database
+      .insert(customShellContacts)
+      .values(missing)
+      // Somebody added in another tab a moment ago: they are on the list
+      // either way, so the row is left alone rather than failing the batch.
+      .onConflictDoNothing()
+      .returning({ id: customShellContacts.id })
+    added = inserted.length
+    unchanged += missing.length - inserted.length
+  }
+
+  return { added, updated, unchanged }
 }
 
 /**

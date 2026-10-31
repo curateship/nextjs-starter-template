@@ -22,10 +22,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { StickyHeaderRightNav } from "@/components/shell/sticky-header/sticky-header-right-nav"
-import {
-  StickyHeaderLeftNav,
-  type StickyHeaderLeftNavLink,
-} from "@/components/shell/sticky-header/sticky-header-left-nav"
 import { useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import type { ShellTopRightNavigationItem } from "@/lib/custom-shell"
@@ -48,9 +44,7 @@ export type ViewingAsSummary = {
 
 type StickyHeaderProps = {
   className?: string
-  navLinks?: StickyHeaderLeftNavLink[]
-  /** Most links to draw before the rest fold into a "more" menu. 0 = all. */
-  navLinkLimit?: number
+  /** The top left: links, a breadcrumb or an app's own component. */
   navContent?: React.ReactNode
   rightNavItems?: ShellTopRightNavigationItem[]
   /** Who is looking, for the top-right row's admin-link guard. */
@@ -78,8 +72,6 @@ type StickyHeaderProps = {
 
 export function StickyHeader({
   className,
-  navLinks,
-  navLinkLimit,
   navContent,
   rightNavItems,
   role,
@@ -126,10 +118,6 @@ export function StickyHeader({
           ) : null}
 
           {navContent}
-
-          {!navContent && navLinks && navLinks.length > 0 && (
-            <StickyHeaderLeftNav navLinks={navLinks} limit={navLinkLimit} />
-          )}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {viewingAs ? <ViewAsBadge viewingAs={viewingAs} /> : null}

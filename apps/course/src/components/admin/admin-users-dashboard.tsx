@@ -65,6 +65,7 @@ import {
   startViewingAsMember,
 } from "@/lib/api/people/view-as"
 import { formatDate } from "@/lib/format/format-time"
+import { allRoles, roleLabel } from "@/lib/roles"
 import {
   useListSearchNavigate,
   useListSort,
@@ -451,8 +452,11 @@ export function AdminUsersDashboard({
               </DashboardToolbarSelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All roles</SelectItem>
-                <SelectItem value="admin">Admins</SelectItem>
-                <SelectItem value="member">Members</SelectItem>
+                {allRoles().map((one) => (
+                  <SelectItem key={one.id} value={one.id}>
+                    {one.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select
@@ -552,7 +556,7 @@ export function AdminUsersDashboard({
             </TableCell>
             <TableCell column="meta">
               <Badge variant={account.role === "admin" ? "default" : "outline"}>
-                {account.role === "admin" ? "Admin" : "Member"}
+                {roleLabel(account.role)}
               </Badge>
             </TableCell>
             <TableCell column="meta">
@@ -597,7 +601,7 @@ export function AdminUsersDashboard({
                   }
                   reason={
                     account.role === "admin"
-                      ? "You cannot view the app as another admin. Only members can be viewed as."
+                      ? "You cannot view the app as another admin."
                       : isPendingDeletion(account)
                         ? "This account is scheduled for deletion. Restore it first."
                         : "This account is suspended. Set it back to active first."

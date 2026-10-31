@@ -59,6 +59,7 @@ import {
   PAGE_VISIBILITY_SENTENCES,
   type PageVisibility,
 } from "@/lib/pages/page-visibility"
+import { useSiteAddress } from "@/lib/hooks/use-site-address"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 /**
@@ -122,6 +123,7 @@ export function AdminPagesDashboard({
 }) {
   const router = useRouter()
   const runtime = useShellRuntime()
+  const siteAddress = useSiteAddress()
   const navigate = useListSearchNavigate()
   const [text, setText] = useSearchBoxText(searchText, (value) =>
     navigate({ q: value || undefined })
@@ -388,7 +390,7 @@ export function AdminPagesDashboard({
           <TableCell column="actions">
               <Button asChild variant="ghost" size="icon">
                 <a
-                  href={row.path}
+                  href={siteAddress(row.path)}
                   target="_blank"
                   rel="noreferrer"
                   aria-label={`Open ${row.name} in a new tab`}

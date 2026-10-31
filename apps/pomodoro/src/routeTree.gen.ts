@@ -17,6 +17,7 @@ import { Route as ChangeEmailRouteImport } from './routes/change-email'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
+import { Route as ManifestDotwebmanifestRouteImport } from './routes/manifest[.]webmanifest'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReportUnwantedSignInRouteImport } from './routes/report-unwanted-sign-in'
@@ -160,6 +161,11 @@ const LoginRoute = LoginRouteImport.update({
 const MaintenanceRoute = MaintenanceRouteImport.update({
   id: '/maintenance',
   path: '/maintenance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManifestDotwebmanifestRoute = ManifestDotwebmanifestRouteImport.update({
+  id: '/manifest.webmanifest',
+  path: '/manifest.webmanifest',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PricingRoute = PricingRouteImport.update({
@@ -754,6 +760,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
@@ -868,6 +875,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
@@ -983,6 +991,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
@@ -1099,6 +1108,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/maintenance'
+    | '/manifest.webmanifest'
     | '/pricing'
     | '/register'
     | '/report-unwanted-sign-in'
@@ -1213,6 +1223,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/maintenance'
+    | '/manifest.webmanifest'
     | '/pricing'
     | '/register'
     | '/report-unwanted-sign-in'
@@ -1327,6 +1338,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/maintenance'
+    | '/manifest.webmanifest'
     | '/pricing'
     | '/register'
     | '/report-unwanted-sign-in'
@@ -1444,6 +1456,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   MaintenanceRoute: typeof MaintenanceRoute
+  ManifestDotwebmanifestRoute: typeof ManifestDotwebmanifestRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
   ReportUnwantedSignInRoute: typeof ReportUnwantedSignInRoute
@@ -1527,6 +1540,13 @@ declare module '@tanstack/react-router' {
       path: '/maintenance'
       fullPath: '/maintenance'
       preLoaderRoute: typeof MaintenanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manifest.webmanifest': {
+      id: '/manifest.webmanifest'
+      path: '/manifest.webmanifest'
+      fullPath: '/manifest.webmanifest'
+      preLoaderRoute: typeof ManifestDotwebmanifestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pricing': {
@@ -2527,6 +2547,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   MaintenanceRoute: MaintenanceRoute,
+  ManifestDotwebmanifestRoute: ManifestDotwebmanifestRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,
   ReportUnwantedSignInRoute: ReportUnwantedSignInRoute,

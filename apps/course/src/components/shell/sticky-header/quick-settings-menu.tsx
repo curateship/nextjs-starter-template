@@ -58,6 +58,34 @@ function AppQuickSettingRow({
 }
 
 /**
+ * The cog's rows without the cog: the app's own rows, then colour mode last.
+ *
+ * On a phone the cog folds into the header's three-dot dropdown along with the
+ * app's controls, and this is what it leaves behind there. Colour mode goes
+ * last in that list rather than first, because the app's rows are the ones
+ * somebody opened the dropdown for, and there is no line between them because
+ * every row already has the same shape.
+ */
+export function QuickSettingsRows({ role }: { role: string }) {
+  const { theme, setTheme } = useTheme()
+  const rows = appQuickSettingsForRole(role)
+
+  return (
+    <>
+      {rows.map((row) => (
+        <AppQuickSettingRow key={row.id} row={row} role={role} />
+      ))}
+      <QuickSettingRow label="Colour mode">
+        <ThemeSwitcher
+          value={theme as ThemeMode}
+          onChange={(mode) => setTheme(mode)}
+        />
+      </QuickSettingRow>
+    </>
+  )
+}
+
+/**
  * The cog in the signed-in header: colour mode, and whatever the app running
  * on this shell puts under it.
  *
@@ -68,6 +96,9 @@ function AppQuickSettingRow({
  * written once here, and `header.quickSettings` in an app's options says what
  * goes under the line. An app with nothing to add gets a menu of colour mode
  * alone, which is what the old standalone theme button was.
+ *
+ * On a phone, when the app folds any of its own controls away, the cog is not
+ * drawn and `QuickSettingsRows` holds the same rows inside the three dots.
  *
  * A panel rather than a dropdown menu of commands. Each row holds a control
  * somebody changes and then looks at, and a menu that closes on the first

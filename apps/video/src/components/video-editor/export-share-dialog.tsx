@@ -63,6 +63,9 @@ export function ExportShareDialog({
   const [loaded, setLoaded] = React.useState<Loaded>({ state: "loading" })
   const [attempt, setAttempt] = React.useState(0)
   const [expiry, setExpiry] = React.useState<ShareExpiryChoice>("never")
+  // Turning a link off asks first, inside this window rather than in a second
+  // one on top: a new link is a different address, so the old one is gone.
+  const [confirmingOff, setConfirmingOff] = React.useState(false)
   const [run, busy] = useAsyncAction(getExportShareErrorMessage)
 
   React.useEffect(() => {
@@ -97,6 +100,7 @@ export function ExportShareDialog({
     await run(async () => {
       await revokeExportShare(item.id)
       setLoaded({ state: "ready", share: null })
+      setConfirmingOff(false)
       onChanged()
     }, "Link turned off. It stops working straight away.")
   }
@@ -177,17 +181,43 @@ export function ExportShareDialog({
                         : "Works until you turn it off."}
                     </p>
                   </div>
-                  <div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => void handleRevoke()}
-                    >
-                      {busy ? <Loader2Icon className="animate-spin" /> : null}
-                      Turn off link
-                    </Button>
-                  </div>
+                  {confirmingOff ? (
+                    <div className="grid gap-2" role="group" aria-label="Turn off this link?">
+                      <p className="text-sm">
+                        Anyone who has this link can no longer open it. A new
+                        link would be a different address.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          disabled={busy}
+                          onClick={() => void handleRevoke()}
+                        >
+                          {busy ? <Loader2Icon className="animate-spin" /> : null}
+                          Turn it off
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => setConfirmingOff(false)}
+                        >
+                          Keep it
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setConfirmingOff(true)}
+                      >
+                        Turn off link
+                      </Button>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>

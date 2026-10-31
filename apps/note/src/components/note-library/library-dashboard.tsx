@@ -8,7 +8,7 @@ import { NotesListPanel } from "@/components/note-library/notes-list-panel"
 import { ThreePanels } from "@/components/shared/three-panels"
 import { getLibraryErrorMessage, loadLibrary, markLibraryOpen } from "@/lib/api/note/library"
 import { loadNotes } from "@/lib/api/note/notes"
-import { filtersOf, listKeyOf, saysAnything, scopeOf, sortOf, type LibrarySearch } from "@/lib/note/library/address"
+import { filtersOf, listKeyOf, scopeOf, sortOf, type LibrarySearch } from "@/lib/note/library/address"
 import { isMoving, type LibraryPage, type NoteCard, type NoteList } from "@/lib/note/library/notes"
 
 /** A moment to play the open note's video from, asked for by a quote; `round` makes a second ask of the same moment new. */
@@ -73,9 +73,6 @@ export function LibraryDashboard({
   const listFailed = failedKey === listKey && listed.key !== listKey
   // Waiting for the list of a folder, search or filter just picked.
   const listLoading = listed.key !== listKey && !listFailed
-  // The note the dashboard opened by itself on arrival, which leaves a narrow
-  // screen on the list (UI standard: "the list stays in front").
-  const [autoOpened, setAutoOpened] = React.useState<string | null>(null)
   const [reloadKey, setReloadKey] = React.useState(0)
   const [seekTo, setSeekTo] = React.useState<SeekRequest | null>(null)
 
@@ -98,59 +95,10 @@ export function LibraryDashboard({
     [libraryId, navigate]
   )
 
-  // Arrival: a bare address goes back to the place this browser remembers.
-  // Once the list for that place has arrived, the first row opens when no
-  // note is open, or when the remembered one has gone from it.
-  const arrival = React.useRef({ done: false, wantFirst: false, wantKey: "", rememberedOpen: false })
-  React.useEffect(() => {
-    if (arrival.current.done) return
-    let place: LibrarySearch | null = null
-    if (!saysAnything(search)) {
-      try {
-        const saved = window.localStorage.getItem(libraryPlaceKey(libraryId))
-        const parsed = saved ? (JSON.parse(saved) as LibrarySearch) : null
-        if (parsed && typeof parsed === "object" && saysAnything(parsed)) place = parsed
-      } catch {
-        // No stored place, or no storage: the dashboard starts at All notes.
-      }
-    }
-    const target = place ?? search
-    arrival.current = {
-      done: true,
-      wantFirst: !target.open || Boolean(place?.open),
-      wantKey: listKeyOf(target),
-      rememberedOpen: Boolean(place?.open),
-    }
-    if (place) void navigate({ to: "/library/$libraryId", params: { libraryId }, search: place, replace: true })
-  }, [libraryId, navigate, search])
-
-  React.useEffect(() => {
-    const want = arrival.current
-    if (!want.wantFirst || listed.key !== want.wantKey || listed.key !== listKey) return
-    want.wantFirst = false
-    const open = search.open
-    if (open && (!want.rememberedOpen || listed.list.notes.some((note) => note.id === open))) return
-    const first = listed.list.notes[0]?.id
-    // Both moves replace the address, so Back leaves the dashboard; the two
-    // changes go together so no frame switches a phone to the note.
-    void Promise.resolve().then(() => {
-      setAutoOpened(first ?? null)
-      setSearch({ open: first }, { replace: true })
-    })
-  }, [listKey, listed, search.open, setSearch])
-
   // Opening the dashboard makes this the library the Save from x.com button saves into.
   React.useEffect(() => {
     markLibraryOpen(libraryId).catch(() => undefined)
   }, [libraryId])
-
-  React.useEffect(() => {
-    try {
-      window.localStorage.setItem(libraryPlaceKey(libraryId), JSON.stringify(search))
-    } catch {
-      // A full or blocked store only loses the remembered place.
-    }
-  }, [libraryId, search])
 
   // ---------------------------------------------------------------------------
   // Reading
@@ -235,7 +183,6 @@ export function LibraryDashboard({
   const actions: DashboardActions = React.useMemo(
     () => ({
       openNote: (id) => {
-        setAutoOpened(null)
         // A quote's moment is for the one opening that asked for it.
         setSeekTo(null)
         setSearch({ open: id })
@@ -297,8 +244,16 @@ export function LibraryDashboard({
   return (
     <ThreePanels
       layoutKey={NOTE_LIBRARY_LAYOUT_KEY}
+      // The list loads here rather than in the route's loader, so the first
+      // row waits until the rows shown are the ones for this address.
+      place={{
+        key: libraryPlaceKey(libraryId),
+        search,
+        ids: list.notes.map((note) => note.id),
+        ready: listed.key === listKey,
+      }}
       showMiddleFor={`${scope}|${search.author ?? ""}`}
-      showRightFor={search.open && search.open !== autoOpened ? search.open : undefined}
+      showRightFor={search.open}
       left={{
         label: "Library",
         showLabel: "Show the library",

@@ -6,6 +6,7 @@ import {
   useEditor,
   useEditorState,
   type Editor,
+  type Extensions,
 } from "@tiptap/react"
 import { BubbleMenu } from "@tiptap/react/menus"
 import StarterKit from "@tiptap/starter-kit"
@@ -594,6 +595,8 @@ function ToolbarDivider() {
   return <div className="mx-1 h-5 w-px bg-border" />
 }
 
+const NO_EXTENSIONS: Extensions = []
+
 /**
  * The same editor, keeping the editor's own document instead of HTML.
  *
@@ -608,11 +611,18 @@ export function DocumentEditor({
   onChange,
   disabled,
   placeholder = "Write the page…",
+  extensions = NO_EXTENSIONS,
 }: {
   value: WrittenPageNode
   onChange: (body: WrittenPageNode) => void
   disabled?: boolean
   placeholder?: string
+  /**
+   * Behaviour an app adds on top, such as a list that opens on a key. They
+   * may not add new kinds of content: what is saved is still cleaned to what
+   * a written page may hold. Pass the same array every render.
+   */
+  extensions?: Extensions
 }) {
   const untouched = React.useRef(writtenPageBodyIsEmpty(value))
 
@@ -627,6 +637,7 @@ export function DocumentEditor({
         link: { openOnClick: false },
       }),
       Placeholder.configure({ placeholder }),
+      ...extensions,
     ],
     content: value,
     editable: !disabled,

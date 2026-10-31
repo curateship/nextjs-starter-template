@@ -19,6 +19,7 @@ import {
   parseMinutes,
   type TaskClock,
 } from "@/lib/project/clock"
+import { PANEL_FOOTER_PADDING } from "@/lib/project/panel-gutter"
 import { LIMITS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -104,7 +105,7 @@ export function TaskClockFooter({
   return (
     // The buttons keep together at the right, and drop to a row of their own
     // together when the panel is too narrow for one row.
-    <div className="flex shrink-0 flex-wrap items-center gap-2 border-t p-3">
+    <div className={cn("flex shrink-0 flex-wrap items-center gap-2 border-t", PANEL_FOOTER_PADDING)}>
       {status}
       <TimeMenu detail={detail} change={change} busy={busy} readOnly={readOnly} canFix={detail.canFixClock && !readOnly} />
       <div className="ml-auto flex items-center gap-2">

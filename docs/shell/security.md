@@ -116,3 +116,16 @@ landings.
 
 Uploads are type and size checked, SVG is sanitized before it is served, and
 private files are streamed only to their owner.
+
+- **The first bytes must match the type claimed.** `validateMediaContent` in
+  `src/server/media/library.ts` refuses a file whose opening bytes are not the
+  format its type says, with "File content does not match the selected media
+  type."
+- **Sound is checked too, since 30 Oct 2026.** Before then the check knew
+  pictures and video but no sound format, so every sound upload was refused.
+  Each sound type is now matched by its own mark: an ID3 tag or a frame sync
+  for MP3, RIFF and WAVE for WAV, OggS for Ogg, the Matroska mark for WebM,
+  `ftyp` for MP4 and M4A, and a frame sync for bare AAC. `audio/x-m4a`, what
+  macOS and Chrome call an .m4a file, joined the allowed types at the same
+  time. The tests are in `src/server/custom-shell.test.ts`, under "validates
+  media types, sizes, filenames, and alt text".

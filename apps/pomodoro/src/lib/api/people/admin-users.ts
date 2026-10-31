@@ -31,6 +31,7 @@ import { listPlans } from "@/server/billing/plans"
 import { enforcePasswordNotBreached } from "@/server/auth/breached-passwords"
 import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
+import { ROLE_ID_PATTERN, type Role } from "@/lib/role-id"
 import { MEMBER_TAG_LIMIT, MEMBER_TAG_MAX_LENGTH } from "@/lib/member-tags"
 import { replaceMemberTags } from "@/server/people/member-tags"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
@@ -46,7 +47,9 @@ export type AssignablePlan = { id: string; name: string; slug: string }
 
 const listQuerySchema = z.object({
   search: z.string().trim().max(120).default(""),
-  role: z.enum(["all", "admin", "member"]).default("all"),
+  // Any stored role's shape, so the list filters by an app's roles too. A
+  // role nobody holds simply matches nobody.
+  role: z.union([z.literal("all"), z.string().regex(ROLE_ID_PATTERN)]).default("all"),
   status: z
     .enum([
       "all",
@@ -77,6 +80,7 @@ const getBaseAdminUserErrorMessage = createErrorMessage(
     [EMAIL_DELIVERY_RETRYABLE]:
       "The set-password email could not be sent, so the account was not created. Please try again shortly.",
     LAST_ADMIN: "You cannot remove the last admin.",
+    UNKNOWN_ROLE: "This app has no such role.",
     CANNOT_DELETE_SELF: "You cannot delete your own account here.",
     PLAN_NOT_FOUND: "That plan no longer exists.",
     SUBSCRIPTION_NOT_FOUND: "This account has no paid plan to cancel.",
@@ -169,7 +173,8 @@ const createAccountFn = createServerFn({ method: "POST" })
       // the duplicate check compares like with like.
       email: z.string().trim().toLowerCase().min(3).max(255).email(),
       name: z.string().trim().min(1).max(255),
-      role: z.enum(["admin", "member"]),
+      // The shape here; the app's list is checked by requireKnownRole.
+      role: z.string().regex(ROLE_ID_PATTERN),
       // Absent when the admin leaves the field empty, which is the emailed
       // set-password link the shell has always sent. The rules match the ones
       // the sign-up and reset forms enforce.
@@ -196,7 +201,8 @@ const updateRoleFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       userId: z.string().min(1).max(36),
-      role: z.enum(["admin", "member"]),
+      // The shape here; the app's list is checked by requireKnownRole.
+      role: z.string().regex(ROLE_ID_PATTERN),
     })
   )
   .handler(async ({ data }) => {
@@ -313,13 +319,13 @@ export function listAdminAccounts(query: AccountListQueryInput) {
 export function createAccountAsAdmin(
   email: string,
   name: string,
-  role: "admin" | "member",
+  role: Role,
   password?: string
 ) {
   return createAccountFn({ data: { email, name, role, password } })
 }
 
-export function updateAccountRole(userId: string, role: "admin" | "member") {
+export function updateAccountRole(userId: string, role: Role) {
   return updateRoleFn({ data: { userId, role } })
 }
 

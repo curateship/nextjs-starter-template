@@ -13,7 +13,7 @@ import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
 import { AutomationRunsPanel } from "@/components/automations/automation-runs-panel"
-import { TestWithMemberDialog } from "@/components/automations/test-with-member-dialog"
+import { TestWithContactDialog } from "@/components/automations/test-with-contact-dialog"
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
@@ -750,7 +750,7 @@ export function AutomationEditor({
                   ) : (
                     <UserIcon className="size-4" />
                   )}
-                  Test with member…
+                  Test with contact…
                 </Button>
               </DisabledReason>
             ) : null}
@@ -936,7 +936,7 @@ export function AutomationEditor({
 
       {!templateMode ? (
         <>
-          <TestWithMemberDialog
+          <TestWithContactDialog
             open={testOpen}
             automationId={initial.id}
             automationName={name}

@@ -380,7 +380,7 @@ it("closes untouched older saved settings without asking to discard", async () =
  * until they are deleted, so a busy scanner left a list only patience could
  * empty (Tyler, 14 Sep 2026).
  */
-it("asks before it sweeps, and offers no broom with nothing to clear", async () => {
+it("clears every match in one press, and offers no broom with nothing to clear", async () => {
   const dismissAll = vi.fn()
   const rows = [
     {
@@ -429,28 +429,10 @@ it("asks before it sweeps, and offers no broom with nothing to clear", async () 
   expect(clear.querySelector("svg")?.getAttribute("class")).toContain(
     "lucide-brush-cleaning"
   )
-  // The broom asks first: a list of matches has no undo.
+  // The broom clears at once: no confirmation window.
   await act(async () => clear.click())
-  expect(dismissAll).not.toHaveBeenCalled()
-  const cancel = [...document.querySelectorAll("button")].find(
-    (node) => node.textContent === "Cancel"
-  )!
-  await act(async () => cancel.click())
-  expect(dismissAll).not.toHaveBeenCalled()
-
-  await openMenu()
-  await act(async () =>
-    document
-      .querySelector<HTMLButtonElement>(
-        '[aria-label="Clear all scanner matches"]'
-      )!
-      .click()
-  )
-  const confirm = [...document.querySelectorAll("button")].find(
-    (node) => node.textContent === "Clear all"
-  )!
-  await act(async () => confirm.click())
   expect(dismissAll).toHaveBeenCalledTimes(1)
+  expect(document.querySelector('[role="alertdialog"]')).toBeNull()
 
   mocks.scan.mockReturnValue({
     snapshot: { ...snapshot, rows: [] },

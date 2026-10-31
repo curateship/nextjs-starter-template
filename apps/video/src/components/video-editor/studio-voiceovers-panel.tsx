@@ -32,6 +32,7 @@ import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-hea
 import { useCaptionPlacement } from "@/components/video-editor/caption-settings-context"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import { OwnVoices } from "@/components/video-editor/studio-own-voices"
+import { Hint } from "@/components/video-assets/hint"
 
 /**
  * The Voiceovers panel: every voiceover already read aloud, searchable by
@@ -110,18 +111,19 @@ export function VoiceoversPanel() {
             {/* A popover rather than a box under the button, so it moves
                 clear of the rail when the panel is narrow. */}
             <Popover open={searchOpen} onOpenChange={setSearchOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Search voiceovers"
-                  title="Search voiceovers"
-                  aria-pressed={searchOpen}
-                >
-                  <SearchIcon className={search ? "text-foreground" : undefined} />
-                </Button>
-              </PopoverTrigger>
+              <Hint label="Search voiceovers">
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Search voiceovers"
+                    aria-pressed={searchOpen}
+                  >
+                    <SearchIcon className={search ? "text-foreground" : undefined} />
+                  </Button>
+                </PopoverTrigger>
+              </Hint>
               <PopoverContent align="start" className="w-60 p-2">
                 <Input
                   autoFocus

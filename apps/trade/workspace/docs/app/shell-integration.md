@@ -244,3 +244,51 @@ trading screens and the exchange code, and the same 41 fail on the tree from
 before this merge. **One test fails in the shell too.** `public-branding.test.ts` expects the
 public header settings without the `menuFontSize` field the shell now writes.
 It fails the same way in `apps/shell`.
+
+## Shell merge, 30 October 2026
+
+Every shell change since the 15 Oct merge is in Trade. 93 files were replaced,
+61 added (four of them migrations) and 6 deleted. Each replaced file was first matched against every
+version of that file in the shell's history. Three were not plain older copies:
+`src/lib/custom-shell.tsx`, `src/lib/app-options.ts` and
+`src/lib/api/shell-settings.ts` carried Trade's 17 Oct "where it goes on a
+phone" choice for header controls, written into the shell files. The shell has
+since taken that choice in itself, so a three-way merge of each came out as the
+shell's copy and Trade lost nothing.
+
+**What arrived.**
+
+- **Contacts and Segments are one three-column dashboard**, with CSV import,
+  notes on a contact, Filter, New and mass select, and the old contacts page,
+  segments page and contact window deleted.
+- **App roles.** An app can add its own kinds of account beside admin and
+  member. Trade declares none, so every account works as before.
+- **Big video uploads** go to storage in pieces, up to 5GB, which needs
+  `@aws-sdk/s3-request-presigner`. It is added to `package.json` at the
+  version the shell uses.
+- **An automation's test run picks a contact**, and webhooks skip in tests.
+- **Saved views and a Dashboard tabs setting** for three-column dashboards.
+- **Every table line is drawn from one rule**, and a panel header's bottom line
+  becomes the table's top line when a table sits right under it.
+- **Settings → Styling → Left menu shade**, a slider that sets the left menu
+  and top bar between the page colour and a card's colour.
+- **The front page and `/login` are the sign-in card alone.**
+- **The worker build drops stylesheets**, so a CSS import can no longer stop
+  the worker from starting.
+
+**The panel view is gone from every app.** Trade had it removed on 18 Oct, and
+the shell removed it on 30 Oct, because Personal no longer frames apps that way.
+
+**Four migrations owed**, under Trade's next free numbers:
+`0214_custom_shell_app_roles.sql` (shell 0094),
+`0215_custom_shell_test_run_contact.sql` (shell 0095),
+`0216_custom_shell_contact_notes.sql` (shell 0096) and
+`0217_custom_shell_saved_views.sql` (shell 0097). None is applied, because
+Trade's local database is the live one.
+
+**Kept as Trade's own.** `scripts/setup-database.mjs` stays Trade's, because
+the shell's copy now imports the CRM sample script Trade does not carry and
+names the shell's own database. `scripts/build-worker.mjs`,
+`scripts/worker-drop-css.mjs`, `vite.config.ts`, `.prettierrc`,
+`.prettierignore` and `src/app/open-endpoints.ts` stay Trade's own, as
+before. No route was added, so `src/routeTree.gen.ts` is unchanged.

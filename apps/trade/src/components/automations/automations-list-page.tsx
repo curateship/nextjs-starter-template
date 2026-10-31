@@ -22,7 +22,7 @@ import {
   SelectAllTableHead,
   SortableTableHeader,
 } from "@/components/shared/sortable-table-header"
-import { TestWithMemberDialog } from "@/components/automations/test-with-member-dialog"
+import { TestWithContactDialog } from "@/components/automations/test-with-contact-dialog"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -575,7 +575,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                   variant="ghost"
                   size="icon"
                   disabled={paused || !automation.isValid}
-                  aria-label={`Test ${automation.name} with one member`}
+                  aria-label={`Test ${automation.name} with one contact`}
                   onClick={() => setTestTarget(automation)}
                 >
                   <UserIcon className="size-4" />
@@ -625,7 +625,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       </DashboardTable>
 
       {testTarget ? (
-        <TestWithMemberDialog
+        <TestWithContactDialog
           open
           automationId={testTarget.id}
           automationName={testTarget.name}

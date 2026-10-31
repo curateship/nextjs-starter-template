@@ -11,6 +11,7 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { useSaveAfterTyping } from "@/components/video-editor/use-save-after-typing"
 import {
   getPexelsKeyErrorMessage,
   loadPexelsKeyStatus,
@@ -49,14 +50,12 @@ export default function PexelsSettings() {
   const [verdict, setVerdict] = React.useState("")
   const [removing, setRemoving] = React.useState(false)
   const setSaveStatus = useReportedSaveStatus()
-  const timer = React.useRef<ReturnType<typeof setTimeout>>(undefined)
+  const typing = useSaveAfterTyping(SAVE_DELAY_MS)
 
   function setStatus(next: PexelsKeyStatus) {
     held = next
     setStatusState(next)
   }
-
-  React.useEffect(() => () => clearTimeout(timer.current), [])
 
   React.useEffect(() => {
     if (held) return
@@ -97,7 +96,7 @@ export default function PexelsSettings() {
   }
 
   function flushSave() {
-    clearTimeout(timer.current)
+    typing.cancel()
     if (!draft.trim() || saving) return
     void save(draft)
   }
@@ -187,10 +186,8 @@ export default function PexelsSettings() {
                   const value = event.target.value
                   setDraft(value)
                   setVerdict("")
-                  clearTimeout(timer.current)
-                  if (value.trim()) {
-                    timer.current = setTimeout(() => void save(value), SAVE_DELAY_MS)
-                  }
+                  if (value.trim()) typing.later(() => void save(value))
+                  else typing.cancel()
                 }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") flushSave()

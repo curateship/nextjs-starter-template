@@ -51,7 +51,8 @@ Video editor → AI → Voice. Under the "What to say" box:
 
 Settings → Scripts holds the list, in a box with one word or short phrase per
 line. It saves itself 700ms after you stop typing, and at once when you leave
-the box. There is no Save button, and the page header says Saving… then Saved.
+the box or the tab, so a word typed just before switching tabs is kept. The
+Pexels and AI video key boxes save on leaving the tab the same way. There is no Save button, and the page header says Saving… then Saved.
 
 - **Before anything is saved:** the list is the four starter words, delve,
   crucial, game-changer and unlock. They show in the box, so they can be

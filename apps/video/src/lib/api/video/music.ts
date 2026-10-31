@@ -7,6 +7,7 @@ import {
   MUSIC_NOT_SOUND_MESSAGE,
 } from "@/lib/video/background-music"
 import { userGet, userPost } from "@/server/guards"
+import { kickVideoMediaWorker } from "@/server/video/media-workers"
 import {
   listMusicShelf,
   markAsMusic,
@@ -44,6 +45,7 @@ const markAsMusicFn = createServerFn({ method: "POST" })
   .inputValidator(mediaIdSchema)
   .handler(async ({ data, context }) => {
     await markAsMusic(context.user.id, data.mediaId)
+    kickVideoMediaWorker()
   })
 
 const unmarkMusicFn = createServerFn({ method: "POST" })

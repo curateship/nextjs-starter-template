@@ -139,3 +139,41 @@ export function workspaceAddress(
 ) {
   return `${cleanSubdomain(subdomain) || standIn}.${baseDomain}`
 }
+
+/**
+ * Where a link to a workspace's public pages goes, without the path: an origin
+ * such as `https://joes.com`, or empty when the page's own host is the right
+ * one.
+ *
+ * **A workspace's own domain is used only from a deployment.** On a
+ * developer's machine the site being edited is the one on this machine, and
+ * `joes.com` points at the live server. Opening it from localhost showed the
+ * live site to somebody who had come to look at their own edits. Local goes to
+ * `joes.localhost:3002` instead, which browsers resolve here with no hosts
+ * file.
+ *
+ * **Empty with no base domain**, because one deployment then serves one site
+ * and every host is it, so a plain path is already right.
+ *
+ * `browserOrigin` is empty while the server draws the page, which has no
+ * window to ask. The link is then drawn without the port and put right as soon
+ * as the page is running in the browser.
+ */
+export function workspacePublicOrigin(
+  workspace: { subdomain: string; customDomain: string },
+  baseDomain: string,
+  browserOrigin: string
+): string {
+  const currentOrigin = browserOrigin ? new URL(browserOrigin) : null
+  const local = currentOrigin?.hostname.endsWith("localhost") ?? false
+
+  if (!local && workspace.customDomain) {
+    return `https://${workspace.customDomain}`
+  }
+  if (!baseDomain) return ""
+
+  const protocol =
+    currentOrigin?.protocol ?? (baseDomain === "localhost" ? "http:" : "https:")
+  const port = currentOrigin?.port ? `:${currentOrigin.port}` : ""
+  return `${protocol}//${workspace.subdomain}.${baseDomain}${port}`
+}

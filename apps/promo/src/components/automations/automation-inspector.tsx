@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils"
 
 export function AutomationInspector({
   className,
+  automationId,
   selectedNode,
   graph,
   errors,
@@ -42,6 +43,7 @@ export function AutomationInspector({
   onDeleteNode,
 }: {
   className?: string
+  automationId?: string
   selectedNode: AutomationNode | null
   graph: AutomationGraph
   errors: AutomationValidationError[]
@@ -137,6 +139,7 @@ export function AutomationInspector({
               <NodeFields
                 node={selectedNode}
                 graph={graph}
+                automationId={automationId}
                 onChange={onNodeChange}
                 onOpenEditor={
                   onOpenNodeEditor
@@ -254,11 +257,13 @@ function useScrollFades() {
 function NodeFields({
   node,
   graph,
+  automationId,
   onChange,
   onOpenEditor,
 }: {
   node: AutomationNode
   graph: AutomationGraph
+  automationId?: string
   onChange: (node: AutomationNode) => void
   onOpenEditor?: () => void
 }) {
@@ -286,6 +291,7 @@ function NodeFields({
         key: node.id,
         node,
         graph,
+        automationId,
         onChange,
         onOpenEditor,
       })}

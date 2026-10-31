@@ -105,3 +105,9 @@ is a sound clip or a video clip.
 - **Very long files:** the worker decodes the sound to a temporary file of
   about 1MB a minute before counting the points. A two-hour video is about
   115MB of temporary file, deleted when the job ends.
+
+## Beat ticks on music
+
+A sound clip whose file is marked as music also draws a short faint tick at
+the top for each beat, placed with the same sum as its waveform, so trimming
+slides the ticks with the shape. See [beat-snapping.md](beat-snapping.md).

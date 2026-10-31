@@ -28,7 +28,12 @@ export const Route = createFileRoute(
       loadSegmentChoices(),
       loadBroadcastBlockDefaults().catch(() => ({ defaults: {} })),
     ])
-    return { broadcast, segments, blockDefaults: blockDefaults.defaults }
+    return {
+      broadcast,
+      recordTitle: broadcast.name,
+      segments,
+      blockDefaults: blockDefaults.defaults,
+    }
   },
   component: AdminBroadcastEditorRoute,
   errorComponent: routeErrorComponent(getBroadcastLoadErrorMessage),

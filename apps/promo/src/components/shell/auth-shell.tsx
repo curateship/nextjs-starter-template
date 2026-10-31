@@ -2,8 +2,26 @@ import * as React from "react"
 import { CheckCircle2Icon } from "lucide-react"
 
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
+import { signInFrameLoader } from "@/lib/app-options"
 
-/** Shared frame for every signed-out page: sign in, register, verify, reset. */
+// Declared once, here, and only loaded when first drawn: the function inside
+// runs on first render, not at import. That matters because the options
+// module and this file sit in one import circle, so the option may not be
+// read while modules are still loading.
+const AppFrame = React.lazy(() => {
+  const load = signInFrameLoader()
+  if (!load) throw new Error("AuthShell drew the app frame with none set")
+  return load()
+})
+
+/**
+ * Shared frame for every signed-out page: sign in, register, verify, reset.
+ * An app may draw its own around the card through `signIn.frame`.
+ *
+ * `bare` draws the card alone in the middle of the page, with no menu and no
+ * footer. `/login` and the shell's own front page use it, and it wins over an
+ * app's `signIn.frame`.
+ */
 export function AuthShell({
   title,
   description,
@@ -11,6 +29,7 @@ export function AuthShell({
   footer,
   children,
   onSubmit,
+  bare,
 }: {
   title: string
   description?: string
@@ -18,6 +37,7 @@ export function AuthShell({
   footer?: React.ReactNode
   children: React.ReactNode
   onSubmit?: (event: React.FormEvent<HTMLFormElement>) => void
+  bare?: boolean
 }) {
   const body = (
     <>
@@ -48,21 +68,36 @@ export function AuthShell({
     </>
   )
 
+  const card = onSubmit ? (
+    <form
+      onSubmit={onSubmit}
+      className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm"
+    >
+      {body}
+    </form>
+  ) : (
+    <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm">
+      {body}
+    </div>
+  )
+
+  if (bare) return <BareAuthPage>{card}</BareAuthPage>
+  if (!signInFrameLoader()) return <PublicPageFrame>{card}</PublicPageFrame>
+  // Nothing rather than the public frame while the app's loads, so the page
+  // never flashes the look it is about to replace.
   return (
-    <PublicPageFrame>
-      {onSubmit ? (
-        <form
-          onSubmit={onSubmit}
-          className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm"
-        >
-          {body}
-        </form>
-      ) : (
-        <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm">
-          {body}
-        </div>
-      )}
-    </PublicPageFrame>
+    <React.Suspense fallback={null}>
+      <AppFrame>{card}</AppFrame>
+    </React.Suspense>
+  )
+}
+
+/** A card on its own, centred on the page, with nothing around it. */
+export function BareAuthPage({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="flex min-h-svh w-full items-center justify-center p-4">
+      {children}
+    </main>
   )
 }
 

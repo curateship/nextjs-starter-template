@@ -88,6 +88,7 @@ import {
   type OrphanSort,
 } from "@/lib/media/media-orphans"
 import { getMediaUploadError, mediaAccept } from "@/lib/media/media-upload"
+import { isUploadCancelled } from "@/lib/media/upload-in-parts"
 import { useLastValue } from "@/lib/hooks/use-last-value"
 import {
   MEDIA_VIEW_STORAGE_KEY,
@@ -164,17 +165,41 @@ const mediaSortDirection = (column: AdminMediaSort) =>
 const orphanSortDirection = (column: OrphanSort) =>
   column === "size" || column === "created" ? "desc" : "asc"
 
+type UploadState = {
+  done: number
+  total: number
+  /** The file going up now and how far it has got, once it reports any. */
+  current: { name: string; percent: number } | null
+}
+
+function uploadStatusText({ done, total, current }: UploadState) {
+  if (!current) return `${done} of ${total} uploaded…`
+  return total === 1
+    ? `Uploading ${current.name}, ${current.percent}%`
+    : `${done} of ${total} uploaded, ${current.name} at ${current.percent}%`
+}
+
 /**
- * One toast for the whole pick, whatever happened: a plain success, or the red
- * one naming the files that did not make it. The success wording names where
+ * One toast for the whole pick, whatever happened: a plain success, a plain
+ * note after Cancel, or the red one naming the files that did not make it. The success wording names where
  * the files went, because this page lists everyone's files but uploads only
  * ever land in the signed-in admin's own library.
  */
 function showUploadSummary(
   done: number,
   picked: number,
-  failures: { name: string; reason: string }[]
+  failures: { name: string; reason: string }[],
+  cancelled: boolean
 ) {
+  if (cancelled) {
+    toast(
+      done
+        ? `Upload cancelled. ${done} ${plural(done, "file was", "files were")} uploaded before it stopped.`
+        : "Upload cancelled. Nothing was added to your library."
+    )
+    return
+  }
+
   if (!failures.length) {
     toast.success(
       done === 1
@@ -250,9 +275,20 @@ export function MediaLibraryPage({
     direction,
     toggleSort: sortBy,
   } = useTableSort<AdminMediaSort>("created", "desc", mediaSortDirection)
-  const [upload, setUpload] = React.useState<{ done: number; total: number } | null>(
-    null
-  )
+  const [upload, setUpload] = React.useState<UploadState | null>(null)
+  const uploadStopRef = React.useRef<AbortController | null>(null)
+  const uploading = Boolean(upload)
+
+  // Leaving the page cancels an upload rather than letting it run on unseen,
+  // and closing the tab asks first, because a big video takes minutes to send
+  // and starts again from nothing.
+  React.useEffect(() => () => uploadStopRef.current?.abort(), [])
+  React.useEffect(() => {
+    if (!uploading) return
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault()
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
+  }, [uploading])
   const selection = useSelection()
   const selectedIds = selection.selected
   const [loadedMedia, setLoadedMedia] = React.useState<{
@@ -480,7 +516,9 @@ export function MediaLibraryPage({
   /**
    * One pick can be many files. They go up one at a time — the same single-file
    * upload, repeated — so a failure part way through leaves the files before it
-   * saved and keeps going with the ones after it.
+   * saved and keeps going with the ones after it. Cancel stops the video going
+   * up now, which leaves nothing of it behind, and skips the rest; an image
+   * already on its way finishes first, because it goes in one short request.
    */
   async function handleUploadSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const input = event.target
@@ -490,11 +528,14 @@ export function MediaLibraryPage({
     if (!files.length) return
 
     dismissErrorToast()
-    setUpload({ done: 0, total: files.length })
+    const stop = new AbortController()
+    uploadStopRef.current = stop
+    setUpload({ done: 0, total: files.length, current: null })
 
     let done = 0
     const failures: { name: string; reason: string }[] = []
     for (const file of files) {
+      if (stop.signal.aborted) break
       const invalid = getMediaUploadError(file, true)
       if (invalid) {
         failures.push({ name: file.name, reason: invalid })
@@ -502,17 +543,32 @@ export function MediaLibraryPage({
       }
 
       try {
-        await uploadMedia(file)
+        await uploadMedia(file, undefined, {
+          signal: stop.signal,
+          onProgress: (fraction) => {
+            const percent = Math.floor(fraction * 100)
+            // Whole numbers only, so a fast connection redraws the toolbar
+            // a hundred times per file rather than thousands.
+            setUpload((current) =>
+              current && current.current?.percent !== percent
+                ? { ...current, current: { name: file.name, percent } }
+                : current
+            )
+          },
+        })
         done += 1
-        setUpload({ done, total: files.length })
+        setUpload({ done, total: files.length, current: null })
       } catch (uploadError) {
+        if (isUploadCancelled(uploadError)) break
         failures.push({ name: file.name, reason: getMediaErrorMessage(uploadError) })
+        setUpload({ done, total: files.length, current: null })
       }
     }
 
+    uploadStopRef.current = null
     setUpload(null)
     if (done) await refreshRef.current()
-    showUploadSummary(done, files.length, failures)
+    showUploadSummary(done, files.length, failures, stop.signal.aborted)
   }
 
   async function handleConfirmDelete() {
@@ -755,9 +811,21 @@ export function MediaLibraryPage({
         </DashboardToolbarButton>
       </div>
       {upload ? (
-        <span className="text-sm text-muted-foreground" role="status">
-          {upload.done} of {upload.total} uploaded…
-        </span>
+        <>
+          <span
+            className="max-w-64 truncate text-sm text-muted-foreground tabular-nums"
+            role="status"
+          >
+            {uploadStatusText(upload)}
+          </span>
+          <DashboardToolbarButton
+            type="button"
+            variant="ghost"
+            onClick={() => uploadStopRef.current?.abort()}
+          >
+            Cancel
+          </DashboardToolbarButton>
+        </>
       ) : null}
       {/* Stays put while the orphans are showing. The toolbar is anchored to
           the right, so taking a button out of it would slide everything left

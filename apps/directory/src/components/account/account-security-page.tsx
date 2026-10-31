@@ -56,6 +56,7 @@ import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useLastValue } from "@/lib/hooks/use-last-value"
 import { useBrowserSupportsWebAuthn } from "@/lib/hooks/use-webauthn-support"
+import { roleMay } from "@/lib/roles"
 
 const MISMATCH_MESSAGE = "Those passwords do not match."
 
@@ -92,6 +93,7 @@ export function AccountSecurityPage({
   // Changing a password signs out every other device, so the list below it has
   // to be fetched again or it keeps showing devices that are already gone.
   const [devicesChanged, setDevicesChanged] = React.useState(0)
+  const fullSecurity = roleMay(user.role, "security")
 
   return (
     <CardGroup className="w-full">
@@ -107,13 +109,19 @@ export function AccountSecurityPage({
           void router.invalidate()
         }}
       />
-      {passkeys ? <PasskeysCard /> : null}
+      {/* An app role keeps the password and its devices, and gets passkeys
+          and Delete my account only when its app gave it Security. Tyler,
+          16 Oct 2026: the site admin removes app-role people, they don't
+          delete themselves. */}
+      {passkeys && fullSecurity ? <PasskeysCard /> : null}
       <SessionsCard devicesChanged={devicesChanged} />
-      <DeleteAccountCard
-        hasPassword={user.hasPassword}
-        email={user.email}
-        isPaid={isPaid}
-      />
+      {fullSecurity ? (
+        <DeleteAccountCard
+          hasPassword={user.hasPassword}
+          email={user.email}
+          isPaid={isPaid}
+        />
+      ) : null}
     </CardGroup>
   )
 }

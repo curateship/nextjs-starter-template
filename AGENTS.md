@@ -30,5 +30,5 @@ Six rules never wait for a file to be opened:
   is not a finished answer. If the cause is not proven, keep investigating or
   say exactly what evidence is missing and how to obtain it.
 
-Working in one of the four live apps means reading that app's own `CLAUDE.md`
-first: `apps/shell`, `apps/trade`, `apps/directory`, `apps/video`.
+Working in one of the active apps means reading that app's own `CLAUDE.md`
+first. The root `CLAUDE.md` lists them.

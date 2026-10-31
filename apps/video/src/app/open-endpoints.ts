@@ -84,6 +84,10 @@ export const appGuardedDeeper: Record<string, string> = {
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before leaveEditorWindow's owner check.",
   "video/project-guests.ts:loadGuestFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor finds the guest sign-in for the project and the handler refuses anyone without one.",
+  "video/sound-tools.ts:requestCleanSoundFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForMedia finds whose file it is before requestOwnedCleanSound checks that person owns it.",
+  "video/sound-tools.ts:readBeatsFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForMedia finds whose each file is, and readOwnedBeats only reads rows of files that person owns.",
   "video/project-guests.ts:uploadFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project, and attachMediaToScope checks the project's owner again.",
 }

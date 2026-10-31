@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { ContactsPage } from "@/components/broadcasts/contacts-page"
+import { ContactsDashboard } from "@/components/broadcasts/contacts-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import {
   getContactLoadErrorMessage,
@@ -21,8 +21,14 @@ import {
 } from "@/lib/nav/list-search"
 
 type ContactsSearch = {
-  /** Whose details window is open. */
+  /** Whose details are open in the right panel. */
   open?: string
+  /**
+   * The segment the list is showing, picked in the left panel. Its rules are
+   * in `filter` once anything is picked; on its own, as `/admin/segments`
+   * sends it, the server reads the segment's rules.
+   */
+  segment?: string
   q?: string
   sort?: (typeof CONTACT_SORT_COLUMNS)[number]
   direction?: "asc" | "desc"
@@ -44,6 +50,9 @@ function readContactsSearch(
 ): ContactsSearch {
   return {
     ...readOpenSearch(search),
+    // `|| undefined`: an empty `?segment=` names no segment, and the server
+    // refuses an empty id.
+    segment: readOpenSearch({ open: search.segment }).open || undefined,
     q: readSearchText(search.q),
     sort: readOneOf(search.sort, CONTACT_SORT_COLUMNS),
     direction: readDirection(search.direction),
@@ -62,8 +71,8 @@ export const Route = createFileRoute("/_authenticated/admin/contacts")({
   validateSearch: readContactsSearch,
   // The first paint already answers the address it was opened at, so a shared
   // filtered link is filtered before any of our own fetching happens.
-  // Everything except which window is open. `open` names a person already on
-  // the page, so opening one must not refetch the whole list underneath it.
+  // Everything except who is open. The right panel fetches its own person, so
+  // opening one must not refetch the whole list underneath it.
   loaderDeps: ({ search }) => ({ ...search, open: undefined }),
   // The loader is the only thing that fetches this list, so one change to the
   // address is one trip to the server — not a loader fetch and then a second
@@ -76,11 +85,12 @@ export const Route = createFileRoute("/_authenticated/admin/contacts")({
       direction: deps.direction,
       page: deps.page,
       limit: deps.size,
+      segmentId: deps.segment,
     }),
   component: AdminContactsRoute,
   errorComponent: routeErrorComponent(getContactLoadErrorMessage),
 })
 
 function AdminContactsRoute() {
-  return <ContactsPage data={Route.useLoaderData()} />
+  return <ContactsDashboard data={Route.useLoaderData()} />
 }

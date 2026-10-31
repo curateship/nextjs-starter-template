@@ -13,7 +13,6 @@ import {
 } from "@/components/shared/dashboard-card-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -251,10 +250,9 @@ function scannerResultDetails(row: ScannerResult) {
  * right-click at a time is the only way there was. The order is the app's
  * own rule for a row of actions: Settings, then the destructive one.
  *
- * **It asks before it sweeps** (Tyler, 14 Sep 2026). A match is a coin the
- * scanner found while nobody was looking, and the list can be an hour of them;
- * there is no undo, and a broom next to a cog is an easy thing to hit by
- * mistake.
+ * **It clears at once, without asking** (Tyler, 29 Oct 2026: "remove the
+ * confirmation modal for the clear all matches scanner icon"). It asked first
+ * from 14 Sep until then.
  */
 function ScannerHeader({
   onEdit,
@@ -340,7 +338,6 @@ function ScannerResults({
     y: number
     target: HTMLElement
   } | null>(null)
-  const [clearing, setClearing] = React.useState(false)
   const listRef = React.useRef<HTMLUListElement>(null)
   const [order, setOrder] = React.useState<string[] | null>(null)
   const rows = order
@@ -372,14 +369,7 @@ function ScannerResults({
       >
         <ScannerHeader
           onEdit={onEdit}
-          onClearAll={
-            rows.length > 0
-              ? () => {
-                  onOpenChange(false)
-                  setClearing(true)
-                }
-              : undefined
-          }
+          onClearAll={rows.length > 0 ? dismissAll : undefined}
         />
         <ScrollArea className="min-h-0 flex-1">
           <div
@@ -568,17 +558,6 @@ function ScannerResults({
           ) : null}
         </ScrollArea>
       </ScannerPopover>
-      <ConfirmDialog
-        open={clearing}
-        onOpenChange={setClearing}
-        title="Clear every match?"
-        description={`The ${rows.length} ${rows.length === 1 ? "market" : "markets"} the scanner has found go off this list for good. The scanner keeps watching, and a market only comes back if it meets your conditions again.`}
-        confirmLabel="Clear all"
-        onConfirm={() => {
-          dismissAll()
-          setClearing(false)
-        }}
-      />
     </>
   )
 }

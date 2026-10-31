@@ -10,18 +10,24 @@ import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
 import { resolveProxyConcurrency } from "@/server/video/media-worker-config"
 import { projectThumbnailTick } from "@/server/video/project-thumbnails"
 import { downloadToFile } from "@/server/video/storage-files"
+import { BEAT_SAMPLE_RATE, findBeats } from "@/lib/video/beats"
+import {
+  isVoiceCleanStrength,
+  voiceCleanFilter,
+} from "@/lib/video/voice-clean"
 import {
   waveformPeaks,
   waveformPointCount,
 } from "@/server/video/waveform-peaks"
 
 /**
- * The background builder for playback proxies, filmstrips and waveforms,
- * and the step that makes each project's picture (`project-thumbnails.ts`),
+ * The background builder for playback proxies, filmstrips, waveforms,
+ * cleaned sound and music beats, and the step that makes each project's
+ * picture (`project-thumbnails.ts`),
  * riding the shell's fifteen-second ticker as this app's one registered worker
  * (see `src/app/server-options.ts`).
  *
- * The queue is the three side tables themselves. Discovery inserts a `queued`
+ * The queue is the side tables themselves, one per kind of job. Discovery inserts a `queued`
  * row for any library video that has none, claiming is one atomic UPDATE with
  * `for update skip locked`, and a claim holds a two-minute lease renewed by a
  * heartbeat — so a worker killed mid-build leaves a lease to reclaim, never a
@@ -50,21 +56,38 @@ const FILMSTRIP_MAX_COLUMNS = 10
 const WAVEFORM_SAMPLE_RATE = 8000
 const WAVEFORM_FFMPEG_TIMEOUT_MS = 15 * 60 * 1000
 
-type JobKind = "proxy" | "filmstrip" | "waveform"
+type JobKind = "proxy" | "filmstrip" | "waveform" | "clean" | "beats"
 
-const JOB_KINDS: JobKind[] = ["proxy", "filmstrip", "waveform"]
+const JOB_KINDS: JobKind[] = ["proxy", "filmstrip", "waveform", "clean", "beats"]
 
 const JOB_TABLES = {
   proxy: "video_media_proxies",
   filmstrip: "video_media_filmstrips",
   waveform: "video_media_waveforms",
+  clean: "video_media_clean_sounds",
+  beats: "video_media_beats",
 } as const satisfies Record<JobKind, string>
+
+// The column a row is claimed by. Every queue has one row per file except
+// cleaned sound, which has one per file and strength, keyed by both joined.
+const JOB_KEYS: Record<JobKind, "media_id" | "id"> = {
+  proxy: "media_id",
+  filmstrip: "media_id",
+  waveform: "media_id",
+  clean: "id",
+  beats: "media_id",
+}
 
 const JOB_LABELS: Record<JobKind, string> = {
   proxy: "Proxy",
   filmstrip: "Filmstrip",
   waveform: "Waveform",
+  clean: "Cleaned sound",
+  beats: "Beats",
 }
+
+const CLEAN_FFMPEG_TIMEOUT_MS = 15 * 60 * 1000
+const BEATS_FFMPEG_TIMEOUT_MS = 15 * 60 * 1000
 
 type WorkerState = {
   active: number
@@ -168,6 +191,14 @@ async function discoverNewVideos() {
       and not exists (select 1 from video_media_waveforms w where w.media_id = m.id)
     on conflict (media_id) do nothing
   `)
+  // Beats only for files marked as music: nothing else is snapped to.
+  await db.execute(sql`
+    insert into video_media_beats (media_id, status, created_at, updated_at)
+    select t.media_id, 'queued', now(), now()
+    from video_music_tracks t
+    where not exists (select 1 from video_media_beats b where b.media_id = t.media_id)
+    on conflict (media_id) do nothing
+  `)
 }
 
 async function reclaimStaleJobs(kind: JobKind) {
@@ -215,6 +246,8 @@ function pumpQueue() {
 
 type ClaimedJob = {
   kind: JobKind
+  /** The row's own key: the file's id, or `<file>:<strength>` for cleaned sound. */
+  key: string
   mediaId: string
   userId: string
   storagePath: string
@@ -223,7 +256,7 @@ type ClaimedJob = {
 }
 
 /**
- * The three kinds take turns so one long backlog cannot starve the others;
+ * The kinds take turns so one long backlog cannot starve the others;
  * when a queue is empty the next kind in line gets the slot.
  */
 async function claimNextJob(state: WorkerState): Promise<ClaimedJob | null> {
@@ -241,6 +274,7 @@ async function claimNextJob(state: WorkerState): Promise<ClaimedJob | null> {
 
 async function claimFromTable(kind: JobKind): Promise<ClaimedJob | null> {
   const table = JOB_TABLES[kind]
+  const key = sql.raw(JOB_KEYS[kind])
   const leaseToken = uuid()
   const result = await db.execute(sql`
     update ${sql.raw(table)} t set
@@ -252,17 +286,18 @@ async function claimFromTable(kind: JobKind): Promise<ClaimedJob | null> {
       updated_at = now()
     from media m
     where m.id = t.media_id
-      and t.media_id = (
-        select media_id from ${sql.raw(table)}
+      and t.${key} = (
+        select ${key} from ${sql.raw(table)}
         where status = 'queued'
-        order by created_at, media_id
+        order by created_at, ${key}
         limit 1
         for update skip locked
       )
-    returning t.media_id, t.attempts, m.user_id, m.storage_path
+    returning t.${key} as job_key, t.media_id, t.attempts, m.user_id, m.storage_path
   `)
   const row = result.rows[0] as
     | {
+        job_key: string
         media_id: string
         attempts: number
         user_id: string
@@ -272,6 +307,7 @@ async function claimFromTable(kind: JobKind): Promise<ClaimedJob | null> {
   if (!row) return null
   return {
     kind,
+    key: row.job_key,
     mediaId: row.media_id,
     userId: row.user_id,
     storagePath: row.storage_path,
@@ -287,7 +323,7 @@ function startHeartbeat(table: string, job: ClaimedJob) {
         sql`
           update ${sql.raw(table)} set
             lease_expires_at = now() + make_interval(secs => ${LEASE_SECONDS})
-          where media_id = ${job.mediaId}
+          where ${sql.raw(JOB_KEYS[job.kind])} = ${job.key}
             and lease_token = ${job.leaseToken}
             and status = 'generating'
         `
@@ -307,6 +343,10 @@ async function runJob(job: ClaimedJob) {
       await buildProxy(job, workDir)
     } else if (job.kind === "filmstrip") {
       await buildFilmstrip(job, workDir)
+    } else if (job.kind === "clean") {
+      await buildCleanSound(job, workDir)
+    } else if (job.kind === "beats") {
+      await buildBeats(job, workDir)
     } else {
       await buildWaveform(job, workDir)
     }
@@ -322,11 +362,15 @@ async function recordFailure(table: string, job: ClaimedJob, error: unknown) {
   const known =
     error instanceof Error &&
     (error.message === "ffmpeg is not installed" ||
-      error.message === "ffprobe is not installed")
+      error.message === "ffprobe is not installed" ||
+      error.message === NO_SOUND_TO_CLEAN_MESSAGE)
   const message = known
     ? (error as Error).message
     : `${JOB_LABELS[job.kind]} generation failed`
-  const retry = job.attempts < MAX_ATTEMPTS
+  // A file with no sound will have none on the next try either.
+  const retry =
+    job.attempts < MAX_ATTEMPTS &&
+    !(error instanceof Error && error.message === NO_SOUND_TO_CLEAN_MESSAGE)
   await db
     .execute(
       sql`
@@ -336,7 +380,7 @@ async function recordFailure(table: string, job: ClaimedJob, error: unknown) {
           lease_token = null,
           lease_expires_at = null,
           updated_at = now()
-        where media_id = ${job.mediaId}
+        where ${sql.raw(JOB_KEYS[job.kind])} = ${job.key}
           and lease_token = ${job.leaseToken}
           and status = 'generating'
       `
@@ -525,6 +569,110 @@ async function buildWaveform(job: ClaimedJob, workDir: string) {
       peaks = ${Buffer.from(peaks).toString("base64")},
       point_count = ${peaks.length},
       duration_ms = ${durationMs},
+      error = null,
+      lease_token = null,
+      lease_expires_at = null,
+      generated_at = now(),
+      updated_at = now()
+    where media_id = ${job.mediaId}
+      and lease_token = ${job.leaseToken}
+      and status = 'generating'
+  `)
+}
+
+export const NO_SOUND_TO_CLEAN_MESSAGE = "This file has no sound to clean"
+
+/**
+ * The smooth copy carries the same sound in a far smaller file, so a video's
+ * sound jobs read it once it is ready. A sound file has no proxy.
+ */
+async function soundSourcePath(job: ClaimedJob) {
+  const proxy = await db.execute(sql`
+    select storage_path from video_media_proxies
+    where media_id = ${job.mediaId} and status = 'ready' and storage_path is not null
+  `)
+  return (
+    (proxy.rows[0] as { storage_path?: string } | undefined)?.storage_path ??
+    job.storagePath
+  )
+}
+
+/**
+ * One file's whole sound, cleaned at the row's strength (voice-clean.ts), as
+ * an M4A the preview plays in place of the file's own sound. The whole file,
+ * not one clip, so every clip of it can share the copy however it is trimmed.
+ */
+async function buildCleanSound(job: ClaimedJob, workDir: string) {
+  const strength = job.key.slice(job.key.lastIndexOf(":") + 1)
+  if (!isVoiceCleanStrength(strength)) {
+    throw new Error(`Unknown clean-up strength in ${job.key}`)
+  }
+  const inputPath = join(workDir, "input")
+  await downloadToFile(await soundSourcePath(job), inputPath)
+  if (!(await hasSoundTrack(inputPath))) {
+    throw new Error(NO_SOUND_TO_CLEAN_MESSAGE)
+  }
+
+  const outputPath = join(workDir, "clean.m4a")
+  await runCommand(
+    "ffmpeg",
+    ["-y", "-i", inputPath, "-map", "0:a:0", "-vn", "-af", voiceCleanFilter(strength), "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", outputPath],
+    CLEAN_FFMPEG_TIMEOUT_MS
+  )
+
+  const storagePath = `video/clean-sound/${job.userId}/${job.mediaId}/${job.leaseToken}.m4a`
+  await uploadToR2(storagePath, await readFile(outputPath), "audio/mp4")
+
+  const finished = await db.execute(sql`
+    update video_media_clean_sounds set
+      status = 'ready',
+      storage_path = ${storagePath},
+      error = null,
+      lease_token = null,
+      lease_expires_at = null,
+      generated_at = now(),
+      updated_at = now()
+    where id = ${job.key}
+      and lease_token = ${job.leaseToken}
+      and status = 'generating'
+    returning id
+  `)
+  if (!finished.rows.length) {
+    await deleteFromR2(storagePath).catch(() => undefined)
+  }
+}
+
+/** Where the beats fall in one music file (beats.ts). */
+async function buildBeats(job: ClaimedJob, workDir: string) {
+  const inputPath = join(workDir, "input")
+  await downloadToFile(await soundSourcePath(job), inputPath)
+
+  let found: ReturnType<typeof findBeats> = { beats: [], tempo: null }
+  if (await hasSoundTrack(inputPath)) {
+    const outputPath = join(workDir, "sound.raw")
+    await runCommand(
+      "ffmpeg",
+      ["-y", "-i", inputPath, "-map", "0:a:0", "-vn", "-ac", "1", "-ar", String(BEAT_SAMPLE_RATE), "-f", "f32le", "-c:a", "pcm_f32le", outputPath],
+      BEATS_FFMPEG_TIMEOUT_MS
+    )
+    const pcm = await readFile(outputPath)
+    // Read in place when the bytes start on a four-byte line, which a file
+    // this size always does, and copied out otherwise, because a Float32Array
+    // laid over them would refuse. An hour of music is 160 MB of samples, so
+    // a second copy is worth avoiding on a server short of memory.
+    const length = Math.floor(pcm.byteLength / 4)
+    const samples =
+      pcm.byteOffset % 4 === 0
+        ? new Float32Array(pcm.buffer, pcm.byteOffset, length)
+        : new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + length * 4))
+    found = findBeats(samples)
+  }
+
+  await db.execute(sql`
+    update video_media_beats set
+      status = 'ready',
+      beats = ${JSON.stringify(found.beats)}::jsonb,
+      tempo = ${found.tempo},
       error = null,
       lease_token = null,
       lease_expires_at = null,

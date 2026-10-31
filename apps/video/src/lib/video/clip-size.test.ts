@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  clipBox,
+  clipBoxRatio,
   clipScale,
   containedShare,
   isPlacedPicture,
   pictureBoxCss,
+  pictureBoxSize,
   pictureOverlayPosition,
   pictureScaleFilter,
   storedClipScale,
@@ -20,9 +23,14 @@ describe("clipScale", () => {
     expect(clipScale({ kind: "image", scale: 0.3 })).toBe(0.3)
   })
 
-  it("never shrinks a video, which the preview always draws full frame", () => {
-    expect(clipScale({ kind: "video", scale: 0.3 })).toBe(1)
-    expect(isPlacedPicture({ kind: "video", scale: 0.3 })).toBe(false)
+  it("sizes a video the way it sizes a picture", () => {
+    expect(clipScale({ kind: "video", scale: 0.3 })).toBe(0.3)
+    expect(isPlacedPicture({ kind: "video", scale: 0.3 })).toBe(true)
+  })
+
+  it("never sizes sound or words", () => {
+    expect(clipScale({ kind: "audio", scale: 0.3 })).toBe(1)
+    expect(isPlacedPicture({ kind: "text", boxHeight: 0.5 })).toBe(false)
   })
 })
 
@@ -103,5 +111,48 @@ describe("containedShare", () => {
 
   it("falls back to the whole frame on a shape it cannot read", () => {
     expect(containedShare(0, 1)).toEqual({ width: 1, height: 1 })
+  })
+})
+
+describe("a clip in a split's box", () => {
+  const top = { kind: "video", boxHeight: 0.5, x: 0.5, y: 0.25 }
+
+  it("reads an unset box as the whole frame", () => {
+    expect(clipBox({ kind: "video" })).toEqual({ width: 1, height: 1 })
+  })
+
+  it("counts as placed even at full size", () => {
+    expect(isPlacedPicture(top)).toBe(true)
+  })
+
+  it("fills the top half of the preview", () => {
+    expect(pictureBoxCss(top)).toEqual({
+      left: "0%",
+      top: "0%",
+      width: "100%",
+      height: "50%",
+    })
+  })
+
+  it("is fitted into the half's own pixels in the export", () => {
+    // A tall 1080x1920 frame: the top half is 1080 by 960.
+    expect(pictureBoxSize(top, { width: 1080, height: 1920 })).toEqual({
+      width: 1080,
+      height: 960,
+    })
+    expect(pictureOverlayPosition(top)).toEqual({
+      x: "W*0.5-w/2",
+      y: "H*0.25-h/2",
+    })
+  })
+
+  it("leaves a full-frame clip's pixels alone", () => {
+    const frame = { width: 1080, height: 1920 }
+    expect(pictureBoxSize({ kind: "video" }, frame)).toBe(frame)
+  })
+
+  it("knows its own shape, so a fitted picture can hug it", () => {
+    // Half of a 9:16 frame is 9 wide and 8 tall.
+    expect(clipBoxRatio(top, 9 / 16)).toBeCloseTo(9 / 8)
   })
 })

@@ -75,6 +75,7 @@ type ProjectBeingSaved = Pick<
 function contentOf(timeline: ProjectTimeline) {
   return JSON.stringify({
     aspect: timeline.aspect,
+    progressBar: timeline.progressBar,
     tracks: timeline.tracks.map((track) => ({
       ...track,
       clips: track.clips.map(({ url: _url, ...clip }) => clip),

@@ -10,6 +10,7 @@ import {
 import {
   addContactsToSegment,
   addMatchingContactsToSegment,
+  countContactsMatchingEach,
   countDraftSegmentContacts,
   listSegmentsForContact,
   countSegmentContacts,
@@ -20,6 +21,7 @@ import {
   listWorkspaceContactSources,
   listWorkspaceSegments,
   readSegment,
+  removeContactsFromSegment,
   updateWorkspaceSegment,
   type SegmentInput,
 } from "@/server/people/contact-segments"
@@ -1686,5 +1688,124 @@ describe("what the rule builder is offered", () => {
       "Account",
       "Added by hand",
     ])
+  })
+})
+
+describe("the People card's counts", () => {
+  it("counts each set of rules in one go, the way the list would show them", async () => {
+    await insertContact("ada")
+    await insertContact("bob", { status: "unsubscribed" })
+    await insertContact("cat", { status: "cold", createdAt: daysAgo(90) })
+    await db.insert(customShellContacts).values({
+      id: "elsewhere",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "elsewhere@example.test",
+      status: "subscribed",
+      tags: [],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+
+    expect(
+      await countContactsMatchingEach(
+        WORKSPACE_ID,
+        [
+          { conditions: [{ type: "status", operator: "is", status: "subscribed" }] },
+          { conditions: [{ type: "status", operator: "is", status: "cold" }] },
+          { conditions: [{ type: "joined", operator: "within", days: 30 }] },
+        ],
+        db,
+        TODAY
+      )
+    ).toEqual([1, 1, 2])
+  })
+
+  it("asks nothing of the database for no rules", async () => {
+    expect(await countContactsMatchingEach(WORKSPACE_ID, [], db, TODAY)).toEqual([])
+  })
+})
+
+describe("taking people out of a hand-picked segment", () => {
+  async function handPicked(name: string, contactIds: string[]) {
+    return createWorkspaceSegment(
+      WORKSPACE_ID,
+      { name, description: "", kind: "static", rules: { conditions: [] }, contactIds },
+      db
+    )
+  }
+
+  async function membersOf(segmentId: string) {
+    const people = await listSegmentContacts(
+      WORKSPACE_ID,
+      { id: segmentId, kind: "static", rules: { conditions: [] } },
+      {},
+      db,
+      TODAY
+    )
+    return people.map((person) => person.email).sort()
+  }
+
+  it("takes out the ticked people and counts the ones who were not in it", async () => {
+    await insertContact("ada")
+    await insertContact("bob")
+    await insertContact("cat")
+    const segment = await handPicked("Testers", ["ada", "bob"])
+
+    expect(
+      await removeContactsFromSegment(
+        WORKSPACE_ID,
+        segment.id,
+        { contactIds: ["ada", "cat"] },
+        db
+      )
+    ).toEqual({ removed: 1, notThere: 1 })
+    expect(await membersOf(segment.id)).toEqual(["bob@example.test"])
+  })
+
+  it("takes out everybody the filters match, and nobody else", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await insertContact("bob")
+    const segment = await handPicked("Testers", ["ada", "bob"])
+
+    expect(
+      await removeContactsFromSegment(
+        WORKSPACE_ID,
+        segment.id,
+        {
+          filter: {
+            rules: { conditions: [{ type: "tag", operator: "includes", tags: ["beta"] }] },
+          },
+        },
+        db
+      )
+    ).toEqual({ removed: 1, notThere: 0 })
+    expect(await membersOf(segment.id)).toEqual(["bob@example.test"])
+  })
+
+  it("refuses a rules segment, whose people are worked out rather than kept", async () => {
+    const rules = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Everyone on the list", [
+        { type: "status", operator: "is", status: "subscribed" },
+      ]),
+      db
+    )
+    await expect(
+      removeContactsFromSegment(WORKSPACE_ID, rules.id, { contactIds: ["ada"] }, db)
+    ).rejects.toThrow("SEGMENT_IS_RULES")
+  })
+
+  it("ignores ids from another workspace", async () => {
+    await insertContact("ada")
+    const segment = await handPicked("Testers", ["ada"])
+    expect(
+      await removeContactsFromSegment(
+        WORKSPACE_ID,
+        segment.id,
+        { contactIds: ["somebody-elses"] },
+        db
+      )
+    ).toEqual({ removed: 0, notThere: 0 })
+    expect(await membersOf(segment.id)).toEqual(["ada@example.test"])
   })
 })

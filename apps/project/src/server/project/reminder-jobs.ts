@@ -7,6 +7,7 @@ import {
   MY_DASHBOARD_HREF,
   overdueHeading,
   projectHref,
+  routineReminderHeading,
   taskHref,
   taskReminderHeading,
   onTeamHref,
@@ -22,11 +23,13 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { PEOPLE } from "@/server/project/checkin-jobs"
 import { siteAdminIds, whoCanStillSee } from "@/server/project/access"
+import { routineRemindersDue } from "@/server/project/daily-card"
 import { writeAppNotices, type AppNotice } from "@/server/project/notices"
 import {
   projectDueReminders,
   projectMilestoneReminders,
   projectProjects,
+  projectRoutineReminders,
   projectTaskReminders,
   projectTasks,
   projectTeamMorningNotices,
@@ -46,6 +49,35 @@ export async function runReminderJobs(database: CustomShellDb = db, at = new Dat
   await sendMilestoneReminders(database, at)
   await sendTeamMorningNotices(database, at)
   await sendTaskReminders(database, at)
+  await sendRoutineReminders(database, at)
+}
+
+/**
+ * The Daily card's routine reminder (Tyler, 29 Oct 2026): at the time set for
+ * a routine, if habits in it are still not ticked that day, "Your morning
+ * routine isn't done yet" in the site admin's bell, once per routine per day.
+ * Each is claimed by its row, written in the same transaction as the notice.
+ */
+export async function sendRoutineReminders(database: CustomShellDb = db, at = new Date()) {
+  for (const due of await routineRemindersDue(database, at)) {
+    await database.transaction(async (tx) => {
+      const claimed = await tx
+        .insert(projectRoutineReminders)
+        .values({ userId: due.userId, day: due.day, part: due.part, sentAt: at })
+        .onConflictDoNothing()
+        .returning({ userId: projectRoutineReminders.userId })
+      if (!claimed.length) return
+      await writeAppNotices(tx, [
+        {
+          kind: "routine_reminder",
+          recipientUserId: due.userId,
+          message: routineReminderHeading(due.part),
+          detail: `Still to do: ${due.left.join(", ")}`,
+          href: MY_DASHBOARD_HREF,
+        },
+      ])
+    })
+  }
 }
 
 /**

@@ -15,6 +15,9 @@ import {
  * The standard date field: a button showing the chosen date (or a placeholder)
  * that opens a calendar in a popover. Use this instead of a native
  * `<input type="date">` so the picker looks the same in every browser.
+ *
+ * `defaultOpen` opens the calendar on first draw, and `onOpenChange` hears
+ * every open and close, so a caller can tell a close without a pick.
  */
 export function DatePicker({
   value,
@@ -23,6 +26,9 @@ export function DatePicker({
   placeholder = "Pick a date",
   disabled,
   className,
+  defaultOpen = false,
+  onOpenChange,
+  "aria-invalid": ariaInvalid,
 }: {
   value: Date | undefined
   onChange: (date: Date | undefined) => void
@@ -30,8 +36,15 @@ export function DatePicker({
   placeholder?: string
   disabled?: boolean
   className?: string
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
+  "aria-invalid"?: boolean
 }) {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpenState] = React.useState(defaultOpen)
+  const setOpen = (next: boolean) => {
+    setOpenState(next)
+    onOpenChange?.(next)
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -41,6 +54,7 @@ export function DatePicker({
           type="button"
           variant="outline"
           disabled={disabled}
+          aria-invalid={ariaInvalid || undefined}
           className={cn(
             "w-full justify-start px-2.5 font-normal",
             !value && "text-muted-foreground",

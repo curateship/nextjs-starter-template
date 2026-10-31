@@ -22,12 +22,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
 import { AiPanel } from "@/components/video-editor/studio-ai-panel"
 import { MusicPanel } from "@/components/video-editor/studio-music-panel"
+import { SoundsPanel } from "@/components/video-editor/studio-sounds-panel"
 import { VoiceoversPanel } from "@/components/video-editor/studio-voiceovers-panel"
 import { TranscriptPanel } from "@/components/video-editor/studio-transcript-panel"
 import { AiClipPanel } from "@/components/video-editor/studio-ai-clip-panel"
@@ -75,8 +77,21 @@ import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { useDragToTimeline } from "@/components/video-editor/use-drag-to-timeline"
 import {
   useEditorRuntime,
+  useEditorSelector,
   useEditorStoreSelector,
 } from "@/components/video-editor/editor-store"
+import { Hint } from "@/components/video-assets/hint"
+import { usePlatformInset } from "@/components/video-editor/caption-settings-context"
+import { newProgressBar } from "@/lib/video/progress-bar"
+import {
+  DEFAULT_SHAPE_COLOR,
+  DEFAULT_SHAPE_DURATION_MS,
+  DEFAULT_SHAPE_LINE_WIDTH,
+  newShapePlacement,
+  SHAPE_KINDS,
+  SHAPE_LABELS,
+  type ShapeKind,
+} from "@/lib/video/shapes"
 
 /**
  * The panel beside the tool rail. Which one is showing is the rail's business;
@@ -86,6 +101,7 @@ import {
 export type StudioPanel =
   | "media"
   | "music"
+  | "sounds"
   | "voiceovers"
   | "text"
   | "ai"
@@ -104,6 +120,7 @@ const PREPARATION_RECHECK_MS = 5000
 const PANEL_TITLE: Record<StudioPanel, string> = {
   media: "Media",
   music: "Music",
+  sounds: "Sounds",
   voiceovers: "Voiceovers",
   text: "Text",
   ai: "AI tools",
@@ -119,6 +136,7 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   // own; Text only needs a title.
   if (panel === "media") return <MediaPanel />
   if (panel === "music") return <MusicPanel />
+  if (panel === "sounds") return <SoundsPanel />
   if (panel === "voiceovers") return <VoiceoversPanel />
   // The AI panel draws its own header too, so its tools can say what they need.
   if (panel === "ai") return <AiPanel />
@@ -373,40 +391,37 @@ function MediaPanel() {
         title="Media"
         action={
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Search media"
-                title="Search media"
-                aria-pressed={searchOpen}
-                onClick={() => setSearchOpen((open) => !open)}
-              >
-                <Search className={search ? "text-foreground" : undefined} />
-              </Button>
-              {searchOpen ? (
-                <>
-                  {/* A click anywhere else puts the box away. */}
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setSearchOpen(false)}
-                  />
-                  <div className="absolute top-[calc(100%+6px)] right-0 z-50 w-60 rounded-xl border bg-popover p-2 shadow-md">
-                    <Input
-                      autoFocus
-                      value={search}
-                      placeholder="Search media"
+            {/* A popover rather than a box under the button, so it moves
+                clear of the rail when the panel is narrow (the Voiceovers
+                panel's search). */}
+            <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
                       aria-label="Search media"
-                      onChange={(event) => setSearch(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") setSearchOpen(false)
-                      }}
-                    />
-                  </div>
-                </>
-              ) : null}
-            </div>
+                      aria-pressed={searchOpen}
+                    >
+                      <Search className={search ? "text-foreground" : undefined} />
+                    </Button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Search media</TooltipContent>
+              </Tooltip>
+              <PopoverContent align="start" className="w-60 p-2">
+                <Input
+                  autoFocus
+                  type="search"
+                  value={search}
+                  placeholder="Search media"
+                  aria-label="Search media"
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </PopoverContent>
+            </Popover>
             <MediaFilterMenu
               kind={EDITOR_MEDIA_FILTER}
               baseRows={
@@ -449,18 +464,19 @@ function MediaPanel() {
               </Tooltip>
             ) : (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={uploading}
-                  aria-label="Add media or collection"
-                  title="Add"
-                >
-                  {uploading ? <Loader2 className="animate-spin" /> : <Plus />}
-                </Button>
-              </DropdownMenuTrigger>
+              <Hint label="Add" disabled={uploading}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={uploading}
+                    aria-label="Add media or collection"
+                  >
+                    {uploading ? <Loader2 className="animate-spin" /> : <Plus />}
+                  </Button>
+                </DropdownMenuTrigger>
+              </Hint>
               <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuItem onSelect={() => fileRef.current?.click()}>
                   <Upload />
@@ -607,7 +623,7 @@ function MediaPanel() {
                         type="button"
                         className="st-hovlift"
                         {...dragHandlers(item)}
-                        title={`${item.original_name} — drag onto a track, or right-click for collections and delete`}
+                        title={`${item.original_name} - drag onto a track, or right-click for collections and delete`}
                         style={{
                           position: "relative",
                           display: "block",
@@ -830,7 +846,7 @@ function AudioMediaCard({
   return (
     <Card
       size="sm"
-      title={`${item.original_name} — drag onto a track, or right-click for collections and delete`}
+      title={`${item.original_name} - drag onto a track, or right-click for collections and delete`}
       className="st-hovlift cursor-grab gap-3"
       style={{ touchAction: "none" }}
       {...pointerProps}
@@ -894,7 +910,7 @@ function AudioMediaCard({
             {item.original_name}
           </span>
           <span className="mt-0.5 block text-[10px] text-muted-foreground">
-            {durationMs ? formatClock(durationMs) : "—"} ·{" "}
+            {durationMs ? formatClock(durationMs) : "-"} ·{" "}
             {formatFileSize(item.file_size)}
           </span>
         </div>
@@ -958,6 +974,38 @@ function TextPanel() {
   const { dispatch, clock } = useEditorRuntime()
   // Stickers are the owner's own shelf, so a guest sent from Project has none.
   const guest = useProjectGuest() !== null
+  const progressBar = useEditorSelector((state) => state.progressBar)
+  const inset = usePlatformInset()
+
+  function addShape(kind: ShapeKind) {
+    dispatch({
+      type: "ADD_OVERLAY",
+      clip: {
+        id: editorId(),
+        kind: "shape",
+        name: SHAPE_LABELS[kind],
+        shape: kind,
+        ...newShapePlacement(kind),
+        color: DEFAULT_SHAPE_COLOR,
+        lineWidth: DEFAULT_SHAPE_LINE_WIDTH,
+        drawOn: true,
+        trimStartMs: 0,
+        startMs: 0,
+        durationMs: DEFAULT_SHAPE_DURATION_MS,
+      },
+      atMs: clock.getTime(),
+    })
+  }
+
+  // The bar belongs to the project, so its settings show with no clip picked.
+  function addProgressBar() {
+    dispatch({ type: "SELECT_CLIP", clipId: null })
+    if (progressBar) {
+      toast("This project already has a progress bar. Its settings are on the right.")
+      return
+    }
+    dispatch({ type: "SET_PROGRESS_BAR", progressBar: newProgressBar(inset.bottom) })
+  }
 
   function addText(
     text: string,
@@ -1015,6 +1063,47 @@ function TextPanel() {
             }}
           >
             <span style={preset.preview}>{preset.label}</span>
+            <Plus size={14} style={{ color: "var(--mut)" }} />
+          </button>
+        ))}
+      </div>
+
+      <Label>Shapes</Label>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr)",
+          gap: 9,
+          marginBottom: 20,
+        }}
+      >
+        {[
+          ...SHAPE_KINDS.map((kind) => ({
+            key: kind,
+            label: SHAPE_LABELS[kind],
+            onClick: () => addShape(kind),
+          })),
+          { key: "progress", label: "Progress bar", onClick: addProgressBar },
+        ].map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className="st-hovcard"
+            onClick={item.onClick}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "15px",
+              background: "var(--panel2)",
+              border: "1px solid var(--line)",
+              borderRadius: 12,
+              cursor: "pointer",
+            }}
+          >
+            <span style={{ fontWeight: 500, fontSize: 13, color: "var(--ink2)" }}>
+              {item.label}
+            </span>
             <Plus size={14} style={{ color: "var(--mut)" }} />
           </button>
         ))}

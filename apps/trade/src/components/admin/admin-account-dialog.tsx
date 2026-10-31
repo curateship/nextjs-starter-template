@@ -73,6 +73,8 @@ import {
   formatUtcDate,
 } from "@/lib/format/format-time"
 import { formatMoney } from "@/lib/format/money"
+import type { Role } from "@/lib/role-id"
+import { roleLabel, rolesWith } from "@/lib/roles"
 import {
   BILLING_HISTORY_START,
   describeSubscriptionEvent,
@@ -386,7 +388,7 @@ function AccountDetailsPanel({ detail }: { detail: AccountDetail }) {
             label="Role"
             value={
               <Badge variant={profile.role === "admin" ? "default" : "outline"}>
-                {profile.role === "admin" ? "Admin" : "Member"}
+                {roleLabel(profile.role)}
               </Badge>
             }
           />
@@ -689,7 +691,7 @@ function AccountEditPanel({
       ? "suspended"
       : "active"
 
-  const initialRole = profile.role === "admin" ? "admin" : "member"
+  const initialRole: Role = profile.role
   // Cents in the database, dollars in the field — empty means "follow the plan".
   const initialAiDollars =
     detail.aiAllowance.overrideCents != null
@@ -697,7 +699,7 @@ function AccountEditPanel({
       : ""
   const initialTags = profile.tags.join(", ")
 
-  const [role, setRole] = React.useState<"admin" | "member">(initialRole)
+  const [role, setRole] = React.useState<Role>(initialRole)
   const [status, setStatus] = React.useState<AccountStatus>(initialStatus)
   const [planId, setPlanId] = React.useState(grantedPlanId)
   const [endsOn, setEndsOn] = React.useState(grantedEndsOn)
@@ -820,16 +822,19 @@ function AccountEditPanel({
           <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
             <div className="grid gap-2">
               <Label htmlFor="account-role">Role</Label>
-              <Select
-                value={role}
-                onValueChange={(value) => setRole(value as "admin" | "member")}
-              >
+              <Select value={role} onValueChange={setRole}>
                 <SelectTrigger id="account-role" className="w-full sm:w-fit">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  {/* A role the app has stopped declaring stays listed while
+                      this account still holds it, so opening the window and
+                      saving something else never moves them off it. */}
+                  {rolesWith(profile.role).map((one) => (
+                    <SelectItem key={one.id} value={one.id}>
+                      {one.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

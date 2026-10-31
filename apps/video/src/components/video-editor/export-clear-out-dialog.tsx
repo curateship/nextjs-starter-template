@@ -109,7 +109,7 @@ export function ExportClearOutDialog({
           `${result.failed} ${plural(result.failed, "export was", "exports were")} kept because the file could not be removed from storage. Try again in a minute.`
         )
       } else if (!result.deleted) {
-        showErrorToast("Nothing was deleted — those may already be gone.")
+        showErrorToast("Nothing was deleted - those may already be gone.")
       }
       if (result.deleted) {
         toast.success(

@@ -68,7 +68,7 @@ const LIVE_COUNT_DELAY_MS = 1200
  * Writing one segment: its name, whether it is decided by rules or by hand, and
  * the rules themselves.
  *
- * Mounted fresh per segment by its key in the list page, so the draft starts
+ * Mounted fresh per segment by its key on the Contacts dashboard, so the draft starts
  * from the right one without an effect resetting it after the first render.
  */
 export function SegmentDialog({
@@ -87,7 +87,8 @@ export function SegmentDialog({
     searchExcluded: boolean
   }
   onClose: () => void
-  onSaved: () => Promise<void>
+  /** The saved segment's id, so a new one can be opened straight away. */
+  onSaved: (segmentId: string) => Promise<void>
 }) {
   const [name, setName] = React.useState(segment?.name ?? "")
   const [description, setDescription] = React.useState(
@@ -207,7 +208,7 @@ export function SegmentDialog({
     }
     setSaving(true)
     try {
-      await saveSegment(segment?.id ?? null, {
+      const saved = await saveSegment(segment?.id ?? null, {
         name,
         description,
         kind,
@@ -218,7 +219,7 @@ export function SegmentDialog({
         contactIds: kind === "static" ? chosen : [],
       })
       toast.success(segment ? "Segment saved." : "Segment created.")
-      await onSaved()
+      await onSaved(saved.id)
     } catch (error) {
       showErrorToast(getSegmentErrorMessage(error))
     } finally {
@@ -587,7 +588,7 @@ function ContactPicker({
             ? "A hand-picked segment stays exactly as you leave it. Nobody joins or leaves it on their own."
             : chosen.length
               ? `${chosen.length} ${plural(chosen.length, "person", "people")} chosen. A hand-picked segment stays exactly as you leave it — nobody joins or leaves it on their own.`
-              : "Nobody yet, which is fine — save it empty and fill it from the contacts list, by ticking people there and choosing this segment in the toolbar."}
+              : "Nobody yet, which is fine. Save it empty and fill it from the contacts list: press Mass select, tick people, then Add to segment."}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">

@@ -15,6 +15,8 @@ import {
 } from "drizzle-orm"
 
 import { PENDING_DELETION } from "@/lib/account-deletion"
+import type { Role } from "@/lib/role-id"
+import { roleLabel } from "@/lib/roles"
 import { formatUtcDate } from "@/lib/format/format-time"
 import {
   closeAccounts,
@@ -51,6 +53,7 @@ import {
 import { emitMemberEvent } from "@/server/automations/member-events"
 import { recordSubscriptionEvent } from "@/server/billing/subscription-events"
 import { listMemberTags } from "@/server/people/member-tags"
+import { requireKnownRole } from "@/server/people/roles"
 import {
   recordAdminAccountAction,
   sendAdminAccountAction,
@@ -61,7 +64,7 @@ export type AccountSort =
 
 export type AccountListQuery = {
   search: string
-  role: "all" | "admin" | "member"
+  role: "all" | Role
   status:
     | "all"
     | "active"
@@ -346,11 +349,12 @@ export async function loadNewestAccounts(
 export async function createAccountByAdmin(
   email: string,
   name: string,
-  role: "admin" | "member",
+  role: Role,
   database: CustomShellDb = db,
   linkContext?: AuthLinkContext,
   password?: string
 ) {
+  requireKnownRole(role)
   // An address stays taken while a deleted account holding it can still be
   // restored, and frees up the moment that account is really gone — the same
   // order registration checks in.
@@ -505,15 +509,21 @@ async function requireAnotherAdmin(userId: string, database: CustomShellDb) {
 
 export async function updateUserRole(
   userId: string,
-  role: "admin" | "member",
+  role: Role,
   database: CustomShellDb = db
 ) {
+  requireKnownRole(role)
   if (role !== "admin") {
     await requireAnotherAdmin(userId, database)
   }
 
   const changedAt = now()
   const result = await database.transaction(async (tx) => {
+    const [before] = await tx
+      .select({ role: customShellUsers.role })
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, userId))
+      .limit(1)
     const [updated] = await tx
       .update(customShellUsers)
       .set({ role, updatedAt: changedAt })
@@ -528,11 +538,13 @@ export async function updateUserRole(
         delivery: await recordAdminAccountAction(
           userId,
           {
-            summary: `Your role changed to ${role === "admin" ? "Admin" : "Member"}.`,
+            summary: `Your role changed to ${roleLabel(role)}.`,
             effect:
               role === "admin"
                 ? "You can now open the admin area and manage the app."
-                : "You no longer have access to the admin area.",
+                : before?.role === "admin"
+                  ? "You no longer have access to the admin area."
+                  : "What you see in the app changes to match.",
           },
           tx,
           changedAt

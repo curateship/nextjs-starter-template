@@ -397,11 +397,10 @@ export function TaskList({
               }
               trailing={<TableHead column="meta">Actions</TableHead>}
             />
-            {/* The table takes every line off its last row; a folded heading at the bottom keeps
-                both of its own, or its grey band looks cut off (Tyler, 28 Oct 2026: "bottom
-                section is missing border", then "missing top borader"). The top one stays off
-                when it is the only heading, under the header's line. */}
-            <TableBody className="[&_tr[data-slot=table-group-row]:last-child]:border-b [&_tr[data-slot=table-group-row]:last-child:not(:first-child)]:border-t">
+            {/* A folded heading's lines, last one included, come from the shell's one table
+                line rule in theme.css; a border of its own here sat beside them and read as a
+                thick line (Tyler, 30 Oct 2026: "when collapsed the border is too thick"). */}
+            <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={colSpan} className="text-muted-foreground">

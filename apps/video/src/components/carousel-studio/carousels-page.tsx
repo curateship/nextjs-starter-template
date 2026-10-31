@@ -38,6 +38,7 @@ import {
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
+import { Hint } from "@/components/video-assets/hint"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
@@ -284,52 +285,64 @@ export function CarouselsPage({ initial }: { initial: CarouselListResponse }) {
             </TableCell>
             <TableCell column="actions">
               <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={busy}
-                  aria-pressed={carousel.is_template}
-                  onClick={() => void handleTemplate(carousel)}
-                  aria-label={
+                <Hint
+                  label={
                     carousel.is_template
-                      ? `Stop offering ${carousel.name} as a template`
-                      : `Offer ${carousel.name} as a template`
+                      ? "Stop offering as a template"
+                      : "Offer as a template"
                   }
-                >
-                  <LayoutTemplateIcon className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
                   disabled={busy}
-                  onClick={() => void handleDuplicate(carousel)}
-                  aria-label={`Duplicate ${carousel.name}`}
-                  title={`Duplicate ${carousel.name}`}
                 >
-                  <CopyIcon className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setEditing(carousel)}
-                  aria-label={`Rename ${carousel.name}`}
-                  title={`Rename ${carousel.name}`}
-                >
-                  <SettingsIcon className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDeleteTargets([carousel])}
-                  aria-label={`Delete ${carousel.name}`}
-                  title={`Delete ${carousel.name}`}
-                >
-                  <Trash2Icon className="size-4" />
-                </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={busy}
+                    aria-pressed={carousel.is_template}
+                    onClick={() => void handleTemplate(carousel)}
+                    aria-label={
+                      carousel.is_template
+                        ? `Stop offering ${carousel.name} as a template`
+                        : `Offer ${carousel.name} as a template`
+                    }
+                  >
+                    <LayoutTemplateIcon className="size-4" />
+                  </Button>
+                </Hint>
+                <Hint label="Duplicate" disabled={busy}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={busy}
+                    onClick={() => void handleDuplicate(carousel)}
+                    aria-label={`Duplicate ${carousel.name}`}
+                  >
+                    <CopyIcon className="size-4" />
+                  </Button>
+                </Hint>
+                <Hint label="Rename">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setEditing(carousel)}
+                    aria-label={`Rename ${carousel.name}`}
+                  >
+                    <SettingsIcon className="size-4" />
+                  </Button>
+                </Hint>
+                <Hint label="Delete">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setDeleteTargets([carousel])}
+                    aria-label={`Delete ${carousel.name}`}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                </Hint>
               </div>
             </TableCell>
           </TableRow>

@@ -16,6 +16,13 @@ import {
 } from "@/lib/public-theme"
 import type { AppFrontPageRowSettings } from "@/lib/pages/front-page"
 import type { AppSettingsTab } from "@/lib/settings-tab"
+import type { ShellSection, ShellTopRightAppAction } from "@/lib/custom-shell"
+import {
+  isShellRole,
+  ROLE_ID_PATTERN,
+  type RoleFeature,
+} from "@/lib/role-id"
+import { roleMay } from "@/lib/roles"
 
 /**
  * Everything an app built from this shell is allowed to change about it.
@@ -56,6 +63,47 @@ export type AppOptions = {
   settings?: SettingsOptions
   notifications?: NotificationOptions
   signIn?: SignInOptions
+  homeScreen?: HomeScreenOptions
+  /**
+   * The app's own kinds of account, beside the shell's admin and member.
+   *
+   * Everyone signs in on the one `/login`. What an app role sees is only what
+   * its `features` list gives it, and an app role starts with none: no billing,
+   * plan or Upgrade, no AI usage, no Feedback, no Changelog, no workspaces, and
+   * an Account window holding a name, a photo and a password. The server
+   * refuses the same things, not just the screen. Unset means the app has no
+   * roles of its own, so every account is an admin or a member, as before.
+   */
+  roles?: readonly AppRole[]
+}
+
+/**
+ * One kind of account an app adds, such as Project's `employee` or CMS's
+ * `venue_owner`.
+ *
+ * Nobody signs themselves up into one. The app's own invite makes the account
+ * through `inviteAccount` (`src/server/people/invite.ts`), and the site admin
+ * can move an existing account onto it from Admin → Users.
+ */
+export type AppRole = {
+  /**
+   * Stored in `users.role`. Lower-case letters, numbers and underscores,
+   * starting with a letter, at most 50 characters. `admin` and `member` are
+   * the shell's own and are refused.
+   */
+  id: string
+  /** What the shell calls it on screen, such as "Employee". */
+  label: string
+  /** Where this role lands after sign-in, such as "/dashboard". Never /admin. */
+  landing: `/${string}`
+  /** What of the shell this role gets. Unset or empty gets none of it. */
+  features?: readonly RoleFeature[]
+  /**
+   * The left menu a fresh install gives this role. Settings → Navigation edits
+   * it from there, under the role's own heading, and once saved the saved one
+   * wins, an empty one included.
+   */
+  menu: ShellSection[]
 }
 
 /** What the shell hands an app-owned control in the signed-in header. */
@@ -68,7 +116,7 @@ export type AppHeaderLeftContentProps = {
 }
 
 export type AppHeaderLeftContent = {
-  /** Unset means admins and members may both see it. */
+  /** Unset means admins and members. An app role sees it only when named. */
   roles?: readonly string[]
   component: () => Promise<{
     default: ComponentType<AppHeaderLeftContentProps>
@@ -87,11 +135,12 @@ export type AppHeaderAction = {
   id: string
   label: string
   icon: ComponentType<{ className?: string }>
-  /** Unset means admins and members may both see it. */
+  /** Unset means admins and members. An app role sees it only when named. */
   roles?: readonly string[]
   /**
-   * Folds into the three-dot button after the settings cog on a phone,
-   * instead of staying in the header row.
+   * Folds into the three-dot button at the end of the header row on a phone,
+   * instead of staying in the row. Once anything folds, the settings cog
+   * folds in with it, its rows drawn under the app's controls.
    *
    * Unset means it keeps its place in the row at every width, which is what
    * every control did before the dropdown existed. An app marks the controls
@@ -100,18 +149,46 @@ export type AppHeaderAction = {
    */
   foldsOnPhone?: boolean
   /**
-   * A line of its own, with a divider, inside the phone's three-dot dropdown.
+   * Lets Settings → Top right menu move this control between the row and the
+   * three-dot dropdown on a phone. The chip gets a phone button saying where
+   * it goes, and the saved choice wins over `foldsOnPhone`, which stays where
+   * it starts and where Reset puts it back.
    *
-   * The dropdown packs the app's controls into a wrapped row, which is right
-   * for buttons that are all about the same size. A control that is a list of
-   * its own — a row of pinned markets, say — reads as part of the buttons
-   * beside it there. Unset leaves it in the row with the rest, and the option
-   * does nothing at all on a wide screen, where the controls are not folded.
+   * Unset means the app decides alone. Leave it off a control that only draws
+   * in one place, such as one that is drawn somewhere else on a wide screen.
+   */
+  phoneChoice?: boolean
+  /**
+   * A line of its own, under its `label` as a heading, at the top of the
+   * phone's three-dot dropdown.
+   *
+   * The dropdown puts the app's controls on one line that slides sideways,
+   * which is right for buttons that are all about the same size. A control
+   * that is a list of its own — a row of pinned markets, say — reads as part
+   * of the buttons beside it there, so it lays out its own line instead.
+   * Unset leaves it in the line with the rest, and the option does nothing at
+   * all on a wide screen, where the controls are not folded.
    */
   ownSection?: boolean
   component: () => Promise<{
     default: ComponentType<AppHeaderActionProps>
   }>
+}
+
+/**
+ * Whether a control leaves the row for the three-dot dropdown on a phone.
+ *
+ * The app's `foldsOnPhone` decides, unless it gave the control a `phoneChoice`
+ * and somebody picked a place for it in the Top right menu.
+ */
+export function appActionFoldsOnPhone(
+  item: ShellTopRightAppAction,
+  action: AppHeaderAction
+) {
+  if (action.phoneChoice && typeof item.foldsOnPhone === "boolean") {
+    return item.foldsOnPhone
+  }
+  return action.foldsOnPhone === true
 }
 
 /** What the shell hands one app-owned row inside the quick settings menu. */
@@ -136,7 +213,7 @@ export type AppQuickSettingProps = { role: string }
  */
 export type AppQuickSetting = {
   id: string
-  /** Unset means admins and members may both see it. */
+  /** Unset means admins and members. An app role sees it only when named. */
   roles?: readonly string[]
   component: () => Promise<{
     default: ComponentType<AppQuickSettingProps>
@@ -566,12 +643,14 @@ type AutomationOptions = {
    */
   runButton?: "shown" | "hidden"
   /**
-   * Which flows offer "Test with member…". Unset means every flow does, which
-   * is what every app did before this existed.
+   * Which flows offer "Test with contact…". Unset means every flow does, which
+   * is what every app did before this existed. Named from when the test picked
+   * a member's account; it picks a contact now, and the name stays so no app
+   * that sets it breaks.
    *
-   * The button runs the flow against one chosen member, which is the right way
-   * to try a welcome sequence and a meaningless thing to offer a flow with no
-   * member in it at all. The shell cannot tell the two apart: it would have to
+   * The button runs the flow against one chosen contact, which is the right
+   * way to try a welcome sequence and a meaningless thing to offer a flow with
+   * nobody in it at all. The shell cannot tell the two apart: it would have to
    * know what an app's own steps are about. Trade's backtest is exactly that —
    * it walks a strategy over price history, and there is nobody to test it
    * with.
@@ -583,6 +662,25 @@ type AutomationOptions = {
   memberTest?: {
     appliesTo: (nodeKinds: readonly string[]) => boolean
   }
+}
+
+/**
+ * How the app opens once someone adds it to a phone's home screen. Every app
+ * can be added, with the name and logo set in Settings; these only say where
+ * it opens and what the home screen calls it (`src/lib/home-screen.ts`).
+ */
+type HomeScreenOptions = {
+  /**
+   * The page the home-screen icon opens, such as "/dashboard". Unset opens
+   * the front page. A signed-out visitor is sent to sign in from there as
+   * usual, then lands on it.
+   */
+  startPath?: `/${string}`
+  /**
+   * The name under the icon, when the app's name is too long for it. Phones
+   * cut it after about 12 characters. Unset uses the app's name.
+   */
+  shortName?: string
 }
 
 type SignInOptions = {
@@ -734,13 +832,22 @@ export function appPublicTheme(options: AppOptions = appOptions): PublicTheme {
   return normalizePublicTheme(options.publicTheme)
 }
 
+/**
+ * Whether a header item with this `roles` list is for this role. Unset means
+ * admins and members, as it always has. An app role sees an item only when
+ * the app names it, so a new role never inherits a control by accident.
+ */
+function roleListed(roles: readonly string[] | undefined, role: string) {
+  return roles ? roles.includes(role) : isShellRole(role)
+}
+
 /** Left navigation for this role, or null to keep the shell's usual links. */
 export function appHeaderLeftContentForRole(
   role: string,
   options: AppOptions = appOptions
 ): AppHeaderLeftContent | null {
   const action = options.header?.leftContent
-  if (!action || (action.roles && !action.roles.includes(role))) return null
+  if (!action || !roleListed(action.roles, role)) return null
   return action
 }
 
@@ -815,8 +922,8 @@ export function appHeaderRightActionsForRole(
   role: string,
   options: AppOptions = appOptions
 ): readonly AppHeaderAction[] {
-  return appHeaderRightActions(options).filter(
-    (action) => !action.roles || action.roles.includes(role)
+  return appHeaderRightActions(options).filter((action) =>
+    roleListed(action.roles, role)
   )
 }
 
@@ -849,7 +956,7 @@ export function appQuickSettingsForRole(
     seen.add(row.id)
   }
 
-  return rows.filter((row) => !row.roles || row.roles.includes(role))
+  return rows.filter((row) => roleListed(row.roles, role))
 }
 
 /**
@@ -939,7 +1046,7 @@ export function appShowsRunButton(options: AppOptions = appOptions): boolean {
 }
 
 /**
- * Whether this flow offers "Test with member…".
+ * Whether this flow offers "Test with contact…".
  *
  * True unless the app says otherwise, so an app that has never heard of this
  * option behaves exactly as it did before.
@@ -1049,7 +1156,9 @@ export function mayHaveWorkspace(
 
   const who = whoMayHaveWorkspaces(options)
   if (who === "off") return false
-  if (who === "everyone") return true
+  // Everyone means admins and members. An app role has a workspace only when
+  // its app gave it the switcher too.
+  if (who === "everyone") return roleMay(user.role, "workspaces", options)
   return user.role === "admin"
 }
 
@@ -1115,4 +1224,46 @@ export function appNoticeCategories(
 /** App-wide branding stays the default unless the app builds distinct sites. */
 export function appUsesSiteBranding(options: AppOptions = appOptions) {
   return options.workspaces?.siteBranding ?? false
+}
+
+/**
+ * The app's own roles, checked once on every read.
+ *
+ * A role that reuses the shell's `admin` or `member`, or another role's id,
+ * would quietly change what those accounts see, so it is refused out loud. An
+ * id outside the stored pattern could never be saved, and a landing page
+ * inside `/admin` would send the role to a door that refuses it.
+ */
+export function appRoles(options: AppOptions = appOptions): readonly AppRole[] {
+  const roles = options.roles ?? []
+
+  const seen = new Set<string>(["admin", "member"])
+  for (const role of roles) {
+    if (!ROLE_ID_PATTERN.test(role.id)) {
+      throw new Error(
+        `"${role.id}" is not a role id. Use lower-case letters, numbers and underscores, starting with a letter.`
+      )
+    }
+    if (seen.has(role.id)) {
+      throw new Error(
+        `The role "${role.id}" is declared twice, or is one of the shell's own. Each role needs its own id.`
+      )
+    }
+    if (role.landing === "/admin" || role.landing.startsWith("/admin/")) {
+      throw new Error(
+        `The role "${role.id}" lands on ${role.landing}, which only admins may open.`
+      )
+    }
+    seen.add(role.id)
+  }
+
+  return roles
+}
+
+/** Where the home-screen icon opens, and the name under it. */
+export function appHomeScreen(options: AppOptions = appOptions) {
+  return {
+    startPath: options.homeScreen?.startPath ?? "/",
+    shortName: options.homeScreen?.shortName?.trim() || null,
+  }
 }

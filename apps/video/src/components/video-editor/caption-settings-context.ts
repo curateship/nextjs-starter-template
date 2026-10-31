@@ -6,6 +6,7 @@ import {
   type CaptionPlacement,
   type CaptionSettings,
 } from "@/lib/video/caption-look"
+import { SAFE_BOX_ASPECT, safeBoxShares } from "@/lib/video/safe-box"
 
 /**
  * The caption look and safe boxes saved on Settings → Captions, read with the
@@ -28,4 +29,23 @@ export function useCaptionPlacement(): CaptionPlacement {
   const settings = useCaptionSettings()
   const aspect = useEditorSelector((state) => state.aspect)
   return React.useMemo(() => ({ ...settings, aspect }), [settings, aspect])
+}
+
+const NO_INSET = { top: 0, bottom: 0, left: 0, right: 0 }
+
+/**
+ * How much of each edge the platform new captions are fitted for covers, as a
+ * share of the frame. Nothing on a project that is not tall, or with no
+ * platform picked, because the safe box only exists for a tall frame.
+ */
+export function usePlatformInset() {
+  const { look, safeBoxes } = useCaptionSettings()
+  const aspect = useEditorSelector((state) => state.aspect)
+  return React.useMemo(
+    () =>
+      look.platform && aspect === SAFE_BOX_ASPECT
+        ? safeBoxShares(safeBoxes[look.platform])
+        : NO_INSET,
+    [look.platform, safeBoxes, aspect]
+  )
 }

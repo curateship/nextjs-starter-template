@@ -32,6 +32,7 @@ export function useDashboardPlace({
   placeKey,
   search,
   ids,
+  ready = true,
   onQuietOpen,
 }: {
   /** One of `panelLayoutKey`'s `…Place` keys. */
@@ -40,6 +41,12 @@ export function useDashboardPlace({
   search: Record<string, unknown>
   /** The ids of the list's rows as shown, first row first. */
   ids: string[]
+  /**
+   * False while `ids` still belong to the address before the last change,
+   * as on a screen that loads its own list. The first row waits for it, so
+   * a remembered folder never opens a row from the folder it replaced.
+   */
+  ready?: boolean
   onQuietOpen: (id: string) => void
 }) {
   const navigate = useNavigate()
@@ -91,6 +98,7 @@ export function useDashboardPlace({
     }
     if (stepRef.current === "restoring") return
     if (stepRef.current === "opening") {
+      if (!ready) return
       stepRef.current = "done"
       const open = typeof place.open === "string" ? place.open : undefined
       // A link's own record opens even when it is not on this page of the
@@ -109,7 +117,7 @@ export function useDashboardPlace({
       }
     }
     writePlace(storageKey, placeJson)
-  }, [placeJson, storageKey, idsJson, navigate, restores])
+  }, [placeJson, storageKey, idsJson, ready, navigate, restores])
 }
 
 /**

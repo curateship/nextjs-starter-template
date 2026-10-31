@@ -9,7 +9,13 @@ import {
   arrayMove,
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { GripVertical, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
+import {
+  GripVertical,
+  PlusIcon,
+  RotateCcwIcon,
+  SmartphoneIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import {
@@ -32,8 +38,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import type { AppHeaderAction } from "@/lib/app-options"
+import { appActionFoldsOnPhone, type AppHeaderAction } from "@/lib/app-options"
 import {
   isShellEntryNamed,
   isShellTopRightLink,
@@ -75,10 +86,12 @@ function AppActionChip({
   item,
   action,
   onVisibleChange,
+  onFoldsOnPhoneChange,
 }: {
   item: ShellTopRightAppAction
   action: AppHeaderAction | undefined
   onVisibleChange: (visible: boolean) => void
+  onFoldsOnPhoneChange: (foldsOnPhone: boolean) => void
 }) {
   if (!action) return null
 
@@ -87,6 +100,14 @@ function AppActionChip({
       item={item}
       meta={action}
       onVisibleChange={onVisibleChange}
+      phone={
+        action.phoneChoice
+          ? {
+              folds: appActionFoldsOnPhone(item, action),
+              onChange: onFoldsOnPhoneChange,
+            }
+          : undefined
+      }
     />
   )
 }
@@ -95,10 +116,13 @@ function SortableFixedChip({
   item,
   meta,
   onVisibleChange,
+  phone,
 }: {
   item: ShellTopRightBuiltIn | ShellTopRightAppAction
   meta: { label: string; icon: AppHeaderAction["icon"] }
   onVisibleChange: (visible: boolean) => void
+  /** Where it goes on a phone, for an app control that lets you choose. */
+  phone?: { folds: boolean; onChange: (folds: boolean) => void }
 }) {
   const Icon = meta.icon
   const chip = useSortableChip(item.id, meta.label)
@@ -130,29 +154,63 @@ function SortableFixedChip({
           />
           <span className="sr-only">Show {meta.label}</span>
         </label>
+        {/* Says where the control sits on a phone and moves it on a press:
+            in the header row, or folded into the three-dot dropdown. */}
+        {phone ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0 gap-1.5 text-muted-foreground"
+                aria-label={`On a phone, ${meta.label} is in the ${phone.folds ? "dropdown" : "menu bar"}. Move it to the ${phone.folds ? "menu bar" : "dropdown"}.`}
+                onClick={() => phone.onChange(!phone.folds)}
+              >
+                <SmartphoneIcon className="h-4 w-4" />
+                {phone.folds ? "Dropdown" : "Menu bar"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Where it goes on a phone. Press to move it to the{" "}
+              {phone.folds ? "menu bar" : "dropdown"}.
+            </TooltipContent>
+          </Tooltip>
+        ) : null}
       </div>
     </div>
   )
 }
 
-function SortableLinkChip({
+/**
+ * A link chip: name and icon (opening its editor), and a trash can. The
+ * top-left shortcuts row reuses it, with `visibility` adding the same
+ * show-or-hide checkbox a built-in wears.
+ */
+export function SortableLinkChip({
   item,
   dialogOpen,
   onDialogOpenChange,
   onChange,
   onDelete,
   onSaveConfig,
+  linkNoun = "Menu link",
+  dialogDescription = "Edit this top-right menu link.",
+  visibility,
 }: {
-  item: ShellTopRightLink
+  item: Pick<ShellTopRightLink, "id" | "label" | "href" | "icon">
   dialogOpen: boolean
   onDialogOpenChange: (open: boolean) => void
   onChange: (patch: Partial<ShellTopRightLink>) => void
   onDelete: () => void
   onSaveConfig: () => Promise<boolean>
+  linkNoun?: string
+  dialogDescription?: string
+  visibility?: { visible: boolean; onVisibleChange: (visible: boolean) => void }
 }) {
   const labelInputRef = React.useRef<HTMLInputElement>(null)
   const isNamed = isShellEntryNamed(item)
-  const itemName = isNamed ? item.label : "menu link"
+  const itemName = isNamed ? item.label : linkNoun.toLowerCase()
   const addressCheck = useCheckedAddress(item.href, isNamed)
   const chip = useSortableChip(item.id, itemName)
 
@@ -168,7 +226,6 @@ function SortableLinkChip({
           onClick={() => onDialogOpenChange(true)}
           className="max-w-56 justify-start gap-2 px-3 text-sm font-medium"
           aria-label={`Edit settings for ${itemName}`}
-          title={isNamed ? `${item.label} settings` : "Menu link settings"}
         >
           <span className="shrink-0">{renderShellIcon(item.icon, "h-4 w-4")}</span>
           {/* An unnamed link reads as a placeholder, the same muted grey an
@@ -181,7 +238,23 @@ function SortableLinkChip({
           >
             {isNamed ? item.label : "Name this link"}
           </span>
+          {visibility && !visibility.visible ? (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              Hidden
+            </span>
+          ) : null}
         </Button>
+        {visibility ? (
+          <label className="flex size-8 shrink-0 items-center justify-center rounded-md">
+            <Checkbox
+              checked={visibility.visible}
+              onCheckedChange={(checked) =>
+                visibility.onVisibleChange(checked === true)
+              }
+            />
+            <span className="sr-only">Show {itemName}</span>
+          </label>
+        ) : null}
         <Button
           type="button"
           variant="ghost"
@@ -208,14 +281,12 @@ function SortableLinkChip({
           }}
         >
           <DialogHeader>
-            <DialogTitle>{isNamed ? item.label : "Menu link"}</DialogTitle>
-            <DialogDescription>
-              Edit this top-right menu link.
-            </DialogDescription>
+            <DialogTitle>{isNamed ? item.label : linkNoun}</DialogTitle>
+            <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
           <DialogBody>
             <NavLinkDestinationCard
-              linkNoun="Menu link"
+              linkNoun={linkNoun}
               icon={item.icon}
               label={item.label}
               href={item.href}
@@ -331,6 +402,16 @@ export function TopRightSettings({
     )
   }
 
+  const handleFoldsOnPhoneChange = (actionId: string, foldsOnPhone: boolean) => {
+    onItemsChange(
+      items.map((item) =>
+        item.type === "app" && item.id === actionId
+          ? { ...item, foldsOnPhone }
+          : item
+      )
+    )
+  }
+
   // Looked up live when the dialog renders, so it can never name a link that
   // has already been deleted.
   const pendingDeleteLink =
@@ -385,6 +466,9 @@ export function TopRightSettings({
                     )}
                     onVisibleChange={(visible) =>
                       handleVisibleChange(item.id, visible)
+                    }
+                    onFoldsOnPhoneChange={(foldsOnPhone) =>
+                      handleFoldsOnPhoneChange(item.id, foldsOnPhone)
                     }
                   />
                 ) : (

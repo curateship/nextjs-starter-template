@@ -5,7 +5,7 @@ import {
   type ShotLengthSeconds,
 } from "@/lib/video/asset-factories"
 import type { MovingOrigin } from "@/lib/video/clip-origin"
-import { clipScale } from "@/lib/video/clip-size"
+import { isPlacedPicture } from "@/lib/video/clip-size"
 import type { ProjectTimeline } from "@/lib/video/timeline-schema"
 
 /**
@@ -56,7 +56,7 @@ export function stillShotLengths(clipDurationMs: number): ShotLengthSeconds[] {
 /** Why this clip cannot be made to move, or null when it can. */
 export function stillRefusal(clip: Clip): string | null {
   if (clip.durationMs > MAX_MOVING_STILL_MS) return MOVING_STILL_TOO_LONG_MESSAGE
-  if (clipScale(clip) < 1) return MOVING_STILL_NOT_FULL_FRAME_MESSAGE
+  if (isPlacedPicture(clip)) return MOVING_STILL_NOT_FULL_FRAME_MESSAGE
   return null
 }
 

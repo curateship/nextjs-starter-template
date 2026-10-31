@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start"
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start"
 import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
@@ -38,6 +38,7 @@ import { isOwnedImageUrl } from "@/server/media/library"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
 import { enforceLoginRateLimit } from "@/server/auth/login-lockout"
 import { googleSignInEnabled } from "@/server/auth/google"
+import { readShellGlobals } from "@/server/shell-settings"
 import {
   customShellSessions,
   customShellUsers,
@@ -93,6 +94,7 @@ import {
   alertPasswordChanged,
   startSessionWithAlert,
 } from "@/server/auth/security-alerts"
+import { requireRoleFeature } from "@/server/people/roles"
 import {
   markReferralJoined,
   recordReferralRegistration,
@@ -247,6 +249,8 @@ const authErrorMessages: Record<string, string> = {
   PASSKEY_FAILED: "That passkey could not be checked. Please try again.",
   PASSKEY_EXISTS: "That passkey is already saved to an account.",
   PASSKEY_NOT_FOUND: "That passkey is already removed.",
+  PASSKEYS_OFF:
+    "Passkeys are switched off here. Sign in with your password or an emailed link instead.",
   SUBSCRIPTION_CANCEL_FAILED:
     "We could not cancel your paid plan, so your account was not deleted. Please try again in a moment.",
   REFERRAL_NOT_FOUND:
@@ -297,15 +301,17 @@ const loadCurrentUserFn = createServerFn({ method: "GET" }).handler(
 /**
  * What the signed-out pages need to know before they draw themselves: the
  * Turnstile site key for the forms that carry the widget (null when the check
- * is switched off), and whether to offer "Continue with Google".
+ * is switched off), whether to offer "Continue with Google", and whether an
+ * admin has left "Sign in with a passkey" switched on in Settings.
  *
- * Both are public values that ship inside the page, and both are decided by the
+ * All are public values that ship inside the page, and all are decided by the
  * server so a button is never shown that this server cannot finish.
  */
 const loadSignInOptionsFn = createServerFn({ method: "GET" }).handler(
   async () => ({
     siteKey: getHumanCheckSiteKey(),
     google: googleSignInEnabled(),
+    passkeys: (await readShellGlobals()).passkeySignIn,
     linkExpiry: await getAuthLinkExpiry(await visitorWorkspaceId()),
   })
 )
@@ -662,7 +668,10 @@ const resetPasswordFn = createServerFn({ method: "POST" })
       )
 
       const [before] = await tx
-        .select({ emailVerifiedAt: customShellUsers.emailVerifiedAt })
+        .select({
+          emailVerifiedAt: customShellUsers.emailVerifiedAt,
+          passwordHash: customShellUsers.passwordHash,
+        })
         .from(customShellUsers)
         .where(eq(customShellUsers.id, consumed.userId))
         .limit(1)
@@ -680,6 +689,8 @@ const resetPasswordFn = createServerFn({ method: "POST" })
           id: customShellUsers.id,
           name: customShellUsers.name,
           email: customShellUsers.email,
+          role: customShellUsers.role,
+          status: customShellUsers.status,
           currentWorkspaceId: customShellUsers.currentWorkspaceId,
         })
 
@@ -694,6 +705,8 @@ const resetPasswordFn = createServerFn({ method: "POST" })
         .where(eq(customShellSessions.userId, consumed.userId))
 
       return account
+        ? { ...account, firstPassword: !before?.passwordHash }
+        : undefined
     })
 
     clearSessionCookie()
@@ -708,7 +721,22 @@ const resetPasswordFn = createServerFn({ method: "POST" })
         changed.name
       )
     }
-    return { ok: true }
+
+    // An account that had no password at all was made for somebody, by an
+    // admin or by the app's own invite, and this link is how they open it.
+    // Opening the mailed link proves the inbox, so they are signed straight
+    // in and `/home` sends them to their role's landing page. A reset of a
+    // password that already existed still ends signed out, as it always has.
+    if (changed?.firstPassword && isActiveAccount(changed)) {
+      const sessionToken = await startSessionWithAlert(
+        changed,
+        describeRequestOrigin()
+      )
+      await startWorkspaceFor(changed)
+      setSessionCookie(sessionToken)
+      return { ok: true, signedIn: true }
+    }
+    return { ok: true, signedIn: false }
   })
 
 const updateProfileFn = createServerFn({ method: "POST" })
@@ -818,6 +846,7 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
     // suspended or closing account is refused before either email-change token
     // is created or either address is mailed.
     const user = await requireOwnAccount()
+    requireRoleFeature(user, "emailChange")
     const workspaceId = await workspaceIdForRequest(user.id)
     const linkContext = await getAuthLinkContext(db, workspaceId)
 
@@ -1069,6 +1098,9 @@ const deleteAccountFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAppOrigin()
     const user = await requireUser()
+    // The site admin removes app-role people; they do not delete themselves,
+    // unless their app gave them the full Security tab.
+    requireRoleFeature(user, "security")
 
     if (!(await confirmsDeletion(user, data.confirmation))) {
       throw new Error("INVALID_CREDENTIALS")
@@ -1241,8 +1273,14 @@ export function serializeUser(user: {
  *
  * The import stays dynamic: workspaces.ts is a thousand lines of navigation
  * defaults that only the sign-in handlers ever need.
+ *
+ * Server-only, so the browser build drops the body and that dynamic import with
+ * it. Left as a plain function, the bundler still made a browser file for
+ * workspaces.ts that nothing loads, carrying the database and the session
+ * cookie code, and in an app whose `src/app/server-options.ts` lists workers
+ * that file failed the build's server-import check.
  */
-export async function startWorkspaceFor(
+export const startWorkspaceFor = createServerOnlyFn(async function startWorkspaceFor(
   user: Pick<CustomShellUser, "id" | "role">
 ) {
   // Whoever this app says may have one. Every sign-in used to make one for
@@ -1273,7 +1311,7 @@ export async function startWorkspaceFor(
   // them pick it again from the switcher is a needless step. On the
   // deployment's own address nothing moves, so an admin's last choice survives.
   await pointAtWorkspaceForHost(user.id)
-}
+})
 
 function sendVerificationEmail(
   email: string,

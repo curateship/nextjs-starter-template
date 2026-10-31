@@ -21,16 +21,47 @@ same 1920x1080 recording becomes 3413x1920, and the middle 1080 columns are
 kept. 1166 pixels are cut from the left and 1167 from the right, so roughly two
 thirds of the width of the shot is gone.
 
-The crop is always taken from the middle. There is no way to slide it, so a
-subject standing at the far left of a wide shot is cut off by filling. That is
-the trade, and it is why the choice is per clip rather than per project.
+Filling starts from the middle, and the crop can be slid. That is the trade,
+and it is why the choice is per clip rather than per project.
 
-## Size, for pictures only
+## Which part of a filled clip shows
 
-A picture clip also has a **Size** slider in the same card, from 10% to 100%.
-Below 100% the picture is smaller than the frame and can be dragged around the
-preview like text. This is how a picture sticker arrives, at 30% (see
-[stickers.md](stickers.md)).
+A wide shot filling a tall frame keeps only a third of its width, and the
+person you filmed is not always in the middle third. So a filled clip has a
+crop spot.
+
+- **Dragging it:** pick the clip on the timeline, then drag the picture
+  sideways in the preview. The part that stays on screen follows the pointer.
+  A clip that is not picked never moves when pressed, so a stray click on the
+  preview changes nothing.
+- **The slider:** the same card has **Which part shows**, from 0% to 100%.
+  0% keeps the left edge of a wide shot, 100% the right edge, and **Middle**
+  is where every filled clip starts.
+- **One number, either way:** a filled picture only ever hangs over the frame
+  in one direction, so the same number slides a wide shot left and right in a
+  tall frame and a tall shot up and down in a wide one.
+- **What is saved:** `fillFocus`, 0 to 1. The middle saves nothing, so a
+  project made before this reads and exports exactly as it did.
+- **Fit inside ignores it:** a fitted clip has nothing hanging over the edge
+  to slide. The slider only shows when the clip is set to fill.
+- **How both ends draw it:** the preview sets CSS `object-position` to the
+  same share across and down. The export moves ffmpeg's `crop` to
+  `(iw-ow)*share:(ih-oh)*share`. Along the side with no overflow both of those
+  are zero, which is why one number is enough
+  (`frameFitFilter` in `src/lib/video/clip-frame-fit.ts`).
+- **Checked against a real export:** a wide clip, white on its left half and
+  black on its right, filled a tall frame. With the spot at 0% the exported
+  frame averaged above 230 out of 255 (white). At 100% it averaged under 25
+  (black). The test is `src/server/video/render-editor-features.test.ts`.
+
+## Size, for pictures and videos
+
+A picture or video clip also has a **Size** slider in the same card, from 10%
+to 100%. Below 100% the clip is smaller than the frame and can be dragged
+around the preview like text. This is how a picture sticker arrives, at 30%
+(see [stickers.md](stickers.md)), and how a face sits in the corner of a screen
+recording (see [video-on-video.md](video-on-video.md), which also covers the
+splits).
 
 - **What the number means:** the picture is first fitted or filled as above,
   then shrunk to that share of the frame. At 30%, a square logo fitted inside a
@@ -41,12 +72,13 @@ preview like text. This is how a picture sticker arrives, at 30% (see
 - **At 100% nothing changes:** the picture fills its frame in the middle as it
   always has, cannot be dragged, and nothing new is saved. Every project made
   before this looks and exports the same.
-- **Only pictures:** a video always fills the whole frame. The preview plays
-  every clip of one file through one shared player, which cannot be two sizes
-  at once. Replacing a small picture with a video puts the clip back to the
-  full frame.
+- **Videos too, since 30 Oct 2026:** a video used to stay the whole frame,
+  because the preview plays every clip of one file through one shared player.
+  That player only ever shows one clip of its file at a time, so the playback
+  loop now places it from whichever clip that is, the same way it already set
+  fit and colour per clip.
 - **Where it lives:** `src/lib/video/clip-size.ts`. The export shrinks the
-  fitted picture last, after colour and movement, and overlays it with its
+  fitted clip last, after colour and movement, and overlays it with its
   middle on the same spot (`src/server/video/render.ts`). The preview gives the
   picture a box of the same size in the same place
   (`src/components/video-editor/editor-preview.tsx`).

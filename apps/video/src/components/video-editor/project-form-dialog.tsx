@@ -178,7 +178,7 @@ export function ProjectFormDialog({
             <DialogDescription>
               {project
                 ? "What this project is called, the look every AI picture or clip made for it starts from, and the most it may spend on AI."
-                : "It opens empty and vertical — the aspect switch changes that in one click."}
+                : "It opens empty and vertical - the aspect switch changes that in one click."}
             </DialogDescription>
           </DialogHeader>
           <form

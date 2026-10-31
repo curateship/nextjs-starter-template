@@ -32,6 +32,7 @@ import {
 import { useBlankSpaceDoubleClick } from "@/lib/layout/panel-collapse"
 import type { AuthUser } from "@/lib/api/auth/auth"
 import type { PlanSummary } from "@/lib/api/billing/billing"
+import { roleMay } from "@/lib/roles"
 import type {
   WorkspaceCopyChoice,
   WorkspaceItem,
@@ -217,7 +218,8 @@ export function AppSidebar({
           onLogout={onLogout}
           viewingAsMember={viewingAsMember}
           isAdmin={user.role === "admin"}
-          showUpgrade={!plan.isPaid}
+          showUpgrade={roleMay(user.role, "billing") && !plan.isPaid}
+          showBilling={roleMay(user.role, "billing")}
           user={{
             name: user.name,
             email: user.email,

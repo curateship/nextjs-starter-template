@@ -21,12 +21,16 @@ outside music service.
   track and marks it in one go. Every other sound file you own is listed under
   the music with a "Use as music" button.
 
-**Uploading sound is broken today, and the fault is in the shell.** The
-shell's upload check (`validateMediaContent` in `src/server/media/library.ts`)
-knows how to recognise pictures and video but no sound format, so every MP3 or
-WAV is refused with "File content does not match the selected media type." The
-Music panel shows that message as it is. Until the shell learns sound files,
-only files already in the library, such as voiceovers, can be marked as music.
+**Uploading sound works since 30 Oct 2026.** Before then the shell's upload
+check (`validateMediaContent` in `src/server/media/library.ts`) knew pictures
+and video but no sound format, so every MP3 or WAV was refused with "File
+content does not match the selected media type." The check now knows MP3, WAV,
+M4A, AAC, Ogg and WebM sound (the repo's `docs/shell/security.md`, under
+Media).
+
+**Marking a file as music also finds its beats.** The background worker reads
+every track on the shelf for its beats, so clip edges snap to them (see
+[beat-snapping.md](beat-snapping.md)).
 
 ## Laying a track down
 

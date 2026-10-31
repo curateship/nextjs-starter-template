@@ -737,7 +737,7 @@ function OpenNote({
           ) : null}
 
           {opened.linkedFrom.length ? (
-            <PanelCard quiet storageId="note-library-linked-from" title="Linked from">
+            <PanelCard storageId="note-library-linked-from" title="Linked from">
               <ul className="grid gap-1">
                 {opened.linkedFrom.map((link) => (
                   <li key={link.id}>

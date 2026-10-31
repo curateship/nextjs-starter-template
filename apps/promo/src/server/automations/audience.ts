@@ -353,11 +353,11 @@ export async function countAutomationAudience(
   )
 }
 
-/** Whether one real member belongs to this audience right now. */
-export async function memberMatchesAutomationAudience(
+/** Whether a test run's one contact belongs to this audience right now. */
+export async function contactMatchesAutomationAudience(
   audience: AutomationAudience,
   workspaceId: string,
-  userId: string,
+  contactId: string,
   database: CustomShellDb = db,
   timestamp: Date = now(),
   segment?: AudienceSegment | null
@@ -373,7 +373,7 @@ export async function memberMatchesAutomationAudience(
           timestamp,
           segment
         ),
-        eq(customShellContacts.userId, userId)
+        eq(customShellContacts.id, contactId)
       ) as SQL
     )) > 0
   )

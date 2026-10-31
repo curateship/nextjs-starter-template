@@ -27,7 +27,11 @@ All of them are in `src/components/shared/`.
   moves replace the address, so Back still leaves the page. The record it
   opens by itself does not switch a narrow screen to the right panel. The
   open record has to be `?open=` and `showRightFor` its id, which is how
-  Contacts already worked.
+  Contacts already worked. A screen that loads its list itself, rather than
+  in the route's loader, passes `ready: false` while the rows shown still
+  belong to the address before the last change. The first row waits for it,
+  so a remembered folder never opens a row from the folder it replaced.
+  Note's library dashboard is the one that does.
 - **`panel-card.tsx`, `PanelCard` and `PanelHeading`.** The grey folding card
   of a side panel, which remembers being open or shut, with a muted note after
   its title, a badge, a button of its own and a footer of buttons. Its cog, its own buttons and its fold arrow show only while the card is

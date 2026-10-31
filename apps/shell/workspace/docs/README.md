@@ -83,6 +83,7 @@ local setup docs.
 
 - [Administration and personalization](settings/administration-and-personalization.md)
 - [The dark mode shade](settings/dark-mode-shade.md)
+- [The left menu shade](settings/left-menu-shade.md)
 - [The app canvas](settings/the-app-canvas.md)
 - [Public theme presets](settings/public-theme-presets.md)
 

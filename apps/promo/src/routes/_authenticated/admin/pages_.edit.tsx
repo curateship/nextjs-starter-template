@@ -36,8 +36,11 @@ function readEditSearch(search: Record<string, unknown>) {
 
 export const Route = createFileRoute("/_authenticated/admin/pages_/edit")({
   validateSearch: readEditSearch,
-  loader: async ({ location }) => {
-    const { path } = readEditSearch(location.search as Record<string, unknown>)
+  // The page's address is what this screen loads, so it keys the cached data.
+  // Without it, Home and About shared one cache entry, and opening About drew
+  // Home's blocks (and Home in the breadcrumb) for a moment before swapping.
+  loaderDeps: ({ search }) => ({ path: search.path }),
+  loader: async ({ deps: { path } }) => {
     const overview = await loadPagesOverview()
     const page = overview.rows.find((row) => row.path === path)
     // A page that is not built from blocks has nothing to edit here, and the
@@ -55,14 +58,30 @@ export const Route = createFileRoute("/_authenticated/admin/pages_/edit")({
       loadPageBlocks(path),
       page.writtenPageId ? loadWrittenPageForEdit(path) : null,
     ])
-    return { page, blocks, writtenPage }
+    // What a Pages list block may pick from: every page added to this site,
+    // in the Pages screen's own order. Read off the overview this loader
+    // already has, so it costs no request of its own. The page being built is
+    // left out, because a card linking to the page it sits on goes nowhere.
+    const pageChoices = overview.rows.flatMap((row) =>
+      row.writtenPageId && row.path !== path
+        ? [
+            {
+              id: row.writtenPageId,
+              title: row.name,
+              path: row.path,
+              visibility: row.visibility,
+            },
+          ]
+        : []
+    )
+    return { page, recordTitle: page.name, blocks, writtenPage, pageChoices }
   },
   component: AdminFrontPageEditorRoute,
   errorComponent: routeErrorComponent(getPagesErrorMessage),
 })
 
 function AdminFrontPageEditorRoute() {
-  const { page, blocks, writtenPage } = Route.useLoaderData()
+  const { page, blocks, writtenPage, pageChoices } = Route.useLoaderData()
   const runtime = useShellRuntime()
 
   return (
@@ -70,6 +89,7 @@ function AdminFrontPageEditorRoute() {
       page={page}
       writtenPage={writtenPage}
       initialBlocks={blocks}
+      pageChoices={pageChoices}
       config={runtime.config}
       onConfigChange={runtime.onConfigChange}
     />

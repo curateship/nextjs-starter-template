@@ -150,13 +150,21 @@ export function JumpCutsDialog({
       rippleClipIds: [],
     })
     toast.success(
-      `${cuts.length} ${plural(cuts.length, "cut", "cuts")} made — ${formatSeconds(removedMs)} shorter. Undo puts it back.`
+      `${cuts.length} ${plural(cuts.length, "cut", "cuts")} made - ${formatSeconds(removedMs)} shorter. Undo puts it back.`
     )
     onOpenChange(false)
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // A paid request carries on after its window shuts, so the window
+        // stays open until the answer lands (the History window's rule).
+        if (!next && looking) return
+        onOpenChange(next)
+      }}
+    >
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Tighten the clip</DialogTitle>
@@ -320,6 +328,7 @@ export function JumpCutsDialog({
           <Button
             type="button"
             variant="outline"
+            disabled={looking}
             onClick={() => onOpenChange(false)}
           >
             Cancel

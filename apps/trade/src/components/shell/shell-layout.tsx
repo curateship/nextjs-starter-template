@@ -32,6 +32,7 @@ import {
   isShellItem,
   normalizeAutomationPause,
   normalizeMaintenance,
+  normalizeRoleSections,
   normalizeSessionPolicy,
   normalizeTopLeftMode,
   normalizeTopLeftNavLimit,
@@ -53,9 +54,11 @@ import {
   getBorderStyleVars,
   getDarkShadeVars,
   getModalStyleVars,
+  getSidebarShadeVars,
   MODAL_STYLE_VAR_NAMES,
   normalizeStyling,
   resolveBackground,
+  SIDEBAR_SHADE_VAR_NAMES,
   type ShellModalStyling,
   type ShellStyling,
 } from "@/lib/layout/styling-values"
@@ -65,6 +68,7 @@ import {
   capitalise,
   workspaceWord,
 } from "@/lib/app-options"
+import { roleMay } from "@/lib/roles"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizePublicHeader } from "@/lib/pages/public-header"
 import { normalizePublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
@@ -171,6 +175,15 @@ export function useShellRuntime() {
   return context
 }
 
+/**
+ * The same runtime, or null outside the signed-in layout (a guest page, a
+ * component test), for a shared piece that only reads a setting and has a
+ * sensible default without one.
+ */
+export function useOptionalShellRuntime() {
+  return React.useContext(ShellRuntimeContext)
+}
+
 export function ShellLayout({
   user,
   settings,
@@ -257,6 +270,7 @@ export function ShellLayout({
   useModalStyleVars(config.styling.modal)
   useBorderStyleVars(config.styling)
   useDarkShadeVars(config.styling)
+  useSidebarShadeVars(config.styling)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -601,7 +615,14 @@ export function ShellLayout({
       ? { "--border": dividerColor, "--sidebar-border": dividerColor }
       : {}),
   } as React.CSSProperties
+  const pageTitle = getCurrentPageTitle(
+    config,
+    currentPath,
+    currentRouteId,
+    user.role
+  )
   const headerLeftContent = appHeaderLeftContentForRole(user.role)
+  const mayFeedback = roleMay(user.role, "feedback")
   const topLeftContent = getTopLeftContent(
     config,
     currentPath,
@@ -689,8 +710,10 @@ export function ShellLayout({
               onResumeAutomations={() =>
                 void handleAutomationPauseChange(false)
               }
-              onOpenFeedback={() => openFeedback()}
-              onOpenFeedbackThread={openFeedback}
+              // No button and no thread links for an app role whose app
+              // gave it no feedback; the server refuses it the same.
+              onOpenFeedback={mayFeedback ? () => openFeedback() : undefined}
+              onOpenFeedbackThread={mayFeedback ? openFeedback : undefined}
             />
             <DashboardContent
               id="main-content"
@@ -704,12 +727,7 @@ export function ShellLayout({
                   : undefined
               }
               styling={config.styling}
-              pageTitle={getCurrentPageTitle(
-                config,
-                currentPath,
-                currentRouteId,
-                user.role
-              )}
+              pageTitle={pageTitle}
             >
               {/* First cards on the page, so a broadcast rides the content
                   gutter and the workspace's own card styling. Remounted per set
@@ -723,13 +741,15 @@ export function ShellLayout({
             </DashboardContent>
           </SidebarInset>
         </SidebarProvider>
-        <FeedbackModal
-          open={feedbackOpen}
-          onOpenChange={handleFeedbackOpenChange}
-          targetFeedbackId={targetFeedbackId}
-          currentUserName={user.name}
-          onMutated={() => setFeedbackRefreshToken((current) => current + 1)}
-        />
+        {mayFeedback ? (
+          <FeedbackModal
+            open={feedbackOpen}
+            onOpenChange={handleFeedbackOpenChange}
+            targetFeedbackId={targetFeedbackId}
+            currentUserName={user.name}
+            onMutated={() => setFeedbackRefreshToken((current) => current + 1)}
+          />
+        ) : null}
         <AccountDialog
           tab={accountTab ?? null}
           user={user}
@@ -843,6 +863,7 @@ function normalizeConfig(
     memberSections: Array.isArray(settings.memberSections)
       ? settings.memberSections
       : fallback.memberSections,
+    roleSections: normalizeRoleSections(settings.roleSections),
     // Only an explicit `false` turns the live bell off, so a config saved
     // before this setting existed keeps it on.
     liveNotifications: settings.liveNotifications !== false,
@@ -931,6 +952,16 @@ function useBorderStyleVars(styling: ShellStyling) {
 function useDarkShadeVars(styling: ShellStyling) {
   React.useEffect(
     () => applyRootStyleVars(DARK_SHADE_VAR_NAMES, getDarkShadeVars(styling)),
+    [styling]
+  )
+}
+
+// The left menu and sticky bar shade. --shell-rail in theme.css is declared on
+// the root, so the share it reads has to be set there too.
+function useSidebarShadeVars(styling: ShellStyling) {
+  React.useEffect(
+    () =>
+      applyRootStyleVars(SIDEBAR_SHADE_VAR_NAMES, getSidebarShadeVars(styling)),
     [styling]
   )
 }

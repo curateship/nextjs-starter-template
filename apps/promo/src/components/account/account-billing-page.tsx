@@ -96,6 +96,7 @@ export function AccountBillingPage({
   cardWarning,
   billingHistory,
   usage,
+  showAiUsage,
   onChanged,
 }: {
   overview: BillingOverview
@@ -103,6 +104,8 @@ export function AccountBillingPage({
   cardWarning: CardExpiryWarning | null
   billingHistory: MemberSubscriptionEvent[]
   usage: MemberUsageSummary
+  /** Off for an app role whose app gave it billing but not AI usage. */
+  showAiUsage: boolean
   /** Re-reads the page after a pause or a resume changed what it says. */
   onChanged: () => void
 }) {
@@ -343,7 +346,7 @@ export function AccountBillingPage({
 
       <AccountMeteredUsageCard usage={usage} />
 
-      <AccountAiUsageCard />
+      {showAiUsage ? <AccountAiUsageCard /> : null}
 
       {preview ? (
         <PlanChangeConfirmation

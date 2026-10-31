@@ -254,10 +254,10 @@ export default function AudienceFields({
             <InspectorNote className="mt-1">
               There are no segments yet. Make one in{" "}
               <Link
-                to="/admin/segments"
+                to="/admin/contacts"
                 className="underline underline-offset-2 hover:text-foreground"
               >
-                Segments
+                Contacts
               </Link>{" "}
               before this flow runs.
             </InspectorNote>

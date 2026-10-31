@@ -1,4 +1,5 @@
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
+import { TopLeftNavigationSettings } from "@/components/settings/top-left-navigation-settings"
 import {
   createDefaultMemberSections,
   type ShellConfig,
@@ -16,6 +17,13 @@ export function MemberSettings({
 }) {
   return (
     <SidebarSettings
+      topLeftNavigation={
+        <TopLeftNavigationSettings
+          config={config}
+          onConfigChange={onConfigChange}
+          audience="member"
+        />
+      }
       sections={config.memberSections}
       onSectionsChange={(memberSections) =>
         onConfigChange({ ...config, memberSections })

@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import type { InboxPage } from "@/components/project/inbox-card"
 import type { NotificationItem } from "@/lib/api/notification"
 import type { AdminDashboard } from "@/lib/api/project/admin-dashboard"
+import type { DailyCard } from "@/lib/api/project/daily-card"
 import type { TaskCard } from "@/lib/api/project/tasks"
 
 vi.mock("@tanstack/react-router", () => ({
@@ -144,10 +145,49 @@ function dashboard(cards: Partial<AdminDashboard["cards"]> = {}): AdminDashboard
 
 const NO_INBOX = { notifications: [], nextCursor: null }
 
+/** The Daily card at 9 AM on a Monday, with nothing on it yet. */
+const DAILY: DailyCard = {
+  loadedAt: "2099-03-02T09:00:00.000Z",
+  firstName: "Tyler",
+  siteAdmin: true,
+  zone: "UTC",
+  today: "2099-03-02",
+  cardDay: "2099-03-02",
+  settings: {
+    hours: { morning: "05:00", afternoon: "12:00", night: "18:00" },
+    city: null,
+    sky: "drawn",
+    ownSkies: { morning: "", afternoon: "", night: "" },
+    ownLines: [],
+    ownQuestions: [],
+    reminders: { morning: "10:00", afternoon: "15:00", night: "21:00" },
+    sections: ["line", "progress", "deepWork", "meeting", "windDown", "routine", "journal"],
+    hidden: [],
+  },
+  meetings: [],
+  clock: { seconds: 0, running: null },
+  finishedToday: [],
+  dayOff: null,
+  admin: {
+    habits: [],
+    retired: [],
+    finished: { current: 0, best: 0 },
+    milestone: null,
+    today: { day: "2099-03-02", intention: "", rating: null, note: "", win: "", question: "", answer: "", bedAt: null, upAt: null },
+    tomorrowIntention: "",
+    line: "Start with the task you keep walking around.",
+    question: "What gave you energy today?",
+    onThisDay: null,
+    lookBack: null,
+    monthly: null,
+    tomorrow: { meetings: [], due: [], moreDue: 0, away: [], holidays: [] },
+  },
+}
+
 function render(data: AdminDashboard, inbox: InboxPage = NO_INBOX) {
   return renderToStaticMarkup(
     <TooltipProvider>
-      <AdminDashboardScreen dashboard={data} inbox={inbox} search={{}} />
+      <AdminDashboardScreen daily={DAILY} dashboard={data} inbox={inbox} search={{}} />
     </TooltipProvider>
   )
 }
@@ -249,8 +289,9 @@ describe("the site admin's My dashboard", () => {
     expect(html).toContain('aria-label="Inbox, 12 unread"')
     expect(html).toContain('aria-pressed="false"')
     expect(html).toMatch(/bg-destructive[^>]*>9\+</)
-    // The inbox waits hidden in the panel, with no card around it.
-    expect(html).toMatch(/class="p-4 hidden"><section[^>]*aria-label="Inbox"/)
+    // The inbox waits hidden in the panel, with no card around it, its tabs underlined.
+    expect(html).toMatch(/hidden"><section[^>]*aria-label="Inbox"/)
+    expect(html).toMatch(/aria-label="Inbox"(?:(?!<\/section>).)*data-slot="dashboard-tab"/)
     expect(html).not.toContain("project-my-inbox")
     expect(render(dashboard())).toContain('aria-label="Inbox"')
   })
@@ -266,7 +307,7 @@ describe("the site admin's My dashboard", () => {
     const order = [
       "Projects",
       "Waiting on you",
-      "Needs attention",
+      "Urgent",
       "No one on it",
       "Invites not taken",
       "Due this week",
@@ -339,7 +380,7 @@ describe("the site admin's My dashboard", () => {
     expect(html).toContain("Lead: Priya.")
     expect(html).toContain("+5")
     expect(html).toContain("10 tasks finished in the last two weeks.")
-    // Nothing open: a thin line under the blocks. Hidden: behind "Hidden 1".
+    // Nothing open: a thin line under the blocks. Hidden: behind "Hidden 1" at the heading's right.
     expect(html).toContain(", nothing open. Show it in full.")
     expect(html.indexOf(">Archive photos<")).toBeGreaterThan(html.indexOf(">Brochure<"))
     expect(html).toMatch(/Hidden<span class="text-muted-foreground\/70">1</)
@@ -351,16 +392,32 @@ describe("the site admin's My dashboard", () => {
     expect(html).toContain('aria-pressed="false"')
   })
 
+  it("leaves a section hidden with the eye off the Daily card", () => {
+    const started = { ...DAILY, admin: { ...DAILY.admin!, today: { ...DAILY.admin!.today, upAt: "2099-03-02T08:00:00.000Z" } } }
+    const draw = (daily: DailyCard) =>
+      renderToStaticMarkup(
+        <TooltipProvider>
+          <AdminDashboardScreen daily={daily} dashboard={dashboard()} inbox={NO_INBOX} search={{}} />
+        </TooltipProvider>
+      )
+    expect(draw(started)).toContain("Start with the task you keep walking around.")
+    const hidden = draw({ ...started, settings: { ...started.settings, hidden: ["line"] } })
+    expect(hidden).not.toContain("Start with the task you keep walking around.")
+    expect(hidden).toContain("Today I want to...")
+  })
+
   it("marks the project My tasks is filtered to, and offers it in Filter", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
-        <AdminDashboardScreen dashboard={dashboard(FULL)} inbox={NO_INBOX} search={{ project: "p1" }} />
+        <AdminDashboardScreen daily={DAILY} dashboard={dashboard(FULL)} inbox={NO_INBOX} search={{ project: "p1" }} />
       </TooltipProvider>
     )
     expect(html).toContain("Showing only this project&#x27;s tasks. Press to show them all.")
     expect(html).toContain('aria-pressed="true"')
     // Both of the site admin's tasks are in other projects, so the List is empty.
-    expect(html).not.toContain("Send the contract")
+    // The Daily card on the left still names them: deep work follows no filter.
+    const middle = html.slice(html.indexOf('id="middle"'), html.indexOf('id="right"'))
+    expect(middle).not.toContain("Send the contract")
     expect(html).toContain('aria-label="Filter, 1 set"')
   })
 
@@ -406,7 +463,7 @@ describe("the site admin's My dashboard", () => {
   it("opens a task with no cross on the right", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
-        <AdminDashboardScreen dashboard={dashboard()} inbox={NO_INBOX} search={{ task: "t1" }} />
+        <AdminDashboardScreen daily={DAILY} dashboard={dashboard()} inbox={NO_INBOX} search={{ task: "t1" }} />
       </TooltipProvider>
     )
     expect(html).not.toContain("Close the task")

@@ -227,6 +227,19 @@ describe("changing many at once", () => {
     expect(await noticesFor(anna, "task_stuck")).toHaveLength(2)
   })
 
+  it("puts each task in the bin, and refuses one its person may not delete", async () => {
+    const a = await task("One")
+    const b = await task("Two")
+    const outcome = await changeManyTasks(actor(anna), { taskIds: [a, b], change: { kind: "delete" } }, database)
+    expect(outcome.changed).toEqual([a, b])
+    const deleted = await database.select().from(projectTaskEvents).where(eq(projectTaskEvents.kind, "deleted"))
+    expect(deleted.map((e) => e.taskId).sort()).toEqual([a, b].sort())
+    // Anna made it, so Ben, who runs nothing, can't delete it.
+    const c = await task("Three")
+    const refused = await changeManyTasks(actor(ben), { taskIds: [c], change: { kind: "delete" } }, database)
+    expect(refused.refused[0]).toMatchObject({ title: "Three", reason: PROJECT_ERRORS.cantDeleteTask })
+  })
+
   it("says why a task was refused", async () => {
     const a = await task("Brand logo", null, brand)
     const outcome = await changeManyTasks(

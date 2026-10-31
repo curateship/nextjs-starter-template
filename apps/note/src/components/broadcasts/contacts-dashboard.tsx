@@ -55,7 +55,9 @@ type SegmentWindow =
  *
  * The search, the filters, the open segment, the sort, the page and the open
  * person all live in the address, so a reload keeps the view and a link opens
- * it for somebody else.
+ * it for somebody else. Opened from the left menu, the page goes back to
+ * where it was last time, and opens the list's first person when nobody is
+ * open, so the right panel always has someone in it (`useDashboardPlace`).
  */
 export function ContactsDashboard({ data }: { data: ContactsPage }) {
   const router = useRouter()
@@ -144,12 +146,14 @@ export function ContactsDashboard({ data }: { data: ContactsPage }) {
 
   /**
    * A People card row: its rules alone, or nothing when it was already on.
-   * The search goes too, so the list holds the number the row shows.
+   * All people has no rules, so it clears the filter rather than writing an
+   * empty one into the address. The search goes too, so the list holds the
+   * number the row shows.
    */
   const applyShortcut = React.useCallback(
     (shortcutRules: SegmentRules, on: boolean) =>
       setListSearch({
-        filter: on ? undefined : cleanSegmentRules(shortcutRules),
+        filter: on || shortcutRules.conditions.length === 0 ? undefined : cleanSegmentRules(shortcutRules),
         segment: undefined,
         q: undefined,
         page: undefined,
@@ -213,6 +217,11 @@ export function ContactsDashboard({ data }: { data: ContactsPage }) {
   return (
     <ThreePanels
       layoutKey={panelLayoutKey.contactsWorkspace}
+      place={{
+        key: panelLayoutKey.contactsPlace,
+        search: listSearch,
+        ids: data.contacts.map((contact) => contact.id),
+      }}
       showMiddleFor={`${listSearch.segment ?? ""}|${JSON.stringify(listSearch.filter ?? null)}`}
       showRightFor={openId}
       left={{
@@ -257,8 +266,8 @@ export function ContactsDashboard({ data }: { data: ContactsPage }) {
             key={openId ?? "none"}
             contactId={openId}
             knownTags={data.tags}
+            segments={data.segments}
             refreshes={refreshes}
-            onClose={() => setOpenContact(undefined)}
             onChanged={refresh}
             onSegment={showSegment}
           />

@@ -28,7 +28,7 @@ export const TRANSITION_OPTIONS: {
   label: string
   description: string
 }[] = [
-  { id: "none", label: "None", description: "Hard cut — no blend." },
+  { id: "none", label: "None", description: "Hard cut - no blend." },
   {
     id: "crossfade",
     label: "Crossfade",

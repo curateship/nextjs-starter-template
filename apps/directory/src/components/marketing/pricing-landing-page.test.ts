@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
     layout: "wide" | "narrow"
   }>,
   loadCurrentUser: vi.fn(),
+  loadSignInOptions: vi.fn(),
   loadPublicPricing: vi.fn(),
   loadBillingOverview: vi.fn(),
   loadBranding: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock("@/lib/api/content/page-blocks", () => ({
 
 vi.mock("@/lib/api/auth/auth", () => ({
   loadCurrentUser: api.loadCurrentUser,
+  loadSignInOptions: api.loadSignInOptions,
 }))
 
 vi.mock("@/lib/api/billing/billing", () => ({
@@ -48,6 +50,9 @@ describe("front page row loading", () => {
   beforeEach(() => {
     api.rows = []
     api.loadCurrentUser.mockReset().mockResolvedValue(null)
+    api.loadSignInOptions
+      .mockReset()
+      .mockResolvedValue({ google: false, passkeys: false })
     api.loadPublicPricing.mockReset().mockResolvedValue({
       plans: [],
       billingEnabled: true,
@@ -59,13 +64,14 @@ describe("front page row loading", () => {
     api.loadPublicPageBlocks.mockReset().mockImplementation(async () => api.rows)
   })
 
-  it("keeps the existing pricing landing data when no rows are saved", async () => {
+  it("loads the sign-in card, not the plans, when no rows are saved", async () => {
     const data = await loadPricingLandingData()
 
     expect(data.frontPageRows).toEqual([])
     expect(data.plans).toEqual([])
     expect(api.loadCurrentUser).toHaveBeenCalledOnce()
-    expect(api.loadPublicPricing).toHaveBeenCalledOnce()
+    expect(api.loadSignInOptions).toHaveBeenCalledOnce()
+    expect(api.loadPublicPricing).not.toHaveBeenCalled()
   })
 
   it("does not load billing for a front page made only from text", async () => {

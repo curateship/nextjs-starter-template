@@ -24,3 +24,4 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [Calisthenics](calisthenics.md): the second routine type, its ladders of moves, and how a move steps up to its harder version.
 - [Sharing a program](sharing-a-program.md): the public page at `/r/<code>` and copying it.
 - [Going live](launch.md): the live address, the German server, the Coolify resources, email, storage, every live value, and the release record.
+- [Shell integration](shell-integration.md) — each shell merge into Fitness: what arrived, what stayed Fitness's own.

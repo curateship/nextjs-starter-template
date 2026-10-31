@@ -27,13 +27,33 @@ export const MAX_SIDEBAR_WIDTH = 420
 export const MAX_APP_MENU_WIDTH = 600
 
 /**
- * How much lighter (above 0) or darker (below 0) the left menu's background
- * is than the theme's, in steps of `SHADE_STEP` on the colour's lightness
- * (0 is black, 1 is white).
+ * The left menu's shade, on the same scale as the apps' Settings -> Styling ->
+ * Left menu shade: 0% is the page behind the cards, 100% is a card, and 50% is
+ * the theme's own. The same number gives the same grey here and in an app.
  */
-export const MIN_SIDEBAR_SHADE = -10
-export const MAX_SIDEBAR_SHADE = 10
-const SHADE_STEP = 0.015
+export const MIN_MENU_SHADE = 0
+export const MAX_MENU_SHADE = 100
+export const DEFAULT_MENU_SHADE = 50
+
+/**
+ * How dark the dark mode is: the four choices of an app's Settings -> Styling
+ * -> Dark mode, copied from Custom Shell's `DARK_SHADES` with their lifts, so
+ * Personal can be set to the shade of the app it shows. Every dark grey in
+ * `theme.css` is its own lightness plus the lift. Light mode ignores it.
+ */
+export const DARK_SHADES = [
+  { id: "black", label: "Near black", lift: 0, swatch: "#0b0b0e" },
+  { id: "charcoal", label: "Charcoal", lift: 0.055, swatch: "#17171a" },
+  { id: "graphite", label: "Graphite", lift: 0.098, swatch: "#212125" },
+  { id: "ash", label: "Soft grey", lift: 0.141, swatch: "#2b2b31" },
+] as const
+export type DarkShadeId = (typeof DARK_SHADES)[number]["id"]
+export const DEFAULT_DARK_SHADE: DarkShadeId = "black"
+const DARK_SHADE_IDS = DARK_SHADES.map((shade) => shade.id) as [DarkShadeId, ...DarkShadeId[]]
+
+export function darkShade(id: DarkShadeId | undefined) {
+  return DARK_SHADES.find((shade) => shade.id === id) ?? DARK_SHADES[0]
+}
 
 export function clampSidebarWidth(value: number) {
   return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(value)))
@@ -115,8 +135,14 @@ export const menuSchema = z.object({
   sections: z.array(sectionSchema).max(30),
   /** Missing until the menu is first dragged wider or narrower. */
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH).optional(),
-  /** Missing, or 0, is the theme's own shade. */
-  sidebarShade: z.number().int().min(MIN_SIDEBAR_SHADE).max(MAX_SIDEBAR_SHADE).optional(),
+  /**
+   * The left menu's shade in percent. Missing is the theme's 50%. It replaced
+   * `sidebarShade` (10 darker to 10 lighter) on 30 Oct 2026, whose numbers
+   * meant something else, so a file saved before then loads at the default.
+   */
+  menuShade: z.number().int().min(MIN_MENU_SHADE).max(MAX_MENU_SHADE).optional(),
+  /** How dark the dark mode is. Missing is Near black, the theme's own. */
+  darkShade: z.enum(DARK_SHADE_IDS).optional(),
   /** The link Personal opens on a visit to its bare address. Missing means the empty start page. */
   startLinkId: z.string().min(1).max(64).optional(),
   /**
@@ -317,28 +343,24 @@ export function setAppMenuWidth(menu: Menu, host: string, width: number): Menu {
   return Object.keys(widths).length ? { ...plain, appMenuWidths: widths } : plain
 }
 
-/** Saves the left menu's shade. 0 goes back to the theme's and leaves the file without it. */
-export function setSidebarShade(menu: Menu, shade: number): Menu {
-  const clamped = Math.round(Math.min(Math.max(shade, MIN_SIDEBAR_SHADE), MAX_SIDEBAR_SHADE))
-  if ((menu.sidebarShade ?? 0) === clamped) return menu
-  const { sidebarShade: _old, ...rest } = menu
-  return clamped ? { ...rest, sidebarShade: clamped } : rest
+/** Saves the left menu's shade. 50% goes back to the theme's and leaves the file without it. */
+export function setMenuShade(menu: Menu, shade: number): Menu {
+  const clamped = Math.round(Math.min(Math.max(shade, MIN_MENU_SHADE), MAX_MENU_SHADE))
+  if ((menu.menuShade ?? DEFAULT_MENU_SHADE) === clamped) return menu
+  const { menuShade: _old, ...rest } = menu
+  return clamped === DEFAULT_MENU_SHADE ? rest : { ...rest, menuShade: clamped }
 }
 
-/**
- * The left menu's background for a shade: the theme's menu colour with its
- * lightness moved by the same amount each step, so the steps are even in light
- * and dark mode alike. Null for 0, which leaves the theme's colour alone.
- */
-export function sidebarShadeColor(shade: number) {
-  if (!shade) return null
-  return `oklch(from var(--shell-rail) calc(l + ${Number((shade * SHADE_STEP).toFixed(3))}) c h)`
+/** Saves the dark mode's shade. Near black leaves the file without it. */
+export function setDarkShade(menu: Menu, shade: DarkShadeId): Menu {
+  if ((menu.darkShade ?? DEFAULT_DARK_SHADE) === shade) return menu
+  const { darkShade: _old, ...rest } = menu
+  return shade === DEFAULT_DARK_SHADE ? rest : { ...rest, darkShade: shade }
 }
 
 /** What the cog calls a shade. */
-export function sidebarShadeLabel(shade: number) {
-  if (!shade) return "Default"
-  return `${Math.abs(shade)} ${shade > 0 ? "lighter" : "darker"}`
+export function menuShadeLabel(shade: number) {
+  return shade === DEFAULT_MENU_SHADE ? "Default" : `${shade}%`
 }
 
 /** The menu's fields that each name one panel link: the start screen, and the screen that stays loaded. */

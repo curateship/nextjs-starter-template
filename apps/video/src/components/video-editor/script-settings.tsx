@@ -7,6 +7,7 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Textarea } from "@/components/ui/textarea"
+import { useSaveAfterTyping } from "@/components/video-editor/use-save-after-typing"
 import { describeAuthError } from "@/lib/api/error-message"
 import {
   loadScriptBannedWords,
@@ -46,9 +47,7 @@ export default function ScriptSettings() {
   const [reloads, setReloads] = React.useState(0)
   const [invalid, setInvalid] = React.useState(false)
   const setSaveStatus = useReportedSaveStatus()
-  const timer = React.useRef<ReturnType<typeof setTimeout>>(undefined)
-
-  React.useEffect(() => () => clearTimeout(timer.current), [])
+  const typing = useSaveAfterTyping(SAVE_AFTER_MS)
 
   React.useEffect(() => {
     if (held) return
@@ -131,14 +130,10 @@ export default function ScriptSettings() {
               onChange={(event) => {
                 const next = event.target.value
                 setText(next)
-                clearTimeout(timer.current)
-                timer.current = setTimeout(
-                  () => void save(next, false),
-                  SAVE_AFTER_MS
-                )
+                typing.later(() => void save(next, false))
               }}
               onBlur={() => {
-                clearTimeout(timer.current)
+                typing.cancel()
                 const { words, problem } = parseBannedWords(text)
                 // Leaving the box tidies it to the list that was saved.
                 if (!problem) setText(words.join("\n"))

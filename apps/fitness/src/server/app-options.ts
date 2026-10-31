@@ -1,8 +1,14 @@
 import { appServerOptions } from "@/app/server-options"
 import type { AppFrontPageRowData } from "@/lib/pages/front-page"
 import type { SiteSearchResult } from "@/lib/pages/site-search"
+import type { SavedViewValues } from "@/lib/saved-views"
 import type { AutomationExecutor } from "@/server/automations/executors"
 import type { CustomShellDb } from "@/server/db"
+
+/** The database, or a transaction on it, as the saved-view hooks are handed it. */
+type SavedViewsDb =
+  | CustomShellDb
+  | Parameters<Parameters<CustomShellDb["transaction"]>[0]>[0]
 
 /**
  * The same idea as `src/lib/app-options.ts`, for the answers that can only run
@@ -30,6 +36,48 @@ export type AppServerOptions = {
   sitemap?: SitemapServerOptions
   search?: SearchServerOptions
   workspaces?: WorkspaceServerOptions
+  savedViews?: SavedViewsServerOptions
+}
+
+/**
+ * One kind of dashboard that keeps saved views, such as Project's `project`
+ * or Video's `viral-project`. The screen key is `<kind>:<record id>`, and the
+ * shell hands each hook the record id from it.
+ */
+export type SavedViewScreen = {
+  /**
+   * Whether this person may keep views on this record. Throws, with the
+   * sentence to show, to refuse. Runs on every save and edit.
+   */
+  authorize: (input: {
+    userId: string
+    recordId: string
+    database: SavedViewsDb
+  }) => Promise<void>
+  /**
+   * The filters this screen keeps out of the ones sent: checked, trimmed, and
+   * only the ones that are set. An empty result is refused for it.
+   */
+  keep: (input: { recordId: string; filters: SavedViewValues }) => SavedViewValues
+  /**
+   * The names the kept filters point at now ("Leo", "AI tools"), saved with
+   * the view so it can later say which of them has gone.
+   */
+  namesOf?: (input: {
+    userId: string
+    recordId: string
+    filters: SavedViewValues
+    database: SavedViewsDb
+  }) => Promise<Record<string, string>>
+}
+
+type SavedViewsServerOptions = {
+  /**
+   * The dashboards whose saved views this app answers for, by kind. A screen
+   * key whose kind is not here is refused, so a view can never be saved on a
+   * record nobody checked.
+   */
+  screens?: Record<string, SavedViewScreen>
 }
 
 /** Where Stripe sends people back to, as paths on this app. */
@@ -454,4 +502,14 @@ export async function notifyAppAuthEvent(
   } catch (error) {
     console.error(`app auth hook failed for ${event.kind}`, error)
   }
+}
+
+/**
+ * The dashboards this app keeps saved views for, by kind, or none. The
+ * argument is only passed by tests.
+ */
+export function appSavedViewScreens(
+  options: AppServerOptions = appServerOptions
+): Record<string, SavedViewScreen> {
+  return options.savedViews?.screens ?? {}
 }

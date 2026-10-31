@@ -3,6 +3,7 @@ import {
   FrontPageDivider,
   FrontPageFaq,
   FrontPageHero,
+  FrontPageListedPages,
   FrontPageLogos,
   FrontPageScreenshots,
   FrontPageTestimonials,
@@ -23,6 +24,7 @@ import type { BillingInterval } from "@/lib/billing/pricing-choice"
 import {
   APP_FRONT_PAGE_ROW_KIND,
   frontPageHeroBandColors,
+  type FrontPageListedPage,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 import { publicDeviceRowClassName } from "@/lib/pages/public-device"
@@ -87,6 +89,7 @@ export function FrontPageRows({
   onIntervalChange,
   onSelectPlan,
   appRowData,
+  listedPages,
 }: {
   rows: FrontPageRow[]
   /**
@@ -108,6 +111,12 @@ export function FrontPageRows({
    * passes none, and every app row is handed `null`.
    */
   appRowData?: Record<string, unknown>
+  /**
+   * The cards each Pages list block shows, by row id, read from the pages
+   * themselves on the server. A page drawn without them draws every Pages
+   * list block as its heading alone.
+   */
+  listedPages?: Record<string, FrontPageListedPage[]>
 }) {
   // A divider has no words, so it is not the row that carries the page's main
   // heading. Counting past it keeps the h1 on the first row that actually says
@@ -349,6 +358,11 @@ export function FrontPageRows({
                 eager={eager}
                 alignClassName={alignClassName}
                 showCaptions={row.showCaptions}
+              />
+            ) : row.kind === "pages" ? (
+              <FrontPageListedPages
+                pages={listedPages?.[row.id] ?? []}
+                eager={eager}
               />
             ) : row.kind === "words" ? (
               /* The words a page is written in, drawn from the same node tree

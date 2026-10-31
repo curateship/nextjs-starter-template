@@ -16,18 +16,24 @@ import {
 } from "@/lib/contacts/contact-segments"
 import {
   CONTACT_SHORTCUTS,
+  NEW_CONTACT_DAYS,
   type ContactShortcutKey,
 } from "@/lib/contacts/contact-shortcuts"
+import { CONTACT_IMPORT_BATCH, CONTACT_NOTES_MAX } from "@/lib/contacts/contact-csv"
 import type { SegmentItem } from "@/lib/api/people/contact-segments"
 
 import {
+  countContactEmails,
+  countRecentContactChanges,
   deleteWorkspaceContacts,
   deleteWorkspaceContactsMatching,
   getWorkspaceContact,
+  importWorkspaceContacts,
   listWorkspaceContacts,
   listWorkspaceTags,
   setContactStatus,
   setContactStatusMatching,
+  setWorkspaceContactNotes,
   setWorkspaceContactTags,
   syncContactsFromUsers,
   upsertWorkspaceContact,
@@ -76,6 +82,12 @@ export type ContactItem = {
    * panel shows at the top of its history.
    */
   lastEmailedAt: string | null
+  /**
+   * How many newsletters reached them and how many of those they opened: the
+   * list's "Opened 2 of 3". See `deliveryCounts` for what counts.
+   */
+  emailsSent: number
+  emailsOpened: number
   created_at: string
 }
 
@@ -100,6 +112,8 @@ export type ContactsPage = {
   segments: SegmentItem[]
   /** How many people each row of the People card holds, counted by its rules. */
   shortcuts: Record<ContactShortcutKey, number>
+  /** The "Last 30 days" card: joined, opted out and bounced in that time. */
+  recent: { joined: number; optedOut: number; bounced: number }
   /** The address named a segment that is not there any more. */
   segmentMissing: boolean
   /**
@@ -123,6 +137,9 @@ export type ContactDelivery = {
   status: "sent" | "failed"
   /** Set when the mail bounced back after it was handed over. */
   bouncedAt: string | null
+  /** The first open and the first click the mail provider reported. */
+  openedAt: string | null
+  clickedAt: string | null
   /** Why it failed, when it did. */
   error: string | null
   created_at: string
@@ -138,6 +155,8 @@ export type ContactDelivery = {
  */
 export type ContactDetail = {
   contact: ContactItem
+  /** The Notes box, empty when nothing was written. */
+  notes: string
   segments: { id: string; name: string; kind: SegmentKind }[]
   history: ContactDelivery[]
   /** There is another page of history below this one. */
@@ -221,7 +240,7 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
         : undefined
     const rules: SegmentRules | undefined =
       data.rules ?? (named ? rulesShowingSegment(named) : undefined)
-    const [{ contacts, total }, tags, sources, plans, shortcutTotals, segments] =
+    const [{ contacts, total }, tags, sources, plans, shortcutTotals, segments, recent] =
       await Promise.all([
         listWorkspaceContacts(workspaceId, {
           ...data,
@@ -237,9 +256,11 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
           CONTACT_SHORTCUTS.map((shortcut) => shortcut.rules)
         ),
         segmentsRead,
+        countRecentContactChanges(workspaceId, NEW_CONTACT_DAYS),
       ])
     return {
       total,
+      recent,
       pageSize,
       tags,
       sources,
@@ -285,6 +306,8 @@ function toContactItem(row: {
   source: string | null
   userId: string | null
   lastEmailedAt: Date | null
+  emailsSent: number
+  emailsOpened: number
   createdAt: Date
 }): ContactItem {
   return {
@@ -297,6 +320,8 @@ function toContactItem(row: {
     source: row.source,
     userId: row.userId,
     lastEmailedAt: row.lastEmailedAt?.toISOString() ?? null,
+    emailsSent: row.emailsSent,
+    emailsOpened: row.emailsOpened,
     created_at: row.createdAt.toISOString(),
   }
 }
@@ -322,7 +347,7 @@ const loadContactDetailFn = createServerFn({ method: "GET" })
     if (!contact) throw new Error("CONTACT_NOT_FOUND")
 
     const page = data.page ?? 1
-    const [segments, { deliveries, hasMore }, newest] = await Promise.all([
+    const [segments, { deliveries, hasMore }, newest, emails] = await Promise.all([
       listSegmentsForContact(workspaceId, contact.id),
       listContactDeliveries(workspaceId, contact.id, {
         limit: CONTACT_HISTORY_PAGE_SIZE,
@@ -333,6 +358,7 @@ const loadContactDetailFn = createServerFn({ method: "GET" })
       page > 1
         ? listContactDeliveries(workspaceId, contact.id, { limit: 1, offset: 0 })
         : null,
+      countContactEmails(workspaceId, contact.id),
     ])
     const lastSent = (newest?.deliveries ?? deliveries)[0]
 
@@ -340,7 +366,10 @@ const loadContactDetailFn = createServerFn({ method: "GET" })
       contact: toContactItem({
         ...contact,
         lastEmailedAt: lastSent?.createdAt ?? null,
+        emailsSent: emails.sent,
+        emailsOpened: emails.opened,
       }),
+      notes: contact.notes,
       segments,
       hasMore,
       history: deliveries.map((row) => ({
@@ -349,6 +378,8 @@ const loadContactDetailFn = createServerFn({ method: "GET" })
         broadcastId: row.broadcastId,
         status: row.status === "failed" ? "failed" : "sent",
         bouncedAt: row.bouncedAt?.toISOString() ?? null,
+        openedAt: row.openedAt?.toISOString() ?? null,
+        clickedAt: row.clickedAt?.toISOString() ?? null,
         error: row.error,
         created_at: row.createdAt.toISOString(),
       })),
@@ -395,6 +426,51 @@ const saveTagsFn = createServerFn({ method: "POST" })
     const workspaceId = await currentWorkspaceId(context.user.id)
     await setWorkspaceContactTags(workspaceId, data.contactId, data.tags)
   })
+
+const saveNotesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      contactId: z.string().min(1).max(36),
+      notes: z.string().max(CONTACT_NOTES_MAX),
+    })
+  )
+  .handler(async ({ data, context }): Promise<void> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await setWorkspaceContactNotes(workspaceId, data.contactId, data.notes)
+  })
+
+const importSchema = z.object({
+  rows: z
+    .array(
+      z.object({
+        email: z.email().max(255),
+        firstName: upsertSchema.shape.firstName,
+        lastName: upsertSchema.shape.lastName,
+        tags: upsertSchema.shape.tags,
+      })
+    )
+    .min(1)
+    .max(CONTACT_IMPORT_BATCH),
+})
+
+/**
+ * One batch of a CSV import: see `importWorkspaceContacts`. The browser reads
+ * the file and checks each address with the same rule as here, so a batch
+ * refused for one bad address is a bug, not something a person did.
+ */
+const importContactsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(importSchema)
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ added: number; updated: number; unchanged: number }> => {
+      const workspaceId = await currentWorkspaceId(context.user.id)
+      return importWorkspaceContacts(workspaceId, data.rows)
+    }
+  )
 
 /** The status of everybody the filters match: see `deleteMatchingContactsFn`. */
 const setStatusMatchingFn = createServerFn({ method: "POST" })
@@ -466,6 +542,14 @@ export function setContactsStatus(
 
 export function saveContactTags(contactId: string, tags: string[]) {
   return saveTagsFn({ data: { contactId, tags } })
+}
+
+export function saveContactNotes(contactId: string, notes: string) {
+  return saveNotesFn({ data: { contactId, notes } })
+}
+
+export function importContacts(rows: z.input<typeof importSchema>["rows"]) {
+  return importContactsFn({ data: { rows } })
 }
 
 export function setMatchingContactsStatus(

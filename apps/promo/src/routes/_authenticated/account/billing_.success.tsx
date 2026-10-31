@@ -12,22 +12,40 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { getBillingErrorMessage, loadBillingOverview } from "@/lib/api/billing/billing"
+import {
+  confirmCheckoutSession,
+  getBillingErrorMessage,
+  loadBillingOverview,
+} from "@/lib/api/billing/billing"
 
 const POLL_INTERVAL_MS = 1_500
 const POLL_ATTEMPTS = 8
 
 export const Route = createFileRoute("/_authenticated/account/billing_/success")(
   {
-    loader: async () => ({ overview: await loadBillingOverview() }),
+    validateSearch: (search: Record<string, unknown>) => ({
+      session_id:
+        typeof search.session_id === "string" ? search.session_id : undefined,
+    }),
+    loaderDeps: ({ search }) => ({ sessionId: search.session_id }),
+    loader: async ({ deps }) => {
+      // Ask Stripe about the session first, so the page already knows about
+      // the purchase when the webhook is late or never reaches this server.
+      // A failed ask is not an error page: the poll below still answers.
+      if (deps.sessionId) {
+        await confirmCheckoutSession(deps.sessionId).catch(() => null)
+      }
+      return { overview: await loadBillingOverview() }
+    },
     component: BillingSuccessRoute,
     errorComponent: routeErrorComponent(getBillingErrorMessage),
   }
 )
 
 /**
- * Stripe sends people back here the moment they pay, which can be a beat before
- * the webhook lands. Poll briefly rather than showing a stale free plan.
+ * Stripe sends people back here the moment they pay. The loader has already
+ * asked Stripe about the session; the poll covers a webhook that lands a beat
+ * later for anything the ask could not settle.
  */
 function BillingSuccessRoute() {
   const { overview } = Route.useLoaderData()

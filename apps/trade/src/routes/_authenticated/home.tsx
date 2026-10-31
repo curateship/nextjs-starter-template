@@ -5,6 +5,7 @@ import {
   type AccountTab,
 } from "@/components/account/account-dialog"
 import { MemberHome } from "@/components/home/member-home"
+import { appRoleFor } from "@/lib/roles"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import {
   getMemberHomeErrorMessage,
@@ -24,7 +25,10 @@ import {
  * (`?account=billing`, from the pricing page) carries that tab along — home is
  * on the way through, not the destination, so it must not overrule the ask.
  *
- * For everybody else it is a real page: their plan, their notices and their own
+ * An app role is sent to the landing page its app declared, because the page
+ * below is a member's plan and feedback, which an app role does not get.
+ *
+ * For a member it is a real page: their plan, their notices and their own
  * feedback. An admin can still send members straight to another page by setting
  * a member home route, and that redirect wins over this one.
  */
@@ -35,9 +39,12 @@ export const Route = createFileRoute("/_authenticated/home")({
     // that takes a second or two — see the note in `src/lib/api/shell.ts`.
     const { user, settings } = (await parentMatchPromise).loaderData ?? {}
     const isAdmin = user?.role === "admin"
+    const appRole = user ? appRoleFor(user.role) : null
     const target = isAdmin
       ? (configuredRouteTarget(settings?.adminRoute) ?? DEFAULT_ADMIN_ROUTE)
-      : configuredRouteTarget(settings?.memberHomeRoute)
+      : appRole
+        ? appRole.landing
+        : configuredRouteTarget(settings?.memberHomeRoute)
 
     if (target) {
       throw redirect({

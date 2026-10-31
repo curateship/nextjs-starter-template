@@ -30,6 +30,11 @@ function readPill(track: HTMLElement, selected: string): PillBox | null {
  * slides to whichever choice is on rather than a background that blinks from
  * one choice to the next. Luma's switcher does the same thing.
  *
+ * `variant: "underline"` draws the same moving piece as a 2px line along the
+ * track's bottom edge instead, for tabs drawn as words with a line under the
+ * one showing (`DashboardTabs`). It slides on the same curve, as Tyler asked
+ * on 20 Oct 2026: "line tab should use the sliding animation too like pill".
+ *
  * The caller puts the returned ref on the track, spreads `pillProps` onto a
  * `<span>` inside it, and drops the background off the chosen button. The
  * track needs `relative`, and the buttons need `relative` so they draw above
@@ -44,11 +49,13 @@ export function useSlidingPill<T extends HTMLElement>({
   observe,
   attributes,
   className,
+  variant = "pill",
 }: {
   selected: string
   observe: string
   attributes: string[]
   className?: string
+  variant?: "pill" | "underline"
 }) {
   const trackRef = React.useRef<T | null>(null)
   const [pill, setPill] = React.useState<PillBox | null>(null)
@@ -115,19 +122,22 @@ export function useSlidingPill<T extends HTMLElement>({
       // the pill says it keeps its own motion. See `light-dark-switcher.tsx`.
       "data-keep-motion": "" as const,
       className: cn(
-        "pointer-events-none absolute z-0 bg-background shadow-sm",
+        "pointer-events-none absolute z-0",
+        variant === "underline" ? "bottom-0 h-0.5 bg-foreground" : "bg-background shadow-sm",
         pill ? "opacity-100" : "opacity-0",
         slides && "transition-[left,top,width,height,opacity]",
         slidingPillMotionClassName,
         className
       ),
       style: pill
-        ? {
-            left: pill.left,
-            top: pill.top,
-            width: pill.width,
-            height: pill.height,
-          }
+        ? variant === "underline"
+          ? { left: pill.left, width: pill.width }
+          : {
+              left: pill.left,
+              top: pill.top,
+              width: pill.width,
+              height: pill.height,
+            }
         : undefined,
     },
   }

@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router"
 import { PlusIcon, SettingsIcon, Trash2Icon, UsersIcon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -8,18 +9,25 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { ContactsPage } from "@/lib/api/people/contacts"
 import type { SegmentItem } from "@/lib/api/people/contact-segments"
 import type { SegmentRules } from "@/lib/contacts/contact-segments"
-import { CONTACT_SHORTCUTS, shortcutIsOn } from "@/lib/contacts/contact-shortcuts"
+import {
+  CONTACT_SHORTCUTS,
+  NEW_CONTACT_DAYS,
+  shortcutIsOn,
+} from "@/lib/contacts/contact-shortcuts"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 /**
- * The Contacts dashboard's left panel: the People card, a count per status
- * and of the newest people, and the Segments card, every segment with how
- * many people are in it. Pressing a row of either shows those people in the
- * middle list; pressing the row that is on clears it.
+ * The Contacts dashboard's left panel, as Tyler's mock of 20 Oct 2026 draws
+ * it: the People card (everybody, a count per status, the newest people and
+ * the never emailed), the Segments card, every segment with how many people
+ * are in it, and the Last 30 days card. Pressing a row of the first two shows
+ * those people in the middle list; pressing the row that is on clears it.
  *
- * A segment row's cog opens the segment window (its name, description and
- * rules or people), and its bin deletes it. The card's "+" makes a new one.
+ * A segment row's dot is solid for a rules segment and grey for a hand-picked
+ * one. Its cog opens the segment window (its name, description and rules or
+ * people), and its bin deletes it. The card's "+" makes a new one. The cog in
+ * the header opens Settings > Email, where sending and "gone quiet" are set.
  */
 export function ContactsLeftPanel({
   data,
@@ -42,12 +50,27 @@ export function ContactsLeftPanel({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <DashboardCardTitleHeader icon={<UsersIcon className="size-4" />} title="Contacts" />
+      <DashboardCardTitleHeader
+        icon={<UsersIcon className="size-4" />}
+        title="Contacts"
+        action={
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button asChild variant="ghost" size="icon">
+                <Link to="/admin/settings/$tab" params={{ tab: "email" }} aria-label="Email settings">
+                  <SettingsIcon className="size-4" />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Email settings</TooltipContent>
+          </Tooltip>
+        }
+      />
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <div className="grid gap-3 p-3">
           {/* One column that may shrink, in each card, so a long segment name
               is cut with "…" rather than pushing the panel sideways. */}
-          <PanelCard storageId="contacts-people" title="People" quiet>
+          <PanelCard storageId="contacts-people" title="People">
             <ul className="-mx-2 -my-1 grid grid-cols-[minmax(0,1fr)]">
               {CONTACT_SHORTCUTS.map((shortcut) => {
                 const on = !openSegmentId && shortcutIsOn(shortcut, rules)
@@ -68,7 +91,6 @@ export function ContactsLeftPanel({
             storageId="contacts-segments"
             title="Segments"
             meta={data.segments.length || undefined}
-            quiet
             action={
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -98,6 +120,7 @@ export function ContactsLeftPanel({
                   <li key={segment.id} className="group/segment relative min-w-0">
                     <CountRow
                       label={segment.name}
+                      dot={segment.kind === "static" ? "bg-muted-foreground/50" : "bg-foreground"}
                       detail={segment.kind === "static" ? "Hand-picked" : undefined}
                       count={segment.total}
                       on={segment.id === openSegmentId}
@@ -131,15 +154,41 @@ export function ContactsLeftPanel({
               </ul>
             )}
           </PanelCard>
+          <PanelCard storageId="contacts-recent" title={`Last ${NEW_CONTACT_DAYS} days`}>
+            <dl className="grid grid-cols-3 gap-2">
+              <RecentFigure label="Joined" value={data.recent.joined} plus />
+              <RecentFigure label="Opted out" value={data.recent.optedOut} />
+              <RecentFigure label="Bounced" value={data.recent.bounced} />
+            </dl>
+          </PanelCard>
         </div>
       </ScrollArea>
     </div>
   )
 }
 
-/** One pressable line of a card: a name, an optional muted word, and a count. */
+/** One figure of the Last 30 days card, its number over its word. */
+function RecentFigure({ label, value, plus = false }: { label: string; value: number; plus?: boolean }) {
+  return (
+    // The word first for a screen reader, the number on top on screen.
+    <div className="flex min-w-0 flex-col-reverse justify-end gap-0.5">
+      <dt className="truncate text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-lg leading-tight font-semibold tabular-nums">
+        {plus && value > 0 ? "+" : ""}
+        {value.toLocaleString()}
+      </dd>
+    </div>
+  )
+}
+
+/**
+ * One pressable line of a card: an optional dot, a name, and a count. The
+ * muted word after the name is read out only: the dot's shade says it on
+ * screen.
+ */
 function CountRow({
   label,
+  dot,
   detail,
   count,
   on,
@@ -147,6 +196,7 @@ function CountRow({
   countClassName,
 }: {
   label: string
+  dot?: string
   detail?: string
   count: number
   on: boolean
@@ -164,9 +214,10 @@ function CountRow({
         focusRingInset
       )}
     >
+      {dot ? <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", dot)} /> : null}
       <span className="min-w-0 flex-1 truncate">
         {label}
-        {detail ? <span className="font-normal text-muted-foreground"> · {detail}</span> : null}
+        {detail ? <span className="sr-only">, {detail}</span> : null}
       </span>
       <span className={cn("shrink-0 text-muted-foreground tabular-nums", countClassName)}>
         {count.toLocaleString()}

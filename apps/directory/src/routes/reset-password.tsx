@@ -1,5 +1,10 @@
 import * as React from "react"
-import { createFileRoute, Link, redirect } from "@tanstack/react-router"
+import {
+  createFileRoute,
+  Link,
+  redirect,
+  useNavigate,
+} from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
@@ -38,6 +43,7 @@ function ResetPasswordRoute() {
   const [attempted, setAttempted] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [done, setDone] = React.useState(false)
+  const navigate = useNavigate()
 
   const confirmMismatches =
     confirmPassword.length > 0 && confirmPassword !== password
@@ -72,7 +78,14 @@ function ResetPasswordRoute() {
 
       setLoading(true)
       try {
-        await resetPassword(token, password)
+        const result = await resetPassword(token, password)
+        if (result.signedIn) {
+          // A first password, from an invite or an account an admin made:
+          // the person is signed in, and /home sends them to where their
+          // role lands. Replace, so Back does not return to a spent link.
+          await navigate({ to: "/home", replace: true })
+          return
+        }
         setDone(true)
       } catch (resetError) {
         showErrorToast(getAuthErrorMessage(resetError))
@@ -80,7 +93,7 @@ function ResetPasswordRoute() {
         setLoading(false)
       }
     },
-    [confirmPassword, password, token]
+    [confirmPassword, navigate, password, token]
   )
 
   if (done) {

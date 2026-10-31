@@ -113,7 +113,7 @@ export function AiChoiceField({
               <SelectItem key={option.id} value={option.id} disabled={!usable}>
                 {usable
                   ? option.label
-                  : `${option.label} — ${missingKeyNote(option.provider)}`}
+                  : `${option.label} - ${missingKeyNote(option.provider)}`}
               </SelectItem>
             )
           })}

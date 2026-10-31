@@ -322,7 +322,15 @@ export function VoiceDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // A paid request carries on after its window shuts, so the window
+        // stays open until the answer lands (the History window's rule).
+        if (!next && speaking || checking) return
+        onOpenChange(next)
+      }}
+    >
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Read this aloud</DialogTitle>
@@ -432,7 +440,7 @@ export function VoiceDialog({
                       <SelectItem key={voice.id} value={voice.id}>
                         {voice.name}
                         {voice.yours ? " (yours)" : ""}
-                        {voice.description ? ` — ${voice.description}` : ""}
+                        {voice.description ? ` - ${voice.description}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -459,7 +467,7 @@ export function VoiceDialog({
                   <SelectContent>
                     {VOICE_MODELS.map((model) => (
                       <SelectItem key={model.id} value={model.id}>
-                        {model.label} — {model.note}
+                        {model.label} - {model.note}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -555,7 +563,7 @@ export function VoiceDialog({
                   <SelectContent>
                     {CAPTION_ANIMATIONS.map((option) => (
                       <SelectItem key={option.id} value={option.id}>
-                        {option.label} — {option.description}
+                        {option.label} - {option.description}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -578,6 +586,7 @@ export function VoiceDialog({
           <Button
             type="button"
             variant="outline"
+            disabled={speaking || checking}
             onClick={() => onOpenChange(false)}
           >
             Cancel

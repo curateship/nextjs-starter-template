@@ -341,10 +341,16 @@ function testMessage(verdict: AiKeyTestResult, name: string) {
     case "ok":
       return `It works — ${name} accepted the key.`
     case "rejected":
-      return `${name} rejected this key. Check it was copied in full.`
+      return verdict.reason
+        ? `${name} rejected this key: ${verdict.reason}`
+        : `${name} rejected this key. Check it was copied in full.`
+    case "slow":
+      return `${name} took longer than ${verdict.seconds} seconds to answer, so the test stopped waiting. That is usually ${name} being busy, not the key — try again in a few minutes.`
     case "unreachable":
       return `${name} could not be reached. Check the server's internet connection and try again.`
     case "error":
-      return `${name} answered with an error (HTTP ${verdict.status}). The key may still be fine — try again in a minute.`
+      return verdict.reason
+        ? `${name} answered with an error (HTTP ${verdict.status}): ${verdict.reason}`
+        : `${name} answered with an error (HTTP ${verdict.status}). The key may still be fine — try again in a minute.`
   }
 }

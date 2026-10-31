@@ -119,7 +119,12 @@ export function pictureFades(
   previous: LaneClip | null,
   next: LaneClip | null
 ): FadePair {
-  if (clip.kind !== "video" && clip.kind !== "image" && clip.kind !== "text") {
+  if (
+    clip.kind !== "video" &&
+    clip.kind !== "image" &&
+    clip.kind !== "text" &&
+    clip.kind !== "shape"
+  ) {
     return NO_FADES
   }
   const blendsIn = !!resolveIncomingTransition(clip, previous)

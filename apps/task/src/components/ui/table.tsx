@@ -155,7 +155,8 @@ function TableGroupRow({
   return (
     <tr
       data-slot="table-group-row"
-      className={cn("group/table-group border-y bg-muted/15 first:border-t-0", className)}
+      // Its lines above and below are drawn in theme.css, the one rule every table line follows.
+      className={cn("group/table-group bg-muted/15", className)}
       {...props}
     >
       <td colSpan={colSpan} className="py-1.5 align-middle text-xs font-medium whitespace-nowrap">

@@ -40,19 +40,25 @@
   `border` / `border-b` / `border-t` with no color class, so they take
   `--border`, the variable the Divider lines setting writes. Card and surface
   hairlines come from the card border width and color settings.
-- **A table's heading line and footer line are dividers**, so they take
-  Divider lines too (`src/theme.css`, `[data-slot="table-header"] th` and
-  `[data-slot="table-footer"]`). They used to follow the card border, and
-  under a panel header that put two different lines either side of the grey
-  heading row, which read as a double border (Tyler, 14 Oct 2026). The
-  divider colour is see-through, so the line sits on a one-pixel strip of the
-  card colour rather than on the grey band, or it comes out darker than the
-  line above it.
-- **The line under a table's heading row is drawn once**, the same strength
-  as every other divider. From 19 Oct 2026 it was drawn twice, after Tyler
-  found it missing at strength 5, and that darker line under the grey band
-  read as a double border; on 21 Oct 2026 he picked an ordinary line. The
-  card-colour strip under it is what keeps it visible.
+- **Every table line is one shade**: above and below the heading row, round a
+  group row, and over the footer (`src/theme.css`, the `--shell-table-line`
+  rule). They are dividers, so they take Divider lines, never the card
+  border's colour or width (14 Oct 2026: that put two different lines either
+  side of the grey heading row). The divider colour is see-through, so a line
+  takes the shade of whatever is under it, and for weeks each fix tuned one
+  line and made another one look thicker (Tyler, 30 Oct 2026: "You changed one
+  border and it messes up another"). Each line is now painted as its own
+  stack, the divider colour over the heading's grey band over the card, so
+  every line is the footer's shade wherever it sits. He picked the footer's
+  shade for all of them. A panel header sitting right above a table, such as
+  My dashboard's List, Board and Calendar tabs, draws its bottom line the same
+  way, because that line is the table's top line ("I still dont get why the
+  border here is faint"). Two lines never touch: a folded group right under
+  another group shares the line between them, and a last group on the footer
+  leaves its line to the footer ("when sections are collapsed. the border gets
+  too thick because its stick together"). **To change table lines, change that one rule; never
+  give one line its own strip, shadow or border.** Check by reading pixel
+  shades down one column (heading, group rows, footer) in light and dark.
 - **A group heading inside a table is `TableGroupRow`** from
   `src/components/ui/table.tsx`: a row spanning every column that names the
   rows under it, such as a status or a client. It is a pale band with a

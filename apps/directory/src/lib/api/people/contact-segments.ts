@@ -22,14 +22,11 @@ import {
   deleteWorkspaceSegments,
   listSegmentMembers,
   listSegmentNames,
-  listWorkspaceContactSources,
-  listWorkspaceSegments,
+  removeContactsFromSegment,
   updateWorkspaceSegment,
   type SegmentDeleteResult,
 } from "@/server/people/contact-segments"
-import { listWorkspaceTags, syncContactsFromUsers } from "@/server/people/contacts"
 import { adminGet, adminPost } from "@/server/guards"
-import { listPlans } from "@/server/billing/plans"
 import { currentWorkspaceId } from "@/server/people/workspaces"
 
 import { createErrorMessage } from "../error-message"
@@ -44,14 +41,6 @@ export type SegmentItem = {
   total: number
   created_at: string
   updated_at: string
-}
-
-export type SegmentsPage = {
-  segments: SegmentItem[]
-  /** Everything the rule builder offers, so it can only ever name real things. */
-  tags: string[]
-  sources: string[]
-  plans: { slug: string; name: string }[]
 }
 
 const segmentErrorMessages: Record<string, string> = {
@@ -100,39 +89,6 @@ const segmentInputSchema = z.object({
 
 export type SegmentFormInput = z.input<typeof segmentInputSchema>
 
-
-const loadSegmentsPageFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .handler(async ({ context }): Promise<SegmentsPage> => {
-    const workspaceId = await currentWorkspaceId(context.user.id)
-    // The same first move the contacts page makes: bring the list up to date
-    // with who has signed up, so a segment's count and the contacts list are
-    // counting the same people.
-    await syncContactsFromUsers(workspaceId)
-
-    const [items, tags, sources, plans] = await Promise.all([
-      listWorkspaceSegments(workspaceId),
-      listWorkspaceTags(workspaceId),
-      listWorkspaceContactSources(workspaceId),
-      listPlans(),
-    ])
-
-    return {
-      tags,
-      sources,
-      plans: plans.map((plan) => ({ slug: plan.slug, name: plan.name })),
-      segments: items.map(({ segment, rules, total }) => ({
-        id: segment.id,
-        name: segment.name,
-        description: segment.description,
-        kind: segment.kind === "static" ? "static" : "rules",
-        rules,
-        total,
-        created_at: segment.createdAt.toISOString(),
-        updated_at: segment.updatedAt.toISOString(),
-      })),
-    }
-  })
 
 export type SegmentChoice = {
   id: string
@@ -256,10 +212,6 @@ const addMatchingToSegmentFn = createServerFn({ method: "POST" })
     }
   )
 
-export function loadSegmentsPage() {
-  return loadSegmentsPageFn()
-}
-
 export function loadSegmentChoices() {
   return listSegmentChoicesFn()
 }
@@ -276,6 +228,48 @@ export function addMatchingContactsToWorkspaceSegment(
   filter: ContactFilterInput
 ) {
   return addMatchingToSegmentFn({ data: { ...filter, segmentId } })
+}
+
+/**
+ * Takes people out of a hand-picked segment: the ticked rows, or with
+ * `filter` everybody the contacts list's filters match, as adding does.
+ */
+const removeFromSegmentFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    contactFilterSchema.extend({
+      segmentId: z.string().min(1).max(36),
+      contactIds: z.array(z.string().min(1).max(36)).min(1).max(500).optional(),
+    })
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ removed: number; notThere: number }> => {
+      const workspaceId = await currentWorkspaceId(context.user.id)
+      return removeContactsFromSegment(
+        workspaceId,
+        data.segmentId,
+        data.contactIds
+          ? { contactIds: data.contactIds }
+          : { filter: { search: data.search, rules: data.rules } }
+      )
+    }
+  )
+
+export function removeContactsFromWorkspaceSegment(
+  segmentId: string,
+  contactIds: string[]
+) {
+  return removeFromSegmentFn({ data: { segmentId, contactIds } })
+}
+
+export function removeMatchingContactsFromWorkspaceSegment(
+  segmentId: string,
+  filter: ContactFilterInput
+) {
+  return removeFromSegmentFn({ data: { ...filter, segmentId } })
 }
 
 export function loadSegmentMembers(segmentId: string) {

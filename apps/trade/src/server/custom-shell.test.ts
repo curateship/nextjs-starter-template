@@ -139,11 +139,11 @@ import {
   addNewsletterLink,
   addOverviewLink,
   addPagesLink,
-  addSegmentsLink,
   addSystemEmailsLink,
   addTrafficLink,
   removeMediaChildLinks,
   removeRevenueLink,
+  removeSegmentsLink,
   foldFeedsIntoOverview,
   foldMembershipIntoOverview,
   createUserWorkspace,
@@ -1320,7 +1320,6 @@ describe("custom shell workspaces", () => {
         children: [
           { label: "Newsletters", href: "/admin/newsletter" },
           { label: "Contacts", href: "/admin/contacts" },
-          { label: "Segments", href: "/admin/segments" },
           { label: "System emails", href: "/admin/system-emails" },
         ],
       },
@@ -1413,7 +1412,6 @@ describe("custom shell workspaces", () => {
         children: [
           { label: "Newsletters", href: "/admin/newsletter" },
           { label: "Contacts", href: "/admin/contacts" },
-          { label: "Segments", href: "/admin/segments" },
           { label: "System emails", href: "/admin/system-emails" },
         ],
       },
@@ -2939,7 +2937,6 @@ describe("newsletter link", () => {
       children: [
         { label: "Newsletters", href: "/admin/newsletter" },
         { label: "Contacts", href: "/admin/contacts" },
-        { label: "Segments", href: "/admin/segments" },
         { label: "System emails", href: "/admin/system-emails" },
       ],
     })
@@ -3089,7 +3086,7 @@ describe("segments link", () => {
     return [{ id: "section-platform-settings", title: "Platform", entries }]
   }
 
-  /** A navVersion-15 sidebar: Newsletter with the three children it had then. */
+  /** A navVersion-20 sidebar: Newsletter with Segments after Contacts. */
   const newsletter = {
     type: "item" as const,
     id: "item-newsletter",
@@ -3100,6 +3097,7 @@ describe("segments link", () => {
     children: [
       { id: "item-newsletter-all", label: "Newsletters", href: "/admin/newsletter" },
       { id: "item-newsletter-contacts", label: "Contacts", href: "/admin/contacts" },
+      { id: "item-newsletter-segments", label: "Segments", href: "/admin/segments" },
       {
         id: "item-newsletter-system-emails",
         label: "System emails",
@@ -3108,75 +3106,35 @@ describe("segments link", () => {
     ],
   }
 
-  it("puts it directly after Contacts, where somebody would look for it", () => {
-    const [section] = addSegmentsLink(sectionWith([newsletter]))
+  it("takes it off, now that segments live on the Contacts dashboard", () => {
+    const [section] = removeSegmentsLink(sectionWith([newsletter]))
     const entry = section.entries[0]
 
     expect(
       isShellItem(entry) && entry.children?.map((child) => child.href)
-    ).toEqual([
-      "/admin/newsletter",
-      "/admin/contacts",
-      "/admin/segments",
-      "/admin/system-emails",
-    ])
+    ).toEqual(["/admin/newsletter", "/admin/contacts", "/admin/system-emails"])
   })
 
-  /** Their link, their name, their place — only the way in is added. */
-  it("hangs it under a newsletter link somebody added by hand", () => {
-    const byHand = {
-      type: "item" as const,
-      id: "item-8576ee16",
-      label: "Broadcast",
-      href: "/admin/newsletter",
-      icon: "mails" as const,
-      visible: true,
-    }
-    const [section] = addSegmentsLink(sectionWith([byHand]))
-    const entry = section.entries[0]
-
-    expect(isShellItem(entry) && entry.label).toBe("Broadcast")
-    // A parent with no children has no row of chips, so its own page goes in
-    // beside the new link rather than disappearing from that row.
-    expect(
-      isShellItem(entry) && entry.children?.map((child) => child.href)
-    ).toEqual(["/admin/newsletter", "/admin/segments"])
-  })
-
-  it("hands it out once, however many times it runs", () => {
-    const once = addSegmentsLink(sectionWith([newsletter]))
-    expect(addSegmentsLink(once)).toBe(once)
-  })
-
-  it("leaves a sidebar that already reaches Segments alone", () => {
-    const sections = sectionWith([
-      {
-        ...newsletter,
-        children: [
-          ...newsletter.children,
-          { id: "child-mine", label: "Groups", href: "/admin/segments" },
-        ],
-      },
-    ])
-    expect(addSegmentsLink(sections)).toBe(sections)
-  })
-
-  it("leaves a sidebar with no newsletter link alone", () => {
+  it("takes off a Segments link somebody renamed or moved to the top level", () => {
     const sections = sectionWith([
       {
         type: "item" as const,
-        id: "item-media",
-        label: "Media",
-        href: "/admin/media",
-        icon: "image" as const,
+        id: "item-mine",
+        label: "Groups",
+        href: "/admin/segments",
+        icon: "users" as const,
         visible: true,
       },
+      newsletter,
     ])
-    expect(addSegmentsLink(sections)).toEqual(sections)
+    const [section] = removeSegmentsLink(sections)
+    expect(section.entries.map((entry) => entry.id)).toEqual(["item-newsletter"])
   })
 
-  it("leaves an emptied sidebar empty", () => {
-    expect(addSegmentsLink([])).toEqual([])
+  it("leaves a sidebar without it alone", () => {
+    const once = removeSegmentsLink(sectionWith([newsletter]))
+    expect(removeSegmentsLink(once)).toBe(once)
+    expect(removeSegmentsLink([])).toEqual([])
   })
 })
 
@@ -6397,6 +6355,38 @@ describe("custom shell media helpers", () => {
     expect(() =>
       validateMediaContent("image/png", new Uint8Array([0xff, 0xd8, 0xff]))
     ).toThrow("File content does not match")
+    const ascii = (text: string, length = 16) => {
+      const bytes = new Uint8Array(length)
+      bytes.set(new TextEncoder().encode(text))
+      return bytes
+    }
+    // Every sound format the library takes is recognised by its first bytes.
+    expect(() => validateMediaContent("audio/mpeg", ascii("ID3"))).not.toThrow()
+    expect(() =>
+      validateMediaContent("audio/mpeg", new Uint8Array([0xff, 0xfb, 0x90, 0x00]))
+    ).not.toThrow()
+    const wav = ascii("RIFF")
+    wav.set(new TextEncoder().encode("WAVE"), 8)
+    expect(() => validateMediaContent("audio/wav", wav)).not.toThrow()
+    expect(() => validateMediaContent("audio/x-wav", wav)).not.toThrow()
+    expect(() => validateMediaContent("audio/ogg", ascii("OggS"))).not.toThrow()
+    expect(() =>
+      validateMediaContent("audio/webm", new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]))
+    ).not.toThrow()
+    const m4a = new Uint8Array(12)
+    m4a.set(new TextEncoder().encode("ftypM4A "), 4)
+    expect(() => validateMediaContent("audio/mp4", m4a)).not.toThrow()
+    expect(() => validateMediaContent("audio/x-m4a", m4a)).not.toThrow()
+    expect(() =>
+      validateMediaContent("audio/aac", new Uint8Array([0xff, 0xf1, 0x50, 0x80]))
+    ).not.toThrow()
+    // A sound type over something else is still refused.
+    expect(() => validateMediaContent("audio/wav", ascii("OggS"))).toThrow(
+      "File content does not match"
+    )
+    expect(() => validateMediaContent("audio/mpeg", ascii("hello"))).toThrow(
+      "File content does not match"
+    )
     const unsafeSvg = new TextEncoder().encode(
       '<svg viewBox="0 0 1 1"><script>alert(1)</script><path d="M0 0h1v1z" onclick="alert(1)" /></svg>'
     )

@@ -46,7 +46,7 @@ import { formatShortDay } from "@/lib/video/viral-view"
 export function ProjectPanel({
   screen,
   activeKeyword,
-  busy,
+  isBusy,
   onPickKeyword,
   onSearchAll,
   onRefreshKeyword,
@@ -57,7 +57,8 @@ export function ProjectPanel({
 }: {
   screen: ViralProjectScreen
   activeKeyword: string | null
-  busy: boolean
+  /** Whether the action with this key is running: `search-all`, `add-keyword` or `keyword:<id>`. */
+  isBusy: (key: string) => boolean
   onPickKeyword: (keyword: string | null) => void
   onSearchAll: () => void
   onRefreshKeyword: (keyword: ViralKeyword) => void
@@ -122,7 +123,7 @@ export function ProjectPanel({
                     key={keyword.id}
                     keyword={keyword}
                     active={activeKeyword === keyword.keyword}
-                    busy={busy}
+                    busy={isBusy(`keyword:${keyword.id}`)}
                     perKeyword={perKeyword}
                     onPick={() =>
                       onPickKeyword(
@@ -173,13 +174,14 @@ export function ProjectPanel({
                       size="icon"
                       className="size-8 shrink-0"
                       aria-label="Add the keyword and search it"
-                      disabled={busy}
+                      disabled={isBusy("add-keyword")}
                     >
                       <PlusIcon className="size-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    Adds it and searches it, {perKeyword} units
+                    Adds it and searches it, using {perKeyword} units of
+                    your daily YouTube allowance
                   </TooltipContent>
                 </Tooltip>
               </form>
@@ -198,7 +200,7 @@ export function ProjectPanel({
                 <PlusIcon />
                 Add keywords
               </Button>
-              <Button className="grow" disabled={busy || searching} onClick={onSearchAll}>
+              <Button className="grow" disabled={isBusy("search-all") || searching} onClick={onSearchAll}>
                 {searching ? (
                   <Loader2Icon className="animate-spin" />
                 ) : (
@@ -287,7 +289,10 @@ function KeywordRow({
             <RefreshCwIcon />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Search it again, {perKeyword} units</TooltipContent>
+        <TooltipContent>
+          Search it again, using {perKeyword} units of your daily YouTube
+          allowance
+        </TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
