@@ -177,7 +177,11 @@ export function ProjectsCard({
     // 2026: "This toggle should hide the projects ... and move the "hidden" a
     // bit left so the arrow has more room").
     <Collapsible open={shown} onOpenChange={setShown} asChild>
-      <section aria-labelledby={headingId} className={cn("grid", PANEL_GAP)}>
+      {/* Every grid here has one column that can shrink, so a narrow panel wraps a
+          card's rows, as the project page's left panel does, instead of pushing the
+          card past the panel's edge (Tyler, 31 Oct 2026: "The project dashboard
+          doesnt have this problem"). */}
+      <section aria-labelledby={headingId} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
         {/* The same size as the Daily card's greeting above it (Tyler, 30 Oct 2026),
             with the same room above it as Need your attention has, to part it from
             the Daily card (Tyler, 31 Oct 2026: "needs more space"). */}
@@ -191,15 +195,15 @@ export function ProjectsCard({
             <HiddenToggle count={list.hidden.length} open={hiddenOpen} onToggle={() => setHiddenOpen(!hiddenOpen)} />
           ) : null}
         </FoldHeading>
-        <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid", PANEL_GAP)}>
+        <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
           {hiddenOpen && list.hidden.length ? (
             <HiddenProjects projects={list.hidden} onShow={(id) => hide(id, false)} />
           ) : null}
-          <div className={cn("grid", PANEL_GAP)}>
+          <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
             {list.active.length ? (
               <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}>
                 <SortableContext items={blocks.map((row) => row.project.id)} strategy={verticalListSortingStrategy}>
-                  <ul className={cn("grid", PANEL_GAP)} aria-label="Projects with open tasks">
+                  <ul className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)} aria-label="Projects with open tasks">
                     {blocks.map((row) => (
                       <ProjectBlock
                         key={row.project.id}

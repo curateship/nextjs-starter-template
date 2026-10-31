@@ -126,9 +126,10 @@ const SIZE_STORAGE_KEY = "video-viral-card-size"
 /**
  * Where this browser keeps the panels' widths, and where the dashboard was.
  * App keys, so they live here rather than in the shell's `panelLayoutKey`.
- * The `-2` drops widths measured for the layout before 20 Oct 2026.
+ * The number drops widths measured for an older layout: `-2` on 20 Oct 2026,
+ * `-3` on 31 Oct 2026 when every side panel started at its narrowest.
  */
-const LAYOUT_KEY = "video-viral-project-horizontal-2"
+const LAYOUT_KEY = "video-viral-project-horizontal-3"
 const PLACE_KEY = "video-viral-project-place"
 
 type ChannelUploads =

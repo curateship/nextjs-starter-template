@@ -15,11 +15,11 @@ export const tradePanelLayoutKey = {
   /** The chart row above, the positions row below. */
   workspaceVertical: "trade-workspace-vertical",
   /** A backtest run: settings | chart | summary, across the workspace. */
-  backtestHorizontal: "trade-backtest-horizontal",
+  backtestHorizontal: "trade-backtest-horizontal-2",
   /** The backtest workspace above, its coins and trades below. */
   backtestVertical: "trade-backtest-vertical",
   /** A live run: figures | chart | coins, across the workspace. */
-  flowRunHorizontal: "trade-flow-run-horizontal",
+  flowRunHorizontal: "trade-flow-run-horizontal-2",
   /** The live-run workspace above, its trades below. */
   flowRunVertical: "trade-flow-run-vertical",
   /** P&L: the Journal on the left, the grid and cards on the right. */
@@ -37,7 +37,7 @@ export const tradePanelLayoutKey = {
    * The social feed: creators in folders | the feed | its coins, across the
    * workspace. Like the creator's own dashboard, there is no bottom row.
    */
-  socialFeedHorizontal: "trade-social-feed-horizontal",
+  socialFeedHorizontal: "trade-social-feed-horizontal-2",
 } as const
 
 export type TradePanelLayoutKey =

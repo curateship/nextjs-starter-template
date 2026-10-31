@@ -8,8 +8,10 @@ screen built this way, and every app gets them with its next shell merge.
 
 All of them are in `src/components/shared/`.
 
-- **`three-panels.tsx`, `ThreePanels`.** The layout: left 22%, middle 54%,
-  right 24%. A side panel drags shut, comes back from a tab on the middle
+- **`three-panels.tsx`, `ThreePanels`.** The layout: left 16%, middle 68%,
+  right 16%; each side opens at the narrowest it can be dragged to (Tyler, 31
+  Oct 2026: "The default width needs to be the narrowest width the panel
+  have"). A side panel drags shut, comes back from a tab on the middle
   panel's edge, and a double-click on blank space toggles it. Widths are kept
   in the browser under a key listed in `panelLayoutKey`
   (`src/lib/layout/panel-layout.ts`). Under 1280px one panel shows at a time

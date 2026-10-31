@@ -473,7 +473,7 @@ export function SocialFeedPage({
             panelRef={creatorsRef}
             collapsible
             collapsedSize="0%"
-            defaultSize="16%"
+            defaultSize="14%"
             minSize="14%"
             maxSize="34%"
             onResize={(size) => setCreatorsCollapsed(size.asPercentage < 0.5)}
@@ -491,7 +491,7 @@ export function SocialFeedPage({
             collapsed={creatorsCollapsed}
             className={NO_RING}
           />
-          <ResizablePanel id="feed" defaultSize="68%" minSize="30%">
+          <ResizablePanel id="feed" defaultSize="70%" minSize="30%">
             <WorkspacePanel className="relative flex min-w-0 flex-1 flex-col">
               {feedPanel}
               {creatorsCollapsed ? (

@@ -208,8 +208,16 @@ favourites. Editors are not dashboards and are left out: the automation,
 broadcast and system email editors, Video's studio and carousel studio,
 Trade's recipe editor, the front page editor, and Trade's exchange desk.
 
-- **Layout.** Left 22% (16 to 36), middle 54% (at least 32), right 24% (16 to
-  36). A side panel collapses to nothing and comes back from a
+- **Layout.** Left 16% (16 to 36), middle 68% (at least 32), right 16% (16 to
+  36). **Every side panel opens at the narrowest it can be dragged to**, its
+  `defaultSize` equal to its `minSize`, and the middle takes the rest. This
+  holds on every screen with resizable side panels, editors included (Tyler,
+  31 Oct 2026: "The default width needs to be the narrowest width the panel
+  have", after the fifth time of asking, then "The problem persist on many 3
+  panels dashboard like the broadcast dashboard. Scan all dashboards on all
+  apps and fix them all"). A remembered layout outranks the default, so moving
+  a default means bumping the number on the screen's layout key, or browsers
+  that kept the old widths never show it. A side panel collapses to nothing and comes back from a
   `PanelReopenTab` on the middle panel's edge; a double-click on blank space
   toggles it. Widths are remembered per browser through
   `useRememberedPanelLayout`, with the key listed in `panelLayoutKey`

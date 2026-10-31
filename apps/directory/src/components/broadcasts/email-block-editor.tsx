@@ -568,7 +568,7 @@ export function EmailBlockEditor({
         panelRef={palettePanelRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="18%"
+        defaultSize="14%"
         minSize="14%"
         maxSize="26%"
         onResize={(size) => setPaletteCollapsed(size.asPercentage < 0.5)}
@@ -590,7 +590,7 @@ export function EmailBlockEditor({
         </WorkspacePanel>
       </ResizablePanel>
       <ResizableHandle gap collapsed={paletteCollapsed} />
-      <ResizablePanel id="canvas" defaultSize="58%" minSize="30%">
+      <ResizablePanel id="canvas" defaultSize="68%" minSize="30%">
         <WorkspacePanel className="relative flex flex-col">
           {canvasHeader}
           {canvas}
@@ -616,7 +616,7 @@ export function EmailBlockEditor({
         panelRef={inspectorPanelRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="24%"
+        defaultSize="18%"
         minSize="18%"
         maxSize="34%"
         onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}

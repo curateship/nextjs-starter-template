@@ -306,7 +306,10 @@ function AdminPanel({
         <InboxCard inbox={inbox} bare onUnread={setUnread} />
       </div>
       <ScrollArea className={cn("relative min-h-0 flex-1", view !== "cards" && "hidden")} viewportClassName="h-full">
-        <div className={cn("grid", PANEL_GUTTER)}>
+        {/* One column that can shrink to the panel: left to grow, it took the
+            Daily card's widest row and pushed a counted habit's "+" past the
+            panel's edge (Tyler, 31 Oct 2026: "Add the + icon back"). */}
+        <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
           <DailyCard daily={daily} now={now} deepWork={mostUrgent(dashboard.tasks, dashboard.today)} picks={null} checkin={null} onOpenTask={onOpenTask} />
           <AdminCards
             cards={dashboard.cards}

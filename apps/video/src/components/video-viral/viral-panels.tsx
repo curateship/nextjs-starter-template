@@ -31,7 +31,7 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
  */
 
 /** Where this browser last left the dividers. One key for every Viral screen. */
-const LAYOUT_KEY = "video-viral-horizontal"
+const LAYOUT_KEY = "video-viral-horizontal-2"
 
 export function ViralPanels({
   left,
@@ -103,7 +103,7 @@ export function ViralPanels({
         panelRef={leftRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="22%"
+        defaultSize="16%"
         minSize="16%"
         maxSize="34%"
         onResize={(size) => setLeftCollapsed(size.asPercentage < 0.5)}
@@ -117,7 +117,7 @@ export function ViralPanels({
         </WorkspacePanel>
       </ResizablePanel>
       <ResizableHandle gap collapsed={leftCollapsed} />
-      <ResizablePanel id="viral-middle" defaultSize="50%" minSize="30%">
+      <ResizablePanel id="viral-middle" defaultSize="64%" minSize="30%">
         <div className="relative h-full min-h-0">
           <WorkspacePanel className="flex flex-col">{middle}</WorkspacePanel>
           {leftCollapsed ? (
@@ -134,7 +134,7 @@ export function ViralPanels({
         panelRef={rightRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="28%"
+        defaultSize="20%"
         minSize="20%"
         maxSize="46%"
         onResize={(size) => setRightCollapsed(size.asPercentage < 0.5)}

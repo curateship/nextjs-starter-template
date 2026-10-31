@@ -10,7 +10,7 @@ import { loadNewTaskProjects, type NewTaskProject } from "@/lib/api/project/task
 import type { TaskType } from "@/lib/project/task-types"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import type { TaskStatus } from "@/lib/project/rules"
+import type { TaskPriority, TaskStatus } from "@/lib/project/rules"
 import { lastProject, rememberProject } from "@/lib/project/new-task-project"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -53,8 +53,8 @@ export function NewTaskWithProjectPicker({
   openAtOnce?: boolean
   /** Told when it shuts, or couldn't open. */
   onClosed?: () => void
-  /** The status and due date it starts on, from the My dashboard heading it was opened under. */
-  start?: { status?: TaskStatus; due?: string | null }
+  /** The status, due date or priority it starts on, from the My dashboard heading it was opened under. */
+  start?: { status?: TaskStatus; due?: string | null; priority?: TaskPriority }
   /** The project it starts on, as from a project's own "+" on the site admin's Projects card. */
   projectId?: string
 }) {
@@ -114,6 +114,7 @@ export function NewTaskWithProjectPicker({
         initialProjectId={initial}
         status={startsAs?.status}
         due={startsAs?.due}
+        priority={startsAs?.priority}
         open={open}
         onOpenChange={(next) => {
           if (next) void start()

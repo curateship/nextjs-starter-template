@@ -274,7 +274,7 @@ export const CARD_FLAG_WORDS: Record<CardFlag, string> = {
 export const BAND_NEEDS_LIKES = 20
 
 /** The three columns' remembered widths. Not in the shell's `panelLayoutKey`, which is a shell file. */
-export const DATING_PANEL_LAYOUT_KEY = "date-dating-panels"
+export const DATING_PANEL_LAYOUT_KEY = "date-dating-panels-2"
 
 /** Where the Dating dashboard was, for the shell's `useDashboardPlace`, kept beside the layout for the same reason. */
 export const DATING_PLACE_KEY = "date-dating-place"

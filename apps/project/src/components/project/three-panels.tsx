@@ -20,6 +20,16 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
 type Side = { label: string; content: React.ReactNode; showLabel: string }
 
 /**
+ * Each side panel opens at the narrowest it can be dragged to, and the middle
+ * takes the rest (Tyler, 31 Oct 2026: "The default width needs to be the
+ * narrowest width the panel have"). A width dragged in this browser still wins;
+ * the layout keys in `panel-keys.ts` carry a number so a change here reaches
+ * browsers that had kept the old widths.
+ */
+const SIDE_MIN = "16%"
+const MIDDLE_DEFAULT = "68%"
+
+/**
  * Project's three-panel screen: the four-panel dashboard without its bottom
  * panel, as Tyler asked for the project page, and used by My dashboard and
  * the Team dashboard too. The layout is the CRM screen's
@@ -132,8 +142,8 @@ export function ThreePanels({
           panelRef={leftRef}
           collapsible
           collapsedSize="0%"
-          defaultSize="22%"
-          minSize="16%"
+          defaultSize={SIDE_MIN}
+          minSize={SIDE_MIN}
           maxSize="36%"
           onResize={leftState.onResize}
         >
@@ -146,7 +156,7 @@ export function ThreePanels({
           </WorkspacePanel>
         </ResizablePanel>
         <ResizableHandle gap collapsed={leftState.collapsed} />
-        <ResizablePanel id="middle" defaultSize="54%" minSize="32%">
+        <ResizablePanel id="middle" defaultSize={MIDDLE_DEFAULT} minSize="32%">
           <WorkspacePanel className="relative flex flex-col">
             {middle.content}
             {leftState.collapsed ? (
@@ -163,8 +173,8 @@ export function ThreePanels({
           panelRef={rightRef}
           collapsible
           collapsedSize="0%"
-          defaultSize="24%"
-          minSize="16%"
+          defaultSize={SIDE_MIN}
+          minSize={SIDE_MIN}
           maxSize="36%"
           onResize={rightState.onResize}
         >

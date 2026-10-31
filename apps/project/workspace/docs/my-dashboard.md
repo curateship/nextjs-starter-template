@@ -173,8 +173,12 @@ my own order (below), then any I haven't placed, soonest first.
   to, Template) plus **Project**, since these tasks come from many projects.
   Tyler picked keeping My headings as the start. Under any other choice the
   same rows sit under that choice's headings, a task with two tags shows
-  under both, rows don't drag and headings have no "+", since my order and a
-  heading's date belong to My headings. This browser remembers the choice,
+  under both, and rows don't drag, since my order belongs to My headings.
+  Every heading keeps its "+" (Tyler, 31 Oct 2026: "still no + icon"): under
+  Due date it starts the task as My headings' would, under Status in that
+  status, under Project in that project, under Priority at that priority
+  ("If I click on + in high priority then high priority should be
+  selected"), and under the rest as a plain new task. This browser remembers the choice,
   and each grouping remembers its own folded headings. A saved view doesn't
   keep it (`MY_GROUPINGS` in `lib/project/task-groups.ts`).
 - **Dragging rows** (Tyler, 23 Oct 2026: "I want to be able to drag and drop
@@ -481,6 +485,11 @@ my dashboard". He picked 14 ideas; the task is
 `workspace/tasks/My dashboard/01-project-cards.md`. His answers: every team's
 open projects, in place of Projects running late, pressing a project filters
 My tasks, and live across every team.
+
+While My tasks is filtered to a project this way, New task, a heading's "+"
+and a right-click's New task all start on that project instead of the last
+one used (Tyler, 31 Oct 2026: "The task should automatically select that
+project and not select "just me"").
 
 It has no box and no fold of its own: the "Projects 3" heading sits straight
 on the panel, at the Daily card greeting's 16px, and each project below is a
