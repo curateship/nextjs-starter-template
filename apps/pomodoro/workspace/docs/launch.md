@@ -218,29 +218,80 @@ What the move needs, and where each part stands:
   `7af3fe509eacf46dadbabe8ad6f34db7`, SSL "full" like pomoder.com. A
   `flowfly.app` → 5.78.189.158 and CNAME `www` → `flowfly.app`, both proxied.
   Cloudflare gave this zone `hera.ns.cloudflare.com` and
-  `marty.ns.cloudflare.com`, not pomoder.com's pair, so Namecheap must list
-  those two before the domain answers.
+  `marty.ns.cloudflare.com`, not pomoder.com's pair. Namecheap lists those two
+  since 31 Oct 2026, when the zone turned active.
 - **Turnstile:** the widget, now named "Flowfly", lists `flowfly.app`,
   `pomoder.com` and `pomodoro.barelycompany.com`. The keys did not change.
 - **Coolify:** Pomoder Web answers on `flowfly.app`, `www.flowfly.app`,
   `pomoder.com`, `www.pomoder.com` and `pomodoro.barelycompany.com`.
   `CUSTOM_SHELL_APP_ORIGINS` lists all five. `CUSTOM_SHELL_EMAIL_FROM` is
   `Flowfly <hello@pomoder.com>` on both resources.
-- **`CUSTOM_SHELL_APP_URL`** becomes `https://flowfly.app` on both resources
-  only once flowfly.app answers, because every email link is built from it.
+- **`CUSTOM_SHELL_APP_URL`** is `https://flowfly.app` on both resources since
+  31 Oct 2026. Every email link is built from it, so it waited until
+  flowfly.app answered. The preview copies still say pomoder.com.
 - **Resend:** refused flowfly.app with "You have reached the domain limit of
   your plan". The account holds three sending domains (barelycompany.com,
   pomoder.com, systemeverything.com). Until Tyler upgrades or frees one,
   emails go out from hello@pomoder.com.
 - **The redirect:** pomoder.com and www.pomoder.com send every page to the
-  same path on flowfly.app, except `/api/webhooks/*`. Stripe treats a
-  redirect as a failed delivery, so its webhook keeps working on pomoder.com
-  until Tyler points it at `https://flowfly.app/api/webhooks/stripe` and
-  pastes the new signing secret in Settings → Payments.
+  same path on flowfly.app with a 301, except `/api/webhooks/*`. These are
+  three Page Rules on the pomoder.com zone, which is the free plan's whole
+  allowance. Top: `pomoder.com/api/webhooks/*` with cache bypass, which only
+  stops the rules below it from matching. Then `pomoder.com/*` and
+  `www.pomoder.com/*`, each forwarding to `https://flowfly.app/$1`. The order
+  matters and Cloudflare ignores a priority sent with a new or edited rule, so
+  it is set with `PUT /zones/{id}/pagerules/priorities`. Redirect Rules would
+  be the newer way, but the API token has no permission for them.
+  `media.pomoder.com` matches none of the three. Stripe treats a
+  redirect as a failed delivery, which is why the webhook path is left alone.
+- **Stripe:** on 31 Oct 2026 Tyler pointed the live webhook at
+  `https://flowfly.app/api/webhooks/stripe`, its only endpoint, and pasted its
+  signing secret in Settings → Payments. The site holds one secret, so an old
+  pomoder.com endpoint would now be turned away. He also renamed the account's
+  public business name and statement descriptor to Flowfly in Stripe. The
+  name at the top of checkout comes from Stripe, not the app. A checkout page
+  opened before the rename keeps the old name, so only a new checkout shows
+  the new one. The account has Managed Payments on, so every checkout item
+  needs a tax code (`txcd_10103001` in `purchases.ts`).
 - **Members are signed out once.** A sign-in belongs to the domain it was
   made on, so everybody signs in again on flowfly.app.
 
 ## Release record
+
+### flowfly.app goes live, 31 Oct 2026
+
+- **No code.** Namecheap now points flowfly.app at Cloudflare, and the zone is
+  active. `CUSTOM_SHELL_APP_URL` changed to `https://flowfly.app` on both
+  resources, and Coolify's restart rebuilt both (web
+  `q8ejujvdlh9n24erlgnj3qfx`, worker `d43kvrdeb1punieiwkgg8gpc`).
+- **The pomoder.com redirect** is on. Checked: `/` and a path with a query
+  string on pomoder.com, and `/login` on www, come back 301 to the same path
+  and query on flowfly.app. A POST to `pomoder.com/api/webhooks/stripe` reaches the app,
+  which answers 503 because the test carried no Stripe signature.
+- **The deploy skill's health check** in `.agents/skills/deploy-app/apps.json`
+  reads `https://flowfly.app/api/health`.
+- **Browser check** (Playwright, live): the front page, `/register` and
+  `/login` on flowfly.app say Flowfly and never Pomoder, with no console
+  errors on the front page. The old addresses land on flowfly.app. The
+  Turnstile box stays blank in a headless browser on flowfly.app and on
+  pomodoro.barelycompany.com alike, so it was not proven there.
+- **Stripe:** a fresh checkout reads "Flowfly" at the top. It was a $1
+  session opened only to read the page, then expired.
+
+### The Flowfly name, 29 Oct 2026
+
+- **Commit:** `85614bc6e`, the only Pomodoro commit since `8ad74f158`. The
+  other 141 belonged to other apps, shared docs and skills, plus the root
+  Dockerfile's shorter health-check start. No migrations.
+- **Deployments:** web `f11cz29uyblpu0al3s0eh23h` (288s), worker
+  `dxf442dg6h88vtk563dtjpnu` (222s), both healthy. Health 200 on pomoder.com,
+  and the front page's title reads "Flowfly - a focus timer you can use right
+  now".
+- **Database:** `workspaces.name`, and `appName` and `workspaceName` in the
+  `default` settings row, changed from Pomoder to Flowfly in one transaction.
+- **Left menu:** not copied, because the local database was not running.
+  Nothing in Pomodoro's menu changed in this release.
+- **AI keys:** all four already there.
 
 ### The watch page fix, 11 Oct 2026 (later)
 

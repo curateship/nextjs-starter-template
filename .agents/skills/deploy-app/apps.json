@@ -2,7 +2,7 @@
   "pomodoro": {
     "server": "us",
     "project": "Pomoder",
-    "healthUrl": "https://pomoder.com/api/health",
+    "healthUrl": "https://flowfly.app/api/health",
     "resources": [
       {
         "role": "web",
