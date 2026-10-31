@@ -79,6 +79,9 @@ Daily card", and that file wins wherever the two disagree.
   counts today's picks finished today. The site admin's reads "2 done
   today". Clocked time is every stretch of the task clock since midnight,
   plus fixes made today. Nothing shows while there's nothing to count.
+  Once a task is done, an arrow at the line's right folds open the list of
+  what was done, each opening its task; it starts folded and the browser
+  remembers ("The done today doesnt have a toggle to show whats done").
 - **Wind-down at night.** What the person finished today, a line saying a
   task's clock is still running with Pause, and for an employee who checked
   in, "Check out and plan tomorrow".
@@ -104,8 +107,10 @@ a team screen or sent to anyone.
 - **Three lists of habits: morning, afternoon and night.** The card's
   "Today's habits" shows every habit set for today at any time of day,
   morning's first, then afternoon's and night's ("show all habits and not
-  just morning or afternoon"), with a tick for each. Ticks start again each
-  card day.
+  just morning or afternoon"), with a tick for each. Afternoon's and night's
+  habits start under a small "Afternoon" or "Night" label; morning's need
+  none ("Add afternoon and night label to separate them ... dont need
+  morning"). Ticks start again each card day.
 - **Habits you count.** A habit can have a number, such as 8 glasses of
   water. Plus and minus change the count, and the habit is done at its
   number.
@@ -156,7 +161,8 @@ a team screen or sent to anyone.
 
 - **Finished days.** A day is finished when every habit set for that day is
   ticked. Tasks don't count. A day with no habits set doesn't count either
-  way.
+  way. The count feeds the milestones but is not written on the card (Tyler,
+  31 Oct 2026: "remove this text").
 - **Each habit's streak** counts only the days it is set for. It is an orange
   chip at the end of the habit's row, "2 days streak" (Tyler, 30 Oct 2026:
   "put the streak here and make it chip styling and call it like "2 days

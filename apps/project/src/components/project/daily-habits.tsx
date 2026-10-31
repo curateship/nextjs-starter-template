@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { countHabit, type DailyCard, type DailyHabit } from "@/lib/api/project/daily-card"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { DAY_PARTS } from "@/lib/project/daily-card"
+import { DAY_PART_LABEL, DAY_PARTS } from "@/lib/project/daily-card"
 import { clockLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -24,7 +24,9 @@ const DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
  * of day (Tyler, 30 Oct 2026: "show all habits and not just morning or
  * afternoon"), each with its tick or count and a streak chip. Only today
  * can be ticked ("remove the going back to yesterday to check off habit
- * feature").
+ * feature"). Afternoon's and night's start under their own small label;
+ * morning's, at the top, needs none (Tyler, 31 Oct 2026: "Add afternoon and
+ * night label to separate them ... dont need morning").
  */
 export function DailyHabits({ daily }: { daily: DailyCard }) {
   const admin = daily.admin
@@ -47,16 +49,16 @@ export function DailyHabits({ daily }: { daily: DailyCard }) {
         <p className="text-sm text-muted-foreground">No habits set for today.</p>
       ) : (
         <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">
-          {habits.map((habit) => (
-            <HabitRow key={habit.id} habit={habit} day={day} count={habit.count} />
+          {habits.map((habit, index) => (
+            <React.Fragment key={habit.id}>
+              {habit.part !== "morning" && habit.part !== habits[index - 1]?.part ? (
+                <li className="pt-1 text-xs font-medium text-muted-foreground">{DAY_PART_LABEL[habit.part]}</li>
+              ) : null}
+              <HabitRow habit={habit} day={day} count={habit.count} />
+            </React.Fragment>
           ))}
         </ul>
       )}
-      {admin.finished.current || admin.finished.best ? (
-        <p className="text-xs text-muted-foreground">
-          Finished days: {admin.finished.current} in a row, best {admin.finished.best}.
-        </p>
-      ) : null}
     </DailySection>
   )
 }

@@ -406,6 +406,55 @@ describe("the site admin's My dashboard", () => {
     expect(hidden).toContain("Today I want to...")
   })
 
+  it("folds the afternoon's done line to the tasks done, folded to begin with", () => {
+    const started = { ...DAILY, admin: { ...DAILY.admin!, today: { ...DAILY.admin!.today, upAt: "2099-03-02T08:00:00.000Z" } } }
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <AdminDashboardScreen
+          daily={{ ...started, loadedAt: "2099-03-02T14:00:00.000Z", finishedToday: [{ taskId: "t1", projectId: "p1", title: "Ship the homepage" }] }}
+          dashboard={dashboard()}
+          inbox={NO_INBOX}
+          search={{}}
+        />
+      </TooltipProvider>
+    )
+    expect(html).toMatch(/aria-expanded="false"[^>]*>1 done today</)
+    expect(html).not.toContain("Ship the homepage")
+  })
+
+  it("labels afternoon's and night's habits, not morning's, and drops the finished days line", () => {
+    const habit = (id: string, part: "morning" | "afternoon" | "night", position: number) => ({
+      ...({} as NonNullable<DailyCard["admin"]>["habits"][number]),
+      id,
+      name: `Habit ${id}`,
+      icon: null,
+      part,
+      target: 1,
+      position,
+      atTime: null,
+      setToday: true,
+      count: 0,
+      streak: { current: 0, best: 0 },
+    })
+    const daily = {
+      ...DAILY,
+      admin: {
+        ...DAILY.admin!,
+        today: { ...DAILY.admin!.today, upAt: "2099-03-02T08:00:00.000Z" },
+        finished: { current: 3, best: 5 },
+        habits: [habit("a", "morning", 0), habit("b", "afternoon", 0), habit("c", "night", 0), habit("d", "night", 1)],
+      },
+    }
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <AdminDashboardScreen daily={daily} dashboard={dashboard()} inbox={NO_INBOX} search={{}} />
+      </TooltipProvider>
+    )
+    const labels = [...html.matchAll(/<li class="pt-1[^"]*">([^<]+)<\/li>/g)].map((m) => m[1])
+    expect(labels).toEqual(["Afternoon", "Night"])
+    expect(html).not.toContain("Finished days")
+  })
+
   it("marks the project My tasks is filtered to, and offers it in Filter", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>

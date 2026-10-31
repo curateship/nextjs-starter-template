@@ -330,7 +330,7 @@ function DaySection({
       if (!work || part !== "afternoon") return null
       const clockedSeconds =
         daily.clock.seconds + (daily.clock.running ? Math.max(0, Math.floor((nowMs - Date.parse(daily.loadedAt)) / 1000)) : 0)
-      return <Progress picks={picks} finished={daily.finishedToday.length} clockedSeconds={clockedSeconds} />
+      return <Progress picks={picks} finished={daily.finishedToday} clockedSeconds={clockedSeconds} onOpenTask={onOpenTask} />
     }
     case "deepWork":
       if (!work) return <p className="text-sm">{daily.dayOff}. Nothing here needs you today.</p>
@@ -346,17 +346,76 @@ function DaySection({
   }
 }
 
-/** "2 of 3 done, 3h 10m clocked today"; nothing while there is nothing to count. */
-function Progress({ picks, finished, clockedSeconds }: { picks: { done: number; total: number } | null; finished: number; clockedSeconds: number }) {
+/**
+ * "2 of 3 done, 3h 10m clocked today"; nothing while there is nothing to
+ * count. Once something is done, the line folds open to list it, folded to
+ * begin with (Tyler, 31 Oct 2026: "The done today doesnt have a toggle to
+ * show whats done").
+ */
+function Progress({
+  picks,
+  finished,
+  clockedSeconds,
+  onOpenTask,
+}: {
+  picks: { done: number; total: number } | null
+  finished: DailyCardData["finishedToday"]
+  clockedSeconds: number
+  onOpenTask: (taskId: string) => void
+}) {
+  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-daily-progress"), false)
   const parts = [
-    picks ? `${picks.done} of ${picks.total} done` : finished ? `${finished} done today` : null,
+    picks ? `${picks.done} of ${picks.total} done` : finished.length ? `${finished.length} done today` : null,
     clockedSeconds >= 60 ? `${hoursAndMinutes(Math.floor(clockedSeconds / 60))} clocked today` : null,
   ].filter(Boolean)
-  return parts.length ? (
-    <DailySection>
-      <p className="text-sm">{parts.join(", ")}</p>
-    </DailySection>
-  ) : null
+  if (!parts.length) return null
+  if (!finished.length) {
+    return (
+      <DailySection>
+        <p className="text-sm">{parts.join(", ")}</p>
+      </DailySection>
+    )
+  }
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="group/progress grid grid-cols-[minmax(0,1fr)] gap-2 rounded-lg border bg-muted/40 p-3">
+      <div className="flex items-center gap-2">
+        <CollapsibleTrigger asChild>
+          <button type="button" className={cn("min-w-0 flex-1 cursor-pointer rounded-md text-left text-sm select-none", focusRingInset)}>
+            {parts.join(", ")}
+          </button>
+        </CollapsibleTrigger>
+        {/* The line is the button; the arrow is the same press for the pointer, as on
+            the card's other sections, and always shown so the list can be found. */}
+        <CollapsibleTrigger asChild>
+          <button type="button" tabIndex={-1} aria-hidden className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md">
+            <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/progress:-rotate-90" />
+          </button>
+        </CollapsibleTrigger>
+      </div>
+      <CollapsibleContent data-collapse-key={noFlashKey}>
+        <FinishedList tasks={finished} onOpenTask={onOpenTask} />
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
+/** Today's finished tasks, each opening the task. */
+function FinishedList({ tasks, onOpenTask }: { tasks: DailyCardData["finishedToday"]; onOpenTask: (taskId: string) => void }) {
+  return (
+    <ul className="grid gap-1">
+      {tasks.map((task) => (
+        <li key={task.taskId}>
+          <button
+            type="button"
+            onClick={() => onOpenTask(task.taskId)}
+            className={cn("w-full cursor-pointer truncate rounded-md text-left text-sm hover:underline", focusRingInset)}
+          >
+            {task.title}
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 function DeepWork({ tasks, onOpenTask }: { tasks: TaskCard[]; onOpenTask: (taskId: string) => void }) {
@@ -451,19 +510,7 @@ function WindDown({
   return (
     <DailySection title="Done today" foldId="done-today">
       {daily.finishedToday.length ? (
-        <ul className="grid gap-1">
-          {daily.finishedToday.map((task) => (
-            <li key={task.taskId}>
-              <button
-                type="button"
-                onClick={() => onOpenTask(task.taskId)}
-                className={cn("w-full cursor-pointer truncate rounded-md text-left text-sm hover:underline", focusRingInset)}
-              >
-                {task.title}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <FinishedList tasks={daily.finishedToday} onOpenTask={onOpenTask} />
       ) : (
         <p className="text-sm text-muted-foreground">Nothing marked Done today. Tomorrow is a fresh start.</p>
       )}
