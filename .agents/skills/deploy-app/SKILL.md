@@ -127,6 +127,14 @@ It does the whole deploy in one go:
    Settings → AI on live already has them. See "The AI keys" below. Steps 5
    and 6 share one opening of the database port.
 
+Before building anything, it clears stuck deploys. A deploy of the same
+website or worker that Coolify still has as queued or running more than 30
+minutes after it started is dead, so the script cancels it and says so. On 30
+Oct 2026 one sat "in progress" for 14 hours and the next deploy answered
+"Deployment not found". A younger one may be another session's real build, so
+the script stops with its age and ID, and deploys nothing, rather than
+cancelling it.
+
 Useful extras, each after `npm run deploy --`: `--dry-run` shows the plan and
 deploys nothing, `--only worker` deploys one resource, `--force` rebuilds without Docker's cache,
 `--skip-menu` leaves the live menu as it is, and `--skip-ai-keys` leaves the

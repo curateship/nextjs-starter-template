@@ -36,6 +36,15 @@
  * `COOLIFY_<SERVER>_TOKEN`), or from the same names in the environment, which
  * win. The token is never printed.
  *
+ * Before building, it looks for a deploy of the same resources Coolify still
+ * has as queued or in progress. One that started more than STUCK_AFTER_MS ago
+ * is dead and is cancelled, since a new deploy waits behind it forever: on 30
+ * Oct 2026 a Project build died at 22:50 and Coolify kept it "in progress"
+ * for 14 hours, and the next deploy answered "Deployment not found" (Tyler:
+ * "should we add something to the deploy script that cancels any stuck
+ * deploy?"). A younger one may be another session's live build, so the script
+ * stops instead of cancelling it. A dry run only says what it would do.
+ *
  * Nothing here runs on its own. It is a button: somebody types the command.
  */
 
@@ -53,6 +62,8 @@ const POLL_EVERY_MS = 10_000
 /** A long build says it is still going once a minute, so a wait never looks like a hang. */
 const STILL_GOING_EVERY_MS = 60_000
 const GIVE_UP_AFTER_MS = 25 * 60_000
+/** Past this, a queued or running deploy is dead: a build takes 2 to 5 minutes, and this script gives up at 25. */
+export const STUCK_AFTER_MS = 30 * 60_000
 /**
  * How long Coolify may stay unreachable while a build is watched. On 24 Oct
  * 2026 the German Coolify answered 500 to everything for a few minutes in the
@@ -120,6 +131,26 @@ export function coolifyMayRecover(error) {
 /** Finished, failed or cancelled means Coolify has stopped working on it. */
 export function deploymentOver(status) {
   return ["finished", "failed", "cancelled", "cancelled-by-user"].includes(status)
+}
+
+/**
+ * A resource's deploys Coolify has not finished, split by age: `stuck` started
+ * more than STUCK_AFTER_MS ago and can be cancelled, `running` may still be
+ * someone's real build. Age is counted from when the deploy started.
+ */
+export function unfinishedDeployments(list, now = Date.now()) {
+  const unfinished = list.filter((one) => ["queued", "in_progress"].includes(one.status))
+  const ageOf = (one) => now - Date.parse(one.created_at)
+  return {
+    stuck: unfinished.filter((one) => ageOf(one) > STUCK_AFTER_MS),
+    running: unfinished.filter((one) => !(ageOf(one) > STUCK_AFTER_MS)),
+  }
+}
+
+/** "14h", "3m": how long ago a deploy started. */
+export function startedAgo(createdAt, now = Date.now()) {
+  const minutes = Math.max(0, Math.round((now - Date.parse(createdAt)) / 60_000))
+  return minutes >= 60 ? `${Math.floor(minutes / 60)}h` : `${minutes}m`
 }
 
 /** The last visible lines Coolify wrote for a build. Its log is a JSON list. */
@@ -292,6 +323,42 @@ async function liveCommit(settings, uuid) {
   return done?.commit ?? null
 }
 
+/**
+ * Cancels each resource's dead deploys and refuses to start behind a live one,
+ * before anything is built. A dry run only reports.
+ */
+async function clearStuckDeployments(settings, resources, dryRun) {
+  for (const resource of resources) {
+    const answer = await coolify(settings, "GET", `/deployments/applications/${resource.uuid}?skip=0&take=10`)
+    const { stuck, running } = unfinishedDeployments(Array.isArray(answer) ? answer : answer?.deployments ?? [])
+    if (running.length) {
+      const [one] = running
+      const line = `A deploy of ${resource.role} started ${startedAgo(one.created_at)} ago is still ${one.status === "queued" ? "queued" : "running"} (${one.deployment_uuid}).`
+      if (dryRun) {
+        console.log(`${line} A real deploy would stop here.`)
+        continue
+      }
+      throw new Error(`${line} Nothing was deployed. Wait for it, or cancel it in Coolify if it is dead.`)
+    }
+    for (const one of stuck) {
+      const what = `${resource.role}: a deploy started ${startedAgo(one.created_at)} ago and still ${one.status === "queued" ? "queued" : "running"} (${one.deployment_uuid})`
+      if (dryRun) {
+        console.log(`${what} is stuck and would be cancelled.`)
+        continue
+      }
+      // 400 means it ended on its own since the list was read, which clears it too.
+      const ended = await coolify(settings, "POST", `/deployments/${one.deployment_uuid}/cancel`).then(
+        () => false,
+        (error) => {
+          if (error.status !== 400) throw error
+          return true
+        }
+      )
+      console.log(`${what} was stuck. ${ended ? "It ended on its own just now." : "Cancelled it."}`)
+    }
+  }
+}
+
 async function deployOne(settings, resource, force) {
   const route = `/deploy?uuid=${encodeURIComponent(resource.uuid)}&force=${force ? "true" : "false"}`
   // Coolify 4.2 made this a POST and answers a GET with 405. The US box takes
@@ -357,6 +424,8 @@ async function main() {
   console.log(`Left menu: ${menu ? "copied from local to live after the deploy" : "left as it is on live"}.`)
   const aiKeys = copiesAiKeys(app, flags.skipAiKeys)
   console.log(`AI keys: ${aiKeys ? "copied from secrets.env to live after the deploy" : "left as they are on live"}.`)
+
+  await clearStuckDeployments(settings, resources, flags.dryRun)
 
   if (flags.dryRun) {
     console.log("\nDry run: nothing deployed.")

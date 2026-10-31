@@ -2,7 +2,19 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import { buildLogTail, coolifyMayRecover, copiesAiKeys, copiesMenu, deploymentOver, migrationsBetween, parseEnvText, readFlags, resourcesToDeploy } from "./deploy.mjs"
+import {
+  buildLogTail,
+  coolifyMayRecover,
+  copiesAiKeys,
+  copiesMenu,
+  deploymentOver,
+  migrationsBetween,
+  parseEnvText,
+  readFlags,
+  resourcesToDeploy,
+  startedAgo,
+  unfinishedDeployments,
+} from "./deploy.mjs"
 
 const pomodoro = {
   resources: [
@@ -108,4 +120,20 @@ test("keeps watching a build through a Coolify outage, but not a refusal", () =>
   assert.equal(coolifyMayRecover(new TypeError("fetch failed")), true)
   assert.equal(coolifyMayRecover(Object.assign(new Error("Unauthenticated."), { status: 401 })), false)
   assert.equal(coolifyMayRecover(Object.assign(new Error("Not found"), { status: 404 })), false)
+})
+
+test("cancels only a deploy left queued or running for over 30 minutes, and leaves a young one alone", () => {
+  // Coolify's own times, with six digits after the second.
+  const now = Date.parse("2026-10-31T12:45:00Z")
+  const list = [
+    { deployment_uuid: "dead", status: "in_progress", created_at: "2026-10-30T22:47:45.000000Z" },
+    { deployment_uuid: "behind", status: "queued", created_at: "2026-10-30T23:27:22.000000Z" },
+    { deployment_uuid: "young", status: "in_progress", created_at: "2026-10-31T12:41:00.000000Z" },
+    { deployment_uuid: "done", status: "finished", created_at: "2026-10-30T21:52:27.000000Z" },
+  ]
+  const { stuck, running } = unfinishedDeployments(list, now)
+  assert.deepEqual(stuck.map((one) => one.deployment_uuid), ["dead", "behind"])
+  assert.deepEqual(running.map((one) => one.deployment_uuid), ["young"])
+  assert.equal(startedAgo("2026-10-30T22:47:45.000000Z", now), "13h")
+  assert.equal(startedAgo("2026-10-31T12:41:00.000000Z", now), "4m")
 })
