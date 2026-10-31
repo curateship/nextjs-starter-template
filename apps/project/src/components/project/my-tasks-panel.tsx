@@ -39,7 +39,14 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import type { ListDrop } from "@/lib/project/list-drop"
 import { canMove, dropChange, inMyOrder, isMyHeading, takesDrops, type MyPlace } from "@/lib/project/my-task-order"
 import { MY_TASK_FOLDS_KEY, MY_TASK_GROUPING_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
-import { isOpenStatus, type TaskStatus } from "@/lib/project/rules"
+import {
+  isOpenStatus,
+  isTaskPriority,
+  isTaskStatus,
+  PERSONAL_PROJECT_ID,
+  PERSONAL_PROJECT_NAME,
+  type TaskStatus,
+} from "@/lib/project/rules"
 import { pickedWordsUnder, readRightClick } from "@/lib/project/right-click"
 import { viewHasFilters } from "@/lib/project/saved-views"
 import { MY_GROUPINGS, MY_GROUPING_LABEL, groupMyTasks, type MyGrouping } from "@/lib/project/task-groups"
@@ -262,14 +269,43 @@ export function MyTasksPanel({
    * task starts as a drop under that heading would leave it: Today due today,
    * This week tomorrow, Later eight days on, No date with none, Done done.
    * Overdue, Waiting and today's picks can't be started in, so have no "+".
+   * Under another grouping every heading has one (Tyler, 31 Oct 2026: "still
+   * no + icon", on Status's Doing): Due date's start as My headings' do, a
+   * status's in that status, a project's in that project, a priority's at that
+   * priority ("If I click on + in high priority then high priority should be
+   * selected"), and the rest as a plain new task.
    */
+  // New task offers "Just me" under a stand-in id, not the list's own project id.
+  function projectOfHeading(projectId: string) {
+    const own = listRows.some((task) => task.projectId === projectId && task.projectName === PERSONAL_PROJECT_NAME)
+    return own ? PERSONAL_PROJECT_ID : projectId
+  }
+
   function addUnder(heading: string, button: React.ReactNode) {
-    const change = dropChange(heading, myDay)
-    if (!change) return null
+    if (grouping === "mine" || grouping === "due") {
+      const change = dropChange(heading, myDay)
+      if (!change) return null
+      return (
+        <NewTaskWithProjectPicker
+          align="start"
+          start={"status" in change ? { status: change.status } : { due: change.dueDate }}
+          projectId={filters.project}
+        >
+          {() => button}
+        </NewTaskWithProjectPicker>
+      )
+    }
     return (
       <NewTaskWithProjectPicker
         align="start"
-        start={"status" in change ? { status: change.status } : { due: change.dueDate }}
+        start={
+          grouping === "status" && isTaskStatus(heading) && heading !== "archived"
+            ? { status: heading }
+            : grouping === "priority" && isTaskPriority(heading)
+              ? { priority: heading }
+              : undefined
+        }
+        projectId={grouping === "project" ? projectOfHeading(heading) : filters.project}
       >
         {() => button}
       </NewTaskWithProjectPicker>
@@ -434,7 +470,11 @@ export function MyTasksPanel({
             saveButton={false}
             buttonVariant="ghost"
           />
-          <NewTaskWithProjectPicker align="end">
+          {/* Filtered to one project, as from a card on the site admin's Projects, New
+              task starts on that project, not on the last one used (Tyler, 31 Oct
+              2026: "The task should automatically select that project and not
+              select "just me""). The headings' "+" and a right-click do the same. */}
+          <NewTaskWithProjectPicker align="end" projectId={filters.project}>
             {(loading) => (
               // Words where there is room; an icon with its name in a narrow panel.
               <Button
@@ -552,7 +592,7 @@ export function MyTasksPanel({
             showProject
             projectColumn={source.table.project}
             showSteps={false}
-            addTask={regrouped ? undefined : addUnder}
+            addTask={addUnder}
             myUserId={source.myUserId}
             onDelete={(task) => setDeleting(task)}
             canDelete={source.canDelete}
@@ -572,7 +612,7 @@ export function MyTasksPanel({
             groups={listGroups ?? LIST_GROUPS}
             groupsOf={listGroupsOf ?? ((task) => [headingOf(task)])}
             foldsKey={regrouped ? `${MY_TASK_FOLDS_KEY}-${grouping}` : MY_TASK_FOLDS_KEY}
-            addTask={regrouped ? undefined : addUnder}
+            addTask={addUnder}
             emptyText={
               filtered
                 ? `No tasks match ${filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the filters to see them all.`
@@ -594,6 +634,7 @@ export function MyTasksPanel({
         <NewTaskWithProjectPicker
           key={`${pointNew.x}:${pointNew.y}`}
           align="start"
+          projectId={filters.project}
           openAtOnce
           onClosed={() => setPointNew(null)}
         >

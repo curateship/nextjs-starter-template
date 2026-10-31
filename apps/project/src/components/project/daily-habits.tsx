@@ -89,16 +89,20 @@ function HabitRow({ habit, day, count }: { habit: DailyHabit; day: string; count
   const done = shown >= habit.target
   return (
     <li className="grid grid-cols-[minmax(0,1fr)] gap-1">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <HabitIconGlyph icon={habit.icon} className="size-4 shrink-0 text-muted-foreground" />
         {/* Every habit has a tick; on a counted one it fills the whole count, or
             empties it (Tyler, 31 Oct 2026: "Add a checkbox even for habit with
             amounts ... if I check the box then it checks all the whole amount").
-            Plus counts up; there is no minus ("remove this"), the tick empties it. */}
+            Plus counts up; there is no minus ("remove this"), the tick empties it.
+            In a narrow panel the name keeps room for a few words and what follows
+            it drops to the next line, as a project card's counts drop under its
+            faces (Tyler, 31 Oct 2026: "The project dashboard doesnt have this
+            problem. Why dont you copy project dashboard pattern"). */}
         <Checkbox id={id} checked={done} onCheckedChange={(checked) => void save(checked === true ? habit.target : 0)} />
         <label
           htmlFor={id}
-          className={cn("min-w-0 flex-1 cursor-pointer truncate text-sm", done && "text-muted-foreground", done && habit.target === 1 && "line-through")}
+          className={cn("min-w-24 flex-1 cursor-pointer truncate text-sm", done && "text-muted-foreground", done && habit.target === 1 && "line-through")}
         >
           {habit.name}
           {habit.atTime ? <span className="text-muted-foreground"> · {clockLabel(habit.atTime)}</span> : null}
@@ -123,9 +127,11 @@ function HabitRow({ habit, day, count }: { habit: DailyHabit; day: string; count
         {/* At the row's end as a chip (Tyler, 30 Oct 2026: "put the streak here and
             make it chip styling and call it like "2 days streak""). */}
         {habit.streak.current ? (
-          <TintChip color="orange">
-            {habit.streak.current} {habit.streak.current === 1 ? "day" : "days"} streak
-          </TintChip>
+          <span className="ml-auto flex">
+            <TintChip color="orange">
+              {habit.streak.current} {habit.streak.current === 1 ? "day" : "days"} streak
+            </TintChip>
+          </span>
         ) : null}
       </div>
     </li>

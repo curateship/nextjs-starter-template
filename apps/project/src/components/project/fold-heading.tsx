@@ -29,8 +29,10 @@ export function FoldHeading({
   children?: React.ReactNode
 }) {
   return (
-    <div className={cn("group/fold flex items-center gap-2", className)}>
-      <h2 id={id} className="min-w-0 flex-1">
+    // In a narrow panel the title keeps its whole name and what follows it drops
+    // to the next line (Tyler, 31 Oct 2026: "copy project dashboard pattern").
+    <div className={cn("group/fold flex flex-wrap items-center gap-x-2 gap-y-1", className)}>
+      <h2 id={id} className="min-w-fit flex-1">
         <CollapsibleTrigger asChild>
           <button
             type="button"

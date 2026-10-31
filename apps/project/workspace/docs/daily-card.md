@@ -112,7 +112,11 @@ a team screen or sent to anyone.
   part, "Morning", rather than "Today's habits", and afternoon's and night's
   habits start under a small "Afternoon" or "Night" label ("Add afternoon and
   night label to separate them ... dont need morning", then "Change the
-  "Today's habit" to "Morning""). That first name is written like the labels,
+  "Today's habit" to "Morning""). In a narrow left panel a habit's name
+  keeps room for a few words and its streak chip, count and "+" drop to the
+  next line, the way the project page's left panel wraps rather than cutting
+  things off ("The project dashboard doesnt have this problem. Why dont you
+  copy project dashboard pattern"). That first name is written like the labels,
   not in capitals as other section headings are ("Morning is all cap. Make
   it the same as the other time"). It reads "Today's habits" only while no
   habit is set for today. Ticks start again each card day.
