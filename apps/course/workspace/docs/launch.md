@@ -1,16 +1,74 @@
 # Going live
 
-Course's live address is `https://course.barelycompany.com`. Tyler chose it
-on 19 Oct 2026. It is on `barelycompany.com` with Trade, Personal, Video and
-Fitness, so the zone, its https mode and the email domain were already there.
+Course's live address is `https://systemeverything.com`, on the US Hetzner
+server, 5.78.189.158. Tyler, 31 Oct 2026: "launch app to systemeverything.com
+on the US based server", "We're not using the old hub app anymore. We just need
+to backup systemeverything and eatdrinktoronto and deploy course with just
+systemeverything.com".
+
+The first launch, on 19 Oct 2026, put Course on `https://course.barelycompany.com`
+on the German server. That copy is still running and nothing on it was changed.
+Its record is the German sections further down.
+
+## The US launch, 31 Oct 2026
+
+- **Started empty.** Nothing came across from the German copy or the old
+  System Everything site. Tyler picked "New US launch, empty".
+- **Same choices as the German launch.** One website, no
+  `CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN`. Payments on with the Stripe keys owed,
+  Google sign-in off.
+- **Only systemeverything.com.** Course Web answers on `systemeverything.com`,
+  and `www.systemeverything.com` forwards to it.
+- **The old System Everything App is stopped**, so `hub.systemeverything.com`,
+  `eatdrinkto.com` and `eatdrinktoronto.com` no longer answer. Coolify could not
+  restart it without systemeverything.com: the restart picked up a newer image
+  that failed its health check, and Coolify put the old container back, still
+  holding the address. Tyler chose to stop it on 31 Oct 2026. Never press
+  Redeploy on it, because it would build today's `develop`.
+- **Coolify:** project "Course" (`j9i2wofkw22qalyayw9rld0w`) on the US server.
+  Course Web `pa1b5m2sh32735gbmxmc9kbl`, Course Worker
+  `dkut5awwx90heyq62qews9y0`, Course DB `rw8qnp3xd1t2gqdzlxocevrk` (Postgres
+  18, no public port, user and database `course`).
+- **The build stage:** the US Coolify refuses `dockerfile_target_build` through
+  its API, so it is set by hand in Coolify, `web` on Course Web and `worker` on
+  Course Worker.
+- **Email:** sent from `System Everything <hello@systemeverything.com>`, with
+  the send-only Resend key "Course (systemeverything.com send only)". The
+  domain was already verified in Resend for the old site.
+- **Storage:** the R2 bucket `course-us`, near the US server, served from
+  `https://media.systemeverything.com`. Its own key is "Course storage
+  (course-us bucket only)". On 31 Oct 2026 it wrote, read and deleted a file,
+  and the `course` bucket refused it. The bucket accepts browser uploads by
+  `PUT` from `https://systemeverything.com` only.
+- **Turnstile:** the widget "Course (systemeverything.com)".
+- **The live values** are in `apps/course/.env.live`. The German copy's values
+  moved to `apps/course/.env.live.de`. Both files are gitignored and exist only
+  in workspace-20.
+- **Deploying:** `npm run deploy` in `apps/course` now deploys the US copy. The
+  German copy is `course-de` in the deploy-app skill's `apps.json`, deployed with
+  `node .agents/skills/deploy-app/scripts/deploy.mjs course-de --skip-menu` from
+  the worktree's top folder.
+
+## The old site's backup
+
+Taken on 31 Oct 2026, before systemeverything.com moved, in
+`~/Backups/systemeverything-2026-10-31/` on Tyler's Mac.
+
+- **`postgres.dump`** is the whole database of "System Everything DB", 69
+  tables and 10 MB. It holds the System Everything, Eat Drink Toronto, Eat
+  Drink Saigon and Marketplace Theme sites, 25,460 newsletter contacts and
+  3,333 directory entries. Restore it with `pg_restore`.
+- **Left out:** the `drizzle` schema, which only lists the old app's applied
+  migrations. The database's own user cannot read it.
+- **Not touched:** the old site's files are in the R2 bucket
+  `system-everything`, which stays as it is.
+
+# The German copy, 19 Oct 2026
 
 ## Decided
 
 - **Server:** the German Hetzner box, 46.224.177.156, next to Trade, Personal,
   Video and Fitness. Tyler's pick, 19 Oct 2026.
-- **systemeverything.com stays on the old site for now.** Tyler, 19 Oct 2026.
-  The old System Everything site keeps answering on it until he says to move
-  it. `sites.md` → "Going live" lists what moving it takes.
 - **One website for now.** `CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN` is not set, so
   the deployment answers as one site, the way `sites.md` describes. Setting it
   to `course.barelycompany.com` would put each site on
@@ -99,6 +157,7 @@ deploy-app skill has the rest.
 
 | Date | Commit | Deployments | Notes |
 | --- | --- | --- | --- |
+| 31 Oct 2026 | `a8f1c7247` | web `ylzc0una3xyowxm3d3wl7ume` (245 s), worker `fct46flkhianic22utd6zh0e` (222 s) | US launch on systemeverything.com. Health `{"status":"ok"}`. Admin account made, four AI keys copied, left menu copied after the first sign-in. Playwright signed in, opened the dashboard and Users with no console errors. Stripe keys and webhook (`https://systemeverything.com/api/webhooks/stripe`) owed. |
 | 19 Oct 2026 | `33e80add6` | web `5rkbywzchwo2grkbuxpmgkax` (565 s), worker `dvhgwy0yfcfycoekgvfjq0us` (523 s) | First launch. Health `{"status":"ok"}`. Admin account made, four AI keys copied, left menu copied after the first sign-in. Every left-menu link opened in Playwright with no console errors. Stripe keys and webhook owed. |
 
 ## Checked before the first deploy

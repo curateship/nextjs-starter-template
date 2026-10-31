@@ -117,9 +117,9 @@ a file in the original site's media library.
 
 ## Going live
 
-The deployment is live at `course.barelycompany.com` (`launch.md`), but as one
-website: the base domain is not set and systemeverything.com still points at
-the old site. Serving many sites needs, in this order:
+The deployment is live at `systemeverything.com` on the US server, with an
+older copy on `course.barelycompany.com` (`launch.md`). Both run as one
+website, because the base domain is not set. Serving many sites needs, in this order:
 
 1. `CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN` set to the deployment's own domain.
 2. The System Everything site's own domain saved as systemeverything.com,

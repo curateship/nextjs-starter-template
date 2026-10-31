@@ -69,6 +69,24 @@
     }
   },
   "course": {
+    "server": "us",
+    "project": "Course",
+    "healthUrl": "https://systemeverything.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "pa1b5m2sh32735gbmxmc9kbl"
+      },
+      {
+        "role": "worker",
+        "uuid": "dkut5awwx90heyq62qews9y0"
+      }
+    ],
+    "database": {
+      "uuid": "rw8qnp3xd1t2gqdzlxocevrk"
+    }
+  },
+  "course-de": {
     "server": "de",
     "project": "Course",
     "healthUrl": "https://course.barelycompany.com/api/health",
