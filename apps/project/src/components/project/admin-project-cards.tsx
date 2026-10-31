@@ -16,13 +16,14 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { ArrowUpRightIcon, ChevronDownIcon, EyeOffIcon, GripVerticalIcon, PlusIcon } from "lucide-react"
+import { ArrowUpRightIcon, EyeOffIcon, GripVerticalIcon, PlusIcon } from "lucide-react"
 import { Area, AreaChart, YAxis } from "recharts"
 
+import { FoldHeading } from "@/components/project/fold-heading"
 import { NewTaskWithProjectPicker } from "@/components/project/new-task-header"
 import { PersonAvatar, ProjectDot } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   saveAdminHiddenProjects,
@@ -38,6 +39,7 @@ import { openTaskCount, projectCardList, projectDueLine, type PacedProject } fro
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { PANEL_GAP } from "@/lib/project/panel-gutter"
 import { PROJECT_PACE_LABEL, type ProjectPace } from "@/lib/project/project-pace"
+import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
 type Project = AdminDashboard["cards"]["projects"][number]
@@ -127,6 +129,9 @@ export function ProjectsCard({
   )
   const dndId = React.useId()
   const headingId = React.useId()
+  // The heading's fold, remembered in this browser; the hidden list starts shut.
+  const [shown, setShown, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-admin-projects"))
+  const [hiddenOpen, setHiddenOpen] = React.useState(false)
 
   if (projects.length === 0) return null
   const list = projectCardList(projects, hidden, order)
@@ -165,67 +170,71 @@ export function ProjectsCard({
   }
 
   return (
-    // No box and no fold of its own: the heading sits on the panel, each project
-    // is a card of its own, and the toggle at the heading's right shows the
-    // hidden projects (Tyler, 30 Oct 2026: "Put the label and toggle outside and
-    // have the project in its own card", then "The project section ... does not
-    // need to be toggled. Put the hidden project toggle here").
-    <Collapsible asChild>
+    // No box: the heading sits on the panel and each project is a card of its
+    // own (Tyler, 30 Oct 2026: "Put the label and toggle outside and have the
+    // project in its own card"). The arrow at the heading's right folds every
+    // project, and "Hidden 2" left of it opens the hidden ones (Tyler, 31 Oct
+    // 2026: "This toggle should hide the projects ... and move the "hidden" a
+    // bit left so the arrow has more room").
+    <Collapsible open={shown} onOpenChange={setShown} asChild>
       <section aria-labelledby={headingId} className={cn("grid", PANEL_GAP)}>
-        <div className="group/projects flex items-center gap-2">
-          {/* The same size as the Daily card's greeting above it (Tyler, 30 Oct 2026). */}
-          <h2 id={headingId} className="min-w-0 flex-1 truncate text-base leading-tight font-semibold">
-            Projects<span className="ml-2 font-normal text-muted-foreground/70">{list.active.length + list.idle.length}</span>
-          </h2>
-          {list.hidden.length ? <HiddenToggle count={list.hidden.length} /> : null}
-        </div>
-        {list.hidden.length ? (
-          <CollapsibleContent>
+        {/* The same size as the Daily card's greeting above it (Tyler, 30 Oct 2026). */}
+        <FoldHeading
+          id={headingId}
+          title="Projects"
+          count={list.active.length + list.idle.length}
+        >
+          {shown && list.hidden.length ? (
+            <HiddenToggle count={list.hidden.length} open={hiddenOpen} onToggle={() => setHiddenOpen(!hiddenOpen)} />
+          ) : null}
+        </FoldHeading>
+        <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid", PANEL_GAP)}>
+          {hiddenOpen && list.hidden.length ? (
             <HiddenProjects projects={list.hidden} onShow={(id) => hide(id, false)} />
-          </CollapsibleContent>
-        ) : null}
-      <div className={cn("grid", PANEL_GAP)}>
-        {list.active.length ? (
-          <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}>
-            <SortableContext items={blocks.map((row) => row.project.id)} strategy={verticalListSortingStrategy}>
-              <ul className={cn("grid", PANEL_GAP)} aria-label="Projects with open tasks">
-                {blocks.map((row) => (
-                  <ProjectBlock
+          ) : null}
+          <div className={cn("grid", PANEL_GAP)}>
+            {list.active.length ? (
+              <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}>
+                <SortableContext items={blocks.map((row) => row.project.id)} strategy={verticalListSortingStrategy}>
+                  <ul className={cn("grid", PANEL_GAP)} aria-label="Projects with open tasks">
+                    {blocks.map((row) => (
+                      <ProjectBlock
+                        key={row.project.id}
+                        row={row}
+                        extras={extras}
+                        today={today}
+                        picked={picked === row.project.id}
+                        dragDisabled={busy || list.active.length < 2}
+                        onPick={() => onPick(picked === row.project.id ? undefined : row.project.id)}
+                        onHide={() => hide(row.project.id, true)}
+                      />
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
+            ) : null}
+            {list.active.length > BLOCKS ? (
+              <Button type="button" variant="ghost" size="sm" className="justify-self-start" onClick={() => setAll(!all)}>
+                {all ? "Show fewer" : `Show all ${list.active.length}`}
+              </Button>
+            ) : null}
+            {list.idle.length ? (
+              <ul className="grid gap-1" aria-label="Projects with nothing open">
+                {list.idle.map((row) => (
+                  <IdleLine
                     key={row.project.id}
                     row={row}
                     extras={extras}
                     today={today}
                     picked={picked === row.project.id}
-                    dragDisabled={busy || list.active.length < 2}
                     onPick={() => onPick(picked === row.project.id ? undefined : row.project.id)}
                     onHide={() => hide(row.project.id, true)}
                   />
                 ))}
               </ul>
-            </SortableContext>
-          </DndContext>
-        ) : null}
-        {list.active.length > BLOCKS ? (
-          <Button type="button" variant="ghost" size="sm" className="justify-self-start" onClick={() => setAll(!all)}>
-            {all ? "Show fewer" : `Show all ${list.active.length}`}
-          </Button>
-        ) : null}
-        {list.idle.length ? (
-          <ul className="grid gap-1" aria-label="Projects with nothing open">
-            {list.idle.map((row) => (
-              <IdleLine
-                key={row.project.id}
-                row={row}
-                extras={extras}
-                today={today}
-                picked={picked === row.project.id}
-                onPick={() => onPick(picked === row.project.id ? undefined : row.project.id)}
-                onHide={() => hide(row.project.id, true)}
-              />
-            ))}
-          </ul>
-        ) : null}
-      </div>
+            ) : null}
+          </div>
+        </CollapsibleContent>
       </section>
     </Collapsible>
   )
@@ -579,29 +588,28 @@ function FinishedLine({ days }: { days: number[] }) {
   )
 }
 
-/** "Hidden 2", which opens the hidden projects, each with Show to put it back. */
 /**
- * "Hidden 4" with the panel's own fold arrow, at the right of the Projects
- * heading. It shows only while the heading is pointed at, has the keyboard's
- * focus, or the hidden ones are open (Tyler, 30 Oct 2026: "toggle to be hover
- * over and change the toggle icon to something that looks better"); always on
- * a screen with no pointer.
+ * "Hidden 4", left of the Projects heading's fold arrow with room between,
+ * which opens the hidden projects, each with Show to put it back. It shows
+ * only while the heading is pointed at, has the keyboard's focus, or the
+ * hidden ones are open (Tyler, 30 Oct 2026: "toggle to be hover over"); always
+ * on a screen with no pointer. The arrow it had is the heading's fold now.
  */
-function HiddenToggle({ count }: { count: number }) {
+function HiddenToggle({ count, open, onToggle }: { count: number; open: boolean; onToggle: () => void }) {
   return (
-    <CollapsibleTrigger asChild>
-      <button
-        type="button"
-        className={cn(
-          "group/hidden flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-sm text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/projects:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100",
-          focusRingInset
-        )}
-      >
-        Hidden
-        <span className="text-muted-foreground/70">{count}</span>
-        <ChevronDownIcon aria-hidden className="size-4 -rotate-90 transition-transform duration-200 group-data-[state=open]/hidden:rotate-0" />
-      </button>
-    </CollapsibleTrigger>
+    <button
+      type="button"
+      aria-expanded={open}
+      onClick={onToggle}
+      className={cn(
+        "mr-2 flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-sm text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/fold:opacity-100 [@media(hover:none)]:opacity-100",
+        open && "text-foreground opacity-100",
+        focusRingInset
+      )}
+    >
+      Hidden
+      <span className="text-muted-foreground/70">{count}</span>
+    </button>
   )
 }
 

@@ -416,7 +416,15 @@ which replaced "Projects running late" the same day. Then a "Need your
 attention" heading, the size of Projects with room above it, shown only while
 a card below it has anything (Tyler, 30 Oct 2026: "Add a label that says "Need
 your attention" here", "add some padding above. also if there is nothing there
-(no cards) hide the label"). Then the rest, top to
+(no cards) hide the label"). The heading folds every card under it, and the
+Projects heading folds every project, the same way a Daily card section
+folds: press the heading, or the arrow at its right that shows while it is
+pointed at (Tyler, 31 Oct 2026: "add a toggle here to hide all the cards",
+then "its arrow toggle. This toggle should hide the projects"). The heading
+stays, and this browser remembers each (`fold-heading.tsx`). Each heading's
+number sits beside it on a light grey patch: how many projects, and how many
+cards are under Need your attention (Tyler, 31 Oct 2026: "should have the
+amount beside it. Also add a light gray bg to the amount"). Then the rest, top to
 bottom, red first, then amber, blue and green (Tyler, 24 Oct 2026:
 "red card should be on top"), keeping his "act first" order inside each
 colour. Each counts across every team,
@@ -525,9 +533,11 @@ does not need to be toggled").
   a handle to drag it, **+** for New task already on that project, **Hide**,
   and an arrow that opens the project page. The name makes room for them only
   while they show.
-- **Hide** takes a project off the card at once. "Hidden 2 >" at the right of
-  the Projects heading ("Put the hidden project toggle here") opens the
-  hidden ones just under the heading, its arrow turning down. It shows only
+- **Hide** takes a project off the card at once. "Hidden 2", left of the
+  Projects heading's fold arrow with room between ("move the "hidden" a bit
+  left so the arrow has more room"), opens the hidden ones just under the
+  heading. It has no arrow of its own since 31 Oct 2026, when its arrow
+  became the heading's fold. It shows only
   while the heading is pointed at, or while the hidden ones are open
   ("toggle to be hover over and change the toggle icon to something that
   looks better"), and always on a phone. Each hidden one shows its colour,

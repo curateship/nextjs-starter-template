@@ -3,6 +3,7 @@ import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import { ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 
+import { FoldHeading } from "@/components/project/fold-heading"
 import { PanelCard } from "@/components/project/panel-card"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { ProjectDot } from "@/components/project/task-bits"
@@ -17,7 +18,9 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { clockIn, dayLabel, localNow } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { PANEL_GAP } from "@/lib/project/panel-gutter"
 import { TEAM_RIGHT_TAB_KEY } from "@/lib/project/panel-keys"
+import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
 /**
@@ -62,17 +65,20 @@ export function AdminCards({
   projectsCard: React.ReactNode
   onOpenTask: (taskId: string) => void
 }) {
-  const cardsWithRows =
-    [
-      cards.waiting,
-      cards.attention,
-      cards.unassigned,
-      cards.invites,
-      cards.meetings,
-      cards.dueThisWeek,
-      cards.milestones,
-      cards.doneToday,
-    ].some((rows) => rows.length > 0)
+  // How many cards show under the heading: an empty one is not drawn.
+  const cardCount = [
+    cards.waiting,
+    cards.attention,
+    cards.unassigned,
+    cards.invites,
+    cards.meetings,
+    cards.dueThisWeek,
+    cards.milestones,
+    cards.doneToday,
+  ].filter((rows) => rows.length > 0).length
+  const cardsWithRows = cardCount > 0
+  // The heading's fold, remembered in this browser.
+  const [shown, setShown, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-admin-attention"))
   // Nothing to act on draws nothing, and the Inbox moves up (Tyler, 25 Oct 2026: "Just dont show anything").
   if (!projectsCard && !cardsWithRows) return null
   return (
@@ -84,7 +90,32 @@ export function AdminCards({
           anything (Tyler, 30 Oct 2026: "Add a label that says "Need your attention"
           here", then "add some padding above. also if there is nothing there (no
           cards) hide the label"). */}
-      {cardsWithRows ? <h2 className={cn("text-base leading-tight font-semibold", projectsCard && "mt-3")}>Need your attention</h2> : null}
+      {/* Its arrow folds every card under it, and the heading stays (Tyler, 31 Oct 2026:
+          "add a toggle here to hide all the cards", then "its arrow toggle"). */}
+      {cardsWithRows ? (
+        <Collapsible open={shown} onOpenChange={setShown} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
+          <FoldHeading title="Need your attention" count={cardCount} className={cn(projectsCard && "mt-3")} />
+          <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
+            <AttentionCards cards={cards} zone={zone} onOpenTask={onOpenTask} />
+          </CollapsibleContent>
+        </Collapsible>
+      ) : null}
+    </>
+  )
+}
+
+/** The cards under "Need your attention", in Tyler's order; an empty one draws nothing. */
+function AttentionCards({
+  cards,
+  zone,
+  onOpenTask,
+}: {
+  cards: Cards
+  zone: string
+  onOpenTask: (taskId: string) => void
+}) {
+  return (
+    <>
       <WaitingCard asks={cards.waiting} onOpenTask={onOpenTask} />
       <AttentionCard teams={cards.attention} />
       <UnassignedCard tasks={cards.unassigned} onOpenTask={onOpenTask} />
