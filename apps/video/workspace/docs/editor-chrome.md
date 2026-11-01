@@ -30,6 +30,19 @@ have no chrome of their own:
 
 All three use `--border`, so they follow the divider colour the user picked.
 
+## One gutter inside the side panels
+
+Every panel a rail tab opens on the left, and the inspector on the right, keeps
+12px between its edge and the first card and 12px between one card and the
+next. Tyler asked for this on 1 Nov 2026, pointing at the AI clip panel: "All
+cards or spacing from the rails tabs should use that same gutter spacing." The
+carousel editor's panels follow the same rule.
+
+In code that is `p-3` on the panel's scrolling body and `gap-3` on each list of
+cards; the Text and Media panels set it inline as 12. Gaps between whole
+sections, such as Your sounds and the library in Sounds, are larger on purpose
+and are not the gutter.
+
 ## The playhead runs the full height of the timeline
 
 The red playhead, and the alignment line that appears while a clip is being

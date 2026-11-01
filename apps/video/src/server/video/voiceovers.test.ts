@@ -11,7 +11,11 @@ import {
   insertWorkspace,
 } from "@/server/test-support"
 import { videoVoiceovers } from "@/server/video/schema"
-import { listVoiceovers, storeVoiceover } from "@/server/video/voiceovers"
+import {
+  listVoiceovers,
+  removeVoiceover,
+  storeVoiceover,
+} from "@/server/video/voiceovers"
 
 let client: PGlite
 let database: CustomShellDb
@@ -156,6 +160,28 @@ describe("the voiceover shelf", () => {
     const other = await insertUser(database)
     await storeVoiceover(soundRow(other.id), signOff, database)
     expect(await listVoiceovers(user.id, "", database)).toEqual([])
+  })
+
+  it("comes off the list when removed, leaving its file in the library", async () => {
+    const media = soundRow(user.id)
+    await storeVoiceover(media, signOff, database)
+    await removeVoiceover(user.id, media.id, database)
+
+    expect(await listVoiceovers(user.id, "", database)).toEqual([])
+    const files = await database
+      .select({ id: customShellMedia.id })
+      .from(customShellMedia)
+      .where(eq(customShellMedia.id, media.id))
+    expect(files).toEqual([{ id: media.id }])
+  })
+
+  it("refuses to remove somebody else's voiceover", async () => {
+    const other = await insertUser(database)
+    const theirs = soundRow(other.id)
+    await storeVoiceover(theirs, signOff, database)
+    await removeVoiceover(user.id, theirs.id, database)
+
+    expect(await listVoiceovers(other.id, "", database)).toHaveLength(1)
   })
 
   it("goes when its file is deleted", async () => {

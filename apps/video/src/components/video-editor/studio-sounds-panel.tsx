@@ -5,7 +5,7 @@ import {
   PauseIcon,
   PlayIcon,
   PlusIcon,
-  XIcon,
+  Trash2Icon,
 } from "lucide-react"
 
 import { getMediaErrorMessage, uploadMedia } from "@/lib/api/media/media"
@@ -95,7 +95,7 @@ async function soundClip(item: SoundItem): Promise<EditorClip> {
 }
 
 export function SoundsPanel() {
-  const { dispatch } = useEditorRuntime()
+  const { dispatch, clock } = useEditorRuntime()
   const [own, setOwn] = React.useState<MediaItem[] | null>(null)
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [refresh, setRefresh] = React.useState(0)
@@ -120,9 +120,9 @@ export function SoundsPanel() {
     }
   }, [refresh])
 
-  async function lay(item: SoundItem, atMs: number, trackId?: string) {
+  async function addClip(item: SoundItem, place: (clip: EditorClip) => void) {
     try {
-      dispatch({ type: "ADD_CLIP", clip: await soundClip(item), atMs, trackId })
+      place(await soundClip(item))
     } catch (error) {
       showErrorToast(
         error instanceof MediaDurationError
@@ -132,9 +132,23 @@ export function SoundsPanel() {
     }
   }
 
+  // A drop lands on the lane under the pointer.
+  function lay(item: SoundItem, atMs: number, trackId?: string) {
+    void addClip(item, (clip) => dispatch({ type: "ADD_CLIP", clip, atMs, trackId }))
+  }
+
+  // The + has no lane to aim at, so it opens a new one at the playhead rather
+  // than squeezing onto whichever lane has room, which could be the video's own.
+  function addAtPlayhead(item: SoundItem) {
+    const atMs = clock.getTime()
+    void addClip(item, (clip) =>
+      dispatch({ type: "ADD_CLIP_TO_NEW_TRACK", clip, atMs })
+    )
+  }
+
   const { dragHandlers, ghost } = useDragToTimeline<SoundItem>({
     label: itemName,
-    onDrop: (item, atMs, trackId) => void lay(item, atMs, trackId),
+    onDrop: lay,
   })
 
   async function handleUpload(list: FileList | null) {
@@ -207,9 +221,9 @@ export function SoundsPanel() {
       />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-6 p-4">
+        <div className="grid gap-6 p-3">
           <p className="text-xs text-muted-foreground">
-            Drag a sound onto the timeline where you want it to play.
+            Press + to add a sound at the playhead, or drag it onto the timeline.
           </p>
 
           <section className="grid gap-2" aria-label="Your sounds">
@@ -230,7 +244,7 @@ export function SoundsPanel() {
                 </Button>
               </div>
             ) : own?.length ? (
-              <ul className="grid gap-2">
+              <ul className="grid gap-3">
                 {own.map((file) => {
                   const item: SoundItem = { kind: "own", file }
                   return (
@@ -240,20 +254,9 @@ export function SoundsPanel() {
                       playing={playingKey === itemKey(item)}
                       onPlayingChange={setPlayingKey}
                       dragProps={dragHandlers(item)}
-                      corner={
-                        <Hint label="Take off your sounds">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            disabled={busyId === file.id}
-                            aria-label={`Take ${file.original_name} off your sounds`}
-                            onClick={() => void takeOff(file)}
-                          >
-                            <XIcon />
-                          </Button>
-                        </Hint>
-                      }
+                      onAdd={() => addAtPlayhead(item)}
+                      busy={busyId === file.id}
+                      onRemove={() => void takeOff(file)}
                     />
                   )
                 })}
@@ -268,7 +271,7 @@ export function SoundsPanel() {
           {STOCK_GROUPS.map((group) => (
             <section key={group} className="grid gap-2" aria-label={group}>
               <h3 className="text-xs font-medium text-muted-foreground">{group}</h3>
-              <ul className="grid gap-2">
+              <ul className="grid gap-3">
                 {STOCK_SOUNDS.filter((sound) => sound.group === group).map((sound) => {
                   const item: SoundItem = { kind: "stock", sound }
                   return (
@@ -278,6 +281,7 @@ export function SoundsPanel() {
                       playing={playingKey === itemKey(item)}
                       onPlayingChange={setPlayingKey}
                       dragProps={dragHandlers(item)}
+                      onAdd={() => addAtPlayhead(item)}
                     />
                   )
                 })}
@@ -298,21 +302,27 @@ function formatSoundLength(ms: number) {
 }
 
 /**
- * One sound: a play button to hear it, its name and length, and the row
- * itself to drag. Only one plays at a time; starting another stops this one.
+ * One sound, laid out like a Music row: a play button, its name and length,
+ * a + that lays it at the playhead, and a trash can on your own sounds. The
+ * row itself still drags onto the timeline. Only one plays at a time; starting another stops this one.
  */
 function SoundRow({
   item,
   playing,
   onPlayingChange,
   dragProps,
-  corner,
+  onAdd,
+  busy = false,
+  onRemove,
 }: {
   item: SoundItem
   playing: boolean
   onPlayingChange: (key: string | null) => void
   dragProps: React.HTMLAttributes<HTMLLIElement>
-  corner?: React.ReactNode
+  onAdd: () => void
+  busy?: boolean
+  /** Only your own sounds can be removed; the built-in ones have no trash can. */
+  onRemove?: () => void
 }) {
   const audioRef = React.useRef<HTMLAudioElement>(null)
   const [lengthMs, setLengthMs] = React.useState(
@@ -354,14 +364,14 @@ function SoundRow({
     <li
       {...dragProps}
       data-sound={itemKey(item)}
-      className="grid cursor-grab touch-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border p-2 select-none active:cursor-grabbing"
+      className="grid cursor-grab touch-none grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-1 rounded-lg border p-2 select-none active:cursor-grabbing"
     >
       <Hint label={playing ? "Stop" : "Play"}>
         <Button
           type="button"
           variant="secondary"
           size="icon-sm"
-          className="shrink-0 rounded-full"
+          className="mr-1 shrink-0 rounded-full"
           aria-label={playing ? `Stop ${name}` : `Play ${name}`}
           // The row drags; the button only plays.
           onPointerDown={(event) => event.stopPropagation()}
@@ -376,7 +386,35 @@ function SoundRow({
           {formatSoundLength(lengthMs)}
         </span>
       </div>
-      {corner ?? <span />}
+      <Hint label="Add at playhead">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Add ${name} at the playhead`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={onAdd}
+        >
+          <PlusIcon />
+        </Button>
+      </Hint>
+      {onRemove ? (
+        <Hint label="Remove from Sounds" disabled={busy}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            disabled={busy}
+            aria-label={`Remove ${name} from your sounds`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={onRemove}
+          >
+            {busy ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
+          </Button>
+        </Hint>
+      ) : (
+        <span />
+      )}
       <audio
         hidden
         ref={audioRef}

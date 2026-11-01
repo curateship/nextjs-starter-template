@@ -5,7 +5,7 @@ import {
   PauseIcon,
   PlayIcon,
   PlusIcon,
-  XIcon,
+  Trash2Icon,
 } from "lucide-react"
 
 import { getMediaErrorMessage, uploadMedia } from "@/lib/api/media/media"
@@ -21,12 +21,12 @@ import {
   musicRefusal,
   planMusicClips,
 } from "@/lib/video/background-music"
-import { formatFileSize } from "@/lib/format/format-bytes"
 import { loadMediaDurationMs, formatClock } from "@/lib/video/timeline-utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Hint } from "@/components/video-assets/hint"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
   timelineDurationMs,
@@ -35,9 +35,8 @@ import {
 import { forgetBeats } from "@/components/video-editor/sound-tool-store"
 
 /**
- * The Music panel: the sound files marked as music, each one press away from
- * running under the whole project, and below them every other sound file,
- * each one press away from joining the music.
+ * The Music panel: the tracks you uploaded as music, each with a + that lays it
+ * under the whole project and a trash can that takes it off the list.
  *
  * Laying a track down is worked out in background-music.ts and lands as one
  * edit, so one undo takes the whole lane back off.
@@ -68,8 +67,7 @@ export function MusicPanel() {
     }
   }, [refresh])
 
-  const music = files?.filter((file) => file.is_music) ?? []
-  const others = files?.filter((file) => !file.is_music) ?? []
+  const music = files ?? []
 
   async function layUnder(file: MusicShelfFile) {
     setBusyId(file.id)
@@ -102,15 +100,10 @@ export function MusicPanel() {
     }
   }
 
-  async function changeShelf(file: MusicShelfFile, toMusic: boolean) {
+  async function takeOffShelf(file: MusicShelfFile) {
     setBusyId(file.id)
     try {
-      if (toMusic) {
-        await addToMusicShelf(file.id)
-        forgetBeats(file.id)
-      } else {
-        await removeFromMusicShelf(file.id)
-      }
+      await removeFromMusicShelf(file.id)
     } catch (error) {
       showErrorToast(getMusicErrorMessage(error))
     } finally {
@@ -151,17 +144,18 @@ export function MusicPanel() {
         title="Music"
         action={
           <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={uploading}
-              aria-label="Upload music"
-              title="Upload music"
-              onClick={() => fileRef.current?.click()}
-            >
-              {uploading ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
-            </Button>
+            <Hint label="Upload music" disabled={uploading}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={uploading}
+                aria-label="Upload music"
+                onClick={() => fileRef.current?.click()}
+              >
+                {uploading ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
+              </Button>
+            </Hint>
             <input
               ref={fileRef}
               type="file"
@@ -178,7 +172,7 @@ export function MusicPanel() {
       />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-6 p-4">
+        <div className="grid p-3">
           {files === null && !loadFailed ? (
             <LoadingRow label="Loading music" />
           ) : loadFailed ? (
@@ -193,85 +187,25 @@ export function MusicPanel() {
               </Button>
             </div>
           ) : (
-            <>
-              <section className="grid gap-2">
-                <h3 className="text-xs font-medium text-muted-foreground">
-                  Music · {music.length}
-                </h3>
-                {music.length ? (
-                  <ul className="grid gap-2">
-                    {music.map((file) => (
-                      <SoundRow
-                        key={file.id}
-                        file={file}
-                        showLength
-                        playing={playingId === file.id}
-                        onPlayingChange={setPlayingId}
-                        corner={
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            disabled={busyId === file.id}
-                            aria-label={`Take ${file.original_name} off the music shelf`}
-                            title="Take off the music shelf"
-                            onClick={() => void changeShelf(file, false)}
-                          >
-                            <XIcon />
-                          </Button>
-                        }
-                      >
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          disabled={busyId === file.id}
-                          onClick={() => void layUnder(file)}
-                        >
-                          <PlusIcon />
-                          Add under video
-                        </Button>
-                      </SoundRow>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                    No music yet. Upload a track with the plus button, or put
-                    one of your sound files below on the shelf.
-                  </p>
-                )}
-              </section>
-
-              {others.length ? (
-                <section className="grid gap-2">
-                  <h3 className="text-xs font-medium text-muted-foreground">
-                    Other sound files · {others.length}
-                  </h3>
-                  <ul className="grid gap-2">
-                    {others.map((file) => (
-                      <SoundRow
-                        key={file.id}
-                        file={file}
-                        playing={playingId === file.id}
-                        onPlayingChange={setPlayingId}
-                      >
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          disabled={busyId === file.id}
-                          onClick={() => void changeShelf(file, true)}
-                        >
-                          Use as music
-                        </Button>
-                      </SoundRow>
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
-            </>
+            music.length ? (
+              <ul className="grid gap-3">
+                {music.map((file) => (
+                  <MusicRow
+                    key={file.id}
+                    file={file}
+                    busy={busyId === file.id}
+                    playing={playingId === file.id}
+                    onPlayingChange={setPlayingId}
+                    onAdd={() => void layUnder(file)}
+                    onRemove={() => void takeOffShelf(file)}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                No music yet. Upload a track with the + above.
+              </p>
+            )
           )}
         </div>
       </ScrollArea>
@@ -280,30 +214,25 @@ export function MusicPanel() {
 }
 
 /**
- * One sound file: a play button to hear it, its name, and whatever it can be
- * done with. Only one plays at a time; starting another stops this one.
- *
- * The button sits on a line of its own under the name. Beside the name it
- * needed more room than a narrow panel has, and the row spilled sideways.
- *
- * A music row shows how long the track runs, which means reading the start of
- * the file. Every other row shows its size instead, so a long list of
- * voiceovers is not dozens of downloads just to open the panel.
+ * One track: a play button to hear it, its name and length, a + that lays it
+ * under the video, and a trash can that takes it off the Music list. The file
+ * itself stays in the media library. Only one track plays at a time; starting
+ * another stops this one.
  */
-function SoundRow({
+function MusicRow({
   file,
-  showLength = false,
+  busy,
   playing,
   onPlayingChange,
-  corner,
-  children,
+  onAdd,
+  onRemove,
 }: {
   file: MusicShelfFile
-  showLength?: boolean
+  busy: boolean
   playing: boolean
   onPlayingChange: (mediaId: string | null) => void
-  corner?: React.ReactNode
-  children: React.ReactNode
+  onAdd: () => void
+  onRemove: () => void
 }) {
   const audioRef = React.useRef<HTMLAudioElement>(null)
   const [lengthMs, setLengthMs] = React.useState(0)
@@ -335,40 +264,54 @@ function SoundRow({
   }
 
   return (
-    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border p-2">
+    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-1 rounded-lg border p-2">
       <Button
         type="button"
         variant="secondary"
         size="icon-sm"
-        className="shrink-0 rounded-full"
+        className="mr-1 shrink-0 rounded-full"
         aria-label={playing ? `Pause ${file.original_name}` : `Play ${file.original_name}`}
-        title={playing ? "Pause" : "Play"}
         onClick={() => void togglePreview()}
       >
         {playing ? <PauseIcon /> : <PlayIcon />}
       </Button>
       <div className="grid min-w-0">
-        <span
-          className="line-clamp-2 text-xs font-medium [overflow-wrap:anywhere]"
-          title={file.original_name}
-        >
+        <span className="line-clamp-2 text-xs font-medium [overflow-wrap:anywhere]">
           {file.original_name}
         </span>
         <span className="text-[0.625rem] text-muted-foreground tabular-nums">
-          {showLength
-            ? lengthMs
-              ? formatClock(lengthMs)
-              : "-"
-            : formatFileSize(file.file_size)}
+          {lengthMs ? formatClock(lengthMs) : "-"}
         </span>
       </div>
-      {corner ?? <span />}
-      <div className="col-span-3">{children}</div>
+      <Hint label="Add to video" disabled={busy}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={busy}
+          aria-label={`Add ${file.original_name} to the video`}
+          onClick={onAdd}
+        >
+          {busy ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
+        </Button>
+      </Hint>
+      <Hint label="Remove from Music" disabled={busy}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={busy}
+          aria-label={`Remove ${file.original_name} from Music`}
+          onClick={onRemove}
+        >
+          <Trash2Icon />
+        </Button>
+      </Hint>
       <audio
         hidden
         ref={audioRef}
         src={file.url}
-        preload={showLength ? "metadata" : "none"}
+        preload="metadata"
         onLoadedMetadata={(event) => {
           const seconds = event.currentTarget.duration
           setLengthMs(Number.isFinite(seconds) ? Math.round(seconds * 1000) : 0)

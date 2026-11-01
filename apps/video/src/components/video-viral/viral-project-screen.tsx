@@ -826,7 +826,7 @@ export function ViralProjectScreenView({
 
   const videoContent = (emptyText: string) =>
     middleVideos.length === 0 ? (
-      <p className="px-4 py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
+      <p className="px-3 py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
     ) : view === "hooks" && !pickedCreator ? (
       <HookBoard videos={middleVideos} selectedKey={pickedVideo?.key ?? null} onOpen={openAtHook} />
     ) : layout === "grid" ? (
@@ -965,7 +965,7 @@ export function ViralProjectScreenView({
                   : videosEmpty
           )}
           {view === "hooks" && hookCount && silentHooks > 0 ? (
-            <p className="px-4 py-3 text-xs text-muted-foreground">
+            <p className="p-3 text-xs text-muted-foreground">
               {silentHooks} broken-down {plural(silentHooks, "video")} {silentHooks === 1 ? "is" : "are"} left out, because nothing is said or shown during {silentHooks === 1 ? "its" : "their"} hook.
             </p>
           ) : null}

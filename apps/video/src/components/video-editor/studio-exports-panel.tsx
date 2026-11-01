@@ -140,7 +140,7 @@ export function ExportsPanel() {
         title="Exports"
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-2 p-4">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
           {list === null && !loadFailed ? (
             <LoadingRow label="Loading this project's exports" />
           ) : loadFailed ? (
@@ -156,7 +156,7 @@ export function ExportsPanel() {
               to make the video file.
             </p>
           ) : (
-            <ul className="grid gap-2">
+            <ul className="grid gap-3">
               {list.exports.map((item) => {
                 const name = item.title ?? "Untitled export"
                 return (

@@ -68,7 +68,7 @@ export function PlayerPanel({
     return (
       <>
         <DashboardCardTitleHeader icon={<PlayIcon />} title="Video" />
-        <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="px-3 py-8 text-center text-sm text-muted-foreground">
           {emptyText}
         </p>
       </>
@@ -302,7 +302,7 @@ function PlayerBody({
             <Figure label="Fits" value={video.topicMatch === null ? "-" : String(video.topicMatch)} />
           </dl>
 
-          <div className="border-b p-4">
+          <div className="border-b p-3">
             <ViralScoreBlock score={video.score} postedAt={video.postedAt} />
           </div>
 

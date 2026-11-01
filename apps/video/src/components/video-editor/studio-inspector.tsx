@@ -206,7 +206,7 @@ export function StudioInspector() {
       />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid auto-rows-min gap-3 p-4">
+        <div className="grid auto-rows-min gap-3 p-3">
           {!clip ? (
             <ProjectProps />
           ) : clip.kind === "text" ? (

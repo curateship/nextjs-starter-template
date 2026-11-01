@@ -1,7 +1,8 @@
 # Background music
 
-The Music panel in the studio rail lists the sound files marked as music. One
-press on a track lays it under the whole video on its own lane, with "Duck
+The Music panel in the studio rail lists the tracks you uploaded as music. Each
+row has a play button, the name and length, a + and a trash can. The + lays the
+track under the whole video on its own lane, with "Duck
 under voice" already on, so the music drops by itself wherever somebody talks.
 
 ## Where the music comes from
@@ -15,11 +16,15 @@ outside music service.
   media library already holds. The file is not copied.
 - **Who sees it:** the shelf belongs to one person and follows them into every
   project, the same way collections do.
-- **Taking a track off the shelf** removes the mark and leaves the file in the
-  media library. Deleting the file removes the mark with it.
-- **Two ways onto the shelf:** the plus button in the Music panel uploads a
-  track and marks it in one go. Every other sound file you own is listed under
-  the music with a "Use as music" button.
+- **The trash can** takes a track off the Music list. The file stays in the
+  media library, so clips already using it in any project keep playing.
+  Deleting the file from the library removes it from Music too.
+- **One way in:** the + at the top of the panel uploads a track and marks it
+  as music in one go. The panel shows nothing else: voiceovers and sound
+  effects are not music and stay in the Sounds and Voices panels. Tyler asked
+  for this on 1 Nov 2026: "there should just be a + icon and trashcan icon to
+  add and delete music file. Keep it nice and clean". Until then a second list
+  under the music showed every other sound file with a "Use as music" button.
 
 **Uploading sound works since 30 Oct 2026.** Before then the shell's upload
 check (`validateMediaContent` in `src/server/media/library.ts`) knew pictures
@@ -34,7 +39,7 @@ every track on the shelf for its beats, so clip edges snap to them (see
 
 ## Laying a track down
 
-"Add under video" is one edit, so one press of Undo takes the whole lane off
+The + on a track is one edit, so one press of Undo takes the whole lane off
 again.
 
 - **Where it goes:** a new lane at the bottom of the timeline. Nothing already

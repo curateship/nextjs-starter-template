@@ -200,7 +200,7 @@ export function TranscriptPanel() {
         title="Transcript"
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-1 gap-3 p-4">
+        <div className="grid grid-cols-1 gap-3 p-3">
           {!selectedClipId ? (
             <p className="text-sm text-muted-foreground">
               Pick a clip with sound in it on the timeline, and its words appear

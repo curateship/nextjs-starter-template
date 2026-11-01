@@ -82,3 +82,22 @@ export async function listVoiceovers(
     }))
   )
 }
+
+/**
+ * Takes a voiceover off the shelf. The file stays in the media library, so a
+ * clip already using it in any project keeps playing. Only the owner's own
+ * voiceovers can be taken off; anyone else's id changes nothing.
+ */
+export async function removeVoiceover(
+  userId: string,
+  mediaId: string,
+  database: CustomShellDb = db
+) {
+  const [owned] = await database
+    .select({ id: customShellMedia.id })
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.id, mediaId), eq(customShellMedia.userId, userId)))
+    .limit(1)
+  if (!owned) return
+  await database.delete(videoVoiceovers).where(eq(videoVoiceovers.mediaId, mediaId))
+}

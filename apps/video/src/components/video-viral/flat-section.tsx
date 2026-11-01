@@ -11,7 +11,7 @@ const onHover =
   "opacity-0 transition-opacity group-hover/section:opacity-100 group-has-[:focus-visible]/section:opacity-100 [@media(hover:none)]:opacity-100"
 
 /**
- * One folding section of the Viral project's left panel as Tyler drew it on
+ * One folding section of the Viral right panel, as Tyler drew it for the left on
  * 20 Oct 2026: no box and no grey, a 15px heading with a muted count, and a
  * divider line under it running to the panel's edges. Viral is trying this
  * instead of the shell's grey `PanelCard`; every other dashboard keeps the
@@ -39,7 +39,7 @@ export function FlatSection({
 }) {
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(storageId))
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="group/section min-w-0 border-b px-4 py-3">
+    <Collapsible open={open} onOpenChange={setOpen} className="group/section min-w-0 border-b p-3">
       <div className="flex min-h-7 items-center gap-1">
         <h2 className="min-w-0 flex-1 text-[15px] font-semibold">
           <CollapsibleTrigger asChild>

@@ -20,7 +20,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { FlatSection } from "@/components/video-viral/flat-section"
+import { PanelCard } from "@/components/shared/panel-card"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -37,8 +37,10 @@ import { formatShortDay } from "@/lib/video/viral-view"
  * The left panel: the project's keywords and how each one's last search
  * went, then its creators. Tyler took the About, Filters, At a glance and
  * Made from this sections off on 29 Oct 2026; the description and filters
- * are still in the settings window. Each group is a flat folding section (`FlatSection`), Tyler's design of
- * 20 Oct 2026, split from the next by a line.
+ * are still in the settings window. Each group is the shell's grey folding
+ * card (`PanelCard`), 12px from the panel's edges and from each other. Tyler
+ * moved them back into grey cards on 1 Nov 2026, after trying flat sections
+ * split by lines from 20 Oct.
  *
  * A keyword chip narrows the middle panel to the videos it found; its arrow
  * searches it again on its own, and its cross takes it off the project.
@@ -114,8 +116,8 @@ export function ProjectPanel({
         }
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-[minmax(0,1fr)]">
-          <FlatSection storageId="viral-project-keywords" title="Keywords" meta={keywords.length}>
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <PanelCard storageId="viral-project-keywords" title="Keywords" meta={String(keywords.length)}>
             {keywords.length ? (
               <ul className="-mx-2 grid gap-0.5">
                 {keywords.map((keyword) => (
@@ -209,7 +211,7 @@ export function ProjectPanel({
                 {searching ? "Searching…" : "Search every keyword"}
               </Button>
             </div>
-          </FlatSection>
+          </PanelCard>
 
           {creators}
 

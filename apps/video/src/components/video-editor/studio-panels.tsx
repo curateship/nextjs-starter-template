@@ -153,7 +153,7 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
         title={PANEL_TITLE[panel]}
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="p-4">
+        <div className="p-3">
           <TextPanel />
         </div>
       </ScrollArea>
@@ -505,7 +505,7 @@ function MediaPanel() {
       />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="p-4">
+        <div className="p-3">
         {items.length === 0 && activeCollection ? (
           <div
             style={{
@@ -597,9 +597,9 @@ function MediaPanel() {
                   ? {
                       display: "grid",
                       gridTemplateColumns: "repeat(2,minmax(0,1fr))",
-                      gap: 9,
+                      gap: 12,
                     }
-                  : { columnCount: 2, columnGap: 9 }
+                  : { columnCount: 2, columnGap: 12 }
               }
             >
               {items.map((item) => (
@@ -608,7 +608,7 @@ function MediaPanel() {
                     style={{
                       position: "relative",
                       breakInside: "avoid",
-                      marginBottom: soundOnly ? 0 : 9,
+                      marginBottom: soundOnly ? 0 : 12,
                     }}
                   >
                     {item.file_type === "audio" ? (
@@ -1039,7 +1039,7 @@ function TextPanel() {
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr)",
-          gap: 9,
+          gap: 12,
           marginBottom: 20,
         }}
       >
@@ -1073,7 +1073,7 @@ function TextPanel() {
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr)",
-          gap: 9,
+          gap: 12,
           marginBottom: 20,
         }}
       >

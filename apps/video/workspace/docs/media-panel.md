@@ -15,8 +15,8 @@ cleared.
 
 ## The filter menu
 
-The funnel at the top of the panel, between search and +, opens one menu.
-Tyler drew it on 29 Oct 2026, and it replaced the All / Video / Image / Sound
+The funnel at the top of the panel, between search and +, opens one menu
+to the right of the button, over the editor rather than the panel. Tyler drew it on 29 Oct 2026, and it replaced the All / Video / Image / Sound
 tabs and the row of collection chips that sat above the files.
 
 - **Views** come first, once you have saved one. Clicking a view sets its

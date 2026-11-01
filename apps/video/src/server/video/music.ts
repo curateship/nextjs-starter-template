@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
 
 import {
   MUSIC_FILE_NOT_FOUND_MESSAGE,
@@ -17,44 +17,26 @@ import { videoMediaBeats, videoMusicTracks } from "@/server/video/schema"
  * so a borrowed id cannot mark or unmark somebody else's.
  */
 
-export type MusicShelfFile = MediaItem & { is_music: boolean }
+export type MusicShelfFile = MediaItem
 
-/**
- * Enough for one person's sound files, newest first. Voiceovers pile up over
- * time, so the list is capped rather than paged: the music is what matters,
- * and it is sorted to the top.
- */
-const SHELF_LIMIT = 200
-
+/** One person's music, newest mark first. */
 export async function listMusicShelf(
   userId: string,
   database: CustomShellDb = db
 ): Promise<MusicShelfFile[]> {
   const rows = await database
-    .select({ media: customShellMedia, markedAt: videoMusicTracks.createdAt })
-    .from(customShellMedia)
-    .leftJoin(videoMusicTracks, eq(videoMusicTracks.mediaId, customShellMedia.id))
+    .select({ media: customShellMedia })
+    .from(videoMusicTracks)
+    .innerJoin(customShellMedia, eq(customShellMedia.id, videoMusicTracks.mediaId))
     .where(
       and(
         eq(customShellMedia.userId, userId),
         eq(customShellMedia.fileType, "audio")
       )
     )
-    .orderBy(
-      // Postgres puts empty values first when sorting newest first, which
-      // would bury the music under every unmarked file.
-      sql`${videoMusicTracks.createdAt} desc nulls last`,
-      desc(customShellMedia.createdAt),
-      desc(customShellMedia.id)
-    )
-    .limit(SHELF_LIMIT)
+    .orderBy(desc(videoMusicTracks.createdAt), desc(customShellMedia.id))
 
-  return Promise.all(
-    rows.map(async (row) => ({
-      ...(await serializeMedia(row.media)),
-      is_music: row.markedAt !== null,
-    }))
-  )
+  return Promise.all(rows.map((row) => serializeMedia(row.media)))
 }
 
 async function requireOwnedSound(

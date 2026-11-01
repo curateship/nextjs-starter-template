@@ -95,7 +95,7 @@ export function CopyPanel() {
       />
       <ScrollArea className="min-h-0 flex-1">
         {detail === null && !loadFailed ? (
-          <div className="p-4">
+          <div className="p-3">
             <LoadingRow label="Loading the video this project copies" />
           </div>
         ) : loadFailed ? (
@@ -110,7 +110,7 @@ export function CopyPanel() {
             </Button>
           </div>
         ) : !video ? (
-          <div className="grid justify-items-center gap-3 p-4 text-center text-sm text-muted-foreground">
+          <div className="grid justify-items-center gap-3 p-3 text-center text-sm text-muted-foreground">
             {detail?.deletedVideoTitle ? (
               // The saved video was deleted after this project copied it.
               // The title was written onto the project just before.

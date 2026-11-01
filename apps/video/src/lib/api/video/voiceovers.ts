@@ -6,8 +6,8 @@ import {
   VOICEOVER_SEARCH_MAX,
   type SavedVoiceover,
 } from "@/lib/video/saved-voiceovers"
-import { userGet } from "@/server/guards"
-import { listVoiceovers } from "@/server/video/voiceovers"
+import { userGet, userPost } from "@/server/guards"
+import { listVoiceovers, removeVoiceover } from "@/server/video/voiceovers"
 
 export type { SavedVoiceover }
 
@@ -31,4 +31,16 @@ const listVoiceoversFn = createServerFn({ method: "GET" })
 
 export function loadVoiceovers(search: string) {
   return listVoiceoversFn({ data: { search } })
+}
+
+const removeVoiceoverFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ mediaId: z.string().min(1).max(36) }))
+  .handler(async ({ data, context }) => {
+    await removeVoiceover(context.user.id, data.mediaId)
+  })
+
+/** Takes a voiceover off the Voiceovers list. The file stays in the library. */
+export function removeFromVoiceovers(mediaId: string) {
+  return removeVoiceoverFn({ data: { mediaId } })
 }

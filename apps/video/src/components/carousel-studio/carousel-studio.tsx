@@ -1552,7 +1552,7 @@ function CarouselContextPanel({
       />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="p-4">
+        <div className="p-3">
           {panel === "slides" ? (
             <SlidesPanelBody
               view={slidesView}
@@ -1714,7 +1714,7 @@ function SlidesPanelBody({
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(0, 1fr)",
-            gap: 9,
+            gap: 12,
           }}
         >
           {slides.map((slide, index) => (
@@ -2172,7 +2172,7 @@ function TextPanelBody({
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr)",
-          gap: 9,
+          gap: 12,
           marginBottom: 20,
         }}
       >
@@ -2482,7 +2482,7 @@ function ImagePanel({
       />
 
       <ScrollArea className="min-h-0 flex-1">
-      <div className="p-4">
+      <div className="p-3">
       {/* The drop box is the empty shelf's message; files dropped on the
           canvas join the shelf too. */}
       {showing === "shelf" &&
@@ -2672,7 +2672,7 @@ function ShadowPanelBody({
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gap: 9,
+          gap: 12,
           marginBottom: 18,
         }}
       >
@@ -3899,7 +3899,7 @@ function CarouselInspector({
       />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid auto-rows-min gap-3 p-4">
+        <div className="grid auto-rows-min gap-3 p-3">
           {selectedCount > 1 ? (
             <InspectorCard
               title={`${selectedCount} layers picked`}

@@ -29,8 +29,14 @@ listens to straight after to time its words
 
 ## The list
 
-- **Each row shows** the words that were said (up to three lines), the voice's
-  name and the length, with a play button to hear it first. A voice made from
+- **Each row is laid out like a Music row:** a play button to hear it first,
+  the words that were said (up to three lines) with the voice's name and the
+  length, a + that lays it at the playhead, and a trash can. Tyler asked on
+  1 Nov 2026 for Sounds and Voices to "use the same ui as music".
+- **The trash can** takes a voiceover off the list by deleting its
+  `video_voiceovers` row (`removeVoiceover` in
+  `src/server/video/voiceovers.ts`). The file stays in the media library, so a
+  clip already using it keeps playing. Only your own voiceovers can be removed. A voice made from
   your own recording shows by the name you gave it, and the words never
   include a [tag] or a pause (see `voice-direction.md`).
 - **Above the list** sit "Your voices", the voices made from your own
@@ -42,7 +48,7 @@ listens to straight after to time its words
 
 ## Laying one down
 
-"Add at playhead" is one edit, so one press of Undo takes it all back off.
+The + on a row is one edit, so one press of Undo takes it all back off.
 
 - **Where the sound goes:** a new lane at the bottom, starting at the playhead.
 - **The captions come with it**, the same way they do with a fresh voiceover:

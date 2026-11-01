@@ -129,7 +129,7 @@ export function BreakdownPanel({
 
   if (sections.length === 0) {
     return (
-      <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="px-3 py-8 text-center text-sm text-muted-foreground">
         The breakdown came back empty. Try again to have another go at it.
       </p>
     )
@@ -194,7 +194,7 @@ function TimeRow({
       aria-current={playing ? "true" : undefined}
       onClick={() => onSeek?.(startMs)}
       className={cn(
-        "flex w-full items-start gap-2 border-b px-4 py-2 text-left last:border-b-0",
+        "flex w-full items-start gap-2 border-b px-3 py-2 text-left last:border-b-0",
         onSeek && "hover:bg-muted/50",
         playing && "bg-muted",
         focusRing

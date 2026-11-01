@@ -126,7 +126,7 @@ export function HistoryPanel() {
         title="History"
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-2 p-4">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
           {versions === null && !loadFailed ? (
             <LoadingRow label="Loading this project's history" />
           ) : loadFailed ? (
@@ -144,7 +144,7 @@ export function HistoryPanel() {
             </p>
           ) : (
             <>
-              <ul className="grid gap-2">
+              <ul className="grid gap-3">
                 {versions.map((item) => (
                   <li key={item.id}>
                     <button

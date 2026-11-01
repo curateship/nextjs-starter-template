@@ -572,7 +572,7 @@ export function AiClipPanel() {
       />
       <ScrollArea className="min-h-0 flex-1">
         {loading ? (
-          <div className="p-4">
+          <div className="p-3">
             <LoadingRow label="Loading actors and clips" />
           </div>
         ) : loadFailed ? (

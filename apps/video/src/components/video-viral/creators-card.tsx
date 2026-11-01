@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { FlatSection } from "@/components/video-viral/flat-section"
+import { PanelCard } from "@/components/shared/panel-card"
 import { CreatorList } from "@/components/video-viral/video-grid"
 import { getViralErrorMessage } from "@/lib/api/video/viral"
 import { followCreatorByLink } from "@/lib/api/video/viral-projects"
@@ -155,7 +155,7 @@ export function CreatorsCard({
   )
 
   return (
-    <FlatSection
+    <PanelCard
       storageId="viral-project-creators"
       title="Creators"
       meta={narrowed ? `${creators.length} of ${total}` : String(total)}
@@ -208,7 +208,7 @@ export function CreatorsCard({
           {addButton}
         </DisabledReason>
       </div>
-    </FlatSection>
+    </PanelCard>
   )
 }
 

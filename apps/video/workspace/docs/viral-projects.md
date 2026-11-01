@@ -68,14 +68,24 @@ tab, the filters, the sort, the picked creator and the playing video. Then, if
 no video is playing, the first one in the list opens, so the right panel is
 never empty. A shared link keeps its own view.
 
+**One gutter, 12px.** Every card and section in the left and right panels
+sits 12px in from the panel's edges, the same gutter as the editor's side panels (see
+`editor-chrome.md`). Tyler asked on 1 Nov 2026: "the viral dashboard panels
+gutter should use the same spacing too". In code that is `gap-3 p-3`
+around the left panel's cards, `p-3` on `FlatSection`, on the score block in the right panel, and `px-3` on each
+breakdown line.
+
 ### The left panel
 
-Flat sections, one per group, split by a line that runs to the panel's edges:
-no box and no grey behind them. Tyler drew it on 20 Oct 2026, and Viral is
-trying it; every other dashboard keeps the shell's grey cards. Each section's
-heading has a muted count where it has one ("Keywords · 3"), and its own
+Each group is the shell's grey folding card (`PanelCard`), the same as every
+other dashboard's side panel, 12px from the panel's edges and 12px from the
+next card. Tyler tried flat sections split by lines from 20 Oct 2026 and put
+the groups back into grey cards on 1 Nov 2026 ("Put these into the light gray
+card"). Each card's heading has a muted count ("Keywords · 3"), and its own
 buttons and fold arrow show only while it is pointed at. Each remembers
-whether it is open (`src/components/video-viral/flat-section.tsx`).
+whether it is open, under the same key the flat sections used. The right
+panel's Details and breakdown sections are still flat
+(`src/components/video-viral/flat-section.tsx`).
 
 Two sections: Keywords, then Creators. Tyler took the About, Filters, At a
 glance and Made from this sections off on 29 Oct 2026. The description and

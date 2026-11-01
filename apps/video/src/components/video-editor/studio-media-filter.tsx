@@ -357,7 +357,7 @@ export function MediaFilterMenu({
           </Button>
         </PopoverTrigger>
         {/* studio-root brings the editor's accent into the portal. */}
-        <PopoverContent align="end" className="studio-root w-80 gap-0 p-0">
+        <PopoverContent side="right" align="start" className="studio-root w-80 gap-0 p-0">
           {views.length ? (
             <>
               <SectionLabel>Views</SectionLabel>

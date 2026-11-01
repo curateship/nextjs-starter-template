@@ -77,7 +77,7 @@ async function insertSound(
 }
 
 describe("the music shelf", () => {
-  it("lists the person's sound files with the music first", async () => {
+  it("lists only the person's music", async () => {
     const song = await insertSound(user.id, { originalName: "song.mp3" })
     await insertSound(user.id, { originalName: "voiceover.mp3" })
     await insertSound(user.id, {
@@ -91,10 +91,7 @@ describe("the music shelf", () => {
     await markAsMusic(user.id, song.id, database)
 
     const shelf = await listMusicShelf(user.id, database)
-    expect(shelf.map((file) => [file.original_name, file.is_music])).toEqual([
-      ["song.mp3", true],
-      ["voiceover.mp3", false],
-    ])
+    expect(shelf.map((file) => file.original_name)).toEqual(["song.mp3"])
     expect(shelf[0].url).toMatch(/^https:\/\/video-media\.example\.test\//)
   })
 
@@ -111,9 +108,12 @@ describe("the music shelf", () => {
     await unmarkMusic(user.id, song.id, database)
 
     const shelf = await listMusicShelf(user.id, database)
-    expect(shelf.map((file) => [file.id, file.is_music])).toEqual([
-      [song.id, false],
-    ])
+    expect(shelf).toEqual([])
+    const [file] = await database
+      .select({ id: customShellMedia.id })
+      .from(customShellMedia)
+      .where(eq(customShellMedia.id, song.id))
+    expect(file).toEqual({ id: song.id })
   })
 
   it("refuses to mark or unmark somebody else's file", async () => {

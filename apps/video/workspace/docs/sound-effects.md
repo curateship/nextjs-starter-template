@@ -5,10 +5,13 @@ effects to drop on cuts: whooshes, pops, dings and the like.
 
 ## Using it
 
+- **The row** is laid out like a Music row: a play button, the name and
+  length, a + and, on your own sounds, a trash can. Tyler asked on 1 Nov 2026
+  for Sounds and Voices to "use the same ui as music".
 - **Hearing one:** the play button on each row. Only one plays at a time.
-- **Laying one:** drag the row onto the timeline where it should play. Dragging
-  is the only way a sound lands, as in the Media panel, so pressing play never
-  adds one by accident. It lands as a sound clip at its own length.
+- **Laying one:** the + lays it at the playhead on a new lane, or drag the row
+  onto the timeline where it should play. Either way it lands as a sound clip
+  at its own length, and pressing play never adds one.
 - **Lengths:** each row says how long the sound is, in tenths of a second.
 
 ## The starter pack
@@ -37,7 +40,7 @@ Above the starter pack, **Your sounds** lists sound files you have uploaded
 with the panel's plus button. They follow you into every project, the same as
 the music shelf.
 
-- **The cross on a row** takes it off your sounds. The file stays in the media
+- **The trash can on a row** takes it off your sounds. The file stays in the media
   library.
 - **Stored:** a mark on the file in `video_sound_effects` (migration 0144).
   Deleting the file removes the mark.

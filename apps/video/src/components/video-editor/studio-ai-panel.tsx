@@ -162,8 +162,8 @@ export function AiPanel() {
         title="AI tools"
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-3 p-4">
-          <div className="grid gap-2">
+        <div className="grid gap-3 p-3">
+          <div className="grid gap-3">
             {TOOLS.map(({ id, label, description, Icon }) => {
               const ready = BUILT.includes(id)
               return (

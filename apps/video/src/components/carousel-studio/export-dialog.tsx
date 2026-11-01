@@ -102,9 +102,7 @@ export function CarouselExportDialog({
       .then((files) => {
         if (!active) return
         setMusic(
-          files
-            .filter((file) => file.is_music)
-            .map((file) => ({ id: file.id, name: file.original_name, url: file.url }))
+          files.map((file) => ({ id: file.id, name: file.original_name, url: file.url }))
         )
       })
       .catch(() => {

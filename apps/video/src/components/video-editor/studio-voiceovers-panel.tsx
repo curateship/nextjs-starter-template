@@ -1,16 +1,19 @@
 import * as React from "react"
 import {
+  Loader2Icon,
   MicIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
   SearchIcon,
+  Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import {
   getVoiceoverErrorMessage,
   loadVoiceovers,
+  removeFromVoiceovers,
   type SavedVoiceover,
 } from "@/lib/api/video/voiceovers"
 import { plural } from "@/lib/format/plural"
@@ -55,6 +58,7 @@ export function VoiceoversPanel() {
   const [playingId, setPlayingId] = React.useState<string | null>(null)
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [makingVoice, setMakingVoice] = React.useState(false)
+  const [busyId, setBusyId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     const timer = setTimeout(() => setDebounced(search.trim()), 250)
@@ -98,6 +102,18 @@ export function VoiceoversPanel() {
     toast.success(
       `Added at ${formatClock(atMs)}, with ${count} ${plural(count, "caption", "captions")}. Undo removes it.`
     )
+  }
+
+  async function takeOff(voiceover: SavedVoiceover) {
+    setBusyId(voiceover.mediaId)
+    try {
+      await removeFromVoiceovers(voiceover.mediaId)
+    } catch {
+      showErrorToast("That voiceover could not be removed. Try again.")
+    } finally {
+      setBusyId(null)
+      setRefresh((count) => count + 1)
+    }
   }
 
   return (
@@ -157,7 +173,7 @@ export function VoiceoversPanel() {
       <OwnVoices making={makingVoice} onMakingChange={setMakingVoice} />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-2 p-4">
+        <div className="grid gap-3 p-3">
           {voiceovers === null && !loadFailed ? (
             <LoadingRow label="Loading voiceovers" />
           ) : loadFailed ? (
@@ -179,14 +195,16 @@ export function VoiceoversPanel() {
             </p>
           ) : (
             <>
-              <ul className="grid gap-2">
+              <ul className="grid gap-3">
                 {voiceovers.map((voiceover) => (
                   <VoiceoverRow
                     key={voiceover.mediaId}
                     voiceover={voiceover}
                     playing={playingId === voiceover.mediaId}
                     onPlayingChange={setPlayingId}
+                    busy={busyId === voiceover.mediaId}
                     onAdd={() => layDown(voiceover)}
+                    onRemove={() => void takeOff(voiceover)}
                   />
                 ))}
               </ul>
@@ -205,19 +223,24 @@ export function VoiceoversPanel() {
 }
 
 /**
- * One voiceover: a play button to hear it, the words it says, who said them
- * and how long it runs. Only one plays at a time.
+ * One voiceover, laid out like a Music row: a play button, the words it says
+ * with who said them and how long it runs, a + that lays it at the playhead,
+ * and a trash can that takes it off the list. Only one plays at a time.
  */
 function VoiceoverRow({
   voiceover,
   playing,
   onPlayingChange,
+  busy,
   onAdd,
+  onRemove,
 }: {
   voiceover: SavedVoiceover
   playing: boolean
+  busy: boolean
   onPlayingChange: (mediaId: string | null) => void
   onAdd: () => void
+  onRemove: () => void
 }) {
   const audioRef = React.useRef<HTMLAudioElement>(null)
 
@@ -250,39 +273,48 @@ function VoiceoverRow({
   }
 
   return (
-    <li className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 rounded-lg border p-2">
+    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-1 rounded-lg border p-2">
       <Button
         type="button"
         variant="secondary"
         size="icon-sm"
-        className="shrink-0 rounded-full"
+        className="mr-1 shrink-0 rounded-full"
         aria-label={playing ? "Pause this voiceover" : "Play this voiceover"}
-        title={playing ? "Pause" : "Play"}
         onClick={() => void togglePreview()}
       >
         {playing ? <PauseIcon /> : <PlayIcon />}
       </Button>
-      <div className="grid min-w-0 gap-0.5">
-        <p
-          className="line-clamp-3 text-xs font-medium [overflow-wrap:anywhere]"
-          title={voiceover.script}
-        >
+      <div className="grid min-w-0">
+        <span className="line-clamp-3 text-xs font-medium [overflow-wrap:anywhere]">
           {voiceover.script}
-        </p>
+        </span>
         <span className="truncate text-[0.625rem] text-muted-foreground tabular-nums">
           {voiceover.voiceName} · {formatClock(voiceover.durationMs)}
         </span>
       </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="col-span-2 w-full"
-        onClick={onAdd}
-      >
-        <PlusIcon />
-        Add at playhead
-      </Button>
+      <Hint label="Add at playhead">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Add this voiceover at the playhead"
+          onClick={onAdd}
+        >
+          <PlusIcon />
+        </Button>
+      </Hint>
+      <Hint label="Remove from Voiceovers" disabled={busy}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={busy}
+          aria-label="Remove this voiceover from the list"
+          onClick={onRemove}
+        >
+          {busy ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
+        </Button>
+      </Hint>
       <audio
         hidden
         ref={audioRef}
