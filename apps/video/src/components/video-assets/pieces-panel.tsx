@@ -102,8 +102,9 @@ export type PiecesAdapter<T extends PieceItem> = {
   /** "video" and "videos", or "carousel" and "carousels". */
   one: string
   many: string
-  /** The tab's title: "Videos" or "Carousels". */
+  /** The tab's title: "Videos" or "Carousels", and its rail icon. */
   title: string
+  icon: React.ReactNode
   /** The open project and the piece open in the editor. */
   projectId: string
   openId: string
@@ -333,14 +334,13 @@ export function PiecesPanel<T extends PieceItem>({ adapter }: { adapter: PiecesA
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Search, filter and + sit in the header as icons, as the Media panel
-          has, with no icon before the title: at the panel's narrowest (about
-          130px) an icon pushes the + past the edge. Search and filter open
-          popovers to the right, clear of the rail. */}
+          has. Search and filter open popovers to the right, clear of the
+          rail. */}
       <DashboardCardTitleHeader
+        icon={adapter.icon}
         title={title}
-        className="gap-0"
         action={
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <Popover open={searchOpen} onOpenChange={setSearchOpen}>
               <Tooltip>
                 <TooltipTrigger asChild>

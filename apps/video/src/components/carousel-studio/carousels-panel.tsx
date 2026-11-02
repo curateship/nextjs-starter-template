@@ -63,6 +63,7 @@ export function CarouselsPanel({
     one: "carousel",
     many: "carousels",
     title: "Carousels",
+    icon: <ImagesIcon className="size-4" />,
     projectId,
     openId,
     openName,

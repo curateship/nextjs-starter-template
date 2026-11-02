@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router"
-import { FilmIcon, PlusIcon } from "lucide-react"
+import { FilmIcon, ListVideoIcon, PlusIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { PiecesPanel, type PiecesAdapter } from "@/components/video-assets/pieces-panel"
@@ -56,6 +56,7 @@ export function VideosPanel() {
     one: "video",
     many: "videos",
     title: "Videos",
+    icon: <ListVideoIcon className="size-4" />,
     projectId,
     openId: videoId,
     openName,

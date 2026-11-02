@@ -60,7 +60,11 @@ import {
 } from "@/lib/video/timeline-utils"
 import { Card, CardContent } from "@/components/ui/card"
 import { buildMediaClip } from "@/components/video-editor/media-clip"
-import { StickerShelf } from "@/components/video-editor/studio-stickers"
+import {
+  StickerAddMenu,
+  StickerShelf,
+  type StickerAdding,
+} from "@/components/video-editor/studio-stickers"
 import {
   CollectionNameDialog,
   MediaSelectionBar,
@@ -136,7 +140,7 @@ const PANEL_TITLE: Record<StudioPanel, string> = {
 
 export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   // Media has search and upload buttons to put in its header, so it draws its
-  // own; Text only needs a title.
+  // own; Text has the sticker +.
   if (panel === "videos") return <VideosPanel />
   if (panel === "media") return <MediaPanel />
   if (panel === "music") return <MusicPanel />
@@ -150,15 +154,24 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   if (panel === "exports") return <ExportsPanel />
   if (panel === "history") return <HistoryPanel />
 
+  return <TextPanelFrame title={PANEL_TITLE[panel]} />
+}
+
+function TextPanelFrame({ title }: { title: string }) {
+  // Stickers are the owner's own shelf, so a guest sent from Project has none.
+  const guest = useProjectGuest() !== null
+  const [adding, setAdding] = React.useState<StickerAdding>(null)
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <DashboardCardTitleHeader
         icon={<Type className="size-4" />}
-        title={PANEL_TITLE[panel]}
+        title={title}
+        action={guest ? undefined : <StickerAddMenu onPick={setAdding} />}
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="p-3">
-          <TextPanel />
+          <TextPanel guest={guest} adding={adding} onAddingChange={setAdding} />
         </div>
       </ScrollArea>
     </div>
@@ -974,10 +987,16 @@ const TEXT_PRESETS: {
   },
 ]
 
-function TextPanel() {
+function TextPanel({
+  guest,
+  adding,
+  onAddingChange,
+}: {
+  guest: boolean
+  adding: StickerAdding
+  onAddingChange: (adding: StickerAdding) => void
+}) {
   const { dispatch, clock } = useEditorRuntime()
-  // Stickers are the owner's own shelf, so a guest sent from Project has none.
-  const guest = useProjectGuest() !== null
   const progressBar = useEditorSelector((state) => state.progressBar)
   const inset = usePlatformInset()
 
@@ -1114,7 +1133,7 @@ function TextPanel() {
       </div>
 
       <Label>Stickers</Label>
-      {guest ? null : <StickerShelf />}
+      {guest ? null : <StickerShelf adding={adding} onAddingChange={onAddingChange} />}
     </div>
   )
 }

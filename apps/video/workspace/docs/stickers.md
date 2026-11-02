@@ -11,11 +11,15 @@ list and places a sticker as a layer (see
 - **Somebody who has never changed it** sees the eight that have always been
   there: 🔥 ✨ 👀 ☕ 💯 ➡️ ❤️ ⭐. Nothing is stored for them until they add or
   remove one.
-- **Adding an emoji:** type or paste one emoji into "Add an emoji" and press
-  Add. On a Mac, Control-Command-Space opens the emoji picker in that field.
+- **The + in the Text panel's header** opens a menu with Emoji and Image, in
+  both editors. Tyler, 2 Nov 2026: "Add the + icon here that opens a dropdown
+  to select emoji or image to add". There are no add buttons under the list.
+- **Adding an emoji:** Emoji opens a window; type or paste one emoji and press
+  Add sticker. On a Mac, Control-Command-Space opens the emoji picker in that
+  field.
   Flags, skin tones and family emoji all count as one. Two emoji, a word or a
   plain digit are refused, and the field keeps what was typed.
-- **Adding a picture:** "Add a picture" opens every picture in your library,
+- **Adding a picture:** Image opens every picture in your library,
   not only the ones on this project's shelf. A logo is uploaded once and then
   used in every project. The window shows your newest 60. With more than that
   it says so, and the search box finds the older ones.

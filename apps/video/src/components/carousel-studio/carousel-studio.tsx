@@ -155,7 +155,11 @@ import { attachEditorMedia, listVideoMedia } from "@/lib/api/video/media"
 import { CarouselsPanel } from "@/components/carousel-studio/carousels-panel"
 import { LayersPanelBody } from "@/components/carousel-studio/layers-panel"
 import type { CarouselProjectItem } from "@/lib/api/video/carousel-projects"
-import { StickerList } from "@/components/video-editor/studio-stickers"
+import {
+  StickerAddMenu,
+  StickerList,
+  type StickerAdding,
+} from "@/components/video-editor/studio-stickers"
 import { useMediaCollections } from "@/components/video-editor/use-media-collections"
 import { CollectionNameDialog } from "@/components/video-editor/studio-media-collections"
 import { MediaFilterMenu } from "@/components/video-editor/studio-media-filter"
@@ -1535,6 +1539,7 @@ function CarouselContextPanel({
   onAddItem: (item: CarouselSlideItem) => void
 }) {
   const [slidesView, setSlidesView] = React.useState<"list" | "grid">("list")
+  const [stickerAdding, setStickerAdding] = React.useState<StickerAdding>(null)
   const currentPanel = RAIL.find((item) => item.id === panel) ?? RAIL[0]
   const PanelIcon = currentPanel.Icon
 
@@ -1564,6 +1569,8 @@ function CarouselContextPanel({
         action={
           panel === "slides" ? (
             <SlidesViewToggle view={slidesView} onChange={setSlidesView} />
+          ) : panel === "text" ? (
+            <StickerAddMenu onPick={setStickerAdding} />
           ) : undefined
         }
       />
@@ -1597,6 +1604,8 @@ function CarouselContextPanel({
               format={format}
               onAddItem={onAddItem}
               onAddSlideNumbers={onAddSlideNumbers}
+              stickerAdding={stickerAdding}
+              onStickerAddingChange={setStickerAdding}
             />
           ) : (
             <ShadowPanelBody onAddItem={onAddItem} />
@@ -2139,10 +2148,14 @@ function TextPanelBody({
   format,
   onAddItem,
   onAddSlideNumbers,
+  stickerAdding,
+  onStickerAddingChange,
 }: {
   format: CarouselFormat
   onAddItem: (item: CarouselSlideItem) => void
   onAddSlideNumbers: () => void
+  stickerAdding: StickerAdding
+  onStickerAddingChange: (adding: StickerAdding) => void
 }) {
   // The person's own stickers, the same list as the video editor's. An emoji
   // lands as a text layer, a picture as a picture layer a third of the slide
@@ -2259,7 +2272,11 @@ function TextPanelBody({
       </div>
 
       <StudioLabel>Stickers</StudioLabel>
-      <StickerList onPlace={(sticker) => void placeSticker(sticker)} />
+      <StickerList
+        onPlace={(sticker) => void placeSticker(sticker)}
+        adding={stickerAdding}
+        onAddingChange={onStickerAddingChange}
+      />
     </div>
   )
 }

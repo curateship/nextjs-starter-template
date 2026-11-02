@@ -44,6 +44,7 @@ function adapter(projectId: string, list: PiecesAdapter<PieceItem>["list"]): Pie
     one: "video",
     many: "videos",
     title: "Videos",
+    icon: <FilmIcon className="size-4" />,
     projectId,
     openId: "a",
     openName: "First cut",

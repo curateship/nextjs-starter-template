@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ImagePlusIcon, Loader2Icon, PlusIcon, XIcon } from "lucide-react"
+import { ImageIcon, Loader2Icon, PlusIcon, SmileIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -11,6 +11,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -43,6 +49,7 @@ import {
   DEFAULT_TEXT_DURATION_MS,
   editorId,
 } from "@/lib/video/timeline-utils"
+import { Hint } from "@/components/video-assets/hint"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 
 /**
@@ -54,7 +61,7 @@ import { useEditorRuntime } from "@/components/video-editor/editor-store"
  * frame, which the preview lets you drag and the inspector lets you resize.
  * The list rules are in src/lib/video/stickers.ts.
  */
-export function StickerShelf() {
+export function StickerShelf(adding: StickerAddingProps) {
   const { dispatch, clock } = useEditorRuntime()
 
   function place(sticker: Sticker) {
@@ -90,24 +97,62 @@ export function StickerShelf() {
     })
   }
 
-  return <StickerList onPlace={place} />
+  return <StickerList onPlace={place} {...adding} />
+}
+
+/** Which add window the header's + has open: an emoji, a picture, or none. */
+export type StickerAdding = "emoji" | "image" | null
+
+type StickerAddingProps = {
+  adding: StickerAdding
+  onAddingChange: (adding: StickerAdding) => void
 }
 
 /**
- * The person's sticker list with its add and remove controls. What a press
- * on a sticker does is the caller's: a clip in the video editor, a layer in
- * the carousel editor.
+ * The + in the Text panel's header, in both editors (Tyler, 2 Nov 2026: "Add
+ * the + icon here that opens a dropdown to select emoji or image to add").
+ * Built like the Media panel's + menu.
+ */
+export function StickerAddMenu({ onPick }: { onPick: (adding: "emoji" | "image") => void }) {
+  return (
+    <DropdownMenu>
+      <Hint label="Add a sticker">
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="icon" aria-label="Add a sticker">
+            <PlusIcon />
+          </Button>
+        </DropdownMenuTrigger>
+      </Hint>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuItem onSelect={() => onPick("emoji")}>
+          <SmileIcon />
+          Emoji
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onPick("image")}>
+          <ImageIcon />
+          Image
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/**
+ * The person's sticker list with its remove buttons and the two add windows
+ * the header's + opens. What a press on a sticker does is the caller's: a
+ * clip in the video editor, a layer in the carousel editor.
  */
 export function StickerList({
   onPlace,
-}: {
+  adding,
+  onAddingChange,
+}: StickerAddingProps & {
   onPlace: (sticker: Sticker) => void
 }) {
   const [stickers, setStickers] = React.useState<Sticker[] | null>(null)
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [refresh, setRefresh] = React.useState(0)
   const [removing, setRemoving] = React.useState<string | null>(null)
-  const [pickerOpen, setPickerOpen] = React.useState(false)
 
   React.useEffect(() => {
     let active = true
@@ -209,28 +254,24 @@ export function StickerList({
         </ul>
       ) : (
         <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-          No stickers. Add an emoji or a picture below.
+          No stickers. Add an emoji or a picture with the + at the top.
         </p>
       )}
 
-      <AddEmojiField onAdded={setStickers} />
-
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full"
-        onClick={() => setPickerOpen(true)}
-      >
-        <ImagePlusIcon />
-        Add a picture
-      </Button>
-
-      <StickerPictureDialog
-        open={pickerOpen}
-        onOpenChange={setPickerOpen}
+      <EmojiStickerDialog
+        open={adding === "emoji"}
+        onOpenChange={(open) => onAddingChange(open ? "emoji" : null)}
         onAdded={(next) => {
           setStickers(next)
-          setPickerOpen(false)
+          onAddingChange(null)
+        }}
+      />
+      <StickerPictureDialog
+        open={adding === "image"}
+        onOpenChange={(open) => onAddingChange(open ? "image" : null)}
+        onAdded={(next) => {
+          setStickers(next)
+          onAddingChange(null)
         }}
       />
     </div>
@@ -252,7 +293,15 @@ function entryOf(sticker: Sticker): StickerEntry {
  * runs the same one, so anything that is not exactly one emoji is refused
  * with the field kept as typed.
  */
-function AddEmojiField({ onAdded }: { onAdded: (next: Sticker[]) => void }) {
+function EmojiStickerDialog({
+  open,
+  onOpenChange,
+  onAdded,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onAdded: (next: Sticker[]) => void
+}) {
   const [value, setValue] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
@@ -278,38 +327,61 @@ function AddEmojiField({ onAdded }: { onAdded: (next: Sticker[]) => void }) {
   }
 
   return (
-    <form
-      className="grid gap-2"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void submit()
-      }}
-    >
-      <FieldLabel
-        htmlFor="sticker-emoji"
-        hint="On a Mac, Control-Command-Space opens the emoji picker. On Windows, it is the Windows key and a full stop."
-      >
-        Add an emoji
-      </FieldLabel>
-      <div className="flex gap-2">
-        <Input
-          id="sticker-emoji"
-          className="flex-1"
-          value={value}
-          placeholder="e.g. 🚀"
-          autoComplete="off"
-          aria-invalid={invalid || undefined}
-          onChange={(event) => {
-            setValue(event.target.value)
-            setInvalid(false)
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Add an emoji sticker</DialogTitle>
+          <DialogDescription>
+            It joins your stickers. Placed, it lands in the middle of the
+            frame.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submit()
           }}
-        />
-        <Button type="submit" variant="outline" disabled={busy}>
-          {busy ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
-          Add
-        </Button>
-      </div>
-    </form>
+        >
+          <DialogBody>
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="sticker-emoji"
+                hint="On a Mac, Control-Command-Space opens the emoji picker. On Windows, it is the Windows key and a full stop."
+              >
+                Emoji
+              </FieldLabel>
+              <Input
+                id="sticker-emoji"
+                value={value}
+                placeholder="e.g. 🚀"
+                autoComplete="off"
+                autoFocus
+                aria-invalid={invalid || undefined}
+                onChange={(event) => {
+                  setValue(event.target.value)
+                  setInvalid(false)
+                }}
+              />
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={busy}>
+              {busy ? <Loader2Icon className="animate-spin" /> : null}
+              Add sticker
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -55,9 +55,8 @@ The Carousels tab in the carousel editor is the same panel, `PiecesPanel`
   and last edited date. The open video's row is shaded.
 - **Clicking a row:** saves the open video's last edit, then opens the other
   one in the player.
-- **The header:** three icons, as the Media tab has: search, filter and +.
-  There is no icon before the title, because at the panel's narrowest an icon
-  pushes the + past the edge.
+- **The header:** the rail's icon and the title, then three icons, as the
+  Media tab has: search, filter and +, 8px apart, the same as Media's.
 - **Search:** the magnifying glass opens a box that filters by name. A dot on
   it says a search is set.
 - **Filter:** the funnel opens a menu drawn as the Media tab's: Sort (Last
