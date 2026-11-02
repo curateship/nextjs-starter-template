@@ -87,8 +87,9 @@ workspaces. The worker needs no extra programs, so there is no
 
 In `apps/project`, type `npm run deploy`. It pushes the branch to `develop`,
 builds both resources on Coolify, checks
-`https://project.barelycompany.com/api/health`, then copies the local left
-menu and Tyler's AI keys to live. Add `-- --dry-run` to see the plan first. The
+`https://project.barelycompany.com/api/health`, then copies the live left menu
+down to this Mac. It never writes the live menu or the AI keys, which went in
+once at launch. Add `-- --dry-run` to see the plan first. The
 deploy-app skill has the rest.
 
 ## Checked before the first deploy

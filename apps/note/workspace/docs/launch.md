@@ -95,8 +95,9 @@ repo's `docs/deployment.md` → "Extra programs in the worker" has the details.
 
 In `apps/note`, type `npm run deploy`. It pushes the branch to `develop`,
 builds both resources on Coolify, checks
-`https://note.barelycompany.com/api/health`, then copies the local left menu
-to live. It never touches the AI keys, which went in once at launch. Add `-- --dry-run` to see the plan first. The
+`https://note.barelycompany.com/api/health`, then copies the live left menu
+down to this Mac. It never writes the live menu or the AI keys, which went in
+once at launch. Add `-- --dry-run` to see the plan first. The
 deploy-app skill has the rest.
 
 ## Checked before the first deploy

@@ -121,8 +121,9 @@ It does the whole deploy in one go:
    the deploy script so that it deploy one by one"). If one fails, the rest
    are not started and keep the build they have.
 4. Checks the live health address and prints the answer.
-5. Copies the local left menu to live, so the live site's menu matches the
-   one on this Mac. See "The left menu" below.
+5. Copies the live left menu down to this Mac, so the laptop matches the
+   menu Tyler set on the live site. It never writes the live menu. See "The
+   left menu" below.
 
 It never writes the AI keys. They go in at launch only (see "The AI keys"
 below).
@@ -137,7 +138,7 @@ cancelling it.
 
 Useful extras, each after `npm run deploy --`: `--dry-run` shows the plan and
 deploys nothing, `--only worker` deploys one resource, `--force` rebuilds without Docker's cache,
-and `--skip-menu` leaves the live menu as it is. Uncommitted changes never ship, and the script says
+and `--skip-menu` leaves this Mac's menu as it is. Uncommitted changes never ship, and the script says
 so when there are some.
 
 ### When I deploy
@@ -149,11 +150,10 @@ so when there are some.
 3. **Commit only if Tyler asked.** Uncommitted files never ship.
 4. **Run Tyler's command.** Never force a push. If the push is refused, stop
    and ask.
-5. **Check the menu copied.** The script prints "Copied to live" or "already
-   the same". A "no page on develop yet" warning names a menu link that opens
-   "not found" on live. Say so in the report.
+5. **Check the menu copied.** The script prints "Copied to local" or "already
+   the same". Say so in the report.
 6. **Check it in a real browser** with the `validate-app` skill, on the live
-   domain. Sign in as Tyler and compare the left menu with the local one.
+   domain. Sign in as Tyler; the left menu is whatever he set there.
 8. **Record it** in the app's `launch.md` → Release record: the commit, the
    date, the deployment ids, and anything owed.
 
@@ -180,29 +180,30 @@ When that happens, cancel both deployments in Coolify and run the deploy again.
 
 ## The left menu
 
-Tyler, 8 Oct 2026: the deployed app's left menu must match the local one. The
-menu is saved in the database, not in the code, so a deploy alone never
-changes it. `scripts/copy-menu.mjs` copies it, and `deploy.mjs` runs it after
-every deploy that includes the website.
+Tyler, 2 Nov 2026: live wins, and the laptop follows it. He edits the menu on
+the live site; every deploy until then had copied the laptop's default menu
+over those edits ("every time i deploy. my navigation (my dashboard) changes
+... its like to revert back to a default"). The rule of 8 Oct 2026, "the
+deployed app's left menu must match the local one" with local winning, is
+gone. The menu is saved in the database, not in the code, so a deploy alone
+never changes it. `scripts/copy-menu.mjs` copies it, and `deploy.mjs` runs it
+after every deploy that includes the website.
 
 - **What it copies:** the admin menu (the `sections`, `topRightNavigation` and
   name of the workspace Tyler's account points at) and the members' menu
   (`memberSections` and `memberTopRightNavigation` in the `settings` row).
-  Every other saved setting on live stays as it is.
-- **Which way:** local wins. A menu edit made on the live site through
-  Settings is overwritten by the next deploy, so make menu changes locally.
+  Every other saved setting on the laptop stays as it is.
+- **Which way:** live to the laptop only. Nothing is ever written to the live
+  menu by a script, so menu changes are made on the live site.
 - **Whose menu:** the account named `FIRST_ADMIN_EMAIL` in `secrets.env`, on
   both sides. On live that account needs one sign-in first, which gives it a
   workspace.
-- **How it reaches live:** through `scripts/live-db.mjs`, which opens a
-  public port on the live database for about a minute and closes it again.
+- **How it reads live:** through `scripts/live-db.mjs`, which opens a public
+  port on the live database for about a minute and closes it again.
   `create-admin.mjs` uses the same helper.
 - **By hand:** `node .agents/skills/deploy-app/scripts/copy-menu.mjs <app>`
-  after a menu change with no deploy. Add `--dry-run` to compare the two
-  menus without writing.
-- **Links with no page:** it lists any menu link whose page is not in the
-  commit `develop` holds. It still copies, because Tyler asked for an exact
-  match, so deploy the page or remove the link.
+  brings the laptop up to date with no deploy. Add `--dry-run` to compare the
+  two menus without writing.
 - **If the copy fails:** the deploy has already finished and stays live. The
   script prints the command to run by hand.
 - **Trade** deploys with its own script, so its menu is not copied.
@@ -370,8 +371,8 @@ AI keys are already there, written by me straight after the first deploy.
     This is the only time they are written; later deploys leave them alone.
 16. **Send Tyler the after-launch note:** sign in. The AI keys are already
     there, so he does not paste them. Once he has signed in, run
-    `copy-menu.mjs <app>` so the live menu matches the local one. The first deploy cannot copy it, because his
-    account has no workspace on live until that first sign-in.
+    `copy-menu.mjs <app>` so this Mac's menu matches the live one. The first deploy cannot copy it, because his
+    account has no workspace on live until that first sign-in. From then on he edits the menu on the live site.
 17. **Walk through and record.** Use `validate-app` on the live domain, then
     fill in the Release record in `launch.md`.
 
