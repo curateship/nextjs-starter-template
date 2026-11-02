@@ -1,0 +1,615 @@
+import { PGlite } from "@electric-sql/pglite"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
+
+import {
+  loadPagesOverview,
+  readListedPages,
+  readPageVisibility,
+  readWrittenPageForViewer,
+  setPageVisibility,
+} from "@/server/content/pages"
+import {
+  createFrontPageRowDraft,
+  type FrontPageRow,
+} from "@/lib/pages/front-page"
+import {
+  createTestDatabase,
+  insertWorkspace,
+  type TestDatabase,
+} from "@/server/test-support"
+import {
+  createWrittenPage,
+  deleteWrittenPage,
+  findWrittenPage,
+  listWrittenPageSitemapEntries,
+  listWrittenPages,
+  listWrittenPagesByIds,
+  normalizeWrittenPagePath,
+  updateWrittenPage,
+  writtenPagePathProblem,
+} from "@/server/content/written-pages"
+
+/**
+ * Pages an admin writes. Two things have to hold: an address can only ever
+ * belong to one page, and a written page is an ordinary page once it exists —
+ * the same switch, the same list, the same not-found when it goes.
+ */
+
+let client: PGlite
+let database: TestDatabase
+/** The site every page in these tests belongs to. */
+let site: string
+
+const at = new Date("2026-08-06T12:00:00Z")
+
+
+beforeEach(async () => {
+  const testDb = await createTestDatabase()
+  client = testDb.client
+  database = testDb.db
+  site = (await insertWorkspace(database)).id
+})
+
+afterEach(async () => {
+  await client.close()
+})
+
+describe("tidying an address", () => {
+  it("makes one address out of the ways somebody might type it", () => {
+    for (const typed of ["about", "/about", "/About ", "/about/", "//about"]) {
+      expect(normalizeWrittenPagePath(typed), typed).toBe("/about")
+    }
+  })
+})
+
+describe("which addresses may be claimed", () => {
+  it("refuses an address a coded page already answers on", () => {
+    // The registry is the only list that knows the coded pages, which is why
+    // this check is here and not in the database's unique index.
+    expect(writtenPagePathProblem("/pricing")).toContain("already answers")
+    expect(writtenPagePathProblem("/login")).toContain("already answers")
+  })
+
+  it("refuses the app's own machinery", () => {
+    for (const path of ["/admin", "/admin/users", "/api", "/api/v1/media"]) {
+      expect(writtenPagePathProblem(path), path).toContain("the app itself")
+    }
+  })
+
+  it("refuses an address that is not one", () => {
+    expect(writtenPagePathProblem("/")).toContain("something after the slash")
+    expect(writtenPagePathProblem("/what is this")).toContain("letters, numbers")
+    expect(writtenPagePathProblem("/about.php")).toContain("letters, numbers")
+  })
+
+  it("allows a plain free address", () => {
+    expect(writtenPagePathProblem("/about")).toBeNull()
+    expect(writtenPagePathProblem("/about-us")).toBeNull()
+    expect(writtenPagePathProblem("/help/delivery")).toBeNull()
+  })
+})
+
+describe("writing a page", () => {
+  it("creates one and serves it by address", async () => {
+    const page = await createWrittenPage(site, { path: "About", title: "About us" },
+      database
+    )
+
+    expect(page.path).toBe("/about")
+    const found = await findWrittenPage(site, "/about", database)
+    expect(found?.title).toBe("About us")
+  })
+
+  it("refuses a second page on the same address", async () => {
+    await createWrittenPage(site, { path: "/about", title: "About" },
+      database
+    )
+
+    await expect(
+      createWrittenPage(site, { path: "/about", title: "Another" },
+        database
+      )
+    ).rejects.toThrow("already answers on /about")
+  })
+
+  it("refuses an address a coded page holds", async () => {
+    await expect(
+      createWrittenPage(site, { path: "/pricing", title: "My pricing" },
+        database
+      )
+    ).rejects.toThrow("already answers on /pricing")
+  })
+
+  it("insists on a title", async () => {
+    await expect(
+      createWrittenPage(site, { path: "/about", title: "   " }, database)
+    ).rejects.toThrow("needs a title")
+  })
+})
+
+describe("changing and removing a page", () => {
+  it("moves a page to a free address", async () => {
+    const page = await createWrittenPage(site, { path: "/about", title: "About" },
+      database
+    )
+
+    const moved = await updateWrittenPage(site, page.id, { path: "/about-us" }, database)
+
+    expect(moved.path).toBe("/about-us")
+    expect(await findWrittenPage(site, "/about", database)).toBeNull()
+  })
+
+  it("refuses to move onto another page's address", async () => {
+    await createWrittenPage(site, { path: "/about", title: "About" },
+      database
+    )
+    const other = await createWrittenPage(site, { path: "/help", title: "Help" },
+      database
+    )
+
+    await expect(
+      updateWrittenPage(site, other.id, { path: "/about" }, database)
+    ).rejects.toThrow("already answers on /about")
+  })
+
+  it("lets a page keep its own address while something else changes", async () => {
+    const page = await createWrittenPage(site, { path: "/about", title: "About" },
+      database
+    )
+
+    const saved = await updateWrittenPage(site,
+      page.id,
+      { path: "/about", title: "About us" },
+      database
+    )
+
+    expect(saved.title).toBe("About us")
+  })
+
+  it("makes the address stop existing when the page goes", async () => {
+    const page = await createWrittenPage(site, { path: "/about", title: "About" },
+      database
+    )
+
+    await deleteWrittenPage(site, page.id, database)
+
+    // The route asks exactly this, and null is what makes it answer not-found.
+    expect(await findWrittenPage(site, "/about", database)).toBeNull()
+    expect(await listWrittenPages(site, database)).toEqual([])
+  })
+
+  it("says so when the page is already gone", async () => {
+    await expect(deleteWrittenPage(site, "nope", database)).rejects.toThrow(
+      "no longer exists"
+    )
+  })
+})
+
+describe("a page's own picture", () => {
+  const picture = "https://media.example.test/workshop.png"
+
+  it("stores the picture and the name beside it", async () => {
+    const page = await createWrittenPage(
+      site,
+      {
+        path: "/about",
+        title: "About",
+        image: picture,
+        imageAlt: "The workshop bench",
+      },
+      database
+    )
+
+    expect(page.image).toBe(picture)
+    expect(page.imageAlt).toBe("The workshop bench")
+    // And it comes back on the read the public page uses.
+    const read = await findWrittenPage(site, "/about", database)
+    expect(read?.image).toBe(picture)
+  })
+
+  it("keeps a page with no picture empty rather than refusing it", async () => {
+    const page = await createWrittenPage(
+      site,
+      { path: "/about", title: "About" },
+      database
+    )
+
+    expect(page.image).toBe("")
+    expect(page.imageAlt).toBe("")
+  })
+
+  /**
+   * The stored value reaches a visitor's page inside an `src`, so anything
+   * that is not a web address is stored as nothing at all. The name goes with
+   * it: a name with no picture would be read out by a screen reader with
+   * nothing to read it about.
+   */
+  it("drops an address that is not a picture's, and its name with it", async () => {
+    const page = await createWrittenPage(
+      site,
+      {
+        path: "/about",
+        title: "About",
+        image: "javascript:alert(1)",
+        imageAlt: "Sneaky",
+      },
+      database
+    )
+
+    expect(page.image).toBe("")
+    expect(page.imageAlt).toBe("")
+  })
+
+  it("changes the picture, and takes it off when the field is cleared", async () => {
+    const page = await createWrittenPage(
+      site,
+      { path: "/about", title: "About", image: picture, imageAlt: "Bench" },
+      database
+    )
+
+    const swapped = await updateWrittenPage(
+      site,
+      page.id,
+      { image: "https://media.example.test/other.png", imageAlt: "Other" },
+      database
+    )
+    expect(swapped.image).toBe("https://media.example.test/other.png")
+
+    const cleared = await updateWrittenPage(
+      site,
+      page.id,
+      { image: "", imageAlt: "Bench" },
+      database
+    )
+    expect(cleared.image).toBe("")
+    expect(cleared.imageAlt).toBe("")
+  })
+
+  it("leaves the picture alone when the save is about something else", async () => {
+    const page = await createWrittenPage(
+      site,
+      { path: "/about", title: "About", image: picture, imageAlt: "Bench" },
+      database
+    )
+
+    const renamed = await updateWrittenPage(
+      site,
+      page.id,
+      { title: "About us" },
+      database
+    )
+
+    expect(renamed.title).toBe("About us")
+    expect(renamed.image).toBe(picture)
+    expect(renamed.imageAlt).toBe("Bench")
+  })
+})
+
+describe("a written page is an ordinary page", () => {
+  it("appears in the pages list beside the coded ones, in address order", async () => {
+    await createWrittenPage(site, { path: "/about", title: "About us" },
+      database
+    )
+
+    const overview = await loadPagesOverview(site, database, at)
+    const paths = overview.rows.map((row) => row.path)
+    const about = overview.rows.find((row) => row.path === "/about")
+
+    expect(about?.name).toBe("About us")
+    // Written, so the screen may offer Edit; a coded page carries null here.
+    expect(about?.writtenPageId).toBeTruthy()
+    expect(overview.rows.find((row) => row.path === "/pricing")?.writtenPageId)
+      .toBeNull()
+    expect(paths).toEqual([...paths].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)))
+  })
+
+  it("can be switched off like any other page", async () => {
+    await createWrittenPage(site, { path: "/about", title: "About" },
+      database
+    )
+
+    expect(await readPageVisibility(site, "/about", database)).toBe("everyone")
+
+    await setPageVisibility(site, { path: "/about", visibility: "off" }, database)
+
+    expect(await readPageVisibility(site, "/about", database)).toBe("off")
+  })
+
+  it("keys the switch off the tidied address, not what was typed", async () => {
+    await createWrittenPage(site, { path: "/about", title: "About" },
+      database
+    )
+
+    // Saved under "/About" but read under "/about" — one page, so one key, or
+    // the switch would be written somewhere nothing ever looks.
+    await setPageVisibility(site, { path: "/About", visibility: "off" }, database)
+
+    expect(await readPageVisibility(site, "/about", database)).toBe("off")
+  })
+
+  it("never hands out the words of a page that is switched off", async () => {
+    // The endpoint behind this is public — it has to be, or no written page
+    // would be readable — so it is what decides, not the page that draws it.
+    // Fetching first and checking second would let a direct call read a hidden
+    // page's words, which is the switch working in a browser and nowhere else.
+    await createWrittenPage(site, { path: "/about", title: "About" },
+      database
+    )
+    await setPageVisibility(site, { path: "/about", visibility: "off" }, database)
+
+    for (const signedIn of [false, true]) {
+      const view = await readWrittenPageForViewer(site, "/about", signedIn, database)
+      // Reported as missing, not as "hidden": a page that admitted to being
+      // switched off would be telling the caller it is there.
+      expect(view.status, `signedIn=${signedIn}`).toBe("missing")
+      expect(JSON.stringify(view)).not.toContain("secret")
+    }
+  })
+
+  it("asks a signed-out visitor to sign in without showing them the words", async () => {
+    await createWrittenPage(site, { path: "/about", title: "About" },
+      database
+    )
+    await setPageVisibility(site, { path: "/about", visibility: "members" }, database)
+
+    const visitor = await readWrittenPageForViewer(site, "/about", false, database)
+    expect(visitor.status).toBe("signIn")
+    expect(JSON.stringify(visitor)).not.toContain("Members only text")
+
+    const member = await readWrittenPageForViewer(site, "/about", true, database)
+    expect(member.status).toBe("ok")
+  })
+
+  it("hands over a page anybody may see", async () => {
+    await createWrittenPage(site, { path: "/about", title: "About" },
+      database
+    )
+
+    const view = await readWrittenPageForViewer(site, "/about", false, database)
+    expect(view.status).toBe("ok")
+    if (view.status === "ok") {
+      expect(view.page.title).toBe("About")
+    }
+  })
+
+  it("answers everyone once the page is deleted", async () => {
+    const page = await createWrittenPage(site, { path: "/about", title: "About" },
+      database
+    )
+    await setPageVisibility(site, { path: "/about", visibility: "off" }, database)
+    await deleteWrittenPage(site, page.id, database)
+
+    // Nothing is there to hide any more, and the route answers not-found on
+    // its own because no page was found.
+    expect(await readPageVisibility(site, "/about", database)).toBe("everyone")
+  })
+})
+
+/**
+ * The two search-engine controls. Hiding a page from search is not hiding it
+ * from people, so the only thing that may change is what a search engine is
+ * told: the `noindex` tag, which the route draws, and the sitemap, which is
+ * here.
+ */
+describe("keeping a page out of search", () => {
+  it("starts switched off, with no canonical address", async () => {
+    const page = await createWrittenPage(
+      site,
+      { path: "/about", title: "About" },
+      database
+    )
+
+    expect(page.hiddenFromSearch).toBe(false)
+    expect(page.canonicalUrl).toBe("")
+    expect(await listWrittenPageSitemapEntries(site, database)).toEqual([
+      { path: "/about", updatedAt: expect.any(Date) },
+    ])
+  })
+
+  it("drops a hidden page from the sitemap and leaves it readable", async () => {
+    const page = await createWrittenPage(
+      site,
+      { path: "/thank-you", title: "Thank you" },
+      database
+    )
+    await createWrittenPage(
+      site,
+      { path: "/about", title: "About" },
+      database
+    )
+
+    await updateWrittenPage(site, page.id, { hiddenFromSearch: true }, database)
+
+    const entries = await listWrittenPageSitemapEntries(site, database)
+    expect(entries.map((entry) => entry.path)).toEqual(["/about"])
+
+    // The switch is about search engines only. Anybody with the link still
+    // gets the page, which is the whole point of a thank-you page.
+    const view = await readWrittenPageForViewer(site, "/thank-you", false, database)
+    expect(view.status).toBe("ok")
+  })
+
+  it("puts a hidden page back in the sitemap when the switch goes off", async () => {
+    const page = await createWrittenPage(
+      site,
+      {
+        path: "/thank-you",
+        title: "Thank you",
+        hiddenFromSearch: true,
+      },
+      database
+    )
+    expect(await listWrittenPageSitemapEntries(site, database)).toEqual([])
+
+    await updateWrittenPage(site, page.id, { hiddenFromSearch: false }, database)
+    expect(
+      (await listWrittenPageSitemapEntries(site, database)).map((e) => e.path)
+    ).toEqual(["/thank-you"])
+  })
+})
+
+describe("naming the address that counts", () => {
+  it("stores an address on this site and a full one alike", async () => {
+    const page = await createWrittenPage(
+      site,
+      {
+        path: "/about-us",
+        title: "About us",
+        canonicalUrl: "/about/",
+      },
+      database
+    )
+    expect(page.canonicalUrl).toBe("/about")
+
+    const changed = await updateWrittenPage(
+      site,
+      page.id,
+      { canonicalUrl: "https://example.com/about" },
+      database
+    )
+    expect(changed.canonicalUrl).toBe("https://example.com/about")
+  })
+
+  it("stores nothing at all rather than half an address", async () => {
+    const page = await createWrittenPage(
+      site,
+      {
+        path: "/about-us",
+        title: "About us",
+        canonicalUrl: "javascript:alert(1)",
+      },
+      database
+    )
+    expect(page.canonicalUrl).toBe("")
+  })
+
+  it("clears the address when the field is emptied", async () => {
+    const page = await createWrittenPage(
+      site,
+      {
+        path: "/about-us",
+        title: "About us",
+        canonicalUrl: "/about",
+      },
+      database
+    )
+
+    const changed = await updateWrittenPage(
+      site,
+      page.id,
+      { canonicalUrl: "" },
+      database
+    )
+    expect(changed.canonicalUrl).toBe("")
+  })
+})
+
+describe("a page's description", () => {
+  it("is stored trimmed, changed on its own, and cleared when emptied", async () => {
+    const page = await createWrittenPage(
+      site,
+      { path: "/opera", title: "Phantom Opera", description: "  Sun 12 Sep. " },
+      database
+    )
+    expect(page.description).toBe("Sun 12 Sep.")
+
+    const renamed = await updateWrittenPage(
+      site,
+      page.id,
+      { title: "The Phantom" },
+      database
+    )
+    // A save that did not send one leaves it alone.
+    expect(renamed.description).toBe("Sun 12 Sep.")
+
+    const cleared = await updateWrittenPage(
+      site,
+      page.id,
+      { description: "" },
+      database
+    )
+    expect(cleared.description).toBe("")
+  })
+
+  it("is empty for a page made without one", async () => {
+    const page = await createWrittenPage(
+      site,
+      { path: "/about", title: "About" },
+      database
+    )
+    expect(page.description).toBe("")
+  })
+})
+
+describe("the pages a Pages list block shows", () => {
+  function listBlock(id: string, pageIds: string[]): FrontPageRow {
+    return { ...createFrontPageRowDraft("pages"), id, pageIds } as FrontPageRow
+  }
+
+  it("reads them in the block's order and skips ids that are not pages here", async () => {
+    const a = await createWrittenPage(site, { path: "/a", title: "A" }, database)
+    const b = await createWrittenPage(site, { path: "/b", title: "B" }, database)
+    // Another site's page, named by id. The site is part of the lookup, so a
+    // block on this site can never show it.
+    const elsewhere = (await insertWorkspace(database)).id
+    const theirs = await createWrittenPage(
+      elsewhere,
+      { path: "/c", title: "C" },
+      database
+    )
+
+    const pages = await listWrittenPagesByIds(
+      site,
+      [b.id, "gone", theirs.id, a.id],
+      database
+    )
+    expect(pages.map((page) => page.title)).toEqual(["B", "A"])
+  })
+
+  it("leaves out a page this visitor could not open", async () => {
+    const open = await createWrittenPage(
+      site,
+      { path: "/open", title: "Open", description: "For everyone." },
+      database
+    )
+    const off = await createWrittenPage(
+      site,
+      { path: "/off", title: "Off" },
+      database
+    )
+    const members = await createWrittenPage(
+      site,
+      { path: "/members", title: "Members" },
+      database
+    )
+    await setPageVisibility(site, { path: "/off", visibility: "off" }, database)
+    await setPageVisibility(
+      site,
+      { path: "/members", visibility: "members" },
+      database
+    )
+
+    const blocks = [listBlock("list", [off.id, members.id, open.id])]
+
+    const signedOut = await readListedPages(site, blocks, false, database)
+    expect(signedOut.list?.map((page) => page.title)).toEqual(["Open"])
+    expect(signedOut.list?.[0]).toMatchObject({
+      path: "/open",
+      description: "For everyone.",
+    })
+
+    const signedIn = await readListedPages(site, blocks, true, database)
+    expect(signedIn.list?.map((page) => page.title)).toEqual([
+      "Members",
+      "Open",
+    ])
+  })
+
+  it("asks for nothing when the page has no Pages list block", async () => {
+    const text = {
+      ...createFrontPageRowDraft("text"),
+      id: "intro",
+    } as FrontPageRow
+    expect(await readListedPages(site, [text], false, database)).toEqual({})
+  })
+})
