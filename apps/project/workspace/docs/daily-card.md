@@ -123,7 +123,9 @@ a team screen or sent to anyone.
 - **Each part's starting hour.** Beside Morning, Afternoon and Night the card
   shows the hour that part starts in Your hours, "Morning - 5:00 AM" ("put
   the time beside the labels", then "the your hour should replace the hour
-  beside the labels"). The site admin sets those hours in the pencil window's
+  beside the labels"). Afternoon's and Night's labels have 20px above them and
+  8px below, so each part reads as its own group (Tyler, 2 Nov 2026: "add
+  some spacing here"). The site admin sets those hours in the pencil window's
   Habits card, in a time box beside each part's name ("put the hours
   selection beside the label"), so their window has no Your hours card. An
   employee, with no habits, keeps the Your hours card.
