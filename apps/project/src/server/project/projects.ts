@@ -2,6 +2,7 @@ import { and, asc, count, eq, inArray, isNull, lte, notInArray } from "drizzle-o
 import { alias } from "drizzle-orm/pg-core"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
+import type { ProjectLink } from "@/lib/project/project-links"
 import {
   CLOSED_TASK_STATUSES,
   PERSONAL_PROJECT_NAME,
@@ -26,7 +27,7 @@ import {
   type ProjectDb,
 } from "@/server/project/access"
 import { unreadInProjectChat } from "@/server/project/chat-reads"
-import { visibleClients } from "@/server/project/clients"
+import { siteCategories, visibleClients } from "@/server/project/clients"
 import { listTeamLabels, type Label } from "@/server/project/labels"
 import { listMilestones, type Milestone } from "@/server/project/milestones"
 import { readProjectPlan, writeProjectPlan } from "@/server/project/project-plans"
@@ -67,6 +68,8 @@ export type ProjectListRow = {
   behindAt: number
   lead: { id: string; name: string; avatarUrl: string } | null
   client: string | null
+  /** Its category, for the Projects page's Category filter. */
+  category: string | null
   /** The project's own due date, shown on the site admin's Projects card. */
   dueDate: string | null
   /** The project's round picture from its settings, shown on the site admin's Projects card. */
@@ -214,6 +217,7 @@ export async function loadProjectsPage(
             ? { id: project.leadUserId, name: project.leadName, avatarUrl: project.leadAvatar ?? "" }
             : null,
         client: project.client,
+        category: project.category,
         dueDate: project.dueDate,
         avatarUrl: project.avatarUrl,
         team: { id: project.teamId, name: project.teamName },
@@ -294,6 +298,9 @@ export type ProjectPage = {
     behindAt: number
     leadUserId: string | null
     client: string | null
+    category: string | null
+    /** Its links and divider labels under the description, in order. */
+    links: ProjectLink[]
     /** Everyone on the team is a member, people who join later included. */
     wholeTeam: boolean
     /** The faint banner behind the top of the left panel, and the round avatar at its foot. */
@@ -304,6 +311,11 @@ export type ProjectPage = {
   milestones: Milestone[]
   /** Client names already used on projects I can see, for the Client field. */
   teamClients: string[]
+  /**
+   * Every category on the site, one list for every team, for the Category
+   * field. Only the site admin, who alone changes it, is sent them.
+   */
+  siteCategories: string[]
   /** The team's task types, archived ones included, for New task, the Type filter and field columns. */
   taskTypes: TaskType[]
   /** The team's labels, for the Label filter and a task's labels. */
@@ -389,12 +401,15 @@ export async function loadProjectPage(
       behindAt: project.behindAt,
       leadUserId: project.leadUserId,
       client: project.client,
+      category: project.category,
+      links: project.links,
       wholeTeam: project.wholeTeam,
       bannerUrl: project.bannerUrl,
       avatarUrl: project.avatarUrl,
     },
     milestones: await listMilestones(project.id, database),
     teamClients: await visibleClients(membership, database),
+    siteCategories: membership.siteAdmin ? await siteCategories(database) : [],
     taskTypes: await listTeamTypes(membership.teamId, database),
     labels: await listTeamLabels(membership.teamId, database),
     views: await listSavedViews(userId, membership.teamId, project.id, database),
@@ -457,6 +472,8 @@ export async function updateProject(
     avatarUrl?: string
     slowingAt?: number
     behindAt?: number
+    category?: string | null
+    links?: ProjectLink[]
   },
   database = db
 ) {
@@ -743,6 +760,8 @@ export async function copyProject(
       updatedAt: at,
       hiddenTypeIds: plan.hiddenTypeIds,
       defaultTypeId: plan.defaultTypeId,
+      category: source.category,
+      links: source.links,
     })
     await writeProjectPlan(tx, { id, teamId: membership.teamId }, plan, userId)
     return { id }

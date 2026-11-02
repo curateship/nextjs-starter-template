@@ -21,7 +21,8 @@ export type MyPlace = { taskId: string; heading: string; position: number }
 export type DropChange = { dueDate: string | null } | { status: "done" }
 
 /**
- * Today is due today, This week tomorrow, Later eight days on and No date
+ * Today is due today, Tomorrow tomorrow, This week the day after tomorrow
+ * (the first day Tomorrow doesn't hold), Later eight days on and No date
  * clears the date; Done marks it Done. Overdue and Waiting for my answer take
  * no drops, since no date puts a task there by choice.
  */
@@ -29,8 +30,10 @@ export function dropChange(heading: string, today: string): DropChange | null {
   switch (heading) {
     case "today":
       return { dueDate: today }
-    case "week":
+    case "tomorrow":
       return { dueDate: addDays(today, 1) }
+    case "week":
+      return { dueDate: addDays(today, 2) }
     case "later":
       return { dueDate: addDays(today, 8) }
     case "none":
@@ -50,8 +53,8 @@ export function dropChange(heading: string, today: string): DropChange | null {
 export function canMove(from: string, to: string) {
   return from !== to && MOVABLE_FROM.has(from) && DROP_TARGETS.has(to)
 }
-const MOVABLE_FROM = new Set(["overdue", "today", "week", "later", "none"])
-const DROP_TARGETS = new Set(["today", "week", "later", "none", "done"])
+const MOVABLE_FROM = new Set(["overdue", "today", "tomorrow", "week", "later", "none"])
+const DROP_TARGETS = new Set(["today", "tomorrow", "week", "later", "none", "done"])
 
 /** Whether a heading takes drops at all, so it shows even when empty, as Notion's groups do. */
 export function takesDrops(heading: string) {

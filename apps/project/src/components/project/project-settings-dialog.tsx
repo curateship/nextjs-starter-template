@@ -4,6 +4,7 @@ import { ArchiveIcon, ArchiveRestoreIcon } from "lucide-react"
 
 import { ClientSelect } from "@/components/project/client-select"
 import { ProjectColorSelect } from "@/components/project/project-form-fields"
+import { ProjectLinksEditor } from "@/components/project/project-links-editor"
 import { ProjectMembersCard } from "@/components/project/project-members-card"
 import { ProjectTaskTypesCard } from "@/components/project/project-task-types-card"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
@@ -42,7 +43,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 type Project = ProjectPage["project"]
 
 /**
- * The project's name, colour, description, client, due date, Doing limit,
+ * The project's name, colour, description, links, client, category, due date, Doing limit,
  * "Everyone on the team", Archive, its status rule, its banner and avatar,
  * members (with the lead) and task types, in a window
  * opened from the cog on the project page's details panel. Each field saves when it
@@ -79,7 +80,7 @@ export function ProjectSettingsDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <ProjectSettingsFields project={project} teamClients={page.teamClients} />
+          <ProjectSettingsFields project={project} teamClients={page.teamClients} categories={page.siteCategories} />
           <ProjectPaceCard project={project} />
           <ProjectPicturesCard project={project} />
           <ProjectMembersCard page={page} />
@@ -95,7 +96,15 @@ export function ProjectSettingsDialog({
   )
 }
 
-function ProjectSettingsFields({ project, teamClients }: { project: Project; teamClients: string[] }) {
+function ProjectSettingsFields({
+  project,
+  teamClients,
+  categories,
+}: {
+  project: Project
+  teamClients: string[]
+  categories: string[]
+}) {
   const router = useRouter()
   const [name, setName] = useSyncedDraft(project.name)
   const [description, setDescription] = useSyncedDraft(project.description)
@@ -112,6 +121,7 @@ function ProjectSettingsFields({ project, teamClients }: { project: Project; tea
     description?: string
     dueDate?: string | null
     doingLimit?: number | null
+    category?: string | null
   }) {
     const ok = await run(() => saveProject({ projectId: project.id, ...fields }), "Saved.")
     if (ok) await router.invalidate()
@@ -211,6 +221,7 @@ function ProjectSettingsFields({ project, teamClients }: { project: Project; tea
           onBlur={commitDescription}
         />
       </div>
+      <ProjectLinksEditor projectId={project.id} links={project.links} disabled={readOnly} />
       <div className="grid gap-2">
         <FieldLabel
           htmlFor="project-client"
@@ -221,9 +232,25 @@ function ProjectSettingsFields({ project, teamClients }: { project: Project; tea
         <ClientSelect
           id="project-client"
           value={project.client}
-          clients={teamClients}
+          names={teamClients}
           disabled={readOnly || busy}
           onChange={(client) => void saveClient(client)}
+        />
+      </div>
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor="project-category"
+          hint="Pick a category or type a new one. Every team shares one list, and the Projects page can filter by it."
+        >
+          Category
+        </FieldLabel>
+        <ClientSelect
+          id="project-category"
+          kind="category"
+          value={project.category}
+          names={categories}
+          disabled={readOnly || busy}
+          onChange={(category) => void save({ category })}
         />
       </div>
       <div className="grid gap-2">

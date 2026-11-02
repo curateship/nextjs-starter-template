@@ -409,6 +409,7 @@ describe("the Projects dashboard", () => {
               behindAt: 3,
               lead: { id: "u2", name: "Priya", avatarUrl: "" },
               client: "Hart Dental",
+              category: "Marketing",
               team: { id: "team", name: "Acme" },
               dueDate: null,
               avatarUrl: null,
@@ -427,6 +428,7 @@ describe("the Projects dashboard", () => {
               behindAt: 3,
               lead: null,
               client: null,
+              category: null,
               team: { id: "team2", name: "Beta" },
               dueDate: null,
               avatarUrl: null,
@@ -454,6 +456,8 @@ describe("the Projects dashboard", () => {
     expect(html).toContain(`aria-label="Pin Website"`)
     // Each row's actions end with a cog that opens the project's settings.
     expect(html).toContain(`aria-label="Website settings"`)
+    // The Category filter, beside Client, once any project has one.
+    expect(html).toContain(`aria-label="Category: All categories"`)
   })
 })
 
@@ -478,12 +482,15 @@ describe("the project page", () => {
       behindAt: 3,
       leadUserId: null,
       client: null,
+      category: null,
+      links: [],
       wholeTeam: false,
       bannerUrl: null,
       avatarUrl: null,
     },
     milestones: [{ id: "m1", name: "Design signed off", dueDate: "2020-01-01", done: 3, total: 5 }],
     teamClients: ["Hart Dental"],
+    siteCategories: [],
     taskTypes: [],
     labels: [{ id: "l1", name: "Client", color: "pink" }],
     myUserId: "me",
@@ -557,6 +564,33 @@ describe("the project page", () => {
     // The client is listed once, beside the lead, not under the name (Tyler, 19 Oct 2026).
     expect(html.match(/Hart Dental/g)).toHaveLength(1)
     expect(html).toMatch(/>Client<\/h3><span[^>]*>Hart Dental</)
+  })
+
+  it("lists the project's links and divider labels under its description, in their order", () => {
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <ProjectDetailsPanel
+          page={{
+            ...page,
+            project: {
+              ...page.project,
+              description: "Spring site",
+              links: [
+                { id: "a", kind: "link", label: "Figma", url: "https://figma.com/file/1" },
+                { id: "b", kind: "divider", label: "Docs" },
+                { id: "c", kind: "link", label: "", url: "https://docs.example.test/brief" },
+              ],
+            },
+          }}
+        />
+      </TooltipProvider>
+    )
+    expect(html).toMatch(/href="https:\/\/figma\.com\/file\/1" target="_blank" rel="noopener noreferrer"/)
+    // A link with no label shows its address without https://.
+    expect(html).toContain(">docs.example.test/brief<")
+    const at = ["Spring site", ">Figma<", ">Docs<", ">docs.example.test/brief<"].map((text) => html.indexOf(text))
+    expect(at.every((index) => index >= 0)).toBe(true)
+    expect([...at].sort((a, b) => a - b)).toEqual(at)
   })
 
   it("gives an employee no settings cog", () => {

@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { isRealDay } from "@/lib/project/days"
 import { storedTaskNotes } from "@/lib/project/notes"
+import { projectLinksSchema } from "@/lib/project/project-links"
 import { STEP_FIELD_KINDS } from "@/lib/project/step-fields"
 
 /**
@@ -346,6 +347,7 @@ export const LIMITS = {
   /** The most late tasks a project status rule can name. */
   lateTasks: 99,
   clientName: 60,
+  categoryName: 60,
   milestoneName: 80,
   milestonesPerProject: 30,
 } as const
@@ -575,6 +577,16 @@ export const updateProjectSchema = z.object({
   /** A media library address, or "" to take the picture away. */
   bannerUrl: z.string().trim().max(2048).optional(),
   avatarUrl: z.string().trim().max(2048).optional(),
+  /** The category's name; empty takes it off. */
+  category: z
+    .string()
+    .trim()
+    .max(LIMITS.categoryName, `A category's name can be at most ${LIMITS.categoryName} characters.`)
+    .transform((value) => value || null)
+    .nullable()
+    .optional(),
+  /** The whole list of links and dividers, in order. */
+  links: projectLinksSchema.optional(),
 })
 
 /** The client's name; empty takes it off. */

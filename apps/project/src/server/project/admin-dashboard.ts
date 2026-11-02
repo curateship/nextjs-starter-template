@@ -94,8 +94,6 @@ export type ProjectFace = { id: string; name: string; avatarUrl: string }
  * cards", Tyler, 29 Oct 2026): who's on it, and what got finished lately.
  */
 export type AdminProjectCards = {
-  /** Projects the site admin hid from the card. Theirs alone. */
-  hidden: string[]
   /** The card's projects in the order they dragged them; empty is late first. */
   order: string[]
   /** Up to four people on each project besides its lead, and how many that is in all. */
@@ -163,7 +161,6 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
     .select({
       timeZone: projectSiteAdminPrefs.timeZone,
       statusOrder: projectSiteAdminPrefs.statusOrder,
-      hiddenProjectIds: projectSiteAdminPrefs.hiddenProjectIds,
       projectOrder: projectSiteAdminPrefs.projectOrder,
     })
     .from(projectSiteAdminPrefs)
@@ -243,9 +240,14 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
       ),
       projects,
       projectCards: {
-        hidden: prefs?.hiddenProjectIds ?? [],
         order: prefs?.projectOrder ?? [],
-        ...(await projectCardExtras(projects, today, zone, database)),
+        // Only pinned projects are drawn on the card, so only theirs are read.
+        ...(await projectCardExtras(
+          projects.filter((project) => project.starred),
+          today,
+          zone,
+          database
+        )),
       },
       milestones: label(await milestonesDue(today, sharedOpen, database)),
       doneToday: await doneOn(today, zone, sharedOpen, label, database),
@@ -582,17 +584,7 @@ export async function setAdminTimeZone(userId: string, timeZone: string, databas
     .where(eq(projectTeams.personalUserId, userId))
 }
 
-/** Projects hidden from the site admin's Projects card, or shown on it again. Theirs alone. */
-export async function setAdminHiddenProjects(userId: string, hiddenProjectIds: string[], database = db) {
-  await requireSiteAdmin(userId, database)
-  const at = now()
-  await database
-    .insert(projectSiteAdminPrefs)
-    .values({ userId, hiddenProjectIds, updatedAt: at })
-    .onConflictDoUpdate({ target: projectSiteAdminPrefs.userId, set: { hiddenProjectIds, updatedAt: at } })
-}
-
-/** The Projects card's projects dragged into a new order: theirs alone. */
+/** The Pinned projects card's projects dragged into a new order: theirs alone. */
 export async function setAdminProjectOrder(userId: string, projectOrder: string[], database = db) {
   await requireSiteAdmin(userId, database)
   const at = now()

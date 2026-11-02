@@ -79,7 +79,7 @@ const empty: AdminDashboard["cards"] = {
   meetings: [],
   dueThisWeek: [],
   projects: [],
-  projectCards: { hidden: [], order: [], people: {}, finished: {} },
+  projectCards: { order: [], people: {}, finished: {} },
   milestones: [],
   doneToday: [],
 }
@@ -108,6 +108,7 @@ const FULL: AdminDashboard["cards"] = {
       behindAt: 3,
       lead: null,
       dueDate: null,
+      starred: true,
     } as unknown as AdminDashboard["cards"]["projects"][number],
   ],
   milestones: [{ id: "ms1", name: "Launch", dueDate: "2099-03-20", projectId: "p1", projectName: "Acme · Website", openTasks: 2 }],
@@ -305,7 +306,7 @@ describe("the site admin's My dashboard", () => {
   it("draws the cards in Tyler's order", () => {
     const html = render(dashboard(FULL))
     const order = [
-      "Projects",
+      "Pinned projects",
       "Waiting on you",
       "Urgent",
       "No one on it",
@@ -319,7 +320,7 @@ describe("the site admin's My dashboard", () => {
     expect(at.every((index) => index >= 0)).toBe(true)
     expect([...at].sort((a, b) => a - b)).toEqual(at)
     // Tinted by how much each matters: two red, three amber, two blue, Done today green.
-    // The Projects card isn't tinted; its Slowing down project is, amber.
+    // The Pinned projects card isn't tinted; its Slowing down project is, amber.
     const cards = (tint: string) => html.match(new RegExp(`group/card[^"]*${tint}`, "g")) ?? []
     expect(cards("bg-red-500/10")).toHaveLength(2)
     expect(cards("bg-amber-500/10")).toHaveLength(3)
@@ -328,7 +329,7 @@ describe("the site admin's My dashboard", () => {
     expect(html).toMatch(/group\/block[^"]*border-amber-500\/25/)
   })
 
-  it("draws a Projects card: late projects first and tinted, stuck, due date, lead, faces, idle lines and hidden ones", () => {
+  it("draws a Pinned projects card: only pinned ones, late first and tinted, stuck, due date, lead, faces, idle lines", () => {
     const row = (id: string, name: string, extra: object) =>
       ({
         id,
@@ -341,6 +342,7 @@ describe("the site admin's My dashboard", () => {
         behindAt: 3,
         lead: null,
         dueDate: null,
+        starred: true,
         ...extra,
       }) as unknown as AdminDashboard["cards"]["projects"][number]
     const html = render(
@@ -356,17 +358,16 @@ describe("the site admin's My dashboard", () => {
             dated: ["2000-01-01", "2000-01-02", "2000-01-03"].map((dueDate) => ({ dueDate, dueAt: null, status: "todo" })),
           }),
           row("p3", "Archive photos", { counts: { todo: 0, doing: 0, done: 4, stuck: 0, archived: 0 } }),
-          row("p4", "Old blog", {}),
+          row("p4", "Old blog", { starred: false }),
         ],
         projectCards: {
-          hidden: ["p4"],
           order: [],
           people: { p1: { faces: [{ id: "ben", name: "Ben Tester", avatarUrl: "" }], total: 6 } },
           finished: { p1: [0, 1, 0, 2, 0, 0, 1, 0, 0, 3, 0, 0, 1, 2] },
         },
       })
     )
-    expect(html).toContain("Projects<")
+    expect(html).toContain("Pinned projects<")
     // The project's own picture, or its colour as a dot the same 24px size.
     expect(html).toMatch(/<img src="https:\/\/example.test\/brochure.png" alt="" class="size-9 /)
     expect(html).toMatch(/rounded-full bg-blue-500 size-9"><\/span><span class="grid[^>]*><span class="truncate[^>]*>Rebrand</)
@@ -380,16 +381,28 @@ describe("the site admin's My dashboard", () => {
     expect(html).toContain("Lead: Priya.")
     expect(html).toContain("+5")
     expect(html).toContain("10 tasks finished in the last two weeks.")
-    // Nothing open: a thin line under the blocks. Hidden: behind "Hidden 1" at the heading's right.
+    // Nothing open: a thin line under the blocks. Not pinned: not on the card, and no Hidden list.
     expect(html).toContain(", nothing open. Show it in full.")
     expect(html.indexOf(">Archive photos<")).toBeGreaterThan(html.indexOf(">Brochure<"))
-    expect(html).toMatch(/Hidden<span class="text-muted-foreground\/70">1</)
     expect(html).not.toContain(">Old blog<")
-    // Each has its own New task, Hide and Open.
+    expect(html).not.toContain("Hidden<")
+    // Three pinned, counted beside the heading.
+    expect(html).toMatch(/Pinned projects<\/[^>]+>(?:(?!<\/h).)*>3</)
+    // Each has its own New task, the pin that unpins it, and Open.
     expect(html).toContain('aria-label="New task in Brochure"')
-    expect(html).toContain('aria-label="Hide Brochure from this card"')
+    expect(html).toContain('aria-label="Unpin Brochure"')
+    expect(html).not.toContain("from this card")
     expect(html).toContain('aria-label="Open Brochure"')
     expect(html).toContain('aria-pressed="false"')
+    // Under them, the way to every project.
+    expect(html).toMatch(/<a [^>]*opacity-0[^>]*group-hover\/fold:opacity-100[^>]*><span[^>]*>All projects<\/span>/)
+  })
+
+  it("says how to pin one, and still links to every project, when nothing is pinned", () => {
+    const html = render(dashboard({ projects: FULL.projects.map((project) => ({ ...project, starred: false })) }))
+    expect(html).toContain("Pinned projects<")
+    expect(html).toContain("Pin a project on the Projects page to see it here.")
+    expect(html).toMatch(/<a [^>]*opacity-0[^>]*group-hover\/fold:opacity-100[^>]*><span[^>]*>All projects<\/span>/)
   })
 
   it("leaves a section hidden with the eye off the Daily card", () => {

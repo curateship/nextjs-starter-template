@@ -61,9 +61,11 @@ number.
   divider line above and below it, so the two never read as one band (Tyler,
   19 Oct 2026). Every heading is the same height. It is the shell's
   `TableGroupRow` (see the repo's `docs/shell/user-interface.md`).
-- **Due date** groups are Overdue, Today, This week (today and the six days
-  after), Later, Earlier (Done tasks whose day has passed) and No due date,
-  on the reader's own clock, the same as the red due dates.
+- **Due date** groups are Overdue, Today, Tomorrow (Tyler, 2 Nov 2026: "Add
+  a tomorrow sort under today"), This week (the rest of the seven days from
+  today), Later, Earlier (Done tasks whose day has passed) and No due date,
+  on the reader's own clock, the same as the red due dates. Tomorrow's "+"
+  starts a task due tomorrow, as Today's starts one due today.
 - **Tags** lists each tag by name, then No tags. A task with two tags shows
   under both, and its row drags from either.
 - **Assigned to** lists each person by name, then Nobody; **Type** each type,
@@ -115,8 +117,8 @@ tells everyone what comes first.
   - **Priority** and **Type:** that one. No type takes the type off.
   - **Assigned to:** asks "Hand this task to Sam?" first, as the Board does;
     Nobody asks "Take everyone off this task?".
-  - **Due date:** Today is due today, This week tomorrow, Later eight days on,
-    and No due date clears it. Overdue and Earlier take no drops.
+  - **Due date:** Today is due today, Tomorrow tomorrow, This week the day
+    after tomorrow, Later eight days on, and No due date clears it. Overdue and Earlier take no drops.
   - **Tags:** the tag it was under is swapped for the new one, and its other
     tags stay. A heading it is already under takes no drop, and No tags only
     takes a task whose one tag it leaves.

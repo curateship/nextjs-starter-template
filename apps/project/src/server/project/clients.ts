@@ -23,3 +23,22 @@ export async function visibleClients(membership: Membership, database: ProjectDb
     )
   return clientChoices(rows.map((row) => row.client))
 }
+
+/**
+ * Every category on a shared project in any team, one per name, matched as
+ * client names are. One list for the whole site (Tyler, 2 Nov 2026), so only
+ * the site admin is sent it.
+ */
+export async function siteCategories(database: ProjectDb) {
+  const rows = await database
+    .selectDistinct({ category: projectProjects.category })
+    .from(projectProjects)
+    .where(
+      and(
+        isNull(projectProjects.personalUserId),
+        isNotNull(projectProjects.category),
+        ne(projectProjects.category, "")
+      )
+    )
+  return clientChoices(rows.map((row) => row.category))
+}

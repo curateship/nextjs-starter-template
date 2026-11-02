@@ -55,6 +55,7 @@ const GROUP_DOT: Record<string, string> = {
   waiting: "bg-amber-500",
   overdue: "bg-red-500",
   today: "bg-orange-500",
+  tomorrow: "bg-teal-500",
   week: "bg-blue-500",
   later: "bg-violet-500",
   picked: "bg-foreground",

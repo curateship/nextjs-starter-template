@@ -5,7 +5,6 @@ import { adminProjectListSchema, adminTimeZoneSchema, myStatusOrderSchema } from
 import { userGet, userPost } from "@/server/guards"
 import {
   loadAdminDashboard,
-  setAdminHiddenProjects,
   setAdminProjectOrder,
   setAdminStatusOrder,
   setAdminTimeZone,
@@ -39,11 +38,6 @@ const setAdminStatusOrderFn = createServerFn({ method: "POST" })
   .inputValidator(myStatusOrderSchema)
   .handler(async ({ data, context }) => setAdminStatusOrder(context.user.id, data.statusOrder))
 
-const setAdminHiddenProjectsFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(adminProjectListSchema)
-  .handler(async ({ data, context }) => setAdminHiddenProjects(context.user.id, data.projectIds))
-
 const setAdminProjectOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(adminProjectListSchema)
@@ -61,11 +55,7 @@ export function saveAdminTimeZone(data: z.input<typeof adminTimeZoneSchema>) {
 export function saveAdminStatusOrder(statusOrder: z.input<typeof myStatusOrderSchema>["statusOrder"]) {
   return setAdminStatusOrderFn({ data: { statusOrder } })
 }
-/** The projects the site admin hid from their Projects card. */
-export function saveAdminHiddenProjects(projectIds: string[]) {
-  return setAdminHiddenProjectsFn({ data: { projectIds } })
-}
-/** The site admin's Projects card in their own order. */
+/** The site admin's Pinned projects card in their own order. */
 export function saveAdminProjectOrder(projectIds: string[]) {
   return setAdminProjectOrderFn({ data: { projectIds } })
 }

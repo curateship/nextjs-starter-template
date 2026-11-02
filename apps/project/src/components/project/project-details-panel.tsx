@@ -1,5 +1,5 @@
 import * as React from "react"
-import { FolderKanbanIcon, SettingsIcon } from "lucide-react"
+import { FolderKanbanIcon, LinkIcon, SettingsIcon } from "lucide-react"
 
 import { ProjectMilestones } from "@/components/project/project-milestones"
 import { ProjectPaceMark } from "@/components/project/project-pace"
@@ -11,12 +11,13 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ProjectPage } from "@/lib/api/project/projects"
 import { clockTotal, timeOnTasks } from "@/lib/project/clock"
+import { linkText, type ProjectLink } from "@/lib/project/project-links"
 import { countLate, projectPace } from "@/lib/project/project-pace"
 import { runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
 
 /**
- * The project's description, lead, client and status, then its milestones
+ * The project's description and links, lead, client and status, then its milestones
  * as a folding card at the bottom (Tyler, 15 Oct 2026). The status is worked
  * out from the late tasks by the rule in Project settings (Tyler, 19 Oct
  * 2026); it sits under the name beside the avatar, or with the lead without one. The cog in
@@ -121,6 +122,7 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
                 : project.description || <span className="text-muted-foreground">No description yet.</span>}
             </p>
           </div>
+          {shared && project.links.length ? <ProjectLinks links={project.links} /> : null}
           {shared ? (
             <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
               {avatar ? null : (
@@ -164,6 +166,37 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
         <ProjectSettingsDialog page={page} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       ) : null}
     </div>
+  )
+}
+
+/**
+ * The project's links under its description, in the order dragged into in
+ * Project settings, each opening in a new tab; a divider is a small heading
+ * over the links after it (Misc 5, Tyler, 2 Nov 2026).
+ */
+function ProjectLinks({ links }: { links: ProjectLink[] }) {
+  return (
+    <ul className="grid gap-1.5" aria-label="Links">
+      {links.map((link, index) =>
+        link.kind === "divider" ? (
+          <li key={link.id} className={cn(index > 0 && "pt-2")}>
+            <Heading>{link.label}</Heading>
+          </li>
+        ) : (
+          <li key={link.id} className="min-w-0">
+            <a
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex max-w-full items-center gap-2 text-sm text-primary hover:underline"
+            >
+              <LinkIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="truncate">{linkText(link)}</span>
+            </a>
+          </li>
+        )
+      )}
+    </ul>
   )
 }
 

@@ -16,26 +16,22 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { ArrowUpRightIcon, EyeOffIcon, GripVerticalIcon, PlusIcon } from "lucide-react"
+import { ArrowUpRightIcon, GripVerticalIcon, PlusIcon } from "lucide-react"
 import { Area, AreaChart, YAxis } from "recharts"
 
 import { FoldHeading } from "@/components/project/fold-heading"
 import { NewTaskWithProjectPicker } from "@/components/project/new-task-header"
+import { PinButton } from "@/components/project/pin-button"
 import { PersonAvatar, ProjectDot } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import {
-  saveAdminHiddenProjects,
-  saveAdminProjectOrder,
-  type AdminDashboard,
-  type AdminProjectCards,
-} from "@/lib/api/project/admin-dashboard"
+import { saveAdminProjectOrder, type AdminDashboard, type AdminProjectCards } from "@/lib/api/project/admin-dashboard"
 import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { focusRingInset } from "@/lib/layout/focus-ring"
-import { openTaskCount, projectCardList, projectDueLine, type PacedProject } from "@/lib/project/admin-project-cards"
+import { projectCardList, projectDueLine, type PacedProject } from "@/lib/project/admin-project-cards"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { PANEL_GAP } from "@/lib/project/panel-gutter"
 import { PROJECT_PACE_LABEL, type ProjectPace } from "@/lib/project/project-pace"
@@ -91,16 +87,19 @@ const ROOM_FOR_BUTTONS =
   "group-hover/block:pr-28 group-has-[:focus-visible]/block:pr-28 [@media(hover:none)]:pr-28"
 
 /**
- * The Projects card on the site admin's My dashboard (task "My dashboard/01
- * Project cards", Tyler, 29 Oct 2026). It took the place of "Projects running
- * late": every team's open projects as blocks, Behind ones first in red and
- * Slowing down next in amber, each with its status, how much is done, its due
- * date, how many are stuck, its lead and people, and a small line of what
- * got finished each day for two weeks. Pressing a block shows only that
- * project's tasks in My tasks, and pressing it again shows them all. Projects
- * with nothing open sit under the blocks as thin lines. The site admin may
- * hide a project and drag the blocks into their own order; both are theirs
- * alone. Null when there are no projects at all.
+ * The Pinned projects card on the site admin's My dashboard (task "My
+ * dashboard/01 Project cards", Tyler, 29 Oct 2026). It took the place of
+ * "Projects running late": the open projects they pinned as blocks, Behind
+ * ones first in red and Slowing down next in amber, each with its status, how
+ * much is done, its due date, how many are stuck, its lead and people, and a
+ * small line of what got finished each day for two weeks. Pressing a block
+ * shows only that project's tasks in My tasks, and pressing it again shows
+ * them all. Pinned projects with nothing open sit under the blocks as thin
+ * lines. Only pinned projects show, and the pin in each block's buttons
+ * unpins it (Misc 5, Tyler, 2 Nov 2026: "Remove the hidden feature and make
+ * only pinned project shows up"); the blocks drag into the site admin's own
+ * order. "All projects", left of the heading's fold arrow, opens the Projects page, where the
+ * rest are pinned. Null when there are no open projects at all.
  */
 export function ProjectsCard({
   projects,
@@ -119,8 +118,7 @@ export function ProjectsCard({
 }) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  // A drag or a hide shows at once and goes back if the save is refused.
-  const [hidden, setHidden] = useSyncedDraft(extras.hidden)
+  // A drag shows at once and goes back if the save is refused.
   const [order, setOrder] = useSyncedDraft(extras.order)
   const [all, setAll] = React.useState(false)
   const sensors = useSensors(
@@ -129,29 +127,23 @@ export function ProjectsCard({
   )
   const dndId = React.useId()
   const headingId = React.useId()
-  // The heading's fold, remembered in this browser; the hidden list starts shut.
+  // The heading's fold, remembered in this browser.
   const [shown, setShown, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-admin-projects"))
-  const [hiddenOpen, setHiddenOpen] = React.useState(false)
 
   if (projects.length === 0) return null
-  const list = projectCardList(projects, hidden, order)
+  const list = projectCardList(projects, order)
   const blocks = all ? list.active : list.active.slice(0, BLOCKS)
+  const pinned = list.active.length + list.idle.length
+
+  /** An unpinned project leaves the card, so My tasks stops being filtered to it. */
+  function unpinned(projectId: string) {
+    if (picked === projectId) onPick(undefined)
+  }
 
   async function save(work: () => Promise<unknown>, undo: () => void) {
     const ok = await run(work)
     if (ok) await router.invalidate()
     else undo()
-  }
-
-  function hide(projectId: string, hiding: boolean) {
-    const before = hidden
-    const next = hiding ? [...hidden, projectId] : hidden.filter((id) => id !== projectId)
-    setHidden(next)
-    if (hiding && picked === projectId) onPick(undefined)
-    void save(
-      () => saveAdminHiddenProjects(next),
-      () => setHidden(before)
-    )
   }
 
   function drop(event: DragEndEvent) {
@@ -173,33 +165,40 @@ export function ProjectsCard({
     // No box: the heading sits on the panel and each project is a card of its
     // own (Tyler, 30 Oct 2026: "Put the label and toggle outside and have the
     // project in its own card"). The arrow at the heading's right folds every
-    // project, and "Hidden 2" left of it opens the hidden ones (Tyler, 31 Oct
-    // 2026: "This toggle should hide the projects ... and move the "hidden" a
-    // bit left so the arrow has more room").
+    // project (Tyler, 31 Oct 2026: "This toggle should hide the projects").
     <Collapsible open={shown} onOpenChange={setShown} asChild>
       {/* Every grid here has one column that can shrink, so a narrow panel wraps a
           card's rows, as the project page's left panel does, instead of pushing the
           card past the panel's edge (Tyler, 31 Oct 2026: "The project dashboard
           doesnt have this problem"). */}
-      <section aria-labelledby={headingId} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
+      <section aria-labelledby={headingId} className={cn("@container grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
         {/* The same size as the Daily card's greeting above it (Tyler, 30 Oct 2026),
             with the same room above it as Need your attention has, to part it from
             the Daily card (Tyler, 31 Oct 2026: "needs more space"). */}
-        <FoldHeading
-          id={headingId}
-          title="Projects"
-          className="mt-3"
-          count={list.active.length + list.idle.length}
-        >
-          {shown && list.hidden.length ? (
-            <HiddenToggle count={list.hidden.length} open={hiddenOpen} onToggle={() => setHiddenOpen(!hiddenOpen)} />
-          ) : null}
+        <FoldHeading id={headingId} title="Pinned projects" className="mt-3" count={pinned}>
+          {/* Left of the fold arrow, where "Hidden 2" was (Tyler, 2 Nov 2026: "move the view
+              all projects link here", then "rename to "All projects""), and shown folded
+              too, since it leads off the card. In a panel too narrow for the words beside
+              the heading, only its arrow shows, so the heading keeps one line. */}
+          {/* No hover hint (Tyler, 2 Nov 2026: "remove the tooltip for all projects hover"). */}
+          <Link
+            to="/projects"
+            className={cn(
+              // Shown while the heading is pointed at, like the arrow beside it (Tyler, 2 Nov
+              // 2026: "make it hover over only"), and always on a screen with no pointer.
+              "mr-1 flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-sm text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/fold:opacity-100 [@media(hover:none)]:opacity-100",
+              focusRingInset
+            )}
+          >
+            <span className="@max-[19rem]:sr-only">All projects</span>
+            <ArrowUpRightIcon className="size-3.5" aria-hidden />
+          </Link>
         </FoldHeading>
         <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
-          {hiddenOpen && list.hidden.length ? (
-            <HiddenProjects projects={list.hidden} onShow={(id) => hide(id, false)} />
-          ) : null}
           <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
+            {pinned ? null : (
+              <p className="text-sm text-muted-foreground">Pin a project on the Projects page to see it here.</p>
+            )}
             {list.active.length ? (
               <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}>
                 <SortableContext items={blocks.map((row) => row.project.id)} strategy={verticalListSortingStrategy}>
@@ -213,7 +212,7 @@ export function ProjectsCard({
                         picked={picked === row.project.id}
                         dragDisabled={busy || list.active.length < 2}
                         onPick={() => onPick(picked === row.project.id ? undefined : row.project.id)}
-                        onHide={() => hide(row.project.id, true)}
+                        onUnpin={() => unpinned(row.project.id)}
                       />
                     ))}
                   </ul>
@@ -235,7 +234,7 @@ export function ProjectsCard({
                     today={today}
                     picked={picked === row.project.id}
                     onPick={() => onPick(picked === row.project.id ? undefined : row.project.id)}
-                    onHide={() => hide(row.project.id, true)}
+                    onUnpin={() => unpinned(row.project.id)}
                   />
                 ))}
               </ul>
@@ -255,7 +254,7 @@ function ProjectBlock({
   picked,
   dragDisabled,
   onPick,
-  onHide,
+  onUnpin,
 }: {
   row: PacedProject<Project>
   extras: AdminProjectCards
@@ -263,7 +262,7 @@ function ProjectBlock({
   picked: boolean
   dragDisabled: boolean
   onPick: () => void
-  onHide: () => void
+  onUnpin: () => void
 }) {
   const { project } = row
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
@@ -305,7 +304,7 @@ function ProjectBlock({
           </TooltipTrigger>
           <TooltipContent>Drag to change the order</TooltipContent>
         </Tooltip>
-        <ProjectButtons project={project} onHide={onHide} />
+        <ProjectButtons project={project} onUnpin={onUnpin} />
       </div>
     </li>
   )
@@ -318,14 +317,14 @@ function IdleLine({
   today,
   picked,
   onPick,
-  onHide,
+  onUnpin,
 }: {
   row: PacedProject<Project>
   extras: AdminProjectCards
   today: string
   picked: boolean
   onPick: () => void
-  onHide: () => void
+  onUnpin: () => void
 }) {
   const [open, setOpen] = React.useState(false)
   const { project } = row
@@ -355,7 +354,7 @@ function IdleLine({
         </button>
       )}
       <div className={cn("absolute top-1 right-3 flex items-center", open && "top-3", QUIET)}>
-        <ProjectButtons project={project} onHide={onHide} />
+        <ProjectButtons project={project} onUnpin={onUnpin} />
       </div>
     </li>
   )
@@ -474,8 +473,8 @@ function ProjectPicture({ project }: { project: Project }) {
   )
 }
 
-/** "+" for a new task in the project, Hide, and the arrow to its page. */
-function ProjectButtons({ project, onHide }: { project: Project; onHide: () => void }) {
+/** "+" for a new task in the project, the pin that unpins it, and the arrow to its page. */
+function ProjectButtons({ project, onUnpin }: { project: Project; onUnpin: () => void }) {
   return (
     <>
       {/* New task's own trigger wraps the tooltip's, so both reach the button. */}
@@ -499,11 +498,9 @@ function ProjectButtons({ project, onHide }: { project: Project; onHide: () => v
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-xs" aria-label={`Hide ${project.name} from this card`} onClick={onHide}>
-            <EyeOffIcon className="size-4" />
-          </Button>
+          <PinButton project={project} size="icon-xs" onChange={(starred) => (starred ? undefined : onUnpin())} />
         </TooltipTrigger>
-        <TooltipContent>Hide from this card</TooltipContent>
+        <TooltipContent>Unpin</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -592,48 +589,5 @@ function FinishedLine({ days }: { days: number[] }) {
         />
       </AreaChart>
     </span>
-  )
-}
-
-/**
- * "Hidden 4", left of the Projects heading's fold arrow with room between,
- * which opens the hidden projects, each with Show to put it back. It shows
- * only while the heading is pointed at, has the keyboard's focus, or the
- * hidden ones are open (Tyler, 30 Oct 2026: "toggle to be hover over"); always
- * on a screen with no pointer. The arrow it had is the heading's fold now.
- */
-function HiddenToggle({ count, open, onToggle }: { count: number; open: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-expanded={open}
-      onClick={onToggle}
-      className={cn(
-        "mr-2 flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-sm text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/fold:opacity-100 [@media(hover:none)]:opacity-100",
-        open && "text-foreground opacity-100",
-        focusRingInset
-      )}
-    >
-      Hidden
-      <span className="text-muted-foreground/70">{count}</span>
-    </button>
-  )
-}
-
-/** The hidden projects, each with Show, under the heading while the toggle is open. */
-function HiddenProjects({ projects, onShow }: { projects: Project[]; onShow: (projectId: string) => void }) {
-  return (
-    <ul className="grid gap-1" aria-label="Hidden projects">
-      {projects.map((project) => (
-        <li key={project.id} className="flex min-h-9 min-w-0 items-center gap-3 px-2 text-sm">
-          <ProjectDot color={project.color} className="size-2" />
-          <span className="min-w-0 flex-1 truncate text-foreground/80">{project.name}</span>
-          <span className="shrink-0 text-xs text-muted-foreground/70">{openTaskCount(project.counts)} open</span>
-          <Button type="button" variant="secondary" size="sm" onClick={() => onShow(project.id)}>
-            Show
-          </Button>
-        </li>
-      ))}
-    </ul>
   )
 }

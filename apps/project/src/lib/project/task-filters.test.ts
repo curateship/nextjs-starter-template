@@ -106,6 +106,8 @@ describe("grouping My tasks by when they're due", () => {
     expect(dueGroupOf({ waiting: true, dueDate: "2099-01-01" }, today)).toBe("waiting")
     expect(dueGroupOf({ waiting: false, dueDate: "2099-03-03" }, today)).toBe("overdue")
     expect(dueGroupOf({ waiting: false, dueDate: today }, today)).toBe("today")
+    expect(dueGroupOf({ waiting: false, dueDate: "2099-03-05" }, today)).toBe("tomorrow")
+    expect(dueGroupOf({ waiting: false, dueDate: "2099-03-06" }, today)).toBe("week")
     expect(dueGroupOf({ waiting: false, dueDate: "2099-03-11" }, today)).toBe("week")
     expect(dueGroupOf({ waiting: false, dueDate: "2099-03-12" }, today)).toBe("later")
     expect(dueGroupOf({ waiting: false, dueDate: null }, today)).toBe("none")
@@ -113,7 +115,8 @@ describe("grouping My tasks by when they're due", () => {
 
   it("moves with a time zone change, because today is passed in", () => {
     const task = { waiting: false, dueDate: "2099-03-05" }
-    expect(dueGroupOf(task, "2099-03-04")).toBe("week")
+    expect(dueGroupOf(task, "2099-03-03")).toBe("week")
+    expect(dueGroupOf(task, "2099-03-04")).toBe("tomorrow")
     expect(dueGroupOf(task, "2099-03-05")).toBe("today")
   })
 })
