@@ -367,6 +367,12 @@ built. Each was the recommended option.
   dots and no cross on the project page (20 Oct 2026). The status went to a
   footer pinned to the panel's bottom later the same day (see "Choices for
   the task clock" below).
+- **One ⋮ menu, no cog** (2 Nov 2026): "the 3 dot and the cog dropdowns are
+  too redundent, combine them into one". The menu has the Details and History
+  tabs with Follow, an Add to task row of icons (Tags, Comment, Files, Steps,
+  Time), the fields, then Show the text toolbar, Remind me, Duplicate, Move,
+  Save as task template and Delete task, drawn in
+  `workspace/docs/assets/pasted-image-1793657566602963000.png`.
 - **No cross on My dashboard either, and the right panel is never empty**
   (23 Oct 2026): "There is no 'x' icon to close the right panel to show an
   empty panel. The first load always show the first task and then it

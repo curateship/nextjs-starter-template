@@ -15,6 +15,7 @@ import {
   SettingsIcon,
   StrikethroughIcon,
   TextQuoteIcon,
+  XIcon,
 } from "lucide-react"
 
 import { WrittenPageBody } from "@/components/pages/written-page-body"
@@ -292,7 +293,7 @@ export function TaskNotesField({
 /** How long the notes wait after the last key before saving themselves. */
 const LIVE_SAVE_DELAY_MS = 1000
 
-/** What the task panel's header and ⋮ ask of the notes under them. */
+/** What the task panel's ⋮ asks of the notes under it. */
 export type NotesHandle = { showVersions: () => void; askDelete: () => void }
 
 /**
@@ -304,7 +305,8 @@ export type NotesHandle = { showVersions: () => void; askDelete: () => void }
  *
  * In the task panel (`panel`) the notes are the panel's own body, straight
  * under the task's title as a note's words sit under its name, with no card or
- * label; the header's pencil shows the text toolbar (`toolbar`) and its ⋮
+ * label. The header's ⋮ shows the text toolbar (`toolbar`), and the
+ * toolbar's × hides it through `onToolbar` (Tyler, 2 Nov 2026). The ⋮ also
  * reaches Earlier versions and Delete through `handle`. In the Team
  * dashboard's window they sit among the fields under a Notes label.
  *
@@ -321,6 +323,7 @@ export function LiveTaskNotes({
   task,
   panel = false,
   toolbar = false,
+  onToolbar,
   handle,
 }: {
   notes: string
@@ -329,6 +332,7 @@ export function LiveTaskNotes({
   task: { id: string; links: Record<string, string>; change: Change }
   panel?: boolean
   toolbar?: boolean
+  onToolbar?: (shown: boolean) => void
   handle?: React.Ref<NotesHandle>
 }) {
   const navigate = useNavigate()
@@ -435,7 +439,23 @@ export function LiveTaskNotes({
           </Button>
         </div>
       )}
-      {panel && toolbar ? <NotesToolbar box={editorBox} /> : null}
+      {/* Opened from the ⋮; the toolbar's × closes it (Tyler, 2 Nov 2026,
+          `assets/pasted-image-1793656552866103000.png`). */}
+      {panel && toolbar ? (
+        <div className="flex items-start gap-1">
+          <NotesToolbar box={editorBox} />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Hide the text toolbar"
+            className="mt-0.5"
+            onClick={() => onToolbar?.(false)}
+          >
+            <XIcon className="size-4" />
+          </Button>
+        </div>
+      ) : null}
       <div
         ref={editorBox}
         data-notes-editor=""
@@ -576,7 +596,7 @@ function NotesToolbar({ box }: { box: React.RefObject<HTMLDivElement | null> }) 
   }, [box])
 
   return (
-    <div role="toolbar" aria-label="Text" className="flex flex-wrap items-center gap-0.5 rounded-md border px-1 py-0.5">
+    <div role="toolbar" aria-label="Text" className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5 rounded-md border px-1 py-0.5">
       {TOOLBAR_ACTIONS.map((action) => (
         <Button
           key={action.label}
