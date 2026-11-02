@@ -239,6 +239,30 @@ that background passes resume and Coolify accepts the replacement container.
    add. If a release has to be undone and its migration genuinely cannot be
    left in place, restore the backup from step 1 of the release.
 
+## Nightly database backups
+
+Every live database on server1.barelycompany.com is backed up once a night and
+sent to Cloudflare R2, so a dead server doesn't take the data with it. Tyler,
+2 Nov 2026: "set up the backups to R2".
+
+- **Where:** R2 bucket `server1-backups`, under
+  `data/coolify/backups/databases/`. Coolify knows it as the S3 storage
+  "R2 server1-backups". Its key can read and write that one bucket and
+  nothing else. Cloudflare lists it as the API token "server1 Coolify database
+  backups".
+- **When:** from 03:00 UTC, ten minutes apart so two dumps never fight over
+  the slow disk. Trade DB goes first at 03:00, then Pomoder, Video, Project,
+  Note, Fitness, Date, Course, Course SE, and System Everything at 04:30.
+- **How long they're kept:** 30 days in R2, and the last 3 on the server.
+- **Core:** not backed up nightly, because Core isn't used any more. Its
+  database was copied to R2 once on 2 Nov 2026, 11,232 rows, under
+  `core-db-egnksrgf76imfdg7amy9rvpv/`, so the US server could be cancelled.
+  That copy is kept with no expiry, and Core DB on server1 is stopped.
+- **A new app's database** gets the same schedule in Coolify, under the
+  database's Backups tab, with "R2 server1-backups" picked as the S3 storage.
+- **Restoring:** download the `.dmp` from R2 and run `pg_restore` into the
+  database. Each file is a whole `pg_dump` in custom format.
+
 ## Restarting and overlapping
 
 Both background jobs claim their work in the database before doing it, so an
