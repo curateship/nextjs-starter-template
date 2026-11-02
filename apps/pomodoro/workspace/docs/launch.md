@@ -8,15 +8,20 @@ value, and what has been proven so far.
 ## Decided
 
 - **Fresh start.** No earlier Pomoder site is live on the domain, so there are no members or data to bring over. Tyler, 8 Oct 2026.
-- **Server:** the Hetzner US server (5.78.189.158) for the database and both
-  resources, deployed through the Coolify on that server (port 8000). Trade
-  left the US server for the German one in August. The US server is retired
-  for Trade only, not for Pomodoro. Tyler, 8 Oct 2026.
+- **Server:** server1.barelycompany.com, 185.55.243.241, with every app
+  except Core, deployed through the Coolify on that server (port 8000). The database
+  and both resources moved there from the US Hetzner server, 5.78.189.158, on
+  2 Nov 2026, with all 88,147 rows. Tyler: "Only core we dont need to move".
+  The US copies, Pomoder Web `w21w5iit9f1kgxxak2et2hmg`, Pomoder Worker
+  `cxjb1e2704wr4ewqztrdnsm7` and Pomoder DB `lemznkk0o4h0wqcq295kozv7`, are
+  stopped there as the backup. On server1 they are Pomoder Web
+  `v0hykgu0jg9yi2z9tieqlnlj`, Pomoder Worker `hasivc8zbffsgaw7oq5sku2s` and
+  Pomoder DB `agbwgycisgnvtbbyl6ivkdty`.
 - **Coolify project:** "Pomoder", its own project. Tyler, 8 Oct 2026: each app
   gets its own project, because everything in "System Everything" is out of
   date.
 - **Database:** "Pomoder DB", a Postgres 18 created 8 Oct 2026 in that
-  project. It has no public port, so only containers on the US server can
+  project. It has no public port, so only containers on the same server can
   reach it. The System Everything database was not used, because its SSL is
   off and turning it on would restart the live System Everything site.
 - **First admin:** typham2@gmail.com. Tyler, 8 Oct 2026.
@@ -91,7 +96,7 @@ arguments can be read by anyone who can pull the image.
 
 | Value | Where it comes from | Missing means |
 | --- | --- | --- |
-| `CUSTOM_SHELL_DATABASE_URL` | Pomoder DB's internal address, kept in `apps/pomodoro/.env.live` (gitignored, never committed). It has no `sslmode` suffix: the link stays inside the US server, so nothing crosses the internet. A database on another machine would need `?uselibpqcompat=true&sslmode=require`. | Nothing starts. On purpose. |
+| `CUSTOM_SHELL_DATABASE_URL` | Pomoder DB's internal address, kept in `apps/pomodoro/.env.live` (gitignored, never committed). It has no `sslmode` suffix: the link stays inside the server, so nothing crosses the internet. A database on another machine would need `?uselibpqcompat=true&sslmode=require`. | Nothing starts. On purpose. |
 | `CUSTOM_SHELL_APP_URL` | The public address, `https://<the domain>` | Production refuses to send any email, because every link would point at `localhost`. |
 | `CUSTOM_SHELL_APP_ORIGINS` | `https://pomoder.com,https://www.pomoder.com`, web only | Every form submission is refused with "Invalid origin". Sign-in, sign-up and every save fail with "We could not complete that request." Setting `CUSTOM_SHELL_APP_URL` alone is not enough (`getAllowedOrigins` in `src/server/auth/origin.ts`). |
 | `CUSTOM_SHELL_API_ENV` | `production` | Without it, the laptop addresses (`localhost` on the dev port) stay on the allowed list in production. |
@@ -216,7 +221,7 @@ What the move needs, and where each part stands:
 
 - **Cloudflare zone:** flowfly.app was added on 29 Oct 2026, zone
   `7af3fe509eacf46dadbabe8ad6f34db7`, SSL "full" like pomoder.com. A
-  `flowfly.app` → 5.78.189.158 and CNAME `www` → `flowfly.app`, both proxied.
+  `flowfly.app` → 185.55.243.241 and CNAME `www` → `flowfly.app`, both proxied.
   Cloudflare gave this zone `hera.ns.cloudflare.com` and
   `marty.ns.cloudflare.com`, not pomoder.com's pair. Namecheap lists those two
   since 31 Oct 2026, when the zone turned active.
@@ -443,7 +448,7 @@ What the move needs, and where each part stands:
 - **Build stage:** Coolify's API cannot set "Docker Build Stage Target", so
   Tyler sets it by hand, `web` on Pomoder Web and `worker` on Pomoder Worker.
   Without it Docker builds the last stage in the file, which is the worker.
-- **DNS:** pomoder.com A `5.78.189.158` and www CNAME `pomoder.com`, both
+- **DNS:** pomoder.com A `185.55.243.241` and www CNAME `pomoder.com`, both
   proxied through Cloudflare. They replaced Namecheap's parking records.
 - **Website:** deployment `vy0ue0fsh1fvss5togheekiy` built in about 9
   minutes, and Coolify's health check passed. From outside, through
