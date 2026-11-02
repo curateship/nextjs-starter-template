@@ -22,6 +22,7 @@ import {
   requireGeminiKey,
   withGeminiFile,
 } from "@/server/video/gemini"
+import type { SpendTag } from "@/server/video/project-spend"
 import { videoMediaTranscripts } from "@/server/video/schema"
 import { downloadToFile } from "@/server/video/storage-files"
 import {
@@ -169,7 +170,7 @@ export async function fileWords({
   transcriber,
   feature,
   label,
-  projectId,
+  spend,
   tooLongMessage,
   failedMessage,
   fresh = false,
@@ -180,7 +181,7 @@ export async function fileWords({
   transcriber: Transcriber
   feature: string
   label: string
-  projectId: string
+  spend: SpendTag
   tooLongMessage: string
   failedMessage: string
   fresh?: boolean
@@ -231,7 +232,7 @@ export async function fileWords({
         provider: transcriber.provider,
         model: transcriber.model,
         feature,
-        metadata: { projectId, mediaId: media.id, pieces: pieces.length },
+        metadata: { ...spend, mediaId: media.id, pieces: pieces.length },
       },
       async () => {
         // All pieces at once: a 25-minute talk is three requests, and one
@@ -284,7 +285,7 @@ export async function fileWords({
  */
 export async function transcribeSound({
   userId,
-  projectId,
+  spend,
   transcriber,
   feature,
   label,
@@ -292,7 +293,7 @@ export async function transcribeSound({
   durationMs,
 }: {
   userId: string
-  projectId: string
+  spend: SpendTag
   transcriber: Transcriber
   feature: string
   label: string
@@ -309,7 +310,7 @@ export async function transcribeSound({
       provider: transcriber.provider,
       model: transcriber.model,
       feature,
-      metadata: { projectId },
+      metadata: spend,
     },
     async () => {
       const answer = await transcribePiece({

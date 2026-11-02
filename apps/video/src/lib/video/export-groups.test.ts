@@ -5,9 +5,9 @@ import { exportGroupId, groupLanguageCopies } from "./export-groups"
 function row(id: string, project: string, language?: string, original?: string) {
   return {
     id,
-    project_id: project,
+    video_id: project,
     language: language ?? null,
-    original_project_id: original ?? null,
+    original_video_id: original ?? null,
   }
 }
 

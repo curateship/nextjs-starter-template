@@ -6,15 +6,15 @@ import {
   CAROUSEL_CONFLICT_MESSAGE,
   CAROUSEL_NOT_FOUND_MESSAGE,
 } from "@/lib/video/carousel-schema"
+import { makeTestCarousel, testCarouselProjectId } from "@/server/video/carousel-test-support"
 import { type CustomShellDb } from "@/server/db"
 import { type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
-  createOwnedCarousel,
   deleteOwnedCarousels,
   duplicateOwnedCarousel,
   getOwnedCarouselDetail,
-  listOwnedCarousels,
+  listProjectCarousels,
   writeCarousel,
 } from "@/server/video/carousels"
 import { videoCarousels } from "@/server/video/schema"
@@ -36,7 +36,7 @@ afterEach(async () => {
 
 describe("carousels", () => {
   it("creates a validated starter carousel at version 1", async () => {
-    const created = await createOwnedCarousel(
+    const created = await makeTestCarousel(
       user.id,
       "  Swipe   post  ",
       database
@@ -51,7 +51,7 @@ describe("carousels", () => {
   })
 
   it("saves only validated slides and keeps format beside them", async () => {
-    const created = await createOwnedCarousel(user.id, "Post", database)
+    const created = await makeTestCarousel(user.id, "Post", database)
     const detail = await getOwnedCarouselDetail(user.id, created.id, database)
     const saved = await writeCarousel(
       user.id,
@@ -83,7 +83,7 @@ describe("carousels", () => {
   })
 
   it("refuses a stale tab without overwriting the newer save", async () => {
-    const created = await createOwnedCarousel(user.id, "Post", database)
+    const created = await makeTestCarousel(user.id, "Post", database)
     const detail = await getOwnedCarouselDetail(user.id, created.id, database)
     await writeCarousel(
       user.id,
@@ -120,7 +120,7 @@ describe("carousels", () => {
 
   it("keeps every read and write inside its owner", async () => {
     const stranger = await insertUser(database)
-    const theirs = await createOwnedCarousel(stranger.id, "Theirs", database)
+    const theirs = await makeTestCarousel(stranger.id, "Theirs", database)
     await expect(
       getOwnedCarouselDetail(user.id, theirs.id, database)
     ).rejects.toThrowError(CAROUSEL_NOT_FOUND_MESSAGE)
@@ -130,7 +130,7 @@ describe("carousels", () => {
   })
 
   it("duplicates into an independent version-1 document", async () => {
-    const created = await createOwnedCarousel(user.id, "Post", database)
+    const created = await makeTestCarousel(user.id, "Post", database)
     const copy = await duplicateOwnedCarousel(
       user.id,
       created.id,
@@ -144,7 +144,7 @@ describe("carousels", () => {
   })
 
   it("copies into another shape and leaves the original alone", async () => {
-    const created = await createOwnedCarousel(user.id, "Post", database)
+    const created = await makeTestCarousel(user.id, "Post", database)
     const before = await getOwnedCarouselDetail(user.id, created.id, database)
     const copy = await duplicateOwnedCarousel(
       user.id,
@@ -173,13 +173,14 @@ describe("carousels", () => {
   })
 
   it("searches names literally and lists only the owner", async () => {
-    await createOwnedCarousel(user.id, "100% useful", database)
-    await createOwnedCarousel(user.id, "Another post", database)
+    await makeTestCarousel(user.id, "100% useful", database)
+    await makeTestCarousel(user.id, "Another post", database)
     const stranger = await insertUser(database)
-    await createOwnedCarousel(stranger.id, "100% theirs", database)
+    await makeTestCarousel(stranger.id, "100% theirs", database)
 
-    const result = await listOwnedCarousels({
+    const result = await listProjectCarousels({
       userId: user.id,
+      projectId: await testCarouselProjectId(user.id, database),
       search: "100%",
       database,
     })

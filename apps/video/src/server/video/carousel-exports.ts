@@ -192,7 +192,7 @@ export async function keepCarouselExport({
         finishedAt: at,
       })
       .returning()
-    return serializeRenderJob(row, null, carousel.name)
+    return serializeRenderJob(row, undefined, carousel.name)
   } catch (error) {
     console.error("Keeping a carousel export failed", carouselId, error)
     // Whatever reached storage goes again, so a failed keep leaves no file

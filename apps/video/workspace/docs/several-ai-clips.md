@@ -1,7 +1,9 @@
 # Several AI shots at once
 
 A project can make up to three AI shots at the same time, and one person up to
-six across all their projects. That lets you try three directions for the same
+six across all their projects. Since 1 Nov 2026 a shot is paid for by the video
+open when it was asked for, and held to that video's spend limit
+(`project-videos.md`); the caps on shots at once are still per project. That lets you try three directions for the same
 first frame and look at all three, instead of waiting several minutes for each
 one in turn.
 

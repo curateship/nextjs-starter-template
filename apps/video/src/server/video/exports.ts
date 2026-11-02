@@ -24,6 +24,7 @@ import { removeExportFiles } from "@/server/video/export-files"
 import {
   videoCarousels,
   videoProjects,
+  videoProjectVideos,
   videoRenderJobs,
 } from "@/server/video/schema"
 import {
@@ -32,8 +33,8 @@ import {
 } from "@/server/video/render-queue"
 import { extractCoverFrameFromStorage } from "@/server/video/render"
 
-/** The project a language copy was made from, joined beside the copy. */
-const originalProjects = alias(videoProjects, "original_projects")
+/** The video a language copy was made from, joined beside the copy. */
+const originalVideos = alias(videoProjectVideos, "original_videos")
 
 /**
  * The gallery: every export, whatever project it came from, except the ones
@@ -62,7 +63,7 @@ export async function listOwnedExports({
   page = 1,
   pageSize = 24,
   search = "",
-  projectId,
+  videoId,
   kind = "video",
   database = db,
 }: {
@@ -72,8 +73,8 @@ export async function listOwnedExports({
   search?: string
   /** Video exports unless told otherwise. */
   kind?: ExportKind
-  /** Only this project's exports, for the project's Exports tab. */
-  projectId?: string
+  /** Only this video's exports, for the editor's Exports panel. */
+  videoId?: string
   database?: CustomShellDb
 }): Promise<ExportListResponse> {
   const safePage = Math.max(1, Math.floor(page))
@@ -84,7 +85,7 @@ export async function listOwnedExports({
     eq(videoRenderJobs.kind, kind),
     inArray(videoRenderJobs.status, ["ready", "error", "queued", "running"]),
   ]
-  if (projectId) filters.push(eq(videoRenderJobs.projectId, projectId))
+  if (videoId) filters.push(eq(videoRenderJobs.videoId, videoId))
   const cleanedSearch = search.trim()
   if (cleanedSearch) {
     // Wildcards are escaped, so searching for "%" finds a title with a percent
@@ -95,6 +96,7 @@ export async function listOwnedExports({
       ilike(videoRenderJobs.description, pattern),
       ilike(videoRenderJobs.caption, pattern),
       ilike(videoProjects.name, pattern),
+      ilike(videoProjectVideos.name, pattern),
       ilike(videoCarousels.name, pattern)
     )
     if (matches) filters.push(matches)
@@ -106,19 +108,21 @@ export async function listOwnedExports({
       .select({
         job: videoRenderJobs,
         projectName: videoProjects.name,
+        videoName: videoProjectVideos.name,
         carouselName: videoCarousels.name,
-        language: videoProjects.language,
-        originalId: originalProjects.id,
-        originalName: originalProjects.name,
+        language: videoProjectVideos.language,
+        originalId: originalVideos.id,
+        originalName: originalVideos.name,
       })
       .from(videoRenderJobs)
       .leftJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
+      .leftJoin(videoProjectVideos, eq(videoProjectVideos.id, videoRenderJobs.videoId))
       // A language copy's original, so the page can group the two.
       .leftJoin(
-        originalProjects,
+        originalVideos,
         and(
-          eq(originalProjects.id, videoProjects.languageOf),
-          eq(originalProjects.userId, userId)
+          eq(originalVideos.id, videoProjectVideos.languageOf),
+          eq(originalVideos.userId, userId)
         )
       )
       .leftJoin(
@@ -133,6 +137,7 @@ export async function listOwnedExports({
       .select({ total: count() })
       .from(videoRenderJobs)
       .leftJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
+      .leftJoin(videoProjectVideos, eq(videoProjectVideos.id, videoRenderJobs.videoId))
       .leftJoin(
         videoCarousels,
         eq(videoCarousels.id, videoRenderJobs.carouselId)
@@ -143,7 +148,12 @@ export async function listOwnedExports({
   const total = totals?.total ?? 0
   return {
     exports: rows.map((row) =>
-      serializeRenderJob(row.job, row.projectName, row.carouselName, row)
+      serializeRenderJob(
+        row.job,
+        { project: row.projectName, video: row.videoName },
+        row.carouselName,
+        row
+      )
     ),
     total,
     page: safePage,

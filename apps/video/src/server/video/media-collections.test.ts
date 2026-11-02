@@ -6,6 +6,7 @@ import {
   COLLECTION_NAME_TAKEN_MESSAGE,
   COLLECTION_NOT_FOUND_MESSAGE,
 } from "@/lib/video/media-collections"
+import { makeTestCarousel } from "@/server/video/carousel-test-support"
 import { now, uuid } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { customShellMedia, type CustomShellUser } from "@/server/schema"
@@ -23,7 +24,6 @@ import {
   renameOwnedCollection,
   setMediaItemCollections,
 } from "@/server/video/media-collections"
-import { createOwnedCarousel } from "@/server/video/carousels"
 import {
   attachMediaToScope,
   attachPastedMediaToProject,
@@ -31,10 +31,8 @@ import {
   listVideoMedia,
   retryOwnedMediaPreparation,
 } from "@/server/video/media-list"
-import {
-  createOwnedProject,
-  writeProjectTimeline,
-} from "@/server/video/projects"
+import { writeVideoTimeline } from "@/server/video/project-videos"
+import { createOwnedProject } from "@/server/video/projects"
 import {
   videoMediaCollectionItems,
   videoMediaFilmstrips,
@@ -205,8 +203,8 @@ describe("collections", () => {
 
 describe("the media list with video extras", () => {
   it("keeps project and carousel media on their own editor shelves", async () => {
-    const project = await createOwnedProject(user.id, "Project", database)
-    const carousel = await createOwnedCarousel(user.id, "Carousel", database)
+    const { project } = await createOwnedProject(user.id, "Project", database)
+    const carousel = await makeTestCarousel(user.id, "Carousel", database)
     const projectMedia = await insertMedia(user.id)
     const carouselMedia = await insertMedia(user.id)
     await insertMedia(user.id)
@@ -241,8 +239,8 @@ describe("the media list with video extras", () => {
 
   it("refuses to attach media or documents owned by another person", async () => {
     const stranger = await insertUser(database)
-    const project = await createOwnedProject(user.id, "Project", database)
-    const theirProject = await createOwnedProject(stranger.id, "Private", database)
+    const { project } = await createOwnedProject(user.id, "Project", database)
+    const { project: theirProject } = await createOwnedProject(stranger.id, "Private", database)
     const mine = await insertMedia(user.id)
     const theirs = await insertMedia(stranger.id)
 
@@ -272,11 +270,13 @@ describe("the media list with video extras", () => {
   })
 
   it("keeps media already used by an older project visible", async () => {
-    const project = await createOwnedProject(user.id, "Project", database)
+    const made = await createOwnedProject(user.id, "Project", database)
+    const project = made.project
     const used = await insertMedia(user.id)
-    await writeProjectTimeline(
+    // A clip on the project's one video puts its file on the project's shelf.
+    await writeVideoTimeline(
       user.id,
-      project.id,
+      made.video,
       {
         aspect: "9:16",
         tracks: [
@@ -297,7 +297,7 @@ describe("the media list with video extras", () => {
           },
         ],
       },
-      project.version,
+      1,
       database
     )
 
@@ -310,7 +310,7 @@ describe("the media list with video extras", () => {
   })
 
   it("deletes media from an editor only when it belongs to that shelf", async () => {
-    const project = await createOwnedProject(user.id, "Project", database)
+    const { project } = await createOwnedProject(user.id, "Project", database)
     const attached = await insertMedia(user.id)
     const unattached = await insertMedia(user.id)
     await attachMediaToScope(
@@ -455,7 +455,7 @@ describe("the media list with video extras", () => {
 
   it("puts pasted files on the new project's shelf and names the missing ones", async () => {
     const stranger = await insertUser(database)
-    const project = await createOwnedProject(user.id, "Project", database)
+    const { project } = await createOwnedProject(user.id, "Project", database)
     const mine = await insertMedia(user.id)
     const theirs = await insertMedia(stranger.id)
     const deletedId = uuid()
@@ -483,7 +483,7 @@ describe("the media list with video extras", () => {
 
   it("refuses to paste into somebody else's project", async () => {
     const stranger = await insertUser(database)
-    const theirProject = await createOwnedProject(stranger.id, "Private", database)
+    const { project: theirProject } = await createOwnedProject(stranger.id, "Private", database)
     const mine = await insertMedia(user.id)
 
     await expect(

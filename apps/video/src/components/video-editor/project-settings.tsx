@@ -4,10 +4,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import {
-  useEditorProjectName,
-  useEditorRuntime,
-} from "@/components/video-editor/editor-store"
+import { useEditorVideoName } from "@/components/video-editor/editor-store"
 import { ProjectFormDialog } from "@/components/video-editor/project-form-dialog"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
 import {
@@ -15,34 +12,39 @@ import {
   useProjectSettings,
   type ProjectSettingsValue,
 } from "@/components/video-editor/project-settings-context"
+import type { ProjectItem } from "@/lib/api/video/projects"
 import {
-  loadProjectSpend,
-  type ProjectItem,
-  type ProjectSpend,
-} from "@/lib/api/video/projects"
+  loadVideoSpend,
+  type VideoDetail,
+  type VideoItem,
+  type VideoSpend,
+} from "@/lib/api/video/project-videos"
 import { formatCents } from "@/lib/video/project-spend"
 
 /**
- * The open project's settings and its AI spending, for the whole editor.
+ * The open project's settings and the open video's AI spending, for the whole
+ * editor.
  *
- * The top bar shows what the project has spent and opens its Settings window,
+ * The inspector shows what the video has spent and opens the Settings window,
  * and the AI clip panel opens the same window from a refused call's toast, so
- * the limit is raised in one place. The window saves the name the editor shows
- * now, not the one it opened with, so a rename in the top bar is never undone.
+ * the limit is raised in one place. The window holds the project's name and
+ * look, and the open video's own spend limit.
  */
 
 export function ProjectSettingsProvider({
   project: opened,
+  video: openedVideo,
   children,
 }: {
   project: ProjectItem
+  video: VideoDetail
   children: React.ReactNode
 }) {
-  const { setProjectName } = useEditorRuntime()
-  const name = useEditorProjectName()
+  const name = useEditorVideoName()
   const [project, setProject] = React.useState(opened)
+  const [video, setVideo] = React.useState<Pick<VideoItem, "id" | "spend_limit_cents">>(openedVideo)
   const [open, setOpen] = React.useState(false)
-  const [spend, setSpend] = React.useState<ProjectSpend | null>(null)
+  const [spend, setSpend] = React.useState<VideoSpend | null>(null)
   const [reads, setReads] = React.useState(0)
 
   // A guest sent from Project has no AI, so there is no spending to show them.
@@ -50,15 +52,15 @@ export function ProjectSettingsProvider({
   React.useEffect(() => {
     if (guest) return
     let active = true
-    loadProjectSpend(project.id)
+    loadVideoSpend(video.id)
       .then((loaded) => {
         if (active) setSpend(loaded)
       })
-      .catch(() => undefined)
+      .catch((error) => console.error("Reading the video's AI spend failed", error))
     return () => {
       active = false
     }
-  }, [guest, project.id, reads])
+  }, [guest, video.id, reads])
 
   const openSettings = React.useCallback(() => setOpen(true), [])
   const refreshSpend = React.useCallback(
@@ -75,13 +77,14 @@ export function ProjectSettingsProvider({
       {children}
       <ProjectFormDialog
         open={open}
-        project={{ ...project, name }}
+        project={project}
+        video={{ ...video, name }}
         folderId={null}
         onClose={() => setOpen(false)}
         onCreated={() => undefined}
-        onSaved={(saved) => {
-          setProject(saved)
-          setProjectName(saved.name)
+        onSaved={setProject}
+        onVideoSaved={(saved) => {
+          setVideo(saved)
           refreshSpend()
         }}
       />
@@ -90,9 +93,10 @@ export function ProjectSettingsProvider({
 }
 
 /**
- * What this project has spent on AI, as a row of the inspector's Project card
- * beside its shape and length. Hovering lists it by tool; clicking opens the
- * project's settings, where the limit is.
+ * What this video has spent on AI, as a row of the inspector's Project card
+ * beside its shape and length. Hovering lists it by tool and gives the whole
+ * project's total (Tyler, 1 Nov 2026); clicking opens the settings, where the
+ * video's limit is.
  */
 export function ProjectSpendRow() {
   const { spend, openSettings, refreshSpend } = useProjectSettings()
@@ -109,7 +113,7 @@ export function ProjectSpendRow() {
           <button
             type="button"
             className="text-[15px] text-muted-foreground tabular-nums underline-offset-4 hover:text-foreground hover:underline"
-            aria-label={`This project has spent ${label} on AI. Open project settings to set a limit`}
+            aria-label={`This video has spent ${label} on AI. Open settings to set its limit`}
             onClick={openSettings}
           >
             {label}
@@ -124,11 +128,15 @@ export function ProjectSpendRow() {
               </span>
             ))
           ) : (
-            <span>Nothing spent on AI in this project yet.</span>
+            <span>Nothing spent on AI in this video yet.</span>
           )}
+          <span className="flex justify-between gap-4 border-t pt-1">
+            <span>Whole project</span>
+            <span className="tabular-nums">{formatCents(spend.project_total_cents)}</span>
+          </span>
           <span className="opacity-80">
             Pictures, AI clips and voices made before 17 Oct 2026 named no
-            project, so they are not counted. Click to set a limit.
+            project, so they are not counted. Click to set this video&apos;s limit.
           </span>
         </TooltipContent>
       </Tooltip>

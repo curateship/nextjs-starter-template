@@ -45,7 +45,6 @@ import {
   getProjectErrorMessage,
   loadProjectDeleteSummary,
   pinProject,
-  saveProjectTimeline,
   type ProjectDeleteSummary,
   type ProjectItem,
   type ProjectListResponse,
@@ -64,6 +63,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { editorId, formatClock } from "@/lib/video/timeline-utils"
 import { ProjectFormDialog } from "@/components/video-editor/project-form-dialog"
+import { saveVideoTimeline } from "@/lib/api/video/project-videos"
 import {
   FolderMenu,
   MoveToFolderMenu,
@@ -77,11 +77,11 @@ const projectsRoute = getRouteApi("/_authenticated/admin/video-editor/")
 // background worker runs every fifteen seconds, so this catches it within one.
 const THUMBNAIL_POLL_MS = 5000
 
-export type ProjectSortColumn = "name" | "clips" | "length" | "aspect" | "updated"
+export type ProjectSortColumn = "name" | "videos" | "length" | "aspect" | "updated"
 
 const PROJECT_COLUMNS: SortableColumn<ProjectSortColumn>[] = [
   { key: "name", label: "Project", column: "main" },
-  { key: "clips", label: "Clips", column: "meta" },
+  { key: "videos", label: "Videos", column: "meta" },
   { key: "length", label: "Length", column: "meta" },
   { key: "aspect", label: "Shape", column: "meta" },
   { key: "updated", label: "Changed", column: "meta" },
@@ -93,12 +93,12 @@ function compareProjects(
   column: ProjectSortColumn
 ) {
   switch (column) {
-    case "clips":
-      return a.clip_count - b.clip_count
+    case "videos":
+      return a.video_count - b.video_count
     case "length":
       return a.duration_ms - b.duration_ms
     case "aspect":
-      return a.aspect.localeCompare(b.aspect)
+      return a.aspects.join(",").localeCompare(b.aspects.join(","))
     case "updated":
       return Date.parse(a.updated_at) - Date.parse(b.updated_at)
     default:
@@ -106,9 +106,10 @@ function compareProjects(
   }
 }
 
-/** "3 first frames, 2 AI clips and 1 export", leaving out the ones at none. */
+/** "4 videos, 3 first frames and 1 export", leaving out the ones at none. */
 function describeMadeForProjects(summary: ProjectDeleteSummary) {
   const parts = [
+    summary.videos ? `${summary.videos} ${plural(summary.videos, "video")}` : null,
     summary.first_frames
       ? `${summary.first_frames} ${plural(summary.first_frames, "first frame")}`
       : null,
@@ -232,10 +233,12 @@ export function ProjectsPage({
     }
   }, [deleteKey])
 
-  function openEditor(project: ProjectItem) {
+  /** Opens the project on the video it remembers, or the one named. */
+  function openEditor(project: ProjectItem, videoId?: string) {
     void navigate({
       to: "/admin/video-editor/$projectId",
       params: { projectId: project.id },
+      search: { video: videoId },
     })
   }
 
@@ -277,12 +280,8 @@ export function ProjectsPage({
           },
         ],
       }
-      await saveProjectTimeline(
-        created.id,
-        { aspect: "9:16", tracks: [track] },
-        created.version
-      )
-      openEditor(created)
+      await saveVideoTimeline(created.video, { aspect: "9:16", tracks: [track] }, 1)
+      openEditor(created.project, created.video)
     })
   }
 
@@ -625,11 +624,11 @@ export function ProjectsPage({
                 </div>
               </div>
             </TableCell>
-            <TableCell column="meta">{project.clip_count}</TableCell>
+            <TableCell column="meta">{project.video_count}</TableCell>
             <TableCell column="meta">
               {formatClock(project.duration_ms)}
             </TableCell>
-            <TableCell column="meta">{project.aspect}</TableCell>
+            <TableCell column="meta">{project.aspects.join(", ")}</TableCell>
             <TableCell column="meta">{formatDate(project.updated_at)}</TableCell>
             <TableCell column="actions">
               <div className="flex items-center gap-1">
@@ -741,7 +740,7 @@ export function ProjectsPage({
           setFormOpen(false)
           setEditing(null)
         }}
-        onCreated={(created) => openEditor(created)}
+        onCreated={(created, videoId) => openEditor(created, videoId)}
         onSaved={() => void router.invalidate()}
       />
 
@@ -765,9 +764,9 @@ export function ProjectsPage({
             ? describeMadeForProjects(deleteSummary)
             : null
           const goes = made
-            ? `The timeline goes for good, and so do ${made}.`
-            : "The timeline goes for good."
-          return `${goes} The actors and any viral video it copies stay, and so does footage from your media library.`
+            ? `Every video in it goes for good, and so do ${made}.`
+            : "Every video in it goes for good."
+          return `${goes} The actors and any viral video they copy stay, and so does footage from your media library.`
         })()}
         confirmLabel={
           deleteTargets.length > 1 ? "Delete projects" : "Delete project"

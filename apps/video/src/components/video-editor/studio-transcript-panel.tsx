@@ -46,7 +46,7 @@ import { hasSavedWords } from "@/lib/video/transcripts"
  * is paid for, after that it is free, and "Transcribe again" pays again.
  */
 export function TranscriptPanel() {
-  const { projectId, dispatch, saveNow } = useEditorRuntime()
+  const { videoId, dispatch, saveNow } = useEditorRuntime()
   const selectedClipId = useEditorSelector((state) => state.selectedClipId)
   const tracks = useEditorSelector((state) => state.tracks)
   const [transcript, setTranscript] = React.useState<ClipTranscript | null>(
@@ -126,7 +126,7 @@ export function TranscriptPanel() {
       // The server reads the saved timeline, so anything still waiting to be
       // sent goes first.
       await saveNow()
-      const answer = await loadClipTranscript(projectId, selectedClipId, {
+      const answer = await loadClipTranscript(videoId, selectedClipId, {
         fresh,
       })
       if (mediaId && transcriber && !isSaved) {

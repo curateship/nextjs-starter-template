@@ -33,7 +33,13 @@ import {
   type CarouselTextAlign,
   type CarouselTextItem,
 } from "@/lib/video/carousel-schema"
+import { CAROUSEL_PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/carousel-projects"
+import { VIDEO_SORTS, VIDEO_STATUSES, type VideoSort, type VideoStatus } from "@/lib/video/project-videos"
 import { userGet, userPost } from "@/server/guards"
+import {
+  getOwnedCarouselProjectItem,
+  type CarouselProjectItem,
+} from "@/server/video/carousel-projects"
 import { keepCarouselExport } from "@/server/video/carousel-exports"
 import { listVideoMedia } from "@/server/video/media-list"
 import { makeCarouselVideo } from "@/server/video/carousel-video"
@@ -77,16 +83,23 @@ import {
   VERSION_UNREADABLE_MESSAGE,
 } from "@/lib/video/project-versions"
 import {
+  carouselProjectOf,
   createCarouselFromFrames,
   createCarouselFromTemplate,
   listOwnedTemplates,
+  listCarouselsMadeFrom,
   listProjectCarousels,
+  moveCarousels,
+  openProjectCarousel,
+  rememberOpenCarousel,
   setCarouselTemplate,
+  setCarouselPinned,
+  setCarouselStatus,
+  setCarouselsArchived,
+  summarizeCarouselDelete,
   createOwnedCarousel,
   deleteOwnedCarousels,
   duplicateOwnedCarousel,
-  getOwnedCarouselDetail,
-  listOwnedCarousels,
   polishOwnedCarouselText,
   renameOwnedCarousel,
   writeCarousel,
@@ -118,6 +131,7 @@ const KNOWN_MESSAGES = new Set([
   CAROUSEL_CONFLICT_MESSAGE,
   SAVED_CAROUSEL_INVALID_MESSAGE,
   FIRST_FRAMES_NOT_FOUND_MESSAGE,
+  CAROUSEL_PROJECT_NOT_FOUND_MESSAGE,
   "Project not found",
   "A carousel needs at least one slide.",
   "A carousel can have at most 20 slides.",
@@ -173,13 +187,14 @@ const carouselIdSchema = z.object({
 const nameSchema = z.object({
   name: z.string().min(1).max(CAROUSEL_NAME_MAX),
 })
-const listSchema = z
-  .object({
-    page: z.number().int().optional(),
-    pageSize: z.number().int().optional(),
-    search: z.string().trim().max(120).default(""),
-  })
-  .optional()
+const projectIdSchema = z.object({ projectId: z.string().min(1).max(36) })
+const listSchema = projectIdSchema.extend({
+  page: z.number().int().optional(),
+  search: z.string().trim().max(120).default(""),
+  sort: z.enum(VIDEO_SORTS).optional(),
+  status: z.enum(VIDEO_STATUSES).optional(),
+  archived: z.boolean().optional(),
+})
 const saveSchema = carouselIdSchema.extend({
   slides: carouselSlidesSchema,
   format: z.enum(CAROUSEL_FORMATS),
@@ -197,27 +212,13 @@ const textHelpSchema = carouselIdSchema.extend({
 const listFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .validator(listSchema)
-  .handler(({ data, context }) =>
-    listOwnedCarousels({
-      userId: context.user.id,
-      page: data?.page,
-      pageSize: data?.pageSize,
-      search: data?.search,
-    })
-  )
-
-const getFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
-  .validator(carouselIdSchema)
-  .handler(({ data, context }) =>
-    getOwnedCarouselDetail(context.user.id, data.carouselId)
-  )
+  .handler(({ data, context }) => listProjectCarousels({ userId: context.user.id, ...data }))
 
 const createFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .validator(nameSchema)
+  .validator(nameSchema.extend(projectIdSchema.shape).extend({ format: z.enum(CAROUSEL_FORMATS) }))
   .handler(({ data, context }) =>
-    createOwnedCarousel(context.user.id, data.name)
+    createOwnedCarousel(context.user.id, data.projectId, data.name, data.format)
   )
 
 const duplicateFn = createServerFn({ method: "POST" })
@@ -267,20 +268,23 @@ const textHelpFn = createServerFn({ method: "POST" })
     )
   )
 
-export function listCarousels(options?: {
-  page?: number
-  pageSize?: number
-  search?: string
-}) {
-  return listFn({ data: options })
+/** The Carousels tab: one carousel project's carousels. */
+export function listCarousels(
+  projectId: string,
+  options: {
+    page?: number
+    search?: string
+    sort?: VideoSort
+    status?: VideoStatus
+    archived?: boolean
+  } = {}
+) {
+  return listFn({ data: { projectId, search: "", ...options } })
 }
 
-export function getCarousel(carouselId: string) {
-  return getFn({ data: { carouselId } })
-}
-
-export function createCarousel(name: string) {
-  return createFn({ data: { name } })
+/** A blank carousel in a carousel project, in the project's look. */
+export function createCarousel(projectId: string, name: string, format: CarouselFormat) {
+  return createFn({ data: { projectId, name, format } })
 }
 
 const fromFramesFn = createServerFn({ method: "POST" })
@@ -288,6 +292,10 @@ const fromFramesFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       projectId: z.string().min(1).max(36),
+      into: z.union([
+        z.object({ projectId: z.string().min(1).max(36) }),
+        z.object({ newProjectName: z.string().trim().min(1).max(200) }),
+      ]),
       firstFrameIds: z.array(z.string().min(1).max(36)).min(1).max(20),
       format: z.enum(CAROUSEL_FORMATS),
     })
@@ -296,18 +304,23 @@ const fromFramesFn = createServerFn({ method: "POST" })
     createCarouselFromFrames(
       context.user.id,
       data.projectId,
+      data.into,
       data.firstFrameIds,
       data.format
     )
   )
 
-/** A new carousel with one slide per first frame, in the order given. */
+/**
+ * A new carousel with one slide per first frame of a video project, in the
+ * order given, put in the carousel project picked or a new one by that name.
+ */
 export function createCarouselFromFirstFrames(
   projectId: string,
+  into: { projectId: string } | { newProjectName: string },
   firstFrameIds: string[],
   format: CarouselFormat
 ) {
-  return fromFramesFn({ data: { projectId, firstFrameIds, format } })
+  return fromFramesFn({ data: { projectId, into, firstFrameIds, format } })
 }
 
 /** A copy of a carousel, or, given a shape, a copy moved into that shape. */
@@ -537,10 +550,11 @@ const draftFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
     z.object({
+      carouselProjectId: z.string().min(1).max(36),
       source: z.discriminatedUnion("kind", [
         z.object({ kind: z.literal("topic"), text: z.string().trim().min(1).max(300) }),
         z.object({ kind: z.literal("notes"), text: z.string().trim().min(1).max(20_000) }),
-        z.object({ kind: z.literal("project"), projectId: z.string().min(1).max(36) }),
+        z.object({ kind: z.literal("video"), videoId: z.string().min(1).max(36) }),
         z.object({ kind: z.literal("link"), url: z.string().trim().url().max(2_048) }),
       ]),
       slideCount: z
@@ -594,13 +608,17 @@ const translateFn = createServerFn({ method: "POST" })
 
 export type { CarouselSource }
 
-/** A new carousel written by the chosen writer from a topic, notes, a script or a page. */
+/**
+ * A new carousel in a carousel project, written by the chosen writer from a
+ * topic, notes, a script or a page.
+ */
 export function writeCarouselWithAi(
+  carouselProjectId: string,
   source: CarouselSource,
   slideCount: number,
   format: CarouselFormat
 ) {
-  return draftFn({ data: { source, slideCount, format } })
+  return draftFn({ data: { carouselProjectId, source, slideCount, format } })
 }
 
 /** Three other ways to word the first slide's picked text layer. */
@@ -623,7 +641,8 @@ export function translateCarouselCopies(
 
 const templatesFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(({ context }) => listOwnedTemplates(context.user.id))
+  .inputValidator(z.object({ projectId: z.string().min(1).max(36).nullable() }))
+  .handler(({ data, context }) => listOwnedTemplates(context.user.id, data.projectId))
 
 const markTemplateFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -635,17 +654,17 @@ const markTemplateFn = createServerFn({ method: "POST" })
 const fromTemplateFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
-    nameSchema.extend({ templateId: z.string().min(1).max(36) })
+    nameSchema.extend({ templateId: z.string().min(1).max(36) }).extend(projectIdSchema.shape)
   )
   .handler(({ data, context }) =>
-    createCarouselFromTemplate(context.user.id, data.templateId, data.name)
+    createCarouselFromTemplate(context.user.id, data.projectId, data.templateId, data.name)
   )
 
 const projectCarouselsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object({ projectId: z.string().min(1).max(36) }))
   .handler(({ data, context }) =>
-    listProjectCarousels(context.user.id, data.projectId)
+    listCarouselsMadeFrom(context.user.id, data.projectId)
   )
 
 const versionsFn = createServerFn({ method: "GET" })
@@ -663,9 +682,9 @@ const restoreVersionFn = createServerFn({ method: "POST" })
     restoreOwnedCarouselVersion(context.user.id, data.carouselId, data.versionId)
   )
 
-/** This person's templates, for New carousel. */
-export function listCarouselTemplates() {
-  return templatesFn()
+/** This person's templates for New carousel, `projectId`'s own first. */
+export function listCarouselTemplates(projectId: string | null = null) {
+  return templatesFn({ data: { projectId } })
 }
 
 /** Marks a carousel as a template, or takes the mark off. */
@@ -673,12 +692,12 @@ export function markCarouselTemplate(carouselId: string, isTemplate: boolean) {
   return markTemplateFn({ data: { carouselId, isTemplate } })
 }
 
-/** A new carousel copied from a template. */
-export function createFromTemplate(templateId: string, name: string) {
-  return fromTemplateFn({ data: { templateId, name } })
+/** A new carousel in a carousel project, copied from a template. */
+export function createFromTemplate(projectId: string, templateId: string, name: string) {
+  return fromTemplateFn({ data: { projectId, templateId, name } })
 }
 
-/** The carousels that belong to a project. */
+/** The carousels made from a video project. */
 export function listCarouselsOfProject(projectId: string) {
   return projectCarouselsFn({ data: { projectId } })
 }
@@ -691,4 +710,102 @@ export function listCarouselVersions(carouselId: string) {
 /** Brings a version back; what was there is kept first. */
 export function restoreCarouselVersion(carouselId: string, versionId: string) {
   return restoreVersionFn({ data: { carouselId, versionId } })
+}
+
+// ------------------------------------------- The Carousels tab ----------
+
+const openFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(projectIdSchema.extend({ carouselId: z.string().min(1).max(36).optional() }))
+  .handler(async ({ data, context }): Promise<OpenedCarousel> => {
+    const userId = context.user.id
+    const project = await getOwnedCarouselProjectItem(userId, data.projectId).catch(
+      (error: unknown) => {
+        if (error instanceof Error && error.message === CAROUSEL_PROJECT_NOT_FOUND_MESSAGE) return null
+        throw error
+      }
+    )
+    if (!project) {
+      // An address from before carousel projects named the carousel itself.
+      const movedTo = await carouselProjectOf(userId, data.projectId)
+      if (!movedTo) throw new Error(CAROUSEL_PROJECT_NOT_FOUND_MESSAGE)
+      return { moved: { projectId: movedTo, carouselId: data.projectId } }
+    }
+    const carousel = await openProjectCarousel({ userId, ...data })
+    return { project, carousel }
+  })
+
+/** What opening a carousel project answers, or where an old address now lives. */
+export type OpenedCarousel =
+  | { project: CarouselProjectItem; carousel: CarouselDetail | null; moved?: never }
+  | { moved: { projectId: string; carouselId: string }; project?: never; carousel?: never }
+
+const rememberFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(carouselIdSchema)
+  .handler(({ data, context }) => rememberOpenCarousel(context.user.id, data.carouselId))
+
+const statusFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(carouselIdSchema.extend({ status: z.enum(VIDEO_STATUSES) }))
+  .handler(({ data, context }) => setCarouselStatus(context.user.id, data.carouselId, data.status))
+
+const pinFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(carouselIdSchema.extend({ pinned: z.boolean() }))
+  .handler(({ data, context }) => setCarouselPinned(context.user.id, data.carouselId, data.pinned))
+
+const archiveFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(deleteSchema.extend({ archived: z.boolean() }))
+  .handler(({ data, context }) =>
+    setCarouselsArchived(context.user.id, data.carouselIds, data.archived)
+  )
+
+const moveFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(deleteSchema.extend(projectIdSchema.shape))
+  .handler(({ data, context }) => moveCarousels(context.user.id, data.carouselIds, data.projectId))
+
+const deleteSummaryFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(deleteSchema)
+  .handler(({ data, context }) => summarizeCarouselDelete(context.user.id, data.carouselIds))
+
+/**
+ * A carousel project and the carousel the editor opens in it: the one named,
+ * else the one last open, else the first, or null when it has none. Given
+ * the id of a carousel from an old address, it answers where that carousel
+ * lives now, so the page can send the browser there.
+ */
+export function openCarousel(projectId: string, carouselId?: string) {
+  return openFn({ data: { projectId, carouselId } })
+}
+
+/** Remembers the open carousel, so its project opens on it next time. */
+export function rememberCarousel(carouselId: string) {
+  return rememberFn({ data: { carouselId } })
+}
+
+export function setCarouselStatusTo(carouselId: string, status: VideoStatus) {
+  return statusFn({ data: { carouselId, status } })
+}
+
+export function pinCarousel(carouselId: string, pinned: boolean) {
+  return pinFn({ data: { carouselId, pinned } })
+}
+
+/** Archives carousels, or brings them back with `archived: false`. */
+export function archiveCarousels(carouselIds: string[], archived: boolean) {
+  return archiveFn({ data: { carouselIds, archived } })
+}
+
+/** Moves carousels into another carousel project. */
+export function moveCarouselsToProject(carouselIds: string[], projectId: string) {
+  return moveFn({ data: { carouselIds, projectId } })
+}
+
+/** How many carousels and kept exports a delete takes. */
+export function loadCarouselDeleteSummary(carouselIds: string[]) {
+  return deleteSummaryFn({ data: { carouselIds } })
 }

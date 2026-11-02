@@ -6,12 +6,11 @@ import { getViralErrorMessage } from "./viral"
 import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
 import { VIRAL_SAYS } from "@/lib/video/viral"
 import { adminGet, adminPost, userGet } from "@/server/guards"
-import type { ProjectItem } from "@/server/video/projects"
 import { requireViralProjectBudget } from "@/server/video/project-spend"
 import { requireOwnedViralProject } from "@/server/video/viral/projects"
 import {
   copyVideoIntoProject,
-  loadProjectSource,
+  loadVideoSource,
   type ProjectSourceDetail,
 } from "@/server/video/viral/copy-into-project"
 import {
@@ -213,40 +212,44 @@ const copyFn = createServerFn({ method: "POST" })
       url: z.string().min(1).max(2048),
       title: z.string().trim().max(200).nullable(),
       viralProjectId: videoId.nullable(),
+      intoProjectId: videoId.nullable(),
     })
   )
   .handler(
-    async ({ data, context }): Promise<ProjectItem> =>
+    async ({ data, context }): Promise<{ projectId: string; videoId: string }> =>
       copyVideoIntoProject(
         context.user.id,
         data.url,
         data.title,
-        data.viralProjectId
+        data.viralProjectId,
+        data.intoProjectId
       )
   )
 
 /**
- * Copy this: saves the video for breaking down and makes a new project that
- * copies it, remembering the Viral project it was pressed in. Pressing twice
- * makes two projects and one download.
+ * Make this a template: saves the video for breaking down and makes a new
+ * video that copies it, remembering the Viral project it was pressed in.
+ * `intoProjectId` adds the video to that project; null makes a new project.
+ * Pressing twice makes two videos and one download.
  */
 export function copyIntoProject(
   url: string,
   title: string | null,
-  viralProjectId: string | null
+  viralProjectId: string | null,
+  intoProjectId: string | null
 ) {
-  return copyFn({ data: { url, title, viralProjectId } })
+  return copyFn({ data: { url, title, viralProjectId, intoProjectId } })
 }
 
 const sourceFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ projectId: z.string().min(1).max(36) }))
+  .inputValidator(z.object({ videoId: z.string().min(1).max(36) }))
   .handler(
     async ({ data, context }): Promise<ProjectSourceDetail> =>
-      loadProjectSource(context.user.id, data.projectId)
+      loadVideoSource(context.user.id, data.videoId)
   )
 
-/** The project's Copy tab: the viral video it copies, if any. */
-export function loadProjectSourceDetail(projectId: string) {
-  return sourceFn({ data: { projectId } })
+/** The video's Copy panel: the viral video it copies, if any. */
+export function loadVideoSourceDetail(videoId: string) {
+  return sourceFn({ data: { videoId } })
 }

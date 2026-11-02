@@ -95,17 +95,17 @@ import {
 import { VOICE_TEXT_MAX } from "@/lib/video/voice"
 
 /**
- * The project's talking, in another language, or in several at once.
+ * The video's talking, in another language, or in several at once.
  *
  * The talking is written down once, when the window first translates, and
  * kept while it stays open, so each extra language pays for its translation
  * only. Every translation is shown line by line to read and correct before
  * anything is made.
  *
- * One language works on this project: it goes on as captions, or is read
+ * One language works on this video: it goes on as captions, or is read
  * aloud over the original with the original turned down. Either one is a
- * single press of undo. Several languages never touch this project: each gets
- * a tab to read, and Make all makes each one a copy of the project with its
+ * single press of undo. Several languages never touch this video: each gets
+ * a tab to read, and Make all makes each one a copy of the video with its
  * own voice and captions, and queues the copy's export
  * (workspace/docs/another-language.md).
  */
@@ -144,7 +144,7 @@ export function TranslateDialog({
   onOpenChange: (open: boolean) => void
   available: AiToolsAvailability | null
 }) {
-  const { projectId, store, dispatch, saveNow } = useEditorRuntime()
+  const { videoId, store, dispatch, saveNow } = useEditorRuntime()
   const captionPlacement = useCaptionPlacement()
   const [picked, setPicked] = React.useState<TranslateLanguage[]>([
     DEFAULT_TRANSLATE_LANGUAGE,
@@ -192,7 +192,7 @@ export function TranslateDialog({
   const ready = picked.filter((language) => translations[language])
   const missing = picked.filter((language) => !translations[language])
   const translated = Object.keys(translations).length > 0
-  // One language works on this project, and only on the one ticked. Its
+  // One language works on this video, and only on the one ticked. Its
   // lines show once translated; until then the last translation stays in
   // view, as it always did, with its buttons hidden.
   const single = picked.length === 1 ? picked[0] : null
@@ -348,7 +348,7 @@ export function TranslateDialog({
         // The server reads the saved timeline, so anything still waiting to
         // be sent goes first.
         await saveNow()
-        heard = await writeCaptions(projectId)
+        heard = await writeCaptions(videoId)
         setTranscript(heard)
       }
       if (heard.captions.length > TRANSLATE_LINES_MAX) {
@@ -362,7 +362,7 @@ export function TranslateDialog({
           const words = await translateCaptionLines(
             language,
             heard.captions.map((line) => line.text),
-            projectId
+            videoId
           )
           const done = heard.captions.map((line, at) => ({
             startMs: line.startMs,
@@ -456,7 +456,7 @@ export function TranslateDialog({
 
     setBusy("speaking")
     try {
-      const said = await speakTranslation(script, voice, projectId)
+      const said = await speakTranslation(script, voice, videoId)
       const refusal = voiceoverRefusal(
         store.getSnapshot().state.tracks,
         said.captions
@@ -508,7 +508,7 @@ export function TranslateDialog({
   }
 
   /**
-   * Make all: one copy of the project per language, each with its voice,
+   * Make all: one copy of the video per language, each with its voice,
    * its captions and its export. One language failing leaves the others
    * going; the ones that failed can be tried again on their own.
    */
@@ -536,14 +536,14 @@ export function TranslateDialog({
     setBusy("making")
     const finished: Outcome[] = []
     try {
-      // The copies are made from the saved project, so what is on screen
+      // The copies are made from the saved video, so what is on screen
       // goes first.
       await saveNow()
       for (const [index, language] of languages.entries()) {
         setProgress({ language, at: index + 1, of: languages.length })
         try {
           const made = await makeLanguageCopyOf({
-            projectId,
+            videoId,
             sourceClipId: transcript.source.clipId,
             language,
             lines: (translations[language] ?? []).map((line) => ({
@@ -606,7 +606,7 @@ export function TranslateDialog({
           <DialogHeader>
             <DialogTitle>Another language</DialogTitle>
             <DialogDescription>
-              The talking on this project, translated. Read it and correct it
+              The talking in this video, translated. Read it and correct it
               here before anything is made from it.
             </DialogDescription>
           </DialogHeader>
@@ -620,8 +620,8 @@ export function TranslateDialog({
                     <CardTitle>Into</CardTitle>
                     <CardDescription>
                       {several
-                        ? "Each language becomes a copy of this project with its own voice and captions, and its own export. This project stays as it is."
-                        : "Tick more than one to make a copy of this project in each language at once."}
+                        ? "Each language becomes a new video in this project, with its own voice, captions and export. This video stays as it is."
+                        : "Tick more than one to make a copy of this video in each language at once."}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-4">
@@ -960,8 +960,8 @@ function MadeCard({ outcomes }: { outcomes: Outcome[] }) {
       <CardHeader>
         <CardTitle>Made</CardTitle>
         <CardDescription>
-          Each copy is a project of its own. Its export is on the Exports page,
-          under this project.
+          Each copy is a new video in this project, in the Videos tab. Its
+          export is on the Exports page, under this video.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -970,10 +970,11 @@ function MadeCard({ outcomes }: { outcomes: Outcome[] }) {
             <div key={outcome.language} className="grid gap-0.5 text-sm">
               <Link
                 to="/admin/video-editor/$projectId"
-                params={{ projectId: outcome.made.project.id }}
+                params={{ projectId: outcome.made.video.project_id }}
+                search={{ video: outcome.made.video.id }}
                 className="font-medium underline"
               >
-                {outcome.made.project.name}
+                {outcome.made.video.name}
               </Link>
               <span className="text-muted-foreground">
                 {outcome.made.exportProblem

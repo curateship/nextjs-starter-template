@@ -18,10 +18,11 @@ import { encryptSecret } from "@/server/auth/encryption"
 import { type CustomShellDb } from "@/server/db"
 import { type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
-import { createOwnedProject, writeProjectTimeline } from "@/server/video/projects"
+import { writeVideoTimeline } from "@/server/video/project-videos"
+import { createOwnedProject } from "@/server/video/projects"
 import {
   videoExportYoutube,
-  videoProjects,
+  videoProjectVideos,
   videoRenderJobs,
   videoSettings,
 } from "@/server/video/schema"
@@ -169,7 +170,8 @@ async function exportRow(overrides: Partial<typeof videoRenderJobs.$inferInsert>
     .values({
       id,
       userId: user.id,
-      projectId: project.id,
+      projectId: project.project.id,
+      videoId: project.video,
       status: "ready",
       quality: "high",
       aspect: "9:16",
@@ -186,7 +188,7 @@ async function exportRow(overrides: Partial<typeof videoRenderJobs.$inferInsert>
       ...overrides,
     })
     .returning()
-  return { job: row, projectId: project.id }
+  return { job: row, videoId: project.video }
 }
 
 describe("pasting the link", () => {
@@ -437,13 +439,13 @@ describe("Refresh", () => {
 })
 
 describe("the scene columns", () => {
-  it("come from the project as it is now when the export kept none", async () => {
-    const { job, projectId } = await exportRow({ scenes: null })
-    const [project] = await database
-      .select({ version: videoProjects.version })
-      .from(videoProjects)
-      .where(eq(videoProjects.id, projectId))
-    await writeProjectTimeline(user.id, projectId, PICTURES, project.version, database)
+  it("come from the video as it is now when the export kept none", async () => {
+    const { job, videoId } = await exportRow({ scenes: null })
+    const [video] = await database
+      .select({ version: videoProjectVideos.version })
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.id, videoId))
+    await writeVideoTimeline(user.id, videoId, PICTURES, video.version, database)
     const retention = await getExportRetention(user.id, job.id, database)
     expect(retention.scenes_from_project_now).toBe(true)
     expect(retention.scenes.map((scene) => scene.name)).toEqual([

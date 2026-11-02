@@ -181,10 +181,13 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [viral-score.md](viral-score.md) — the 0 to 100 viral score on every Viral
   video: its five parts and their weights, one worked example, what
   "sure: medium" means, and why the score is worked out on every read.
+- [project-videos.md](project-videos.md) — a project holds many videos: what
+  is set once on the project and what on each video, the Videos tab, the
+  remembered last video, each video's own AI spend limit, and the move from
+  one video per project (migration 0145).
 - [project-first.md](project-first.md) — what belongs to a project and what
   is shared, the Copy and Exports panels at the foot of the rail, Make this a template,
-  a project's AI spend and its spend limit, and archive, pin and the actor
-  filter on the projects list.
+  AI spend, and archive, pin and the actor filter on the projects list.
 - [several-ai-clips.md](several-ai-clips.md) — up to three AI shots at once
   in a project and six per person: why the caps exist, how shots still being
   made count against the allowance and the spend limit, and how the worker
@@ -263,8 +266,12 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   makes.
 - [carousel-templates.md](carousel-templates.md) — marking a carousel as a
   template and starting new ones from it.
-- [carousel-projects.md](carousel-projects.md) — carousels that belong to a
-  project, where the project lists them, and what deleting the project asks.
+- [carousel-project-carousels.md](carousel-project-carousels.md) — a carousel
+  project holds many carousels: the projects table, the Carousels tab, the
+  shared picture shelf, the look and caption footer, old links, and the move
+  to carousel projects (migration 0146).
+- [carousel-projects.md](carousel-projects.md) — carousels made from a video
+  project, where that project lists them, and what deleting it asks.
 - [carousel-history.md](carousel-history.md) — a carousel's earlier versions,
   kept by the projects' rule, and bringing one back.
 - [carousel-exports.md](carousel-exports.md) — a carousel export kept on its

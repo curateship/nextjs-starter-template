@@ -57,8 +57,12 @@ import { generateImage } from "@/server/video/asset-factories/images"
 import { saveGeneratedAsset } from "@/server/video/asset-factories/media"
 import { attachPastedMediaToProject, serializeVideoMedia } from "@/server/video/media-list"
 import { readProjectLook } from "@/server/video/project-look"
-import { projectSpendMetadata, requireProjectBudget } from "@/server/video/project-spend"
-import { getOwnedProject, writeProjectTimeline } from "@/server/video/projects"
+import {
+  requireVideoBudget,
+  videoSpendMetadata,
+  type SpendTag,
+} from "@/server/video/project-spend"
+import { getOwnedVideo, writeVideoTimeline } from "@/server/video/project-videos"
 import { videoBriefs, videoEditorWindows, type VideoBriefRow } from "@/server/video/schema"
 import { checkScript } from "@/server/video/script-check"
 import {
@@ -97,6 +101,7 @@ const BRIEFS_LISTED = 20
 export type BriefItem = {
   id: string
   project_id: string
+  video_id: string
   about: string
   audience: string
   length_seconds: number
@@ -168,13 +173,18 @@ function isMalformed(error: unknown) {
   return /came back (empty|as something other than an answer|in an unexpected shape)/.test(message)
 }
 
-async function askForScript(userId: string, request: BriefRequest, prompt: string) {
+async function askForScript(
+  userId: string,
+  request: BriefRequest,
+  spend: SpendTag,
+  prompt: string
+) {
   const ask = () =>
     askWriter({
       userId,
       feature: BRIEF_SCRIPT_FEATURE,
       metadata: {
-        ...projectSpendMetadata(request.projectId),
+        ...spend,
         lengthSeconds: request.lengthSeconds,
       },
       prompt,
@@ -198,13 +208,14 @@ async function askForScript(userId: string, request: BriefRequest, prompt: strin
  */
 export async function writeBriefScript(
   userId: string,
-  request: BriefRequest
+  request: BriefRequest,
+  spend: SpendTag
 ): Promise<BriefScript> {
   const bannedWords = await getScriptBannedWords()
-  const first = await askForScript(userId, request, briefPrompt(request, bannedWords))
+  const first = await askForScript(userId, request, spend, briefPrompt(request, bannedWords))
   const seconds = totalSeconds(first.scenes)
   if (lengthIsClose(seconds, request.lengthSeconds)) return first
-  return askForScript(userId, request, briefPrompt(request, bannedWords, { seconds }))
+  return askForScript(userId, request, spend, briefPrompt(request, bannedWords, { seconds }))
 }
 
 /**
@@ -228,11 +239,10 @@ function readableMessage(error: unknown) {
  * prices before the press.
  */
 export async function writeBrief(userId: string, request: BriefRequest): Promise<BriefItem> {
-  const project = await getOwnedProject(userId, request.projectId)
   const writer = pickWriter(await getAiDefaults(), await getAiKeysSaved())
-  await requireProjectBudget(
+  const video = await requireVideoBudget(
     userId,
-    project.id,
+    request.videoId,
     writer
       ? briefScriptCostCents({
           writer: writer.id,
@@ -241,7 +251,8 @@ export async function writeBrief(userId: string, request: BriefRequest): Promise
         })
       : 0
   )
-  const script = await writeBriefScript(userId, request)
+  const spend = videoSpendMetadata(video)
+  const script = await writeBriefScript(userId, request, spend)
   const scenes = script.scenes.map((draft) => newScene(draft, uuid()))
 
   // The check is worth having, not worth losing the paid-for script over.
@@ -252,7 +263,7 @@ export async function writeBrief(userId: string, request: BriefRequest): Promise
       userId,
       script: storyboardScript(scenes),
       speed: request.voice.settings.speed,
-      projectId: project.id,
+      spend,
     })
   } catch (error) {
     checkError = readableMessage(error)
@@ -264,7 +275,8 @@ export async function writeBrief(userId: string, request: BriefRequest): Promise
     .values({
       id: uuid(),
       userId,
-      projectId: project.id,
+      projectId: video.projectId,
+      videoId: video.id,
       about: request.about,
       audience: request.audience,
       lengthSeconds: request.lengthSeconds,
@@ -303,6 +315,7 @@ async function serializeBriefs(rows: VideoBriefRow[]): Promise<BriefItem[]> {
   return rows.map((row) => ({
     id: row.id,
     project_id: row.projectId,
+    video_id: row.videoId,
     about: row.about,
     audience: row.audience,
     length_seconds: row.lengthSeconds,
@@ -328,13 +341,13 @@ async function serializeBriefs(rows: VideoBriefRow[]): Promise<BriefItem[]> {
   }))
 }
 
-/** This project's briefs, newest first. Reading them costs nothing. */
-export async function listBriefs(userId: string, projectId: string) {
-  await getOwnedProject(userId, projectId)
+/** This video's briefs, newest first. Reading them costs nothing. */
+export async function listBriefs(userId: string, videoId: string) {
+  await getOwnedVideo(userId, videoId)
   const rows = await db
     .select()
     .from(videoBriefs)
-    .where(and(eq(videoBriefs.userId, userId), eq(videoBriefs.projectId, projectId)))
+    .where(and(eq(videoBriefs.userId, userId), eq(videoBriefs.videoId, videoId)))
     .orderBy(desc(videoBriefs.createdAt), desc(videoBriefs.id))
     .limit(BRIEFS_LISTED)
   return { briefs: await serializeBriefs(rows) }
@@ -403,14 +416,14 @@ export async function startBrief(
   const scenes = editedScenes(row, payload.scenes).map(
     (scene): StoredScene => ({ ...scene, state: "queued" })
   )
-  const project = await getOwnedProject(userId, row.projectId)
-  const { timeline } = parseTimelineForReset(project.timeline)
+  const video = await getOwnedVideo(userId, row.videoId)
+  const { timeline } = parseTimelineForReset(video.timeline)
   const refusal = briefLaneRefusal(timeline.tracks)
   if (refusal) throw new Error(refusal)
   await requireBriefKeys(row.voice)
-  await requireProjectBudget(
+  await requireVideoBudget(
     userId,
-    project.id,
+    video.id,
     storyboardCents(scenes, row.voice, row.pictureModel)
   )
   const [started] = await db
@@ -442,9 +455,9 @@ export async function retryBriefScene(
     throw new Error(BRIEF_NOTHING_TO_RETRY_MESSAGE)
   }
   await requireBriefKeys(row.voice)
-  await requireProjectBudget(
+  await requireVideoBudget(
     userId,
-    row.projectId,
+    row.videoId,
     row.scenes
       .filter((scene) => scene.state === "failed" || scene.state === "queued")
       .reduce((sum, scene) => sum + sceneLeftCents(scene, row.voice, row.pictureModel), 0)
@@ -462,9 +475,9 @@ export async function retryBriefScene(
   return (await serializeBriefs([retried]))[0]
 }
 
-/** The picture shape for a project: its own, or the nearer of the two a model makes. */
-function sceneAspect(projectAspect: string): AssetAspectRatio {
-  return projectClipAspect(projectAspect) ?? (projectAspect === "4:3" ? "16:9" : "9:16")
+/** The picture shape for a video: its own, or the nearer of the two a model makes. */
+function sceneAspect(videoAspect: string): AssetAspectRatio {
+  return projectClipAspect(videoAspect) ?? (videoAspect === "4:3" ? "16:9" : "9:16")
 }
 
 /**
@@ -474,15 +487,15 @@ function sceneAspect(projectAspect: string): AssetAspectRatio {
  */
 export async function makeScenePicture(
   userId: string,
-  projectId: string,
+  spend: Required<SpendTag>,
   recipe: { prompt: string; model: GeminiImageModelId; aspectRatio: AssetAspectRatio }
 ) {
-  const look = await readProjectLook(userId, projectId)
+  const look = await readProjectLook(userId, spend.projectId)
   const image = await generateImage({
     userId,
     model: recipe.model,
     aspectRatio: recipe.aspectRatio,
-    projectId,
+    spend,
     ...withLook(
       look,
       `Create one still picture for a scene of a short video, filling the whole frame. Direction: ${recipe.prompt}. No text, captions, signs, labels or lettering anywhere in the picture.`,
@@ -507,17 +520,17 @@ export async function makeScenePicture(
 /** Makes a scene's picture again where it sits on the timeline. */
 export async function remakeScenePicture(
   userId: string,
-  projectId: string,
+  video: { id: string; projectId: string },
   origin: ScenePictureOrigin,
   change: { prompt: string; model: GeminiImageModelId }
 ) {
-  await requireProjectBudget(userId, projectId, scenePictureCents(change.model))
-  const made = await makeScenePicture(userId, projectId, {
+  await requireVideoBudget(userId, video.id, scenePictureCents(change.model))
+  const made = await makeScenePicture(userId, { projectId: video.projectId, videoId: video.id }, {
     prompt: change.prompt,
     model: change.model,
     aspectRatio: origin.aspectRatio,
   })
-  await attachPastedMediaToProject(userId, projectId, [made.media.id])
+  await attachPastedMediaToProject(userId, video.projectId, [made.media.id])
   const [image] = await serializeVideoMedia([made.media])
   return { image, origin: made.origin }
 }
@@ -565,13 +578,13 @@ async function releaseBrief(job: ClaimedBrief) {
 
 /**
  * Makes one scene: its still, kept the moment it exists, then its words read
- * aloud. Each is held to the project's spend limit first.
+ * aloud. Each is held to the video's spend limit first.
  */
 async function makeScene(job: ClaimedBrief, scene: StoredScene, aspectRatio: AssetAspectRatio) {
   let still = scene.still
   if (!still) {
-    await requireProjectBudget(job.userId, job.projectId, sceneLeftCents(scene, job.voice, job.pictureModel))
-    const made = await makeScenePicture(job.userId, job.projectId, {
+    await requireVideoBudget(job.userId, job.videoId, sceneLeftCents(scene, job.voice, job.pictureModel))
+    const made = await makeScenePicture(job.userId, { projectId: job.projectId, videoId: job.videoId }, {
       prompt: scene.picture,
       model: job.pictureModel as GeminiImageModelId,
       aspectRatio,
@@ -580,7 +593,7 @@ async function makeScene(job: ClaimedBrief, scene: StoredScene, aspectRatio: Ass
     const kept = still
     if (!(await saveScene(job, scene.id, (current) => ({ ...current, still: kept })))) return false
   }
-  await requireProjectBudget(job.userId, job.projectId, sceneLeftCents({ ...scene, still }, job.voice, job.pictureModel))
+  await requireVideoBudget(job.userId, job.videoId, sceneLeftCents({ ...scene, still }, job.voice, job.pictureModel))
   const read = {
     voiceId: job.voice.id,
     voiceName: job.voice.name,
@@ -592,7 +605,7 @@ async function makeScene(job: ClaimedBrief, scene: StoredScene, aspectRatio: Ass
     userId: job.userId,
     ...read,
     speaker: job.voice.speaker,
-    projectId: job.projectId,
+    spend: { projectId: job.projectId, videoId: job.videoId },
   })
   const voice = {
     mediaId: said.mediaId,
@@ -612,8 +625,8 @@ async function makeScene(job: ClaimedBrief, scene: StoredScene, aspectRatio: Ass
  */
 async function makeBrief(job: ClaimedBrief) {
   try {
-    const project = await getOwnedProject(job.userId, job.projectId)
-    const aspectRatio = sceneAspect(project.aspect)
+    const video = await getOwnedVideo(job.userId, job.videoId)
+    const aspectRatio = sceneAspect(video.aspect)
     for (const scene of job.scenes) {
       if (scene.state !== "queued") continue
       try {
@@ -697,8 +710,8 @@ function sceneFiles(scenes: StoredScene[]) {
 }
 
 /**
- * Lands a brief's made scenes with nobody editing the project: lays them and
- * saves the project in the same step that marks them placed. A save that
+ * Lands a brief's made scenes with nobody editing the video: lays them and
+ * saves the video in the same step that marks them placed. A save that
  * meets a newer version rolls the whole step back, and the next pass tries
  * again.
  */
@@ -706,8 +719,8 @@ async function landBriefNow(briefId: string) {
   await db.transaction(async (tx) => {
     const [row] = await tx.select().from(videoBriefs).where(eq(videoBriefs.id, briefId)).for("update")
     if (!row?.landing) return
-    const project = await getOwnedProject(row.userId, row.projectId, tx)
-    const { timeline } = parseTimelineForReset(project.timeline)
+    const video = await getOwnedVideo(row.userId, row.videoId, tx)
+    const { timeline } = parseTimelineForReset(video.timeline)
     const captions = { ...(await getCaptionSettings(tx)), aspect: timeline.aspect }
     const landed = landBriefScenes(
       timeline.tracks,
@@ -724,11 +737,11 @@ async function landBriefNow(briefId: string) {
     const scenes = row.scenes.map((scene): StoredScene =>
       placed.has(scene.id) ? { ...scene, state: "placed" } : scene
     )
-    await writeProjectTimeline(
+    await writeVideoTimeline(
       row.userId,
-      project.id,
+      video.id,
       { ...timeline, tracks: landed.tracks },
-      project.version,
+      video.version,
       tx
     )
     await tx
@@ -737,7 +750,7 @@ async function landBriefNow(briefId: string) {
       .where(eq(videoBriefs.id, row.id))
     await attachPastedMediaToProject(
       row.userId,
-      project.id,
+      row.projectId,
       sceneFiles(row.scenes.filter((scene) => placed.has(scene.id))),
       tx
     )
@@ -745,8 +758,8 @@ async function landBriefNow(briefId: string) {
 }
 
 /**
- * The briefs with made scenes waiting and no window editing their project. A
- * project a window is editing is passed over, because that editor lands the
+ * The briefs with made scenes waiting and no window editing their video. A
+ * video a window is editing is passed over, because that editor lands the
  * scenes itself.
  */
 async function briefsToLand() {
@@ -755,7 +768,7 @@ async function briefsToLand() {
     .from(videoEditorWindows)
     .where(
       and(
-        eq(videoEditorWindows.projectId, videoBriefs.projectId),
+        eq(videoEditorWindows.videoId, videoBriefs.videoId),
         eq(videoEditorWindows.mode, "edit"),
         gte(videoEditorWindows.seenAt, new Date(now().getTime() - EDITOR_WINDOW_GONE_AFTER_MS))
       )

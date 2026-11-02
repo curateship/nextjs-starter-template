@@ -34,8 +34,8 @@ import { mediaStillInUse } from "@/server/video/media-in-use"
 import {
   createOwnedProject,
   duplicateOwnedProject,
-  writeProjectTimeline,
 } from "@/server/video/projects"
+import { writeVideoTimeline } from "@/server/video/project-videos"
 import { videoExtras, videoFirstFrames, videoProjects } from "@/server/video/schema"
 
 vi.mock("@/server/media/storage", async (importOriginal) => ({
@@ -225,7 +225,7 @@ describe("an extra", () => {
 
 describe("a project's picks", () => {
   it("are kept on the project, pass over an extra deleted since, and go with a copy", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const { project } = await createOwnedProject(user.id, "Reel", database)
     const jacket = await uploadedExtra("clothing", "Green jacket", "green wool jacket")
     const kitchen = await uploadedExtra("backdrop", "Kitchen", "bright kitchen")
     await saveProjectExtraPicks(user.id, project.id, {
@@ -249,7 +249,7 @@ describe("a project's picks", () => {
   })
 
   it("refuse another person's extra, one picked as the wrong kind, and another person's project", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const { project } = await createOwnedProject(user.id, "Reel", database)
     const kitchen = await uploadedExtra("backdrop", "Kitchen", "bright kitchen")
     await expect(
       saveProjectExtraPicks(user.id, project.id, { clothing: kitchen.id })
@@ -276,7 +276,9 @@ describe("a first frame with extras", () => {
       status: "active",
       tags: "",
     })
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const made = await createOwnedProject(user.id, "Reel", database)
+    // The project, and the one video it opens with, which pays for its pictures.
+    const project = { id: made.project.id, video: made.video, version: 1 }
     const jacket = await uploadedExtra("clothing", "Green jacket", "green wool jacket")
     const bob = await uploadedExtra("hair", "Grey bob", "short grey bob")
     const mug = await uploadedExtra("prop", "Mug", "white mug")
@@ -288,7 +290,7 @@ describe("a first frame with extras", () => {
   it("sends what it always sent with one picture and no extras", async () => {
     const { actor, project } = await setup()
     await createFirstFrames(user.id, {
-      projectId: project.id,
+      videoId: project.video,
       actorId: actor.id,
       prompt: "Holding a coffee",
       variants: 1,
@@ -310,7 +312,7 @@ describe("a first frame with extras", () => {
       .set({ styleMediaId: lookPicture })
       .where(eq(videoProjects.id, project.id))
     const { firstFrames } = await createFirstFrames(user.id, {
-      projectId: project.id,
+      videoId: project.video,
       actorId: actor.id,
       prompt: "Holding a coffee",
       variants: 1,
@@ -355,7 +357,7 @@ describe("a first frame with extras", () => {
   it("sends the actor's one picture alone, not a board, with only a backdrop", async () => {
     const { actor, project, kitchen } = await setup()
     await createFirstFrames(user.id, {
-      projectId: project.id,
+      videoId: project.video,
       actorId: actor.id,
       prompt: "Holding a coffee",
       variants: 1,
@@ -376,7 +378,7 @@ describe("a first frame with extras", () => {
     })
     await expect(
       createFirstFrames(user.id, {
-        projectId: project.id,
+        videoId: project.video,
         actorId: actor.id,
         prompt: "Holding a coffee",
         variants: 1,
@@ -386,7 +388,7 @@ describe("a first frame with extras", () => {
     ).rejects.toThrow(BOARD_FULL_MESSAGE)
     await expect(
       createFirstFrames(user.id, {
-        projectId: project.id,
+        videoId: project.video,
         actorId: actor.id,
         prompt: "Holding a coffee",
         variants: 1,
@@ -407,11 +409,13 @@ describe("making a first frame on the timeline again", () => {
       status: "active",
       tags: "",
     })
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const made = await createOwnedProject(user.id, "Reel", database)
+    // The project, and the one video it opens with, which pays for its pictures.
+    const project = { id: made.project.id, video: made.video, version: 1 }
     const jacket = await uploadedExtra("clothing", "Green jacket", "green wool jacket")
     const kitchen = await uploadedExtra("backdrop", "Kitchen", "bright kitchen")
     const { firstFrames } = await createFirstFrames(user.id, {
-      projectId: project.id,
+      videoId: project.video,
       actorId: actor.id,
       prompt: "Holding a coffee",
       variants: 1,
@@ -430,9 +434,9 @@ describe("making a first frame on the timeline again", () => {
       ],
       aspectRatio: "9:16",
     })
-    await writeProjectTimeline(
+    await writeVideoTimeline(
       user.id,
-      project.id,
+      project.video,
       {
         aspect: "9:16",
         tracks: [
@@ -469,7 +473,7 @@ describe("making a first frame on the timeline again", () => {
     requests.length = 0
 
     const again = await remakeFirstFrame(user.id, {
-      projectId: project.id,
+      videoId: project.video,
       clipId: "scene-4",
       prompt: "Holding a coffee, hands out of frame",
       model: "gemini-3.1-flash-image",
@@ -500,7 +504,7 @@ describe("making a first frame on the timeline again", () => {
     // else can make one on someone's project.
     await expect(
       remakeFirstFrame(user.id, {
-        projectId: project.id,
+        videoId: project.video,
         clipId: "upload",
         prompt: "Anything",
         model: "gemini-2.5-flash-image",
@@ -509,7 +513,7 @@ describe("making a first frame on the timeline again", () => {
     const stranger = await insertUser(database)
     await expect(
       remakeFirstFrame(stranger.id, {
-        projectId: project.id,
+        videoId: project.video,
         clipId: "scene-4",
         prompt: "Anything",
         model: "gemini-2.5-flash-image",

@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ONLY_FAILED_RETRY_MESSAGE, RENDER_NOT_FOUND_MESSAGE } from "@/lib/video/render"
+import { makeTestCarousel } from "@/server/video/carousel-test-support"
 import { now, uuid } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { customShellMedia, type CustomShellUser } from "@/server/schema"
@@ -22,7 +23,6 @@ import {
   readCarouselExportSlide,
 } from "@/server/video/carousel-exports"
 import {
-  createOwnedCarousel,
   deleteOwnedCarousels,
   getOwnedCarouselDetail,
   writeCarousel,
@@ -100,7 +100,7 @@ afterEach(async () => {
 
 /** A carousel of three slides, each the starter slide renamed, with a caption. */
 async function carouselOfThree(name = "Spring tips") {
-  const carousel = await createOwnedCarousel(user.id, name, database)
+  const carousel = await makeTestCarousel(user.id, name, database)
   const detail = await getOwnedCarouselDetail(user.id, carousel.id, database)
   const [starter] = detail.slides
   const slides = ["One", "Two", "Three"].map((title, index) => ({
@@ -139,6 +139,7 @@ describe("keeping a carousel export", () => {
     expect(kept).toMatchObject({
       kind: "carousel",
       project_id: null,
+      video_id: null,
       carousel_id: carousel.id,
       carousel_name: "Spring tips",
       slide_count: 3,
@@ -223,7 +224,7 @@ describe("keeping a carousel export", () => {
 
   it("refuses somebody else's carousel and leaves nothing in storage", async () => {
     const stranger = await insertUser(database)
-    const theirs = await createOwnedCarousel(stranger.id, "Theirs", database)
+    const theirs = await makeTestCarousel(stranger.id, "Theirs", database)
     await expect(keep(theirs.id)).rejects.toThrow("Carousel not found.")
     expect(bucket.files.size).toBe(0)
   })
@@ -366,7 +367,8 @@ async function oldVideoExport() {
   await database.insert(videoRenderJobs).values({
     id,
     userId: user.id,
-    projectId: project.id,
+    projectId: project.project.id,
+    videoId: project.video,
     status: "ready",
     quality: "high",
     aspect: "9:16",

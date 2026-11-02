@@ -5,7 +5,7 @@ import { deleteFromR2 } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
 import { discardGeneratedAsset } from "@/server/video/asset-factories/media"
 import { mediaStillInUse } from "@/server/video/media-in-use"
-import { videoProjects, videoViralVideos } from "@/server/video/schema"
+import { videoProjectVideos, videoViralVideos } from "@/server/video/schema"
 
 /**
  * Deleting saved Viral videos.
@@ -23,15 +23,15 @@ import { videoProjects, videoViralVideos } from "@/server/video/schema"
  * details, so it keeps showing in every collection.
  */
 
-/** A project, as the delete window lists it. */
-export type SavedVideoProjectLink = { id: string; name: string }
+/** A video in a project, as the delete window lists it and links to it. */
+export type SavedVideoProjectLink = { project_id: string; video_id: string; name: string }
 
 export type SavedVideoDeleteSummary = {
   /** How many of the asked-for videos are this person's and will go. */
   videos: number
-  /** Editor projects Copy this made from them. They stay. */
+  /** Videos Make this a template made from them. They stay. */
   copiedBy: SavedVideoProjectLink[]
-  /** Projects whose timeline uses a downloaded file, which therefore stays. */
+  /** Videos whose timeline uses a downloaded file, which therefore stays. */
   timelinesUsingFile: SavedVideoProjectLink[]
 }
 
@@ -50,19 +50,23 @@ export async function savedVideoDeleteSummary(
   if (!rows.length) return { videos: 0, copiedBy: [], timelinesUsingFile: [] }
   const [copiedBy, timelinesUsingFile] = await Promise.all([
     db
-      .select({ id: videoProjects.id, name: videoProjects.name })
-      .from(videoProjects)
+      .select({
+        project_id: videoProjectVideos.projectId,
+        video_id: videoProjectVideos.id,
+        name: videoProjectVideos.name,
+      })
+      .from(videoProjectVideos)
       .where(
         and(
-          eq(videoProjects.userId, ownerId),
+          eq(videoProjectVideos.userId, ownerId),
           inArray(
-            videoProjects.sourceViralVideoId,
+            videoProjectVideos.sourceViralVideoId,
             rows.map((row) => row.id)
           )
         )
       )
-      .orderBy(videoProjects.name),
-    projectsWhoseTimelineUses(
+      .orderBy(videoProjectVideos.name),
+    videosWhoseTimelineUses(
       ownerId,
       rows.flatMap((row) => row.mediaId ?? [])
     ),
@@ -85,14 +89,14 @@ export async function deleteSavedVideos(
   await db.transaction(async (tx) => {
     for (const row of rows) {
       // Written before the delete, because the delete blanks the key these
-      // projects are found by.
+      // videos are found by.
       await tx
-        .update(videoProjects)
+        .update(videoProjectVideos)
         .set({ sourceViralVideoTitle: row.title?.trim() || row.sourceUrl })
         .where(
           and(
-            eq(videoProjects.userId, ownerId),
-            eq(videoProjects.sourceViralVideoId, row.id)
+            eq(videoProjectVideos.userId, ownerId),
+            eq(videoProjectVideos.sourceViralVideoId, row.id)
           )
         )
     }
@@ -148,10 +152,10 @@ async function ownedRows(ownerId: string, ids: string[]) {
 }
 
 /**
- * The person's projects whose timeline holds one of these files. Read where
+ * The person's videos whose timeline holds one of these files. Read where
  * the clips sit, the same way `mediaStillInUse` reads them.
  */
-async function projectsWhoseTimelineUses(
+async function videosWhoseTimelineUses(
   ownerId: string,
   mediaIds: string[]
 ): Promise<SavedVideoProjectLink[]> {
@@ -161,15 +165,19 @@ async function projectsWhoseTimelineUses(
     sql`, `
   )
   const found = await db.execute<SavedVideoProjectLink>(sql`
-    select distinct project.id, project.name
-    from ${videoProjects} project
-    cross join jsonb_array_elements(coalesce(project.timeline -> 'tracks', '[]'::jsonb)) track
+    select distinct video.project_id, video.id as video_id, video.name
+    from ${videoProjectVideos} video
+    cross join jsonb_array_elements(coalesce(video.timeline -> 'tracks', '[]'::jsonb)) track
     cross join jsonb_array_elements(coalesce(track -> 'clips', '[]'::jsonb)) clip
-    where project.user_id = ${ownerId}
+    where video.user_id = ${ownerId}
       and clip ->> 'mediaId' in (${listed})
-    order by project.name
+    order by video.name
   `)
-  return found.rows.map((row) => ({ id: row.id, name: row.name }))
+  return found.rows.map((row) => ({
+    project_id: row.project_id,
+    video_id: row.video_id,
+    name: row.name,
+  }))
 }
 
 /**

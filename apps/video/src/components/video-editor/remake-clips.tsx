@@ -217,7 +217,7 @@ function RemakePictureDialog({
   origin: PictureOrigin
   onClose: () => void
 }) {
-  const { store, dispatch, projectId, saveNow } = useEditorRuntime()
+  const { store, dispatch, videoId, saveNow } = useEditorRuntime()
   const { project, refreshSpend } = useProjectSettings()
   const reportError = useReportError()
   const startModel =
@@ -240,7 +240,7 @@ function RemakePictureDialog({
     try {
       // The server reads the clip off the saved timeline.
       await saveNow()
-      const frame = await remakeFirstFrame({ projectId, clipId: clip.id, prompt: direction, model })
+      const frame = await remakeFirstFrame({ videoId, clipId: clip.id, prompt: direction, model })
       refreshSpend()
       // A scene's picture lands on the Media panel rather than the AI clip panel.
       if (origin.tool === "brief") store.refreshMediaShelf()
@@ -397,7 +397,7 @@ function RemakeVoiceDialog({
   origin: VoiceOrigin
   onClose: () => void
 }) {
-  const { store, dispatch, projectId, saveNow } = useEditorRuntime()
+  const { store, dispatch, videoId, saveNow } = useEditorRuntime()
   const captionSettings = useCaptionSettings()
   const { refreshSpend } = useProjectSettings()
   const reportError = useReportError()
@@ -466,7 +466,7 @@ function RemakeVoiceDialog({
       // The server reads the line off the saved timeline.
       await saveNow()
       const line = await remakeVoiceLine({
-        projectId,
+        videoId,
         clipId: clip.id,
         voiceId: chosen.id,
         voiceName: chosen.name,

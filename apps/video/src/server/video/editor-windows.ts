@@ -7,36 +7,37 @@ import {
 } from "@/lib/video/editor-windows"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { getOwnedProject } from "@/server/video/projects"
-import { videoEditorWindows, videoProjects } from "@/server/video/schema"
+import { getOwnedVideo } from "@/server/video/project-videos"
+import { videoEditorWindows, videoProjectVideos } from "@/server/video/schema"
 
 /**
- * The open editor windows of one project. Each window writes its own row every
+ * The open editor windows of one video. Each window writes its own row every
  * 15 seconds and reads back the others, so a window opened second learns about
- * the first on its very first check-in.
+ * the first on its very first check-in. A window has one row in its project,
+ * which moves to whichever video it has open.
  *
- * Only the project's owner can write or read these rows. The window's id is
- * made up by the browser, so it is only ever used together with a project the
+ * Only the video's owner can write or read these rows. The window's id is
+ * made up by the browser, so it is only ever used together with a video the
  * caller owns.
  */
 
 export async function checkInEditorWindow(
   userId: string,
-  projectId: string,
+  videoId: string,
   windowId: string,
   mode: EditorWindowMode,
   database: CustomShellDb = db
 ): Promise<EditorWindowCheckIn> {
-  await getOwnedProject(userId, projectId, database)
+  const { projectId } = await getOwnedVideo(userId, videoId, database)
   const at = now()
   const goneBefore = new Date(at.getTime() - EDITOR_WINDOW_GONE_AFTER_MS)
 
   await database
     .insert(videoEditorWindows)
-    .values({ projectId, windowId, mode, openedAt: at, seenAt: at })
+    .values({ projectId, videoId, windowId, mode, openedAt: at, seenAt: at })
     .onConflictDoUpdate({
       target: [videoEditorWindows.projectId, videoEditorWindows.windowId],
-      set: { mode, seenAt: at },
+      set: { videoId, mode, seenAt: at },
     })
 
   // Windows that closed without saying so, such as a laptop shut mid-edit,
@@ -55,7 +56,7 @@ export async function checkInEditorWindow(
     .from(videoEditorWindows)
     .where(
       and(
-        eq(videoEditorWindows.projectId, projectId),
+        eq(videoEditorWindows.videoId, videoId),
         ne(videoEditorWindows.windowId, windowId),
         eq(videoEditorWindows.mode, "edit"),
         gte(videoEditorWindows.seenAt, goneBefore)
@@ -67,13 +68,13 @@ export async function checkInEditorWindow(
 }
 
 /**
- * A window closing takes its row with it. Asking about a project that is gone
+ * A window closing takes its row with it. Asking about a video that is gone
  * or belongs to somebody else deletes nothing and says nothing, because this
  * runs as the page unloads and nobody is left to read an error.
  */
 export async function leaveEditorWindow(
   userId: string,
-  projectId: string,
+  videoId: string,
   windowId: string,
   database: CustomShellDb = db
 ) {
@@ -81,17 +82,17 @@ export async function leaveEditorWindow(
     .delete(videoEditorWindows)
     .where(
       and(
-        eq(videoEditorWindows.projectId, projectId),
+        eq(videoEditorWindows.videoId, videoId),
         eq(videoEditorWindows.windowId, windowId),
         inArray(
-          videoEditorWindows.projectId,
+          videoEditorWindows.videoId,
           database
-            .select({ id: videoProjects.id })
-            .from(videoProjects)
+            .select({ id: videoProjectVideos.id })
+            .from(videoProjectVideos)
             .where(
               and(
-                eq(videoProjects.id, projectId),
-                eq(videoProjects.userId, userId)
+                eq(videoProjectVideos.id, videoId),
+                eq(videoProjectVideos.userId, userId)
               )
             )
         )

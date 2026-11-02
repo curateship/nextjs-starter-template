@@ -32,6 +32,7 @@ const payloadSchema = z.object({
   referenceMediaId: z.string().min(1).max(36).nullable().optional(),
   referenceMediaUrl: z.string().url().max(2048).nullable().optional(),
   lookProjectId: z.string().min(1).max(36).nullable().optional(),
+  spendVideoId: z.string().min(1).max(36).nullable().optional(),
 })
 const idSchema = z.object({ actorId: z.string().min(1).max(36) })
 const updateSchema = idSchema.extend(payloadSchema.shape)

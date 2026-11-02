@@ -1,14 +1,12 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 
-import {
-  getProjectErrorMessage,
-  keepRefusedProjectTimeline,
-  saveProjectTimeline,
-} from "@/lib/api/video/projects"
+import { getProjectErrorMessage } from "@/lib/api/video/projects"
+import { keepRefusedTimeline, saveVideoTimeline } from "@/lib/api/video/project-videos"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { PlaybackClock } from "@/lib/video/playback-clock"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import { VIDEO_NOT_FOUND_MESSAGE } from "@/lib/video/project-videos"
 import {
   PROJECT_CONFLICT_MESSAGE,
   type ProjectTimeline,
@@ -35,7 +33,7 @@ function serializeTimeline(timeline: ProjectTimeline) {
 }
 
 const CONFLICT_NOTICE =
-  "Another window saved this project first, so this one stopped saving."
+  "Another window saved this video first, so this one stopped saving."
 
 function showReadOnlyNotice() {
   showErrorToast("This window is read-only, so that change was not made.", {
@@ -49,23 +47,25 @@ function timelineOf(store: EditorStore): ProjectTimeline {
   return { tracks, aspect, ...(progressBar ? { progressBar } : {}) }
 }
 
-/** The project the editor opens on. */
+/** The video the editor opens on, in its project. */
 export type EditorDocument = {
+  /** The video's id. */
   id: string
+  projectId: string
   name: string
   version: number
   timeline: ProjectTimeline
 }
 
 /**
- * Holds everything the editor needs for one project: the state store, the
+ * Holds everything the editor needs for one video: the state store, the
  * playback clock, and the auto-save loop.
  *
  * Saving has two rules worth knowing. Saves run one at a time, because two in
  * flight together would each carry the same version and the editor would clash
- * with itself. And once the server says the project changed somewhere else,
+ * with itself. And once the server says the video changed somewhere else,
  * saving stops for good. The window locks, what it has on screen is kept as a
- * new project beside the original, and a reload picks up the other window's
+ * new video beside the original in the same project, and a reload picks up the other window's
  * version. A retry could never win, and a reload alone would throw the work
  * away.
  */
@@ -90,7 +90,7 @@ export function EditorProvider({
   )
 
   /**
-   * Keeps what this window has as a new project, and says where it went. A
+   * Keeps what this window has as a new video, and says where it went. A
    * failure keeps the work on screen and offers to try again, because the
    * window is locked and nothing else will save it.
    */
@@ -110,12 +110,9 @@ export function EditorProvider({
       )
       return
     }
-    say(() => showErrorToast(`${CONFLICT_NOTICE} Keeping your work here as a new project.`))
+    say(() => showErrorToast(`${CONFLICT_NOTICE} Keeping your work here as a new video.`))
     try {
-      const copy = await keepRefusedProjectTimeline(
-        document.id,
-        timelineOf(store)
-      )
+      const copy = await keepRefusedTimeline(document.id, timelineOf(store))
       say(() =>
         showErrorToast(
           `${CONFLICT_NOTICE} Your work here is kept as "${copy.name}".`,
@@ -124,7 +121,8 @@ export function EditorProvider({
             onClick: () =>
               void navigate({
                 to: "/admin/video-editor/$projectId",
-                params: { projectId: copy.id },
+                params: { projectId: copy.project_id },
+                search: { video: copy.id },
               }),
           }
         )
@@ -132,7 +130,7 @@ export function EditorProvider({
     } catch (error) {
       say(() =>
         showErrorToast(
-          `${CONFLICT_NOTICE} Keeping your work here as a new project failed: ${getProjectErrorMessage(error)}`,
+          `${CONFLICT_NOTICE} Keeping your work here as a new video failed: ${getProjectErrorMessage(error)}`,
           { label: "Try again", onClick: () => void keepRefusedWork() }
         )
       )
@@ -160,7 +158,7 @@ export function EditorProvider({
         .catch(() => undefined)
         .then(async () => {
           try {
-            const saved = await saveProjectTimeline(
+            const saved = await saveVideoTimeline(
               document.id,
               snapshot,
               versionRef.current
@@ -180,7 +178,9 @@ export function EditorProvider({
             } else if (
               guest &&
               error instanceof Error &&
-              (error.message === PROJECT_NOT_FOUND_MESSAGE || error.message.includes("AUTH_REQUIRED"))
+              (error.message === PROJECT_NOT_FOUND_MESSAGE ||
+                error.message === VIDEO_NOT_FOUND_MESSAGE ||
+                error.message.includes("AUTH_REQUIRED"))
             ) {
               // The guest's 12 hours are up, or their sign-in is gone.
               store.setLock("read-only")
@@ -207,7 +207,7 @@ export function EditorProvider({
    * What is already stored, written out the same way the save is.
    *
    * Comparing against this rather than counting renders is what stops the
-   * editor saving a project simply because somebody opened it — and it means an
+   * editor saving a video simply because somebody opened it — and it means an
    * edit undone back to where it started sends nothing either.
    */
   const lastSavedRef = React.useRef(serializeTimeline(document.timeline))
@@ -221,7 +221,7 @@ export function EditorProvider({
     (snapshot) => snapshot.lock !== null
   )
 
-  // Keep the clock inside the current length of the project.
+  // Keep the clock inside the current length of the video.
   React.useEffect(() => {
     clock.setDuration(durationMs)
   }, [clock, durationMs])
@@ -294,11 +294,12 @@ export function EditorProvider({
       store,
       dispatch: store.dispatch,
       clock,
-      projectId: document.id,
+      projectId: document.projectId,
+      videoId: document.id,
       saveNow,
-      setProjectName: store.setProjectName,
+      setVideoName: store.setVideoName,
     }),
-    [store, clock, document.id, saveNow]
+    [store, clock, document.projectId, document.id, saveNow]
   )
 
   return (

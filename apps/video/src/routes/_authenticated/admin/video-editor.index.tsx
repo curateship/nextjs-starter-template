@@ -18,7 +18,7 @@ import { ARCHIVED_PROJECTS, NO_FOLDER } from "@/lib/video/project-folders"
 
 export const PROJECT_SORT_COLUMNS = [
   "name",
-  "clips",
+  "videos",
   "length",
   "aspect",
   "updated",

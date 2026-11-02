@@ -26,7 +26,8 @@ import {
   writeBrief,
 } from "@/server/video/briefs"
 import { remakeFirstFrame } from "@/server/video/asset-factories/first-frames"
-import { createOwnedProject, getOwnedProject, writeProjectTimeline } from "@/server/video/projects"
+import { getOwnedVideo, writeVideoTimeline } from "@/server/video/project-videos"
+import { createOwnedProject } from "@/server/video/projects"
 import { videoBriefs, videoEditorWindows, videoProjectMedia } from "@/server/video/schema"
 
 const writer = vi.hoisted(() => ({ answers: [] as unknown[], prompts: [] as string[] }))
@@ -143,9 +144,9 @@ function script(seconds: number[]): BriefScript {
   }
 }
 
-function request(projectId: string): BriefRequest {
+function request(videoId: string): BriefRequest {
   return {
-    projectId,
+    videoId,
     about: "Why bread goes stale",
     audience: "Home bakers",
     lengthSeconds: 45,
@@ -161,9 +162,15 @@ function request(projectId: string): BriefRequest {
   }
 }
 
-/** A project with footage up to 9 seconds. */
-async function seedProject() {
-  const project = await createOwnedProject(user.id, "Bread", database)
+/** A new project's one video, as the brief calls take it. */
+async function newVideo(name: string) {
+  const made = await createOwnedProject(user.id, name, database)
+  return { id: made.video, projectId: made.project.id, version: 1 }
+}
+
+/** A project's video with footage up to 9 seconds. */
+async function seedVideo() {
+  const video = await newVideo("Bread")
   const timeline: ProjectTimeline = {
     aspect: "9:16",
     tracks: [
@@ -174,13 +181,13 @@ async function seedProject() {
       },
     ],
   }
-  await writeProjectTimeline(user.id, project.id, timeline, project.version, database)
-  return project
+  await writeVideoTimeline(user.id, video.id, timeline, video.version, database)
+  return video
 }
 
-async function savedTimeline(projectId: string) {
-  const project = await getOwnedProject(user.id, projectId, database)
-  return { timeline: project.timeline as ProjectTimeline, version: project.version }
+async function savedTimeline(videoId: string) {
+  const video = await getOwnedVideo(user.id, videoId, database)
+  return { timeline: video.timeline as ProjectTimeline, version: video.version }
 }
 
 async function briefRow(id: string) {
@@ -189,10 +196,10 @@ async function briefRow(id: string) {
 }
 
 async function writtenBrief(seconds = [15, 15, 15]) {
-  const project = await seedProject()
+  const video = await seedVideo()
   writer.answers.push(script(seconds))
-  const brief = await writeBrief(user.id, request(project.id))
-  return { project, brief }
+  const brief = await writeBrief(user.id, request(video.id))
+  return { video, brief }
 }
 
 describe("writing the script", () => {
@@ -206,31 +213,31 @@ describe("writing the script", () => {
     ])
     expect(pictures.calls + voices.calls).toBe(0)
     // Reopening reads the row and costs nothing.
-    expect((await listBriefs(user.id, brief.project_id)).briefs.map((item) => item.id)).toEqual([brief.id])
+    expect((await listBriefs(user.id, brief.video_id)).briefs.map((item) => item.id)).toEqual([brief.id])
   })
 
   it("asks once more when the answer comes back in the wrong shape, then fails with the reason", async () => {
-    const project = await seedProject()
+    const video = await seedVideo()
     writer.answers.push(new Error("Brief script came back in an unexpected shape"), script([15, 15, 15]))
-    await expect(writeBrief(user.id, request(project.id))).resolves.toMatchObject({ status: "draft" })
+    await expect(writeBrief(user.id, request(video.id))).resolves.toMatchObject({ status: "draft" })
     expect(writer.prompts).toHaveLength(2)
 
     writer.answers.push(
       new Error("Brief script came back in an unexpected shape"),
       new Error("Brief script came back in an unexpected shape")
     )
-    await expect(writeBrief(user.id, request(project.id))).rejects.toThrow("unexpected shape")
+    await expect(writeBrief(user.id, request(video.id))).rejects.toThrow("unexpected shape")
     // A key problem is not asked again.
     writer.prompts = []
     writer.answers.push(new Error("Add a Google Gemini key in Settings first"))
-    await expect(writeBrief(user.id, request(project.id))).rejects.toThrow("Gemini key")
+    await expect(writeBrief(user.id, request(video.id))).rejects.toThrow("Gemini key")
     expect(writer.prompts).toHaveLength(1)
   })
 
   it("asks once more, naming the shortfall, when the scenes run more than a tenth off", async () => {
-    const project = await seedProject()
+    const video = await seedVideo()
     writer.answers.push(script([10, 10]), script([15, 15, 14]))
-    const brief = await writeBrief(user.id, request(project.id))
+    const brief = await writeBrief(user.id, request(video.id))
     expect(writer.prompts).toHaveLength(2)
     expect(writer.prompts[1]).toContain("added up to 20 seconds, but the video must run 45 seconds")
     expect(brief.scenes).toHaveLength(3)
@@ -277,7 +284,7 @@ describe("editing the storyboard", () => {
 
 describe("making it", () => {
   it("makes every scene in order and, with no editor open, lays them after the last clip", async () => {
-    const { project, brief } = await writtenBrief()
+    const { video, brief } = await writtenBrief()
     const started = await startBrief(user.id, { briefId: brief.id, scenes: brief.scenes, playheadMs: 0 })
     expect(started.landing).toEqual({ startMs: 9000, lanes: {} })
     expect(started.scenes.every((scene) => scene.state === "queued")).toBe(true)
@@ -289,7 +296,7 @@ describe("making it", () => {
     expect(row.scenes.map((scene) => scene.state)).toEqual(["placed", "placed", "placed"])
     expect(pictures.calls).toBe(3)
     expect(voices.calls).toBe(3)
-    const { timeline } = await savedTimeline(project.id)
+    const { timeline } = await savedTimeline(video.id)
     // The footage did not move.
     expect(timeline.tracks.find((track) => track.id === "footage")!.clips[0].startMs).toBe(0)
     const lanes = row.landing!.lanes
@@ -307,7 +314,7 @@ describe("making it", () => {
   })
 
   it("stops at a failed scene: the scenes before it land, and Try again makes only what is missing", async () => {
-    const { project, brief } = await writtenBrief()
+    const { video, brief } = await writtenBrief()
     await startBrief(user.id, { briefId: brief.id, scenes: brief.scenes, playheadMs: 0 })
     // Scene two's picture is made, then its voice fails.
     voices.failOn = new Set([2])
@@ -320,7 +327,7 @@ describe("making it", () => {
     expect(row.scenes[1].error).toBe("Voiceover failed (HTTP 500)")
     expect(row.scenes[1].still).toBeDefined()
     expect(pictures.calls).toBe(2)
-    const { timeline } = await savedTimeline(project.id)
+    const { timeline } = await savedTimeline(video.id)
     expect(timeline.tracks.find((track) => track.id === row.landing!.lanes.pictures)!.clips).toHaveLength(1)
 
     await expect(retryBriefScene(user.id, { briefId: brief.id, sceneId: row.scenes[0].id })).rejects.toThrow(
@@ -393,20 +400,21 @@ describe("making it", () => {
   })
 
   it("leaves made scenes to an open editor, and only one of the two lays them", async () => {
-    const { project, brief } = await writtenBrief([45])
+    const { video, brief } = await writtenBrief([45])
     await startBrief(user.id, { briefId: brief.id, scenes: brief.scenes, playheadMs: 0 })
     await database.insert(videoEditorWindows).values({
-      projectId: project.id,
+      projectId: video.projectId,
+      videoId: video.id,
       windowId: "window-1",
       mode: "edit",
       openedAt: now(),
       seenAt: now(),
     })
-    const before = await savedTimeline(project.id)
+    const before = await savedTimeline(video.id)
 
     await briefTick()
 
-    expect((await savedTimeline(project.id)).version).toBe(before.version)
+    expect((await savedTimeline(video.id)).version).toBe(before.version)
     const made = await briefRow(brief.id)
     expect(made.scenes[0].state).toBe("made")
 
@@ -422,18 +430,18 @@ describe("making it", () => {
 
     await database.delete(videoEditorWindows)
     await briefTick()
-    expect((await savedTimeline(project.id)).version).toBe(before.version)
+    expect((await savedTimeline(video.id)).version).toBe(before.version)
   })
 
   it("makes a scene's picture again from its direction, with no actor", async () => {
-    const { project, brief } = await writtenBrief([45])
+    const { video, brief } = await writtenBrief([45])
     await startBrief(user.id, { briefId: brief.id, scenes: brief.scenes, playheadMs: 0 })
     await briefTick()
-    const { timeline } = await savedTimeline(project.id)
+    const { timeline } = await savedTimeline(video.id)
     const picture = timeline.tracks.flatMap((track) => track.clips).find((clip) => clip.kind === "image")!
 
     const remade = await remakeFirstFrame(user.id, {
-      projectId: project.id,
+      videoId: video.id,
       clipId: picture.id,
       prompt: "A loaf, hands out of frame",
       model: "gemini-2.5-flash-image",
@@ -450,9 +458,9 @@ describe("making it", () => {
   })
 
   it("starts at the playhead on an empty timeline", async () => {
-    const project = await createOwnedProject(user.id, "Empty", database)
+    const video = await newVideo("Empty")
     writer.answers.push(script([15, 15, 15]))
-    const brief = await writeBrief(user.id, request(project.id))
+    const brief = await writeBrief(user.id, request(video.id))
     const started = await startBrief(user.id, { briefId: brief.id, scenes: brief.scenes, playheadMs: 2500 })
     expect(started.landing?.startMs).toBe(2500)
   })

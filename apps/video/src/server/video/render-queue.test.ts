@@ -2,7 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq, sql } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import { VIDEO_NOT_FOUND_MESSAGE } from "@/lib/video/project-videos"
 import {
   NO_ACTIVE_EXPORT_MESSAGE,
   NO_SHAPE_MESSAGE,
@@ -15,7 +15,8 @@ import { type ProjectTimeline } from "@/lib/video/timeline-schema"
 import { type CustomShellDb } from "@/server/db"
 import { type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
-import { createOwnedProject, writeProjectTimeline } from "@/server/video/projects"
+import { writeVideoTimeline } from "@/server/video/project-videos"
+import { createOwnedProject } from "@/server/video/projects"
 import {
   cancelRenderJob,
   cancelRenderJobs,
@@ -40,10 +41,16 @@ afterEach(async () => {
   await client.close()
 })
 
-/** A project with something on its timeline, so it can be exported. */
+/** A new project's one video, as the export calls take it. */
+async function newVideo(name: string, ownerId = user.id) {
+  const made = await createOwnedProject(ownerId, name, database)
+  return { id: made.video, projectId: made.project.id, version: 1 }
+}
+
+/** A video with something on its timeline, so it can be exported. */
 async function projectWithContent(ownerId = user.id) {
-  const project = await createOwnedProject(ownerId, "Reel", database)
-  await writeProjectTimeline(
+  const project = await newVideo("Reel", ownerId)
+  await writeVideoTimeline(
     ownerId,
     project.id,
     {
@@ -75,12 +82,12 @@ async function projectWithContent(ownerId = user.id) {
 
 /** Ask for an export the way the dialog does, with one shape unless told. */
 function ask(
-  projectId: string,
+  videoId: string,
   overrides: Partial<Parameters<typeof enqueueRenderJobs>[0]> = {}
 ) {
   return enqueueRenderJobs({
     userId: user.id,
-    projectId,
+    videoId,
     aspects: ["9:16"],
     quality: "high",
     frameRate: 30,
@@ -102,15 +109,15 @@ async function finish(jobId: string, status: "ready" | "error" = "ready") {
 }
 
 describe("asking for an export", () => {
-  it("refuses a project with nothing on the timeline", async () => {
-    const empty = await createOwnedProject(user.id, "Empty", database)
+  it("refuses a video with nothing on the timeline", async () => {
+    const empty = await newVideo("Empty")
     await expect(ask(empty.id)).rejects.toThrowError(NOTHING_TO_EXPORT_MESSAGE)
   })
 
-  it("refuses somebody else's project", async () => {
+  it("refuses somebody else's video", async () => {
     const stranger = await insertUser(database)
     const theirs = await projectWithContent(stranger.id)
-    await expect(ask(theirs.id)).rejects.toThrowError(PROJECT_NOT_FOUND_MESSAGE)
+    await expect(ask(theirs.id)).rejects.toThrowError(VIDEO_NOT_FOUND_MESSAGE)
   })
 
   it("refuses a press with no shape ticked, and queues nothing", async () => {
@@ -134,7 +141,7 @@ describe("asking for an export", () => {
     expect(await database.select().from(videoRenderJobs)).toHaveLength(1)
   })
 
-  it("queues three shapes of one project from one press", async () => {
+  it("queues three shapes of one video from one press", async () => {
     const project = await projectWithContent()
     const jobs = await ask(project.id, { aspects: ["9:16", "1:1", "16:9"] })
     // Listed in the dialog's order, whatever order they were ticked in.
@@ -166,7 +173,7 @@ describe("asking for an export", () => {
     expect(second.status).toBe("queued")
   })
 
-  it("takes the name it is given, and the project's own when it is given none", async () => {
+  it("takes the name it is given, and the video's own when it is given none", async () => {
     const project = await projectWithContent()
     const [named] = await ask(project.id, { title: "  Launch cut  " })
     expect(named.title).toBe("Launch cut")
@@ -216,7 +223,7 @@ describe("asking for an export", () => {
 })
 
 describe("stopping", () => {
-  it("stops one export and leaves the project's other shape going", async () => {
+  it("stops one export and leaves the video's other shape going", async () => {
     const project = await projectWithContent()
     const [tall, wide] = await ask(project.id, { aspects: ["9:16", "16:9"] })
     const stopped = await cancelRenderJob(user.id, tall.id, database)
@@ -245,7 +252,7 @@ describe("stopping", () => {
     expect(after.status).toBe("cancelled")
   })
 
-  it("stops every shape of the project at once", async () => {
+  it("stops every shape of the video at once", async () => {
     const project = await projectWithContent()
     await ask(project.id, { aspects: ["9:16", "16:9"] })
     const after = await cancelRenderJobs(user.id, project.id, database)
@@ -299,7 +306,7 @@ describe("stopping", () => {
     const stranger = await insertUser(database)
     await expect(
       cancelRenderJobs(stranger.id, project.id, database)
-    ).rejects.toThrowError(PROJECT_NOT_FOUND_MESSAGE)
+    ).rejects.toThrowError(VIDEO_NOT_FOUND_MESSAGE)
   })
 })
 
@@ -351,7 +358,7 @@ describe("trying a failed export again", () => {
     ).rejects.toThrowError(ONLY_FAILED_RETRY_MESSAGE)
   })
 
-  it("refuses while another export of the same project and shape is on its way", async () => {
+  it("refuses while another export of the same video and shape is on its way", async () => {
     const project = await projectWithContent()
     const [failed] = await ask(project.id)
     await finish(failed.id, "error")
@@ -362,7 +369,7 @@ describe("trying a failed export again", () => {
     ).rejects.toThrowError(shapeBusyMessage("9:16"))
   })
 
-  it("is allowed while a different shape of the same project is on its way", async () => {
+  it("is allowed while a different shape of the same video is on its way", async () => {
     const project = await projectWithContent()
     const [failed] = await ask(project.id)
     await finish(failed.id, "error")
@@ -403,7 +410,7 @@ describe("what the editor watches", () => {
   })
 })
 
-describe("one at a time per project and shape", () => {
+describe("one at a time per video and shape", () => {
   it("the database refuses a second active export of the same shape outright", async () => {
     const project = await projectWithContent()
     await ask(project.id)
@@ -412,19 +419,19 @@ describe("one at a time per project and shape", () => {
     await expect(
       database.execute(sql`
         insert into video_render_jobs
-          (id, user_id, project_id, status, quality, aspect, created_at, updated_at)
-        values ('second', ${user.id}, ${project.id}, 'queued', 'high', '9:16', now(), now())
+          (id, user_id, project_id, video_id, status, quality, aspect, created_at, updated_at)
+        values ('second', ${user.id}, ${project.projectId}, ${project.id}, 'queued', 'high', '9:16', now(), now())
       `)
     ).rejects.toThrow()
   })
 
-  it("the database lets a different shape of the same project in", async () => {
+  it("the database lets a different shape of the same video in", async () => {
     const project = await projectWithContent()
     await ask(project.id)
     await database.execute(sql`
       insert into video_render_jobs
-        (id, user_id, project_id, status, quality, aspect, created_at, updated_at)
-      values ('wide', ${user.id}, ${project.id}, 'queued', 'high', '16:9', now(), now())
+        (id, user_id, project_id, video_id, status, quality, aspect, created_at, updated_at)
+      values ('wide', ${user.id}, ${project.projectId}, ${project.id}, 'queued', 'high', '16:9', now(), now())
     `)
     expect(await database.select().from(videoRenderJobs)).toHaveLength(2)
   })

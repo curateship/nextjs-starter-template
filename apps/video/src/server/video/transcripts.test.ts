@@ -161,13 +161,17 @@ import {
   insertUser,
   insertWorkspace,
 } from "@/server/test-support"
-import { writeProjectCaptions } from "@/server/video/captions"
+import { writeVideoCaptions } from "@/server/video/captions"
 import {
   analyseJumpCuts,
   transcribeClip,
   transcribeOpening,
 } from "@/server/video/jump-cuts"
-import { videoMediaTranscripts, videoProjects } from "@/server/video/schema"
+import {
+  videoMediaTranscripts,
+  videoProjects,
+  videoProjectVideos,
+} from "@/server/video/schema"
 import {
   listSavedTranscripts,
   readSavedTranscript,
@@ -222,15 +226,24 @@ async function insertMedia(owner = userId) {
   return id
 }
 
-/** A project of one clip of `mediaId`, starting `startMs` along the timeline. */
-async function insertProject(
+/** A project's video of one clip of `mediaId`, starting `startMs` along the timeline. */
+async function insertVideo(
   mediaId: string,
   clip: { startMs?: number; durationMs: number; trimStartMs?: number }
 ) {
+  const projectId = uuid()
   const id = uuid()
   const at = now()
   await database.insert(videoProjects).values({
+    id: projectId,
+    userId,
+    name: "Talk",
+    createdAt: at,
+    updatedAt: at,
+  })
+  await database.insert(videoProjectVideos).values({
     id,
+    projectId,
     userId,
     name: "Talk",
     aspect: "9:16",
@@ -263,27 +276,27 @@ async function insertProject(
 describe("transcribing a file once", () => {
   it("opens the Words panel twice on one clip for one meter row, and Captions after it for none", async () => {
     const mediaId = await insertMedia()
-    const projectId = await insertProject(mediaId, { durationMs: MINUTE })
+    const videoId = await insertVideo(mediaId, { durationMs: MINUTE })
 
-    const first = await transcribeClip({ userId, projectId, clipId: "clip-1" })
-    const second = await transcribeClip({ userId, projectId, clipId: "clip-1" })
+    const first = await transcribeClip({ userId, videoId, clipId: "clip-1" })
+    const second = await transcribeClip({ userId, videoId, clipId: "clip-1" })
     expect(metered).toHaveLength(1)
     expect(metered[0]).toMatchObject({ provider: "openai", feature: "jump_cut_analysis" })
     expect(second.words).toEqual(first.words)
     expect(first.words).toHaveLength(talk(MINUTE).length)
 
-    const captions = await writeProjectCaptions(userId, projectId)
+    const captions = await writeVideoCaptions(userId, videoId)
     expect(metered).toHaveLength(1)
     expect(captions.captions.length).toBeGreaterThan(0)
   })
 
   it("lets Tighten's filler words read the same saved words", async () => {
     const mediaId = await insertMedia()
-    const projectId = await insertProject(mediaId, { durationMs: MINUTE })
-    await writeProjectCaptions(userId, projectId)
+    const videoId = await insertVideo(mediaId, { durationMs: MINUTE })
+    await writeVideoCaptions(userId, videoId)
     await analyseJumpCuts({
       userId,
-      projectId,
+      videoId,
       clipId: "clip-1",
       mode: "filler",
       sensitivity: "balanced",
@@ -295,9 +308,9 @@ describe("transcribing a file once", () => {
 
   it("pays again only for Transcribe again, and replaces the saved words", async () => {
     const mediaId = await insertMedia()
-    const projectId = await insertProject(mediaId, { durationMs: MINUTE })
-    await transcribeClip({ userId, projectId, clipId: "clip-1" })
-    await transcribeClip({ userId, projectId, clipId: "clip-1", fresh: true })
+    const videoId = await insertVideo(mediaId, { durationMs: MINUTE })
+    await transcribeClip({ userId, videoId, clipId: "clip-1" })
+    await transcribeClip({ userId, videoId, clipId: "clip-1", fresh: true })
     expect(metered).toHaveLength(2)
     const rows = await database
       .select()
@@ -309,12 +322,12 @@ describe("transcribing a file once", () => {
   it("places the panel's words along the timeline for a clip that starts later and is trimmed", async () => {
     const mediaId = await insertMedia()
     // The clip shows the file from 10s to 20s, starting 5s along the timeline.
-    const projectId = await insertProject(mediaId, {
+    const videoId = await insertVideo(mediaId, {
       startMs: 5_000,
       trimStartMs: 10_000,
       durationMs: 10_000,
     })
-    const { words } = await transcribeClip({ userId, projectId, clipId: "clip-1" })
+    const { words } = await transcribeClip({ userId, videoId, clipId: "clip-1" })
     // The file's word at 10,000ms is the first the clip plays, 5s along.
     expect(words[0]).toEqual({ text: "w25", startMs: 5_000, endMs: 5_300 })
     expect(words.at(-1)!.endMs).toBeLessThanOrEqual(15_000)
@@ -325,9 +338,9 @@ describe("long recordings", () => {
   it("captions a 25-minute talk all the way through as one press on the meter", async () => {
     file.soundMs = 25 * MINUTE
     const mediaId = await insertMedia()
-    const projectId = await insertProject(mediaId, { durationMs: 25 * MINUTE })
+    const videoId = await insertVideo(mediaId, { durationMs: 25 * MINUTE })
 
-    const { captions } = await writeProjectCaptions(userId, projectId)
+    const { captions } = await writeVideoCaptions(userId, videoId)
 
     // Three pieces of about 8 minutes 20, sent as one charge.
     expect(sent).toHaveLength(3)
@@ -360,8 +373,8 @@ describe("long recordings", () => {
     choice.transcriber = "gemini"
     file.soundMs = 21 * MINUTE
     const mediaId = await insertMedia()
-    const projectId = await insertProject(mediaId, { durationMs: 21 * MINUTE })
-    await writeProjectCaptions(userId, projectId)
+    const videoId = await insertVideo(mediaId, { durationMs: 21 * MINUTE })
+    await writeVideoCaptions(userId, videoId)
     expect(sent.map((one) => one.provider)).toEqual(["gemini", "gemini", "gemini"])
     expect(metered).toEqual([
       expect.objectContaining({ provider: "gemini", inputTokens: 300 }),
@@ -371,8 +384,8 @@ describe("long recordings", () => {
   it("refuses a recording over 30 minutes before anything is sent", async () => {
     file.soundMs = 31 * MINUTE
     const mediaId = await insertMedia()
-    const projectId = await insertProject(mediaId, { durationMs: 5 * MINUTE })
-    await expect(writeProjectCaptions(userId, projectId)).rejects.toThrow(
+    const videoId = await insertVideo(mediaId, { durationMs: 5 * MINUTE })
+    await expect(writeVideoCaptions(userId, videoId)).rejects.toThrow(
       "Captioning covers up to 30 minutes"
     )
     expect(sent).toHaveLength(0)
@@ -384,26 +397,26 @@ describe("which saved words answer which run", () => {
   it("never lets Gemini's estimated words answer a Whisper run", async () => {
     choice.transcriber = "gemini"
     const mediaId = await insertMedia()
-    const projectId = await insertProject(mediaId, { durationMs: MINUTE })
-    await writeProjectCaptions(userId, projectId)
+    const videoId = await insertVideo(mediaId, { durationMs: MINUTE })
+    await writeVideoCaptions(userId, videoId)
     choice.transcriber = "openai"
-    await writeProjectCaptions(userId, projectId)
+    await writeVideoCaptions(userId, videoId)
     expect(metered.map((one) => one.provider)).toEqual(["gemini", "openai"])
   })
 
   it("lets Whisper's measured words answer a Gemini run", async () => {
     const mediaId = await insertMedia()
-    const projectId = await insertProject(mediaId, { durationMs: MINUTE })
-    await writeProjectCaptions(userId, projectId)
+    const videoId = await insertVideo(mediaId, { durationMs: MINUTE })
+    await writeVideoCaptions(userId, videoId)
     choice.transcriber = "gemini"
-    await writeProjectCaptions(userId, projectId)
+    await writeVideoCaptions(userId, videoId)
     expect(metered.map((one) => one.provider)).toEqual(["openai"])
   })
 
   it("shows a file's saved words only to whoever owns the file", async () => {
     const mediaId = await insertMedia()
-    const projectId = await insertProject(mediaId, { durationMs: MINUTE })
-    await writeProjectCaptions(userId, projectId)
+    const videoId = await insertVideo(mediaId, { durationMs: MINUTE })
+    await writeVideoCaptions(userId, videoId)
     expect(await listSavedTranscripts(userId, [mediaId])).toEqual([
       { mediaId, transcriber: "openai", durationMs: MINUTE },
     ])
@@ -421,10 +434,10 @@ describe("which saved words answer which run", () => {
       durationMs: MINUTE,
       createdAt: new Date(),
     })
-    const projectId = await insertProject(theirs, { durationMs: MINUTE })
-    await expect(writeProjectCaptions(userId, projectId)).rejects.toThrow()
+    const videoId = await insertVideo(theirs, { durationMs: MINUTE })
+    await expect(writeVideoCaptions(userId, videoId)).rejects.toThrow()
     await expect(
-      transcribeClip({ userId, projectId, clipId: "clip-1" })
+      transcribeClip({ userId, videoId, clipId: "clip-1" })
     ).rejects.toThrow()
     expect(sent).toHaveLength(0)
     expect(metered).toHaveLength(0)
@@ -434,10 +447,10 @@ describe("which saved words answer which run", () => {
 describe("the Hook tool's spoken opening", () => {
   it("sends only the opening of a file nobody has written down, and keeps nothing", async () => {
     const mediaId = await insertMedia()
-    const projectId = await insertProject(mediaId, { durationMs: MINUTE })
+    const videoId = await insertVideo(mediaId, { durationMs: MINUTE })
     const words = await transcribeOpening({
       userId,
-      projectId,
+      videoId,
       clipId: "clip-1",
       windowMs: 12_000,
     })
@@ -452,16 +465,16 @@ describe("the Hook tool's spoken opening", () => {
   it("reads the opening out of the saved words for nothing", async () => {
     const mediaId = await insertMedia()
     // The clip plays the file from 10s on.
-    const projectId = await insertProject(mediaId, {
+    const videoId = await insertVideo(mediaId, {
       durationMs: 30_000,
       trimStartMs: 10_000,
     })
-    await writeProjectCaptions(userId, projectId)
+    await writeVideoCaptions(userId, videoId)
     metered.length = 0
     sent.length = 0
     const words = await transcribeOpening({
       userId,
-      projectId,
+      videoId,
       clipId: "clip-1",
       windowMs: 12_000,
     })
@@ -476,8 +489,8 @@ describe("the Hook tool's spoken opening", () => {
 describe("deleting the file", () => {
   it("takes its saved words with it", async () => {
     const mediaId = await insertMedia()
-    const projectId = await insertProject(mediaId, { durationMs: MINUTE })
-    await writeProjectCaptions(userId, projectId)
+    const videoId = await insertVideo(mediaId, { durationMs: MINUTE })
+    await writeVideoCaptions(userId, videoId)
     await database.delete(customShellMedia).where(eq(customShellMedia.id, mediaId))
     const left = await database.select().from(videoMediaTranscripts)
     expect(left).toHaveLength(0)

@@ -29,7 +29,6 @@ import {
 } from "@/lib/video/timeline-utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
-import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Hint } from "@/components/video-assets/hint"
@@ -230,9 +229,7 @@ export function SoundsPanel() {
             <h3 className="text-xs font-medium text-muted-foreground">
               Your sounds{own ? ` · ${own.length}` : ""}
             </h3>
-            {own === null && !loadFailed ? (
-              <LoadingRow label="Loading your sounds" />
-            ) : loadFailed ? (
+            {own === null && !loadFailed ? null : loadFailed ? (
               <div className="grid justify-items-center gap-2 py-4 text-center text-sm text-muted-foreground">
                 Your sounds could not be loaded.
                 <Button

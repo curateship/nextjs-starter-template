@@ -14,10 +14,10 @@ import {
 } from "@/lib/video/saved-frames"
 import { SAVED_TIMELINE_INVALID_MESSAGE } from "@/lib/video/timeline-schema"
 import { editorPost } from "@/server/video/editor-guards"
-import { actorFor, actorForExport } from "@/server/video/project-guests"
+import { actorForExport, actorForVideo } from "@/server/video/project-guests"
 import {
   saveOwnedExportFrame,
-  saveOwnedProjectFrame,
+  saveOwnedVideoFrame,
   type SavedFrame,
 } from "@/server/video/saved-frames"
 
@@ -63,16 +63,16 @@ const saveExportFrameFn = createServerFn({ method: "POST" })
     })
   })
 
-const saveProjectFrameFn = createServerFn({ method: "POST" })
+const saveVideoFrameFn = createServerFn({ method: "POST" })
   .middleware([editorPost])
   .inputValidator(
-    z.object({ projectId: z.string().min(1).max(36), atMs: atMsSchema })
+    z.object({ videoId: z.string().min(1).max(36), atMs: atMsSchema })
   )
   .handler(async ({ data, context }) => {
-    const { userId } = await actorFor(context.caller, data.projectId)
-    return saveOwnedProjectFrame({
+    const { userId } = await actorForVideo(context.caller, data.videoId)
+    return saveOwnedVideoFrame({
       userId,
-      projectId: data.projectId,
+      videoId: data.videoId,
       atMs: data.atMs,
     })
   })
@@ -81,6 +81,6 @@ export function saveExportFrame(exportId: string, atMs: number) {
   return saveExportFrameFn({ data: { exportId, atMs } })
 }
 
-export function saveProjectFrame(projectId: string, atMs: number) {
-  return saveProjectFrameFn({ data: { projectId, atMs } })
+export function saveVideoFrame(videoId: string, atMs: number) {
+  return saveVideoFrameFn({ data: { videoId, atMs } })
 }

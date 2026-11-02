@@ -55,7 +55,7 @@ function currentWindowId() {
  * A check-in that fails is let go. The warning is a courtesy; the refused save
  * and the copy it keeps are what actually protect the work.
  */
-export function useEditorWindow(projectId: string, mode: EditorWindowMode) {
+export function useEditorWindow(videoId: string, mode: EditorWindowMode) {
   const [firstCheckIn, setFirstCheckIn] =
     React.useState<EditorWindowCheckIn | null>(null)
   const answeredRef = React.useRef(false)
@@ -79,7 +79,7 @@ export function useEditorWindow(projectId: string, mode: EditorWindowMode) {
     const id = currentWindowId()
     let active = true
     function checkIn() {
-      send(() => reportEditorWindowOpen(projectId, id, mode))
+      send(() => reportEditorWindowOpen(videoId, id, mode))
         .then((answer) => {
           if (!active || answeredRef.current) return
           answeredRef.current = true
@@ -93,7 +93,7 @@ export function useEditorWindow(projectId: string, mode: EditorWindowMode) {
       active = false
       window.clearInterval(timer)
     }
-  }, [projectId, mode, send])
+  }, [videoId, mode, send])
 
   // Closing the tab, reloading it, or leaving for another page all take the
   // row away, so a project reopened a moment later is not reported as open.
@@ -103,14 +103,14 @@ export function useEditorWindow(projectId: string, mode: EditorWindowMode) {
   // other message, so it never loses that race.
   React.useEffect(() => {
     const id = currentWindowId()
-    const close = () => reportEditorWindowClosed(projectId, id)
+    const close = () => reportEditorWindowClosed(videoId, id)
     const closeTab = () => void close().catch(() => undefined)
     window.addEventListener("pagehide", closeTab)
     return () => {
       window.removeEventListener("pagehide", closeTab)
       void send(close).catch(() => undefined)
     }
-  }, [projectId, send])
+  }, [videoId, send])
 
   return firstCheckIn
 }

@@ -43,6 +43,7 @@ import {
   videoExtras,
   videoFirstFrames,
   videoProjects,
+  videoProjectVideos,
 } from "@/server/video/schema"
 
 const uploaded = new Map<string, string>()
@@ -114,7 +115,9 @@ afterEach(async () => {
 
 async function seedFirstFrame() {
   const timestamp = now()
-  const project = await createOwnedProject(user.id, "Lease test", database)
+  const made = await createOwnedProject(user.id, "Lease test", database)
+  // The project, and the one video it opens with, which pays for its shots.
+  const project = { id: made.project.id, video: made.video }
   await database.insert(customShellMedia).values({
     id: "media-1",
     workspaceId,
@@ -301,13 +304,13 @@ async function insertRunningShots(projectId: string, count: number, prefix = "ru
 }
 
 function makeShot(
-  projectId: string,
+  videoId: string,
   prompt: string,
   options: { lengthSeconds?: ShotLengthSeconds; quality?: VideoQuality; firstFrameId?: string } = {}
 ) {
   const lengthSeconds = options.lengthSeconds ?? 8
   return createGeneration(user.id, {
-    projectId,
+    videoId,
     firstFrameId: options.firstFrameId ?? "frame-1",
     prompts: lengthSeconds > 8 ? Array.from({ length: lengthSeconds / 8 }, () => prompt) : [prompt],
     lengthSeconds,
@@ -319,10 +322,10 @@ describe("several shots at once", () => {
   it("makes three shots in one project at once and refuses a fourth", async () => {
     const project = await seedFirstFrame()
     for (const prompt of ["She waves", "She laughs", "She turns away"]) {
-      await makeShot(project.id, prompt)
+      await makeShot(project.video, prompt)
     }
 
-    await expect(makeShot(project.id, "She sits")).rejects.toThrow(
+    await expect(makeShot(project.video, "She sits")).rejects.toThrow(
       PROJECT_SHOTS_FULL_MESSAGE
     )
     const { generations } = await listGenerations(user.id, project.id)
@@ -346,17 +349,17 @@ describe("several shots at once", () => {
 
   it("refuses a seventh shot across one person's projects", async () => {
     await seedFirstFrame()
-    const second = await createOwnedProject(user.id, "Second", database)
-    const third = await createOwnedProject(user.id, "Third", database)
+    const second = (await createOwnedProject(user.id, "Second", database)).project
+    const third = (await createOwnedProject(user.id, "Third", database)).project
     const fourth = await createOwnedProject(user.id, "Fourth", database)
     await insertRunningShots(second.id, 3, "second")
     await insertRunningShots(third.id, 3, "third")
 
-    await expect(insertRunningShots(fourth.id, 1, "fourth")).rejects.toThrow()
+    await expect(insertRunningShots(fourth.project.id, 1, "fourth")).rejects.toThrow()
     await database.insert(videoFirstFrames).values({
       id: "frame-4",
       userId: user.id,
-      projectId: fourth.id,
+      projectId: fourth.project.id,
       actorId: "actor-1",
       name: "Frame",
       prompt: "Frame",
@@ -369,7 +372,7 @@ describe("several shots at once", () => {
       updatedAt: now(),
     })
     await expect(
-      makeShot(fourth.id, "Move", { firstFrameId: "frame-4" })
+      makeShot(fourth.video, "Move", { firstFrameId: "frame-4" })
     ).rejects.toThrow(PERSON_SHOTS_FULL_MESSAGE)
   })
 
@@ -383,31 +386,31 @@ describe("several shots at once", () => {
     })
     // Two 8 second shots are 2 x $0.81 = $1.62 of the $2.00, and neither is
     // on the meter yet because Google charges when a shot arrives.
-    await makeShot(project.id, "One")
-    await makeShot(project.id, "Two")
+    await makeShot(project.video, "One")
+    await makeShot(project.video, "Two")
 
-    await expect(makeShot(project.id, "Three")).rejects.toThrow(
+    await expect(makeShot(project.video, "Three")).rejects.toThrow(
       "Your monthly AI allowance has $2.00 left. Shots still being made will take $1.62 of it, and this one costs $0.81, so it is $0.43 short."
     )
     expect(await pieces()).toHaveLength(2)
   })
 
-  it("counts shots being made against the project's spend limit", async () => {
+  it("counts shots being made against the video's spend limit", async () => {
     const project = await seedFirstFrame()
     await database
-      .update(videoProjects)
+      .update(videoProjectVideos)
       .set({ spendLimitCents: 100 })
-      .where(eq(videoProjects.id, project.id))
-    await makeShot(project.id, "One")
+      .where(eq(videoProjectVideos.id, project.video))
+    await makeShot(project.video, "One")
 
-    await expect(makeShot(project.id, "Two")).rejects.toThrow(
-      "This project has spent $0.00 of its $1.00 limit, shots still being made will add $0.81, and this costs about $0.81, so the limit is $0.62 short. Raise the limit in the project's settings."
+    await expect(makeShot(project.video, "Two")).rejects.toThrow(
+      "This video has spent $0.00 of its $1.00 limit, shots still being made will add $0.81, and this costs about $0.81, so the limit is $0.62 short. Raise the limit in the video's settings."
     )
   })
 
   it("starts each shot a pass apart and asks after every running one on each pass", async () => {
     const project = await seedFirstFrame()
-    for (const prompt of ["One", "Two", "Three"]) await makeShot(project.id, prompt)
+    for (const prompt of ["One", "Two", "Three"]) await makeShot(project.video, prompt)
     let started = 0
     const checked: string[] = []
     // Google finishes the last shot asked for first.
@@ -447,7 +450,7 @@ describe("several shots at once", () => {
 
   it("puts a piece back in the queue when Google is too busy to start it", async () => {
     const project = await seedFirstFrame()
-    await makeShot(project.id, "One")
+    await makeShot(project.video, "One")
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -465,7 +468,7 @@ describe("several shots at once", () => {
 
   it("fails at once, saying why, when the key is a free key", async () => {
     const project = await seedFirstFrame()
-    await makeShot(project.id, "One")
+    await makeShot(project.video, "One")
     vi.stubGlobal("fetch", vi.fn(async () => Response.json(FREE_TIER_ANSWER, { status: 429 })))
 
     await videoGenerationTick()
@@ -488,7 +491,7 @@ describe("shots longer than one clip", () => {
   it("writes every piece at once, with only the first one queued", async () => {
     const project = await seedFirstFrame()
     const shot = await createGeneration(user.id, {
-      projectId: project.id,
+      videoId: project.video,
       firstFrameId: "frame-1",
       prompts: ["One", "Two", "Three"],
       lengthSeconds: 24,
@@ -511,7 +514,7 @@ describe("shots longer than one clip", () => {
     const project = await seedFirstFrame()
     await expect(
       createGeneration(user.id, {
-        projectId: project.id,
+        videoId: project.video,
         firstFrameId: "frame-1",
         prompts: ["Only one"],
         lengthSeconds: 16,
@@ -586,7 +589,7 @@ describe("shots longer than one clip", () => {
   it("lists nothing from another project", async () => {
     await seedTwoPieceShot()
     const other = await createOwnedProject(user.id, "Other", database)
-    expect((await listGenerations(user.id, other.id)).generations).toEqual([])
+    expect((await listGenerations(user.id, other.project.id)).generations).toEqual([])
   })
 
   it("refuses a Retry while the project is already making its most shots", async () => {
@@ -614,22 +617,22 @@ describe("shots longer than one clip", () => {
   it("will not make a clip in one project from another project's first frame", async () => {
     await seedFirstFrame()
     const other = await createOwnedProject(user.id, "Other", database)
-    await expect(makeShot(other.id, "Move")).rejects.toThrow("First frame not found")
+    await expect(makeShot(other.video, "Move")).rejects.toThrow("First frame not found")
   })
 })
 
-describe("the project's spend limit", () => {
-  it("stops a shot that would take the project past its limit, before anything is made", async () => {
+describe("the video's spend limit", () => {
+  it("stops a shot that would take the video past its limit, before anything is made", async () => {
     const project = await seedFirstFrame()
     // An 8 second shot is 8 x 5,792 tokens at $17.50 a million = $0.81,
     // and $0.70 is the limit.
     await database
-      .update(videoProjects)
+      .update(videoProjectVideos)
       .set({ spendLimitCents: 70 })
-      .where(eq(videoProjects.id, project.id))
+      .where(eq(videoProjectVideos.id, project.video))
 
-    await expect(makeShot(project.id, "Move")).rejects.toThrow(
-      "This project has spent $0.00 of its $0.70 limit, and this costs about $0.81, so the limit is $0.11 short. Raise the limit in the project's settings."
+    await expect(makeShot(project.video, "Move")).rejects.toThrow(
+      "This video has spent $0.00 of its $0.70 limit, and this costs about $0.81, so the limit is $0.11 short. Raise the limit in the video's settings."
     )
     expect(await pieces()).toEqual([])
   })
@@ -637,10 +640,10 @@ describe("the project's spend limit", () => {
   it("lets the shot through when it fits under the limit", async () => {
     const project = await seedFirstFrame()
     await database
-      .update(videoProjects)
+      .update(videoProjectVideos)
       .set({ spendLimitCents: 100 })
-      .where(eq(videoProjects.id, project.id))
-    const shot = await makeShot(project.id, "Move")
+      .where(eq(videoProjectVideos.id, project.video))
+    const shot = await makeShot(project.video, "Move")
     expect(shot.status).toBe("queued")
   })
 })
@@ -670,7 +673,7 @@ describe("the prompt Omni Flash is sent", () => {
       .update(videoProjects)
       .set({ style: "Flat illustration, warm palette" })
       .where(eq(videoProjects.id, project.id))
-    await makeShot(project.id, "Waves crash")
+    await makeShot(project.video, "Waves crash")
     const sent = captureRequests()
 
     await videoGenerationTick()
@@ -756,7 +759,7 @@ describe("the picture size", () => {
     const project = await seedFirstFrame()
     expect((await videoChoices()).starts.gemini.size).toBe("720p")
 
-    await makeShot(project.id, "Waves crash", { quality: "360p" })
+    await makeShot(project.video, "Waves crash", { quality: "360p" })
 
     const [row] = await pieces()
     expect(row.resolution).toBe("360p")
@@ -773,7 +776,7 @@ describe("the picture size", () => {
 
   it("prices a 16 second shot at $1.62 before it is made", async () => {
     const project = await seedFirstFrame()
-    const shot = await makeShot(project.id, "Waves crash", { lengthSeconds: 16 })
+    const shot = await makeShot(project.video, "Waves crash", { lengthSeconds: 16 })
     expect(shot.expected_cents).toBe(162)
     expect(shot.charged_cents).toBe(0)
   })
@@ -935,7 +938,7 @@ describe("what a shot is sent beyond the first frame", () => {
 
   it("records the actor, the board's pictures, then the backdrop, on every piece", async () => {
     const project = await seedDressedFrame()
-    const shot = await makeShot(project.id, "Pours a coffee", { lengthSeconds: 16 })
+    const shot = await makeShot(project.video, "Pours a coffee", { lengthSeconds: 16 })
     for (const row of await pieces()) {
       expect(row.actorId).toBe("actor-1")
       expect(row.referenceMediaIds).toEqual(["media-1", "side", "jacket", "kitchen"])
@@ -948,7 +951,7 @@ describe("what a shot is sent beyond the first frame", () => {
 
   it("sends a 6 second piece the pictures too", async () => {
     const project = await seedDressedFrame()
-    const shot = await makeShot(project.id, "Pours a coffee", { lengthSeconds: 6 })
+    const shot = await makeShot(project.video, "Pours a coffee", { lengthSeconds: 6 })
     expect(shot.board_pictures).toBe(3)
 
     const sent = captureRequests()
@@ -960,7 +963,7 @@ describe("what a shot is sent beyond the first frame", () => {
 
   it("sends the first frame, the person board and the backdrop, named by tags", async () => {
     const project = await seedDressedFrame()
-    await makeShot(project.id, "Pours a coffee")
+    await makeShot(project.video, "Pours a coffee")
     const sent = captureRequests()
     await videoGenerationTick()
 
@@ -981,7 +984,7 @@ describe("what a shot is sent beyond the first frame", () => {
 
   it("leaves out an extra deleted since, and keeps its picture on the record", async () => {
     const project = await seedDressedFrame()
-    await makeShot(project.id, "Pours a coffee")
+    await makeShot(project.video, "Pours a coffee")
     await database.delete(videoExtras).where(eq(videoExtras.id, "extra-jacket"))
     const sent = captureRequests()
     await videoGenerationTick()
@@ -995,7 +998,7 @@ describe("what a shot is sent beyond the first frame", () => {
 
   it("sends a piece asked for before actors were recorded the first frame and words alone", async () => {
     const project = await seedDressedFrame()
-    await makeShot(project.id, "Waves crash")
+    await makeShot(project.video, "Waves crash")
     // What migration 0124 leaves on a row written before it.
     await database
       .update(videoAiGenerations)

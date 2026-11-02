@@ -16,7 +16,7 @@ import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { getOwnedExport } from "@/server/video/exports"
-import { videoExportYoutube, videoProjects, videoSettings } from "@/server/video/schema"
+import { videoExportYoutube, videoProjectVideos, videoSettings } from "@/server/video/schema"
 import { parseIsoDuration } from "@/server/video/viral/youtube"
 import { youtubeAccess, youtubeJson } from "@/server/video/youtube-oauth"
 
@@ -339,7 +339,7 @@ async function describeRetention(
 
 /**
  * An export made before exports kept their scenes is drawn against the
- * project as it is now, which the card says. A timeline that no longer reads
+ * video as it is now, which the card says. A timeline that no longer reads
  * gives no scene lines rather than a failed card.
  */
 async function scenesOfProjectNow(
@@ -347,15 +347,15 @@ async function scenesOfProjectNow(
   lengthMs: number,
   database: CustomShellDb
 ) {
-  if (!job.projectId) return []
-  const [project] = await database
-    .select({ timeline: videoProjects.timeline })
-    .from(videoProjects)
-    .where(eq(videoProjects.id, job.projectId))
+  if (!job.videoId) return []
+  const [video] = await database
+    .select({ timeline: videoProjectVideos.timeline })
+    .from(videoProjectVideos)
+    .where(eq(videoProjectVideos.id, job.videoId))
     .limit(1)
-  if (!project) return []
+  if (!video) return []
   try {
-    return scenesOfTimeline(requireCanonicalTimeline(project.timeline), lengthMs)
+    return scenesOfTimeline(requireCanonicalTimeline(video.timeline), lengthMs)
   } catch {
     return []
   }

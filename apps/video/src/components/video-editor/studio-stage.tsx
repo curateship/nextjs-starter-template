@@ -11,7 +11,7 @@ import { toast } from "sonner"
 
 import {
   getSavedFrameErrorMessage,
-  saveProjectFrame,
+  saveVideoFrame,
 } from "@/lib/api/video/saved-frames"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
@@ -358,7 +358,7 @@ function TransportBar({
  * waiting to save is sent first.
  */
 function SaveFrameButton({ clock }: { clock: PlaybackClock }) {
-  const { projectId, saveNow, store } = useEditorRuntime()
+  const { videoId, saveNow, store } = useEditorRuntime()
   const [busy, setBusy] = React.useState(false)
 
   async function saveFrame() {
@@ -374,7 +374,7 @@ function SaveFrameButton({ clock }: { clock: PlaybackClock }) {
         )
         return
       }
-      const saved = await saveProjectFrame(projectId, atMs)
+      const saved = await saveVideoFrame(videoId, atMs)
       dismissErrorToast()
       store.refreshMediaShelf()
       toast.success(`Saved "${saved.name}" to the media panel.`)

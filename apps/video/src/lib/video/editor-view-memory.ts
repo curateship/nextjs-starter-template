@@ -1,20 +1,18 @@
 import { z } from "zod"
 
 /**
- * Where somebody was when they last left a project: the panel open on the
- * left, and on the timeline how far it was zoomed, where it was scrolled to,
- * which clip was selected and the moment of the video the playhead was on.
+ * Where somebody was when they last left a video: on the timeline how far it
+ * was zoomed, where it was scrolled to, which clip was selected and the
+ * moment of the video the playhead was on. The left panel is not kept: a
+ * project always opens on its Videos tab (Tyler, 1 Nov 2026).
  *
  * It is kept in this browser's localStorage, the same place the editor's
  * panel sizes live, so it does not follow anybody to another machine or
- * another browser. The key carries the person's id as well as the project's,
+ * another browser. The key carries the person's id as well as the video's,
  * because signing out does not empty localStorage and the next person on the
- * same browser should open the project the ordinary way.
+ * same browser should open the video the ordinary way.
  *
- * The timeline and the left panel are written by different parts of the
- * editor, so each writes only its own half and leaves the other as it was.
- *
- * None of it is part of the project. It is never sent to the server and undo
+ * None of it is part of the video. It is never sent to the server and undo
  * never touches it.
  */
 export type EditorView = z.infer<typeof editorViewSchema>
@@ -32,11 +30,10 @@ const editorViewSchema = z.object({
       playheadMs: z.number().min(0).finite(),
     })
     .optional(),
-  panel: z.string().min(1).optional(),
 })
 
-export function editorViewStorageKey(userId: string, projectId: string) {
-  return `video-editor-view:${userId}:${projectId}`
+export function editorViewStorageKey(userId: string, videoId: string) {
+  return `video-editor-view:${userId}:${videoId}`
 }
 
 export function readEditorView(key: string): EditorView {

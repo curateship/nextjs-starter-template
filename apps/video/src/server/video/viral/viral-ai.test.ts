@@ -7,7 +7,7 @@ import { type CustomShellDb } from "@/server/db"
 import { customShellAiUsageEvents, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
-  videoProjects,
+  videoProjectVideos,
   videoViralProjectKeywords,
   videoViralProjectResults,
   videoViralProjects,
@@ -15,7 +15,7 @@ import {
 } from "@/server/video/schema"
 import {
   copyVideoIntoProject,
-  loadProjectSource,
+  loadVideoSource,
 } from "@/server/video/viral/copy-into-project"
 import { suggestKeywords } from "@/server/video/viral/keyword-ideas"
 import { createViralProject } from "@/server/video/viral/projects"
@@ -189,7 +189,7 @@ describe("how on-topic each video is", () => {
 })
 
 describe("Copy this from a Viral project", () => {
-  it("remembers the Viral project on the editor project and on the saved video", async () => {
+  it("remembers the Viral project on the editor video and on the saved video", async () => {
     const project = await newProject()
     const editor = await copyVideoIntoProject(
       user.id,
@@ -197,12 +197,15 @@ describe("Copy this from a Viral project", () => {
       "A video",
       project.id
     )
-    const [row] = await database.select().from(videoProjects).where(eq(videoProjects.id, editor.id))
+    const [row] = await database
+      .select()
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.id, editor.videoId))
     expect(row.sourceViralProjectId).toBe(project.id)
     const [saved] = await database.select().from(videoViralVideos)
     expect(saved.viralProjectId).toBe(project.id)
 
-    const source = await loadProjectSource(user.id, editor.id)
+    const source = await loadVideoSource(user.id, editor.videoId)
     expect(source.viral).toEqual({ projectId: project.id, videoKey: "youtube:abc123" })
   })
 

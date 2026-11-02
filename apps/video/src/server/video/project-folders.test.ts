@@ -61,7 +61,7 @@ describe("project folders", () => {
   it("lists by name, ignoring case, and counts projects", async () => {
     const beta = await createOwnedFolder(user.id, "beta", database)
     await createOwnedFolder(user.id, "Alpha", database)
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = (await createOwnedProject(user.id, "Reel", database)).project
     await moveOwnedProjectsToFolder(user.id, [project.id], beta.id, database)
 
     const listed = await listOwnedFolders(user.id, database)
@@ -106,7 +106,7 @@ describe("project folders", () => {
   it("keeps a project in one folder at most", async () => {
     const first = await createOwnedFolder(user.id, "First", database)
     const second = await createOwnedFolder(user.id, "Second", database)
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = (await createOwnedProject(user.id, "Reel", database)).project
 
     await moveOwnedProjectsToFolder(user.id, [project.id], first.id, database)
     const moved = await moveOwnedProjectsToFolder(
@@ -124,11 +124,11 @@ describe("project folders", () => {
 
   it("reports projects already there, and ids that are not the caller's", async () => {
     const folder = await createOwnedFolder(user.id, "Client A", database)
-    const inside = await createOwnedProject(user.id, "Inside", database)
-    const outside = await createOwnedProject(user.id, "Outside", database)
+    const inside = (await createOwnedProject(user.id, "Inside", database)).project
+    const outside = (await createOwnedProject(user.id, "Outside", database)).project
     await moveOwnedProjectsToFolder(user.id, [inside.id], folder.id, database)
     const stranger = await insertUser(database)
-    const strangers = await createOwnedProject(stranger.id, "Theirs", database)
+    const strangers = (await createOwnedProject(stranger.id, "Theirs", database)).project
 
     const result = await moveOwnedProjectsToFolder(
       user.id,
@@ -151,7 +151,7 @@ describe("project folders", () => {
   it("never moves anything into a stranger's folder", async () => {
     const stranger = await insertUser(database)
     const theirFolder = await createOwnedFolder(stranger.id, "Theirs", database)
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = (await createOwnedProject(user.id, "Reel", database)).project
 
     await expect(
       moveOwnedProjectsToFolder(user.id, [project.id], theirFolder.id, database)
@@ -161,8 +161,8 @@ describe("project folders", () => {
 
   it("takes projects out of their folders with a null folder", async () => {
     const folder = await createOwnedFolder(user.id, "Client A", database)
-    const filed = await createOwnedProject(user.id, "Filed", database)
-    const loose = await createOwnedProject(user.id, "Loose", database)
+    const filed = (await createOwnedProject(user.id, "Filed", database)).project
+    const loose = (await createOwnedProject(user.id, "Loose", database)).project
     await moveOwnedProjectsToFolder(user.id, [filed.id], folder.id, database)
 
     const result = await moveOwnedProjectsToFolder(
@@ -179,7 +179,7 @@ describe("project folders", () => {
 
   it("lists one folder, or the projects in no folder", async () => {
     const folder = await createOwnedFolder(user.id, "Client A", database)
-    const filed = await createOwnedProject(user.id, "Filed", database)
+    const filed = (await createOwnedProject(user.id, "Filed", database)).project
     await createOwnedProject(user.id, "Loose", database)
     await moveOwnedProjectsToFolder(user.id, [filed.id], folder.id, database)
 
@@ -196,8 +196,8 @@ describe("project folders", () => {
 
   it("deleting a folder keeps its projects and says how many", async () => {
     const folder = await createOwnedFolder(user.id, "Client A", database)
-    const first = await createOwnedProject(user.id, "First", database)
-    const second = await createOwnedProject(user.id, "Second", database)
+    const first = (await createOwnedProject(user.id, "First", database)).project
+    const second = (await createOwnedProject(user.id, "Second", database)).project
     await moveOwnedProjectsToFolder(
       user.id,
       [first.id, second.id],
@@ -225,7 +225,7 @@ describe("project folders", () => {
 
   it("deleting a project takes it out of its folder's count", async () => {
     const folder = await createOwnedFolder(user.id, "Client A", database)
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = (await createOwnedProject(user.id, "Reel", database)).project
     await moveOwnedProjectsToFolder(user.id, [project.id], folder.id, database)
 
     await deleteOwnedProjects(user.id, [project.id], database)
@@ -251,13 +251,13 @@ describe("project folders", () => {
 
   it("puts a copy in the same folder as the original", async () => {
     const folder = await createOwnedFolder(user.id, "Client A", database)
-    const filed = await createOwnedProject(
+    const filed = (await createOwnedProject(
       user.id,
       "Filed",
       database,
       folder.id
-    )
-    const loose = await createOwnedProject(user.id, "Loose", database)
+    )).project
+    const loose = (await createOwnedProject(user.id, "Loose", database)).project
 
     await duplicateOwnedProject(user.id, filed.id, database)
     await duplicateOwnedProject(user.id, loose.id, database)

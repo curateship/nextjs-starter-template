@@ -1,6 +1,8 @@
 # Another language
 
-The AI tools panel's "Another language" tile translates what is said in a project.
+The AI tools panel's "Another language" tile translates what is said in the
+open video. Since 1 Nov 2026 each language copy is a new video in the same
+project, not a project of its own (`project-videos.md`).
 The translation then goes on as captions, or is read aloud by a new voice. One
 cut can become a post in Spanish, one in French and one in German without
 recording anything again, and several languages can be made in one press

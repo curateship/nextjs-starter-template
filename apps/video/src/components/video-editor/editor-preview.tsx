@@ -459,12 +459,15 @@ export function EditorPreview() {
 
   // Watch the space the stage has. The stage is sized in code because CSS
   // cannot fit a box to a shape against both a maximum width and height.
-  React.useEffect(() => {
+  // Measured before the first paint too: the editor is drawn afresh for every
+  // video opened, and waiting for the observer showed one empty frame.
+  React.useLayoutEffect(() => {
     const element = containerRef.current
     if (!element) return
-    const observer = new ResizeObserver(() =>
+    const measure = () =>
       setContainerBox({ w: element.clientWidth, h: element.clientHeight })
-    )
+    measure()
+    const observer = new ResizeObserver(measure)
     observer.observe(element)
     return () => observer.disconnect()
   }, [])

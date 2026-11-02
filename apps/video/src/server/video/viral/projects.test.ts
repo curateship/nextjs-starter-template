@@ -14,7 +14,7 @@ import { createOwnedProject } from "@/server/video/projects"
 import {
   videoCreatorPosts,
   videoCreators,
-  videoProjects,
+  videoProjectVideos,
   videoViralCollectionItems,
   videoViralProjectCreators,
   videoViralProjectHiddenChannels,
@@ -243,8 +243,8 @@ describe("deleting", () => {
     expect(starred[0].sourceProjectId).toBeNull()
     const [kept] = await database
       .select()
-      .from(videoProjects)
-      .where(eq(videoProjects.id, editor.id))
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.id, editor.video))
     expect(kept.sourceViralProjectId).toBeNull()
   })
 

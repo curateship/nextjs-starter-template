@@ -113,13 +113,13 @@ export function BrollDialog({
   onOpenChange: (open: boolean) => void
   available: AiToolsAvailability | null
 }) {
-  const { store, dispatch, projectId, saveNow } = useEditorRuntime()
+  const { store, dispatch, videoId, saveNow } = useEditorRuntime()
   const { openSettings, refreshSpend } = useProjectSettings()
   const [status, setStatus] = React.useState<BrollStatus | null>(null)
   const [statusError, setStatusError] = React.useState<string | null>(null)
   const [statusReads, setStatusReads] = React.useState(0)
   const [grid, setGridState] = React.useState<Grid | null>(
-    () => heldGrids.get(projectId) ?? null
+    () => heldGrids.get(videoId) ?? null
   )
   const [busy, setBusy] = React.useState<"finding" | "placing" | "rest" | null>(null)
   // The rows whose own search is running.
@@ -129,12 +129,12 @@ export function BrollDialog({
     (update: (current: Grid | null) => Grid | null) => {
       setGridState((current) => {
         const next = update(current)
-        if (next) heldGrids.set(projectId, next)
-        else heldGrids.delete(projectId)
+        if (next) heldGrids.set(videoId, next)
+        else heldGrids.delete(videoId)
         return next
       })
     },
-    [projectId]
+    [videoId]
   )
 
   // Asked every time the window opens, after any waiting edit is saved, so
@@ -143,7 +143,7 @@ export function BrollDialog({
     if (!open) return
     let current = true
     saveNow()
-      .then(() => loadBrollStatus(projectId))
+      .then(() => loadBrollStatus(videoId))
       .then((loaded) => {
         if (!current) return
         setStatus(loaded)
@@ -155,7 +155,7 @@ export function BrollDialog({
     return () => {
       current = false
     }
-  }, [open, projectId, saveNow, statusReads])
+  }, [open, videoId, saveNow, statusReads])
 
   const reportError = React.useCallback(
     (error: unknown) => {
@@ -190,7 +190,7 @@ export function BrollDialog({
     dismissErrorToast()
     try {
       await saveNow()
-      const found = await suggestBroll(projectId)
+      const found = await suggestBroll(videoId)
       setGrid(() => ({
         aspect: found.aspect,
         rows: found.rows.map(withPick),
@@ -245,7 +245,7 @@ export function BrollDialog({
     setSearching((current) => new Set(current).add(row.id))
     dismissErrorToast()
     try {
-      const batch = await searchBroll(projectId, [{ id: row.id, phrase }])
+      const batch = await searchBroll(videoId, [{ id: row.id, phrase }])
       takeBatch(batch, { oneRow: true })
       if (batch.stopped) showErrorToast(batch.stopped.message)
     } catch (error) {
@@ -268,7 +268,7 @@ export function BrollDialog({
     try {
       takeBatch(
         await searchBroll(
-          projectId,
+          videoId,
           waiting.map((row) => ({ id: row.id, phrase: row.phrase }))
         )
       )
@@ -301,7 +301,7 @@ export function BrollDialog({
     dismissErrorToast()
     try {
       const placements = await saveBrollPicks(
-        projectId,
+        videoId,
         picks.map(({ row, candidate }) => ({
           startMs: row.startMs,
           endMs: row.endMs,

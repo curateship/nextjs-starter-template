@@ -87,26 +87,26 @@ export function DeleteSavedVideosDialog({
             <ProjectList
               heading={
                 counted.copiedBy.length === 1
-                  ? "This editor project was made with Make this a template. It stays, and its Copy panel will say the original video was deleted:"
-                  : `These ${counted.copiedBy.length} editor projects were made with Make this a template. They stay, and their Copy panels will say the original video was deleted:`
+                  ? "This video in the editor was made with Make this a template. It stays, and its Copy panel will say the original video was deleted:"
+                  : `These ${counted.copiedBy.length} videos in the editor were made with Make this a template. They stay, and their Copy panels will say the original video was deleted:`
               }
               projects={counted.copiedBy}
             />
           ) : (
             <p className="text-muted-foreground">
-              No editor project was made from {one ? "it" : "them"} with Copy
-              this.
+              No video in the editor was made from {one ? "it" : "them"} with
+              Make this a template.
             </p>
           )}
           {counted.timelinesUsingFile.length ? (
             <ProjectList
-              heading={`The downloaded file stays in your media library, because ${counted.timelinesUsingFile.length === 1 ? "this project uses it" : "these projects use it"} on the timeline:`}
+              heading={`The downloaded file stays in your media library, because ${counted.timelinesUsingFile.length === 1 ? "this video uses it" : "these videos use it"} on the timeline:`}
               projects={counted.timelinesUsingFile}
             />
           ) : null}
         </div>
       ) : (
-        <LoadingRow label="Checking which projects were made from it" />
+        <LoadingRow label="Checking which videos were made from it" />
       )}
     </ConfirmDialog>
   )
@@ -117,20 +117,21 @@ function ProjectList({
   projects,
 }: {
   heading: string
-  projects: { id: string; name: string }[]
+  projects: { project_id: string; video_id: string; name: string }[]
 }) {
   return (
     <div className="grid gap-1.5">
       <p>{heading}</p>
       <ul className="grid gap-1 pl-4">
-        {projects.map((project) => (
-          <li key={project.id} className="list-disc">
+        {projects.map((video) => (
+          <li key={video.video_id} className="list-disc">
             <Link
               to="/admin/video-editor/$projectId"
-              params={{ projectId: project.id }}
+              params={{ projectId: video.project_id }}
+              search={{ video: video.video_id }}
               className="underline-offset-2 hover:underline"
             >
-              {project.name}
+              {video.name}
             </Link>
           </li>
         ))}

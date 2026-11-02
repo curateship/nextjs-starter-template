@@ -24,10 +24,10 @@ import type {
 
 export type { FirstFrameItem, FirstFramePayload }
 
-const projectIdSchema = z.string().min(1).max(36)
+const idSchema = z.string().min(1).max(36)
 
 const payloadSchema = z.object({
-  projectId: projectIdSchema,
+  videoId: idSchema,
   actorId: z.string().min(1).max(36),
   prompt: z.string().trim().min(1).max(5000),
   variants: z.number().int().min(1).max(4),
@@ -61,7 +61,7 @@ export function getFirstFrameErrorMessage(error: unknown) {
 
 const listFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ projectId: projectIdSchema }))
+  .inputValidator(z.object({ projectId: idSchema }))
   .handler(({ data, context }) => import("@/server/video/asset-factories/first-frames").then((m) => m.listFirstFrames(context.user.id, data.projectId)))
 
 const createFn = createServerFn({ method: "POST" })
@@ -72,7 +72,7 @@ const createFn = createServerFn({ method: "POST" })
 const remakeFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({
-    projectId: projectIdSchema,
+    videoId: idSchema,
     clipId: z.string().min(1).max(64),
     prompt: z.string().trim().min(1).max(5000),
     model: z.enum(IMAGE_MODEL_IDS),
@@ -88,5 +88,5 @@ const deleteFn = createServerFn({ method: "POST" })
 export function listFirstFrames(projectId: string) { return listFn({ data: { projectId } }) }
 export function createFirstFrames(payload: FirstFramePayload) { return createFn({ data: payload }) }
 /** Makes a picture on the timeline again from its first frame's recipe, with new words or a new model. */
-export function remakeFirstFrame(data: { projectId: string; clipId: string; prompt: string; model: GeminiImageModelId }) { return remakeFn({ data }) }
+export function remakeFirstFrame(data: { videoId: string; clipId: string; prompt: string; model: GeminiImageModelId }) { return remakeFn({ data }) }
 export function deleteFirstFrames(firstFrameIds: string[]) { return deleteFn({ data: { firstFrameIds } }) }

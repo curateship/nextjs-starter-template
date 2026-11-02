@@ -24,6 +24,7 @@ import type {
   StoredScene,
 } from "@/lib/video/brief"
 import type { AiPart } from "@/lib/video/ai-parts"
+import type { CarouselLook } from "@/lib/video/carousel-look"
 import type { ExportScene } from "@/lib/video/export-scenes"
 import type { ExtraPicks, SentExtra } from "@/lib/video/extras"
 import type { ClipOutcome } from "@/lib/video/moving-still"
@@ -33,6 +34,7 @@ import type {
   StoredYoutubeOauthClient,
 } from "@/lib/video/retention"
 import type { ScriptCheck } from "@/lib/video/script-check"
+import type { VideoStatus } from "@/lib/video/project-videos"
 import { customShellMedia, customShellUsers } from "@/server/schema"
 
 /**
@@ -435,15 +437,17 @@ export const videoMediaCollectionItems = pgTable(
 )
 
 /**
- * A project is one timeline, stored as a single JSON document so a new clip
- * field never means a migration. `aspect` is copied out of that document by the
- * same code that writes it — it exists only so the projects list can be drawn
- * without reading every timeline, and it is never accepted from the browser on
- * its own.
+ * A project holds many videos (`workspace/docs/project-videos.md`). It keeps
+ * what every video in it shares: the name, the look, the picked extras, the
+ * guests, the first frames and AI shots, and the uploaded media shelf. Each
+ * video's own timeline is a row of `video_project_videos`.
  *
- * `version` is the compare-and-swap token: a save carries the version it
- * loaded and lands only if the project is still on it, so a second tab is told
- * it lost rather than silently overwriting the newer work.
+ * The table still has the columns a project used when it was one video
+ * (timeline, aspect, version, spend_limit_cents, source_viral_*,
+ * last_edited_by, language_of, language). Migration 0145 copied them into each
+ * project's first video, and nothing here reads or writes them any more. They
+ * stay only because the release before 0145 still reads them while a deploy
+ * swaps containers (`docs/deployment.md`); the release after 0145 drops them.
  */
 export const videoProjects = pgTable(
   "video_projects",
@@ -453,49 +457,88 @@ export const videoProjects = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 200 }).notNull(),
-    aspect: varchar("aspect", { length: 8 }).notNull(),
-    timeline: jsonb("timeline").notNull(),
-    version: integer("version").notNull().default(1),
     // The project's look (see workspace/docs/visual-style.md): a style line
     // every AI picture and clip made for it starts from, and a library picture
-    // to copy the look of. Kept beside the timeline rather than in it, so
-    // changing the look from Project settings never moves `version` and never
-    // clashes with an open editor. Deleting the picture blanks the column.
+    // to copy the look of. Deleting the picture blanks the column.
     style: varchar("style", { length: 500 }),
     styleMediaId: varchar("style_media_id", { length: 36 }).references(
       () => customShellMedia.id,
       { onDelete: "set null" }
     ),
-    // The viral video this project copies, set by Copy this. Deleting the
-    // saved video blanks it and the project stays.
-    sourceViralVideoId: varchar("source_viral_video_id", {
-      length: 36,
-    }).references(() => videoViralVideos.id, { onDelete: "set null" }),
-    // The copied video's title, written just before that saved video is
-    // deleted, so the Copy panel can still name what it copied. Empty while
-    // the video is still there.
-    sourceViralVideoTitle: text("source_viral_video_title"),
-    // The Viral project Copy this was pressed in. Deleting that project blanks
-    // it and this one stays.
-    sourceViralProjectId: varchar("source_viral_project_id", {
-      length: 36,
-    }).references(() => videoViralProjects.id, { onDelete: "set null" }),
     // An archived project leaves the list and keeps everything.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     // A pinned project sits at the top of the list whatever the sort.
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
-    // The most AI spending the project may reach, in cents. Null is no limit.
-    spendLimitCents: integer("spend_limit_cents"),
-    // "Sam via Project" when a guest sent from Project made the last save,
-    // null when the owner did (`drizzle/0125_video_project_guests.sql`).
-    lastEditedBy: text("last_edited_by"),
     // The extras picked in the AI clip panel, one extra id per kind, so a
     // series keeps the same outfit and place (drizzle/0124).
     extraPicks: jsonb("extra_picks").$type<ExtraPicks>().notNull().default({}),
-    // The project this one is a language copy of, and the language it speaks
-    // (drizzle/0141). Deleting the original blanks the link; the copy stays.
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_video_projects_user_updated").on(table.userId, table.updatedAt),
+  ]
+)
+
+/**
+ * One video in a project: its timeline, stored as a single JSON document so a
+ * new clip field never means a migration. `aspect` is copied out of that
+ * document by the same code that writes it, so the Videos tab can be drawn
+ * without reading every timeline, and it is never accepted from the browser
+ * on its own.
+ *
+ * `version` is the compare-and-swap token: a save carries the version it
+ * loaded and lands only if the video is still on it, so a second tab is told
+ * it lost rather than silently overwriting the newer work.
+ *
+ * `user_id` is the project's owner, copied here so every ownership check on a
+ * video is one lookup.
+ */
+export const videoProjectVideos = pgTable(
+  "video_project_videos",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 200 }).notNull(),
+    aspect: varchar("aspect", { length: 8 }).notNull(),
+    timeline: jsonb("timeline").notNull(),
+    // Copied out of the timeline by every save, like `aspect`, so the Videos
+    // tab lists hundreds of videos without reading a timeline.
+    clipCount: integer("clip_count").notNull().default(0),
+    durationMs: integer("duration_ms").notNull().default(0),
+    version: integer("version").notNull().default(1),
+    // Draft, Ready or Posted, set from the video's menu in the Videos tab.
+    status: varchar("status", { length: 8 }).$type<VideoStatus>().notNull().default("draft"),
+    // A pinned video sits at the top of the Videos tab whatever the sort.
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
+    // An archived video leaves the Videos tab and keeps everything.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    // The most AI spending this video may reach, in cents. Null is no limit.
+    spendLimitCents: integer("spend_limit_cents"),
+    // The viral video this video copies, set by Make this a template.
+    // Deleting the saved video blanks it and the video stays.
+    sourceViralVideoId: varchar("source_viral_video_id", {
+      length: 36,
+    }).references(() => videoViralVideos.id, { onDelete: "set null" }),
+    // The copied video's title, written just before that saved video is
+    // deleted, so the Copy panel can still name what it copied.
+    sourceViralVideoTitle: text("source_viral_video_title"),
+    // The Viral project Make this a template was pressed in.
+    sourceViralProjectId: varchar("source_viral_project_id", {
+      length: 36,
+    }).references(() => videoViralProjects.id, { onDelete: "set null" }),
+    // "Sam via Project" when a guest sent from Project made the last save,
+    // null when the owner did.
+    lastEditedBy: text("last_edited_by"),
+    // The video this one is a language copy of, and the language it speaks.
+    // Deleting the original blanks the link; the copy stays.
     languageOf: varchar("language_of", { length: 36 }).references(
-      (): AnyPgColumn => videoProjects.id,
+      (): AnyPgColumn => videoProjectVideos.id,
       { onDelete: "set null" }
     ),
     language: varchar("language", { length: 40 }),
@@ -504,17 +547,45 @@ export const videoProjects = pgTable(
   },
   (table) => [
     check(
-      "video_projects_spend_limit_check",
+      "video_project_videos_spend_limit_check",
       sql`${table.spendLimitCents} is null or ${table.spendLimitCents} between 1 and 10000000`
     ),
     check(
-      "video_projects_aspect_check",
+      "video_project_videos_aspect_check",
       sql`${table.aspect} in ('16:9', '9:16', '1:1', '4:3')`
     ),
-    check("video_projects_version_check", sql`${table.version} >= 1`),
-    index("ix_video_projects_user_updated").on(table.userId, table.updatedAt),
-    index("ix_video_projects_language_of").on(table.languageOf),
+    check(
+      "video_project_videos_status_check",
+      sql`${table.status} in ('draft', 'ready', 'posted')`
+    ),
+    check("video_project_videos_version_check", sql`${table.version} >= 1`),
+    index("ix_video_project_videos_project_updated").on(table.projectId, table.updatedAt),
+    index("ix_video_project_videos_user").on(table.userId),
+    index("ix_video_project_videos_language_of").on(table.languageOf),
+    index("ix_video_project_videos_source")
+      .on(table.sourceViralVideoId)
+      .where(sql`${table.sourceViralVideoId} is not null`),
   ]
+)
+
+/**
+ * The video each person last had open in a project, so opening the project
+ * again lands on it. `person` is the user's id, or `guest:` and the guest
+ * sign-in's id for a guest sent from Project, whose last video is their own.
+ */
+export const videoProjectLastVideos = pgTable(
+  "video_project_last_videos",
+  {
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    person: varchar("person", { length: 48 }).notNull(),
+    videoId: varchar("video_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjectVideos.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.projectId, table.person] })]
 )
 
 /**
@@ -530,6 +601,10 @@ export const videoProjectVersions = pgTable(
     projectId: varchar("project_id", { length: 36 })
       .notNull()
       .references(() => videoProjects.id, { onDelete: "cascade" }),
+    // The video it belongs to (drizzle/0145).
+    videoId: varchar("video_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjectVideos.id, { onDelete: "cascade" }),
     // Who made the save that kept it.
     userId: varchar("user_id", { length: 36 })
       .notNull()
@@ -550,26 +625,29 @@ export const videoProjectVersions = pgTable(
       "ck_video_project_versions_reason",
       sql`${table.reason} in ('break', 'hourly', 'restore')`
     ),
-    index("ix_video_project_versions_project_created").on(
-      table.projectId,
+    index("ix_video_project_versions_video_created").on(
+      table.videoId,
       table.createdAt
     ),
   ]
 )
 
 /**
- * The picture beside a project on the projects list: one frame of the first
- * video or picture clip, made by the background worker and kept outside the
- * media library (see `workspace/docs/project-thumbnails.md`). The row is the
+ * The picture beside a video in the Videos tab, and beside its project on the
+ * projects list: one frame of the first video or picture clip, made by the
+ * background worker and kept outside the media library (see `workspace/docs/project-thumbnails.md`). The row is the
  * queue entry and the lease is the claim, the same as the media side tables.
  * `none` means the timeline has nothing to take a frame of, and is never tried.
  */
 export const videoProjectThumbnails = pgTable(
-  "video_project_thumbnails",
+  "video_video_thumbnails",
   {
-    projectId: varchar("project_id", { length: 36 })
+    // One picture per video (drizzle/0145). The older one-per-project table,
+    // `video_project_thumbnails`, is left for the release before 0145 and
+    // dropped by the release after it.
+    videoId: varchar("video_id", { length: 36 })
       .primaryKey()
-      .references(() => videoProjects.id, { onDelete: "cascade" }),
+      .references(() => videoProjectVideos.id, { onDelete: "cascade" }),
     status: varchar("status", { length: 16 }).notNull(),
     sourceMediaId: varchar("source_media_id", { length: 36 }),
     sourceAtMs: integer("source_at_ms"),
@@ -585,14 +663,14 @@ export const videoProjectThumbnails = pgTable(
   },
   (table) => [
     check(
-      "video_project_thumbnails_status_check",
+      "video_video_thumbnails_status_check",
       sql`${table.status} in ('queued', 'generating', 'ready', 'error', 'none')`
     ),
     check(
-      "video_project_thumbnails_ready_check",
+      "video_video_thumbnails_ready_check",
       sql`${table.status} <> 'ready' or ${table.storagePath} is not null`
     ),
-    index("ix_video_project_thumbnails_status").on(
+    index("ix_video_video_thumbnails_status").on(
       table.status,
       table.updatedAt
     ),
@@ -656,6 +734,11 @@ export const videoEditorWindows = pgTable(
     projectId: varchar("project_id", { length: 36 })
       .notNull()
       .references(() => videoProjects.id, { onDelete: "cascade" }),
+    // The video the window has open. A window that switches videos moves
+    // its one row to the new video.
+    videoId: varchar("video_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjectVideos.id, { onDelete: "cascade" }),
     windowId: varchar("window_id", { length: 36 }).notNull(),
     mode: varchar("mode", { length: 8 }).notNull(),
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull(),
@@ -664,6 +747,66 @@ export const videoEditorWindows = pgTable(
   (table) => [
     primaryKey({ columns: [table.projectId, table.windowId] }),
     check("video_editor_windows_mode_check", sql`${table.mode} in ('edit', 'view')`),
+  ]
+)
+
+/**
+ * Folders for carousel projects, kept the way Viral keeps its projects':
+ * the folder is a column on the project.
+ */
+export const videoCarouselProjectFolders = pgTable(
+  "video_carousel_project_folders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_video_carousel_project_folders_user_id").on(table.userId),
+    uniqueIndex("ux_video_carousel_project_folders_user_name").on(
+      table.userId,
+      sql`lower(${table.name})`
+    ),
+  ]
+)
+
+/**
+ * A carousel project: what every carousel in it shares, the picture shelf, the
+ * look a new carousel starts with and the caption footer. Built the way a
+ * video project holds videos (workspace/docs/carousel-project-carousels.md).
+ */
+export const videoCarouselProjects = pgTable(
+  "video_carousel_projects",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 200 }).notNull(),
+    // Font, colours, text style and slide background a new carousel starts
+    // with. Empty means the app's own starting look.
+    look: jsonb("look").$type<CarouselLook>().notNull().default({}),
+    // Put at the end of a new carousel's caption, such as hashtags.
+    captionFooter: text("caption_footer").notNull().default(""),
+    // Deleting the folder leaves the project in none.
+    folderId: varchar("folder_id", { length: 36 }).references(
+      () => videoCarouselProjectFolders.id,
+      { onDelete: "set null" }
+    ),
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_video_carousel_projects_user_updated").on(table.userId, table.updatedAt),
+    index("ix_video_carousel_projects_folder")
+      .on(table.folderId)
+      .where(sql`${table.folderId} is not null`),
   ]
 )
 
@@ -692,10 +835,29 @@ export const videoCarousels = pgTable(
       () => videoProjects.id,
       { onDelete: "set null" }
     ),
+    // The carousel project holding it (drizzle/0146). Not `project_id`, which
+    // keeps meaning "made from this video project".
+    carouselProjectId: varchar("carousel_project_id", { length: 36 })
+      .notNull()
+      .references(() => videoCarouselProjects.id, { onDelete: "cascade" }),
+    // Draft, Ready or Posted, set from the carousel's menu.
+    status: varchar("status", { length: 8 }).$type<VideoStatus>().notNull().default("draft"),
+    // A pinned carousel sits at the top of the Carousels tab whatever the sort.
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
+    // An archived carousel leaves the Carousels tab and keeps everything.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
+    check(
+      "video_carousels_status_check",
+      sql`${table.status} in ('draft', 'ready', 'posted')`
+    ),
+    index("ix_video_carousels_carousel_project_updated").on(
+      table.carouselProjectId,
+      table.updatedAt
+    ),
     check(
       "video_carousels_format_check",
       sql`${table.format} in ('4:5', '1:1', '9:16')`
@@ -747,6 +909,47 @@ export const videoCarouselVersions = pgTable(
 )
 
 /**
+ * The carousel each person last had open in a carousel project, so opening
+ * the project again lands on it. `person` is the user's id.
+ */
+export const videoCarouselProjectLastCarousels = pgTable(
+  "video_carousel_project_last_carousels",
+  {
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoCarouselProjects.id, { onDelete: "cascade" }),
+    person: varchar("person", { length: 80 }).notNull(),
+    carouselId: varchar("carousel_id", { length: 36 })
+      .notNull()
+      .references(() => videoCarousels.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.projectId, table.person] })]
+)
+
+/**
+ * A carousel project's picture shelf: a picture uploaded in any of its
+ * carousels is on the shelf for all of them. Deleting either side removes
+ * only this row.
+ */
+export const videoCarouselProjectMedia = pgTable(
+  "video_carousel_project_media",
+  {
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoCarouselProjects.id, { onDelete: "cascade" }),
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.mediaId] }),
+    index("ix_video_carousel_project_media_media_id").on(table.mediaId),
+  ]
+)
+
+/**
  * Files uploaded from one video editor stay on that project's media shelf.
  * The file itself remains an ordinary shell media row and can still be used by
  * a copied project; deleting either side only removes this membership row.
@@ -768,7 +971,13 @@ export const videoProjectMedia = pgTable(
   ]
 )
 
-/** Files uploaded from one carousel editor stay on that carousel's shelf. */
+/**
+ * The shelf of one carousel, from before carousel projects. Migration 0146
+ * joined every row into `video_carousel_project_media`, which is the shelf
+ * now, and nothing here reads or writes this table. It stays for the release
+ * before 0146, whose uploads a trigger copies across during a deploy; the
+ * release after 0146 drops it.
+ */
 export const videoCarouselMedia = pgTable(
   "video_carousel_media",
   {
@@ -1024,6 +1233,13 @@ export const videoAiGenerations = pgTable(
     projectId: varchar("project_id", { length: 36 })
       .notNull()
       .references(() => videoProjects.id, { onDelete: "cascade" }),
+    // The video that was open when the shot was asked for, which pays for it
+    // (drizzle/0145). The shot itself belongs to the whole project. Deleting
+    // the video blanks it, and the shot then counts toward no video.
+    videoId: varchar("video_id", { length: 36 }).references(
+      () => videoProjectVideos.id,
+      { onDelete: "set null" }
+    ),
     // Null on a shot made from a picture already on the timeline, which
     // names that clip below instead (drizzle/0126).
     firstFrameId: varchar("first_frame_id", { length: 36 }).references(
@@ -1179,6 +1395,12 @@ export const videoRenderJobs = pgTable(
       () => videoProjects.id,
       { onDelete: "cascade" }
     ),
+    // The video exported (drizzle/0145). Every video export has one; a
+    // carousel export never does.
+    videoId: varchar("video_id", { length: 36 }).references(
+      () => videoProjectVideos.id,
+      { onDelete: "cascade" }
+    ),
     carouselId: varchar("carousel_id", { length: 36 }).references(
       () => videoCarousels.id,
       { onDelete: "set null" }
@@ -1244,15 +1466,19 @@ export const videoRenderJobs = pgTable(
       sql`(${table.kind} = 'video' and ${table.projectId} is not null) or (${table.kind} = 'carousel' and ${table.projectId} is null and ${table.slideRanges} is not null)`
     ),
     check(
+      "video_render_jobs_video_check",
+      sql`${table.kind} <> 'video' or ${table.videoId} is not null`
+    ),
+    check(
       "video_render_jobs_frame_rate_check",
       sql`${table.frameRate} in (30, 60)`
     ),
     check("video_render_jobs_attempts_check", sql`${table.attempts} >= 0`),
-    // One export at a time per project and shape. Partial, so the finished
+    // One export at a time per video and shape. Partial, so the finished
     // ones pile up freely. Two requests for the same shape arriving together
     // cannot both land: the second is refused here.
-    uniqueIndex("ux_video_render_jobs_project_aspect_active")
-      .on(table.projectId, table.aspect)
+    uniqueIndex("ux_video_render_jobs_video_aspect_active")
+      .on(table.videoId, table.aspect)
       .where(sql`${table.status} in ('queued', 'running')`),
     index("ix_video_render_jobs_status_created").on(
       table.status,
@@ -1372,9 +1598,11 @@ export type VideoMediaProxy = typeof videoMediaProxies.$inferSelect
 export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect
 export type VideoMediaCollection = typeof videoMediaCollections.$inferSelect
 export type VideoProjectRow = typeof videoProjects.$inferSelect
+export type VideoProjectVideoRow = typeof videoProjectVideos.$inferSelect
 export type VideoProjectVersionRow = typeof videoProjectVersions.$inferSelect
 export type VideoProjectThumbnailRow = typeof videoProjectThumbnails.$inferSelect
 export type VideoCarouselRow = typeof videoCarousels.$inferSelect
+export type VideoCarouselProjectRow = typeof videoCarouselProjects.$inferSelect
 export type VideoRenderJobRow = typeof videoRenderJobs.$inferSelect
 export type VideoActorRow = typeof videoActors.$inferSelect
 export type VideoActorSheetPictureRow = typeof videoActorSheetPictures.$inferSelect
@@ -1862,6 +2090,10 @@ export const videoBriefs = pgTable(
     projectId: varchar("project_id", { length: 36 })
       .notNull()
       .references(() => videoProjects.id, { onDelete: "cascade" }),
+    // The video it belongs to (drizzle/0145).
+    videoId: varchar("video_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjectVideos.id, { onDelete: "cascade" }),
     about: text("about").notNull(),
     audience: text("audience").notNull().default(""),
     lengthSeconds: integer("length_seconds").notNull(),
@@ -1885,7 +2117,7 @@ export const videoBriefs = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    index("ix_video_briefs_project").on(table.projectId, table.createdAt),
+    index("ix_video_briefs_video").on(table.videoId, table.createdAt),
     index("ix_video_briefs_status").on(table.status),
     check(
       "video_briefs_status_check",

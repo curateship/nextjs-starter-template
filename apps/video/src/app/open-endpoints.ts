@@ -40,28 +40,32 @@ export const appOpenEndpoints: Record<string, string> = {
 export const appGuardedDeeper: Record<string, string> = {
   "video/youtube-retention.ts:loadRetentionFn":
     "editorGet lets in a signed-in person or a guest sent from Project, then the handler answers null unless the caller is a signed-in admin with no guest sign-in, and getExportRetention checks the export is that admin's own.",
-  "video/projects.ts:getProjectFn":
-    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before the owner check in getOwnedProjectDetail.",
-  "video/projects.ts:saveProjectTimelineFn":
-    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before writeProjectTimeline's owner and version check.",
+  "video/project-videos.ts:openVideoFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before openProjectVideo's owner check and the video is looked up inside that project.",
+  "video/project-videos.ts:rememberVideoFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before rememberOpenVideo's owner check.",
+  "video/project-videos.ts:listVideosFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before listProjectVideos' owner check.",
+  "video/project-videos.ts:saveTimelineFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before writeVideoTimeline's owner and version check.",
   "video/project-versions.ts:listVersionsFn":
-    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before listOwnedProjectVersions' owner check.",
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before listOwnedVideoVersions' owner check.",
   "video/project-versions.ts:getVersionFn":
-    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before getOwnedProjectVersion's owner check.",
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before getOwnedVideoVersion's owner check.",
   "video/project-versions.ts:restoreVersionFn":
-    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before restoreOwnedProjectVersion's owner check.",
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before restoreOwnedVideoVersion's owner check.",
   "video/exports.ts:startExportFn":
-    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before enqueueRenderJobs' owner check.",
-  "video/exports.ts:projectExportFn":
-    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before getLatestRenderJobs' owner check.",
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before enqueueRenderJobs' owner check.",
+  "video/exports.ts:videoExportFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before getLatestRenderJobs' owner check.",
   "video/exports.ts:cancelExportFn":
-    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before cancelRenderJobs' owner check.",
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before cancelRenderJobs' owner check.",
   "video/exports.ts:stopExportFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForExport finds the export's project and checks it is the guest's before cancelRenderJob.",
   "video/exports.ts:retryExportFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForExport finds the export's project and checks it is the guest's before retryRenderJob.",
   "video/exports.ts:listExportsFn":
-    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project, or signedInActor refuses a guest when no project is named.",
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo checks the named video is in the guest's project, or signedInActor refuses a guest when no video is named.",
   "video/exports.ts:updateExportFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForExport finds the export's project and checks it is the guest's before updateOwnedExport.",
   "video/exports.ts:setExportHandEditedFn":
@@ -70,8 +74,8 @@ export const appGuardedDeeper: Record<string, string> = {
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForExport finds the export's project and checks it is the guest's before setOwnedExportCover.",
   "video/saved-frames.ts:saveExportFrameFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForExport finds the export's project and checks it is the guest's before saveOwnedExportFrame.",
-  "video/saved-frames.ts:saveProjectFrameFn":
-    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before saveOwnedProjectFrame's owner check.",
+  "video/saved-frames.ts:saveVideoFrameFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before saveOwnedVideoFrame's owner check.",
   "video/media.ts:listVideoMediaFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project for a project scope, and signedInActor refuses a guest any other scope.",
   "video/media.ts:attachPastedMediaFn":
@@ -79,9 +83,9 @@ export const appGuardedDeeper: Record<string, string> = {
   "video/media.ts:retryPreparationFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForMedia checks the file is in the guest's project before retryOwnedMediaPreparation.",
   "video/editor-windows.ts:checkInFn":
-    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before checkInEditorWindow's owner check.",
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before checkInEditorWindow's owner check.",
   "video/editor-windows.ts:leaveFn":
-    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project before leaveEditorWindow's owner check.",
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before leaveEditorWindow's owner check.",
   "video/project-guests.ts:loadGuestFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor finds the guest sign-in for the project and the handler refuses anyone without one.",
   "video/sound-tools.ts:requestCleanSoundFn":

@@ -39,9 +39,9 @@ const writeFn = createServerFn({ method: "POST" })
 
 const listFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ projectId: idSchema }))
+  .inputValidator(z.object({ videoId: idSchema }))
   .handler(({ data, context }) =>
-    import("@/server/video/briefs").then((m) => m.listBriefs(context.user.id, data.projectId))
+    import("@/server/video/briefs").then((m) => m.listBriefs(context.user.id, data.videoId))
   )
 
 const saveFn = createServerFn({ method: "POST" })
@@ -90,8 +90,8 @@ export function writeBrief(request: BriefRequest) {
   return writeFn({ data: request })
 }
 /** This project's briefs, newest first. */
-export function listBriefs(projectId: string) {
-  return listFn({ data: { projectId } })
+export function listBriefs(videoId: string) {
+  return listFn({ data: { videoId } })
 }
 /** Keeps the storyboard's edits. */
 export function saveBriefScenes(briefId: string, scenes: (SceneDraft & { id?: string })[]) {

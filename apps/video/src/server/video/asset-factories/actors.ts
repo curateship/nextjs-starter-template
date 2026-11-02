@@ -24,7 +24,11 @@ import {
 } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
 import { chosenProjectLook } from "@/server/video/project-look"
-import { requireProjectBudget } from "@/server/video/project-spend"
+import {
+  requireVideoBudget,
+  videoSpendMetadata,
+  type SpendTag,
+} from "@/server/video/project-spend"
 import {
   videoActors,
   videoActorSheetPictures,
@@ -83,6 +87,8 @@ export type ActorPayload = {
   referenceMediaUrl?: string | null
   /** A project whose look the picture is made in. Not kept on the actor. */
   lookProjectId?: string | null
+  /** The video open in the editor, which pays for the picture. */
+  spendVideoId?: string | null
 }
 
 function tags(value: unknown) {
@@ -245,18 +251,26 @@ async function getActor(userId: string, actorId: string) {
 }
 
 /**
- * An actor made in a project's look is made for that project: its picture goes
- * on the project's spend line and is held to the project's limit.
+ * An actor made from the editor is paid for by the open video and held to its
+ * limit. One made from the Actors page in a project's look counts toward that
+ * project's total only, because no video was open.
  */
-async function lookAndBudget(userId: string, payload: ActorPayload) {
-  if (payload.lookProjectId) {
-    await requireProjectBudget(
+async function lookAndBudget(
+  userId: string,
+  payload: ActorPayload
+): Promise<{ look: Awaited<ReturnType<typeof chosenProjectLook>>; spend: SpendTag | null }> {
+  let spend: SpendTag | null = null
+  if (payload.spendVideoId) {
+    const video = await requireVideoBudget(
       userId,
-      payload.lookProjectId,
+      payload.spendVideoId,
       aiUnitCostCents(payload.model, 1)
     )
+    spend = videoSpendMetadata(video)
   }
-  return chosenProjectLook(userId, payload.lookProjectId)
+  const look = await chosenProjectLook(userId, payload.lookProjectId)
+  if (!spend && payload.lookProjectId) spend = { projectId: payload.lookProjectId }
+  return { look, spend }
 }
 
 export async function createActor(userId: string, payload: ActorPayload) {
@@ -267,12 +281,12 @@ export async function createActor(userId: string, payload: ActorPayload) {
     payload.referenceMediaId,
     payload.referenceMediaUrl
   )
-  const look = await lookAndBudget(userId, payload)
+  const { look, spend } = await lookAndBudget(userId, payload)
   const generated = await generateImage({
     userId,
     model: payload.model,
     aspectRatio: "9:16",
-    projectId: payload.lookProjectId,
+    spend,
     ...withLook(
       look,
       `Create a consistent, reusable on-camera character portrait. ${prompt}`,
@@ -335,12 +349,12 @@ export async function updateActor(
   )
   let generatedMedia: Awaited<ReturnType<typeof saveGeneratedAsset>> | null = null
   if (regenerate) {
-    const look = await lookAndBudget(userId, payload)
+    const { look, spend } = await lookAndBudget(userId, payload)
     const generated = await generateImage({
       userId,
       model: payload.model,
       aspectRatio: "9:16",
-      projectId: payload.lookProjectId,
+      spend,
       ...withLook(
         look,
         `Re-pose this same character while preserving their identity. ${prompt}`,

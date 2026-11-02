@@ -16,9 +16,10 @@ import {
   createOwnedProject,
   duplicateOwnedProject,
   listOwnedProjects,
+  getOwnedProjectItem,
   saveOwnedProjectSettings,
-  writeProjectTimeline,
 } from "@/server/video/projects"
+import { writeVideoTimeline } from "@/server/video/project-videos"
 import { videoProjects } from "@/server/video/schema"
 
 vi.mock("@/server/media/storage", async (importOriginal) => ({
@@ -77,7 +78,6 @@ function settings(
       name: "Explainer",
       style: look.style ?? null,
       lookPictureUrl: look.lookPictureUrl ?? null,
-      spendLimitCents: null,
     },
     database
   )
@@ -86,7 +86,7 @@ function settings(
 describe("saving a project's settings", () => {
   it("keeps the name, the trimmed style and the picture's library id", async () => {
     const url = await insertMedia("look-1")
-    const project = await createOwnedProject(user.id, "Old name", database)
+    const project = (await createOwnedProject(user.id, "Old name", database)).project
     const saved = await settings(project.id, {
       style: "  Flat illustration, warm palette  ",
       lookPictureUrl: url,
@@ -103,25 +103,26 @@ describe("saving a project's settings", () => {
     expect(row.styleMediaId).toBe("look-1")
   })
 
-  it("never moves the timeline's version, so an open editor keeps saving", async () => {
-    const project = await createOwnedProject(user.id, "Explainer", database)
+  it("never moves a video's version, so an open editor keeps saving", async () => {
+    const { project, video } = await createOwnedProject(user.id, "Explainer", database)
     await settings(project.id, { style: "Clay" })
-    const saved = await writeProjectTimeline(
+    const saved = await writeVideoTimeline(
       user.id,
-      project.id,
+      video,
       { aspect: "9:16", tracks: [] },
-      project.version,
+      1,
       database
     )
-    expect(saved.version).toBe(project.version + 1)
-    expect(saved.look?.style).toBe("Clay")
+    expect(saved.version).toBe(2)
+    const after = await getOwnedProjectItem(user.id, project.id, database)
+    expect(after.look?.style).toBe("Clay")
   })
 
   it("refuses somebody else's picture, and anything that is not a picture", async () => {
     const stranger = await insertUser(database, { email: "other@example.test" })
     const theirs = await insertMedia("theirs", { userId: stranger.id })
     const clip = await insertMedia("clip", { fileType: "video" })
-    const project = await createOwnedProject(user.id, "Explainer", database)
+    const project = (await createOwnedProject(user.id, "Explainer", database)).project
     await expect(settings(project.id, { lookPictureUrl: theirs })).rejects.toThrow(
       LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE
     )
@@ -132,20 +133,20 @@ describe("saving a project's settings", () => {
 
   it("clears the look when both are empty", async () => {
     const url = await insertMedia("look-1")
-    const project = await createOwnedProject(user.id, "Explainer", database)
+    const project = (await createOwnedProject(user.id, "Explainer", database)).project
     await settings(project.id, { style: "Clay", lookPictureUrl: url })
     const cleared = await settings(project.id, { style: "   " })
     expect(cleared.look).toBeNull()
   })
 
   it("never saves into somebody else's project", async () => {
-    const project = await createOwnedProject(user.id, "Explainer", database)
+    const project = (await createOwnedProject(user.id, "Explainer", database)).project
     const stranger = await insertUser(database, { email: "other@example.test" })
     await expect(
       saveOwnedProjectSettings(
         stranger.id,
         project.id,
-        { name: "Mine now", style: "Clay", lookPictureUrl: null, spendLimitCents: null },
+        { name: "Mine now", style: "Clay", lookPictureUrl: null },
         database
       )
     ).rejects.toThrow("Project not found")
@@ -155,7 +156,7 @@ describe("saving a project's settings", () => {
 describe("a project's look elsewhere", () => {
   it("is on every row of the projects list, and null with none", async () => {
     const url = await insertMedia("look-1")
-    const styled = await createOwnedProject(user.id, "Styled", database)
+    const styled = (await createOwnedProject(user.id, "Styled", database)).project
     await createOwnedProject(user.id, "Plain", database)
     await settings(styled.id, { style: "Clay", lookPictureUrl: url })
     const { projects } = await listOwnedProjects({ userId: user.id, database })
@@ -169,7 +170,7 @@ describe("a project's look elsewhere", () => {
 
   it("goes with a duplicate, so a series can start from the same look", async () => {
     const url = await insertMedia("look-1")
-    const project = await createOwnedProject(user.id, "Episode 1", database)
+    const project = (await createOwnedProject(user.id, "Episode 1", database)).project
     await settings(project.id, { style: "Clay", lookPictureUrl: url })
     const copy = await duplicateOwnedProject(user.id, project.id, database)
     expect(copy.look).toEqual({ style: "Clay", picture_url: url })
@@ -177,7 +178,7 @@ describe("a project's look elsewhere", () => {
 
   it("loses only the picture when the picture is deleted", async () => {
     const url = await insertMedia("look-1")
-    const project = await createOwnedProject(user.id, "Explainer", database)
+    const project = (await createOwnedProject(user.id, "Explainer", database)).project
     await settings(project.id, { style: "Clay", lookPictureUrl: url })
     await database.delete(customShellMedia).where(eq(customShellMedia.id, "look-1"))
     const look = await readProjectLook(user.id, project.id, database)
@@ -188,7 +189,7 @@ describe("a project's look elsewhere", () => {
 describe("a project's look, read for the AI tools", () => {
   it("hands back the style and the picture's stored file", async () => {
     const url = await insertMedia("look-1")
-    const project = await createOwnedProject(user.id, "Explainer", database)
+    const project = (await createOwnedProject(user.id, "Explainer", database)).project
     await settings(project.id, { style: "Clay", lookPictureUrl: url })
     const look = await readProjectLook(user.id, project.id, database)
     expect(look.style).toBe("Clay")
@@ -196,7 +197,7 @@ describe("a project's look, read for the AI tools", () => {
   })
 
   it("is empty for a project with no look", async () => {
-    const project = await createOwnedProject(user.id, "Old", database)
+    const project = (await createOwnedProject(user.id, "Old", database)).project
     expect(await readProjectLook(user.id, project.id, database)).toEqual({
       style: null,
       picture: null,
@@ -204,7 +205,7 @@ describe("a project's look, read for the AI tools", () => {
   })
 
   it("never reads somebody else's project", async () => {
-    const project = await createOwnedProject(user.id, "Explainer", database)
+    const project = (await createOwnedProject(user.id, "Explainer", database)).project
     const stranger = await insertUser(database, { email: "other@example.test" })
     await expect(
       readProjectLook(stranger.id, project.id, database)

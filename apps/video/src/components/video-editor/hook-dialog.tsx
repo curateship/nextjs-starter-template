@@ -72,7 +72,7 @@ export function HookDialog({
   onOpenChange: (open: boolean) => void
   available: AiToolsAvailability | null
 }) {
-  const { projectId, dispatch, saveNow } = useEditorRuntime()
+  const { videoId, dispatch, saveNow } = useEditorRuntime()
   const tracks = useEditorSelector((state) => state.tracks)
   const [answer, setAnswer] = React.useState<HookVariants | null>(null)
   const [thinking, setThinking] = React.useState(false)
@@ -172,7 +172,7 @@ export function HookDialog({
       // The server reads the saved timeline, so anything still waiting to be
       // sent goes first.
       await saveNow()
-      const result = await rewriteOpeningLine(projectId)
+      const result = await rewriteOpeningLine(videoId)
       dismissErrorToast()
       setAnswer(result)
       if (!result.variants.length) {
@@ -217,7 +217,7 @@ export function HookDialog({
 
     setSaying(line)
     try {
-      const said = await speakHook(line, speaker, projectId)
+      const said = await speakHook(line, speaker, videoId)
       const spokenLength = said.durationMs || voice.durationMs
       dispatch({
         type: "REWRITE_HOOK",

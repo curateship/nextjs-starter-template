@@ -2,7 +2,6 @@ import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle
 
 import { CAROUSEL_NOT_FOUND_MESSAGE, requireCanonicalCarouselSlides } from "@/lib/video/carousel-schema"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
-import { parseTimelineForReset } from "@/lib/video/timeline-schema"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -18,10 +17,11 @@ import {
   videoMediaCollectionItems,
   videoMediaFilmstrips,
   videoMediaProxies,
-  videoCarouselMedia,
+  videoCarouselProjectMedia,
   videoCarousels,
   videoProjectMedia,
   videoProjects,
+  videoProjectVideos,
 } from "@/server/video/schema"
 
 /**
@@ -244,49 +244,75 @@ export async function mediaIdsForScope(
 ) {
   if (scope.type === "project") {
     const [project] = await database
-      .select({ timeline: videoProjects.timeline })
+      .select({ id: videoProjects.id })
       .from(videoProjects)
       .where(and(eq(videoProjects.id, scope.id), eq(videoProjects.userId, userId)))
       .limit(1)
     if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
 
-    const attached = await database
-      .select({ mediaId: videoProjectMedia.mediaId })
-      .from(videoProjectMedia)
-      .where(eq(videoProjectMedia.projectId, scope.id))
-    const timeline = parseTimelineForReset(project.timeline).timeline
+    // The shelf, plus every file on any of the project's video timelines,
+    // read out of the stored JSON by the database so a project of hundreds
+    // of videos never sends their timelines here.
+    const [attached, onTimelines] = await Promise.all([
+      database
+        .select({ mediaId: videoProjectMedia.mediaId })
+        .from(videoProjectMedia)
+        .where(eq(videoProjectMedia.projectId, scope.id)),
+      database
+        .selectDistinct({
+          mediaId: sql<string>`jsonb_path_query(${videoProjectVideos.timeline}, '$.tracks[*].clips[*].mediaId') #>> '{}'`,
+        })
+        .from(videoProjectVideos)
+        .where(eq(videoProjectVideos.projectId, scope.id)),
+    ])
     return Array.from(
       new Set([
         ...attached.map((row) => row.mediaId),
-        ...timeline.tracks.flatMap((track) =>
-          track.clips.flatMap((clip) => (clip.mediaId ? [clip.mediaId] : []))
-        ),
+        ...onTimelines.flatMap((row) => (row.mediaId ? [row.mediaId] : [])),
       ])
     )
   }
 
+  // A carousel's shelf is its carousel project's: what was uploaded in any
+  // of the project's carousels, and every picture on their slides.
   const [carousel] = await database
-    .select({ slides: videoCarousels.slides })
+    .select({ projectId: videoCarousels.carouselProjectId })
     .from(videoCarousels)
     .where(and(eq(videoCarousels.id, scope.id), eq(videoCarousels.userId, userId)))
     .limit(1)
   if (!carousel) throw new Error(CAROUSEL_NOT_FOUND_MESSAGE)
 
-  const attached = await database
-    .select({ mediaId: videoCarouselMedia.mediaId })
-    .from(videoCarouselMedia)
-    .where(eq(videoCarouselMedia.carouselId, scope.id))
-  const slides = requireCanonicalCarouselSlides(carousel.slides)
+  const [attached, carousels] = await Promise.all([
+    database
+      .select({ mediaId: videoCarouselProjectMedia.mediaId })
+      .from(videoCarouselProjectMedia)
+      .where(eq(videoCarouselProjectMedia.projectId, carousel.projectId)),
+    database
+      .select({ slides: videoCarousels.slides })
+      .from(videoCarousels)
+      .where(eq(videoCarousels.carouselProjectId, carousel.projectId)),
+  ])
   return Array.from(
     new Set([
       ...attached.map((row) => row.mediaId),
-      ...slides.flatMap((slide) =>
-        slide.items.flatMap((item) =>
-          item.type === "image" || item.type === "video" ? [item.mediaId] : []
+      ...carousels.flatMap((row) =>
+        carouselSlidesOrNone(row.slides).flatMap((slide) =>
+          slide.items.flatMap((item) =>
+            item.type === "image" || item.type === "video" ? [item.mediaId] : []
+          )
         )
       ),
     ])
   )
+}
+
+/** A carousel's slides, or none when they no longer read, so one bad carousel never empties the shelf. */
+function carouselSlidesOrNone(value: unknown) {
+  try {
+    return requireCanonicalCarouselSlides(value)
+  } catch {
+    return []
+  }
 }
 
 /** Attach a newly uploaded, owned media row to one owned editor document. */
@@ -317,15 +343,16 @@ export async function attachMediaToScope(
     return
   }
 
+  // Uploaded in a carousel, it goes on its carousel project's shelf.
   const [carousel] = await database
-    .select({ id: videoCarousels.id })
+    .select({ projectId: videoCarousels.carouselProjectId })
     .from(videoCarousels)
     .where(and(eq(videoCarousels.id, scope.id), eq(videoCarousels.userId, userId)))
     .limit(1)
   if (!carousel) throw new Error(CAROUSEL_NOT_FOUND_MESSAGE)
   await database
-    .insert(videoCarouselMedia)
-    .values({ carouselId: scope.id, mediaId, createdAt: now() })
+    .insert(videoCarouselProjectMedia)
+    .values({ projectId: carousel.projectId, mediaId, createdAt: now() })
     .onConflictDoNothing()
 }
 

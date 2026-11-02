@@ -2,7 +2,10 @@
 
 Somebody on a Project task can edit one video project here without a Video
 account. They press **Edit video** on the task in Project and land in this
-app's editor for that one project, signed in for 12 hours. Tyler designed it
+app's editor for that one project, signed in for 12 hours. Since 1 Nov 2026 a
+project holds many videos (`project-videos.md`): a guest sees the Videos tab
+and can open and edit any video in the project, but cannot make, rename, move
+or delete one. The project opens on the guest's own last video. Tyler designed it
 on 15 Oct 2026 and answered the open questions on 19 Oct 2026. Project's side
 is `apps/project/workspace/docs/connected-apps.md`.
 

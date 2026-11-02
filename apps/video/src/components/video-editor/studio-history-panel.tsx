@@ -25,10 +25,10 @@ import {
   useEditorRuntime,
 } from "@/components/video-editor/editor-store"
 import {
-  getProjectVersion,
+  getVideoVersion,
   getProjectVersionErrorMessage,
-  listProjectVersions,
-  restoreProjectVersion,
+  listVideoVersions,
+  restoreVideoVersion,
   type ProjectVersionItem,
 } from "@/lib/api/video/project-versions"
 import { formatDateTime } from "@/lib/format/format-time"
@@ -61,7 +61,7 @@ function versionFacts(item: ProjectVersionItem) {
  * one opens it in a window of its own; only Restore there changes anything.
  */
 export function HistoryPanel() {
-  const { projectId, store, dispatch, clock, saveNow } = useEditorRuntime()
+  const { videoId, store, dispatch, clock, saveNow } = useEditorRuntime()
   const [versions, setVersions] = React.useState<ProjectVersionItem[] | null>(
     null
   )
@@ -73,7 +73,7 @@ export function HistoryPanel() {
 
   React.useEffect(() => {
     let active = true
-    listProjectVersions(projectId)
+    listVideoVersions(videoId)
       .then((loaded) => {
         if (!active) return
         setVersions(loaded)
@@ -87,7 +87,7 @@ export function HistoryPanel() {
     return () => {
       active = false
     }
-  }, [projectId, reads])
+  }, [videoId, reads])
 
   async function restore(item: ProjectVersionItem) {
     // A read-only window says so and offers a reload, as for any other edit.
@@ -103,7 +103,7 @@ export function HistoryPanel() {
         )
         return
       }
-      const timeline = await restoreProjectVersion(projectId, item.id)
+      const timeline = await restoreVideoVersion(videoId, item.id)
       clock.pause()
       dispatch({ type: "RESTORE_TIMELINE", timeline })
       dismissErrorToast()
@@ -127,9 +127,7 @@ export function HistoryPanel() {
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          {versions === null && !loadFailed ? (
-            <LoadingRow label="Loading this project's history" />
-          ) : loadFailed ? (
+          {versions === null && !loadFailed ? null : loadFailed ? (
             <div className="grid justify-items-center gap-2 py-8 text-center text-sm text-muted-foreground">
               The history could not be loaded.
               <Button type="button" variant="outline" onClick={reload}>
@@ -188,7 +186,7 @@ export function HistoryPanel() {
         {open ? (
           <VersionWindow
             key={open.id}
-            projectId={projectId}
+            videoId={videoId}
             item={open}
             restoring={restoring}
             onClose={() => setOpen(null)}
@@ -206,24 +204,25 @@ export function HistoryPanel() {
  * throws both away, so looking never touches the project.
  */
 function VersionWindow({
-  projectId,
+  videoId,
   item,
   restoring,
   onClose,
   onRestore,
 }: {
-  projectId: string
+  videoId: string
   item: ProjectVersionItem
   restoring: boolean
   onClose: () => void
   onRestore: () => void
 }) {
+  const { projectId } = useEditorRuntime()
   const [timeline, setTimeline] = React.useState<ProjectTimeline | null>(null)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     let active = true
-    getProjectVersion(projectId, item.id)
+    getVideoVersion(videoId, item.id)
       .then((loaded) => {
         if (active) setTimeline(loaded.timeline)
       })
@@ -233,7 +232,7 @@ function VersionWindow({
     return () => {
       active = false
     }
-  }, [projectId, item.id])
+  }, [videoId, item.id])
 
   return (
     <DialogContent variant="admin">
@@ -256,7 +255,7 @@ function VersionWindow({
                 {error}
               </p>
             ) : timeline ? (
-              <VersionPlayer projectId={projectId} timeline={timeline} />
+              <VersionPlayer projectId={projectId} videoId={videoId} timeline={timeline} />
             ) : (
               <LoadingRow label="Loading this version" />
             )}
@@ -287,9 +286,11 @@ function VersionWindow({
 
 function VersionPlayer({
   projectId,
+  videoId,
   timeline,
 }: {
   projectId: string
+  videoId: string
   timeline: ProjectTimeline
 }) {
   const [runtime] = React.useState(() => {
@@ -308,8 +309,9 @@ function VersionPlayer({
       dispatch: store.dispatch,
       clock,
       projectId,
+      videoId,
       saveNow: async () => undefined,
-      setProjectName: () => undefined,
+      setVideoName: () => undefined,
     }
   })
   const { clock } = runtime

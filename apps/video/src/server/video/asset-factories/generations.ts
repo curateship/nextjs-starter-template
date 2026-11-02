@@ -80,9 +80,10 @@ import {
 } from "@/server/video/video-companies"
 import { recordVideoCharge } from "@/server/video/video-meter"
 import {
-  projectSpendMetadata,
-  requireProjectBudget,
+  requireVideoBudget,
+  type SpendTag,
 } from "@/server/video/project-spend"
+import { getOwnedVideo } from "@/server/video/project-videos"
 import { getOwnedProject } from "@/server/video/projects"
 import {
   videoActors,
@@ -464,7 +465,7 @@ function boardPictureIds(
 
 export function generationRows(
   userId: string,
-  where: { projectId: string } | { shotId: string }
+  where: { projectId: string } | { videoId: string } | { shotId: string }
 ) {
   return db
     .select({ generation: videoAiGenerations, output: outputMedia })
@@ -481,7 +482,9 @@ export function generationRows(
         eq(videoAiGenerations.userId, userId),
         "projectId" in where
           ? eq(videoAiGenerations.projectId, where.projectId)
-          : eq(videoAiGenerations.shotId, where.shotId)
+          : "videoId" in where
+            ? eq(videoAiGenerations.videoId, where.videoId)
+            : eq(videoAiGenerations.shotId, where.shotId)
       )
     )
 }
@@ -526,10 +529,11 @@ export async function getShot(userId: string, shotId: string) {
  * paid for too as they arrive. A shot stopped by a failed piece counts for
  * nothing until Try again.
  */
-async function shotsBeingMade(userId: string, projectId: string) {
+async function shotsBeingMade(userId: string, projectId: string, videoId: string | null) {
   const rows = await db
     .select({
       projectId: videoAiGenerations.projectId,
+      videoId: videoAiGenerations.videoId,
       shotId: videoAiGenerations.shotId,
       model: videoAiGenerations.model,
       durationSeconds: videoAiGenerations.durationSeconds,
@@ -552,24 +556,24 @@ async function shotsBeingMade(userId: string, projectId: string) {
   return {
     projectShots: running.filter((row) => row.projectId === projectId).length,
     personShots: running.length,
-    projectCents: cents(owed.filter((row) => row.projectId === projectId)),
+    videoCents: videoId ? cents(owed.filter((row) => row.videoId === videoId)) : 0,
     personCents: cents(owed),
   }
 }
 
 /**
  * Refuses a shot that would pass the caps on shots at once, the monthly
- * allowance or the project's spend limit. Shots already being made are not
+ * allowance or the paying video's spend limit. Shots already being made are not
  * on the meter until they arrive, so the money checks add them in; otherwise
  * three presses in a row would each see the same untouched balance.
  */
 export async function requireRoomForShot(
   userId: string,
-  projectId: string,
+  shot: { projectId: string; videoId: string | null },
   nextCents: number,
   shots = 1
 ) {
-  const making = await shotsBeingMade(userId, projectId)
+  const making = await shotsBeingMade(userId, shot.projectId, shot.videoId)
   if (making.projectShots + shots > SHOTS_AT_ONCE_PER_PROJECT) {
     throw new Error(PROJECT_SHOTS_FULL_MESSAGE)
   }
@@ -591,7 +595,15 @@ export async function requireRoomForShot(
       )
     }
   }
-  await requireProjectBudget(userId, projectId, nextCents, db, making.projectCents)
+  // A shot whose video was deleted counts toward no video's limit.
+  if (shot.videoId) {
+    await requireVideoBudget(userId, shot.videoId, nextCents, db, making.videoCents)
+  }
+}
+
+/** What a shot's meter rows carry, so the video that paid for it counts it. */
+function shotSpend(job: { projectId: string; videoId: string | null }): SpendTag {
+  return job.videoId ? { projectId: job.projectId, videoId: job.videoId } : { projectId: job.projectId }
 }
 
 /**
@@ -790,7 +802,7 @@ export async function shotExtras(
 /** Writes every piece of one shot. Only the first has a starting picture. */
 async function insertShot(
   userId: string,
-  projectId: string,
+  video: { id: string; projectId: string },
   framed: Awaited<ReturnType<typeof frameForShot>>,
   prompts: string[],
   lengthSeconds: ShotLengthSeconds,
@@ -811,7 +823,8 @@ async function insertShot(
       prompts.map((prompt, index) => ({
         id: index === 0 ? shotId : uuid(),
         userId,
-        projectId,
+        projectId: video.projectId,
+        videoId: video.id,
         firstFrameId: framed.frame.frame.id,
         firstFrameMediaId: index === 0 ? framed.frame.media.id : null,
         prompt,
@@ -851,7 +864,8 @@ function shotCents(lengthSeconds: ShotLengthSeconds, making: ShotMaking) {
 export async function createGeneration(
   userId: string,
   payload: {
-    projectId: string
+    /** The video open in the editor, which pays for the shot. */
+    videoId: string
     firstFrameId: string
     prompts: string[]
     lengthSeconds: ShotLengthSeconds
@@ -870,13 +884,17 @@ export async function createGeneration(
     throw new Error("Write one direction for each piece of the shot")
   }
   const prompts = payload.prompts.map(assetPrompt)
-  const project = await getOwnedProject(userId, payload.projectId)
-  const framed = await frameForShot(userId, project.id, payload.firstFrameId)
+  const video = await getOwnedVideo(userId, payload.videoId)
+  const framed = await frameForShot(userId, video.projectId, payload.firstFrameId)
   if (!(await companiesReady())[making.company]) {
     throw new Error(missingKeyMessage(making.company))
   }
-  const sent = await shotExtras(userId, project.id, making, pieces.count)
-  await requireRoomForShot(userId, project.id, shotCents(payload.lengthSeconds, making))
+  const sent = await shotExtras(userId, video.projectId, making, pieces.count)
+  await requireRoomForShot(
+    userId,
+    { projectId: video.projectId, videoId: video.id },
+    shotCents(payload.lengthSeconds, making)
+  )
 
   // Google's next shot starts on this size. Saved before the shot is
   // written, so a save that fails never leaves a shot made behind an error.
@@ -887,7 +905,7 @@ export async function createGeneration(
 
   const rows = await insertShot(
     userId,
-    project.id,
+    video,
     framed,
     prompts,
     payload.lengthSeconds,
@@ -906,7 +924,8 @@ export async function createGeneration(
 export async function createComparison(
   userId: string,
   payload: {
-    projectId: string
+    /** The video open in the editor, which pays for the shots. */
+    videoId: string
     firstFrameId: string
     prompts: string[]
     lengthSeconds: ShotLengthSeconds
@@ -917,8 +936,8 @@ export async function createComparison(
     throw new Error("Write one direction for each piece of the shot")
   }
   const prompts = payload.prompts.map(assetPrompt)
-  const project = await getOwnedProject(userId, payload.projectId)
-  const framed = await frameForShot(userId, project.id, payload.firstFrameId)
+  const video = await getOwnedVideo(userId, payload.videoId)
+  const framed = await frameForShot(userId, video.projectId, payload.firstFrameId)
   const [ready, defaults] = await Promise.all([companiesReady(), getAiDefaults()])
   const makings: ShotMaking[] = (["gemini", "wan", "seedance"] as const)
     .filter((company) => ready[company])
@@ -937,7 +956,7 @@ export async function createComparison(
   }
   await requireRoomForShot(
     userId,
-    project.id,
+    { projectId: video.projectId, videoId: video.id },
     makings.reduce((sum, making) => sum + shotCents(payload.lengthSeconds, making), 0),
     makings.length
   )
@@ -950,7 +969,7 @@ export async function createComparison(
         all.push(
           await insertShot(
             userId,
-            project.id,
+            video,
             framed,
             prompts,
             payload.lengthSeconds,
@@ -978,7 +997,7 @@ export async function retryGeneration(userId: string, shotId: string) {
     eq(videoAiGenerations.status, "error")
   )
   const [piece] = await db
-    .select({ projectId: videoAiGenerations.projectId })
+    .select({ projectId: videoAiGenerations.projectId, videoId: videoAiGenerations.videoId })
     .from(videoAiGenerations)
     .where(failed)
     .limit(1)
@@ -1003,7 +1022,7 @@ export async function retryGeneration(userId: string, shotId: string) {
   // Seedance shots stay on their own.
   await requireRoomForShot(
     userId,
-    piece.projectId,
+    piece,
     left.reduce(
       (sum, row) =>
         sum +
@@ -1092,7 +1111,7 @@ async function failJob(job: ClaimedGeneration, error: unknown) {
       model: job.model,
       status: "failed",
       cents: 0,
-      metadata: { ...projectSpendMetadata(job.projectId), generationId: job.id, error: message },
+      metadata: { ...shotSpend(job), generationId: job.id, error: message },
     })
     return
   }
@@ -1105,7 +1124,7 @@ async function failJob(job: ClaimedGeneration, error: unknown) {
     outputTokens: 0,
     status: isAiLimitError(error) ? "blocked" : "failed",
     metadata: {
-      ...projectSpendMetadata(job.projectId),
+      ...shotSpend(job),
       generationId: job.id,
       error: message,
     },
@@ -1596,7 +1615,7 @@ async function checkGooglePiece(job: ClaimedGeneration & { operationName: string
           model: VIDEO_MODEL,
           feature: "video-generation",
           metadata: {
-            ...projectSpendMetadata(job.projectId),
+            ...shotSpend(job),
             generationId: job.id,
             shotId: job.shotId,
             resolution: job.resolution,
@@ -1666,7 +1685,7 @@ async function checkKeyedPiece(
         ...(answer.tokens !== null ? { tokens: answer.tokens } : {}),
         ...(answer.seconds !== null ? { seconds: answer.seconds } : {}),
         metadata: {
-          ...projectSpendMetadata(job.projectId),
+          ...shotSpend(job),
           generationId: job.id,
           shotId: job.shotId,
           resolution: job.resolution,

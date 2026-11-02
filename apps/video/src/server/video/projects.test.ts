@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { VIDEO_NOT_FOUND_MESSAGE } from "@/lib/video/project-videos"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import {
   PROJECT_CONFLICT_MESSAGE,
@@ -16,16 +17,23 @@ import {
   insertWorkspace,
 } from "@/server/test-support"
 import {
+  getOwnedVideoDetail,
+  keepRefusedVideoTimeline,
+  writeVideoTimeline,
+} from "@/server/video/project-videos"
+import {
   createOwnedProject,
   deleteOwnedProjects,
   duplicateOwnedProject,
-  getOwnedProjectDetail,
-  keepRefusedTimeline,
+  getOwnedProjectItem,
   listOwnedProjects,
   renameOwnedProject,
-  writeProjectTimeline,
 } from "@/server/video/projects"
-import { videoMediaProxies, videoProjects } from "@/server/video/schema"
+import {
+  videoMediaProxies,
+  videoProjects,
+  videoProjectVideos,
+} from "@/server/video/schema"
 
 let client: PGlite
 let database: CustomShellDb
@@ -99,73 +107,89 @@ function videoClip(mediaId: string, url: string) {
   }
 }
 
+/** A new project's one video, as the timeline saves take it. */
+async function newVideo(name: string, ownerId = user.id) {
+  const made = await createOwnedProject(ownerId, name, database)
+  return { id: made.video, projectId: made.project.id, version: 1 }
+}
+
 describe("projects", () => {
-  it("creates a project empty, vertical and at version 1", async () => {
-    const project = await createOwnedProject(user.id, "  My   reel  ", database)
+  it("creates a project with one empty, vertical video at version 1", async () => {
+    const made = await createOwnedProject(user.id, "  My   reel  ", database)
     // The name is tidied on the way in, so no project is called "My   reel".
-    expect(project.name).toBe("My reel")
-    expect(project.aspect).toBe("9:16")
-    expect(project.version).toBe(1)
-    expect(project.clip_count).toBe(0)
-    expect(project.duration_ms).toBe(0)
+    expect(made.project.name).toBe("My reel")
+    expect(made.project.video_count).toBe(1)
+    expect(made.project.duration_ms).toBe(0)
+    expect(made.project.aspects).toEqual(["9:16"])
+    const video = await getOwnedVideoDetail(user.id, made.video, database)
+    expect(video.name).toBe("My reel")
+    expect(video.project_id).toBe(made.project.id)
+    expect(video.aspect).toBe("9:16")
+    expect(video.version).toBe(1)
+    expect(video.clip_count).toBe(0)
+    expect(video.duration_ms).toBe(0)
   })
 
   it("refuses a name that is only spaces", async () => {
     await expect(createOwnedProject(user.id, "   ", database)).rejects.toThrow()
+    expect(await database.select().from(videoProjects)).toEqual([])
   })
 
   it("counts clips and measures length from the saved timeline", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
-    await writeProjectTimeline(
+    const video = await newVideo("Reel")
+    const saved = await writeVideoTimeline(
       user.id,
-      project.id,
+      video.id,
       timelineWith([
         videoClip("media-1", "https://example.test/a.mp4"),
         { ...videoClip("media-2", "https://example.test/b.mp4"), id: "clip-2", startMs: 4000 },
       ]),
-      project.version,
+      video.version,
       database
     )
+    expect(saved.clip_count).toBe(2)
+    expect(saved.duration_ms).toBe(8000)
     const [listed] = (await listOwnedProjects({ userId: user.id, database }))
       .projects
-    expect(listed.clip_count).toBe(2)
     expect(listed.duration_ms).toBe(8000)
   })
 
   it("keeps the aspect column in step with the timeline it came from", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
-    await writeProjectTimeline(
+    const video = await newVideo("Reel")
+    await writeVideoTimeline(
       user.id,
-      project.id,
+      video.id,
       { aspect: "16:9", tracks: [] },
-      project.version,
+      video.version,
       database
     )
     const [row] = await database
       .select()
-      .from(videoProjects)
-      .where(eq(videoProjects.id, project.id))
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.id, video.id))
     expect(row.aspect).toBe("16:9")
+    const project = await getOwnedProjectItem(user.id, video.projectId, database)
+    expect(project.aspects).toEqual(["16:9"])
   })
 
   it("refuses a second save built on the version the first one replaced", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
-    const first = await writeProjectTimeline(
+    const video = await newVideo("Reel")
+    const first = await writeVideoTimeline(
       user.id,
-      project.id,
+      video.id,
       { aspect: "9:16", tracks: [] },
-      project.version,
+      video.version,
       database
     )
-    expect(first.version).toBe(project.version + 1)
+    expect(first.version).toBe(video.version + 1)
 
     // The second tab still holds the version it loaded.
     await expect(
-      writeProjectTimeline(
+      writeVideoTimeline(
         user.id,
-        project.id,
+        video.id,
         { aspect: "1:1", tracks: [] },
-        project.version,
+        video.version,
         database
       )
     ).rejects.toThrowError(PROJECT_CONFLICT_MESSAGE)
@@ -173,65 +197,65 @@ describe("projects", () => {
     // And the first tab's work is still what is stored.
     const [row] = await database
       .select()
-      .from(videoProjects)
-      .where(eq(videoProjects.id, project.id))
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.id, video.id))
     expect(row.aspect).toBe("9:16")
   })
 
   it("refuses a timeline the editor could not draw", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const video = await newVideo("Reel")
     await expect(
-      writeProjectTimeline(
+      writeVideoTimeline(
         user.id,
-        project.id,
+        video.id,
         { aspect: "9:16", tracks: [{ id: "t", muted: false, clips: [{ nope: true }] }] } as never,
-        project.version,
+        video.version,
         database
       )
     ).rejects.toThrow()
   })
 
-  it("says not-found, never conflict, for somebody else's project", async () => {
+  it("says not-found, never conflict, for somebody else's video", async () => {
     const stranger = await insertUser(database)
-    const project = await createOwnedProject(stranger.id, "Theirs", database)
+    const video = await newVideo("Theirs", stranger.id)
     await expect(
-      writeProjectTimeline(
+      writeVideoTimeline(
         user.id,
-        project.id,
+        video.id,
         { aspect: "9:16", tracks: [] },
-        project.version,
+        video.version,
         database
       )
-    ).rejects.toThrowError(PROJECT_NOT_FOUND_MESSAGE)
+    ).rejects.toThrowError(VIDEO_NOT_FOUND_MESSAGE)
     await expect(
-      getOwnedProjectDetail(user.id, project.id, database)
-    ).rejects.toThrowError(PROJECT_NOT_FOUND_MESSAGE)
+      getOwnedVideoDetail(user.id, video.id, database)
+    ).rejects.toThrowError(VIDEO_NOT_FOUND_MESSAGE)
   })
 
   it("opens a broken timeline empty, and says why", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const video = await newVideo("Reel")
     await database
-      .update(videoProjects)
+      .update(videoProjectVideos)
       .set({ timeline: { tracks: "not a list" } })
-      .where(eq(videoProjects.id, project.id))
+      .where(eq(videoProjectVideos.id, video.id))
 
-    const detail = await getOwnedProjectDetail(user.id, project.id, database)
+    const detail = await getOwnedVideoDetail(user.id, video.id, database)
     expect(detail.timeline.tracks).toEqual([])
     expect(detail.timeline_error).not.toBeNull()
   })
 
   it("plays the original file until a proxy is ready, then the proxy", async () => {
     const media = await insertMedia(user.id)
-    const project = await createOwnedProject(user.id, "Reel", database)
-    await writeProjectTimeline(
+    const video = await newVideo("Reel")
+    await writeVideoTimeline(
       user.id,
-      project.id,
+      video.id,
       timelineWith([videoClip(media.id, "https://stale.example.test/old.mp4")]),
-      project.version,
+      video.version,
       database
     )
 
-    const before = await getOwnedProjectDetail(user.id, project.id, database)
+    const before = await getOwnedVideoDetail(user.id, video.id, database)
     // The address saved with the clip is never handed back as-is.
     expect(before.timeline.tracks[0].clips[0].url).toContain(
       "video-media.example.test"
@@ -248,7 +272,7 @@ describe("projects", () => {
       updatedAt: timestamp,
     })
 
-    const after = await getOwnedProjectDetail(user.id, project.id, database)
+    const after = await getOwnedVideoDetail(user.id, video.id, database)
     expect(after.timeline.tracks[0].clips[0].url).toContain(
       `video/proxies/${user.id}/${media.id}/token.mp4`
     )
@@ -257,102 +281,111 @@ describe("projects", () => {
   it("leaves a clip alone when its media belongs to somebody else", async () => {
     const stranger = await insertUser(database)
     const strangersMedia = await insertMedia(stranger.id)
-    const project = await createOwnedProject(user.id, "Reel", database)
-    await writeProjectTimeline(
+    const video = await newVideo("Reel")
+    await writeVideoTimeline(
       user.id,
-      project.id,
+      video.id,
       timelineWith([
         videoClip(strangersMedia.id, "https://example.test/kept.mp4"),
       ]),
-      project.version,
+      video.version,
       database
     )
-    const detail = await getOwnedProjectDetail(user.id, project.id, database)
+    const detail = await getOwnedVideoDetail(user.id, video.id, database)
     expect(detail.timeline.tracks[0].clips[0].url).toBe(
       "https://example.test/kept.mp4"
     )
   })
 
-  it("duplicates the timeline into a fresh project of its own", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
-    const saved = await writeProjectTimeline(
+  it("duplicates a project's videos into a fresh project of its own", async () => {
+    const video = await newVideo("Reel")
+    const saved = await writeVideoTimeline(
       user.id,
-      project.id,
+      video.id,
       timelineWith([videoClip("media-1", "https://example.test/a.mp4")]),
-      project.version,
+      video.version,
       database
     )
 
-    const copy = await duplicateOwnedProject(user.id, project.id, database)
+    const copy = await duplicateOwnedProject(user.id, video.projectId, database)
     expect(copy.name).toBe("Reel copy")
-    expect(copy.id).not.toBe(project.id)
-    expect(copy.version).toBe(1)
-    expect(copy.clip_count).toBe(saved.clip_count)
+    expect(copy.id).not.toBe(video.projectId)
+    expect(copy.video_count).toBe(1)
+    expect(copy.duration_ms).toBe(saved.duration_ms)
+    const [copied] = await database
+      .select()
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.projectId, copy.id))
+    expect(copied.id).not.toBe(video.id)
+    expect(copied.version).toBe(1)
+    expect(copied.clipCount).toBe(saved.clip_count)
 
     // Editing the copy leaves the original where it was.
-    await writeProjectTimeline(
+    await writeVideoTimeline(
       user.id,
-      copy.id,
+      copied.id,
       { aspect: "9:16", tracks: [] },
-      copy.version,
+      copied.version,
       database
     )
-    const original = await getOwnedProjectDetail(user.id, project.id, database)
+    const original = await getOwnedVideoDetail(user.id, video.id, database)
     expect(original.clip_count).toBe(1)
   })
 
-  it("keeps a refused save as a new project and leaves the winner alone", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+  it("keeps a refused save as a new video in the same project and leaves the winner alone", async () => {
+    const video = await newVideo("Reel")
     // The other window saves first.
-    await writeProjectTimeline(
+    await writeVideoTimeline(
       user.id,
-      project.id,
+      video.id,
       { aspect: "9:16", tracks: [] },
-      project.version,
+      video.version,
       database
     )
     const refused = timelineWith([
       videoClip("media-1", "https://example.test/a.mp4"),
     ])
     await expect(
-      writeProjectTimeline(user.id, project.id, refused, project.version, database)
+      writeVideoTimeline(user.id, video.id, refused, video.version, database)
     ).rejects.toThrowError(PROJECT_CONFLICT_MESSAGE)
 
-    const kept = await keepRefusedTimeline(user.id, project.id, refused, database)
+    const kept = await keepRefusedVideoTimeline(user.id, video.id, refused, database)
     expect(kept.name).toBe("Reel (unsaved edits)")
-    expect(kept.id).not.toBe(project.id)
+    expect(kept.id).not.toBe(video.id)
+    expect(kept.project_id).toBe(video.projectId)
     expect(kept.version).toBe(1)
     expect(kept.clip_count).toBe(1)
 
-    const original = await getOwnedProjectDetail(user.id, project.id, database)
+    const original = await getOwnedVideoDetail(user.id, video.id, database)
     expect(original.clip_count).toBe(0)
   })
 
-  it("keeps nothing for somebody else's project", async () => {
+  it("keeps nothing for somebody else's video", async () => {
     const stranger = await insertUser(database)
-    const theirs = await createOwnedProject(stranger.id, "Theirs", database)
+    const theirs = await newVideo("Theirs", stranger.id)
     await expect(
-      keepRefusedTimeline(
+      keepRefusedVideoTimeline(
         user.id,
         theirs.id,
         { aspect: "9:16", tracks: [] },
         database
       )
-    ).rejects.toThrowError(PROJECT_NOT_FOUND_MESSAGE)
+    ).rejects.toThrowError(VIDEO_NOT_FOUND_MESSAGE)
+    expect(await database.select().from(videoProjectVideos)).toHaveLength(1)
   })
 
   it("renames only the caller's own project", async () => {
     const stranger = await insertUser(database)
     const theirs = await createOwnedProject(stranger.id, "Theirs", database)
     await expect(
-      renameOwnedProject(user.id, theirs.id, "Mine now", database)
+      renameOwnedProject(user.id, theirs.project.id, "Mine now", database)
     ).rejects.toThrowError(PROJECT_NOT_FOUND_MESSAGE)
   })
 
   it("deletes the caller's projects and reports exactly which went", async () => {
     const stranger = await insertUser(database)
-    const mine = await createOwnedProject(user.id, "Mine", database)
-    const theirs = await createOwnedProject(stranger.id, "Theirs", database)
+    const mine = (await createOwnedProject(user.id, "Mine", database)).project
+    const theirs = (await createOwnedProject(stranger.id, "Theirs", database)).project
 
     const result = await deleteOwnedProjects(
       user.id,
@@ -363,20 +396,23 @@ describe("projects", () => {
 
     const survivors = await database.select().from(videoProjects)
     expect(survivors.map((row) => row.id)).toEqual([theirs.id])
+    // The deleted project's video went with it.
+    const videos = await database.select().from(videoProjectVideos)
+    expect(videos.map((row) => row.projectId)).toEqual([theirs.id])
   })
 
   it("deleting a project never touches the footage it used", async () => {
     const media = await insertMedia(user.id)
-    const project = await createOwnedProject(user.id, "Reel", database)
-    await writeProjectTimeline(
+    const video = await newVideo("Reel")
+    await writeVideoTimeline(
       user.id,
-      project.id,
+      video.id,
       timelineWith([videoClip(media.id, "https://example.test/a.mp4")]),
-      project.version,
+      video.version,
       database
     )
 
-    await deleteOwnedProjects(user.id, [project.id], database)
+    await deleteOwnedProjects(user.id, [video.projectId], database)
 
     const survivors = await database
       .select()
@@ -407,7 +443,7 @@ describe("projects", () => {
   it("never lists another person's projects", async () => {
     const stranger = await insertUser(database)
     await createOwnedProject(stranger.id, "Theirs", database)
-    const mine = await createOwnedProject(user.id, "Mine", database)
+    const mine = (await createOwnedProject(user.id, "Mine", database)).project
 
     const listed = await listOwnedProjects({ userId: user.id, database })
     expect(listed.projects.map((project) => project.id)).toEqual([mine.id])

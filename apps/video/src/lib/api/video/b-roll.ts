@@ -100,31 +100,31 @@ const phraseSchema = z.string().max(BROLL_PHRASE_MAX_CHARACTERS * 2)
 
 const statusFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ projectId: idSchema }))
+  .inputValidator(z.object({ videoId: idSchema }))
   .handler(({ data, context }) =>
-    import("@/server/video/b-roll").then((m) => m.brollStatus(context.user.id, data.projectId))
+    import("@/server/video/b-roll").then((m) => m.brollStatus(context.user.id, data.videoId))
   )
 
-export function loadBrollStatus(projectId: string): Promise<BrollStatus> {
-  return statusFn({ data: { projectId } })
+export function loadBrollStatus(videoId: string): Promise<BrollStatus> {
+  return statusFn({ data: { videoId } })
 }
 
 const suggestFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ projectId: idSchema }))
+  .inputValidator(z.object({ videoId: idSchema }))
   .handler(({ data, context }) =>
-    import("@/server/video/b-roll").then((m) => m.suggestBroll(context.user.id, data.projectId))
+    import("@/server/video/b-roll").then((m) => m.suggestBroll(context.user.id, data.videoId))
   )
 
-export function suggestBroll(projectId: string): Promise<BrollSuggestion> {
-  return suggestFn({ data: { projectId } })
+export function suggestBroll(videoId: string): Promise<BrollSuggestion> {
+  return suggestFn({ data: { videoId } })
 }
 
 const searchFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
     z.object({
-      projectId: idSchema,
+      videoId: idSchema,
       rows: z
         .array(z.object({ id: rowIdSchema, phrase: phraseSchema }))
         .min(1)
@@ -136,10 +136,10 @@ const searchFn = createServerFn({ method: "POST" })
   )
 
 export function searchBroll(
-  projectId: string,
+  videoId: string,
   rows: { id: string; phrase: string }[]
 ): Promise<PexelsBatch> {
-  return searchFn({ data: { projectId, rows } })
+  return searchFn({ data: { videoId, rows } })
 }
 
 /** A pexels.com page, so the credit kept with a file links where it should. */
@@ -175,7 +175,7 @@ const placeFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
     z.object({
-      projectId: idSchema,
+      videoId: idSchema,
       picks: z
         .array(pickSchema)
         .min(1)
@@ -189,6 +189,6 @@ const placeFn = createServerFn({ method: "POST" })
 
 export type BrollPickInput = z.input<typeof pickSchema>
 
-export function saveBrollPicks(projectId: string, picks: BrollPickInput[]) {
-  return placeFn({ data: { projectId, picks } })
+export function saveBrollPicks(videoId: string, picks: BrollPickInput[]) {
+  return placeFn({ data: { videoId, picks } })
 }

@@ -18,6 +18,7 @@ import {
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
+  videoCarouselProjects,
   videoCarousels,
   videoCarouselVersions,
   type VideoCarouselRow,
@@ -218,6 +219,11 @@ export async function restoreOwnedCarouselVersion(
       })
       .where(eq(videoCarousels.id, carouselId))
       .returning({ version: videoCarousels.version })
+    // Its carousel project's "last edited" moves, as on any save.
+    await tx
+      .update(videoCarouselProjects)
+      .set({ updatedAt: at })
+      .where(eq(videoCarouselProjects.id, current.carouselProjectId))
     return { version: row.version }
   })
 }

@@ -9,14 +9,16 @@ ordinary edit that Undo takes back out.
 
 ## A whole carousel
 
-- **Where:** New carousel on the Carousels list, then "Write it with AI".
+- **Where:** the + in a carousel project's Carousels tab, then "Write it
+  with AI". The carousel goes in that project, in its look, with its caption
+  footer.
 - **What it works from**, Tyler's choice of 20 Oct 2026:
   - **A topic**, one line such as "5 mistakes new runners make".
   - **Notes**, pasted text up to 20,000 letters.
-  - **A project**, whose script is the words its voiceovers say, in the order
-    they play, or the words written on its timeline when it has none. The
-    carousel belongs to that project (see
-    [carousel-projects.md](carousel-projects.md)).
+  - **A video**, picked by its project then its name, whose script is the
+    words its voiceovers say, in the order they play, or the words written on
+    its timeline when it has none. The carousel remembers the video's project
+    as the one it was made from (see [carousel-projects.md](carousel-projects.md)).
   - **A web link**, a public https page whose words are read once.
 - **How many slides:** 3 to 20, 7 to start. The shape is 4:5, square or story.
 - **What comes back:** a cover slide that hooks, one slide per point, and a

@@ -43,6 +43,10 @@ vi.mock("@/lib/api/video/carousels", () => ({
   restoreCarouselVersion: vi.fn(),
   translateCarouselCopies: vi.fn(),
 }))
+// The Carousels tab has its own list and calls; this screen is about one carousel.
+vi.mock("@/components/carousel-studio/carousels-panel", () => ({
+  CarouselsPanel: () => <div>Carousels list</div>,
+}))
 vi.mock("@/lib/api/media/media", () => ({
   getMediaErrorMessage: () => "Media request failed.",
   uploadMedia: vi.fn(),
@@ -72,6 +76,7 @@ vi.mock("@/lib/toast/error-toast", () => ({
 import { CarouselBuilderPage } from "@/components/carousel-studio/carousel-studio"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { CarouselDetail } from "@/lib/api/video/carousels"
+import type { CarouselProjectItem } from "@/lib/api/video/carousel-projects"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
@@ -132,6 +137,22 @@ function text(id: string, words: string, y: number) {
   }
 }
 
+const project: CarouselProjectItem = {
+  id: "carousel-project-1",
+  name: "My carousels",
+  carousel_count: 1,
+  slide_count: 2,
+  formats: ["4:5"],
+  thumbnail_url: null,
+  look: {},
+  caption_footer: "",
+  folder_id: null,
+  pinned: false,
+  archived: false,
+  created_at: "2099-01-01T00:00:00.000Z",
+  updated_at: "2099-01-01T00:00:00.000Z",
+}
+
 const carousel: CarouselDetail = {
   id: "carousel-1",
   name: "Tips",
@@ -141,6 +162,10 @@ const carousel: CarouselDetail = {
   thumbnail_url: null,
   is_template: false,
   project_id: null,
+  carousel_project_id: "carousel-project-1",
+  status: "draft",
+  pinned: false,
+  archived: false,
   created_at: "2099-01-01T00:00:00.000Z",
   updated_at: "2099-01-01T00:00:00.000Z",
   caption: "",
@@ -167,7 +192,7 @@ async function render() {
   await act(async () => {
     root?.render(
       <TooltipProvider>
-        <CarouselBuilderPage document={carousel} />
+        <CarouselBuilderPage document={carousel} project={project} />
       </TooltipProvider>
     )
   })

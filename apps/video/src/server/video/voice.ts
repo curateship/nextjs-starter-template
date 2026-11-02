@@ -34,7 +34,7 @@ import {
 import { ELEVENLABS_KEY_MISSING_MESSAGE } from "@/lib/video/ai-providers"
 import { getAiKey } from "@/server/ai/keys"
 import { runAiCall } from "@/server/ai/usage"
-import { projectSpendMetadata } from "@/server/video/project-spend"
+import type { SpendTag } from "@/server/video/project-spend"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { deleteFromR2, getPublicMediaUrl, uploadToR2 } from "@/server/media/storage"
@@ -185,7 +185,7 @@ export async function speak({
   settings,
   speaker,
   feature = "voiceover",
-  projectId,
+  spend,
 }: {
   userId: string
   voiceId: string
@@ -198,8 +198,8 @@ export async function speak({
   speaker?: VoiceSpeakerId
   /** The name the spend is filed under on the AI dashboard. */
   feature?: string
-  /** The project the voice is read for, so its spend line counts it. */
-  projectId?: string | null
+  /** The video the voice is read for, so its spend line counts it. */
+  spend?: SpendTag | null
 }): Promise<VoiceoverResult> {
   const script = spokenScript(text)
   if (!script) throw new Error(VOICE_NO_TEXT_MESSAGE)
@@ -220,7 +220,7 @@ export async function speak({
       script,
       settings,
       feature,
-      projectId,
+      spend,
     })
   }
 
@@ -237,7 +237,7 @@ export async function speak({
       model: modelId,
       feature,
       metadata: {
-        ...(projectId ? projectSpendMetadata(projectId) : {}),
+        ...spend,
         characters: sent.length,
       },
     },
@@ -342,7 +342,7 @@ async function speakWithOpenAi({
   script,
   settings,
   feature,
-  projectId,
+  spend,
 }: {
   userId: string
   voiceId: string
@@ -353,7 +353,7 @@ async function speakWithOpenAi({
   script: string
   settings?: VoiceSettings
   feature: string
-  projectId?: string | null
+  spend?: SpendTag | null
 }): Promise<VoiceoverResult> {
   const apiKey = await requireOpenAiKey()
   const model = OPENAI_VOICE_MODEL
@@ -365,7 +365,7 @@ async function speakWithOpenAi({
       model,
       feature,
       metadata: {
-        ...(projectId ? projectSpendMetadata(projectId) : {}),
+        ...spend,
         characters: text.length,
       },
     },
@@ -402,7 +402,7 @@ async function speakWithOpenAi({
     bytes,
     durationMs,
     feature,
-    projectId,
+    spend,
   })
   const captions = wordsToCaptions(timeScriptWords(script, heard ?? [], durationMs))
   const stored = await keepInLibrary(userId, bytes, {
@@ -435,14 +435,14 @@ async function listenForWordTimes({
   bytes,
   durationMs,
   feature,
-  projectId,
+  spend,
 }: {
   userId: string
   apiKey: string
   bytes: Uint8Array
   durationMs: number
   feature: string
-  projectId?: string | null
+  spend?: SpendTag | null
 }): Promise<SpokenWord[] | null> {
   if (durationMs <= 0) return null
   try {
@@ -453,7 +453,7 @@ async function listenForWordTimes({
         model: "whisper-1",
         feature,
         metadata: {
-          ...(projectId ? projectSpendMetadata(projectId) : {}),
+          ...spend,
           timing: OPENAI_VOICE_MODEL,
         },
       },

@@ -12,10 +12,10 @@ import {
 } from "@/components/video-editor/editor-store"
 import { useEditorPersonKey } from "@/components/video-editor/project-guest"
 
-/** Where this person's view of the open project is kept. */
+/** Where this person's view of the open video is kept. */
 function useEditorViewKey() {
-  const { projectId } = useEditorRuntime()
-  return editorViewStorageKey(useEditorPersonKey(), projectId)
+  const { videoId } = useEditorRuntime()
+  return editorViewStorageKey(useEditorPersonKey(), videoId)
 }
 
 // How long the timeline has to sit still before where it is gets written down.
@@ -23,7 +23,7 @@ function useEditorViewKey() {
 const SAVE_DEBOUNCE_MS = 300
 
 /**
- * Open the timeline where this person last left it in this project, and keep
+ * Open the timeline where this person last left it in this video, and keep
  * writing down where they are as they work.
  *
  * The saved view lands before the first paint, so the timeline never shows at
@@ -160,29 +160,4 @@ export function useRememberedTimelineView({
       save()
     }
   }, [clock, enabled, key, scrollRef, store])
-}
-
-/**
- * Open the panel on the left that this person last had open in this project.
- *
- * `isPanel` says whether a saved name is still one of the editor's panels, so
- * a panel that has since been removed opens the default one instead.
- */
-export function useRememberedRailPanel<Panel extends string>(
-  panel: Panel,
-  setPanel: (panel: Panel) => void,
-  isPanel: (name: string) => name is Panel
-) {
-  const key = useEditorViewKey()
-  const [restored, setRestored] = React.useState(false)
-
-  useEffectBeforePaint(() => {
-    const saved = readEditorView(key).panel
-    if (saved && isPanel(saved)) setPanel(saved)
-    setRestored(true)
-  }, [isPanel, key, setPanel])
-
-  React.useEffect(() => {
-    if (restored) updateEditorView(key, { panel })
-  }, [key, panel, restored])
 }

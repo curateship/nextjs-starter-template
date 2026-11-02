@@ -114,7 +114,7 @@ export function MovingStillsProvider({ children }: { children: React.ReactNode }
 }
 
 function OwnerMovingStills({ children }: { children: React.ReactNode }) {
-  const { store, dispatch, projectId, saveNow } = useEditorRuntime()
+  const { store, dispatch, videoId, saveNow } = useEditorRuntime()
   const { openSettings, refreshSpend } = useProjectSettings()
   const lock = useEditorLock()
   const [shots, setShots] = React.useState<GenerationItem[]>([])
@@ -139,7 +139,7 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     let active = true
-    listStillShots(projectId)
+    listStillShots(videoId)
       .then((loaded) => {
         if (active) setShots(loaded.shots)
       })
@@ -154,7 +154,7 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
     return () => {
       active = false
     }
-  }, [projectId])
+  }, [videoId])
 
   // While a shot is being made or waiting to land, ask again. A failed one
   // waits for Try again, so it asks nothing.
@@ -163,7 +163,7 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
     if (!waiting) return
     let active = true
     const timer = setInterval(() => {
-      listStillShots(projectId)
+      listStillShots(videoId)
         .then((loaded) => {
           if (active) setShots(loaded.shots)
         })
@@ -173,7 +173,7 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
       active = false
       clearInterval(timer)
     }
-  }, [waiting, projectId])
+  }, [waiting, videoId])
 
   // A finished shot lands here when this window can save. The server is told
   // first, so the worker cannot land the same shot in the same moment; only
@@ -273,7 +273,7 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
     // dropped or trimmed goes first.
     await saveNow()
     const shot = await createStillShot({
-      projectId,
+      videoId,
       clipId: clip.id,
       prompts: draft.prompts,
       lengthSeconds: draft.lengthSeconds,

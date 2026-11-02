@@ -62,14 +62,20 @@ async function exportRow({
   bytes = 10 * MB,
   ownerId = user.id,
   projectId,
+  videoId,
   ...overrides
 }: Partial<typeof videoRenderJobs.$inferInsert> & {
   daysOld?: number
   bytes?: number
   ownerId?: string
 } = {}) {
-  const project =
-    projectId ?? (await createOwnedProject(ownerId, "Client cut", database)).id
+  // An export belongs to a video; one with neither gets a new project's video.
+  const made =
+    projectId && videoId
+      ? { project: projectId, video: videoId }
+      : await createOwnedProject(ownerId, "Client cut", database).then(
+          (created) => ({ project: created.project.id, video: created.video })
+        )
   const finished = new Date(now().getTime() - daysOld * DAY_MS)
   const id = uuid()
   const [row] = await database
@@ -77,7 +83,8 @@ async function exportRow({
     .values({
       id,
       userId: ownerId,
-      projectId: project,
+      projectId: made.project,
+      videoId: made.video,
       status: "ready",
       quality: "high",
       aspect: "9:16",
@@ -255,9 +262,13 @@ describe("clearing out", () => {
 
 describe("deleting a project", () => {
   it("removes its exports' files from storage too", async () => {
-    const project = await createOwnedProject(user.id, "Old cut", database)
-    const first = await exportRow({ projectId: project.id })
-    const second = await exportRow({ projectId: project.id, aspect: "1:1" })
+    const { project, video } = await createOwnedProject(user.id, "Old cut", database)
+    const first = await exportRow({ projectId: project.id, videoId: video })
+    const second = await exportRow({
+      projectId: project.id,
+      videoId: video,
+      aspect: "1:1",
+    })
     const elsewhere = await exportRow()
 
     const result = await deleteOwnedProjects(user.id, [project.id], database)
@@ -276,9 +287,10 @@ describe("deleting a project", () => {
   })
 
   it("keeps a project whose export file would not come out of storage", async () => {
-    const stuck = await createOwnedProject(user.id, "Stuck", database)
-    const fine = await createOwnedProject(user.id, "Fine", database)
-    const job = await exportRow({ projectId: stuck.id })
+    const stuckMade = await createOwnedProject(user.id, "Stuck", database)
+    const stuck = stuckMade.project
+    const fine = (await createOwnedProject(user.id, "Fine", database)).project
+    const job = await exportRow({ projectId: stuck.id, videoId: stuckMade.video })
     storage.refused.add(job.storagePath!)
 
     const result = await deleteOwnedProjects(
@@ -294,8 +306,13 @@ describe("deleting a project", () => {
 
   it("never reads somebody else's exports", async () => {
     const stranger = await insertUser(database)
-    const theirs = await createOwnedProject(stranger.id, "Theirs", database)
-    await exportRow({ projectId: theirs.id, ownerId: stranger.id })
+    const theirsMade = await createOwnedProject(stranger.id, "Theirs", database)
+    const theirs = theirsMade.project
+    await exportRow({
+      projectId: theirs.id,
+      videoId: theirsMade.video,
+      ownerId: stranger.id,
+    })
 
     const result = await deleteOwnedProjects(user.id, [theirs.id], database)
 

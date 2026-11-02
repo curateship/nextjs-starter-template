@@ -27,7 +27,6 @@ import { formatClock } from "@/lib/video/timeline-utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { LoadingRow } from "@/components/ui/loading-row"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -174,9 +173,7 @@ export function VoiceoversPanel() {
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">
-          {voiceovers === null && !loadFailed ? (
-            <LoadingRow label="Loading voiceovers" />
-          ) : loadFailed ? (
+          {voiceovers === null && !loadFailed ? null : loadFailed ? (
             <div className="grid justify-items-center gap-2 py-8 text-center text-sm text-muted-foreground">
               Your voiceovers could not be loaded.
               <Button

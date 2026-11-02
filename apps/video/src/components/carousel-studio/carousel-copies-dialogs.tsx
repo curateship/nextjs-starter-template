@@ -115,8 +115,9 @@ export function TranslateCopiesDialog({
                   made.map((copy) => (
                     <Link
                       key={copy.id}
-                      to="/admin/video-carousels/$carouselId"
-                      params={{ carouselId: copy.id }}
+                      to="/admin/video-carousels/$projectId"
+                      params={{ projectId: copy.carousel_project_id }}
+                      search={{ carousel: copy.id }}
                       className="text-sm font-medium underline"
                     >
                       {copy.name}

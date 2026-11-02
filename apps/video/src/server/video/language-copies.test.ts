@@ -23,12 +23,12 @@ import {
   makeLanguageCopy,
 } from "@/server/video/language-copies"
 import {
-  createOwnedProject,
-  getOwnedProject,
-  writeProjectTimeline,
-} from "@/server/video/projects"
+  getOwnedVideo,
+  writeVideoTimeline,
+} from "@/server/video/project-videos"
+import { createOwnedProject } from "@/server/video/projects"
 import { cancelRenderJob } from "@/server/video/render-queue"
-import { videoProjects, videoRenderJobs } from "@/server/video/schema"
+import { videoProjectVideos, videoRenderJobs } from "@/server/video/schema"
 
 let client: PGlite
 let database: CustomShellDb
@@ -65,17 +65,12 @@ const TALK: ProjectTimeline = {
   ],
 }
 
-/** A project called My Short with someone talking on it. */
+/** A project called My Short whose one video has someone talking on it. */
 async function myShort() {
-  const project = await createOwnedProject(user.id, "My Short", database)
-  await writeProjectTimeline(
-    user.id,
-    project.id,
-    TALK as never,
-    project.version,
-    database
-  )
-  return project
+  const made = await createOwnedProject(user.id, "My Short", database)
+  const video = { id: made.video, projectId: made.project.id, version: 1 }
+  await writeVideoTimeline(user.id, video.id, TALK as never, video.version, database)
+  return video
 }
 
 function spoken(text: string): SpokenLine {
@@ -104,18 +99,18 @@ function spoken(text: string): SpokenLine {
   }
 }
 
-function check(projectId: string, sourceClipId = "talk", startsAtMs = 1000) {
+function check(videoId: string, sourceClipId = "talk", startsAtMs = 1000) {
   return checkLanguageCopy(
-    { userId: user.id, projectId, sourceClipId, startsAtMs },
+    { userId: user.id, videoId, sourceClipId, startsAtMs },
     database
   )
 }
 
-function make(projectId: string, language: "Spanish" | "Hindi") {
+function make(videoId: string, language: "Spanish" | "Hindi") {
   return makeLanguageCopy(
     {
       userId: user.id,
-      projectId,
+      videoId,
       sourceClipId: "talk",
       language,
       said: spoken(language === "Spanish" ? "hola amigos" : "namaste dosto"),
@@ -125,17 +120,22 @@ function make(projectId: string, language: "Spanish" | "Hindi") {
   )
 }
 
-describe("making a project in another language", () => {
+describe("making a video in another language", () => {
   it("makes a named copy with the voice laid over the original turned down", async () => {
     const original = await myShort()
     const made = await make(original.id, "Spanish")
 
-    expect(made.project.name).toBe("My Short (Spanish)")
+    expect(made.video.name).toBe("My Short (Spanish)")
     const [row] = await database
       .select()
-      .from(videoProjects)
-      .where(eq(videoProjects.id, made.project.id))
-    expect(row).toMatchObject({ languageOf: original.id, language: "Spanish" })
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.id, made.video.id))
+    // A video in the same project, remembering the video it came from.
+    expect(row).toMatchObject({
+      projectId: original.projectId,
+      languageOf: original.id,
+      language: "Spanish",
+    })
 
     const timeline = requireCanonicalTimeline(row.timeline)
     // Captions on top, the original lane, then the new voice at the bottom.
@@ -157,9 +157,9 @@ describe("making a project in another language", () => {
 
   it("leaves the original exactly as it was", async () => {
     const original = await myShort()
-    const before = await getOwnedProject(user.id, original.id, database)
+    const before = await getOwnedVideo(user.id, original.id, database)
     await make(original.id, "Spanish")
-    const after = await getOwnedProject(user.id, original.id, database)
+    const after = await getOwnedVideo(user.id, original.id, database)
     expect(after.timeline).toEqual(before.timeline)
     expect(after.version).toBe(before.version)
   })
@@ -186,9 +186,12 @@ describe("making a project in another language", () => {
     const { exports } = await listOwnedExports({ userId: user.id, database })
     expect(exports[0]).toMatchObject({
       language: "Hindi",
-      original_project_id: original.id,
-      original_project_name: "My Short",
-      project_name: "My Short (Hindi)",
+      project_id: original.projectId,
+      project_name: "My Short",
+      original_video_id: original.id,
+      original_video_name: "My Short",
+      video_id: expect.any(String),
+      video_name: "My Short (Hindi)",
     })
   })
 
@@ -210,7 +213,7 @@ describe("making a project in another language", () => {
   it("refuses before the voice is paid for when the export queue is full", async () => {
     const original = await myShort()
     await expect(check(original.id)).resolves.toBeUndefined()
-    // Twenty exports already waiting, one on each of twenty other projects.
+    // Twenty exports already waiting, one on each of twenty other videos.
     const others = await Promise.all(
       Array.from({ length: 20 }, (_, at) =>
         createOwnedProject(user.id, `Other ${at}`, database)
@@ -221,7 +224,8 @@ describe("making a project in another language", () => {
       others.map((other) => ({
         id: randomUUID(),
         userId: user.id,
-        projectId: other.id,
+        projectId: other.project.id,
+        videoId: other.video,
         status: "queued",
         quality: "high",
         aspect: "9:16",
@@ -237,22 +241,22 @@ describe("making a project in another language", () => {
   it("puts a copy made from a copy with the first original", async () => {
     const original = await myShort()
     const spanish = await make(original.id, "Spanish")
-    const fromSpanish = await make(spanish.project.id, "Hindi")
+    const fromSpanish = await make(spanish.video.id, "Hindi")
     const [row] = await database
       .select()
-      .from(videoProjects)
-      .where(eq(videoProjects.id, fromSpanish.project.id))
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.id, fromSpanish.video.id))
     expect(row.languageOf).toBe(original.id)
   })
 
-  it("never makes a copy of somebody else's project", async () => {
+  it("never makes a copy of somebody else's video", async () => {
     const original = await myShort()
     const stranger = await insertUser(database)
     await expect(
       checkLanguageCopy(
         {
           userId: stranger.id,
-          projectId: original.id,
+          videoId: original.id,
           sourceClipId: "talk",
           startsAtMs: 1000,
         },

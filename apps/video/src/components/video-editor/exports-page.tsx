@@ -134,10 +134,16 @@ function compareExports(
   }
 }
 
-/** What an export was made from: its project, or its carousel. */
+/**
+ * What an export was made from: its project and video, or its carousel
+ * (Tyler, 1 Nov 2026: the Exports page names the video).
+ */
 function sourceName(item: RenderJobSummary) {
   if (item.kind === "carousel") return item.carousel_name ?? "Carousel deleted"
-  return item.project_name ?? ""
+  if (item.project_name && item.video_name && item.video_name !== item.project_name) {
+    return `${item.project_name}, ${item.video_name}`
+  }
+  return item.video_name ?? item.project_name ?? ""
 }
 
 /**
@@ -589,8 +595,8 @@ function describeGroup(
 ) {
   const members = rows.filter((row) => exportGroupId(row, originals) === group)
   const name =
-    members.find((row) => row.original_project_id === group)
-      ?.original_project_name ?? "Project"
+    members.find((row) => row.original_video_id === group)
+      ?.original_video_name ?? "Video"
   const languages = Array.from(
     new Set(members.flatMap((row) => (row.language ? [row.language] : [])))
   )

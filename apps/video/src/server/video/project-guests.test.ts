@@ -10,10 +10,12 @@ import { uuid } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { customShellMedia, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser, insertWorkspace } from "@/server/test-support"
-import { listOwnedProjectVersions } from "@/server/video/project-versions"
+import { listOwnedVideoVersions } from "@/server/video/project-versions"
+import { writeVideoTimeline } from "@/server/video/project-videos"
 import {
   actorFor,
   actorForExport,
+  actorForVideo,
   actorForMedia,
   guestEditorName,
   projectHoldsMedia,
@@ -21,8 +23,8 @@ import {
   type EditorCaller,
 } from "@/server/video/project-guests"
 import { acceptHandoff, readHandoffNote, GUEST_HOURS, type HandoffNote } from "@/server/video/project-handoff"
-import { createOwnedProject, writeProjectTimeline } from "@/server/video/projects"
-import { videoProjectGuests, videoProjectMedia, videoProjects, videoRenderJobs } from "@/server/video/schema"
+import { createOwnedProject } from "@/server/video/projects"
+import { videoProjectGuests, videoProjectMedia, videoProjectVideos, videoRenderJobs } from "@/server/video/schema"
 
 const KEY = "shared-key-for-tests"
 const ENV = { PROJECT_HANDOFF_KEY: KEY } as NodeJS.ProcessEnv
@@ -33,7 +35,9 @@ let database: CustomShellDb
 let owner: CustomShellUser
 let workspaceId: string
 let projectId: string
+let videoId: string
 let otherProjectId: string
+let otherVideoId: string
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
@@ -41,8 +45,12 @@ beforeEach(async () => {
   database = testDb.db
   owner = await insertUser(database, { role: "admin" })
   workspaceId = (await insertWorkspace(database, { userId: owner.id })).id
-  projectId = (await createOwnedProject(owner.id, "Launch video", database)).id
-  otherProjectId = (await createOwnedProject(owner.id, "Someone else's cut", database)).id
+  const made = await createOwnedProject(owner.id, "Launch video", database)
+  projectId = made.project.id
+  videoId = made.video
+  const other = await createOwnedProject(owner.id, "Someone else's cut", database)
+  otherProjectId = other.project.id
+  otherVideoId = other.video
 })
 
 afterEach(async () => {
@@ -204,6 +212,12 @@ describe("what a guest reaches", () => {
     await expect(actorFor(caller, otherProjectId, database)).rejects.toThrow(PROJECT_NOT_FOUND_MESSAGE)
   })
 
+  it("reaches every video in its own project and no video elsewhere", async () => {
+    const caller = await guestCaller()
+    expect((await actorForVideo(caller, videoId, database)).userId).toBe(owner.id)
+    await expect(actorForVideo(caller, otherVideoId, database)).rejects.toThrow(PROJECT_NOT_FOUND_MESSAGE)
+  })
+
   it("is refused a call that names no project", async () => {
     const caller = await guestCaller()
     expect(() => signedInActor(caller)).toThrow("AUTH_REQUIRED")
@@ -211,12 +225,13 @@ describe("what a guest reaches", () => {
 
   it("reaches its own project's exports and no others", async () => {
     const caller = await guestCaller()
-    const exportOf = async (project: string) => {
+    const exportOf = async (project: string, video: string) => {
       const id = uuid()
       await database.insert(videoRenderJobs).values({
         id,
         userId: owner.id,
         projectId: project,
+        videoId: video,
         status: "queued",
         quality: "high",
         aspect: "9:16",
@@ -225,8 +240,8 @@ describe("what a guest reaches", () => {
       })
       return id
     }
-    expect((await actorForExport(caller, await exportOf(projectId), database)).userId).toBe(owner.id)
-    await expect(actorForExport(caller, await exportOf(otherProjectId), database)).rejects.toThrow(
+    expect((await actorForExport(caller, await exportOf(projectId, videoId), database)).userId).toBe(owner.id)
+    await expect(actorForExport(caller, await exportOf(otherProjectId, otherVideoId), database)).rejects.toThrow(
       PROJECT_NOT_FOUND_MESSAGE
     )
   })
@@ -239,9 +254,9 @@ describe("what a guest reaches", () => {
     await database.insert(videoProjectMedia).values({ projectId, mediaId: onShelf.id, createdAt: AT })
     await database.insert(videoProjectMedia).values({ projectId: otherProjectId, mediaId: elsewhere.id, createdAt: AT })
     await database
-      .update(videoProjects)
+      .update(videoProjectVideos)
       .set({ timeline: timelineUsing(onTimeline.id) })
-      .where(eq(videoProjects.id, projectId))
+      .where(eq(videoProjectVideos.id, videoId))
 
     expect(await projectHoldsMedia(projectId, onShelf.id, database)).toBe(true)
     expect(await projectHoldsMedia(projectId, onTimeline.id, database)).toBe(true)
@@ -256,22 +271,22 @@ describe("what a guest reaches", () => {
 })
 
 describe("a guest's saves in History", () => {
-  it("marks the project and the versions kept from a guest's save", async () => {
+  it("marks the video and the versions kept from a guest's save", async () => {
     const media = await insertMedia()
-    const project = await createOwnedProject(owner.id, "Reel", database)
-    const first = await writeProjectTimeline(owner.id, project.id, timelineUsing(media.id, 5), project.version, database, "Sam via Project")
-    const [row] = await database.select().from(videoProjects).where(eq(videoProjects.id, project.id))
+    const { video } = await createOwnedProject(owner.id, "Reel", database)
+    const first = await writeVideoTimeline(owner.id, video, timelineUsing(media.id, 5), 1, database, "Sam via Project")
+    const [row] = await database.select().from(videoProjectVideos).where(eq(videoProjectVideos.id, video))
     expect(row.lastEditedBy).toBe("Sam via Project")
 
     // Back after a break, the owner's save keeps Sam's cut as a version.
     await database
-      .update(videoProjects)
+      .update(videoProjectVideos)
       .set({ updatedAt: new Date(Date.now() - 31 * 60_000) })
-      .where(eq(videoProjects.id, project.id))
-    await writeProjectTimeline(owner.id, project.id, timelineUsing(media.id, 6), first.version, database)
-    const [kept] = await listOwnedProjectVersions(owner.id, project.id, database)
+      .where(eq(videoProjectVideos.id, video))
+    await writeVideoTimeline(owner.id, video, timelineUsing(media.id, 6), first.version, database)
+    const [kept] = await listOwnedVideoVersions(owner.id, video, database)
     expect(kept.edited_by).toBe("Sam via Project")
-    const [after] = await database.select().from(videoProjects).where(eq(videoProjects.id, project.id))
+    const [after] = await database.select().from(videoProjectVideos).where(eq(videoProjectVideos.id, video))
     expect(after.lastEditedBy).toBeNull()
   })
 })

@@ -17,19 +17,19 @@ import {
 import { uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
-  videoProjects,
   videoProjectVersions,
-  type VideoProjectRow,
+  videoProjectVideos,
   type VideoProjectVersionRow,
+  type VideoProjectVideoRow,
 } from "@/server/video/schema"
 
 /**
- * Project history: earlier timelines of a project, kept by the save that
- * replaces them (see `workspace/docs/project-history.md`).
+ * Video history: earlier timelines of one video in a project, kept by the
+ * save that replaces them (see `workspace/docs/project-history.md`).
  *
- * Nothing here reads `projects.ts`, because the save there calls in here. The
- * two reads that hand a timeline to the editor live there instead, beside the
- * address lookup they need.
+ * Nothing here reads `project-videos.ts`, because the save there calls in
+ * here. The two reads that hand a timeline to the editor live there instead,
+ * beside the address lookup they need.
  */
 
 /** One row of the History list. The timeline itself is not sent. */
@@ -62,9 +62,9 @@ export function serializeVersion(
   }
 }
 
-type ProjectBeingSaved = Pick<
-  VideoProjectRow,
-  "id" | "userId" | "createdAt" | "updatedAt" | "lastEditedBy"
+type VideoBeingSaved = Pick<
+  VideoProjectVideoRow,
+  "id" | "projectId" | "userId" | "createdAt" | "updatedAt" | "lastEditedBy"
 >
 
 /**
@@ -84,7 +84,7 @@ function contentOf(timeline: ProjectTimeline) {
 }
 
 /**
- * Keeps one timeline as a version, unless one of the project's versions
+ * Keeps one timeline as a version, unless one of the video's versions
  * already holds the same clips and shape, then deletes any past the newest
  * `KEEP_VERSIONS`. Restoring back and forth between two cuts so keeps each
  * once, not once per press.
@@ -92,16 +92,14 @@ function contentOf(timeline: ProjectTimeline) {
 async function keepVersion(
   database: CustomShellDb,
   {
-    projectId,
-    userId,
+    video,
     reason,
     timeline,
     savedAt,
     editedBy,
     at,
   }: {
-    projectId: string
-    userId: string
+    video: VideoBeingSaved
     reason: VersionReason
     timeline: ProjectTimeline
     savedAt: Date
@@ -114,7 +112,7 @@ async function keepVersion(
   const kept = await database
     .select({ timeline: videoProjectVersions.timeline })
     .from(videoProjectVersions)
-    .where(eq(videoProjectVersions.projectId, projectId))
+    .where(eq(videoProjectVersions.videoId, video.id))
   const alreadyKept = kept.some((row) => {
     const parsed = parseTimelineForReset(row.timeline)
     return !parsed.error && contentOf(parsed.timeline) === content
@@ -124,8 +122,9 @@ async function keepVersion(
   const stats = summarizeTimeline(timeline)
   await database.insert(videoProjectVersions).values({
     id: uuid(),
-    projectId,
-    userId,
+    projectId: video.projectId,
+    videoId: video.id,
+    userId: video.userId,
     reason,
     timeline,
     aspect: timeline.aspect,
@@ -139,25 +138,25 @@ async function keepVersion(
   const newest = database
     .select({ id: videoProjectVersions.id })
     .from(videoProjectVersions)
-    .where(eq(videoProjectVersions.projectId, projectId))
+    .where(eq(videoProjectVersions.videoId, video.id))
     .orderBy(desc(videoProjectVersions.createdAt))
     .limit(KEEP_VERSIONS)
   await database
     .delete(videoProjectVersions)
     .where(
       and(
-        eq(videoProjectVersions.projectId, projectId),
+        eq(videoProjectVersions.videoId, video.id),
         notInArray(videoProjectVersions.id, newest)
       )
     )
 }
 
 /** The stored timeline, or null when it no longer parses. */
-async function readStoredTimeline(database: CustomShellDb, projectId: string) {
+async function readStoredTimeline(database: CustomShellDb, videoId: string) {
   const [row] = await database
-    .select({ timeline: videoProjects.timeline })
-    .from(videoProjects)
-    .where(eq(videoProjects.id, projectId))
+    .select({ timeline: videoProjectVideos.timeline })
+    .from(videoProjectVideos)
+    .where(eq(videoProjectVideos.id, videoId))
     .limit(1)
   if (!row) return null
   const { timeline, error } = parseTimelineForReset(row.timeline)
@@ -167,20 +166,20 @@ async function readStoredTimeline(database: CustomShellDb, projectId: string) {
 /**
  * Why the timeline a save is about to replace should be kept, or null. It was
  * last saved `BREAK_MS` ago or more, or the newest version is `HOURLY_MS` old
- * or more (a project with none counts from when it was made). `lastKeptAt` is
+ * or more (a video with none counts from when it was made). `lastKeptAt` is
  * read by the save's own locked read, so a save that keeps nothing costs no
  * extra trip to the database.
  */
 export function versionDue(
-  project: ProjectBeingSaved,
+  video: VideoBeingSaved,
   lastKeptAt: Date | null,
   at: Date
 ): VersionReason | null {
   // Kept after its last save, such as "Before restoring", so it is already
   // in history.
-  if (lastKeptAt && lastKeptAt > project.updatedAt) return null
-  if (at.getTime() - project.updatedAt.getTime() >= BREAK_MS) return "break"
-  const since = lastKeptAt ?? project.createdAt
+  if (lastKeptAt && lastKeptAt > video.updatedAt) return null
+  if (at.getTime() - video.updatedAt.getTime() >= BREAK_MS) return "break"
+  const since = lastKeptAt ?? video.createdAt
   return at.getTime() - since.getTime() >= HOURLY_MS ? "hourly" : null
 }
 
@@ -193,56 +192,54 @@ export function versionDue(
  */
 export async function keepVersionBeforeSave(
   database: CustomShellDb,
-  project: ProjectBeingSaved,
+  video: VideoBeingSaved,
   reason: VersionReason,
   at: Date
 ) {
   try {
     await database.transaction(async (savepoint) => {
-      const timeline = await readStoredTimeline(savepoint, project.id)
+      const timeline = await readStoredTimeline(savepoint, video.id)
       if (!timeline || summarizeTimeline(timeline).clipCount === 0) return
       await keepVersion(savepoint, {
-        projectId: project.id,
-        userId: project.userId,
+        video,
         reason,
         timeline,
-        savedAt: project.updatedAt,
-        editedBy: project.lastEditedBy,
+        savedAt: video.updatedAt,
+        editedBy: video.lastEditedBy,
         at,
       })
     })
   } catch (error) {
-    console.error("Keeping a project version failed", project.id, error)
+    console.error("Keeping a video version failed", video.id, error)
   }
 }
 
 /**
- * Keeps what the project holds right now, before a restore changes it, so
+ * Keeps what the video holds right now, before a restore changes it, so
  * the restore can be undone. Kept even when it is empty, because empty is
  * what the person had.
  */
 export async function keepVersionBeforeRestore(
   database: CustomShellDb,
-  project: ProjectBeingSaved,
+  video: VideoBeingSaved,
   at: Date
 ) {
-  const timeline = await readStoredTimeline(database, project.id)
+  const timeline = await readStoredTimeline(database, video.id)
   if (!timeline) return
   await keepVersion(database, {
-    projectId: project.id,
-    userId: project.userId,
+    video,
     reason: "restore",
     timeline,
-    savedAt: project.updatedAt,
-    editedBy: project.lastEditedBy,
+    savedAt: video.updatedAt,
+    editedBy: video.lastEditedBy,
     at,
   })
 }
 
-/** The project's versions, newest first. Somebody else's project lists none. */
-export async function listOwnedProjectVersions(
+/** The video's versions, newest first. Somebody else's video lists none. */
+export async function listOwnedVideoVersions(
   userId: string,
-  projectId: string,
+  videoId: string,
   database: CustomShellDb = db
 ): Promise<ProjectVersionItem[]> {
   const rows = await database
@@ -256,11 +253,11 @@ export async function listOwnedProjectVersions(
       editedBy: videoProjectVersions.editedBy,
     })
     .from(videoProjectVersions)
-    .innerJoin(videoProjects, eq(videoProjects.id, videoProjectVersions.projectId))
+    .innerJoin(videoProjectVideos, eq(videoProjectVideos.id, videoProjectVersions.videoId))
     .where(
       and(
-        eq(videoProjectVersions.projectId, projectId),
-        eq(videoProjects.userId, userId)
+        eq(videoProjectVersions.videoId, videoId),
+        eq(videoProjectVideos.userId, userId)
       )
     )
     .orderBy(desc(videoProjectVersions.createdAt))
@@ -268,25 +265,25 @@ export async function listOwnedProjectVersions(
 }
 
 /**
- * One version of one of this person's projects, with its timeline as stored.
- * The addresses in it are months old at worst; `projects.ts` re-reads them
- * before the editor gets it.
+ * One version of one of this person's videos, with its timeline as stored.
+ * The addresses in it are months old at worst; `project-videos.ts` re-reads
+ * them before the editor gets it.
  */
-export async function readOwnedProjectVersion(
+export async function readOwnedVideoVersion(
   userId: string,
-  projectId: string,
+  videoId: string,
   versionId: string,
   database: CustomShellDb = db
 ) {
   const [row] = await database
     .select({ version: videoProjectVersions })
     .from(videoProjectVersions)
-    .innerJoin(videoProjects, eq(videoProjects.id, videoProjectVersions.projectId))
+    .innerJoin(videoProjectVideos, eq(videoProjectVideos.id, videoProjectVersions.videoId))
     .where(
       and(
         eq(videoProjectVersions.id, versionId),
-        eq(videoProjectVersions.projectId, projectId),
-        eq(videoProjects.userId, userId)
+        eq(videoProjectVersions.videoId, videoId),
+        eq(videoProjectVideos.userId, userId)
       )
     )
     .limit(1)

@@ -30,11 +30,8 @@ import {
   movingStillTick,
   settleStillShot,
 } from "@/server/video/asset-factories/moving-stills"
-import {
-  createOwnedProject,
-  getOwnedProject,
-  writeProjectTimeline,
-} from "@/server/video/projects"
+import { getOwnedVideo, writeVideoTimeline } from "@/server/video/project-videos"
+import { createOwnedProject } from "@/server/video/projects"
 import {
   videoAiGenerations,
   videoEditorWindows,
@@ -156,14 +153,15 @@ async function seedProject() {
     createdAt: timestamp,
     updatedAt: timestamp,
   })
-  const project = await createOwnedProject(user.id, "Lighthouse", database)
-  await writeProjectTimeline(user.id, project.id, SEEDED, project.version, database)
-  return project
+  const made = await createOwnedProject(user.id, "Lighthouse", database)
+  await writeVideoTimeline(user.id, made.video, SEEDED, 1, database)
+  // The project's one video, which holds the lighthouse timeline.
+  return { id: made.video, projectId: made.project.id }
 }
 
-function makeLighthouseMove(projectId: string) {
+function makeLighthouseMove(videoId: string) {
   return createStillShot(user.id, {
-    projectId,
+    videoId,
     clipId: "seven",
     prompts: ["Waves crashing, lamp turning"],
     lengthSeconds: 4,
@@ -200,19 +198,20 @@ async function googleMakesIt(shotId?: string) {
   return piece
 }
 
-async function savedTimeline(projectId: string) {
-  const project = await getOwnedProject(user.id, projectId, database)
-  return { timeline: project.timeline as ProjectTimeline, version: project.version }
+async function savedTimeline(videoId: string) {
+  const video = await getOwnedVideo(user.id, videoId, database)
+  return { timeline: video.timeline as ProjectTimeline, version: video.version }
 }
 
 describe("asking for a moving shot of a picture", () => {
   it("records the clip it is for, with no first frame", async () => {
-    const project = await seedProject()
-    const shot = await makeLighthouseMove(project.id)
+    const video = await seedProject()
+    const shot = await makeLighthouseMove(video.id)
 
     const [row] = await database.select().from(videoAiGenerations)
     expect(row).toMatchObject({
-      projectId: project.id,
+      projectId: video.projectId,
+      videoId: video.id,
       firstFrameId: null,
       firstFrameMediaId: "still",
       clipId: "seven",
@@ -226,29 +225,29 @@ describe("asking for a moving shot of a picture", () => {
       status: "queued",
     })
     expect(shot.clip).toEqual({ id: "seven", media_id: "still" })
-    expect((await listStillShots(user.id, project.id)).shots.map((item) => item.id)).toEqual([shot.id])
+    expect((await listStillShots(user.id, video.id)).shots.map((item) => item.id)).toEqual([shot.id])
   })
 
   it("refuses a second try while one is being made, and clears a failed one", async () => {
-    const project = await seedProject()
-    const first = await makeLighthouseMove(project.id)
-    await expect(makeLighthouseMove(project.id)).rejects.toThrow(MOVING_STILL_BUSY_MESSAGE)
+    const video = await seedProject()
+    const first = await makeLighthouseMove(video.id)
+    await expect(makeLighthouseMove(video.id)).rejects.toThrow(MOVING_STILL_BUSY_MESSAGE)
 
     await database
       .update(videoAiGenerations)
       .set({ status: "error", errorMessage: "Google could not generate the video." })
       .where(eq(videoAiGenerations.shotId, first.id))
-    const second = await makeLighthouseMove(project.id)
+    const second = await makeLighthouseMove(video.id)
 
     const rows = await database.select().from(videoAiGenerations)
     expect(rows.map((row) => row.shotId)).toEqual([second.id])
   })
 
   it("refuses a clip that is not a picture, and a length that does not fit", async () => {
-    const project = await seedProject()
+    const video = await seedProject()
     const ask = (clipId: string, lengthSeconds: 4 | 16) =>
       createStillShot(user.id, {
-        projectId: project.id,
+        videoId: video.id,
         clipId,
         prompts: lengthSeconds === 16 ? ["Waves", "Lamp"] : ["Waves"],
         lengthSeconds,
@@ -261,22 +260,22 @@ describe("asking for a moving shot of a picture", () => {
     expect(await database.select().from(videoAiGenerations)).toEqual([])
   })
 
-  it("lets nobody else ask for, list or land a shot on someone's project", async () => {
-    const project = await seedProject()
-    const shot = await makeLighthouseMove(project.id)
+  it("lets nobody else ask for, list or land a shot on someone's video", async () => {
+    const video = await seedProject()
+    const shot = await makeLighthouseMove(video.id)
     await googleMakesIt()
     const stranger = await insertUser(database)
 
     await expect(
       createStillShot(stranger.id, {
-        projectId: project.id,
+        videoId: video.id,
         clipId: "seven",
         prompts: ["Waves"],
         lengthSeconds: 4,
         quality: "720p",
       })
     ).rejects.toThrow()
-    await expect(listStillShots(stranger.id, project.id)).rejects.toThrow()
+    await expect(listStillShots(stranger.id, video.id)).rejects.toThrow()
     await expect(settleStillShot(stranger.id, shot.id, "replaced")).rejects.toThrow()
 
     const rows = await database.select().from(videoAiGenerations)
@@ -286,14 +285,14 @@ describe("asking for a moving shot of a picture", () => {
 
 describe("landing a finished shot", () => {
   it("replaces the picture with nobody editing, as one save, and moves nothing else", async () => {
-    const project = await seedProject()
-    await makeLighthouseMove(project.id)
+    const video = await seedProject()
+    await makeLighthouseMove(video.id)
     const piece = await googleMakesIt()
-    const before = await savedTimeline(project.id)
+    const before = await savedTimeline(video.id)
 
     await movingStillTick()
 
-    const after = await savedTimeline(project.id)
+    const after = await savedTimeline(video.id)
     expect(after.version).toBe(before.version + 1)
     expect(starts(after.timeline)).toEqual(starts(before.timeline))
     expect(after.timeline.tracks[0].clips[1]).toMatchObject({
@@ -311,42 +310,44 @@ describe("landing a finished shot", () => {
     // On the project's Media panel too, so an Undo back to the picture keeps it.
     const shelf = await database.select().from(videoProjectMedia)
     expect(shelf.map((row) => row.mediaId)).toContain(piece.outputMediaId)
-    expect((await listStillShots(user.id, project.id)).shots).toEqual([])
+    expect((await listStillShots(user.id, video.id)).shots).toEqual([])
 
     // A second pass finds nothing left to land.
     await movingStillTick()
-    expect((await savedTimeline(project.id)).version).toBe(after.version)
+    expect((await savedTimeline(video.id)).version).toBe(after.version)
   })
 
   it("leaves it to an open editor, and only one of the two lands it", async () => {
-    const project = await seedProject()
-    const shot = await makeLighthouseMove(project.id)
+    const video = await seedProject()
+    const shot = await makeLighthouseMove(video.id)
     await googleMakesIt()
     await database.insert(videoEditorWindows).values({
-      projectId: project.id,
+      projectId: video.projectId,
+      videoId: video.id,
       windowId: "window-1",
       mode: "edit",
       openedAt: now(),
       seenAt: now(),
     })
-    const before = await savedTimeline(project.id)
+    const before = await savedTimeline(video.id)
 
     await movingStillTick()
-    expect((await savedTimeline(project.id)).version).toBe(before.version)
+    expect((await savedTimeline(video.id)).version).toBe(before.version)
 
     expect(await settleStillShot(user.id, shot.id, "replaced")).toEqual({ settled: true })
     expect(await settleStillShot(user.id, shot.id, "replaced")).toEqual({ settled: false })
     await database.delete(videoEditorWindows)
     await movingStillTick()
-    expect((await savedTimeline(project.id)).version).toBe(before.version)
+    expect((await savedTimeline(video.id)).version).toBe(before.version)
   })
 
   it("lands it once a read-only window is all that is open", async () => {
-    const project = await seedProject()
-    await makeLighthouseMove(project.id)
+    const video = await seedProject()
+    await makeLighthouseMove(video.id)
     await googleMakesIt()
     await database.insert(videoEditorWindows).values({
-      projectId: project.id,
+      projectId: video.projectId,
+      videoId: video.id,
       windowId: "window-1",
       mode: "view",
       openedAt: now(),
@@ -360,10 +361,10 @@ describe("landing a finished shot", () => {
   })
 
   it("puts the shot in Media with a notice when the picture was deleted meanwhile", async () => {
-    const project = await seedProject()
-    await makeLighthouseMove(project.id)
+    const video = await seedProject()
+    await makeLighthouseMove(video.id)
     const piece = await googleMakesIt()
-    const current = await savedTimeline(project.id)
+    const current = await savedTimeline(video.id)
     const withoutStill: ProjectTimeline = {
       ...current.timeline,
       tracks: current.timeline.tracks.map((track) => ({
@@ -371,11 +372,11 @@ describe("landing a finished shot", () => {
         clips: track.clips.filter((item) => item.id !== "seven"),
       })),
     }
-    await writeProjectTimeline(user.id, project.id, withoutStill, current.version, database)
+    await writeVideoTimeline(user.id, video.id, withoutStill, current.version, database)
 
     await movingStillTick()
 
-    const after = await savedTimeline(project.id)
+    const after = await savedTimeline(video.id)
     expect(after.version).toBe(current.version + 1)
     expect(starts(after.timeline)).toEqual(starts(withoutStill))
     const [landed] = await database.select().from(videoAiGenerations)
@@ -385,7 +386,7 @@ describe("landing a finished shot", () => {
       .from(videoProjectMedia)
       .where(
         and(
-          eq(videoProjectMedia.projectId, project.id),
+          eq(videoProjectMedia.projectId, video.projectId),
           eq(videoProjectMedia.mediaId, piece.outputMediaId ?? "")
         )
       )
@@ -400,8 +401,8 @@ describe("landing a finished shot", () => {
   })
 
   it("keeps a failed shot off the timeline, with its reason, until Try again", async () => {
-    const project = await seedProject()
-    await makeLighthouseMove(project.id)
+    const video = await seedProject()
+    await makeLighthouseMove(video.id)
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => Response.json({ error: { message: "Bad picture" } }, { status: 400 }))
@@ -409,23 +410,23 @@ describe("landing a finished shot", () => {
     await videoGenerationTick()
     await movingStillTick()
 
-    const { shots } = await listStillShots(user.id, project.id)
+    const { shots } = await listStillShots(user.id, video.id)
     expect(shots).toHaveLength(1)
     expect(shots[0].status).toBe("error")
     expect(shots[0].error_message).toBe("Google could not start the video: Bad picture")
-    expect(starts((await savedTimeline(project.id)).timeline)).toEqual(starts(SEEDED))
-    expect((await savedTimeline(project.id)).timeline.tracks[0].clips[1].kind).toBe("image")
+    expect(starts((await savedTimeline(video.id)).timeline)).toEqual(starts(SEEDED))
+    expect((await savedTimeline(video.id)).timeline.tracks[0].clips[1].kind).toBe("image")
   })
 })
 
 describe("making a moving clip again", () => {
   async function landedLighthouse() {
-    const project = await seedProject()
-    await makeLighthouseMove(project.id)
+    const video = await seedProject()
+    await makeLighthouseMove(video.id)
     const first = await googleMakesIt()
     await movingStillTick()
     // Its sound turned up since it landed.
-    const current = await savedTimeline(project.id)
+    const current = await savedTimeline(video.id)
     const turnedUp: ProjectTimeline = {
       ...current.timeline,
       tracks: current.timeline.tracks.map((track) => ({
@@ -435,13 +436,13 @@ describe("making a moving clip again", () => {
         ),
       })),
     }
-    await writeProjectTimeline(user.id, project.id, turnedUp, current.version, database)
-    return { project, first }
+    await writeVideoTimeline(user.id, video.id, turnedUp, current.version, database)
+    return { video, first }
   }
 
-  function makeItAgain(projectId: string) {
+  function makeItAgain(videoId: string) {
     return createStillShot(user.id, {
-      projectId,
+      videoId,
       clipId: "seven",
       prompts: ["Waves crashing, the lamp off"],
       lengthSeconds: 4,
@@ -450,8 +451,8 @@ describe("making a moving clip again", () => {
   }
 
   it("remembers how the landed clip was made", async () => {
-    const { project, first } = await landedLighthouse()
-    const seven = (await savedTimeline(project.id)).timeline.tracks[0].clips[1]
+    const { video, first } = await landedLighthouse()
+    const seven = (await savedTimeline(video.id)).timeline.tracks[0].clips[1]
     expect(seven.mediaId).toBe(first.outputMediaId)
     expect(seven.origin).toEqual({
       tool: "animate",
@@ -466,8 +467,8 @@ describe("making a moving clip again", () => {
   })
 
   it("starts on the picture it was first made from and takes the clip's place, as loud as it was", async () => {
-    const { project, first } = await landedLighthouse()
-    const shot = await makeItAgain(project.id)
+    const { video, first } = await landedLighthouse()
+    const shot = await makeItAgain(video.id)
     const [row] = await database
       .select()
       .from(videoAiGenerations)
@@ -480,12 +481,12 @@ describe("making a moving clip again", () => {
       resolution: "360p",
       aspectRatio: "9:16",
     })
-    await expect(makeItAgain(project.id)).rejects.toThrow(REMAKE_BUSY_MESSAGE)
+    await expect(makeItAgain(video.id)).rejects.toThrow(REMAKE_BUSY_MESSAGE)
 
     const second = await googleMakesIt(shot.id)
-    const before = await savedTimeline(project.id)
+    const before = await savedTimeline(video.id)
     await movingStillTick()
-    const after = await savedTimeline(project.id)
+    const after = await savedTimeline(video.id)
 
     expect(starts(after.timeline)).toEqual(starts(before.timeline))
     expect(after.timeline.tracks[0].clips[1]).toMatchObject({
@@ -500,10 +501,10 @@ describe("making a moving clip again", () => {
   })
 
   it("leaves the shot in Media when the clip was given another file meanwhile", async () => {
-    const { project } = await landedLighthouse()
-    const shot = await makeItAgain(project.id)
+    const { video } = await landedLighthouse()
+    const shot = await makeItAgain(video.id)
     await googleMakesIt(shot.id)
-    const current = await savedTimeline(project.id)
+    const current = await savedTimeline(video.id)
     const replaced: ProjectTimeline = {
       ...current.timeline,
       tracks: current.timeline.tracks.map((track) => ({
@@ -513,11 +514,11 @@ describe("making a moving clip again", () => {
         ),
       })),
     }
-    await writeProjectTimeline(user.id, project.id, replaced, current.version, database)
+    await writeVideoTimeline(user.id, video.id, replaced, current.version, database)
 
     await movingStillTick()
 
-    const after = await savedTimeline(project.id)
+    const after = await savedTimeline(video.id)
     expect(after.timeline.tracks[0].clips[1].mediaId).toBe("eight-file")
     const [landed] = await database
       .select()
@@ -527,9 +528,9 @@ describe("making a moving clip again", () => {
   })
 
   it("says which part of the recipe is gone, and asks Google for nothing", async () => {
-    const { project } = await landedLighthouse()
+    const { video } = await landedLighthouse()
     const withRecipe = async (change: Record<string, unknown>) => {
-      const current = await savedTimeline(project.id)
+      const current = await savedTimeline(video.id)
       const changed: ProjectTimeline = {
         ...current.timeline,
         tracks: current.timeline.tracks.map((track) => ({
@@ -541,19 +542,19 @@ describe("making a moving clip again", () => {
           ),
         })),
       }
-      await writeProjectTimeline(user.id, project.id, changed, current.version, database)
+      await writeVideoTimeline(user.id, video.id, changed, current.version, database)
     }
     await withRecipe({ firstFrameMediaId: "deleted-picture" })
-    await expect(makeItAgain(project.id)).rejects.toThrow(REMAKE_START_GONE_MESSAGE)
+    await expect(makeItAgain(video.id)).rejects.toThrow(REMAKE_START_GONE_MESSAGE)
     await withRecipe({ firstFrameMediaId: "still", tool: "shot", actorId: "deleted-actor" })
-    await expect(makeItAgain(project.id)).rejects.toThrow(REMAKE_ACTOR_GONE_MESSAGE)
+    await expect(makeItAgain(video.id)).rejects.toThrow(REMAKE_ACTOR_GONE_MESSAGE)
     const rows = await database.select().from(videoAiGenerations)
     expect(rows).toHaveLength(1)
   })
 
   it("still lands a shot whose starting picture was deleted from Media meanwhile", async () => {
-    const project = await seedProject()
-    const shot = await makeLighthouseMove(project.id)
+    const video = await seedProject()
+    const shot = await makeLighthouseMove(video.id)
     const piece = await googleMakesIt()
     // What deleting the file from Media does to the row.
     await database
@@ -563,7 +564,7 @@ describe("making a moving clip again", () => {
 
     await movingStillTick()
 
-    const seven = (await savedTimeline(project.id)).timeline.tracks[0].clips[1]
+    const seven = (await savedTimeline(video.id)).timeline.tracks[0].clips[1]
     expect(seven).toMatchObject({ kind: "video", mediaId: piece.outputMediaId })
     expect(seven.origin).toBeUndefined()
   })
@@ -580,10 +581,10 @@ describe("making a picture move on Seedance", () => {
   })
 
   it("makes it on Seedance without sound, lands it, and Make it again stays there", async () => {
-    const project = await seedProject()
+    const video = await seedProject()
     await saveVideoKey("seedance", "ark-1234")
     await createStillShot(user.id, {
-      projectId: project.id,
+      videoId: video.id,
       clipId: "seven",
       prompts: ["Waves crashing, lamp turning"],
       lengthSeconds: 4,
@@ -610,11 +611,11 @@ describe("making a picture move on Seedance", () => {
     )
     await videoGenerationTick()
     await movingStillTick()
-    const seven = (await savedTimeline(project.id)).timeline.tracks[0].clips[1]
+    const seven = (await savedTimeline(video.id)).timeline.tracks[0].clips[1]
     expect(seven.origin).toMatchObject({ model: "seedance-1.5-pro", quality: "480p", sound: false })
 
     await createStillShot(user.id, {
-      projectId: project.id,
+      videoId: video.id,
       clipId: "seven",
       prompts: ["Waves crashing, the lamp off"],
       lengthSeconds: 4,
@@ -630,10 +631,10 @@ describe("making a picture move on Seedance", () => {
   })
 
   it("refuses Seedance with no key, saying where it goes", async () => {
-    const project = await seedProject()
+    const video = await seedProject()
     await expect(
       createStillShot(user.id, {
-        projectId: project.id,
+        videoId: video.id,
         clipId: "seven",
         prompts: ["Waves"],
         lengthSeconds: 4,

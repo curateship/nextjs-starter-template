@@ -43,6 +43,37 @@ cards; the Text and Media panels set it inline as 12. Gaps between whole
 sections, such as Your sounds and the library in Sounds, are larger on purpose
 and are not the gutter.
 
+## No loading circle in the side panels
+
+A rail tab's panel stays blank under its header until its list arrives, then
+draws it. It never shows a spinning circle. Tyler, 2 Nov 2026: "remove the
+circle loading screen in the left panels because the content is not slow
+enough so the loading circle just causes a flicker instead." That covers the
+video editor's Videos, Music, Sounds, Voiceovers (and Your voices),
+AI clip (and its Carousels card), Copy, Exports and History panels, the
+carousel editor's Carousels and Media panels, and the sticker list in both.
+
+A failed load still says so, with a Try again button. The spinners left are on
+buttons while they work, on a file still being got ready, and inside windows
+such as Move to project, which are not side panels.
+
+## The Videos and Carousels tabs keep their list when you switch
+
+The editor is drawn afresh for every video or carousel you open, so the
+Videos and Carousels tabs used to empty and load again on each switch. They
+now keep what they last showed for that project: the list, the search, the
+filter and how far down it was scrolled. The new one draws that at once and
+then reads the list again quietly, so a change made elsewhere still shows up.
+The memory lasts until the page is reloaded (`remembered` in
+`src/components/video-assets/pieces-panel.tsx`).
+
+The player in the middle measures its space before it is first drawn, in both
+editors, so a switch goes straight from one video or slide to the next. It
+used to draw one empty frame first while it waited to measure (Tyler, 2 Nov
+2026: "the player in the middle still flashes"). Footage still has to load
+in the new video, so a clip can show black for a moment until its first
+frame arrives.
+
 ## The playhead runs the full height of the timeline
 
 The red playhead, and the alignment line that appears while a clip is being

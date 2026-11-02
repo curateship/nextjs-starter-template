@@ -101,7 +101,7 @@ export function VoiceDialog({
   /** Which writer would check the script, for the price shown. */
   available: AiToolsAvailability | null
 }) {
-  const { store, dispatch, projectId } = useEditorRuntime()
+  const { store, dispatch, videoId } = useEditorRuntime()
   const captions = useCaptionPlacement()
   const [script, setScript] = React.useState("")
   const [voices, setVoices] = React.useState<Voice[] | null>(null)
@@ -235,7 +235,7 @@ export function VoiceDialog({
     setChecking(true)
     try {
       // The checklist is about the words, so the directions stay out of it.
-      const result = await checkVoiceScript(spoken, speed, projectId)
+      const result = await checkVoiceScript(spoken, speed, videoId)
       dismissErrorToast()
       setChecked({ script, speed, result })
     } catch (error) {
@@ -266,7 +266,7 @@ export function VoiceDialog({
         voiceName: voice.name,
         modelId,
         text: script,
-        projectId,
+        videoId,
         settings: {
           ...createDefaultVoiceSettings(),
           speed,

@@ -38,11 +38,8 @@ import {
 } from "@/server/video/carousel-video-slides"
 import { getOwnedCarouselDetail } from "@/server/video/carousels"
 import { runFfmpeg } from "@/server/video/ffmpeg"
-import {
-  createOwnedProject,
-  deleteOwnedProjects,
-  writeProjectTimeline,
-} from "@/server/video/projects"
+import { writeVideoTimeline } from "@/server/video/project-videos"
+import { createOwnedProject, deleteOwnedProjects } from "@/server/video/projects"
 import { enqueueRenderJobs } from "@/server/video/render-queue"
 
 /**
@@ -217,25 +214,25 @@ export async function makeCarouselVideo({
       placed.push({ kind: "image" as const, mediaId: asset.id, url: asset.url, name, ms })
     }
 
-    const project = await createOwnedProject(userId, `${carousel.name} video`, database)
-    projectId = project.id
-    await writeProjectTimeline(
+    const made = await createOwnedProject(userId, `${carousel.name} video`, database)
+    projectId = made.project.id
+    await writeVideoTimeline(
       userId,
-      project.id,
+      made.video,
       carouselVideoTimeline({ slides: placed, transition, music: musicSource }),
-      project.version,
+      1,
       database
     )
     const jobs = await enqueueRenderJobs({
       userId,
-      projectId: project.id,
+      videoId: made.video,
       aspects: ["9:16"],
       quality: "high",
       frameRate: DEFAULT_FRAME_RATE,
       title: `${carousel.name} video`,
       database,
     })
-    return { projectId: project.id, jobs }
+    return { projectId: made.project.id, videoId: made.video, jobs }
   } catch (error) {
     // The project and the slides already kept go again, so a failed try
     // (a full render queue, say) leaves no half-made project behind and

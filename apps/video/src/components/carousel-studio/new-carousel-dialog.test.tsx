@@ -12,8 +12,8 @@ const calls = vi.hoisted(() => ({
 
 vi.mock("@/lib/api/video/carousels", () => ({
   getCarouselErrorMessage: (error: unknown) => String(error),
-  createCarousel: vi.fn(async (name: string) => ({ id: "blank", name })),
-  createFromTemplate: vi.fn(async (templateId: string, name: string) => {
+  createCarousel: vi.fn(async (_projectId: string, name: string) => ({ id: "blank", name })),
+  createFromTemplate: vi.fn(async (_projectId: string, templateId: string, name: string) => {
     calls.fromTemplate.push({ templateId, name })
     return { id: "from-template", name }
   }),
@@ -69,7 +69,12 @@ async function render(onCreated = vi.fn()) {
   await act(async () => {
     root?.render(
       <TooltipProvider>
-        <NewCarouselDialog open onClose={() => undefined} onCreated={onCreated} />
+        <NewCarouselDialog
+          open
+          carouselProjectId="carousel-project-1"
+          onClose={() => undefined}
+          onCreated={onCreated}
+        />
       </TooltipProvider>
     )
   })
@@ -109,9 +114,13 @@ async function submit() {
 describe("New carousel", () => {
   it("offers a template only to someone who has one", async () => {
     await render()
+    // The start tabs; Blank also offers the shape.
     expect([...document.querySelectorAll("[role=tab]")].map((element) => element.textContent)).toEqual([
       "Blank",
       "Write it with AI",
+      "4:5",
+      "1:1",
+      "9:16",
     ])
   })
 
@@ -133,7 +142,7 @@ describe("New carousel", () => {
     await type("#new-carousel-topic", "5 mistakes new runners make")
     await submit()
     expect(calls.written).toEqual([
-      [{ kind: "topic", text: "5 mistakes new runners make" }, 7, "4:5"],
+      ["carousel-project-1", { kind: "topic", text: "5 mistakes new runners make" }, 7, "4:5"],
     ])
     expect(onCreated).toHaveBeenCalledWith({ id: "written", name: "Running tips" })
   })
@@ -145,6 +154,7 @@ describe("New carousel", () => {
     await type("#new-carousel-link", "https://example.com/post")
     await submit()
     expect(calls.written[0]).toEqual([
+      "carousel-project-1",
       { kind: "link", url: "https://example.com/post" },
       7,
       "4:5",

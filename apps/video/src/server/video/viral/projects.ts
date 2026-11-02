@@ -37,7 +37,7 @@ import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
   videoCreators,
-  videoProjects,
+  videoProjectVideos,
   videoViralCollectionItems,
   videoViralProjectCreators,
   videoViralProjectFolders,
@@ -510,8 +510,8 @@ export async function viralDeleteSummary(
       .where(inArray(videoViralCollectionItems.sourceProjectId, owned)),
     db
       .select({ total: count() })
-      .from(videoProjects)
-      .where(inArray(videoProjects.sourceViralProjectId, owned)),
+      .from(videoProjectVideos)
+      .where(inArray(videoProjectVideos.sourceViralProjectId, owned)),
   ])
   return {
     videos: videos[0]?.total ?? 0,

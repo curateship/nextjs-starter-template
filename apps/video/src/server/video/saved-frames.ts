@@ -10,7 +10,7 @@ import {
 } from "@/server/video/asset-factories/media"
 import { getOwnedExport } from "@/server/video/exports"
 import { attachMediaToScope } from "@/server/video/media-list"
-import { getOwnedProject } from "@/server/video/projects"
+import { getOwnedVideo } from "@/server/video/project-videos"
 import {
   extractCoverFrameFromStorage,
   renderTimelineFrame,
@@ -85,13 +85,13 @@ export async function saveOwnedExportFrame({
   atMs: number
 }): Promise<SavedFrame> {
   const row = await getOwnedExport(userId, exportId)
-  // A carousel export has no project and no moments to take a frame from.
-  const projectId = row.projectId
-  if (row.status !== "ready" || !row.storagePath || !projectId) {
+  // A carousel export has no video and no moments to take a frame from.
+  const videoId = row.videoId
+  if (row.status !== "ready" || !row.storagePath || !videoId) {
     throw new Error(RENDER_NOT_FOUND_MESSAGE)
   }
   const storagePath = row.storagePath
-  const project = await getOwnedProject(userId, projectId)
+  const video = await getOwnedVideo(userId, videoId)
 
   // The slider runs to the very end, where there is no frame left to take.
   const lastFrameMs = Math.max(0, (row.durationMs ?? 0) - 1000 / row.frameRate)
@@ -104,33 +104,33 @@ export async function saveOwnedExportFrame({
 
     return keepFrame({
       userId,
-      projectId,
-      name: savedFrameName(project.name, momentMs),
+      projectId: video.projectId,
+      name: savedFrameName(video.name, momentMs),
       bytes,
     })
   })
 }
 
 /**
- * The frame under the editor's playhead, drawn from the saved project at the
- * size a best-quality export would be.
+ * The frame under the editor's playhead, drawn from the saved video at the
+ * size a best-quality export would be. It goes on the project's media shelf.
  */
-export async function saveOwnedProjectFrame({
+export async function saveOwnedVideoFrame({
   userId,
-  projectId,
+  videoId,
   atMs,
 }: {
   userId: string
-  projectId: string
+  videoId: string
   atMs: number
 }): Promise<SavedFrame> {
-  const project = await getOwnedProject(userId, projectId)
+  const video = await getOwnedVideo(userId, videoId)
   return oneAtATime(userId, async () => {
     let bytes: Uint8Array
     try {
       bytes = await renderTimelineFrame({
         userId,
-        timeline: project.timeline,
+        timeline: video.timeline,
         atMs,
       })
     } catch (error) {
@@ -145,8 +145,8 @@ export async function saveOwnedProjectFrame({
 
     return keepFrame({
       userId,
-      projectId,
-      name: savedFrameName(project.name, atMs),
+      projectId: video.projectId,
+      name: savedFrameName(video.name, atMs),
       bytes,
     })
   })

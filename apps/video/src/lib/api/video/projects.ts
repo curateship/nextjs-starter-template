@@ -8,58 +8,50 @@ import {
   PROJECT_NOT_FOUND_MESSAGE,
 } from "@/lib/video/projects"
 import { FOLDER_NOT_FOUND_MESSAGE } from "@/lib/video/project-folders"
-import { PROJECT_SPEND_LIMIT_MAX_DOLLARS } from "@/lib/video/project-spend"
 import {
   LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE,
   MAX_STYLE_LENGTH,
 } from "@/lib/video/visual-style"
 import {
+  VIDEO_NAME_REQUIRED_MESSAGE,
+  VIDEO_NOT_FOUND_MESSAGE,
+} from "@/lib/video/project-videos"
+import {
   PROJECT_CONFLICT_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
-  timelineSchema,
-  type ProjectTimeline,
 } from "@/lib/video/timeline-schema"
 import { userGet, userPost } from "@/server/guards"
-import { editorGet, editorPost } from "@/server/video/editor-guards"
-import { actorFor, guestEditorName } from "@/server/video/project-guests"
-import { readProjectSpend } from "@/server/video/project-spend"
 import {
   createOwnedProject,
   deleteOwnedProjects,
   duplicateOwnedProject,
-  getOwnedProjectDetail,
-  keepRefusedTimeline,
   listOwnedProjects,
   renameOwnedProject,
   saveOwnedProjectSettings,
   setProjectPinned,
   setProjectsArchived,
   summarizeProjectDelete,
-  writeProjectTimeline,
   type ProjectActor,
   type ProjectDeleteSummary,
-  type ProjectDetail,
   type ProjectItem,
   type ProjectListResponse,
   type ProjectSource,
 } from "@/server/video/projects"
-import type { ProjectSpend } from "@/lib/video/project-spend"
 
 /**
- * The studio's project endpoints. Everything is per-person — a project belongs
- * to whoever made it, and every one of these carries the owner's id from the
- * session rather than from the request.
+ * The studio's project endpoints: the projects table and what a project
+ * holds for all its videos. A project's videos are in `project-videos.ts`.
+ * Everything is per-person: a project belongs to whoever made it, and every
+ * one of these carries the owner's id from the session rather than from the
+ * request.
  */
 
 export type {
   ProjectActor,
   ProjectDeleteSummary,
-  ProjectDetail,
   ProjectItem,
   ProjectListResponse,
   ProjectSource,
-  ProjectSpend,
-  ProjectTimeline,
 }
 
 const KNOWN_MESSAGES = new Set([
@@ -69,6 +61,8 @@ const KNOWN_MESSAGES = new Set([
   PROJECT_CONFLICT_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
   LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE,
+  VIDEO_NOT_FOUND_MESSAGE,
+  VIDEO_NAME_REQUIRED_MESSAGE,
 ])
 
 export function getProjectErrorMessage(error: unknown) {
@@ -99,13 +93,6 @@ const listSchema = z
   })
   .optional()
 
-// The timeline is checked against the editor's own schema here, before it can
-// reach the database: a save is the only way anything gets into that column.
-const saveSchema = projectIdSchema.extend({
-  timeline: timelineSchema,
-  version: z.number().int().min(1),
-})
-
 const listProjectsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(listSchema)
@@ -119,16 +106,6 @@ const listProjectsFn = createServerFn({ method: "GET" })
       archived: data?.archived,
       actorId: data?.actorId,
     })
-  })
-
-// A guest sent from Project opens and saves their own project
-// (`workspace/docs/project-guests.md`).
-const getProjectFn = createServerFn({ method: "GET" })
-  .middleware([editorGet])
-  .inputValidator(projectIdSchema)
-  .handler(async ({ data, context }) => {
-    const { userId } = await actorFor(context.caller, data.projectId)
-    return getOwnedProjectDetail(userId, data.projectId)
   })
 
 const createProjectFn = createServerFn({ method: "POST" })
@@ -175,38 +152,10 @@ const deleteProjectsFn = createServerFn({ method: "POST" })
     )
   })
 
-const saveProjectTimelineFn = createServerFn({ method: "POST" })
-  .middleware([editorPost])
-  .inputValidator(saveSchema)
-  .handler(async ({ data, context }) => {
-    const { userId, guest } = await actorFor(context.caller, data.projectId)
-    return writeProjectTimeline(
-      userId,
-      data.projectId,
-      data.timeline,
-      data.version,
-      undefined,
-      guestEditorName(guest)
-    )
-  })
-
-const keepRefusedTimelineFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(projectIdSchema.extend({ timeline: timelineSchema }))
-  .handler(async ({ data, context }) => {
-    return keepRefusedTimeline(context.user.id, data.projectId, data.timeline)
-  })
-
 const projectSettingsSchema = projectIdSchema.extend({
   name: nameSchema.shape.name,
   style: z.string().max(MAX_STYLE_LENGTH).nullable(),
   lookPictureUrl: z.string().url().max(2048).nullable(),
-  spendLimitCents: z
-    .number()
-    .int()
-    .min(1)
-    .max(PROJECT_SPEND_LIMIT_MAX_DOLLARS * 100)
-    .nullable(),
 })
 
 const saveProjectSettingsFn = createServerFn({ method: "POST" })
@@ -241,13 +190,6 @@ const deleteSummaryFn = createServerFn({ method: "GET" })
     return summarizeProjectDelete(context.user.id, data.projectIds)
   })
 
-const projectSpendFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
-  .inputValidator(projectIdSchema)
-  .handler(async ({ data, context }): Promise<ProjectSpend> => {
-    return readProjectSpend(context.user.id, data.projectId)
-  })
-
 export function listProjects({
   page = 1,
   pageSize = 24,
@@ -278,21 +220,15 @@ export function pinProject(projectId: string, pinned: boolean) {
   return pinProjectFn({ data: { projectId, pinned } })
 }
 
-/** How many first frames, AI clips and exports go with these projects. */
+/** How many videos, first frames, AI clips and exports go with these projects. */
 export function loadProjectDeleteSummary(projectIds: string[]) {
   return deleteSummaryFn({ data: { projectIds } })
 }
 
-/** What this project has spent on AI so far, and its limit. */
-export function loadProjectSpend(projectId: string) {
-  return projectSpendFn({ data: { projectId } })
-}
-
-export function getProject(projectId: string) {
-  return getProjectFn({ data: { projectId } })
-}
-
-/** `folderId` files the new project straight into that folder. */
+/**
+ * A new project with its first video. `folderId` files it straight into that
+ * folder.
+ */
 export function createProject(name: string, folderId?: string | null) {
   return createProjectFn({ data: { name, folderId } })
 }
@@ -309,23 +245,7 @@ export function deleteProjects(projectIds: string[], deleteCarousels = false) {
   return deleteProjectsFn({ data: { projectIds, deleteCarousels } })
 }
 
-export function saveProjectTimeline(
-  projectId: string,
-  timeline: ProjectTimeline,
-  version: number
-) {
-  return saveProjectTimelineFn({ data: { projectId, timeline, version } })
-}
-
-/** Keeps a refused save as a new project beside the original. */
-export function keepRefusedProjectTimeline(
-  projectId: string,
-  timeline: ProjectTimeline
-) {
-  return keepRefusedTimelineFn({ data: { projectId, timeline } })
-}
-
-/** The name, the look and the spend limit, from the project's Settings window. */
+/** The name and the look, from the project's Settings window. */
 export function saveProjectSettings(
   settings: z.infer<typeof projectSettingsSchema>
 ) {

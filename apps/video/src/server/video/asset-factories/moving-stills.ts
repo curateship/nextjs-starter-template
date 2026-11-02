@@ -38,12 +38,13 @@ import { db } from "@/server/db"
 import { publishNotificationCreated } from "@/server/notifications/events"
 import { customShellMedia, customShellNotifications } from "@/server/schema"
 import { attachPastedMediaToProject } from "@/server/video/media-list"
-import { getOwnedProject, writeProjectTimeline } from "@/server/video/projects"
+import { getOwnedVideo, writeVideoTimeline } from "@/server/video/project-videos"
 import { saveAiDefaults } from "@/server/video/settings"
 import {
   videoActors,
   videoAiGenerations,
   videoEditorWindows,
+  videoProjectVideos,
 } from "@/server/video/schema"
 import {
   companiesReady,
@@ -89,7 +90,8 @@ const LANDINGS_PER_PASS = 10
 export async function createStillShot(
   userId: string,
   payload: {
-    projectId: string
+    /** The video whose timeline holds the clip. It pays for the shot. */
+    videoId: string
     clipId: string
     prompts: string[]
     lengthSeconds: ShotLengthSeconds
@@ -104,8 +106,8 @@ export async function createStillShot(
     throw new Error("Write one direction for each piece of the shot")
   }
   const prompts = payload.prompts.map(assetPrompt)
-  const project = await getOwnedProject(userId, payload.projectId)
-  const { timeline } = parseTimelineForReset(project.timeline)
+  const video = await getOwnedVideo(userId, payload.videoId)
+  const { timeline } = parseTimelineForReset(video.timeline)
   const clip = timeline.tracks
     .flatMap((track) => track.clips)
     .find((candidate) => candidate.id === payload.clipId)
@@ -154,7 +156,7 @@ export async function createStillShot(
     .where(
       and(
         eq(videoAiGenerations.userId, userId),
-        eq(videoAiGenerations.projectId, project.id),
+        eq(videoAiGenerations.videoId, video.id),
         eq(videoAiGenerations.clipId, clip.id),
         isNull(videoAiGenerations.clipOutcome)
       )
@@ -173,7 +175,7 @@ export async function createStillShot(
   if (!(await companiesReady())[company]) throw new Error(missingKeyMessage(company))
   await requireRoomForShot(
     userId,
-    project.id,
+    { projectId: video.projectId, videoId: video.id },
     shotCostCents(payload.lengthSeconds, model.id, size, sound)
   )
   const aspectRatio = remade
@@ -205,7 +207,8 @@ export async function createStillShot(
         prompts.map((prompt, index) => ({
           id: index === 0 ? shotId : uuid(),
           userId,
-          projectId: project.id,
+          projectId: video.projectId,
+          videoId: video.id,
           firstFrameId: null,
           firstFrameMediaId: index === 0 ? media.id : null,
           prompt,
@@ -242,13 +245,13 @@ export async function createStillShot(
 }
 
 /**
- * This project's shots for timeline clips that have not landed yet: being
+ * This video's shots for timeline clips that have not landed yet: being
  * made, failed, or ready and waiting for the editor or the worker to land.
  */
-export async function listStillShots(userId: string, projectId: string) {
-  await getOwnedProject(userId, projectId)
+export async function listStillShots(userId: string, videoId: string) {
+  await getOwnedVideo(userId, videoId)
   const rows = (
-    await generationRows(userId, { projectId }).orderBy(
+    await generationRows(userId, { videoId }).orderBy(
       asc(videoAiGenerations.shotId),
       asc(videoAiGenerations.shotIndex)
     )
@@ -317,8 +320,8 @@ export async function settleStillShot(
 }
 
 /**
- * Lands one finished shot with nobody editing the project: swaps the picture
- * for the shot and saves the project, as one change, in the same step that
+ * Lands one finished shot with nobody editing the video: swaps the picture
+ * for the shot and saves the video, as one change, in the same step that
  * marks the shot landed. A save that meets a newer version rolls the whole
  * step back, and the next pass tries again.
  */
@@ -328,8 +331,15 @@ async function landStillShot(userId: string, shotId: string) {
   const pieces = readyPieces(rows)
   if (!first.clipId || first.clipOutcome || !pieces) return
 
-  const project = await getOwnedProject(userId, first.projectId)
-  const { timeline } = parseTimelineForReset(project.timeline)
+  // A deleted video blanks the shot's video, and then its clip is gone too.
+  const [video] = first.videoId
+    ? await db
+        .select()
+        .from(videoProjectVideos)
+        .where(and(eq(videoProjectVideos.id, first.videoId), eq(videoProjectVideos.userId, userId)))
+        .limit(1)
+    : []
+  const { timeline } = parseTimelineForReset(video?.timeline ?? { tracks: [], aspect: "9:16" })
   const landed = landMovingShot(timeline.tracks, {
     clipId: first.clipId,
     clipMediaId: first.clipMediaId,
@@ -349,18 +359,18 @@ async function landStillShot(userId: string, shotId: string) {
       )
       .returning({ id: videoAiGenerations.id })
     if (!row) return
-    if (landed.outcome === "replaced") {
-      await writeProjectTimeline(
+    if (landed.outcome === "replaced" && video) {
+      await writeVideoTimeline(
         userId,
-        project.id,
+        video.id,
         { ...timeline, tracks: landed.tracks },
-        project.version,
+        video.version,
         tx
       )
     }
     await attachPastedMediaToProject(
       userId,
-      project.id,
+      first.projectId,
       pieces.map((piece) => piece.mediaId),
       tx
     )
@@ -370,7 +380,9 @@ async function landStillShot(userId: string, shotId: string) {
         recipientUserId: userId,
         type: "app_activity",
         message: "A moving shot arrived after its clip was gone",
-        detail: `The clip it was for was deleted from "${project.name}" while the shot was being made. The shot is in that project's Media panel.`,
+        detail: video
+          ? `The clip it was for was deleted from "${video.name}" while the shot was being made. The shot is in that project's Media panel.`
+          : "The video it was for was deleted while the shot was being made. The shot is in that project's Media panel.",
         createdAt: now(),
       })
       await publishNotificationCreated(userId, tx)
@@ -381,8 +393,8 @@ async function landStillShot(userId: string, shotId: string) {
 /**
  * One worker pass: lands shots for timeline clips once every piece is
  * ready. Pieces finish one after another, so a ready last piece means a
- * finished shot. A project a window is editing is passed over, because that
- * editor lands the shot itself, and passing it over here means a project
+ * finished shot. A video a window is editing is passed over, because that
+ * editor lands the shot itself, and passing it over here means a video
  * left open for hours never holds up anybody else's.
  */
 export async function movingStillTick() {
@@ -391,7 +403,7 @@ export async function movingStillTick() {
     .from(videoEditorWindows)
     .where(
       and(
-        eq(videoEditorWindows.projectId, videoAiGenerations.projectId),
+        eq(videoEditorWindows.videoId, videoAiGenerations.videoId),
         eq(videoEditorWindows.mode, "edit"),
         gte(
           videoEditorWindows.seenAt,

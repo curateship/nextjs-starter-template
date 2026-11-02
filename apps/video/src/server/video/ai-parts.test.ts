@@ -57,7 +57,8 @@ async function insertMedia(fileType: "image" | "video" | "audio", id = uuid()) {
 /** A project with a first frame, a shot from it, and two voiceovers kept on the shelf. */
 async function seedMadeByAi() {
   const at = now()
-  const project = await createOwnedProject(user.id, "Bread", database)
+  const made = await createOwnedProject(user.id, "Bread", database)
+  const project = made.project
   const actorId = uuid()
   await database.insert(videoActors).values({
     id: actorId,
@@ -91,6 +92,8 @@ async function seedMadeByAi() {
     id: "shot-1",
     userId: user.id,
     projectId: project.id,
+    // The project's one video pays for the shot.
+    videoId: made.video,
     firstFrameId: frameId,
     firstFrameMediaId: frameMediaId,
     prompt: "She turns",
@@ -167,7 +170,7 @@ describe("workOutAiParts", () => {
     ])
   })
 
-  it("is an empty list for a project of uploads", async () => {
+  it("is an empty list for a video of uploads", async () => {
     const upload = await insertMedia("video")
     const timeline: ProjectTimeline = {
       aspect: "9:16",
@@ -186,7 +189,8 @@ describe("an export's AI list", () => {
       .values({
         id: uuid(),
         userId: ownerId,
-        projectId: project.id,
+        projectId: project.project.id,
+        videoId: project.video,
         status: "ready",
         quality: "high",
         aspect: "9:16",

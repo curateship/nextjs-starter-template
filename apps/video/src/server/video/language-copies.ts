@@ -20,10 +20,10 @@ import {
 import { uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
-  getOwnedProject,
+  getOwnedVideo,
   insertLanguageCopy,
-  type ProjectItem,
-} from "@/server/video/projects"
+  type VideoItem,
+} from "@/server/video/project-videos"
 import { renderRefusalReason, timelineEndMs } from "@/server/video/render"
 import {
   enqueueRenderJobs,
@@ -34,19 +34,20 @@ import { getCaptionSettings } from "@/server/video/settings"
 
 /**
  * One language of Every language in one press
- * (workspace/docs/another-language.md): a copy of the project with the
- * translation read aloud over the original, and its export queued.
+ * (workspace/docs/another-language.md): a copy of the video, in the same
+ * project, with the translation read aloud over the original, and its export
+ * queued.
  *
- * The copy is made from the project as it is saved now, with the new voice on
+ * The copy is made from the video as it is saved now, with the new voice on
  * a lane of its own from where the talking starts, its captions in the saved
  * look above everything, and the original talking turned down to a fifth,
  * exactly as the single-language tool lays them in the editor. The original
- * project is only read.
+ * video is only read.
  */
 
 export type LanguageCopyResult = {
   language: TranslateLanguage
-  project: ProjectItem
+  video: VideoItem
   /** The copy's export, or null when the queue refused it. */
   exports: RenderJobSummary[] | null
   /** Why the export was not queued, in words, when it was not. */
@@ -63,27 +64,27 @@ function hasClip(timeline: ProjectTimeline, clipId: string) {
 }
 
 /**
- * Checked before anything is paid for: the project is the caller's, its
+ * Checked before anything is paid for: the video is the caller's, its
  * timeline reads, the talking it was translated from is still on it, the new
- * voice starts inside the project, a voice and its captions still fit, and
+ * voice starts inside the video, a voice and its captions still fit, and
  * the copy's export would be taken. The export is asked again once the copy
  * is made, and a refusal then leaves the copy standing.
  */
 export async function checkLanguageCopy(
   {
     userId,
-    projectId,
+    videoId,
     sourceClipId,
     startsAtMs,
   }: {
     userId: string
-    projectId: string
+    videoId: string
     sourceClipId: string
     startsAtMs: number
   },
   database: CustomShellDb = db
 ) {
-  const source = await getOwnedProject(userId, projectId, database)
+  const source = await getOwnedVideo(userId, videoId, database)
   const timeline = requireCanonicalTimeline(source.timeline)
   if (!hasClip(timeline, sourceClipId)) {
     throw new Error(TRANSLATE_SOURCE_GONE_MESSAGE)
@@ -104,14 +105,14 @@ export async function checkLanguageCopy(
 export async function makeLanguageCopy(
   {
     userId,
-    projectId,
+    videoId,
     sourceClipId,
     language,
     said,
     startsAtMs,
   }: {
     userId: string
-    projectId: string
+    videoId: string
     sourceClipId: string
     language: TranslateLanguage
     said: SpokenLine
@@ -121,8 +122,8 @@ export async function makeLanguageCopy(
   database: CustomShellDb = db
 ): Promise<LanguageCopyResult> {
   // Read again after the voice, which took a while: the copy is made from
-  // the project as it is saved at this moment.
-  const source = await getOwnedProject(userId, projectId, database)
+  // the video as it is saved at this moment.
+  const source = await getOwnedVideo(userId, videoId, database)
   const timeline = requireCanonicalTimeline(source.timeline)
   if (!hasClip(timeline, sourceClipId)) {
     throw new Error(`${TRANSLATE_SOURCE_GONE_MESSAGE}. ${KEPT_IN_VOICES}`)
@@ -161,7 +162,7 @@ export async function makeLanguageCopy(
     },
     uuid
   )
-  const project = await insertLanguageCopy(
+  const video = await insertLanguageCopy(
     source,
     language,
     { ...timeline, tracks },
@@ -173,19 +174,19 @@ export async function makeLanguageCopy(
   try {
     const exports = await enqueueRenderJobs({
       userId,
-      projectId: project.id,
+      videoId: video.id,
       aspects: [timeline.aspect],
       quality: DEFAULT_RENDER_QUALITY,
       frameRate: DEFAULT_FRAME_RATE,
-      title: project.name,
+      title: video.name,
       database,
     })
-    return { language, project, exports, exportProblem: null }
+    return { language, video, exports, exportProblem: null }
   } catch (error) {
     const message = error instanceof Error ? error.message : ""
     return {
       language,
-      project,
+      video,
       exports: null,
       exportProblem: message || "The export could not be queued",
     }

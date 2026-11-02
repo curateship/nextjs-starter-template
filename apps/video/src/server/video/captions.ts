@@ -11,7 +11,6 @@ import {
   type CaptionsResult,
 } from "@/lib/video/captions"
 import { sourceEndMs, sourceSpanMs } from "@/lib/video/clip-playback"
-import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
 import { pickTranscriber } from "@/lib/video/ai-choices"
 import { wordsInStretch } from "@/lib/video/transcripts"
@@ -20,7 +19,8 @@ import { db } from "@/server/db"
 import { customShellMedia } from "@/server/schema"
 import { getAiKeysSaved } from "@/server/video/ai-keys-saved"
 import { requireGeminiKey } from "@/server/video/gemini"
-import { videoProjects } from "@/server/video/schema"
+import { getOwnedVideo } from "@/server/video/project-videos"
+import { videoSpendMetadata } from "@/server/video/project-spend"
 import { getAiDefaults } from "@/server/video/settings"
 import { fileWords } from "@/server/video/transcripts"
 
@@ -42,23 +42,17 @@ import { fileWords } from "@/server/video/transcripts"
 const CAPTIONS_LABEL = "Captions"
 
 /**
- * Captions for one project of the caller's own.
+ * Captions for one video of the caller's own.
  *
  * Writing the file down is one call on the meter however many pieces it goes
  * in, and a failure charges nothing. Saved words cost nothing at all.
  */
-export async function writeProjectCaptions(
+export async function writeVideoCaptions(
   userId: string,
-  projectId: string
+  videoId: string
 ): Promise<CaptionsResult> {
-  const [project] = await db
-    .select()
-    .from(videoProjects)
-    .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
-    .limit(1)
-  if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
-
-  const timeline = requireCanonicalTimeline(project.timeline)
+  const video = await getOwnedVideo(userId, videoId)
+  const timeline = requireCanonicalTimeline(video.timeline)
   const chosen = findCaptionSource(timeline.tracks)
   if (!chosen?.clip.mediaId) throw new Error(CAPTIONS_NOT_POSSIBLE_MESSAGE)
   // The sound the clip plays, at the recording's own pace. The file behind it
@@ -107,7 +101,7 @@ export async function writeProjectCaptions(
     transcriber,
     feature: "caption_generation",
     label: CAPTIONS_LABEL,
-    projectId,
+    spend: videoSpendMetadata(video),
     tooLongMessage: CAPTIONS_TOO_LONG_MESSAGE,
     failedMessage: CAPTIONS_FAILED_MESSAGE,
   })

@@ -63,8 +63,8 @@ import { cn } from "@/lib/utils"
 export function ExportDialog({
   open,
   onOpenChange,
-  projectId,
-  projectName,
+  videoId,
+  videoName,
   projectAspect,
   projectMs,
   jobs,
@@ -72,8 +72,8 @@ export function ExportDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  projectId: string
-  projectName: string
+  videoId: string
+  videoName: string
   /** The shape the project is edited in, ticked each time the window opens. */
   projectAspect: AspectRatio
   /** How long the project runs, which the time estimate is worked from. */
@@ -89,7 +89,7 @@ export function ExportDialog({
     React.useState<RenderFrameRate>(DEFAULT_FRAME_RATE)
   const [normalize, setNormalize] = React.useState(true)
   const [busy, setBusy] = React.useState(false)
-  const [name, setName] = React.useState(projectName)
+  const [name, setName] = React.useState(videoName)
   const [shapes, setShapes] = React.useState<AspectRatio[]>([projectAspect])
   const [shapesInvalid, setShapesInvalid] = React.useState(false)
 
@@ -105,7 +105,7 @@ export function ExportDialog({
           !latest || job.created_at > latest.created_at ? job : latest,
         null
       )
-      setName(newest?.title ?? projectName)
+      setName(newest?.title ?? videoName)
       setShapes([projectAspect])
       setShapesInvalid(false)
     }
@@ -148,7 +148,7 @@ export function ExportDialog({
     setBusy(true)
     try {
       const started = await startExport(
-        projectId,
+        videoId,
         shapes,
         quality,
         frameRate,
@@ -167,7 +167,7 @@ export function ExportDialog({
   async function handleCancel() {
     setBusy(true)
     try {
-      onJobsChange(await cancelExports(projectId))
+      onJobsChange(await cancelExports(videoId))
       toast.success(
         activeCount > 1 ? "The exports were stopped." : "The export was stopped."
       )
@@ -201,7 +201,7 @@ export function ExportDialog({
                 aria-label="What to call this export"
                 value={name}
                 maxLength={EXPORT_TITLE_MAX}
-                placeholder={projectName}
+                placeholder={videoName}
                 onChange={(event) => setName(event.target.value)}
               />
             </CardContent>
@@ -229,7 +229,7 @@ export function ExportDialog({
                     <Label htmlFor={id} className="grid gap-0.5 font-normal">
                       <span className="font-medium">
                         {shape.label}
-                        {shape.id === projectAspect ? " · this project" : ""}
+                        {shape.id === projectAspect ? " · this video" : ""}
                       </span>
                       <span className="text-sm text-muted-foreground">
                         {shape.note}
@@ -301,7 +301,7 @@ export function ExportDialog({
                     {job.status === "ready" ? (
                       <Button asChild variant="outline">
                         <a
-                          href={`/api/v1/video/exports/${job.id}/file?filename=${encodeURIComponent(job.title ?? projectName)}`}
+                          href={`/api/v1/video/exports/${job.id}/file?filename=${encodeURIComponent(job.title ?? videoName)}`}
                           download
                         >
                           <DownloadIcon />

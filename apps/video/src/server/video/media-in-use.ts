@@ -5,7 +5,7 @@ import {
   videoActors,
   videoActorSheetPictures,
   videoAiGenerations,
-  videoCarouselMedia,
+  videoCarouselProjectMedia,
   videoCarousels,
   videoExtras,
   videoFirstFrames,
@@ -13,6 +13,7 @@ import {
   videoMusicTracks,
   videoProjectMedia,
   videoProjects,
+  videoProjectVideos,
   videoViralVideos,
   videoVoiceovers,
 } from "@/server/video/schema"
@@ -99,9 +100,9 @@ export async function mediaStillInUse(
       .from(videoProjects)
       .where(inArray(videoProjects.styleMediaId, ids)),
     database
-      .select({ id: videoCarouselMedia.mediaId })
-      .from(videoCarouselMedia)
-      .where(inArray(videoCarouselMedia.mediaId, ids)),
+      .select({ id: videoCarouselProjectMedia.mediaId })
+      .from(videoCarouselProjectMedia)
+      .where(inArray(videoCarouselProjectMedia.mediaId, ids)),
     database
       .select({ id: videoMediaCollectionItems.mediaId })
       .from(videoMediaCollectionItems)
@@ -121,10 +122,10 @@ export async function mediaStillInUse(
     // A timeline is one JSON document, so its clips are read where they sit.
     database.execute<{ id: string }>(sql`
       select distinct clip ->> 'mediaId' as id
-      from ${videoProjects} project
-      cross join jsonb_array_elements(coalesce(project.timeline -> 'tracks', '[]'::jsonb)) track
+      from ${videoProjectVideos} video
+      cross join jsonb_array_elements(coalesce(video.timeline -> 'tracks', '[]'::jsonb)) track
       cross join jsonb_array_elements(coalesce(track -> 'clips', '[]'::jsonb)) clip
-      where project.user_id = ${userId}
+      where video.user_id = ${userId}
         and clip ->> 'mediaId' in (${listed})
     `),
     database.execute<{ id: string }>(sql`

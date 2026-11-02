@@ -145,7 +145,7 @@ export function StickerList({
       />
     )
   }
-  if (!stickers) return <LoadingRow label="Loading stickers" />
+  if (!stickers) return null
 
   return (
     <div className="grid gap-4">

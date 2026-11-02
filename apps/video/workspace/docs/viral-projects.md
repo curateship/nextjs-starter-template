@@ -222,7 +222,7 @@ list, "Hooks" below.
 a back arrow ("Back to every video"), and the middle shows their newest
 uploads.
 
-Delete opens a window that lists the editor projects made from those videos
+Delete opens a window that lists the editor videos made from those videos
 with Make this a template, and says what happens to the downloaded files
 (`creator-research.md`, "Deleting a saved video").
 
@@ -573,13 +573,14 @@ This replaced viral task 14, Named shortlists.
 
 ## Make this a template and the editor
 
-Make this a template from a Viral project makes an editor project that remembers both
-the video and the Viral project (`video_projects.source_viral_project_id`).
-The Viral screen no longer lists those projects. In the editor, the
-Copy panel's **Open Viral** opens that Viral project with the copied video
-playing. A project copied from anywhere else, or whose Viral project was
-deleted, opens the list instead. Deleting either project never deletes the
-other.
+Make this a template from a Viral project asks where the new video goes, a new
+editor project or one you already have (Tyler, 1 Nov 2026), and makes a video
+there that remembers both the viral video and the Viral project
+(`video_project_videos.source_viral_project_id`; `project-videos.md`). In the
+editor, the Copy panel's **Open Viral** opens that Viral project with the
+copied video playing. A video copied from anywhere else, or whose Viral
+project was deleted, opens the list instead. Deleting either never deletes
+the other.
 
 ## What moved when Viral became projects
 

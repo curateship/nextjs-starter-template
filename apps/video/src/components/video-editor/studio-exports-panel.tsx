@@ -14,7 +14,6 @@ import { toast } from "sonner"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
@@ -48,7 +47,7 @@ const POLL_MS = 3_000
  * New exports are started from the Export button at the top, as before.
  */
 export function ExportsPanel() {
-  const { projectId } = useEditorRuntime()
+  const { videoId } = useEditorRuntime()
   // A guest sent from Project downloads, names and retries exports, but
   // makes no share links and deletes nothing (`workspace/docs/project-guests.md`).
   const guest = useProjectGuest() !== null
@@ -63,7 +62,7 @@ export function ExportsPanel() {
 
   React.useEffect(() => {
     let active = true
-    listExports({ projectId, pageSize: 100 })
+    listExports({ videoId, pageSize: 100 })
       .then((loaded) => {
         if (!active) return
         setList(loaded)
@@ -77,7 +76,7 @@ export function ExportsPanel() {
     return () => {
       active = false
     }
-  }, [projectId, reads])
+  }, [videoId, reads])
 
   const anyActive = list?.exports.some(isExportActive) ?? false
   React.useEffect(() => {
@@ -141,9 +140,7 @@ export function ExportsPanel() {
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          {list === null && !loadFailed ? (
-            <LoadingRow label="Loading this project's exports" />
-          ) : loadFailed ? (
+          {list === null && !loadFailed ? null : loadFailed ? (
             <div className="grid justify-items-center gap-2 py-8 text-center text-sm text-muted-foreground">
               The exports could not be loaded.
               <Button type="button" variant="outline" onClick={reload}>
@@ -152,7 +149,7 @@ export function ExportsPanel() {
             </div>
           ) : !list?.exports.length ? (
             <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-              Nothing exported from this project yet. Press Export at the top
+              Nothing exported from this video yet. Press Export at the top
               to make the video file.
             </p>
           ) : (

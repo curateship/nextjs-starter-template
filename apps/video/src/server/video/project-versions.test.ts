@@ -6,7 +6,7 @@ import {
   KEEP_VERSIONS,
   VERSION_NOT_FOUND_MESSAGE,
 } from "@/lib/video/project-versions"
-import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import { VIDEO_NOT_FOUND_MESSAGE } from "@/lib/video/project-videos"
 import {
   PROJECT_CONFLICT_MESSAGE,
   type ProjectTimeline,
@@ -15,16 +15,20 @@ import { type CustomShellDb } from "@/server/db"
 import { type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
-  listOwnedProjectVersions,
-  readOwnedProjectVersion,
+  listOwnedVideoVersions,
+  readOwnedVideoVersion,
 } from "@/server/video/project-versions"
 import {
-  createOwnedProject,
-  getOwnedProjectVersion,
-  restoreOwnedProjectVersion,
-  writeProjectTimeline,
-} from "@/server/video/projects"
-import { videoProjects, videoProjectVersions } from "@/server/video/schema"
+  getOwnedVideoVersion,
+  restoreOwnedVideoVersion,
+  writeVideoTimeline,
+} from "@/server/video/project-videos"
+import { createOwnedProject } from "@/server/video/projects"
+import {
+  videoProjects,
+  videoProjectVersions,
+  videoProjectVideos,
+} from "@/server/video/schema"
 
 let client: PGlite
 let database: CustomShellDb
@@ -69,6 +73,12 @@ function timelineOf(seconds: number): ProjectTimeline {
   }
 }
 
+/** A new project's one video, as `saveAt` and the history reads take it. */
+async function newVideo(name: string) {
+  const made = await createOwnedProject(user.id, name, database)
+  return { id: made.video, projectId: made.project.id, version: 1 }
+}
+
 /** Saves at the given moment on top of whatever was saved last. */
 async function saveAt(
   project: { id: string; version: number },
@@ -76,7 +86,7 @@ async function saveAt(
   timeline: ProjectTimeline
 ) {
   vi.setSystemTime(at)
-  const saved = await writeProjectTimeline(
+  const saved = await writeVideoTimeline(
     user.id,
     project.id,
     timeline,
@@ -87,13 +97,13 @@ async function saveAt(
 }
 
 async function storedLengths(projectId: string) {
-  const versions = await listOwnedProjectVersions(user.id, projectId, database)
+  const versions = await listOwnedVideoVersions(user.id, projectId, database)
   return versions.map((version) => [version.reason, version.duration_ms / 1000])
 }
 
-describe("project history", () => {
+describe("video history", () => {
   it("keeps a handful of versions from two hours of editing, not hundreds", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = await newVideo("Reel")
     // Yesterday's cut: 99 seconds long, last saved at 17:00.
     await saveAt(project, new Date("2026-10-18T17:00:00Z"), timelineOf(99))
 
@@ -114,7 +124,7 @@ describe("project history", () => {
       ["hourly", 60],
       ["break", 99],
     ])
-    const [, , yesterday] = await listOwnedProjectVersions(
+    const [, , yesterday] = await listOwnedVideoVersions(
       user.id,
       project.id,
       database
@@ -123,7 +133,7 @@ describe("project history", () => {
   })
 
   it("keeps the cut from before a 30 minute break", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = await newVideo("Reel")
     await saveAt(project, new Date("2026-10-18T17:00:00Z"), timelineOf(5))
     await saveAt(project, new Date("2026-10-18T17:29:00Z"), timelineOf(6))
     expect(await storedLengths(project.id)).toEqual([])
@@ -131,8 +141,8 @@ describe("project history", () => {
     expect(await storedLengths(project.id)).toEqual([["break", 6]])
   })
 
-  it("never keeps an empty timeline, and counts a new project's hour from when it was made", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+  it("never keeps an empty timeline, and counts a new video's hour from when it was made", async () => {
+    const project = await newVideo("Reel")
     // Made at 17:00 and empty: an hour later the empty one is not kept.
     await saveAt(project, new Date("2026-10-18T18:05:00Z"), timelineOf(1))
     expect(await storedLengths(project.id)).toEqual([])
@@ -143,7 +153,7 @@ describe("project history", () => {
   })
 
   it(`keeps only the newest ${KEEP_VERSIONS}`, async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = await newVideo("Reel")
     const start = new Date("2026-10-18T17:00:00Z").getTime()
     // A save every 61 minutes: each comes after a break and keeps the one
     // before it, 39 in all.
@@ -154,24 +164,24 @@ describe("project history", () => {
         timelineOf(step + 1)
       )
     }
-    const versions = await listOwnedProjectVersions(user.id, project.id, database)
+    const versions = await listOwnedVideoVersions(user.id, project.id, database)
     expect(versions).toHaveLength(KEEP_VERSIONS)
     // The newest is the save just before the last one.
     expect(versions[0].duration_ms).toBe(39_000)
   })
 
   it("keeps a clip played faster, whose length is a fraction of a millisecond", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = await newVideo("Reel")
     const faster = timelineOf(5)
     faster.tracks[0].clips[0].durationMs = 12011.111111111113
     await saveAt(project, new Date("2026-10-18T17:00:00Z"), faster)
     await saveAt(project, new Date("2026-10-19T09:00:00Z"), timelineOf(6))
-    const [kept] = await listOwnedProjectVersions(user.id, project.id, database)
+    const [kept] = await listOwnedVideoVersions(user.id, project.id, database)
     expect(kept.duration_ms).toBe(12011)
   })
 
   it("still saves when the version cannot be kept", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = await newVideo("Reel")
     await saveAt(project, new Date("2026-10-18T17:00:00Z"), timelineOf(5))
     // Every insert into the table is refused from here on.
     await client.exec(
@@ -183,14 +193,14 @@ describe("project history", () => {
     logged.mockRestore()
     const [row] = await database
       .select()
-      .from(videoProjects)
-      .where(eq(videoProjects.id, project.id))
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.id, project.id))
     expect(row.version).toBe(project.version)
     expect((row.timeline as ProjectTimeline).tracks[0].clips[0].durationMs).toBe(6000)
   })
 
   it("keeps nothing for a save another window already beat", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = await newVideo("Reel")
     await saveAt(project, new Date("2026-10-18T17:00:00Z"), timelineOf(5))
     const stale = { id: project.id, version: project.version }
     await saveAt(project, new Date("2026-10-18T17:01:00Z"), timelineOf(6))
@@ -201,12 +211,12 @@ describe("project history", () => {
   })
 
   it("looking at a version changes nothing", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = await newVideo("Reel")
     await saveAt(project, new Date("2026-10-18T17:00:00Z"), timelineOf(5))
     await saveAt(project, new Date("2026-10-19T09:00:00Z"), timelineOf(6))
-    const [kept] = await listOwnedProjectVersions(user.id, project.id, database)
+    const [kept] = await listOwnedVideoVersions(user.id, project.id, database)
 
-    const seen = await getOwnedProjectVersion(
+    const seen = await getOwnedVideoVersion(
       user.id,
       project.id,
       kept.id,
@@ -215,17 +225,17 @@ describe("project history", () => {
     expect(seen.timeline.tracks[0].clips[0].durationMs).toBe(5000)
     const [row] = await database
       .select()
-      .from(videoProjects)
-      .where(eq(videoProjects.id, project.id))
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.id, project.id))
     expect(row.version).toBe(project.version)
     expect(await storedLengths(project.id)).toEqual([["break", 5]])
   })
 
   it("restoring keeps what was there first, so a restore can be undone", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = await newVideo("Reel")
     await saveAt(project, new Date("2026-10-18T17:00:00Z"), timelineOf(5))
     await saveAt(project, new Date("2026-10-19T09:00:00Z"), timelineOf(6))
-    const [morning] = await listOwnedProjectVersions(
+    const [morning] = await listOwnedVideoVersions(
       user.id,
       project.id,
       database
@@ -233,7 +243,7 @@ describe("project history", () => {
 
     // An hour later, restore the 5 second cut.
     vi.setSystemTime(new Date("2026-10-19T10:00:00Z"))
-    const restored = await restoreOwnedProjectVersion(
+    const restored = await restoreOwnedVideoVersion(
       user.id,
       project.id,
       morning.id,
@@ -254,12 +264,12 @@ describe("project history", () => {
     ])
 
     // Disliking it, "Before restoring" brings the 6 second cut back.
-    const [before] = await listOwnedProjectVersions(
+    const [before] = await listOwnedVideoVersions(
       user.id,
       project.id,
       database
     )
-    const undone = await restoreOwnedProjectVersion(
+    const undone = await restoreOwnedVideoVersion(
       user.id,
       project.id,
       before.id,
@@ -269,20 +279,20 @@ describe("project history", () => {
   })
 
   it("restoring back and forth keeps each cut once, not once per press", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = await newVideo("Reel")
     // The old cut is stored without the address the editor later fills in.
     const oldCut = timelineOf(5)
     delete oldCut.tracks[0].clips[0].url
     await saveAt(project, new Date("2026-10-18T17:00:00Z"), oldCut)
     await saveAt(project, new Date("2026-10-19T09:00:00Z"), timelineOf(11))
-    const [older] = await listOwnedProjectVersions(user.id, project.id, database)
+    const [older] = await listOwnedVideoVersions(user.id, project.id, database)
 
     // Restore the old cut, the 11 second one, the old cut again, and so on,
     // saving each the way the editor does: with its address filled in.
     let pick = older.id
     for (let press = 0; press < 4; press += 1) {
       vi.setSystemTime(new Date(Date.UTC(2026, 9, 19, 10, press)))
-      const restored = await restoreOwnedProjectVersion(
+      const restored = await restoreOwnedVideoVersion(
         user.id,
         project.id,
         pick,
@@ -294,7 +304,7 @@ describe("project history", () => {
         new Date(Date.UTC(2026, 9, 19, 10, press, 2)),
         restored
       )
-      const versions = await listOwnedProjectVersions(
+      const versions = await listOwnedVideoVersions(
         user.id,
         project.id,
         database
@@ -309,7 +319,7 @@ describe("project history", () => {
   })
 
   it("keeps two cuts that differ only by the progress bar as two", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = await newVideo("Reel")
     const withBar: ProjectTimeline = {
       ...timelineOf(5),
       progressBar: { edge: "bottom", color: "#ffffff", thickness: 8, inset: 0 },
@@ -318,11 +328,11 @@ describe("project history", () => {
     await saveAt(project, new Date("2026-10-19T09:00:00Z"), withBar)
     await saveAt(project, new Date("2026-10-19T10:00:00Z"), timelineOf(5))
 
-    const versions = await listOwnedProjectVersions(user.id, project.id, database)
+    const versions = await listOwnedVideoVersions(user.id, project.id, database)
     const bars = await Promise.all(
       versions.map(async (version) =>
         Boolean(
-          (await readOwnedProjectVersion(user.id, project.id, version.id, database))
+          (await readOwnedVideoVersion(user.id, project.id, version.id, database))
             .timeline.progressBar
         )
       )
@@ -330,29 +340,29 @@ describe("project history", () => {
     expect(bars).toEqual([true, false])
   })
 
-  it("shows nobody else a project's versions", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+  it("shows nobody else a video's versions", async () => {
+    const project = await newVideo("Reel")
     await saveAt(project, new Date("2026-10-18T17:00:00Z"), timelineOf(5))
     await saveAt(project, new Date("2026-10-19T09:00:00Z"), timelineOf(6))
-    const [kept] = await listOwnedProjectVersions(user.id, project.id, database)
+    const [kept] = await listOwnedVideoVersions(user.id, project.id, database)
     const stranger = await insertUser(database)
 
     expect(
-      await listOwnedProjectVersions(stranger.id, project.id, database)
+      await listOwnedVideoVersions(stranger.id, project.id, database)
     ).toEqual([])
     await expect(
-      readOwnedProjectVersion(stranger.id, project.id, kept.id, database)
+      readOwnedVideoVersion(stranger.id, project.id, kept.id, database)
     ).rejects.toThrow(VERSION_NOT_FOUND_MESSAGE)
     await expect(
-      restoreOwnedProjectVersion(stranger.id, project.id, kept.id, database)
-    ).rejects.toThrow(PROJECT_NOT_FOUND_MESSAGE)
+      restoreOwnedVideoVersion(stranger.id, project.id, kept.id, database)
+    ).rejects.toThrow(VIDEO_NOT_FOUND_MESSAGE)
   })
 
   it("deleting the project deletes its versions", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = await newVideo("Reel")
     await saveAt(project, new Date("2026-10-18T17:00:00Z"), timelineOf(5))
     await saveAt(project, new Date("2026-10-19T09:00:00Z"), timelineOf(6))
-    await database.delete(videoProjects).where(eq(videoProjects.id, project.id))
+    await database.delete(videoProjects).where(eq(videoProjects.id, project.projectId))
     expect(await database.select().from(videoProjectVersions)).toEqual([])
   })
 })

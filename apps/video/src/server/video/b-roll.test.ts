@@ -9,7 +9,7 @@ import {
   BROLL_PHRASES_FAILED_MESSAGE,
   type BrollSentence,
 } from "@/lib/video/b-roll"
-import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import { VIDEO_NOT_FOUND_MESSAGE } from "@/lib/video/project-videos"
 import type { ProjectTimeline } from "@/lib/video/timeline-schema"
 import { now } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
@@ -24,7 +24,8 @@ import {
   type BrollPick,
 } from "@/server/video/b-roll"
 import { forgetPexelsRequests, searchPexelsRows } from "@/server/video/pexels"
-import { createOwnedProject, getOwnedProject, writeProjectTimeline } from "@/server/video/projects"
+import { writeVideoTimeline } from "@/server/video/project-videos"
+import { createOwnedProject } from "@/server/video/projects"
 import { videoVoiceovers } from "@/server/video/schema"
 import { removePexelsApiKey, savePexelsApiKey } from "@/server/video/settings"
 import type { askWriter } from "@/server/video/writer"
@@ -80,7 +81,7 @@ const sentence = (index: number): BrollSentence => ({
 describe("one phrase per sentence", () => {
   it("comes from one writer call for all the sentences, metered as broll_phrases", async () => {
     const writer = fakeWriter({ subject: "bread", phrases: ["stale bread", "oven", "starch close up"] })
-    const answer = await askBrollPhrases(user.id, "p1", "Bread", [0, 1, 2].map(sentence), writer.ask)
+    const answer = await askBrollPhrases(user.id, { projectId: "p1", videoId: "v1" }, "Bread", [0, 1, 2].map(sentence), writer.ask)
     expect(answer.phrases).toEqual(["stale bread", "oven", "starch close up"])
     expect(writer.prompts).toHaveLength(1)
     expect(writer.features).toEqual(["broll_phrases"])
@@ -90,7 +91,7 @@ describe("one phrase per sentence", () => {
 
   it("is cut to three words, and an empty one becomes the video's subject", async () => {
     const writer = fakeWriter({ subject: "Sourdough bread.", phrases: ["a loaf of bread on a table", "  "] })
-    const answer = await askBrollPhrases(user.id, "p1", "Bread", [0, 1].map(sentence), writer.ask)
+    const answer = await askBrollPhrases(user.id, { projectId: "p1", videoId: "v1" }, "Bread", [0, 1].map(sentence), writer.ask)
     expect(answer.phrases).toEqual(["a loaf of", "Sourdough bread"])
     for (const phrase of answer.phrases) {
       expect(phrase.split(" ").length).toBeGreaterThanOrEqual(1)
@@ -103,7 +104,7 @@ describe("one phrase per sentence", () => {
       { subject: "bread", phrases: ["oven"] },
       { subject: "bread", phrases: ["oven", "flour"] }
     )
-    const answer = await askBrollPhrases(user.id, "p1", "Bread", [0, 1].map(sentence), writer.ask)
+    const answer = await askBrollPhrases(user.id, { projectId: "p1", videoId: "v1" }, "Bread", [0, 1].map(sentence), writer.ask)
     expect(answer.phrases).toEqual(["oven", "flour"])
     expect(writer.prompts[1]).toContain("Your last answer had 1 phrases for 2 sentences")
   })
@@ -114,7 +115,7 @@ describe("one phrase per sentence", () => {
       { subject: "bread", phrases: ["oven", "flour", "salt"] }
     )
     await expect(
-      askBrollPhrases(user.id, "p1", "Bread", [0, 1].map(sentence), writer.ask)
+      askBrollPhrases(user.id, { projectId: "p1", videoId: "v1" }, "Bread", [0, 1].map(sentence), writer.ask)
     ).rejects.toThrow(BROLL_PHRASES_FAILED_MESSAGE)
   })
 })
@@ -175,9 +176,9 @@ async function seedVoiceover(mediaId = "voice-1") {
   })
 }
 
-/** A project whose voice line is that voiceover, laid at 1 second. */
-async function seedProject(tracks?: ProjectTimeline["tracks"]) {
-  const project = await createOwnedProject(user.id, "Bread", database)
+/** A project's video whose voice line is that voiceover, laid at 1 second. */
+async function seedVideo(tracks?: ProjectTimeline["tracks"]) {
+  const made = await createOwnedProject(user.id, "Bread", database)
   const timeline: ProjectTimeline = {
     aspect: "9:16",
     tracks: tracks ?? [
@@ -190,9 +191,8 @@ async function seedProject(tracks?: ProjectTimeline["tracks"]) {
       },
     ],
   }
-  const current = await getOwnedProject(user.id, project.id, database)
-  await writeProjectTimeline(user.id, project.id, timeline, current.version, database)
-  return project.id
+  await writeVideoTimeline(user.id, made.video, timeline, 1, database)
+  return made.video
 }
 
 /** Pexels answering every search with five clips, counting the requests. */
@@ -224,28 +224,28 @@ function countingSearch() {
 describe("Find B-roll", () => {
   it("says it needs a Pexels key when none is saved", async () => {
     await seedVoiceover()
-    const projectId = await seedProject()
-    expect((await brollStatus(user.id, projectId)).hasKey).toBe(false)
-    await expect(suggestBroll(user.id, projectId)).rejects.toThrow(BROLL_NO_KEY_MESSAGE)
+    const videoId = await seedVideo()
+    expect((await brollStatus(user.id, videoId)).hasKey).toBe(false)
+    await expect(suggestBroll(user.id, videoId)).rejects.toThrow(BROLL_NO_KEY_MESSAGE)
   })
 
   it("says there is no voice line when nothing on the timeline has sound", async () => {
     await savePexelsApiKey("pexels-key", database)
-    const projectId = await seedProject([])
-    expect(await brollStatus(user.id, projectId)).toEqual({ hasKey: true, voice: null })
-    await expect(suggestBroll(user.id, projectId)).rejects.toThrow(BROLL_NO_VOICE_MESSAGE)
+    const videoId = await seedVideo([])
+    expect(await brollStatus(user.id, videoId)).toEqual({ hasKey: true, voice: null })
+    await expect(suggestBroll(user.id, videoId)).rejects.toThrow(BROLL_NO_VOICE_MESSAGE)
   })
 
   it("cuts a voiceover into its sentences, names a phrase for each and costs one search per sentence", async () => {
     await savePexelsApiKey("pexels-key", database)
     await seedVoiceover()
-    const projectId = await seedProject()
+    const videoId = await seedVideo()
     // The voiceover's words are kept, so nothing has to be written down first.
-    expect((await brollStatus(user.id, projectId)).voice).toEqual({ talkMs: 6000, toWriteDownMs: 0 })
+    expect((await brollStatus(user.id, videoId)).voice).toEqual({ talkMs: 6000, toWriteDownMs: 0 })
 
     const pexels = countingSearch()
     const writer = fakeWriter({ subject: "bread", phrases: ["stale bread", "dry crumb", "toaster"] })
-    const found = await suggestBroll(user.id, projectId, pexels.search, writer.ask)
+    const found = await suggestBroll(user.id, videoId, pexels.search, writer.ask)
 
     expect(pexels.requests()).toBe(3)
     expect(found.aspect).toBe("9:16")
@@ -261,20 +261,20 @@ describe("Find B-roll", () => {
     expect(await database.select().from(customShellMedia)).toHaveLength(1)
   })
 
-  it("refuses another person's project", async () => {
+  it("refuses another person's video", async () => {
     await savePexelsApiKey("pexels-key", database)
     const stranger = await insertUser(database, { email: "stranger@example.test" })
     await seedVoiceover()
-    const projectId = await seedProject()
-    await expect(brollStatus(stranger.id, projectId)).rejects.toThrow(PROJECT_NOT_FOUND_MESSAGE)
-    await expect(suggestBroll(stranger.id, projectId)).rejects.toThrow(PROJECT_NOT_FOUND_MESSAGE)
+    const videoId = await seedVideo()
+    await expect(brollStatus(stranger.id, videoId)).rejects.toThrow(VIDEO_NOT_FOUND_MESSAGE)
+    await expect(suggestBroll(stranger.id, videoId)).rejects.toThrow(VIDEO_NOT_FOUND_MESSAGE)
   })
 
   it("asks for a key again once the saved one is removed", async () => {
     await savePexelsApiKey("pexels-key", database)
     await removePexelsApiKey(database)
-    const projectId = await seedProject([])
-    expect((await brollStatus(user.id, projectId)).hasKey).toBe(false)
+    const videoId = await seedVideo([])
+    expect((await brollStatus(user.id, videoId)).hasKey).toBe(false)
   })
 })
 
@@ -296,10 +296,10 @@ describe("Place", () => {
   const mp4 = new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112, 109, 112, 52, 50])
 
   it("saves each ticked clip to the library with the Pexels credit as its alt text", async () => {
-    const projectId = await seedProject([])
+    const videoId = await seedVideo([])
     const placements = await saveBrollPicks(
       user.id,
-      { projectId, picks: [pick(1000, 11), pick(3000, 12)] },
+      { videoId, picks: [pick(1000, 11), pick(3000, 12)] },
       async () => mp4
     )
     expect(placements.map(({ startMs, endMs, sourceDurationMs }) => ({ startMs, endMs, sourceDurationMs }))).toEqual([
@@ -317,11 +317,11 @@ describe("Place", () => {
   })
 
   it("keeps nothing when one download fails, so Place can be pressed again", async () => {
-    const projectId = await seedProject([])
+    const videoId = await seedVideo([])
     await expect(
       saveBrollPicks(
         user.id,
-        { projectId, picks: [pick(1000, 11), pick(3000, 12), pick(5000, 13)] },
+        { videoId, picks: [pick(1000, 11), pick(3000, 12), pick(5000, 13)] },
         async (address) => {
           if (address.includes("/12/")) throw new Error("HTTP 500")
           return mp4

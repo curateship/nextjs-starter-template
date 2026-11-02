@@ -7,6 +7,7 @@ import { mediaIdsForScope } from "@/server/video/media-list"
 import { findBrowserGuests } from "@/server/video/project-handoff"
 import {
   videoProjects,
+  videoProjectVideos,
   videoRenderJobs,
   type VideoProjectGuestRow,
 } from "@/server/video/schema"
@@ -69,6 +70,30 @@ export async function actorFor(
       .limit(1)
     if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
     return { userId: project.userId, guest }
+  }
+  if (caller.user) return { userId: caller.user.id, guest: null }
+  throw new Error(PROJECT_NOT_FOUND_MESSAGE)
+}
+
+/**
+ * As `actorFor`, for a call that names a video. The video's project is read
+ * from the video itself, never taken from the request, so a guest reaches
+ * every video in the project they were sent to and no other.
+ */
+export async function actorForVideo(
+  caller: EditorCaller,
+  videoId: string,
+  database: CustomShellDb = db
+): Promise<EditorActor> {
+  if (caller.guests.length > 0) {
+    const [video] = await database
+      .select({ projectId: videoProjectVideos.projectId })
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.id, videoId))
+      .limit(1)
+    if (video && caller.guests.some((held) => held.projectId === video.projectId)) {
+      return actorFor(caller, video.projectId, database)
+    }
   }
   if (caller.user) return { userId: caller.user.id, guest: null }
   throw new Error(PROJECT_NOT_FOUND_MESSAGE)

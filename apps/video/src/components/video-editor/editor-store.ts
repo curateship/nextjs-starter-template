@@ -1111,7 +1111,7 @@ type EditorStoreSnapshot = {
   saveStatus: SaveStatus
   // Set, the timeline cannot be changed and nothing is sent until a reload.
   lock: EditorLock | null
-  projectName: string
+  videoName: string
   // Goes up by one whenever something outside the media panel puts files on
   // this project's shelf, such as a paste, so the panel knows to read it again.
   mediaShelfVersion: number
@@ -1129,7 +1129,7 @@ export type EditorStore = {
    * stopped before it runs rather than refused after.
    */
   refuseIfLocked: () => boolean
-  setProjectName: (name: string) => void
+  setVideoName: (name: string) => void
   refreshMediaShelf: () => void
 }
 
@@ -1140,7 +1140,7 @@ export type EditorStore = {
  */
 export function createEditorStore(
   state: EditorState,
-  projectName: string,
+  videoName: string,
   onLockedEdit: () => void = () => undefined
 ): EditorStore {
   let snapshot: EditorStoreSnapshot = {
@@ -1148,7 +1148,7 @@ export function createEditorStore(
     durationMs: timelineDurationMs(state.tracks),
     saveStatus: "saved",
     lock: null,
-    projectName,
+    videoName,
     mediaShelfVersion: 0,
   }
   const listeners = new Set<() => void>()
@@ -1199,7 +1199,7 @@ export function createEditorStore(
       onLockedEdit()
       return true
     },
-    setProjectName: (projectName) => update({ ...snapshot, projectName }),
+    setVideoName: (videoName) => update({ ...snapshot, videoName }),
     refreshMediaShelf: () =>
       update({
         ...snapshot,
@@ -1212,10 +1212,13 @@ type EditorContextValue = {
   store: EditorStore
   dispatch: React.Dispatch<EditorAction>
   clock: PlaybackClock
+  /** The project the open video belongs to, which holds its shared pieces. */
   projectId: string
+  /** The open video, whose timeline this editor saves. */
+  videoId: string
   /** Sends any edit still waiting, so the server reads the timeline as it is. */
   saveNow: () => Promise<void>
-  setProjectName: (name: string) => void
+  setVideoName: (name: string) => void
 }
 
 // The provider itself lives in editor-provider.tsx: a file that exports a
@@ -1263,7 +1266,7 @@ export function useEditorLock() {
   return useEditorStoreSelector(store, (snapshot) => snapshot.lock)
 }
 
-export function useEditorProjectName() {
+export function useEditorVideoName() {
   const { store } = useEditorRuntime()
-  return useEditorStoreSelector(store, (snapshot) => snapshot.projectName)
+  return useEditorStoreSelector(store, (snapshot) => snapshot.videoName)
 }

@@ -39,6 +39,7 @@ import {
   saveProjectSettings,
   type ProjectItem,
 } from "@/lib/api/video/projects"
+import { saveSpendLimit, type VideoItem } from "@/lib/api/video/project-videos"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { parseSpendLimit } from "@/lib/video/project-spend"
 import { MAX_STYLE_LENGTH } from "@/lib/video/visual-style"
@@ -51,47 +52,56 @@ type ProjectDraft = {
   spendLimit: string
 }
 
-function draftOf(project: ProjectItem | null): ProjectDraft {
+/** The open video, when the window is opened from the editor. */
+type SpendingVideo = Pick<VideoItem, "id" | "name" | "spend_limit_cents">
+
+function draftOf(project: ProjectItem | null, video: SpendingVideo | null): ProjectDraft {
   return {
     name: project?.name ?? "",
     style: project?.look?.style ?? "",
     lookPictureUrl: project?.look?.picture_url ?? "",
     spendLimit:
-      project?.spend_limit_cents != null
-        ? String(project.spend_limit_cents / 100)
-        : "",
+      video?.spend_limit_cents != null ? String(video.spend_limit_cents / 100) : "",
   }
 }
 
 /**
  * A new project's name, or an existing project's settings from the cog on its
- * row or the spend figure in the editor: its name, its look (see
- * workspace/docs/visual-style.md) and its spend limit (see
- * workspace/docs/project-first.md). None of them is part of the timeline, so
- * saving never clashes with an editor that has the project open.
+ * row or the spend figure in the editor: its name and its look (see
+ * workspace/docs/visual-style.md), shared by every video in it. Opened from
+ * the editor it also holds the open video's spend limit, which is each
+ * video's own (Tyler, 1 Nov 2026; workspace/docs/project-videos.md). None of
+ * them is part of a timeline, so saving never clashes with an open editor.
  */
 export function ProjectFormDialog({
   open,
   project,
+  video = null,
   folderId,
   folders = [],
   onClose,
   onCreated,
   onSaved,
+  onVideoSaved,
 }: {
   open: boolean
   /** The project whose settings these are, or null when making a new one. */
   project: ProjectItem | null
+  /** The video open in the editor, whose spend limit the window also holds. */
+  video?: SpendingVideo | null
   /** The folder a new project starts in: the one the list is showing. */
   folderId: string | null
   /** The folders a new project can be put in. Left out, there is no choice. */
   folders?: ProjectFolderSummary[]
   onClose: () => void
-  onCreated: (project: ProjectItem) => void
+  /** Handed the new project and the id of the first video in it. */
+  onCreated: (project: ProjectItem, videoId: string) => void
   /** Handed the saved project, for a caller that shows its settings. */
   onSaved: (saved: ProjectItem) => void
+  /** Handed the open video once its spend limit is saved. */
+  onVideoSaved?: (saved: VideoItem) => void
 }) {
-  const [draft, setDraft] = React.useState(() => draftOf(project))
+  const [draft, setDraft] = React.useState(() => draftOf(project, video))
   const [saving, setSaving] = React.useState(false)
   const [limitInvalid, setLimitInvalid] = React.useState(false)
   // A new project's folder, picked in the window. Starts on the open folder.
@@ -103,13 +113,14 @@ export function ProjectFormDialog({
   if (wasOpen !== open) {
     setWasOpen(open)
     if (open) {
-      setDraft(draftOf(project))
+      setDraft(draftOf(project, video))
       setLimitInvalid(false)
       setNewFolderId(folderId)
     }
   }
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(draftOf(project))
+  const stored = draftOf(project, video)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(stored)
   const hasLook = Boolean(draft.style || draft.lookPictureUrl)
 
   async function handleSave() {
@@ -123,7 +134,7 @@ export function ProjectFormDialog({
       if (!project) {
         const created = await createProject(draft.name, newFolderId)
         dismissErrorToast()
-        onCreated(created)
+        onCreated(created.project, created.video)
         onClose()
         return
       }
@@ -131,22 +142,32 @@ export function ProjectFormDialog({
         onClose()
         return
       }
-      let spendLimitCents: number | null
-      try {
-        spendLimitCents = parseSpendLimit(draft.spendLimit)
-      } catch (error) {
-        setLimitInvalid(true)
-        showErrorToast(error instanceof Error ? error.message : "Check the limit.")
-        return
+      let spendLimitCents: number | null = null
+      if (video) {
+        try {
+          spendLimitCents = parseSpendLimit(draft.spendLimit)
+        } catch (error) {
+          setLimitInvalid(true)
+          showErrorToast(error instanceof Error ? error.message : "Check the limit.")
+          return
+        }
       }
-      const saved = await saveProjectSettings({
-        projectId: project.id,
-        name: draft.name,
-        style: draft.style || null,
-        lookPictureUrl: draft.lookPictureUrl || null,
-        spendLimitCents,
-      })
-      onSaved(saved)
+      const projectChanged =
+        draft.name !== stored.name ||
+        draft.style !== stored.style ||
+        draft.lookPictureUrl !== stored.lookPictureUrl
+      if (projectChanged) {
+        const saved = await saveProjectSettings({
+          projectId: project.id,
+          name: draft.name,
+          style: draft.style || null,
+          lookPictureUrl: draft.lookPictureUrl || null,
+        })
+        onSaved(saved)
+      }
+      if (video && draft.spendLimit !== stored.spendLimit) {
+        onVideoSaved?.(await saveSpendLimit(video.id, spendLimitCents))
+      }
       dismissErrorToast()
       toast.success("Project settings saved.")
       onClose()
@@ -177,8 +198,10 @@ export function ProjectFormDialog({
             <DialogTitle>{project ? "Project settings" : "New project"}</DialogTitle>
             <DialogDescription>
               {project
-                ? "What this project is called, the look every AI picture or clip made for it starts from, and the most it may spend on AI."
-                : "It opens empty and vertical - the aspect switch changes that in one click."}
+                ? video
+                  ? "What this project is called and the look every AI picture or clip made for its videos starts from, then the most this video may spend on AI."
+                  : "What this project is called, and the look every AI picture or clip made for its videos starts from."
+                : "It opens with one empty, upright video. The shape switch changes that in one click."}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -299,17 +322,18 @@ export function ProjectFormDialog({
                 </SettingsFoldCard>
               ) : null}
 
-              {project ? (
+              {project && video ? (
                 <SettingsFoldCard
                   fold
                   storageId="video-project-settings-spending"
                   show={limitInvalid}
                   title="Spending"
+                  description={`For the open video, ${video.name}. Each video has its own limit.`}
                 >
                   <div className="grid gap-2">
                     <FieldLabel
                       htmlFor="project-spend-limit"
-                      hint="Every AI tool used in this project stops and says so before it would take the project past this. Leave it empty for no limit."
+                      hint="Every AI tool used on this video stops and says so before it would take the video past this. Leave it empty for no limit."
                     >
                       Spend limit in dollars
                     </FieldLabel>

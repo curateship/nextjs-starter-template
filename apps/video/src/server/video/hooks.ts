@@ -1,4 +1,3 @@
-import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import {
@@ -9,11 +8,10 @@ import {
   spokenHookLine,
   type Hook,
 } from "@/lib/video/hooks"
-import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
-import { db } from "@/server/db"
 import { transcribeOpening } from "@/server/video/jump-cuts"
-import { videoProjects } from "@/server/video/schema"
+import { videoSpendMetadata } from "@/server/video/project-spend"
+import { getOwnedVideo } from "@/server/video/project-videos"
 import { askWriter } from "@/server/video/writer"
 
 /**
@@ -55,19 +53,13 @@ export type HookVariants = {
 
 export async function rewriteHook({
   userId,
-  projectId,
+  videoId,
 }: {
   userId: string
-  projectId: string
+  videoId: string
 }): Promise<HookVariants> {
-  const [project] = await db
-    .select()
-    .from(videoProjects)
-    .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
-    .limit(1)
-  if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
-
-  const timeline = requireCanonicalTimeline(project.timeline)
+  const video = await getOwnedVideo(userId, videoId)
+  const timeline = requireCanonicalTimeline(video.timeline)
   let hook = findHook(timeline.tracks)
 
   // Nothing written on screen, but something is being said: the opening line
@@ -77,7 +69,7 @@ export async function rewriteHook({
     const said = spokenHookLine(
       await transcribeOpening({
         userId,
-        projectId,
+        videoId,
         clipId: hook.spokenBy.clipId,
         windowMs: HOOK_SPOKEN_WINDOW_MS,
       })
@@ -90,7 +82,7 @@ export async function rewriteHook({
   const answer = await askWriter({
     userId,
     feature: "hook_variants",
-    metadata: { projectId },
+    metadata: videoSpendMetadata(video),
     prompt: hookPrompt(hook.text),
     schema: variantsSchema,
     label: HOOK_LABEL,

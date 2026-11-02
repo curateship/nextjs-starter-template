@@ -107,7 +107,9 @@ async function seedMedia(id: string, fileType: "image" | "audio", name: string) 
 
 async function seedFrames() {
   const timestamp = now()
-  const project = await createOwnedProject(user.id, "Keyed test", database)
+  const made = await createOwnedProject(user.id, "Keyed test", database)
+  // The project, and the one video it opens with, which pays for its shots.
+  const project = { id: made.project.id, video: made.video }
   await seedMedia("media-1", "image", "frame.png")
   await seedMedia("media-2", "image", "end.png")
   await seedMedia("voice-1", "audio", "voice.mp3")
@@ -143,11 +145,11 @@ async function seedFrames() {
 }
 
 function shotFor(
-  projectId: string,
+  videoId: string,
   making: Partial<Parameters<typeof createGeneration>[1]> = {}
 ) {
   return createGeneration(user.id, {
-    projectId,
+    videoId,
     firstFrameId: "frame-1",
     prompts: ["She waves"],
     lengthSeconds: 4,
@@ -174,7 +176,7 @@ describe("Wan shots", () => {
   it("starts on Wan with the actor's pictures, then saves the file and charges Wan's seconds", async () => {
     const project = await seedFrames()
     await saveVideoKey("wan", "test-wan-key")
-    const shot = await shotFor(project.id, { company: "wan" })
+    const shot = await shotFor(project.video, { company: "wan" })
     expect(shot).toMatchObject({ model_name: "Wan 2.7", company: "wan", expected_cents: 40 })
 
     const sent = stubCompany((url) =>
@@ -223,6 +225,7 @@ describe("Wan shots", () => {
         costCents: 40,
         metadata: expect.objectContaining({
           projectId: project.id,
+          videoId: project.video,
           shotId: shot.id,
           units: 4,
         }),
@@ -233,14 +236,14 @@ describe("Wan shots", () => {
   it("sends the end picture or the voiceover instead of the actor's pictures", async () => {
     const project = await seedFrames()
     await saveVideoKey("wan", "test-wan-key")
-    await shotFor(project.id, { company: "wan", endFrameId: "frame-2" })
+    await shotFor(project.video, { company: "wan", endFrameId: "frame-2" })
     const sent = stubCompany(() => Response.json({ output: { task_id: "task-2" } }))
     await videoGenerationTick()
     expect(sent[0].body).toMatchObject({ model: "wan2.7-i2v-2026-04-25" })
     const media = (sent[0].body as { input: { media: { type: string; url: string }[] } }).input.media
     expect(media.map((item) => item.type)).toEqual(["first_frame", "last_frame"])
 
-    await shotFor(project.id, { company: "wan", voiceMediaId: "voice-1", prompts: ["She talks"] })
+    await shotFor(project.video, { company: "wan", voiceMediaId: "voice-1", prompts: ["She talks"] })
     // The first shot is asked about in the same pass, so the start is the one with a body.
     const voiced = stubCompany(() => Response.json({ output: { task_id: "task-3" } }))
     await videoGenerationTick()
@@ -256,7 +259,7 @@ describe("Wan shots", () => {
     const project = await seedFrames()
     await saveVideoKey("wan", "test-wan-key")
     await saveVideoRegion("wan", "china")
-    await shotFor(project.id, { company: "wan" })
+    await shotFor(project.video, { company: "wan" })
     stubCompany(() => Response.json({ output: { task_id: "task-4" } }))
     await videoGenerationTick()
     const sent = stubCompany(() => Response.json({ output: { task_status: "UNKNOWN" } }))
@@ -276,7 +279,7 @@ describe("Wan shots", () => {
   it("refuses a file from anywhere but Wan's own storage", async () => {
     const project = await seedFrames()
     await saveVideoKey("wan", "test-wan-key")
-    await shotFor(project.id, { company: "wan" })
+    await shotFor(project.video, { company: "wan" })
     stubCompany(() => Response.json({ output: { task_id: "task-5" } }))
     await videoGenerationTick()
     const sent = stubCompany(() =>
@@ -295,7 +298,7 @@ describe("Seedance shots", () => {
   it("sends the first frame alone, without sound when asked, and charges the tokens it billed", async () => {
     const project = await seedFrames()
     await saveVideoKey("seedance", "ark-1234")
-    const shot = await shotFor(project.id, { company: "seedance", sound: false })
+    const shot = await shotFor(project.video, { company: "seedance", sound: false })
     expect(shot.company).toBe("seedance")
     const sent = stubCompany(() => Response.json({ id: "cgt-1" }))
     await videoGenerationTick()
@@ -331,7 +334,7 @@ describe("Seedance shots", () => {
   it("says plainly when Seedance refuses the key, never its own words", async () => {
     const project = await seedFrames()
     await saveVideoKey("seedance", "ark-1234")
-    await shotFor(project.id, { company: "seedance" })
+    await shotFor(project.video, { company: "seedance" })
     stubCompany(
       () =>
         new Response(
@@ -349,7 +352,7 @@ describe("Seedance shots", () => {
     const project = await seedFrames()
     await saveVideoKey("seedance", "ark-1234")
     await expect(
-      shotFor(project.id, { company: "seedance", voiceMediaId: "voice-1" })
+      shotFor(project.video, { company: "seedance", voiceMediaId: "voice-1" })
     ).rejects.toThrow("Seedance 1.5 Pro cannot make someone say a voiceover")
   })
 })
@@ -357,7 +360,7 @@ describe("Seedance shots", () => {
 describe("picking a company", () => {
   it("refuses a company with no key, saying where the key goes", async () => {
     const project = await seedFrames()
-    await expect(shotFor(project.id, { company: "wan" })).rejects.toThrow(
+    await expect(shotFor(project.video, { company: "wan" })).rejects.toThrow(
       "Add a Wan key in Settings → AI video first"
     )
   })
@@ -382,7 +385,7 @@ describe("picking a company", () => {
   it("Try again keeps a Wan shot on Wan", async () => {
     const project = await seedFrames()
     await saveVideoKey("wan", "test-wan-key")
-    const shot = await shotFor(project.id, { company: "wan" })
+    const shot = await shotFor(project.video, { company: "wan" })
     stubCompany(() => new Response("{}", { status: 500 }))
     await videoGenerationTick()
     const retried = await retryGeneration(user.id, shot.id)
@@ -397,7 +400,7 @@ describe("one prompt on every model", () => {
     await saveVideoKey("wan", "test-wan-key")
     await saveVideoKey("seedance", "ark-1234")
     const shots = await createComparison(user.id, {
-      projectId: project.id,
+      videoId: project.video,
       firstFrameId: "frame-1",
       prompts: ["She waves"],
       lengthSeconds: 4,
@@ -410,11 +413,11 @@ describe("one prompt on every model", () => {
     const project = await seedFrames()
     process.env.CUSTOM_SHELL_GEMINI_API_KEY = "test-key"
     await saveVideoKey("wan", "test-wan-key")
-    await shotFor(project.id, { company: "gemini" })
-    await shotFor(project.id, { company: "gemini" })
+    await shotFor(project.video, { company: "gemini" })
+    await shotFor(project.video, { company: "gemini" })
     await expect(
       createComparison(user.id, {
-        projectId: project.id,
+        videoId: project.video,
         firstFrameId: "frame-1",
         prompts: ["She waves"],
         lengthSeconds: 4,
@@ -432,7 +435,7 @@ describe("one prompt on every model", () => {
     await saveVideoKey("wan", "test-wan-key")
     await expect(
       createComparison(user.id, {
-        projectId: project.id,
+        videoId: project.video,
         firstFrameId: "frame-1",
         prompts: ["She waves"],
         lengthSeconds: 4,

@@ -8,16 +8,16 @@ import { type CustomShellDb } from "@/server/db"
 import { type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
-  discoverChangedProjects,
+  discoverChangedVideos,
   firstPictureSource,
 } from "@/server/video/project-thumbnails"
 import {
   createOwnedProject,
   deleteOwnedProjects,
   listOwnedProjects,
-  writeProjectTimeline,
 } from "@/server/video/projects"
-import { videoProjectThumbnails } from "@/server/video/schema"
+import { writeVideoTimeline } from "@/server/video/project-videos"
+import { videoProjectThumbnails, videoProjectVideos } from "@/server/video/schema"
 
 // Every removal is recorded, and any path in `refused` fails the way an
 // unreachable bucket would.
@@ -92,18 +92,26 @@ function timeline(...lanes: Clip[][]): ProjectTimeline {
 // A save in the same millisecond as the last look would read as unchanged.
 const nextMillisecond = () => new Promise((resolve) => setTimeout(resolve, 3))
 
-async function save(projectId: string, value: ProjectTimeline) {
-  const [current] = (await listOwnedProjects({ userId: user.id, database }))
-    .projects.filter((project) => project.id === projectId)
-  await nextMillisecond()
-  return writeProjectTimeline(user.id, projectId, value, current.version, database)
+/** A new project and its one video, the video whose picture the project shows. */
+async function newProject(name: string) {
+  const made = await createOwnedProject(user.id, name, database)
+  return { id: made.project.id, video: made.video }
 }
 
-async function thumbnailRow(projectId: string) {
+async function save(videoId: string, value: ProjectTimeline) {
+  const [current] = await database
+    .select({ version: videoProjectVideos.version })
+    .from(videoProjectVideos)
+    .where(eq(videoProjectVideos.id, videoId))
+  await nextMillisecond()
+  return writeVideoTimeline(user.id, videoId, value, current.version, database)
+}
+
+async function thumbnailRow(videoId: string) {
   const [row] = await database
     .select()
     .from(videoProjectThumbnails)
-    .where(eq(videoProjectThumbnails.projectId, projectId))
+    .where(eq(videoProjectThumbnails.videoId, videoId))
   return row
 }
 
@@ -139,13 +147,13 @@ describe("firstPictureSource", () => {
   })
 })
 
-describe("discoverChangedProjects", () => {
-  it("queues a picture for a project with a video, and settles on the second look", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
-    await save(project.id, timeline([clip({ id: "a", kind: "video", mediaId: "film" })]))
+describe("discoverChangedVideos", () => {
+  it("queues a picture for a video with a video clip, and settles on the second look", async () => {
+    const project = await newProject("Reel")
+    await save(project.video, timeline([clip({ id: "a", kind: "video", mediaId: "film" })]))
 
-    await discoverChangedProjects()
-    const first = await thumbnailRow(project.id)
+    await discoverChangedVideos()
+    const first = await thumbnailRow(project.video)
     expect(first).toMatchObject({
       status: "queued",
       sourceMediaId: "film",
@@ -153,19 +161,19 @@ describe("discoverChangedProjects", () => {
       attempts: 0,
     })
 
-    await discoverChangedProjects()
-    expect(await thumbnailRow(project.id)).toEqual(first)
+    await discoverChangedVideos()
+    expect(await thumbnailRow(project.video)).toEqual(first)
   })
 
-  it("never queues a sound-only project, so its attempts never grow", async () => {
-    const project = await createOwnedProject(user.id, "Podcast", database)
-    await save(project.id, timeline([clip({ id: "s", kind: "audio", mediaId: "song" })]))
+  it("never queues a sound-only video, so its attempts never grow", async () => {
+    const project = await newProject("Podcast")
+    await save(project.video, timeline([clip({ id: "s", kind: "audio", mediaId: "song" })]))
     // Not looked at yet, so the list keeps checking back.
     let [listed] = (await listOwnedProjects({ userId: user.id, database })).projects
     expect(listed.thumbnail_pending).toBe(true)
 
-    for (let pass = 0; pass < 3; pass += 1) await discoverChangedProjects()
-    expect(await thumbnailRow(project.id)).toMatchObject({
+    for (let pass = 0; pass < 3; pass += 1) await discoverChangedVideos()
+    expect(await thumbnailRow(project.video)).toMatchObject({
       status: "none",
       attempts: 0,
       storagePath: null,
@@ -175,32 +183,32 @@ describe("discoverChangedProjects", () => {
   })
 
   it("queues a new picture when a different clip moves to the front, keeping the old one meanwhile", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const project = await newProject("Reel")
     const a = clip({ id: "a", kind: "video", mediaId: "film-a" })
     const b = clip({ id: "b", kind: "video", mediaId: "film-b", startMs: 3000 })
-    await save(project.id, timeline([a, b]))
-    await discoverChangedProjects()
+    await save(project.video, timeline([a, b]))
+    await discoverChangedVideos()
     // As if the worker had made it after two tries.
     await database
       .update(videoProjectThumbnails)
       .set({ status: "ready", storagePath: "video/project-thumbnails/old.jpg", attempts: 2, generatedAt: now() })
-      .where(eq(videoProjectThumbnails.projectId, project.id))
+      .where(eq(videoProjectThumbnails.videoId, project.video))
 
     // An edit that leaves the first clip alone changes nothing. Until the
     // worker has seen the save, the list keeps asking.
-    const saved = await save(project.id, timeline([a, { ...b, durationMs: 5000 }]))
+    const saved = await save(project.video, timeline([a, { ...b, durationMs: 5000 }]))
     expect(saved.thumbnail_url).toBe("https://video-media.example.test/video/project-thumbnails/old.jpg")
     expect(saved.thumbnail_pending).toBe(true)
     let [listed] = (await listOwnedProjects({ userId: user.id, database })).projects
     expect(listed.thumbnail_pending).toBe(true)
-    await discoverChangedProjects()
+    await discoverChangedVideos()
     ;[listed] = (await listOwnedProjects({ userId: user.id, database })).projects
     expect(listed.thumbnail_pending).toBe(false)
-    expect(await thumbnailRow(project.id)).toMatchObject({ status: "ready", attempts: 2 })
+    expect(await thumbnailRow(project.video)).toMatchObject({ status: "ready", attempts: 2 })
 
-    await save(project.id, timeline([{ ...b, startMs: 0 }, { ...a, startMs: 3000 }]))
-    await discoverChangedProjects()
-    expect(await thumbnailRow(project.id)).toMatchObject({
+    await save(project.video, timeline([{ ...b, startMs: 0 }, { ...a, startMs: 3000 }]))
+    await discoverChangedVideos()
+    expect(await thumbnailRow(project.video)).toMatchObject({
       status: "queued",
       sourceMediaId: "film-b",
       attempts: 0,
@@ -212,17 +220,17 @@ describe("discoverChangedProjects", () => {
   })
 
   it("removes the picture when nothing is left to take one of", async () => {
-    const project = await createOwnedProject(user.id, "Reel", database)
-    await save(project.id, timeline([clip({ id: "a", kind: "image", mediaId: "photo" })]))
-    await discoverChangedProjects()
+    const project = await newProject("Reel")
+    await save(project.video, timeline([clip({ id: "a", kind: "image", mediaId: "photo" })]))
+    await discoverChangedVideos()
     await database
       .update(videoProjectThumbnails)
       .set({ status: "ready", storagePath: "video/project-thumbnails/photo.jpg" })
-      .where(eq(videoProjectThumbnails.projectId, project.id))
+      .where(eq(videoProjectThumbnails.videoId, project.video))
 
-    await save(project.id, timeline([clip({ id: "t", kind: "text" })]))
-    await discoverChangedProjects()
-    expect(await thumbnailRow(project.id)).toMatchObject({ status: "none", storagePath: null })
+    await save(project.video, timeline([clip({ id: "t", kind: "text" })]))
+    await discoverChangedVideos()
+    expect(await thumbnailRow(project.video)).toMatchObject({ status: "none", storagePath: null })
     expect(storage.removed).toEqual(["video/project-thumbnails/photo.jpg"])
     const [listed] = (await listOwnedProjects({ userId: user.id, database })).projects
     expect(listed).toMatchObject({ thumbnail_url: null, thumbnail_pending: false })
@@ -231,13 +239,13 @@ describe("discoverChangedProjects", () => {
 
 describe("deleting a project with a picture", () => {
   async function projectWithPicture(path: string) {
-    const project = await createOwnedProject(user.id, "Reel", database)
-    await save(project.id, timeline([clip({ id: "a", kind: "image", mediaId: "photo" })]))
-    await discoverChangedProjects()
+    const project = await newProject("Reel")
+    await save(project.video, timeline([clip({ id: "a", kind: "image", mediaId: "photo" })]))
+    await discoverChangedVideos()
     await database
       .update(videoProjectThumbnails)
       .set({ status: "ready", storagePath: path })
-      .where(eq(videoProjectThumbnails.projectId, project.id))
+      .where(eq(videoProjectThumbnails.videoId, project.video))
     return project
   }
 
@@ -253,6 +261,6 @@ describe("deleting a project with a picture", () => {
     storage.refused.add("video/project-thumbnails/stuck.jpg")
     const result = await deleteOwnedProjects(user.id, [project.id], database)
     expect(result).toEqual({ deleted_ids: [], failed_ids: [project.id] })
-    expect(await thumbnailRow(project.id)).toBeDefined()
+    expect(await thumbnailRow(project.video)).toBeDefined()
   })
 })

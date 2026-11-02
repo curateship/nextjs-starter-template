@@ -31,7 +31,7 @@ Deleting a file does take it out of every collection it was in.
 
 The carousel editor's Image panel lists the collections in its filter menu,
 under "This carousel". A collection's pictures come from the whole library, and one
-placed on a slide joins that carousel's shelf. Making, renaming and deleting
+placed on a slide joins that carousel project's shelf. Making, renaming and deleting
 collections stays in the video editor (see
 [carousel-pictures.md](carousel-pictures.md)).
 

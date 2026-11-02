@@ -7,7 +7,6 @@ import {
   draftCarouselSlides,
 } from "@/lib/video/carousel-drafts"
 import {
-  CAROUSEL_NOT_FOUND_MESSAGE,
   requireCanonicalCarouselSlides,
   requireCarouselFormat,
   type CarouselFormat,
@@ -20,20 +19,22 @@ import {
   FIRST_SLIDE_NO_TEXT_MESSAGE,
   PROJECT_SCRIPT_EMPTY_MESSAGE,
 } from "@/lib/video/carousel-writing"
+import { captionWithFooter } from "@/lib/video/carousel-look"
 import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
 import type { TranslateLanguage } from "@/lib/video/translate"
-import { now, uuid } from "@/server/auth/security"
+import { uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellMedia } from "@/server/schema"
 import {
-  cleanCarouselName,
   getOwnedCarouselDetail,
+  insertCarousel,
+  requireOwnedCarouselProject,
   serializeCarousel,
   type CarouselItem,
 } from "@/server/video/carousels"
 import { readLinkText } from "@/server/video/link-reader"
-import { getOwnedProject } from "@/server/video/projects"
-import { videoCarousels, videoVoiceovers } from "@/server/video/schema"
+import { getOwnedVideo } from "@/server/video/project-videos"
+import { videoVoiceovers } from "@/server/video/schema"
 import { askWriter } from "@/server/video/writer"
 
 /**
@@ -52,20 +53,20 @@ const SOURCE_MAX = 20_000
 export type CarouselSource =
   | { kind: "topic"; text: string }
   | { kind: "notes"; text: string }
-  | { kind: "project"; projectId: string }
+  | { kind: "video"; videoId: string }
   | { kind: "link"; url: string }
 
 /**
- * The words a project says: the scripts of the voiceovers on its timeline in
+ * The words a video says: the scripts of the voiceovers on its timeline in
  * the order they play, or failing those the words written on it.
  */
-export async function projectScript(
+export async function videoScript(
   userId: string,
-  projectId: string,
+  videoId: string,
   database: CustomShellDb = db
 ) {
-  const project = await getOwnedProject(userId, projectId, database)
-  const clips = requireCanonicalTimeline(project.timeline)
+  const video = await getOwnedVideo(userId, videoId, database)
+  const clips = requireCanonicalTimeline(video.timeline)
     .tracks.flatMap((track) => track.clips)
     .sort((a, b) => a.startMs - b.startMs)
   const soundIds = [
@@ -97,7 +98,7 @@ export async function projectScript(
         .flatMap((clip) => (clip.kind === "text" && clip.text?.trim() ? [clip.text.trim()] : []))
         .join("\n")
   if (!words.trim()) throw new Error(PROJECT_SCRIPT_EMPTY_MESSAGE)
-  return { name: project.name, words: words.slice(0, SOURCE_MAX) }
+  return { name: video.name, words: words.slice(0, SOURCE_MAX), projectId: video.projectId }
 }
 
 async function sourceWords(
@@ -105,11 +106,11 @@ async function sourceWords(
   source: CarouselSource,
   database: CustomShellDb
 ) {
-  if (source.kind === "project") return projectScript(userId, source.projectId, database)
+  if (source.kind === "video") return videoScript(userId, source.videoId, database)
   const words =
     source.kind === "link" ? await readLinkText(source.url) : source.text.trim()
   if (!words) throw new Error(CAROUSEL_SOURCE_EMPTY_MESSAGE)
-  return { name: null, words: words.slice(0, SOURCE_MAX) }
+  return { name: null, words: words.slice(0, SOURCE_MAX), projectId: null }
 }
 
 function draftSchema(count: number) {
@@ -132,7 +133,7 @@ function draftPrompt(source: CarouselSource, words: string, count: number) {
       ? `the topic "${words}"`
       : source.kind === "notes"
         ? "these notes"
-        : source.kind === "project"
+        : source.kind === "video"
           ? "the script of this video"
           : "this web page"
   return `Write an Instagram carousel of exactly ${count} slides about ${what}.
@@ -157,12 +158,15 @@ Rules:
  */
 export async function writeCarouselDraft({
   userId,
+  carouselProjectId,
   source,
   slideCount,
   format,
   database = db,
 }: {
   userId: string
+  /** The carousel project it goes in. */
+  carouselProjectId: string
   source: CarouselSource
   slideCount: number
   format: CarouselFormat
@@ -172,7 +176,8 @@ export async function writeCarouselDraft({
     CAROUSEL_SLIDE_COUNT.max,
     Math.max(CAROUSEL_SLIDE_COUNT.min, Math.round(slideCount))
   )
-  const { name, words } = await sourceWords(userId, source, database)
+  const project = await requireOwnedCarouselProject(userId, carouselProjectId, database)
+  const { name, words, projectId: madeFrom } = await sourceWords(userId, source, database)
   const answer = await askWriter({
     userId,
     feature: "carousel_draft",
@@ -185,23 +190,15 @@ export async function writeCarouselDraft({
   const slides = requireCanonicalCarouselSlides(
     draftCarouselSlides(answer.slides, requireCarouselFormat(format))
   )
-  const timestamp = now()
-  const [row] = await database
-    .insert(videoCarousels)
-    .values({
-      id: uuid(),
-      userId,
-      name: cleanCarouselName(
-        answer.name.trim() || name || (source.kind === "topic" ? words : "New carousel")
-      ),
-      format,
-      slides,
-      // Written from a project's script, it is that project's carousel.
-      projectId: source.kind === "project" ? source.projectId : null,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-    .returning()
+  const row = await insertCarousel(database, {
+    userId,
+    project,
+    name: answer.name.trim() || name || (source.kind === "topic" ? words : "New carousel"),
+    format,
+    slides,
+    // Written from a video's script, it was made from that video's project.
+    madeFrom,
+  })
   return serializeCarousel(row)
 }
 
@@ -302,10 +299,11 @@ Rules:
     label: "Carousel caption",
   })
   // A hashtag starts with a letter, so "our #1 tip" keeps its number.
-  return answer.caption
-    .replace(/\s*#\p{L}[\p{L}\p{N}_]*/gu, "")
-    .trim()
-    .slice(0, 2_200)
+  const written = answer.caption.replace(/\s*#\p{L}[\p{L}\p{N}_]*/gu, "").trim()
+  // The written caption replaces the box, so the project's footer, such as
+  // its hashtags, goes back under it.
+  const project = await requireOwnedCarouselProject(userId, carousel.carousel_project_id, database)
+  return captionWithFooter(written, project.captionFooter).slice(0, 2_200)
 }
 
 /**
@@ -394,21 +392,18 @@ Rules:
       return { ...rest, text: answer.texts[next++].trim() }
     }),
   }))
-  const timestamp = now()
-  const [row] = await database
-    .insert(videoCarousels)
-    .values({
-      id: uuid(),
-      userId,
-      name: cleanCarouselName(`${carousel.name} (${language})`),
-      format: carousel.format,
-      slides: requireCanonicalCarouselSlides(slides),
-      caption: carousel.caption,
-      projectId: carousel.project_id,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-    .returning()
-  if (!row) throw new Error(CAROUSEL_NOT_FOUND_MESSAGE)
+  // A translated copy stays in its original's carousel project, as it was.
+  const project = await requireOwnedCarouselProject(userId, carousel.carousel_project_id, database)
+  const row = await insertCarousel(database, {
+    userId,
+    project,
+    name: `${carousel.name} (${language})`,
+    format: carousel.format,
+    slides,
+    caption: carousel.caption,
+    madeFrom: carousel.project_id,
+    keepLook: true,
+    keepCaption: true,
+  })
   return serializeCarousel(row)
 }

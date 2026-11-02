@@ -1,8 +1,11 @@
-# Project pictures on the projects list
+# Video pictures in the Videos tab and the projects list
 
-Each project on the projects list shows a small picture of its first clip, so
-last week's work can be found by recognising it instead of by reading names
-given in a hurry.
+Each video shows a small picture of its first clip in the editor's Videos tab,
+and each project on the projects list shows the picture of its last edited
+video, so last week's work can be found by recognising it instead of by
+reading names given in a hurry. Since 1 Nov 2026 the picture belongs to the
+video (`video_video_thumbnails`); below, "the project" means one video
+(`project-videos.md`).
 
 ## Which frame it is
 

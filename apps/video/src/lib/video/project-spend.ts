@@ -1,9 +1,9 @@
 import { featureLabel } from "@/lib/video/ai-budget"
 
 /**
- * What one project has spent on AI, and the limit that stops it (see
- * `workspace/docs/project-first.md`). Shared by the server, which adds it up
- * and refuses a call, and the browser, which shows it.
+ * What one video, or one Viral project, has spent on AI, and the limit that
+ * stops it (see `workspace/docs/project-first.md`). Shared by the server,
+ * which adds it up and refuses a call, and the browser, which shows it.
  */
 
 /** A limit above this many dollars is a typing mistake, not a budget. */
@@ -13,9 +13,15 @@ export type ProjectSpend = {
   total_cents: number
   /** Biggest first, one line per tool. */
   by_tool: { label: string; cents: number }[]
-  /** Null means the project has no limit. */
+  /** Null means there is no limit. */
   limit_cents: number | null
 }
+
+/**
+ * A video's spend, plus what every video in its project has spent together,
+ * which the editor shows on hover (Tyler, 1 Nov 2026).
+ */
+export type VideoSpend = ProjectSpend & { project_total_cents: number }
 
 /** The tool names on the AI meter, in the words the spend line uses. */
 const TOOL_LABELS: Record<string, string> = {
@@ -45,7 +51,8 @@ export function formatCents(cents: number) {
   return `$${(cents / 100).toFixed(2)}`
 }
 
-const LIMIT_MESSAGE_START = "This project has spent"
+/** What the limit belongs to: a video in the editor, or a Viral project. */
+export type SpendSubject = "video" | "project"
 
 /**
  * The sentence a refused call ends with. It carries the numbers, so the
@@ -58,11 +65,13 @@ export function projectSpendLimitMessage({
   generatingCents = 0,
   nextCents,
   limitCents,
+  subject = "video",
 }: {
   spentCents: number
   generatingCents?: number
   nextCents: number
   limitCents: number
+  subject?: SpendSubject
 }) {
   const generating =
     generatingCents > 0
@@ -73,14 +82,14 @@ export function projectSpendLimitMessage({
     nextCents > 0
       ? `, and this costs about ${formatCents(nextCents)}, so the limit is ${formatCents(short)} short`
       : ""
-  return `${LIMIT_MESSAGE_START} ${formatCents(spentCents)} of its ${formatCents(limitCents)} limit${generating}${next}. Raise the limit in the project's settings.`
+  return `This ${subject} has spent ${formatCents(spentCents)} of its ${formatCents(limitCents)} limit${generating}${next}. Raise the limit in the ${subject}'s settings.`
 }
 
 export function isProjectSpendLimitMessage(message: string) {
-  return message.startsWith(LIMIT_MESSAGE_START)
+  return /^This (video|project) has spent /.test(message)
 }
 
-/** Dollars typed into Project settings, as cents; empty is no limit. */
+/** Dollars typed into a spend limit box, as cents; empty is no limit. */
 export function parseSpendLimit(value: string): number | null {
   const cleaned = value.trim().replace(/^\$/, "")
   if (!cleaned) return null

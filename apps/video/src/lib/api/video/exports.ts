@@ -30,7 +30,7 @@ import {
 } from "@/lib/video/timeline-schema"
 import { userGet, userPost } from "@/server/guards"
 import { editorGet, editorPost } from "@/server/video/editor-guards"
-import { actorFor, actorForExport, signedInActor } from "@/server/video/project-guests"
+import { actorForExport, actorForVideo, signedInActor } from "@/server/video/project-guests"
 import {
   clearOutOldExports,
   previewExportClearOut,
@@ -86,15 +86,15 @@ export function getExportErrorMessage(error: unknown) {
   return describeAuthError(message) ?? "The export could not be made."
 }
 
-const projectIdSchema = z.object({
-  projectId: z.string().min(1).max(36),
+const videoIdSchema = z.object({
+  videoId: z.string().min(1).max(36),
 })
 
 const exportIdSchema = z.object({
   exportId: z.string().min(1).max(36),
 })
 
-const startSchema = projectIdSchema.extend({
+const startSchema = videoIdSchema.extend({
   // No lower limit here, so an empty list reaches the queue and is refused
   // with its own plain message rather than a validation error.
   aspects: z.array(z.enum(ASPECT_RATIOS)).max(ASPECT_RATIOS.length),
@@ -103,21 +103,21 @@ const startSchema = projectIdSchema.extend({
   // Absent means evened out (DEFAULT_NORMALIZE_LOUDNESS). The Export window
   // always sends its own switch.
   normalizeLoudness: z.boolean().optional(),
-  // Absent, or nothing but spaces, means the project's own name.
+  // Absent, or nothing but spaces, means the video's own name.
   title: z.string().max(EXPORT_TITLE_MAX).optional(),
 })
 
-// A guest sent from Project may export their own project, watch it, stop,
+// A guest sent from Project may export any video in their project, watch it, stop,
 // retry and name it (`workspace/docs/project-guests.md`). Deleting and share
 // links stay the signed-in person's.
 const startExportFn = createServerFn({ method: "POST" })
   .middleware([editorPost])
   .inputValidator(startSchema)
   .handler(async ({ data, context }) => {
-    const { userId } = await actorFor(context.caller, data.projectId)
+    const { userId } = await actorForVideo(context.caller, data.videoId)
     return enqueueRenderJobs({
       userId,
-      projectId: data.projectId,
+      videoId: data.videoId,
       aspects: data.aspects,
       quality: data.quality,
       frameRate: data.frameRate,
@@ -126,20 +126,20 @@ const startExportFn = createServerFn({ method: "POST" })
     })
   })
 
-const projectExportFn = createServerFn({ method: "GET" })
+const videoExportFn = createServerFn({ method: "GET" })
   .middleware([editorGet])
-  .inputValidator(projectIdSchema)
+  .inputValidator(videoIdSchema)
   .handler(async ({ data, context }) => {
-    const { userId } = await actorFor(context.caller, data.projectId)
-    return getLatestRenderJobs(userId, data.projectId)
+    const { userId } = await actorForVideo(context.caller, data.videoId)
+    return getLatestRenderJobs(userId, data.videoId)
   })
 
 const cancelExportFn = createServerFn({ method: "POST" })
   .middleware([editorPost])
-  .inputValidator(projectIdSchema)
+  .inputValidator(videoIdSchema)
   .handler(async ({ data, context }) => {
-    const { userId } = await actorFor(context.caller, data.projectId)
-    return cancelRenderJobs(userId, data.projectId)
+    const { userId } = await actorForVideo(context.caller, data.videoId)
+    return cancelRenderJobs(userId, data.videoId)
   })
 
 const stopExportFn = createServerFn({ method: "POST" })
@@ -166,22 +166,22 @@ const listExportsFn = createServerFn({ method: "GET" })
         page: z.number().int().optional(),
         pageSize: z.number().int().optional(),
         search: z.string().trim().max(120).default(""),
-        projectId: z.string().min(1).max(36).optional(),
+        videoId: z.string().min(1).max(36).optional(),
         kind: z.enum(EXPORT_KINDS).default("video"),
       })
       .optional()
   )
   .handler(async ({ data, context }): Promise<ExportListWithShares> => {
-    // A guest lists only their own project's exports, and never its share links.
-    const { userId, guest } = data?.projectId
-      ? await actorFor(context.caller, data.projectId)
+    // A guest lists only a video in their project's exports, and never its share links.
+    const { userId, guest } = data?.videoId
+      ? await actorForVideo(context.caller, data.videoId)
       : signedInActor(context.caller)
     const list = await listOwnedExports({
       userId,
       page: data?.page ?? 1,
       pageSize: data?.pageSize ?? 24,
       search: data?.search,
-      projectId: data?.projectId,
+      videoId: data?.videoId,
       kind: data?.kind ?? "video",
     })
     const sharedIds = guest
@@ -292,7 +292,7 @@ const clearOutFn = createServerFn({ method: "POST" })
   })
 
 export function startExport(
-  projectId: string,
+  videoId: string,
   aspects: AspectRatio[],
   quality: "high" | "medium" | "low",
   frameRate: RenderFrameRate,
@@ -300,19 +300,19 @@ export function startExport(
   title?: string
 ) {
   return startExportFn({
-    data: { projectId, aspects, quality, frameRate, normalizeLoudness, title },
+    data: { videoId, aspects, quality, frameRate, normalizeLoudness, title },
   })
 }
 
-export function loadProjectExports(projectId: string) {
-  return projectExportFn({ data: { projectId } })
+export function loadVideoExports(videoId: string) {
+  return videoExportFn({ data: { videoId } })
 }
 
-export function cancelExports(projectId: string) {
-  return cancelExportFn({ data: { projectId } })
+export function cancelExports(videoId: string) {
+  return cancelExportFn({ data: { videoId } })
 }
 
-/** Stops one export, leaving the project's other exports going. */
+/** Stops one export, leaving the video's other exports going. */
 export function stopExport(exportId: string) {
   return stopExportFn({ data: { exportId } })
 }
@@ -325,18 +325,18 @@ export function listExports({
   page = 1,
   pageSize = 24,
   search,
-  projectId,
+  videoId,
   kind = "video",
 }: {
   page?: number
   pageSize?: number
   search?: string
-  /** Only one project's, for that project's Exports tab. */
-  projectId?: string
+  /** Only one video's, for the editor's Exports panel. */
+  videoId?: string
   /** Video exports, or kept carousel ZIPs for the Carousel exports page. */
   kind?: ExportKind
 } = {}) {
-  return listExportsFn({ data: { page, pageSize, search, projectId, kind } })
+  return listExportsFn({ data: { page, pageSize, search, videoId, kind } })
 }
 
 export function updateExport(

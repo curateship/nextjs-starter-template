@@ -14,18 +14,18 @@ import { customShellMedia } from "@/server/schema"
 import { FFMPEG_MISSING_MESSAGE, runFfmpeg } from "@/server/video/ffmpeg"
 import {
   videoMediaProxies,
-  videoProjects,
+  videoProjectVideos,
   videoProjectThumbnails,
 } from "@/server/video/schema"
 import { downloadToFile } from "@/server/video/storage-files"
 
 /**
- * The picture beside each project on the projects list (see
+ * The picture beside each video in the Videos tab and its project on the projects list (see
  * `workspace/docs/project-thumbnails.md`). It rides the media worker's tick:
  * saving never makes one, because a save lands every few seconds while
  * somebody edits and a picture costs an ffmpeg pass.
  *
- * Each tick looks again at the projects saved since it last looked, works out
+ * Each tick looks again at the videos saved since it last looked, works out
  * their first video or picture clip, and queues a new picture only when that
  * clip or its starting moment changed. Then it makes the queued pictures one
  * at a time.
@@ -36,7 +36,7 @@ const LEASE_SECONDS = 120
 const HEARTBEAT_MS = 30_000
 const DISCOVER_BATCH = 50
 const FRAME_TIMEOUT_MS = 2 * 60_000
-const FRAME_FAILED_MESSAGE = "The project's picture could not be made"
+const FRAME_FAILED_MESSAGE = "The video's picture could not be made"
 const SOURCE_GONE_MESSAGE = "The first clip's file is no longer in the library"
 
 type WorkerState = { draining: boolean }
@@ -84,7 +84,7 @@ export function firstPictureSource(
 
 /** One step of the media worker's tick. Each part fails alone. */
 export async function projectThumbnailTick() {
-  await discoverChangedProjects().catch((error) => {
+  await discoverChangedVideos().catch((error) => {
     console.error("Project picture discovery failed", error)
   })
   await reclaimStaleThumbnails().catch((error) => {
@@ -94,35 +94,35 @@ export async function projectThumbnailTick() {
 }
 
 /**
- * Every project with no row yet, or saved since its row was last checked.
+ * Every video with no row yet, or saved since its row was last checked.
  * `checked_at` takes the `updated_at` that was read, never the clock, so a
  * save landing while this runs is newer than it and is looked at next tick.
  */
-export async function discoverChangedProjects() {
+export async function discoverChangedVideos() {
   const rows = await db
     .select({
-      id: videoProjects.id,
-      updatedAt: videoProjects.updatedAt,
-      timeline: videoProjects.timeline,
+      id: videoProjectVideos.id,
+      updatedAt: videoProjectVideos.updatedAt,
+      timeline: videoProjectVideos.timeline,
       thumbnail: videoProjectThumbnails,
     })
-    .from(videoProjects)
+    .from(videoProjectVideos)
     .leftJoin(
       videoProjectThumbnails,
-      eq(videoProjectThumbnails.projectId, videoProjects.id)
+      eq(videoProjectThumbnails.videoId, videoProjectVideos.id)
     )
     .where(
       or(
-        isNull(videoProjectThumbnails.projectId),
+        isNull(videoProjectThumbnails.videoId),
         // Stored times carry microseconds and a JS date only milliseconds, so
         // both sides are compared at milliseconds or a row is never settled.
         gt(
-          sql`date_trunc('milliseconds', ${videoProjects.updatedAt})`,
+          sql`date_trunc('milliseconds', ${videoProjectVideos.updatedAt})`,
           videoProjectThumbnails.checkedAt
         )
       )
     )
-    .orderBy(videoProjects.updatedAt)
+    .orderBy(videoProjectVideos.updatedAt)
     .limit(DISCOVER_BATCH)
 
   for (const row of rows) {
@@ -137,7 +137,7 @@ export async function discoverChangedProjects() {
       await db
         .update(videoProjectThumbnails)
         .set({ checkedAt: row.updatedAt })
-        .where(eq(videoProjectThumbnails.projectId, row.id))
+        .where(eq(videoProjectThumbnails.videoId, row.id))
       continue
     }
 
@@ -146,7 +146,7 @@ export async function discoverChangedProjects() {
       await db
         .insert(videoProjectThumbnails)
         .values({
-          projectId: row.id,
+          videoId: row.id,
           status: source ? "queued" : "none",
           sourceMediaId: source?.mediaId ?? null,
           sourceAtMs: source?.atMs ?? null,
@@ -171,7 +171,7 @@ export async function discoverChangedProjects() {
           checkedAt: row.updatedAt,
           updatedAt: at,
         })
-        .where(eq(videoProjectThumbnails.projectId, row.id))
+        .where(eq(videoProjectThumbnails.videoId, row.id))
     } else {
       await clearThumbnail(row.id, row.updatedAt)
     }
@@ -183,9 +183,9 @@ export async function discoverChangedProjects() {
  * delete is read under the row lock, so a picture that finished a moment ago
  * is the one removed rather than left in storage with nothing pointing at it.
  */
-async function clearThumbnail(projectId: string, checkedAt: Date) {
+async function clearThumbnail(videoId: string, checkedAt: Date) {
   const result = await db.execute(sql`
-    update video_project_thumbnails t set
+    update video_video_thumbnails t set
       status = 'none',
       source_media_id = null,
       source_at_ms = null,
@@ -197,25 +197,25 @@ async function clearThumbnail(projectId: string, checkedAt: Date) {
       checked_at = ${checkedAt},
       updated_at = now()
     from (
-      select project_id, storage_path from video_project_thumbnails
-      where project_id = ${projectId}
+      select video_id, storage_path from video_video_thumbnails
+      where video_id = ${videoId}
       for update
     ) old
-    where t.project_id = old.project_id
+    where t.video_id = old.video_id
     returning old.storage_path
   `)
   const oldPath = (result.rows[0] as { storage_path: string | null } | undefined)
     ?.storage_path
   if (oldPath) {
     await deleteFromR2(oldPath).catch((error) => {
-      console.error("Old project picture removal failed", projectId, error)
+      console.error("Old video picture removal failed", videoId, error)
     })
   }
 }
 
 async function reclaimStaleThumbnails() {
   await db.execute(sql`
-    update video_project_thumbnails set
+    update video_video_thumbnails set
       status = case when attempts < ${MAX_ATTEMPTS} then 'queued' else 'error' end,
       error = case when attempts < ${MAX_ATTEMPTS} then null
         else ${FRAME_FAILED_MESSAGE} end,
@@ -245,7 +245,7 @@ async function drainQueue() {
 }
 
 type ClaimedThumbnail = {
-  projectId: string
+  videoId: string
   userId: string
   mediaId: string
   atMs: number
@@ -257,28 +257,28 @@ type ClaimedThumbnail = {
 async function claimNextThumbnail(): Promise<ClaimedThumbnail | null> {
   const leaseToken = uuid()
   const result = await db.execute(sql`
-    update video_project_thumbnails t set
+    update video_video_thumbnails t set
       status = 'generating',
       attempts = attempts + 1,
       error = null,
       lease_token = ${leaseToken},
       lease_expires_at = now() + make_interval(secs => ${LEASE_SECONDS}),
       updated_at = now()
-    from video_projects p
-    where p.id = t.project_id
-      and t.project_id = (
-        select project_id from video_project_thumbnails
+    from video_project_videos p
+    where p.id = t.video_id
+      and t.video_id = (
+        select video_id from video_video_thumbnails
         where status = 'queued'
-        order by updated_at, project_id
+        order by updated_at, video_id
         limit 1
         for update skip locked
       )
-    returning t.project_id, t.attempts, t.source_media_id, t.source_at_ms,
+    returning t.video_id, t.attempts, t.source_media_id, t.source_at_ms,
       t.storage_path, p.user_id
   `)
   const row = result.rows[0] as
     | {
-        project_id: string
+        video_id: string
         attempts: number
         source_media_id: string
         source_at_ms: number
@@ -288,7 +288,7 @@ async function claimNextThumbnail(): Promise<ClaimedThumbnail | null> {
     | undefined
   if (!row) return null
   return {
-    projectId: row.project_id,
+    videoId: row.video_id,
     userId: row.user_id,
     mediaId: row.source_media_id,
     atMs: row.source_at_ms,
@@ -308,9 +308,9 @@ function startHeartbeat(job: ClaimedThumbnail) {
     void db
       .execute(
         sql`
-          update video_project_thumbnails set
+          update video_video_thumbnails set
             lease_expires_at = now() + make_interval(secs => ${LEASE_SECONDS})
-          where project_id = ${job.projectId}
+          where video_id = ${job.videoId}
             and lease_token = ${job.leaseToken}
             and status = 'generating'
         `
@@ -327,7 +327,7 @@ async function makeThumbnail(job: ClaimedThumbnail) {
   try {
     const frame = await grabFrame(job, workDir)
     // A new name each time, so no cache can keep handing back the old one.
-    const storagePath = `video/project-thumbnails/${job.userId}/${job.projectId}/${job.leaseToken}.jpg`
+    const storagePath = `video/project-thumbnails/${job.userId}/${job.videoId}/${job.leaseToken}.jpg`
     await uploadToR2(storagePath, frame, "image/jpeg")
 
     const finished = await db
@@ -343,13 +343,13 @@ async function makeThumbnail(job: ClaimedThumbnail) {
       })
       .where(
         and(
-          eq(videoProjectThumbnails.projectId, job.projectId),
+          eq(videoProjectThumbnails.videoId, job.videoId),
           eq(videoProjectThumbnails.leaseToken, job.leaseToken),
           eq(videoProjectThumbnails.status, "generating")
         )
       )
-      .returning({ projectId: videoProjectThumbnails.projectId })
-    // No match means the first clip changed, or the project was deleted,
+      .returning({ videoId: videoProjectThumbnails.videoId })
+    // No match means the first clip changed, or the video was deleted,
     // while ffmpeg ran: the file just uploaded belongs to nobody.
     const stale = finished.length ? job.previousPath : storagePath
     if (stale) await deleteFromR2(stale).catch(() => undefined)
@@ -364,7 +364,7 @@ async function makeThumbnail(job: ClaimedThumbnail) {
 /**
  * The frame itself, 320 across at most. A video is read from its 720p
  * playback copy when there is one, which is far smaller than the upload.
- * Only the project owner's own file is ever read.
+ * Only the video owner's own file is ever read.
  */
 async function grabFrame(job: ClaimedThumbnail, workDir: string) {
   const [media] = await db
@@ -426,7 +426,7 @@ async function recordFailure(job: ClaimedThumbnail, error: unknown) {
       ? error.message
       : FRAME_FAILED_MESSAGE
   if (message === FRAME_FAILED_MESSAGE) {
-    console.error("Project picture failed", job.projectId, error)
+    console.error("Video picture failed", job.videoId, error)
   }
   const retry = job.attempts < MAX_ATTEMPTS && message !== SOURCE_GONE_MESSAGE
   await db
@@ -440,7 +440,7 @@ async function recordFailure(job: ClaimedThumbnail, error: unknown) {
     })
     .where(
       and(
-        eq(videoProjectThumbnails.projectId, job.projectId),
+        eq(videoProjectThumbnails.videoId, job.videoId),
         eq(videoProjectThumbnails.leaseToken, job.leaseToken),
         eq(videoProjectThumbnails.status, "generating")
       )

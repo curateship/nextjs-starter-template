@@ -35,16 +35,11 @@ describe("editor view memory", () => {
     expect(readEditorView(editorViewStorageKey("amy", "p2"))).toEqual({})
   })
 
-  it("keeps the timeline when the panel is saved, and the other way round", () => {
+  it("reads a record saved with a left panel as the timeline alone", () => {
+    // Records from before a project always opened on its Videos tab.
     const key = editorViewStorageKey("amy", "p1")
-    updateEditorView(key, { timeline })
-    updateEditorView(key, { panel: "music" })
-    expect(readEditorView(key)).toEqual({ timeline, panel: "music" })
-    updateEditorView(key, { timeline: { ...timeline, scrollLeft: 0 } })
-    expect(readEditorView(key)).toEqual({
-      timeline: { ...timeline, scrollLeft: 0 },
-      panel: "music",
-    })
+    localStorage.setItem(key, JSON.stringify({ timeline, panel: "music" }))
+    expect(readEditorView(key)).toEqual({ timeline })
   })
 
   it("treats anything that is not a view as nothing remembered", () => {

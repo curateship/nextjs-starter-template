@@ -6,12 +6,11 @@ import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-hea
 import { BreakdownPanel } from "@/components/video-viral/breakdown-panel"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
-import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import {
   getSavedVideoErrorMessage,
-  loadProjectSourceDetail,
+  loadVideoSourceDetail,
   retryVideo,
   type ProjectSourceDetail,
 } from "@/lib/api/video/viral-videos"
@@ -25,14 +24,14 @@ import {
 const POLL_MS = 3_000
 
 /**
- * The Copy panel at the foot of the editor rail: the viral video this project
+ * The Copy panel at the foot of the editor rail: the viral video the open video
  * copies, playing at the top, and what Gemini made of it underneath, part by
  * part with the hook marked. Clicking a line jumps the player there. A
  * project made from scratch copies nothing, and the panel says where to find
  * a video (see `workspace/docs/project-first.md`).
  */
 export function CopyPanel() {
-  const { projectId } = useEditorRuntime()
+  const { videoId } = useEditorRuntime()
   const [detail, setDetail] = React.useState<ProjectSourceDetail | null>(null)
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [reads, setReads] = React.useState(0)
@@ -44,7 +43,7 @@ export function CopyPanel() {
 
   React.useEffect(() => {
     let active = true
-    loadProjectSourceDetail(projectId)
+    loadVideoSourceDetail(videoId)
       .then((loaded) => {
         if (!active) return
         setDetail(loaded)
@@ -58,7 +57,7 @@ export function CopyPanel() {
     return () => {
       active = false
     }
-  }, [projectId, reads])
+  }, [videoId, reads])
 
   // While the video is downloading or being read, ask again.
   React.useEffect(() => {
@@ -94,13 +93,9 @@ export function CopyPanel() {
         title="Copy"
       />
       <ScrollArea className="min-h-0 flex-1">
-        {detail === null && !loadFailed ? (
-          <div className="p-3">
-            <LoadingRow label="Loading the video this project copies" />
-          </div>
-        ) : loadFailed ? (
+        {detail === null && !loadFailed ? null : loadFailed ? (
           <div className="grid justify-items-center gap-2 p-8 text-center text-sm text-muted-foreground">
-            The video this project copies could not be loaded.
+            The viral video this video copies could not be loaded.
             <Button
               type="button"
               variant="outline"
@@ -112,18 +107,18 @@ export function CopyPanel() {
         ) : !video ? (
           <div className="grid justify-items-center gap-3 p-3 text-center text-sm text-muted-foreground">
             {detail?.deletedVideoTitle ? (
-              // The saved video was deleted after this project copied it.
-              // The title was written onto the project just before.
+              // The saved video was deleted after this video copied it.
+              // The title was written onto this video just before.
               <p>
                 The original video, {detail.deletedVideoTitle}, was deleted.
-                This project keeps everything it made, but the video and its
+                This video keeps everything it made, but the original and its
                 breakdown are gone.
               </p>
             ) : (
               <p>
-                This project copies no video. Find one that went viral in a
-                Viral project and press Make this a template under it. It opens as a new
-                project with the video here.
+                This video copies no viral video. Find one that went viral in a
+                Viral project and press Make this a template under it. It opens
+                as a new video with the original here.
               </p>
             )}
             <OpenViralButton viral={detail?.viral ?? null} />

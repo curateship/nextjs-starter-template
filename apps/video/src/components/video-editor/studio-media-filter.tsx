@@ -2,7 +2,6 @@ import * as React from "react"
 import {
   AudioLinesIcon,
   BookmarkIcon,
-  CheckIcon,
   FunnelIcon,
   ImageIcon,
   Loader2Icon,
@@ -14,6 +13,7 @@ import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { ChoiceRow, SectionLabel } from "@/components/video-assets/filter-menu-rows"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -136,46 +136,6 @@ function useMediaViews(screen: string, enabled: boolean) {
   return { views, reload }
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-4 pt-3 pb-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-      {children}
-    </div>
-  )
-}
-
-/** One row of the Views or Collection list: a name, a count, a tick. */
-function ChoiceRow({
-  label,
-  count,
-  on,
-  onSelect,
-}: {
-  label: string
-  count?: number
-  on: boolean
-  onSelect: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      onClick={onSelect}
-      className={cn(
-        "flex h-9 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-accent",
-        on && "bg-accent"
-      )}
-    >
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {count !== undefined ? (
-        <span className="text-muted-foreground tabular-nums">{count}</span>
-      ) : null}
-      <CheckIcon
-        className={cn("size-4 shrink-0 text-(--acc)", !on && "invisible")}
-      />
-    </button>
-  )
-}
 
 /** Right-click on a row: Rename and Delete. */
 function RowMenu({

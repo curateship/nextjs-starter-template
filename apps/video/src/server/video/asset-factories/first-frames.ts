@@ -38,7 +38,8 @@ import {
 } from "@/server/video/media-list"
 import { remakeScenePicture } from "@/server/video/briefs"
 import { readProjectLook } from "@/server/video/project-look"
-import { requireProjectBudget } from "@/server/video/project-spend"
+import { requireVideoBudget, videoSpendMetadata } from "@/server/video/project-spend"
+import { getOwnedVideo } from "@/server/video/project-videos"
 import { getOwnedProject } from "@/server/video/projects"
 import {
   videoActors,
@@ -84,7 +85,11 @@ export type FirstFrameItem = {
 }
 
 export type FirstFramePayload = {
-  projectId: string
+  /**
+   * The video open in the editor. It pays for the pictures; the frames
+   * belong to its whole project.
+   */
+  videoId: string
   actorId: string
   /** The scene, such as "Mia holding a coffee in a bright kitchen". */
   prompt: string
@@ -94,8 +99,8 @@ export type FirstFramePayload = {
   /** The extras picked, one per kind. */
   extras?: ExtraPicks | null
   /**
-   * Only for a square or 4:3 project, whose shape no picture model makes.
-   * Any other project's frames take the project's own shape.
+   * Only for a square or 4:3 video, whose shape no picture model makes.
+   * Any other video's frames take the video's own shape.
    */
   aspectRatio?: AssetAspectRatio | null
   /** Left out, the standard picture model. Only Make it again offers another. */
@@ -197,18 +202,19 @@ export async function listFirstFrames(userId: string, projectId: string) {
 
 /**
  * Makes one or more first frames of an actor for a project. The shape is the
- * project's and the look is the project's, so neither is asked. Every picture
- * goes on the project's spend line, and the project's limit is checked for
+ * open video's and the look is the project's, so neither is asked. Every
+ * picture goes on the open video's spend line, and its limit is checked for
  * all of them before the first is made.
  */
 export async function createFirstFrames(
   userId: string,
   payload: FirstFramePayload
 ): Promise<{ firstFrames: FirstFrameItem[]; warning: string | null }> {
-  const project = await getOwnedProject(userId, payload.projectId)
-  const aspectRatio = projectClipAspect(project.aspect) ?? payload.aspectRatio
+  const video = await getOwnedVideo(userId, payload.videoId)
+  const project = { id: video.projectId }
+  const aspectRatio = projectClipAspect(video.aspect) ?? payload.aspectRatio
   if (!aspectRatio) {
-    throw new Error("Pick 9:16 or 16:9 for this project's first frames")
+    throw new Error("Pick 9:16 or 16:9 for this video's first frames")
   }
   const actor = await requireOwnedActor(userId, payload.actorId)
   const actorPictures = await sheetPicturesToSend(
@@ -224,11 +230,7 @@ export async function createFirstFrames(
   const prompt = assetPrompt(payload.prompt)
   const name = assetName(sceneName(prompt), "First frame")
   const model: GeminiImageModelId = payload.model ?? DEFAULT_IMAGE_MODEL
-  await requireProjectBudget(
-    userId,
-    project.id,
-    aiUnitCostCents(model, payload.variants)
-  )
+  await requireVideoBudget(userId, video.id, aiUnitCostCents(model, payload.variants))
   const look = await readProjectLook(userId, project.id)
   // Everything worn or held goes on one board with the actor's angles, and
   // the backdrop as its own picture, so with the look picture a request never
@@ -259,7 +261,7 @@ export async function createFirstFrames(
         userId,
         model,
         aspectRatio,
-        projectId: project.id,
+        spend: videoSpendMetadata(video),
         ...withLook<ImageReference>(
           look,
           `Create a polished opening frame for a short video. Preserve the actor's identity.${pictures} Actor: ${actor.name}. Actor description: ${actor.prompt}.${extraWords} Direction: ${prompt}. Variant ${variant} of ${payload.variants}.`,
@@ -327,14 +329,14 @@ export async function createFirstFrames(
 export async function remakeFirstFrame(
   userId: string,
   payload: {
-    projectId: string
+    videoId: string
     clipId: string
     prompt: string
     model: GeminiImageModelId
   }
 ): Promise<{ image: VideoMediaItem; origin: PictureOrigin }> {
-  const project = await getOwnedProject(userId, payload.projectId)
-  const { timeline } = parseTimelineForReset(project.timeline)
+  const video = await getOwnedVideo(userId, payload.videoId)
+  const { timeline } = parseTimelineForReset(video.timeline)
   const clip = timeline.tracks
     .flatMap((track) => track.clips)
     .find((candidate) => candidate.id === payload.clipId)
@@ -343,11 +345,11 @@ export async function remakeFirstFrame(
   }
   const { origin } = clip
   if (origin.tool === "brief") {
-    return remakeScenePicture(userId, project.id, origin, payload)
+    return remakeScenePicture(userId, video, origin, payload)
   }
   const actor = await requireOwnedActor(userId, origin.actorId)
   const made = await createFirstFrames(userId, {
-    projectId: project.id,
+    videoId: video.id,
     actorId: actor.id,
     prompt: payload.prompt,
     variants: 1,

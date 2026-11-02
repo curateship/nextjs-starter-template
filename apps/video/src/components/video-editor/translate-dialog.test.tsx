@@ -23,7 +23,11 @@ const api = vi.hoisted(() => ({
       lines: { startMs: number; text: string }[]
     }) => ({
       language,
-      project: { id: `copy-${language}`, name: `My Short (${language})` },
+      video: {
+        id: `copy-${language}`,
+        project_id: "project-1",
+        name: `My Short (${language})`,
+      },
       exports: [],
       exportProblem: null,
     })
@@ -121,8 +125,9 @@ async function openWindow() {
           dispatch: store.dispatch,
           clock: new PlaybackClock(),
           projectId: "project-1",
+          videoId: "video-1",
           saveNow: async () => undefined,
-          setProjectName: () => undefined,
+          setVideoName: () => undefined,
         }}
       >
         <TranslateDialog
@@ -195,7 +200,7 @@ async function openTab(language: string) {
 }
 
 describe("Another language", () => {
-  it("works on this project as before when one language is picked", async () => {
+  it("works on this video as before when one language is picked", async () => {
     await openWindow()
     await translate(/^Translate/)
     expect(api.translateCaptionLines).toHaveBeenCalledTimes(1)

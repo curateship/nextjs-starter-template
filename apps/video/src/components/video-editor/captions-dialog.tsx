@@ -58,7 +58,7 @@ export function CaptionsDialog({
   onOpenChange: (open: boolean) => void
   available: AiToolsAvailability | null
 }) {
-  const { projectId, dispatch, saveNow } = useEditorRuntime()
+  const { videoId, dispatch, saveNow } = useEditorRuntime()
   const tracks = useEditorSelector((state) => state.tracks)
   const placement = useCaptionPlacement()
   const [look, setLook] = React.useState<CaptionLook>(placement.look)
@@ -103,7 +103,7 @@ export function CaptionsDialog({
       // The server reads the saved timeline, so anything still waiting to be
       // sent goes first.
       await saveNow()
-      const { captions: lines } = await writeCaptions(projectId)
+      const { captions: lines } = await writeCaptions(videoId)
       const captions = captionTextClips(
         lines,
         { ...placement, look },

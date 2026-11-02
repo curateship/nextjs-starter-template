@@ -1,14 +1,14 @@
 /**
- * The Exports page's groups: a project's own exports and the exports of its
+ * The Exports page's groups: a video's own exports and the exports of its
  * language copies, kept together under one heading. Tyler chose heading rows
  * on 21 Oct 2026 (workspace/docs/another-language.md).
  */
 
 type GroupedExport = {
   id: string
-  project_id: string | null
+  video_id: string | null
   language: string | null
-  original_project_id: string | null
+  original_video_id: string | null
 }
 
 /** The original a row belongs under, or null when it is in no group. */
@@ -16,8 +16,8 @@ export function exportGroupId(
   item: GroupedExport,
   originals: ReadonlySet<string>
 ): string | null {
-  if (item.language && item.original_project_id) return item.original_project_id
-  if (item.project_id && originals.has(item.project_id)) return item.project_id
+  if (item.language && item.original_video_id) return item.original_video_id
+  if (item.video_id && originals.has(item.video_id)) return item.video_id
   return null
 }
 
@@ -31,8 +31,8 @@ export function groupLanguageCopies<Item extends GroupedExport>(
 ): { rows: Item[]; originals: ReadonlySet<string> } {
   const originals = new Set(
     sorted.flatMap((item) =>
-      item.language && item.original_project_id
-        ? [item.original_project_id]
+      item.language && item.original_video_id
+        ? [item.original_video_id]
         : []
     )
   )

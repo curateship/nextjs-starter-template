@@ -5,7 +5,7 @@
 
 export const CAROUSEL_SLIDE_COUNT = { min: 3, max: 20, start: 7 } as const
 
-export const CAROUSEL_SOURCE_KINDS = ["topic", "notes", "project", "link"] as const
+export const CAROUSEL_SOURCE_KINDS = ["topic", "notes", "video", "link"] as const
 export type CarouselSourceKind = (typeof CAROUSEL_SOURCE_KINDS)[number]
 
 export const CAROUSEL_SOURCE_EMPTY_MESSAGE =

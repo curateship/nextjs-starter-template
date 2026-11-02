@@ -5,7 +5,7 @@ import {
   type TranslateLanguage,
 } from "@/lib/video/translate"
 import { askWriter } from "@/server/video/writer"
-import { projectSpendMetadata } from "@/server/video/project-spend"
+import type { SpendTag } from "@/server/video/project-spend"
 
 /**
  * Translating caption lines.
@@ -50,19 +50,19 @@ export async function translateLines({
   userId,
   language,
   lines,
-  projectId,
+  spend,
 }: {
   userId: string
   language: TranslateLanguage
   lines: string[]
-  /** The project the lines come from, so its spend line counts it. */
-  projectId?: string | null
+  /** The video the call is for, so its spend line counts it. */
+  spend?: SpendTag | null
 }): Promise<string[]> {
   const answer = await askWriter({
     userId,
     feature: TRANSLATE_FEATURE,
     metadata: {
-      ...(projectId ? projectSpendMetadata(projectId) : {}),
+      ...spend,
       language,
       lines: lines.length,
     },

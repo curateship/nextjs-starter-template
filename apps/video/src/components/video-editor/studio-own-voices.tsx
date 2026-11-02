@@ -4,7 +4,6 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { LoadingRow } from "@/components/ui/loading-row"
 import {
   deleteOwnVoice,
   getVoiceCloneErrorMessage,
@@ -72,9 +71,7 @@ export function OwnVoices({
   return (
     <section className="grid min-w-0 gap-2 border-b p-4" aria-label="Your voices">
       <h3 className="text-xs font-medium text-muted-foreground">Your voices</h3>
-      {voices === null && !loadFailed ? (
-        <LoadingRow label="Loading your voices" className="py-2" />
-      ) : loadFailed ? (
+      {voices === null && !loadFailed ? null : loadFailed ? (
         <div className="grid justify-items-start gap-2 text-sm text-muted-foreground">
           Your voices could not be loaded.
           <Button

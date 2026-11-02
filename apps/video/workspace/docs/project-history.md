@@ -1,7 +1,9 @@
-# Project history
+# Video history
 
-A project keeps up to twenty earlier versions of its timeline, which you can
-look at and bring back from the History panel at the foot of the editor's
+Each video in a project keeps up to twenty earlier versions of its timeline
+(per video since 1 Nov 2026, when a project began holding many; see
+`project-videos.md`). Below, "the project" means the open video. You can
+look at them and bring them back from the History panel at the foot of the editor's
 rail. Undo still holds the last fifty steps, but only in the open tab, and it
 is gone on reload. History is what survives.
 

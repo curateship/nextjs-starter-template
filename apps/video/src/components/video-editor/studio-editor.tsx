@@ -9,6 +9,7 @@ import {
   HistoryIcon,
   ClapperboardIcon,
   CopyIcon,
+  ListVideoIcon,
   Loader2Icon,
   LockIcon,
   MicIcon,
@@ -20,7 +21,7 @@ import {
   Upload,
 } from "lucide-react"
 
-import { renameProject } from "@/lib/api/video/projects"
+import { renameProjectVideo } from "@/lib/api/video/project-videos"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,7 +52,7 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
 import {
   timelineDurationMs,
   useEditorLock,
-  useEditorProjectName,
+  useEditorVideoName,
   useEditorRuntime,
   useEditorSaveStatus,
   useEditorSelector,
@@ -67,7 +68,6 @@ import { StudioInspector } from "@/components/video-editor/studio-inspector"
 import { StudioStage } from "@/components/video-editor/studio-stage"
 import { StudioTimeline } from "@/components/video-editor/studio-timeline"
 import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
-import { useRememberedRailPanel } from "@/components/video-editor/use-remembered-view"
 import { OpenElsewhereDialog } from "@/components/video-editor/open-elsewhere-dialog"
 import { BriefsProvider } from "@/components/video-editor/brief-to-video"
 import { MovingStillsProvider } from "@/components/video-editor/moving-stills"
@@ -97,8 +97,12 @@ const LAYOUT_KEY = {
   vertical: "video-editor-vertical",
 }
 
-/** The panels on the rail, in the order they appear on it. */
+/**
+ * The panels on the rail, in the order they appear on it. Videos is first and
+ * is the one a project opens on (Tyler, 1 Nov 2026).
+ */
 const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
+  { id: "videos", label: "Videos", Icon: ListVideoIcon },
   { id: "media", label: "Media", Icon: FilmIcon },
   { id: "music", label: "Music", Icon: Music },
   { id: "sounds", label: "Sounds", Icon: AudioLines },
@@ -121,11 +125,12 @@ const RAIL_FOOT: typeof RAIL = [
 ]
 
 /**
- * The panels a guest sent from Project sees: their project's media, text,
- * its exports and its history. The rest use AI, the owner's library or
- * things outside the project (`workspace/docs/project-guests.md`).
+ * The panels a guest sent from Project sees: their project's videos, media
+ * and text, and the open video's exports and history. The rest use AI, the
+ * owner's library or things outside the project
+ * (`workspace/docs/project-guests.md`).
  */
-const GUEST_PANELS = new Set<StudioPanel>(["media", "text", "exports", "history"])
+const GUEST_PANELS = new Set<StudioPanel>(["videos", "media", "text", "exports", "history"])
 
 function railFor(guest: boolean) {
   const keep = (item: (typeof RAIL)[number]) => !guest || GUEST_PANELS.has(item.id)
@@ -135,24 +140,21 @@ function railFor(guest: boolean) {
 export function StudioEditor({
   timelineError,
   reportSaveStatus,
+  initialPanel = "videos",
 }: {
   timelineError?: string | null
   /** Where "Saving…" and "Saved" are shown: the app header, or the guest page's own. */
   reportSaveStatus: (status: SaveStatus | null) => void
+  /** The rail panel to open on. Make this a template opens on Copy. */
+  initialPanel?: StudioPanel
 }) {
   const { store, dispatch, clock } = useEditorRuntime()
   const guest = useProjectGuest() !== null
   const saveStatus = useEditorSaveStatus()
   const desktop = useWideScreen()
-  const [panel, setPanel] = React.useState<StudioPanel>("media")
-  const isRailPanel = React.useCallback(
-    (name: string): name is StudioPanel => {
-      const { rail, foot } = railFor(guest)
-      return [...rail, ...foot].some((item) => item.id === name)
-    },
-    [guest]
-  )
-  useRememberedRailPanel(panel, setPanel, isRailPanel)
+  // Every video opens on the Videos tab, so switching videos from it keeps it
+  // showing and a project always lands there.
+  const [panel, setPanel] = React.useState<StudioPanel>(initialPanel)
 
   // A timeline the editor cannot read is said once and left in the shared
   // error toast. A save refused by another window is said by EditorProvider,
@@ -454,13 +456,13 @@ function ToolRail({
   )
 }
 
-/** The picture's header: what this project is called, and a link to it. */
+/** The picture's header: what this video is called, and a way back. */
 function StageHeader() {
   const guest = useProjectGuest()
-  const projectName = useEditorProjectName()
-  const { setProjectName, projectId } = useEditorRuntime()
+  const videoName = useEditorVideoName()
+  const { setVideoName, videoId } = useEditorRuntime()
   const [editing, setEditing] = React.useState(false)
-  const [draft, setDraft] = React.useState(projectName)
+  const [draft, setDraft] = React.useState(videoName)
   const [shared, setShared] = React.useState(false)
   const [exportOpen, setExportOpen] = React.useState(false)
   const projectAspect = useEditorSelector((state) => state.aspect)
@@ -471,18 +473,18 @@ function StageHeader() {
     jobs,
     setJobs,
     running: rendering,
-  } = useProjectExports(projectId)
+  } = useProjectExports(videoId)
 
   async function commitRename() {
     setEditing(false)
     const next = draft.trim()
-    if (!next || next === projectName) {
-      setDraft(projectName)
+    if (!next || next === videoName) {
+      setDraft(videoName)
       return
     }
-    setProjectName(next)
+    setVideoName(next)
     try {
-      await renameProject(projectId, next)
+      await renameProjectVideo(videoId, next)
     } catch (error) {
       showErrorToast(
         error instanceof Error && error.message
@@ -505,11 +507,11 @@ function StageHeader() {
   return (
     <DashboardCardHeader className="grid grid-cols-[1fr_auto_1fr]">
       {/* A guest sent from Project has no project list to go back to, and
-          can't rename the project or share the editor's address. */}
+          can't rename the video or share the editor's address. */}
       {guest ? (
         <div className="flex min-w-0 items-center gap-2.5">
           <h1 className="font-heading min-w-0 truncate text-[0.99rem] leading-snug font-medium">
-            {projectName}
+            {videoName}
           </h1>
           <LockedMarker />
         </div>
@@ -534,14 +536,14 @@ function StageHeader() {
           <Input
             autoFocus
             value={draft}
-            aria-label="Project name"
+            aria-label="Video name"
             className="h-8 max-w-72"
             onChange={(event) => setDraft(event.target.value)}
             onBlur={() => void commitRename()}
             onKeyDown={(event) => {
               if (event.key === "Enter") void commitRename()
               if (event.key === "Escape") {
-                setDraft(projectName)
+                setDraft(videoName)
                 setEditing(false)
               }
             }}
@@ -550,13 +552,13 @@ function StageHeader() {
           <button
             type="button"
             className="font-heading min-w-0 truncate text-left text-[0.99rem] leading-snug font-medium hover:underline"
-            title="Rename this project"
+            aria-label={`Rename ${videoName}`}
             onClick={() => {
-              setDraft(projectName)
+              setDraft(videoName)
               setEditing(true)
             }}
           >
-            {projectName}
+            {videoName}
           </button>
         )}
         <LockedMarker />
@@ -584,8 +586,8 @@ function StageHeader() {
       <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
-        projectId={projectId}
-        projectName={projectName}
+        videoId={videoId}
+        videoName={videoName}
         projectAspect={projectAspect}
         projectMs={projectMs}
         jobs={jobs}

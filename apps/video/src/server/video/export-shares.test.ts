@@ -55,7 +55,8 @@ async function exportRow(
     .values({
       id,
       userId: ownerId,
-      projectId: project.id,
+      projectId: project.project.id,
+      videoId: project.video,
       status: "ready",
       quality: "high",
       aspect: "9:16",

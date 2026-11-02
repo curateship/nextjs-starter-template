@@ -1,11 +1,8 @@
 import { and, eq } from "drizzle-orm"
 
 import { db } from "@/server/db"
-import {
-  createOwnedProject,
-  getOwnedProject,
-  type ProjectItem,
-} from "@/server/video/projects"
+import { createVideo, getOwnedVideo } from "@/server/video/project-videos"
+import { createOwnedProject } from "@/server/video/projects"
 import { videoViralProjects, videoViralVideos } from "@/server/video/schema"
 import { requireOwnedViralProject } from "@/server/video/viral/projects"
 import {
@@ -15,25 +12,37 @@ import {
 } from "@/server/video/viral/saved-videos"
 
 /**
- * Copy this: a viral video becomes a new project that copies it.
+ * Make this a template: a viral video becomes a new video that copies it,
+ * in a new project named after it or in one of the person's own projects
+ * (Tyler, 1 Nov 2026: asked which each time).
  *
  * The video is saved for breaking down first, which hands back the row that is
- * already there when the video was saved before. So pressing Copy this twice
- * makes two projects on one saved video and downloads it once.
+ * already there when the video was saved before. So pressing it twice makes
+ * two videos on one saved video and downloads it once.
  */
 export async function copyVideoIntoProject(
   userId: string,
   url: string,
   title: string | null,
-  /** The Viral project Copy this was pressed in, remembered on the new one. */
-  viralProjectId: string | null = null
-): Promise<ProjectItem> {
+  /** The Viral project it was pressed in, remembered on the new video. */
+  viralProjectId: string | null = null,
+  /** An existing project to add the video to; null makes a new project. */
+  intoProjectId: string | null = null
+): Promise<{ projectId: string; videoId: string }> {
   const viralProject = viralProjectId
     ? await requireOwnedViralProject(userId, viralProjectId)
     : null
   const saved = await saveVideoForBreakdown(userId, url, viralProject?.id ?? null)
   const name = (title ?? saved.title ?? "").trim() || "Copied video"
-  return createOwnedProject(
+  if (intoProjectId) {
+    const video = await createVideo(userId, intoProjectId, {
+      name,
+      sourceViralVideoId: saved.id,
+      sourceViralProjectId: viralProject?.id ?? null,
+    })
+    return { projectId: video.project_id, videoId: video.id }
+  }
+  const made = await createOwnedProject(
     userId,
     name,
     db,
@@ -41,16 +50,18 @@ export async function copyVideoIntoProject(
     saved.id,
     viralProject?.id ?? null
   )
+  return { projectId: made.project.id, videoId: made.video }
 }
 
-/** The project's Copy tab: the video it copies, if it copies one. */
+/** The editor's Copy panel: the viral video one video copies, if it copies one. */
 export type ProjectSourceDetail = {
-  project: { id: string; name: string }
+  /** The video in the editor that does the copying. */
+  copying: { id: string; name: string }
   video: SavedVideoDetail | null
   /**
    * The copied video's title when that saved video was deleted, so the panel
    * says "The original video, <title>, was deleted" instead of claiming the
-   * project never copied one. Null while the video is still there.
+   * video never copied one. Null while the video is still there.
    */
   deletedVideoTitle: string | null
   /**
@@ -61,14 +72,14 @@ export type ProjectSourceDetail = {
   viral: { projectId: string; videoKey: string | null } | null
 }
 
-export async function loadProjectSource(
+export async function loadVideoSource(
   userId: string,
-  projectId: string
+  videoId: string
 ): Promise<ProjectSourceDetail> {
-  const project = await getOwnedProject(userId, projectId)
+  const copier = await getOwnedVideo(userId, videoId)
   // A source saved by someone else is never shown, even if the column points
   // at it.
-  const [owned] = project.sourceViralVideoId
+  const [owned] = copier.sourceViralVideoId
     ? await db
         .select({
           id: videoViralVideos.id,
@@ -78,28 +89,28 @@ export async function loadProjectSource(
         .from(videoViralVideos)
         .where(
           and(
-            eq(videoViralVideos.id, project.sourceViralVideoId),
+            eq(videoViralVideos.id, copier.sourceViralVideoId),
             eq(videoViralVideos.ownerId, userId)
           )
         )
     : []
-  const [viralProject] = project.sourceViralProjectId
+  const [viralProject] = copier.sourceViralProjectId
     ? await db
         .select({ id: videoViralProjects.id })
         .from(videoViralProjects)
         .where(
           and(
-            eq(videoViralProjects.id, project.sourceViralProjectId),
+            eq(videoViralProjects.id, copier.sourceViralProjectId),
             eq(videoViralProjects.ownerId, userId)
           )
         )
     : []
   return {
-    project: { id: project.id, name: project.name },
+    copying: { id: copier.id, name: copier.name },
     video: owned ? await loadSavedVideo(userId, owned.id) : null,
-    deletedVideoTitle: project.sourceViralVideoId
+    deletedVideoTitle: copier.sourceViralVideoId
       ? null
-      : project.sourceViralVideoTitle,
+      : copier.sourceViralVideoTitle,
     viral: viralProject
       ? {
           projectId: viralProject.id,

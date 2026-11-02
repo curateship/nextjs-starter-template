@@ -39,6 +39,7 @@ import {
   HistoryIcon,
   ImageIcon,
   LanguagesIcon,
+  ImagesIcon,
   LayersIcon,
   LayoutGridIcon,
   ListIcon,
@@ -101,7 +102,6 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Hint } from "@/components/video-assets/hint"
 import { Input } from "@/components/ui/input"
-import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
@@ -152,7 +152,9 @@ import {
   type MediaItem,
 } from "@/lib/api/media/media"
 import { attachEditorMedia, listVideoMedia } from "@/lib/api/video/media"
+import { CarouselsPanel } from "@/components/carousel-studio/carousels-panel"
 import { LayersPanelBody } from "@/components/carousel-studio/layers-panel"
+import type { CarouselProjectItem } from "@/lib/api/video/carousel-projects"
 import { StickerList } from "@/components/video-editor/studio-stickers"
 import { useMediaCollections } from "@/components/video-editor/use-media-collections"
 import { CollectionNameDialog } from "@/components/video-editor/studio-media-collections"
@@ -287,7 +289,7 @@ export type BuilderAction =
   | { type: "UNDO" }
   | { type: "REDO" }
 
-type StudioPanel = "slides" | "layers" | "text" | "image" | "shadow"
+type StudioPanel = "carousels" | "slides" | "layers" | "text" | "image" | "shadow"
 
 const LAYOUT_KEY = "video-carousel-studio-horizontal-2"
 
@@ -424,8 +426,11 @@ type SaveStatus = "saved" | "saving" | "error"
 
 export function CarouselBuilderPage({
   document,
+  project,
 }: {
   document: CarouselDetail
+  /** The carousel project it is in, whose Carousels tab opens first. */
+  project: CarouselProjectItem
 }) {
   const [state, dispatch] = React.useReducer(
     builderReducer,
@@ -433,7 +438,8 @@ export function CarouselBuilderPage({
     createInitialBuilderState
   )
   const { reportSaveStatus } = useShellRuntime()
-  const [panel, setPanel] = React.useState<StudioPanel>("slides")
+  // Carousels is the first tab, picked when a carousel project opens.
+  const [panel, setPanel] = React.useState<StudioPanel>("carousels")
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("saved")
   const [statusError, setStatusError] = React.useState<string | null>(null)
   const [previewOpen, setPreviewOpen] = React.useState(false)
@@ -700,8 +706,9 @@ export function CarouselBuilderPage({
       const copy = await duplicateCarousel(document.id, format)
       toast.success(`"${copy.name}" created.`)
       await navigate({
-        to: "/admin/video-carousels/$carouselId",
-        params: { carouselId: copy.id },
+        to: "/admin/video-carousels/$projectId",
+        params: { projectId: copy.carousel_project_id },
+        search: { carousel: copy.id },
       })
     } catch (error) {
       showErrorToast(getCarouselErrorMessage(error))
@@ -990,6 +997,14 @@ export function CarouselBuilderPage({
     <div data-screen-label="Panel" className="flex h-full min-h-0">
       <IconRail panel={panel} onSelect={setPanel} />
       <div className="flex min-w-0 flex-1 flex-col">
+        {panel === "carousels" ? (
+          <CarouselsPanel
+            projectId={project.id}
+            openId={document.id}
+            openName={document.name}
+            beforeLeaving={flushSave}
+          />
+        ) : (
         <CarouselContextPanel
           carouselId={document.id}
           panel={panel}
@@ -1027,6 +1042,7 @@ export function CarouselBuilderPage({
           }
           onAddItem={addItem}
         />
+        )}
       </div>
     </div>
   )
@@ -1306,7 +1322,7 @@ function CarouselStageHeader({
                 sort: undefined,
                 direction: undefined,
                 page: undefined,
-                account: undefined,
+                folder: undefined,
               }}
               aria-label="Back to carousels"
             >
@@ -1426,6 +1442,7 @@ function CarouselStageHeader({
 // -------------------------------------------------------------- Rail --------
 
 const RAIL: { id: StudioPanel; label: string; Icon: typeof TypeIcon }[] = [
+  { id: "carousels", label: "Carousels", Icon: ImagesIcon },
   { id: "slides", label: "Slides", Icon: LayersIcon },
   { id: "layers", label: "Layers", Icon: ListTreeIcon },
   { id: "text", label: "Text", Icon: TypeIcon },
@@ -2544,9 +2561,7 @@ function ImagePanel({
             setReloads((reload) => reload + 1)
           }}
         />
-      ) : items === null ? (
-        <LoadingRow label="Loading media" />
-      ) : (
+      ) : items === null ? null : (
       <>
       <StudioLabel>
         {showing === "shelf"
@@ -2839,12 +2854,14 @@ function CanvasStage({
   // Opens at DEFAULT_ZOOM; the "Fit" button switches to auto-fit (null).
   const [zoom, setZoom] = React.useState<number | null>(DEFAULT_ZOOM)
 
-  React.useEffect(() => {
+  // Measured before the first paint: the editor is drawn afresh for every
+  // carousel opened, and waiting for the observer showed one empty frame.
+  React.useLayoutEffect(() => {
     const node = containerRef.current
     if (!node) return
-    const observer = new ResizeObserver(() =>
-      setBox({ width: node.clientWidth, height: node.clientHeight })
-    )
+    const measure = () => setBox({ width: node.clientWidth, height: node.clientHeight })
+    measure()
+    const observer = new ResizeObserver(measure)
     observer.observe(node)
     return () => observer.disconnect()
   }, [])

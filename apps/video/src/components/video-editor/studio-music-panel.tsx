@@ -24,7 +24,6 @@ import {
 import { loadMediaDurationMs, formatClock } from "@/lib/video/timeline-utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
-import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Hint } from "@/components/video-assets/hint"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -173,9 +172,7 @@ export function MusicPanel() {
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid p-3">
-          {files === null && !loadFailed ? (
-            <LoadingRow label="Loading music" />
-          ) : loadFailed ? (
+          {files === null && !loadFailed ? null : loadFailed ? (
             <div className="grid justify-items-center gap-2 py-8 text-center text-sm text-muted-foreground">
               The music shelf could not be loaded.
               <Button

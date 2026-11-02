@@ -5,12 +5,12 @@ import {
   requireCanonicalTimeline,
   summarizeTimeline,
 } from "@/lib/video/timeline-schema"
+import { makeTestCarousel } from "@/server/video/carousel-test-support"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   carouselVideoTimeline,
   makeCarouselVideo,
 } from "@/server/video/carousel-video"
-import { createOwnedCarousel } from "@/server/video/carousels"
 import { videoProjects } from "@/server/video/schema"
 
 // Slide files are kept in a list instead of storage, and the render queue
@@ -114,7 +114,7 @@ describe("making the video", () => {
     const { client, db: database } = await createTestDatabase()
     try {
       const user = await insertUser(database)
-      const carousel = await createOwnedCarousel(user.id, "Tips", database)
+      const carousel = await makeTestCarousel(user.id, "Tips", database)
       await expect(
         makeCarouselVideo({
           userId: user.id,

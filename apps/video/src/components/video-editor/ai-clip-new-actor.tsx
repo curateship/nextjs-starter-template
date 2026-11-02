@@ -39,10 +39,13 @@ const EMPTY_DRAFT: { name: string; prompt: string; model: ImageModelId; photo: s
  */
 export function AiClipNewActor({
   projectId,
+  videoId,
   primary,
   onMade,
 }: {
   projectId: string
+  /** The open video, which pays for the picture. */
+  videoId: string
   /** The main button when there are no actors yet. */
   primary: boolean
   onMade: (actor: ActorItem) => void
@@ -65,6 +68,7 @@ export function AiClipNewActor({
         tags: "",
         referenceMediaUrl: draft.photo || null,
         lookProjectId: projectId,
+        spendVideoId: videoId,
       })
       setDraft(EMPTY_DRAFT)
       setTried(false)

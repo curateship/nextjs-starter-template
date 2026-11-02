@@ -24,7 +24,7 @@ import {
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
-import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import { VIDEO_NOT_FOUND_MESSAGE } from "@/lib/video/project-videos"
 import {
   RENDER_FAILED_MESSAGE,
   renderRefusalReason,
@@ -32,7 +32,8 @@ import {
   SAFE_RENDER_ERRORS,
 } from "@/server/video/render"
 import { workOutAiParts } from "@/server/video/ai-parts"
-import { videoProjects, videoRenderJobs } from "@/server/video/schema"
+import { getOwnedVideo } from "@/server/video/project-videos"
+import { videoProjectVideos, videoRenderJobs } from "@/server/video/schema"
 import { isUniqueViolation } from "@/server/video/unique-violation"
 
 /**
@@ -86,13 +87,16 @@ export type RenderJobSummary = {
   /** Always set on a video export, never on a carousel export. */
   project_id: string | null
   project_name: string | null
+  /** The video exported. Always set on a video export. */
+  video_id: string | null
+  video_name: string | null
   /**
-   * When the project is a language copy: the language it speaks, and the
-   * project it was translated from while that still exists.
+   * When the video is a language copy: the language it speaks, and the
+   * video it was translated from while that still exists.
    */
   language: string | null
-  original_project_id: string | null
-  original_project_name: string | null
+  original_video_id: string | null
+  original_video_name: string | null
   /** The carousel a carousel export came from, until it is deleted. */
   carousel_id: string | null
   carousel_name: string | null
@@ -124,7 +128,7 @@ type JobRow = typeof videoRenderJobs.$inferSelect
 
 export function serializeRenderJob(
   row: JobRow,
-  projectName: string | null = null,
+  names: { project: string | null; video: string | null } = { project: null, video: null },
   carouselName: string | null = null,
   copy: {
     language: string | null
@@ -136,10 +140,12 @@ export function serializeRenderJob(
     id: row.id,
     kind: row.kind === "carousel" ? "carousel" : "video",
     project_id: row.projectId,
-    project_name: projectName,
+    project_name: names.project,
+    video_id: row.videoId,
+    video_name: names.video,
     language: copy?.language ?? null,
-    original_project_id: copy?.originalId ?? null,
-    original_project_name: copy?.originalName ?? null,
+    original_video_id: copy?.originalId ?? null,
+    original_video_name: copy?.originalName ?? null,
     carousel_id: row.carouselId,
     carousel_name: carouselName,
     slide_count: row.slideRanges ? row.slideRanges.length : null,
@@ -163,23 +169,9 @@ export function serializeRenderJob(
   }
 }
 
-async function getOwnedProject(
-  userId: string,
-  projectId: string,
-  database: CustomShellDb
-) {
-  const [row] = await database
-    .select()
-    .from(videoProjects)
-    .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
-    .limit(1)
-  if (!row) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
-  return row
-}
-
-/** The first of these shapes this project already has waiting or rendering. */
+/** The first of these shapes this video already has waiting or rendering. */
 async function findBusyShape(
-  projectId: string,
+  videoId: string,
   aspects: AspectRatio[],
   database: CustomShellDb
 ) {
@@ -188,7 +180,7 @@ async function findBusyShape(
     .from(videoRenderJobs)
     .where(
       and(
-        eq(videoRenderJobs.projectId, projectId),
+        eq(videoRenderJobs.videoId, videoId),
         inArray(videoRenderJobs.aspect, aspects),
         inArray(videoRenderJobs.status, ["queued", "running"])
       )
@@ -243,23 +235,23 @@ async function withPosition(job: JobRow, database: CustomShellDb) {
 const SHAPE_ORDER = EXPORT_SHAPES.map((shape) => shape.id)
 
 /**
- * What the editor watches: the newest export of this project in each shape it
+ * What the editor watches: the newest export of this video in each shape it
  * has ever been exported in, listed in the dialog's shape order. Empty before
  * anything is asked for.
  */
 export async function getLatestRenderJobs(
   userId: string,
-  projectId: string,
+  videoId: string,
   database: CustomShellDb = db
 ): Promise<RenderJobSummary[]> {
-  await getOwnedProject(userId, projectId, database)
+  await getOwnedVideo(userId, videoId, database)
   const rows = await database
     .selectDistinctOn([videoRenderJobs.aspect])
     .from(videoRenderJobs)
     .where(
       and(
         eq(videoRenderJobs.userId, userId),
-        eq(videoRenderJobs.projectId, projectId)
+        eq(videoRenderJobs.videoId, videoId)
       )
     )
     .orderBy(
@@ -277,14 +269,14 @@ export async function getLatestRenderJobs(
 
 /**
  * Ask for one export per shape, all in one press. Nothing is queued unless
- * every shape can be: a shape this project already has waiting or rendering
+ * every shape can be: a shape this video already has waiting or rendering
  * refuses the whole press and names that shape. The partial unique index keeps
  * that true when two requests arrive together, and because the rows go in as
  * one statement, a refusal there leaves none of them behind.
  */
 export async function enqueueRenderJobs({
   userId,
-  projectId,
+  videoId,
   aspects,
   quality,
   frameRate,
@@ -293,38 +285,39 @@ export async function enqueueRenderJobs({
   database = db,
 }: {
   userId: string
-  projectId: string
+  videoId: string
   aspects: AspectRatio[]
   quality: RenderQuality
   frameRate: RenderFrameRate
   normalizeLoudness?: boolean
-  /** What to call them. Left out, they take the project's name. */
+  /** What to call them. Left out, they take the video's name. */
   title?: string
   database?: CustomShellDb
 }): Promise<RenderJobSummary[]> {
   const shapes = Array.from(new Set(aspects))
   if (!shapes.length) throw new Error(NO_SHAPE_MESSAGE)
-  const project = await getOwnedProject(userId, projectId, database)
+  const video = await getOwnedVideo(userId, videoId, database)
 
-  const busy = await findBusyShape(projectId, shapes, database)
+  const busy = await findBusyShape(videoId, shapes, database)
   if (busy) throw new Error(shapeBusyMessage(busy))
 
   // Checked now so the answer is immediate; checked again when the render
   // starts, because the timeline can change in between.
-  const refusal = renderRefusalReason(project.timeline)
+  const refusal = renderRefusalReason(video.timeline)
   if (refusal) throw new Error(refusal)
 
   await refuseFullQueue(userId, shapes.length, database)
 
   const timestamp = now()
   const normalize = normalizeLoudness ?? DEFAULT_NORMALIZE_LOUDNESS
-  const name = title?.trim().slice(0, EXPORT_TITLE_MAX) || project.name
+  const name = title?.trim().slice(0, EXPORT_TITLE_MAX) || video.name
   try {
     await database.insert(videoRenderJobs).values(
       shapes.map((aspect) => ({
         id: uuid(),
         userId,
-        projectId,
+        projectId: video.projectId,
+        videoId,
         status: "queued",
         quality,
         aspect,
@@ -338,12 +331,12 @@ export async function enqueueRenderJobs({
   } catch (error) {
     if (!isUniqueViolation(error)) throw error
     // Somebody else asked for one of these shapes at the same instant and won.
-    const winner = await findBusyShape(projectId, shapes, database)
+    const winner = await findBusyShape(videoId, shapes, database)
     throw new Error(winner ? shapeBusyMessage(winner) : RENDER_FAILED_MESSAGE)
   }
 
   kickRenderWorker()
-  return getLatestRenderJobs(userId, projectId, database)
+  return getLatestRenderJobs(userId, videoId, database)
 }
 
 /** What a stopped export's row becomes: cancelled, and its lease let go. */
@@ -358,7 +351,7 @@ function stoppedRow() {
 }
 
 /**
- * Stop one export that is waiting or rendering, and leave the project's
+ * Stop one export that is waiting or rendering, and leave the video's
  * other exports going. The worker making it notices within a second, the same
  * way as below.
  */
@@ -383,35 +376,35 @@ export async function cancelRenderJob(
 }
 
 /**
- * Stop every export of this project that is waiting or rendering, whatever its
+ * Stop every export of this video that is waiting or rendering, whatever its
  * shape. Each row ends here, and its lease goes with it. A worker rendering one
  * notices within a second, kills its ffmpeg and throws away what it made, so
  * nothing reaches storage.
  */
 export async function cancelRenderJobs(
   userId: string,
-  projectId: string,
+  videoId: string,
   database: CustomShellDb = db
 ): Promise<RenderJobSummary[]> {
-  await getOwnedProject(userId, projectId, database)
+  await getOwnedVideo(userId, videoId, database)
   const cancelled = await database
     .update(videoRenderJobs)
     .set(stoppedRow())
     .where(
       and(
         eq(videoRenderJobs.userId, userId),
-        eq(videoRenderJobs.projectId, projectId),
+        eq(videoRenderJobs.videoId, videoId),
         inArray(videoRenderJobs.status, ["queued", "running"])
       )
     )
     .returning({ id: videoRenderJobs.id })
   if (!cancelled.length) throw new Error(NO_ACTIVE_EXPORT_MESSAGE)
-  return getLatestRenderJobs(userId, projectId, database)
+  return getLatestRenderJobs(userId, videoId, database)
 }
 
 /**
  * Put a failed export back in the queue exactly as it was asked for: the same
- * shape, quality, sound setting and name. It renders the project as it is now,
+ * shape, quality, sound setting and name. It renders the video as it is now,
  * like any export. The error goes, the attempt count starts again, and it joins
  * the back of the queue rather than jumping ahead of exports asked for since.
  */
@@ -428,17 +421,17 @@ export async function retryRenderJob(
     )
     .limit(1)
   if (!job) throw new Error(RENDER_NOT_FOUND_MESSAGE)
-  // A carousel export is never a failed row, and has no project to render.
-  if (job.status !== "error" || !job.projectId) {
+  // A carousel export is never a failed row, and has no video to render.
+  if (job.status !== "error" || !job.videoId) {
     throw new Error(ONLY_FAILED_RETRY_MESSAGE)
   }
   const aspect = job.aspect as AspectRatio
 
-  if (await findBusyShape(job.projectId, [aspect], database)) {
+  if (await findBusyShape(job.videoId, [aspect], database)) {
     throw new Error(shapeBusyMessage(aspect))
   }
-  const project = await getOwnedProject(userId, job.projectId, database)
-  const refusal = renderRefusalReason(project.timeline)
+  const video = await getOwnedVideo(userId, job.videoId, database)
+  const refusal = renderRefusalReason(video.timeline)
   if (refusal) throw new Error(refusal)
   await refuseFullQueue(userId, 1, database)
 
@@ -484,7 +477,7 @@ export async function retryRenderJob(
 type ClaimedJob = {
   id: string
   user_id: string
-  project_id: string
+  video_id: string
   quality: RenderQuality
   aspect: AspectRatio
   frame_rate: RenderFrameRate
@@ -553,7 +546,7 @@ async function claimNextJob(): Promise<ClaimedJob | null> {
       limit 1
       for update skip locked
     )
-    returning id, user_id, project_id, quality, aspect, frame_rate, normalize_loudness, lease_token
+    returning id, user_id, video_id, quality, aspect, frame_rate, normalize_loudness, lease_token
   `)
   return (result.rows[0] as ClaimedJob | undefined) ?? null
 }
@@ -620,21 +613,21 @@ async function runJob(job: ClaimedJob) {
   heartbeat.unref()
 
   try {
-    const [project] = await db
+    const [video] = await db
       .select()
-      .from(videoProjects)
-      .where(eq(videoProjects.id, job.project_id))
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.id, job.video_id))
       .limit(1)
-    if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
+    if (!video) throw new Error(VIDEO_NOT_FOUND_MESSAGE)
 
     // From the timeline this run draws, not the one the export was asked
-    // for: the project can be edited while the export waits in the queue.
-    const drawn = requireCanonicalTimeline(project.timeline)
+    // for: the video can be edited while the export waits in the queue.
+    const drawn = requireCanonicalTimeline(video.timeline)
     const aiParts = await workOutAiParts(drawn)
 
     const result = await renderTimeline({
       userId: job.user_id,
-      timeline: project.timeline,
+      timeline: video.timeline,
       aspect: job.aspect,
       quality: job.quality,
       frameRate: job.frame_rate,

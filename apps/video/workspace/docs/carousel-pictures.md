@@ -1,5 +1,8 @@
 # Pictures on carousel slides
 
+The shelf belongs to the carousel project, so it is shared by every carousel
+in it ([carousel-project-carousels.md](carousel-project-carousels.md)).
+
 The Image panel in the carousel editor takes pictures and clips four ways:
 upload them, drop them, pick them from a collection, or find a free photo on
 Pexels. A cropped picture can be moved inside its box.
@@ -7,7 +10,7 @@ Pexels. A cropped picture can be moved inside its box.
 ## Uploading and dropping
 
 - **Drop or click:** drop files on the dashed box in the Image panel, or click
-  it to pick files. Both upload onto this carousel's shelf.
+  it to pick files. Both upload onto its carousel project's shelf.
 - **Dropping on the slide** uploads the files and places them on the picked
   slide. The first is centred where it was dropped, and each next one sits 20
   pixels further down and right. One drop is one undo step.
@@ -63,7 +66,7 @@ Tyler's picture of 29 Oct 2026, with two differences:
 
 Picking a collection lists its pictures and clips from your whole library,
 not only this carousel's uploads. Until 29 Oct 2026 a collection listed
-pictures only. A file placed from a collection joins this carousel's shelf.
+pictures only. A file placed from a collection joins its carousel project's shelf.
 
 The panel shows a loading row until its first list arrives, so nothing says
 "empty" before it has looked. A list that fails to load says why, with Try
@@ -90,7 +93,7 @@ Under the media, "Free photos" searches Pexels' photo library.
 - **The shape:** a 4:5 or story carousel asks for tall photos first, a square
   one for square photos.
 - **One press** downloads the photo on the server, keeps it in the library
-  and on this carousel's shelf, and places it on the slide.
+  and on its carousel project's shelf, and places it on the slide.
 - **The credit:** the photo's description is "Photo by Jane Doe on Pexels"
   with the photo's and the photographer's pages. The grid links to Pexels.
 - **The key and the hour:** the same Pexels key as B-roll, set by an admin in

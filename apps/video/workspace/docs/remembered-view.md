@@ -1,14 +1,17 @@
 # The editor remembers where you were
 
-Close a project and open it again, and it comes back as you left it: the same
-panel open on the left, the playhead on the same moment of the video, and the
-timeline at the same zoom, scrolled to the same place, with the same clip
-selected.
+Close a video and open it again, and it comes back as you left it: the
+playhead on the same moment of the video, and the timeline at the same zoom,
+scrolled to the same place, with the same clip selected. Which video a
+project opens on is remembered on the server (`project-videos.md`).
 
 ## What is remembered
 
-- **The left panel:** Media, Music, Voices, Text, AI or Transcript. A panel
-  that has since been removed from the editor opens Media instead.
+- **Not the left panel.** Since 1 Nov 2026 a project always opens on its
+  Videos tab (Tyler: "the left panel lists the videos called "Videos" as the
+  first selected rail tab"), so the panel last open is no longer kept. Make
+  this a template opens on Copy instead (`?panel=copy`). A record saved with
+  a panel in it is read as the timeline alone.
 - **The playhead:** the moment of the video you were on, so the picture above
   the timeline shows the same frame. A project that has since got shorter
   opens with the playhead at its end.
@@ -23,16 +26,13 @@ Nothing else. The cut tool starts off, and a project never opens playing.
 
 - **This browser's localStorage:** the same place the editor keeps its panel
   sizes. It is never sent to the server.
-- **One record per person per project:** the key is
-  `video-editor-view:<person's id>:<project id>`, written in
+- **One record per person per video:** the key is
+  `video-editor-view:<person's id>:<video id>`, written in
   `src/lib/video/editor-view-memory.ts`.
 - **Why the person's id is in the key:** signing out does not empty
   localStorage. Without the id, the next person on the same browser would open
   the project where somebody else left it.
-- **Two halves in one record:** the timeline writes its half and the left
-  panel writes its own, and neither wipes the other.
-- **When it is written:** the panel is saved as soon as you switch. The
-  timeline is saved a moment after you stop scrolling, zooming, selecting,
+- **When it is written:** the timeline is saved a moment after you stop scrolling, zooming, selecting,
   playing or dragging the playhead, and again as the editor closes or the tab goes away. The work is in
   `src/components/video-editor/use-remembered-view.ts`.
 - **Never by the History preview:** the timeline in a History version's

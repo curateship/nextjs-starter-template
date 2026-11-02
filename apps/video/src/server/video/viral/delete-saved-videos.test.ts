@@ -11,13 +11,13 @@ import {
   insertWorkspace,
 } from "@/server/test-support"
 import { createOwnedProject, duplicateOwnedProject } from "@/server/video/projects"
-import { videoProjects, videoViralVideos } from "@/server/video/schema"
+import { videoProjectVideos, videoViralVideos } from "@/server/video/schema"
 import {
   createCollection,
   loadCollection,
   setStarred,
 } from "@/server/video/viral/collections"
-import { loadProjectSource } from "@/server/video/viral/copy-into-project"
+import { loadVideoSource } from "@/server/video/viral/copy-into-project"
 import {
   deleteSavedVideos,
   savedVideoDeleteSummary,
@@ -95,16 +95,16 @@ async function savedVideo(ownerId = user.id, title: string | null = "A dare that
   return { id, mediaId }
 }
 
-async function putOnTimeline(projectId: string, mediaId: string) {
-  const [project] = await database
+async function putOnTimeline(videoId: string, mediaId: string) {
+  const [row] = await database
     .select()
-    .from(videoProjects)
-    .where(eq(videoProjects.id, projectId))
-  const timeline = project.timeline as Record<string, unknown>
+    .from(videoProjectVideos)
+    .where(eq(videoProjectVideos.id, videoId))
+  const timeline = row.timeline as Record<string, unknown>
   await database
-    .update(videoProjects)
+    .update(videoProjectVideos)
     .set({ timeline: { ...timeline, tracks: [{ id: "t1", clips: [{ id: "c1", mediaId }] }] } })
-    .where(eq(videoProjects.id, projectId))
+    .where(eq(videoProjectVideos.id, videoId))
 }
 
 async function mediaRow(id: string) {
@@ -128,13 +128,15 @@ describe("deleting a saved video", () => {
     expect(removed).toContain(`${user.id}/${video.mediaId}.mp4`)
   })
 
-  it("keeps the file when a project's timeline uses it, and the window says which", async () => {
+  it("keeps the file when a video's timeline uses it, and the window says which", async () => {
     const video = await savedVideo()
-    const project = await createOwnedProject(user.id, "My remake")
-    await putOnTimeline(project.id, video.mediaId)
+    const made = await createOwnedProject(user.id, "My remake")
+    await putOnTimeline(made.video, video.mediaId)
 
     const summary = await savedVideoDeleteSummary(user.id, [video.id])
-    expect(summary.timelinesUsingFile).toEqual([{ id: project.id, name: "My remake" }])
+    expect(summary.timelinesUsingFile).toEqual([
+      { project_id: made.project.id, video_id: made.video, name: "My remake" },
+    ])
 
     const result = await deleteSavedVideos(user.id, [video.id])
 
@@ -146,23 +148,25 @@ describe("deleting a saved video", () => {
     expect(removed).toContain(`video-viral-covers/${user.id}/${video.id}.jpg`)
   })
 
-  it("writes the title onto projects made with Copy this, whose Copy panel then names it", async () => {
+  it("writes the title onto videos made with Copy this, whose Copy panel then names it", async () => {
     const video = await savedVideo()
     const copied = await createOwnedProject(user.id, "Copy of the dare", database, null, video.id)
 
     const summary = await savedVideoDeleteSummary(user.id, [video.id])
-    expect(summary.copiedBy).toEqual([{ id: copied.id, name: "Copy of the dare" }])
+    expect(summary.copiedBy).toEqual([
+      { project_id: copied.project.id, video_id: copied.video, name: "Copy of the dare" },
+    ])
 
     await deleteSavedVideos(user.id, [video.id])
 
-    const [project] = await database
+    const [row] = await database
       .select()
-      .from(videoProjects)
-      .where(eq(videoProjects.id, copied.id))
-    expect(project.sourceViralVideoId).toBeNull()
-    expect(project.sourceViralVideoTitle).toBe("A dare that went viral")
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.id, copied.video))
+    expect(row.sourceViralVideoId).toBeNull()
+    expect(row.sourceViralVideoTitle).toBe("A dare that went viral")
 
-    const source = await loadProjectSource(user.id, copied.id)
+    const source = await loadVideoSource(user.id, copied.video)
     expect(source.video).toBeNull()
     expect(source.deletedVideoTitle).toBe("A dare that went viral")
   })
@@ -172,9 +176,13 @@ describe("deleting a saved video", () => {
     const copied = await createOwnedProject(user.id, "Copy of the dare", database, null, video.id)
     await deleteSavedVideos(user.id, [video.id])
 
-    const duplicate = await duplicateOwnedProject(user.id, copied.id, database)
+    const duplicate = await duplicateOwnedProject(user.id, copied.project.id, database)
+    const [duplicateVideo] = await database
+      .select()
+      .from(videoProjectVideos)
+      .where(eq(videoProjectVideos.projectId, duplicate.id))
 
-    const source = await loadProjectSource(user.id, duplicate.id)
+    const source = await loadVideoSource(user.id, duplicateVideo.id)
     expect(source.deletedVideoTitle).toBe("A dare that went viral")
   })
 
@@ -185,7 +193,7 @@ describe("deleting a saved video", () => {
 
     await deleteSavedVideos(user.id, [video.id])
 
-    const source = await loadProjectSource(user.id, copied.id)
+    const source = await loadVideoSource(user.id, copied.video)
     expect(source.deletedVideoTitle).toBe(row.sourceUrl)
   })
 
@@ -193,7 +201,7 @@ describe("deleting a saved video", () => {
     const video = await savedVideo()
     const copied = await createOwnedProject(user.id, "Still copying", database, null, video.id)
 
-    const source = await loadProjectSource(user.id, copied.id)
+    const source = await loadVideoSource(user.id, copied.video)
     expect(source.video?.id).toBe(video.id)
     expect(source.deletedVideoTitle).toBeNull()
   })

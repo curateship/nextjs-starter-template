@@ -34,6 +34,7 @@ import { VoiceoversPanel } from "@/components/video-editor/studio-voiceovers-pan
 import { TranscriptPanel } from "@/components/video-editor/studio-transcript-panel"
 import { AiClipPanel } from "@/components/video-editor/studio-ai-clip-panel"
 import { CopyPanel } from "@/components/video-editor/studio-copy-panel"
+import { VideosPanel } from "@/components/video-editor/studio-videos-panel"
 import { ExportsPanel } from "@/components/video-editor/studio-exports-panel"
 import { HistoryPanel } from "@/components/video-editor/studio-history-panel"
 import {
@@ -99,6 +100,7 @@ import {
  */
 
 export type StudioPanel =
+  | "videos"
   | "media"
   | "music"
   | "sounds"
@@ -118,6 +120,7 @@ export type StudioPanel =
 const PREPARATION_RECHECK_MS = 5000
 
 const PANEL_TITLE: Record<StudioPanel, string> = {
+  videos: "Videos",
   media: "Media",
   music: "Music",
   sounds: "Sounds",
@@ -134,6 +137,7 @@ const PANEL_TITLE: Record<StudioPanel, string> = {
 export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   // Media has search and upload buttons to put in its header, so it draws its
   // own; Text only needs a title.
+  if (panel === "videos") return <VideosPanel />
   if (panel === "media") return <MediaPanel />
   if (panel === "music") return <MusicPanel />
   if (panel === "sounds") return <SoundsPanel />

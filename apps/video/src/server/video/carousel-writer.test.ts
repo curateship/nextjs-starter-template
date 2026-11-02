@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { draftCarouselSlides } from "@/lib/video/carousel-drafts"
@@ -7,6 +8,7 @@ import {
   LINK_REFUSED_MESSAGE,
   PROJECT_SCRIPT_EMPTY_MESSAGE,
 } from "@/lib/video/carousel-writing"
+import { makeTestCarousel, testCarouselProjectId } from "@/server/video/carousel-test-support"
 import { type CustomShellDb } from "@/server/db"
 import { now } from "@/server/auth/security"
 import { customShellMedia, type CustomShellUser } from "@/server/schema"
@@ -21,16 +23,13 @@ import {
   writeCarouselDraft,
 } from "@/server/video/carousel-writer"
 import {
-  createOwnedCarousel,
   getOwnedCarouselDetail,
   writeCarousel,
 } from "@/server/video/carousels"
 import { pageWords, readLinkText } from "@/server/video/link-reader"
-import {
-  createOwnedProject,
-  writeProjectTimeline,
-} from "@/server/video/projects"
-import { videoVoiceovers } from "@/server/video/schema"
+import { writeVideoTimeline } from "@/server/video/project-videos"
+import { createOwnedProject } from "@/server/video/projects"
+import { videoCarouselProjects, videoVoiceovers } from "@/server/video/schema"
 
 // The writer is stubbed: each test says what it answers, and every prompt
 // it was sent is kept to read.
@@ -81,6 +80,7 @@ describe("a carousel written by AI", () => {
     writer.answer = () => ({ name: "Running tips", slides: slidesOf(7) })
     const made = await writeCarouselDraft({
       userId: user.id,
+      carouselProjectId: await testCarouselProjectId(user.id, database),
       source: { kind: "topic", text: "5 mistakes new runners make" },
       slideCount: 7,
       format: "4:5",
@@ -91,21 +91,23 @@ describe("a carousel written by AI", () => {
     expect(writer.prompts[0].prompt).toContain("exactly 7 slides")
   })
 
-  it("works from a project's words, and the carousel is that project's", async () => {
-    const project = await createOwnedProject(user.id, "Launch video", database)
+  it("works from a video's words, and the carousel is that video's project's", async () => {
+    const created = await createOwnedProject(user.id, "Launch video", database)
+    const video = { id: created.video, projectId: created.project.id, version: 1 }
     await expect(
       writeCarouselDraft({
         userId: user.id,
-        source: { kind: "project", projectId: project.id },
+        carouselProjectId: await testCarouselProjectId(user.id, database),
+        source: { kind: "video", videoId: video.id },
         slideCount: 3,
         format: "1:1",
         database,
       })
     ).rejects.toThrow(PROJECT_SCRIPT_EMPTY_MESSAGE)
 
-    await writeProjectTimeline(
+    await writeVideoTimeline(
       user.id,
-      project.id,
+      video.id,
       {
         aspect: "9:16",
         tracks: [
@@ -127,18 +129,19 @@ describe("a carousel written by AI", () => {
           },
         ],
       },
-      project.version,
+      video.version,
       database
     )
     writer.answer = () => ({ name: "", slides: slidesOf(3) })
     const made = await writeCarouselDraft({
       userId: user.id,
-      source: { kind: "project", projectId: project.id },
+      carouselProjectId: await testCarouselProjectId(user.id, database),
+      source: { kind: "video", videoId: video.id },
       slideCount: 3,
       format: "1:1",
       database,
     })
-    expect(made).toMatchObject({ project_id: project.id, name: "Launch video" })
+    expect(made).toMatchObject({ project_id: video.projectId, name: "Launch video" })
     expect(writer.prompts.at(-1)?.prompt).toContain("lighter than any we have made")
   })
 
@@ -168,10 +171,11 @@ describe("a carousel written by AI", () => {
       captions: [],
       createdAt: at,
     })
-    const project = await createOwnedProject(user.id, "Mine", database)
-    await writeProjectTimeline(
+    const created = await createOwnedProject(user.id, "Mine", database)
+    const video = { id: created.video, projectId: created.project.id, version: 1 }
+    await writeVideoTimeline(
       user.id,
-      project.id,
+      video.id,
       {
         aspect: "9:16",
         tracks: [
@@ -193,13 +197,14 @@ describe("a carousel written by AI", () => {
           },
         ],
       },
-      project.version,
+      video.version,
       database
     )
     await expect(
       writeCarouselDraft({
         userId: user.id,
-        source: { kind: "project", projectId: project.id },
+        carouselProjectId: await testCarouselProjectId(user.id, database),
+        source: { kind: "video", videoId: video.id },
         slideCount: 3,
         format: "1:1",
         database,
@@ -224,7 +229,7 @@ describe("a carousel written by AI", () => {
 
 describe("the post caption", () => {
   it("is written from the slides, with any hashtags taken out", async () => {
-    const carousel = await createOwnedCarousel(user.id, "Post", database)
+    const carousel = await makeTestCarousel(user.id, "Post", database)
     writer.answer = () => ({
       caption: "Swipe for our #1 tip. #running #fitness\n\nSave it.",
     })
@@ -238,11 +243,22 @@ describe("the post caption", () => {
     expect(caption).toContain("Swipe for our #1 tip.")
     expect(writer.prompts[0].prompt).toContain("Your hook goes here")
   })
+
+  it("keeps the carousel project's footer under the written caption", async () => {
+    const carousel = await makeTestCarousel(user.id, "Post", database)
+    await database
+      .update(videoCarouselProjects)
+      .set({ captionFooter: "#tips" })
+      .where(eq(videoCarouselProjects.id, carousel.carousel_project_id))
+    writer.answer = () => ({ caption: "Swipe for more." })
+    const caption = await writeCarouselCaption({ userId: user.id, carouselId: carousel.id, database })
+    expect(caption).toBe("Swipe for more.\n\n#tips")
+  })
 })
 
 describe("translated copies", () => {
   it("makes one copy per language and leaves the original alone", async () => {
-    const carousel = await createOwnedCarousel(user.id, "Tips", database)
+    const carousel = await makeTestCarousel(user.id, "Tips", database)
     const detail = await getOwnedCarouselDetail(user.id, carousel.id, database)
     await writeCarousel(
       user.id,

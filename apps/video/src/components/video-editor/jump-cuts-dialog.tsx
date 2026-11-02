@@ -64,7 +64,7 @@ export function JumpCutsDialog({
   canUseWords: boolean
   available: AiToolsAvailability | null
 }) {
-  const { projectId, dispatch, saveNow } = useEditorRuntime()
+  const { videoId, dispatch, saveNow } = useEditorRuntime()
   // The clip you picked, or the longest one with sound in it. Asking somebody
   // to select a clip before they can press a button is a step for nothing when
   // there is only ever one obvious answer.
@@ -109,7 +109,7 @@ export function JumpCutsDialog({
       // sent goes first.
       await saveNow()
       const answer = await findJumpCuts({
-        projectId,
+        videoId,
         clipId,
         mode,
         sensitivity,

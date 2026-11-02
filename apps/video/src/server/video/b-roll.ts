@@ -44,8 +44,12 @@ import {
 } from "@/server/video/asset-factories/media"
 import { requireGeminiKey } from "@/server/video/gemini"
 import { downloadPexelsFile, searchPexelsRows, type PexelsBatch } from "@/server/video/pexels"
-import { projectSpendMetadata, requireProjectBudget } from "@/server/video/project-spend"
-import { getOwnedProject } from "@/server/video/projects"
+import {
+  requireVideoBudget,
+  videoSpendMetadata,
+  type SpendTag,
+} from "@/server/video/project-spend"
+import { getOwnedVideo } from "@/server/video/project-videos"
 import { videoVoiceovers } from "@/server/video/schema"
 import { getAiDefaults, getPexelsApiKey } from "@/server/video/settings"
 import { fileWords, readSavedTranscript } from "@/server/video/transcripts"
@@ -100,7 +104,7 @@ async function shelfWords(userId: string, mediaIds: string[]) {
 /** Every voice-line file with its words, read from the file's own start. */
 async function voiceLineFileWords(
   userId: string,
-  projectId: string,
+  spend: SpendTag,
   clips: Clip[]
 ): Promise<Map<string, FileWord[]>> {
   const mediaIds = [...new Set(clips.map((clip) => clip.mediaId!))]
@@ -126,7 +130,7 @@ async function voiceLineFileWords(
         transcriber,
         feature: BROLL_TRANSCRIPT_FEATURE,
         label: "B-roll",
-        projectId,
+        spend,
         tooLongMessage: CAPTIONS_TOO_LONG_MESSAGE,
         failedMessage: CAPTIONS_FAILED_MESSAGE,
       })
@@ -163,9 +167,9 @@ export type BrollStatus = {
 }
 
 /** What the B-roll window needs before the press: the key, and the price. */
-export async function brollStatus(userId: string, projectId: string): Promise<BrollStatus> {
-  const project = await getOwnedProject(userId, projectId)
-  const clips = voiceLineClips(requireCanonicalTimeline(project.timeline))
+export async function brollStatus(userId: string, videoId: string): Promise<BrollStatus> {
+  const video = await getOwnedVideo(userId, videoId)
+  const clips = voiceLineClips(requireCanonicalTimeline(video.timeline))
   const hasKey = (await getPexelsApiKey().catch(() => null)) !== null
   if (!clips.length) return { hasKey, voice: null }
 
@@ -196,7 +200,7 @@ const phrasesSchema = z.object({
 
 /** The writer's instructions. The rules are the feature, so they are spelled out. */
 export function brollPhrasesPrompt(
-  projectName: string,
+  videoName: string,
   sentences: { text: string }[],
   again?: { got: number }
 ) {
@@ -206,7 +210,7 @@ export function brollPhrasesPrompt(
     : ""
   return `You pick free stock video from Pexels to show while a narrator speaks. For each numbered sentence below, write one Pexels video search phrase.
 
-The video is called: ${JSON.stringify(projectName)}
+The video is called: ${JSON.stringify(videoName)}
 
 The sentences:
 ${list}
@@ -228,8 +232,8 @@ Answer with JSON: {"subject": "the video's main subject in one to three words", 
  */
 export async function askBrollPhrases(
   userId: string,
-  projectId: string,
-  projectName: string,
+  spend: SpendTag,
+  videoName: string,
   sentences: BrollSentence[],
   ask: typeof askWriter = askWriter
 ): Promise<{ subject: string; phrases: string[] }> {
@@ -237,22 +241,22 @@ export async function askBrollPhrases(
     ask({
       userId,
       feature: BROLL_PHRASES_FEATURE,
-      metadata: { ...projectSpendMetadata(projectId), sentences: sentences.length },
+      metadata: { ...spend, sentences: sentences.length },
       prompt,
       schema: phrasesSchema,
       label: BROLL_PHRASES_LABEL,
       timeoutMs: 120_000,
     })
-  let answer = await run(brollPhrasesPrompt(projectName, sentences))
+  let answer = await run(brollPhrasesPrompt(videoName, sentences))
   if (answer.phrases.length !== sentences.length) {
     answer = await run(
-      brollPhrasesPrompt(projectName, sentences, { got: answer.phrases.length })
+      brollPhrasesPrompt(videoName, sentences, { got: answer.phrases.length })
     )
   }
   if (answer.phrases.length !== sentences.length) {
     throw new Error(BROLL_PHRASES_FAILED_MESSAGE)
   }
-  const subject = cleanPhrase(answer.subject) || cleanPhrase(projectName) || "nature"
+  const subject = cleanPhrase(answer.subject) || cleanPhrase(videoName) || "nature"
   return {
     subject,
     phrases: answer.phrases.map((phrase) => cleanPhrase(phrase) || subject),
@@ -284,20 +288,20 @@ async function requirePexelsKey() {
  */
 export async function suggestBroll(
   userId: string,
-  projectId: string,
+  videoId: string,
   search: typeof searchPexelsRows = searchPexelsRows,
   ask: typeof askWriter = askWriter
 ): Promise<BrollSuggestion> {
   const apiKey = await requirePexelsKey()
-  const project = await getOwnedProject(userId, projectId)
-  const timeline = requireCanonicalTimeline(project.timeline)
+  const owned = await getOwnedVideo(userId, videoId)
+  const timeline = requireCanonicalTimeline(owned.timeline)
   const clips = voiceLineClips(timeline)
   if (!clips.length) throw new Error(BROLL_NO_VOICE_MESSAGE)
 
   const writer = pickWriter(await getAiDefaults(), await getAiKeysSaved())
-  await requireProjectBudget(
+  const video = await requireVideoBudget(
     userId,
-    projectId,
+    videoId,
     writer
       ? brollPhrasesCostCents({
           writer: writer.id,
@@ -306,12 +310,13 @@ export async function suggestBroll(
       : 0
   )
 
-  const words = voiceLineWords(clips, await voiceLineFileWords(userId, projectId, clips))
+  const spend = videoSpendMetadata(video)
+  const words = voiceLineWords(clips, await voiceLineFileWords(userId, spend, clips))
   const sentences = splitSentences(words)
   if (!sentences.length) throw new Error(BROLL_NO_SPEECH_MESSAGE)
   if (sentences.length > BROLL_MAX_SENTENCES) throw new Error(BROLL_TOO_MANY_MESSAGE)
 
-  const { phrases } = await askBrollPhrases(userId, projectId, project.name, sentences, ask)
+  const { phrases } = await askBrollPhrases(userId, spend, video.name, sentences, ask)
   const rows: BrollRow[] = sentences.map((sentence, index) => ({
     ...sentence,
     phrase: phrases[index],
@@ -333,12 +338,12 @@ export async function suggestBroll(
 /** Searches rows again: one edited phrase, or the rows a stop left waiting. */
 export async function searchBroll(
   userId: string,
-  input: { projectId: string; rows: { id: string; phrase: string }[] },
+  input: { videoId: string; rows: { id: string; phrase: string }[] },
   search: typeof searchPexelsRows = searchPexelsRows
 ): Promise<PexelsBatch> {
   const apiKey = await requirePexelsKey()
-  const project = await getOwnedProject(userId, input.projectId)
-  const timeline = requireCanonicalTimeline(project.timeline)
+  const video = await getOwnedVideo(userId, input.videoId)
+  const timeline = requireCanonicalTimeline(video.timeline)
   return search({
     apiKey,
     rows: input.rows
@@ -370,10 +375,10 @@ const DOWNLOADS_AT_ONCE = 3
  */
 export async function saveBrollPicks(
   userId: string,
-  input: { projectId: string; picks: BrollPick[] },
+  input: { videoId: string; picks: BrollPick[] },
   download: typeof downloadPexelsFile = downloadPexelsFile
 ): Promise<BrollPlacement[]> {
-  await getOwnedProject(userId, input.projectId)
+  await getOwnedVideo(userId, input.videoId)
   const saved: { id: string; storagePath: string }[] = []
   const placements: BrollPlacement[] = new Array(input.picks.length)
   let next = 0

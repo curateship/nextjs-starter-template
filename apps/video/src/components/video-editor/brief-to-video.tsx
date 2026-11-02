@@ -140,7 +140,7 @@ export function BriefsProvider({ children }: { children: React.ReactNode }) {
 }
 
 function OwnerBriefs({ children }: { children: React.ReactNode }) {
-  const { store, dispatch, projectId } = useEditorRuntime()
+  const { store, dispatch, videoId } = useEditorRuntime()
   const captions = useCaptionPlacement()
   const { refreshSpend } = useProjectSettings()
   const lock = useEditorLock()
@@ -151,7 +151,7 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     let active = true
-    listBriefs(projectId)
+    listBriefs(videoId)
       .then((loaded) => {
         if (active) setBriefs(loaded.briefs)
       })
@@ -159,7 +159,7 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
     return () => {
       active = false
     }
-  }, [projectId])
+  }, [videoId])
 
   // While a brief is being made, or has made scenes waiting to land, ask again.
   const busy = briefs?.some(waiting) ?? false
@@ -167,7 +167,7 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
     if (!busy) return
     let active = true
     const timer = setInterval(() => {
-      listBriefs(projectId)
+      listBriefs(videoId)
         .then((loaded) => {
           if (active) setBriefs(loaded.briefs)
         })
@@ -177,7 +177,7 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
       active = false
       clearInterval(timer)
     }
-  }, [busy, projectId])
+  }, [busy, videoId])
 
   // Made scenes land here when this window can save. The server is told
   // first, so the worker cannot lay the same scenes in the same moment; only
@@ -351,7 +351,7 @@ function NewBriefDialog({
   onClose: () => void
   onWritten: (brief: BriefItem) => void
 }) {
-  const { projectId } = useEditorRuntime()
+  const { videoId } = useEditorRuntime()
   const { project, refreshSpend } = useProjectSettings()
   const reportError = useReportError()
   const voices = useBriefVoices()
@@ -386,7 +386,7 @@ function NewBriefDialog({
     setBusy(true)
     try {
       const brief = await writeBrief({
-        projectId,
+        videoId,
         about: about.trim(),
         audience: audience.trim(),
         lengthSeconds,

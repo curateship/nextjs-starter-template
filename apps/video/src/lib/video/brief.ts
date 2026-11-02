@@ -108,7 +108,8 @@ export type BriefVoice = z.infer<typeof briefVoiceSchema>
 
 /** What the window sends to have a script written. */
 export const briefRequestSchema = z.object({
-  projectId: z.string().min(1).max(36),
+  /** The video the storyboard is for. Its scenes land on its timeline. */
+  videoId: z.string().min(1).max(36),
   about: z.string().trim().min(1, BRIEF_NO_ABOUT_MESSAGE).max(BRIEF_ABOUT_MAX),
   audience: z.string().trim().max(BRIEF_AUDIENCE_MAX),
   lengthSeconds: z.number().int().min(BRIEF_SHORT_SECONDS_MIN).max(BRIEF_LONG_SECONDS_MAX),

@@ -3,27 +3,32 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 import { EditorProvider } from "@/components/video-editor/editor-provider"
+import { EmptyProject } from "@/components/video-editor/empty-project"
 import { ProjectGuestProvider } from "@/components/video-editor/project-guest"
 import { ProjectGuestNotice } from "@/components/video-editor/project-guest-notice"
 import { ProjectSettingsProvider } from "@/components/video-editor/project-settings"
 import { StudioEditor } from "@/components/video-editor/studio-editor"
 import { getProjectGuestErrorMessage, loadProjectGuest } from "@/lib/api/video/project-guests"
-import { getProject } from "@/lib/api/video/projects"
+import { openVideo, rememberVideo } from "@/lib/api/video/project-videos"
+import { readVideoSearch } from "@/lib/video/project-video-search"
 
 /**
  * The editor for a guest sent from Project (`workspace/docs/project-guests.md`):
- * one video project, no Video account, for 12 hours. It sits outside
+ * one video project and every video in it, no Video account, for 12 hours.
+ * `?video=` names the open video, as in the owner's editor. It sits outside
  * `/admin` and the signed-in layout, so there is no left menu, no other
  * project and no settings to reach. The editor's own pieces leave out what a
  * guest can't use, and every server call checks the guest's project again.
  */
 export const Route = createFileRoute("/guest/video-editor/$projectId")({
-  loader: async ({ params }) => {
-    const [guest, project] = await Promise.all([
+  validateSearch: readVideoSearch,
+  loaderDeps: ({ search }) => ({ video: search.video }),
+  loader: async ({ params, deps }) => {
+    const [guest, opened] = await Promise.all([
       loadProjectGuest(params.projectId),
-      getProject(params.projectId),
+      openVideo(params.projectId, deps.video),
     ])
-    return { guest, project }
+    return { guest, ...opened }
   },
   head: ({ loaderData }) => ({
     meta: [
@@ -40,9 +45,16 @@ export const Route = createFileRoute("/guest/video-editor/$projectId")({
 const SAVE_WORDS: Record<string, string> = { saving: "Saving…", saved: "Saved" }
 
 function GuestVideoEditorRoute() {
-  const { guest, project } = Route.useLoaderData()
+  const { guest, project, video } = Route.useLoaderData()
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus | null>(null)
   const saveWords = typeof saveStatus === "string" ? SAVE_WORDS[saveStatus] : undefined
+
+  // The project opens on this video next time this guest comes back.
+  const videoId = video?.id
+  React.useEffect(() => {
+    if (!videoId) return
+    rememberVideo(videoId).catch((error) => console.error("Remembering the open video failed", error))
+  }, [videoId])
 
   return (
     <ProjectGuestProvider value={{ name: guest.name, projectId: project.id }}>
@@ -55,19 +67,24 @@ function GuestVideoEditorRoute() {
             {saveWords ?? ""}
           </p>
         </header>
+        {video ? (
         <EditorProvider
-          key={project.id}
+          key={video.id}
           document={{
-            id: project.id,
-            name: project.name,
-            version: project.version,
-            timeline: project.timeline,
+            id: video.id,
+            projectId: project.id,
+            name: video.name,
+            version: video.version,
+            timeline: video.timeline,
           }}
         >
-          <ProjectSettingsProvider project={project}>
-            <StudioEditor timelineError={project.timeline_error} reportSaveStatus={setSaveStatus} />
+          <ProjectSettingsProvider project={project} video={video}>
+            <StudioEditor timelineError={video.timeline_error} reportSaveStatus={setSaveStatus} />
           </ProjectSettingsProvider>
         </EditorProvider>
+        ) : (
+          <EmptyProject project={project} guest />
+        )}
       </div>
     </ProjectGuestProvider>
   )

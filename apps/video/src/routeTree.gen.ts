@@ -80,7 +80,7 @@ import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
 import { Route as AuthenticatedAdminVideoCarouselsIndexRouteImport } from './routes/_authenticated/admin/video-carousels.index'
-import { Route as AuthenticatedAdminVideoCarouselsCarouselIdRouteImport } from './routes/_authenticated/admin/video-carousels_.$carouselId'
+import { Route as AuthenticatedAdminVideoCarouselsProjectIdRouteImport } from './routes/_authenticated/admin/video-carousels_.$projectId'
 import { Route as AuthenticatedAdminVideoEditorIndexRouteImport } from './routes/_authenticated/admin/video-editor.index'
 import { Route as AuthenticatedAdminVideoEditorActorsRouteImport } from './routes/_authenticated/admin/video-editor.actors'
 import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './routes/_authenticated/admin/video-editor_.$projectId'
@@ -491,10 +491,10 @@ const AuthenticatedAdminVideoCarouselsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedAdminVideoCarouselsRoute,
   } as any)
-const AuthenticatedAdminVideoCarouselsCarouselIdRoute =
-  AuthenticatedAdminVideoCarouselsCarouselIdRouteImport.update({
-    id: '/video-carousels_/$carouselId',
-    path: '/video-carousels/$carouselId',
+const AuthenticatedAdminVideoCarouselsProjectIdRoute =
+  AuthenticatedAdminVideoCarouselsProjectIdRouteImport.update({
+    id: '/video-carousels_/$projectId',
+    path: '/video-carousels/$projectId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminVideoEditorIndexRoute =
@@ -696,7 +696,7 @@ export interface FileRoutesByFullPath {
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
-  '/admin/video-carousels/$carouselId': typeof AuthenticatedAdminVideoCarouselsCarouselIdRoute
+  '/admin/video-carousels/$projectId': typeof AuthenticatedAdminVideoCarouselsProjectIdRoute
   '/admin/video-editor/actors': typeof AuthenticatedAdminVideoEditorActorsRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
   '/admin/video-favourites/$collectionId': typeof AuthenticatedAdminVideoFavouritesCollectionIdRoute
@@ -785,7 +785,7 @@ export interface FileRoutesByTo {
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
-  '/admin/video-carousels/$carouselId': typeof AuthenticatedAdminVideoCarouselsCarouselIdRoute
+  '/admin/video-carousels/$projectId': typeof AuthenticatedAdminVideoCarouselsProjectIdRoute
   '/admin/video-editor/actors': typeof AuthenticatedAdminVideoEditorActorsRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
   '/admin/video-favourites/$collectionId': typeof AuthenticatedAdminVideoFavouritesCollectionIdRoute
@@ -882,7 +882,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
-  '/_authenticated/admin/video-carousels_/$carouselId': typeof AuthenticatedAdminVideoCarouselsCarouselIdRoute
+  '/_authenticated/admin/video-carousels_/$projectId': typeof AuthenticatedAdminVideoCarouselsProjectIdRoute
   '/_authenticated/admin/video-editor/actors': typeof AuthenticatedAdminVideoEditorActorsRoute
   '/_authenticated/admin/video-editor_/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
   '/_authenticated/admin/video-favourites/$collectionId': typeof AuthenticatedAdminVideoFavouritesCollectionIdRoute
@@ -979,7 +979,7 @@ export interface FileRouteTypes {
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
-    | '/admin/video-carousels/$carouselId'
+    | '/admin/video-carousels/$projectId'
     | '/admin/video-editor/actors'
     | '/admin/video-editor/$projectId'
     | '/admin/video-favourites/$collectionId'
@@ -1068,7 +1068,7 @@ export interface FileRouteTypes {
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
-    | '/admin/video-carousels/$carouselId'
+    | '/admin/video-carousels/$projectId'
     | '/admin/video-editor/actors'
     | '/admin/video-editor/$projectId'
     | '/admin/video-favourites/$collectionId'
@@ -1164,7 +1164,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pages_/edit'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
-    | '/_authenticated/admin/video-carousels_/$carouselId'
+    | '/_authenticated/admin/video-carousels_/$projectId'
     | '/_authenticated/admin/video-editor/actors'
     | '/_authenticated/admin/video-editor_/$projectId'
     | '/_authenticated/admin/video-favourites/$collectionId'
@@ -1733,11 +1733,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminVideoCarouselsIndexRouteImport
       parentRoute: typeof AuthenticatedAdminVideoCarouselsRoute
     }
-    '/_authenticated/admin/video-carousels_/$carouselId': {
-      id: '/_authenticated/admin/video-carousels_/$carouselId'
-      path: '/video-carousels/$carouselId'
-      fullPath: '/admin/video-carousels/$carouselId'
-      preLoaderRoute: typeof AuthenticatedAdminVideoCarouselsCarouselIdRouteImport
+    '/_authenticated/admin/video-carousels_/$projectId': {
+      id: '/_authenticated/admin/video-carousels_/$projectId'
+      path: '/video-carousels/$projectId'
+      fullPath: '/admin/video-carousels/$projectId'
+      preLoaderRoute: typeof AuthenticatedAdminVideoCarouselsProjectIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/video-editor/': {
@@ -2024,7 +2024,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminPagesEditRoute: typeof AuthenticatedAdminPagesEditRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
-  AuthenticatedAdminVideoCarouselsCarouselIdRoute: typeof AuthenticatedAdminVideoCarouselsCarouselIdRoute
+  AuthenticatedAdminVideoCarouselsProjectIdRoute: typeof AuthenticatedAdminVideoCarouselsProjectIdRoute
   AuthenticatedAdminVideoEditorProjectIdRoute: typeof AuthenticatedAdminVideoEditorProjectIdRoute
   AuthenticatedAdminVideoViralProjectIdRoute: typeof AuthenticatedAdminVideoViralProjectIdRoute
   AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
@@ -2074,8 +2074,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminPagesEditRoute: AuthenticatedAdminPagesEditRoute,
   AuthenticatedAdminSystemEmailsKindRoute:
     AuthenticatedAdminSystemEmailsKindRoute,
-  AuthenticatedAdminVideoCarouselsCarouselIdRoute:
-    AuthenticatedAdminVideoCarouselsCarouselIdRoute,
+  AuthenticatedAdminVideoCarouselsProjectIdRoute:
+    AuthenticatedAdminVideoCarouselsProjectIdRoute,
   AuthenticatedAdminVideoEditorProjectIdRoute:
     AuthenticatedAdminVideoEditorProjectIdRoute,
   AuthenticatedAdminVideoViralProjectIdRoute:

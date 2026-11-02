@@ -27,7 +27,6 @@ import {
   type JumpCutSensitivity,
   type JumpCutSuggestion,
 } from "@/lib/video/jump-cuts"
-import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
 import { MIN_CLIP_MS } from "@/lib/video/timeline-utils"
 import type { EditorClip } from "@/components/video-editor/editor-store"
@@ -38,7 +37,11 @@ import { customShellMedia } from "@/server/schema"
 import { getAiKeysSaved } from "@/server/video/ai-keys-saved"
 import { runFfmpeg } from "@/server/video/ffmpeg"
 import { requireGeminiKey } from "@/server/video/gemini"
-import { videoProjects } from "@/server/video/schema"
+import {
+  videoSpendMetadata,
+  type SpendTag,
+} from "@/server/video/project-spend"
+import { getOwnedVideo } from "@/server/video/project-videos"
 import { getAiDefaults } from "@/server/video/settings"
 import { downloadToFile } from "@/server/video/storage-files"
 import {
@@ -118,18 +121,18 @@ export type JumpCutAnalysis = {
 }
 
 /**
- * Suggestions for one clip of the caller's own project.
+ * Suggestions for one clip of the caller's own video.
  */
 export async function analyseJumpCuts({
   userId,
-  projectId,
+  videoId,
   clipId,
   mode,
   sensitivity,
   fillerTerms,
 }: {
   userId: string
-  projectId: string
+  videoId: string
   clipId: string
   mode: JumpCutMode
   sensitivity: JumpCutSensitivity
@@ -140,7 +143,7 @@ export async function analyseJumpCuts({
   try {
     return await run({
       userId,
-      projectId,
+      videoId,
       clipId,
       mode,
       sensitivity,
@@ -153,14 +156,14 @@ export async function analyseJumpCuts({
 
 async function run({
   userId,
-  projectId,
+  videoId,
   clipId,
   mode,
   sensitivity,
   fillerTerms,
 }: {
   userId: string
-  projectId: string
+  videoId: string
   clipId: string
   mode: JumpCutMode
   sensitivity: JumpCutSensitivity
@@ -169,7 +172,7 @@ async function run({
   const terms = sanitizeFillerTerms(fillerTerms)
   if (mode === "filler" && !terms.length) return { suggestions: [], clipId }
 
-  const { clip, media } = await findClipAndMedia({ userId, projectId, clipId })
+  const { clip, media, spend } = await findClipAndMedia({ userId, videoId, clipId })
   // Too short to take anything out of and still have two pieces left.
   if (clip.durationMs < MIN_CLIP_MS * 2) return { suggestions: [], clipId }
 
@@ -206,7 +209,7 @@ async function run({
       const words = inClipTime(
         await wordsOfFile({
           userId,
-          projectId,
+          spend,
           media,
           localSource: source,
         }),
@@ -248,16 +251,16 @@ async function run({
  */
 export async function transcribeOpening({
   userId,
-  projectId,
+  videoId,
   clipId,
   windowMs,
 }: {
   userId: string
-  projectId: string
+  videoId: string
   clipId: string
   windowMs: number
 }): Promise<FillerWord[]> {
-  const { clip, media } = await findClipAndMedia({ userId, projectId, clipId })
+  const { clip, media, spend } = await findClipAndMedia({ userId, videoId, clipId })
   const opening = {
     ...clip,
     durationMs: Math.min(clip.durationMs, windowMs),
@@ -292,7 +295,7 @@ export async function transcribeOpening({
     const { wav } = await extractClipAudio(dir, media.storagePath, opening)
     return await transcribeSound({
       userId,
-      projectId,
+      spend,
       transcriber,
       feature: "jump_cut_analysis",
       label: WORDS_LABEL,
@@ -316,21 +319,21 @@ export async function transcribeOpening({
  */
 export async function transcribeClip({
   userId,
-  projectId,
+  videoId,
   clipId,
   fresh = false,
 }: {
   userId: string
-  projectId: string
+  videoId: string
   clipId: string
   fresh?: boolean
 }): Promise<ClipTranscript> {
   if (busyWith.has(userId)) throw new Error(JUMP_CUT_BUSY_MESSAGE)
   busyWith.add(userId)
   try {
-    const { clip, trackId, media } = await findClipAndMedia({
+    const { clip, trackId, media, spend } = await findClipAndMedia({
       userId,
-      projectId,
+      videoId,
       clipId,
     })
     const dir = await mkdtemp(path.join(tmpdir(), "video-transcript-"))
@@ -354,7 +357,7 @@ export async function transcribeClip({
       )
       const words = await wordsOfFile({
         userId,
-        projectId,
+        spend,
         media,
         localSource: source,
         fresh,
@@ -393,13 +396,13 @@ export async function transcribeClip({
  */
 async function wordsOfFile({
   userId,
-  projectId,
+  spend,
   media,
   localSource,
   fresh,
 }: {
   userId: string
-  projectId: string
+  spend: SpendTag
   media: { id: string; storagePath: string }
   localSource: string
   fresh?: boolean
@@ -418,7 +421,7 @@ async function wordsOfFile({
     transcriber,
     feature: "jump_cut_analysis",
     label: WORDS_LABEL,
-    projectId,
+    spend,
     tooLongMessage: JUMP_CUT_TOO_LONG_MESSAGE,
     failedMessage: JUMP_CUT_FAILED_MESSAGE,
     fresh,
@@ -448,21 +451,15 @@ function inClipTime(words: FileWord[], clip: EditorClip): FillerWord[] {
  */
 async function findClipAndMedia({
   userId,
-  projectId,
+  videoId,
   clipId,
 }: {
   userId: string
-  projectId: string
+  videoId: string
   clipId: string
 }) {
-  const [project] = await db
-    .select()
-    .from(videoProjects)
-    .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
-    .limit(1)
-  if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
-
-  const timeline = requireCanonicalTimeline(project.timeline)
+  const video = await getOwnedVideo(userId, videoId)
+  const timeline = requireCanonicalTimeline(video.timeline)
   const found = findClipOnTrack(timeline.tracks, clipId)
   if (
     !found?.clip.mediaId ||
@@ -491,7 +488,12 @@ async function findClipAndMedia({
   if (media.fileSize && media.fileSize > JUMP_CUT_MAX_MEDIA_BYTES) {
     throw new Error(JUMP_CUT_TOO_BIG_MESSAGE)
   }
-  return { clip: found.clip, trackId: found.trackId, media }
+  return {
+    clip: found.clip,
+    trackId: found.trackId,
+    media,
+    spend: videoSpendMetadata(video),
+  }
 }
 
 /**

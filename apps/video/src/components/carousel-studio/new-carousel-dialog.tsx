@@ -43,6 +43,8 @@ import {
   type CarouselSourceKind,
 } from "@/lib/video/carousel-writing"
 import { plural } from "@/lib/format/plural"
+import { Label } from "@/components/ui/label"
+import { listVideos } from "@/lib/api/video/project-videos"
 import { cn } from "@/lib/utils"
 
 type Start = "blank" | "template" | "ai"
@@ -50,33 +52,41 @@ type Start = "blank" | "template" | "ai"
 const SOURCES: { id: CarouselSourceKind; label: string }[] = [
   { id: "topic", label: "A topic" },
   { id: "notes", label: "Notes" },
-  { id: "project", label: "A project" },
+  { id: "video", label: "A video" },
   { id: "link", label: "A web link" },
 ]
 
 /**
- * New carousel: blank, copied from one of your templates, or written by AI
- * from a topic, notes, a project's script or a web page
- * (workspace/docs/carousel-templates.md, workspace/docs/carousel-writing.md).
- * Tyler, 20 Oct 2026: templates are offered here and nowhere else.
+ * New carousel, in one carousel project: blank, copied from one of your
+ * templates, or written by AI from a topic, notes, a video's script or a web
+ * page (workspace/docs/carousel-templates.md, carousel-writing.md). Tyler,
+ * 20 Oct 2026: templates are offered here and nowhere else. The project's own
+ * templates are offered first (part 23 of the projects task).
  */
 export function NewCarouselDialog({
   open,
+  carouselProjectId,
   onClose,
   onCreated,
 }: {
   open: boolean
+  /** The carousel project the new carousel goes in. */
+  carouselProjectId: string
   onClose: () => void
   onCreated: (carousel: CarouselItem) => void
 }) {
   // Mounted only while open, so every opening starts from a clean form.
-  return open ? <NewCarouselForm onClose={onClose} onCreated={onCreated} /> : null
+  return open ? (
+    <NewCarouselForm carouselProjectId={carouselProjectId} onClose={onClose} onCreated={onCreated} />
+  ) : null
 }
 
 function NewCarouselForm({
+  carouselProjectId,
   onClose,
   onCreated,
 }: {
+  carouselProjectId: string
   onClose: () => void
   onCreated: (carousel: CarouselItem) => void
 }) {
@@ -91,6 +101,8 @@ function NewCarouselForm({
     { id: string; name: string }[] | null
   >(null)
   const [projectId, setProjectId] = React.useState<string | null>(null)
+  const [videos, setVideos] = React.useState<{ id: string; name: string }[] | null>(null)
+  const [videoId, setVideoId] = React.useState<string | null>(null)
   const [slideCount, setSlideCount] = React.useState<number>(
     CAROUSEL_SLIDE_COUNT.start
   )
@@ -100,7 +112,7 @@ function NewCarouselForm({
 
   React.useEffect(() => {
     let active = true
-    listCarouselTemplates()
+    listCarouselTemplates(carouselProjectId)
       .then((loaded) => {
         if (active) setTemplates(loaded)
       })
@@ -112,10 +124,10 @@ function NewCarouselForm({
     return () => {
       active = false
     }
-  }, [])
+  }, [carouselProjectId])
 
   React.useEffect(() => {
-    if (start !== "ai" || source !== "project" || projects) return
+    if (start !== "ai" || source !== "video" || projects) return
     let active = true
     listProjects({ pageSize: 100 })
       .then((loaded) => {
@@ -136,8 +148,27 @@ function NewCarouselForm({
     }
   }, [projects, source, start])
 
+  // The picked project's videos, for the Video select.
+  React.useEffect(() => {
+    if (!projectId) return
+    let active = true
+    listVideos({ projectId })
+      .then((loaded) => {
+        if (active) setVideos(loaded.videos.map((video) => ({ id: video.id, name: video.name })))
+      })
+      .catch((error) => {
+        if (active) {
+          setVideos([])
+          showErrorToast(getCarouselErrorMessage(error))
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [projectId])
+
   function aiSource(): CarouselSource | null {
-    if (source === "project") return projectId ? { kind: "project", projectId } : null
+    if (source === "video") return videoId ? { kind: "video", videoId } : null
     if (source === "link") return link.trim() ? { kind: "link", url: link.trim() } : null
     return words.trim() ? { kind: source, text: words.trim() } : null
   }
@@ -155,8 +186,8 @@ function NewCarouselForm({
     const fromAi = start === "ai" ? aiSource() : null
     if (start === "ai" && !fromAi) {
       showErrorToast(
-        source === "project"
-          ? "Pick the project whose script to work from."
+        source === "video"
+          ? "Pick the video whose script to work from."
           : source === "link"
             ? "Paste the address of the page to work from."
             : "Write what the carousel is about first."
@@ -167,10 +198,10 @@ function NewCarouselForm({
     try {
       const created =
         start === "template" && templateId
-          ? await createFromTemplate(templateId, name)
+          ? await createFromTemplate(carouselProjectId, templateId, name)
           : fromAi
-            ? await writeCarouselWithAi(fromAi, slideCount, format)
-            : await createCarousel(name)
+            ? await writeCarouselWithAi(carouselProjectId, fromAi, slideCount, format)
+            : await createCarousel(carouselProjectId, name, format)
       dismissErrorToast()
       onCreated(created)
       onClose()
@@ -182,7 +213,7 @@ function NewCarouselForm({
   }
 
   const hasTemplates = Boolean(templates?.length)
-  const dirty = Boolean(name.trim() || words.trim() || link.trim() || projectId)
+  const dirty = Boolean(name.trim() || words.trim() || link.trim() || videoId)
 
   return (
     <FormDialog open dirty={dirty} busy={saving} onClose={onClose}>
@@ -238,16 +269,45 @@ function NewCarouselForm({
                     </div>
                   ) : null}
 
+                  {start === "blank" ? (
+                    <div className="grid gap-2">
+                      <FieldLabel>Shape</FieldLabel>
+                      <Tabs value={format} onValueChange={(value) => setFormat(value as CarouselFormat)}>
+                        <TabsList>
+                          {CAROUSEL_FORMATS.map((option) => (
+                            <TabsTrigger key={option} value={option}>
+                              {option}
+                            </TabsTrigger>
+                          ))}
+                        </TabsList>
+                      </Tabs>
+                    </div>
+                  ) : null}
+
                   {start === "template" ? (
                     templates === null ? (
                       <LoadingRow label="Loading templates" />
                     ) : (
                       <div role="radiogroup" aria-label="Template" className="grid gap-2">
-                        {templates.map((template) => {
+                        {templates.map((template, index) => {
+                          // This project's templates come first, under their own heading.
+                          const ours = template.carousel_project_id === carouselProjectId
+                          const before = templates[index - 1]
+                          const heading =
+                            index === 0
+                              ? ours
+                                ? "In this project"
+                                : "Your templates"
+                              : !ours && before?.carousel_project_id === carouselProjectId
+                                ? "Other projects"
+                                : null
                           const on = templateId === template.id
                           return (
+                            <React.Fragment key={template.id}>
+                            {heading ? (
+                              <span className="pt-1 text-xs font-medium text-muted-foreground">{heading}</span>
+                            ) : null}
                             <button
-                              key={template.id}
                               type="button"
                               role="radio"
                               aria-checked={on}
@@ -274,6 +334,7 @@ function NewCarouselForm({
                                 {template.format}
                               </span>
                             </button>
+                            </React.Fragment>
                           )
                         })}
                       </div>
@@ -323,34 +384,61 @@ function NewCarouselForm({
                           onChange={(event) => setWords(event.target.value)}
                         />
                       </div>
-                    ) : source === "project" ? (
-                      <div className="grid gap-2">
-                        <FieldLabel
-                          htmlFor="new-carousel-project"
-                          hint="The words of its voiceovers, or the words on its timeline when it has none. The carousel belongs to that project."
-                        >
-                          Project
-                        </FieldLabel>
-                        {projects === null ? (
-                          <LoadingRow label="Loading projects" />
-                        ) : (
-                          <Select
-                            value={projectId ?? undefined}
-                            onValueChange={setProjectId}
-                          >
-                            <SelectTrigger id="new-carousel-project">
-                              <SelectValue placeholder="Pick a project" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {projects.map((project) => (
-                                <SelectItem key={project.id} value={project.id}>
-                                  {project.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </div>
+                    ) : source === "video" ? (
+                      <>
+                        <div className="grid gap-2">
+                          <Label htmlFor="new-carousel-project">Project</Label>
+                          {projects === null ? (
+                            <LoadingRow label="Loading projects" />
+                          ) : (
+                            <Select
+                              value={projectId ?? undefined}
+                              onValueChange={(picked) => {
+                                setProjectId(picked)
+                                setVideos(null)
+                                setVideoId(null)
+                              }}
+                            >
+                              <SelectTrigger id="new-carousel-project">
+                                <SelectValue placeholder="Pick a project" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {projects.map((project) => (
+                                  <SelectItem key={project.id} value={project.id}>
+                                    {project.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                        {projectId ? (
+                          <div className="grid gap-2">
+                            <FieldLabel
+                              htmlFor="new-carousel-video"
+                              hint="The words of its voiceovers, or the words on its timeline when it has none. The carousel remembers the project it was made from."
+                            >
+                              Video
+                            </FieldLabel>
+                            {videos === null ? (
+                              <LoadingRow label="Loading videos" />
+                            ) : (
+                              <Select value={videoId ?? undefined} onValueChange={setVideoId}>
+                                <SelectTrigger id="new-carousel-video">
+                                  <SelectValue placeholder="Pick a video" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {videos.map((video) => (
+                                    <SelectItem key={video.id} value={video.id}>
+                                      {video.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        ) : null}
+                      </>
                     ) : (
                       <div className="grid gap-2">
                         <FieldLabel

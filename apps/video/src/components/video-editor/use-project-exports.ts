@@ -2,7 +2,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import {
-  loadProjectExports,
+  loadVideoExports,
   type RenderJobSummary,
 } from "@/lib/api/video/exports"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -19,13 +19,13 @@ export function isExportActive(job: RenderJobSummary) {
  * of them is waiting or rendering. Says once when each one finishes, even if
  * the window has been closed.
  */
-export function useProjectExports(projectId: string) {
+export function useProjectExports(videoId: string) {
   const [jobs, setJobs] = React.useState<RenderJobSummary[]>([])
   const previousStatus = React.useRef(new Map<string, string>())
 
   React.useEffect(() => {
     let active = true
-    loadProjectExports(projectId)
+    loadVideoExports(videoId)
       .then((loaded) => {
         if (!active) return
         previousStatus.current = new Map(
@@ -37,14 +37,14 @@ export function useProjectExports(projectId: string) {
     return () => {
       active = false
     }
-  }, [projectId])
+  }, [videoId])
 
   const running = jobs.some(isExportActive)
   React.useEffect(() => {
     if (!running) return
     let active = true
     const timer = setInterval(() => {
-      loadProjectExports(projectId)
+      loadVideoExports(videoId)
         .then((loaded) => {
           if (active) setJobs(loaded)
         })
@@ -54,7 +54,7 @@ export function useProjectExports(projectId: string) {
       active = false
       clearInterval(timer)
     }
-  }, [projectId, running])
+  }, [videoId, running])
 
   // Say it once per export, when it changes. The window may well be closed by
   // then. A job seen for the first time was just asked for, so it says nothing.

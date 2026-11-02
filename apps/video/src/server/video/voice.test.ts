@@ -74,7 +74,7 @@ function read() {
     voiceName: "Alloy",
     modelId: "eleven_multilingual_v2",
     text: "We are going to win.",
-    projectId: "project-1",
+    spend: { projectId: "project-1", videoId: "video-1" },
   })
 }
 
@@ -127,7 +127,7 @@ describe("an OpenAI reading", () => {
         model: "whisper-1",
         feature: "voiceover",
         units: 2_000 / 60_000,
-        metadata: { projectId: "project-1", timing: "gpt-4o-mini-tts" },
+        metadata: { projectId: "project-1", videoId: "video-1", timing: "gpt-4o-mini-tts" },
       },
     ])
   })

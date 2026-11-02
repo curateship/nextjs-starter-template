@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router"
 import { GalleryHorizontalIcon } from "lucide-react"
 
 import { InspectorCard } from "@/components/shared/inspector-card"
-import { LoadingRow } from "@/components/ui/loading-row"
 import {
   listCarouselsOfProject,
   type CarouselItem,
@@ -37,15 +36,14 @@ export function ProjectCarouselsCard({ projectId }: { projectId: string }) {
 
   return (
     <InspectorCard storageId="video-project-carousels" title="Carousels">
-      {carousels === null ? (
-        <LoadingRow label="Loading carousels" />
-      ) : carousels.length ? (
+      {carousels === null ? null : carousels.length ? (
         <ul className="grid gap-2">
           {carousels.map((carousel) => (
             <li key={carousel.id}>
               <Link
-                to="/admin/video-carousels/$carouselId"
-                params={{ carouselId: carousel.id }}
+                to="/admin/video-carousels/$projectId"
+                params={{ projectId: carousel.carousel_project_id }}
+                search={{ carousel: carousel.id }}
                 className="flex items-center gap-3 rounded-md text-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               >
                 <span className="grid size-9 flex-none place-items-center overflow-hidden rounded bg-muted">

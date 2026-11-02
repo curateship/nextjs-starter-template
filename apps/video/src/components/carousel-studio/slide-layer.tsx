@@ -39,7 +39,7 @@ export function StaticSlidePreview({
   const ref = React.useRef<HTMLDivElement>(null)
   const [width, setWidth] = React.useState(0)
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const node = ref.current
     if (!node) return
     const observer = new ResizeObserver(() => setWidth(node.clientWidth))

@@ -319,7 +319,9 @@ describe("first frames from the sheet", () => {
     const front = await insertPicture()
     let sheet = (await addSheetPicture(user.id, actor.id, { mediaId: side, label: "Side" })).sheet
     sheet = (await addSheetPicture(user.id, actor.id, { mediaId: front, label: "Front" })).sheet
-    const project = await createOwnedProject(user.id, "Reel", database)
+    const made = await createOwnedProject(user.id, "Reel", database)
+    // The project, and the one video it opens with, which pays for its pictures.
+    const project = { id: made.project.id, video: made.video }
     requests.length = 0
     return { actor, side, front, sheet, project }
   }
@@ -327,7 +329,7 @@ describe("first frames from the sheet", () => {
   it("sends the main picture alone, with the prompt as before, when none is picked", async () => {
     const { actor, project } = await setup()
     const { firstFrames } = await createFirstFrames(user.id, {
-      projectId: project.id,
+      videoId: project.video,
       actorId: actor.id,
       prompt: "In a kitchen",
       variants: 1,
@@ -343,7 +345,7 @@ describe("first frames from the sheet", () => {
     const { actor, side, sheet, project } = await setup()
     const sidePicture = sheet.find((picture) => picture.media_id === side)!
     const { firstFrames } = await createFirstFrames(user.id, {
-      projectId: project.id,
+      videoId: project.video,
       actorId: actor.id,
       prompt: "In a kitchen",
       variants: 1,
@@ -378,7 +380,7 @@ describe("first frames from the sheet", () => {
       .where(eq(videoProjects.id, project.id))
 
     await createFirstFrames(user.id, {
-      projectId: project.id,
+      videoId: project.video,
       actorId: actor.id,
       prompt: "In a kitchen",
       variants: 1,
@@ -398,7 +400,7 @@ describe("first frames from the sheet", () => {
     expect(listed.sheet).toHaveLength(5)
     await expect(
       createFirstFrames(user.id, {
-        projectId: project.id,
+        videoId: project.video,
         actorId: actor.id,
         prompt: "In a kitchen",
         variants: 1,
@@ -414,7 +416,7 @@ describe("first frames from the sheet", () => {
     const other = await newActor()
     await expect(
       createFirstFrames(user.id, {
-        projectId: project.id,
+        videoId: project.video,
         actorId: actor.id,
         prompt: "In a kitchen",
         variants: 1,

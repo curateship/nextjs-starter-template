@@ -41,9 +41,11 @@ function job(aspect: AspectRatio): RenderJobSummary {
     kind: "video",
     project_id: "project",
     project_name: "Project",
+    video_id: "video",
+    video_name: "Video",
     language: null,
-    original_project_id: null,
-    original_project_name: null,
+    original_video_id: null,
+    original_video_name: null,
     carousel_id: null,
     carousel_name: null,
     slide_count: null,
@@ -76,8 +78,8 @@ function open(jobs: RenderJobSummary[], projectMs = 10_000) {
       <ExportDialog
         open
         onOpenChange={() => undefined}
-        projectId="project"
-        projectName="Project"
+        videoId="video"
+        videoName="Video"
         projectAspect="9:16"
         projectMs={projectMs}
         jobs={jobs}
@@ -115,12 +117,12 @@ describe("the frame rate", () => {
     )
     await act(async () => exportButton().click())
     expect(startExport).toHaveBeenCalledWith(
-      "project",
+      "video",
       ["9:16"],
       "high",
       60,
       true,
-      "Project"
+      "Video"
     )
   })
 

@@ -31,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -67,6 +68,11 @@ import {
   getCarouselErrorMessage,
   type CarouselFormat,
 } from "@/lib/api/video/carousels"
+import {
+  getCarouselProjectErrorMessage,
+  listCarouselProjects,
+  type CarouselProjectItem,
+} from "@/lib/api/video/carousel-projects"
 import { CAROUSEL_FORMATS } from "@/lib/video/carousel-schema"
 import {
   createFirstFrames,
@@ -140,7 +146,7 @@ function shotWorking(shot: GenerationItem) {
 }
 
 export function AiClipPanel() {
-  const { dispatch, projectId, saveNow } = useEditorRuntime()
+  const { dispatch, projectId, videoId, saveNow } = useEditorRuntime()
   const { project, openSettings, refreshSpend } = useProjectSettings()
   const navigate = useNavigate()
   const editorAspect = useEditorSelector((state) => state.aspect)
@@ -363,10 +369,10 @@ export function AiClipPanel() {
     }
     setFramesBusy(true)
     try {
-      // The server reads the project's shape, so a shape just switched goes first.
+      // The server reads the video's shape, so a shape just switched goes first.
       await saveNow()
       const result = await createFirstFrames({
-        projectId,
+        videoId,
         actorId: actor.id,
         prompt: scene,
         variants,
@@ -410,7 +416,7 @@ export function AiClipPanel() {
     setShotBusy(true)
     try {
       const shot = await createGeneration({
-        projectId,
+        videoId,
         firstFrameId: frame.id,
         prompts: sent,
         lengthSeconds,
@@ -452,7 +458,7 @@ export function AiClipPanel() {
     setComparing(true)
     try {
       const made = await createComparison({
-        projectId,
+        videoId,
         firstFrameId: frame.id,
         prompts: sent,
         lengthSeconds,
@@ -571,11 +577,7 @@ export function AiClipPanel() {
         title="AI clip"
       />
       <ScrollArea className="min-h-0 flex-1">
-        {loading ? (
-          <div className="p-3">
-            <LoadingRow label="Loading actors and clips" />
-          </div>
-        ) : loadFailed ? (
+        {loading ? null : loadFailed ? (
           <div className="grid justify-items-center gap-2 p-8 text-center text-sm text-muted-foreground">
             The actors and clips could not be loaded.
             <Button
@@ -629,6 +631,7 @@ export function AiClipPanel() {
               >
                 <AiClipNewActor
                   projectId={projectId}
+                  videoId={videoId}
                   primary={!actors?.length}
                   onMade={(made) => {
                     setActors((current) => [made, ...(current ?? [])])
@@ -999,17 +1002,19 @@ export function AiClipPanel() {
         open={carouselOpen}
         onOpenChange={setCarouselOpen}
         frames={frames ?? []}
-        onCreate={async (frameIds, format) => {
+        onCreate={async (into, frameIds, format) => {
           try {
             const carousel = await createCarouselFromFirstFrames(
               projectId,
+              into,
               frameIds,
               format
             )
             setCarouselOpen(false)
             await navigate({
-              to: "/admin/video-carousels/$carouselId",
-              params: { carouselId: carousel.id },
+              to: "/admin/video-carousels/$projectId",
+              params: { projectId: carousel.carousel_project_id },
+              search: { carousel: carousel.id },
             })
           } catch (error) {
             showErrorToast(getCarouselErrorMessage(error))
@@ -1287,10 +1292,13 @@ function ShotRow({
 }
 
 /**
- * Picks first frames for a new carousel, in the order they are ticked, and
- * its shape. Each picture fills its slide, so the edges of a picture in a
+ * Picks first frames for a new carousel, in the order they are ticked, its
+ * shape, and the carousel project it goes in, asked each time (Tyler,
+ * 1 Nov 2026). Each picture fills its slide, so the edges of a picture in a
  * different shape are cut off and the middle stays.
  */
+const NEW_CAROUSEL_PROJECT = "new"
+
 function CarouselFromFramesDialog({
   open,
   onOpenChange,
@@ -1300,17 +1308,46 @@ function CarouselFromFramesDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   frames: FirstFrameItem[]
-  onCreate: (frameIds: string[], format: CarouselFormat) => Promise<void>
+  onCreate: (
+    into: { projectId: string } | { newProjectName: string },
+    frameIds: string[],
+    format: CarouselFormat
+  ) => Promise<void>
 }) {
   const [ticked, setTicked] = React.useState<string[]>([])
   const [format, setFormat] = React.useState<CarouselFormat>("4:5")
   const [busy, setBusy] = React.useState(false)
+  const [carouselProjects, setCarouselProjects] = React.useState<CarouselProjectItem[] | null>(null)
+  // A carousel project's id, or NEW_CAROUSEL_PROJECT. Nothing picked to start.
+  const [into, setInto] = React.useState("")
+  const [newName, setNewName] = React.useState("")
 
   const [wasOpen, setWasOpen] = React.useState(open)
   if (open !== wasOpen) {
     setWasOpen(open)
-    if (open) setTicked([])
+    if (open) {
+      setTicked([])
+      setInto("")
+      setNewName("")
+    }
   }
+
+  React.useEffect(() => {
+    if (!open) return
+    let active = true
+    listCarouselProjects({ pageSize: 100 })
+      .then((loaded) => {
+        if (active) setCarouselProjects(loaded.projects)
+      })
+      .catch((error) => {
+        if (!active) return
+        setCarouselProjects([])
+        showErrorToast(getCarouselProjectErrorMessage(error))
+      })
+    return () => {
+      active = false
+    }
+  }, [open])
 
   function toggle(id: string) {
     setTicked((current) =>
@@ -1323,13 +1360,25 @@ function CarouselFromFramesDialog({
   }
 
   async function submit() {
+    if (!into) {
+      showErrorToast("Pick the carousel project to put it in.")
+      return
+    }
+    if (into === NEW_CAROUSEL_PROJECT && !newName.trim()) {
+      showErrorToast("Give the new carousel project a name.")
+      return
+    }
     if (!ticked.length) {
       showErrorToast("Tick at least one first frame.")
       return
     }
     setBusy(true)
     try {
-      await onCreate(ticked, format)
+      await onCreate(
+        into === NEW_CAROUSEL_PROJECT ? { newProjectName: newName.trim() } : { projectId: into },
+        ticked,
+        format
+      )
     } finally {
       setBusy(false)
     }
@@ -1347,6 +1396,46 @@ function CarouselFromFramesDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Carousel project</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="carousel-into">Put it in</Label>
+                {carouselProjects === null ? (
+                  <LoadingRow label="Loading your carousel projects" />
+                ) : (
+                  <Select value={into} onValueChange={setInto}>
+                    <SelectTrigger id="carousel-into">
+                      <SelectValue placeholder="Pick a carousel project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NEW_CAROUSEL_PROJECT}>A new carousel project</SelectItem>
+                      {carouselProjects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              {into === NEW_CAROUSEL_PROJECT ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="carousel-into-name">New project's name</Label>
+                  <Input
+                    id="carousel-into-name"
+                    autoFocus
+                    value={newName}
+                    maxLength={200}
+                    placeholder="Weekly tips"
+                    onChange={(event) => setNewName(event.target.value)}
+                  />
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
           <Card size="sm">
             <CardHeader>
               <CardTitle>Shape</CardTitle>

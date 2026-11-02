@@ -95,7 +95,7 @@ const makingFields = {
 const createFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({
-    projectId: z.string().min(1).max(36),
+    videoId: z.string().min(1).max(36),
     firstFrameId: z.string().min(1).max(36),
     prompts: z.array(z.string().trim().min(1).max(5000)).min(1).max(4),
     lengthSeconds: z.union(SHOT_LENGTHS.map((value) => z.literal(value)) as [z.ZodLiteral<ShotLengthSeconds>, ...z.ZodLiteral<ShotLengthSeconds>[]]),
@@ -107,7 +107,7 @@ const createFn = createServerFn({ method: "POST" })
 const compareFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({
-    projectId: z.string().min(1).max(36),
+    videoId: z.string().min(1).max(36),
     firstFrameId: z.string().min(1).max(36),
     prompts: z.array(z.string().trim().min(1).max(5000)).min(1).max(4),
     lengthSeconds: z.union(SHOT_LENGTHS.map((value) => z.literal(value)) as [z.ZodLiteral<ShotLengthSeconds>, ...z.ZodLiteral<ShotLengthSeconds>[]]),
@@ -130,9 +130,9 @@ const deleteFn = createServerFn({ method: "POST" })
 
 /** This project's shots, newest first. */
 export function listGenerations(projectId: string) { return listFn({ data: { projectId } }) }
-export function createGeneration(data: { projectId: string; firstFrameId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality; company: VideoCompany; sound: boolean; endFrameId: string | null; voiceMediaId: string | null }) { return createFn({ data }) }
+export function createGeneration(data: { videoId: string; firstFrameId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality; company: VideoCompany; sound: boolean; endFrameId: string | null; voiceMediaId: string | null }) { return createFn({ data }) }
 /** The same frame and direction made by every company with a key, side by side. */
-export function createComparison(data: { projectId: string; firstFrameId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds }) { return compareFn({ data }) }
+export function createComparison(data: { videoId: string; firstFrameId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds }) { return compareFn({ data }) }
 /** Which companies can make a shot, which one new shots start on, and Wan's and Seedance's starting size, length and sound. */
 export function loadVideoChoices(): Promise<VideoChoices> { return choicesFn() }
 export function retryGeneration(generationId: string) { return retryFn({ data: { generationId } }) }
@@ -141,7 +141,7 @@ export function deleteGenerations(generationIds: string[]) { return deleteFn({ d
 const createStillFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({
-    projectId: z.string().min(1).max(36),
+    videoId: z.string().min(1).max(36),
     clipId: z.string().min(1).max(64),
     prompts: z.array(z.string().trim().min(1).max(5000)).min(1).max(4),
     lengthSeconds: z.union(SHOT_LENGTHS.map((value) => z.literal(value)) as [z.ZodLiteral<ShotLengthSeconds>, ...z.ZodLiteral<ShotLengthSeconds>[]]),
@@ -153,8 +153,8 @@ const createStillFn = createServerFn({ method: "POST" })
 
 const listStillFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ projectId: z.string().min(1).max(36) }))
-  .handler(({ data, context }) => import("@/server/video/asset-factories/moving-stills").then((m) => m.listStillShots(context.user.id, data.projectId)))
+  .inputValidator(z.object({ videoId: z.string().min(1).max(36) }))
+  .handler(({ data, context }) => import("@/server/video/asset-factories/moving-stills").then((m) => m.listStillShots(context.user.id, data.videoId)))
 
 const settleStillFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -162,8 +162,8 @@ const settleStillFn = createServerFn({ method: "POST" })
   .handler(({ data, context }) => import("@/server/video/asset-factories/moving-stills").then((m) => m.settleStillShot(context.user.id, data.generationId, data.outcome)))
 
 /** Asks for a moving shot of a picture, or of a moving clip made again, which takes that clip's place when it arrives. */
-export function createStillShot(data: { projectId: string; clipId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality; company?: VideoCompany; sound?: boolean }) { return createStillFn({ data }) }
+export function createStillShot(data: { videoId: string; clipId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality; company?: VideoCompany; sound?: boolean }) { return createStillFn({ data }) }
 /** This project's shots for timeline clips that have not landed yet. */
-export function listStillShots(projectId: string) { return listStillFn({ data: { projectId } }) }
+export function listStillShots(videoId: string) { return listStillFn({ data: { videoId } }) }
 /** Records that this editor landed a finished shot. `settled` is false when the worker already had. */
 export function settleStillShot(generationId: string, outcome: "replaced" | "gone") { return settleStillFn({ data: { generationId, outcome } }) }
