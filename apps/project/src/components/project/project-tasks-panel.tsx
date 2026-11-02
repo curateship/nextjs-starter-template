@@ -54,6 +54,7 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { rememberProject } from "@/lib/project/new-task-project"
 import { BOARD_GROUP_KEY, PROJECT_TASK_VIEW_KEY, taskFoldsKey, taskGroupingKey } from "@/lib/project/panel-keys"
 import { todayKey } from "@/lib/project/dates"
+import { addDays } from "@/lib/project/days"
 import type { ListDrop } from "@/lib/project/list-drop"
 import { dropChange } from "@/lib/project/my-task-order"
 import { runsTheTeam, type TaskPriority, type TaskStatus, isOpenStatus } from "@/lib/project/rules"
@@ -97,9 +98,9 @@ type QuickStart = {
 /**
  * The task a List heading's "+" starts: one that lands under that heading
  * (Tyler, 19 Oct 2026: "a '+' icon for me to add a task that will slot into
- * that sort"). Only Today and No due date can be started in by date; a new
- * task can't be made Overdue or Earlier, and This week or Later name no one
- * day, so those headings have no "+".
+ * that sort"). Only Today, Tomorrow and No due date can be started in by
+ * date; a new task can't be made Overdue or Earlier, and This week or Later
+ * name no one day, so those headings have no "+".
  */
 function startInGroup(grouping: TaskGrouping, key: string): QuickStart | null {
   const none = key === "none"
@@ -115,7 +116,9 @@ function startInGroup(grouping: TaskGrouping, key: string): QuickStart | null {
     case "type":
       return { typeId: none ? null : key }
     case "due":
-      return key === "today" ? { due: todayKey() } : none ? { due: null } : null
+      if (key === "today") return { due: todayKey() }
+      if (key === "tomorrow") return { due: addDays(todayKey(), 1) }
+      return none ? { due: null } : null
     default:
       return null
   }

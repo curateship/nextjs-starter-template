@@ -154,6 +154,7 @@ export const DUE_GROUPS = [
   { key: "waiting", label: "Waiting for my answer" },
   { key: "overdue", label: "Overdue" },
   { key: "today", label: "Today" },
+  { key: "tomorrow", label: "Tomorrow" },
   { key: "week", label: "This week" },
   { key: "later", label: "Later" },
   { key: "none", label: "No date" },
@@ -162,7 +163,8 @@ type DueGroup = (typeof DUE_GROUPS)[number]["key"]
 
 /**
  * Where an open task sits on My dashboard's List. `today` is the person's own day, as
- * in the check-in. "This week" is the next seven days after today.
+ * in the check-in. "Tomorrow" is the day after it (Tyler, 2 Nov 2026: "Add a
+ * tomorrow sort under today"), and "This week" the six days after that.
  */
 export function dueGroupOf(
   task: { waiting: boolean; dueDate: string | null; dueAt?: string | null },
@@ -175,6 +177,7 @@ export function dueGroupOf(
   // A "Due by" time that has passed is overdue on its own day too.
   if (day < today || (task.dueAt && new Date(task.dueAt) < now)) return "overdue"
   if (day === today) return "today"
+  if (day === addDays(today, 1)) return "tomorrow"
   if (day <= addDays(today, 7)) return "week"
   return "later"
 }

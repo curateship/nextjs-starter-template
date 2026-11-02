@@ -4,9 +4,11 @@ import { canMove, dropChange, inMyOrder, takesDrops } from "@/lib/project/my-tas
 
 /* Tyler's answers, 23 Oct 2026 (workspace/tasks/Misc/drag-tasks-on-my-dashboard.md). */
 describe("a drop", () => {
-  it("gives each heading its day: today, tomorrow, eight days on, none, or Done", () => {
+  it("gives each heading its day: today, tomorrow, the day after, eight days on, none, or Done", () => {
     expect(dropChange("today", "2099-03-02")).toEqual({ dueDate: "2099-03-02" })
-    expect(dropChange("week", "2099-03-02")).toEqual({ dueDate: "2099-03-03" })
+    expect(dropChange("tomorrow", "2099-03-02")).toEqual({ dueDate: "2099-03-03" })
+    // Tomorrow holds the 3rd, so This week starts on the 4th or the task would land back under Tomorrow.
+    expect(dropChange("week", "2099-03-02")).toEqual({ dueDate: "2099-03-04" })
     expect(dropChange("later", "2099-03-02")).toEqual({ dueDate: "2099-03-10" })
     expect(dropChange("none", "2099-03-02")).toEqual({ dueDate: null })
     expect(dropChange("done", "2099-03-02")).toEqual({ status: "done" })
@@ -26,8 +28,9 @@ describe("a drop", () => {
   })
 
   it("shows only the headings that take drops when they are empty", () => {
-    expect(["overdue", "today", "week", "later", "none", "done", "waiting", "picked"].filter(takesDrops)).toEqual([
+    expect(["overdue", "today", "tomorrow", "week", "later", "none", "done", "waiting", "picked"].filter(takesDrops)).toEqual([
       "today",
+      "tomorrow",
       "week",
       "later",
       "none",

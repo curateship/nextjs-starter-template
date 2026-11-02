@@ -23,6 +23,7 @@ const tasks = [
   task({ title: "Fix login", labels: [bug, client], dueDate: "2026-10-17", priority: "high" }),
   task({ title: "Call Sam", labels: [client], dueDate: "2026-10-19", assignee: { id: "sam", name: "Sam" } }),
   task({ title: "Plan", dueDate: "2026-10-23" }),
+  task({ title: "Book room", dueDate: "2026-10-20" }),
   task({ title: "Someday", dueDate: "2026-12-01", status: "doing" }),
   task({ title: "Shipped", dueDate: "2026-10-10", status: "done" }),
 ]
@@ -40,7 +41,7 @@ describe("grouping tasks, as Filter's Group row does", () => {
     expect(grouped("tags")).toEqual([
       ["Bug", ["Fix login"]],
       ["Client", ["Fix login", "Call Sam"]],
-      ["No tags", ["Plan", "Someday", "Shipped"]],
+      ["No tags", ["Plan", "Book room", "Someday", "Shipped"]],
     ])
   })
 
@@ -48,6 +49,7 @@ describe("grouping tasks, as Filter's Group row does", () => {
     expect(grouped("due")).toEqual([
       ["Overdue", ["Fix login"]],
       ["Today", ["Call Sam"]],
+      ["Tomorrow", ["Book room"]],
       ["This week", ["Plan"]],
       ["Later", ["Someday"]],
       ["Earlier", ["Shipped"]],
@@ -59,7 +61,7 @@ describe("grouping tasks, as Filter's Group row does", () => {
     expect(grouped("priority").map(([label]) => label)).toEqual(["High", "Normal"])
     expect(grouped("assignee")).toEqual([
       ["Sam", ["Call Sam"]],
-      ["Nobody", ["Fix login", "Plan", "Someday", "Shipped"]],
+      ["Nobody", ["Fix login", "Plan", "Book room", "Someday", "Shipped"]],
     ])
   })
 
@@ -78,9 +80,12 @@ describe("dragging a row under another heading (Tyler, 24 Oct 2026)", () => {
     expect(canMoveInGroup("type", "none", plan)).toBe(true)
   })
 
-  it("takes Today, This week, Later and No due date, never Overdue or Earlier", () => {
-    expect(["overdue", "today", "week", "later", "earlier", "none"].filter((key) => canMoveInGroup("due", key, plan))).toEqual([
+  it("takes Today, Tomorrow, This week, Later and No due date, never Overdue or Earlier", () => {
+    expect(
+      ["overdue", "today", "tomorrow", "week", "later", "earlier", "none"].filter((key) => canMoveInGroup("due", key, plan))
+    ).toEqual([
       "today",
+      "tomorrow",
       "week",
       "later",
       "none",

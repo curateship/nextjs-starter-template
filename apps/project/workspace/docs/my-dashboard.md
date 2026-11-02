@@ -121,8 +121,8 @@ title with the project and its chips under it (High, the type, labels, "Date
 moved 5 times", "Waiting on 1 task", "3 new"), then the due date ("Overdue ·
 Oct 12" in red), the steps ("0/2"), the status with its dot, and an arrow.
 On a phone the date and steps give way. Group headings are small capitals
-with a dot: OVERDUE red, TODAY orange, THIS WEEK blue, LATER purple, NO DATE
-grey, and WAITING FOR MY ANSWER yellow. Under each group the rows come in
+with a dot: OVERDUE red, TODAY orange, TOMORROW teal, THIS WEEK blue, LATER
+purple, NO DATE grey, and WAITING FOR MY ANSWER yellow. Under each group the rows come in
 my own order (below), then any I haven't placed, soonest first.
 
 - **Picked for today** comes first: what I picked on today's check-in, in my
@@ -130,9 +130,10 @@ my own order (below), then any I haven't placed, soonest first.
   order, and never leave the group. Dragging is off while a search or filter is
   on. A picked task shows only here, not again under its due date.
 - **Then every other open task of mine**, split into Waiting for my answer,
-  Overdue, Today, This week (the next seven days), Later and No date, then
-  **Done** last, each with its count. Today, This week, Later, No date and
-  Done show even when empty, so a task can be dragged into them; the other
+  Overdue, Today, **Tomorrow** (Tyler, 2 Nov 2026: "Add a tomorrow sort
+  under today"), This week (the six days after tomorrow), Later and No date,
+  then **Done** last, each with its count. Today, Tomorrow, This week, Later,
+  No date and Done show even when empty, so a task can be dragged into them; the other
   empty groups are hidden. On the site admin's table those empty ones show
   only while Mass select is on, since only then can a row be dragged (Tyler,
   24 Oct 2026: "when mass select is off. Hide the empty sections"). **Accept all 9 tasks**
@@ -145,7 +146,7 @@ my own order (below), then any I haven't placed, soonest first.
   It shows while the heading is pointed at and opens New task with the
   Project picker, on the employee's List and the site admin's table alike.
   The task starts where a drop under that heading would leave it: Today due
-  today, This week tomorrow, Later eight days on, No date with no date, Done
+  today, Tomorrow due tomorrow, This week the day after tomorrow, Later eight days on, No date with no date, Done
   as Done. Waiting, Overdue and Picked for today have no "+", since a new task
   can't start there (`addUnder` in `my-tasks-panel.tsx`).
 - **A heading's arrow** beside the "+" folds that heading shut, and the same
@@ -191,7 +192,9 @@ my own order (below), then any I haven't placed, soonest first.
     I see and which lasts after a reload. Teammates and the project page keep
     theirs (`project_my_task_order`, migration 0132).
   - **Under another group**, it takes that group's date: Today is due today,
-    This week tomorrow, Later eight days from today, No date clears the date,
+    Tomorrow tomorrow, This week the day after tomorrow (the first day
+    Tomorrow doesn't hold, so the row stays where it was dropped), Later
+    eight days from today, No date clears the date,
     and Done marks it Done. It is the same save as the Due cell or the Done
     tick, so it loses any "Due by" time, counts toward "Date moved 3 times",
     and a Done a required field refuses is put back with the reason.
@@ -385,9 +388,9 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   project ("Acme · Website").
   There are no picks for today; rows drag as on an employee's List, once
   Mass select is on (Dragging rows, above). Filter offers
-  every team's tags and types, and a **Project** row: every project on the
-  Projects card and every one holding a task of theirs, named with its team
-  ("Sample team · Spring launch"). Pressing a project on the Projects card
+  every team's tags and types, and a **Project** row: every open project,
+  pinned or not, and every one holding a task of theirs, named with its team
+  ("Sample team · Spring launch"). Pressing a project on the Pinned projects card
   sets the same row, so the two always agree, and a saved view keeps it. Saved views are kept under their own id
   (`admin-tasks:<their id>`), so nobody else can save there.
 - **Their own list is on no team.** Every list in the app belongs to a team,
@@ -406,7 +409,7 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   team's questions (its tags, its people), as on its project page.
 - **Live across every team.** A change to any task, project or team's
   own things, by anyone, loads the page again a moment later, so the cards and
-  the Projects card never go stale (Tyler, 29 Oct 2026, picking "Live across
+  the Pinned projects card never go stale (Tyler, 29 Oct 2026, picking "Live across
   every team"). It is the employee page's live stream: with no team named, the
   site admin's connection listens to every team and every project
   (`watchEveryTeam` in `src/server/project/my-live.ts`). Before 29 Oct 2026
@@ -414,20 +417,20 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
 
 ### The cards
 
-The Projects card comes first (Tyler, 29 Oct 2026: "the project card should
-be above all the red cards"); see [The Projects card](#the-projects-card),
+The Pinned projects card comes first (Tyler, 29 Oct 2026: "the project card should
+be above all the red cards"); see [The Pinned projects card](#the-pinned-projects-card),
 which replaced "Projects running late" the same day. Then a "Need your
 attention" heading, the size of Projects with room above it, shown only while
 a card below it has anything (Tyler, 30 Oct 2026: "Add a label that says "Need
 your attention" here", "add some padding above. also if there is nothing there
 (no cards) hide the label"). The Projects heading has the same room above
 it, parting it from the Daily card ("needs more space", 31 Oct 2026). The heading folds every card under it, and the
-Projects heading folds every project, the same way a Daily card section
+Pinned projects heading folds every project, the same way a Daily card section
 folds: press the heading, or the arrow at its right that shows while it is
 pointed at (Tyler, 31 Oct 2026: "add a toggle here to hide all the cards",
 then "its arrow toggle. This toggle should hide the projects"). The heading
 stays, and this browser remembers each (`fold-heading.tsx`). Each heading's
-number sits beside it on a light grey patch: how many projects, and how many
+number sits beside it on a light grey patch: how many pinned projects, and how many
 cards are under Need your attention (Tyler, 31 Oct 2026: "should have the
 amount beside it. Also add a light gray bg to the amount"). Then the rest, top to
 bottom, red first, then amber, blue and green (Tyler, 24 Oct 2026:
@@ -448,7 +451,7 @@ should be a color based on their importance like the done card should have a
 green card". Red needs the site admin now: Waiting on you, Urgent.
 Amber is for soon: No one on it, Invites not taken, Due
 this week. Blue is to know about: Meetings today, Milestones this month. Green
-is Done today. The Projects card has no tint or box of its own: each project
+is Done today. The Pinned projects card has no tint or box of its own: each project
 under its heading is tinted instead. The tints are see-through
 (`TONE` in `admin-cards.tsx`), so they work in light and dark.
 
@@ -477,7 +480,7 @@ under its heading is tinted instead. The tints are see-through
    the most first. A name folds open its tasks.
 The Inbox is not among them: it is behind the header's inbox icon.
 
-### The Projects card
+### The Pinned projects card
 
 Tyler, 29 Oct 2026: "in 'my dashboard' I want to add project cards that has
 summary of the currant projects in the left panel", then "This is for admin
@@ -491,16 +494,27 @@ and a right-click's New task all start on that project instead of the last
 one used (Tyler, 31 Oct 2026: "The task should automatically select that
 project and not select "just me"").
 
-It has no box and no fold of its own: the "Projects 3" heading sits straight
+Since 2 Nov 2026 it shows only the projects the site admin pinned, and its
+heading reads "Pinned projects" (Misc 5, Tyler: "Remove the hidden feature
+and make only pinned project shows up in the project toggles and rename the
+"Project" label to "Pinned projects""). A pin is the same one as on the
+Projects page and a project's own page: each person's own, kept in
+`project_project_stars`. On a phone the card's tab is called **Pinned**,
+since the pill row holds four names.
+
+It has no box and no fold of its own: the "Pinned projects 3" heading sits straight
 on the panel, at the Daily card greeting's 16px, and each project below is a
 card of its own, 15px apart like the panel's other cards (Tyler, 30 Oct 2026:
 "Put the label and toggle outside and have the project in its own card (not
 nested inside project car)", then "The project section (not hidden) project
 does not need to be toggled").
 
-- **Which projects.** Every team's open, shared projects, the same list as the
-  Projects page: no archived project and nobody's "Just me" list. With none at
-  all, the card isn't drawn.
+- **Which projects.** The open, shared projects the site admin pinned, from
+  any team: no archived project and nobody's "Just me" list. With no open
+  project anywhere, the card isn't drawn. With projects but none pinned, the
+  heading stays with "Pin a project on the Projects page to see it here."
+  under it, so the way to pin one is never lost. That line was not one of
+  Tyler's answers on 2 Nov 2026, so he may still change it.
 - **Each project is a block**, drawn from Tyler's picture of 29 Oct 2026
   (`assets/pasted-image-1793297357679510000.png`, "clean up ui"). Top: the
   project's picture, then its name, and under the name a coloured chip
@@ -513,8 +527,7 @@ does not need to be toggled").
   across, the height of the name and chip together (Tyler, 29 Oct 2026:
   "increase the avatar a bit"). With none, or one that no longer loads, the
   project's colour fills a dot the same size ("make it full size dot that
-  matches the size of the avatar"). The thin lines and the hidden list keep
-  the small dot.
+  matches the size of the avatar"). The thin lines keep the small dot.
 - **The due date is the chip's hover hint** (Tyler, 29 Oct 2026: "The due
   tomorrow can just be a tooltip when hover over the behind chip"): "Due Nov
   20 · 22 days left", "Due tomorrow", "Due today" or "Overdue · Nov 20",
@@ -540,30 +553,35 @@ does not need to be toggled").
   Pressing it again shows them all. Only their own tasks are in My tasks, so
   a project with none of theirs shows "No tasks match these filters."
 - **Its buttons,** showing while the block is pointed at (always on a phone):
-  a handle to drag it, **+** for New task already on that project, **Hide**,
-  and an arrow that opens the project page. The name makes room for them only
-  while they show.
-- **Hide** takes a project off the card at once. "Hidden 2", left of the
-  Projects heading's fold arrow with room between ("move the "hidden" a bit
-  left so the arrow has more room"), opens the hidden ones just under the
-  heading. It has no arrow of its own since 31 Oct 2026, when its arrow
-  became the heading's fold. It shows only
-  while the heading is pointed at, or while the hidden ones are open
-  ("toggle to be hover over and change the toggle icon to something that
-  looks better"), and always on a phone. Each hidden one shows its colour,
-  name, open task count ("2 open") and a grey **Show** button. Hiding the
-  project My tasks is filtered to clears that filter.
+  a handle to drag it, **+** for New task already on that project, the
+  yellow **pin**, and an arrow that opens the project page. The name makes
+  room for them only while they show.
+- **The pin unpins it**, and the project leaves the card once the save is
+  back. Unpinning the project My tasks is filtered to clears that filter.
+  The card had Hide and a "Hidden 2" list until 2 Nov 2026; Tyler had both
+  taken out ("Remove the "hide this card" feature now that we already use
+  the pinned projects"), and the saved hidden list went with them
+  (`drizzle/0142_project_category_links_pins.sql`).
+- **All projects** sits in the heading, left of its fold arrow, and opens
+  the Projects page, where any project can be pinned (Tyler, 2 Nov 2026: "Add
+  a link under the pinned project that says "View all projects"", then "move
+  the view all projects link here", pointing at the heading, then "rename to
+  "All projects"", and "make it hover over only"). Like the fold arrow, it
+  shows only while the heading is pointed at or has the keyboard's focus,
+  and always on a phone. It stays while the card is folded. Where the panel is
+  under about 300px wide, as it is at its narrowest, only its arrow shows.
+  It has no hover hint ("remove the tooltip for all projects hover").
 - **Their own order.** Dragging a block saves the order, and from then on it
   wins over late first; a project they haven't placed goes after the placed
   ones, late first. The thin lines keep their places for when they get tasks
   again.
-- **Theirs alone.** Hidden projects and the order are saved per site admin on
-  `project_site_admin_prefs` (`hidden_project_ids` and `project_order`,
-  migration 0136), and only a site admin can save them. A refused save puts
+- **Theirs alone.** The order is saved per site admin on
+  `project_site_admin_prefs` (`project_order`, migration 0136), and only a
+  site admin can save it. A refused save puts
   the card back as it was and says why.
 - **Where it lives:** `src/components/project/admin-project-cards.tsx`, with
   the order and the due line in `src/lib/project/admin-project-cards.ts` and
-  each project's people and finished days from `projectCardExtras` in
+  each pinned project's people and finished days from `projectCardExtras` in
   `src/server/project/admin-dashboard.ts`.
 
 ## Where it lives

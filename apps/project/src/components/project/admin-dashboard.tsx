@@ -131,7 +131,7 @@ export function AdminDashboardScreen({
       narrowStart="left"
       // A task opened on arrival leaves a narrow screen on the list.
       showRightFor={search.task === quietTask ? undefined : search.task}
-      // Picking a project on a phone's Projects tab shows its tasks at once.
+      // Picking a project on a phone's Pinned tab shows its tasks at once.
       showMiddleFor={search.project}
       left={{
         label: "Me",
@@ -149,10 +149,11 @@ export function AdminDashboardScreen({
       narrowTab={
         !wide && projectsCard
           ? {
-              label: "Projects",
+              // Short, as the phone's pill row holds four (Misc 5: "Pinned projects").
+              label: "Pinned",
               content: (
                 <>
-                  <DashboardCardTitleHeader title="Projects" />
+                  <DashboardCardTitleHeader title="Pinned projects" />
                   <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
                     <div className={cn("grid", PANEL_GUTTER)}>{projectsCard}</div>
                   </ScrollArea>
@@ -217,7 +218,7 @@ export function AdminDashboardScreen({
 }
 
 /**
- * Filter's Project row: every project the Projects card shows and every one
+ * Filter's Project row: every open project, pinned or not, and every one
  * holding a task of theirs, named as the table's Project chip names it, with
  * its team ("Acme · Website", or "Just me" for their own list).
  */
@@ -270,7 +271,7 @@ function AdminPanel({
   dashboard: AdminDashboard
   daily: DailyCardData
   inbox: InboxPage
-  /** The Projects card, in the cards on a wide screen; on a phone it has a tab of its own. */
+  /** The Pinned projects card, in the cards on a wide screen; on a phone it has a tab of its own. */
   projectsCard: React.ReactNode
   onOpenTask: (taskId: string) => void
 }) {

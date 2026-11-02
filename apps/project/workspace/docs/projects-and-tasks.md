@@ -79,7 +79,7 @@
   description, colour, milestones (with no dates) and every task
   not in the bin, in the same order, with their labels, milestone, steps
   (unticked), types and field values, and the project's own pick of task
-  types. The status, lead and client stay behind. Every task starts To do with
+  types, category and links. The status, lead and client stay behind. Every task starts To do with
   nobody assigned and no due date (Tyler's choice, 10 Oct 2026). People,
   chat, files and history stay behind, and Person fields start empty. Only
   the site admin copies, and the copy starts with nobody on it, like a new
@@ -241,6 +241,53 @@ So an agency with many projects for a few clients finds things fast.
   `visibleClients` in `src/server/project/clients.ts`.
 - **Saved** in `project_projects.client`.
 
+## Categories
+
+Tyler, 2 Nov 2026 (Misc 5): "Add category selection and creation for
+projects and add the filter dropdown in dashboard". He picked one list for
+the whole site and the filter on the Projects page.
+
+- **A Category field in Project settings**, under Client. It is the Client
+  picker with other words: pick a category already used, or type a new name
+  and press Enter or "Use "Marketing"". A name differing only in capitals
+  picks the one already used. "No category" takes it off.
+- **One list for the site.** A category made on any team's project is offered
+  on every team's, unlike clients, which are each team's own. Only the site
+  admin changes Project settings, so only they are sent the list
+  (`siteCategories` in `src/server/project/clients.ts`). A category no
+  project uses any more drops off the list by itself, so there is nothing to
+  delete.
+- **The Projects page's Category menu** sits beside the Client menu once any
+  project has a category: All categories, each category, No category. It
+  narrows the table like the Client menu and is kept until the page is left.
+- **Saved** in `project_projects.category`
+  (`drizzle/0142_project_category_links_pins.sql`).
+
+## Links
+
+Tyler, 2 Nov 2026 (Misc 5): "Add url fields for projects with custom label
+and put it under the discription field. Also add a section divider label.
+Add draggable ability to arrange the url fields and divider".
+
+- **In Project settings**, a Links field sits right under Description. Each
+  link is a label and an address on one row; a divider is one label on a row
+  of its own. "Add link" and "Add divider" put a new row at the bottom, a bin
+  takes one away, and the handle at a row's left drags it into a new place.
+  A row saves when it is left or Enter is pressed, a drag or a bin at once.
+- **Addresses are web addresses only.** "acme.com" is saved as
+  "https://acme.com". Anything else, "javascript:" included, stays in its box
+  marked red with an error, and is never sent; the server refuses it too
+  (`projectLinksSchema` in `src/lib/project/project-links.ts`). A row with no
+  address yet, or a divider with no label, waits on screen and is saved once
+  it is whole. At most 50 rows, labels up to 60 characters.
+- **On the project page**, the links show under the description in the
+  dragged order, each opening in a new tab. A link with no label shows its
+  address without "https://". A divider is a small capital heading over the
+  links after it. Everyone on the project sees them; only the site admin
+  changes them. A "Just me" list has none.
+- **Saved** as one list in `project_projects.links`, written whole on each
+  change. The editor is `src/components/project/project-links-editor.tsx`.
+
 ## Project templates are gone
 
 Tyler, 28 Oct 2026 (Misc 4): "We need to remove the project templates feature
@@ -269,13 +316,14 @@ show out of the left panel and into that header.
 
 - **Left: details.** From the top: the project's avatar, if it has one, with
   the name, client and status beside it, then
-  "Description" as a small capital heading,
+  "Description" as a small capital heading, then the project's links (see
+  Links below), then
   the status (when there is no avatar), the lead and the client, then the
   Milestones card at the bottom, which folds and remembers in this browser
   whether it was left open. The Status card that was here went with the
   manual status on 19 Oct 2026 (see Project status). The pin in the header pins the project for me
   (see Pins below). The cog opens Project settings, a window with the name,
-  colour, description, client, due date, Doing limit, Everyone on the team,
+  colour, description, links, client, category, due date, Doing limit, Everyone on the team,
   Archive, its status rule, its pictures, its members and its task types. Tyler, 10 Oct 2026: "add a
   cog icon here and put all the project settings there". Each field saves when
   it is left, and the colour, due date and pictures the moment they are picked, so the window ends with

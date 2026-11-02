@@ -267,7 +267,8 @@ export function MyTasksPanel({
    * A heading's "+", as on a project's List (Tyler, 24 Oct 2026: "My dashboard
    * is missing the "+" icon in the section like project dashboard"). The new
    * task starts as a drop under that heading would leave it: Today due today,
-   * This week tomorrow, Later eight days on, No date with none, Done done.
+   * Tomorrow tomorrow, This week the day after, Later eight days on, No date
+   * with none, Done done.
    * Overdue, Waiting and today's picks can't be started in, so have no "+".
    * Under another grouping every heading has one (Tyler, 31 Oct 2026: "still
    * no + icon", on Status's Doing): Due date's start as My headings' do, a

@@ -9,36 +9,46 @@ import { cn } from "@/lib/utils"
 
 type Row = { value: string | null; label: string; isNew?: boolean }
 
+/** What the picker names: a project's client, or its category (Misc 5, 2 Nov 2026). */
+const WORDS = {
+  client: { none: "No client", find: "Find or type a client", list: "Clients", max: LIMITS.clientName },
+  category: { none: "No category", find: "Find or type a category", list: "Categories", max: LIMITS.categoryName },
+} as const
+
 /**
- * A project's client: picked from the clients already used on the team's
- * projects, or typed new. Typing a name the list doesn't have offers
- * "Use "Hart Dental"" first, and Enter takes the first row. Picking a name
- * that differs only in capitals takes the one already used, so one client
- * never splits into two groups. Built like `TimeZoneSelect`.
+ * A project's client or category: picked from the names already used, or
+ * typed new. Typing a name the list doesn't have offers "Use "Hart Dental""
+ * first, and Enter takes the first row. Picking a name that differs only in
+ * capitals takes the one already used, so one name never splits into two
+ * groups. Built like `TimeZoneSelect`.
  */
 export function ClientSelect({
   id,
+  kind = "client",
   value,
-  clients,
+  names,
   onChange,
   disabled,
 }: {
   id?: string
+  kind?: keyof typeof WORDS
   value: string | null
-  clients: string[]
-  onChange: (client: string | null) => void
+  /** The names to pick from. */
+  names: string[]
+  onChange: (name: string | null) => void
   disabled?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
+  const words = WORDS[kind]
 
-  const typed = search.trim().slice(0, LIMITS.clientName)
+  const typed = search.trim().slice(0, words.max)
   const needle = typed.toLowerCase()
-  const known = clients.find((client) => client.toLowerCase() === needle)
+  const known = names.find((name) => name.toLowerCase() === needle)
   const rows: Row[] = [
     ...(typed && !known ? [{ value: typed, label: `Use "${typed}"`, isNew: true }] : []),
-    ...(needle ? [] : [{ value: null, label: "No client" }]),
-    ...clients.filter((client) => !needle || client.toLowerCase().includes(needle)).map((client) => ({ value: client, label: client })),
+    ...(needle ? [] : [{ value: null, label: words.none }]),
+    ...names.filter((name) => !needle || name.toLowerCase().includes(needle)).map((name) => ({ value: name, label: name })),
   ]
 
   function pick(next: string | null) {
@@ -68,7 +78,7 @@ export function ClientSelect({
             focusRing
           )}
         >
-          <span className={cn("truncate", !value && "text-muted-foreground")}>{value ?? "No client"}</span>
+          <span className={cn("truncate", !value && "text-muted-foreground")}>{value ?? words.none}</span>
           <ChevronDownIcon className="pointer-events-none size-4 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
@@ -77,7 +87,7 @@ export function ClientSelect({
           <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
           <input
             value={search}
-            maxLength={LIMITS.clientName}
+            maxLength={words.max}
             onChange={(event) => setSearch(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && rows[0]) {
@@ -85,13 +95,13 @@ export function ClientSelect({
                 pick(rows[0].value)
               }
             }}
-            placeholder="Find or type a client"
-            aria-label="Find or type a client"
+            placeholder={words.find}
+            aria-label={words.find}
             className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
         <ScrollArea className="max-h-60">
-          <div role="listbox" aria-label="Clients" className="grid gap-0.5 p-1">
+          <div role="listbox" aria-label={words.list} className="grid gap-0.5 p-1">
             {rows.map((row) => {
               const selected = !row.isNew && row.value === value
               return (

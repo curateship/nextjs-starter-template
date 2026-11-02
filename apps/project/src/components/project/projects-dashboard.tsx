@@ -49,6 +49,7 @@ import { useClientPage } from "@/lib/hooks/use-client-page"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { pageGutter } from "@/lib/layout/shell-gutter"
+import { clientChoices, matchesClient } from "@/lib/project/clients"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { clockTotal } from "@/lib/project/clock"
 import { PROJECTS_TIME_COLUMN_KEY } from "@/lib/project/panel-keys"
@@ -100,6 +101,8 @@ const ALL_TEAMS = "all"
 const ALL_CLIENTS = "all"
 const NO_CLIENT = "none"
 const NO_CLIENT_LABEL = "No client"
+const ALL_CATEGORIES = "all"
+const NO_CATEGORY = "none"
 
 /** Clients A to Z, then "No client" last. */
 function compareClients(a: string | null, b: string | null) {
@@ -184,6 +187,9 @@ function ProjectsTable({
   const [client, setClient] = React.useState<string>(ALL_CLIENTS)
   const clientLabel = client === ALL_CLIENTS ? "All clients" : client === NO_CLIENT ? NO_CLIENT_LABEL : client
   const [byClient, setByClient] = React.useState(false)
+  const [category, setCategory] = React.useState<string>(ALL_CATEGORIES)
+  const categoryLabel =
+    category === ALL_CATEGORIES ? "All categories" : category === NO_CATEGORY ? "No category" : category
   const { sort, direction, toggleSort } = useTableSort<Column>("name")
   const selection = useSelection()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
@@ -200,6 +206,9 @@ function ProjectsTable({
       ),
     [projects]
   )
+
+  // One list for the whole site, matched as client names are.
+  const categories = React.useMemo(() => clientChoices(projects.map((row) => row.category)), [projects])
 
   const rows = React.useMemo(() => {
     const sign = direction === "asc" ? 1 : -1
@@ -218,6 +227,13 @@ function ProjectsTable({
       .filter((row) =>
         client === ALL_CLIENTS ? true : client === NO_CLIENT ? !row.client : row.client === client
       )
+      .filter((row) =>
+        category === ALL_CATEGORIES
+          ? true
+          : category === NO_CATEGORY
+            ? !row.category?.trim()
+            : matchesClient(row.category, category)
+      )
       .sort((a, b) => {
         // Grouped by client, the groups come first, then pinned projects inside each.
         if (byClient) {
@@ -233,17 +249,17 @@ function ProjectsTable({
         }
         return (valueOf(a) - valueOf(b)) * sign || a.name.localeCompare(b.name)
       })
-  }, [byClient, client, direction, group, projects, query, sort])
+  }, [byClient, category, client, direction, group, projects, query, sort])
 
   const { visible, footer } = useClientPage(
     rows,
     config.dashboardRowsPerPage,
-    `${group}|${query}|${client}|${byClient}|${sort}|${direction}`
+    `${group}|${query}|${client}|${category}|${byClient}|${sort}|${direction}`
   )
   // A "Just me" list can't be archived, so it can't be ticked either.
   const visibleIds = siteAdmin ? visible.filter((row) => !row.personal).map((row) => row.id) : []
   // The team filter too: ticks on another team's rows would be archived unseen.
-  useClearSelectionOnListChange(selection.setSelected, `${group}|${query}|${client}|${teamFilter}`)
+  useClearSelectionOnListChange(selection.setSelected, `${group}|${query}|${client}|${category}|${teamFilter}`)
 
   async function setArchived(ids: string[], archived: boolean) {
     let result = { done: [] as string[], kept: [] as string[] }
@@ -357,6 +373,29 @@ function ProjectsTable({
                   >
                     Group by client
                   </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+            {/* Tyler, 2 Nov 2026: "Add category selection and creation for projects and add the filter dropdown". */}
+            {/* Kept while a category is picked, so it can still be turned off. */}
+            {categories.length || category !== ALL_CATEGORIES ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <DashboardToolbarButton type="button" variant="outline" aria-label={`Category: ${categoryLabel}`}>
+                    {categoryLabel}
+                    <ChevronDownIcon className="size-4 text-muted-foreground" />
+                  </DashboardToolbarButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  {[ALL_CATEGORIES, ...categories, NO_CATEGORY].map((value) => (
+                    <DropdownMenuCheckboxItem
+                      key={value}
+                      checked={category === value}
+                      onCheckedChange={() => setCategory(value)}
+                    >
+                      {value === ALL_CATEGORIES ? "All categories" : value === NO_CATEGORY ? "No category" : value}
+                    </DropdownMenuCheckboxItem>
+                  ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}

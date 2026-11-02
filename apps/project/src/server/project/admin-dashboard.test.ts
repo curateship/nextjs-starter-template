@@ -8,7 +8,6 @@ import { inTeam } from "@/server/project/access"
 import {
   FINISHED_DAYS,
   loadAdminDashboard,
-  setAdminHiddenProjects,
   setAdminProjectOrder,
   setAdminStatusOrder,
   setAdminTimeZone,
@@ -18,7 +17,7 @@ import { createLabel } from "@/server/project/labels"
 import { createMeeting } from "@/server/project/meetings"
 import { createMilestone } from "@/server/project/milestones"
 import { askForMoreTime } from "@/server/project/more-time"
-import { addProjectMember, createProject, loadProjectsPage } from "@/server/project/projects"
+import { addProjectMember, createProject, loadProjectsPage, setProjectStar } from "@/server/project/projects"
 import { listTeamNames } from "@/server/project/record-team"
 import { projectSavedViewScreens } from "@/server/project/saved-views"
 import { projectProjects, projectTasks, projectTeams } from "@/server/project/schema"
@@ -261,28 +260,29 @@ describe("the cards", () => {
   })
 })
 
-describe("the Projects card", () => {
-  it("names each project's people, counts what got finished today, and keeps his hidden ones and his order", async () => {
+describe("the Pinned projects card", () => {
+  it("names each pinned project's people, counts what got finished today, and keeps his order", async () => {
     const done = (await inTeam(acme, () => createTask(actor(tyler), task(website, "Hero image", ben.id), database))).id
     await setTaskStatus(actor(ben), { taskId: done, status: "done", stuckReason: null }, database)
-    await setAdminHiddenProjects(tyler.id, [logo], database)
+    await setProjectStar(tyler.id, { projectId: website, starred: true }, database)
     await setAdminProjectOrder(tyler.id, [logo, website], database)
 
     const { cards } = await loadAdminDashboard(tyler.id, database, new Date())
-    expect(cards.projects.map((project) => [project.name, project.dueDate])).toEqual([
-      ["Logo", null],
-      ["Website", null],
+    // Every open project still comes, pinned or not, for Filter's Project row.
+    expect(cards.projects.map((project) => [project.name, project.starred])).toEqual([
+      ["Logo", false],
+      ["Website", true],
     ])
     expect(cards.projectCards.people[website]).toEqual({ faces: [{ id: ben.id, name: "Ben", avatarUrl: "" }], total: 1 })
     expect(cards.projectCards.finished[website]).toHaveLength(FINISHED_DAYS)
     expect(cards.projectCards.finished[website].at(-1)).toBe(1)
+    // Logo isn't pinned, so it isn't on the card and its people aren't read.
+    expect(cards.projectCards.people[logo]).toBeUndefined()
     expect(cards.projectCards.finished[logo]).toBeUndefined()
-    expect(cards.projectCards.hidden).toEqual([logo])
     expect(cards.projectCards.order).toEqual([logo, website])
   })
 
   it("is the site admin's alone", async () => {
-    await expect(setAdminHiddenProjects(ben.id, [website], database)).rejects.toThrow()
     await expect(setAdminProjectOrder(ben.id, [website], database)).rejects.toThrow()
   })
 })

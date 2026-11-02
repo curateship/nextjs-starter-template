@@ -46,6 +46,7 @@ const NONE = "none"
 const DUE_GROUPS: TaskGroup[] = [
   { key: "overdue", label: "Overdue" },
   { key: "today", label: "Today" },
+  { key: "tomorrow", label: "Tomorrow" },
   { key: "week", label: "This week" },
   { key: "later", label: "Later" },
   { key: "earlier", label: "Earlier" },
@@ -59,7 +60,8 @@ function dueGroupOf(task: GroupableTask, now: Date) {
   const day = dueDayOf(task)!
   if (day < today) return "earlier"
   if (day === today) return "today"
-  // Today and the six days after it, as the Due filter's "This week".
+  if (day === addDays(today, 1)) return "tomorrow"
+  // The rest of the Due filter's "This week", today and the six days after it.
   return day <= addDays(today, 6) ? "week" : "later"
 }
 
@@ -136,7 +138,7 @@ export function groupTasks<T extends GroupableTask>(
 }
 
 /** The due-date headings a task can be dropped under; nothing is made Overdue or Earlier by hand. */
-const DUE_DROPS = new Set(["today", "week", "later", NONE])
+const DUE_DROPS = new Set(["today", "tomorrow", "week", "later", NONE])
 
 /**
  * Whether a task dragged on a project's List may go under another heading,

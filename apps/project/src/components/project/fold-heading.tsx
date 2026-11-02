@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
  * "its arrow toggle"). `count` sits beside the title on a light grey
  * ground (Tyler, the same day: "should have the amount beside it. Also add a
  * light gray bg to the amount"). `children` sits between the heading and the
- * arrow, such as Projects' "Hidden 2".
+ * arrow, such as Pinned projects' "All projects".
  */
 export function FoldHeading({
   id,

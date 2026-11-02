@@ -29,6 +29,7 @@ import type {
   TeamRole,
 } from "@/lib/project/rules"
 import type { DailySection, DayPart, SkyKind } from "@/lib/project/daily-card"
+import type { ProjectLink } from "@/lib/project/project-links"
 import type { SavedViewFilters, SavedViewNames } from "@/lib/project/saved-views"
 import type { StartingStepFields, StepField } from "@/lib/project/step-fields"
 import type { FieldKind, FieldSettings, WhoCanChange } from "@/lib/project/task-fields"
@@ -192,6 +193,13 @@ export const projectProjects = pgTable("project_projects", {
    */
   slowingAt: smallint("slowing_at").notNull().default(1),
   behindAt: smallint("behind_at").notNull().default(3),
+  /**
+   * Its category, a name and not a record, from one list for the whole site
+   * (`drizzle/0142_project_category_links_pins.sql`).
+   */
+  category: varchar("category", { length: 60 }),
+  /** Its links and divider labels under the description, in their dragged order. */
+  links: jsonb("links").$type<ProjectLink[]>().notNull().default([]),
 })
 
 /** A project's milestones: when a set of its tasks must be finished. */
@@ -1122,9 +1130,10 @@ export const projectSiteAdminPrefs = pgTable("project_site_admin_prefs", {
   /** Null until My dashboard first saves the browser's zone. */
   timeZone: text("time_zone"),
   statusOrder: text("status_order").array().$type<TaskStatus[]>().notNull().default([]),
-  /** Projects hidden from My dashboard's Projects card (`drizzle/0136_project_admin_project_cards.sql`). */
-  hiddenProjectIds: text("hidden_project_ids").array().notNull().default([]),
-  /** That card's projects in the order they dragged them; empty is late first. */
+  /**
+   * My dashboard's Pinned projects card in the order they dragged it into;
+   * empty is late first (`drizzle/0136_project_admin_project_cards.sql`).
+   */
   projectOrder: text("project_order").array().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
