@@ -19,10 +19,12 @@
  * memory and npm timed out the website's build (29 Oct 2026; Tyler: "change
  * the deploy script so that it deploy one by one").
  *
- * After a healthy website deploy it copies the local left menu to live with
- * `copy-menu.mjs`, because the menu is saved in the database and a deploy
- * alone never changes it. `--skip-menu` leaves the live menu as it is. A
- * failed copy is reported but does not undo the deploy.
+ * After a healthy website deploy it copies the live left menu down to this
+ * laptop's database with `copy-menu.mjs`, so the laptop follows the menu Tyler
+ * edits on the live site (2 Nov 2026; until then local was copied over live,
+ * which reset his live edits on every deploy). It never writes the menu to
+ * live. `--skip-menu` leaves the laptop's menu as it is. A failed copy is
+ * reported but does not undo the deploy.
  *
  * It never writes the AI keys. They go in once, at an app's launch, with
  * `copy-ai-keys.mjs` (Tyler, 31 Oct 2026: "The script kept readding the api
@@ -107,7 +109,7 @@ export function resourcesToDeploy(app, only) {
   return app.resources.filter((one) => wanted.includes(one.role))
 }
 
-/** The menu copy runs when the website was deployed and the app has a database to copy into. */
+/** The menu copy runs when the website was deployed and the app has a live database to copy from. */
 export function copiesMenu(app, resources, skipMenu) {
   return !skipMenu && Boolean(app.database?.uuid) && resources.some((one) => one.role === "web")
 }
@@ -440,7 +442,7 @@ async function main() {
   }
   console.log(`Plan: ${resources.map((one) => one.role).join(", then ")}, one at a time.`)
   const menu = copiesMenu(app, resources, flags.skipMenu)
-  console.log(`Left menu: ${menu ? "copied from local to live after the deploy" : "left as it is on live"}.`)
+  console.log(`Left menu: ${menu ? "copied from live to this laptop after the deploy" : "not copied"}.`)
 
   await clearStuckDeployments(settings, resources, flags.dryRun)
 
@@ -466,7 +468,7 @@ async function main() {
     // A failed copy is reported and never undoes the deploy.
     const notCopied = (error) => {
       process.exitCode = 1
-      console.error(`Could not copy the local left menu: ${error instanceof Error ? error.message : error}`)
+      console.error(`Could not copy the live left menu to this laptop: ${error instanceof Error ? error.message : error}`)
       console.error(`The deploy itself finished. Copy it by hand: node .agents/skills/deploy-app/scripts/copy-menu.mjs ${flags.app}`)
     }
     const { withLiveDatabase } = await import("./live-db.mjs")
@@ -474,7 +476,7 @@ async function main() {
     try {
       await withLiveDatabase(flags.app, async () => {
         tried = true
-        console.log("\nCopying the local left menu to live...")
+        console.log("\nCopying the live left menu to this laptop...")
         await (await import("./copy-menu.mjs")).copyMenu(flags.app).catch(notCopied)
       })
     } catch (error) {

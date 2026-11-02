@@ -89,6 +89,11 @@ const linkSchema = z.object({
  * items do. They fold under it. The links at the bottom of the menu have none.
  */
 const sectionLinkSchema = linkSchema.extend({
+  /**
+   * Empty for a link that only holds sub-links: clicking it opens the list
+   * of its sub-links instead of a screen. Tyler asked for it on 2 Nov 2026.
+   */
+  url: appUrl.or(z.literal("")),
   children: z.array(linkSchema).max(50).optional(),
 })
 
@@ -193,8 +198,14 @@ export function placeKey(place: Place) {
  */
 export function canPlace(link: MenuLink, place: Place) {
   if (place.kind === "section") return true
-  if (link.children?.length) return false
+  // Only a left-menu link may hold sub-links, so only it may have no address.
+  if (link.children?.length || !hasAddress(link)) return false
   return place.kind === "top" || place.linkId !== link.id
+}
+
+/** Whether a link opens a screen. A left-menu link with no address only opens its sub-links. */
+export function hasAddress(link: Pick<MenuLink, "url">) {
+  return link.url !== ""
 }
 
 /** The menu a fresh Mac starts with: the screens wired on 16 Oct 2026. */
@@ -369,7 +380,7 @@ type OneLink = "startLinkId" | "stayLoadedLinkId"
 /** The link a field names, if it still exists and fills the panel. */
 function oneLink(menu: Menu, field: OneLink) {
   const link = allLinks(menu).find((l) => l.id === menu[field])
-  return link && !opensInTab(link) ? link : null
+  return link && !opensInTab(link) && hasAddress(link) ? link : null
 }
 
 /** Makes a link the one a field names, or stops it being that. There is only ever one. */

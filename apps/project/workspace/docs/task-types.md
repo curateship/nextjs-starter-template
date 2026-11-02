@@ -6,7 +6,7 @@ type already held what a template holds (fields, starting steps, starting
 notes, an icon and a colour), so the words changed and nothing underneath
 did: the left menu, the dashboard, New task's "Template" picker ("No
 template" in place of "Plain task"), the Filter's Template row, the Group row's
-Template and the cog's "Priority and template". The dashboard's right panel
+Template and the task ⋮ menu's "Priority and template". The dashboard's right panel
 is "Steps and notes" (it was "Starts with"). Tables, columns, saved filters
 and the `/task-types` address keep their names, so links and pins still work.
 A pass in `src/server/project/navigation.ts` renamed the saved left menu link,
@@ -157,7 +157,7 @@ Each field's cog holds four settings:
 
 Tyler, 28 Oct 2026 (Misc 4): "Save task as a template".
 
-- **"Save as task template"** is in a task's cog, under Remind me, for whoever
+- **"Save as task template"** is in a task's ⋮ menu, under Move to project, for whoever
   runs the team (the site admin), as they make every template. It opens in
   place into a name box started on the task's title, with Save and Cancel.
 - **The new template holds** the task's steps with each step's fields, its

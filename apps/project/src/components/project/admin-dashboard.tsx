@@ -40,6 +40,7 @@ import { useMyLive } from "@/lib/project/use-my-live"
 import { useRememberedTask } from "@/lib/project/use-remembered-task"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
+import { readActiveView } from "@/lib/saved-views"
 import { cn } from "@/lib/utils"
 
 /** The route whose data loads again on a live change. */
@@ -117,7 +118,14 @@ export function AdminDashboardScreen({
       extras={dashboard.cards.projectCards}
       today={dashboard.today}
       picked={search.project}
-      onPick={(project) => setFilters({ project })}
+      // Pressing the picked project again goes back to the view picked under it,
+      // its own project included (Tyler, 2 Nov 2026: "clicking on project again
+      // does not go back to my saved view").
+      onPick={(project) =>
+        setFilters({
+          project: project ?? viewProject(readActiveView(dashboard.viewScreen, dashboard.views)?.filters.project),
+        })
+      }
     />
   ) : null
   const taskLoaded = (taskId: string) => {
@@ -215,6 +223,11 @@ export function AdminDashboardScreen({
       }}
     />
   )
+}
+
+/** A saved view's project, when it has one. */
+function viewProject(value: unknown) {
+  return typeof value === "string" ? value : undefined
 }
 
 /**

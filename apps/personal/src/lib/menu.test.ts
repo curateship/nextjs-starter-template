@@ -192,6 +192,35 @@ describe("sub-links", () => {
   })
 })
 
+describe("a left-menu link with no address", () => {
+  const under = { kind: "under", linkId: "link-cms-dashboard" } as const
+  const blank = () => {
+    const menu = addLink(defaultMenu(), under, posts)
+    return updateLink(menu, { ...menu.sections[1].links[0], url: "" }, { kind: "section", sectionId: "section-cms" })
+  }
+
+  it("is accepted in a section, but not in the bottom list or as a sub-link", () => {
+    expect(menuSchema.safeParse(blank()).success).toBe(true)
+    const bottom = addLink(defaultMenu(), { kind: "top" }, { ...posts, url: "" })
+    expect(menuSchema.safeParse(bottom).success).toBe(false)
+    const sub = addLink(defaultMenu(), under, { ...posts, url: "" })
+    expect(menuSchema.safeParse(sub).success).toBe(false)
+  })
+
+  it("never moves to the bottom list or under another link", () => {
+    const menu = addLink(defaultMenu(), { kind: "section", sectionId: "section-cms" }, { ...posts, url: "" })
+    expect(updateLink(menu, { ...posts, url: "" }, { kind: "top" })).toBe(menu)
+    expect(updateLink(menu, { ...posts, url: "" }, { kind: "under", linkId: "link-cms-listings" })).toBe(menu)
+  })
+
+  it("is never the start screen, the screen kept loaded, or the open link", () => {
+    const menu = setStayLoadedLink(setStartLink(blank(), "link-cms-dashboard", true), "link-cms-dashboard", true)
+    expect(startLink(menu)).toBeNull()
+    expect(stayLoadedLink(menu)).toBeNull()
+    expect(activeLinkId(menu, "http://localhost:3015/admin/posts")).toBe("link-posts")
+  })
+})
+
 describe("links that open in their own tab", () => {
   const ign: MenuLink = { id: "link-ign", label: "IGN", url: "https://ign.com/", icon: "link", opens: "tab" }
 

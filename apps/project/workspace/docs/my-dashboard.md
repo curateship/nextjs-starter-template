@@ -391,7 +391,10 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   every team's tags and types, and a **Project** row: every open project,
   pinned or not, and every one holding a task of theirs, named with its team
   ("Sample team · Spring launch"). Pressing a project on the Pinned projects card
-  sets the same row, so the two always agree, and a saved view keeps it. Saved views are kept under their own id
+  sets the same row, so the two always agree, and a saved view keeps it.
+  The picked view stays picked across visits and shows its name on the Views
+  button; pressing a pinned project narrows that view, and pressing it again
+  goes back to the view, its own project included (see the repo's `docs/shell/three-column-dashboards.md`). Saved views are kept under their own id
   (`admin-tasks:<their id>`), so nobody else can save there.
 - **Their own list is on no team.** Every list in the app belongs to a team,
   so theirs sits in a space of its own: a team row marked with their id

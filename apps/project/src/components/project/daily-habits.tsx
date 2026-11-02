@@ -59,7 +59,8 @@ export function DailyHabits({ daily }: { daily: DailyCard }) {
           {habits.map((habit, index) => (
             <React.Fragment key={habit.id}>
               {index > 0 && habit.part !== habits[index - 1].part ? (
-                <li className="pt-1 text-xs font-medium text-muted-foreground">{partName(habit.part)}</li>
+                // Room above, so each part reads as its own group (Tyler, 2 Nov 2026: "add some spacing here").
+                <li className="pt-3 text-xs font-medium text-muted-foreground">{partName(habit.part)}</li>
               ) : null}
               <HabitRow habit={habit} day={day} count={habit.count} />
             </React.Fragment>
