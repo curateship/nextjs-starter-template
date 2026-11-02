@@ -89,6 +89,22 @@ All of them are in `src/components/shared/`.
   say what the view names that has gone and open with the rest. The table
   cannot cascade from an app's record, so the app calls `deleteSavedViewsFor`
   where it deletes one or takes a person off it.
+- **The picked view stays picked.** Tyler, 2 Nov 2026: "It should stay the
+  same view I selected even on refresh", "whatever view I selected, that view
+  should show inplace of "Views"", with a rainbow border around the button.
+  `SavedViewsControls` remembers the view last opened, in this browser, per
+  screen (`saved-view:<screen>` in localStorage). The button then shows its
+  name inside the same moving rainbow edge as the "N selected" button, and
+  its row in the menu has a tick. Arriving with no filters in the address,
+  from the left menu or a new tab, opens that view again; an address that
+  already has filters, such as a shared link, wins. Narrowing on top of it,
+  such as Project's pinned project card, keeps the view, and undoing that
+  goes back to it, the view's own project included: the screen reads the
+  pick with `readActiveView` (`src/lib/saved-views.ts`) when it is undone
+  (Tyler, 2 Nov 2026: "clicking on project again does not go back to my
+  saved view"). "No view" at the top of the menu forgets the pick and
+  calls the screen's `onClose`, which takes the view's filters away. A view
+  deleted since is simply not picked.
 
 ## Which screens use them
 

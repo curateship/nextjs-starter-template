@@ -50,6 +50,19 @@ type Here = {
  * says so and opens with the rest. Each row's cog opens Edit view, to rename
  * it or change what it shows (Tyler, 20 Oct 2026).
  */
+/** Every filter a view can set, emptied, so opening one or "No view" starts clean. */
+const NO_FILTERS: Partial<TaskFilters> = {
+  q: undefined,
+  status: undefined,
+  priority: undefined,
+  person: undefined,
+  label: undefined,
+  type: undefined,
+  due: undefined,
+  client: undefined,
+  project: undefined,
+}
+
 export function SavedViewsControls({
   views,
   filters,
@@ -75,18 +88,7 @@ export function SavedViewsControls({
       filters: { group, ...next },
       missing,
     } = openView(asTaskView(view), here, NOBODY_FILTER)
-    onChange({
-      q: undefined,
-      status: undefined,
-      priority: undefined,
-      person: undefined,
-      label: undefined,
-      type: undefined,
-      due: undefined,
-      client: undefined,
-      project: undefined,
-      ...next,
-    })
+    onChange({ ...NO_FILTERS, ...next })
     if (group) onGroup?.(group)
     if (missing.length) {
       showErrorToast(`${missing.join(". ")}, so "${view.name}" opened without that filter.`)
@@ -99,6 +101,7 @@ export function SavedViewsControls({
       views={views}
       filters={filters as SavedViewValues}
       onOpen={open}
+      onClose={() => onChange(NO_FILTERS)}
       editFields={editFields(here)}
       saveButton={saveButton}
       buttonVariant={buttonVariant}
