@@ -7,8 +7,9 @@ domain were already there, and Tyler had nothing to change at a registrar.
 
 ## Decided
 
-- **Server:** the German Hetzner box, 46.224.177.156, next to the other
-  `barelycompany.com` apps. Tyler's pick, 24 Oct 2026.
+- **Server:** server1.barelycompany.com, 185.55.243.241, with every other
+  app. It moved there from the German Hetzner box, 46.224.177.156, on 1 Nov
+  2026. Tyler: "Just transfer everything over from both servers."
 - **Google sign-in off.** Tyler, 24 Oct 2026. People sign in with email and
   password.
 - **No payments.** Tyler, 24 Oct 2026. `CUSTOM_SHELL_BILLING_ENABLED` is
@@ -34,7 +35,7 @@ domain were already there, and Tyler had nothing to change at a registrar.
   `Dockerfile`, base `/`, port 3000. Auto-deploy is off.
 - **The build stage** was set through Coolify's API and read back as `web` and
   `worker`, so Tyler did not set it by hand.
-- **DNS:** `A date.barelycompany.com` → 46.224.177.156, proxied by Cloudflare.
+- **DNS:** `A date.barelycompany.com` → 185.55.243.241, proxied by Cloudflare.
   The zone's https mode is Full.
 
 ## The phone

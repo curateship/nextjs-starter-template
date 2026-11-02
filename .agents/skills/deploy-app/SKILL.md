@@ -32,8 +32,8 @@ way inside a script, never by printing the file.
 
 | Name in the file | What it is |
 | --- | --- |
-| `COOLIFY_US_URL`, `COOLIFY_US_TOKEN` | US Hetzner, 5.78.189.158. Runs Pomoder (project "Pomoder"), System Everything and Core. |
-| `COOLIFY_DE_URL`, `COOLIFY_DE_TOKEN` | German Hetzner, 46.224.177.156. Runs Trade. |
+| `COOLIFY_US_URL`, `COOLIFY_US_TOKEN` | US Hetzner, 5.78.189.158. Still runs Flowfly (project "Pomoder") and Core. Tyler kept those two there on 1 Nov 2026. |
+| `COOLIFY_DE_URL`, `COOLIFY_DE_TOKEN` | server1.barelycompany.com, 185.55.243.241, `http://185.55.243.241:8000`. Runs every other app. The German box's Coolify was copied there on 1 Nov 2026, so its token and login carry over. |
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | The Cloudflare account (typham2@gmail.com) and its one token for setting things up. |
 | `RESEND_API_KEY` | Resend (typham2@gmail.com), full access, so it can add sending domains. |
 | `FIRST_ADMIN_EMAIL`, `FIRST_ADMIN_NAME`, `FIRST_ADMIN_PASSWORD` | Tyler's admin account, created on every app by `create-admin.mjs`. Tyler, 8 Oct 2026. |

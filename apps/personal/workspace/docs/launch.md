@@ -6,13 +6,14 @@ as Personal. That is what lets an app's sign-in reach Personal's panel.
 
 ## Where it runs
 
-- **Server:** the German Hetzner box, 46.224.177.156, next to Trade. Tyler's
-  pick, 18 Oct 2026.
+- **Server:** server1.barelycompany.com, 185.55.243.241, with every other
+  app. It moved there from the German Hetzner box, 46.224.177.156, on 1 Nov
+  2026. Tyler: "Just transfer everything over from both servers."
 - **Coolify:** project "Personal" (`ehm9qp1t83xvxpdjqgwx1gun`), application
   "Personal Web" (`q5zidodlzqnja0etohqln7la`). It builds `develop` from the
   public GitHub repo with `apps/personal/Dockerfile`, base `/`, port 3000.
   Auto-deploy is off.
-- **DNS:** `A personal.barelycompany.com` → 46.224.177.156, proxied by
+- **DNS:** `A personal.barelycompany.com` → 185.55.243.241, proxied by
   Cloudflare, the same as `trade.barelycompany.com`. The zone's https mode is
   Full.
 - **The menu** is `/data/menu.json` on the Coolify volume

@@ -1,14 +1,16 @@
 # Going live
 
-Course's live address is `https://systemeverything.com`, on the US Hetzner
-server, 5.78.189.158. Tyler, 31 Oct 2026: "launch app to systemeverything.com
+Course's live address is `https://systemeverything.com`. It launched on the US
+Hetzner server, 5.78.189.158, and moved to server1.barelycompany.com,
+185.55.243.241, on 1 Nov 2026 with its database. Tyler, 31 Oct 2026: "launch app to systemeverything.com
 on the US based server", "We're not using the old hub app anymore. We just need
 to backup systemeverything and eatdrinktoronto and deploy course with just
 systemeverything.com".
 
 The first launch, on 19 Oct 2026, put Course on `https://course.barelycompany.com`
-on the German server. That copy is still running and nothing on it was changed.
-Its record is the German sections further down.
+on the German server. That copy is still running, and it moved to
+server1.barelycompany.com on 1 Nov 2026 too. Its record is the German sections
+further down.
 
 ## The US launch, 31 Oct 2026
 
@@ -25,6 +27,10 @@ Its record is the German sections further down.
   that failed its health check, and Coolify put the old container back, still
   holding the address. Tyler chose to stop it on 31 Oct 2026. Never press
   Redeploy on it, because it would build today's `develop`.
+- **On the new server** the US copy is project "Course systemeverything.com",
+  with Course SE Web `rk8qez2yn2jqyyxkzzlkaevf`, Course SE Worker
+  `jh5sr2redrhforourfjnfq91` and Course SE DB `ji4n4zbyommqelno0xoz9wu5`. The
+  names carry "SE" because the German copy already owns "Course Web".
 - **Coolify:** project "Course" (`j9i2wofkw22qalyayw9rld0w`) on the US server.
   Course Web `pa1b5m2sh32735gbmxmc9kbl`, Course Worker
   `dkut5awwx90heyq62qews9y0`, Course DB `rw8qnp3xd1t2gqdzlxocevrk` (Postgres
@@ -67,8 +73,9 @@ Taken on 31 Oct 2026, before systemeverything.com moved, in
 
 ## Decided
 
-- **Server:** the German Hetzner box, 46.224.177.156, next to Trade, Personal,
-  Video and Fitness. Tyler's pick, 19 Oct 2026.
+- **Server:** server1.barelycompany.com, 185.55.243.241, with every other
+  app. It moved there from the German Hetzner box, 46.224.177.156, on 1 Nov
+  2026. Tyler: "Just transfer everything over from both servers."
 - **One website for now.** `CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN` is not set, so
   the deployment answers as one site, the way `sites.md` describes. Setting it
   to `course.barelycompany.com` would put each site on
@@ -100,7 +107,7 @@ Taken on 31 Oct 2026, before systemeverything.com moved, in
   `Dockerfile`, base `/`, port 3000. Auto-deploy is off.
 - **The build stage** was set through Coolify's API on 19 Oct 2026, and it
   read back as `web` and `worker`. Earlier launches had to set it by hand.
-- **DNS:** `A course.barelycompany.com` → 46.224.177.156, proxied by
+- **DNS:** `A course.barelycompany.com` → 185.55.243.241, proxied by
   Cloudflare. The zone's https mode is Full.
 
 ## Email, storage and the human check

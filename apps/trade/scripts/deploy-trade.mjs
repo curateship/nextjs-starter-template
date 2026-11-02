@@ -13,11 +13,11 @@
  *
  * What it needs, in `apps/trade/.env.live` (gitignored) or the environment:
  *
- *   COOLIFY_URL              http://46.224.177.156:8000
+ *   COOLIFY_URL              http://185.55.243.241:8000
  *   COOLIFY_API_TOKEN        a token minted in Coolify → Keys & Tokens → API
- *   COOLIFY_TRADE_ENGINE     the engine app's uuid   (default: current German box)
- *   COOLIFY_TRADE_WORKER     the worker app's uuid   (default: current German box)
- *   COOLIFY_TRADE_WEB        the web app's uuid      (default: current German box)
+ *   COOLIFY_TRADE_ENGINE     the engine app's uuid   (default: server1)
+ *   COOLIFY_TRADE_WORKER     the worker app's uuid   (default: server1)
+ *   COOLIFY_TRADE_WEB        the web app's uuid      (default: server1)
  *
  * Nothing here is run on its own. It is a button: somebody types the command.
  */
@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url"
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 const DEFAULTS = {
-  COOLIFY_URL: "http://46.224.177.156:8000",
+  COOLIFY_URL: "http://185.55.243.241:8000",
   COOLIFY_TRADE_ENGINE: "ffczihue94jcuffjomtwrsd5",
   COOLIFY_TRADE_WORKER: "qctdyzm1krljaifnndqbee7j",
   COOLIFY_TRADE_WEB: "mhp3m2mhz1mwrqve5dmtr4xh",

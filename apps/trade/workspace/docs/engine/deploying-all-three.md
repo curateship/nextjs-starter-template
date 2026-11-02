@@ -1,11 +1,14 @@
 # Deploying all three, and the old server that kept trading
 
-Trade runs as three containers on the German box (46.224.177.156), each its
-own Coolify app: the website, the shell worker and the engine. Each one
-builds whatever `develop` is at the moment its own Deploy button is pressed.
-Pressing one button leaves the other two on whatever build they last got, and
-the three then disagree about what a saved plan means. So all three are
-deployed together, engine first.
+Trade runs as three containers on server1.barelycompany.com, 185.55.243.241.
+Each is its own Coolify app: the website, the shell worker and the engine. They
+moved there from the German box, 46.224.177.156, on 1 Nov 2026. They reach
+Trade DB by its internal name, `01afudykcdh8fxrqvr2v9jyw:5432`, because the
+new server's firewall stops a container from reaching the public port. Each
+app builds whatever `develop` is at the moment its own Deploy button is
+pressed. Pressing one button leaves the other two on whatever build they last
+got, and the three then disagree about what a saved plan means. So all three
+are deployed together, engine first.
 
 ## The old server
 

@@ -6,8 +6,9 @@ Personal can show it in a panel.
 
 ## Decided
 
-- **Server:** the German Hetzner box, 46.224.177.156, next to Trade, Personal
-  and Video. Tyler's pick, 19 Oct 2026.
+- **Server:** server1.barelycompany.com, 185.55.243.241, with every other
+  app. It moved there from the German Hetzner box, 46.224.177.156, on 1 Nov
+  2026. Tyler: "Just transfer everything over from both servers."
 - **Fresh start.** Live begins empty. Nothing is copied from the Mac's local
   database or bucket.
 - **Payments off, Google sign-in off.** `CUSTOM_SHELL_BILLING_ENABLED` and the
@@ -32,7 +33,7 @@ Personal can show it in a panel.
   (`dockerfile_target_build`) on 19 Oct 2026. It shows in Coolify → the
   resource → Configuration → Build → Docker Build Stage Target. Left empty,
   Docker builds the last stage in the file, which is the worker, on both.
-- **DNS:** `A fitness.barelycompany.com` → 46.224.177.156, proxied by
+- **DNS:** `A fitness.barelycompany.com` → 185.55.243.241, proxied by
   Cloudflare. The zone's https mode is Full.
 
 ## Email, storage and the human check
