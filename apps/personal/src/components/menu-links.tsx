@@ -8,7 +8,7 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import {
   ArrowUpRightIcon,
-  ChevronRightIcon,
+  EllipsisIcon,
   GripVerticalIcon,
   PlusIcon,
   SettingsIcon,
@@ -18,17 +18,19 @@ import { LinkEditor, type LinkDraft, type PlaceChoice } from "@/components/link-
 import { LinkIconPicture } from "@/components/link-icon"
 import { linkDragId, listDropId, type LinkDragData, type ListDropData } from "@/components/menu-drag"
 import { Button } from "@/components/ui/button"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   addLink,
   canPlace,
+  hasAddress,
   newId,
   opensInTab,
   personalPath,
@@ -44,7 +46,6 @@ import {
 } from "@/lib/menu"
 import { plural } from "@/lib/plural"
 import { useMenuFormSide } from "@/lib/use-menu-form-side"
-import { useRememberedOpen } from "@/lib/use-remembered-open"
 import { cn } from "@/lib/utils"
 
 type MenuActions = {
@@ -80,6 +81,11 @@ export function linkAnchorProps(
   link: MenuLink,
   open: MenuActions["open"]
 ): React.AnchorHTMLAttributes<HTMLAnchorElement> {
+  // A link with no address only opens its sub-links, so it is a button that
+  // goes nowhere by itself; whoever draws it opens the list.
+  if (!hasAddress(link)) {
+    return { role: "button", tabIndex: 0, onClick: (event) => event.preventDefault() }
+  }
   if (opensInTab(link)) return { href: link.url, target: "_blank", rel: "noopener" }
   return {
     href: personalPath(link.url),
@@ -105,7 +111,7 @@ export function OwnTabMark({ link }: { link: MenuLink }) {
 /**
  * The arrow that opens a panel link's site in a new browser tab, shown while
  * the link is hovered. Like the editing controls, it covers the end of the
- * name instead of taking room from it, left of the fold arrow if there is one.
+ * name instead of taking room from it, left of the three dots if there are any.
  * It has no tooltip: Tyler asked for it gone on 23 Oct 2026.
  */
 export function OpenInNewTab({
@@ -132,6 +138,70 @@ export function OpenInNewTab({
   )
 }
 
+/**
+ * The list of a link's sub-links, opened from the three dots at the end of
+ * its row, or by clicking a link that has no address. It replaced the arrow
+ * that folded the sub-links under their link on 2 Nov 2026 (Tyler: "replace
+ * the sidebar toggle to this 3 dot dropdown instead"). `children` is the
+ * button it opens from, and the list opens beside it.
+ */
+export function SubLinksMenu({
+  link,
+  open,
+  onOpenChange,
+  children,
+  ...trigger
+}: {
+  link: MenuLink
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  children: React.ReactNode
+} & React.ComponentProps<typeof DropdownMenuTrigger>) {
+  const { activeId, open: openScreen } = useMenuActions()
+  const [ownOpen, setOwnOpen] = React.useState(false)
+  const shown = open ?? ownOpen
+  const setShown = onOpenChange ?? setOwnOpen
+  return (
+    <DropdownMenu open={shown} onOpenChange={setShown}>
+      {/* A tooltip around the list passes its handlers through to the button. */}
+      <DropdownMenuTrigger {...trigger} asChild>
+        {children}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        side="right"
+        align="start"
+        sideOffset={8}
+        collisionPadding={8}
+        aria-label={`${link.label}'s sub-links`}
+        className="w-auto max-w-72 min-w-48"
+      >
+        {(link.children ?? []).map((child) => {
+          const anchor = linkAnchorProps(child, openScreen)
+          return (
+            <DropdownMenuItem key={child.id} asChild>
+              <a
+                {...anchor}
+                onClick={(event) => {
+                  anchor.onClick?.(event)
+                  // Opening the screen stops the click, which the menu would
+                  // otherwise take as the pick that closes it.
+                  setShown(false)
+                }}
+                aria-current={activeId === child.id ? "page" : undefined}
+                className={cn("h-8 gap-2 px-2", activeId === child.id && "font-medium")}
+              >
+                <LinkIconPicture name={child.icon} />
+                <span className="truncate">{child.label}</span>
+                <OwnTabMark link={child} />
+              </a>
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 /** A saved link with the form's changes. Panel is the default, so it is left out of the file. */
 function withDraft(link: Pick<MenuLink, "id"> & Partial<MenuLink>, draft: LinkDraft): MenuLink {
   return {
@@ -148,7 +218,7 @@ function withDraft(link: Pick<MenuLink, "id"> & Partial<MenuLink>, draft: LinkDr
  * for a link. A tab link never fills the panel, so it can't be the last two.
  */
 function withSwitches(menu: Menu, linkId: string, draft: LinkDraft) {
-  const panel = draft.opens !== "tab"
+  const panel = draft.opens !== "tab" && draft.url !== ""
   const pinned = setPinned(menu, linkId, draft.pinned)
   const started = setStartLink(pinned, linkId, draft.start && panel)
   return setStayLoadedLink(started, linkId, draft.stayLoaded && panel)
@@ -259,8 +329,10 @@ export function LinkEditButton({ link, place }: { link: MenuLink; place: Place }
 /**
  * One link: click it to open its screen, hover it to drag or edit it, and
  * double-click its name to rename it while editing is on. A left-menu link
- * with sub-links folds them underneath, as Custom Shell's menu does, and
- * remembers per browser whether they are folded.
+ * with sub-links shows three dots that open them as a list beside it; a click
+ * on the link opens that list too when the link has no address. While editing
+ * is on, the sub-links show under their link instead, so they can be dragged,
+ * renamed and edited.
  */
 function MenuLinkItem({
   link,
@@ -280,7 +352,7 @@ function MenuLinkItem({
     setWasEditing(editingMenu)
     if (!editingMenu) setRenaming(false)
   }
-  const [subLinksOpen, setSubLinksOpen] = useRememberedOpen(`personal-sidebar-link-${link.id}`)
+  const [listOpen, setListOpen] = React.useState(false)
   const data: LinkDragData = { kind: "link", link, place }
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: linkDragId(link.id), data })
@@ -291,6 +363,11 @@ function MenuLinkItem({
   // Only a left-menu link may hold sub-links, and only one level deep.
   const canHoldSubLinks = place.kind === "section"
   const anchor = linkAnchorProps(link, open)
+  // Out of editing, the sub-links live in the three dots' list; while
+  // editing, they show under the link.
+  const dots = subLinks.length > 0 && !editingMenu
+  const subLinksUnder = subLinks.length > 0 && editingMenu
+  const opensList = dots && !hasAddress(link)
 
   const row = (
     <div
@@ -325,7 +402,18 @@ function MenuLinkItem({
               return
             }
             anchor.onClick?.(event)
+            if (opensList) setListOpen(true)
           }}
+          onKeyDown={
+            opensList
+              ? (event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    setListOpen(true)
+                  }
+                }
+              : undefined
+          }
           onDoubleClick={
             editingMenu
               ? (event) => {
@@ -352,25 +440,23 @@ function MenuLinkItem({
           <OwnTabMark link={link} />
         </a>
       )}
-      {subLinks.length ? (
-        <CollapsibleTrigger asChild>
+      {dots ? (
+        <SubLinksMenu link={link} open={listOpen} onOpenChange={setListOpen}>
           <button
             type="button"
-            aria-label={`${subLinksOpen ? "Fold" : "Unfold"} ${link.label}'s sub-links`}
-            className="shrink-0 rounded-md p-2 opacity-0 transition-[opacity,color] group-hover/link:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+            aria-label={`Show ${link.label}'s sub-links`}
+            className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden data-[state=open]:text-foreground"
           >
-            <ChevronRightIcon
-              className={cn("size-4 transition-transform duration-200", subLinksOpen && "rotate-90")}
-            />
+            <EllipsisIcon className="size-4" />
           </button>
-        </CollapsibleTrigger>
+        </SubLinksMenu>
       ) : null}
-      {!editingMenu && !opensInTab(link) ? (
+      {!editingMenu && !opensInTab(link) && hasAddress(link) ? (
         <OpenInNewTab
           link={link}
           className={cn(
             "group-hover/link:pointer-events-auto group-hover/link:opacity-100",
-            subLinks.length ? "right-9" : "right-1"
+            dots ? "right-9" : "right-1"
           )}
         />
       ) : null}
@@ -378,13 +464,12 @@ function MenuLinkItem({
         /* Drag, add a sub-link and edit, shown only while editing is on.
            Hidden, and ignoring clicks, until the link is hovered or one of
            them has focus. In the left menu they cover the end of the name
-           while hovered, left of the fold arrow, so a narrow menu keeps whole
-           names the rest of the time. */
+           while hovered, so a narrow menu keeps whole names the rest of the
+           time. */
         <div
           className={cn(
             "pointer-events-none absolute z-20 flex items-center rounded-md bg-sidebar-accent opacity-0 group-hover/link:pointer-events-auto group-hover/link:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 has-[[data-state=open]]:pointer-events-auto has-[[data-state=open]]:opacity-100",
-            "top-1/2 -translate-y-1/2",
-            subLinks.length ? "right-9" : "right-1",
+            "top-1/2 -translate-y-1/2 right-1",
             isDragging && "opacity-100"
           )}
         >
@@ -402,7 +487,6 @@ function MenuLinkItem({
               place={{ kind: "under", linkId: link.id }}
               label={`Add a sub-link under ${link.label}`}
               look="control"
-              onAdded={() => setSubLinksOpen(true)}
             />
           ) : null}
           <LinkEditButton link={link} place={place} />
@@ -422,20 +506,10 @@ function MenuLinkItem({
         isDragging && "z-10 opacity-50"
       )}
     >
-      {subLinks.length ? (
-        <Collapsible open={subLinksOpen} onOpenChange={setSubLinksOpen}>
-          {row}
-          <CollapsibleContent>
-            <SortableLinks
-              links={subLinks}
-              place={{ kind: "under", linkId: link.id }}
-              nested
-            />
-          </CollapsibleContent>
-        </Collapsible>
-      ) : (
-        row
-      )}
+      {row}
+      {subLinksUnder ? (
+        <SortableLinks links={subLinks} place={{ kind: "under", linkId: link.id }} nested />
+      ) : null}
     </li>
   )
 }
@@ -519,13 +593,11 @@ export function AddLinkButton({
   place,
   label,
   look = "row",
-  onAdded,
 }: {
   place: Place
   /** Spoken label, and the visible one for a row. */
   label: string
   look?: "row" | "control"
-  onAdded?: () => void
 }) {
   const { editing, places, openUrl, stayLoaded, update } = useMenuActions()
   const [adding, setAdding] = React.useState(false)
@@ -573,7 +645,6 @@ export function AddLinkButton({
               withSwitches(addLink(menu, to, withDraft({ id }, draft)), id, draft)
             )
             setAdding(false)
-            onAdded?.()
           }}
           onCancel={() => setAdding(false)}
         />

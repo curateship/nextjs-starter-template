@@ -30,6 +30,7 @@ import {
   OpenInNewTab,
   OwnTabMark,
   SortableLinks,
+  SubLinksMenu,
   useMenuActions,
 } from "@/components/menu-links"
 import { Button } from "@/components/ui/button"
@@ -46,6 +47,7 @@ import { isBlankSpace } from "@/lib/blank-space"
 import {
   addSection,
   DEFAULT_BRAND_NAME,
+  hasAddress,
   newId,
   opensInTab,
   personalPath,
@@ -268,6 +270,22 @@ function PinnedRow({
   onUnpin: () => void
 }) {
   const { editing, activeId, open } = useMenuActions()
+  // A pinned link with no address opens its sub-links' list, as in its section.
+  const opensList = !hasAddress(link) && (link.children ?? []).length > 0
+  const row = (
+    <a
+      {...linkAnchorProps(link, open)}
+      data-active={activeId === link.id ? "" : undefined}
+      className={cn(
+        "flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden group-hover/pinned:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0",
+        editing && "group-hover/pinned:pr-20"
+      )}
+    >
+      <LinkIconPicture name={link.icon} />
+      <span className="truncate">{link.label}</span>
+      <OwnTabMark link={link} />
+    </a>
+  )
   const data: PinnedDragData = { kind: "pinned", linkId: link.id }
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: pinnedDragId(link.id),
@@ -283,19 +301,8 @@ function PinnedRow({
         isDragging && "z-10 rounded-md bg-sidebar opacity-80 shadow-sm"
       )}
     >
-      <a
-        {...linkAnchorProps(link, open)}
-        data-active={activeId === link.id ? "" : undefined}
-        className={cn(
-          "flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden group-hover/pinned:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0",
-          editing && "group-hover/pinned:pr-20"
-        )}
-      >
-        <LinkIconPicture name={link.icon} />
-        <span className="truncate">{link.label}</span>
-        <OwnTabMark link={link} />
-      </a>
-      {!editing && !opensInTab(link) ? (
+      {opensList ? <SubLinksMenu link={link}>{row}</SubLinksMenu> : row}
+      {!editing && !opensInTab(link) && hasAddress(link) ? (
         <OpenInNewTab
           link={link}
           className="right-1 group-hover/pinned:pointer-events-auto group-hover/pinned:opacity-100"

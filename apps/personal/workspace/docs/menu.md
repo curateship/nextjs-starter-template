@@ -201,10 +201,32 @@ edited where it stands, with no settings screen.
   2026: "sidebar nav can have subnav that is wired to the top left nav like how
   shell does it." The top row that mirrored them went with Personal's top bar
   on 18 Oct 2026; the app's own top navigation does that job now.
-  - **Folding:** a small arrow at the link's right end shows on hover and folds
-    them away. This browser remembers it under `personal-sidebar-link-<id>`.
-  - **The link stays marked** while one of its sub-links is open, so a folded
-    link still shows where you are.
+  - **Three dots open them.** Since 2 Nov 2026 the sub-links no longer sit
+    under their link. Three dots at the link's right end, always shown, open
+    them as a list to the right of the menu. Picking one opens its screen and
+    closes the list. Tyler asked for it that day: "replace the sidebar toggle
+    to this 3 dot dropdown instead". The fold arrow and its remembered
+    `personal-sidebar-link-<id>` went with it. `SubLinksMenu` in
+    `src/components/menu-links.tsx`.
+  - **A link with no address opens the list when clicked.** Leave the Address
+    empty in its form and a click on the link, or Enter on it, opens its
+    sub-links instead of a screen. Tyler: "if I dont insert a url for the
+    parent link then clicking on the parent link will open the dropdown". A
+    link with an address still opens its own screen, and its dots open the
+    list.
+  - **Only a link in a section can go without an address.** The form refuses
+    an empty Address for the links at the bottom and for sub-links, and a link
+    with no address can't be moved there. It shows no new-tab arrow, and it
+    can't be the screen Personal opens on or the one that stays loaded, so the
+    form hides those two switches. The file keeps it as `"url": ""`
+    (`sectionLinkSchema` and `hasAddress` in `src/lib/menu.ts`).
+  - **Pinned and the folded menu open the list too** for a link with no
+    address, beside the menu.
+  - **While editing, the sub-links show under their link** as before, behind
+    the thin line, with no dots, so they can still be dragged, renamed and
+    edited.
+  - **The link stays marked** while one of its sub-links is open, so the menu
+    still shows where you are.
 - **The links at the bottom** sit under the sections, above the controls, in a
   list of their own. They were the top bar's links until 18 Oct 2026, and the
   menu file still keeps them under `top`. They have no sub-links.
@@ -264,7 +286,7 @@ Everything here needs editing switched on.
     `src/components/link-icon.tsx`: the first 14 icons draw at once, any other
     loads the first time it shows.
 - **Add a sub-link:** hover a left-menu link and press its +. The new link goes
-  at the end of that link's sub-links, which unfold to show it. "Under <link>"
+  at the end of that link's sub-links. "Under <link>"
   in any link's "Shows in" does the same for a link that already exists.
 - **Edit or delete a link:** hover it and press the cog. In the left menu the
   drag handle, the + and the cog appear at the link's right end, covering the
@@ -284,8 +306,8 @@ Everything here needs editing switched on.
   of the double-click still opens the screen; the second doesn't open it
   again.
 - **Drag a link anywhere:** drag it by its handle into a new spot in its own
-  list, into another section, into the links at the bottom, or into an open link's
-  sub-links, where it becomes a sub-link. A copy follows the pointer and a
+  list, into another section, into the links at the bottom, or into a link's
+  sub-links, which show under it while editing, where it becomes a sub-link. A copy follows the pointer and a
   faint placeholder shows where it will land. While a link is dragged, an
   empty list is outlined with a dashed line: drop the link on its Add link
   row. The outline takes no room,
@@ -318,8 +340,8 @@ Everything here needs editing switched on.
 - **Open in a new tab:** hovering a panel link, in Pinned or a section, shows
   a small arrow at its right end that opens the link's site in a new browser
   tab. The panel stays as it was. The arrow covers the end of the name only
-  while hovered, sits left of the fold arrow on a link with sub-links, and
-  hides while Edit the menu is on and on tab links. Tyler asked for it on 23
+  while hovered, sits left of the three dots on a link with sub-links, and
+  hides while Edit the menu is on, on tab links and on links with no address. Tyler asked for it on 23
   Oct 2026: "add a small icon linked out arrow here ... when hover over to
   link out its own tab". `OpenInNewTab` in `src/components/menu-links.tsx`.
 - **No tooltips in the open menu.** The new-tab arrow, the pencil and the
@@ -349,7 +371,8 @@ Everything here needs editing switched on.
   A tab link has no switch. Tyler asked for it on 18 Oct 2026. The two
   "one link only" fields share `setOneLink` in `src/lib/menu.ts`.
 - **A wrong address is refused in the form:** it must start with http:// or
-  https://. Names are up to 60 characters.
+  https://, or be empty for a link in a section (see Sub-links). Names are up
+  to 60 characters.
 
 ## Saving
 
