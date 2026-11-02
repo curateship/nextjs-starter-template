@@ -7,12 +7,14 @@ import {
   coolifyMayRecover,
   copiesMenu,
   deploymentOver,
+  lockedCommit,
   migrationsBetween,
   parseEnvText,
   readFlags,
   resourcesToDeploy,
   startedAgo,
   unfinishedDeployments,
+  wrongBuild,
 } from "./deploy.mjs"
 
 const pomodoro = {
@@ -129,4 +131,19 @@ test("cancels only a deploy left queued or running for over 30 minutes, and leav
   assert.deepEqual(running.map((one) => one.deployment_uuid), ["young"])
   assert.equal(startedAgo("2026-10-30T22:47:45.000000Z", now), "13h")
   assert.equal(startedAgo("2026-10-31T12:41:00.000000Z", now), "4m")
+})
+
+test("refuses an app Coolify keeps on one old commit (2 Nov 2026)", () => {
+  assert.equal(lockedCommit({ git_commit_sha: "HEAD" }), null)
+  assert.equal(lockedCommit({ git_commit_sha: "" }), null)
+  assert.equal(lockedCommit({}), null)
+  assert.equal(lockedCommit({ git_commit_sha: "72b98e3fa53a2daf2039cf8b072d42aee5b697fe" }), "72b98e3fa53a2daf2039cf8b072d42aee5b697fe")
+})
+
+test("fails a finished deployment that built some other commit", () => {
+  const develop = "66a364441aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  assert.equal(wrongBuild(develop, develop), null)
+  assert.equal(wrongBuild("66a364441", develop), null)
+  assert.equal(wrongBuild("72b98e3fa53a2daf2039cf8b072d42aee5b697fe", develop), "Coolify built 72b98e3fa, not develop's 66a364441")
+  assert.equal(wrongBuild(undefined, develop), "Coolify did not say which commit it built")
 })

@@ -398,6 +398,15 @@ AI keys are already there, written by me straight after the first deploy.
   `{"status":"ok"}`. Playwright gets past it with
   `--host-resolver-rules=MAP <host> <ip>`. Run the steps the script skipped
   after the failed check (admin, AI keys, menu) by hand.
+- **A Coolify app locked to one commit ships nothing.** An app's Git Commit
+  SHA must be `HEAD`. Locked to a commit, Coolify finds that commit's image,
+  skips the build and restarts the old code, and the deploy still reads
+  "finished" and healthy. The 1 Nov 2026 move left 20 apps on server1 locked
+  to the commit each last had on the old box; Tyler noticed on 2 Nov 2026 that
+  Project's changes never reached the site, and every app was set back to
+  `HEAD` that day. `deploy.mjs` now refuses a locked app before deploying
+  (`lockedCommit`) and fails a deployment that built anything but develop's
+  commit (`wrongBuild`).
 - **Trade's variables are all build-time.** Do not copy that setup.
 - **Cloudflare imports the registrar's parking and email-forwarding records.**
   Replace A and www at deploy time, and ask Tyler whether the forwarding still

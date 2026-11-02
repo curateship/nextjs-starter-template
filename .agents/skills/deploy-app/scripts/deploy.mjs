@@ -163,6 +163,26 @@ export function buildLogTail(logs, count = 30) {
 }
 
 /** `NAME=value` lines; blank lines and `#` comments skipped, quotes removed. */
+/**
+ * The commit a Coolify app is locked to, or null when it builds the newest
+ * commit on its branch ("HEAD"). A locked app rebuilds, or just restarts, the
+ * same old code on every deploy. The 1 Nov 2026 server move left 20 apps
+ * locked to the commit each had on the old box, and deploys reported success
+ * while shipping nothing until 2 Nov 2026.
+ */
+export function lockedCommit(app) {
+  const sha = typeof app?.git_commit_sha === "string" ? app.git_commit_sha.trim() : ""
+  return sha && sha !== "HEAD" ? sha : null
+}
+
+/** Why a finished deployment isn't the commit asked for, or null when it is. */
+export function wrongBuild(built, expected) {
+  if (typeof built !== "string" || built.length < 7) return "Coolify did not say which commit it built"
+  return expected.startsWith(built) || built.startsWith(expected)
+    ? null
+    : `Coolify built ${built.slice(0, 9)}, not develop's ${expected.slice(0, 9)}`
+}
+
 export function parseEnvText(text) {
   const values = {}
   for (const raw of text.split("\n")) {
@@ -397,6 +417,13 @@ async function main() {
   for (const resource of resources) {
     const found = byUuid.get(resource.uuid)
     if (!found) throw new Error(`No Coolify app ${resource.uuid} (${resource.role}) on ${settings.url}.`)
+    const locked = lockedCommit(found)
+    if (locked) {
+      throw new Error(
+        `"${found.name}" is locked to commit ${locked.slice(0, 9)} in Coolify, so a deploy would ship old code. ` +
+          `Set its Git Commit SHA back to HEAD (PATCH /applications/${resource.uuid} {"git_commit_sha":"HEAD"}). Nothing was deployed.`
+      )
+    }
     console.log(`${resource.role}: "${found.name}" (${resource.uuid}), now ${found.status}`)
   }
 
@@ -422,10 +449,16 @@ async function main() {
     return
   }
 
+  const expected = git("rev-parse", "origin/develop")
   for (const resource of resources) {
     console.log(`\nDeploying ${resource.role}${flags.force ? " without cache" : ""}...`)
-    const status = await waitForDeployment(settings, resource.role, await deployOne(settings, resource, flags.force))
+    const deploymentUuid = await deployOne(settings, resource, flags.force)
+    const status = await waitForDeployment(settings, resource.role, deploymentUuid)
     if (status !== "finished") throw new Error(`${resource.role} ${status}. Stopped, so the rest keep the build they have.`)
+    // A healthy restart of old code still says "finished", so the commit is checked too.
+    const built = (await coolify(settings, "GET", `/deployments/${deploymentUuid}`))?.commit
+    const wrong = wrongBuild(built, expected)
+    if (wrong) throw new Error(`${resource.role}: ${wrong}. Stopped, so the rest keep the build they have.`)
   }
 
   if (app.healthUrl) console.log(`\nHealth ${app.healthUrl}: ${await checkHealth(app.healthUrl)}`)
