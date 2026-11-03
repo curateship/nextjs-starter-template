@@ -18,7 +18,6 @@ import {
 } from "@dnd-kit/sortable"
 import { ArchiveIcon, ArchiveRestoreIcon, ChevronDown, EyeIcon, EyeOffIcon, GripVerticalIcon, PlusIcon, SettingsIcon } from "lucide-react"
 
-import { IntentionBox } from "@/components/project/daily-journal"
 import { SaveLine } from "@/components/project/save-line"
 import { ShellIconPicker } from "@/components/settings/shell-icon-picker"
 import { ImageUpload } from "@/components/shared/image-upload"
@@ -38,7 +37,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   addHabit,
@@ -49,7 +47,6 @@ import {
   saveHabitOrder,
   saveMyHiddenSections,
   saveMyHours,
-  saveMyOwnWords,
   saveMySectionOrder,
   saveMyReminders,
   saveMySky,
@@ -90,7 +87,7 @@ const TIME = /^([01][0-9]|2[0-3]):[0-5][0-9]$/
  * The window behind the Daily card's pencil (Tyler, 29 Oct 2026: "A pencil
  * on the card"). Everyone sets their own hours here. The site admin also
  * sets the sky, their habits for each part of the day, the routine reminders
- * and their own lines and questions. Every field saves itself; a new habit
+ * and the card's sections. Every field saves itself; a new habit
  * is made with its own button.
  */
 export function DailySettingsDialog({ daily, open, onClose }: { daily: DailyCard; open: boolean; onClose: () => void }) {
@@ -109,12 +106,11 @@ export function DailySettingsDialog({ daily, open, onClose }: { daily: DailyCard
           <DialogTitle>Daily card</DialogTitle>
           <DialogDescription>
             {daily.admin
-              ? "Your habits and hours, sky, reminders and words. Only you see your habits and journal."
+              ? "Your habits and hours, sky and reminders. Only you see your habits and journal."
               : "When your morning, afternoon and night start."}
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-6">
-          {daily.admin ? <TodayCard daily={daily} /> : null}
           {daily.admin ? <SectionsCard daily={daily} /> : null}
           {/* The site admin sets these beside each part in Habits instead (Tyler, 31 Oct
               2026: "put the hours selection beside the label"). */}
@@ -124,8 +120,6 @@ export function DailySettingsDialog({ daily, open, onClose }: { daily: DailyCard
               <HabitsCard daily={daily} />
               <RemindersCard daily={daily} />
               <SkyCard daily={daily} />
-              <WordsCard kind="lines" items={daily.settings.ownLines} />
-              <WordsCard kind="questions" items={daily.settings.ownQuestions} />
             </>
           ) : null}
         </DialogBody>
@@ -281,22 +275,6 @@ function SectionRow({ name, hidden, onToggle }: { name: DailySection; hidden: bo
         {hidden ? <EyeOffIcon className="size-4" aria-hidden /> : <EyeIcon className="size-4" aria-hidden />}
       </button>
     </li>
-  )
-}
-
-/**
- * Today's intention, open to change at any time of day here, while the card
- * itself offers the box in the morning only (Tyler, 30 Oct 2026: "It should
- * be edible in the modal", of the "Today I want to..." box).
- */
-function TodayCard({ daily }: { daily: DailyCard }) {
-  return (
-    <FoldCard
-      id="today"
-      title="Today"
-    >
-      <IntentionBox day={daily.cardDay} label="Today I want to..." value={daily.admin?.today.intention ?? ""} />
-    </FoldCard>
   )
 }
 
@@ -460,46 +438,6 @@ function RemindersCard({ daily }: { daily: DailyCard }) {
           </div>
         )
       })}
-    </FoldCard>
-  )
-}
-
-function WordsCard({ kind, items }: { kind: "lines" | "questions"; items: string[] }) {
-  const reload = useReload()
-  const saved = items.join("\n")
-  const [draft, setDraft] = useSyncedDraft(saved)
-  const [state, track] = useSaveLine()
-  const id = `daily-own-${kind}`
-  async function save() {
-    const next = draft
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-    if (next.join("\n") === saved) return
-    const max = kind === "lines" ? DAILY_LIMITS.ownLine : DAILY_LIMITS.ownQuestion
-    if (next.some((line) => line.length > max)) {
-      showErrorToast(`Each one can be at most ${max} characters.`)
-      return
-    }
-    if (next.length > DAILY_LIMITS.ownLines) {
-      showErrorToast(`Keep it to ${DAILY_LIMITS.ownLines} at most.`)
-      return
-    }
-    if (await track(() => saveMyOwnWords({ kind, items: next }))) await reload()
-  }
-  return (
-    <FoldCard
-      id={`words-${kind}`}
-      title={kind === "lines" ? "Your own lines" : "Your own night questions"}
-      contentClassName="grid gap-2"
-      action={<SaveLine state={state} />}
-    >
-      <Label htmlFor={id}>
-        {kind === "lines"
-          ? "One per line. Each morning shows one of them."
-          : "One per line. Each night asks one of them."}
-      </Label>
-      <Textarea id={id} rows={1} value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={() => void save()} />
     </FoldCard>
   )
 }

@@ -159,26 +159,19 @@ const DAILY: DailyCard = {
     city: null,
     sky: "drawn",
     ownSkies: { morning: "", afternoon: "", night: "" },
-    ownLines: [],
-    ownQuestions: [],
     reminders: { morning: "10:00", afternoon: "15:00", night: "21:00" },
-    sections: ["line", "progress", "deepWork", "meeting", "windDown", "routine", "journal"],
+    sections: ["meeting", "routine", "tomorrow"],
     hidden: [],
   },
   meetings: [],
   clock: { seconds: 0, running: null },
-  finishedToday: [],
   dayOff: null,
   admin: {
     habits: [],
     retired: [],
     finished: { current: 0, best: 0 },
     milestone: null,
-    today: { day: "2099-03-02", intention: "", rating: null, note: "", win: "", question: "", answer: "", bedAt: null, upAt: null },
-    tomorrowIntention: "",
-    line: "Start with the task you keep walking around.",
-    question: "What gave you energy today?",
-    onThisDay: null,
+    today: { day: "2099-03-02", rating: null, note: "", win: "", bedAt: null, upAt: null },
     lookBack: null,
     monthly: null,
     tomorrow: { meetings: [], due: [], moreDue: 0, away: [], holidays: [] },
@@ -413,26 +406,9 @@ describe("the site admin's My dashboard", () => {
           <AdminDashboardScreen daily={daily} dashboard={dashboard()} inbox={NO_INBOX} search={{}} />
         </TooltipProvider>
       )
-    expect(draw(started)).toContain("Start with the task you keep walking around.")
-    const hidden = draw({ ...started, settings: { ...started.settings, hidden: ["line"] } })
-    expect(hidden).not.toContain("Start with the task you keep walking around.")
-    expect(hidden).toContain("Today I want to...")
-  })
-
-  it("folds the afternoon's done line to the tasks done, folded to begin with", () => {
-    const started = { ...DAILY, admin: { ...DAILY.admin!, today: { ...DAILY.admin!.today, upAt: "2099-03-02T08:00:00.000Z" } } }
-    const html = renderToStaticMarkup(
-      <TooltipProvider>
-        <AdminDashboardScreen
-          daily={{ ...started, loadedAt: "2099-03-02T14:00:00.000Z", finishedToday: [{ taskId: "t1", projectId: "p1", title: "Ship the homepage" }] }}
-          dashboard={dashboard()}
-          inbox={NO_INBOX}
-          search={{}}
-        />
-      </TooltipProvider>
-    )
-    expect(html).toMatch(/aria-expanded="false"[^>]*>1 done today</)
-    expect(html).not.toContain("Ship the homepage")
+    const night = { ...started, loadedAt: "2099-03-02T20:00:00.000Z" }
+    expect(draw(night)).toContain("No meetings, due dates or days off tomorrow.")
+    expect(draw({ ...night, settings: { ...night.settings, hidden: ["tomorrow"] } })).not.toContain("No meetings, due dates or days off tomorrow.")
   })
 
   it("labels afternoon's and night's habits, not morning's, ticks counted ones too with no minus, names the section after its first part with each part's starting hour, and drops the finished days line", () => {

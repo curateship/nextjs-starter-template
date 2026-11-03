@@ -15,7 +15,9 @@ further down.
 ## The US launch, 31 Oct 2026
 
 - **Started empty.** Nothing came across from the German copy or the old
-  System Everything site. Tyler picked "New US launch, empty".
+  System Everything site. Tyler picked "New US launch, empty". The contact
+  list and its two segments were copied in from the local site on 2 Nov 2026,
+  as `importing-the-old-contact-list.md` records.
 - **Same choices as the German launch.** One website, no
   `CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN`. Payments on with the Stripe keys owed,
   Google sign-in off.

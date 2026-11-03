@@ -141,7 +141,6 @@ function Dashboard({
               inbox={inbox}
               onCheckIn={() => go({ checkin: true })}
               onCheckOut={() => go({ checkout: true })}
-              onOpenTask={taskAddress.open}
             />
           ),
         }}
@@ -216,19 +215,14 @@ function MePanel({
   inbox,
   onCheckIn,
   onCheckOut,
-  onOpenTask,
 }: {
   dashboard: MyDashboardData
   daily: DailyCardData
   inbox: InboxPage
   onCheckIn: () => void
   onCheckOut: () => void
-  onOpenTask: (taskId: string) => void
 }) {
   const { me, checkin } = dashboard
-  // Today's picks are the Daily card's deep work; those finished today count toward the afternoon's progress.
-  const deepWork = todaysPicks(checkin).filter((task) => task.status !== "done" && task.status !== "archived")
-  const picksDone = daily.finishedToday.filter((task) => checkin.pickedTaskIds.includes(task.taskId)).length
   const { clock, today } = checkin
   const due = clockLabel(clock.time)
   const badge = checkin.checkin
@@ -265,12 +259,9 @@ function MePanel({
           <DailyCard
             daily={daily}
             now={now}
-            deepWork={deepWork}
-            picks={checkin.pickedTaskIds.length ? { done: picksDone, total: checkin.pickedTaskIds.length } : null}
             checkin={{ checkedIn: Boolean(checkin.checkin), checkedOut: Boolean(checkin.checkout?.at) }}
             onCheckIn={onCheckIn}
             onCheckOut={onCheckOut}
-            onOpenTask={onOpenTask}
           />
           <PanelCard
             storageId="project-my-checkin"

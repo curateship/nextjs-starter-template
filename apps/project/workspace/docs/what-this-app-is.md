@@ -518,8 +518,8 @@ went (below). How it works is in
 - **One card.** Everyone sees one Daily card at the top of My dashboard's left
   panel. The site admin's has every shared part plus their own parts.
 - **The habits, streaks and journal are the site admin's only.**
-- **Deep work** is an employee's check-in picks, and the site admin's three
-  most urgent open tasks.
+- **Deep work** was taken out on 3 Nov 2026: "remove the deep work card
+  feature too".
 - **Times of day** are each person's own hours, starting at 5 AM, 12 PM and
   6 PM.
 - **Weather** comes from a city typed in My settings. The browser never asks
@@ -533,9 +533,12 @@ went (below). How it works is in
   it is pressed, and then it stays for the day. It counts as Up, but
   "Just because I click start day does not mean thats how long I slept.
   Remove the slept feature".
-- **Lines for the day and night questions:** only the site admin's own. The
-  365 built-in lines and 60 built-in questions were removed on 30 Oct 2026:
-  "Remove all of the premade morning and night lines".
+- **Lines for the day and night questions:** none. The built-in ones went on
+  30 Oct 2026 ("Remove all of the premade morning and night lines"), and the
+  site admin's own on 3 Nov 2026, with Today I want to..., Afternoon progress
+  and Done today at night: "remove the "today I want to", line of the day,
+  Done today, at night and Afternoon progress, your own line and your own
+  night questions feature".
 - **A finished day** is every habit set for that day ticked. Tasks don't
   count.
 - **Grace:** one missed day per Monday-to-Sunday week.
