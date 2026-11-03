@@ -82,3 +82,24 @@ address already here, so 25,099 added.
 
 Where they came from: 21,214 an older import, 3,780 the Notion marketplace, 70
 added by hand, and a handful from lead magnets and forms.
+
+## Copied to systemeverything.com, 2 Nov 2026
+
+Tyler, 2 Nov 2026: "migrate the contacts and its details from course local
+systemeverything to course -> systemeverything deployment site".
+
+The local "System Everything" site's list went to the live site on
+`systemeverything.com` (database Course SE DB on server1). It came straight
+from the local database, not from the old platform, so it carries the cleaned
+tags from the import above.
+
+- **25,101 contacts**, every one with its name, source, tags, status, notes and
+  dates. Live now has 15,061 on the list, 9,405 gone quiet, 370 bouncing, 257
+  opted out and 8 marked it spam, the same as local.
+- **Both segments**, VIP and Cold.
+- **Tyler's own address** was already on live as his account's contact. It
+  kept its live status and gained the "Youtube Content Planner" tag, so 25,100
+  were added.
+- **Left behind:** the link from a contact to a local account, because local
+  accounts do not exist on live, and the one local test email record.
+- **No email went out.** Live had no automations when the list arrived.

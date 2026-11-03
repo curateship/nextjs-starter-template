@@ -17,7 +17,7 @@ import { StepFields } from "@/components/project/step-fields"
 import { StepMenu } from "@/components/project/step-menu"
 import { TaskTagList, TaskTagsField } from "@/components/project/task-tags-field"
 import { TaskLinkButton, TaskLinkField } from "@/components/project/task-link"
-import { TaskClockFooter } from "@/components/project/task-clock"
+import { TaskClockFooter, TaskTimeFields } from "@/components/project/task-clock"
 import {
   DueDate,
   DayOffNote,
@@ -147,8 +147,13 @@ export type TaskParts = {
 export type TaskSide = {
   /** The title in the panel's header, edited where it is written (Tyler, 20 Oct 2026). */
   title: React.ReactNode
-  /** The footer pinned to the panel's bottom: the status, the clock, Start and Completed. */
+  /** The footer pinned to the panel's bottom: the status, Start and Completed. */
   footer: React.ReactNode
+  /**
+   * The Time spent and Guess boxes, behind the ⋮ menu's Time icon (Tyler,
+   * 2 Nov 2026). Null when there is nothing to show or change.
+   */
+  time: { content: React.ReactNode } | null
   /** The tags under the title, to read; nothing while there are none. */
   tagList: React.ReactNode
   /** The tags box, in the three-dot button's Add tags (Tyler, 20 Oct 2026). */
@@ -159,15 +164,24 @@ export type TaskSide = {
   notices: React.ReactNode
   /**
    * The notes, the panel's own body under the title, always open to type in
-   * (Misc 4, 28 Oct 2026). The header's pencil sets `toolbar`, and its ⋮ reaches
+   * (Misc 4, 28 Oct 2026). The header's ⋮ shows the text toolbar
+   * (`toolbar`), the toolbar's × hides it (`onToolbar`), and the ⋮ reaches
    * Earlier versions and Delete through `handle`.
    */
   notes: {
     empty: boolean
-    field: (options: { toolbar: boolean; handle: React.Ref<NotesHandle> }) => React.ReactNode
+    field: (options: {
+      toolbar: boolean
+      onToolbar: (shown: boolean) => void
+      handle: React.Ref<NotesHandle>
+    }) => React.ReactNode
   }
-  /** `meta` is "0 of 2 done", or null with no steps. */
-  steps: { meta: string | null; content: React.ReactNode }
+  /**
+   * `meta` is "0 of 2 done", or null with no steps. `content` is the steps
+   * and their footer; `add` is the Add a step row and the step-list buttons,
+   * in the ⋮'s Add steps (Tyler, 2 Nov 2026).
+   */
+  steps: { count: number; meta: string | null; content: React.ReactNode; add: React.ReactNode }
   /** The chat; with no messages yet it is written in a dropdown from the header, as notes are. */
   chat: { count: number; content: React.ReactNode }
   /** Follow or stop following, at the right of the cog dropdown's tabs. */
@@ -175,9 +189,15 @@ export type TaskSide = {
   files: { count: number; content: React.ReactNode }
   /**
    * The cog's Details tab as cards that fold open: Person, Dates, Priority and
-   * type, Needs review, the type's own fields, and the Plan.
+   * type, the type's own fields, and the Plan.
    */
   settings: React.ReactNode
+  /**
+   * Needs review as a tick box, the first of the ⋮ menu's rows under the
+   * fields (Tyler, 2 Nov 2026: "put need review checkbox here"). Null when
+   * there's nothing to tick or read.
+   */
+  review: React.ReactNode
   /** The cog's History tab, as a card. */
   history: React.ReactNode
   detail: TaskDetail
@@ -1072,6 +1092,9 @@ function TaskForm({
       />
     ),
     footer: <TaskClockFooter detail={detail} status={statusPill} change={change} busy={busy} readOnly={readOnly} />,
+    time: hasTimeRow(detail, readOnly)
+      ? { content: <TaskTimeFields detail={detail} change={change} busy={busy} readOnly={readOnly} /> }
+      : null,
     tagList: <TaskTagList tags={task.labels} />,
     tags: tagsField,
     link: linkButton,
@@ -1083,7 +1106,7 @@ function TaskForm({
     ),
     notes: {
       empty: taskNotesAreEmpty(readTaskNotes(task.notes)),
-      field: ({ toolbar, handle }) => (
+      field: ({ toolbar, onToolbar, handle }) => (
         <LiveTaskNotes
           key={task.id}
           notes={task.notes}
@@ -1092,15 +1115,23 @@ function TaskForm({
           task={noteLinks}
           panel
           toolbar={toolbar}
+          onToolbar={onToolbar}
           handle={handle}
         />
       ),
     },
     steps: {
+      count: detail.steps.length,
       meta: detail.steps.length
         ? `${detail.steps.filter((step) => step.done).length} of ${detail.steps.length} done`
         : null,
-      content: steps,
+      content: <StepsContent detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} busy={busy} addRow={false} />,
+      add: readOnly ? null : (
+        <>
+          <StepAddRow taskId={task.id} change={change} busy={busy} autoFocus />
+          <StepListActions detail={detail} change={change} busy={busy} />
+        </>
+      ),
     },
     chat: {
       // A deleted message isn't one to count, so a chat holding only those is still empty.
@@ -1135,6 +1166,32 @@ function TaskForm({
       ),
     },
     // Each group a card that folds open, with its answer on the right (Tyler, 14 Oct 2026).
+    review: detail.canAskForReview ? (
+      <div className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 hover:bg-muted [&_label]:font-normal">
+        <Checkbox
+          id="task-needs-review"
+          checked={task.review.needed}
+          disabled={readOnly || busy}
+          onCheckedChange={(on) =>
+            void change(
+              () => setTaskNeedsReview(task.id, on === true),
+              on === true ? "You'll review it when it's Done." : "It no longer needs your review."
+            )
+          }
+        />
+        <FieldLabel
+          htmlFor="task-needs-review"
+          className="flex-1"
+          hint="When it's marked Done, you get a notice and check it. It still counts as Done meanwhile."
+        >
+          Needs review
+        </FieldLabel>
+      </div>
+    ) : task.review.needed && task.review.reviewer ? (
+      <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
+        Needs review: {task.review.reviewer.name} checks it once it's Done.
+      </p>
+    ) : null,
     settings: (
       <>
         <OptionCard
@@ -1168,24 +1225,6 @@ function TaskForm({
           {priorityField}
           {typeField}
         </OptionCard>
-        {detail.canAskForReview ? (
-          <OptionCard
-            id="task-needs-review"
-            title="Needs review"
-            hint="When it's marked Done, you get a notice and check it. It still counts as Done meanwhile."
-            toggle={{
-              checked: task.review.needed,
-              disabled: readOnly || busy,
-              onChange: (on) =>
-                void change(
-                  () => setTaskNeedsReview(task.id, on),
-                  on ? "You'll review it when it's Done." : "It no longer needs your review."
-                ),
-            }}
-          />
-        ) : task.review.needed && task.review.reviewer ? (
-          <OptionCard id="task-needs-review" title="Needs review" summary={task.review.reviewer.name} />
-        ) : null}
         {detail.fields.type?.fields.length ? (
           <OptionCard
             id="task-settings-fields"
@@ -1379,31 +1418,29 @@ function ReasonRow({
   )
 }
 
+/** Whether the ⋮ lists Time spent: always for someone who can change the task, otherwise once there is a time or a guess. */
+function hasTimeRow(detail: TaskDetail, readOnly: boolean) {
+  const { clock, guessMinutes } = detail.task
+  return !readOnly || Boolean(clock.runningSince) || clock.seconds > 0 || Boolean(guessMinutes)
+}
+
 function StepsContent({
   detail,
   myUserId,
   readOnly,
   change,
   busy,
+  addRow = true,
 }: {
   detail: TaskDetail
   myUserId: string
   readOnly: boolean
   change: Change
   busy: boolean
+  /** Off in the project page's panel, where the header's steps dropdown adds them. */
+  addRow?: boolean
 }) {
-  const taskId = detail.task.id
   const steps = detail.steps
-  const [text, setText] = React.useState("")
-
-  async function add() {
-    const next = text.trim()
-    if (!next) {
-      showErrorToast("Type the step first.")
-      return
-    }
-    if (await change(() => addTaskStep(taskId, next))) setText("")
-  }
 
   return (
     <>
@@ -1426,27 +1463,7 @@ function StepsContent({
           ))}
         </ul>
       )}
-      {readOnly ? null : (
-        <form
-          className="flex gap-2"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void add()
-          }}
-        >
-          <Input
-            aria-label="New step"
-            placeholder="Add a step"
-            value={text}
-            maxLength={LIMITS.stepText}
-            onChange={(event) => setText(event.target.value)}
-          />
-          <Button type="submit" variant="outline" disabled={busy}>
-            <PlusIcon className="size-4" />
-            Add
-          </Button>
-        </form>
-      )}
+      {readOnly || !addRow ? null : <StepAddRow taskId={detail.task.id} change={change} busy={busy} />}
       {/* The Steps card's footer on the project page, behind its cog; a plain row in the window. */}
       {readOnly ? null : (
         <PanelCardFooter>
@@ -1454,6 +1471,53 @@ function StepsContent({
         </PanelCardFooter>
       )}
     </>
+  )
+}
+
+/** The Add a step box and its Add button. Enter adds too, and the box empties for the next one. */
+function StepAddRow({
+  taskId,
+  change,
+  busy,
+  autoFocus = false,
+}: {
+  taskId: string
+  change: Change
+  busy: boolean
+  autoFocus?: boolean
+}) {
+  const [text, setText] = React.useState("")
+
+  async function add() {
+    const next = text.trim()
+    if (!next) {
+      showErrorToast("Type the step first.")
+      return
+    }
+    if (await change(() => addTaskStep(taskId, next))) setText("")
+  }
+
+  return (
+    <form
+      className="flex gap-2"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void add()
+      }}
+    >
+      <Input
+        aria-label="New step"
+        placeholder="Add a step"
+        value={text}
+        maxLength={LIMITS.stepText}
+        autoFocus={autoFocus}
+        onChange={(event) => setText(event.target.value)}
+      />
+      <Button type="submit" variant="outline" disabled={busy}>
+        <PlusIcon className="size-4" />
+        Add
+      </Button>
+    </form>
   )
 }
 

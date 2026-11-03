@@ -155,8 +155,9 @@ function useDuplicateTask(detail: TaskDetail) {
 }
 
 /**
- * The same three as the menu, as rows at the foot of the task's cog dropdown
- * on the project page. Each closes the dropdown first (`onPicked`): Move and
+ * The same rows as the menu, at the foot of the task panel's ⋮ menu, in
+ * Tyler's order (2 Nov 2026): Remind me, Ask for more time, Duplicate, Move
+ * to project, Save as task template. Each closes the dropdown first (`onPicked`): Move and
  * Remind me open their card at the top of the task's panel.
  */
 export function TaskMoreRows({
@@ -176,6 +177,32 @@ export function TaskMoreRows({
   const cantMove = detail.moveTargets.length === 0
   return (
     <>
+      <Button
+        type="button"
+        variant="ghost"
+        className="justify-start"
+        onClick={() => {
+          onPicked()
+          onRemind()
+        }}
+      >
+        <BellRingIcon className="size-4" />
+        {detail.myReminder ? "Change my reminder" : "Remind me"}
+      </Button>
+      {detail.canAskForTime ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="justify-start"
+          onClick={() => {
+            onPicked()
+            onAskTime()
+          }}
+        >
+          <CalendarClockIcon className="size-4" />
+          Ask for more time
+        </Button>
+      ) : null}
       <Button
         type="button"
         variant="ghost"
@@ -204,32 +231,6 @@ export function TaskMoreRows({
           Move to project
         </Button>
       </DisabledReason>
-      <Button
-        type="button"
-        variant="ghost"
-        className="justify-start"
-        onClick={() => {
-          onPicked()
-          onRemind()
-        }}
-      >
-        <BellRingIcon className="size-4" />
-        {detail.myReminder ? "Change my reminder" : "Remind me"}
-      </Button>
-      {detail.canAskForTime ? (
-        <Button
-          type="button"
-          variant="ghost"
-          className="justify-start"
-          onClick={() => {
-            onPicked()
-            onAskTime()
-          }}
-        >
-          <CalendarClockIcon className="size-4" />
-          Ask for more time
-        </Button>
-      ) : null}
       {detail.canSaveTemplate ? <SaveAsTemplateRow detail={detail} onSaved={onPicked} /> : null}
     </>
   )
