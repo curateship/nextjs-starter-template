@@ -94,6 +94,12 @@ profile's history. One line per event:
   cleared** for the other problems above.
 - **Wiped,** and each **Setup check** with the lines that did not pass
   ([making each phone look like one person's](looking-like-a-real-person.md)).
+- **Banned,** with the account, the app and the screen's words. A wipe never
+  clears it ([Bans](../bans.md)).
+
+Above the lines, an **Accounts** card lists every account the phone has held
+since 3 Nov 2026: handle, app, from and to, and how it left (moved, banned or
+retired). Each opens the account's settings on the Accounts dashboard.
 
 ## Where it is
 

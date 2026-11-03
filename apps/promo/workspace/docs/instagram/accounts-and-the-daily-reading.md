@@ -91,7 +91,14 @@ that does not find its button stops with a picture of the screen.
 ## The status on the Accounts dashboard
 
 - **Banned** once a ban screen stopped the account, **Working** when it posted
-  in the last week, **Ready** otherwise. There is no warm-up or karma here.
+  in the last week, **Ready** otherwise. **At risk** when it reads
+  shadowbanned, hit a locked or "confirm it's you" screen in the last 7 days,
+  or an account on its phone was banned in the last 2 days. There is no
+  karma here.
+- **Warming up for 7 days** from when it was added to Promo (Settings →
+  Behaviour): Post is refused with the day it ends, and once a day the phone
+  scrolls the feed and likes a few posts. A shadowbanned account posts at
+  half pace. [Bans](../bans.md) has both.
 - **Karma or followers** is one column: karma for Reddit, followers for
   Instagram and TikTok, with following behind it. **Age** shows the post count.
 

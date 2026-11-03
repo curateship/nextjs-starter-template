@@ -245,6 +245,22 @@ function BehaviourSettingsPanel() {
             : "While it warms up, Post is refused and once a day, inside its waking hours, the account scrolls its feed, opens a few posts and joins a subreddit or two that Promo has found posts in. It never comments or votes. A profile with no label shows Warming, and moves to Ready when the warm-up ends."}
         </p>
         <AccountLines accounts={accounts} render={warmUpLine} />
+        <NumberField
+          id="promo-app-warm-up-days"
+          label="Instagram and TikTok days of warm-up"
+          hint="Counted from the day the account was added to Promo. 0 switches it off."
+          value={settings.appWarmUpDays}
+          min={BEHAVIOUR_RANGES.appWarmUpDays.min}
+          max={BEHAVIOUR_RANGES.appWarmUpDays.max}
+          inputClassName="w-full sm:w-32"
+          onChange={(value) => change({ appWarmUpDays: value }, true)}
+          onCommit={() => void save(settings)}
+        />
+        <p className="text-sm text-muted-foreground">
+          {settings.appWarmUpDays === 0
+            ? "Off. A new Instagram or TikTok account may post from its first day."
+            : "While it warms up, Post is refused with the day it ends. Once a day, inside its waking hours, the phone opens the app, scrolls the feed for a few minutes and likes a few posts. It never posts, comments or follows."}
+        </p>
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard

@@ -52,18 +52,28 @@ and a comment or post is never tried twice."
   stops nothing. Text from other apps on the screen, such as the clock, is
   ignored.
 - **On one, Promo stops the account at once,** before the action even reads
-  as finished: every account of that app on the phone is marked blocked with the screen's own words as the reason, its
+  as finished: every account of that app on the phone that is not already
+  stopped is marked blocked with the screen's own words as the reason, its
   waiting jobs on the phone are dropped, the job that found it is failed and
-  not tried again, and the bell rings, such as "Ban screen: u/name on Pixel 8a
-  in slot 4", with the words and where the picture is.
+  not tried again, the ban is recorded with the step's picture, and the bell
+  rings, such as "Ban screen: u/name on Pixel 8a in slot 4". An account
+  already stopped changes nothing, so the same screen read again rings
+  nothing and writes no second ban. [Bans](../bans.md) has the record and
+  everything that reads it.
+- **A screen in words Promo does not know** stops the account too and asks
+  whether it is a ban, with **It's a ban** and **Not a ban** on the Bans
+  dashboard. The rack learns the answer with its next action.
 - **From then on its jobs are refused** before anything reaches the phone,
-  with the reason. A later sign-in look does not clear it.
+  with the reason. A later sign-in look does not clear it. Neither does the
+  weekly look at the banned app: it only rings "Looks back" when no ban
+  screen shows.
 - **Letting it run again** is a person's call: sort it out on the phone
-  through its screen window, then press **Let it run again** in the account's
-  settings on the Accounts dashboard. That clears the block and the
-  notice.
-- **The Accounts dashboard** shows "Stopped by a ban screen" under the
-  account's status, with the words on hover.
+  through its screen window, then press **Let it run again** on the ban card
+  in the account's settings on the Accounts dashboard. That clears the block
+  and the notices, and the account goes at half pace for 7 days. **Clean
+  up** on the same card retires it as Banned and wipes its phone instead.
+- **The Accounts dashboard** shows "Stopped by a ban" under the account's
+  status, with the words on hover.
 
 The known phrases are each app's published wording, and the saved screens the
 tests read (`rack/fixtures/ban-screens/`) were written from it, not dumped
@@ -78,8 +88,9 @@ screen's dump in place of the written one.
   restarts, `close_not_responding` for Android's box, `BAN_SCREENS` and
   `ban_screen_in` for ban screens.
 - In Promo: `stopForBanScreen` and `clearBanScreen` in
-  `src/server/phones/health.ts`, called from `finishAction` in
+  `src/server/phones/health.ts` (with the record in `src/server/bans/`), called from `finishAction` in
   `src/server/phones/rack.ts`; the refusal and the no-retry rule in
   `src/server/social/runner.ts`; `promo_accounts.ban_screen_at` and
   `promo_phone_actions.recovered` from `drizzle/0116_promo_phone_health.sql`.
-- The account's card: `src/components/social/accounts/account-settings-dialog.tsx`.
+- The account's card: `src/components/social/accounts/ban-card.tsx`, in
+  `account-settings-dialog.tsx`.

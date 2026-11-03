@@ -227,6 +227,8 @@ const stateShape = z.object({
   /** True when a challenge or captcha needs a person. */
   blocked: z.boolean(),
   reason: z.string().default(""),
+  /** Reddit's own words when the page says the account is suspended or locked (Bans task, part 7), or null. */
+  banScreen: z.string().nullable().default(null),
   url: z.string().default(""),
 })
 
@@ -243,6 +245,7 @@ const quickStateShape = z.object({
   ...accountFigures,
   blocked: z.boolean(),
   reason: z.string().default(""),
+  banScreen: z.string().nullable().default(null),
 })
 
 /** One read of a profile's own data. Status 0 means the request never got an answer. */

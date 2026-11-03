@@ -7,6 +7,8 @@ import { queuePhoneAction } from "@/server/phones/queue"
 import { promoPhones } from "@/server/phones/schema"
 import { isTestPhone } from "@/server/phones/self-test"
 import { refusePhoneNotReady } from "@/server/phones/wipe"
+import { openTenancy, recordAccountEvent } from "@/server/bans/history"
+import { refuseBannedPlace } from "@/server/bans/rules"
 
 import { noteImportantOnPhone, refuseMixedProject, refuseMixedVoice, refuseSharedProxy } from "./apart"
 import { queueJob } from "./jobs"
@@ -105,6 +107,7 @@ export async function startMoveToPhone(
     throw new Error(`The phone ${phone.name} already has ${network === "X" ? "an" : "a"} ${network} account on it, or one on its way. One ${network} account per phone.`)
   }
   await refusePhoneNotReady(userId, phoneId, null, db)
+  await refuseBannedPlace(userId, { phoneId, profileId: null }, account.platform, null, db)
   // The account will be important once it lands, so the rules for an
   // important account are asked now, before anyone signs in by hand.
   const asImportant = { id: account.id, handle: account.handle, importance: "important" as const }
@@ -170,6 +173,7 @@ export async function moveHeldBack(
   }
   try {
     await refusePhoneNotReady(userId, phoneId, account.id, db)
+    await refuseBannedPlace(userId, { phoneId, profileId: null }, account.platform, account.id, db)
     // The rules for an important account, asked again in case its voice or
     // project changed while it waited.
     const asImportant = { id: account.id, handle: account.handle, importance: "important" as const }
@@ -231,6 +235,8 @@ export async function finishMoveFromPhone(
     })
     .where(eq(promoAccounts.id, account.id))
   await noteImportantOnPhone(userId, phoneId, db, now)
+  await openTenancy(userId, { id: account.id, platform, handle }, phoneId, db, now)
+  await recordAccountEvent(userId, account.id, "moved", "Moved from a browser profile to a phone, and is now important.", db, now)
   await recordPhoneEvent(userId, phoneId, "account_moved", `u/${handle} moved onto it from a browser profile, and is now important.`, db, now)
   await recordPhoneEvent(userId, phoneId, "account_signed_in", `u/${handle} is signed in to Reddit.`, db, now)
   if (oldProfileId) await queueJob(userId, "forget", { profileId: oldProfileId, accountId: account.id }, db)

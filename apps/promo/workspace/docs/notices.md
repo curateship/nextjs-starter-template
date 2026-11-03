@@ -15,8 +15,8 @@ acts on a bad reading". Tyler picked this the same day.
   was removed on ...". Rings once, when it goes, not on every reading after.
   Opens that one comment on the Comments tab of its account's project.
 - **Reddit marking an account suspended**, from the daily health reading:
-  "Reddit suspended u/name". Rings once, when it happens. Opens the Accounts
-  dashboard, filtered to Reddit.
+  "Reddit suspended u/name". Rings once, when it stops the account. Opens the
+  Bans dashboard.
 - **A comment, an answer or a post of your own that did not go out**: "Did not
   go out: a comment", with Reddit's reason, and "may already be on Reddit" when
   the browser stopped part-way. Opens the Failed list on the Comments tab of
@@ -28,8 +28,19 @@ acts on a bad reading". Tyler picked this the same day.
   in:". Each is raised once and taken out of the bell when the problem ends.
   [A phone's health](phones/phone-health.md) has the rules.
 - **A ban screen on a phone**: "Ban screen: u/name on Pixel 8a in slot 4", with
-  the screen's words. Opens the phone.
+  the screen's words. Opens the Bans dashboard, where the picture is.
   [Freezes and ban screens](phones/freezes-and-ban-screens.md).
+- **Two bans of one app in a day** (Bans task, part 11): "Two Instagram bans
+  in a day. Every Instagram account is paused." Opens the Bans dashboard,
+  where Release is. Taken out of the bell when the app is released.
+- **A screen Promo does not know** (part 9): "Promo doesn't know this screen.
+  Is it a ban? u/name on Pixel 8a", with the screen's words. Opens the Bans
+  dashboard, where It's a ban and Not a ban are.
+- **An appeal with no answer after 7 days** (part 25): "No answer to u/name's
+  appeal yet". Rings once. Opens the ban.
+- **A banned account that looks back** (part 26): "Looks back: u/name. Let it
+  run again?", when the weekly look found no ban screen. Opens the ban; the
+  account stays stopped until a person presses the button.
 - **The self-test finding an action broken**, "Self-test failed:", and **an app
   update in the Play Store**, "App update out:".
   [The self-test and app updates](phones/self-test-and-app-updates.md).

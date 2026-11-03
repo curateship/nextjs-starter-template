@@ -5,6 +5,8 @@ import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { MAX_RESPONSE_CHARS, MEDIUM_WARM_UP_DAYS } from "@/lib/social/medium/options"
 import { mediumPostingRefusal, type MediumPostingState } from "@/lib/social/medium/wording"
+import { halfOf } from "@/lib/bans/options"
+import { slowReason } from "@/server/bans/rules"
 import { paceCounts, paceLimit } from "@/lib/social/pace"
 import { isAwake, nextWakeAt } from "@/lib/social/waking"
 import { handleWords } from "@/lib/social/networks"
@@ -90,7 +92,7 @@ async function recentWriting(
 
 export async function readMediumPostingState(
   userId: string,
-  account: Pick<AccountRow, "id" | "profileId" | "phoneId" | "mediumJoinedAt" | "pausedAt" | "projectId" | "platform">,
+  account: Pick<AccountRow, "id" | "profileId" | "phoneId" | "mediumJoinedAt" | "pausedAt" | "projectId" | "platform" | "shadowbanned" | "slowUntil">,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<MediumPostingState> {
@@ -99,8 +101,12 @@ export async function readMediumPostingState(
   const ends = warmUpEndsAt(account.mediumJoinedAt, MEDIUM_WARM_UP_DAYS, now)
   const young = isYoung(account.mediumJoinedAt, behaviour.youngDays, now)
   const { posted, waiting } = await recentWriting(userId, account.id, db, now)
+  const slow = await slowReason(userId, account, db, now)
+  const perHour = slow ? halfOf(behaviour.youngPerHour) : behaviour.youngPerHour
+  const perDay = slow ? halfOf(behaviour.youngPerDay) : behaviour.youngPerDay
   return {
     paused: await pausedBy(userId, account, db),
+    slow,
     timeZone,
     awake: isAwake(now, timeZone, behaviour.wakeFromMinute, behaviour.wakeUntilMinute),
     nextWakeAt: nextWakeAt(now, timeZone, behaviour.wakeFromMinute, behaviour.wakeUntilMinute),
@@ -108,11 +114,9 @@ export async function readMediumPostingState(
     young,
     ...paceCounts(posted, now),
     warnPerHour: behaviour.warnPerHour,
-    youngPerHour: behaviour.youngPerHour,
-    youngPerDay: behaviour.youngPerDay,
-    limit: young
-      ? paceLimit({ posted, waiting, now, perHour: behaviour.youngPerHour, perDay: behaviour.youngPerDay })
-      : null,
+    youngPerHour: perHour,
+    youngPerDay: perDay,
+    limit: young || slow ? paceLimit({ posted, waiting, now, perHour, perDay }) : null,
   }
 }
 

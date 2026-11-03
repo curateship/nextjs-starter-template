@@ -631,7 +631,7 @@ describe("phone farm files 04 and 05", () => {
       const mover = await addAccount(userId, { profileId, phoneId: null, voiceId: null }, db)
       await named(mover, "promo_tester")
       await startMoveToPhone(userId, mover, A1, db)
-      await retireAccounts(userId, [mover], true, db)
+      await retireAccounts(userId, [mover], true, db, { reason: "given_up", note: "" })
       const [retired] = await db.select().from(promoAccounts).where(eq(promoAccounts.id, mover))
       expect(retired.movingToPhoneId).toBeNull()
       await expect(addAccount(userId, { profileId: null, phoneId: A1, voiceId: null }, db)).resolves.toBeTypeOf("string")

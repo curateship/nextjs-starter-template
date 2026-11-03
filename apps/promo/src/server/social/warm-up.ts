@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, ne, sql } from "drizzle-orm"
 
 import { redditWarmUp, type CommandTarget } from "@/server/browser/command"
 import { promoProfileLabels, promoProfiles } from "@/server/browser/schema"
+import { slowReason } from "@/server/bans/rules"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { isAwake, localDateKey, wakeEndsAt } from "@/lib/social/waking"
 
@@ -82,6 +83,8 @@ export async function queueDueWarmUps(
       .limit(1)
     if (last && (last.status === "queued" || last.status === "running")) continue
     if (last && localDateKey(last.createdAt, zone) === localDateKey(now, zone)) continue
+    // At half pace the visit comes every other day (Bans task, parts 20, 23 and 24).
+    if (last && now.getTime() - last.createdAt.getTime() < 2 * 86_400_000 && (await slowReason(account.userId, account, db, now))) continue
 
     // A time picked at random between now and four hours on, never later
     // than twenty minutes before the account's day ends, so no two days

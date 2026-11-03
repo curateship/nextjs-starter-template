@@ -118,6 +118,8 @@ export type JobKind =
   | "comment_link"
   | "app_post"
   | "app_profile"
+  | "app_warm_up"
+  | "ban_look"
   | "inbox_read"
   | "inbox_reply"
   | "medium_search"
@@ -315,6 +317,7 @@ export const BEHAVIOUR_DEFAULTS = {
   youngPerDay: 6,
   warnPerHour: 4,
   searchEveryHours: 4,
+  appWarmUpDays: 7,
 } as const
 
 export const BEHAVIOUR_RANGES = {
@@ -326,6 +329,7 @@ export const BEHAVIOUR_RANGES = {
   youngPerDay: { min: 1, max: 200 },
   warnPerHour: { min: 1, max: 60 },
   searchEveryHours: { min: 0, max: 48 },
+  appWarmUpDays: { min: 0, max: 60 },
 } as const
 
 export const PROXY_PROTOCOLS = ["http", "https", "socks5"] as const

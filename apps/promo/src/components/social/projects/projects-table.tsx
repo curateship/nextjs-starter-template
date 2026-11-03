@@ -1,4 +1,5 @@
 import * as React from "react"
+import { ProjectBansLink } from "./project-bans-link"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import { FolderOpenIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
@@ -236,6 +237,7 @@ export function ProjectsTable({ initial }: { initial: ProjectRow[] }) {
                   {project.description || "No description yet"}
                 </span>
               </Hint>
+              <ProjectBansLink projectId={project.id} count={project.bannedRecently} />
             </TableCell>
             <TableCell column="meta" className="text-right tabular-nums">
               {project.accountCount}

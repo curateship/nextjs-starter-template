@@ -9,6 +9,7 @@ import {
   checkAccountsNow,
   listRedditAccounts,
   retireAccounts,
+  setAccountSource,
   setAccountVoice,
   setAccountsStatus,
   type BulkAnswer,
@@ -17,6 +18,7 @@ import {
 import { readBehaviour } from "@/server/social/behaviour"
 import { setAccountsPaused } from "@/server/social/pause"
 import { listVoices } from "@/server/social/voices"
+import { ACCOUNT_SOURCES, RETIRED_REASONS, type RetiredReason } from "@/lib/bans/options"
 import { ACCOUNT_STATUSES } from "@/lib/social/account-status"
 import { isPhoneAppNetwork, NETWORKS, type Network } from "@/lib/social/networks"
 import { clearBanScreen } from "@/server/phones/health"
@@ -134,10 +136,23 @@ const runsOn = {
 
 const addFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(z.object({ ...runsOn, voiceId: z.string().min(1).nullable(), platform: z.enum(NETWORKS) }))
-  .handler(async ({ context, data }): Promise<{ id: string }> => ({
-    id: await addAccount(context.user.id, data),
-  }))
+  .inputValidator(
+    z.object({
+      ...runsOn,
+      voiceId: z.string().min(1).nullable(),
+      platform: z.enum(NETWORKS),
+      // Where it came from (Bans task, part 16).
+      source: z
+        .object({ kind: z.enum(["", ...ACCOUNT_SOURCES]), seller: z.string().max(120), priceCents: z.number().int().min(0).max(100_000_000).nullable() })
+        .nullable()
+        .default(null),
+    })
+  )
+  .handler(async ({ context, data }): Promise<{ id: string }> => {
+    const id = await addAccount(context.user.id, data)
+    if (data.source?.kind) await setAccountSource(context.user.id, id, { source: data.source.kind, seller: data.source.seller, priceCents: data.source.priceCents })
+    return { id }
+  })
 
 /** Adds an account: Reddit on a browser profile or a phone, Instagram or TikTok on a phone only. */
 export function addRedditAccount(data: {
@@ -145,6 +160,7 @@ export function addRedditAccount(data: {
   phoneId: string | null
   voiceId: string | null
   platform: Network
+  source?: { kind: "" | "made" | "bought"; seller: string; priceCents: number | null } | null
 }) {
   return addFn({ data })
 }
@@ -189,14 +205,20 @@ export function checkRedditAccounts(accountIds: string[]) {
 
 const retireFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(z.object({ ids, retire: z.boolean() }))
+  .inputValidator(
+    z.object({
+      ids,
+      retire: z.boolean(),
+      why: z.object({ reason: z.enum(RETIRED_REASONS), note: z.string().max(200) }).nullable().default(null),
+    })
+  )
   .handler(async ({ context, data }): Promise<BulkAnswer> =>
-    retireAccounts(context.user.id, data.ids, data.retire)
+    retireAccounts(context.user.id, data.ids, data.retire, undefined, data.why)
   )
 
-/** Retires accounts, or with `retire` false brings them back. */
-export function retireRedditAccounts(accountIds: string[], retire: boolean) {
-  return retireFn({ data: { ids: accountIds, retire } })
+/** Retires accounts with why (Bans task, part 15), or with `retire` false brings them back. */
+export function retireRedditAccounts(accountIds: string[], retire: boolean, why: { reason: RetiredReason; note: string } | null = null) {
+  return retireFn({ data: { ids: accountIds, retire, why } })
 }
 
 const pauseFn = createServerFn({ method: "POST" })

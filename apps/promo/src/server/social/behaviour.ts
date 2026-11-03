@@ -36,6 +36,8 @@ export type BehaviourSettings = {
   warnPerHour: number
   /** Every keyword searches again by itself this many hours after its last search. 0 is never. */
   searchEveryHours: number
+  /** Days a new Instagram or TikTok account warms up before it posts (Bans task, part 19). 0 is off. */
+  appWarmUpDays: number
 }
 
 const DAY_MS = 86_400_000
@@ -60,6 +62,7 @@ export async function readBehaviour(
     youngPerDay: row.youngPerDay,
     warnPerHour: row.warnPerHour,
     searchEveryHours: row.searchEveryHours,
+    appWarmUpDays: row.appWarmUpDays,
   }
 }
 

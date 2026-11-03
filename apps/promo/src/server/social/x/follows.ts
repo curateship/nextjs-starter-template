@@ -1,6 +1,8 @@
 import { and, eq, gte, inArray, sql } from "drizzle-orm"
 
+import { halfOf } from "@/lib/bans/options"
 import type { CommandTarget } from "@/server/browser/command"
+import { slowReason } from "@/server/bans/rules"
 import { Refusal } from "@/server/browser/refusal"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
@@ -60,15 +62,27 @@ export async function queueFollowBack(
   now: Date = new Date()
 ): Promise<string | null> {
   const [account] = await db
-    .select({ followBack: promoAccounts.xFollowBack, handle: promoAccounts.handle })
+    .select({
+      followBack: promoAccounts.xFollowBack,
+      handle: promoAccounts.handle,
+      id: promoAccounts.id,
+      platform: promoAccounts.platform,
+      shadowbanned: promoAccounts.shadowbanned,
+      slowUntil: promoAccounts.slowUntil,
+    })
     .from(promoAccounts)
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
     .limit(1)
   if (!account?.followBack) return "Following is off on this account."
   if (account.handle.toLowerCase() === handle.toLowerCase()) return "That is the account itself."
-  const { followsPerDay } = await readXSettings(userId, db)
+  const settings = await readXSettings(userId, db)
+  // At half pace it follows half as many a day (Bans task, parts 20, 23 and 24).
+  const slow = await slowReason(userId, account, db, now)
+  const followsPerDay = slow ? halfOf(settings.followsPerDay) : settings.followsPerDay
   if ((await followsToday(userId, accountId, db, now)) >= followsPerDay) {
-    return `It already followed ${followsPerDay} today, the number in Settings → Behaviour.`
+    return slow
+      ? `It already followed ${followsPerDay} today, half the number in Settings → Behaviour. ${slow}.`
+      : `It already followed ${followsPerDay} today, the number in Settings → Behaviour.`
   }
   const id = uuid()
   const inserted = await db

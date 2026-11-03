@@ -1,6 +1,7 @@
 import { and, desc, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm"
 
 import type { CommandTarget } from "@/server/browser/command"
+import { slowReason } from "@/server/bans/rules"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { localDateKey } from "@/lib/social/waking"
 import { LINKEDIN_WARM_UP_DAYS } from "@/lib/social/linkedin/options"
@@ -58,6 +59,8 @@ export async function queueDueLinkedinWarmUps(db: CustomShellDb = defaultDb, now
       .limit(1)
     if (last && (last.status === "queued" || last.status === "running")) continue
     if (last && localDateKey(last.createdAt, zone) === localDateKey(now, zone)) continue
+    // At half pace the visit comes every other day (Bans task, parts 20, 23 and 24).
+    if (last && now.getTime() - last.createdAt.getTime() < 2 * 86_400_000 && (await slowReason(account.userId, account, db, now))) continue
     const latest = Math.min(now.getTime() + MAX_DELAY_MS, workdayEndsAt(now, zone).getTime() - END_OF_DAY_MARGIN_MS)
     const runAfter = new Date(now.getTime() + Math.max(0, latest - now.getTime()) * random())
     await queueJob(account.userId, "linkedin_warm_up", { accountId: account.id }, db, runAfter)

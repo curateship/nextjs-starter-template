@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 
+import { brakeWords } from "@/lib/bans/options"
 import { phoneStepRefusal } from "@/lib/phones/options"
 import { Refusal } from "@/server/browser/refusal"
 
@@ -242,7 +243,9 @@ export async function queueCommentChange(
     throw new Refusal(
       paused === "account"
         ? `${handle} is paused. Resume it on the Accounts dashboard first.`
-        : paused === "network"
+        : paused === "brake"
+          ? brakeWords(account.platform)
+          : paused === "network"
           ? `${handle}'s network is paused on its project. Resume it in the project's left column first.`
           : `${handle}'s project is paused. Resume the project first.`
     )

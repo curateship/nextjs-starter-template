@@ -1,3 +1,4 @@
+import { brakeWords } from "@/lib/bans/options"
 import { daysBetween } from "@/lib/format/format-time"
 import { slotWords } from "@/lib/phones/options"
 import {
@@ -134,6 +135,7 @@ export function postingRefusalText(
   if (state.paused === "network") {
     return "This network is paused on the account's project. Resume it in the project's left column to post again."
   }
+  if (state.paused === "brake") return brakeWords("reddit")
   if (state.warmUp.ageUnknown) {
     return "Promo has not read how old this account is, so it cannot tell when the warm-up ends. Tick it on the Accounts dashboard, and press Check now, then try again."
   }
@@ -145,10 +147,10 @@ export function postingRefusalText(
   const allowed = limit.limit === "hour" ? state.youngPerHour : state.youngPerDay
   const span = limit.limit === "hour" ? "an hour" : "a day"
   if (!limit.nextAllowedAt) {
-    return `A young account may send ${allowed} ${allowed === 1 ? "comment" : "comments"} ${span}, and that many are sent or waiting to go. Post again once the waiting ones have gone.`
+    return `${state.slow ? `${state.slow}: this account` : "A young account"} may send ${allowed} ${allowed === 1 ? "comment" : "comments"} ${span}, and that many are sent or waiting to go. Post again once the waiting ones have gone.`
   }
   if (limit.nextAllowedAt <= now) return null
-  return `A young account may send ${allowed} ${allowed === 1 ? "comment" : "comments"} ${span}, and this one has. The next one is allowed ${whenText(limit.nextAllowedAt, now, timeZone)}.`
+  return `${state.slow ? `${state.slow}: this account` : "A young account"} may send ${allowed} ${allowed === 1 ? "comment" : "comments"} ${span}, and this one has. The next one is allowed ${whenText(limit.nextAllowedAt, now, timeZone)}.`
 }
 
 /** "3 comments in the last hour, 11 today." Plain counts, no gauge. */

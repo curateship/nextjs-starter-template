@@ -59,6 +59,7 @@ const account: LinkedinModuleView["accounts"][number] = {
   pages: [],
   posting: {
     paused: null,
+    slow: null,
     timeZone: "UTC",
     working: true,
     nextWorkAt: null,

@@ -85,6 +85,7 @@ function phone(patch: Partial<PhoneRecord>): PhoneRecord {
     heldImportantAt: null,
     addressStop: null,
     setupChecking: false,
+    bannedOn: {},
     createdAt: new Date(),
     ...patch,
   }

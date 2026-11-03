@@ -1,5 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm"
 
+import { banKindFromWords } from "@/lib/bans/options"
+import { recordBan } from "@/server/bans/record"
 import { uuid } from "@/server/auth/security"
 import type { CommandTarget } from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
@@ -221,7 +223,10 @@ export async function saveLinkedinSignIn(
     .where(eq(promoAccounts.id, account.id))
   if (state.slug && state.pages) await savePages(account, state.pages, db, now)
   if (state.codeAsked && !account.linkedinCodeAskedAt) await ringForCode({ ...account, onPhone: !account.profileId }, db, now)
-  if (!banned || account.banScreenAt) return
+  if (!banned) return
+  // Recorded even when already stopped: a restriction after a verify screen counts (`recordBan` writes nothing otherwise).
+  await recordBan(account.userId, { accountId: account.id, kind: banKindFromWords(banned, "linkedin"), words: banned }, db, now)
+  if (account.banScreenAt) return
   // Failed rather than deleted, so a comment they carried keeps its job and
   // can be dismissed or tried again from the Failed list once it is sorted.
   const why = `Not sent: LinkedIn stopped the account first ("${banned}").`

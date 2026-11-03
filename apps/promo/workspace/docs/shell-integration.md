@@ -37,7 +37,7 @@ promo created, which has no shell version and so can never conflict.
 
 `src/app/server-options.ts`, which the browser never sees:
 
-- **`background.workers`** — nine quick jobs on the shell's ticker, listed in
+- **`background.workers`** — the quick jobs on the shell's ticker, listed in
   `src/app/server-options.ts`:
   - re-testing the three proxies that have waited longest, and once an hour
     ringing the bell for a proxy renewing in the next three days;
@@ -71,6 +71,10 @@ promo created, which has no shell version and so can never conflict.
     asking for a fresh reading of LinkedIn comments and posts a day old, each
     account's weekly comments look and numbers, its daily requests, viewers,
     feed and messages, and tidying away old posts nobody answered;
+  - [the Bans upkeep](bans.md): every five minutes a time for each warming
+    Instagram or TikTok account's daily visit, and every ten the bell for an
+    appeal 7 days old with no answer and the weekly look at each banned
+    account's app;
   - [the phones' health](phones/phone-health.md): the bell for a phone
     offline, hot, with no signal or nearly full and for a quiet rack, the
     daily [self-test](phones/self-test-and-app-updates.md) on the test phone,
@@ -126,6 +130,13 @@ stay in `src/server/schema.ts`, which promo never opens.
   `promo_linkedin_readings`. The same migration adds
   `promo_accounts.linkedin_premium`, `linkedin_seen`, `linkedin_seen_at` and
   `linkedin_code_asked_at`.
+- `src/server/bans/schema.ts`, from `drizzle/0133_promo_bans.sql`:
+  `promo_bans`, `promo_phone_tenancies`, `promo_ban_phrases`,
+  `promo_account_events` and `promo_app_brakes`. The same migration adds
+  `promo_accounts.retired_reason`, `retired_note`, `source`, `seller`,
+  `price_cents` and `slow_until`,
+  `promo_behaviour_settings.app_warm_up_days`, and the Bans entry in the left
+  menu after Phones.
 
 The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
 `drizzle/0092_promo_reddit_relevance.sql`,

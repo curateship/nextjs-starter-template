@@ -16,7 +16,8 @@ const resultShape = z.object({
     .max(200)
     .default([]),
   banScreen: z
-    .object({ app: z.string().max(20), kind: z.string().max(20), words: z.string().max(2_000) })
+    // `line` comes with an `unknown` screen only: the line that held a ban word (Bans task, part 9).
+    .object({ app: z.string().max(20), kind: z.string().max(20), words: z.string().max(2_000), line: z.string().max(500).optional() })
     .nullable()
     .default(null),
   recovered: z.string().max(10).default(""),

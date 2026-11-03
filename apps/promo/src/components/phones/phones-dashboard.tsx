@@ -69,6 +69,8 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { PHONE_KIND_WORDS, PHONE_KINDS, PHONE_STATUS_WORDS, systemWords } from "@/lib/phones/options"
 import { PHONE_STATUS_FILTERS, type PhonesSearch } from "@/lib/phones/phones-search"
+import { bannedOnWords } from "@/lib/bans/options"
+import { isNetwork, NETWORK_NAMES, NETWORKS } from "@/lib/social/networks"
 import { appVersionWords, connectionWords } from "@/lib/phones/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -294,6 +296,7 @@ export function PhonesDashboard({
         if (filters.carrier && carrierOf(phone) !== filters.carrier) return false
         if (filters.project && !projectPhoneIds.has(phone.id)) return false
         if (filters.wipe && !phone.needsWipeAt) return false
+        if (filters.banned && !phone.bannedOn[filters.banned]) return false
         if (!query) return true
         return [phone.name, phone.model, phone.serial, phone.simCarrier, phone.simNumber, phone.notes, phone.shelfSlot]
           .concat(phone.tags, phone.accounts.map((account) => account.handle))
@@ -511,6 +514,13 @@ export function PhonesDashboard({
               />
             ) : null}
             <FilterSelect
+              label="Banned on"
+              value={filters.banned ?? ALL}
+              onChange={(value) => setFilter({ banned: isNetwork(value) ? value : undefined })}
+              allLabel="Banned on any app or none"
+              options={NETWORKS.map((network) => ({ id: network, name: `Banned on ${NETWORK_NAMES[network]}` }))}
+            />
+            <FilterSelect
               label="Wiping"
               value={filters.wipe ?? ALL}
               onChange={(value) => setFilter({ wipe: value === "needed" ? "needed" : undefined })}
@@ -673,6 +683,9 @@ export function PhonesDashboard({
                 <span className="line-clamp-1 text-xs text-muted-foreground xl:hidden">
                   {phone.accounts.length ? phone.accounts.map(signedInWords).join(", ") : "No account on it"}
                 </span>
+                {bannedOnWords(phone.bannedOn) ? (
+                  <span className="line-clamp-1 text-xs text-destructive xl:hidden">Banned on: {bannedOnWords(phone.bannedOn)}</span>
+                ) : null}
                 <span className="line-clamp-1 text-xs text-muted-foreground">
                   {phone.id === page.testPhoneId || phone.id === page.testPhoneIphoneId ? "Self-test phone · " : ""}
                   {appVersionWords(phone)}
@@ -691,6 +704,9 @@ export function PhonesDashboard({
                 ) : (
                   <span className="text-muted-foreground">Nobody</span>
                 )}
+                {bannedOnWords(phone.bannedOn) ? (
+                  <span className="block text-xs text-destructive">Banned on: {bannedOnWords(phone.bannedOn)}</span>
+                ) : null}
               </TableCell>
               <TableCell column="meta" className="text-sm">
                 <PhoneStatusText phone={phone} />

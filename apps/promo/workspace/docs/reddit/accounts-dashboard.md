@@ -98,8 +98,14 @@ of 11 Oct:
 - **Working:** past the warm-up, and Promo sent a comment from it in the last 7
   days.
 - **Ready:** past the warm-up, with no Promo comment in the last 7 days.
-- **Banned:** Reddit marks the account suspended. It is only shown, in red.
-  Nothing is paused and no notice is sent.
+- **Banned:** Reddit marks the account suspended, or a ban screen or page
+  stopped it. Since 3 Nov 2026 a suspended reading stops the account: its
+  jobs are refused, the ban is recorded and the bell rings once
+  ([Bans](../bans.md), part 8). Before that date it was only shown.
+- **At risk** (added 3 Nov 2026): shadowbanned, its reach read hidden, a
+  locked or "confirm it's you" screen in the last 7 days, or an account on
+  its phone, proxy or SIM banned in the last 2 days. The line under it names
+  the sign.
 
 And from 11 Oct, still standing: the app works the status out, and a person can
 set it by hand.
@@ -134,7 +140,10 @@ the app's Account status page. Under 1536px wide the age, karma and last comment
 under the name, because the row was otherwise wider than a 1440px window and
 its buttons went off the edge.
 
-- **Filter** by status (All, Warming up, Ready, Working, Banned), by
+- **Counts per app** sit above the list: one card per app with accounts,
+  counting Warming up, Ready, Working, At risk and Banned. Clicking a count
+  filters the list to that app and status ([Bans](../bans.md), part 17).
+- **Filter** by status (All, Warming up, Ready, Working, At risk, Banned), by
   important or throwaway, and by the profile's or phone's tags. **Rows group** under their profile's or phone's
   folder, the folders both dashboards share, with "No folder" last; with no folders anywhere there are
   no headings. Nothing new is stored for either.
@@ -144,7 +153,7 @@ its buttons went off the edge.
   - Check now: queues the same health reading as Settings → Reddit account, for
     each one. One already being checked, or retired, is skipped and counted.
   - Pause, and Resume.
-  - Retire.
+  - Retire, which asks why in its window.
 - **Each row** has Check now, Help-only posts, Pause or Resume, the settings
   button, and Retire. The settings button moves the account to another profile
   or phone, where sign-ins do not move with it, and saves its authenticator
@@ -159,10 +168,20 @@ its buttons went off the edge.
   phone**, then **Check sign-in** and **Cancel move** while it waits
   ([Reddit on phones](reddit-on-phones.md)). An important account is offered
   phones only under Runs on.
-- **Stopped by a ban screen** shows under an account's status when a phone
-  found Reddit's suspended, locked or "confirm it's you" screen, with the
-  screen's words on hover. Its jobs are refused until **Let it run again** in
-  its settings window ([freezes and ban screens](../phones/freezes-and-ban-screens.md)).
+- **Stopped by a ban** shows under an account's status when a phone or a
+  browser found the app's suspended, locked or "confirm it's you" screen,
+  with the screen's words on hover. Its jobs are refused until **Let it run
+  again** on the ban card in its settings window, which also has the picture,
+  the appeal and **Clean up** ([Bans](../bans.md)).
+- **Half pace** shows in amber under the status while the account goes at
+  half its limits: shadowbanned, for 7 days after Let it run again, or for 2
+  days after a ban on its phone, proxy or SIM.
+- **The settings window has a History tab**: added, moved, banned, appealed,
+  let run again, retired and cleaned up, newest first. Its Settings tab also
+  has **Where it came from**: made or bought, the seller and the price, saved
+  as they change.
+- **`?open=<id>`** opens an account's settings window, which is where a
+  phone's Accounts card and the Bans dashboard lead.
 - **The voice menu is 128px wide**, 32px narrower than it was, so a row with
   four buttons still fits a 1440px window (measured 13 Oct 2026: 1232px of
   columns against 1232px of room).
@@ -193,7 +212,12 @@ Settings → Reddit account. It never posts and never warms up, and the daily
 health reading skips it. Its comments stay, on the Comments dashboard and
 counted against it. A comment already waiting when it was retired is refused
 when its time comes. **Show retired** brings retired accounts back into the
-list, with "Retired" and when under the name, and **Bring back** undoes it.
+list, with "Retired", when, and why under the name, and **Bring back** undoes it.
+
+Retire asks why in its window (Bans task, part 15): Banned, Sold, Given up,
+or Other with a short note. Clean up after a ban fills in Banned. Accounts
+retired before 3 Nov 2026 read "Not recorded". With Show retired on, a filter
+splits them by reason. Bringing one back clears the reason.
 
 ## What holds it up
 

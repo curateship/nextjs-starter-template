@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { SourceFields, type SourceValue } from "@/components/social/accounts/account-source"
 import { RunsOnSelect } from "@/components/social/accounts/runs-on-select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { priceCents } from "@/lib/bans/options"
 import { addRedditAccount, getRedditAccountsErrorMessage } from "@/lib/api/social/reddit-accounts"
 import { aNetwork, isNetwork, isPhoneAppNetwork, NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
 import { readRunsOn } from "@/lib/social/runs-on"
@@ -62,6 +64,8 @@ export function AddAccountDialog({
   const [runsOn, setRunsOn] = React.useState("")
   const [voiceId, setVoiceId] = React.useState(NO_VOICE)
   const [invalid, setInvalid] = React.useState(false)
+  const [source, setSource] = React.useState<SourceValue>({ source: "", seller: "", price: "" })
+  const [priceInvalid, setPriceInvalid] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const phoneOnly = isPhoneAppNetwork(platform)
   const platformProfiles = phoneOnly ? [] : profiles[platform]
@@ -72,6 +76,8 @@ export function AddAccountDialog({
     setRunsOn("")
     setVoiceId(NO_VOICE)
     setInvalid(false)
+    setSource({ source: "", seller: "", price: "" })
+    setPriceInvalid(false)
   }
 
   async function add() {
@@ -80,10 +86,21 @@ export function AddAccountDialog({
       showErrorToast(phoneOnly ? "Pick the phone the account runs on." : "Pick the browser profile or the phone the account runs on.")
       return
     }
+    const cents = priceCents(source.price)
+    if (source.source === "bought" && cents === undefined) {
+      setPriceInvalid(true)
+      showErrorToast("The price is dollars, like 40 or 12.50.")
+      return
+    }
     const picked = readRunsOn(runsOn)
     setSaving(true)
     try {
-      await addRedditAccount({ ...picked, voiceId: voiceId === NO_VOICE ? null : voiceId, platform })
+      await addRedditAccount({
+        ...picked,
+        voiceId: voiceId === NO_VOICE ? null : voiceId,
+        platform,
+        source: source.source ? { kind: source.source, seller: source.seller, priceCents: cents ?? null } : null,
+      })
       if (picked.phoneId) {
         const name = platformPhones.find((phone) => phone.id === picked.phoneId)?.name ?? "that phone"
         toast.success(`Account added. Sign in to the ${NETWORK_NAMES[platform]} app on ${name}, then press Check now.`)
@@ -107,7 +124,7 @@ export function AddAccountDialog({
   return (
     <FormDialog
       open={open}
-      dirty={Boolean(runsOn) || voiceId !== NO_VOICE || platform !== initialPlatform}
+      dirty={Boolean(runsOn) || voiceId !== NO_VOICE || platform !== initialPlatform || Boolean(source.source)}
       busy={saving}
       onClose={() => {
         reset()
@@ -132,6 +149,7 @@ export function AddAccountDialog({
             }}
           >
             <DialogBody>
+              <div className="grid gap-6">
               <Card size="sm">
                 <CardHeader>
                   <CardTitle>The account</CardTitle>
@@ -227,6 +245,15 @@ export function AddAccountDialog({
                   </div>
                 </CardContent>
               </Card>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Where it came from</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <SourceFields idPrefix="add-account" value={source} onChange={setSource} priceInvalid={priceInvalid} />
+                </CardContent>
+              </Card>
+              </div>
             </DialogBody>
             <DialogFooter>
               <Button type="button" variant="outline" disabled={saving} onClick={requestClose}>

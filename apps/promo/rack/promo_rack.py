@@ -92,7 +92,7 @@ except Exception as _failure:  # A missing file, or one its own imports break.
     iphone = None
     _IPHONE_IMPORT_ERROR = _failure
 
-VERSION = "2026.10.18.1"
+VERSION = "2026.11.03.1"
 
 # The launcher restarts the program when it exits with this code: a new
 # version was written, or someone switched versions on disk.
@@ -4010,6 +4010,8 @@ for _app in ("instagram", "tiktok"):
         "%s/post" % _app: {"mediaUrl": "", "mediaKind": "photo", "caption": ""},
         "%s/inbox" % _app: {"kind": "message", "via": "inbox", "handle": ""},
         "%s/reply" % _app: {"kind": "message", "thread": "", "author": "", "quote": "", "text": ""},
+        # Opens the feed and stops: nothing is liked in a rehearsal.
+        "%s/warm_up" % _app: {"likes": 0},
     })
 
 
@@ -4230,7 +4232,9 @@ def read_x_profile(serial, walk):
     device = walk.screen()
     hierarchy = device.dump_hierarchy()
     ban = ban_screen_in(hierarchy, "x", package_for(serial, "x"))
-    if ban:
+    # An unknown line asks a person after the action (run_action); this
+    # reading would stop the account for good without asking.
+    if ban and ban["kind"] != "unknown":
         return dict(empty, ban=ban)
     if signed_out(hierarchy, "x"):
         return empty
@@ -4905,7 +4909,7 @@ def read_linkedin_profile(serial, walk):
     if linkedin_code_asked(hierarchy):
         return dict(empty, codeAsked=True)
     ban = ban_screen_in(hierarchy, "linkedin", package_for(serial, "linkedin"))
-    if ban:
+    if ban and ban["kind"] != "unknown":
         return dict(empty, ban=ban)
     if signed_out(hierarchy, "linkedin"):
         return empty
@@ -5631,6 +5635,116 @@ REHEARSALS.update({
 })
 
 
+# ---------------------------------------------------------------------------
+# Bans (Bans task, parts 19 and 26).
+
+# A warming Instagram or TikTok account's day: the feed for a few minutes,
+# and a few posts liked with a double tap on the post, the way a thumb likes
+# them. Promo sends how many (half as many at half pace).
+APP_WARM_UP_SECONDS = (150, 360)
+MAX_WARM_UP_LIKES = 6
+
+
+# The post's own Like button, by its words or description, and the same
+# button once pressed. Instagram's and TikTok's say "Like" and "Liked" (or
+# "Unlike"), sometimes followed by the count.
+FEED_LIKE = re.compile(r"(?i)^like( video| post)?([.,: ].*)?$")
+FEED_LIKED = re.compile(r"(?i)^(liked|unlike)( video| post)?([.,: ].*)?$")
+
+
+def feed_buttons(hierarchy_xml, package, pattern):
+    """Bounds of the app's own nodes whose words or description match, top first."""
+    found = []
+    for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
+        if not own_node(node, package):
+            continue
+        words = [" ".join((node.get(key) or "").split()) for key in ("text", "content-desc", "label")]
+        bounds = parse_bounds(node.get("bounds"))
+        if bounds and any(word and pattern.match(word) for word in words):
+            found.append(bounds)
+    return sorted(found, key=lambda bounds: bounds[1])
+
+
+def feed_like(hierarchy_xml, package):
+    """The topmost post's own Like button not yet pressed, as bounds, or None.
+    Nothing else on the feed is ever pressed: never Follow, an ad, a name or
+    a Comment button."""
+    liked = feed_buttons(hierarchy_xml, package, FEED_LIKED)
+    for bounds in feed_buttons(hierarchy_xml, package, FEED_LIKE):
+        if not any(same_row(bounds, other) for other in liked):
+            return bounds
+    return None
+
+
+def like_landed(hierarchy_xml, package, bounds):
+    """True when the button pressed now reads Liked."""
+    return any(same_row(bounds, other) for other in feed_buttons(hierarchy_xml, package, FEED_LIKED))
+
+
+def action_app_warm_up(app):
+    def action(serial, args, walk):
+        """The day's visit: the feed scrolled and up to `likes` posts liked,
+        each by pressing the post's own Like button found on screen. Nothing
+        else is pressed, and a like counts only once the button reads Liked.
+        Nothing is posted, commented, followed or typed. A ban screen when the
+        app opens ends the visit at once."""
+        device = walk.screen()
+        device.screen_on()
+        open_app(serial, app)
+        walk.shot("Opened %s" % APP_NAMES.get(app, app))
+        if walk.rehearse or ban_screen_on(serial, app):
+            walk.home()
+            return {"liked": 0}
+        package = package_for(serial, app)
+        wanted = max(0, min(MAX_WARM_UP_LIKES, int(args.get("likes") or 0)))
+        until = time.monotonic() + random.uniform(*APP_WARM_UP_SECONDS)
+        # The likes are spread over the visit, not all at its start.
+        like_at = sorted(random.uniform(0.15, 0.9) for _ in range(wanted))
+        started, length, liked = time.monotonic(), until - time.monotonic(), 0
+        while time.monotonic() < until:
+            walk.check()
+            scroll_once(serial, device, 1)
+            scroll_pause(until)
+            if liked < wanted and (time.monotonic() - started) / length >= like_at[liked]:
+                hierarchy = device.dump_hierarchy()
+                if ban_screen_in(hierarchy, app, package):
+                    break
+                bounds = feed_like(hierarchy, package)
+                if not bounds:
+                    continue
+                tap_at(serial, device, (bounds[0] + bounds[2]) // 2, (bounds[1] + bounds[3]) // 2)
+                time.sleep(random.uniform(0.6, 1.2))
+                if like_landed(device.dump_hierarchy(), package, bounds):
+                    liked += 1
+                    walk.shot("Liked a post")
+        walk.home()
+        return {"liked": liked}
+    return action
+
+
+def action_ban_look(app):
+    def action(serial, args, walk):
+        """The weekly look at a banned account (part 26): the app opened and
+        its first screen read. It never taps, scrolls, posts or types. The
+        ban screen check after every app action reads the screen; this only
+        opens it and leaves it showing."""
+        device = walk.screen()
+        device.screen_on()
+        open_app(serial, app)
+        time.sleep(3)
+        walk.shot("Opened %s" % APP_NAMES.get(app, app))
+        # A disabled account is often only signed out, and a slow phone may
+        # still show the splash: neither is the account coming back.
+        try:
+            hierarchy = device.dump_hierarchy()
+            lines = screen_lines(hierarchy, package_for(serial, app))
+            return {"looked": True, "signedOut": signed_out(hierarchy, app), "lines": len(lines)}
+        except Exception as failure:  # A screen that cannot be read says nothing either way.
+            log("Could not read %s for the weekly look: %s" % (serial, failure))
+            return {"looked": True, "signedOut": None, "lines": 0}
+    return action
+
+
 ACTIONS = {
     "phone/list": action_list,
     "phone/health": action_health,
@@ -5657,6 +5771,7 @@ ACTIONS.update({
 })
 for _app in ("instagram", "tiktok"):
     ACTIONS.update({
+        "%s/warm_up" % _app: action_app_warm_up(_app),
         "%s/quick_state" % _app: action_app_quick_state(_app),
         "%s/health" % _app: action_app_health(_app),
         "%s/profile" % _app: action_app_profile(_app),
@@ -5676,6 +5791,8 @@ ACTIONS.update({
     "x/inbox": action_app_inbox("x"),
     "x/reply_message": action_app_reply("x"),
 })
+for _app in ("reddit", "instagram", "tiktok", "medium", "x", "linkedin"):
+    ACTIONS["%s/ban_look" % _app] = action_ban_look(_app)
 ACTIONS.update({
     "linkedin/state": action_linkedin_state,
     "linkedin/quick_state": action_linkedin_state,
@@ -5813,17 +5930,77 @@ def plain(text):
     return text.lower().replace(u"’", "'").replace(u"\u2011", "-").replace(u"\u2010", "-")
 
 
+# Lines a person taught Promo (Bans task, part 9), sent with every action:
+# {"bans": {app: set(lines)}, "harmless": {app: set(lines)}}, plain.
+LEARNED = {"bans": {}, "harmless": {}}
+
+# A short screen holding one of these, in a line spoken to the account,
+# that matches no known line is a screen Promo does not know: it stops the
+# account and asks a person whether it is a ban (part 9).
+UNKNOWN_BAN_WORDS = ("suspended", "banned", "disabled", "locked", "violat", "restricted")
+# Longer than this, a line is somebody writing about a ban, not the app.
+UNKNOWN_LINE_CHARS = 120
+# A no or not just before the ban word is the app saying all is well, as the
+# Account status pages the daily reading opens do: "You have no violations",
+# "Your account isn't restricted". Further away it is part of a real ban:
+# "disabled for not following our Terms".
+UNKNOWN_NOT_A_BAN = re.compile(
+    r"\b(no|not|never|none|isn't|aren't|wasn't|haven't|hasn't)\b(\W+\w+){0,2}\W+(suspend|bann|disabl|lock|restrict|violat)|^none of\b|good standing"
+)
+
+
+def learn_phrases(reply):
+    """Takes the lines Promo sent with an action into LEARNED."""
+    if not isinstance(reply, dict) or "banPhrases" not in reply:
+        return
+    for key, field in (("bans", "banPhrases"), ("harmless", "harmless")):
+        learned = {}
+        for item in reply.get(field) or []:
+            if isinstance(item, dict) and item.get("app") and item.get("line"):
+                learned.setdefault(item["app"], set()).add(plain(" ".join(str(item["line"]).split())))
+        LEARNED[key] = learned
+
+
+def unknown_ban_line(line):
+    """True when a line reads like an app telling the account it is stopped:
+    short, a ban word, spoken to "you", and not a question. "This account has
+    been suspended" on somebody else's profile, and a post titled "Account
+    suspended after one comment?", are not."""
+    text = plain(line).strip()
+    if len(text) > UNKNOWN_LINE_CHARS or text.endswith("?"):
+        return False
+    if not any(word in text for word in UNKNOWN_BAN_WORDS):
+        return False
+    if UNKNOWN_NOT_A_BAN.search(text):
+        return False
+    return re.search(r"\byou(r)?\b", text) is not None
+
+
 def ban_screen_in(hierarchy_xml, app, package=None):
-    """The ban screen showing, as {app, kind, words}, or None."""
+    """The ban screen showing, as {app, kind, words}, or None.
+
+    A known line gives its kind. A line a person called a ban gives the kind
+    "learned". A short screen with a ban line Promo does not know gives the
+    kind "unknown" and the line, unless a person called that line harmless.
+    """
     lines = screen_lines(hierarchy_xml, package or APP_PACKAGES.get(app))
     if not lines or len(lines) > BAN_SCREEN_MAX_LINES:
         return None
+    words = " ".join(lines)[:500]
     for screen_app, kind, phrases in BAN_SCREENS:
         if screen_app != app:
             continue
         for line in lines:
             if plain(line) in phrases:
-                return {"app": app, "kind": kind, "words": " ".join(lines)[:500]}
+                return {"app": app, "kind": kind, "words": words}
+    taught = LEARNED["bans"].get(app, set())
+    for line in lines:
+        if plain(line) in taught:
+            return {"app": app, "kind": "learned", "words": words, "line": line[:500]}
+    harmless = LEARNED["harmless"].get(app, set())
+    for line in lines:
+        if plain(line) not in harmless and unknown_ban_line(line):
+            return {"app": app, "kind": "unknown", "words": words, "line": line[:500]}
     return None
 
 
@@ -6855,6 +7032,7 @@ def run():
                     install_update(config, latest)
             reply = call(config, "/api/rack/next", {})
             maybe_send_log(config, reply)
+            learn_phrases(reply)
             work = reply.get("action")
             if work:
                 start_action(config, work)

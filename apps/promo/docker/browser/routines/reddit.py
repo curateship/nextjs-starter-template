@@ -420,7 +420,7 @@ def reddit_state(page, args=None):
     try:
         _goto(page, "https://www.reddit.com/")
     except Exception as error:  # noqa: BLE001 - reported, never swallowed
-        return {"handle": None, "blocked": True, "reason": str(error)}
+        return {"handle": None, "blocked": True, "reason": str(error), "banScreen": None}
 
     me = _me(page)
     signs = _page_signs(page)
@@ -429,6 +429,7 @@ def reddit_state(page, args=None):
         **me,
         "blocked": signs["blocked"],
         "reason": signs["reason"],
+        "banScreen": signs["banScreen"],
         "url": signs["url"],
     }
 
@@ -539,6 +540,37 @@ def reddit_stranger_profile(page, args):
     return _in_own_tab(page, lambda tab: _profile_read(tab, handle))
 
 
+# The words of Reddit's own screens for a stopped account, the same as the
+# rack's BAN_SCREENS for the Reddit app (rack/promo_rack.py), read off the
+# page in the browser too (Bans task, part 7). Only lines spoken to the
+# account: "This account has been suspended" shows on anybody's profile.
+BAN_PHRASES = (
+    "your account has been suspended",
+    "your account has been permanently suspended",
+    "your account has been locked",
+    "we've locked your account",
+)
+# A line that starts with a phrase counts only up to this long; a longer one
+# is somebody talking about a ban.
+BAN_LINE_CHARS = 90
+
+
+def ban_words(text):
+    """Reddit's own words on a suspended or locked page, or None. Pure, so it is tested."""
+    lines = [" ".join(line.split()) for line in (text or "").splitlines() if line.strip()]
+    for index, line in enumerate(lines):
+        plain = line.lower().replace(u"\u2019", "'").rstrip(".")
+        # A question is somebody asking about a ban: a post's title.
+        if plain.endswith("?"):
+            continue
+        if any(plain == phrase or (plain.startswith(phrase) and len(plain) <= BAN_LINE_CHARS) for phrase in BAN_PHRASES):
+            words = line
+            if index + 1 < len(lines) and len(lines[index + 1]) > 20:
+                words = "%s %s" % (line, lines[index + 1])
+            return words[:300]
+    return None
+
+
 def _page_signs(page):
     """Whether the page on screen is a challenge only a person can clear.
 
@@ -567,11 +599,26 @@ def _page_signs(page):
         ),
       ].some((frame) => !String(frame.src).includes("size=invisible") && shown(frame))
       const refused = text.includes("whoa there") || text.includes("you've been blocked")
-      return { challenge, captcha, refused, url: location.href, host: location.hostname }
+      // The page's own lines only: what posts, comments and stories say is
+      // somebody else's words, such as a title "Your account has been suspended".
+      const inside = new Set(
+        [...document.querySelectorAll("article, shreddit-post, shreddit-comment")]
+          .flatMap((node) => (node.innerText || "").split("\\n").map((line) => line.trim()))
+          .filter(Boolean)
+      )
+      const lines = ((document.body && document.body.innerText) || "")
+        .split("\\n")
+        .filter((line) => !inside.has(line.trim()))
+        .join("\\n")
+        .slice(0, 6000)
+      return { challenge, captcha, refused, lines, url: location.href, host: location.hostname }
     }
     """
     signs = page.evaluate(script) or {}
-    if signs.get("refused"):
+    ban = ban_words(signs.get("lines") or "")
+    if ban:
+        reason = ban
+    elif signs.get("refused"):
         reason = "Reddit says this browser is blocked"
     elif signs.get("captcha"):
         reason = "a captcha is on screen"
@@ -582,6 +629,7 @@ def _page_signs(page):
     return {
         "blocked": bool(reason),
         "reason": reason,
+        "banScreen": ban,
         "url": signs.get("url") or "",
         "host": signs.get("host") or "",
     }
@@ -976,13 +1024,14 @@ def reddit_state_quick(page, args=None):
     signs = _page_signs(page)
     host = signs["host"]
     if host != "reddit.com" and not host.endswith(".reddit.com"):
-        return {"checked": False, "handle": None, "blocked": False, "reason": ""}
+        return {"checked": False, "handle": None, "blocked": False, "reason": "", "banScreen": None}
 
     return {
         "checked": True,
         **_me(page),
         "blocked": signs["blocked"],
         "reason": signs["reason"],
+        "banScreen": signs["banScreen"],
     }
 
 
