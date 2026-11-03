@@ -45,6 +45,12 @@ import {
   type RenderFrameRate,
   type RenderQuality,
 } from "@/lib/video/render"
+import {
+  clockText,
+  parseClockText,
+  STRETCH_INVALID_MESSAGE,
+  stretchRefusal,
+} from "@/lib/video/export-stretch"
 import type { AspectRatio } from "@/lib/video/timeline-schema"
 import { cn } from "@/lib/utils"
 
@@ -92,6 +98,13 @@ export function ExportDialog({
   const [name, setName] = React.useState(videoName)
   const [shapes, setShapes] = React.useState<AspectRatio[]>([projectAspect])
   const [shapesInvalid, setShapesInvalid] = React.useState(false)
+  // The part to export, as typed. The end starts at the project's end,
+  // rounded up to the whole second the box shows, so it never cuts the last
+  // fraction of a second off.
+  const wholeEndText = clockText(Math.ceil(projectMs / 1000) * 1000)
+  const [startText, setStartText] = React.useState("0:00")
+  const [endText, setEndText] = React.useState(wholeEndText)
+  const [partInvalid, setPartInvalid] = React.useState(false)
 
   // Opening starts from what the last export was called, or the project's own
   // name. Typing over it names only the next one — the project keeps its name.
@@ -108,8 +121,40 @@ export function ExportDialog({
       setName(newest?.title ?? videoName)
       setShapes([projectAspect])
       setShapesInvalid(false)
+      setStartText("0:00")
+      setEndText(wholeEndText)
+      setPartInvalid(false)
     }
   }
+
+  /**
+   * The part typed, null for the whole project, or the reason it cannot be
+   * exported.
+   */
+  function readPart():
+    | { part: { startMs: number; endMs: number } | null }
+    | { problem: string } {
+    const startMs = parseClockText(startText)
+    const endMs = parseClockText(endText)
+    if (startMs === null || endMs === null) return { problem: STRETCH_INVALID_MESSAGE }
+    const problem = stretchRefusal(startMs, endMs, projectMs)
+    if (problem) return { problem }
+    const whole = startMs === 0 && endMs >= projectMs
+    return { part: whole ? null : { startMs, endMs: Math.min(endMs, projectMs) } }
+  }
+
+  function checkPart() {
+    const read = readPart()
+    setPartInvalid("problem" in read)
+    if ("problem" in read) showErrorToast(read.problem)
+    return read
+  }
+
+  const typedPart = readPart()
+  const partMs =
+    "part" in typedPart && typedPart.part
+      ? typedPart.part.endMs - typedPart.part.startMs
+      : projectMs
 
   const activeCount = jobs.filter(isExportActive).length
   // Once every ticked shape has been exported, pressing again makes it anew.
@@ -121,7 +166,7 @@ export function ExportDialog({
       : "Export"
   const estimate = exportEstimateSentence(
     estimateExportSeconds({
-      projectMs,
+      projectMs: partMs,
       quality,
       frameRate,
       aspects: shapes,
@@ -145,6 +190,8 @@ export function ExportDialog({
       showErrorToast(NO_SHAPE_MESSAGE)
       return
     }
+    const read = checkPart()
+    if ("problem" in read) return
     setBusy(true)
     try {
       const started = await startExport(
@@ -153,7 +200,8 @@ export function ExportDialog({
         quality,
         frameRate,
         normalize,
-        name
+        name,
+        read.part ?? undefined
       )
       dismissErrorToast()
       onJobsChange(started)
@@ -204,6 +252,46 @@ export function ExportDialog({
                 placeholder={videoName}
                 onChange={(event) => setName(event.target.value)}
               />
+            </CardContent>
+          </Card>
+
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Which part</CardTitle>
+              <CardDescription>
+                The whole project unless you change it. The file starts at
+                the start you give.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="export-part-start">Start</Label>
+                <Input
+                  id="export-part-start"
+                  inputMode="numeric"
+                  value={startText}
+                  aria-invalid={partInvalid || undefined}
+                  onChange={(event) => {
+                    setStartText(event.target.value)
+                    setPartInvalid(false)
+                  }}
+                  onBlur={() => checkPart()}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="export-part-end">End</Label>
+                <Input
+                  id="export-part-end"
+                  inputMode="numeric"
+                  value={endText}
+                  aria-invalid={partInvalid || undefined}
+                  onChange={(event) => {
+                    setEndText(event.target.value)
+                    setPartInvalid(false)
+                  }}
+                  onBlur={() => checkPart()}
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -296,7 +384,15 @@ export function ExportDialog({
               <CardContent className="grid gap-4">
                 {jobs.map((job) => (
                   <div key={job.id} className="grid gap-2">
-                    <span className="text-sm font-medium">{job.aspect}</span>
+                    <span className="text-sm font-medium">
+                      {job.aspect}
+                      {job.range ? (
+                        <span className="font-normal text-muted-foreground">
+                          {" "}
+                          · {clockText(job.range.start_ms)} to {clockText(job.range.end_ms)}
+                        </span>
+                      ) : null}
+                    </span>
                     <ExportProgress job={job} />
                     {job.status === "ready" ? (
                       <Button asChild variant="outline">
@@ -428,7 +524,10 @@ function ExportProgress({ job }: { job: RenderJobSummary }) {
   return (
     <p className="flex items-center gap-2 text-sm text-muted-foreground">
       <Loader2Icon className="size-4 animate-spin" />
-      {job.status === "running"
+      {job.status === "queued" && job.error_message
+        ? // Waiting for room on the server's disk, in its own words.
+          job.error_message
+        : job.status === "running"
         ? "Making it now…"
         : job.queue_position && job.queue_position > 1
           ? `Waiting - ${job.queue_position - 1} ahead of it`

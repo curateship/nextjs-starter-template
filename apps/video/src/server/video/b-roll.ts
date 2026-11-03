@@ -23,7 +23,6 @@ import {
 } from "@/lib/video/b-roll"
 import {
   CAPTIONS_FAILED_MESSAGE,
-  CAPTIONS_TOO_LONG_MESSAGE,
   findCaptionSource,
 } from "@/lib/video/captions"
 import { clipMsAt, sourceEndMs } from "@/lib/video/clip-playback"
@@ -131,7 +130,6 @@ async function voiceLineFileWords(
         feature: BROLL_TRANSCRIPT_FEATURE,
         label: "B-roll",
         spend,
-        tooLongMessage: CAPTIONS_TOO_LONG_MESSAGE,
         failedMessage: CAPTIONS_FAILED_MESSAGE,
       })
     )

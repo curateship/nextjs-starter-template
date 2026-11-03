@@ -1,38 +1,38 @@
 # Long exports
 
-A project can be up to thirty minutes long and still export. Anything longer
-is refused when Export is pressed, with "This project is longer than 30
-minutes, which is as much as one export can take". The ceiling is
-`MAX_TIMELINE_MS` in `src/lib/video/render.ts`, and the server checks it twice:
-when the export is asked for, and again when the render starts, because the
-project can change in between.
+A project of any length exports. There is no ceiling on how long a project
+may be. Tyler, 31 Oct 2026: "Why would life the 30 minute export once big
+files go to disk? why not just have it no cap from the start?"
 
-Until 24 Sep 2026 the ceiling was ten minutes.
+From 24 Sep to 3 Nov 2026 a project stopped at thirty minutes, and before
+that at ten. Older exports and older notes may still mention those limits.
 
-## Why thirty and not longer
+## Why there used to be a limit, and why it went
 
-- **The finished file is read into memory whole.** The render writes the MP4
-  to a scratch folder, then reads all of it into the server's memory and hands
-  it to storage in one piece (`uploadToR2` in the shell's
-  `src/server/media/storage.ts`, which only takes bytes held in memory).
-- **Node refuses to read a file over 2 GB that way.** A longer export would
-  render to the end and then fail with "The export could not be made".
-- **Thirty minutes stays well under it.** The biggest file measured, a wide
-  export at Best, runs at about 40 MB a minute, so thirty minutes is about
-  1.2 GB. Busier footage than the test clip makes a bigger file, and 1.2 GB
-  leaves room for that.
-- **Memory rises with the file.** The thirty-minute wide Best export pushed
-  the process making it to 2.5 GB, about twice the file. Whichever process
-  renders (the website or `npm run worker`) needs that much room to spare.
-- **Going past thirty needs a shell change.** Storage would have to take the
-  file straight from disk in parts, so nothing large sits in memory. That is
-  the same work as bigger uploads
-  (`workspace/tasks/features/31-bigger-uploads-shell.md`) and belongs in
-  Custom Shell.
+- **The finished file used to be read into memory whole.** The render wrote
+  the MP4 to a scratch folder, then read all of it into the server's memory
+  and handed it to storage in one piece. Node refuses to read a file over 2 GB
+  that way, so a longer export rendered to the end and then failed.
+- **Now the file goes to storage straight from disk, in pieces.**
+  `renderTimeline` in `src/server/video/render.ts` hands back the file's place
+  on disk, and the queue sends it with the shell's `uploadFileToR2`
+  (`docs/shell/big-uploads.md`, "Sending a file from disk"). At most four
+  10MB pieces are in memory at once, whatever the file's size. The scratch
+  folder is deleted once the file is stored, or as soon as the render fails.
+- **The limit and its cause went in the same change**, as the big-files task
+  asked (`workspace/tasks/big-files/01-big-file-features.md`, parts 10 and 11).
+- **What still limits a long export is time and disk.** An hour of wide Best
+  is about 2.4 GB on the server's disk while it is made, and the render holds
+  the one export slot for as long as it takes. Tyler's answer to disk is a
+  Hetzner dedicated server (31 Oct 2026).
+- **A brief keeps a thirty-minute limit of its own** (`BRIEF_LONG_SECONDS_MAX`
+  in `src/lib/video/brief.ts`). It used to borrow the export's number; now it
+  is written down separately, because every scene of a brief is a voice and a
+  picture that are paid for.
 
 ## What moved with the ceiling
 
-- **The time ffmpeg is allowed.** Each ffmpeg run of an export may now take as
+- **The time ffmpeg is allowed.** Each ffmpeg run of an export may take as
   long as the finished file plays, and never less than ten minutes
   (`exportTimeoutMs` in `src/server/video/render.ts`). A thirty-minute export
   gets thirty minutes for each pass. Before, every run had a flat ten minutes,
@@ -116,7 +116,9 @@ load between about 6 and 48 on 8 cores, and that moves the numbers.
   Hetzner server, not on a Mac. That server has its own cores, disk and
   memory, and it uploads from a data centre. Every time above has to be taken
   again there. The file sizes and the memory per file do not depend on the
-  machine, so the thirty-minute ceiling still holds.
+  machine.
+- **Nothing past thirty minutes has been timed yet.** The 45-minute export the
+  big-files task asks for is owed.
 
 ## The estimate in the export window
 
@@ -144,21 +146,7 @@ sound switch change.
 
 ## The tools that write a recording down
 
-Captions and Tighten cover the same thirty minutes as an export. They write
-down the whole recording behind a clip, and a recording longer than thirty
-minutes is refused with "That recording is too long to caption. Captioning
-covers up to 30 minutes" or "That recording is too long to look through. It
-covers up to 30 minutes".
-
-- **Where the limit is:** `TRANSCRIBE_MAX_SOURCE_MS` in
-  `src/lib/video/transcripts.ts`, which `CAPTIONS_MAX_SOURCE_MS` and
-  `JUMP_CUT_MAX_WINDOW_MS` both read.
-- **Why it is not ten minutes any more:** Whisper takes 25 MB a request, which
-  is about 13 minutes of sound. Anything over ten minutes now goes in pieces
-  that overlap by a few seconds and are joined back in order
-  ([saved-transcripts.md](saved-transcripts.md)).
-- **Tighten, the Transcript panel and Hook still stop at a 100 MB file**
-  (`JUMP_CUT_MAX_MEDIA_BYTES`). Today that is the same as the upload limit
-  below, so it only matters once the shell's upload limit is raised.
-- **Uploads** stop at 100 MB a video, which is set by the shell. A long talk
-  has to come in as several clips, or as a smaller file.
+Captions and Tighten write down the whole recording behind a clip. How long a
+recording they cover, and how big a file, is in
+[big-files.md](big-files.md), which owns everything about very big and very
+long footage.

@@ -8,7 +8,7 @@ import type { TRANSCRIBERS, TranscriberId } from "@/lib/video/ai-choices"
 import {
   joinTranscriptPieces,
   planTranscriptPieces,
-  TRANSCRIBE_MAX_SOURCE_MS,
+  SMOOTH_COPY_FIRST_MESSAGE,
   transcribersServing,
   type FileWord,
   type SavedTranscriptSummary,
@@ -24,7 +24,8 @@ import {
 } from "@/server/video/gemini"
 import type { SpendTag } from "@/server/video/project-spend"
 import { videoMediaTranscripts } from "@/server/video/schema"
-import { downloadToFile } from "@/server/video/storage-files"
+import { inputArgs } from "@/server/video/render-sources"
+import { openSoundSource, type SoundSource } from "@/server/video/sound-source"
 import {
   requireOpenAiKey,
   transcribeWithWhisper,
@@ -159,10 +160,13 @@ function readWords(value: unknown): FileWord[] | null {
 /**
  * Every word of one file of the caller's own, saved or written down now.
  *
- * `media` must already have been looked up as the caller's own. `localSource`
- * is the file when the caller has already downloaded it, so it is not fetched
- * twice. `fresh` skips the saved words and replaces them, which is what
- * "Transcribe again" pays for.
+ * `media` must already have been looked up as the caller's own. `source` is
+ * where the caller is already reading the file from (`sound-source.ts`), so
+ * it is not opened twice. `fresh` skips the saved words and replaces them,
+ * which is what "Transcribe again" pays for.
+ *
+ * A recording of any length is written down: it goes in pieces of up to ten
+ * minutes, four at a time, and the pieces are joined in order.
  */
 export async function fileWords({
   userId,
@@ -171,10 +175,9 @@ export async function fileWords({
   feature,
   label,
   spend,
-  tooLongMessage,
   failedMessage,
   fresh = false,
-  localSource,
+  source: givenSource,
 }: {
   userId: string
   media: { id: string; storagePath: string }
@@ -182,10 +185,9 @@ export async function fileWords({
   feature: string
   label: string
   spend: SpendTag
-  tooLongMessage: string
   failedMessage: string
   fresh?: boolean
-  localSource?: string
+  source?: SoundSource
 }): Promise<FileWord[]> {
   if (!fresh) {
     const saved = await readSavedTranscript(userId, media.id, transcriber.id)
@@ -200,30 +202,20 @@ export async function fileWords({
       : await requireGeminiKey()
 
   const dir = await mkdtemp(path.join(tmpdir(), "video-transcript-file-"))
+  const opened = givenSource ? null : await openSoundSource(media.id)
   try {
-    const source = localSource ?? path.join(dir, "source")
-    if (!localSource) await downloadToFile(media.storagePath, source)
+    const sound = givenSource ?? opened!
+    if (sound.streamsBigOriginal) throw new Error(SMOOTH_COPY_FIRST_MESSAGE)
+    const source = sound.input
     const wav = path.join(dir, "sound.wav")
-    // Pulled out no further than a second past the limit: enough to tell a
-    // file that is too long, without turning hours of sound into a WAV first.
+    // Only the sound, small and mono: an hour is about 110MB of WAV, however
+    // big the video it came from.
     await runFfmpeg(
-      [
-        "-i",
-        source,
-        "-vn",
-        "-t",
-        String(TRANSCRIBE_MAX_SOURCE_MS / 1000 + 1),
-        "-ac",
-        "1",
-        "-ar",
-        "16000",
-        wav,
-      ],
+      [...inputArgs(source), "-vn", "-ac", "1", "-ar", "16000", wav],
       failedMessage
     )
     const durationMs = await wavDurationMs(wav)
     if (durationMs === null) throw new Error(failedMessage)
-    if (durationMs > TRANSCRIBE_MAX_SOURCE_MS) throw new Error(tooLongMessage)
 
     const pieces = planTranscriptPieces(durationMs)
     const words = await runAiCall(
@@ -235,21 +227,19 @@ export async function fileWords({
         metadata: { ...spend, mediaId: media.id, pieces: pieces.length },
       },
       async () => {
-        // All pieces at once: a 25-minute talk is three requests, and one
-        // after another they could outlast the page's patience.
-        const heard = await Promise.all(
-          pieces.map(async (piece, index) => {
-            const audio = await cutPiece(dir, wav, piece, index, failedMessage)
-            const answer = await transcribePiece({
-              transcriber,
-              apiKey,
-              audio,
-              durationMs: piece.durationMs,
-              label,
-            })
-            return { ...piece, ...answer }
+        // Four pieces at a time: a 25-minute talk is three requests and goes
+        // at once, and an hour's six do not all hit the provider together.
+        const heard = await inBatches(pieces, PIECES_AT_ONCE, async (piece, index) => {
+          const audio = await cutPiece(dir, wav, piece, index, failedMessage)
+          const answer = await transcribePiece({
+            transcriber,
+            apiKey,
+            audio,
+            durationMs: piece.durationMs,
+            label,
           })
-        )
+          return { ...piece, ...answer }
+        })
         const soundMs = pieces.reduce((sum, piece) => sum + piece.durationMs, 0)
         return {
           result: joinTranscriptPieces(heard),
@@ -273,8 +263,28 @@ export async function fileWords({
     })
     return words
   } finally {
+    await opened?.release()
     await rm(dir, { recursive: true, force: true })
   }
+}
+
+/** How many pieces of one recording are written down at once. */
+const PIECES_AT_ONCE = 4
+
+/** `work` over every item, at most `size` at a time, answers in the items' order. */
+async function inBatches<T, R>(
+  items: T[],
+  size: number,
+  work: (item: T, index: number) => Promise<R>
+) {
+  const results: R[] = []
+  for (let start = 0; start < items.length; start += size) {
+    const batch = items.slice(start, start + size)
+    results.push(
+      ...(await Promise.all(batch.map((item, offset) => work(item, start + offset))))
+    )
+  }
+  return results
 }
 
 /**

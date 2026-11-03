@@ -10,8 +10,14 @@
  * strip that failed answers 422 and becomes a `FilmstripFailedError`.
  */
 
-const SECONDS_PER_FRAME = 2
-const MAX_VISIBLE_FRAMES = 30
+import { framePlace } from "@/lib/video/filmstrip-sheets"
+
+/**
+ * How many frames a clip shows when its caller does not say. The timeline
+ * says, from the clip's width on screen, so a long clip zoomed in shows a
+ * frame for every one the strip holds (`filmstrip-sheets.ts`).
+ */
+const DEFAULT_VISIBLE_FRAMES = 30
 const MAX_CACHED_FILMSTRIPS = 50
 
 /** The worker tried the strip three times and gave up. */
@@ -35,11 +41,13 @@ export type FilmstripFrame = {
 }
 
 type FilmstripAsset = {
-  url: string
+  /** One address per sheet, in order. */
+  urls: string[]
   frameCount: number
   frameWidth: number
   frameHeight: number
   columns: number
+  rowsPerSheet: number
   durationMs: number
 }
 
@@ -74,7 +82,9 @@ export async function getVideoFilmstrip(
   mediaId: string,
   window: ClipWindow,
   signal: AbortSignal,
-  onBuilding?: () => void
+  onBuilding?: () => void,
+  /** The most frames the clip has room for. */
+  maxFrames: number = DEFAULT_VISIBLE_FRAMES
 ): Promise<FilmstripFrame[]> {
   const entry = acquireFilmstrip(mediaId)
   const { progress } = entry
@@ -104,7 +114,7 @@ export async function getVideoFilmstrip(
   try {
     const asset = await entry.promise
     if (signal.aborted) throw new DOMException("Aborted", "AbortError")
-    return framesForWindow(asset, window)
+    return framesForWindow(asset, window, maxFrames)
   } catch (error) {
     release()
     throw error
@@ -181,32 +191,53 @@ async function loadFilmstrip(
   const frameHeight = positiveHeader(response, "X-Filmstrip-Frame-Height")
   const columns = positiveHeader(response, "X-Filmstrip-Columns")
   const durationMs = positiveHeader(response, "X-Filmstrip-Duration-Ms")
-  const blob = await response.blob()
+  // A strip made before sheets is one picture of as many rows as it needed.
+  const sheetCount = optionalHeader(response, "X-Filmstrip-Sheets") ?? 1
+  const rowsPerSheet =
+    optionalHeader(response, "X-Filmstrip-Rows-Per-Sheet") ??
+    Math.ceil(frameCount / columns)
+  const blobs = [await response.blob()]
+  // The rest of a long strip's sheets, all at once: an hour is six pictures
+  // of a few hundred kilobytes each.
+  const rest = await Promise.all(
+    Array.from({ length: sheetCount - 1 }, async (_, offset) => {
+      const sheet = await fetch(`${endpoint}?sheet=${offset + 1}`, { signal })
+      if (!sheet.ok) throw new Error(`Filmstrip unavailable (${sheet.status})`)
+      return sheet.blob()
+    })
+  )
+  blobs.push(...rest)
   // An address made after the last clip left would never be let go.
   signal.throwIfAborted()
   return {
-    url: URL.createObjectURL(blob),
+    urls: blobs.map((blob) => URL.createObjectURL(blob)),
     frameCount,
     frameWidth,
     frameHeight,
     columns,
+    rowsPerSheet,
     durationMs,
   }
 }
 
-function framesForWindow(asset: FilmstripAsset, window: ClipWindow) {
-  const { url, frameCount, frameWidth, frameHeight, columns, durationMs } =
+function framesForWindow(
+  asset: FilmstripAsset,
+  window: ClipWindow,
+  maxFrames: number
+) {
+  const { urls, frameCount, frameWidth, frameHeight, columns, rowsPerSheet, durationMs } =
     asset
-  const rows = Math.ceil(frameCount / columns)
   const startMs = Math.min(durationMs, Math.max(0, window.startMs))
   const endMs = Math.min(
     durationMs,
     Math.max(startMs, window.startMs + window.durationMs)
   )
   const spanMs = Math.max(0, endMs - startMs)
+  // As many as the strip holds for this stretch, and no more than fit.
+  const frameSpacingMs = durationMs / frameCount
   const visibleCount = Math.min(
-    MAX_VISIBLE_FRAMES,
-    Math.max(1, Math.round(spanMs / (SECONDS_PER_FRAME * 1000)))
+    Math.max(1, Math.floor(maxFrames)),
+    Math.max(1, Math.round(spanMs / frameSpacingMs))
   )
   const indices = new Set<number>()
   for (let index = 0; index < visibleCount; index += 1) {
@@ -217,16 +248,15 @@ function framesForWindow(asset: FilmstripAsset, window: ClipWindow) {
   }
 
   return Array.from(indices, (index) => {
-    const column = index % columns
-    const row = Math.floor(index / columns)
+    const place = framePlace(index, { columns, rowsPerSheet })
     return {
       index,
-      backgroundImage: `url("${url}")`,
-      column,
+      backgroundImage: `url("${urls[Math.min(place.sheet, urls.length - 1)]}")`,
+      column: place.column,
       columns,
       frameAspect: frameWidth / frameHeight,
-      row,
-      rows,
+      row: place.row,
+      rows: rowsPerSheet,
     }
   })
 }
@@ -267,7 +297,7 @@ function trimFilmstripCache() {
     if (entry.references > 0) continue
     filmstripCache.delete(mediaId)
     entry.promise.then(
-      (asset) => URL.revokeObjectURL(asset.url),
+      (asset) => asset.urls.forEach((url) => URL.revokeObjectURL(url)),
       () => undefined
     )
   }
@@ -298,6 +328,11 @@ export function announceFilmstripRequeued(mediaId: string) {
 export function onFilmstripRequeued(mediaId: string, listener: () => void) {
   requeuedFilmstrips.addEventListener(mediaId, listener)
   return () => requeuedFilmstrips.removeEventListener(mediaId, listener)
+}
+
+/** A header a strip made before sheets does not send. */
+function optionalHeader(response: Response, name: string) {
+  return response.headers.has(name) ? positiveHeader(response, name) : null
 }
 
 function positiveHeader(response: Response, name: string) {

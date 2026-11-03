@@ -1,16 +1,25 @@
 import { spawn } from "node:child_process"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { sql } from "drizzle-orm"
 
-import { uuid } from "@/server/auth/security"
+import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
+import { publishNotificationCreated } from "@/server/notifications/events"
+import { customShellNotifications } from "@/server/schema"
+import {
+  deleteFromR2,
+  uploadFileToR2,
+  uploadToR2,
+} from "@/server/media/storage"
+import { DISK_WAIT_MS, isDiskFullError } from "@/server/video/disk-space"
+import { fileCache, type CachedFile } from "@/server/video/file-cache"
+import { BIG_FILE_BYTES } from "@/server/video/sound-source"
 import { resolveProxyConcurrency } from "@/server/video/media-worker-config"
 import { projectThumbnailTick } from "@/server/video/project-thumbnails"
-import { downloadToFile } from "@/server/video/storage-files"
 import { BEAT_SAMPLE_RATE, findBeats } from "@/lib/video/beats"
+import { filmstripPlan, filmstripSheetPath } from "@/lib/video/filmstrip-sheets"
 import {
   isVoiceCleanStrength,
   voiceCleanFilter,
@@ -37,19 +46,32 @@ import {
  */
 
 export const MEDIA_PROXY_PROFILE = "h264-720p"
+// Unchanged when strips gained sheets (drizzle/0148): the frames themselves
+// are drawn the same way, and a strip made before still reads as one sheet.
 export const MEDIA_FILMSTRIP_PROFILE = "jpeg-160h-v1"
 const MEDIA_WAVEFORM_PROFILE = "u8-peaks-25ps-v1"
 
 const MAX_ATTEMPTS = 3
 const LEASE_SECONDS = 120
 const HEARTBEAT_MS = 30_000
-const FFMPEG_TIMEOUT_MS = 30 * 60 * 1000
 const FFPROBE_TIMEOUT_MS = 60 * 1000
+
+/**
+ * The least time a smooth copy may take, which was the whole allowance until
+ * 3 Nov 2026. A longer video gets twice its own length on top of nothing
+ * (`proxyTimeoutMs`), so an hour of 4K is not cut off at thirty minutes.
+ */
+const PROXY_MIN_TIMEOUT_MS = 30 * 60 * 1000
+
+// Over BIG_FILE_BYTES (sound-source.ts), a video's frames, sound shape,
+// cleaned sound and beats are made from its smooth copy only, so a 20GB
+// original is downloaded once, for the smooth copy, and never for them. A
+// smaller file is quick enough to read either way and keeps today's order.
+
+/** How often the kept copies of deleted files are swept out. */
+const CACHE_SWEEP_MS = 10 * 60 * 1000
 const FILMSTRIP_FFMPEG_TIMEOUT_MS = 15 * 60 * 1000
 
-const FILMSTRIP_MAX_FRAMES = 120
-const FILMSTRIP_SECONDS_PER_FRAME = 2
-const FILMSTRIP_MAX_COLUMNS = 10
 
 // Low enough to keep a long file's decoded sound to a few megabytes a minute,
 // still far more samples than the 25 points a second the timeline draws.
@@ -93,6 +115,9 @@ type WorkerState = {
   active: number
   pumping: boolean
   nextKind: JobKind
+  /** Nothing new is claimed before this, after a job found the disk too full. */
+  diskWaitUntil: number
+  lastCacheSweep: number
 }
 
 declare global {
@@ -110,6 +135,8 @@ function workerState(): WorkerState {
       active: 0,
       pumping: false,
       nextKind: "proxy",
+      diskWaitUntil: 0,
+      lastCacheSweep: 0,
     }
   }
   return globalThis.__videoMediaWorkerState
@@ -126,9 +153,34 @@ export async function videoMediaTick() {
     })
   }
   pumpQueue()
+  await sweepFileCache().catch((error) => {
+    console.error("Video file cache sweep failed", error)
+  })
   // The projects list's pictures ride this tick too. Each of its steps
   // catches its own failure.
   await projectThumbnailTick()
+}
+
+/**
+ * Deletes the kept copies of files that are no longer in the library, and of
+ * smooth copies that were replaced, every ten minutes. The library's delete
+ * is the shell's, so the sweep is how a deleted file leaves this server's
+ * disk without the shell knowing the folder exists.
+ */
+async function sweepFileCache() {
+  const state = workerState()
+  if (Date.now() - state.lastCacheSweep < CACHE_SWEEP_MS) return
+  state.lastCacheSweep = Date.now()
+  // Every library file: exports and saved frames keep pictures and sound
+  // files here too, not only videos.
+  const live = await db.execute(sql`
+    select storage_path from media
+    union all
+    select storage_path from video_media_proxies where storage_path is not null
+  `)
+  await fileCache().sweep(
+    (live.rows as { storage_path: string }[]).map((row) => row.storage_path)
+  )
 }
 
 /** Lets a route nudge the queue without waiting for the next tick. */
@@ -217,6 +269,7 @@ async function reclaimStaleJobs(kind: JobKind) {
 function pumpQueue() {
   const state = workerState()
   if (state.pumping) return
+  if (Date.now() < state.diskWaitUntil) return
   state.pumping = true
   void (async () => {
     try {
@@ -251,8 +304,24 @@ type ClaimedJob = {
   mediaId: string
   userId: string
   storagePath: string
+  fileSize: number
+  fileType: string
+  originalName: string
   attempts: number
   leaseToken: string
+}
+
+/**
+ * Jobs that read a video's smooth copy wait for it when the original is big,
+ * so they never download a 20GB file of their own. A smooth copy that failed
+ * lets them go on, and they then say so themselves (`smoothCopySource`).
+ */
+const WAITS_FOR_SMOOTH_COPY: Record<JobKind, boolean> = {
+  proxy: false,
+  filmstrip: true,
+  waveform: true,
+  clean: true,
+  beats: true,
 }
 
 /**
@@ -276,6 +345,14 @@ async function claimFromTable(kind: JobKind): Promise<ClaimedJob | null> {
   const table = JOB_TABLES[kind]
   const key = sql.raw(JOB_KEYS[kind])
   const leaseToken = uuid()
+  // Inside the pick, not after it: a big file still waiting for its smooth
+  // copy must be passed over, not hold up every file queued behind it.
+  const ready = WAITS_FOR_SMOOTH_COPY[kind]
+    ? sql`and (qm.file_type <> 'video' or qm.file_size <= ${BIG_FILE_BYTES} or exists (
+        select 1 from video_media_proxies qp
+        where qp.media_id = q.media_id and qp.status in ('ready', 'error')
+      ))`
+    : sql``
   const result = await db.execute(sql`
     update ${sql.raw(table)} t set
       status = 'generating',
@@ -287,13 +364,15 @@ async function claimFromTable(kind: JobKind): Promise<ClaimedJob | null> {
     from media m
     where m.id = t.media_id
       and t.${key} = (
-        select ${key} from ${sql.raw(table)}
-        where status = 'queued'
-        order by created_at, ${key}
+        select q.${key} from ${sql.raw(table)} q
+        join media qm on qm.id = q.media_id
+        where q.status = 'queued' ${ready}
+        order by q.created_at, q.${key}
         limit 1
-        for update skip locked
+        for update of q skip locked
       )
-    returning t.${key} as job_key, t.media_id, t.attempts, m.user_id, m.storage_path
+    returning t.${key} as job_key, t.media_id, t.attempts, m.user_id, m.storage_path,
+      m.file_size, m.file_type, m.original_name
   `)
   const row = result.rows[0] as
     | {
@@ -302,6 +381,9 @@ async function claimFromTable(kind: JobKind): Promise<ClaimedJob | null> {
         attempts: number
         user_id: string
         storage_path: string
+        file_size: string | number
+        file_type: string
+        original_name: string
       }
     | undefined
   if (!row) return null
@@ -311,6 +393,9 @@ async function claimFromTable(kind: JobKind): Promise<ClaimedJob | null> {
     mediaId: row.media_id,
     userId: row.user_id,
     storagePath: row.storage_path,
+    fileSize: Number(row.file_size),
+    fileType: row.file_type,
+    originalName: row.original_name,
     attempts: row.attempts,
     leaseToken,
   }
@@ -351,32 +436,32 @@ async function runJob(job: ClaimedJob) {
       await buildWaveform(job, workDir)
     }
   } catch (error) {
-    await recordFailure(table, job, error)
+    if (isDiskFullError(error)) {
+      await waitForDisk(table, job, error.message)
+    } else {
+      await recordFailure(table, job, error)
+    }
   } finally {
     clearInterval(heartbeat)
     await rm(workDir, { recursive: true, force: true }).catch(() => undefined)
   }
 }
 
-async function recordFailure(table: string, job: ClaimedJob, error: unknown) {
-  const known =
-    error instanceof Error &&
-    (error.message === "ffmpeg is not installed" ||
-      error.message === "ffprobe is not installed" ||
-      error.message === NO_SOUND_TO_CLEAN_MESSAGE)
-  const message = known
-    ? (error as Error).message
-    : `${JOB_LABELS[job.kind]} generation failed`
-  // A file with no sound will have none on the next try either.
-  const retry =
-    job.attempts < MAX_ATTEMPTS &&
-    !(error instanceof Error && error.message === NO_SOUND_TO_CLEAN_MESSAGE)
+/**
+ * Puts a job that found the disk too full back in its queue, without using up
+ * one of its tries, and stops the queue claiming anything for a minute. The
+ * reason stays on the row while it waits, so the Media panel can say it.
+ */
+async function waitForDisk(table: string, job: ClaimedJob, message: string) {
+  console.warn(`${JOB_LABELS[job.kind]} for ${job.mediaId}: ${message}`)
+  workerState().diskWaitUntil = Date.now() + DISK_WAIT_MS
   await db
     .execute(
       sql`
         update ${sql.raw(table)} set
-          status = ${retry ? "queued" : "error"},
-          error = ${retry ? null : message},
+          status = 'queued',
+          attempts = greatest(attempts - 1, 0),
+          error = ${message},
           lease_token = null,
           lease_expires_at = null,
           updated_at = now()
@@ -388,131 +473,247 @@ async function recordFailure(table: string, job: ClaimedJob, error: unknown) {
     .catch(() => undefined)
 }
 
-async function buildProxy(job: ClaimedJob, workDir: string) {
-  const inputPath = join(workDir, "input")
-  await downloadToFile(job.storagePath, inputPath)
-
-  const outputPath = join(workDir, "proxy.mp4")
-  // 720p cap that never upscales, a keyframe every second so the editor can
-  // scrub, and subtitles/data streams stripped.
-  await runCommand(
-    "ffmpeg",
-    [
-      "-y",
-      "-i",
-      inputPath,
-      "-map",
-      "0:v:0",
-      "-map",
-      "0:a?",
-      "-vf",
-      "scale=-2:trunc(min(720\\,ih)/2)*2",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-crf",
-      "26",
-      "-pix_fmt",
-      "yuv420p",
-      "-g",
-      "30",
-      "-keyint_min",
-      "1",
-      "-sc_threshold",
-      "0",
-      "-force_key_frames",
-      "expr:gte(t,n_forced*1)",
-      "-c:a",
-      "aac",
-      "-b:a",
-      "128k",
-      "-movflags",
-      "+faststart",
-      "-sn",
-      "-dn",
-      outputPath,
-    ],
-    FFMPEG_TIMEOUT_MS
-  )
-
-  // The `video/` prefix keeps these keys outside the shell's orphan scanner,
-  // which only considers `{userId}/...` upload keys as its own.
-  const storagePath = `video/proxies/${job.userId}/${job.mediaId}/${job.leaseToken}.mp4`
-  const bytes = await readFile(outputPath)
-  await uploadToR2(storagePath, bytes, "video/mp4")
-
-  const finished = await db.execute(sql`
-    update video_media_proxies set
-      status = 'ready',
-      storage_path = ${storagePath},
-      file_size = ${bytes.byteLength},
-      error = null,
-      lease_token = null,
-      lease_expires_at = null,
-      generated_at = now(),
-      updated_at = now()
-    where media_id = ${job.mediaId}
-      and lease_token = ${job.leaseToken}
-      and status = 'generating'
-    returning media_id
-  `)
-  if (!finished.rows.length) {
-    // Somebody reclaimed the lease while ffmpeg ran; the row is theirs now,
-    // so the file just uploaded belongs to nobody.
-    await deleteFromR2(storagePath).catch(() => undefined)
+async function recordFailure(table: string, job: ClaimedJob, error: unknown) {
+  const known =
+    error instanceof Error &&
+    (error.message === "ffmpeg is not installed" ||
+      error.message === "ffprobe is not installed" ||
+      error.message === NO_SOUND_TO_CLEAN_MESSAGE ||
+    error.message === NO_SMOOTH_COPY_MESSAGE)
+  const message = known
+    ? (error as Error).message
+    : `${JOB_LABELS[job.kind]} generation failed`
+  // A file with no sound will have none on the next try either.
+  const retry =
+    job.attempts < MAX_ATTEMPTS &&
+    !(error instanceof Error && error.message === NO_SOUND_TO_CLEAN_MESSAGE)
+  const ended = await db
+    .execute(
+      sql`
+        update ${sql.raw(table)} set
+          status = ${retry ? "queued" : "error"},
+          error = ${retry ? null : message},
+          lease_token = null,
+          lease_expires_at = null,
+          updated_at = now()
+        where ${sql.raw(JOB_KEYS[job.kind])} = ${job.key}
+          and lease_token = ${job.leaseToken}
+          and status = 'generating'
+        returning status
+      `
+    )
+    .catch(() => null)
+  if (job.kind === "proxy" && !retry && ended?.rows.length) {
+    await noticeSmoothCopy(job, "failed")
   }
+}
+
+/**
+ * Tells the owner, wherever they are in the app, that a video can be edited
+ * now, or that it could not be got ready. Sent once the smooth copy is made,
+ * or once its last try fails.
+ */
+async function noticeSmoothCopy(job: ClaimedJob, outcome: "ready" | "failed") {
+  try {
+    await db.insert(customShellNotifications).values({
+      id: uuid(),
+      recipientUserId: job.userId,
+      type: "app_activity",
+      message:
+        outcome === "ready"
+          ? `${job.originalName} is ready to edit`
+          : `${job.originalName} could not be got ready to edit`,
+      detail:
+        outcome === "ready"
+          ? "Its smooth copy is made, so it scrubs without waiting in the editor."
+          : "Its smooth copy failed three times. Try again from the file in the editor's Media panel.",
+      createdAt: now(),
+    })
+    await publishNotificationCreated(job.userId)
+  } catch (error) {
+    // A notice is a nicety; the copy itself is made either way.
+    console.error("Smooth copy notice failed", job.mediaId, error)
+  }
+}
+
+/**
+ * The time a smooth copy may take: twice the video's own length, and never
+ * less than thirty minutes.
+ */
+export function proxyTimeoutMs(durationSeconds: number) {
+  return Math.max(PROXY_MIN_TIMEOUT_MS, Math.round(durationSeconds * 2 * 1000))
+}
+
+async function buildProxy(job: ClaimedJob, workDir: string) {
+  // The original stays on this server's disk afterwards, so the frames, an
+  // export or a still frame that needs it later reads it from there.
+  const source = await fileCache().open(job.storagePath, job.fileSize)
+  try {
+    const durationSeconds = await probeDurationSeconds(source.path).catch(() => 0)
+    const outputPath = join(workDir, "proxy.mp4")
+    // 720p cap that never upscales, a keyframe every second so the editor can
+    // scrub, and subtitles/data streams stripped.
+    await runCommand(
+      "ffmpeg",
+      [
+        "-y",
+        "-i",
+        source.path,
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+        "-vf",
+        "scale=-2:trunc(min(720\\,ih)/2)*2",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "26",
+        "-pix_fmt",
+        "yuv420p",
+        "-g",
+        "30",
+        "-keyint_min",
+        "1",
+        "-sc_threshold",
+        "0",
+        "-force_key_frames",
+        "expr:gte(t,n_forced*1)",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-movflags",
+        "+faststart",
+        "-sn",
+        "-dn",
+        outputPath,
+      ],
+      proxyTimeoutMs(durationSeconds)
+    )
+
+    // The `video/` prefix keeps these keys outside the shell's orphan scanner,
+    // which only considers `{userId}/...` upload keys as its own.
+    const storagePath = `video/proxies/${job.userId}/${job.mediaId}/${job.leaseToken}.mp4`
+    // From disk in pieces: the copy of a long 4K video can pass 2GB.
+    const fileSize = (await stat(outputPath)).size
+    await uploadFileToR2(storagePath, outputPath, "video/mp4")
+
+    const finished = await db.execute(sql`
+      update video_media_proxies set
+        status = 'ready',
+        storage_path = ${storagePath},
+        file_size = ${fileSize},
+        error = null,
+        lease_token = null,
+        lease_expires_at = null,
+        generated_at = now(),
+        updated_at = now()
+      where media_id = ${job.mediaId}
+        and lease_token = ${job.leaseToken}
+        and status = 'generating'
+      returning media_id
+    `)
+    if (!finished.rows.length) {
+      // Somebody reclaimed the lease while ffmpeg ran; the row is theirs now,
+      // so the file just uploaded belongs to nobody.
+      await deleteFromR2(storagePath).catch(() => undefined)
+      return
+    }
+    // The frames and sound jobs read this copy next.
+    await fileCache().adopt(storagePath, outputPath, fileSize)
+    await noticeSmoothCopy(job, "ready")
+  } finally {
+    await source.release()
+  }
+}
+
+/** Why a job that waited for a big video's smooth copy cannot go on. */
+export const NO_SMOOTH_COPY_MESSAGE =
+  "This video is too big to read without its smooth copy, and the smooth copy could not be made. Try again from the Media panel."
+
+/**
+ * The file a video's frames and sound jobs read, on this server's disk: the
+ * smooth copy once it is ready, otherwise the upload itself. A big video's
+ * jobs only start once its smooth copy is ready or has failed
+ * (`WAITS_FOR_SMOOTH_COPY`); after a failure they stop here rather than
+ * download the 20GB original. A sound file has no smooth copy and is read
+ * as it is.
+ */
+async function smoothCopySource(job: ClaimedJob): Promise<CachedFile> {
+  const proxy = await db.execute(sql`
+    select storage_path, file_size from video_media_proxies
+    where media_id = ${job.mediaId} and status = 'ready' and storage_path is not null
+  `)
+  const row = proxy.rows[0] as
+    | { storage_path: string; file_size: string | number | null }
+    | undefined
+  if (row) return fileCache().open(row.storage_path, Number(row.file_size ?? 0))
+  if (job.fileType === "video" && job.fileSize > BIG_FILE_BYTES) {
+    throw new Error(NO_SMOOTH_COPY_MESSAGE)
+  }
+  return fileCache().open(job.storagePath, job.fileSize)
 }
 
 async function buildFilmstrip(job: ClaimedJob, workDir: string) {
   // Prefer the 720p proxy as input — far faster to decode, and its frames are
   // already rotated the way ffmpeg will rotate them here.
-  const proxy = await db.execute(sql`
-    select storage_path from video_media_proxies
-    where media_id = ${job.mediaId} and status = 'ready' and storage_path is not null
-  `)
-  const sourcePath =
-    (proxy.rows[0] as { storage_path?: string } | undefined)?.storage_path ??
-    job.storagePath
+  const source = await smoothCopySource(job)
+  try {
+    await drawFilmstrip(job, workDir, source.path)
+  } finally {
+    await source.release()
+  }
+}
 
-  const inputPath = join(workDir, "input")
-  await downloadToFile(sourcePath, inputPath)
-
+async function drawFilmstrip(job: ClaimedJob, workDir: string, inputPath: string) {
   const durationSeconds = await probeDurationSeconds(inputPath)
-  const frameCount = Math.min(
-    FILMSTRIP_MAX_FRAMES,
-    Math.max(1, Math.round(durationSeconds / FILMSTRIP_SECONDS_PER_FRAME))
-  )
-  const columns = Math.min(FILMSTRIP_MAX_COLUMNS, frameCount)
-  const rows = Math.ceil(frameCount / columns)
+  // A frame every two seconds up to four minutes, then one every five,
+  // spread over sheets of up to 120 (filmstrip-sheets.ts).
+  const plan = filmstripPlan(durationSeconds)
+  const { frameCount, columns, rowsPerSheet } = plan
 
-  const outputPath = join(workDir, "filmstrip.jpg")
-  const filter = `fps=${frameCount}/${durationSeconds},scale=320:160:force_original_aspect_ratio=decrease:force_divisible_by=2,tile=${columns}x${rows}:nb_frames=${frameCount}:padding=0:margin=0`
+  const filter = `fps=${frameCount}/${durationSeconds},scale=320:160:force_original_aspect_ratio=decrease:force_divisible_by=2,tile=${columns}x${rowsPerSheet}:padding=0:margin=0`
   await runCommand(
     "ffmpeg",
-    ["-y", "-i", inputPath, "-map", "0:v:0", "-vf", filter, "-frames:v", "1", "-c:v", "mjpeg", "-q:v", "6", outputPath],
-    FILMSTRIP_FFMPEG_TIMEOUT_MS
+    ["-y", "-i", inputPath, "-map", "0:v:0", "-vf", filter, "-c:v", "mjpeg", "-q:v", "6", "-start_number", "0", join(workDir, "sheet-%d.jpg")],
+    filmstripTimeoutMs(durationSeconds)
   )
+  // The frame rate can round to one frame more than planned, which would
+  // start a sheet of one frame nobody looks at; those are left behind.
+  const made = (await readdir(workDir)).filter((name) => /^sheet-\d+\.jpg$/.test(name)).length
+  const sheetCount = Math.min(plan.sheetCount, made)
+  if (!sheetCount) throw new Error("ffmpeg made no frames")
 
   // Measure the sprite rather than trusting a probe of the source: the sprite
   // is what ffmpeg actually produced, rotation and all. Guessing from the
-  // source squished rotated phone clips in the app this ports from.
-  const sprite = await probeDimensions(outputPath)
+  // source squished rotated phone clips in the app this ports from. Every
+  // sheet is the same full grid, the last padded out.
+  const sprite = await probeDimensions(join(workDir, "sheet-0.jpg"))
   const frameWidth = Math.max(2, Math.round(sprite.width / columns))
-  const frameHeight = Math.max(2, Math.round(sprite.height / rows))
+  const frameHeight = Math.max(2, Math.round(sprite.height / rowsPerSheet))
   const durationMs = Math.max(1, Math.round(durationSeconds * 1000))
 
   const storagePath = `video/filmstrips/${job.userId}/${job.mediaId}/${job.leaseToken}.jpg`
-  await uploadToR2(storagePath, await readFile(outputPath), "image/jpeg")
+  const stored: string[] = []
+  for (let sheet = 0; sheet < sheetCount; sheet += 1) {
+    const sheetPath = filmstripSheetPath(storagePath, sheet)
+    stored.push(sheetPath)
+    await uploadToR2(sheetPath, await readFile(join(workDir, `sheet-${sheet}.jpg`)), "image/jpeg")
+  }
 
   const finished = await db.execute(sql`
     update video_media_filmstrips set
       status = 'ready',
       storage_path = ${storagePath},
-      frame_count = ${frameCount},
+      frame_count = ${Math.min(frameCount, sheetCount * columns * rowsPerSheet)},
       frame_width = ${frameWidth},
       frame_height = ${frameHeight},
       columns = ${columns},
+      rows_per_sheet = ${rowsPerSheet},
+      sheet_count = ${sheetCount},
       duration_ms = ${durationMs},
       error = null,
       lease_token = null,
@@ -525,24 +726,31 @@ async function buildFilmstrip(job: ClaimedJob, workDir: string) {
     returning media_id
   `)
   if (!finished.rows.length) {
-    await deleteFromR2(storagePath).catch(() => undefined)
+    for (const sheetPath of stored) await deleteFromR2(sheetPath).catch(() => undefined)
   }
+}
+
+/**
+ * The time frames may take: fifteen minutes, or a quarter of the video's
+ * length when that is longer. Reading an hour of smooth copy for 720 frames
+ * takes a few minutes; the allowance is there for a busy server.
+ */
+function filmstripTimeoutMs(durationSeconds: number) {
+  return Math.max(FILMSTRIP_FFMPEG_TIMEOUT_MS, Math.round(durationSeconds * 250))
 }
 
 async function buildWaveform(job: ClaimedJob, workDir: string) {
   // A video's proxy carries the same sound in a far smaller file. A sound file
   // has no proxy, so this falls through to the upload itself.
-  const proxy = await db.execute(sql`
-    select storage_path from video_media_proxies
-    where media_id = ${job.mediaId} and status = 'ready' and storage_path is not null
-  `)
-  const sourcePath =
-    (proxy.rows[0] as { storage_path?: string } | undefined)?.storage_path ??
-    job.storagePath
+  const source = await smoothCopySource(job)
+  try {
+    await drawWaveform(job, workDir, source.path)
+  } finally {
+    await source.release()
+  }
+}
 
-  const inputPath = join(workDir, "input")
-  await downloadToFile(sourcePath, inputPath)
-
+async function drawWaveform(job: ClaimedJob, workDir: string, inputPath: string) {
   let peaks = new Uint8Array(0)
   let durationMs: number | null = null
   if (await hasSoundTrack(inputPath)) {
@@ -583,21 +791,6 @@ async function buildWaveform(job: ClaimedJob, workDir: string) {
 export const NO_SOUND_TO_CLEAN_MESSAGE = "This file has no sound to clean"
 
 /**
- * The smooth copy carries the same sound in a far smaller file, so a video's
- * sound jobs read it once it is ready. A sound file has no proxy.
- */
-async function soundSourcePath(job: ClaimedJob) {
-  const proxy = await db.execute(sql`
-    select storage_path from video_media_proxies
-    where media_id = ${job.mediaId} and status = 'ready' and storage_path is not null
-  `)
-  return (
-    (proxy.rows[0] as { storage_path?: string } | undefined)?.storage_path ??
-    job.storagePath
-  )
-}
-
-/**
  * One file's whole sound, cleaned at the row's strength (voice-clean.ts), as
  * an M4A the preview plays in place of the file's own sound. The whole file,
  * not one clip, so every clip of it can share the copy however it is trimmed.
@@ -607,8 +800,20 @@ async function buildCleanSound(job: ClaimedJob, workDir: string) {
   if (!isVoiceCleanStrength(strength)) {
     throw new Error(`Unknown clean-up strength in ${job.key}`)
   }
-  const inputPath = join(workDir, "input")
-  await downloadToFile(await soundSourcePath(job), inputPath)
+  const source = await smoothCopySource(job)
+  try {
+    await cleanSound(job, workDir, source.path, strength)
+  } finally {
+    await source.release()
+  }
+}
+
+async function cleanSound(
+  job: ClaimedJob,
+  workDir: string,
+  inputPath: string,
+  strength: Parameters<typeof voiceCleanFilter>[0]
+) {
   if (!(await hasSoundTrack(inputPath))) {
     throw new Error(NO_SOUND_TO_CLEAN_MESSAGE)
   }
@@ -644,9 +849,15 @@ async function buildCleanSound(job: ClaimedJob, workDir: string) {
 
 /** Where the beats fall in one music file (beats.ts). */
 async function buildBeats(job: ClaimedJob, workDir: string) {
-  const inputPath = join(workDir, "input")
-  await downloadToFile(await soundSourcePath(job), inputPath)
+  const source = await smoothCopySource(job)
+  try {
+    await findFileBeats(job, workDir, source.path)
+  } finally {
+    await source.release()
+  }
+}
 
+async function findFileBeats(job: ClaimedJob, workDir: string, inputPath: string) {
   let found: ReturnType<typeof findBeats> = { beats: [], tempo: null }
   if (await hasSoundTrack(inputPath)) {
     const outputPath = join(workDir, "sound.raw")

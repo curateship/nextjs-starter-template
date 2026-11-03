@@ -13,7 +13,6 @@ import {
   QUEUE_FULL_MESSAGE,
   RENDER_NOT_FOUND_MESSAGE,
   shapeBusyMessage,
-  TIMELINE_TOO_LONG_MESSAGE,
   type RenderFrameRate,
 } from "@/lib/video/render"
 import {
@@ -45,6 +44,12 @@ import {
 } from "@/server/video/exports"
 import { listLiveSharedExportIds } from "@/server/video/export-shares"
 import {
+  STRETCH_INVALID_MESSAGE,
+  STRETCH_ORDER_MESSAGE,
+  STRETCH_PAST_END_MESSAGE,
+  STRETCH_TOO_SHORT_MESSAGE,
+} from "@/lib/video/export-stretch"
+import {
   cancelRenderJob,
   cancelRenderJobs,
   enqueueRenderJobs,
@@ -71,12 +76,15 @@ const KNOWN_MESSAGES = new Set([
   PROJECT_NOT_FOUND_MESSAGE,
   RENDER_NOT_FOUND_MESSAGE,
   NOTHING_TO_EXPORT_MESSAGE,
-  TIMELINE_TOO_LONG_MESSAGE,
   NO_ACTIVE_EXPORT_MESSAGE,
   QUEUE_FULL_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
   NO_SHAPE_MESSAGE,
   ONLY_FAILED_RETRY_MESSAGE,
+  STRETCH_INVALID_MESSAGE,
+  STRETCH_ORDER_MESSAGE,
+  STRETCH_PAST_END_MESSAGE,
+  STRETCH_TOO_SHORT_MESSAGE,
   ...ASPECT_RATIOS.map(shapeBusyMessage),
 ])
 
@@ -105,6 +113,14 @@ const startSchema = videoIdSchema.extend({
   normalizeLoudness: z.boolean().optional(),
   // Absent, or nothing but spaces, means the video's own name.
   title: z.string().max(EXPORT_TITLE_MAX).optional(),
+  // Absent means the whole project. Checked against the project's length
+  // by the queue, which says plainly what is wrong.
+  range: z
+    .object({
+      startMs: z.number().int().nonnegative(),
+      endMs: z.number().int().positive(),
+    })
+    .optional(),
 })
 
 // A guest sent from Project may export any video in their project, watch it, stop,
@@ -123,6 +139,7 @@ const startExportFn = createServerFn({ method: "POST" })
       frameRate: data.frameRate,
       normalizeLoudness: data.normalizeLoudness,
       title: data.title,
+      range: data.range,
     })
   })
 
@@ -297,10 +314,11 @@ export function startExport(
   quality: "high" | "medium" | "low",
   frameRate: RenderFrameRate,
   normalizeLoudness?: boolean,
-  title?: string
+  title?: string,
+  range?: { startMs: number; endMs: number }
 ) {
   return startExportFn({
-    data: { videoId, aspects, quality, frameRate, normalizeLoudness, title },
+    data: { videoId, aspects, quality, frameRate, normalizeLoudness, title, range },
   })
 }
 

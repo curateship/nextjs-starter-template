@@ -4,6 +4,10 @@ import {
   loadMediaDurationMs,
   MEDIA_DURATION_TIMEOUT_MS,
   MediaDurationError,
+  MIN_PX_PER_SECOND,
+  msToPx,
+  rulerLabel,
+  rulerLabelStep,
 } from "./timeline-utils"
 
 /**
@@ -74,5 +78,31 @@ describe("reading how long a dropped file runs", () => {
     )
     // The timer is gone, so nothing fires later.
     expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe("a whole hour on the timeline", () => {
+  it("fits an hour, and even sixteen, in 1,200 pixels fully zoomed out", () => {
+    expect(msToPx(60 * 60_000, MIN_PX_PER_SECOND)).toBe(72)
+    expect(msToPx(16 * 60 * 60_000, MIN_PX_PER_SECOND)).toBeLessThanOrEqual(1200)
+  })
+
+  it("spaces the ruler's labels at least 54 pixels apart at every zoom", () => {
+    for (const pps of [MIN_PX_PER_SECOND, 0.33, 1, 5, 18, 30, 60, 90]) {
+      const step = rulerLabelStep(pps)
+      expect(step * pps).toBeGreaterThanOrEqual(54)
+    }
+    // Where the ruler was already readable it keeps the labels it had.
+    expect(rulerLabelStep(60)).toBe(1)
+    expect(rulerLabelStep(40)).toBe(2)
+    expect(rulerLabelStep(18)).toBe(3)
+    // An hour on 1,200 pixels is labelled every five minutes.
+    expect(rulerLabelStep(1200 / 3600)).toBe(300)
+  })
+
+  it("writes long times as a clock", () => {
+    expect(rulerLabel(45)).toBe("45s")
+    expect(rulerLabel(600)).toBe("10:00")
+    expect(rulerLabel(3900)).toBe("1:05:00")
   })
 })

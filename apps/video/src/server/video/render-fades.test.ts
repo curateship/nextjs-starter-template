@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { copyFile, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { copyFile, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
  * A real export of faded clips, measured in the finished file.
  *
  * Only the two things outside this machine are stood in for: the media
- * lookup in the database and the download from storage. Everything else is
+ * lookup in the database and where each file is read from. Everything else is
  * the export's own graph, run by the ffmpeg installed here, so the fades are
  * measured where people hear and see them rather than read off a filter
  * string.
@@ -32,11 +32,18 @@ vi.mock("@/server/db", () => ({
   },
 }))
 
-vi.mock("@/server/video/storage-files", () => ({
-  downloadToFile: async (storagePath: string, file: string) => {
-    await copyFile(sources.files.get(storagePath)!, file)
-  },
-}))
+// Where ffmpeg reads each file from: the file on this machine, in place of
+// its storage address.
+vi.mock("@/server/video/render-sources", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/video/render-sources")>()
+  return {
+    ...real,
+    openRenderSource: async (media: { storagePath: string }) => ({
+      input: sources.files.get(media.storagePath)!,
+      release: async () => undefined,
+    }),
+  }
+})
 
 const { renderTimeline } = await import("@/server/video/render")
 
@@ -211,7 +218,8 @@ describe.skipIf(!hasFfmpeg)("an export with fades", () => {
       },
     })
     out = path.join(dir, "out.mp4")
-    await writeFile(out, result.bytes)
+    await copyFile(result.filePath, out)
+    await result.dispose()
   }, 60_000)
 
   afterAll(async () => {
@@ -332,7 +340,8 @@ describe.skipIf(!hasFfmpeg)("a picture fade beside a crossfade", () => {
       },
     })
     out = path.join(dir, "out.mp4")
-    await writeFile(out, result.bytes)
+    await copyFile(result.filePath, out)
+    await result.dispose()
   }, 60_000)
 
   afterAll(async () => {

@@ -13,9 +13,13 @@ Every video in the library gets two things made for it in the background, by
   plays and scrubs this copy instead of the original, because a phone video
   can have a keyframe only every few seconds, and jumping around in it sticks.
   It lives in `video_media_proxies`.
-- **The frames:** one picture every 2 seconds, at most 120, tiled into one
-  image. The timeline draws these along a video clip. They live in
-  `video_media_filmstrips`.
+- **The frames:** one picture every 2 seconds up to four minutes, then one
+  every 5 seconds however long the video is, tiled into pictures of up to
+  120 frames each. The timeline draws these along a video clip. They live in
+  `video_media_filmstrips`. [big-files.md](big-files.md) has the layout.
+- **On a video over 1GB the frames, sound shape, cleaned sound and beats wait
+  for the smooth copy** and are made from it, so the original is downloaded
+  once, for the smooth copy, and never again for them.
 
 Pictures and sound files get neither, so they are never marked.
 
@@ -26,9 +30,16 @@ Pictures and sound files get neither, so they are never marked.
   editor treats that as "getting ready".
 - **Measured locally:** a 40-second 1080p video was ready about 14 seconds
   after its upload finished. Both markers were gone by then, with no reload.
-- **Longer files take longer.** The worker allows up to 30 minutes for a
-  smooth copy and 15 minutes for the frames before it counts a try as failed.
-  Nothing has been timed on the Hetzner server yet.
+- **Longer files take longer.** A smooth copy may take twice the video's own
+  length, and never less than 30 minutes, before a try counts as failed. The
+  frames get 15 minutes, or a quarter of the video's length when that is
+  longer. Nothing has been timed on the Hetzner server yet.
+- **A notice says when it is ready.** The bell gets "beach.mov is ready to
+  edit" once the smooth copy is made, or "could not be got ready to edit"
+  after its last try, wherever in the app you are.
+- **A full disk makes it wait, not fail.** The Media panel then reads
+  "Waiting for room on the server's disk" instead of "Getting it ready to
+  scrub" ([big-files.md](big-files.md)).
 
 ## What the markers mean
 

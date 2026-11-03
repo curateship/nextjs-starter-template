@@ -24,8 +24,9 @@ beside Delete. One press puts the same export back in the queue.
   9:16 export of this project is already being made. Wait for it to finish, or
   stop it first." A different shape of the same project does not block it. The
   rule is explained in [export-shapes.md](export-shapes.md).
-- **Not when the project cannot be exported.** An empty project, or one longer
-  than thirty minutes, is refused with the same message Export would give.
+- **Not when the project cannot be exported.** An empty project is refused
+  with the same message Export would give. A project of any length can be
+  exported ([long-exports.md](long-exports.md)).
 - **Not past the person's own limit** of twenty exports waiting or rendering.
 
 ## What a retry resets

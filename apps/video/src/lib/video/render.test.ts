@@ -3,18 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   estimateExportSeconds,
   exportEstimateSentence,
-  MAX_TIMELINE_MS,
-  TIMELINE_TOO_LONG_MESSAGE,
 } from "@/lib/video/render"
 
 const THIRTY_MINUTES = 30 * 60_000
-
-describe("the longest project an export takes", () => {
-  it("is thirty minutes, and the refusal says so", () => {
-    expect(MAX_TIMELINE_MS).toBe(THIRTY_MINUTES)
-    expect(TIMELINE_TOO_LONG_MESSAGE).toContain("30 minutes")
-  })
-})
 
 describe("how long an export is expected to take", () => {
   const base = {

@@ -77,9 +77,10 @@ import {
   type AdminMediaTypeFilter,
   type MediaOrphan,
   type MediaOwner,
+  type MediaStorageUsed,
   type OrphanDashboard,
 } from "@/lib/api/media/admin-media"
-import { getMediaErrorMessage, updateMedia, uploadMedia } from "@/lib/api/media/media"
+import { getMediaErrorMessage, updateMedia } from "@/lib/api/media/media"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { formatDate } from "@/lib/format/format-time"
 import {
@@ -89,6 +90,8 @@ import {
 } from "@/lib/media/media-orphans"
 import { getMediaUploadError, mediaAccept } from "@/lib/media/media-upload"
 import { isUploadCancelled } from "@/lib/media/upload-in-parts"
+import { queueUpload } from "@/lib/media/upload-queue"
+import { StorageUsedNote } from "@/components/media/storage-used"
 import { useLastValue } from "@/lib/hooks/use-last-value"
 import {
   MEDIA_VIEW_STORAGE_KEY,
@@ -132,6 +135,8 @@ const CLEAN_BATCH_SIZE = 500
 export type AdminMediaPageData = {
   media: AdminMediaListResponse
   owners: MediaOwner[]
+  /** What the files take up in the bucket, for the owner picked. */
+  storage: MediaStorageUsed
   /** The configured rows-per-page the loader's first page was fetched at. */
   pageSize: number
 }
@@ -165,18 +170,14 @@ const mediaSortDirection = (column: AdminMediaSort) =>
 const orphanSortDirection = (column: OrphanSort) =>
   column === "size" || column === "created" ? "desc" : "asc"
 
-type UploadState = {
-  done: number
-  total: number
-  /** The file going up now and how far it has got, once it reports any. */
-  current: { name: string; percent: number } | null
-}
+type UploadState = { done: number; total: number }
 
-function uploadStatusText({ done, total, current }: UploadState) {
-  if (!current) return `${done} of ${total} uploaded…`
-  return total === 1
-    ? `Uploading ${current.name}, ${current.percent}%`
-    : `${done} of ${total} uploaded, ${current.name} at ${current.percent}%`
+/**
+ * The batch's count. The file going up now, with its percent, time left and
+ * Pause, is on the upload line in the corner of every page.
+ */
+function uploadStatusText({ done, total }: UploadState) {
+  return `${done} of ${total} uploaded`
 }
 
 /**
@@ -277,18 +278,6 @@ export function MediaLibraryPage({
   } = useTableSort<AdminMediaSort>("created", "desc", mediaSortDirection)
   const [upload, setUpload] = React.useState<UploadState | null>(null)
   const uploadStopRef = React.useRef<AbortController | null>(null)
-  const uploading = Boolean(upload)
-
-  // Leaving the page cancels an upload rather than letting it run on unseen,
-  // and closing the tab asks first, because a big video takes minutes to send
-  // and starts again from nothing.
-  React.useEffect(() => () => uploadStopRef.current?.abort(), [])
-  React.useEffect(() => {
-    if (!uploading) return
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault()
-    window.addEventListener("beforeunload", warn)
-    return () => window.removeEventListener("beforeunload", warn)
-  }, [uploading])
   const selection = useSelection()
   const selectedIds = selection.selected
   const [loadedMedia, setLoadedMedia] = React.useState<{
@@ -519,6 +508,8 @@ export function MediaLibraryPage({
    * saved and keeps going with the ones after it. Cancel stops the video going
    * up now, which leaves nothing of it behind, and skips the rest; an image
    * already on its way finishes first, because it goes in one short request.
+   * The files go through the app-wide upload list, so the batch carries on
+   * after somebody leaves this page.
    */
   async function handleUploadSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const input = event.target
@@ -530,9 +521,10 @@ export function MediaLibraryPage({
     dismissErrorToast()
     const stop = new AbortController()
     uploadStopRef.current = stop
-    setUpload({ done: 0, total: files.length, current: null })
+    setUpload({ done: 0, total: files.length })
 
     let done = 0
+    let cancelledMidway = false
     const failures: { name: string; reason: string }[] = []
     for (const file of files) {
       if (stop.signal.aborted) break
@@ -543,32 +535,24 @@ export function MediaLibraryPage({
       }
 
       try {
-        await uploadMedia(file, undefined, {
-          signal: stop.signal,
-          onProgress: (fraction) => {
-            const percent = Math.floor(fraction * 100)
-            // Whole numbers only, so a fast connection redraws the toolbar
-            // a hundred times per file rather than thousands.
-            setUpload((current) =>
-              current && current.current?.percent !== percent
-                ? { ...current, current: { name: file.name, percent } }
-                : current
-            )
-          },
-        })
+        await queueUpload(file, { signal: stop.signal })
         done += 1
-        setUpload({ done, total: files.length, current: null })
+        setUpload({ done, total: files.length })
       } catch (uploadError) {
-        if (isUploadCancelled(uploadError)) break
+        if (isUploadCancelled(uploadError)) {
+          cancelledMidway = true
+          break
+        }
         failures.push({ name: file.name, reason: getMediaErrorMessage(uploadError) })
-        setUpload({ done, total: files.length, current: null })
+        setUpload({ done, total: files.length })
       }
     }
 
     uploadStopRef.current = null
     setUpload(null)
     if (done) await refreshRef.current()
-    showUploadSummary(done, files.length, failures, stop.signal.aborted)
+    // A cancel pressed on the upload line, not here, still ends the batch.
+    showUploadSummary(done, files.length, failures, stop.signal.aborted || cancelledMidway)
   }
 
   async function handleConfirmDelete() {
@@ -733,6 +717,7 @@ export function MediaLibraryPage({
           </Tooltip>
         </>
       ) : null}
+      {showOrphans ? null : <StorageUsedNote storage={data.storage} />}
       <DashboardToolbarSearch
         name="media-search"
         aria-label="Search media"
@@ -810,7 +795,8 @@ export function MediaLibraryPage({
           <GridIcon className="size-4" />
         </DashboardToolbarButton>
       </div>
-      {upload ? (
+      {/* A batch's count and its Cancel. One file has only its upload line. */}
+      {upload && upload.total > 1 ? (
         <>
           <span
             className="max-w-64 truncate text-sm text-muted-foreground tabular-nums"

@@ -28,6 +28,13 @@ import { mediaSavedViewScreen } from "@/server/video/media-saved-views"
  * door nobody is told about.
  */
 export const appServerOptions: AppServerOptions = {
+  media: {
+    // The smooth copies count towards the Media library's storage total.
+    storageUsed: (ownerId) =>
+      import("@/server/video/storage-used").then((used) =>
+        used.videoStorageUsed(ownerId)
+      ),
+  },
   background: {
     workers: [
       {

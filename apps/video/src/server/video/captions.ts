@@ -2,15 +2,13 @@ import { and, eq } from "drizzle-orm"
 
 import {
   CAPTIONS_FAILED_MESSAGE,
-  CAPTIONS_MAX_SOURCE_MS,
   CAPTIONS_NONE_HEARD_MESSAGE,
   CAPTIONS_NOT_POSSIBLE_MESSAGE,
-  CAPTIONS_TOO_LONG_MESSAGE,
   findCaptionSource,
   mapCaptionsToTimeline,
   type CaptionsResult,
 } from "@/lib/video/captions"
-import { sourceEndMs, sourceSpanMs } from "@/lib/video/clip-playback"
+import { sourceEndMs } from "@/lib/video/clip-playback"
 import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
 import { pickTranscriber } from "@/lib/video/ai-choices"
 import { wordsInStretch } from "@/lib/video/transcripts"
@@ -55,12 +53,6 @@ export async function writeVideoCaptions(
   const timeline = requireCanonicalTimeline(video.timeline)
   const chosen = findCaptionSource(timeline.tracks)
   if (!chosen?.clip.mediaId) throw new Error(CAPTIONS_NOT_POSSIBLE_MESSAGE)
-  // The sound the clip plays, at the recording's own pace. The file behind it
-  // is measured again once it is opened, because that is what is written down.
-  if (sourceSpanMs(chosen.clip) > CAPTIONS_MAX_SOURCE_MS) {
-    throw new Error(CAPTIONS_TOO_LONG_MESSAGE)
-  }
-
   // The file is looked up as this person's own, so a hand-edited timeline
   // cannot pull somebody else's recording into a transcript.
   const [media] = await db
@@ -102,7 +94,6 @@ export async function writeVideoCaptions(
     feature: "caption_generation",
     label: CAPTIONS_LABEL,
     spend: videoSpendMetadata(video),
-    tooLongMessage: CAPTIONS_TOO_LONG_MESSAGE,
     failedMessage: CAPTIONS_FAILED_MESSAGE,
   })
 

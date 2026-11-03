@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { and, eq, inArray } from "drizzle-orm"
@@ -61,10 +61,8 @@ import {
   type ClipTransition,
 } from "@/lib/video/clip-transitions"
 import {
-  MAX_TIMELINE_MS,
   MEDIA_MISSING_MESSAGE,
   NOTHING_TO_EXPORT_MESSAGE,
-  TIMELINE_TOO_LONG_MESSAGE,
   type RenderFrameRate,
   type RenderQuality,
 } from "@/lib/video/render"
@@ -93,7 +91,15 @@ import {
   FFMPEG_TIMEOUT_MS,
   runFfmpeg as runFfmpegCommand,
 } from "@/server/video/ffmpeg"
-import { downloadToFile } from "@/server/video/storage-files"
+import { getPublicMediaUrl } from "@/server/media/storage"
+import { requireFreeDisk } from "@/server/video/disk-space"
+import {
+  inputArgs,
+  isRemoteInput,
+  openRenderSource,
+  REMOTE_INPUT_ARGS,
+  type RenderSource,
+} from "@/server/video/render-sources"
 import {
   requireStockSoundFile,
   STOCK_SOUND_MISSING_MESSAGE,
@@ -149,7 +155,6 @@ export const RENDER_FAILED_MESSAGE = "The export could not be made"
  */
 export const SAFE_RENDER_ERRORS = new Set([
   NOTHING_TO_EXPORT_MESSAGE,
-  TIMELINE_TOO_LONG_MESSAGE,
   MEDIA_MISSING_MESSAGE,
   FFMPEG_MISSING_MESSAGE,
   FONT_MISSING_MESSAGE,
@@ -193,6 +198,27 @@ export function exportTimeoutMs(exportMs: number) {
   return Math.max(FFMPEG_TIMEOUT_MS, exportMs)
 }
 
+/**
+ * About the most disk the finished file takes while it is made, so a render
+ * can wait for room rather than fill the disk. Megabytes a minute, set above
+ * the biggest measured in `workspace/docs/long-exports.md` (40MB a minute for
+ * wide at Best). Evening out the sound writes a second copy beside the first.
+ */
+const EXPORT_MB_PER_MINUTE: Record<RenderQuality, number> = {
+  high: 60,
+  medium: 30,
+  low: 15,
+}
+
+export function exportDiskBytes(
+  durationMs: number,
+  quality: RenderQuality,
+  normalizeLoudness: boolean
+) {
+  const copies = normalizeLoudness ? 2 : 1
+  return (durationMs / 60_000) * EXPORT_MB_PER_MINUTE[quality] * 1024 * 1024 * copies
+}
+
 /** Where the last clip ends — how long the export runs for. */
 export function timelineEndMs(tracks: EditorTrack[]) {
   let max = 0
@@ -217,7 +243,6 @@ export function renderRefusalReason(timeline: unknown): string | null {
     return SAVED_TIMELINE_INVALID_MESSAGE
   }
   if (durationMs <= 0) return NOTHING_TO_EXPORT_MESSAGE
-  if (durationMs > MAX_TIMELINE_MS) return TIMELINE_TOO_LONG_MESSAGE
   return null
 }
 
@@ -275,17 +300,26 @@ function flattenForRender(tracks: EditorTrack[]) {
 }
 
 export type RenderResult = {
-  bytes: Uint8Array
+  /**
+   * The finished file on disk, left in place for the caller to send to
+   * storage from there. An hour-long export is several gigabytes, more than
+   * Node will hold in memory at once.
+   */
+  filePath: string
+  fileSize: number
   thumbnail: Uint8Array | null
   durationMs: number
   width: number
   height: number
+  /** Deletes the scratch folder the file is in. The caller must call it. */
+  dispose: () => Promise<void>
 }
 
 /**
  * Render one timeline and hand back the file. Everything happens in a scratch
- * directory that is always cleaned up, and nothing here writes to the database
- * — the queue owns what happens to the result.
+ * folder: a failure deletes it here, and a success hands the file back with
+ * `dispose` to delete it once it is stored. Nothing here writes to the
+ * database — the queue owns what happens to the result.
  */
 export async function renderTimeline({
   userId,
@@ -308,20 +342,25 @@ export async function renderTimeline({
   signal?: AbortSignal
 }): Promise<RenderResult> {
   const dir = await mkdtemp(path.join(tmpdir(), "video-render-"))
+  const dispose = () => rm(dir, { recursive: true, force: true })
+  let releaseSources: () => Promise<void> = async () => undefined
   try {
     const timeline = requireCanonicalTimeline(rawTimeline)
     const size = renderSize(aspect, quality)
     const durationMs = timelineEndMs(timeline.tracks)
     if (durationMs <= 0) throw new Error(NOTHING_TO_EXPORT_MESSAGE)
-    if (durationMs > MAX_TIMELINE_MS) throw new Error(TIMELINE_TOO_LONG_MESSAGE)
+
+    // Waits for room rather than fill the disk with a long export.
+    await requireFreeDisk(dir, exportDiskBytes(durationMs, quality, normalizeLoudness))
 
     const { visuals, audio } = flattenForRender(timeline.tracks)
-    const { mediaRows, sourceFiles } = await fetchOwnedSources(
+    // A Small export is a quick look, so it reads the smooth copies.
+    const { mediaRows, sourceFiles, release } = await openOwnedSources(
       userId,
       [...visuals, ...audio],
-      dir,
-      signal
+      { draft: quality === "low" }
     )
+    releaseSources = release
 
     // Only a video that really carries sound may join the mix; naming a stream
     // that is not there fails the whole command.
@@ -373,14 +412,19 @@ export async function renderTimeline({
       : outFile
 
     return {
-      bytes: await readFile(finalFile),
+      filePath: finalFile,
+      fileSize: (await stat(finalFile)).size,
       thumbnail: await extractCoverFrame(dir, finalFile, 0, { signal }),
       durationMs: exportMs,
       width: size.width,
       height: size.height,
+      dispose,
     }
+  } catch (error) {
+    await dispose()
+    throw error
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    await releaseSources()
   }
 }
 
@@ -416,6 +460,7 @@ export async function renderTimelineFrame({
   const fromMs = frame * frameMs
 
   const dir = await mkdtemp(path.join(tmpdir(), "video-frame-"))
+  let releaseSources: () => Promise<void> = async () => undefined
   try {
     const size = renderSize(timeline.aspect, "high")
     // A clip blending in is drawn from before its own start.
@@ -424,7 +469,11 @@ export async function renderTimelineFrame({
         fromMs >= clip.startMs - (transition?.durationMs ?? 0) &&
         fromMs < clip.startMs + clip.durationMs
     )
-    const { sourceFiles } = await fetchOwnedSources(userId, visuals, dir)
+    // Read straight from storage: a frame of a 20GB recording fetches a few
+    // megabytes around that moment, not the recording.
+    const sources = await openOwnedSources(userId, visuals, { draft: false })
+    releaseSources = sources.release
+    const { sourceFiles } = sources
     const command = await buildFfmpegCommand({
       dir,
       size,
@@ -442,20 +491,22 @@ export async function renderTimelineFrame({
     await runFfmpeg([...command.picture, "-frames:v", "1", "-q:v", "2", out])
     return await readFile(out)
   } finally {
+    await releaseSources()
     await rm(dir, { recursive: true, force: true })
   }
 }
 
 /**
- * Every file the clips name, looked up as the owner's own and fetched once
+ * Every file the clips name, looked up as the owner's own and opened once
  * however many clips use it. A timeline must never be able to pull somebody
- * else's footage into a render.
+ * else's footage into a render. Each file is read where it is, mostly
+ * straight from storage (`render-sources.ts`), so `release` must be called
+ * once the render is done with them.
  */
-async function fetchOwnedSources(
+async function openOwnedSources(
   userId: string,
   clips: RenderClip[],
-  dir: string,
-  signal?: AbortSignal
+  { draft }: { draft: boolean }
 ) {
   const mediaIds = Array.from(
     new Set(
@@ -480,13 +531,21 @@ async function fetchOwnedSources(
   }
 
   const sourceFiles = new Map<string, string>()
-  for (const media of mediaRows) {
-    const extension = path.extname(media.storagePath) || ".bin"
-    const file = path.join(dir, `src-${sourceFiles.size}${extension}`)
-    await downloadToFile(media.storagePath, file, signal)
-    sourceFiles.set(media.id, file)
+  const opened: RenderSource[] = []
+  const release = async () => {
+    await Promise.all(opened.map((source) => source.release().catch(() => undefined)))
   }
-  return { mediaRows, sourceFiles }
+  try {
+    for (const media of mediaRows) {
+      const source = await openRenderSource(media, { draft })
+      opened.push(source)
+      sourceFiles.set(media.id, source.input)
+    }
+  } catch (error) {
+    await release()
+    throw error
+  }
+  return { mediaRows, sourceFiles, release }
 }
 
 /**
@@ -554,8 +613,7 @@ export async function extractCoverFrame(
     await runFfmpeg([
       "-ss",
       String(Math.max(0, atMs) / 1000),
-      "-i",
-      file,
+      ...inputArgs(file),
       "-frames:v",
       "1",
       ...(fullSize ? [] : ["-vf", "scale=640:-2"]),
@@ -571,9 +629,10 @@ export async function extractCoverFrame(
 }
 
 /**
- * The same, for an export already in storage. It is streamed to disk rather
- * than read into memory: a ten-minute export is a big file to hold just to
- * take one picture out of it.
+ * The same, for an export already in storage. It is read straight from the
+ * export's address, so ffmpeg fetches the few megabytes around the moment
+ * rather than the whole file: an hour-long export is gigabytes to download
+ * for one picture.
  */
 export async function extractCoverFrameFromStorage(
   storagePath: string,
@@ -582,9 +641,8 @@ export async function extractCoverFrameFromStorage(
 ): Promise<Uint8Array | null> {
   const dir = await mkdtemp(path.join(tmpdir(), "video-cover-"))
   try {
-    const file = path.join(dir, "source.mp4")
-    await downloadToFile(storagePath, file)
-    return await extractCoverFrame(dir, file, atMs, { fullSize })
+    const address = await getPublicMediaUrl(storagePath)
+    return await extractCoverFrame(dir, address, atMs, { fullSize })
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
@@ -906,17 +964,18 @@ async function buildFfmpegCommand(options: {
           "1",
           "-t",
           String(durS - skipS),
-          "-i",
-          file
+          ...inputArgs(file)
         )
       } else {
+        // Before the input, so ffmpeg jumps to the moment rather than
+        // reading up to it: from a storage address that is the difference
+        // between fetching the clip and fetching the recording.
         inputs.push(
           "-ss",
           String(sourceMsAt(clip, skipS * 1000) / 1000),
           "-t",
           String((sourceSpanMs(clip) - skipS * 1000 * speed) / 1000),
-          "-i",
-          file
+          ...inputArgs(file)
         )
       }
       const speedStage = speed === 1 ? null : `setpts=(PTS-STARTPTS)/${speed}`
@@ -1001,8 +1060,7 @@ async function buildFfmpegCommand(options: {
       String(clip.trimStartMs / 1000),
       "-t",
       String(sourceSpanMs(clip) / 1000),
-      "-i",
-      file
+      ...inputArgs(file)
     )
     pushAudio(inputIndex, clip, duck)
     inputIndex += 1
@@ -1203,11 +1261,19 @@ function renderSvgPng(svg: string) {
 // --- Running the tools ------------------------------------------------------
 
 /** True when the file really has a sound track in it. */
+/**
+ * Whether a file carries sound. A file on this server's disk that ffprobe
+ * cannot read is treated as silent, as it always was. A file read from its
+ * storage address is different: a dropped connection there must not quietly
+ * drop the clip's sound from the export, so it fails the render instead, and
+ * the export is tried again.
+ */
 function hasAudioStream(file: string) {
-  return new Promise<boolean>((resolve) => {
+  return new Promise<boolean>((resolve, reject) => {
     const child = spawn(
       "ffprobe",
       [
+        ...(isRemoteInput(file) ? REMOTE_INPUT_ARGS : []),
         "-v",
         "error",
         "-select_streams",
@@ -1225,7 +1291,13 @@ function hasAudioStream(file: string) {
       stdout += chunk
     })
     child.on("error", () => resolve(false))
-    child.on("close", (code) => resolve(code === 0 && stdout.trim().length > 0))
+    child.on("close", (code) => {
+      if (code !== 0 && isRemoteInput(file)) {
+        reject(new Error("A clip's file could not be read from storage"))
+        return
+      }
+      resolve(code === 0 && stdout.trim().length > 0)
+    })
   })
 }
 

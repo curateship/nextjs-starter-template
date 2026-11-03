@@ -9,7 +9,11 @@ import {
 } from "@/lib/video/timeline-schema"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
+import {
+  deleteFromR2,
+  getPublicMediaUrl,
+  uploadToR2,
+} from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
 import { FFMPEG_MISSING_MESSAGE, runFfmpeg } from "@/server/video/ffmpeg"
 import {
@@ -17,6 +21,7 @@ import {
   videoProjectVideos,
   videoProjectThumbnails,
 } from "@/server/video/schema"
+import { inputArgs } from "@/server/video/render-sources"
 import { downloadToFile } from "@/server/video/storage-files"
 
 /**
@@ -389,15 +394,20 @@ async function grabFrame(job: ClaimedThumbnail, workDir: string) {
     media.fileType === "video" && media.proxyStatus === "ready" && media.proxyPath
       ? media.proxyPath
       : media.storagePath
-  const inputPath = join(workDir, "input")
-  await downloadToFile(sourcePath, inputPath)
+  // A video is read from its address, so one frame of a 20GB upload fetches
+  // a few megabytes rather than the upload. A picture is small and fetched.
+  let inputPath = join(workDir, "input")
+  if (media.fileType === "video") {
+    inputPath = await getPublicMediaUrl(sourcePath)
+  } else {
+    await downloadToFile(sourcePath, inputPath)
+  }
 
   const outputPath = join(workDir, "thumbnail.jpg")
   await runFfmpeg(
     [
       ...(media.fileType === "video" ? ["-ss", String(job.atMs / 1000)] : []),
-      "-i",
-      inputPath,
+      ...inputArgs(inputPath),
       "-frames:v",
       "1",
       "-vf",

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises"
+import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { and, eq } from "drizzle-orm"
@@ -16,11 +16,7 @@ import {
   buildJumpCutSuggestions,
   JUMP_CUT_BUSY_MESSAGE,
   JUMP_CUT_FAILED_MESSAGE,
-  JUMP_CUT_MAX_MEDIA_BYTES,
-  JUMP_CUT_MAX_WINDOW_MS,
   JUMP_CUT_NO_CLIP_MESSAGE,
-  JUMP_CUT_TOO_BIG_MESSAGE,
-  JUMP_CUT_TOO_LONG_MESSAGE,
   parseSilencedetectOutput,
   type JumpCutMode,
   type JumpCutRange,
@@ -43,7 +39,8 @@ import {
 } from "@/server/video/project-spend"
 import { getOwnedVideo } from "@/server/video/project-videos"
 import { getAiDefaults } from "@/server/video/settings"
-import { downloadToFile } from "@/server/video/storage-files"
+import { inputArgs } from "@/server/video/render-sources"
+import { openSoundSource, type SoundSource } from "@/server/video/sound-source"
 import {
   fileWords,
   readSavedTranscript,
@@ -183,8 +180,9 @@ async function run({
   }
 
   const dir = await mkdtemp(path.join(tmpdir(), "video-jump-cuts-"))
+  const sound = await openSoundSource(media.id)
   try {
-    const { source, wav } = await extractClipAudio(dir, media.storagePath, clip)
+    const wav = await extractClipAudio(dir, sound.input, clip)
 
     // Listening is quick and free, and it is what makes a cut land in the
     // right place: the times a word was said are an estimate, the quiet is
@@ -211,7 +209,7 @@ async function run({
           userId,
           spend,
           media,
-          localSource: source,
+          source: sound,
         }),
         clip
       )
@@ -238,6 +236,7 @@ async function run({
       }),
     }
   } finally {
+    await sound.release()
     await rm(dir, { recursive: true, force: true })
   }
 }
@@ -291,8 +290,9 @@ export async function transcribeOpening({
     throw new Error(JUMP_CUT_FAILED_MESSAGE)
   }
   const dir = await mkdtemp(path.join(tmpdir(), "video-hook-"))
+  const sound = await openSoundSource(media.id)
   try {
-    const { wav } = await extractClipAudio(dir, media.storagePath, opening)
+    const wav = await extractClipAudio(dir, sound.input, opening)
     return await transcribeSound({
       userId,
       spend,
@@ -304,6 +304,7 @@ export async function transcribeOpening({
       durationMs: Math.round(sourceSpanMs(opening)),
     })
   } finally {
+    await sound.release()
     await rm(dir, { recursive: true, force: true })
   }
 }
@@ -337,12 +338,9 @@ export async function transcribeClip({
       clipId,
     })
     const dir = await mkdtemp(path.join(tmpdir(), "video-transcript-"))
+    const sound = await openSoundSource(media.id)
     try {
-      const { source, wav } = await extractClipAudio(
-        dir,
-        media.storagePath,
-        clip
-      )
+      const wav = await extractClipAudio(dir, sound.input, clip)
       const noise = await runFfmpeg(
         [
           "-i",
@@ -359,7 +357,7 @@ export async function transcribeClip({
         userId,
         spend,
         media,
-        localSource: source,
+        source: sound,
         fresh,
       })
       return {
@@ -383,6 +381,7 @@ export async function transcribeClip({
         },
       }
     } finally {
+      await sound.release()
       await rm(dir, { recursive: true, force: true })
     }
   } finally {
@@ -398,13 +397,13 @@ async function wordsOfFile({
   userId,
   spend,
   media,
-  localSource,
+  source,
   fresh,
 }: {
   userId: string
   spend: SpendTag
   media: { id: string; storagePath: string }
-  localSource: string
+  source: SoundSource
   fresh?: boolean
 }): Promise<FileWord[]> {
   const transcriber = pickTranscriber(
@@ -422,10 +421,9 @@ async function wordsOfFile({
     feature: "jump_cut_analysis",
     label: WORDS_LABEL,
     spend,
-    tooLongMessage: JUMP_CUT_TOO_LONG_MESSAGE,
     failedMessage: JUMP_CUT_FAILED_MESSAGE,
     fresh,
-    localSource,
+    source,
   })
 }
 
@@ -467,13 +465,6 @@ async function findClipAndMedia({
   ) {
     throw new Error(JUMP_CUT_NO_CLIP_MESSAGE)
   }
-  // Measured against the recording, not the room the clip takes. A clip at 4x
-  // holds four times its own length of sound, and it is the sound that is
-  // extracted, listened to and paid to have written down.
-  if (sourceSpanMs(found.clip) > JUMP_CUT_MAX_WINDOW_MS) {
-    throw new Error(JUMP_CUT_TOO_LONG_MESSAGE)
-  }
-
   const [media] = await db
     .select()
     .from(customShellMedia)
@@ -485,9 +476,6 @@ async function findClipAndMedia({
     )
     .limit(1)
   if (!media) throw new Error(JUMP_CUT_NO_CLIP_MESSAGE)
-  if (media.fileSize && media.fileSize > JUMP_CUT_MAX_MEDIA_BYTES) {
-    throw new Error(JUMP_CUT_TOO_BIG_MESSAGE)
-  }
   return {
     clip: found.clip,
     trackId: found.trackId,
@@ -498,21 +486,11 @@ async function findClipAndMedia({
 
 /**
  * Just the stretch of sound this clip actually uses, small and mono, the
- * shape listening wants. The downloaded file comes back too, for writing the
- * whole file down without fetching it again.
+ * shape listening wants. `source` is where the file is read from
+ * (`sound-source.ts`); from a storage address only the clip's stretch is
+ * fetched.
  */
-async function extractClipAudio(
-  dir: string,
-  storagePath: string,
-  clip: EditorClip
-) {
-  const source = path.join(dir, "source")
-  await downloadToFile(storagePath, source)
-  const size = await stat(source)
-  if (size.size > JUMP_CUT_MAX_MEDIA_BYTES) {
-    throw new Error(JUMP_CUT_TOO_BIG_MESSAGE)
-  }
-
+async function extractClipAudio(dir: string, source: string, clip: EditorClip) {
   const wav = path.join(dir, "audio.wav")
   await runFfmpeg(
     [
@@ -520,8 +498,7 @@ async function extractClipAudio(
       String(clip.trimStartMs / 1000),
       "-t",
       String(sourceSpanMs(clip) / 1000),
-      "-i",
-      source,
+      ...inputArgs(source),
       "-vn",
       "-ac",
       "1",
@@ -531,7 +508,7 @@ async function extractClipAudio(
     ],
     JUMP_CUT_FAILED_MESSAGE
   )
-  return { source, wav }
+  return wav
 }
 
 function findClipOnTrack(

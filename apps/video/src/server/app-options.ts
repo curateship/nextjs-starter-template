@@ -28,6 +28,7 @@ type SavedViewsDb =
  */
 export type AppServerOptions = {
   billing?: BillingServerOptions
+  media?: MediaServerOptions
   pages?: PagesServerOptions
   automations?: AutomationServerOptions
   background?: BackgroundServerOptions
@@ -315,6 +316,19 @@ type BackgroundServerOptions = {
   workers?: readonly AppBackgroundWorker[]
 }
 
+/** One kind of stored file the app keeps beside the library's own. */
+export type AppStorageUse = { label: string; bytes: number }
+
+type MediaServerOptions = {
+  /**
+   * Storage the app keeps for the library's files beside the files
+   * themselves, such as Video's smooth copies, so the Media library's total
+   * and its monthly cost count it too. `ownerId` is one person's files, or
+   * null for everybody's. Unset means the library's files are all there is.
+   */
+  storageUsed?: (ownerId: string | null) => Promise<readonly AppStorageUse[]>
+}
+
 type AutomationServerOptions = {
   /**
    * What this app's own automation steps actually do, keyed by the same `kind`
@@ -512,4 +526,8 @@ export function appSavedViewScreens(
   options: AppServerOptions = appServerOptions
 ): Record<string, SavedViewScreen> {
   return options.savedViews?.screens ?? {}
+}
+
+export function appStorageUsed(options: AppServerOptions = appServerOptions) {
+  return options.media?.storageUsed ?? null
 }

@@ -133,3 +133,77 @@ describe("getVideoFilmstrip", () => {
     ).rejects.toBeInstanceOf(FilmstripFailedError)
   })
 })
+
+describe("frames along a long video", () => {
+  const HOUR = 60 * 60_000
+
+  function hourSheet(sheet: number) {
+    return new Response(new Blob([`jpeg-${sheet}`]), {
+      status: 200,
+      headers: {
+        "X-Filmstrip-Columns": "10",
+        "X-Filmstrip-Duration-Ms": String(HOUR),
+        "X-Filmstrip-Frame-Count": "720",
+        "X-Filmstrip-Frame-Height": "160",
+        "X-Filmstrip-Frame-Width": "284",
+        "X-Filmstrip-Sheets": "6",
+        "X-Filmstrip-Rows-Per-Sheet": "12",
+      },
+    })
+  }
+
+  beforeEach(() => {
+    let made = 0
+    vi.spyOn(URL, "createObjectURL").mockImplementation(() => `blob:sheet-${made++}`)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("fetches every sheet, and shows a frame for every five seconds when there is room", async () => {
+    fetchMock.mockImplementation(async (address: string) => {
+      const sheet = Number(new URL(address, "http://local").searchParams.get("sheet") ?? 0)
+      return hourSheet(sheet)
+    })
+
+    const frames = await getVideoFilmstrip(
+      nextMediaId(),
+      { startMs: 0, durationMs: HOUR },
+      new AbortController().signal,
+      undefined,
+      10_000
+    )
+
+    expect(fetchMock).toHaveBeenCalledTimes(6)
+    expect(frames).toHaveLength(720)
+    // Frame 437 is on the fourth sheet (120 to a sheet), its 78th frame:
+    // row 7, column 7.
+    const frame = frames.find((one) => one.index === 437)!
+    expect(frame).toMatchObject({ column: 7, row: 7, rows: 12, columns: 10 })
+    expect(frame.backgroundImage).toBe('url("blob:sheet-3")')
+  })
+
+  it("shows only as many frames as the clip has room for", async () => {
+    fetchMock.mockImplementation(async () => hourSheet(0))
+    const frames = await getVideoFilmstrip(
+      nextMediaId(),
+      { startMs: 0, durationMs: HOUR },
+      new AbortController().signal,
+      undefined,
+      24
+    )
+    expect(frames).toHaveLength(24)
+  })
+
+  it("reads a strip made before sheets as one picture", async () => {
+    fetchMock.mockResolvedValueOnce(ready())
+    const frames = await getVideoFilmstrip(
+      nextMediaId(),
+      WINDOW,
+      new AbortController().signal
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(frames.map((frame) => frame.rows)).toEqual([1, 1])
+  })
+})

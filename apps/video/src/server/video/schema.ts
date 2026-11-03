@@ -107,6 +107,10 @@ export const videoMediaFilmstrips = pgTable(
     frameWidth: integer("frame_width"),
     frameHeight: integer("frame_height"),
     columns: integer("columns"),
+    // How many pictures the frames are spread over, and each one's grid
+    // height (drizzle/0148). One sheet and no height is a strip made before.
+    sheetCount: integer("sheet_count").notNull().default(1),
+    rowsPerSheet: integer("rows_per_sheet"),
     durationMs: integer("duration_ms"),
     error: text("error"),
     attempts: integer("attempts").notNull().default(0),
@@ -130,6 +134,10 @@ export const videoMediaFilmstrips = pgTable(
       sql`${table.status} <> 'ready' or (${table.storagePath} is not null and ${table.frameCount} > 0 and ${table.frameWidth} > 0 and ${table.frameHeight} > 0 and ${table.columns} > 0 and ${table.durationMs} > 0)`
     ),
     check("video_media_filmstrips_attempts_check", sql`${table.attempts} >= 0`),
+    check(
+      "video_media_filmstrips_sheets_check",
+      sql`${table.sheetCount} >= 1 and (${table.rowsPerSheet} is null or ${table.rowsPerSheet} >= 1)`
+    ),
     index("ix_video_media_filmstrips_status_created").on(
       table.status,
       table.createdAt
@@ -1439,12 +1447,20 @@ export const videoRenderJobs = pgTable(
     // Where the picture changes in the file, worked out by the render from
     // the timeline it drew. Null before drizzle/0142 and on carousel exports.
     scenes: jsonb("scenes").$type<ExportScene[]>(),
+    // The part of the project exported, in milliseconds into its timeline
+    // (drizzle/0147). Both null is the whole project.
+    rangeStartMs: integer("range_start_ms"),
+    rangeEndMs: integer("range_end_ms"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },
   (table) => [
+    check(
+      "video_render_jobs_range_check",
+      sql`(${table.rangeStartMs} is null and ${table.rangeEndMs} is null) or (${table.rangeStartMs} >= 0 and ${table.rangeEndMs} > ${table.rangeStartMs})`
+    ),
     check(
       "video_render_jobs_status_check",
       sql`${table.status} in ('queued', 'running', 'ready', 'error', 'cancelled')`

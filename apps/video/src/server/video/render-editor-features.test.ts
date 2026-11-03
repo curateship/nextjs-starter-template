@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { copyFile, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { copyFile, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
@@ -13,7 +13,7 @@ import type { ProjectTimeline } from "@/lib/video/timeline-schema"
  * and a starter sound effect.
  *
  * Only the two things outside this machine are stood in for, as in
- * render-fades.test.ts: the media lookup and the download from storage.
+ * render-fades.test.ts: the media lookup and where each file is read from.
  */
 
 const sources = vi.hoisted(() => ({ files: new Map<string, string>() }))
@@ -34,11 +34,18 @@ vi.mock("@/server/db", () => ({
   },
 }))
 
-vi.mock("@/server/video/storage-files", () => ({
-  downloadToFile: async (storagePath: string, file: string) => {
-    await copyFile(sources.files.get(storagePath)!, file)
-  },
-}))
+// Where ffmpeg reads each file from: the file on this machine, in place of
+// its storage address.
+vi.mock("@/server/video/render-sources", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/video/render-sources")>()
+  return {
+    ...real,
+    openRenderSource: async (media: { storagePath: string }) => ({
+      input: sources.files.get(media.storagePath)!,
+      release: async () => undefined,
+    }),
+  }
+})
 
 const { renderTimeline } = await import("@/server/video/render")
 
@@ -135,7 +142,8 @@ async function render(dir: string, name: string, timeline: ProjectTimeline) {
     timeline,
   })
   const out = path.join(dir, `${name}.mp4`)
-  await writeFile(out, result.bytes)
+  await copyFile(result.filePath, out)
+  await result.dispose()
   return out
 }
 

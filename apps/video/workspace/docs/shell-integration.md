@@ -344,3 +344,29 @@ was added and two files deleted.
 
 No migration was new. `scripts/setup-database.mjs`, `src/app/open-endpoints.ts`
 and `public/fonts/README.md` stay Video's own.
+
+## Shell files carried early, 3 November 2026
+
+The big-files shell parts were built in this worktree's `apps/shell` and the
+same files copied here, so Video has them before the next shell merge and
+neither side forks. Every file below is identical in both apps. The other
+eleven apps pick them up at their next shell merge.
+
+- **Each app sets its own video ceiling** (`media.videoMaxBytes` in
+  `src/lib/app-options.ts`, read by `src/lib/media/media-upload.ts`,
+  `src/server/media/library.ts` and `src/server/media/video-upload.ts`).
+- **Uploads pick up where they stopped and can pause**
+  (`src/lib/media/upload-in-parts.ts`, `upload-resume.ts`,
+  `src/lib/api/media/media.ts`, and `listUploadedParts` in
+  `src/server/media/storage.ts`).
+- **The upload line on every page** (`src/lib/media/upload-queue.ts`,
+  `upload-speed.ts`, `src/components/media/upload-line.tsx`, drawn by
+  `src/components/shell/shell-layout.tsx`; the Media library page uses it).
+- **Storage used and its cost** (`media.storageUsed` in
+  `src/server/app-options.ts`, `mediaStorageUsed` in
+  `src/server/media/library.ts`, `src/lib/api/media/admin-media.ts`,
+  `src/lib/media/storage-cost.ts`, `src/components/media/storage-used.tsx`).
+- **Storage takes a file from disk** (`uploadFileToR2` in
+  `src/server/media/storage.ts`).
+
+Their tests came too. `docs/shell/big-uploads.md` describes all of it.

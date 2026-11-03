@@ -115,9 +115,15 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [export-shapes.md](export-shapes.md) — exporting one project in several
   shapes from one press, the one-per-shape rule, and why words need checking
   by eye in each shape.
-- [long-exports.md](long-exports.md) — why a project can be up to thirty
-  minutes and no longer, what moved with the limit, the measured render
+- [long-exports.md](long-exports.md) — why a project of any length exports
+  now and what the old thirty-minute limit was for, the measured render
   times, and how the export window's time estimate is worked out.
+- [big-files.md](big-files.md) — what Video does with a video of 20GB to
+  100GB and more: the copies kept on the server's disk, waiting for room on
+  it, the smooth copy's time limit and notice, frames along long videos,
+  exports that read only the stretch they use, exporting part of a project,
+  captions and Tighten on long recordings, the timeline's furthest zoom and
+  searching what was said.
 - [frame-rate.md](frame-rate.md) — the choice of 30 or 60 frames a second on
   export, what it does to footage shot at each, the measured file sizes, and
   why 30 stays the default.

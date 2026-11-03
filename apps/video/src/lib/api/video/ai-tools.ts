@@ -42,7 +42,6 @@ import { VIDEO_NOT_FOUND_MESSAGE } from "@/lib/video/project-videos"
 import {
   NOTHING_TO_EXPORT_MESSAGE,
   QUEUE_FULL_MESSAGE,
-  TIMELINE_TOO_LONG_MESSAGE,
 } from "@/lib/video/render"
 import { isVoiceOrigin } from "@/lib/video/clip-origin"
 import {
@@ -130,7 +129,6 @@ async function budget(
 /** Make all asks whether a copy's export would be taken before paying. */
 const LANGUAGE_COPY_EXPORT_REFUSALS = new Set([
   NOTHING_TO_EXPORT_MESSAGE,
-  TIMELINE_TOO_LONG_MESSAGE,
   QUEUE_FULL_MESSAGE,
 ])
 

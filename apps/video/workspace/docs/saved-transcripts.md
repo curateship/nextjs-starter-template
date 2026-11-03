@@ -63,10 +63,9 @@ a clip that was already transcribed costs nothing."
 
 ## Long recordings
 
-- **Up to 30 minutes of sound a file** (`TRANSCRIBE_MAX_SOURCE_MS` in
-  `src/lib/video/transcripts.ts`). A longer file is refused before anything is
-  sent: "That recording is too long to caption. Captioning covers up to 30
-  minutes."
+- **A recording of any length.** Until 3 Nov 2026 a file over 30 minutes was
+  refused. Now an hour goes in six pieces, four sent at a time
+  ([big-files.md](big-files.md)).
 - **Why pieces:** Whisper takes 25 MB a request. The sound goes as 16 kHz mono
   WAV, about 1.9 MB a minute, so one request tops out near 13 minutes.
 - **How it is cut:** ten minutes or less goes in one piece. Anything longer is
@@ -78,7 +77,7 @@ a clip that was already transcribed costs nothing."
   middle of the overlap, and the later piece takes over from there. A word
   heard by both pieces at slightly different times is kept once
   (`joinTranscriptPieces`).
-- **One press on the meter:** the pieces go at the same time and come back as
+- **One press on the meter:** the pieces go four at a time and come back as
   one row. Whisper bills the overlap too, so 30 minutes is 30 minutes and 10
   seconds of listening, $0.18.
 - **Measured on 19 Oct 2026:** a 25-minute talk, the Mac's own voice reading
@@ -101,12 +100,7 @@ a clip that was already transcribed costs nothing."
 
 - **Files written down before this have nothing kept.** Their first run
   writes it.
-- **No file in Media is over 100 MB today.** The shell's upload stops a video
-  at 100 MB and a sound file at 50 MB, and Viral's downloads stop at 100 MB.
-  A 25-minute phone video is usually bigger than that, so a long talk only
-  gets this far as a smaller file.
-- **Tighten, the Transcript panel and Hook's spoken opening also refuse a
-  file over 100 MB themselves** (`JUMP_CUT_MAX_MEDIA_BYTES`), however short
-  the clip. Captions and Another language have no size limit of their own.
-  Today the two limits are the same 100 MB, so this only matters once the
-  shell's upload limit is raised.
+- **No size limit.** Tighten, the Transcript panel and Hook's spoken opening
+  used to refuse a file over 100 MB. They now read the smooth copy's sound,
+  so a 20GB file works once its smooth copy is made
+  ([big-files.md](big-files.md)).

@@ -8,7 +8,6 @@ import type { CaptionLine } from "@/lib/video/captions"
 import type { ClipMotion } from "@/lib/video/clip-motion"
 import type { ScenePictureOrigin, VoiceOrigin } from "@/lib/video/clip-origin"
 import { clipsFit, OPENAI_VOICE_MODEL } from "@/lib/video/remake-clip"
-import { MAX_TIMELINE_MS } from "@/lib/video/render"
 import { voiceoverClips } from "@/lib/video/saved-voiceovers"
 import { SCRIPT_BASE_WORDS_PER_MINUTE } from "@/lib/video/script-check"
 import {
@@ -52,8 +51,12 @@ export const BRIEF_AUDIENCE_MAX = 300
 /** A Short, a TikTok or a Reel runs 15 seconds to 3 minutes. */
 export const BRIEF_SHORT_SECONDS_MIN = 15
 export const BRIEF_SHORT_SECONDS_MAX = 180
-/** Anything else may run as long as a project can (`long-exports.md`). */
-export const BRIEF_LONG_SECONDS_MAX = MAX_TIMELINE_MS / 1000
+/**
+ * Anything else may run up to thirty minutes. Exports have no length limit
+ * any more (`long-exports.md`); this one is the brief's own, because every
+ * scene of a brief is a voice and a picture that are paid for.
+ */
+export const BRIEF_LONG_SECONDS_MAX = 30 * 60
 export const BRIEF_SCENES_MAX = 120
 export const SCENE_WORDS_MAX = 600
 export const SCENE_PICTURE_MAX = 500

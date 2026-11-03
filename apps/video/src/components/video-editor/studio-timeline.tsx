@@ -58,6 +58,8 @@ import {
   MIN_PX_PER_SECOND,
   msToPx,
   pxToMs,
+  rulerLabel,
+  rulerLabelStep,
   waveformDataUrl,
 } from "@/lib/video/timeline-utils"
 import {
@@ -104,11 +106,15 @@ import { useRememberedTimelineView } from "@/components/video-editor/use-remembe
 const GUTTER = 120
 const ROW_H = 52
 const RULER_H = 28
+// The narrowest a frame along a video clip is drawn.
+const FRAME_CELL_PX = 48
 
-// The zoom slider works in a denser part of the store's range so clips read at
-// a useful size; it is still clamped to the store's hard limits.
-const ZOOM_MIN = Math.max(MIN_PX_PER_SECOND, 18)
-const ZOOM_MAX = Math.min(MAX_PX_PER_SECOND, 90)
+// From an hour in 72 pixels to 90 pixels a second. The slider and the zoom
+// buttons move by a share of the zoom rather than a fixed number of pixels,
+// so one press means as much fully zoomed out as fully in.
+const ZOOM_MIN = MIN_PX_PER_SECOND
+const ZOOM_MAX = MAX_PX_PER_SECOND
+const ZOOM_STEP = 1.25
 function clampZoom(pxPerSecond: number) {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pxPerSecond))
 }
@@ -268,7 +274,8 @@ export function StudioTimeline({ readOnly = false }: { readOnly?: boolean }) {
     const scroll = scrollRef.current
     if (!scroll || durationMs <= 0) return
     const laneWidth = scroll.clientWidth - GUTTER - 48
-    const next = Math.round(clampZoom(laneWidth / (durationMs / 1000)))
+    // Not rounded: an hour fits at well under one pixel a second.
+    const next = clampZoom(laneWidth / (durationMs / 1000))
     dispatch({ type: "SET_ZOOM", pxPerSecond: next })
   }, [dispatch, durationMs])
 
@@ -580,7 +587,7 @@ function RulerTicks({
   durationMs: number
   range: TimelineWindow
 }) {
-  const labelStep = pps >= 60 ? 1 : pps >= 34 ? 2 : 3
+  const labelStep = rulerLabelStep(pps)
   return (
     <>
       {visibleTickSeconds(range, durationMs, labelStep).map((second) => {
@@ -607,7 +614,7 @@ function RulerTicks({
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {second}s
+              {rulerLabel(second)}
             </span>
           </React.Fragment>
         )
@@ -873,6 +880,9 @@ const ClipChip = React.memo(function ClipChip({
   // clip object itself is new on every drag.
   const { kind, mediaId, trimStartMs } = clip
   const sourceSpan = sourceSpanMs(clip)
+  // How many frames fit along the clip as drawn: one every 48 pixels, so an
+  // hour-long clip zoomed in shows every frame its strip holds.
+  const frameRoom = Math.max(1, Math.round(msToPx(clip.durationMs, pps) / FRAME_CELL_PX))
   React.useEffect(() => {
     if (kind !== "video" || !mediaId) return
     const controller = new AbortController()
@@ -882,7 +892,8 @@ const ClipChip = React.memo(function ClipChip({
       controller.signal,
       () => {
         if (!controller.signal.aborted) setStripState("building")
-      }
+      },
+      frameRoom
     )
       .then((loaded) => {
         if (controller.signal.aborted) return
@@ -897,7 +908,7 @@ const ClipChip = React.memo(function ClipChip({
     return () => {
       controller.abort()
     }
-  }, [kind, mediaId, trimStartMs, sourceSpan, stripRequeues])
+  }, [kind, mediaId, trimStartMs, sourceSpan, stripRequeues, frameRoom])
 
   React.useEffect(() => {
     if (stripState !== "failed" || !mediaId) return
@@ -1774,16 +1785,16 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
             <Plus size={16} />
           </ToolbarButton>
           <span className="mx-1 h-5 w-px bg-foreground/10" aria-hidden />
-          <ToolbarButton label="Zoom out" onClick={() => setZoom(pps - 8)}>
+          <ToolbarButton label="Zoom out" onClick={() => setZoom(pps / ZOOM_STEP)}>
             <Minus size={16} />
           </ToolbarButton>
           <input
             type="range"
-            min={ZOOM_MIN}
-            max={ZOOM_MAX}
-            step={1}
-            value={clampZoom(pps)}
-            onChange={(event) => setZoom(Number(event.target.value))}
+            min={Math.log(ZOOM_MIN)}
+            max={Math.log(ZOOM_MAX)}
+            step={0.01}
+            value={Math.log(clampZoom(pps))}
+            onChange={(event) => setZoom(Math.exp(Number(event.target.value)))}
             aria-label="Zoom"
             style={{
               width: 104,
@@ -1791,7 +1802,7 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
               background: `linear-gradient(90deg,var(--acc) ${zoomPct(pps)}%,var(--line2) ${zoomPct(pps)}%)`,
             }}
           />
-          <ToolbarButton label="Zoom in" onClick={() => setZoom(pps + 8)}>
+          <ToolbarButton label="Zoom in" onClick={() => setZoom(pps * ZOOM_STEP)}>
             <Plus size={16} />
           </ToolbarButton>
           <ToolbarButton label="Fit the whole project" onClick={fit}>
@@ -1845,5 +1856,6 @@ function ToolbarButton({
 }
 
 function zoomPct(pps: number) {
-  return Math.round(((clampZoom(pps) - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)) * 100)
+  const span = Math.log(ZOOM_MAX) - Math.log(ZOOM_MIN)
+  return Math.round(((Math.log(clampZoom(pps)) - Math.log(ZOOM_MIN)) / span) * 100)
 }

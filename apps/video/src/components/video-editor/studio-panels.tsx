@@ -12,7 +12,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { uploadMedia } from "@/lib/api/media/media"
+import { isUploadCancelled } from "@/lib/media/upload-in-parts"
+import { queueUpload } from "@/lib/media/upload-queue"
 import { uploadProjectMedia } from "@/lib/api/video/project-guests"
 import { Button } from "@/components/ui/button"
 import {
@@ -385,12 +386,16 @@ function MediaPanel() {
           await uploadProjectMedia(projectId, file)
           continue
         }
-        const media = await uploadMedia(file)
+        // Through the app-wide upload list, so leaving the editor does not
+        // stop a big file, and the file still joins this project when it
+        // lands after the editor has closed.
+        const media = await queueUpload(file)
         await attachEditorMedia({ type: "project", id: projectId }, media.id)
       }
       setRefresh((count) => count + 1)
     } catch (error) {
-      showErrorToast(getVideoMediaErrorMessage(error))
+      // Cancelled from the upload line: nothing went wrong to report.
+      if (!isUploadCancelled(error)) showErrorToast(getVideoMediaErrorMessage(error))
     } finally {
       setUploading(false)
     }
@@ -787,7 +792,7 @@ function PreparationNote({
           aria-hidden
           className="mr-1 inline size-3 align-[-2px] motion-safe:animate-spin"
         />
-        Getting it ready to scrub
+        {item.proxy_note ? "Waiting for room on the server's disk" : "Getting it ready to scrub"}
       </p>
     )
   }

@@ -35,6 +35,11 @@ export type VideoMediaItem = MediaItem & {
   /** The address to play — the smooth proxy when ready, the original file otherwise. */
   playback_url: string
   proxy_status: string | null
+  /**
+   * Why the smooth copy is still waiting, in words, while it waits for room
+   * on the server's disk. Null otherwise.
+   */
+  proxy_note: string | null
   filmstrip_status: string | null
   collection_ids: string[]
 }
@@ -225,6 +230,7 @@ export async function serializeVideoMedia(
         ...base,
         playback_url: await videoPlaybackUrl(base.url, proxy ?? null),
         proxy_status: proxy?.status ?? null,
+        proxy_note: proxy?.status === "queued" ? (proxy.error ?? null) : null,
         filmstrip_status: filmstrips.get(row.id)?.status ?? null,
         collection_ids: collections.get(row.id) ?? [],
       }
@@ -439,13 +445,17 @@ async function videoStateByMedia(
   mediaIds: string[],
   database: CustomShellDb
 ) {
-  const byMedia = new Map<string, { status: string; storagePath: string | null }>()
+  const byMedia = new Map<
+    string,
+    { status: string; storagePath: string | null; error: string | null }
+  >()
   if (!mediaIds.length) return byMedia
   const rows = await database
     .select({
       mediaId: table.mediaId,
       status: table.status,
       storagePath: table.storagePath,
+      error: table.error,
     })
     .from(table)
     .where(inArray(table.mediaId, mediaIds))
@@ -453,6 +463,7 @@ async function videoStateByMedia(
     byMedia.set(row.mediaId, {
       status: row.status,
       storagePath: row.storagePath,
+      error: row.error,
     })
   }
   return byMedia
