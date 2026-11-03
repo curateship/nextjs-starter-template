@@ -110,7 +110,7 @@ export function CalendarLinkDialog({
               <CardContent className="grid gap-4">
                 {!hasStartDate ? (
                   <p className="text-sm text-muted-foreground">
-                    Add a start date first. Open Trip settings and pick the day the trip starts.
+                    Add a start date first, from the ⋮ at the top of the trip's left panel.
                   </p>
                 ) : state.kind === "loading" ? (
                   <LoadingRow label="Making the link" />

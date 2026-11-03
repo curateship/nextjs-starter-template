@@ -102,9 +102,11 @@ function GroupRows({
 }) {
   return (
     <>
-      <TableGroupRow colSpan={colSpan} label={label}>
-        <span className="text-muted-foreground">{count}</span>
-      </TableGroupRow>
+      {/* Day headings at 14px with 10px above and below, up from the shell's 12px and 6px (Tyler, 3 Nov 2026:
+          "this font should be bigger and have more spacing"), in grey ("make it gray color"). Set here, so the
+          shell's table row stays as it is. */}
+      {/* No count after the day: it read as part of the date (Tyler, 3 Nov 2026: "What is the 3 for?" ... "remove it"). */}
+      <TableGroupRow colSpan={colSpan} label={label} className="[&>td]:py-2.5 [&>td]:text-sm [&>td]:text-muted-foreground" />
       {count === 0 ? (
         <TableRow>
           <TableCell colSpan={colSpan} className="text-xs text-muted-foreground">

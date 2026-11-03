@@ -77,6 +77,13 @@ export function useNewActivity() {
     if (ok && filled) toast.success(filledLine(filled))
   }
 
+  /** Opens one trigger's dropdown, set to the column it was opened from; null is Ideas. */
+  function openFor(key: string, startDay: number | null) {
+    setAnchor(key)
+    setDay(startDay === null ? IDEAS : String(startDay))
+    setInvalid(false)
+  }
+
   /** One trigger's dropdown. `startDay` is the column it was opened from; null is Ideas. */
   function render(key: string, startDay: number | null, trigger: React.ReactNode) {
     const idBase = `new-activity-${key}`
@@ -84,13 +91,7 @@ export function useNewActivity() {
       <NewRecordDropdown
         label="New activity"
         open={anchor === key}
-        onOpenChange={(open) => {
-          if (open) {
-            setAnchor(key)
-            setDay(startDay === null ? IDEAS : String(startDay))
-            setInvalid(false)
-          } else setAnchor(null)
-        }}
+        onOpenChange={(open) => (open ? openFor(key, startDay) : setAnchor(null))}
         submitLabel="Create activity"
         busy={busy}
         onSubmit={() => void create()}
@@ -159,5 +160,6 @@ export function useNewActivity() {
     )
   }
 
-  return render
+  // `open` opens a dropdown from somewhere other than its own trigger, such as "+ Add" → New activity.
+  return Object.assign(render, { open: openFor })
 }

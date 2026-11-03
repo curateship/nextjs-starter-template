@@ -41,7 +41,7 @@ They outrank the code.
   a countdown under them ("in 12 days", "tomorrow", "on now", "ended
   yesterday"), Days, Status, and Actions.
   Dates sort with "No dates" last whichever way.
-- **Status** is Planning, Booked or Done, picked in Trip settings. A trip
+- **Status** is Planning, Booked or Done, picked in Trip settings, the ⋮ in the trip's left panel. A trip
   turns Done by itself the day after its last day.
 - **The toolbar,** in order: Archive and Delete for ticked rows, the search
   (name or destination), the tag filter, Show map when hidden, Saved places,
@@ -72,8 +72,8 @@ after the day it was made. It is given once, ever:
 - **Middle panel:** the schedule ([The day board](the-day-board.md)). Board
   is the first view. Its columns are Ideas, then Day 1, Day 2 and so on, one
   per day of the trip. Each column's "+" opens New activity already set to
-  that day, and the header's New activity button opens the same dropdown set
-  to Day 1.
+  that day, and the header's "+ Add" → New activity opens the same dropdown
+  set to Day 1.
 - **Right panel:** the open activity ([Activities](activities.md)). The bin
   icon moves it to the trip's bin, with Undo.
 - **The open activity is in the address**, `?open=<id>`, so a reload or a

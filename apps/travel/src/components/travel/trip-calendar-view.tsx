@@ -1,14 +1,13 @@
-import * as React from "react"
 import { CalendarDaysIcon } from "lucide-react"
 
 import { typeOf, useTrip } from "@/components/travel/trip-context"
-import { TripSettingsDialog } from "@/components/travel/trip-settings-dialog"
+import { useSaveTrip } from "@/components/travel/trip-budget-card"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
-import { Button } from "@/components/ui/button"
+import { DatePicker } from "@/components/ui/date-picker"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { Activity } from "@/lib/api/travel/trips"
 import { boardColumns, formatTime } from "@/lib/travel/board"
-import { addDays, daysBetween, lastDate, todayIn, weekday } from "@/lib/travel/dates"
+import { addDays, daysBetween, lastDate, localDateToIso, todayIn, weekday } from "@/lib/travel/dates"
 import { cn } from "@/lib/utils"
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -17,22 +16,24 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 /**
  * The Calendar tab (task part 18): the trip's dates as weeks, each day
  * holding its activities by time. It needs a start date; a trip with none
- * says so, with a button that opens Trip settings at the date.
+ * says so, with a date picker right there that saves the start date (the
+ * Trip settings window it used to open became the trip's ⋮ menu).
  */
 export function TripCalendarView({ activities }: { activities: Activity[] }) {
   const { page, typesById, openActivity, openActivityId } = useTrip()
   const { trip } = page
-  const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const saveTrip = useSaveTrip()
 
   if (!trip.startDate) {
     return (
       <div className="grid flex-1 content-center justify-items-center gap-3 p-6 text-center">
         <CalendarDaysIcon className="size-5 text-muted-foreground" aria-hidden />
         <p className="max-w-64 text-sm text-muted-foreground">Add a start date to see the calendar.</p>
-        <Button type="button" variant="outline" onClick={() => setSettingsOpen(true)}>
-          Add a start date
-        </Button>
-        <TripSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <DatePicker
+          value={undefined}
+          placeholder="Add a start date"
+          onChange={(date) => (date ? void saveTrip({ startDate: localDateToIso(date) }) : undefined)}
+        />
       </div>
     )
   }

@@ -3,8 +3,8 @@ import {
   BookmarkIcon,
   BookmarkPlusIcon,
   CalendarPlusIcon,
-  ChevronDownIcon,
   ChevronsDownUpIcon,
+  EllipsisVerticalIcon,
   FoldHorizontalIcon,
   LightbulbIcon,
   LightbulbOffIcon,
@@ -17,6 +17,7 @@ import {
 import { BinDialog } from "@/components/travel/bin-dialog"
 import { useBoardActions } from "@/components/travel/board-actions"
 import { CalendarLinkDialog } from "@/components/travel/calendar-link-dialog"
+import { FoldingMenu, MenuAction } from "@/components/travel/folding-menu"
 import { PasteBookingDialog } from "@/components/travel/paste-booking-dialog"
 import { RouteTime } from "@/components/travel/route-time"
 import { SavedPlacesDialog } from "@/components/travel/saved-places-dialog"
@@ -30,23 +31,18 @@ import { useTrip } from "@/components/travel/trip-context"
 import { TripListView } from "@/components/travel/trip-list-view"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { DashboardTabButton, DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { MassSelectChip, SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { SavedViewsControls, SaveViewDialog, type SavedViewsScreen } from "@/components/shared/saved-views"
 import { SearchToggle } from "@/components/shared/search-toggle"
+import { useOptionalShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { DEFAULT_DASHBOARD_TABS } from "@/lib/layout/styling-values"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { COMPACT_CARDS_KEY, TRIP_VIEW_KEY } from "@/lib/travel/panel-keys"
 import {
@@ -63,6 +59,7 @@ import {
 } from "@/lib/travel/trip-views"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 const ANY = "any"
 const ON_OFF = ["on", "off"] as const
@@ -72,8 +69,9 @@ const ON_OFF = ["on", "off"] as const
  * first (Tyler, 2 Nov 2026: "board view as default"). The header holds, in
  * the UI standard's order: the "N selected" button while cards are ticked,
  * Mass select, the search, Show or hide Ideas, Filter (by type, task part
- * 17), Views, then New activity. Compact cards and Fold every day float at
- * the board's bottom right.
+ * 17), Views, then "+ Add" (New activity, Paste a booking, Add to calendar).
+ * The ⋮ after the tabs holds the bin. Compact cards and Fold every day float
+ * at the board's bottom right.
  */
 export function SchedulePanel({
   search,
@@ -143,31 +141,7 @@ export function SchedulePanel({
             { value: "calendar", label: "Calendar" },
             { value: "map", label: "Map" },
           ]}
-          after={
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <DashboardTabButton aria-label="More for this trip">
-                  More
-                  <ChevronDownIcon className="size-3.5" />
-                </DashboardTabButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuItem onSelect={() => setWindowOpen("paste")}>
-                  <MailOpenIcon className="size-4" />
-                  Paste a booking
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setWindowOpen("calendar")}>
-                  <CalendarPlusIcon className="size-4" />
-                  Add to phone calendar
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setWindowOpen("bin")}>
-                  <Trash2Icon className="size-4" />
-                  Bin{page.binCount ? ` (${page.binCount})` : ""}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          }
+          after={<ScheduleMenu binCount={page.binCount} onBin={() => setWindowOpen("bin")} />}
         />
         <div className="flex shrink-0 items-center gap-1">
           {selectedIds.length ? (
@@ -305,15 +279,11 @@ export function SchedulePanel({
               })
             }}
           />
-          {newActivity(
-            "header",
-            1,
-            // Words where there is room; an icon with its name in a narrow panel.
-            <Button type="button" className="ml-1 @max-3xl:size-8 @max-3xl:px-0" aria-label="New activity">
-              <PlusIcon className="size-4" />
-              <span className="@max-3xl:hidden">New activity</span>
-            </Button>
-          )}
+          <AddMenu
+            newActivity={newActivity}
+            onPaste={() => setWindowOpen("paste")}
+            onCalendar={() => setWindowOpen("calendar")}
+          />
         </div>
       </DashboardCardHeader>
       {view === "list" ? (
@@ -448,6 +418,114 @@ function BoardCorner({
         </TooltipTrigger>
         <TooltipContent>{foldLabel}</TooltipContent>
       </Tooltip>
+    </div>
+  )
+}
+
+/**
+ * "+ Add" at the end of the header (Tyler, 3 Nov 2026: "Rename the "new
+ * activity" button to "+ Add" clicking on this opens a dropdown to give me 3
+ * options: New activity, Paste a booking, Add to calender"). New activity
+ * opens the New activity dropdown in the same place; the other two open
+ * their windows. In a narrow panel the button is the + alone.
+ */
+function AddMenu({
+  newActivity,
+  onPaste,
+  onCalendar,
+}: {
+  newActivity: ReturnType<typeof useNewActivity>
+  onPaste: () => void
+  onCalendar: () => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  // Set while New activity takes over, so focus stays in its Name field rather than going back to "+ Add".
+  const handingOff = React.useRef(false)
+  return (
+    <div className="relative ml-1">
+      <FoldingMenu
+        label="Add"
+        fit
+        open={open}
+        onOpenChange={setOpen}
+        onCloseAutoFocus={(event) => {
+          if (handingOff.current) event.preventDefault()
+          handingOff.current = false
+        }}
+        trigger={
+          <Button type="button" className="@max-3xl:size-8 @max-3xl:px-0" aria-label="Add">
+            <PlusIcon className="size-4" />
+            <span className="@max-3xl:hidden">Add</span>
+          </Button>
+        }
+      >
+        <MenuAction
+          icon={<PlusIcon className="size-4" />}
+          onClick={() => {
+            handingOff.current = true
+            setOpen(false)
+            newActivity.open("header", 1)
+          }}
+        >
+          New activity
+        </MenuAction>
+        <MenuAction
+          icon={<MailOpenIcon className="size-4" />}
+          onClick={() => {
+            setOpen(false)
+            onPaste()
+          }}
+        >
+          Paste a booking
+        </MenuAction>
+        <MenuAction
+          icon={<CalendarPlusIcon className="size-4" />}
+          onClick={() => {
+            setOpen(false)
+            onCalendar()
+          }}
+        >
+          Add to calendar
+        </MenuAction>
+      </FoldingMenu>
+      {/* The New activity dropdown hangs from "+ Add" too. Its own trigger is this see-through cover, which
+          lets clicks through to "+ Add" underneath. */}
+      {newActivity("header", 1, <span aria-hidden tabIndex={-1} className="pointer-events-none absolute inset-0" />)}
+    </div>
+  )
+}
+
+/** The ⋮ after the tabs, where the More dropdown was (Tyler, 3 Nov 2026: "Replace the "More" dropdown with a 3 vertical dot"). */
+function ScheduleMenu({ binCount, onBin }: { binCount: number; onBin: () => void }) {
+  const [open, setOpen] = React.useState(false)
+  const runtime = useOptionalShellRuntime()
+  const pills = (runtime?.config.styling.dashboardTabs ?? DEFAULT_DASHBOARD_TABS) === "pills"
+  return (
+    // It sits level with the tab names ("not aligned"). Underlined tabs stretch to the header's height with a
+    // 2px see-through line under each, so the ⋮ is centred with the same line; pills are 28px, so it is 28px.
+    <div className={cn("flex items-center", !pills && "border-b-2 border-transparent")}>
+      <FoldingMenu
+        label="More for this trip"
+        align="start"
+        fit
+        open={open}
+        onOpenChange={setOpen}
+        trigger={
+          <Button type="button" variant="ghost" size={pills ? "icon-sm" : "icon"} aria-label="More for this trip">
+            <EllipsisVerticalIcon className="size-4" />
+          </Button>
+        }
+      >
+        <MenuAction
+          icon={<Trash2Icon className="size-4" />}
+          onClick={() => {
+            setOpen(false)
+            onBin()
+          }}
+        >
+          Bin{binCount ? ` (${binCount})` : ""}
+        </MenuAction>
+      </FoldingMenu>
     </div>
   )
 }

@@ -47,7 +47,26 @@ folds open to change it. Every field saves itself.
 - **How was it:** once the activity is done or its day is over, 1 to 5 stars,
   "Would go again", and Save to saved places.
 - **Duplicate activity** and **Delete activity** end the menu. Delete moves it
-  to the trip's bin, with Undo.
+  to the trip's bin, with Undo. Delete is red.
+
+The menu is drawn like Project's task menu (Tyler, 3 Nov 2026, from two
+pictures of it: "the items dont have dividers except the divider that
+seperate the delete"; then "duplicate goes here", with an arrow under the
+line). Its rows have no lines between them. The one line runs edge to edge
+under the last folding row, and Duplicate activity and Delete activity sit
+under it. Every row is 32px tall, and the rows touch with no gap between
+them ("reduce space between items a bit").
+
+Trip settings (the ⋮ in the trip's left panel), the schedule's "+ Add" and
+the ⋮ after its tabs are the same menu, built from the same file,
+`folding-menu.tsx` (Tyler, 3 Nov 2026: "every time you created a dropdown,
+you made something different so all of the dropdown has slightly different
+ui"). A menu of actions alone, such as "+ Add", is as wide as its longest
+row ("Too much space here").
+
+The menu is 294px wide. That is Project's 363px task menu made 10% narrower
+twice (Tyler, 3 Nov 2026: "Reduce the dropdown by 10%", then again "reduce
+dropdown with by 10%").
 
 ## A Google Maps link fills it in
 

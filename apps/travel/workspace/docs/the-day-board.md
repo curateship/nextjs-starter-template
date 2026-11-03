@@ -85,15 +85,38 @@ this browser.
 
 ## The other tabs
 
-- **List:** a row per activity, grouped by day with Ideas last.
+- **List:** a row per activity, grouped by day with Ideas last. Each day's
+  heading is grey 14px text with 10px above and below, bigger than the
+  shell's table headings (Tyler, 3 Nov 2026: "this font should be bigger and
+  have more spacing", then "make it gray color"). The heading is the day
+  alone, with no count after it: the number of activities read as part of the
+  date ("What is the 3 for?" ... "remove it").
 - **Calendar:** the trip's dates as weeks, each day listing its activities by
-  time. A trip with no start date says so, with a button to add one.
+  time. A trip with no start date says so, with a date picker that saves one.
 - **Map:** the activities picked from Google as numbered pins, one colour per
   day, with a day picker. Clicking a pin opens the activity. Activities with
   no Google place are listed under the map. The map needs
   `GOOGLE_MAPS_BROWSER_KEY`.
-- **More:** Paste a booking ([Booking emails](booking-emails.md)), Add to
-  phone calendar ([Phone calendar](phone-calendar.md)), and the Bin.
+- **The ⋮ after the tabs** holds the Bin, with how many cards are in it.
+  It took the place of the More dropdown and sits level with the tab names
+  (Tyler, 3 Nov 2026: "Replace the "More" dropdown with a 3 vertical dot";
+  then "not aligned").
+
+## + Add
+
+The last button in the header is "+ Add" (Tyler, 3 Nov 2026: "Rename the
+"new activity" button to "+ Add" clicking on this opens a dropdown to give me
+3 options: New activity, Paste a booking, Add to calender").
+
+- **New activity** opens the New activity dropdown in the same place, set to
+  Day 1, with the cursor in Name.
+- **Paste a booking** opens its window ([Booking emails](booking-emails.md)).
+- **Add to calendar** opens the phone calendar window
+  ([Phone calendar](phone-calendar.md)).
+- In a narrow panel the button is the + alone.
+- The menu is as wide as its longest row (Tyler: "Too much space here"), and
+  so is the ⋮ menu after the tabs. Both are Travel's one dropdown look, the
+  same as an activity's ⋮ (see [Activities](activities.md)).
 
 ## The bin
 
