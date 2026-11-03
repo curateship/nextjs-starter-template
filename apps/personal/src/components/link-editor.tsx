@@ -78,21 +78,26 @@ export function LinkEditor({
   const [where, setWhere] = React.useState(placeKey(place))
   const [errors, setErrors] = React.useState<{ label?: string; url?: string }>({})
 
+  const chosen = places.find((choice) => placeKey(choice.place) === where)?.place ?? place
+
   function submit(event: React.FormEvent) {
     event.preventDefault()
+    // A left-menu link may go without an address: a click then opens its
+    // sub-links. Anywhere else a link needs one.
+    const blank = draft.url.trim() === ""
+    const url = parseAppUrl(draft.url)
     const next = {
       label: draft.label.trim() ? undefined : "Give the link a name.",
-      url: parseAppUrl(draft.url)
-        ? undefined
-        : "Use a full address, such as http://localhost:3015/admin/posts.",
+      url:
+        url || (blank && chosen.kind === "section")
+          ? undefined
+          : blank
+            ? "Only a link in a section can go without an address."
+            : "Use a full address, such as http://localhost:3015/admin/posts.",
     }
     setErrors(next)
     if (next.label || next.url) return
-    const chosen = places.find((choice) => placeKey(choice.place) === where)
-    onSubmit(
-      { ...draft, label: draft.label.trim(), url: parseAppUrl(draft.url)!.href },
-      chosen?.place ?? place
-    )
+    onSubmit({ ...draft, label: draft.label.trim(), url: url ? url.href : "" }, chosen)
   }
 
   return (
@@ -132,7 +137,13 @@ export function LinkEditor({
           aria-invalid={Boolean(errors.url)}
           onChange={(event) => setDraft({ ...draft, url: event.target.value })}
         />
-        {errors.url ? <p className="text-xs text-destructive">{errors.url}</p> : null}
+        {errors.url ? (
+          <p className="text-xs text-destructive">{errors.url}</p>
+        ) : chosen.kind === "section" ? (
+          <p className="text-xs text-muted-foreground">
+            Leave it empty and a click opens the link's sub-links.
+          </p>
+        ) : null}
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="flex min-w-0 flex-col gap-2">
@@ -194,7 +205,7 @@ export function LinkEditor({
       </div>
       {/* A link that opens in its own tab never fills the panel, so it can't
           be the screen Personal opens on or the one that stays loaded. */}
-      {draft.opens === "panel" ? (
+      {draft.opens === "panel" && draft.url.trim() !== "" ? (
         <>
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor={`${id}-start`}>Personal opens here</Label>

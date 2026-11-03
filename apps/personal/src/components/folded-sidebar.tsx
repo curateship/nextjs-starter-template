@@ -3,44 +3,50 @@ import { ChevronRightIcon, PanelLeftOpenIcon } from "lucide-react"
 
 import { BrandLogo } from "@/components/brand-editor"
 import { LinkIconPicture } from "@/components/link-icon"
-import { linkAnchorProps, useMenuActions } from "@/components/menu-links"
+import { linkAnchorProps, SubLinksMenu, useMenuActions } from "@/components/menu-links"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { isBlankSpace } from "@/lib/blank-space"
-import { opensInTab, pinnedLinks, type Menu, type MenuLink } from "@/lib/menu"
+import { hasAddress, opensInTab, pinnedLinks, type Menu, type MenuLink } from "@/lib/menu"
 import { useRememberedOpen } from "@/lib/use-remembered-open"
 import { cn } from "@/lib/utils"
 
 /**
  * One link as its icon alone, its name in a tooltip. A link with no icon
- * shows its first letter. It is marked while it or one of its sub-links is
- * open, as the full menu marks it.
+ * shows its first letter. A link with no address opens its sub-links' list.
+ * It is marked while it or one of its sub-links is open, as the full menu
+ * marks it.
  */
 function FoldedLink({ link }: { link: MenuLink }) {
   const { activeId, open } = useMenuActions()
   const active =
     activeId === link.id || (link.children ?? []).some((child) => child.id === activeId)
   const name = opensInTab(link) ? `${link.label} (opens in its own tab)` : link.label
+  // A link with no address opens its sub-links beside the folded menu.
+  const opensList = !hasAddress(link) && (link.children ?? []).length > 0
+  const button = (
+    <a
+      {...linkAnchorProps(link, open)}
+      aria-label={name}
+      aria-current={activeId === link.id ? "page" : undefined}
+      data-active={active ? "" : undefined}
+      className="flex size-8 items-center justify-center rounded-md text-sidebar-foreground outline-hidden hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
+    >
+      {link.icon ? (
+        <LinkIconPicture name={link.icon} />
+      ) : (
+        <span aria-hidden className="text-xs font-medium uppercase">
+          {link.label.trim().charAt(0) || "?"}
+        </span>
+      )}
+    </a>
+  )
 
   return (
     <li>
       <Tooltip>
         <TooltipTrigger asChild>
-          <a
-            {...linkAnchorProps(link, open)}
-            aria-label={name}
-            aria-current={activeId === link.id ? "page" : undefined}
-            data-active={active ? "" : undefined}
-            className="flex size-8 items-center justify-center rounded-md text-sidebar-foreground outline-hidden hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
-          >
-            {link.icon ? (
-              <LinkIconPicture name={link.icon} />
-            ) : (
-              <span aria-hidden className="text-xs font-medium uppercase">
-                {link.label.trim().charAt(0) || "?"}
-              </span>
-            )}
-          </a>
+          {opensList ? <SubLinksMenu link={link}>{button}</SubLinksMenu> : button}
         </TooltipTrigger>
         <TooltipContent side="right">{name}</TooltipContent>
       </Tooltip>

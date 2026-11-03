@@ -29,21 +29,27 @@ task. Tyler asked for it on 20 Oct 2026
 ## The task panel's footer
 
 - **Pinned under the panel**, with a line above it, while the rest scrolls.
-  Left to right: the status dropdown, the clock, then Start or Pause,
-  then Completed. In a narrow panel the two buttons drop to a row of
-  their own together, at the right.
+  Left to right: the status dropdown, then Start or Pause, then Completed.
+  In a narrow panel the two buttons drop to a row of their own together, at
+  the right.
+- **The clock is the Time icon in the panel's ⋮ menu**, last in the Add to
+  task row (Tyler, 2 Nov 2026: "move the time spent there too",
+  `assets/pasted-image-1793657078076743000.png`). It was in the footer
+  beside the status until then. Picking it shows the time, the guess and
+  two boxes in the menu's place.
 - **The clock reads "0:42" under an hour and "1:24:05" over one** while it
-  runs, and the total, such as "2h 15m", while paused. A task whose clock
-  never ran shows only the timer icon.
-- **Pressing the clock opens two boxes.** Time spent, which the person
+  runs, and the total, such as "2h 15m", while paused, at the top of that
+  box. A task whose clock never ran and has no guess shows only the boxes.
+- **The two boxes.** Time spent, which the person
   assigned and the site admin can change, for a clock left running by
   mistake. Guess, which anyone on the project can set. Each takes "45m",
   "1h 30m", "1.5h" or "1:30", saves when left or on Enter, and an empty box
   clears it. Something else is refused, marked and kept as typed.
-- **A guess shows beside the time**: "20m over" in red, "10m left" in grey,
+- **A guess shows beside the time** in that box: "20m over" in red, "10m left" in grey,
   or "On the guess".
-- **Someone who can't run the clock** sees the status, the time and Task
-  completed, with no Start or Pause. No button sits there greyed out.
+- **Someone who can't change the task** sees the Time icon only once there
+  is a time or a guess. Someone who can't run the clock sees the status, the time
+  and Task completed, with no Start or Pause. No button sits there greyed out.
 - **Completed with steps left asks first**: "Mark it completed anyway?
   2 of 5 steps aren't done."
 - **A refusal**, such as an empty "Needed before Done" field, says why, and
@@ -84,7 +90,7 @@ task. Tyler asked for it on 20 Oct 2026
   [Projects and tasks](projects-and-tasks.md#milestones)). None of them is
   set against the guesses (Tyler, 20 Oct 2026: "remove the guesses time.
   dont need it").
-- **History**, in the task's cog: "Sam started the clock", "Sam paused the
+- **History**, in the task's ⋮ menu: "Sam started the clock", "Sam paused the
   clock after 45m", "The clock paused itself at midnight after 3h", "Sam took
   it" and the change above (see [History](history.md)). The project's
   Activity tab leaves the clock's lines out, so they don't bury everything

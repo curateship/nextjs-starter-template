@@ -1,12 +1,14 @@
 import * as React from "react"
 import {
   ArrowLeftIcon,
+  EraserIcon,
   EllipsisVerticalIcon,
   HistoryIcon,
+  ListTodoIcon,
+  PencilLineIcon,
+  TimerIcon,
   MessageSquarePlusIcon,
   PaperclipIcon,
-  PencilLineIcon,
-  SettingsIcon,
   SquareMousePointerIcon,
   TagIcon,
   Trash2Icon,
@@ -95,12 +97,12 @@ function SidePanel({
   const { side } = parts
   const frame = React.useRef<HTMLDivElement>(null)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
-  // The pencil's text toolbar over the notes, as in the Note app (Misc 4).
+  // The notes' text toolbar, opened from the ⋮ (Tyler, 2 Nov 2026).
   const [toolbar, setToolbar] = React.useState(false)
   const notes = React.useRef<NotesHandle>(null)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
-  // A pick in Task settings that opens a card in the panel: the keyboard goes
-  // there instead of back to the cog as the window closes.
+  // A pick in the ⋮ menu that opens a card in the panel: the keyboard goes
+  // there instead of back to the ⋮ as the menu closes.
   const picked = React.useRef<"move" | "remind" | "ask" | null>(null)
   const { remove } = parts
 
@@ -117,29 +119,18 @@ function SidePanel({
       aria-label={parts.title}
       role="region"
     >
-      {/* The task's name on the left, where the status was, then the three dots
-          and the cog (Tyler, 20 Oct 2026). The icon buttons have no border or
-          background (Tyler, 14 Oct 2026). */}
+      {/* The task's name on the left, where the status was (Tyler, 20 Oct
+          2026), then the one ⋮ menu, which took in the cog's on 2 Nov 2026.
+          The button has no border or background (Tyler, 14 Oct 2026). */}
       <DashboardCardHeader>
         {side ? (
           <div className="flex min-w-0 flex-1 items-start gap-1">
             <div className="min-w-0 flex-1">{side.title}</div>
-            {side.readOnly ? null : (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={toolbar ? "Hide the text toolbar" : "Show the text toolbar"}
-                aria-pressed={toolbar}
-                className="aria-pressed:bg-muted"
-                onClick={() => setToolbar((shown) => !shown)}
-              >
-                <PencilLineIcon className="size-4" />
-              </Button>
-            )}
-            <TaskAddMenu side={side} notes={notes} />
-            <TaskSettingsMenu
+            <TaskMenu
               side={side}
+              notes={notes}
+              toolbar={toolbar}
+              onToolbar={setToolbar}
               open={settingsOpen}
               onOpenChange={setSettingsOpen}
               onDelete={
@@ -179,7 +170,7 @@ function SidePanel({
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <div className={cn("grid", PANEL_GUTTER)}>
-          {side ? <SideBody side={side} toolbar={toolbar} notes={notes} /> : parts.body}
+          {side ? <SideBody side={side} notes={notes} toolbar={toolbar} onToolbar={setToolbar} /> : parts.body}
         </div>
       </ScrollArea>
       {/* Stays at the bottom while the rest scrolls (Tyler, 20 Oct 2026). */}
@@ -208,12 +199,14 @@ function SidePanel({
 
 function SideBody({
   side,
-  toolbar,
   notes,
+  toolbar,
+  onToolbar,
 }: {
   side: TaskSide
-  toolbar: boolean
   notes: React.Ref<NotesHandle>
+  toolbar: boolean
+  onToolbar: (shown: boolean) => void
 }) {
   return (
     <>
@@ -222,156 +215,19 @@ function SideBody({
       {side.notices}
       {/* The panel's own body under the title, always there to write in, as a
           note's words sit under its name in the Note app (Tyler, 28 Oct 2026). */}
-      {side.notes.empty && side.readOnly ? null : side.notes.field({ toolbar, handle: notes })}
-      <PanelCard storageId="project-task-steps" title="Steps" meta={side.steps.meta} settings={!side.readOnly}>
-        <StepsBox>{side.steps.content}</StepsBox>
-      </PanelCard>
+      {side.notes.empty && side.readOnly ? null : side.notes.field({ toolbar, onToolbar, handle: notes })}
+      {/* No steps, no Steps card: the ⋮'s Add steps adds the first (Tyler, 2 Nov 2026). */}
+      {side.steps.count === 0 ? null : (
+        <PanelCard storageId="project-task-steps" title="Steps" meta={side.steps.meta} settings={!side.readOnly}>
+          <StepsBox>{side.steps.content}</StepsBox>
+        </PanelCard>
+      )}
       {side.chat.count === 0 && !side.readOnly ? null : (
         <PanelCard storageId="project-task-chat" title="Chat" meta={side.chat.count || null}>
           {side.chat.content}
         </PanelCard>
       )}
     </>
-  )
-}
-
-type Adding = "tags" | "chat" | "files"
-
-/**
- * The three-dot button (Tyler, 20 Oct 2026): a dropdown of Add tags, Add
- * comment and Add files, and the one picked takes the dropdown's place. Add
- * note left it on 28 Oct 2026, when the Notes card became always there to
- * write in.
- * - **Add tags** holds the tags box: Enter places a tag, its × takes it off.
- *   The tags show under the title.
- * - **Add comment** (only while the chat is empty) holds the chat's box to
- *   write the first message. Once one is sent the Chat card appears.
- * - **Add files** lists the task's files with the place to drop more, its
- *   count beside it.
- */
-function TaskAddMenu({ side, notes }: { side: TaskSide; notes: React.RefObject<NotesHandle | null> }) {
-  const [open, setOpen] = React.useState(false)
-  const [adding, setAdding] = React.useState<Adding | null>(null)
-  const canChat = side.chat.count === 0 && !side.readOnly
-  const filesCount = side.files.count
-  const filesLabel = filesCount ? `${filesCount} ${plural(filesCount, "file")}` : "Files"
-
-  function toggle(next: boolean) {
-    setOpen(next)
-    if (!next) setAdding(null)
-  }
-
-  // The first message sent: the Chat card takes over in the panel, so the dropdown closes.
-  if (adding === "chat" && !canChat) toggle(false)
-
-  const rows: { key: Adding; label: string; icon: React.ReactNode; meta?: number }[] = [
-    ...(side.readOnly ? [] : [{ key: "tags" as const, label: "Add tags", icon: <TagIcon /> }]),
-    ...(canChat ? [{ key: "chat" as const, label: "Add comment", icon: <MessageSquarePlusIcon /> }] : []),
-    { key: "files", label: "Add files", icon: <PaperclipIcon />, meta: filesCount },
-  ]
-
-  return (
-    <Popover open={open} onOpenChange={toggle}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Add to the task"
-              className={cn(open && "bg-muted")}
-            >
-              <EllipsisVerticalIcon className="size-4" />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Add tags, a comment or files</TooltipContent>
-      </Tooltip>
-      {/* It opens leftward from the button and keeps 16px off the window's edge. */}
-      <PopoverContent
-        aria-label={adding ? rows.find((row) => row.key === adding)?.label : "Add to the task"}
-        align="end"
-        collisionPadding={16}
-        className={cn("gap-3", adding ? "w-[min(24rem,calc(100vw-2rem))] p-3" : "w-56 gap-0 p-1")}
-      >
-        {adding === null ? (
-          <>
-            {rows.map((row) => (
-              <Button
-                key={row.key}
-                type="button"
-                variant="ghost"
-                className="w-full justify-start font-normal [&_svg]:text-muted-foreground"
-                onClick={() => setAdding(row.key)}
-              >
-                {row.icon}
-                <span className="flex-1 text-left">{row.label}</span>
-                {row.meta ? <span className="text-xs text-muted-foreground">{row.meta}</span> : null}
-              </Button>
-            ))}
-            {/* The notes' own two, which sat in their card's footer before the notes became the panel's body. */}
-            <div className="-mx-1 my-1 border-t" />
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full justify-start font-normal [&_svg]:text-muted-foreground"
-              onClick={() => {
-                toggle(false)
-                notes.current?.showVersions()
-              }}
-            >
-              <HistoryIcon />
-              <span className="flex-1 text-left">Earlier versions of the notes</span>
-            </Button>
-            {side.readOnly || side.notes.empty ? null : (
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full justify-start font-normal [&_svg]:text-muted-foreground"
-                onClick={() => {
-                  toggle(false)
-                  notes.current?.askDelete()
-                }}
-              >
-                <Trash2Icon />
-                <span className="flex-1 text-left">Delete the notes</span>
-              </Button>
-            )}
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="-my-1 -ml-1 size-7"
-                aria-label="Back"
-                onClick={() => setAdding(null)}
-              >
-                <ArrowLeftIcon className="size-4" />
-              </Button>
-              <h2 className="text-sm font-medium">
-                {adding === "files" ? filesLabel : rows.find((row) => row.key === adding)?.label}
-              </h2>
-            </div>
-            {adding === "files" ? (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  Up to {LIMITS.filesPerTask} files on a task. Only people who can see the task can download them.
-                </p>
-                {side.files.content}
-              </>
-            ) : adding === "tags" ? (
-              side.tags
-            ) : (
-              side.chat.content
-            )}
-          </>
-        )}
-      </PopoverContent>
-    </Popover>
   )
 }
 
@@ -387,18 +243,30 @@ function StepsBox({ children }: { children: React.ReactNode }) {
   )
 }
 
+type Adding = "tags" | "chat" | "files" | "steps" | "time"
+
 /**
- * The cog's dropdown, as Tyler drew it on 13 Oct 2026: a Details tab with
- * every field that isn't on the panel, as cards that fold open with their
- * answer on the right (Tyler, 14 Oct 2026): Person, Dates, Priority and type,
- * Needs review, the type's own fields and the Plan. Then Duplicate, Move,
- * Remind me and Delete. The History tab holds the
- * task's history. Each field saves on its own, so there is no Save button.
+ * The task's one ⋮ menu (Tyler, 2 Nov 2026: "the 3 dot and the cog dropdowns
+ * are too redundent, combine them into one",
+ * `assets/pasted-image-1793657566602963000.png`). Along the top, the Details
+ * and History tabs with Follow at the right. Details holds, in order:
+ * - **Add to task**, a row of icons: Tags, Comment (only while the chat is
+ *   empty), Files, Steps and Time. The one picked takes the menu's place,
+ *   with an arrow back.
+ * - **The fields**, flat rows with lines between them: Person, Dates,
+ *   Priority and template, the template's own fields, Plan.
+ * - **The rows that do something**: the Needs review tick box, Show the text toolbar, the notes'
+ *   Earlier versions and Delete, Remind me, Ask for more time, Duplicate,
+ *   Move to project, Save as task template, then Delete task under a line.
+ * Each field saves on its own, so there is no Save button.
  */
-function TaskSettingsMenu({
+function TaskMenu({
   side,
   open,
   onOpenChange,
+  notes,
+  toolbar,
+  onToolbar,
   onDelete,
   onMove,
   onRemind,
@@ -408,6 +276,9 @@ function TaskSettingsMenu({
   side: TaskSide
   open: boolean
   onOpenChange: (open: boolean) => void
+  notes: React.RefObject<NotesHandle | null>
+  toolbar: boolean
+  onToolbar: (shown: boolean) => void
   onDelete: (() => void) | null
   onMove: () => void
   onRemind: () => void
@@ -415,12 +286,35 @@ function TaskSettingsMenu({
   onCloseAutoFocus: (event: Event) => void
 }) {
   const [tab, setTab] = React.useState<"details" | "history">("details")
+  const [adding, setAdding] = React.useState<Adding | null>(null)
+  const canChat = side.chat.count === 0 && !side.readOnly
+  const filesCount = side.files.count
 
   // Leaving a field saves it, so closing first leaves the field being typed in.
   function close() {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     onOpenChange(false)
+    setAdding(null)
   }
+
+  // The first message sent: the Chat card takes over in the panel, so the menu closes.
+  if (adding === "chat" && !canChat) close()
+
+  const tiles: { key: Adding; label: string; title: string; icon: React.ReactNode }[] = [
+    ...(side.readOnly ? [] : [{ key: "tags" as const, label: "Tags", title: "Add tags", icon: <TagIcon /> }]),
+    ...(canChat ? [{ key: "chat" as const, label: "Comment", title: "Add comment", icon: <MessageSquarePlusIcon /> }] : []),
+    {
+      key: "files",
+      label: "Files",
+      title: filesCount ? `${filesCount} ${plural(filesCount, "file")}` : "Files",
+      icon: <PaperclipIcon />,
+    },
+    ...(side.readOnly ? [] : [{ key: "steps" as const, label: "Steps", title: "Add steps", icon: <ListTodoIcon /> }]),
+    ...(side.time ? [{ key: "time" as const, label: "Time", title: "Time spent", icon: <TimerIcon /> }] : []),
+  ]
+  const picked = tiles.find((tile) => tile.key === adding)
+
+  const row = "w-full justify-start font-normal"
 
   return (
     <Popover open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
@@ -431,63 +325,174 @@ function TaskSettingsMenu({
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Task settings"
+              aria-label="Task menu"
               className={cn(open && "bg-muted")}
             >
-              <SettingsIcon className="size-4" />
+              <EllipsisVerticalIcon className="size-4" />
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>Task settings</TooltipContent>
+        <TooltipContent>Task menu</TooltipContent>
       </Tooltip>
       <PopoverContent
+        aria-label={picked ? picked.title : "Task menu"}
         align="end"
-        // As narrow as My settings' dropdown now its fields stack one per row (Tyler, 14 Oct 2026).
-        className="w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
+        collisionPadding={16}
+        // Narrower and smaller text than the panel's other dropdowns (Tyler,
+        // 2 Nov 2026: "reduce all the text a bit (10%) and reduce the dropdown
+        // width by 10%", then "increase by 5%"): 363px wide, 14px text at
+        // 13px, 12px at 11.5px.
+        className="w-[min(22.7rem,calc(100vw-2rem))] gap-0 p-0 [&_.text-sm]:!text-[13px] [&_.text-xs]:!text-[11.5px] [&_[data-slot=button]]:text-[13px] [&_[data-slot=tabs-trigger]]:!text-[13px]"
         onCloseAutoFocus={onCloseAutoFocus}
       >
-        <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
-          {/* Follow sits at the right of the tabs (Tyler, 14 Oct 2026). */}
-          <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
-            <TabsList>
-              <TabsTrigger value="details">Details</TabsTrigger>
-              <TabsTrigger value="history">History</TabsTrigger>
-            </TabsList>
-            {side.followButton}
-          </div>
-        </Tabs>
-        <ScrollArea className="min-h-0" viewportClassName="max-h-[min(70vh,44rem)]">
-          {tab === "details" ? (
-            <div className="grid [&_[data-slot=select-trigger]]:w-full">
-              {/* Flat rows with lines between them, edge to edge (Tyler, 20 Oct 2026). */}
-              <div className="grid">{side.settings}</div>
-              <div className="grid gap-1 border-t p-2 empty:hidden">
-                {side.readOnly ? null : (
-                  <TaskMoreRows
-                    detail={side.detail}
-                    onMove={onMove}
-                    onRemind={onRemind}
-                    onAskTime={onAskTime}
-                    onPicked={close}
-                  />
-                )}
-                {onDelete ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="justify-start text-destructive hover:text-destructive"
-                    onClick={onDelete}
-                  >
-                    <Trash2Icon className="size-4" />
-                    Delete task
-                  </Button>
-                ) : null}
-              </div>
+        {picked ? (
+          <div className="grid gap-3 p-3">
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="-my-1 -ml-1 size-7"
+                aria-label="Back"
+                onClick={() => setAdding(null)}
+              >
+                <ArrowLeftIcon className="size-4" />
+              </Button>
+              <h2 className="text-sm font-medium">{picked.title}</h2>
             </div>
-          ) : (
-            <div className={cn("p-4", FLAT_CARDS)}>{side.history}</div>
-          )}
-        </ScrollArea>
+            {adding === "files" ? (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Up to {LIMITS.filesPerTask} files on a task. Only people who can see the task can download them.
+                </p>
+                {side.files.content}
+              </>
+            ) : adding === "tags" ? (
+              side.tags
+            ) : adding === "steps" ? (
+              side.steps.add
+            ) : adding === "time" ? (
+              side.time?.content
+            ) : (
+              side.chat.content
+            )}
+          </div>
+        ) : (
+          <>
+            <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
+              {/* Follow sits at the right of the tabs (Tyler, 14 Oct 2026), the
+                  same 32px tall as them, with the gap New task has from its
+                  panel's top and right edge on every side (Tyler, 2 Nov 2026:
+                  "too much padding and its not even", then "use that spacing"). */}
+              <div className="flex items-center justify-between gap-2 border-b p-3 [&>[data-slot=button]]:h-8">
+                <TabsList>
+                  <TabsTrigger value="details">Details</TabsTrigger>
+                  <TabsTrigger value="history">History</TabsTrigger>
+                </TabsList>
+                {side.followButton}
+              </div>
+            </Tabs>
+            <ScrollArea className="min-h-0" viewportClassName="max-h-[min(70vh,44rem)]">
+              {tab === "details" ? (
+                <div className="grid [&_[data-slot=select-trigger]]:w-full">
+                  <div className="grid gap-2 border-b px-4 pt-3 pb-2">
+                    <p className="text-xs text-muted-foreground">Add to task</p>
+                    <div className="grid auto-cols-fr grid-flow-col">
+                      {tiles.map((tile) => (
+                        <Button
+                          key={tile.key}
+                          type="button"
+                          variant="ghost"
+                          className="h-auto flex-col gap-1.5 px-1 py-2 text-xs font-normal [&_svg:not([class*='size-'])]:size-5"
+                          onClick={() => setAdding(tile.key)}
+                        >
+                          {tile.icon}
+                          {tile.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Flat rows with lines between them, edge to edge (Tyler, 20 Oct 2026).
+                      Their names are 13px medium here, not the 15px bold they
+                      have elsewhere (Tyler, 2 Nov 2026: "reduce the text size"),
+                      and each row is 8px above and below, not 12px ("theres too
+                      much spacing between the items here"). */}
+                  <div className="grid [&_label]:!text-[13px] [&_label]:!font-medium [&>[data-slot=collapsible]]:!py-2">
+                    {side.settings}
+                  </div>
+                  <div className="grid gap-1 border-t p-2 empty:hidden [&_[data-slot=button]]:font-normal">
+                    {side.review}
+                    {side.readOnly ? null : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className={row}
+                        onClick={() => {
+                          close()
+                          onToolbar(!toolbar)
+                        }}
+                      >
+                        <PencilLineIcon className="size-4" />
+                        {toolbar ? "Hide the text toolbar" : "Show the text toolbar"}
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className={row}
+                      onClick={() => {
+                        close()
+                        notes.current?.showVersions()
+                      }}
+                    >
+                      <HistoryIcon className="size-4" />
+                      Earlier versions of the notes
+                    </Button>
+                    {side.readOnly || side.notes.empty ? null : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className={row}
+                        onClick={() => {
+                          close()
+                          notes.current?.askDelete()
+                        }}
+                      >
+                        <EraserIcon className="size-4" />
+                        Delete the notes
+                      </Button>
+                    )}
+                    {side.readOnly ? null : (
+                      <TaskMoreRows
+                        detail={side.detail}
+                        onMove={onMove}
+                        onRemind={onRemind}
+                        onAskTime={onAskTime}
+                        onPicked={close}
+                      />
+                    )}
+                    {onDelete ? (
+                      <>
+                        <div className="-mx-2 my-1 border-t" />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="justify-start text-destructive hover:text-destructive"
+                          onClick={onDelete}
+                        >
+                          <Trash2Icon className="size-4" />
+                          Delete task
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className={cn("p-4", FLAT_CARDS)}>{side.history}</div>
+              )}
+            </ScrollArea>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   )

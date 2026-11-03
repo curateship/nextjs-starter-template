@@ -1,6 +1,6 @@
 import * as React from "react"
 import { toast } from "sonner"
-import { CheckIcon, PauseIcon, PlayIcon, TimerIcon } from "lucide-react"
+import { CheckIcon, PauseIcon, PlayIcon } from "lucide-react"
 
 import { RainbowEdge } from "@/components/project/rainbow-edge"
 import type { Change } from "@/components/project/task-body"
@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { pauseTaskClock, setTaskClockTotal, startTaskClock } from "@/lib/api/project/clock"
 import { saveTask, setStatus, type TaskCard, type TaskDetail } from "@/lib/api/project/tasks"
 import {
@@ -56,9 +55,9 @@ export function ClockReadout({ clock, className }: { clock: TaskClock; className
 }
 
 /**
- * The open task's footer, pinned to the panel's bottom: the status, the clock
- * with its guess, then Start or Pause (Start again on a Done task), and
- * Completed. Only the person assigned and the site admin get the clock's
+ * The open task's footer, pinned to the panel's bottom: the status, then
+ * Start or Pause (Start again on a Done task), and Completed. The time spent
+ * moved to the panel's ⋮ on 2 Nov 2026 (`TaskTimeFields`). Only the person assigned and the site admin get the clock's
  * buttons; everyone else sees the time and Completed.
  */
 export function TaskClockFooter({
@@ -107,7 +106,6 @@ export function TaskClockFooter({
     // together when the panel is too narrow for one row.
     <div className={cn("flex shrink-0 flex-wrap items-center gap-2 border-t", PANEL_FOOTER_PADDING)}>
       {status}
-      <TimeMenu detail={detail} change={change} busy={busy} readOnly={readOnly} canFix={detail.canFixClock && !readOnly} />
       <div className="ml-auto flex items-center gap-2">
         {canRun ? (
           running ? (
@@ -149,77 +147,62 @@ export function TaskClockFooter({
 }
 
 /**
- * The clock's time, and the guess against it ("20m over"). Pressed, it opens
- * the two boxes: Time spent, for the person assigned and the site admin to
- * correct, and Guess, for anyone on the project. Each saves when left or on
- * Enter.
+ * Behind the task panel's ⋮ menu's Time icon (Tyler, 2 Nov 2026): the
+ * clock's time and the guess against it ("2h 15m · 20m over") once there is
+ * either, then two boxes. Time spent, for the person assigned and the site
+ * admin to correct, and Guess, for anyone on the project. Each saves when
+ * left or on Enter.
  */
-function TimeMenu({
+export function TaskTimeFields({
   detail,
   change,
   busy,
   readOnly,
-  canFix,
 }: {
   detail: TaskDetail
   change: Change
   busy: boolean
   readOnly: boolean
-  canFix: boolean
 }) {
   const { task } = detail
   const running = Boolean(task.clock.runningSince)
   const seconds = clockSeconds(task.clock, useTicking(running))
-  const [open, setOpen] = React.useState(false)
+  const canFix = detail.canFixClock && !readOnly
   const gap = task.guessMinutes ? guessGap(seconds, task.guessMinutes) : null
-  const started = running || seconds > 0
-
-  // Nothing to show and nothing to change: no button at all.
-  if (!started && !task.guessMinutes && readOnly) return null
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          aria-label={started ? `Time spent: ${clockTotal(seconds)}` : "Time and guess"}
-          className={cn("gap-1.5 px-2", open && "bg-muted")}
-        >
-          <TimerIcon className="size-4 text-muted-foreground" />
-          {started ? <ClockReadout clock={task.clock} className="text-foreground" /> : null}
+    <div className="grid gap-4">
+      {running || seconds > 0 || gap ? (
+        <p className="flex items-center gap-1.5 text-sm">
+          <ClockReadout clock={task.clock} className="text-foreground" />
           {gap ? (
             <span className={cn("text-xs", gap.endsWith("over") ? "text-destructive" : "text-muted-foreground")}>
               {gap}
             </span>
           ) : null}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" collisionPadding={16} className="grid w-64 gap-4 p-3">
-        <MinutesField
-          id="task-time-spent"
-          label="Time spent"
-          minutes={Math.floor(seconds / 60)}
-          disabled={!canFix || busy}
-          max={LIMITS.clockSeconds / 60}
-          placeholder="0m"
-          note={running ? "Changing it pauses the clock." : null}
-          onSave={(minutes) =>
-            change(() => setTaskClockTotal(task.id, (minutes ?? 0) * 60), "Time changed.")
-          }
-        />
-        <MinutesField
-          id="task-guess"
-          label="Guess"
-          minutes={task.guessMinutes}
-          disabled={readOnly || busy}
-          max={LIMITS.guessMinutes}
-          placeholder="45m"
-          note={null}
-          onSave={(minutes) => change(() => saveTask({ taskId: task.id, guessMinutes: minutes }))}
-        />
-      </PopoverContent>
-    </Popover>
+        </p>
+      ) : null}
+      <MinutesField
+        id="task-time-spent"
+        label="Time spent"
+        minutes={Math.floor(seconds / 60)}
+        disabled={!canFix || busy}
+        max={LIMITS.clockSeconds / 60}
+        placeholder="0m"
+        note={running ? "Changing it pauses the clock." : null}
+        onSave={(minutes) => change(() => setTaskClockTotal(task.id, (minutes ?? 0) * 60), "Time changed.")}
+      />
+      <MinutesField
+        id="task-guess"
+        label="Guess"
+        minutes={task.guessMinutes}
+        disabled={readOnly || busy}
+        max={LIMITS.guessMinutes}
+        placeholder="45m"
+        note={null}
+        onSave={(minutes) => change(() => saveTask({ taskId: task.id, guessMinutes: minutes }))}
+      />
+    </div>
   )
 }
 

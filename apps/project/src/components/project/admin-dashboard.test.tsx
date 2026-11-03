@@ -463,7 +463,7 @@ describe("the site admin's My dashboard", () => {
         <AdminDashboardScreen daily={daily} dashboard={dashboard()} inbox={NO_INBOX} search={{}} />
       </TooltipProvider>
     )
-    const labels = [...html.matchAll(/<li class="pt-1[^"]*">([^<]+)<\/li>/g)].map((m) => m[1])
+    const labels = [...html.matchAll(/<li class="pt-3[^"]*">([^<]+)<\/li>/g)].map((m) => m[1])
     expect(labels).toEqual(["Afternoon - 12:00 PM", "Night - 6:00 PM"])
     expect(html).toContain("Morning - 5:00 AM")
     expect(html).not.toContain("Today&#x27;s habits")
