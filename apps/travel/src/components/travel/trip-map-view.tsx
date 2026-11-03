@@ -1,0 +1,97 @@
+import * as React from "react"
+
+import { GoogleMap } from "@/components/travel/google-map"
+import { dayLabel } from "@/components/travel/new-activity"
+import { typeOf, useTrip } from "@/components/travel/trip-context"
+import { ActivityTypeIcon } from "@/components/travel/type-icon"
+import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import type { Activity } from "@/lib/api/travel/trips"
+import { boardColumns } from "@/lib/travel/board"
+import { cn } from "@/lib/utils"
+
+/** One colour per day, so a day's pins read as a group. Repeats after eight days. */
+const DAY_COLORS = ["#2563eb", "#16a34a", "#ea580c", "#9333ea", "#db2777", "#0d9488", "#ca8a04", "#dc2626"]
+const ALL_DAYS = "all"
+
+/**
+ * The Map tab (task part 42): the activities that have an address, as pins
+ * numbered in each day's order, one colour per day. A day picker narrows it
+ * to one day. Clicking a pin opens that activity in the right panel.
+ * Activities with no address are listed under the map so none is lost.
+ */
+export function TripMapView({ activities }: { activities: Activity[] }) {
+  const { page, typesById, openActivity, openActivityId } = useTrip()
+  const { trip } = page
+  const [picked, setPicked] = React.useState<string>(ALL_DAYS)
+  const columns = boardColumns(trip.days, activities)
+  columns.delete("ideas")
+  const days = [...columns.entries()]
+    .map(([, cards], index) => ({ day: index + 1, cards }))
+    .filter(({ day }) => picked === ALL_DAYS || String(day) === picked)
+  const pins = days.flatMap(({ day, cards }) =>
+    cards
+      .filter((card) => card.place?.lat !== null && card.place?.lat !== undefined && card.place.lng !== null)
+      .map((card, index) => ({
+        id: card.id,
+        lat: card.place!.lat!,
+        lng: card.place!.lng!,
+        label: String(index + 1),
+        title: `${dayLabel(day, trip.startDate)}: ${card.title}`,
+        color: DAY_COLORS[(day - 1) % DAY_COLORS.length],
+      }))
+  )
+  const unplaced = days.flatMap(({ cards }) => cards.filter((card) => card.place?.lat === null || card.place?.lat === undefined))
+
+  return (
+    <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
+      <div className="grid gap-3 p-3">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="trip-map-day">Day</Label>
+          <Select value={picked} onValueChange={setPicked}>
+            <SelectTrigger id="trip-map-day" className="w-fit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_DAYS}>Every day</SelectItem>
+              {Array.from({ length: trip.days }, (_, index) => (
+                <SelectItem key={index} value={String(index + 1)}>
+                  {dayLabel(index + 1, trip.startDate)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <GoogleMap
+          className="h-[28rem]"
+          pins={pins}
+          onPick={openActivity}
+          emptyText="No activity here has an address from Google yet. Pick one in an activity's Place card."
+        />
+        {unplaced.length ? (
+          <div className="grid gap-1">
+            <p className="text-xs font-medium text-muted-foreground">Not on the map, with no address picked from Google</p>
+            <ul className="grid gap-0.5">
+              {unplaced.map((card) => (
+                <li key={card.id}>
+                  <button
+                    type="button"
+                    onClick={() => openActivity(card.id)}
+                    className={cn(
+                      "flex w-full min-w-0 items-center gap-2 rounded px-1 py-0.5 text-left text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                      card.id === openActivityId && "bg-accent"
+                    )}
+                  >
+                    <ActivityTypeIcon type={typeOf(card, typesById)} />
+                    <span className="truncate">{card.title}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+    </ScrollArea>
+  )
+}

@@ -1,0 +1,287 @@
+import { z } from "zod"
+
+import { AI_TEXT_PROVIDERS, DEFAULT_AI_MODEL, type AiTextProvider } from "@/lib/ai/ai-models"
+import type { BuiltinType } from "@/lib/travel/activity-types"
+import { daysBetween } from "@/lib/travel/dates"
+import { TRAVEL_ERRORS } from "@/lib/travel/errors"
+import { MAX_TRIP_DAYS, TIME_PATTERN } from "@/lib/travel/rules"
+import { getAiKey } from "@/server/ai/keys"
+import { isAiLimitError, runAiCall, type AiCallUsage } from "@/server/ai/usage"
+import { db, type CustomShellDb } from "@/server/db"
+import { requireTrip } from "@/server/travel/access"
+import { builtinTypeId } from "@/server/travel/types"
+
+/**
+ * Paste a booking email (task part 44). The AI reads a confirmation email and
+ * fills in a new activity for the person to check. Nothing is saved here: the
+ * draft goes back to the window, and the person presses Create activity.
+ */
+
+/** The most of an email sent to the AI. A booking is near the top, and this keeps the cost down. */
+export const BOOKING_EMAIL_MAX = 20_000
+
+/** Enough for the JSON answer and nothing else. */
+const MAX_ANSWER_TOKENS = 600
+
+const KINDS = ["flight", "hotel", "food", "sight", "transport", "other"] as const satisfies readonly BuiltinType[]
+
+export type BookingDraft = {
+  title: string
+  /** The person's own type for what the AI found, such as their Hotel. Null when they removed it. */
+  typeId: string | null
+  /** The trip's day number, or null for the Ideas column. */
+  day: number | null
+  /** The date the email gave, as "2026-03-04", shown when it isn't on the trip. */
+  date: string | null
+  startTime: string | null
+  nights: number | null
+  placeName: string
+  address: string
+  /** In the trip's money, in cents. Null when the email had no price or priced it in other money. */
+  costCents: number | null
+  /** A price in other money, or with none named, kept so the window can say it wasn't copied. */
+  otherCost: { amount: number; currency: string | null } | null
+}
+
+/** Asks the AI one question and returns its words. Swapped out in tests. */
+export type AskAi = (system: string, prompt: string) => Promise<string>
+
+/** Any field the AI gets wrong becomes empty rather than failing the whole email. */
+const answerSchema = z.object({
+  title: z.string().trim().min(1),
+  kind: z.enum(KINDS).catch("other"),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .catch(null),
+  startTime: z.string().regex(TIME_PATTERN).nullable().catch(null),
+  nights: z.number().int().min(1).max(MAX_TRIP_DAYS).nullable().catch(null),
+  placeName: z.string().nullable().catch(null),
+  address: z.string().nullable().catch(null),
+  costAmount: z.number().min(0).max(100_000_000).nullable().catch(null),
+  currency: z.string().nullable().catch(null),
+})
+
+const SYSTEM_PROMPT = [
+  "You read travel booking confirmation emails and pull out one booking.",
+  "Answer with one JSON object and nothing else. No code fence, no words before or after.",
+  'The keys are: "title" (a short name such as "Flight to Tokyo" or "Hotel Gracery Shinjuku"),',
+  '"kind" (one of "flight", "hotel", "food", "sight", "transport", "other"),',
+  '"date" (the day it starts, or the check-in day, as YYYY-MM-DD, or null),',
+  '"startTime" (24-hour HH:MM in local time where it happens, such as a departure or check-in time, or null),',
+  '"nights" (a whole number of nights for a stay, otherwise null),',
+  '"placeName" (the hotel, restaurant, venue or departure airport, or ""),',
+  '"address" (its street address, or ""),',
+  '"costAmount" (the total price as a number, or null),',
+  '"currency" (the three-letter currency code of that price, or null).',
+  "Never invent anything that isn't in the email. Use null or an empty string instead.",
+].join(" ")
+
+function tokens(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : 0
+}
+
+/**
+ * One prompt to whichever text provider has a key. The same three HTTP calls
+ * the shell's CRM draft makes; that one isn't exported, and a shell file is
+ * never edited from an app.
+ */
+async function generate(
+  provider: AiTextProvider,
+  model: string,
+  key: string,
+  system: string,
+  prompt: string
+): Promise<{ text: string; usage: AiCallUsage }> {
+  const signal = AbortSignal.timeout(60_000)
+
+  if (provider === "anthropic") {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model,
+        max_tokens: MAX_ANSWER_TOKENS,
+        system,
+        messages: [{ role: "user", content: prompt }],
+      }),
+      signal,
+    })
+    const payload = (await response.json().catch(() => null)) as {
+      content?: { type?: string; text?: string }[]
+      usage?: { input_tokens?: number; output_tokens?: number }
+    } | null
+    if (!response.ok || !payload) throw new Error(TRAVEL_ERRORS.aiFailed)
+    return {
+      text: (payload.content ?? [])
+        .filter((part) => part.type === "text")
+        .map((part) => part.text ?? "")
+        .join(""),
+      usage: { inputTokens: tokens(payload.usage?.input_tokens), outputTokens: tokens(payload.usage?.output_tokens) },
+    }
+  }
+
+  if (provider === "openai") {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        model,
+        max_completion_tokens: MAX_ANSWER_TOKENS,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: prompt },
+        ],
+      }),
+      signal,
+    })
+    const payload = (await response.json().catch(() => null)) as {
+      choices?: { message?: { content?: string } }[]
+      usage?: { prompt_tokens?: number; completion_tokens?: number }
+    } | null
+    if (!response.ok || !payload) throw new Error(TRAVEL_ERRORS.aiFailed)
+    return {
+      text: payload.choices?.[0]?.message?.content ?? "",
+      usage: { inputTokens: tokens(payload.usage?.prompt_tokens), outputTokens: tokens(payload.usage?.completion_tokens) },
+    }
+  }
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: "POST",
+    headers: { "x-goog-api-key": key, "content-type": "application/json" },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: MAX_ANSWER_TOKENS, responseMimeType: "application/json" },
+    }),
+    signal,
+  })
+  const payload = (await response.json().catch(() => null)) as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[]
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number }
+  } | null
+  if (!response.ok || !payload) throw new Error(TRAVEL_ERRORS.aiFailed)
+  return {
+    text: (payload.candidates?.[0]?.content?.parts ?? []).map((part) => part.text ?? "").join(""),
+    usage: {
+      inputTokens: tokens(payload.usageMetadata?.promptTokenCount),
+      outputTokens: tokens(payload.usageMetadata?.candidatesTokenCount),
+    },
+  }
+}
+
+/**
+ * The real AI, through the shell's metered call: the person's monthly
+ * allowance is checked first and the cost is written down after. The first
+ * text provider with a key does the work, as with every other AI feature.
+ */
+export function meteredAi(userId: string): AskAi {
+  return async (system, prompt) => {
+    let provider: AiTextProvider | null = null
+    let key: string | null = null
+    for (const candidate of AI_TEXT_PROVIDERS) {
+      try {
+        key = await getAiKey(candidate)
+      } catch (error) {
+        // Saved keys can't be read without the server's encryption key, which
+        // means no AI is set up here, the same as having no key at all.
+        if (error instanceof Error && error.message.includes("ENCRYPTION_NOT_CONFIGURED")) throw new Error(TRAVEL_ERRORS.aiOff)
+        throw error
+      }
+      if (key) {
+        provider = candidate
+        break
+      }
+    }
+    if (!provider || !key) throw new Error(TRAVEL_ERRORS.aiOff)
+    const model = DEFAULT_AI_MODEL[provider]
+    const found = { provider, key }
+    try {
+      return await runAiCall({ userId, provider, model, feature: "travel-booking-email" }, async () => {
+        const generated = await generate(found.provider, model, found.key, system, prompt)
+        return { result: generated.text, usage: generated.usage }
+      })
+    } catch (error) {
+      if (isAiLimitError(error)) throw new Error(TRAVEL_ERRORS.aiLimit)
+      if (error instanceof Error && error.message === TRAVEL_ERRORS.aiFailed) throw error
+      // A timeout or a dropped connection says the same thing to the person.
+      throw new Error(TRAVEL_ERRORS.aiFailed)
+    }
+  }
+}
+
+/** The JSON object in an answer, with any code fence or stray words around it taken off. */
+function readAnswer(text: string) {
+  const start = text.indexOf("{")
+  const end = text.lastIndexOf("}")
+  if (start === -1 || end <= start) throw new Error(TRAVEL_ERRORS.aiFailed)
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text.slice(start, end + 1))
+  } catch {
+    throw new Error(TRAVEL_ERRORS.aiFailed)
+  }
+  const answer = answerSchema.safeParse(parsed)
+  if (!answer.success) throw new Error(TRAVEL_ERRORS.aiFailed)
+  return answer.data
+}
+
+function clip(value: string | null, max: number) {
+  return (value ?? "").trim().slice(0, max)
+}
+
+/**
+ * Reads a pasted booking email into a draft activity for one of the person's
+ * trips. The answer is checked after the AI call has been written down, so a
+ * muddled answer still counts as the call it was.
+ */
+export async function readBookingEmail(
+  userId: string,
+  input: { tripId: string; text: string },
+  { database = db, ask = meteredAi(userId) }: { database?: CustomShellDb; ask?: AskAi } = {}
+): Promise<BookingDraft> {
+  const trip = await requireTrip(userId, input.tripId, database)
+  const email = input.text.trim().slice(0, BOOKING_EMAIL_MAX)
+  if (!email) throw new Error(TRAVEL_ERRORS.bookingEmailEmpty)
+
+  const about = [
+    `Today is ${new Date().toISOString().slice(0, 10)}.`,
+    trip.startDate
+      ? `The trip starts on ${trip.startDate} and lasts ${trip.days} days.`
+      : `The trip lasts ${trip.days} days and has no dates yet.`,
+    trip.destination ? `It goes to ${trip.destination}.` : null,
+    "Use these only to work out a year the email leaves out.",
+  ]
+    .filter(Boolean)
+    .join(" ")
+
+  const answer = readAnswer(await ask(SYSTEM_PROMPT, `${about}\n\nThe email:\n\n${email}`))
+
+  let day: number | null = null
+  if (answer.date && trip.startDate) {
+    const number = daysBetween(trip.startDate, answer.date) + 1
+    if (number >= 1 && number <= trip.days) day = number
+  }
+
+  // A price is copied only when it's in the trip's money. Anything else would
+  // add the wrong number to the trip's total.
+  const currency = answer.currency?.trim().toUpperCase() || null
+  const sameMoney = currency === trip.currency
+  const costCents = answer.costAmount !== null && sameMoney ? Math.round(answer.costAmount * 100) : null
+  const otherCost = answer.costAmount !== null && !sameMoney ? { amount: answer.costAmount, currency } : null
+
+  return {
+    title: clip(answer.title, 200) || "Booking",
+    typeId: await builtinTypeId(userId, answer.kind, database),
+    day,
+    date: answer.date,
+    startTime: answer.startTime,
+    nights: answer.kind === "hotel" ? answer.nights : null,
+    placeName: clip(answer.placeName, 200),
+    address: clip(answer.address, 400),
+    costCents,
+    otherCost,
+  }
+}
