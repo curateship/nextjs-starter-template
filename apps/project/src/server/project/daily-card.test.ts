@@ -25,7 +25,6 @@ import {
   saveDailyHours,
   saveJournalRating,
   saveJournalText,
-  saveOwnWords,
   saveHiddenSections,
   saveSectionOrder,
   searchJournal,
@@ -40,7 +39,7 @@ import {
   projectTeamHolidays,
   projectTimeOff,
 } from "@/server/project/schema"
-import { createTask, setTaskStatus } from "@/server/project/tasks"
+import { createTask } from "@/server/project/tasks"
 import { startClock } from "@/server/project/task-clock"
 import { insertSiteAdmin, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
@@ -183,9 +182,6 @@ describe("everyone's card", () => {
     expect(card.clock.seconds).toBe(3600)
     expect(card.clock.running?.title).toBe("Homepage")
     expect(card.dayOff).toBeNull()
-
-    await setTaskStatus(actor(ben), { taskId, status: "done", stuckReason: null }, database)
-    expect((await loadDailyCard(ben.id, database)).finishedToday.map((task) => task.title)).toEqual(["Homepage"])
   })
 
   it("says enjoy your day off on time off, and names a team holiday", async () => {
@@ -275,8 +271,8 @@ describe("the site admin's habits", () => {
 
 describe("the site admin's journal", () => {
   it("keeps the site admin's section order, and refuses it from anyone else", async () => {
-    expect((await loadDailyCard(tyler.id, database, NINE)).settings.sections[0]).toBe("line")
-    const order = ["routine", "journal", "deepWork", "meeting", "line", "progress", "windDown"] as const
+    expect((await loadDailyCard(tyler.id, database, NINE)).settings.sections[0]).toBe("meeting")
+    const order = ["routine", "tomorrow", "meeting"] as const
     await saveSectionOrder(tyler.id, [...order], database)
     expect((await loadDailyCard(tyler.id, database, NINE)).settings.sections).toEqual([...order])
     await expect(saveSectionOrder(ben.id, [...order], database)).rejects.toThrow()
@@ -284,28 +280,15 @@ describe("the site admin's journal", () => {
 
   it("keeps the sections the site admin hid, and refuses them from anyone else", async () => {
     expect((await loadDailyCard(tyler.id, database, NINE)).settings.hidden).toEqual([])
-    await saveHiddenSections(tyler.id, ["meeting", "progress"], database)
-    expect((await loadDailyCard(tyler.id, database, NINE)).settings.hidden).toEqual(["progress", "meeting"])
-    await saveHiddenSections(tyler.id, ["progress"], database)
-    expect((await loadDailyCard(tyler.id, database, NINE)).settings.hidden).toEqual(["progress"])
-    await expect(saveHiddenSections(ben.id, ["line"], database)).rejects.toThrow()
+    await saveHiddenSections(tyler.id, ["routine", "meeting"], database)
+    expect((await loadDailyCard(tyler.id, database, NINE)).settings.hidden).toEqual(["meeting", "routine"])
+    await saveHiddenSections(tyler.id, ["routine"], database)
+    expect((await loadDailyCard(tyler.id, database, NINE)).settings.hidden).toEqual(["routine"])
+    await expect(saveHiddenSections(ben.id, ["meeting"], database)).rejects.toThrow()
   })
 
-  it("shows no line or question of its own, only the site admin's", async () => {
-    let card = await loadDailyCard(tyler.id, database, NINE)
-    expect(card.admin!.line).toBe("")
-    expect(card.admin!.question).toBe("")
-    await saveOwnWords(tyler.id, "lines", ["Ship one thing"], database)
-    await saveOwnWords(tyler.id, "questions", ["What surprised you?"], database)
-    card = await loadDailyCard(tyler.id, database, NINE)
-    expect(card.admin!.line).toBe("Ship one thing")
-    expect(card.admin!.question).toBe("What surprised you?")
-  })
-
-  it("saves today's words and tomorrow's intention, and nothing for a day gone", async () => {
-    await saveJournalText(tyler.id, { day: MONDAY, field: "intention", text: "Finish the homepage" }, database, NINE)
-    await saveJournalText(tyler.id, { day: "2099-03-03", field: "intention", text: "Call Hart Dental" }, database, NINE)
-    await saveJournalText(tyler.id, { day: MONDAY, field: "answer", text: "The walk", question: "What gave you energy today?" }, database, NINE)
+  it("saves today's words, and nothing for a day gone or ahead", async () => {
+    await saveJournalText(tyler.id, { day: MONDAY, field: "note", text: "Finish the homepage" }, database, NINE)
     await saveJournalRating(tyler.id, { day: MONDAY, rating: 4 }, database, NINE)
     await expect(saveJournalRating(tyler.id, { day: MONDAY, rating: 11 }, database, NINE)).rejects.toThrow()
     await expect(saveJournalText(tyler.id, { day: "2099-03-01", field: "win", text: "late" }, database, NINE)).rejects.toThrow(
@@ -315,10 +298,8 @@ describe("the site admin's journal", () => {
       "That day has passed"
     )
     const card = await loadDailyCard(tyler.id, database, NINE)
-    expect(card.admin!.today.intention).toBe("Finish the homepage")
-    expect(card.admin!.tomorrowIntention).toBe("Call Hart Dental")
+    expect(card.admin!.today.note).toBe("Finish the homepage")
     expect(card.admin!.today.rating).toBe(4)
-    expect(card.admin!.question).toBe("What gave you energy today?")
     expect((await loadYearOfRatings(tyler.id, 2099, database)).ratings).toEqual({ [MONDAY]: 4 })
   })
 
@@ -345,11 +326,6 @@ describe("the site admin's journal", () => {
     await saveJournalText(tyler.id, { day: MONDAY, field: "note", text: "A slow start" }, database, NINE)
     expect(await searchJournal(tyler.id, "100%", database)).toEqual([{ day: MONDAY, field: "win", text: "Sent 100% of the invoices" }])
     expect(await searchJournal(tyler.id, "_", database)).toEqual([])
-  })
-
-  it("looks a year back on this day", async () => {
-    await saveJournalText(tyler.id, { day: "2098-03-02", field: "win", text: "Moved into the new office" }, database, at("2098-03-02", "09:00"))
-    expect((await loadDailyCard(tyler.id, database, NINE)).admin!.onThisDay).toEqual({ day: "2098-03-02", text: "Moved into the new office" })
   })
 
   it("puts tomorrow's meetings, due dates and days off on the night card", async () => {

@@ -25,10 +25,10 @@ Daily card", and that file wins wherever the two disagree.
   The cards in the pencil window fold the same way ("add collasiple to cards
   in modal too").
 - **Each part sits on its own light gray box with a border**, drawn like the
-  panel's other cards, such as deep work, the next meeting, the routine and
-  the journal ("It looks too busy with all the sections, we need to clean it
+  panel's other cards, such as the next meeting, the routine and
+  tomorrow ("It looks too busy with all the sections, we need to clean it
   up. try putting them in light gray bg", then "the daily section cards is
-  missing border"). The line for the day and the buttons sit on the panel itself
+  missing border"). The buttons sit on the panel itself
   (`daily-section.tsx`).
 - **The pencil** sits in the panel's header, before the inbox and the cog
   ("put pen icon here"). **The fold arrow** sits beside the greeting and
@@ -62,12 +62,6 @@ Daily card", and that file wins wherever the two disagree.
   the service doesn't answer, the sky follows the clock alone and nothing
   shows an error. A city it can't find is refused with "We couldn't find
   that city".
-- **Deep work.** An employee's are the tasks they picked at today's check-in
-  that aren't Done. The site admin has no check-in, so theirs are their three
-  most urgent open tasks: overdue first, then the soonest due date, then High
-  priority. Tasks waiting to be accepted are left out. Each has Start, which
-  starts the task clock exactly as the task panel's Start does. Pressing the
-  title opens the task on the right. Deep work follows no filter on My tasks.
 - **The next meeting.** "Standup in 25 minutes", then "Standup now" while it
   runs, or "Standup at 3:00 PM" when it is more than an hour off. An
   employee sees the meetings they're invited to. The site admin sees every
@@ -75,20 +69,18 @@ Daily card", and that file wins wherever the two disagree.
 - **Check-in nudge.** Before an employee has checked in today, morning and
   afternoon, the card says "Check in to plan your day", which opens the
   check-in window.
-- **Afternoon progress.** "2 of 3 done, 3h 10m clocked today". The first half
-  counts today's picks finished today. The site admin's reads "2 done
-  today". Clocked time is every stretch of the task clock since midnight,
-  plus fixes made today. Nothing shows while there's nothing to count.
-  Once a task is done, an arrow at the line's right folds open the list of
-  what was done, each on a white ground and opening its task ("put white bg
-  to the tasks done"); it starts folded and the browser
-  remembers ("The done today doesnt have a toggle to show whats done").
-- **Wind-down at night.** What the person finished today, a line saying a
-  task's clock is still running with Pause, and for an employee who checked
-  in, "Check out and plan tomorrow".
+- **Check-out.** At night, an employee who checked in and hasn't checked
+  out sees "Check out and plan tomorrow".
+- **Taken out on 3 Nov 2026.** Tyler: "remove the "today I want to", line
+  of the day, Done today, at night and Afternoon progress, your own line and
+  your own night questions feature". The card has no line for the day, no
+  afternoon count of what got done, no Done today list at night, no Today
+  or Tomorrow I want to..., no night question, and no On this day. Then:
+  "remove the deep work card feature too", so it has no Deep work list of
+  tasks with Start either. Their columns were dropped in `drizzle/0143_project_daily_card_trimmed.sql`.
 - **Day off.** On the person's own time off, the card reads "Enjoy your day
-  off". On a team holiday it reads "Enjoy Christmas Day". It shows no deep
-  work and no check-in nudge that day. The site admin is on no team, so
+  off". On a team holiday it reads "Enjoy Christmas Day". It shows no next
+  meeting and no check-in nudge that day. The site admin is on no team, so
   their day off is their own time off, or a holiday every team has that day.
 - **Fold it.** Pressing the greeting or its date line folds everything below
   it away, and pressing it again opens it ("clicking on the text area should
@@ -204,33 +196,18 @@ a team screen or sent to anyone.
 - **Start day.** Until the site admin presses it, the greeting is followed
   only by a "Start day" button with a moving rainbow edge
   ("There should be a "Start day" button like a rate my day button"). Once
-  pressed, the line for the day, deep work, the next meeting, the routine
-  and the journal show for the rest of the card day, morning, afternoon and
+  pressed, the next meeting, the routine and, at night,
+  tomorrow show for the rest of the card day, morning, afternoon and
   night, and the next card day starts hidden again. It records the time in
   `up_at` and says nothing about sleep: there is no "You slept" ("Remove the
   slept feature"). An employee's card has no Start day.
-- **Today I want to... and Tomorrow I want to...** are written in the editor
-  task notes use: select words for bold, a list or a link, with lines and
-  spacing kept as typed ("Make that field using tip tap editor so I can add
-  more advanced text and spacing"). The box starts two lines tall and grows
-  ("the field should only be 2 row"). It is saved as the editor's document;
-  an intention written before 30 Oct 2026 is plain words and shows as typed.
-  Look back's search and On this day read its words alone.
-- **Morning:** "Today I want to...", and a line for the day. The line comes
-  only from the site admin's own lines, one per day in turn; with none, no
-  line shows. There are no built-in lines or questions ("Remove all of the
-  premade morning and night lines", 30 Oct 2026).
-- **Afternoon:** the morning's intention, read back on its own, with no label
-  before it ("remove this label "Today you want to:"").
-- **Night:** tomorrow at a glance and the morning's intention sit on the card.
-  Tomorrow lists every team's meetings ("Meeting: 3:00 PM Sprint retro ·
+- **Night:** tomorrow at a glance sits on the card. It lists every team's meetings ("Meeting: 3:00 PM Sprint retro ·
   Sample team"), tasks due across the teams and the site admin's own list
   ("Due: Thank-you notes · Spring launch"), who is off, and holidays.
 - **Rate your day** is a button with a moving rainbow edge at the foot of
   the card, at night only ("all these should be in a dropdown in a button").
   It opens the rest of the evening: Rate your day from 1 to 10 ("rating should be out of 10, not 5") with a note,
-  the win of the day, tonight's question with an answer, "Tomorrow I want
-  to...", and Rate day at the
+  the win of the day, and Rate day at the
   foot, with a star, where Going to bed was ("rename this button to "Rate
   day" and change the icon"). Rate day needs a rating first ("Pick how your
   day went, from 1 to 10, first."). Then it closes the window, sets off the
@@ -241,14 +218,8 @@ a team screen or sent to anyone.
   the window (Tyler, 30 Oct 2026: "remove"). The time it was pressed is kept in `bed_at`, the
   column Going to bed used, and isn't shown anywhere. A box still being
   typed in when the window closes is saved too.
-- **Tonight's question** comes only from the site admin's own questions;
-  with none, no question shows. A question is saved with its answer, so
-  changing the list never changes an old answer.
-- **Only today can be written.** The one day ahead is tomorrow's intention,
-  written tonight. A box saves itself when left, with the usual Saving…,
-  Saved or Not saved.
-- **On this day.** "A year ago today you wrote...", with that day's win or
-  intention, when there is one.
+- **Only today can be written.** A box saves itself when left, with the
+  usual Saving…, Saved or Not saved.
 - **Sunday** shows the week's ratings and wins above the usual card, all day.
 - **The first of the month** shows last month's best habit (done most often
   for the days it was set), the typical rating and the top wins.
@@ -270,8 +241,8 @@ a team screen or sent to anyone.
   the day on the left and its rating on the right ("replace it with
   collapsible card for each day of the month. Day on the left and rating on
   the right, uncollapse it to show all the checked habits and notes for that
-  day"). Opened, a day shows the habits done that day, the intention, the
-  win, the note and tonight's question with its answer. This is where the
+  day"). Opened, a day shows the habits done that day, the
+  win and the note. This is where the
   journal's past days are read ("we need a place to show the journal days
   history too"). Year is twelve small month calendars, each day's square
   stronger for a better rating and showing its number ("place the rating
@@ -279,18 +250,15 @@ a team screen or sent to anyone.
   the panel"): the month calendar and its row of arrows the full width ("this
   should be full width"), the year two
   months across in a narrow panel and more as it widens.
-  Search finds a word in intentions, wins, notes and answers.
+  Search finds a word in wins and notes.
 
 ### Behind the pencil, for the site admin
 
-Today, Sections, Habits (with each part's starting hour beside its name),
-Reminders, Sky, Your own lines and Your own night questions, in that order. Today holds "Today I want to...", open to
-change at any time of day here, while the card offers it in the morning only
-("It should be edible in the modal").
+Sections, Habits (with each part's starting hour beside its name),
+Reminders and Sky, in that order.
 
-- **Sections** lists the card's parts: Line for the day, Afternoon progress,
-  Deep work, Next meeting, Done today at night, Routine, and Today I want
-  to... with Tomorrow. Dragging one sets the order the card shows them in, in
+- **Sections** lists the card's parts: Next meeting, Routine, and
+  Tomorrow at night. Dragging one sets the order the card shows them in, in
   the panel, saved in the site admin's account so every computer and phone
   shows the same order ("whats the point of dragging the cards in the modal
   if its not reflected in the panel?"; he picked the account). The Sunday and
@@ -311,8 +279,7 @@ change at any time of day here, while the card offers it in the morning only
 
 `drizzle/0137_project_daily_card.sql`:
 
-- `project_daily_cards`: each person's hours, city, sky and photos, own lines
-  and questions, reminder times, the milestones already celebrated, and the
+- `project_daily_cards`: each person's hours, city, sky and photos, reminder times, the milestones already celebrated, and the
   site admin's section order (`section_order`, from
   `drizzle/0138_project_daily_sections.sql`) and hidden sections
   (`hidden_sections`, from `drizzle/0140_project_daily_hidden_sections.sql`).
@@ -321,9 +288,9 @@ change at any time of day here, while the card offers it in the morning only
   into Lucide's (cup to cup-soda, book to book-open and so on).
 - `project_habits` and `project_habit_days`: the site admin's habits and one
   row per habit per day ticked or counted.
-- `project_journal_days`: one row per card day. The rating is 1 to 10 and
-  the intention holds up to 20,000 characters of the editor's document since
+- `project_journal_days`: one row per card day. The rating is 1 to 10 since
   `drizzle/0139_project_day_rating_ten.sql`, which doubled the 1 to 5 ratings
-  already given.
+  already given. It also holds the note, the win and the Start day and Rate
+  day times.
 - `project_routine_reminders`: one row per routine reminder sent, written
   with the bell notice so it is sent once.

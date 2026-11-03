@@ -11,7 +11,6 @@ import {
   habitIsSetFor,
   JOURNAL_SEARCH_RESULTS,
   newMilestone,
-  pickForDay,
   knownSections,
   sectionsInOrder,
   streakOf,
@@ -31,7 +30,6 @@ import type { ShellIcon } from "@/lib/custom-shell"
 import { READY_ROUTINES } from "@/lib/project/daily-words"
 import { addDays, localNow, momentOf, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
-import { taskNotesText } from "@/lib/project/notes"
 import { CLOSED_TASK_STATUSES } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
@@ -77,8 +75,6 @@ export type DailySettings = {
   city: string | null
   sky: SkyKind
   ownSkies: Record<DayPart, string>
-  ownLines: string[]
-  ownQuestions: string[]
   reminders: RoutineReminders
   /** The panel's sections in the site admin's order, every one named once. */
   sections: DailySection[]
@@ -108,12 +104,9 @@ export type DailyHabit = {
 
 export type JournalDay = {
   day: string
-  intention: string
   rating: number | null
   note: string
   win: string
-  question: string
-  answer: string
   bedAt: string | null
   upAt: string | null
 }
@@ -135,11 +128,6 @@ export type SiteAdminDaily = {
   /** A streak milestone reached and not yet celebrated, such as "finished:7". */
   milestone: string | null
   today: JournalDay
-  /** Tomorrow's intention, written tonight. */
-  tomorrowIntention: string
-  line: string
-  question: string
-  onThisDay: { day: string; text: string } | null
   /** On Sunday: this week's ratings and wins, Monday first. */
   lookBack: { day: string; rating: number | null; win: string }[] | null
   /** On the first of the month: last month at a glance. */
@@ -169,7 +157,6 @@ export type DailyCard = {
   meetings: DailyMeeting[]
   /** Time on the task clock today, counted to the moment the card loaded, and the clock still going. */
   clock: { seconds: number; running: { taskId: string; projectId: string; title: string; since: string } | null }
-  finishedToday: { taskId: string; projectId: string; title: string }[]
   /** "Enjoy your day off", or the holiday's name, on a day off. */
   dayOff: string | null
   admin: SiteAdminDaily | null
@@ -180,8 +167,6 @@ const DEFAULT_SETTINGS: DailySettings = {
   city: null,
   sky: "drawn",
   ownSkies: { morning: "", afternoon: "", night: "" },
-  ownLines: [],
-  ownQuestions: [],
   reminders: DEFAULT_REMINDERS,
   sections: [...DAILY_SECTIONS],
   hidden: [],
@@ -201,8 +186,6 @@ function settingsOf(row: SettingsRow | undefined): DailySettings {
     city: row.city,
     sky: row.sky,
     ownSkies: { morning: row.ownSkyMorning, afternoon: row.ownSkyAfternoon, night: row.ownSkyNight },
-    ownLines: row.ownLines,
-    ownQuestions: row.ownQuestions,
     reminders: { morning: row.reminderMorning, afternoon: row.reminderAfternoon, night: row.reminderNight },
     sections: sectionsInOrder(row.sectionOrder),
     hidden: knownSections(row.hiddenSections),
@@ -258,14 +241,13 @@ export async function loadDailyCard(userId: string, database: ProjectDb = db, at
         ).then(asDailyMeetings)
       : await invitedMeetingsOn(userId, teamId!, today, zone, database),
     clock: await clockToday(userId, today, zone, database, at),
-    finishedToday: await finishedOn(userId, today, zone, database),
     dayOff: siteAdmin
       ? daysOff!.has(today)
         ? "Enjoy your day off"
         : null
       : await employeeDayOff(userId, teamId!, today, database),
     admin: siteAdmin
-      ? await siteAdminDaily(userId, row, settings, cardDay, zone, teams, daysOff!, database)
+      ? await siteAdminDaily(userId, row, cardDay, zone, teams, daysOff!, database)
       : null,
   }
 }
@@ -377,23 +359,6 @@ async function clockToday(userId: string, today: string, zone: string, database:
   return { seconds: Math.max(0, seconds), running }
 }
 
-/** Tasks the person finished today in their zone. */
-async function finishedOn(userId: string, today: string, zone: string, database: ProjectDb) {
-  return database
-    .select({ taskId: projectTasks.id, projectId: projectTasks.projectId, title: projectTasks.title })
-    .from(projectTasks)
-    .where(
-      and(
-        eq(projectTasks.assigneeUserId, userId),
-        eq(projectTasks.status, "done"),
-        isNull(projectTasks.deletedAt),
-        gte(projectTasks.completedAt, momentOf(today, "00:00", zone)),
-        lte(projectTasks.completedAt, momentOf(addDays(today, 1), "00:00", zone))
-      )
-    )
-    .orderBy(asc(projectTasks.completedAt))
-}
-
 // --- The site admin's habits and journal ------------------------------------------
 
 type HabitRow = typeof projectHabits.$inferSelect
@@ -401,7 +366,6 @@ type HabitRow = typeof projectHabits.$inferSelect
 async function siteAdminDaily(
   userId: string,
   row: SettingsRow | undefined,
-  settings: DailySettings,
   cardDay: string,
   zone: string,
   teams: { id: string; name: string }[],
@@ -447,8 +411,6 @@ async function siteAdminDaily(
 
   const journal = await journalDays(userId, addDays(cardDay, -40), addDays(cardDay, 1), database)
   const todayRow = journal.get(cardDay) ?? emptyJournalDay(cardDay)
-  const yearAgo = await journalDays(userId, yearBefore(cardDay), yearBefore(cardDay), database)
-  const past = yearAgo.get(yearBefore(cardDay))
 
   return {
     habits,
@@ -456,12 +418,6 @@ async function siteAdminDaily(
     finished,
     milestone,
     today: todayRow,
-    tomorrowIntention: journal.get(addDays(cardDay, 1))?.intention ?? "",
-    // Only the site admin's own; with none, the card shows no line and no question.
-    line: pickForDay(settings.ownLines, cardDay) ?? "",
-    question: todayRow.question || (pickForDay(settings.ownQuestions, cardDay) ?? ""),
-    // The intention is the editor's document, so its plain words stand in for it.
-    onThisDay: past && (past.intention || past.win) ? { day: past.day, text: past.win || taskNotesText(past.intention) } : null,
     lookBack:
       weekdayOf(cardDay) === 0
         ? Array.from({ length: 7 }, (_, index) => {
@@ -510,13 +466,7 @@ function finishedDayIs(
 }
 
 function emptyJournalDay(day: string): JournalDay {
-  return { day, intention: "", rating: null, note: "", win: "", question: "", answer: "", bedAt: null, upAt: null }
-}
-
-function yearBefore(day: string) {
-  const [year, rest] = [Number(day.slice(0, 4)), day.slice(4)]
-  // 29 Feb looks back to 28 Feb.
-  return rest === "-02-29" ? `${year - 1}-02-28` : `${year - 1}${rest}`
+  return { day, rating: null, note: "", win: "", bedAt: null, upAt: null }
 }
 
 async function journalDays(userId: string, from: string, to: string, database: ProjectDb) {
@@ -529,12 +479,9 @@ async function journalDays(userId: string, from: string, to: string, database: P
       row.day,
       {
         day: row.day,
-        intention: row.intention,
         rating: row.rating,
         note: row.note,
         win: row.win,
-        question: row.question,
-        answer: row.answer,
         bedAt: row.bedAt?.toISOString() ?? null,
         upAt: row.upAt?.toISOString() ?? null,
       },
@@ -713,7 +660,7 @@ export async function loadYearOfRatings(userId: string, year: number, database: 
 
 export type JournalHit = { day: string; field: JournalField; text: string }
 
-/** Intentions, notes, wins and answers holding the words, newest first. */
+/** Notes and wins holding the words, newest first. */
 export async function searchJournal(userId: string, q: string, database: ProjectDb = db): Promise<JournalHit[]> {
   await requireSiteAdmin(userId, database)
   const pattern = `%${q.replace(/[\\%_]/g, (character) => `\\${character}`)}%`
@@ -724,21 +671,17 @@ export async function searchJournal(userId: string, q: string, database: Project
       and(
         eq(projectJournalDays.userId, userId),
         or(
-          sql`${projectJournalDays.intention} ilike ${pattern}`,
           sql`${projectJournalDays.note} ilike ${pattern}`,
-          sql`${projectJournalDays.win} ilike ${pattern}`,
-          sql`${projectJournalDays.answer} ilike ${pattern}`
+          sql`${projectJournalDays.win} ilike ${pattern}`
         )
       )
     )
     .orderBy(desc(projectJournalDays.day))
     .limit(JOURNAL_SEARCH_RESULTS)
   const needle = q.toLowerCase()
-  // The intention is searched by its words, not its saved document, which also
-  // holds names such as "paragraph" that nobody wrote.
   return rows.flatMap((row) =>
-    (["intention", "win", "note", "answer"] as const)
-      .map((field) => ({ field, text: field === "intention" ? taskNotesText(row.intention) : row[field] }))
+    (["win", "note"] as const)
+      .map((field) => ({ field, text: row[field] }))
       .filter((hit) => hit.text.toLowerCase().includes(needle))
       .map((hit) => ({ day: row.day, ...hit }))
   )
@@ -803,12 +746,6 @@ export async function saveSectionOrder(userId: string, order: DailySection[], da
 export async function saveHiddenSections(userId: string, hidden: DailySection[], database: ProjectDb = db) {
   await requireSiteAdmin(userId, database)
   await saveSettings(userId, { hiddenSections: knownSections(hidden) }, database)
-}
-
-/** The site admin's own lines for the day, or their own night questions. */
-export async function saveOwnWords(userId: string, kind: "lines" | "questions", items: string[], database: ProjectDb = db) {
-  await requireSiteAdmin(userId, database)
-  await saveSettings(userId, kind === "lines" ? { ownLines: items } : { ownQuestions: items }, database)
 }
 
 /** A milestone's confetti has been shown, so it never shows again. */
@@ -947,26 +884,16 @@ async function saveJournal(userId: string, day: string, values: Partial<typeof p
     .onConflictDoUpdate({ target: [projectJournalDays.userId, projectJournalDays.day], set: { ...values, updatedAt } })
 }
 
-/**
- * An intention, note, win or answer for the card's day. The only day ahead
- * is tomorrow's intention, written tonight. An answer keeps its question.
- */
+/** A note or win for the card's day. */
 export async function saveJournalText(
   userId: string,
-  input: { day: string; field: JournalField; text: string; question?: string },
+  input: { day: string; field: JournalField; text: string },
   database: ProjectDb = db,
   at = new Date()
 ) {
   await requireSiteAdmin(userId, database)
-  const cardDay = await siteAdminCardDay(userId, database, at)
-  const tomorrowIntention = input.field === "intention" && input.day === addDays(cardDay, 1)
-  if (input.day !== cardDay && !tomorrowIntention) throw new Error(PROJECT_ERRORS.journalDayGone)
-  await saveJournal(
-    userId,
-    input.day,
-    input.field === "answer" ? { answer: input.text, question: input.question ?? "" } : { [input.field]: input.text },
-    database
-  )
+  if (input.day !== (await siteAdminCardDay(userId, database, at))) throw new Error(PROJECT_ERRORS.journalDayGone)
+  await saveJournal(userId, input.day, { [input.field]: input.text }, database)
 }
 
 export async function saveJournalRating(userId: string, input: { day: string; rating: number | null }, database: ProjectDb = db, at = new Date()) {

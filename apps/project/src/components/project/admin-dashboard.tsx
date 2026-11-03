@@ -27,13 +27,11 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { saveAdminStatusOrder, saveAdminTimeZone, type AdminDashboard } from "@/lib/api/project/admin-dashboard"
 import type { DailyCard as DailyCardData } from "@/lib/api/project/daily-card"
-import type { TaskCard } from "@/lib/api/project/tasks"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { adminProjectColumn } from "@/lib/project/admin-projects"
 import { browserTimeZone } from "@/lib/project/days"
 import { ADMIN_DASHBOARD_PANEL_LAYOUT_KEY, ADMIN_OPEN_TASK_KEY } from "@/lib/project/panel-keys"
-import { isOpenStatus, priorityRank } from "@/lib/project/rules"
 import type { TaskFilters } from "@/lib/project/task-filters"
 import { TeamScope } from "@/lib/project/team-scope"
 import { useMyLive } from "@/lib/project/use-my-live"
@@ -324,7 +322,7 @@ function AdminPanel({
             Daily card's widest row and pushed a counted habit's "+" past the
             panel's edge (Tyler, 31 Oct 2026: "Add the + icon back"). */}
         <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
-          <DailyCard daily={daily} now={now} deepWork={mostUrgent(dashboard.tasks, dashboard.today)} picks={null} checkin={null} onOpenTask={onOpenTask} />
+          <DailyCard daily={daily} now={now} checkin={null} />
           <AdminCards
             cards={dashboard.cards}
             zone={dashboard.zone}
@@ -335,27 +333,6 @@ function AdminPanel({
       </ScrollArea>
     </div>
   )
-}
-
-/** How many tasks the site admin's Daily card names as deep work. */
-const DEEP_WORK_TASKS = 3
-
-/**
- * The site admin's deep work on the Daily card: they have no check-in, so it
- * is their three most urgent open tasks (Tyler, 29 Oct 2026). Overdue first,
- * then soonest due, then High priority; tasks waiting to be accepted wait.
- */
-function mostUrgent(tasks: TaskCard[], today: string) {
-  const rank = (task: TaskCard) => (task.dueDate && task.dueDate < today ? 0 : task.dueDate ? 1 : 2)
-  return tasks
-    .filter((task) => isOpenStatus(task.status) && !task.waiting)
-    .sort(
-      (a, b) =>
-        rank(a) - rank(b) ||
-        (a.dueDate ?? "").localeCompare(b.dueDate ?? "") ||
-        priorityRank(a.priority) - priorityRank(b.priority)
-    )
-    .slice(0, DEEP_WORK_TASKS)
 }
 
 /** The inbox icon, with a red bubble counting unread notices; a cross while the inbox shows. */

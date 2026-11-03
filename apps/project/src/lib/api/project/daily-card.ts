@@ -5,7 +5,6 @@ import {
   dailyCitySchema,
   dailyHoursSchema,
   dailyHiddenSectionsSchema,
-  dailyOwnWordsSchema,
   dailySectionOrderSchema,
   dailyRemindersSchema,
   dailySkySchema,
@@ -14,7 +13,6 @@ import {
   habitOrderSchema,
   journalRatingSchema,
   journalSearchSchema,
-  journalIntentionSchema,
   journalTextSchema,
   milestoneSchema,
   monthSchema,
@@ -42,7 +40,6 @@ import {
   saveDailySky,
   saveJournalRating,
   saveJournalText,
-  saveOwnWords,
   saveHiddenSections,
   saveSectionOrder,
   saveRoutineReminders,
@@ -120,11 +117,6 @@ const saveHiddenSectionsFn = createServerFn({ method: "POST" })
   .inputValidator(dailyHiddenSectionsSchema)
   .handler(async ({ data, context }) => saveHiddenSections(context.user.id, data.hidden))
 
-const saveOwnWordsFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(dailyOwnWordsSchema)
-  .handler(async ({ data, context }) => saveOwnWords(context.user.id, data.kind, data.items))
-
 const createHabitFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(newHabitSchema)
@@ -162,11 +154,6 @@ const readyRoutinesFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(readyRoutinesSchema)
   .handler(async ({ context }) => addReadyRoutines(context.user.id))
-
-const journalIntentionFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(journalIntentionSchema)
-  .handler(async ({ data, context }) => saveJournalText(context.user.id, { day: data.day, field: "intention", text: data.body }))
 
 const journalTextFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -227,9 +214,6 @@ export function saveMyHiddenSections(data: z.input<typeof dailyHiddenSectionsSch
   return saveHiddenSectionsFn({ data })
 }
 
-export function saveMyOwnWords(data: z.input<typeof dailyOwnWordsSchema>) {
-  return saveOwnWordsFn({ data })
-}
 export function addHabit(data: z.input<typeof newHabitSchema>) {
   return createHabitFn({ data })
 }
@@ -251,11 +235,6 @@ export function countHabit(data: z.input<typeof habitCountSchema>) {
 export function addSampleRoutines() {
   return readyRoutinesFn({ data: {} })
 }
-/** Today's or tomorrow's intention, as the editor's document. */
-export function saveIntention(data: z.input<typeof journalIntentionSchema>) {
-  return journalIntentionFn({ data })
-}
-
 export function saveJournalWords(data: z.input<typeof journalTextSchema>) {
   return journalTextFn({ data })
 }

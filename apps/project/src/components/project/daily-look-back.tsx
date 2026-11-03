@@ -1,7 +1,6 @@
 import * as React from "react"
 import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
-import { IntentionText } from "@/components/project/daily-journal"
 import { HabitIconGlyph } from "@/components/project/habit-icons"
 import { PanelTabsRow } from "@/components/project/panel-tabs-row"
 import { Button } from "@/components/ui/button"
@@ -220,10 +219,9 @@ function DayCard({ day, journal, ticked }: { day: string; journal: JournalDay | 
     ? [
         { label: "Win of the day", text: journal.win },
         { label: "A note about today", text: journal.note },
-        { label: journal.question || "Tonight's question", text: journal.answer },
       ].filter((part) => part.text)
     : []
-  const nothing = ticked.length === 0 && words.length === 0 && !journal?.intention
+  const nothing = ticked.length === 0 && words.length === 0
   return (
     <li>
       <Collapsible className="group/day rounded-md border text-sm">
@@ -252,12 +250,6 @@ function DayCard({ day, journal, ticked }: { day: string; journal: JournalDay | 
                   </li>
                 ))}
               </ul>
-            </div>
-          ) : null}
-          {journal?.intention ? (
-            <div className="grid gap-0.5">
-              <span className="text-xs text-muted-foreground">Today I want to...</span>
-              <IntentionText value={journal.intention} />
             </div>
           ) : null}
           {words.map((part) => (
@@ -379,10 +371,8 @@ function YearGrid({ year, ratings }: { year: number; ratings: Record<string, num
 }
 
 const FIELD_WORDS: Record<JournalHit["field"], string> = {
-  intention: "Intention",
   win: "Win",
   note: "Note",
-  answer: "Answer",
 }
 
 function SearchTab() {
@@ -397,7 +387,7 @@ function SearchTab() {
           setQ(draft.trim())
         }}
       >
-        <Label htmlFor="daily-journal-search">Find a word in your intentions, wins, notes and answers</Label>
+        <Label htmlFor="daily-journal-search">Find a word in your wins and notes</Label>
         <div className="flex gap-2">
           <Input
             id="daily-journal-search"
