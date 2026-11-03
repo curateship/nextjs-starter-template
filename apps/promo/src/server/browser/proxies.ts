@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm"
 
+import { proxyBanCounts } from "@/server/bans/rules"
 import {
   PROXY_KINDS,
   PROXY_PROTOCOLS,
@@ -58,6 +59,11 @@ export type ProxyView = {
   usedBy: Array<{ id: string; name: string }>
   /** What the record of its outside address says. */
   addresses: AddressSummary
+  /**
+   * The apps a counted ban happened on through this proxy, and how many
+   * times (Bans task, part 13). Such a proxy is refused for that app.
+   */
+  bannedOn: Record<string, number>
 }
 
 type AddressSummary = {
@@ -119,10 +125,13 @@ export async function listProxies(
     .where(inArray(promoProxyAddresses.proxyId, ids))
     .groupBy(promoProxyAddresses.proxyId)
 
+  const bans = await proxyBanCounts(userId, ids, db)
+
   return rows.map((row) => {
     const stat = stats.find((each) => each.proxyId === row.id)
     return {
       ...proxyView(row),
+      bannedOn: bans.get(row.id) ?? {},
       usedBy: users
         .filter((user) => user.proxyId === row.id)
         .map(({ id, name }) => ({ id, name })),

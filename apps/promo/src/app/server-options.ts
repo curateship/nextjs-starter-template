@@ -159,6 +159,20 @@ export const appServerOptions: AppServerOptions = {
         },
       },
       {
+        name: "promo-bans",
+        /**
+         * The Bans task's upkeep (`src/server/bans/upkeep.ts`): every five
+         * minutes, a time for each warming Instagram or TikTok account's
+         * daily visit; every ten, the bell for an appeal 7 days old with no
+         * answer and the weekly look at each banned account's app. Only
+         * writes jobs, phone actions and notices.
+         */
+        tick: async () => {
+          const { banUpkeep } = await import("@/server/bans/upkeep")
+          await banUpkeep()
+        },
+      },
+      {
         name: "promo-phone-health",
         /**
          * Rings the bell for a phone offline five minutes, a battery over

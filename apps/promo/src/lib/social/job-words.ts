@@ -40,6 +40,8 @@ export const JOB_KIND_WORDS: Record<JobKind, string> = {
   comment_link: "Find a phone comment's link",
   app_post: "Post a photo or video",
   app_profile: "Change a profile",
+  app_warm_up: "Warm up on the phone",
+  ban_look: "Weekly look at a banned account",
   inbox_read: "Read messages and comments",
   inbox_reply: "Answer a message or comment",
   medium_search: "Search a Medium keyword",

@@ -1,0 +1,454 @@
+import * as React from "react"
+import { useNavigate, useRouter } from "@tanstack/react-router"
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  BookmarkIcon,
+  ChevronDownIcon,
+  CopyIcon,
+  MapIcon,
+  PlaneTakeoffIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react"
+import { toast } from "sonner"
+
+import { CopyTripDialog } from "@/components/travel/copy-trip-dialog"
+import { GoogleMap } from "@/components/travel/google-map"
+import { NewTripDialog } from "@/components/travel/new-trip-dialog"
+import { SavedPlacesDialog } from "@/components/travel/saved-places-dialog"
+import { DashboardTable } from "@/components/shared/dashboard-table"
+import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
+import {
+  SelectAllTableHead,
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import { useShellRuntime } from "@/components/shell/shell-layout"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { archiveTrip, loadPins, type TripPin } from "@/lib/api/travel/trip-admin"
+import { removeTrip, type TripListRow, type TripsPage } from "@/lib/api/travel/trips"
+import { describeBulkResult } from "@/lib/format/bulk-result"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useClientPage } from "@/lib/hooks/use-client-page"
+import { useLastValue } from "@/lib/hooks/use-last-value"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { pageGutter } from "@/lib/layout/shell-gutter"
+import { useRememberedChoice } from "@/lib/remembered-choice"
+import { countdown, formatTripDates, tripHasEnded } from "@/lib/travel/dates"
+import { getTravelErrorMessage } from "@/lib/travel/errors"
+import { TRIPS_MAP_KEY } from "@/lib/travel/panel-keys"
+import { TRIP_STATUS_LABEL } from "@/lib/travel/rules"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
+
+type Column = "name" | "days" | "start" | "status"
+export type TripsShow = "upcoming" | "past" | "archived"
+
+const COLUMNS: SortableColumn<Column>[] = [
+  { key: "name", label: "Trip", column: "main", className: "min-w-0 md:min-w-72" },
+  { key: "start", label: "Dates", column: "preview" },
+  { key: "days", label: "Days", column: "preview" },
+  { key: "status", label: "Status", column: "preview" },
+]
+const STATUS_RANK = { planning: 0, booked: 1, done: 2 } as const
+const ON_OFF = ["on", "off"] as const
+
+/** Upcoming holds every trip that hasn't ended, trips with no dates included; Past the ones that have. */
+function showOf(row: TripListRow): TripsShow {
+  if (row.archived) return "archived"
+  return tripHasEnded(row) ? "past" : "upcoming"
+}
+
+/**
+ * The Trips table: every trip of the person signed in (task parts 1 and 36
+ * to 41). Upcoming, Past and Archived tabs, kept in the address; the search
+ * first, then the tag filter, Saved places and New trip. Each row has its
+ * dates, a countdown and its status, and Copy, Archive and Delete. The map of
+ * places visited sits above it and hides with its switch.
+ */
+export function TripsDashboard({
+  page,
+  show,
+  onShow,
+}: {
+  page: TripsPage
+  show: TripsShow
+  onShow: (show: TripsShow) => void
+}) {
+  const navigate = useNavigate()
+  const router = useRouter()
+  const { config } = useShellRuntime()
+  const [creating, setCreating] = React.useState(false)
+  const [savedOpen, setSavedOpen] = React.useState(false)
+  const [copying, setCopying] = React.useState<TripListRow | null>(null)
+  const [deleting, setDeleting] = React.useState<TripListRow[] | null>(null)
+  const closingDeleting = useLastValue(deleting)
+  const shownDeleting = deleting ?? closingDeleting
+  const [query, setQuery] = React.useState("")
+  const [tags, setTags] = React.useState<ReadonlySet<string>>(new Set())
+  const { sort, direction, toggleSort } = useTableSort<Column>("start")
+  const selection = useSelection()
+  const [run, busy] = useAsyncAction(getTravelErrorMessage)
+  const [mapShown, setMapShown] = useRememberedChoice(TRIPS_MAP_KEY, "on", ON_OFF)
+
+  const allTags = React.useMemo(
+    () => [...new Set(page.trips.flatMap((trip) => trip.tags))].sort((a, b) => a.localeCompare(b)),
+    [page.trips]
+  )
+  const counts = {
+    upcoming: page.trips.filter((trip) => showOf(trip) === "upcoming").length,
+    past: page.trips.filter((trip) => showOf(trip) === "past").length,
+    archived: page.trips.filter((trip) => showOf(trip) === "archived").length,
+  }
+
+  const rows = React.useMemo(() => {
+    const sign = direction === "asc" ? 1 : -1
+    const needle = query.trim().toLowerCase()
+    return page.trips
+      .filter((trip) => showOf(trip) === show)
+      .filter((trip) => !needle || `${trip.name} ${trip.destination ?? ""}`.toLowerCase().includes(needle))
+      .filter((trip) => tags.size === 0 || trip.tags.some((tag) => tags.has(tag)))
+      .sort((a, b) => {
+        if (sort === "name") return a.name.localeCompare(b.name) * sign
+        if (sort === "days") return (a.days - b.days) * sign || a.name.localeCompare(b.name)
+        if (sort === "status") return (STATUS_RANK[a.status] - STATUS_RANK[b.status]) * sign || a.name.localeCompare(b.name)
+        // No dates sorts after every dated trip, whichever way.
+        if (a.startDate === b.startDate) return a.name.localeCompare(b.name)
+        if (!a.startDate) return 1
+        if (!b.startDate) return -1
+        return a.startDate.localeCompare(b.startDate) * sign
+      })
+  }, [direction, page.trips, query, show, sort, tags])
+
+  const { visible, footer } = useClientPage(rows, config.dashboardRowsPerPage, `${show}|${query}|${[...tags]}|${sort}|${direction}`)
+  const visibleIds = visible.map((row) => row.id)
+  useClearSelectionOnListChange(selection.setSelected, `${show}|${query}|${[...tags]}`)
+  const selected = page.trips.filter((trip) => selection.selected.has(trip.id))
+
+  async function deleteTrips(trips: TripListRow[]) {
+    let done = 0
+    let failed = 0
+    const ok = await run(async () => {
+      for (const trip of trips) {
+        try {
+          await removeTrip(trip.id)
+          done += 1
+        } catch {
+          failed += 1
+        }
+      }
+    })
+    if (!ok) return
+    setDeleting(null)
+    selection.clear()
+    const line = describeBulkResult({ done, kept: failed, one: "trip", many: "trips", verb: "deleted" })
+    if (failed) showErrorToast(line)
+    else toast.success(line)
+    await router.invalidate()
+  }
+
+  async function setArchived(trips: TripListRow[], archived: boolean) {
+    const ok = await run(async () => {
+      for (const trip of trips) await archiveTrip(trip.id, archived)
+      await router.invalidate()
+    })
+    if (!ok) return
+    selection.clear()
+    toast.success(
+      describeBulkResult({
+        done: trips.length,
+        kept: 0,
+        one: "trip",
+        many: "trips",
+        verb: archived ? "archived" : "brought back",
+      })
+    )
+  }
+
+  const tagLabel = tags.size === 0 ? "All tags" : tags.size === 1 ? [...tags][0] : `${tags.size} tags`
+
+  return (
+    <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
+      {mapShown === "on" ? <PlacesMap onHide={() => setMapShown("off")} /> : null}
+      <DashboardTable
+        title="Trips"
+        tabs={
+          <Tabs value={show} onValueChange={(value) => onShow(value as TripsShow)}>
+            <TabsList>
+              <TabsTrigger value="upcoming">
+                Upcoming <TabsCount>{counts.upcoming}</TabsCount>
+              </TabsTrigger>
+              <TabsTrigger value="past">
+                Past <TabsCount>{counts.past}</TabsCount>
+              </TabsTrigger>
+              <TabsTrigger value="archived">
+                Archived <TabsCount>{counts.archived}</TabsCount>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+        icon={<PlaneTakeoffIcon className="size-4" />}
+        count={rows.length}
+        selectedCount={selection.selected.size}
+        onClearSelection={selection.clear}
+        controls={
+          <>
+            {selected.length ? (
+              <>
+                <DashboardToolbarButton
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void setArchived(selected, show !== "archived")}
+                >
+                  {show === "archived" ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />}
+                  {show === "archived" ? "Bring back" : "Archive"} ({selected.length})
+                </DashboardToolbarButton>
+                <DashboardToolbarButton type="button" variant="outline" onClick={() => setDeleting(selected)}>
+                  <Trash2Icon className="size-4" />
+                  Delete ({selected.length})
+                </DashboardToolbarButton>
+              </>
+            ) : null}
+            <DashboardToolbarSearch
+              name="trip-search"
+              aria-label="Search trips by name or destination"
+              placeholder="Search trips…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            {allTags.length || tags.size ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <DashboardToolbarButton type="button" variant="outline" aria-label={`Tags: ${tagLabel}`}>
+                    {tagLabel}
+                    <ChevronDownIcon className="size-4 text-muted-foreground" />
+                  </DashboardToolbarButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuCheckboxItem checked={tags.size === 0} onCheckedChange={() => setTags(new Set())}>
+                    All tags
+                  </DropdownMenuCheckboxItem>
+                  {allTags.map((tag) => (
+                    <DropdownMenuCheckboxItem
+                      key={tag}
+                      checked={tags.has(tag)}
+                      onSelect={(event) => event.preventDefault()}
+                      onCheckedChange={(on) =>
+                        setTags((was) => {
+                          const next = new Set(was)
+                          if (on) next.add(tag)
+                          else next.delete(tag)
+                          return next
+                        })
+                      }
+                    >
+                      {tag}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+            {mapShown === "off" ? (
+              <DashboardToolbarButton type="button" variant="outline" onClick={() => setMapShown("on")}>
+                <MapIcon className="size-4" />
+                Show map
+              </DashboardToolbarButton>
+            ) : null}
+            <DashboardToolbarButton type="button" variant="outline" onClick={() => setSavedOpen(true)}>
+              <BookmarkIcon className="size-4" />
+              Saved places
+            </DashboardToolbarButton>
+            <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
+              <PlusIcon className="size-4" />
+              New trip
+            </DashboardToolbarButton>
+          </>
+        }
+        header={
+          <SortableTableHeader
+            columns={COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="trips"
+                disabled={visibleIds.length === 0}
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
+        }
+        isEmpty={rows.length === 0}
+        emptyText={
+          query || tags.size
+            ? "No trips match that search."
+            : show === "archived"
+              ? "No archived trips."
+              : show === "past"
+                ? "No past trips yet."
+                : "No trips yet. Make one with New trip."
+        }
+        emptyColSpan={COLUMNS.length + 2}
+        footer={footer}
+      >
+        {visible.map((row) => {
+          const open = () => void navigate({ to: "/trips/$tripId", params: { tripId: row.id } })
+          return (
+            <TableRow key={row.id} rowAction={open} data-trip-id={row.id}>
+              <TableCell column="select">
+                <Checkbox
+                  checked={selection.selected.has(row.id)}
+                  onCheckedChange={() => selection.toggle(row.id)}
+                  aria-label={`Select ${row.name}`}
+                />
+              </TableCell>
+              <TableCell column="main">
+                <span className="flex min-w-0 items-center gap-3">
+                  {row.coverUrl ? (
+                    <img src={row.coverUrl} alt="" className="size-9 shrink-0 rounded-md object-cover" />
+                  ) : (
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                      <PlaneTakeoffIcon className="size-4" aria-hidden />
+                    </span>
+                  )}
+                  <span className="grid min-w-0">
+                    <span className="truncate font-medium">{row.name}</span>
+                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                      {row.destination ? <span className="truncate">{row.destination}</span> : null}
+                      {row.tags.map((tag) => (
+                        <Badge key={tag} variant="outline" className="shrink-0">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </span>
+                  </span>
+                </span>
+              </TableCell>
+              <TableCell column="preview">
+                <span className="grid">
+                  <span>{formatTripDates(row.startDate, row.days) ?? <span className="text-muted-foreground">No dates</span>}</span>
+                  {row.startDate ? (
+                    <span className={cn("text-xs text-muted-foreground", countdown(row) === "on now" && "font-medium text-foreground")}>
+                      {countdown(row)}
+                    </span>
+                  ) : null}
+                </span>
+              </TableCell>
+              <TableCell column="preview" className="tabular-nums">
+                {row.days}
+              </TableCell>
+              <TableCell column="preview">
+                {TRIP_STATUS_LABEL[row.status]}
+              </TableCell>
+              <TableCell column="actions">
+                <RowButton label={`Copy ${row.name}`} onClick={() => setCopying(row)}>
+                  <CopyIcon className="size-4" />
+                </RowButton>
+                <RowButton
+                  label={row.archived ? `Bring back ${row.name}` : `Archive ${row.name}`}
+                  disabled={busy}
+                  onClick={() => void setArchived([row], !row.archived)}
+                >
+                  {row.archived ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />}
+                </RowButton>
+                <RowButton label={`Delete ${row.name}`} onClick={() => setDeleting([row])}>
+                  <Trash2Icon className="size-4" />
+                </RowButton>
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </DashboardTable>
+      <NewTripDialog open={creating} onClose={() => setCreating(false)} />
+      <CopyTripDialog trip={copying} onClose={() => setCopying(null)} />
+      <SavedPlacesDialog open={savedOpen} onClose={() => setSavedOpen(false)} />
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null)
+        }}
+        title={
+          shownDeleting && shownDeleting.length === 1
+            ? `Delete ${shownDeleting[0].name}?`
+            : `Delete ${shownDeleting?.length ?? 0} trips?`
+        }
+        description="The trip goes for good, with every activity, file and note on it."
+        confirmLabel={shownDeleting && shownDeleting.length > 1 ? "Delete trips" : "Delete trip"}
+        destructive
+        loading={busy}
+        onConfirm={() => {
+          if (deleting) void deleteTrips(deleting)
+        }}
+      />
+    </div>
+  )
+}
+
+/** A row's icon button. Repeated table rows carry an accessible name and no tooltip (UI standard, "Controls"). */
+function RowButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  disabled?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Button type="button" variant="ghost" size="icon" aria-label={label} disabled={disabled} onClick={onClick}>
+      {children}
+    </Button>
+  )
+}
+
+/** The places-visited map above the table (task part 40): a pin per trip's destination; a click opens the trip. */
+function PlacesMap({ onHide }: { onHide: () => void }) {
+  const navigate = useNavigate()
+  const [pins, setPins] = React.useState<TripPin[] | null>(null)
+  React.useEffect(() => {
+    let alive = true
+    loadPins()
+      .then((loaded) => {
+        if (alive) setPins(loaded)
+      })
+      .catch(() => {
+        if (alive) setPins([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+  return (
+    <section aria-label="Places visited" className="relative">
+      <GoogleMap
+        className="h-64"
+        pins={(pins ?? []).map((pin) => ({ id: pin.tripId, lat: pin.lat, lng: pin.lng, title: `${pin.name}, ${pin.destination}` }))}
+        emptyText={pins === null ? "Finding your destinations…" : "Give a trip a destination to see it on the map."}
+        onPick={(tripId) => void navigate({ to: "/trips/$tripId", params: { tripId } })}
+      />
+      <Button type="button" variant="outline" size="sm" className="absolute top-2 right-2 bg-card" onClick={onHide}>
+        Hide map
+      </Button>
+    </section>
+  )
+}

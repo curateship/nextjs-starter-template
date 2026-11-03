@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm"
 
+import { phoneBanCounts, phonesBanChecks, type BanCounts } from "@/server/bans/rules"
 import {
   OLDEST_IOS,
   PHONE_STALE_MS,
@@ -355,6 +356,12 @@ export type PhoneRecord = {
   addressStop: { at: Date; words: string } | null
   /** A setup check is waiting for the rack or running. */
   setupChecking: boolean
+  /**
+   * The apps that banned an account on it, and how many times (Bans task,
+   * part 1): `{ instagram: 2 }`. A wipe never clears it, because a wipe
+   * doesn't clear the app's mark. Empty when there are none.
+   */
+  bannedOn: BanCounts
   createdAt: Date
 }
 
@@ -388,6 +395,7 @@ export async function listPhones(
     ).map((row) => row.phoneId)
   )
   const accounts = await accountsByPhone(userId, ids, db)
+  const bans = await phoneBanCounts(userId, ids, db)
   const checking = new Set(
     (
       await db
@@ -443,6 +451,7 @@ export async function listPhones(
       heldImportantAt: phone.heldImportantAt,
       addressStop: phone.addressStopAt ? { at: phone.addressStopAt, words: phone.addressStopWords } : null,
       setupChecking: checking.has(phone.id),
+      bannedOn: bans.get(phone.id) ?? {},
       createdAt: phone.createdAt,
     }
   })
@@ -516,6 +525,9 @@ export async function phonesFreeFor(
       heldImportantAt: promoPhones.heldImportantAt,
       setupPassed: sql<boolean>`coalesce((${promoPhones.setupCheck}->>'passed')::boolean, false)`,
       setupCheckedAt: promoPhones.setupCheckedAt,
+      proxyId: promoPhones.proxyId,
+      connection: promoPhones.connection,
+      simNumber: promoPhones.simNumber,
     })
     .from(promoPhones)
     // An iPhone under iOS 17 is too old for the rack and takes no account (part 48).
@@ -528,13 +540,16 @@ export async function phonesFreeFor(
     .from(promoPhoneSettings)
     .where(eq(promoPhoneSettings.id, "default"))
     .limit(1)
-  return phones
-    .filter(
-      (phone) =>
-        phone.id !== settings?.testPhoneId &&
-        phone.id !== settings?.testPhoneIphoneId &&
-        (holders.get(phone.id) ?? []).every((other) => other.platform !== platform || other.id === accountId)
-    )
+  const free = phones.filter(
+    (phone) =>
+      phone.id !== settings?.testPhoneId &&
+      phone.id !== settings?.testPhoneIphoneId &&
+      (holders.get(phone.id) ?? []).every((other) => other.platform !== platform || other.id === accountId)
+  )
+  // What bans of this app left on each phone, its proxy and its SIM (Bans task, parts 3, 5 and 13).
+  const checks = await phonesBanChecks(userId, free, platform, db)
+  const bans = new Map([...checks].map(([id, check]) => [id, check.note]))
+  return free
     .map((phone) => {
       const own = (holders.get(phone.id) ?? []).some((other) => other.id === accountId)
       const setUpSince = phone.wipedAt && phone.setupPassed && phone.setupCheckedAt && phone.setupCheckedAt > phone.wipedAt
@@ -547,7 +562,7 @@ export async function phonesFreeFor(
             : phone.heldImportantAt
               ? "held an important account"
               : ""
-      return { id: phone.id, name: phone.name, note }
+      return { id: phone.id, name: phone.name, note: own ? note : [note, bans.get(phone.id) ?? ""].filter(Boolean).join(", ") }
     })
 }
 

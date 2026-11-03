@@ -339,7 +339,7 @@ export async function failExpiredClaims(
       AND "promo_jobs"."claimed_at" < now() - CASE
         WHEN "promo_jobs"."kind" = 'linkedin_publish'
           THEN ${sql.raw(`interval '${LINKEDIN_PUBLISH_CLAIM_TIMEOUT_MINUTES} minutes'`)}
-        WHEN "promo_jobs"."kind" IN (${WRITES}, 'warm_up', 'health', 'inbox_read', 'medium_warm_up', 'x_warm_up', 'linkedin_warm_up')
+        WHEN "promo_jobs"."kind" IN (${WRITES}, 'warm_up', 'health', 'inbox_read', 'medium_warm_up', 'x_warm_up', 'linkedin_warm_up', 'app_warm_up')
           THEN ${sql.raw(`interval '${VISIT_CLAIM_TIMEOUT_MINUTES} minutes'`)}
         ELSE ${sql.raw(`interval '${CLAIM_TIMEOUT_MINUTES} minutes'`)}
       END

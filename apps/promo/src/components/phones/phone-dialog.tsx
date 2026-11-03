@@ -1,4 +1,5 @@
 import * as React from "react"
+import { bannedOnWords } from "@/lib/bans/options"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -265,6 +266,9 @@ export function PhoneDialog({
                               ? `On it: ${phone.accounts.map(signedInWords).join(", ")}.`
                               : "No account runs on it yet."}
                           </p>
+                        ) : null}
+                        {phone && bannedOnWords(phone.bannedOn) ? (
+                          <p className="text-sm text-destructive">Banned on: {bannedOnWords(phone.bannedOn)}.</p>
                         ) : null}
                       </CardContent>
                     </Card>

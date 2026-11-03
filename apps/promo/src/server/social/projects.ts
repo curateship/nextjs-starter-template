@@ -1,5 +1,6 @@
 import { and, asc, count, eq, isNull, max, notInArray } from "drizzle-orm"
 
+import { projectBanCounts } from "@/server/bans/dashboard"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import type { AccountImportance } from "@/lib/social/importance"
@@ -56,6 +57,8 @@ export type ProjectRow = {
   /** Comments sent from its accounts that reached Reddit. */
   commentCount: number
   lastCommentAt: Date | null
+  /** Its accounts a counted ban hit in the last 30 days (Bans task, part 18). */
+  bannedRecently: number
   updatedAt: Date
 }
 
@@ -111,6 +114,7 @@ export async function listProjectRows(
   const keywordsBy = byProject(keywords)
   const waitingBy = byProject(waiting)
   const commentsBy = byProject(comments)
+  const banned = await projectBanCounts(userId, db)
 
   return projects.map((project) => ({
     id: project.id,
@@ -121,6 +125,7 @@ export async function listProjectRows(
     waitingCount: waitingBy.get(project.id)?.n ?? 0,
     commentCount: commentsBy.get(project.id)?.n ?? 0,
     lastCommentAt: commentsBy.get(project.id)?.last ?? null,
+    bannedRecently: banned.get(project.id) ?? 0,
     updatedAt: project.updatedAt,
   }))
 }
@@ -381,6 +386,8 @@ export type ProjectView = {
     networks: Network[]
     /** The networks paused on their own while the rest of the project runs. */
     pausedNetworks: Network[]
+    /** Its accounts a counted ban hit in the last 30 days (Bans task, part 18). */
+    bannedRecently: number
   }
   /**
    * What waits on each network's row in the left column: strong stories and
@@ -462,6 +469,7 @@ export async function readProjectView(
       pausedAt: project.pausedAt,
       networks: usedNetworks(project),
       pausedNetworks: project.pausedNetworks.filter(isNetwork),
+      bannedRecently: (await projectBanCounts(userId, db)).get(project.id) ?? 0,
     },
     accounts: accounts.map(({ rank: _rank, ...account }) => account),
     freeAccounts: rows

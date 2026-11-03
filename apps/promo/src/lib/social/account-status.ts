@@ -19,13 +19,20 @@ import type { PostingState } from "@/server/social/posting"
  * about whether an account is warming up.
  */
 
-export const ACCOUNT_STATUSES = ["warming_up", "ready", "working", "banned"] as const
+/**
+ * `at_risk` is the Bans task's (part 21): shadowbanned, its reach read
+ * hidden, a locked or "confirm it's you" screen in the last 7 days, or a
+ * neighbour banned in the last 2 days. Values are only ever added here, never
+ * renamed, because a hand-set status is stored.
+ */
+export const ACCOUNT_STATUSES = ["warming_up", "ready", "working", "at_risk", "banned"] as const
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number]
 
 export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
   warming_up: "Warming up",
   ready: "Ready",
   working: "Working",
+  at_risk: "At risk",
   banned: "Banned",
 }
 

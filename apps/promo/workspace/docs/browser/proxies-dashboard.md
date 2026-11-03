@@ -14,7 +14,9 @@ screen, `src/lib/api/browser/proxies.ts` for the endpoints and
 
 - **Proxy.** Its name, its kind (residential, mobile or datacenter), its
   protocol and its country. Clicking it opens the proxy as a window over the
-  list, with `?open=<id>` in the address.
+  list, with `?open=<id>` in the address. A proxy that was in a counted ban
+  says "Banned on: Instagram" in red, and is refused for that app on any
+  phone or profile ([Bans](../bans.md), part 13).
 - **Endpoint.** Host and port.
 - **Test.** The last test as a badge: country and speed when it worked, "Failed"
   with the reason when it did not, "Untested" when nobody has tested it.

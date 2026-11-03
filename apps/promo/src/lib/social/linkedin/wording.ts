@@ -1,3 +1,4 @@
+import { brakeWords } from "@/lib/bans/options"
 import type { PaceLimit } from "@/lib/social/pace"
 import { whenText } from "@/lib/social/wording"
 
@@ -21,7 +22,13 @@ export function linkedinMayHaveLanded(lastError: string): boolean {
 /** Whether a LinkedIn account may comment or post now, and if not, when. The LinkedIn twin of X's `XPostingState`. */
 export type LinkedinPostingState = {
   /** What paused it, or null when it runs. */
-  paused: "account" | "project" | "network" | null
+  paused: "account" | "project" | "network" | "brake" | null
+  /**
+   * Why it goes at half pace (Bans task, parts 20, 23 and 24), or null at
+   * full pace. While slowed its limits below are already halved and apply
+   * whatever its age.
+   */
+  slow: string | null
   timeZone: string
   /** Inside the workday: a weekday, 8:00 to 18:00 on its own clock (part 7). */
   working: boolean
@@ -47,6 +54,7 @@ export function linkedinPostingRefusal(state: LinkedinPostingState, now: Date = 
   if (state.paused === "account") return "This account is paused. Resume it on the Accounts dashboard to post from it again."
   if (state.paused === "project") return "This account's project is paused. Resume the project on its dashboard to post from it again."
   if (state.paused === "network") return "LinkedIn is paused on this project. Resume LinkedIn in the project's left column to post again."
+  if (state.paused === "brake") return brakeWords("linkedin")
   if (state.warmUp.ageUnknown) {
     return "Promo has not seen this account signed in to LinkedIn, so its warm-up has not started. Press Check now on the Accounts dashboard, then try again."
   }
@@ -56,10 +64,10 @@ export function linkedinPostingRefusal(state: LinkedinPostingState, now: Date = 
   const limit = state.limit
   if (!limit) return null
   if (!limit.nextAllowedAt) {
-    return `A young LinkedIn account may send ${state.perDay} ${state.perDay === 1 ? "comment or post" : "comments and posts"} a day, and that many are sent or waiting to go. Try again once the waiting ones have gone.`
+    return `${state.slow ? `${state.slow}: this account` : "A young LinkedIn account"} may send ${state.perDay} ${state.perDay === 1 ? "comment or post" : "comments and posts"} a day, and that many are sent or waiting to go. Try again once the waiting ones have gone.`
   }
   if (limit.nextAllowedAt <= now) return null
-  return `A young LinkedIn account may send ${state.perDay} ${state.perDay === 1 ? "comment or post" : "comments and posts"} a day, and this one has. The next is allowed ${whenText(limit.nextAllowedAt, now, timeZone)}.`
+  return `${state.slow ? `${state.slow}: this account` : "A young LinkedIn account"} may send ${state.perDay} ${state.perDay === 1 ? "comment or post" : "comments and posts"} a day, and this one has. The next is allowed ${whenText(limit.nextAllowedAt, now, timeZone)}.`
 }
 
 /** "2 in the last hour, 5 today." */

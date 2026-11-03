@@ -1,3 +1,6 @@
+import { BanIcon } from "lucide-react"
+
+import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -9,11 +12,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { PhoneRecord } from "@/lib/api/phones/phones"
+import { bannedOnWords } from "@/lib/bans/options"
 import { PHONE_STATUS_WORDS } from "@/lib/phones/options"
 import { slotOnShelf, slotPlace } from "@/lib/phones/shelf"
 import { STATUS_DOT } from "@/lib/phones/status-dot"
 
-type MapPhone = Pick<PhoneRecord, "id" | "name" | "status" | "shelfSlot">
+type MapPhone = Pick<PhoneRecord, "id" | "name" | "status" | "shelfSlot" | "bannedOn">
 
 /**
  * The rack map (part 60 of the phone farm): the shelf drawn as a grid of the
@@ -87,8 +91,16 @@ export function RackMapDialog({
                     data-column={column}
                     className="grid min-h-20 min-w-0 content-start gap-1 rounded-md border p-2"
                   >
-                    <span className={`text-xs ${here.length ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
-                      {slot}
+                    <span className="flex items-center justify-between gap-1">
+                      <span className={`text-xs ${here.length ? "text-muted-foreground" : "text-muted-foreground/50"}`}>{slot}</span>
+                      {/* A slot whose phone an app banned an account on (Bans task, part 4). */}
+                      {here.some((phone) => bannedOnWords(phone.bannedOn)) ? (
+                        <Hint label={`Banned on: ${here.map((phone) => bannedOnWords(phone.bannedOn)).filter(Boolean).join("; ")}`}>
+                          <span tabIndex={0} role="img" className="inline-flex text-destructive" aria-label={`Slot ${slot}: banned on ${here.map((phone) => bannedOnWords(phone.bannedOn)).filter(Boolean).join("; ")}`}>
+                            <BanIcon className="size-3.5" aria-hidden="true" />
+                          </span>
+                        </Hint>
+                      ) : null}
                     </span>
                     {here.map((phone) => (
                       <button

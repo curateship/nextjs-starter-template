@@ -1,4 +1,5 @@
 import * as React from "react"
+import { ProjectBansLink } from "./project-bans-link"
 import {
   FolderOpenIcon,
   Loader2Icon,
@@ -116,6 +117,7 @@ export function ProjectPanel({
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-6 p-3">
+          <ProjectBansLink projectId={project.id} count={project.bannedRecently} />
           {/* A paused project says so at the top, with the way out beside it. */}
           {project.pausedAt ? (
             <div className="grid gap-2 rounded-lg border p-3 text-sm">

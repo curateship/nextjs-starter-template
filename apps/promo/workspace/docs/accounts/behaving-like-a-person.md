@@ -180,6 +180,14 @@ Reddit too.
   6 a day, with when the next one is allowed. Comments waiting for the
   account's morning count too, or five pressed at 3am would all go at 8:00.
 - 0 young days means no account is young.
+- **Half pace** (Bans task, Tyler 3 Nov 2026): a shadowbanned account, one let
+  run again after a ban (for 7 days), and every account on a banned
+  account's phone, proxy or SIM (for 2 days) get half of these limits, never
+  under one, whatever their age. The account row and the refusal say why,
+  such as "Half pace while shadowbanned: this account may send 1 comment an
+  hour". X follows, LinkedIn connection requests and the Instagram and
+  TikTok warm-up's likes are halved the same way. Half pace never queues
+  anything. [Bans](../bans.md) has the rules.
 
 The reason beside a refused Post gives its time on your own clock. If the
 figures moved since the dashboard last looked and the server refuses instead,

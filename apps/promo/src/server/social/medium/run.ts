@@ -1,5 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm"
 
+import { stopForBanPage } from "@/server/bans/browser"
 import type { CommandTarget } from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
@@ -115,7 +116,8 @@ export async function runMediumAccountJob(
  * Writes who a Medium account is signed in as, when Medium says it joined,
  * and how many follow it, from one look. A look that was not taken on a
  * Medium page changes nothing. A ban screen's stop stays until a person
- * lets the account run again, whatever a later look says.
+ * lets the account run again, whatever a later look says, and a page saying
+ * the account itself is suspended stops it the same way.
  *
  * Returns the handle when the account was signed out and now is signed in.
  */
@@ -127,10 +129,12 @@ export async function saveMediumSignIn(
 ): Promise<string | null> {
   if (!state.checked) return null
   const [before] = await db
-    .select({ handle: promoAccounts.handle })
+    .select({ handle: promoAccounts.handle, userId: promoAccounts.userId })
     .from(promoAccounts)
     .where(eq(promoAccounts.id, accountId))
     .limit(1)
+  // Medium's own suspended page stops it until a person lets it run again (Bans task, part 7).
+  if (before && state.banScreen) await stopForBanPage({ id: accountId, userId: before.userId }, state.banScreen, db, now)
   await db
     .update(promoAccounts)
     .set({

@@ -1,3 +1,4 @@
+import { brakeWords } from "@/lib/bans/options"
 import type { PaceLimit } from "@/lib/social/pace"
 import { whenText } from "@/lib/social/wording"
 
@@ -12,7 +13,13 @@ import { MEDIUM_WARM_UP_DAYS } from "./options"
 /** Whether a Medium account may write now, and if not, when. The Medium twin of Reddit's `PostingState`. */
 export type MediumPostingState = {
   /** What paused it, or null when it runs. */
-  paused: "account" | "project" | "network" | null
+  paused: "account" | "project" | "network" | "brake" | null
+  /**
+   * Why it goes at half pace (Bans task, parts 20, 23 and 24), or null at
+   * full pace. While slowed its limits below are already halved and apply
+   * whatever its age.
+   */
+  slow: string | null
   timeZone: string
   awake: boolean
   /** When it next wakes. Null while it is awake. */
@@ -42,6 +49,7 @@ export function mediumPostingRefusal(
   if (state.paused === "account") return "This account is paused. Resume it on the Accounts dashboard to write from it again."
   if (state.paused === "project") return "This account's project is paused. Resume the project on its dashboard to write from it again."
   if (state.paused === "network") return "Medium is paused on this project. Resume Medium in the project's left column to write again."
+  if (state.paused === "brake") return brakeWords("medium")
   if (state.warmUp.ageUnknown) {
     return "Promo has not read when this account joined Medium, so it cannot tell when the warm-up ends. Press Check who is signed in on the Accounts dashboard, then try again."
   }
@@ -53,10 +61,10 @@ export function mediumPostingRefusal(
   const allowed = limit.limit === "hour" ? state.youngPerHour : state.youngPerDay
   const span = limit.limit === "hour" ? "an hour" : "a day"
   if (!limit.nextAllowedAt) {
-    return `A young account may send ${allowed} ${allowed === 1 ? "response or article" : "responses and articles"} ${span}, and that many are sent or waiting to go. Try again once the waiting ones have gone.`
+    return `${state.slow ? `${state.slow}: this account` : "A young account"} may send ${allowed} ${allowed === 1 ? "response or article" : "responses and articles"} ${span}, and that many are sent or waiting to go. Try again once the waiting ones have gone.`
   }
   if (limit.nextAllowedAt <= now) return null
-  return `A young account may send ${allowed} ${allowed === 1 ? "response or article" : "responses and articles"} ${span}, and this one has. The next is allowed ${whenText(limit.nextAllowedAt, now, timeZone)}.`
+  return `${state.slow ? `${state.slow}: this account` : "A young account"} may send ${allowed} ${allowed === 1 ? "response or article" : "responses and articles"} ${span}, and this one has. The next is allowed ${whenText(limit.nextAllowedAt, now, timeZone)}.`
 }
 
 /** "2 in the last hour, 5 today." */

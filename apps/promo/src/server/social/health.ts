@@ -5,6 +5,7 @@ import {
   redditStrangerProfile,
   type CommandTarget,
 } from "@/server/browser/command"
+import { recordBan } from "@/server/bans/record"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
@@ -213,12 +214,6 @@ export async function recordStrangerCheck(
   const signedOut = await redditStrangerProfile(target, { handle })
   const suspended = signedIn.suspended || signedOut.suspended
 
-  const [before] = await db
-    .select({ profileCheck: promoAccounts.profileCheck })
-    .from(promoAccounts)
-    .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
-    .limit(1)
-
   await db
     .update(promoAccounts)
     .set({
@@ -234,22 +229,53 @@ export async function recordStrangerCheck(
     })
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
 
-  // Reddit marking the account suspended rings the bell once, when it
-  // happens, not on every daily reading after.
-  if (suspended && !before?.profileCheck?.suspended) {
-    await ringBell(
-      userId,
-      {
-        kind: "suspended",
-        targetId: accountId,
-        message: `${NOTICE_HEADINGS.suspended} u/${handle}`,
-        detail: "Reddit marks the account suspended. Nothing it posts will be seen. It is on the Accounts dashboard.",
-        href: "/admin/accounts?platform=reddit",
-      },
-      db,
-      now
-    )
+  if (suspended) await stopForSuspendedReading(userId, accountId, handle, db, now)
+}
+
+/** The words a suspended reading leaves on the account (Bans task, part 8). */
+export const SUSPENDED_READING_WORDS = "Reddit reads this account as suspended"
+
+/**
+ * A suspended reading stops the account (Bans task, part 8; Tyler, 3 Nov
+ * 2026: it counts as a ban everywhere). Its waiting jobs are dropped and the
+ * runner refuses the rest (`runner.ts`), the ban is recorded with the kind
+ * "suspended reading", so it counts toward a phone kept off Reddit and the
+ * app-wide brake, and the bell rings once. Only an account not already
+ * stopped is stopped, so the daily reading after rings nothing. A later
+ * clear reading does not restart it: "Let it run again" stays a person's call.
+ */
+async function stopForSuspendedReading(userId: string, accountId: string, handle: string, db: CustomShellDb, now: Date): Promise<void> {
+  const [stopped] = await db
+    .update(promoAccounts)
+    .set({ blocked: true, blockedReason: SUSPENDED_READING_WORDS, banScreenAt: now, updatedAt: now })
+    .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId), isNull(promoAccounts.banScreenAt)))
+    .returning({ id: promoAccounts.id })
+  if (!stopped) {
+    // Already stopped (by a locked screen, say): the reading still counts as a ban everywhere.
+    await recordBan(userId, { accountId, kind: "suspended_reading", words: SUSPENDED_READING_WORDS }, db, now)
+    return
   }
+  const dropped = await db
+    .delete(promoJobs)
+    .where(and(eq(promoJobs.userId, userId), eq(promoJobs.status, "queued"), sql`${promoJobs.payload}->>'accountId' = ${accountId}`))
+    .returning({ id: promoJobs.id })
+  await recordBan(userId, { accountId, kind: "suspended_reading", words: SUSPENDED_READING_WORDS }, db, now)
+  await ringBell(
+    userId,
+    {
+      kind: "suspended",
+      targetId: accountId,
+      message: `${NOTICE_HEADINGS.suspended} u/${handle}`,
+      detail: [
+        "Reddit marks the account suspended. Nothing it posts will be seen.",
+        `Promo stopped it${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}, and counts it as a ban.`,
+        "Appeal it on Reddit first if you want to, then let it run again or press Clean up from its settings on the Accounts dashboard.",
+      ].join(" "),
+      href: "/admin/bans",
+    },
+    db,
+    now
+  )
 }
 
 /**

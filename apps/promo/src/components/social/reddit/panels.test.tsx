@@ -270,6 +270,7 @@ describe("every keyword's posts in one list", () => {
 describe("the pace line and a waiting comment", () => {
   const quiet: PostingState = {
     paused: null,
+    slow: null,
     timeZone: "UTC",
     awake: true,
     nextWakeAt: null,

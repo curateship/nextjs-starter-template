@@ -1,4 +1,5 @@
 import type { AppOptions } from "@/lib/app-options"
+import { defineSettingsTab } from "@/lib/settings-tab"
 
 /**
  * What this app changes about the shell.
@@ -15,4 +16,15 @@ import type { AppOptions } from "@/lib/app-options"
  * The type is written as an annotation rather than `satisfies` so that an empty
  * object still reads as the full shape. Both catch a misspelled option.
  */
-export const appOptions: AppOptions = {}
+export const appOptions: AppOptions = {
+  settings: {
+    tabs: [
+      // Each person's own list of activity types (task part 19).
+      defineSettingsTab({
+        id: "activity-types",
+        label: "Activity types",
+        panel: () => import("@/components/travel/activity-types-settings"),
+      }),
+    ],
+  },
+}

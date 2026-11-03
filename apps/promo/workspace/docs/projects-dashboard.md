@@ -48,6 +48,11 @@ holds (retired ones not counted), its keywords, the posts still waiting to be
 looked at, the comments its accounts have sent, and when the last one went.
 Comments count toward the project the sending account is in now.
 
+- **Lost accounts.** A project whose accounts a counted ban hit in the last 30
+  days says "2 accounts banned in the last 30 days" under its name, and at
+  the top of its own left column. Clicking it opens the Bans dashboard
+  filtered to that project and the last 30 days. Nothing shows when there
+  are none ([Bans](bans.md), part 18).
 - **A row opens the project's own dashboard,** a page of its own because that
   is where the work is done. The arrow at the top of the project's left column
   comes back here.

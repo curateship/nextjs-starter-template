@@ -89,6 +89,7 @@ const signedInHealth = {
   createdSeconds: 1_600_000_000,
   blocked: false,
   reason: "",
+  banScreen: null,
   profile: { signedIn: { status: 200, found: true, suspended: false } },
 }
 
@@ -124,8 +125,8 @@ describe("running a browser job", () => {
     // The account's browser is signed in; the reader is signed in to nobody.
     quickState.mockImplementation(async (at) =>
       at === readerTarget
-        ? { checked: true, handle: null, karma: null, createdSeconds: null, blocked: false, reason: "" }
-        : { checked: true, handle: "a_persona", karma: 120, createdSeconds: 1_600_000_000, blocked: false, reason: "" }
+        ? { checked: true, handle: null, karma: null, createdSeconds: null, blocked: false, reason: "", banScreen: null }
+        : { checked: true, handle: "a_persona", karma: 120, createdSeconds: 1_600_000_000, blocked: false, reason: "", banScreen: null }
     )
     healthRead.mockResolvedValue(signedInHealth)
   })
@@ -189,6 +190,7 @@ describe("running a browser job", () => {
       createdSeconds: 1,
       blocked: false,
       reason: "",
+      banScreen: null,
     })
     const id = await queueJob(userId, "search", { keywordId: "k1" }, db)
 
@@ -223,6 +225,7 @@ describe("running a browser job", () => {
       createdSeconds: null,
       blocked: true,
       reason: "a challenge or captcha is on screen",
+      banScreen: null,
     })
     const id = await queueJob(userId, "health", { accountId }, db)
 
@@ -244,6 +247,7 @@ describe("running a browser job", () => {
       createdSeconds: null,
       blocked: false,
       reason: "",
+      banScreen: null,
     })
     await queueJob(userId, "health", { accountId }, db)
 
@@ -299,6 +303,7 @@ describe("running a browser job", () => {
       createdSeconds: null,
       blocked: false,
       reason: "",
+      banScreen: null,
       url: "https://www.reddit.com/",
     })
     await queueJob(userId, "check", { profileId }, db)
@@ -475,8 +480,8 @@ describe("reading the account's health", () => {
     }))
     quickState.mockImplementation(async (at) =>
       at === readerTarget
-        ? { checked: true, handle: null, karma: null, createdSeconds: null, blocked: false, reason: "" }
-        : { checked: true, handle: "a_persona", karma: 120, createdSeconds: 1_600_000_000, blocked: false, reason: "" }
+        ? { checked: true, handle: null, karma: null, createdSeconds: null, blocked: false, reason: "", banScreen: null }
+        : { checked: true, handle: "a_persona", karma: 120, createdSeconds: 1_600_000_000, blocked: false, reason: "", banScreen: null }
     )
     healthRead.mockResolvedValue(signedInHealth)
   })
@@ -514,6 +519,7 @@ describe("reading the account's health", () => {
       createdSeconds: null,
       blocked: false,
       reason: "",
+      banScreen: null,
     })
     await queueJob(userId, "open", { profileId }, db)
     await runOneJob("worker", db)
@@ -534,8 +540,8 @@ describe("reading the account's health", () => {
     // The sign-in read after every job reads the same answer.
     quickState.mockImplementation(async (at) =>
       at === readerTarget
-        ? { checked: true, handle: null, karma: null, createdSeconds: null, blocked: false, reason: "" }
-        : { checked: true, handle: "a_persona", karma: 0, createdSeconds: 1_600_000_000, blocked: false, reason: "" }
+        ? { checked: true, handle: null, karma: null, createdSeconds: null, blocked: false, reason: "", banScreen: null }
+        : { checked: true, handle: "a_persona", karma: 0, createdSeconds: 1_600_000_000, blocked: false, reason: "", banScreen: null }
     )
     await queueHealthCheck(userId, accountId, db)
 
@@ -589,6 +595,7 @@ describe("reading the account's health", () => {
       createdSeconds: null,
       blocked: false,
       reason: "",
+      banScreen: null,
     })
     await queueHealthCheck(userId, accountId, db)
 

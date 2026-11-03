@@ -2,6 +2,19 @@ import { and, asc, desc, eq, inArray, isNotNull, isNull, max, sql } from "drizzl
 import { alias } from "drizzle-orm/pg-core"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import {
+  isAccountSource,
+  isRetiredReason,
+  retiredReasonWords,
+  type AccountSource,
+  type AppealAnswer,
+  type BanKind,
+  type RetiredReason,
+} from "@/lib/bans/options"
+import { cleanUpHeldBack } from "@/server/bans/clean-up"
+import { promoBans } from "@/server/bans/schema"
+import { closeTenancy, openTenancy, recordAccountEvent } from "@/server/bans/history"
+import { atRiskSigns, brakedApps, slowReasons } from "@/server/bans/rules"
 import { promoProfileFolders, promoProfiles, promoProxies } from "@/server/browser/schema"
 import { promoPhoneActions, promoPhones } from "@/server/phones/schema"
 import type { PhoneConnection } from "@/lib/phones/options"
@@ -23,6 +36,7 @@ import { refuseMixedProject, refuseMixedVoice } from "./apart"
 import { moveHeldBack } from "./move-to-phone"
 import type { PausedBy } from "./pause"
 import { readBehaviour, warmUpEndsAt } from "./behaviour"
+import { appWarmUpEndsAt } from "./phone-apps/posts"
 import { xAccountBorn } from "./x/posting"
 import { queueHealthCheck } from "./health"
 import { promoAccounts, promoComments, promoProjects, promoVoices } from "./schema"
@@ -67,6 +81,7 @@ export async function accountStatuses(
       | "signedInAt"
       | "xReach"
       | "linkedinSeen"
+      | "createdAt"
     >
   >,
   db: CustomShellDb = defaultDb,
@@ -102,7 +117,7 @@ export async function accountStatuses(
       continue
     }
     if (account.platform !== "reddit") {
-      out.set(account.id, appAccountStatus(account, now))
+      out.set(account.id, appAccountStatus(account, behaviour.appWarmUpDays, now))
       continue
     }
     out.set(
@@ -116,17 +131,28 @@ export async function accountStatuses(
       })
     )
   }
+  // At risk (Bans task, part 21), worked out on each read like the rest.
+  // Banned wins, and a status a person set by hand stays theirs; the sign
+  // is the line under it either way.
+  const signs = await atRiskSigns(userId, accounts, db, now)
+  for (const [accountId, sign] of signs) {
+    const view = out.get(accountId)
+    if (!view) continue
+    out.set(accountId, view.status === "banned" || view.byHand ? { ...view, warning: view.warning ?? sign } : { status: "at_risk", byHand: false, warning: sign })
+  }
   return out
 }
 
 /**
- * An Instagram or TikTok account's status. There is no warm-up or karma
- * here, so it is Banned once a ban screen stopped it, Working when it posted
- * in the last week, and Ready otherwise. A shadowban the app reports is the
- * warning beside it.
+ * An Instagram or TikTok account's status: Banned once a ban screen stopped
+ * it, Warming up for the days in Settings → Behaviour after it was added to
+ * Promo (Bans task, part 19, the same `appWarmUpEndsAt` Post uses), Working
+ * when it posted in the last week, and Ready otherwise. A shadowban the app
+ * reports is the warning beside it.
  */
 function appAccountStatus(
-  account: Pick<AccountRow, "statusOverride" | "lastPostedAt" | "banScreenAt" | "shadowbanned">,
+  account: Pick<AccountRow, "statusOverride" | "lastPostedAt" | "banScreenAt" | "shadowbanned" | "createdAt">,
+  warmUpDays: number,
   now: Date
 ): AccountStatusView {
   const warning = account.shadowbanned ? "Shadowbanned: the app says its posts are hidden from people who do not follow it" : null
@@ -134,6 +160,7 @@ function appAccountStatus(
     return { status: account.statusOverride, byHand: true, warning }
   }
   if (account.banScreenAt) return { status: "banned", byHand: false, warning }
+  if (appWarmUpEndsAt(account, warmUpDays, now)) return { status: "warming_up", byHand: false, warning }
   const working = account.lastPostedAt !== null && now.getTime() - account.lastPostedAt.getTime() < WORKING_DAYS * 86_400_000
   return { status: working ? "working" : "ready", byHand: false, warning }
 }
@@ -278,6 +305,27 @@ export type RedditAccountRow = {
   twoFactor: boolean
   /** When a phone found a ban screen and stopped it, with the screen's words, or null. */
   banScreen: { at: Date; words: string } | null
+  /**
+   * The ban that stopped it, from the Bans task's record (part 1), or null:
+   * its kind, whether a picture was kept (part 10), the appeal (part 25),
+   * and why Clean up cannot run now (part 6), empty when it can.
+   */
+  ban: {
+    id: string
+    kind: BanKind
+    at: Date
+    hasPicture: boolean
+    appealedAt: Date | null
+    appealNote: string
+    appealAnswer: AppealAnswer | ""
+    cleanUpHeldBack: string
+  } | null
+  /** Why it goes at half pace (parts 20, 23 and 24), or null at full pace. */
+  slow: string | null
+  /** Why it was retired, in words (part 15). Empty while in use; "Not recorded" for one retired before. */
+  retiredReason: { key: RetiredReason | ""; words: string }
+  /** Where it came from (part 16): '' not said, made or bought, the seller, and the price in cents. */
+  source: { kind: AccountSource | ""; seller: string; priceCents: number | null }
   /** Important or throwaway (part 22 of the phone farm). */
   importance: AccountImportance
   /**
@@ -342,6 +390,9 @@ export async function listRedditAccounts(
     .orderBy(asc(promoAccounts.createdAt), asc(promoAccounts.id))
 
   const statuses = await accountStatuses(userId, rows.map((row) => row.account), db, now)
+  const slow = await slowReasons(userId, rows.map((row) => row.account), db, now)
+  const braked = await brakedApps(userId, db)
+  const bans = await openBans(userId, rows.flatMap((row) => (row.account.banScreenAt ? [row.account.id] : [])), db)
   const reads = await lastSignInReads(
     userId,
     rows.flatMap((row) => (row.account.movingToPhoneId ? [row.account.movingToPhoneId] : [])),
@@ -419,13 +470,21 @@ export async function listRedditAccounts(
       retiredAt: account.retiredAt,
       paused: account.pausedAt
         ? "account"
-        : row.projectPausedAt
+        : braked.has(account.platform)
+          ? "brake"
+          : row.projectPausedAt
           ? "project"
           : (row.projectPausedNetworks ?? []).some((network) => network === account.platform)
             ? "network"
             : null,
       twoFactor: Boolean(account.totpSecretEncrypted),
       banScreen: account.banScreenAt ? { at: account.banScreenAt, words: account.blockedReason } : null,
+      ban: (account.banScreenAt && bans.get(account.id)) || null,
+      slow: account.retiredAt || account.banScreenAt ? null : (slow.get(account.id) ?? null),
+      retiredReason: account.retiredAt
+        ? { key: isRetiredReason(account.retiredReason) ? account.retiredReason : "", words: retiredReasonWords(account.retiredReason, account.retiredNote) }
+        : { key: "", words: "" },
+      source: { kind: isAccountSource(account.source) ? account.source : "", seller: account.seller, priceCents: account.priceCents },
       importance: account.importance,
       move:
         account.movingToPhoneId && row.movingPhoneName !== null
@@ -437,6 +496,31 @@ export async function listRedditAccounts(
           : null,
     }
   })
+}
+
+/** Each stopped account's newest ban that was not let run again or cleaned up. */
+async function openBans(userId: string, accountIds: string[], db: CustomShellDb): Promise<Map<string, NonNullable<RedditAccountRow["ban"]>>> {
+  const out = new Map<string, NonNullable<RedditAccountRow["ban"]>>()
+  if (!accountIds.length) return out
+  const rows = await db
+    .select()
+    .from(promoBans)
+    .where(and(eq(promoBans.userId, userId), inArray(promoBans.accountId, accountIds), isNull(promoBans.letRunAt), isNull(promoBans.cleanedUpAt)))
+    .orderBy(desc(promoBans.at))
+  for (const ban of rows) {
+    if (!ban.accountId || out.has(ban.accountId)) continue
+    out.set(ban.accountId, {
+      id: ban.id,
+      kind: ban.kind,
+      at: ban.at,
+      hasPicture: Boolean(ban.pictureKey),
+      appealedAt: ban.appealedAt,
+      appealNote: ban.appealNote,
+      appealAnswer: ban.appealAnswer,
+      cleanUpHeldBack: (await cleanUpHeldBack(userId, ban.accountId, db)) ?? "",
+    })
+  }
+  return out
 }
 
 /** The newest "who is signed in" each phone was asked, for a move that is waiting on it. */
@@ -509,14 +593,24 @@ export async function setAccountsStatus(
  * Retires accounts, or with `retire` false brings them back. A retired account
  * leaves every list and picker, never posts and never warms up. Its comments
  * stay, on the Comments dashboard and counted against it.
+ *
+ * Retiring asks why (Bans task, part 15): banned, sold, given up, or other
+ * with a short note. It closes the account's row on its phone as retired
+ * (part 2) and writes a line in its own history (part 14). Bringing one back
+ * clears the reason and opens a fresh row on the phone it is still on.
  */
 export async function retireAccounts(
   userId: string,
   ids: string[],
   retire: boolean,
-  db: CustomShellDb = defaultDb
+  db: CustomShellDb = defaultDb,
+  why: { reason: RetiredReason; note: string } | null = null,
+  now: Date = new Date()
 ): Promise<BulkAnswer> {
   if (!ids.length) return { completed: [], skipped: [] }
+  if (retire && !why) throw new Error("Pick why the account is retired: banned, sold, given up, or other.")
+  if (why && !isRetiredReason(why.reason)) throw new Error("Pick why the account is retired: banned, sold, given up, or other.")
+  const note = why?.reason === "other" ? why.note.trim().slice(0, 200) : ""
   if (!retire) {
     // Coming back must not mix the groups: the project or voice may have
     // taken an account of the other group while this one was retired.
@@ -532,7 +626,13 @@ export async function retireAccounts(
   const changed = await db
     .update(promoAccounts)
     // A retired account's waiting move to a phone ends, so the phone is free again.
-    .set({ retiredAt: retire ? new Date() : null, ...(retire ? { movingToPhoneId: null } : {}), updatedAt: new Date() })
+    .set({
+      retiredAt: retire ? now : null,
+      retiredReason: retire && why ? why.reason : "",
+      retiredNote: note,
+      ...(retire ? { movingToPhoneId: null } : {}),
+      updatedAt: now,
+    })
     .where(
       and(
         eq(promoAccounts.userId, userId),
@@ -540,7 +640,16 @@ export async function retireAccounts(
         retire ? isNull(promoAccounts.retiredAt) : isNotNull(promoAccounts.retiredAt)
       )
     )
-    .returning({ id: promoAccounts.id })
+    .returning({ id: promoAccounts.id, phoneId: promoAccounts.phoneId, platform: promoAccounts.platform, handle: promoAccounts.handle })
+  for (const account of changed) {
+    if (retire) {
+      await closeTenancy(userId, account.id, "retired", db, now)
+      await recordAccountEvent(userId, account.id, "retired", `Retired: ${retiredReasonWords(why?.reason ?? "", note)}.`, db, now)
+    } else {
+      if (account.phoneId) await openTenancy(userId, account, account.phoneId, db, now)
+      await recordAccountEvent(userId, account.id, "retired", "Brought back.", db, now)
+    }
+  }
   const completed = changed.map((row) => row.id)
   return { completed, skipped: ids.filter((id) => !completed.includes(id)) }
 }
@@ -571,6 +680,32 @@ export async function checkAccountsNow(
     if (await queueHealthCheck(userId, row.id, db)) completed.push(row.id)
   }
   return { completed, skipped: ids.filter((id) => !completed.includes(id)) }
+}
+
+/**
+ * Where an account came from (Bans task, part 16): made or bought, the
+ * seller's name and the price in cents, saved as they change. A made
+ * account has no seller or price.
+ */
+export async function setAccountSource(
+  userId: string,
+  accountId: string,
+  input: { source: AccountSource | ""; seller: string; priceCents: number | null },
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  if (input.source && !isAccountSource(input.source)) throw new Error("An account is made or bought.")
+  const bought = input.source === "bought"
+  const updated = await db
+    .update(promoAccounts)
+    .set({
+      source: input.source,
+      seller: bought ? input.seller.trim().slice(0, 120) : "",
+      priceCents: bought && input.priceCents !== null && input.priceCents >= 0 ? Math.round(input.priceCents) : null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
+    .returning({ id: promoAccounts.id })
+  if (!updated.length) throw new Error("That account is not there any more.")
 }
 
 /** Swaps the voice an account drafts with, or with null leaves it drafting plainly. */

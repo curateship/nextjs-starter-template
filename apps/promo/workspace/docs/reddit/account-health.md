@@ -81,9 +81,12 @@ one it was.
   (on a phone, "The Reddit app on the phone is not signed in"), shown on the
   card, and the last reading is kept.
 
-Nothing acts on a bad reading. There is no pause, no warning sent and no
-automatic change. The card says what it saw and the decision stays with a
-person.
+A suspended reading stops the account (Bans task, part 8; Tyler, 3 Nov 2026:
+it counts as a ban everywhere). Its waiting jobs are dropped and the rest are
+refused, the ban is recorded as "read as suspended", and the bell rings once.
+A later clear reading does not restart it: "Let it run again" stays a
+person's call. Every other reading only shows on the card, and the decision
+stays with a person. [Bans](../bans.md) has the rest.
 
 ## Where it is kept
 
