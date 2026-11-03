@@ -3,6 +3,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities"
 import {
   ChevronRightIcon,
+  EllipsisIcon,
   GripVerticalIcon,
   PanelLeftCloseIcon,
   PencilIcon,
@@ -270,14 +271,32 @@ function PinnedRow({
   onUnpin: () => void
 }) {
   const { editing, activeId, open } = useMenuActions()
-  // A pinned link with no address opens its sub-links' list, as in its section.
-  const opensList = !hasAddress(link) && (link.children ?? []).length > 0
+  const [listOpen, setListOpen] = React.useState(false)
+  // As in its section: a pinned link with sub-links shows the three dots, and
+  // one with no address opens the same list when clicked.
+  const dots = (link.children ?? []).length > 0 && !editing
+  const opensList = dots && !hasAddress(link)
+  const anchor = linkAnchorProps(link, open)
   const row = (
     <a
-      {...linkAnchorProps(link, open)}
+      {...anchor}
+      onClick={(event) => {
+        anchor.onClick?.(event)
+        if (opensList) setListOpen(true)
+      }}
+      onKeyDown={
+        opensList
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault()
+                setListOpen(true)
+              }
+            }
+          : undefined
+      }
       data-active={activeId === link.id ? "" : undefined}
       className={cn(
-        "flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden group-hover/pinned:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0",
+        "flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden group-hover/pinned:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0",
         editing && "group-hover/pinned:pr-20"
       )}
     >
@@ -301,11 +320,27 @@ function PinnedRow({
         isDragging && "z-10 rounded-md bg-sidebar opacity-80 shadow-sm"
       )}
     >
-      {opensList ? <SubLinksMenu link={link}>{row}</SubLinksMenu> : row}
+      <div className="flex min-w-0 items-center rounded-md group-hover/pinned:bg-sidebar-accent">
+        {row}
+        {dots ? (
+          <SubLinksMenu link={link} open={listOpen} onOpenChange={setListOpen}>
+            <button
+              type="button"
+              aria-label={`Show ${link.label}'s sub-links`}
+              className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden data-[state=open]:text-foreground"
+            >
+              <EllipsisIcon className="size-4" />
+            </button>
+          </SubLinksMenu>
+        ) : null}
+      </div>
       {!editing && !opensInTab(link) && hasAddress(link) ? (
         <OpenInNewTab
           link={link}
-          className="right-1 group-hover/pinned:pointer-events-auto group-hover/pinned:opacity-100"
+          className={cn(
+            "group-hover/pinned:pointer-events-auto group-hover/pinned:opacity-100",
+            dots ? "right-9" : "right-1"
+          )}
         />
       ) : null}
       {/* The whole row is the one hover, handle and × included: neither has
