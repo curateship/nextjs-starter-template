@@ -21,6 +21,16 @@ takes the audience snapshot needed for the send, then creates delivery records.
 That keeps a changing segment from quietly changing work that has already
 started.
 
+Each batch asks the database only for people this newsletter has not reached
+yet, oldest first, and stops at the batch size. It used to read the whole
+audience and every delivery so far on every batch of 50. Measured on one test
+send to 1,001 contacts (21 batches), the rows read went from 53,711 to 23,253.
+About 21,000 of what is left is the contact sync before each batch, which still
+runs and still reads every contact, on purpose.
+The total recipients figure is the largest of the stored total, the live
+audience count and the deliveries already made, so somebody who was mailed and
+then opted out still counts.
+
 ## Send states
 
 A broadcast moves through these states:

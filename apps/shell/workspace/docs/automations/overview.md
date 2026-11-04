@@ -11,6 +11,16 @@ The editor has a node palette, a canvas, an inspector, and a resizable Runs
 panel. Changes save after 700 milliseconds of quiet time. The editor compiles
 and validates the graph before a run can start.
 
+The automation editor and the email editor share one frame
+(`src/components/broadcasts/editor-frame.tsx`) and one auto-save
+(`src/lib/hooks/use-auto-save.ts`). Each editor keeps its own saved panel
+widths. The automation editor still refuses to save a flow with no name and
+says so in the top bar.
+
+Every step that picks a segment, the Audience step included, uses the same
+segment dropdown. While the segments load the dropdown says "Loading
+segments…", and a failed load shows Try again under it.
+
 ## Nodes and app ownership
 
 The node registry defines how each step appears and which settings it needs.
@@ -81,6 +91,13 @@ keeps its older name so no app breaks.
 
 These two steps exist so a flow can send a run of emails days apart, such as
 seven emails every other day.
+
+**"Joined a segment" keeps a list of who was in the segment at its last
+look,** checked every 15 seconds. A row on that list is written only when a
+person first appears or their segment changes. A 5,000-person segment used to
+rewrite 5,000 rows on every look, about 28.8 million writes a day for one flow.
+The row's `last_seen_at` therefore says when the row was written, not when the
+person was last seen. Nothing reads that column.
 
 **"Segment, a few at a time" lets a whole segment in.** "Joined a segment"
 ignores the people already in it and stops the flow when more than 100 join at

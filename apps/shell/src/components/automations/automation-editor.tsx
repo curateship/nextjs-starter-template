@@ -17,6 +17,7 @@ import { TestWithContactDialog } from "@/components/automations/test-with-contac
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
+import { EditorFrame } from "@/components/broadcasts/editor-frame"
 import { SendEmailEditor } from "@/components/automations/nodes/send-email-editor"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
@@ -24,14 +25,6 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Switch } from "@/components/ui/switch"
-import {
-  BOTTOM_COLLAPSED_HEIGHT,
-  PanelReopenTab,
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  WorkspacePanel,
-} from "@/components/ui/resizable"
 import { compileAutomationGraph } from "@/lib/automations/compile"
 import type {
   AutomationCanvasStatus,
@@ -59,19 +52,9 @@ import {
   type AutomationDetail,
 } from "@/lib/api/automations/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useAutoSave } from "@/lib/hooks/use-auto-save"
 import { useLastValue } from "@/lib/hooks/use-last-value"
-import {
-  useBlankSpaceDoubleClick,
-  usePanelCollapsed,
-  usePanelToggle,
-} from "@/lib/layout/panel-collapse"
-import {
-  panelLayoutKey,
-  useRememberedPanelLayout,
-} from "@/lib/layout/panel-layout"
-import { pageGutter } from "@/lib/layout/shell-gutter"
-import { useWideScreen } from "@/lib/layout/wide-screen"
-import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
+import { panelLayoutKey } from "@/lib/layout/panel-layout"
 
 import {
   appCanvasHeaderStatus,
@@ -81,10 +64,6 @@ import {
 } from "@/lib/app-options"
 import type { AutomationCanvasPanelProps } from "@/lib/automations/canvas-panel"
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
-
-// Same debounce as the shell's settings auto-save, so editing an automation
-// saves on the rhythm every other editable surface in this app uses.
-const SAVE_DEBOUNCE_MS = 700
 
 export function AutomationEditor({
   initial,
@@ -115,12 +94,7 @@ export function AutomationEditor({
   onSaveTemplateGraph?: (graph: AutomationGraph) => Promise<unknown>
 }) {
   const navigate = useNavigate()
-  const { config, reportSaveStatus } = useShellRuntime()
-  // Nothing on this page renames an automation any more, so the name is only
-  // ever the one it loaded with — but it still has to ride along on every save,
-  // or the record would be written back without it.
-  const [name] = React.useState(initial.name)
-  const [graph, setGraph] = React.useState(initial.graph)
+  const { config } = useShellRuntime()
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
     // Worked out here rather than in an effect: selecting after the first draw
     // would flash the empty settings panel first, and an effect that ran again
@@ -161,182 +135,47 @@ export function AutomationEditor({
     width: 0,
     height: 0,
   })
-  const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [running, setRunning] = React.useState(false)
   const [testOpen, setTestOpen] = React.useState(false)
   const [preparingTest, setPreparingTest] = React.useState(false)
   const [live, setLive] = React.useState(initial.enabled)
   const [savingLive, setSavingLive] = React.useState(false)
   const templateMode = mode === "template"
-  const saveTemplateGraphRef = React.useRef(onSaveTemplateGraph)
-  React.useEffect(() => {
-    saveTemplateGraphRef.current = onSaveTemplateGraph
-  }, [onSaveTemplateGraph])
-  // Known before the first render on both sides, so the editor opens in the
-  // layout it is going to keep instead of painting the phone version — a
-  // full-width canvas with no palette and no inspector — and rebuilding itself.
-  const desktop = useWideScreen()
-  const [paletteCollapsed, setPaletteCollapsed] = React.useState(false)
-  const [inspectorCollapsed, setInspectorCollapsed] = React.useState(false)
   const [favoriteNodeKeys, setFavoriteNodeKeys] = React.useState(
     initialFavoriteNodeKeys
   )
   const [savingFavorites, setSavingFavorites] = React.useState(false)
-  const graphRef = React.useRef(graph)
-  const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const runsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const horizontalLayout = useRememberedPanelLayout(
-    panelLayoutKey.automationEditorHorizontal
-  )
-  const verticalLayout = useRememberedPanelLayout(
-    panelLayoutKey.automationEditorVertical
-  )
 
-  const togglePalette = usePanelToggle(palettePanelRef)
-  const toggleInspector = usePanelToggle(inspectorPanelRef)
-  const toggleRuns = usePanelToggle(runsPanelRef)
-
-  // Shut, the runs panel is exactly its own tab row, and that row's line would
-  // sit on top of the panel's bottom edge. See `headerOnly`.
-  const runsShut = usePanelCollapsed(runsPanelRef)
-
-  // Double-clicking the empty part of a panel shuts it, and double-clicking
-  // what is left of it opens it again.
-  const paletteDoubleClick = useBlankSpaceDoubleClick(togglePalette)
-  const inspectorDoubleClick = useBlankSpaceDoubleClick(toggleInspector)
-  const runsDoubleClick = useBlankSpaceDoubleClick(toggleRuns)
-
-  React.useEffect(() => {
-    graphRef.current = graph
-  }, [graph])
-
-  // ----- Auto-save (700ms debounce, serialized queue, version counter) -----
-  // Mirrors the shell-layout config auto-save: edits schedule a debounced save
-  // that runs on a serialized queue so rapid edits persist in order; an empty
-  // name blocks the save and says so in the top bar instead of failing silently.
-  const serialize = React.useCallback(
-    (nextName: string, nextGraph: AutomationGraph) =>
-      JSON.stringify({ name: nextName, graph: nextGraph }),
-    []
-  )
-  const lastSavedRef = React.useRef(serialize(initial.name, initial.graph))
-  const latestRef = React.useRef({ name, graph })
-  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  const saveQueueRef = React.useRef(Promise.resolve())
-  const saveVersionRef = React.useRef(0)
-
-  const saveNow = React.useCallback(async () => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = null
-    }
-    const snapshot = latestRef.current
-    const serialized = serialize(snapshot.name, snapshot.graph)
-    if (serialized === lastSavedRef.current) return true
-    if (!snapshot.name.trim()) {
-      setSaveStatus({ blocked: "name this automation" })
-      return false
-    }
-
-    const version = saveVersionRef.current + 1
-    saveVersionRef.current = version
-    setSaveStatus("saving")
-
-    const save = saveQueueRef.current
-      .catch(() => undefined)
-      .then(() =>
-        templateMode && saveTemplateGraphRef.current
-          ? saveTemplateGraphRef.current(snapshot.graph)
+  // Nothing on this page renames an automation any more, so the name is only
+  // ever the one it loaded with — but it still has to ride along on every save,
+  // or the record would be written back without it. An empty name blocks the
+  // save and says so in the top bar instead of failing silently.
+  const autoSave = useAutoSave(
+    { name: initial.name, graph: initial.graph },
+    {
+      save: async (draft) => {
+        await (templateMode && onSaveTemplateGraph
+          ? onSaveTemplateGraph(draft.graph)
           : saveAutomation({
               automationId: initial.id,
-              name: snapshot.name,
-              graph: snapshot.graph,
-            })
-      )
-    saveQueueRef.current = save.then(
-      () => undefined,
-      () => undefined
-    )
-
-    try {
-      await save
-      lastSavedRef.current = serialized
-      if (version === saveVersionRef.current) {
-        setSaveStatus("saved")
-      }
-      return true
-    } catch (error) {
-      if (version === saveVersionRef.current) {
-        setSaveStatus("idle")
-        showErrorToast(getAutomationErrorMessage(error))
-      }
-      return false
+              name: draft.name,
+              graph: draft.graph,
+            }))
+      },
+      describeError: getAutomationErrorMessage,
+      blockedReason: (draft) =>
+        draft.name.trim() ? null : "name this automation",
     }
-  }, [initial.id, serialize, templateMode])
-
-  const scheduleSave = React.useCallback(() => {
-    dismissErrorToast()
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => {
-      saveTimerRef.current = null
-      void saveNow()
-    }, SAVE_DEBOUNCE_MS)
-  }, [saveNow])
+  )
+  const { name, graph } = autoSave.value
+  const { change, saveNow, isSaved, latest } = autoSave
 
   const changeGraph = React.useCallback(
-    (updater: (current: AutomationGraph) => AutomationGraph) => {
-      // Computed eagerly from the ref, not inside a functional setState: the
-      // refs must update synchronously (the save snapshot reads them), and a
-      // setState updater must stay pure — React may run it twice.
-      const next = updater(graphRef.current)
-      graphRef.current = next
-      latestRef.current = { ...latestRef.current, graph: next }
-      setGraph(next)
-      scheduleSave()
-    },
-    [scheduleSave]
+    (updater: (current: AutomationGraph) => AutomationGraph) =>
+      change((current) => ({ ...current, graph: updater(current.graph) })),
+    [change]
   )
-
-  // Flush a pending edit if the editor unmounts (navigation) so a debounced
-  // change isn't dropped. Fire-and-forget — the component is going away.
-  React.useEffect(() => {
-    return () => {
-      if (!saveTimerRef.current) return
-      clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = null
-      const snapshot = latestRef.current
-      const serialized = serialize(snapshot.name, snapshot.graph)
-      if (serialized === lastSavedRef.current || !snapshot.name.trim()) return
-      const save =
-        templateMode && saveTemplateGraphRef.current
-          ? saveTemplateGraphRef.current(snapshot.graph)
-          : saveAutomation({
-              automationId: initial.id,
-              name: snapshot.name,
-              graph: snapshot.graph,
-            })
-      void save.catch(() => undefined)
-    }
-  }, [initial.id, serialize, templateMode])
-
-  // The "Saved" badge clears itself the way the shared header's does.
-  React.useEffect(() => {
-    if (saveStatus !== "saved") return
-    const timer = setTimeout(() => setSaveStatus("idle"), 2000)
-    return () => clearTimeout(timer)
-  }, [saveStatus])
-
-  // Saving is reported in the sticky app header alongside every other
-  // auto-save. Clearing on the way out matters: without it "Saved" would still
-  // be sitting there on the next page.
-  React.useEffect(() => {
-    reportSaveStatus(saveStatus)
-  }, [reportSaveStatus, saveStatus])
-
-  React.useEffect(() => {
-    return () => reportSaveStatus(null)
-  }, [reportSaveStatus])
 
   const compiled = React.useMemo(() => compileAutomationGraph(graph), [graph])
   const canRunManually = compiled.config
@@ -397,9 +236,7 @@ export function AutomationEditor({
     setAppPanelShut(false)
     try {
       await saveNow()
-      const current = latestRef.current
-      if (serialize(current.name, current.graph) !== lastSavedRef.current)
-        return
+      if (!isSaved()) return
 
       const { runId } = await runAutomationNow(initial.id)
       setStartedRunId(runId)
@@ -425,9 +262,7 @@ export function AutomationEditor({
     setPreparingTest(true)
     try {
       await saveNow()
-      const current = latestRef.current
-      if (serialize(current.name, current.graph) !== lastSavedRef.current)
-        return
+      if (!isSaved()) return
       setTestOpen(true)
     } catch (error) {
       showErrorToast(getAutomationErrorMessage(error))
@@ -484,18 +319,18 @@ export function AutomationEditor({
         deleteNode(nodeId)
         return
       }
-      const node = graphRef.current.nodes.find((item) => item.id === nodeId)
+      const node = latest().graph.nodes.find((item) => item.id === nodeId)
       if (!node) return
       setDeleteTarget({
         nodeId,
         name: automationNodeName(node),
-        connectionCount: graphRef.current.edges.filter(
+        connectionCount: latest().graph.edges.filter(
           (edge) => edge.from === nodeId || edge.to === nodeId
         ).length,
       })
       deleteConfirmedRef.current = false
     },
-    [deleteNode, previewNode?.id]
+    [deleteNode, latest, previewNode?.id]
   )
 
   const createNode = React.useCallback(
@@ -545,8 +380,8 @@ export function AutomationEditor({
       const { x, y } =
         position ??
         nextNodePosition(
-          graphRef.current.nodes.length,
-          graphRef.current.viewport,
+          latest().graph.nodes.length,
+          latest().graph.viewport,
           canvasSize.width || 800
         )
       const placedNode = { ...node, x, y }
@@ -558,7 +393,7 @@ export function AutomationEditor({
       setSelectedNodeId(placedNode.id)
       setSelectedEdgeId(null)
     },
-    [canvasSize.width, changeGraph]
+    [canvasSize.width, changeGraph, latest]
   )
 
   const addNode = React.useCallback(
@@ -784,102 +619,48 @@ export function AutomationEditor({
       }
     />
   )
-  const workspace = desktop ? (
-    <ResizablePanelGroup
-      key={horizontalLayout.layoutKey}
-      orientation="horizontal"
-      className="min-h-0 flex-1"
-      defaultLayout={horizontalLayout.defaultLayout}
-      onLayoutChanged={horizontalLayout.onLayoutChanged}
-    >
-      <ResizablePanel
-        id="palette"
-        panelRef={palettePanelRef}
-        collapsible
-        collapsedSize="0%"
-        defaultSize="14%"
-        minSize="14%"
-        maxSize="26%"
-        onResize={(size) => setPaletteCollapsed(size.asPercentage < 0.5)}
-      >
-        <WorkspacePanel
-          collapsed={paletteCollapsed}
-          onDoubleClick={paletteDoubleClick}
-        >
-          <AutomationPalette
-            favoriteNodeKeys={favoriteNodeKeys}
-            onSelect={previewPaletteNode}
-            onAdd={addNode}
-            onDragStart={setDraggedNodeKey}
-            onDragEnd={() => setDraggedNodeKey(null)}
-          />
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={paletteCollapsed} />
-      <ResizablePanel id="canvas" defaultSize="68%" minSize="30%">
-        <WorkspacePanel className="flex flex-col">
-          {canvasHeader}
-          <div className="relative flex min-h-0 flex-1">
-            {canvas}
-            <AppCanvasPanel
-              automationId={initial.id}
-              nodeKinds={nodeKinds}
-              runId={startedRunId}
-              shut={appPanelShut}
-              onShut={() => setAppPanelShut(true)}
-              onOpen={() => setAppPanelShut(false)}
-            />
-            {paletteCollapsed ? (
-              <PanelReopenTab
-                side="left"
-                label="Show node palette"
-                onClick={togglePalette}
-              />
-            ) : null}
-            {inspectorCollapsed ? (
-              <PanelReopenTab
-                side="right"
-                label="Show inspector"
-                onClick={toggleInspector}
-              />
-            ) : null}
-          </div>
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={inspectorCollapsed} />
-      <ResizablePanel
-        id="inspector"
-        panelRef={inspectorPanelRef}
-        collapsible
-        collapsedSize="0%"
-        defaultSize="18%"
-        minSize="18%"
-        maxSize="34%"
-        onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}
-      >
-        <WorkspacePanel
-          collapsed={inspectorCollapsed}
-          onDoubleClick={inspectorDoubleClick}
-        >
-          {inspector}
-        </WorkspacePanel>
-      </ResizablePanel>
-    </ResizablePanelGroup>
-  ) : (
-    // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and without
-    // a width to fill it shrinks to its content — the canvas has no width of
-    // its own, so the whole panel collapsed to its two border edges and read as
-    // a stray line down the page.
-    <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
-      {canvasHeader}
-      {canvas}
-    </WorkspacePanel>
-  )
-
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col"
-      style={{ gap: pageGutter }}
+    <EditorFrame
+      layoutKeys={{
+        horizontal: panelLayoutKey.automationEditorHorizontal,
+        vertical: panelLayoutKey.automationEditorVertical,
+      }}
+      palette={
+        <AutomationPalette
+          favoriteNodeKeys={favoriteNodeKeys}
+          onSelect={previewPaletteNode}
+          onAdd={addNode}
+          onDragStart={setDraggedNodeKey}
+          onDragEnd={() => setDraggedNodeKey(null)}
+        />
+      }
+      inspector={inspector}
+      inspectorPanelRef={inspectorPanelRef}
+      canvasHeader={canvasHeader}
+      canvas={canvas}
+      canvasOverlay={
+        <AppCanvasPanel
+          automationId={initial.id}
+          nodeKinds={nodeKinds}
+          runId={startedRunId}
+          shut={appPanelShut}
+          onShut={() => setAppPanelShut(true)}
+          onOpen={() => setAppPanelShut(false)}
+        />
+      }
+      reopenLabels={{ palette: "Show node palette", inspector: "Show inspector" }}
+      // A template has no runs, so no panel along the bottom. A shade taller
+      // than the old canvas log: this one holds rows that open, and a run's
+      // steps need somewhere to land.
+      bottom={
+        templateMode
+          ? undefined
+          : {
+              id: "runs",
+              defaultSize: 28,
+              render: (active) => runsPanel?.(active),
+            }
+      }
       onKeyDown={(event) => {
         // Escape backs out of a node picked in the palette but not yet added.
         // It calls what the panel's Cancel button calls, so there is one way to
@@ -890,50 +671,6 @@ export function AutomationEditor({
         deleteNode(previewNode.id)
       }}
     >
-      <div className="flex min-h-0 flex-1 flex-col">
-        {templateMode ? (
-          <div className="flex h-full min-h-0">{workspace}</div>
-        ) : (
-          <ResizablePanelGroup
-            key={verticalLayout.layoutKey}
-            orientation="vertical"
-            className="min-h-0 flex-1"
-            defaultLayout={verticalLayout.defaultLayout}
-            onLayoutChanged={verticalLayout.onLayoutChanged}
-          >
-            <ResizablePanel id="workspace" defaultSize="72%" minSize="40%">
-              <div className="flex h-full min-h-0">{workspace}</div>
-            </ResizablePanel>
-            {/* Keeps its gap even while the panel is collapsed — the collapsed
-              tab row is still a panel on screen, and this handle is what makes
-              it draggable back open. */}
-            <ResizableHandle gap />
-            <ResizablePanel
-              id="runs"
-              panelRef={runsPanelRef}
-              // A shade taller than the old canvas log: this one holds rows that
-              // open, and a run's steps need somewhere to land.
-              defaultSize="28%"
-              minSize="12%"
-              maxSize="60%"
-              // Dragging the divider all the way down collapses the panel to its
-              // own tab row, counts and all. It never unmounts, so it can always
-              // be dragged back open.
-              collapsible
-              collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
-              onResize={runsShut.onResize}
-            >
-              <WorkspacePanel
-                onDoubleClick={runsDoubleClick}
-                headerOnly={runsShut.collapsed}
-              >
-                {runsPanel?.(!runsShut.collapsed)}
-              </WorkspacePanel>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        )}
-      </div>
-
       {!templateMode ? (
         <>
           <TestWithContactDialog
@@ -987,7 +724,7 @@ export function AutomationEditor({
           setDeleteTarget(null)
         }}
       />
-    </div>
+    </EditorFrame>
   )
 }
 

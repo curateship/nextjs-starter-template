@@ -2,6 +2,8 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { SecretKeyField } from "@/components/settings/secret-key-field"
+import { useSettingsAutoSave } from "@/components/settings/use-settings-auto-save"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -19,17 +21,8 @@ import {
   type StorageTestResult,
 } from "@/lib/api/storage"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useLoad } from "@/lib/hooks/use-load"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
-
-// An edit saves itself this long after the last keystroke; leaving the field
-// (or pressing Enter) saves straight away. Same rhythm as the Payments tab.
-const SAVE_DELAY_MS = 1200
-
-// What the saved secret's field displays while it is not being edited. Any
-// string renders as dots in a password field; the length just makes it look
-// like one.
-const SAVED_SENTINEL = "••••••••••••"
 
 type PlainField = "accountId" | "accessKeyId" | "bucketName" | "publicUrl"
 
@@ -71,104 +64,55 @@ const FIELDS: { id: PlainField; label: string; placeholder: string; hint: string
  * indicator, like every other auto-save in the app.
  */
 export function StorageSettings() {
-  const [status, setStatus] = React.useState<StorageSettingsStatus | null>(null)
-  const [loadError, setLoadError] = React.useState<string | null>(null)
-  const [reloads, setReloads] = React.useState(0)
-
   // The four plain fields as typed; null until the load fills them in.
   const [values, setValues] = React.useState<Record<PlainField, string> | null>(
     null
   )
+  const loaded = useLoad(loadStorageSettings, getStorageErrorMessage, {
+    onLoad: (next) => setValues((prev) => prev ?? pickFields(next)),
+  })
+  const status = loaded.data
+  const setStatus = loaded.setData
+  const autoSave = useSettingsAutoSave(
+    getStorageErrorMessage,
+    (fresh: StorageSettingsStatus) => {
+      setStatus(fresh)
+      setValues((prev) => prev ?? pickFields(fresh))
+    }
+  )
+
   // The secret as typed, empty when it has not been touched this visit.
   const [secret, setSecret] = React.useState("")
-  const [editingSecret, setEditingSecret] = React.useState(false)
-  const [saving, setSaving] = React.useState(false)
   const [testing, setTesting] = React.useState(false)
   const [testMessage, setTestMessage] = React.useState<string | null>(null)
   const [confirmingClear, setConfirmingClear] = React.useState(false)
   const [runClear, clearBusy] = useAsyncAction(getStorageErrorMessage)
 
-  // The auto-save's outcome, shown in the shared sticky header like every
-  // other settings save.
-  const setSaveStatus = useReportedSaveStatus()
+  // Clear the box only if it still holds what was saved — a newer edit must
+  // survive and will save itself in turn.
+  const clearSecret = (nextSecret: string) => () =>
+    setSecret((prev) => (prev === nextSecret ? "" : prev))
 
-  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  React.useEffect(() => {
-    return () => {
-      if (timer.current) clearTimeout(timer.current)
-    }
-  }, [])
-
-  React.useEffect(() => {
-    let cancelled = false
-    loadStorageSettings()
-      .then((next) => {
-        if (cancelled) return
-        setStatus(next)
-        setValues((prev) => prev ?? pickFields(next))
-        setLoadError(null)
-      })
-      .catch((error) => {
-        if (!cancelled) setLoadError(getStorageErrorMessage(error))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [reloads])
-
-  // The five values save together. They only mean anything as a set: an
-  // account ID saved without its bucket names nothing the app can write to.
-  const save = async (next: Record<PlainField, string>, nextSecret: string) => {
-    setSaving(true)
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      const fresh = await saveStorage({
-        ...next,
-        // An untouched field must not wipe the stored secret, so it is left
-        // out of the call rather than sent as an empty string.
-        secretAccessKey: nextSecret.trim() ? nextSecret : undefined,
-      })
-      setStatus(fresh)
-      setValues((prev) => prev ?? pickFields(fresh))
-      // Clear the box only if it still holds what was saved — a newer edit
-      // must survive and will save itself in turn.
-      setSecret((prev) => (prev === nextSecret ? "" : prev))
-      setSaveStatus("saved")
-    } catch (error) {
-      // What was typed stays in the fields so a failed save loses nothing.
-      setSaveStatus("idle")
-      showErrorToast(getStorageErrorMessage(error))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const schedule = (next: Record<PlainField, string>, nextSecret: string) => {
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => void save(next, nextSecret), SAVE_DELAY_MS)
-  }
-
+  // The five values save together, under one timer. They only mean anything
+  // as a set: an account ID saved without its bucket names nothing the app
+  // can write to.
+  const schedule = (next: Record<PlainField, string>, nextSecret: string) =>
+    autoSave.schedule(
+      "bucket",
+      saveBucket(next, nextSecret),
+      clearSecret(nextSecret)
+    )
   const flush = () => {
     if (!values) return
-    if (timer.current) clearTimeout(timer.current)
-    if (saving) {
-      // Another save is mid-flight. Tabbing from one field into the next lands
-      // exactly here, so the edit stays scheduled rather than being dropped.
-      schedule(values, secret)
-      return
-    }
-    void save(values, secret)
+    autoSave.flush("bucket", saveBucket(values, secret), clearSecret(secret))
   }
 
   const edit = (field: PlainField, value: string) => {
+    if (!values) return
     setTestMessage(null)
-    setValues((prev) => {
-      if (!prev) return prev
-      const next = { ...prev, [field]: value }
-      schedule(next, secret)
-      return next
-    })
+    const next = { ...values, [field]: value }
+    setValues(next)
+    schedule(next, secret)
   }
 
   const runTest = async () => {
@@ -202,9 +146,6 @@ export function StorageSettings() {
     }, "The saved storage settings were removed.")
   }
 
-  const showSentinel =
-    !secret && !editingSecret && Boolean(status?.secretConfigured)
-
   return (
     <>
       <CollapsibleSettingsCard
@@ -222,11 +163,8 @@ export function StorageSettings() {
         description="Where every uploaded picture, video and file is kept. Fill this in and the server needs no CUSTOM_SHELL_R2_ environment variables. The secret access key is scrambled before it is stored and never leaves the server."
         contentClassName="space-y-6"
       >
-        {loadError ? (
-          <ErrorRow
-            message={loadError}
-            onRetry={() => setReloads((count) => count + 1)}
-          />
+        {loaded.error ? (
+          <ErrorRow message={loaded.error} onRetry={loaded.retry} />
         ) : !status || !values ? (
           <LoadingRow
             label="Loading storage settings…"
@@ -260,40 +198,26 @@ export function StorageSettings() {
               </div>
             ))}
 
-            <div className="grid gap-2">
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <FieldLabel
-                  htmlFor="storage-secret"
-                  hint="The secret half of the same R2 API token. Cloudflare shows it once, when the token is created."
-                >
-                  Secret access key
-                </FieldLabel>
-                <span className="text-sm text-muted-foreground">
-                  {secretLabel(status)}
-                </span>
-              </div>
-              <Input
-                id="storage-secret"
-                type="password"
-                autoComplete="off"
-                placeholder="Paste the secret access key"
-                value={showSentinel ? SAVED_SENTINEL : secret}
-                onFocus={() => setEditingSecret(true)}
-                onBlur={() => {
-                  setEditingSecret(false)
-                  flush()
-                }}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setTestMessage(null)
-                  setSecret(value)
-                  if (values) schedule(values, value)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") flush()
-                }}
-              />
-            </div>
+            <SecretKeyField
+              id="storage-secret"
+              label="Secret access key"
+              hint="The secret half of the same R2 API token. Cloudflare shows it once, when the token is created."
+              secret={{
+                configured: status.secretConfigured,
+                unreadable: status.secretUnreadable,
+                maskedKey: status.maskedSecret,
+                source: status.secretFromEnv ? "env" : "settings",
+              }}
+              saved={status.secretConfigured}
+              placeholder="Paste the secret access key"
+              value={secret}
+              onChange={(value) => {
+                setTestMessage(null)
+                setSecret(value)
+                if (values) schedule(values, value)
+              }}
+              onCommit={flush}
+            />
 
             {/* Never disabled while idle — a disabled button fades to
                 near-invisible and cannot say why. Clicked with a field
@@ -316,7 +240,7 @@ export function StorageSettings() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={clearBusy || saving}
+                  disabled={clearBusy || autoSave.saving !== null}
                   onClick={() => setConfirmingClear(true)}
                 >
                   Remove these settings
@@ -360,6 +284,18 @@ function testVerdictMessage(verdict: StorageTestResult) {
   }
 }
 
+/**
+ * What one save sends. An untouched secret box is left out rather than sent
+ * empty, so it never wipes the stored secret.
+ */
+function saveBucket(next: Record<PlainField, string>, secret: string) {
+  return () =>
+    saveStorage({
+      ...next,
+      secretAccessKey: secret.trim() ? secret : undefined,
+    })
+}
+
 function pickFields(status: StorageSettingsStatus): Record<PlainField, string> {
   return {
     accountId: status.accountId,
@@ -367,14 +303,4 @@ function pickFields(status: StorageSettingsStatus): Record<PlainField, string> {
     bucketName: status.bucketName,
     publicUrl: status.publicUrl,
   }
-}
-
-/** One short line saying whether the secret exists and where it lives. */
-function secretLabel(status: StorageSettingsStatus) {
-  if (status.secretUnreadable) return "Set, but unreadable — paste it again"
-  if (!status.secretConfigured) return "Not set"
-  if (status.secretFromEnv) {
-    return `Using the server's own key ${status.maskedSecret}`
-  }
-  return `Set ${status.maskedSecret}`
 }

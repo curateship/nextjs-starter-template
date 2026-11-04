@@ -15,6 +15,13 @@ carries its own words in the notice's `message` and `detail`, belongs to one
 account, and needs nothing else in the database behind it. An app with a notice
 to send writes one of these rather than announcing something nobody announced.
 
+A notification request that fails says so in plain words. A signed-out person
+sees "Please sign in again.", someone without access sees "You do not have
+access to that.", and anything else reads "Notification request failed."
+Internal phrases such as "Missing Custom Shell session" never reach the toast.
+Shell settings does the same for sign-in and access failures, and keeps its own
+written reasons, such as a logo missing from the media library.
+
 ## Seen and read are two different things
 
 The bell carries a red number and opens the tray. The number is not the unread

@@ -311,15 +311,23 @@ function RunRow({
   const [detailError, setDetailError] = React.useState<string | null>(null)
   const [deciding, setDeciding] = React.useState(false)
 
+  /** Reads the run. Never fails: a failure comes back as the words to show. */
+  const read = React.useCallback(
+    () =>
+      getAutomationRun(run.id).then(
+        (next) => ({ detail: next, error: null }),
+        (error: unknown) => ({
+          detail: null,
+          error: getAutomationRunErrorMessage(error),
+        })
+      ),
+    [run.id]
+  )
   const load = React.useCallback(async () => {
-    try {
-      setDetail(await getAutomationRun(run.id))
-      setDetailError(null)
-    } catch (error) {
-      setDetail(null)
-      setDetailError(getAutomationRunErrorMessage(error))
-    }
-  }, [run.id])
+    const result = await read()
+    setDetail(result.detail)
+    setDetailError(result.error)
+  }, [read])
 
   /**
    * The run as freshly as this row knows it.
@@ -337,21 +345,15 @@ function RunRow({
   React.useEffect(() => {
     if (!expanded || !panelActive) return
     let active = true
-    void getAutomationRun(run.id)
-      .then((next) => {
-        if (!active) return
-        setDetail(next)
-        setDetailError(null)
-      })
-      .catch((error) => {
-        if (!active) return
-        setDetail(null)
-        setDetailError(getAutomationRunErrorMessage(error))
-      })
+    void read().then((result) => {
+      if (!active) return
+      setDetail(result.detail)
+      setDetailError(result.error)
+    })
     return () => {
       active = false
     }
-  }, [expanded, panelActive, run.id])
+  }, [expanded, panelActive, read])
 
   // A run that has not finished is still growing steps. Read once and it stays
   // as it was the instant it was opened — press Run and the row opens on a run

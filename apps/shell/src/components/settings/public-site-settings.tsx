@@ -2,7 +2,6 @@ import * as React from "react"
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core"
 import {
   SortableContext,
-  arrayMove,
   horizontalListSortingStrategy,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
@@ -20,14 +19,16 @@ import { PublicSocialEditor } from "@/components/settings/public-social-editor"
 import { SettingsCardSection } from "@/components/settings/settings-card-section"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { PublicUserPanelDialog } from "@/components/settings/public-user-panel-settings"
+import { SettingsSelectRow } from "@/components/settings/settings-select-row"
 import {
+  createShellId,
   DRAG_GRIP_CLASS,
   DRAG_HANDLE_CLASS,
-  createShellId,
+  reorderByDrag,
+  stableItemIds,
   useNavSensors,
   useSortableChip,
   useSortableRow,
-  stableItemIds,
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
 import {
@@ -66,13 +67,6 @@ import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import { NumberField } from "@/components/ui/number-field"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   PUBLIC_BREADCRUMB_HINTS,
   PUBLIC_BREADCRUMB_KINDS,
   PUBLIC_BREADCRUMB_LABELS,
@@ -91,9 +85,6 @@ import {
   PUBLIC_HEADER_LOGO_SIZES,
   PUBLIC_HEADER_MENU_ALIGNMENTS,
   type PublicHeader,
-  type PublicHeaderBlur,
-  type PublicHeaderLogoSize,
-  type PublicHeaderMenuAlignment,
 } from "@/lib/pages/public-header"
 import {
   MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH,
@@ -228,34 +219,15 @@ export function PublicSiteSettings({
           title="Footer alignment"
           description="Where the logo, the description, the social buttons, the links and the copyright line sit."
         >
-          <div className="grid gap-2">
-            <FieldLabel
-              htmlFor="public-footer-alignment"
-              hint={PUBLIC_FOOTER_ALIGNMENT_HINTS[footerAlignment]}
-            >
-              Alignment
-            </FieldLabel>
-            <Select
-              value={footerAlignment}
-              onValueChange={(value) =>
-                onFooterAlignmentChange(value as PublicFooterAlignment)
-              }
-            >
-              <SelectTrigger
-                id="public-footer-alignment"
-                className="w-full sm:w-fit"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PUBLIC_FOOTER_ALIGNMENTS.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {PUBLIC_FOOTER_ALIGNMENT_LABELS[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <SettingsSelectRow
+            id="public-footer-alignment"
+            label="Alignment"
+            hint={PUBLIC_FOOTER_ALIGNMENT_HINTS[footerAlignment]}
+            value={footerAlignment}
+            options={PUBLIC_FOOTER_ALIGNMENTS}
+            optionLabel={(value) => PUBLIC_FOOTER_ALIGNMENT_LABELS[value]}
+            onValueChange={onFooterAlignmentChange}
+          />
         </SettingsCardSection>
         <SettingsCardSection
           title="Social accounts"
@@ -362,31 +334,15 @@ function PublicHeaderSettings({
       description="Choose how the full public header behaves on every public page."
       contentClassName="grid gap-4"
     >
-      <div className="grid gap-2">
-        <FieldLabel
-          htmlFor="public-header-font"
-          hint="The face the public header and footer read in. Same as the body leaves them on the site's own font."
-        >
-          Navigation &amp; footer font
-        </FieldLabel>
-        <Select
-          value={chromeFont}
-          onValueChange={(font) =>
-            onChromeFontChange(font as PublicThemeChromeFont)
-          }
-        >
-          <SelectTrigger id="public-header-font" className="w-full sm:w-fit">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PUBLIC_THEME_CHROME_FONTS.map((font) => (
-              <SelectItem key={font} value={font}>
-                {PUBLIC_THEME_HEADING_FONT_LABELS[font]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <SettingsSelectRow
+        id="public-header-font"
+        label="Navigation & footer font"
+        hint="The face the public header and footer read in. Same as the body leaves them on the site's own font."
+        value={chromeFont}
+        options={PUBLIC_THEME_CHROME_FONTS}
+        optionLabel={(font) => PUBLIC_THEME_HEADING_FONT_LABELS[font]}
+        onValueChange={onChromeFontChange}
+      />
 
       <SettingsSwitchRow
         id="public-header-sticky"
@@ -417,69 +373,27 @@ function PublicHeaderSettings({
         />
       )}
 
-      <div className="grid gap-2">
-        <FieldLabel
-          htmlFor="public-header-menu-alignment"
-          hint="Centre places the desktop menu in the middle of the page. Phone navigation stays in its menu button."
-        >
-          Menu position
-        </FieldLabel>
-        <Select
-          value={header.menuAlignment}
-          onValueChange={(menuAlignment) =>
-            update({
-              menuAlignment: menuAlignment as PublicHeaderMenuAlignment,
-            })
-          }
-        >
-          <SelectTrigger
-            id="public-header-menu-alignment"
-            className="w-full sm:w-fit"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PUBLIC_HEADER_MENU_ALIGNMENTS.map((alignment) => (
-              <SelectItem key={alignment} value={alignment}>
-                {alignment === "center" ? "Centre" : "Left"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <SettingsSelectRow
+        id="public-header-menu-alignment"
+        label="Menu position"
+        hint="Centre places the desktop menu in the middle of the page. Phone navigation stays in its menu button."
+        value={header.menuAlignment}
+        options={PUBLIC_HEADER_MENU_ALIGNMENTS}
+        optionLabel={(alignment) => (alignment === "center" ? "Centre" : "Left")}
+        onValueChange={(menuAlignment) => update({ menuAlignment })}
+      />
 
-      <div className="grid gap-2">
-        <FieldLabel
-          htmlFor="public-header-logo-size"
-          hint="Sets the logo height to 32, 48, or 64 pixels."
-        >
-          Logo size
-        </FieldLabel>
-        <Select
-          value={header.logoSize}
-          onValueChange={(logoSize) =>
-            update({ logoSize: logoSize as PublicHeaderLogoSize })
-          }
-        >
-          <SelectTrigger
-            id="public-header-logo-size"
-            className="w-full sm:w-fit"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PUBLIC_HEADER_LOGO_SIZES.map((size) => (
-              <SelectItem key={size} value={size}>
-                {size === "small"
-                  ? "Small"
-                  : size === "large"
-                    ? "Large"
-                    : "Standard"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <SettingsSelectRow
+        id="public-header-logo-size"
+        label="Logo size"
+        hint="Sets the logo height to 32, 48, or 64 pixels."
+        value={header.logoSize}
+        options={PUBLIC_HEADER_LOGO_SIZES}
+        optionLabel={(size) =>
+          size === "small" ? "Small" : size === "large" ? "Large" : "Standard"
+        }
+        onValueChange={(logoSize) => update({ logoSize })}
+      />
 
       <NumberField
         id="public-header-logo-gap"
@@ -503,29 +417,15 @@ function PublicHeaderSettings({
         onChange={(menuFontSize) => update({ menuFontSize })}
       />
 
-      <div className="grid gap-2">
-        <FieldLabel
-          htmlFor="public-header-blur"
-          hint="How much the page behind the header is blurred as it scrolls under a sticky header. A solid header colour from Styling covers it."
-        >
-          Glass blur effect
-        </FieldLabel>
-        <Select
-          value={header.blur}
-          onValueChange={(blur) => update({ blur: blur as PublicHeaderBlur })}
-        >
-          <SelectTrigger id="public-header-blur" className="w-full sm:w-fit">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PUBLIC_HEADER_BLURS.map((blur) => (
-              <SelectItem key={blur} value={blur}>
-                {PUBLIC_HEADER_BLUR_LABELS[blur]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <SettingsSelectRow
+        id="public-header-blur"
+        label="Glass blur effect"
+        hint="How much the page behind the header is blurred as it scrolls under a sticky header. A solid header colour from Styling covers it."
+        value={header.blur}
+        options={PUBLIC_HEADER_BLURS}
+        optionLabel={(blur) => PUBLIC_HEADER_BLUR_LABELS[blur]}
+        onValueChange={(blur) => update({ blur })}
+      />
 
       {children}
     </CollapsibleSettingsCard>
@@ -571,11 +471,8 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
     links.filter(isPublicNavigationLink).length >= MAX_PUBLIC_FOOTER_LINKS
 
   const handleDragEnd = (event: DragEndEvent) => {
-    if (!event.over || event.active.id === event.over.id) return
-    const oldIndex = itemIds.indexOf(String(event.active.id))
-    const newIndex = itemIds.indexOf(String(event.over.id))
-    if (oldIndex === -1 || newIndex === -1) return
-    onLinksChange(arrayMove(links, oldIndex, newIndex))
+    const moved = reorderByDrag(links, itemIds, event)
+    if (moved) onLinksChange(moved)
   }
 
   const changeGroup = (index: number, group: PublicNavigationGroup) => {
@@ -986,18 +883,16 @@ function PublicGroupDialog({
                     id="custom-shell-public-menu-group-links"
                     sensors={sensors}
                     collisionDetection={closestCenter}
-                    onDragEnd={(event) => {
-                      if (!event.over || event.active.id === event.over.id) {
-                        return
-                      }
-                      const oldIndex = linkIds.indexOf(String(event.active.id))
-                      const newIndex = linkIds.indexOf(String(event.over.id))
-                      if (oldIndex === -1 || newIndex === -1) return
-                      setDraft((current) => ({
-                        ...current,
-                        links: arrayMove(current.links, oldIndex, newIndex),
-                      }))
-                    }}
+                    onDragEnd={(event) =>
+                      setDraft((current) => {
+                        const links = reorderByDrag(
+                          current.links,
+                          linkIds,
+                          event
+                        )
+                        return links ? { ...current, links } : current
+                      })
+                    }
                   >
                     <SortableContext
                       items={linkIds}
@@ -1491,26 +1386,15 @@ function PublicDeviceField({
   const value = normalizePublicDevice(device)
 
   return (
-    <div className="grid gap-2">
-      <FieldLabel htmlFor={id} hint={PUBLIC_DEVICE_HINTS[value]}>
-        Shown on
-      </FieldLabel>
-      <Select
-        value={value}
-        onValueChange={(next) => onChange(next as PublicDevice)}
-      >
-        <SelectTrigger id={id} className="w-full sm:w-fit">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {PUBLIC_DEVICES.map((option) => (
-            <SelectItem key={option} value={option}>
-              {PUBLIC_DEVICE_LABELS[option]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <SettingsSelectRow
+      id={id}
+      label="Shown on"
+      hint={PUBLIC_DEVICE_HINTS[value]}
+      value={value}
+      options={PUBLIC_DEVICES}
+      optionLabel={(option) => PUBLIC_DEVICE_LABELS[option]}
+      onValueChange={onChange}
+    />
   )
 }
 
