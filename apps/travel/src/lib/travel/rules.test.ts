@@ -174,7 +174,8 @@ describe("money (part 28)", () => {
       { day: null, costCents: 999 },
       { day: 3, costCents: null },
     ])
-    expect(totals).toEqual({ total: 20000, perDay: [10000, 10000, 0], ideas: 999 })
+    // With no types given, every counted cost sits under no type (More Travel features part 13).
+    expect(totals).toEqual({ total: 20000, perDay: [10000, 10000, 0], perType: new Map([["", 20000]]), ideas: 999 })
   })
 
   it("reads typed money and writes it in the trip's currency", () => {

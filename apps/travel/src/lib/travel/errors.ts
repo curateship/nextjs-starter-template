@@ -28,6 +28,10 @@ export const TRAVEL_ERRORS = {
   aiFailed: "The booking email couldn't be read. Check it's the whole email, then try again.",
   aiLimit: "This month's AI allowance is used up, so AI can't be used again until the 1st.",
   draftFailed: "The AI didn't send back a plan it could use. Try again in a minute.",
+  fillNoFreeTime: "That day has no free time of 45 minutes or more between 8 AM and 10 PM to fill.",
+  fillNothingFits: "None of the AI's ideas fit the free time on that day. Try again in a minute.",
+  tipsNotesFull: "This activity's notes are too long to add tips to. Shorten them, then try again.",
+  tipsFailed: "The AI didn't send back tips it could use. Try again in a minute.",
   draftNeedsDestination: "Give the trip a destination first, in Trip settings, so the AI knows where to plan.",
   draftNoEmptyDays: "Every day already has something on it. A drafted plan only fills days with nothing planned.",
   bookingEmailEmpty: "Paste the booking email first.",
@@ -45,10 +49,26 @@ export const TRAVEL_ERRORS = {
 
 const KNOWN_MESSAGES = new Set<string>(Object.values(TRAVEL_ERRORS))
 
+/**
+ * A place added a second time is skipped, and the person is told where the
+ * first one is (More Travel features part 3; Tyler: "Skip it, say where"),
+ * such as "Kinkaku-ji is already on Day 2."
+ */
+export function alreadyOnTripMessage(title: string, day: number | null) {
+  return `${title.slice(0, 200)} is already on ${day === null ? "Ideas" : `Day ${day}`}.`
+}
+
+const ALREADY_ON_TRIP = /^[\s\S]{1,200} is already on (Ideas|Day \d{1,2})\.$/
+
+/** True for the message `alreadyOnTripMessage` writes, so a paste can list the place as skipped, not failed. */
+export function isAlreadyOnTrip(message: string) {
+  return ALREADY_ON_TRIP.test(message)
+}
+
 /** What to tell the person about a failed Travel request. */
 export function getTravelErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ""
-  if (KNOWN_MESSAGES.has(message)) return message
+  if (KNOWN_MESSAGES.has(message) || isAlreadyOnTrip(message)) return message
   return describeAuthError(message) ?? firstValidationMessage(message) ?? "Something went wrong. Try again."
 }
 

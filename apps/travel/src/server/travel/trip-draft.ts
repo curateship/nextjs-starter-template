@@ -2,7 +2,11 @@ import { and, eq, isNull } from "drizzle-orm"
 import { z } from "zod"
 
 import type { BuiltinType } from "@/lib/travel/activity-types"
+import { formatTime } from "@/lib/travel/board"
+import { staysForDay } from "@/lib/travel/best-order"
 import { dateOfDay, formatDayDate } from "@/lib/travel/dates"
+import { fitIntoWindows, freeWindows, windowText } from "@/lib/travel/fill-day"
+import { findSamePlace, type PlaceLike } from "@/lib/travel/same-place"
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
 import { TIME_PATTERN } from "@/lib/travel/rules"
 import { now, uuid } from "@/server/auth/security"
@@ -12,6 +16,7 @@ import { meteredAi, type AskAi } from "@/server/travel/ai"
 import { autocompletePlaces, googleEnabled, placeDetails, type PlaceDetails } from "@/server/travel/google"
 import { travelActivities } from "@/server/travel/schema"
 import { blankActivity, MAX_ACTIVITIES } from "@/server/travel/trips"
+import { savedGooglePhoto } from "@/server/travel/place-photo"
 import { builtinTypeId, checkTypeId } from "@/server/travel/types"
 
 /**
@@ -105,6 +110,23 @@ function readAnswer(text: string) {
   return answer.data
 }
 
+/**
+ * The places already on the trip, Must do ones first, so the AI plans around
+ * them and never plans one again (More Travel features part 4: "AI plans
+ * around it"). Empty when the trip has none.
+ */
+async function alreadyOnTrip(tripId: string, database: CustomShellDb) {
+  const rows = await database
+    .select({ title: travelActivities.title, mustDo: travelActivities.mustDo })
+    .from(travelActivities)
+    .where(and(eq(travelActivities.tripId, tripId), isNull(travelActivities.deletedAt)))
+  if (rows.length === 0) return ""
+  const names = [...rows.filter((row) => row.mustDo), ...rows.filter((row) => !row.mustDo)]
+    .map((row) => row.title.replace(/\s+/g, " ").slice(0, 80))
+    .slice(0, 60)
+  return `Already on the trip, so never plan these again: ${names.join("; ")}.`
+}
+
 /** The trip's days with nothing on them, and the ones with something. */
 async function emptyDays(tripId: string, days: number, database: CustomShellDb) {
   const rows = await database
@@ -141,7 +163,10 @@ export async function draftTripPlan(
     `The trip is ${trip.days} days in ${destination}.`,
     trip.startDate ? `Day 1 is ${trip.startDate}, so mind what is shut on which weekday.` : "It has no dates yet.",
     `Plan these days, and only these: ${dayLines.join(" ")}`,
-  ].join(" ")
+    await alreadyOnTrip(trip.id, database),
+  ]
+    .filter(Boolean)
+    .join(" ")
   const answer = readAnswer(await ask(SYSTEM_PROMPT, prompt))
 
   const wanted = new Set(days)
@@ -173,8 +198,82 @@ export async function draftTripPlan(
   return { items, days, skipped, later: empty.length - days.length }
 }
 
+/**
+ * Fill this day (More Travel features part 6; Tyler: "Timed, in the gaps").
+ * The AI is told what the day already holds, its free time between 8:00 AM
+ * and 10:00 PM, its Must do cards and where the night is spent, and answers
+ * with timed sights and meals for the gaps only. Each idea is checked: one
+ * outside a gap is dropped, one running past its gap is cut to fit, and none
+ * overlap. Nothing is saved here; the same window as Draft a plan shows them.
+ */
+export async function fillTripDay(
+  userId: string,
+  input: { tripId: string; day: number },
+  { database = db, ask = draftAi(userId) }: { database?: CustomShellDb; ask?: AskAi } = {}
+): Promise<TripDraft> {
+  const trip = await requireTrip(userId, input.tripId, database)
+  const destination = trip.destination?.trim()
+  if (!destination) throw new Error(TRAVEL_ERRORS.draftNeedsDestination)
+  if (input.day < 1 || input.day > trip.days) throw new Error(TRAVEL_ERRORS.dayOutOfRange)
+  const live = await database
+    .select()
+    .from(travelActivities)
+    .where(and(eq(travelActivities.tripId, trip.id), isNull(travelActivities.deletedAt)))
+  const cards = live.filter((card) => card.day === input.day)
+  const windows = freeWindows(cards)
+  if (windows.length === 0) throw new Error(TRAVEL_ERRORS.fillNoFreeTime)
+
+  const date = dateOfDay(trip.startDate, input.day)
+  const planned = cards.map((card) => {
+    const when = card.startTime
+      ? `at ${formatTime(card.startTime)}${card.durationMinutes ? ` for ${card.durationMinutes} minutes` : ""}`
+      : card.dayPart
+        ? `some time in the ${card.dayPart}`
+        : "at no set time"
+    return `${card.title.replace(/\s+/g, " ").slice(0, 80)} ${when}${card.mustDo ? " (a must do: keep it)" : ""}`
+  })
+  const night = staysForDay(live.filter((card) => card.nights !== null), input.day).end
+  const prompt = [
+    `The trip is ${trip.days} days in ${destination}.`,
+    `Plan Day ${input.day} only${date ? `, ${formatDayDate(date)}` : ""}, and answer with that one day.`,
+    planned.length ? `Day ${input.day} already has: ${planned.join("; ")}. Keep all of it as it is.` : "",
+    planned.some((line) => line.endsWith("at no set time") || line.includes("some time in")) ?
+      "Its cards with no set time still take part of the day, so leave room for them." : "",
+    night ? `The night is spent at ${night.title}.` : "",
+    `Add sights and meals only in the free time: ${windows.map(windowText).join(", ")}.`,
+    "Every activity needs a startTime and minutes that end inside one of those free times.",
+    "Add 1 to 4 activities, fewer when the free time is short, with a meal at lunch or dinner time when that time is free.",
+    await alreadyOnTrip(trip.id, database),
+  ]
+    .filter(Boolean)
+    .join(" ")
+  const answer = readAnswer(await ask(SYSTEM_PROMPT, prompt))
+  // One day was asked for, so a single day sent back is that day, whatever number the AI put on it.
+  const asked = answer.days.find((planned) => planned.day === input.day) ?? (answer.days.length === 1 ? answer.days[0] : undefined)
+  const ideas = (asked?.activities ?? [])
+    .map((activity) => activitySchema.safeParse(activity))
+    .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
+    .map((activity) => ({ ...activity, startTime: activity.startTime, durationMinutes: activity.minutes }))
+  const fitted = fitIntoWindows(ideas, windows).slice(0, PER_DAY_MAX)
+  if (fitted.length === 0) throw new Error(TRAVEL_ERRORS.fillNothingFits)
+  const items: DraftItem[] = []
+  for (const idea of fitted) {
+    items.push({
+      day: input.day,
+      title: idea.title,
+      typeId: await builtinTypeId(userId, idea.kind, database),
+      startTime: idea.startTime,
+      durationMinutes: idea.durationMinutes,
+    })
+  }
+  return { items, days: [input.day], skipped: [], later: 0 }
+}
+
 /** Finds a drafted place on Google, near the trip's destination. Swapped out in tests. */
 export type FindPlace = (name: string, destination: string) => Promise<PlaceDetails | null>
+
+/** Saves a found place's Google photo into the media library, returning its address. Swapped out in tests. */
+export type FetchPhoto = (photoName: string, title: string) => Promise<string | null>
 
 /** The first real place Google suggests for "name, destination", with its details, one billed session each. */
 export const googlePlace: FindPlace = async (name, destination) => {
@@ -183,18 +282,24 @@ export const googlePlace: FindPlace = async (name, destination) => {
   return first ? placeDetails(first.placeId, session) : null
 }
 
-export type MadePlan = { created: string[]; placed: number; looked: boolean }
+/** What a plan made: the new cards, how many Google found, and how many were left out as already on the trip. */
+export type MadePlan = { created: string[]; placed: number; looked: boolean; repeated: number }
 
 /**
  * Makes the ticked activities of a drafted plan, each after whatever its day
  * already holds, in the order given. With Google set up, each is looked up
- * near the destination and given its place, opening hours, website and phone;
- * one Google can't find is made with its name alone.
+ * near the destination and given its place, opening hours, website, phone and
+ * its Google photo as the picture (More Travel features part 2); one Google
+ * can't find is made with its name alone.
  */
 export async function createDraftActivities(
   userId: string,
   input: { tripId: string; items: DraftItem[] },
-  { database = db, findPlace = googleEnabled() ? googlePlace : null }: { database?: CustomShellDb; findPlace?: FindPlace | null } = {}
+  {
+    database = db,
+    findPlace = googleEnabled() ? googlePlace : null,
+    fetchPhoto = googleEnabled() ? (photoName, title) => savedGooglePhoto(userId, photoName, title, database) : null,
+  }: { database?: CustomShellDb; findPlace?: FindPlace | null; fetchPhoto?: FetchPhoto | null } = {}
 ): Promise<MadePlan> {
   const trip = await requireTrip(userId, input.tripId, database)
   for (const item of input.items) {
@@ -202,7 +307,7 @@ export async function createDraftActivities(
     await checkTypeId(userId, item.typeId, database)
   }
   const live = await database
-    .select({ day: travelActivities.day })
+    .select({ day: travelActivities.day, title: travelActivities.title, place: travelActivities.place })
     .from(travelActivities)
     .where(and(eq(travelActivities.tripId, trip.id), isNull(travelActivities.deletedAt)))
   if (live.length + input.items.length > MAX_ACTIVITIES) throw new Error(TRAVEL_ERRORS.tooManyActivities)
@@ -210,21 +315,40 @@ export async function createDraftActivities(
   // Google first, so a slow answer never holds a transaction open.
   const destination = trip.destination?.trim() ?? ""
   const found: (PlaceDetails | null)[] = input.items.map(() => null)
+  const photos: (string | null)[] = input.items.map(() => null)
+  // A place already on the trip, or twice in the plan, is left out (More Travel features part 3: "Skip it, say
+  // where"), checked before its photo is fetched. The AI is told what is on the trip; this catches what it missed.
+  const taken: PlaceLike[] = [...live]
+  const repeated = input.items.map(() => false)
+  const claim = (index: number) => {
+    const card = { title: input.items[index].title, place: found[index]?.place ?? null }
+    if (findSamePlace(card, taken)) repeated[index] = true
+    else taken.push(card)
+  }
   if (findPlace && destination) {
     const queue = input.items.map((item, index) => ({ item, index }))
     const work = async () => {
       for (let next = queue.shift(); next; next = queue.shift()) {
         // A place Google can't find, or a Google that doesn't answer, leaves the card with its name.
-        found[next.index] = await findPlace(next.item.title, destination).catch(() => null)
+        const details = await findPlace(next.item.title, destination).catch(() => null)
+        found[next.index] = details
+        claim(next.index)
+        if (!repeated[next.index] && details?.photoName && fetchPhoto) {
+          photos[next.index] = await fetchPhoto(details.photoName, next.item.title).catch(() => null)
+        }
       }
     }
     await Promise.all(Array.from({ length: Math.min(AT_ONCE, queue.length) }, work))
   }
 
+  // With no Google lookups, names alone are compared.
+  if (!(findPlace && destination)) input.items.forEach((_, index) => claim(index))
+
   const nextPosition = new Map<number, number>()
   for (const row of live) if (row.day !== null) nextPosition.set(row.day, (nextPosition.get(row.day) ?? 0) + 1)
   const at = now()
-  const rows = input.items.map((item, index) => {
+  const rows = input.items.flatMap((item, index) => {
+    if (repeated[index]) return []
     const position = nextPosition.get(item.day) ?? 0
     nextPosition.set(item.day, position + 1)
     const details = found[index]
@@ -245,8 +369,14 @@ export async function createDraftActivities(
             phone: details.phone,
           }
         : {}),
+      ...(photos[index] ? { photoUrl: photos[index] } : {}),
     }
   })
   if (rows.length) await database.insert(travelActivities).values(rows)
-  return { created: rows.map((row) => row.id), placed: found.filter(Boolean).length, looked: Boolean(findPlace && destination) }
+  return {
+    created: rows.map((row) => row.id),
+    placed: found.filter((details, index) => details && !repeated[index]).length,
+    looked: Boolean(findPlace && destination),
+    repeated: repeated.filter(Boolean).length,
+  }
 }

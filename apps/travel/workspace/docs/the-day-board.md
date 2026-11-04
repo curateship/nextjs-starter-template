@@ -14,10 +14,18 @@ this browser.
   gone ("Remove this text"). The day's description is under it, written in
   place: click it, type, then Enter or click away; Escape puts it back. An
   empty one shows "Add a description" only while the column is pointed at.
-  The forecast for the day sits below on a trip within the next 14 days (see
-  [Outside services](outside-services.md)), at the trip's destination, with
-  "· 70% rain" after it when the chance of rain is 30 out of 100 or more. Days
-  no longer have a city; one saved before 3 Nov 2026 is ignored.
+  Days no longer have a city; one saved before 3 Nov 2026 is ignored.
+- **No weather on the heading.** The day's forecast, what a far-off day is
+  usually like, and its public holiday moved into each card's ⋮ menu, as a
+  Weather row (Tyler, 4 Nov 2026: "remove the weather from the cards (except
+  warning) and put it in the 3 dot dropdown right panel"; see
+  [Activities](activities.md)). The warnings stay on the cards: "Holiday, may
+  be shut" and "Rain on Tue" with its Move button, below.
+- **Public holidays** (Tyler, 4 Nov 2026: "Heading + card warning", before
+  the heading line moved into the ⋮ menu). On a public holiday in the
+  destination's country, the day's Sight and Food cards read "Holiday, may be
+  shut" in red, after any opening-hours warning, which comes first. Only
+  holidays the whole country keeps count; compact cards leave the line off.
 - **Add a day:** the "+" after the last day's column adds one at the end of
   the trip, up to 60 (Tyler, 3 Nov 2026: "Add an + icon here to add a day").
   A day's own menu still adds one after it.
@@ -54,6 +62,20 @@ this browser.
   adds the travel time, such as "20m walk", and says "not enough time" when
   getting there takes longer than the gap. Filters hide these lines, because
   the time between two shown cards isn't free when hidden ones sit between.
+- **Swap a rainy day** (Tyler, 4 Nov 2026: "From Google's place type"). On a
+  day whose forecast is 70 out of 100 rain or more, an outdoor card reads
+  "Rain on Tue" with "Move to Thu" along its foot, the same as the closed-day
+  button. Thu is the driest forecast day of the trip under 30, the nearer one
+  when two are as dry, and the move has Undo. With no day that dry, the card
+  says "Rain on Tue" in red with no button. A card is outdoors when Google
+  calls its place a park, garden, beach, hiking area, zoo, amusement park and
+  the like (the list is `src/lib/travel/rainy-day.ts`), so only places picked
+  or pasted since 4 Nov 2026 can warn. A shut-all-day warning wins over rain.
+- **Must do** cards carry a flag after the name, and one still in Ideas once
+  a dated trip has started reads "Must do, not on a day yet" in red (see
+  [Activities](activities.md)).
+- **Google's rating** shows on cards whose place came from Google, such as
+  "Google 4.6 (2,300) · $$" (see [Activities](activities.md)).
 - **Stays** are one card on their check-in day, reading "3 nights" (Tyler,
   2 Nov 2026: "Move to hotel stays into its individual cards", then "One card
   on check-in day"). They used to be a strip across the top of their days.
@@ -63,18 +85,32 @@ this browser.
 - **Drag a card** to another day or up and down a day. The column's new order
   is saved in one go.
 - **Right-click a card** (or press and hold on a phone) for Open, Duplicate,
-  Move to day, Mark done, and Delete.
+  Move to day, Mark done, Mark must do, and Delete.
 - **Done.** The tick in a card's corner marks it done; done cards fade and are
   struck through.
 - **Undo.** After a move, delete, duplicate, copy or a change to several
   cards, a bar at the bottom says what happened, with Undo, for 6 seconds.
   Undo puts every card back where it was, with its start time and part of
   the day, and removes any copies. Marking
-  Done or Booked has no Undo; pressing again undoes it.
-- **A day's menu** (the three dots) adds a day after it, puts it in its best
-  order, copies its cards onto another day, or removes it. Removing a day with cards asks whether to send
+  Done or Must do has no Undo; pressing again undoes it.
+- **A day's menu** (the three dots) adds a day after it, fills it with AI,
+  puts it in its best order, copies its cards onto another day, or removes
+  it. Removing a day with cards asks whether to send
   them to Ideas or delete them to the bin. Later days move back by one, with
   their descriptions, and a dated trip ends a day sooner.
+- **Fill this day** (Tyler, 4 Nov 2026: "Timed, in the gaps") asks AI for
+  sights and meals in the day's free time, around what it already holds. The
+  free time is every gap of 45 minutes or more between 8:00 AM and 10:00 PM,
+  counting a timed card with no length as an hour. The AI is told the day's
+  cards, which are Must do, where the night is spent and every place already
+  on the trip, and adds 1 to 4 timed cards, with a meal at lunch or dinner
+  time when that is free. Each answer is checked: a card outside the gaps is
+  dropped, one running past its gap is cut to fit (or dropped when under 30
+  minutes would be left), and none overlap. They show first in the Draft a
+  plan window, titled "Fill Day 2", to untick or change, and Create adds them
+  with Undo on the bar at the bottom. A day with no gap says so and asks
+  nothing. It needs the trip's destination and an AI key (see
+  [Drafting a plan with AI](drafting-a-plan.md)).
 - **Best order** (Tyler, 3 Nov 2026: "From the hotel") puts the day's cards
   with no start time and a place from Google in the quickest order to get
   round, in the trip's way of getting around (Trip settings → Getting
@@ -114,8 +150,17 @@ this browser.
   remembered in this browser. Compact cards and Fold every day float together
   at the board's bottom right (Tyler, 3 Nov 2026: "Move the 2 fold icons to
   the bottom right of the canvas").
-- **Mass select** shows a tick box on each card. Ticked cards gather in the
-  "N selected" button, which moves them to a day or deletes them.
+- **Mass select** is a small "Mass select" button left of the search, on the
+  Board tab. Like every dashboard's, it shows while the middle panel's header
+  is pointed at (always on a phone); until 4 Nov 2026 Travel's never showed,
+  since its header had no hover group (Tyler: "How do I access mass
+  select?"). Pressed, it reads "Hide select" and shows a tick box on each
+  card. Ticked cards gather in the
+  "N selected" button. Its first row is Mark done (Tyler, 4 Nov 2026: "Mark
+  done / not done"), which reads Mark not done when every ticked card is
+  already done, then Move to day and Delete. Mark done is one request with
+  no Undo, the same as the single tick, and the toast says how many changed
+  and how many were no longer on the trip.
 - **Today.** While a dated trip is on, the board opens on today's column and
   marks it Today. Today is worked out in the trip's time zone, from Trip
   settings, or the reader's own when none is set.
@@ -123,11 +168,17 @@ this browser.
 ## Search, Filter and Views
 
 - The search matches words in a card's name or place.
-- Filter narrows by activity type. It lives in the address, so a pasted link
-  opens the same view.
+- Filter narrows by activity type, and since 4 Nov 2026 by Done (done or not
+  done), Part of day, Place (no place yet), Cost (has a cost or none) and Must
+  do (Tyler: "Done or not done", "Part of the day", "No place yet", "Has a
+  cost / no cost"). Part of day counts a timed card by its hour, the same
+  split the day's order uses. No place yet means no address and no Google
+  place. Every filter lives in the address, so a pasted link opens the same
+  view, and Clear empties them all. The filters apply to every tab.
 - Save as view keeps the filters and search under a name, in the shell's
-  saved views. Views opens one. A view whose type was removed opens without it
-  and says so.
+  saved views, and its line names each one, such as "Food · Not done ·
+  Morning". Views opens one exactly as saved. A view whose type was removed
+  opens without it and says so.
 
 ## The other tabs
 
@@ -139,6 +190,10 @@ this browser.
   date ("What is the 3 for?" ... "remove it").
 - **Calendar:** the trip's dates as weeks, each day listing its activities by
   time. A trip with no start date says so, with a date picker that saves one.
+  A card drags onto another day of the trip (Tyler, 4 Nov 2026: "Keep time
+  and part"), keeping its start time and part of the day, with Undo, through
+  the board's own move. A drag starts after 8px, so a click still opens the
+  card. Dates outside the trip take no drop.
 - **Map:** the activities picked from Google as numbered pins, one colour per
   day, joined in the day's order by a straight line in the day's colour
   (Tyler, 3 Nov 2026: "Straight lines", free, showing the order only), with a day picker. Clicking a pin opens the activity. Activities with
@@ -186,3 +241,8 @@ Moving a card to another day is press and hold, then Move to day.
 `src/components/travel/day-board.tsx`, `day-column.tsx`, `board-card.tsx`,
 `board-actions.tsx` and `schedule-panel.tsx`. The order and gap rules are
 `src/lib/travel/board.ts`. Day changes are `src/server/travel/days.ts`.
+Fill this day's gaps are `src/lib/travel/fill-day.ts` and its AI call
+`fillTripDay` in `src/server/travel/trip-draft.ts`; the rainy-day swap is
+`src/lib/travel/rainy-day.ts`; typical weather and holidays are
+`src/server/travel/trip-outlook.ts`; the filters are
+`src/lib/travel/trip-search.ts` and `trip-views.ts`.

@@ -23,6 +23,7 @@ import {
   emptyTripBin,
   loadTripPage,
   loadTripsPage,
+  markActivitiesDone,
   moveActivity,
   purgeTrip,
   restoreTrip,
@@ -116,6 +117,11 @@ const binActivitiesFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ activityIds: z.array(id).min(1).max(500) }))
   .handler(async ({ data, context }) => binActivities(context.user.id, data.activityIds))
 
+const markDoneFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ activityIds: z.array(id).min(1).max(500), done: z.boolean() }))
+  .handler(async ({ data, context }) => markActivitiesDone(context.user.id, data))
+
 export function loadTrips() {
   return loadTripsPageFn()
 }
@@ -151,6 +157,10 @@ export function saveActivity(data: z.input<typeof updateActivitySchema>) {
 }
 export function placeActivity(data: z.input<typeof moveActivitySchema>) {
   return moveActivityFn({ data })
+}
+/** Mass select's Mark done or not done, in one request (More Travel features part 12). */
+export function markActivityListDone(activityIds: string[], done: boolean) {
+  return markDoneFn({ data: { activityIds, done } })
 }
 export function binActivityList(activityIds: string[]) {
   return binActivitiesFn({ data: { activityIds } })

@@ -1059,6 +1059,14 @@ export function TradeWorkspace({
     }
     return byKey
   }, [catalogs])
+  // Every market, the ones under the volume cutoff included. Manual orders
+  // prices its holdings from this, and a held coin is still held when its day
+  // was quiet: PONS on KuCoin traded $892k one day against a $1M cutoff and its
+  // row lost its value and profit (Tyler, 4 Nov 2026).
+  const everyMarketRow = React.useMemo(
+    () => [...marketsByKey.values()],
+    [marketsByKey]
+  )
 
   const walletManagement = (
     <WalletManagement
@@ -1104,7 +1112,7 @@ export function TradeWorkspace({
       orders={trading.watchOrders}
       positions={trading.positions}
       smartOrders={trading.smartOrders}
-      markets={marketRows}
+      markets={everyMarketRow}
       cacheScope={`${user.id}:${protocol}`}
       refusals={trading.refusals}
       walletName={walletNameOf}

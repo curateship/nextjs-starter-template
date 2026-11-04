@@ -1,9 +1,10 @@
 import * as React from "react"
-import { CopyIcon, Trash2Icon } from "lucide-react"
+import { CopyIcon, Loader2Icon, SparklesIcon, Trash2Icon } from "lucide-react"
 
 import { canRate, ActivityRatingFields } from "@/components/travel/activity-rating-fields"
 import { ActivityPictureFields } from "@/components/travel/activity-picture-fields"
 import { ActivityPlaceFields } from "@/components/travel/activity-place-fields"
+import { DayOutlook } from "@/components/travel/day-weather"
 import { useBoardActions } from "@/components/travel/board-actions"
 import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
 import { dayLabel } from "@/components/travel/new-activity"
@@ -11,11 +12,16 @@ import { SavingInput } from "@/components/travel/saving-fields"
 import { typeOf, useTrip } from "@/components/travel/trip-context"
 import { ActivityTypeSelect } from "@/components/travel/type-icon"
 import { useSaveActivity } from "@/components/travel/use-save-activity"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { addTips } from "@/lib/api/travel/place-tips"
 import type { Activity } from "@/lib/api/travel/trips"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { formatTime } from "@/lib/travel/board"
+import { outlookSummary } from "@/lib/travel/weather"
 import { DAY_PART_LABEL, DAY_PARTS, formatMoney, parseMoney, type DayPart } from "@/lib/travel/rules"
 import type { UpdateActivityInput } from "@/lib/travel/schemas"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -23,7 +29,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 const IDEAS = "ideas"
 const NO_PART = "any"
 
-type Section = "name" | "when" | "place" | "cost" | "picture" | "rating"
+type Section = "name" | "when" | "weather" | "place" | "cost" | "picture" | "rating"
 
 /**
  * The open activity's ⋮ menu (Tyler, 2 Nov 2026: "All of these are
@@ -32,14 +38,30 @@ type Section = "name" | "when" | "place" | "cost" | "picture" | "rating"
  * the right. Every field saves itself. Duplicate and Delete activity end it.
  * Its look is Travel's one ⋮ menu, `FoldingMenu`, shared with the trip's.
  */
-export function ActivityMenu({ activity }: { activity: Activity }) {
-  const { page, typesById } = useTrip()
+export function ActivityMenu({ activity, onNotesChanged }: { activity: Activity; onNotesChanged: () => void }) {
+  const { page, typesById, refresh, weather } = useTrip()
   const { trip } = page
   const [open, setOpen] = React.useState(false)
   const [shown, toggle] = useOpenSections<Section>()
   const actions = useBoardActions()
   const type = typeOf(activity, typesById)
+  const [runTips, writingTips] = useAsyncAction(getTravelErrorMessage)
 
+  // AI tips go at the end of the notes (More Travel features part 5: "Into the card's notes"). The menu stays
+  // open while the AI writes, then the notes show them.
+  async function tips() {
+    const ok = await runTips(async () => {
+      await addTips(activity.id)
+      await refresh()
+    }, `Added tips to ${activity.title}'s notes.`)
+    if (ok) {
+      setOpen(false)
+      onNotesChanged()
+    }
+  }
+
+  // The day's weather and holiday live here, not on the day's heading (Tyler, 4 Nov 2026).
+  const outlook = activity.day === null ? null : outlookSummary(weather, activity.day)
   const when =
     activity.day === null
       ? "Ideas"
@@ -52,12 +74,24 @@ export function ActivityMenu({ activity }: { activity: Activity }) {
 
   return (
     <FoldingMenu label="More for this activity" busy={actions.busy} open={open} onOpenChange={setOpen}>
-      <MenuSection label="Name and type" value={type?.name ?? "No type"} open={shown.has("name")} onToggle={() => toggle("name")}>
+      <MenuSection
+        label="Name and type"
+        value={[type?.name ?? "No type", activity.mustDo ? "Must do" : null].filter(Boolean).join(" · ")}
+        open={shown.has("name")}
+        onToggle={() => toggle("name")}
+      >
         <NameFields activity={activity} />
       </MenuSection>
       <MenuSection label="When" value={when} open={shown.has("when")} onToggle={() => toggle("when")}>
         <WhenFields activity={activity} />
       </MenuSection>
+      {outlook && activity.day !== null ? (
+        <MenuSection label="Weather" value={outlook} open={shown.has("weather")} onToggle={() => toggle("weather")}>
+          <div className="grid gap-1.5">
+            <DayOutlook weather={weather} day={activity.day} />
+          </div>
+        </MenuSection>
+      ) : null}
       <MenuSection
         label="Place"
         value={activity.place?.name || activity.place?.address || "Not set"}
@@ -93,6 +127,13 @@ export function ActivityMenu({ activity }: { activity: Activity }) {
         </MenuSection>
       ) : null}
       <MenuLine />
+      <MenuAction
+        icon={writingTips ? <Loader2Icon className="size-4 animate-spin" /> : <SparklesIcon className="size-4" />}
+        disabled={writingTips}
+        onClick={() => void tips()}
+      >
+        {writingTips ? "Writing tips…" : "Add tips"}
+      </MenuAction>
       <MenuAction
         icon={<CopyIcon className="size-4" />}
         disabled={actions.busy}
@@ -136,6 +177,15 @@ function NameFields({ activity }: { activity: Activity }) {
           value={activity.typeId}
           onChange={(typeId) => void save({ typeId })}
         />
+      </div>
+      {/* More Travel features part 4: AI plans around it, Filter can show only these, and it warns when left in Ideas. */}
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={`${idBase}-must-do`}
+          checked={activity.mustDo}
+          onCheckedChange={(checked) => void save({ mustDo: checked === true })}
+        />
+        <Label htmlFor={`${idBase}-must-do`}>Must do</Label>
       </div>
     </div>
   )
@@ -224,12 +274,15 @@ function CostField({ activity }: { activity: Activity }) {
   const id = `activity-${activity.id}-cost`
   return (
     <div className="grid gap-2">
-      <Label htmlFor={id}>Cost ({currency})</Label>
+      {/* The row already says Cost (Tyler, 4 Nov 2026: "Remove all these duplicate labels"). */}
+      <Label htmlFor={id} className="sr-only">
+        Cost ({currency})
+      </Label>
       <SavingInput
         id={id}
         inputMode="decimal"
         value={activity.costCents === null ? "" : formatMoney(activity.costCents, currency)}
-        placeholder="0"
+        placeholder={`0 ${currency}`}
         onSave={(next) => {
           const text = next.replace(/[^\d.,]/g, "")
           if (!text) return save({ costCents: null })

@@ -14,9 +14,14 @@ opens Trip settings.
   letter and when it's left. It is the only place the description is
   written. Trip settings doesn't have it.
 - **Money:** the total of every cost on the trip's days against the budget
-  typed here, with a bar that turns red over budget, then a line per day.
-  Costs in Ideas are listed apart and not counted. A stay counts once, on its
-  first day.
+  typed here, with a bar that turns red over budget, then two tabs, By day
+  and By type (Tyler, 4 Nov 2026: "Switch: day or type"), remembered in this
+  browser. By day is a line per day. By type is a line per activity type with
+  its icon, biggest first, such as Hotel ¥90,000 and Food ¥42,000; cards with
+  no type, or a removed one, count under Other. Both add up to the same
+  total. Costs in Ideas are listed apart and not counted. A stay counts once,
+  on its first day. The sums are `tripTotals` and `spendingByType` in
+  `src/lib/travel/budget.ts`.
 
 ## Notes
 
@@ -70,6 +75,12 @@ the left menu ("dropdown to appear aligned right side").
   to change it.
 - Every field saves itself, the way an activity's do. There is no Save
   button. An empty name is refused with "Give the trip a name."
+- A folded-open row shows its field with no second label, since the row
+  already names it (Tyler, 4 Nov 2026: "Remove all these duplicate labels").
+  Tags says "a comma between" in its placeholder instead.
+- The Time zone list scrolls inside its dropdown, 240px tall, by wheel or
+  drag; before 4 Nov 2026 it ran past the dropdown's edge. The activity's
+  place suggestions scroll the same way at 288px.
 - Tags go in with a comma between them and filter the Trips table.
 - The cover photo is uploaded or picked from Unsplash.
 - Delete trip moves the trip to the Trips table's Bin with Undo, then goes

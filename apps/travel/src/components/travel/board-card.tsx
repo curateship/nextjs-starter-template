@@ -7,6 +7,7 @@ import {
   CheckIcon,
   CircleCheckIcon,
   CopyIcon,
+  FlagIcon,
   PanelRightOpenIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -39,7 +40,7 @@ const PointAnchor = React.forwardRef<HTMLSpanElement, { x: number; y: number }>(
 
 /**
  * The right-click menu on a card (task part 15), copied from Project's
- * `task-right-click.tsx`: Open, Duplicate, Move to day, Mark done and Delete. On a phone a long press opens it too, which is how a card moves
+ * `task-right-click.tsx`: Open, Duplicate, Move to day, Mark done, Must do (More Travel features part 4) and Delete. On a phone a long press opens it too, which is how a card moves
  * between days there (task part 46).
  */
 export function CardMenu({
@@ -121,6 +122,10 @@ export function CardMenu({
             <DropdownMenuItem onSelect={() => void actions.setField(activity, { done: !activity.done })}>
               <CircleCheckIcon className="size-4" />
               {activity.done ? "Mark not done" : "Mark done"}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void actions.setField(activity, { mustDo: !activity.mustDo })}>
+              <FlagIcon className="size-4" />
+              {activity.mustDo ? "Not a must do" : "Mark must do"}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={() => void actions.remove([activity.id])}>

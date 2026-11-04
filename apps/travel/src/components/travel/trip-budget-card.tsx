@@ -3,12 +3,16 @@ import * as React from "react"
 import { dayLabel } from "@/components/travel/new-activity"
 import { SavingInput } from "@/components/travel/saving-fields"
 import { useTrip } from "@/components/travel/trip-context"
+import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import { PanelCard } from "@/components/shared/panel-card"
 import { Label } from "@/components/ui/label"
 import { Meter } from "@/components/ui/meter"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { saveTrip } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { tripTotals } from "@/lib/travel/budget"
+import { useRememberedChoice } from "@/lib/remembered-choice"
+import { spendingByType, tripTotals } from "@/lib/travel/budget"
+import { MONEY_VIEW_KEY } from "@/lib/travel/panel-keys"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { formatMoney, parseMoney } from "@/lib/travel/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -27,15 +31,20 @@ export function useSaveTrip() {
   )
 }
 
+const MONEY_VIEWS = ["day", "type"] as const
+
 /**
  * The trip's money (task part 28): the total of every cost on its days
- * against a budget typed here, and a line per day.
+ * against a budget typed here, and a line per day, or per activity type
+ * (More Travel features part 13; Tyler: "Switch: day or type"). The two tabs
+ * are remembered in this browser.
  */
 export function BudgetCard() {
   const { page, readOnly } = useTrip()
   const { trip } = page
   const saveTripPatch = useSaveTrip()
-  const { total, perDay, ideas } = tripTotals(trip.days, page.activities)
+  const { total, perDay, perType, ideas } = tripTotals(trip.days, page.activities)
+  const [view, setView] = useRememberedChoice(MONEY_VIEW_KEY, "day", MONEY_VIEWS)
   const money = (cents: number) => formatMoney(cents, trip.currency)
   const over = trip.budgetCents !== null && total > trip.budgetCents
 
@@ -78,13 +87,33 @@ export function BudgetCard() {
             }}
           />
         </div>
+        <Tabs value={view} onValueChange={(next) => setView(next as (typeof MONEY_VIEWS)[number])}>
+          <TabsList aria-label="Show the money">
+            <TabsTrigger value="day">By day</TabsTrigger>
+            <TabsTrigger value="type">By type</TabsTrigger>
+          </TabsList>
+        </Tabs>
         <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 text-xs">
-          {perDay.map((cents, index) => (
-            <React.Fragment key={index}>
-              <dt className="truncate text-muted-foreground">{dayLabel(index + 1, trip.startDate)}</dt>
-              <dd className="text-right tabular-nums">{cents ? money(cents) : "–"}</dd>
-            </React.Fragment>
-          ))}
+          {view === "day" ? (
+            perDay.map((cents, index) => (
+              <React.Fragment key={index}>
+                <dt className="truncate text-muted-foreground">{dayLabel(index + 1, trip.startDate)}</dt>
+                <dd className="text-right tabular-nums">{cents ? money(cents) : "–"}</dd>
+              </React.Fragment>
+            ))
+          ) : total === 0 ? (
+            <div className="col-span-2 text-muted-foreground">No costs on the trip's days yet.</div>
+          ) : (
+            spendingByType(perType, page.types).map(({ type, cents }) => (
+              <React.Fragment key={type?.id ?? "other"}>
+                <dt className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                  <ActivityTypeIcon type={type} className="size-3" />
+                  <span className="truncate">{type?.name ?? "Other"}</span>
+                </dt>
+                <dd className="text-right tabular-nums">{money(cents)}</dd>
+              </React.Fragment>
+            ))
+          )}
           {ideas ? (
             <>
               <dt className="truncate text-muted-foreground">Ideas, not counted</dt>

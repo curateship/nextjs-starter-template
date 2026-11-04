@@ -11,7 +11,9 @@ import {
   placeDetails,
   routeMinutes,
 } from "@/server/travel/google"
+import { fillPickedPlacePhoto } from "@/server/travel/place-photo"
 import { searchPhotos, trackDownload, unsplashEnabled } from "@/server/travel/unsplash"
+import { id } from "@/lib/travel/rules"
 
 export type { LatLng, PlaceDetails, PlaceSuggestion } from "@/server/travel/google"
 export type { UnsplashPhoto } from "@/server/travel/unsplash"
@@ -59,6 +61,14 @@ const loadPlaceDetailsFn = createServerFn({ method: "GET" })
     return placeDetails(data.placeId, data.sessionToken)
   })
 
+const fillPlacePhotoFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ activityId: id, photoName: z.string().trim().min(1).max(400) }))
+  .handler(async ({ data, context }) => {
+    await limit("place-photo", context.user.id, 120)
+    return fillPickedPlacePhoto(context.user.id, data)
+  })
+
 const findRouteMinutesFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object({ from: point, to: point, mode: z.enum(TRAVEL_MODES) }))
@@ -94,6 +104,10 @@ export function searchPlaces(query: string, sessionToken: string) {
 }
 export function loadPlaceDetails(placeId: string, sessionToken: string) {
   return loadPlaceDetailsFn({ data: { placeId, sessionToken } })
+}
+/** The picked place's Google photo as the card's picture, when the card has none (More Travel features part 2). */
+export function fillPlacePhoto(activityId: string, photoName: string) {
+  return fillPlacePhotoFn({ data: { activityId, photoName } })
 }
 export function findRouteMinutes(
   from: { lat: number; lng: number },

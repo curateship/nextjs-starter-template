@@ -129,6 +129,7 @@ export const updateActivitySchema = z.object({
   done: z.boolean().optional(),
   rating: z.number().int().min(1).max(5).nullable().optional(),
   goAgain: z.boolean().optional(),
+  mustDo: z.boolean().optional(),
   photoUrl: z.string().max(1000).nullable().optional(),
   photoCredit: photoCreditSchema.nullable().optional(),
 })

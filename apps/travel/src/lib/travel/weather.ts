@@ -37,3 +37,41 @@ export function rainLine(weather: Pick<DayWeather, "rain">) {
 
 /** How far ahead a forecast is shown (task part 33: "inside the next 14 days"). */
 export const FORECAST_DAYS = 14
+
+/**
+ * What a day is usually like, for a trip day past the forecast (More Travel
+ * features part 7; Tyler: "Usual high, low, rain"): the typical high and low
+ * for that date over the last 10 years, in Celsius, and how many of the 30
+ * days around it had rain.
+ */
+export type TypicalDay = { day: number; high: number; low: number; rainDays: number }
+
+/** "Usually 24° / 15° · rain on 8 of 30 days". */
+export function typicalLine(typical: Pick<TypicalDay, "high" | "low" | "rainDays">) {
+  return `Usually ${typical.high}° / ${typical.low}° · rain on ${typical.rainDays} of 30 days`
+}
+
+/** A public holiday at the destination on one of the trip's days (More Travel features part 8). */
+export type DayHoliday = { day: number; name: string }
+
+/** The line on a sight or a meal on a public holiday (Tyler: "Heading + card warning"). */
+export const HOLIDAY_WARNING = "Holiday, may be shut"
+
+/** Everything a day's heading shows about the day: the forecast, or what it is usually like, and any holiday. */
+export type TripWeather = { forecast: DayWeather[]; typical: TypicalDay[]; holidays: DayHoliday[] }
+
+/**
+ * The weather row's summary in an activity's ⋮ menu (Tyler, 4 Nov 2026: "put
+ * it in the 3 dot dropdown right panel"): "18° / 9° · 70% rain", "Usually
+ * 24° / 15°", or the holiday's name alone. Null when the day has none of them.
+ */
+export function outlookSummary(weather: TripWeather, day: number) {
+  const forecast = weather.forecast.find((item) => item.day === day)
+  if (forecast) {
+    const rain = rainLine(forecast)
+    return `${forecast.high}° / ${forecast.low}°${rain ? ` · ${rain}` : ""}`
+  }
+  const typical = weather.typical.find((item) => item.day === day)
+  if (typical) return `Usually ${typical.high}° / ${typical.low}°`
+  return weather.holidays.find((item) => item.day === day)?.name ?? null
+}

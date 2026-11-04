@@ -11,7 +11,8 @@ import {
   type ActivityPlace,
   type BestOrderResult,
 } from "@/lib/api/travel/days"
-import { binActivityList, placeActivity, saveActivity, type Activity } from "@/lib/api/travel/trips"
+import { binActivityList, markActivityListDone, placeActivity, saveActivity, type Activity } from "@/lib/api/travel/trips"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { boardColumns, formatMinutes } from "@/lib/travel/board"
 import type { TravelMode } from "@/lib/travel/rules"
@@ -149,8 +150,27 @@ export function useBoardActions() {
         const result = await orderTripDay(tripId, day)
         return bestOrderLine(day, result, page.trip.travelMode)
       }),
-    /** Done is a plain field change: no Undo, just saved. */
-    setField: (activity: Activity, patch: { done?: boolean }) =>
+    /** Mass select's Mark done or not done: one request, no Undo, the same as the single tick. */
+    markDone: async (ids: string[], done: boolean) => {
+      let line = ""
+      const ok = await run(async () => {
+        const result = await markActivityListDone(ids, done)
+        await refresh()
+        // Cards gone from the trip since they were ticked are counted apart, never reported as changed.
+        line = describeBulkResult({
+          done: result.changed,
+          kept: result.skipped,
+          one: "activity",
+          many: "activities",
+          verb: done ? "marked done" : "marked not done",
+          keptReason: "no longer on the trip",
+        })
+      })
+      if (ok) toast.success(line)
+      return ok
+    },
+    /** Done and Must do are plain field changes: no Undo, just saved. */
+    setField: (activity: Activity, patch: { done?: boolean; mustDo?: boolean }) =>
       run(async () => {
         await saveActivity({ activityId: activity.id, ...patch })
         await refresh()

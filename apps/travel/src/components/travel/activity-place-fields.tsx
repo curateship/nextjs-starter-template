@@ -13,10 +13,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { fillActivityFromMapsLink } from "@/lib/api/travel/maps-link"
+import { fillPlacePhoto } from "@/lib/api/travel/services"
 import type { Activity } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { dateOfDay, weekday } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
+import { googleRatingLine } from "@/lib/travel/google-rating"
 import { hoursLines, hoursWarning, nearestOpenDay } from "@/lib/travel/hours"
 import type { OpeningHours } from "@/lib/travel/rules"
 import { webAddress } from "@/lib/travel/schemas"
@@ -38,7 +40,7 @@ export function mapsLink(place: NonNullable<Activity["place"]>) {
  * Google Maps" opens the place in a new tab.
  */
 export function ActivityPlaceFields({ activity }: { activity: Activity }) {
-  const { page } = useTrip()
+  const { page, refresh } = useTrip()
   const [save] = useSaveActivity(activity.id)
   const [editingHours, setEditingHours] = React.useState(false)
   const idBase = `activity-${activity.id}`
@@ -78,11 +80,21 @@ export function ActivityPlaceFields({ activity }: { activity: Activity }) {
                       ...(details.phone ? { phone: details.phone } : {}),
                     }
                   : {}),
+              }).then((saved) => {
+                // The place's Google photo, only on a card with no picture (More Travel features part 2: "Only fill
+                // if empty"). It lands a moment after the place; a photo that won't come leaves the card as it was.
+                if (!saved || !details.photoName || activity.photoUrl) return
+                void fillPlacePhoto(activity.id, details.photoName)
+                  .then((result) => (result.photo ? refresh() : undefined))
+                  .catch(() => undefined)
               })
             }}
           />
           {activity.place?.address && activity.place.address !== activity.place.name ? (
             <p className="text-xs break-words text-muted-foreground">{activity.place.address}</p>
+          ) : null}
+          {googleRatingLine(activity.place) ? (
+            <p className="text-xs text-muted-foreground tabular-nums">{googleRatingLine(activity.place)}</p>
           ) : null}
           {activity.place ? (
             <div>

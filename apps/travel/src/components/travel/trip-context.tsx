@@ -2,6 +2,7 @@ import * as React from "react"
 
 import type { Activity, TripPage } from "@/lib/api/travel/trips"
 import type { ActivityType } from "@/lib/travel/activity-types"
+import type { TripWeather } from "@/lib/travel/weather"
 
 /**
  * The trip page's data and the few things every panel does with it: reload
@@ -17,6 +18,8 @@ export type TripContextValue = {
   openActivityId: string | undefined
   /** No signal: the page is the kept copy, and every change is off (Travel features part 10). */
   readOnly: boolean
+  /** Each day's forecast, what far-off days are usually like, and holidays, loaded once for both panels. */
+  weather: TripWeather
 }
 
 const TripContext = React.createContext<TripContextValue | null>(null)

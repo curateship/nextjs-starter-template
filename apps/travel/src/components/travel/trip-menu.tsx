@@ -12,7 +12,6 @@ import { PhotoCreditLine, UnsplashPicker } from "@/components/travel/unsplash-pi
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
-import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatLongDate, isoToLocalDate, localDateToIso } from "@/lib/travel/dates"
@@ -42,6 +41,10 @@ type Section = "name" | "destination" | "tags" | "status" | "start" | "zone" | "
  * line and Delete trip in red. The description isn't in it: it is written in
  * place right under the panel's header. The number of days changes on the
  * board, a day at a time (task part 10).
+ *
+ * A row's own name is its field's label, so the field inside carries no
+ * second one on screen; screen readers still read it (Tyler, 4 Nov 2026:
+ * "Remove all these duplicate labels").
  */
 export function TripMenu() {
   const { page } = useTrip()
@@ -65,7 +68,7 @@ export function TripMenu() {
       <FoldingMenu label="Trip settings" align="start" open={open} onOpenChange={setOpen}>
         <MenuSection label="Name" value={trip.name} {...row("name")}>
           <div className="grid gap-2">
-            <Label htmlFor="trip-name">Name</Label>
+            <Label htmlFor="trip-name" className="sr-only">Name</Label>
             <SavingInput
               id="trip-name"
               value={trip.name}
@@ -82,7 +85,7 @@ export function TripMenu() {
         </MenuSection>
         <MenuSection label="Destination" value={trip.destination || "Not set"} {...row("destination")}>
           <div className="grid gap-2">
-            <Label htmlFor="trip-destination">Destination</Label>
+            <Label htmlFor="trip-destination" className="sr-only">Destination</Label>
             <SavingInput
               id="trip-destination"
               value={trip.destination ?? ""}
@@ -93,21 +96,21 @@ export function TripMenu() {
         </MenuSection>
         <MenuSection label="Tags" value={trip.tags.join(", ") || "None"} {...row("tags")}>
           <div className="grid gap-2">
-            <FieldLabel htmlFor="trip-tags" hint="Comma between tags, such as Work, Family. They filter the Trips table.">
+            <Label htmlFor="trip-tags" className="sr-only">
               Tags
-            </FieldLabel>
+            </Label>
             <SavingInput
               id="trip-tags"
               value={trip.tags.join(", ")}
               maxLength={340}
-              placeholder="Family, Beach"
+              placeholder="Family, Beach (a comma between)"
               onSave={(text) => save({ tags: readTags(text) })}
             />
           </div>
         </MenuSection>
         <MenuSection label="Status" value={TRIP_STATUS_LABEL[trip.status]} {...row("status")}>
           <div className="grid gap-2">
-            <Label htmlFor="trip-status">Status</Label>
+            <Label htmlFor="trip-status" className="sr-only">Status</Label>
             <Select value={trip.status} onValueChange={(value) => void save({ status: value as TripStatus })}>
               <SelectTrigger id="trip-status" className="w-full">
                 <SelectValue />
@@ -128,7 +131,7 @@ export function TripMenu() {
           {...row("start")}
         >
           <div className="grid gap-2">
-            <Label htmlFor="trip-start">Start date</Label>
+            <Label htmlFor="trip-start" className="sr-only">Start date</Label>
             <div className="flex gap-2">
               <DatePicker
                 id="trip-start"
@@ -147,7 +150,7 @@ export function TripMenu() {
         </MenuSection>
         <MenuSection label="Time zone" value={trip.timeZone ?? "Where I am"} {...row("zone")}>
           <div className="grid gap-2">
-            <Label htmlFor="trip-time-zone">Time zone</Label>
+            <Label htmlFor="trip-time-zone" className="sr-only">Time zone</Label>
             <TimeZoneSelect
               id="trip-time-zone"
               value={trip.timeZone ?? WHERE_I_AM}
@@ -158,7 +161,7 @@ export function TripMenu() {
         </MenuSection>
         <MenuSection label="Currency" value={trip.currency} {...row("currency")}>
           <div className="grid gap-2">
-            <Label htmlFor="trip-currency">Currency</Label>
+            <Label htmlFor="trip-currency" className="sr-only">Currency</Label>
             <Select value={trip.currency} onValueChange={(value) => void save({ currency: value as Currency })}>
               <SelectTrigger id="trip-currency" className="w-full">
                 <SelectValue />
@@ -175,7 +178,7 @@ export function TripMenu() {
         </MenuSection>
         <MenuSection label="Getting around" value={TRAVEL_MODE_LABEL[trip.travelMode]} {...row("mode")}>
           <div className="grid gap-2">
-            <Label htmlFor="trip-travel-mode">Getting around</Label>
+            <Label htmlFor="trip-travel-mode" className="sr-only">Getting around</Label>
             <Select value={trip.travelMode} onValueChange={(value) => void save({ travelMode: value as TravelMode })}>
               <SelectTrigger id="trip-travel-mode" className="w-full">
                 <SelectValue />

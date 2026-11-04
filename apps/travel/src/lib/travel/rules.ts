@@ -55,13 +55,23 @@ export const CURRENCIES = [
 ] as const
 export type Currency = (typeof CURRENCIES)[number]
 
-/** A place as Google or a person typed it. `placeId` is Google's, when it came from there. */
+/**
+ * A place as Google or a person typed it. `placeId` is Google's, when it came
+ * from there. The last four come only from Google, and only on places picked
+ * or pasted since 4 Nov 2026 (More Travel features part 1: "New fills only"):
+ * its stars out of 5, how many reviews they're from, its price from 0 (free)
+ * to 4, and Google's kinds of place, which say whether it is outdoors.
+ */
 export const placeSchema = z.object({
   name: z.string().trim().max(200),
   address: z.string().trim().max(400),
   lat: z.number().min(-90).max(90).nullable(),
   lng: z.number().min(-180).max(180).nullable(),
   placeId: z.string().max(300).nullable(),
+  rating: z.number().min(0).max(5).nullable().optional(),
+  ratingCount: z.number().int().min(0).max(100_000_000).nullable().optional(),
+  priceLevel: z.number().int().min(0).max(4).nullable().optional(),
+  kinds: z.array(z.string().max(60)).max(30).optional(),
 })
 export type Place = z.infer<typeof placeSchema>
 

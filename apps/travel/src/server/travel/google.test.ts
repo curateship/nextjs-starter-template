@@ -66,7 +66,7 @@ describe("google places", () => {
     expect((init.headers as Record<string, string>)["X-Goog-Api-Key"]).toBe("test-key")
   })
 
-  it("turns a details answer into a place with hours, website and phone", async () => {
+  it("turns a details answer into a place with hours, website, phone, Google's rating and its photo", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       json({
         id: "p1",
@@ -81,17 +81,30 @@ describe("google places", () => {
             close: { day, hour: 17 },
           })),
         },
+        rating: 4.56,
+        userRatingCount: 61234,
+        priceLevel: "PRICE_LEVEL_INEXPENSIVE",
+        primaryType: "buddhist_temple",
+        types: ["buddhist_temple", "tourist_attraction", "Not A Kind"],
+        photos: [{ name: "places/p1/photos/front" }, { name: "places/p1/photos/side" }],
       })
     )
     vi.stubGlobal("fetch", fetchMock)
     const details = await placeDetails("p1", "session-1")
+    // More Travel features parts 1 and 9: the rating to one place, the price as 0 to 4, and the kinds once each.
     expect(details.place).toEqual({
       name: "Kinkaku-ji",
       address: "1 Kinkakujicho, Kyoto",
       lat: 35.0394,
       lng: 135.7292,
       placeId: "p1",
+      rating: 4.6,
+      ratingCount: 61234,
+      priceLevel: 1,
+      kinds: ["buddhist_temple", "tourist_attraction"],
     })
+    // Part 2: the first photo, for the card's picture.
+    expect(details.photoName).toBe("places/p1/photos/front")
     expect(details.website).toBe("https://www.shokoku-ji.jp/kinkakuji/")
     expect(details.phone).toBe("+81 75-461-0013")
     expect(details.openingHours?.[0]).toEqual([])
@@ -99,6 +112,19 @@ describe("google places", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe("https://places.googleapis.com/v1/places/p1?sessionToken=session-1")
     expect((init.headers as Record<string, string>)["X-Goog-FieldMask"]).toContain("regularOpeningHours")
+    expect((init.headers as Record<string, string>)["X-Goog-FieldMask"]).toContain("userRatingCount")
+  })
+
+  it("leaves off what Google didn't send, and a photo that isn't shaped like Google's", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        json({ id: "p2", displayName: { text: "Corner stand" }, rating: "high", photos: [{ name: "https://elsewhere.example/x.jpg" }] })
+      )
+    )
+    const details = await placeDetails("p2", "session-2")
+    expect(details.place).toMatchObject({ rating: null, ratingCount: null, priceLevel: null, kinds: [] })
+    expect(details.photoName).toBeNull()
   })
 
   it("says Google failed on a bad answer or no answer", async () => {

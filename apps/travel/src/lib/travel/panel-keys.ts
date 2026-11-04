@@ -28,3 +28,6 @@ export const TRIPS_MAP_KEY = "travel-trips-map"
 
 /** Whether a trip's Ideas column is hidden behind its eye. */
 export const hiddenIdeasKey = (tripId: string) => `travel-hidden-ideas-${tripId}`
+
+/** The Money card's By day or By type (More Travel features part 13). */
+export const MONEY_VIEW_KEY = "travel-money-view"

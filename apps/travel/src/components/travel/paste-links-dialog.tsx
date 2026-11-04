@@ -1,5 +1,5 @@
 import * as React from "react"
-import { CircleAlertIcon, CircleCheckIcon, Loader2Icon } from "lucide-react"
+import { CircleAlertIcon, CircleCheckIcon, CircleMinusIcon, Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,13 +15,15 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { addActivityFromLink } from "@/lib/api/travel/maps-link"
-import { getTravelErrorMessage, TRAVEL_ERRORS } from "@/lib/travel/errors"
+import { getTravelErrorMessage, isAlreadyOnTrip, TRAVEL_ERRORS } from "@/lib/travel/errors"
 import { findMapsLinks, MAPS_LINKS_MAX } from "@/lib/travel/maps-links"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 type Outcome =
   | { link: string; kind: "made"; title: string; photo: boolean }
   | { link: string; kind: "failed"; reason: string }
+  /** Already on the trip, so no card was made (More Travel features part 3: "Skip it, say where"). */
+  | { link: string; kind: "skipped"; reason: string }
 
 /**
  * Paste Maps links (Travel features part 6; Tyler, 3 Nov 2026: "Ideas, wait
@@ -107,7 +109,7 @@ export function PasteLinksDialog({
           setStoppedFor(reason)
           break
         }
-        setOutcomes((was) => [...was, { link, kind: "failed", reason }])
+        setOutcomes((was) => [...was, { link, kind: isAlreadyOnTrip(reason) ? "skipped" : "failed", reason }])
       }
     }
     if (isCurrent()) setRunning(false)
@@ -147,6 +149,11 @@ export function PasteLinksDialog({
                                 <span className="text-muted-foreground"> · no photo</span>
                               )}
                             </span>
+                          </>
+                        ) : outcome.kind === "skipped" ? (
+                          <>
+                            <CircleMinusIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                            <span className="min-w-0 text-muted-foreground">Skipped: {outcome.reason}</span>
                           </>
                         ) : (
                           <>

@@ -31,6 +31,7 @@ function typedPlace(text: string): PlaceDetails {
     openingHours: null,
     website: null,
     phone: null,
+    photoName: null,
   }
 }
 
@@ -220,7 +221,8 @@ export function PlaceSearchField({
           }
         }}
       >
-        <ScrollArea className="max-h-72">
+        {/* The height goes on the scrolling box itself, or a long list spills past the dropdown. */}
+        <ScrollArea viewportClassName="max-h-72">
           <div id={listId} role="listbox" aria-label="Places" className="grid gap-0.5 p-1">
             {rows.map((row, index) => (
               <div

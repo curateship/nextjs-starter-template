@@ -1,7 +1,8 @@
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm"
 
 import type { ActivityType } from "@/lib/travel/activity-types"
-import { TRAVEL_ERRORS } from "@/lib/travel/errors"
+import { alreadyOnTripMessage, TRAVEL_ERRORS } from "@/lib/travel/errors"
+import { findSamePlace, type PlaceLike } from "@/lib/travel/same-place"
 import type {
   CreateActivityInput,
   CreateTripInput,
@@ -328,6 +329,7 @@ export function blankActivity(tripId: string, at: Date): Omit<ActivityRow, "id" 
     done: false,
     rating: null,
     goAgain: false,
+    mustDo: false,
     photoUrl: null,
     photoCredit: null,
     deletedAt: null,
@@ -336,9 +338,36 @@ export function blankActivity(tripId: string, at: Date): Omit<ActivityRow, "id" 
   }
 }
 
+/**
+ * Refuses a place already on the trip, outside the bin, saying where it is
+ * (More Travel features part 3; Tyler: "Skip it, say where"). `exceptId` is
+ * the card being filled, which never counts against itself.
+ */
+export async function refuseSamePlace(
+  tripId: string,
+  card: PlaceLike,
+  exceptId: string | null,
+  database: Pick<CustomShellDb, "select"> = db
+) {
+  const rows = await database
+    .select({ id: travelActivities.id, title: travelActivities.title, place: travelActivities.place, day: travelActivities.day })
+    .from(travelActivities)
+    .where(and(eq(travelActivities.tripId, tripId), isNull(travelActivities.deletedAt)))
+  const same = findSamePlace(
+    card,
+    rows.filter((row) => row.id !== exceptId)
+  )
+  if (same) throw new Error(alreadyOnTripMessage(card.place?.name || card.title, same.day))
+}
+
 export async function updateActivity(userId: string, input: UpdateActivityInput, database: CustomShellDb = db) {
   const { activity } = await requireActivity(userId, input.activityId, database)
   await checkTypeId(userId, input.typeId, database)
+  // A place picked from Google's search that is already on the trip is skipped (More Travel features part 3).
+  // A typed address is the person's own words, and never refused.
+  if (input.place?.placeId && input.place.placeId !== activity.place?.placeId) {
+    await refuseSamePlace(activity.tripId, { title: activity.title, place: input.place }, activity.id, database)
+  }
   if (input.photoUrl !== undefined) await checkPicture(userId, input.photoUrl, input.photoCredit, database)
   const { activityId, ...patch } = input
   const values: Partial<ActivityRow> = { ...patch, updatedAt: now() }
@@ -398,6 +427,41 @@ export async function binActivities(userId: string, activityIds: string[], datab
   }
   for (const tripId of tripIds) await touchTrip(tripId, database)
   return { done }
+}
+
+/**
+ * Mass select's Mark done and Mark not done (More Travel features part 12;
+ * Tyler: "Mark done / not done"): every ticked card in one request. Cards
+ * that aren't the person's, or are in the bin, are skipped and not counted.
+ */
+export async function markActivitiesDone(
+  userId: string,
+  input: { activityIds: string[]; done: boolean },
+  database: CustomShellDb = db
+) {
+  const asked = [...new Set(input.activityIds)]
+  // One read for every ticked card, kept only when it is on one of the person's trips and in no bin.
+  const owned = await database
+    .select({ id: travelActivities.id, tripId: travelActivities.tripId })
+    .from(travelActivities)
+    .innerJoin(travelTrips, eq(travelTrips.id, travelActivities.tripId))
+    .where(
+      and(
+        inArray(travelActivities.id, asked),
+        eq(travelTrips.ownerUserId, userId),
+        isNull(travelTrips.deletedAt),
+        isNull(travelActivities.deletedAt)
+      )
+    )
+  const changed = owned.map((row) => row.id)
+  if (changed.length) {
+    await database
+      .update(travelActivities)
+      .set({ done: input.done, updatedAt: now() })
+      .where(inArray(travelActivities.id, changed))
+  }
+  for (const tripId of new Set(owned.map((row) => row.tripId))) await touchTrip(tripId, database)
+  return { changed: changed.length, skipped: asked.length - changed.length }
 }
 
 async function touchTrip(tripId: string, database: Pick<CustomShellDb, "update">) {
