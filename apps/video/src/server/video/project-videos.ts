@@ -57,6 +57,7 @@ import {
   videoProjectVersions,
   videoProjectVideos,
   videoRenderJobs,
+  videoThumbnails,
   videoViralVideos,
   type VideoProjectVideoRow,
 } from "@/server/video/schema"
@@ -229,6 +230,29 @@ async function pictureUrl(storagePath: string | null) {
   return storagePath ? getPublicMediaUrl(storagePath) : null
 }
 
+/**
+ * The main wide thumbnails of some videos, as picture addresses (part 7 of
+ * the Thumbnail task, thumbnails.md). A video with none keeps its first
+ * clip's frame.
+ */
+async function mainThumbnailUrls(videoIds: string[], database: CustomShellDb) {
+  const urls = new Map<string, string>()
+  if (!videoIds.length) return urls
+  const rows = await database
+    .select({ videoId: videoThumbnails.videoId, storagePath: customShellMedia.storagePath })
+    .from(videoThumbnails)
+    .innerJoin(customShellMedia, eq(customShellMedia.id, videoThumbnails.mediaId))
+    .where(
+      and(
+        inArray(videoThumbnails.videoId, videoIds),
+        eq(videoThumbnails.isMain, true),
+        eq(videoThumbnails.shape, "wide")
+      )
+    )
+  for (const row of rows) urls.set(row.videoId, await getPublicMediaUrl(row.storagePath))
+  return urls
+}
+
 /** The pictures for a list of videos, in one query rather than one each. */
 export async function thumbnailsForVideos(
   rows: Pick<VideoProjectVideoRow, "id" | "updatedAt">[],
@@ -241,7 +265,12 @@ export async function thumbnailsForVideos(
     .from(videoProjectThumbnails)
     .where(inArray(videoProjectThumbnails.videoId, rows.map((row) => row.id)))
   const savedAt = new Map(rows.map((row) => [row.id, row.updatedAt.getTime()]))
+  // A main thumbnail from the Thumbnail section wins over the first clip's
+  // frame (thumbnails.md).
+  const mains = await mainThumbnailUrls(rows.map((row) => row.id), database)
+  for (const [videoId, url] of mains) thumbnails.set(videoId, { url, pending: false })
   for (const row of stored) {
+    if (mains.has(row.videoId)) continue
     thumbnails.set(row.videoId, {
       url: await pictureUrl(row.storagePath),
       // Saved since the worker last looked, so its first clip may have

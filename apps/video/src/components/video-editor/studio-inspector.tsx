@@ -91,6 +91,17 @@ import {
   type ShapeKind,
 } from "@/lib/video/shapes"
 import {
+  BLUR_SHAPE_LABELS,
+  BLUR_SHAPES,
+  blurShape,
+  blurStrength,
+  isBlurClip,
+  MAX_BLUR_STRENGTH,
+  MIN_BLUR_STRENGTH,
+  type BlurShape,
+} from "@/lib/video/blur"
+import { BlurFollowCard } from "@/components/video-editor/blur-follow-card"
+import {
   CLIP_COLOUR_STEP,
   clipColour,
   isColourTouched,
@@ -201,7 +212,7 @@ export function StudioInspector() {
     <div data-screen-label="Inspector" className="flex h-full min-h-0 flex-col">
       <DashboardCardTitleHeader
         icon={<SlidersHorizontal className="size-4" />}
-        title={clip ? CLIP_KIND_LABEL[clip.kind] : "Inspector"}
+        title={clip ? (isBlurClip(clip) ? "Blur" : CLIP_KIND_LABEL[clip.kind]) : "Inspector"}
         meta={clip ? clip.name : undefined}
       />
 
@@ -211,6 +222,8 @@ export function StudioInspector() {
             <ProjectProps />
           ) : clip.kind === "text" ? (
             <TextInspector clip={clip} />
+          ) : isBlurClip(clip) ? (
+            <BlurInspector clip={clip} />
           ) : clip.kind === "shape" ? (
             <ShapeInspector clip={clip} />
           ) : (
@@ -389,6 +402,54 @@ function ShapeInspector({ clip }: { clip: EditorClip }) {
           onChange={(drawOn) => patch({ drawOn: drawOn || undefined })}
         />
       </InspectorCard>
+
+      <FadesSection clip={clip} />
+
+      <Timing clip={clip} />
+    </>
+  )
+}
+
+/**
+ * A blur over one spot (blur.md). It is moved on the preview like a circle:
+ * the box drags it whole, and the two dots drag its corners.
+ */
+function BlurInspector({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+
+  function patch(next: Partial<EditorClip>, transient = false) {
+    dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: next, transient })
+  }
+
+  return (
+    <>
+      <InspectorCard
+        title="Blur"
+        description="Drag it over what should not show, or drag a dot to resize it."
+      >
+        <Tabs
+          value={blurShape(clip)}
+          onValueChange={(shape) => patch({ blurShape: shape as BlurShape })}
+        >
+          <TabsList aria-label="Blur shape">
+            {BLUR_SHAPES.map((shape) => (
+              <TabsTrigger key={shape} value={shape}>
+                {BLUR_SHAPE_LABELS[shape]}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <SliderField
+          id="blur-strength"
+          label="Strength"
+          value={blurStrength(clip)}
+          min={MIN_BLUR_STRENGTH}
+          max={MAX_BLUR_STRENGTH}
+          onChange={(blurStrength) => patch({ blurStrength }, true)}
+        />
+      </InspectorCard>
+
+      <BlurFollowCard clip={clip} />
 
       <FadesSection clip={clip} />
 

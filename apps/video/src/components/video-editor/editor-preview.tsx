@@ -69,6 +69,15 @@ import {
   shapePathsMarkup,
   shapeProgress,
 } from "@/lib/video/shapes"
+import {
+  blurBoxAt,
+  blurShape,
+  blurStrength,
+  isBlurClip,
+  type ShareBox,
+} from "@/lib/video/blur"
+import { BlurFacePicker } from "@/components/video-editor/blur-face-picker"
+import { BeforeAfterSlider } from "@/components/video-editor/before-after-slider"
 import { requireTextFont } from "@/lib/video/text-fonts"
 import {
   TEXT_LINE_HEIGHT,
@@ -215,6 +224,26 @@ function shapeHandleCss(clip: EditorClip) {
     from: { left: `${fromX * 100}%`, top: `${fromY * 100}%` },
     to: { left: `${toX * 100}%`, top: `${toY * 100}%` },
   }
+}
+
+/** A blur's box as the CSS that places it on the stage, in percent. */
+function blurBoxCss(box: ShareBox) {
+  return {
+    left: `${box.left * 100}%`,
+    top: `${box.top * 100}%`,
+    width: `${box.width * 100}%`,
+    height: `${box.height * 100}%`,
+  }
+}
+
+/**
+ * The browser's blur for a blur clip on a stage this size. Strength counts on
+ * a 1080 short side, so it is scaled to the stage's short side, the same
+ * spread the export's `gblur` uses on the export's frame (blur.ts).
+ */
+function blurFilterCss(clip: EditorClip, width: number, height: number) {
+  const px = (blurStrength(clip) * Math.min(width, height)) / 1080
+  return `blur(${Math.max(0, px).toFixed(2)}px)`
 }
 
 /** Moves a dragged shape's box and dots without a render. */
@@ -396,7 +425,8 @@ export function EditorPreview() {
   const audioRefs = React.useRef(new Map<string, HTMLAudioElement>())
   const imageRefs = React.useRef(new Map<string, HTMLImageElement>())
   const textRefs = React.useRef(new Map<string, HTMLDivElement>())
-  const shapeRefs = React.useRef(new Map<string, SVGSVGElement>())
+  // A shape's SVG, or a blur's softened box (blur.ts).
+  const shapeRefs = React.useRef(new Map<string, SVGSVGElement | HTMLDivElement>())
   // The black layer a dip-to-black seam drives.
   const dipRef = React.useRef<HTMLDivElement>(null)
   // The progress bar's filled part, widened by the frame loop.
@@ -777,7 +807,7 @@ export function EditorPreview() {
     }
     // How far drawn each shape's paths were last written, so a shape that is
     // whole is not redrawn on every frame.
-    const drawnShapes = new WeakMap<SVGSVGElement, string>()
+    const drawnShapes = new WeakMap<Element, string>()
 
     function syncFrame() {
       const timeMs = clock.getTime()
@@ -854,12 +884,34 @@ export function EditorPreview() {
         const clip =
           drag?.clip.id === clipId ? { ...entry.clip, ...drag.patch } : entry.clip
         const intoMs = timeMs - clip.startMs
-        const placing = !playing && clipId === selectedRef.current
-        const progress = placing ? 1 : shapeProgress(clip, intoMs)
-        const markup = shapePathsMarkup(clip, shapeFrame, progress)
-        if (drawnShapes.get(element) !== markup) {
-          drawnShapes.set(element, markup)
-          element.innerHTML = markup
+        if (isBlurClip(clip)) {
+          // A blur is a box that softens what is behind it, moved to where
+          // it is at this moment when it follows something.
+          const box = blurBoxAt(clip, intoMs)
+          const place = blurBoxCss(box)
+          const key = `${place.left}|${place.top}|${place.width}|${place.height}`
+          if (drawnShapes.get(element) !== key) {
+            drawnShapes.set(element, key)
+            Object.assign(element.style, place)
+            const stage = stageRef.current
+            if (stage && clip.blurTrack?.length) {
+              placeShapeHandles(stage, {
+                ...clip,
+                x: box.left,
+                y: box.top,
+                toX: box.left + box.width,
+                toY: box.top + box.height,
+              })
+            }
+          }
+        } else {
+          const placing = !playing && clipId === selectedRef.current
+          const progress = placing ? 1 : shapeProgress(clip, intoMs)
+          const markup = shapePathsMarkup(clip, shapeFrame, progress)
+          if (drawnShapes.get(element) !== markup) {
+            drawnShapes.set(element, markup)
+            element.innerHTML = markup
+          }
         }
         const level = fadeLevelAt(entry.fades, entry.clip.durationMs, intoMs)
         const opacity = level === 1 ? "" : String(level)
@@ -1388,6 +1440,15 @@ export function EditorPreview() {
         toX: toX + moveX,
         toY: toY + moveY,
       }
+      // A blur that follows something keeps following it, moved over by
+      // the same amount.
+      if (clip.blurTrack?.length) {
+        patch.blurTrack = clip.blurTrack.map((point) => ({
+          atMs: point.atMs,
+          x: clamp01(point.x + moveX),
+          y: clamp01(point.y + moveY),
+        }))
+      }
     }
     drag.patch = patch
     placeShapeHandles(stage, { ...clip, ...patch })
@@ -1472,9 +1533,10 @@ export function EditorPreview() {
           // A picture taller than its box slides up and down, not across.
           const slidesDown =
             (pictureRatios.get(clip.url ?? "") ?? Infinity) < clipBoxRatio(clip, ratio)
+          const box = pictureBoxCss(clip, fittedShare(pictureRatios, clip, ratio))
           return (
+            <React.Fragment key={clip.id}>
             <img
-              key={clip.id}
               ref={registerRef(imageRefs, clip.id)}
               src={clip.url}
               alt={clip.name}
@@ -1503,7 +1565,7 @@ export function EditorPreview() {
                     : "absolute"
               }
               style={{
-                ...pictureBoxCss(clip, fittedShare(pictureRatios, clip, ratio)),
+                ...box,
                 objectFit: clipFit(clip),
                 objectPosition: objectPositionCss(clip),
                 filter: colourFilterCss(clip) || undefined,
@@ -1511,6 +1573,15 @@ export function EditorPreview() {
                 visibility: isActive(clip, timeMs) ? "visible" : "hidden",
               }}
             />
+            <BeforeAfterSlider
+              clipId={clip.id}
+              selectedClipId={selectedClipId}
+              box={box}
+              objectFit={clipFit(clip)}
+              objectPosition={objectPositionCss(clip)}
+              zIndex={zIndex}
+            />
+            </React.Fragment>
           )
         })}
 
@@ -1569,16 +1640,33 @@ export function EditorPreview() {
           const handles = shapeHandleCss(clip)
           const selected = clip.id === selectedClipId
           const active = isActive(clip, timeMs)
+          const blur = isBlurClip(clip)
           return (
             <React.Fragment key={clip.id}>
-              <svg
-                ref={registerRef(shapeRefs, clip.id)}
-                aria-hidden="true"
-                viewBox={`0 0 ${shapeFrame.width} ${shapeFrame.height}`}
-                preserveAspectRatio="none"
-                className="pointer-events-none absolute inset-0 h-full w-full"
-                style={{ zIndex, visibility: active ? "visible" : "hidden" }}
-              />
+              {blur ? (
+                <div
+                  ref={registerRef(shapeRefs, clip.id)}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute"
+                  style={{
+                    ...blurBoxCss(blurBoxAt(clip, timeMs - clip.startMs)),
+                    zIndex,
+                    visibility: active ? "visible" : "hidden",
+                    borderRadius: blurShape(clip) === "oval" ? "50%" : 0,
+                    backdropFilter: blurFilterCss(clip, stageWidth, stageHeight),
+                    WebkitBackdropFilter: blurFilterCss(clip, stageWidth, stageHeight),
+                  }}
+                />
+              ) : (
+                <svg
+                  ref={registerRef(shapeRefs, clip.id)}
+                  aria-hidden="true"
+                  viewBox={`0 0 ${shapeFrame.width} ${shapeFrame.height}`}
+                  preserveAspectRatio="none"
+                  className="pointer-events-none absolute inset-0 h-full w-full"
+                  style={{ zIndex, visibility: active ? "visible" : "hidden" }}
+                />
+              )}
               {active ? (
                 <div
                   data-shape-handle={`${clip.id}:box`}
@@ -1604,7 +1692,9 @@ export function EditorPreview() {
                           ? part === "from"
                             ? "Move the arrow's tail"
                             : "Move the arrow's tip"
-                          : "Resize the circle"
+                          : blur
+                            ? "Resize the blur"
+                            : "Resize the circle"
                       }
                       onPointerDown={(event) => handleShapeDown(event, clip, part)}
                       onPointerMove={handleShapeMove}
@@ -1618,6 +1708,8 @@ export function EditorPreview() {
             </React.Fragment>
           )
         })}
+
+        <BlurFacePicker selectedClipId={selectedClipId} />
 
         {/* The colour matrices the clips above point at. `sRGB` makes the
             sums run on the stored values, as `eq` does, rather than on the

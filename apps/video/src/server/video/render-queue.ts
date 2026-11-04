@@ -1,3 +1,4 @@
+import { coverFromMainThumbnail } from "@/server/video/thumbnails"
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm"
 
 import {
@@ -732,7 +733,14 @@ async function runJob(job: ClaimedJob) {
     // The lease was taken away while this was rendering, so somebody else owns
     // the job now. Throw away what this run made rather than leaving a file
     // nothing points at.
-    if (!finished.length) await discardUploads(uploaded)
+    if (!finished.length) {
+      await discardUploads(uploaded)
+    } else {
+      // A main thumbnail of this shape is the cover (thumbnails.md).
+      await coverFromMainThumbnail(job.user_id, job.video_id, job.aspect).catch((coverError) =>
+        console.error("Covering an export with its thumbnail failed", job.id, coverError)
+      )
+    }
   } catch (error) {
     await discardUploads(uploaded)
     // The row was stopped or taken away, and whoever did that has already

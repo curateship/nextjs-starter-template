@@ -76,6 +76,54 @@ export const appGuardedDeeper: Record<string, string> = {
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForExport finds the export's project and checks it is the guest's before saveOwnedExportFrame.",
   "video/saved-frames.ts:saveVideoFrameFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before saveOwnedVideoFrame's owner check.",
+  "video/blur-follow.ts:findFacesFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then signedInActor refuses a guest, and requireVideoBudget looks the video up as the signed-in person's own.",
+  "video/blur-follow.ts:followFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then signedInActor refuses a guest, and getOwnedVideo and requireVideoBudget look the video up as the signed-in person's own.",
+  "video/picture-edits.ts:cleanUpFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then signedInActor refuses a guest, requireVideoBudget looks the video up as the signed-in person's own, and readOwnedPicture reads only their own library.",
+  "video/thumbnails.ts:pictureFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForVideo checks the video is in the guest's project, and findOwnedImageByUrl finds only the owner's own pictures.",
+  "video/thumbnails.ts:listFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before the owner check in thumbnails.ts.",
+  "video/thumbnails.ts:createFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before the owner check in thumbnails.ts.",
+  "video/thumbnails.ts:deleteTemplateFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before the owner check in thumbnails.ts.",
+  "video/thumbnails.ts:frameFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForVideo reads the video's project and checks it is the guest's before the owner check in thumbnails.ts.",
+  "video/thumbnails.ts:saveFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForThumbnail reads the thumbnail's video from its row and actorForVideo checks it is the guest's before the owner check in thumbnails.ts.",
+  "video/thumbnails.ts:setMainFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForThumbnail reads the thumbnail's video from its row and actorForVideo checks it is the guest's before the owner check in thumbnails.ts.",
+  "video/thumbnails.ts:refreshMainFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForThumbnail reads the thumbnail's video from its row and actorForVideo checks it is the guest's before the owner check in thumbnails.ts.",
+  "video/thumbnails.ts:deleteFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForThumbnail reads the thumbnail's video from its row and actorForVideo checks it is the guest's before the owner check in thumbnails.ts.",
+  "video/thumbnails.ts:downloadFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForThumbnail reads the thumbnail's video from its row and actorForVideo checks it is the guest's before the owner check in thumbnails.ts.",
+  "video/thumbnails.ts:setTitleFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForThumbnail reads the thumbnail's video from its row and actorForVideo checks it is the guest's before the owner check in thumbnails.ts.",
+  "video/thumbnails.ts:saveTemplateFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForThumbnail reads the thumbnail's video from its row and actorForVideo checks it is the guest's before the owner check in thumbnails.ts.",
+  "video/thumbnail-ai.ts:pictureFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForThumbnail reads the thumbnail's video from its row and actorForVideo checks it is the guest's, before getOwnedThumbnail's owner check.",
+  "video/thumbnail-ai.ts:ideasFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForVideo checks the video is in the guest's project, and every call under it looks the video up as the owner's own.",
+  "video/thumbnail-ai.ts:makeIdeaFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForVideo checks the video is in the guest's project, and every call under it looks the video up as the owner's own.",
+  "video/thumbnail-ai.ts:actorFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForThumbnail reads the thumbnail's video from its row and actorForVideo checks it is the guest's, before getOwnedThumbnail's owner check.",
+  "video/thumbnail-ai.ts:titlesFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForThumbnail reads the thumbnail's video from its row and actorForVideo checks it is the guest's, before getOwnedThumbnail's owner check.",
+  "video/thumbnail-ai.ts:checkFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForThumbnail reads the thumbnail's video from its row and actorForVideo checks it is the guest's, before getOwnedThumbnail's owner check.",
+  "video/thumbnail-ai.ts:copyStyleFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForVideo checks the video is in the guest's project, and every call under it looks the video up as the owner's own.",
+  "video/thumbnail-ai.ts:languagesFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForVideo checks the video is in the guest's project, and every call under it looks the video up as the owner's own.",
+  "video/thumbnail-ai.ts:translateFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then actorForThumbnail reads the thumbnail's video from its row and actorForVideo checks it is the guest's, before getOwnedThumbnail's owner check.",
   "video/media.ts:listVideoMediaFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project for a project scope, and signedInActor refuses a guest any other scope.",
   "video/media.ts:attachPastedMediaFn":

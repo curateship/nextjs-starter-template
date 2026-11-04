@@ -231,6 +231,11 @@ function WordsLayer({
             style.boxDecorationBreak = "clone"
             style.WebkitBoxDecorationBreak = "clone"
           }
+          const accent =
+            kind === "fill" && run.accent && item.type === "text"
+              ? (item.accentColor ?? DEFAULT_HIGHLIGHT_COLOR)
+              : null
+          if (accent) style.color = accent
           const stroke =
             kind === "outline"
               ? outline + (run.bold ? bold : 0)
@@ -238,7 +243,7 @@ function WordsLayer({
                 ? bold
                 : 0
           if (stroke) {
-            style.WebkitTextStroke = `${stroke}px ${kind === "outline" ? item.outlineColor : item.color}`
+            style.WebkitTextStroke = `${stroke}px ${kind === "outline" ? item.outlineColor : (accent ?? item.color)}`
             style.paintOrder = "stroke fill"
           }
           return (

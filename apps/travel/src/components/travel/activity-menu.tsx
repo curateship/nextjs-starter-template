@@ -5,7 +5,7 @@ import { canRate, ActivityRatingFields } from "@/components/travel/activity-rati
 import { ActivityPictureFields } from "@/components/travel/activity-picture-fields"
 import { ActivityPlaceFields } from "@/components/travel/activity-place-fields"
 import { useBoardActions } from "@/components/travel/board-actions"
-import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/travel/folding-menu"
+import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
 import { dayLabel } from "@/components/travel/new-activity"
 import { SavingInput } from "@/components/travel/saving-fields"
 import { typeOf, useTrip } from "@/components/travel/trip-context"

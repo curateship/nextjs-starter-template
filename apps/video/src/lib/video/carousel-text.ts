@@ -54,22 +54,35 @@ export function slideNumberText(index: number, count: number) {
 }
 
 /** A stretch of words drawn the same way. */
-export type TextRun = { text: string; bold: boolean; highlight: boolean }
+export type TextRun = {
+  text: string
+  bold: boolean
+  highlight: boolean
+  /** Drawn in the layer's accent colour (a Thumbnail board look). */
+  accent?: boolean
+}
 
 function styleAt(marks: readonly CarouselTextMark[], index: number) {
   let bold = false
   let highlight = false
+  let accent = false
   for (const mark of marks) {
     if (index < mark.start || index >= mark.end) continue
     if (mark.style === "bold") bold = true
+    else if (mark.style === "accent") accent = true
     else highlight = true
   }
-  return { bold, highlight }
+  return accent ? { bold, highlight, accent } : { bold, highlight }
 }
 
 function pushRun(runs: TextRun[], run: TextRun) {
   const last = runs[runs.length - 1]
-  if (last && last.bold === run.bold && last.highlight === run.highlight) {
+  if (
+    last &&
+    last.bold === run.bold &&
+    last.highlight === run.highlight &&
+    !!last.accent === !!run.accent
+  ) {
     last.text += run.text
   } else {
     runs.push({ ...run })

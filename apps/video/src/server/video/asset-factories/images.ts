@@ -2,7 +2,7 @@ import {
   imageProvider,
   openAiImageSize,
   providerMessage,
-  type AssetAspectRatio,
+  type ImageAspect,
   type ImageModelId,
 } from "@/lib/video/asset-factories"
 import { getAiKey } from "@/server/ai/keys"
@@ -59,7 +59,7 @@ async function generateOpenAiImage(options: {
   apiKey: string
   model: "gpt-image-2"
   prompt: string
-  aspectRatio: AssetAspectRatio
+  aspectRatio: ImageAspect
   references: ImageReference[]
 }) {
   const size = openAiImageSize(options.aspectRatio)
@@ -127,7 +127,7 @@ export async function generateImage(options: {
   userId: string
   model: ImageModelId
   prompt: string
-  aspectRatio: AssetAspectRatio
+  aspectRatio: ImageAspect
   /** Sent in this order. A project's look picture is always the last. */
   references: ImageReference[]
   /** The project and video the picture is made for, so its spend line counts it. */

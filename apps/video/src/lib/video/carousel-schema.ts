@@ -66,7 +66,10 @@ const itemBoxSchema = {
   locked: z.literal(true).optional(),
 }
 
-export const CAROUSEL_TEXT_MARK_STYLES = ["bold", "highlight"] as const
+// "accent" draws the words in the layer's accent colour. Only the Thumbnail
+// board makes it (thumbnails.md); a carousel's buttons offer bold and
+// highlight.
+export const CAROUSEL_TEXT_MARK_STYLES = ["bold", "highlight", "accent"] as const
 export type CarouselTextMarkStyle = (typeof CAROUSEL_TEXT_MARK_STYLES)[number]
 
 /**
@@ -120,6 +123,8 @@ export const carouselTextItemSchema = z
     marks: z.array(carouselTextMarkSchema).max(200).optional(),
     // The box behind highlighted words; yellow when missing.
     highlightColor: colorSchema.optional(),
+    // The colour of words marked "accent"; yellow when missing.
+    accentColor: colorSchema.optional(),
   })
   .strict()
 

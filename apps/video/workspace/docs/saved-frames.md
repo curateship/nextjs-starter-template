@@ -91,3 +91,10 @@ can be downloaded, used in another project, or dropped onto a timeline.
   saved. Try again once it has finished." Each save downloads the video files
   it needs and runs ffmpeg while you wait, the same reason jump cuts run one
   at a time.
+
+## The cover and the main thumbnail
+
+A video's main thumbnail from the Thumbnail section is the cover of its 16:9
+or 9:16 exports ([thumbnails.md](thumbnails.md)). **Use this moment** still
+sets a frame cover on one export, and that export keeps its frame from then
+on, whatever is starred later.

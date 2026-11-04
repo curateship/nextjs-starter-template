@@ -5,7 +5,8 @@ screen recordings need them all the time.
 
 ## Adding one
 
-The Text panel has **Arrow** and **Circle** under Shapes. Each lands on a lane
+The Text panel has **Arrow** and **Circle** under Shapes. **Blur** sits
+beside them and is its own thing ([blur.md](blur.md)). Each lands on a lane
 at the playhead, above whatever would hide it, and runs for 3 seconds like
 any other clip. New shapes land in the upper part of the frame, not the
 middle, because the preview's Play button sits in the middle while the video

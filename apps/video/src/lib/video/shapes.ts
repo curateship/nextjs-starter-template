@@ -19,6 +19,12 @@
 export const SHAPE_KINDS = ["arrow", "circle"] as const
 export type ShapeKind = (typeof SHAPE_KINDS)[number]
 
+/**
+ * Every shape a shape clip can be. A blur is a shape clip too, placed by the
+ * same two points, but it is drawn by blur.ts rather than as lines.
+ */
+export const CLIP_SHAPE_KINDS = [...SHAPE_KINDS, "blur"] as const
+
 export const SHAPE_LABELS: Record<ShapeKind, string> = {
   arrow: "Arrow",
   circle: "Circle",
@@ -39,7 +45,7 @@ const HEAD_ANGLE = (28 * Math.PI) / 180
 const HEAD_LENGTH_IN_LINES = 3.5
 
 type ShapeClip = {
-  shape?: ShapeKind
+  shape?: (typeof CLIP_SHAPE_KINDS)[number]
   x?: number
   y?: number
   toX?: number

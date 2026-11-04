@@ -7,6 +7,11 @@ reading names given in a hurry. Since 1 Nov 2026 the picture belongs to the
 video (`video_video_thumbnails`); below, "the project" means one video
 (`project-videos.md`).
 
+A main thumbnail starred in the Thumbnail section takes this picture's
+place in the Videos tab and on the projects list
+([thumbnails.md](thumbnails.md)). Everything below is about the frame used
+when there is none.
+
 ## Which frame it is
 
 - **The first video or picture clip on the timeline.** That is the one that

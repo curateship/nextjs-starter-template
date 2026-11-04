@@ -81,6 +81,7 @@ the left menu ("dropdown to appear aligned right side").
 
 `src/components/travel/trip-details-panel.tsx`, `trip-notes-panel.tsx`,
 `trip-budget-card.tsx`, `saving-document.tsx` and `trip-menu.tsx`, which is
-built from `folding-menu.tsx`, the same pieces as an activity's ⋮ menu.
+built from the shell's `src/components/shared/folding-menu.tsx`, the same
+pieces as an activity's ⋮ menu.
 Notes are `src/server/travel/trip-notes.ts`, the totals
 `src/lib/travel/budget.ts`.

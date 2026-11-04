@@ -69,6 +69,41 @@ export const ASSET_ASPECT_RATIOS = ["9:16", "16:9"] as const
 export type AssetAspectRatio = (typeof ASSET_ASPECT_RATIOS)[number]
 
 /**
+ * Every shape Google's picture models can make. A picture that is changed
+ * rather than made from words (a reflection taken off, a thumbnail's frame
+ * made sharper) comes back in the nearest of these to its own shape.
+ */
+export const IMAGE_ASPECTS = [
+  "1:1",
+  "2:3",
+  "3:2",
+  "3:4",
+  "4:3",
+  "4:5",
+  "5:4",
+  "9:16",
+  "16:9",
+  "21:9",
+] as const
+export type ImageAspect = (typeof IMAGE_ASPECTS)[number]
+
+/** The shape in IMAGE_ASPECTS closest to a picture this size. */
+export function nearestImageAspect(width: number, height: number): ImageAspect {
+  const ratio = width / height
+  let best: ImageAspect = "1:1"
+  let bestGap = Infinity
+  for (const aspect of IMAGE_ASPECTS) {
+    const [across, down] = aspect.split(":").map(Number)
+    const gap = Math.abs(Math.log(ratio / (across / down)))
+    if (gap < bestGap) {
+      best = aspect
+      bestGap = gap
+    }
+  }
+  return best
+}
+
+/**
  * The shape a project's first frames and clips are made in: the project's own
  * when the picture models and the video model can make it, otherwise null, and the person
  * picks 9:16 or 16:9 for a square or 4:3 project.
@@ -301,8 +336,10 @@ export function imageProvider(model: ImageModelId): "gemini" | "openai" {
   return model === "gpt-image-2" ? "openai" : "gemini"
 }
 
-export function openAiImageSize(aspectRatio: AssetAspectRatio) {
-  return aspectRatio === "9:16" ? "1024x1536" : "1536x1024"
+export function openAiImageSize(aspectRatio: ImageAspect) {
+  const [across, down] = aspectRatio.split(":").map(Number)
+  if (across === down) return "1024x1024"
+  return across < down ? "1024x1536" : "1536x1024"
 }
 
 export const MAX_ASSET_TAGS = 30

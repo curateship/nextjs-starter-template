@@ -2,7 +2,7 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { Trash2Icon } from "lucide-react"
 
-import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/travel/folding-menu"
+import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
 import { SavingInput } from "@/components/travel/saving-fields"
 import { TimeZoneSelect } from "@/components/travel/time-zone-select"
 import { useSaveTrip } from "@/components/travel/trip-budget-card"

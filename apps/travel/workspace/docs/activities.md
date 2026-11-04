@@ -59,7 +59,7 @@ them ("reduce space between items a bit").
 
 Trip settings (the ⋮ in the trip's left panel), the schedule's "+ Add" and
 the ⋮ after its tabs are the same menu, built from the same file,
-`folding-menu.tsx` (Tyler, 3 Nov 2026: "every time you created a dropdown,
+the shell's `src/components/shared/folding-menu.tsx` (Tyler, 3 Nov 2026: "every time you created a dropdown,
 you made something different so all of the dropdown has slightly different
 ui"). A menu of actions alone, such as "+ Add", is as wide as its longest
 row ("Too much space here").

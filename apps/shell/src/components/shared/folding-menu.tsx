@@ -8,11 +8,11 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 
 /**
- * Travel's one dropdown menu, drawn like Project's task menu. The activity's ⋮,
- * Trip settings, the schedule's "+ Add" and its ⋮ are all this one
- * component, so they can't drift apart (Tyler,
- * 3 Nov 2026: "every time you created a dropdown, you made something different
- * so all of the dropdown has slightly different ui").
+ * The one ⋮ and "+ Add" dropdown every app draws (the UI standard's "The one
+ * dropdown look"; docs/shell/folding-menu.md). It came from Travel's trip
+ * page, drawn like Project's task menu, and moved here on 3 Nov 2026 so every
+ * app has the same one (Tyler: "we still need to have all apps to be
+ * standardize").
  *
  * - 294px wide: Project's 363px made 10% narrower twice ("Reduce the dropdown
  *   by 10%", then again).

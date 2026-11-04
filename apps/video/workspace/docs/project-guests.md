@@ -21,8 +21,10 @@ is `apps/project/workspace/docs/connected-apps.md`.
   were talked through and turned down. A guest is not an account and never
   shows in the user list.
 - **A guest edits the timeline, uploads media into that project and exports.**
-  AI is off for guests until Tyler says otherwise. Deleting the project is
-  never allowed.
+  AI is off for guests, except in the Thumbnail section: on 3 Nov 2026
+  Tyler gave guests the whole section, AI included, paid from the owner's
+  keys ([thumbnails.md](thumbnails.md)). Deleting the project is never
+  allowed.
 
 ## How a guest gets in
 
@@ -61,8 +63,12 @@ signed-in layout, so there is no left menu and no other page to reach.
   use the project's own media, add text, export, watch an export, stop or
   retry one, rename an export and set its cover, download it, keep a frame,
   and look at and restore History.
-- **Can't:** use any AI (the AI tools, AI clip, Transcript and Voices panels
-  are gone), open Music (the owner's music shelf), Copy, stickers, the media
+- **Can also:** design thumbnails in the Thumbnail section, AI included,
+  acting as the owner. Uploading a picture or an emoji there, and picking an
+  actor, still need the owner's own sign-in.
+- **Can't:** use any other AI (the AI tools, AI clip, Transcript and Voices
+  panels are gone, and so are blur that follows and picture clean-up on the
+  timeline), open Music (the owner's music shelf), Copy, stickers, the media
   library or collections, rename the project, delete a file or an export, make
   a share link, change project settings, or see AI spending.
 - **One browser can hold up to five guest sign-ins**, one per project, so two

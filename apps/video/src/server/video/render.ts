@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process"
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { and, eq, inArray } from "drizzle-orm"
@@ -68,6 +68,13 @@ import {
 } from "@/lib/video/render"
 import { progressBarFilters, type ProgressBar } from "@/lib/video/progress-bar"
 import { shapeExportWindows, shapeSvg } from "@/lib/video/shapes"
+import {
+  blurExpressions,
+  blurMaskSvg,
+  blurShape,
+  blurSigma,
+  isBlurClip,
+} from "@/lib/video/blur"
 import { voiceCleanFilter } from "@/lib/video/voice-clean"
 import { requireTextFont } from "@/lib/video/text-fonts"
 import {
@@ -497,6 +504,80 @@ export async function renderTimelineFrame({
 }
 
 /**
+ * Small stills of a stretch of a timeline, one every `everyMs` from `fromMs`,
+ * at most `maxSide` pixels on their longer side, as JPEGs in order. Drawn by
+ * the export's own graph from the smooth copies, so a still is what a quick
+ * export would show then. Blur that follows (blur-follow.ts) sends these to
+ * Gemini, which counts a small picture as fewer tokens than a big one.
+ */
+export async function renderTimelineStills({
+  userId,
+  timeline: rawTimeline,
+  fromMs,
+  toMs,
+  everyMs,
+  maxSide,
+}: {
+  userId: string
+  timeline: unknown
+  fromMs: number
+  toMs: number
+  everyMs: number
+  maxSide: number
+}): Promise<Uint8Array[]> {
+  const timeline = requireCanonicalTimeline(rawTimeline)
+  const frameMs = 1000 / PREVIEW_FRAME_RATE
+  const startMs = Math.max(0, Math.round(fromMs / frameMs) * frameMs)
+  const endMs = Math.min(timelineEndMs(timeline.tracks), toMs)
+  if (endMs <= startMs) throw new Error(NOTHING_TO_EXPORT_MESSAGE)
+
+  const dir = await mkdtemp(path.join(tmpdir(), "video-stills-"))
+  let releaseSources: () => Promise<void> = async () => undefined
+  try {
+    const size = renderSize(timeline.aspect, "low")
+    const visuals = flattenForRender(timeline.tracks).visuals.filter(
+      ({ clip, transition }) =>
+        clip.startMs - (transition?.durationMs ?? 0) < endMs &&
+        clip.startMs + clip.durationMs > startMs
+    )
+    const sources = await openOwnedSources(userId, visuals, { draft: true })
+    releaseSources = sources.release
+    const command = await buildFfmpegCommand({
+      dir,
+      size,
+      durationMs: endMs,
+      visuals,
+      audio: [],
+      sourceFiles: sources.sourceFiles,
+      audioPresence: new Map(),
+      fps: PREVIEW_FRAME_RATE,
+      duckingGain: 1,
+      fromMs: startMs,
+      finish: `fps=${(1000 / everyMs).toFixed(4)}:round=down,scale=w=${maxSide}:h=${maxSide}:force_original_aspect_ratio=decrease`,
+    })
+    // Counted out: left to itself, the picture reader keeps writing the
+    // last still long after the film ends (2,048 of them for 2 seconds, seen
+    // with ffmpeg 8.1).
+    const count = Math.floor((endMs - startMs - 1) / everyMs) + 1
+    await runFfmpeg([
+      ...command.picture,
+      "-frames:v",
+      String(count),
+      "-q:v",
+      "4",
+      path.join(dir, "still-%04d.jpg"),
+    ])
+    const names = (await readdir(dir))
+      .filter((name) => name.startsWith("still-"))
+      .sort()
+    return Promise.all(names.map((name) => readFile(path.join(dir, name))))
+  } finally {
+    await releaseSources()
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+/**
  * Every file the clips name, looked up as the owner's own and opened once
  * however many clips use it. A timeline must never be able to pull somebody
  * else's footage into a render. Each file is read where it is, mostly
@@ -678,6 +759,11 @@ async function buildFfmpegCommand(options: {
    * frame starts at its own moment, so nothing before it is drawn.
    */
   fromMs?: number
+  /**
+   * One more stretch of filters on the finished picture, such as taking a
+   * frame every half second for stills. Left out for an export.
+   */
+  finish?: string
 }) {
   const {
     dir,
@@ -691,6 +777,7 @@ async function buildFfmpegCommand(options: {
     duckingGain,
     progressBar,
     fromMs = 0,
+    finish,
   } = options
   const durationS = durationMs / 1000
   const fromS = fromMs / 1000
@@ -895,6 +982,29 @@ async function buildFfmpegCommand(options: {
         `[${inputIndex}:v]${["format=rgba", `setpts=PTS-STARTPTS+${firstFrame / fps}/TB`, ...textFades].join(",")}[l${visualStep}]`,
         `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${(firstFrame - 0.5) / fps},${(endFrame - 0.5) / fps})'[v${visualStep + 1}]`
       )
+    } else if (isBlurClip(clip)) {
+      // A blur crops its box out of everything drawn so far, blurs that
+      // copy, and lays it back where it came from, so only the lanes under
+      // it are softened (see blur.ts). Its one input is the box's shape as a
+      // picture, read as the copy's see-through layer: all of it for a box,
+      // the oval for an oval. A blur that follows something moves its crop
+      // and its overlay by the same expressions of the film's time.
+      const box = blurExpressions(clip, size, startS)
+      const maskFile = path.join(dir, `blur-${visualStep}.png`)
+      await writeFile(
+        maskFile,
+        renderSvgPng(blurMaskSvg(blurShape(clip), box.width, box.height))
+      )
+      inputs.push("-loop", "1", "-framerate", String(fps), "-t", String(endS), "-i", maskFile)
+      const sigma = blurSigma(clip, size).toFixed(2)
+      const window = `between(t,${startS},${endS})`
+      filters.push(
+        `[v${visualStep}]split[b${visualStep}][s${visualStep}]`,
+        `[s${visualStep}]crop=w=${box.width}:h=${box.height}:x='${box.x}':y='${box.y}',gblur=sigma=${sigma}:steps=3:enable='${window}'[c${visualStep}]`,
+        `[${inputIndex}:v]format=gray[m${visualStep}]`,
+        `[c${visualStep}][m${visualStep}]alphamerge${pictureFadeStages(entry).length ? `,${pictureFadeStages(entry).join(",")}` : ""}[l${visualStep}]`,
+        `[b${visualStep}][l${visualStep}]overlay=x='${box.x}':y='${box.y}':enable='${window}'[v${visualStep + 1}]`
+      )
     } else if (clip.kind === "shape") {
       // A shape is a picture of its lines: one per frame while it draws
       // itself on, then one still for the rest, read by ffmpeg's `concat`
@@ -1080,6 +1190,11 @@ async function buildFfmpegCommand(options: {
         outputLabel: `v${visualStep + 1}`,
       })
     )
+    visualStep += 1
+  }
+
+  if (finish) {
+    filters.push(`[v${visualStep}]${finish}[v${visualStep + 1}]`)
     visualStep += 1
   }
 

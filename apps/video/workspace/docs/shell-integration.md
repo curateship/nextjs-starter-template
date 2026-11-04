@@ -10,6 +10,14 @@ conflicts on every future merge. A change the shell needs is made in
 `apps/shell` and carried over. The repo's `docs/shell/shell-and-apps.md`
 is the rulebook.
 
+## The folding menu, 3 November 2026
+
+`src/components/shared/folding-menu.tsx` is the shell's one ⋮ and "+ Add"
+dropdown ([docs/shell/folding-menu.md](../../../../docs/shell/folding-menu.md)).
+It moved into the shell from Travel on 3 Nov 2026 and was copied into Video
+by hand, byte for byte, for the Thumbnail panel's ⋮. The next shell merge
+finds the two the same.
+
 ## The 3 October 2026 hero background merge
 
 Six shell files came over: the front page model and its test, the front page
