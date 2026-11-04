@@ -55,6 +55,8 @@ sat in thirteen app folders, and nothing read them.
 - `three-column-dashboards.md` — the shell's pieces for a three-column
   dashboard: the layout, the side panel card, the search, Filter, New and mass
   select, and which screens use them.
+- `folding-menu.md` — the one ⋮ and "+ Add" dropdown every app draws, its
+  pieces, and which screens use it.
 
 ## Writing a doc
 

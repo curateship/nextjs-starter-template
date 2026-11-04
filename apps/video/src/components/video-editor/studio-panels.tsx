@@ -98,6 +98,8 @@ import {
   SHAPE_LABELS,
   type ShapeKind,
 } from "@/lib/video/shapes"
+import { newBlurClip } from "@/components/video-editor/blur-clip"
+import { ThumbnailPanel } from "@/components/video-thumbnails/thumbnail-panel"
 
 /**
  * The panel beside the tool rail. Which one is showing is the rail's business;
@@ -114,6 +116,7 @@ export type StudioPanel =
   | "ai"
   | "transcript"
   | "ai-clip"
+  | "thumbnail"
   | "copy"
   | "exports"
   | "history"
@@ -134,6 +137,7 @@ const PANEL_TITLE: Record<StudioPanel, string> = {
   ai: "AI tools",
   transcript: "Transcript",
   "ai-clip": "AI clip",
+  thumbnail: "Thumbnail",
   copy: "Copy",
   exports: "Exports",
   history: "History",
@@ -151,6 +155,7 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   if (panel === "ai") return <AiPanel />
   if (panel === "transcript") return <TranscriptPanel />
   if (panel === "ai-clip") return <AiClipPanel />
+  if (panel === "thumbnail") return <ThumbnailPanel />
   if (panel === "copy") return <CopyPanel />
   if (panel === "exports") return <ExportsPanel />
   if (panel === "history") return <HistoryPanel />
@@ -1005,6 +1010,10 @@ function TextPanel({
   const progressBar = useEditorSelector((state) => state.progressBar)
   const inset = usePlatformInset()
 
+  function addBlur() {
+    dispatch({ type: "ADD_OVERLAY", clip: newBlurClip(), atMs: clock.getTime() })
+  }
+
   function addShape(kind: ShapeKind) {
     dispatch({
       type: "ADD_OVERLAY",
@@ -1111,6 +1120,7 @@ function TextPanel({
             label: SHAPE_LABELS[kind],
             onClick: () => addShape(kind),
           })),
+          { key: "blur", label: "Blur", onClick: addBlur },
           { key: "progress", label: "Progress bar", onClick: addProgressBar },
         ].map((item) => (
           <button

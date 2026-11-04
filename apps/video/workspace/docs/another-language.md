@@ -207,3 +207,10 @@ The voice is nearly all of the cost. Captions alone come to about a cent a
 minute. Several languages cost that much each: three languages of a minute of
 talking come to about 3 × ($0.002 + $0.14), which is about $0.43, plus the
 $0.006 of writing it down once.
+
+## The thumbnail
+
+A language copy gets a thumbnail of its own from the original's Thumbnail
+section, never by itself: the button "Make it in Spanish" copies the main
+thumbnail onto the copy's video with its words translated
+([thumbnails.md](thumbnails.md)).

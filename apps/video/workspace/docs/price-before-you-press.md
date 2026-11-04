@@ -29,6 +29,14 @@ and Check it) and Jump cuts.
   kept or already in the window, plus translating it. "Read it aloud" carries
   the voice's price, worked out from the real translation.
 
+- **Blur that follows and Find faces:** a picture every half second of the
+  blur, at 1,120 tokens each, on Gemini Flash ([blur.md](blur.md)).
+- **Picture changes and the Thumbnail board:** the picture model's price
+  times the versions a press makes, for example "Make it · $0.27" for four
+  Nano Banana 2 pictures. Ideas, the check and Copy a style are priced at
+  1,120 tokens a picture; the titles and translations at the saved writer's
+  price ([thumbnails.md](thumbnails.md)).
+
 ## How it is worked out
 
 The functions are in `src/lib/video/ai-estimates.ts`. The prices come from the

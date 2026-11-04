@@ -296,6 +296,54 @@ export function brollPhrasesCostCents({
 }
 
 /**
+ * One ask of the saved writer: the words sent, at four characters a token,
+ * and about `answerTokens` back, thinking included.
+ */
+export function writerCostCents(
+  writer: WriterId,
+  promptCharacters: number,
+  answerTokens: number
+) {
+  const model = WRITERS.find((one) => one.id === writer)?.model
+  if (!model) return 0
+  return tokenCostCents(model, promptCharacters / CHARACTERS_PER_TOKEN, answerTokens)
+}
+
+/**
+ * What Gemini counts one picture sent to it as. Google's Gemini 3 models read
+ * a picture at 1,120 tokens unless told to read it smaller, so that is used
+ * for every picture until a run is measured.
+ */
+export const GEMINI_PICTURE_TOKENS = 1_120
+
+/** The model that reads pictures for the blur and the thumbnail tools. */
+export const PICTURE_READER_MODEL = "gemini-3.8-flash"
+
+/** The most frames sent in one ask when a blur follows something. */
+export const BLUR_FOLLOW_FRAMES_PER_ASK = 24
+
+/**
+ * Following a blur's spot: a frame every half second, sent in asks of up to
+ * 24 with the first frame again at the front of each, and a box of about 30
+ * tokens back for each frame.
+ */
+export function blurFollowCostCents(frames: number) {
+  if (frames <= 0) return 0
+  const asks = Math.ceil(frames / BLUR_FOLLOW_FRAMES_PER_ASK)
+  const pictures = frames + asks
+  return tokenCostCents(
+    PICTURE_READER_MODEL,
+    pictures * GEMINI_PICTURE_TOKENS + asks * 300,
+    frames * 30
+  )
+}
+
+/** Finding the faces on one frame: one picture in, a few boxes back. */
+export function findFacesCostCents() {
+  return tokenCostCents(PICTURE_READER_MODEL, GEMINI_PICTURE_TOKENS + 200, 400)
+}
+
+/**
  * What a button says after its label: "no charge" for nothing at all,
  * otherwise `formatCheckCost`'s "about 4¢", and dollars from a dollar up.
  */

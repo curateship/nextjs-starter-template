@@ -812,6 +812,7 @@ function TimelineRow({
                 trackIndex={index}
                 accent={accent}
                 trackMuted={track.muted}
+                readOnly={readOnly}
               />
               {transition ? (
                 <SeamBadge clip={clip} transition={transition} />
@@ -851,11 +852,13 @@ const ClipChip = React.memo(function ClipChip({
   trackIndex,
   accent,
   trackMuted,
+  readOnly,
 }: {
   clip: EditorClip
   trackIndex: number
   accent: string
   trackMuted: boolean
+  readOnly: boolean
 }) {
   const selected = useEditorSelector((state) =>
     state.selectedClipIds.includes(clip.id)
@@ -1550,9 +1553,14 @@ const ClipChip = React.memo(function ClipChip({
       ) : null}
     </div>
   )
-  // A picture can be made to move, and anything the AI made can be made
-  // again, from the right-click menu (remake-clips.tsx).
-  return <ClipContextMenu clip={clip}>{chip}</ClipContextMenu>
+  // A picture can be made to move, anything the AI made can be made again,
+  // and a picture or video can have a spot blurred, from the right-click
+  // menu (remake-clips.tsx).
+  return (
+    <ClipContextMenu clip={clip} readOnly={readOnly}>
+      {chip}
+    </ClipContextMenu>
+  )
 })
 
 // A small diamond straddling the seam between two clips, marking a blend.

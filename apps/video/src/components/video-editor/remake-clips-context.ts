@@ -11,6 +11,11 @@ import * as React from "react"
 export type RemakeClipsValue = {
   /** Opens the Make it again window for this clip, or says why it cannot. */
   open: (clipId: string) => void
+  /**
+   * Opens Remove reflection or Remove an object on a picture clip
+   * (picture-clean-up.md). The same AI rule holds: a guest has neither.
+   */
+  cleanUp: (clipId: string, kind: "reflection" | "object") => void
 }
 
 export const RemakeClipsContext = React.createContext<RemakeClipsValue | null>(null)

@@ -34,6 +34,15 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [shapes.md](shapes.md) — arrows and circles over the video: adding and
   placing one, drawing itself on, and why a picked shape shows whole while
   paused.
+- [blur.md](blur.md) — a blur over one spot: adding it from Shapes or a
+  clip's right-click, box or oval, strength, what it blurs, and following a
+  moving thing or a face with AI.
+- [picture-clean-up.md](picture-clean-up.md) — Remove reflection and Remove
+  an object on a picture clip, the swap and its Undo, and the before and
+  after slider.
+- [thumbnails.md](thumbnails.md) — the Thumbnail section: the board, versions
+  and the main one, text and picture looks, every AI tool, titles, the check,
+  templates, the download and the export cover.
 - [progress-bar.md](progress-bar.md) — the bar that fills along one edge as
   the video plays: one per project, where it sits against the safe box, and
   how its thickness is counted.

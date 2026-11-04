@@ -19,7 +19,7 @@ import {
 import { BinDialog } from "@/components/travel/bin-dialog"
 import { useBoardActions } from "@/components/travel/board-actions"
 import { CalendarLinkDialog } from "@/components/travel/calendar-link-dialog"
-import { FoldingMenu, MenuAction } from "@/components/travel/folding-menu"
+import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
 import { PasteBookingDialog } from "@/components/travel/paste-booking-dialog"
 import { PasteLinksDialog } from "@/components/travel/paste-links-dialog"
 import { RouteTime } from "@/components/travel/route-time"

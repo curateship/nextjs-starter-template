@@ -267,7 +267,9 @@ export async function setOwnedExportCover({
 
   const [updated] = await database
     .update(videoRenderJobs)
-    .set({ thumbnailStoragePath: coverPath, updatedAt: now() })
+    // Set by hand, so a main thumbnail starred later leaves it alone
+    // (thumbnails.md).
+    .set({ thumbnailStoragePath: coverPath, coverByHand: true, updatedAt: now() })
     .where(
       and(eq(videoRenderJobs.id, exportId), eq(videoRenderJobs.userId, userId))
     )

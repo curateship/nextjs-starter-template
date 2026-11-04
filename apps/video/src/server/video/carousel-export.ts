@@ -161,20 +161,7 @@ export function carouselSlideSvg(
   const layers = slide.items
     .filter((item) => !item.hidden && (only ? only.keep(item) : true))
     .sort((left, right) => left.zIndex - right.zIndex)
-    .map((item, index) => {
-      const box = itemBox(item, size)
-      if (item.type === "text") {
-        return wordsLayer(item, item.text, item.marks ?? [], box, index, definitions)
-      }
-      if (item.type === "slide-number") {
-        const words = slideNumberText(place.index, place.count)
-        return wordsLayer(item, words, [], box, index, definitions)
-      }
-      if (item.type === "gradient-shadow") {
-        return shadowLayer(item, box, index, definitions)
-      }
-      return mediaLayer(item, box, index, media, definitions)
-    })
+    .map((item, index) => slideItemSvg(item, size, place, media, `${index}`, definitions))
     .join("")
 
   const background =
@@ -185,6 +172,34 @@ export function carouselSlideSvg(
 }
 
 type PixelBox = { x: number; y: number; width: number; height: number }
+
+/**
+ * One layer of a slide as SVG, in a frame of `size` pixels. `key` keeps its
+ * clip paths and gradients apart from every other layer's in `definitions`.
+ * The Thumbnail board draws its own frames through this too
+ * (thumbnail-export.ts).
+ */
+export function slideItemSvg(
+  item: CarouselSlide["items"][number],
+  size: { width: number; height: number },
+  place: SlidePlace,
+  media: ReadonlyMap<string, SlidePicture>,
+  key: string,
+  definitions: string[]
+) {
+  const box = itemBox(item, size)
+  if (item.type === "text") {
+    return wordsLayer(item, item.text, item.marks ?? [], box, key, definitions)
+  }
+  if (item.type === "slide-number") {
+    const words = slideNumberText(place.index, place.count)
+    return wordsLayer(item, words, [], box, key, definitions)
+  }
+  if (item.type === "gradient-shadow") {
+    return shadowLayer(item, box, key, definitions)
+  }
+  return mediaLayer(item, box, key, media, definitions)
+}
 
 function itemBox(
   item: { x: number; y: number; width: number; height: number },
@@ -209,7 +224,7 @@ function wordsLayer(
   text: string,
   marks: CarouselTextMark[],
   box: PixelBox,
-  index: number,
+  index: string,
   definitions: string[]
 ) {
   const clipId = `text-clip-${index}`
@@ -266,10 +281,12 @@ function wordsLayer(
           `<tspan x="${x}" y="${baseline}" stroke-width="${outline + bold}">${words}</tspan>`
         )
       }
+      const colour = run.accent && item.type === "text" ? (item.accentColor ?? DEFAULT_HIGHLIGHT_COLOR) : null
+      const fill = colour ? ` fill="${colour}"` : ""
       filled.push(
         bold
-          ? `<tspan x="${x}" y="${baseline}" stroke="${item.color}" stroke-width="${bold}" stroke-linejoin="round">${words}</tspan>`
-          : `<tspan x="${x}" y="${baseline}">${words}</tspan>`
+          ? `<tspan x="${x}" y="${baseline}"${fill} stroke="${colour ?? item.color}" stroke-width="${bold}" stroke-linejoin="round">${words}</tspan>`
+          : `<tspan x="${x}" y="${baseline}"${fill}>${words}</tspan>`
       )
     }
   })
@@ -299,7 +316,7 @@ function wordsLayer(
 function mediaLayer(
   item: CarouselMediaItem,
   box: PixelBox,
-  index: number,
+  index: string,
   media: ReadonlyMap<string, SlidePicture>,
   definitions: string[]
 ) {
@@ -344,7 +361,7 @@ export function pictureRect(
 function shadowLayer(
   item: CarouselGradientShadowItem,
   box: PixelBox,
-  index: number,
+  index: string,
   definitions: string[]
 ) {
   const opacity = item.opacity / 100

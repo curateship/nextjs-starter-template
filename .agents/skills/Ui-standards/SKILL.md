@@ -407,10 +407,10 @@ does. Never pick a side quietly. Ask when:
 - **The screen is drastically different.** Its middle panel is not a list or
   board of records, it has no single record in its left panel, it has no
   record to open on the right, or it needs a piece this guide doesn't have.
-- **Copying means a second copy of a Travel file.** `folding-menu.tsx`,
-  `notes-morph-icon.tsx` and `panel-bits.tsx` live only in Travel. Ask whether
-  to move them into the shell's `src/components/shared/` first, so every app
-  gets one copy, or to copy them into the app.
+- **Copying means a second copy of a Travel file.** `notes-morph-icon.tsx`
+  and `panel-bits.tsx` live only in Travel. Ask whether to move them into the
+  shell's `src/components/shared/` first, so every app gets one copy, or to
+  copy them into the app. `folding-menu.tsx` is already in the shell.
 
 ### The frame
 
@@ -469,9 +469,12 @@ does. Never pick a side quietly. Ask when:
 
 ### The one dropdown look
 
-Every ⋮ and "+ Add" menu is `FoldingMenu` from
-`apps/travel/src/components/travel/folding-menu.tsx`, drawn like Project's
-task menu. Tyler, 3 Nov 2026: "every time you created a dropdown, you made
+Every ⋮ and "+ Add" menu is `FoldingMenu` from the shell's
+`src/components/shared/folding-menu.tsx`, drawn like Project's task menu. It
+moved there from Travel on 3 Nov 2026 so every app has the same one (Tyler:
+"we still need to have all apps to be standardize"); Travel and Video use it,
+and every other app gets it with its next shell merge
+([docs/shell/folding-menu.md](../../../docs/shell/folding-menu.md)). Tyler, 3 Nov 2026: "every time you created a dropdown, you made
 something different so all of the dropdown has slightly different ui". Never
 draw a menu any other way on this pattern.
 
