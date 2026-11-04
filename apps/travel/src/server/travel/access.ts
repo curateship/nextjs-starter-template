@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm"
+import { and, eq, isNotNull, isNull } from "drizzle-orm"
 
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
 import { db, type CustomShellDb } from "@/server/db"
@@ -13,13 +13,26 @@ export type ActivityRow = typeof travelActivities.$inferSelect
  * A trip belongs to the one person who made it, on whichever site they made it
  * from: the check is the account alone (Tyler, 2 Nov 2026: each person sees
  * only their own trips). Someone else's trip answers exactly like one that
- * doesn't exist, so an id can't be used to learn that a trip is there.
+ * doesn't exist, so an id can't be used to learn that a trip is there. A
+ * trip in the bin answers the same way, except to the bin's own actions
+ * (Travel features part 8).
  */
-export async function requireTrip(userId: string, tripId: string, database: TravelDb = db) {
+export async function requireTrip(
+  userId: string,
+  tripId: string,
+  database: TravelDb = db,
+  { inBin = false }: { inBin?: boolean } = {}
+) {
   const [trip] = await database
     .select()
     .from(travelTrips)
-    .where(and(eq(travelTrips.id, tripId), eq(travelTrips.ownerUserId, userId)))
+    .where(
+      and(
+        eq(travelTrips.id, tripId),
+        eq(travelTrips.ownerUserId, userId),
+        inBin ? isNotNull(travelTrips.deletedAt) : isNull(travelTrips.deletedAt)
+      )
+    )
     .limit(1)
   if (!trip) throw new Error(TRAVEL_ERRORS.tripNotFound)
   return trip
@@ -40,6 +53,7 @@ export async function requireActivity(
       and(
         eq(travelActivities.id, activityId),
         eq(travelTrips.ownerUserId, userId),
+        isNull(travelTrips.deletedAt),
         inBin ? undefined : isNull(travelActivities.deletedAt)
       )
     )

@@ -1,3 +1,5 @@
+import { DAY_PART_LABEL, DAY_PARTS, partOfTime, type DayPart } from "@/lib/travel/rules"
+
 /**
  * How the day board lays out a trip's activities. Pure functions, so the
  * order rules can be tested without a screen.
@@ -9,6 +11,14 @@ export type BoardActivity = {
   position: number
   startTime: string | null
   durationMinutes: number | null
+  /** Morning, afternoon, evening or night, for a card with no start time (Travel features part 2). */
+  dayPart?: DayPart | null
+}
+
+/** Where a card sorts in its day: the part its time falls in, its own part, or after every part. */
+function partRank(card: BoardActivity) {
+  const part = card.startTime ? partOfTime(card.startTime) : (card.dayPart ?? null)
+  return part ? DAY_PARTS.indexOf(part) : DAY_PARTS.length
 }
 
 /** "09:30" as minutes after midnight. */
@@ -18,12 +28,18 @@ export function minutesOf(time: string) {
 }
 
 /**
- * One column's cards in the order shown (task part 4). Cards with a start time
- * come first, earliest first. Cards without one sit below them in the order
- * they were dragged into. Two cards at the same time keep their dragged order.
+ * One column's cards in the order shown (task part 4, and Travel features part
+ * 2). Cards go Morning, Afternoon, Evening, then Night: a timed card by the
+ * part its hour falls in, an untimed one by the part it was set to. Inside a
+ * part, timed cards come first, earliest first, then untimed ones in the order
+ * they were dragged into. Cards with no time and no part go last, in dragged
+ * order. Two cards at the same time keep their dragged order. With no parts
+ * set this is the old order: timed cards by time, then the rest.
  */
 export function sortColumn<T extends BoardActivity>(cards: readonly T[]): T[] {
   return [...cards].sort((a, b) => {
+    const byPart = partRank(a) - partRank(b)
+    if (byPart) return byPart
     if (a.startTime && b.startTime) {
       return minutesOf(a.startTime) - minutesOf(b.startTime) || a.position - b.position
     }
@@ -72,6 +88,12 @@ export function formatTimeRange(startTime: string | null, durationMinutes: numbe
   const end = (minutesOf(startTime) + durationMinutes) % (24 * 60)
   const endText = `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`
   return `${formatTime(startTime)} to ${formatTime(endText)}`
+}
+
+/** "9:00 AM to 11:00 AM" for a timed card, "Morning" for one set to a part of the day, otherwise null. */
+export function formatWhen(card: Pick<BoardActivity, "startTime" | "durationMinutes" | "dayPart">) {
+  if (card.startTime) return formatTimeRange(card.startTime, card.durationMinutes)
+  return card.dayPart ? DAY_PART_LABEL[card.dayPart] : null
 }
 
 /** "1h 30m", "45m", "2h". */

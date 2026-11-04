@@ -39,5 +39,6 @@ saved until Create activity.
 - **The answer is checked after the call is written down**, so a muddled
   answer still counts as the call it was.
 
-The code is `src/server/travel/booking-email.ts`. The window is
+The code is `src/server/travel/booking-email.ts`, and the AI call it shares
+with [Drafting a plan](drafting-a-plan.md) is `src/server/travel/ai.ts`. The window is
 `src/components/travel/paste-booking-dialog.tsx`.

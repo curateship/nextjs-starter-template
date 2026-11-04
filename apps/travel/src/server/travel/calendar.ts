@@ -127,7 +127,12 @@ export function buildTripCalendar(
 /** The calendar file for a link's secret, or null when no trip has it. */
 export async function loadCalendarFeed(token: string, database: CustomShellDb = db, at: Date = new Date()) {
   if (!TOKEN_PATTERN.test(token)) return null
-  const [trip] = await database.select().from(travelTrips).where(eq(travelTrips.calendarToken, token)).limit(1)
+  // A trip in the bin has no calendar until it is put back (Travel features part 8).
+  const [trip] = await database
+    .select()
+    .from(travelTrips)
+    .where(and(eq(travelTrips.calendarToken, token), isNull(travelTrips.deletedAt)))
+    .limit(1)
   if (!trip) return null
   const activities = await database
     .select()

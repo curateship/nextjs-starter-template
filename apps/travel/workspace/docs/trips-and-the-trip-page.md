@@ -35,26 +35,64 @@ They outrank the code.
   the toolbar brings it back; the choice is remembered in this browser. It
   needs `GOOGLE_MAPS_BROWSER_KEY` ([Outside services](outside-services.md)).
 - **Tabs:** Upcoming (every trip that hasn't ended, trips with no dates
-  included), Past and Archived, kept in the address as `?show=past` or
-  `?show=archived`.
+  included), Past, Archived and Bin, kept in the address as `?show=past`,
+  `?show=archived` or `?show=bin`.
 - **Columns:** Trip (the cover photo, name, destination and tags), Dates with
   a countdown under them ("in 12 days", "tomorrow", "on now", "ended
   yesterday"), Days, Status, and Actions.
   Dates sort with "No dates" last whichever way.
 - **Status** is Planning, Booked or Done, picked in Trip settings, the ⋮ in the trip's left panel. A trip
   turns Done by itself the day after its last day.
-- **The toolbar,** in order: Archive and Delete for ticked rows, the search
+- **The toolbar,** in order: Archive and Delete for ticked rows (Put back
+  and Delete for good on the Bin tab), the search
   (name or destination), the tag filter, Show map when hidden, Saved places,
   and New trip.
 - **New trip** asks for the name, destination, number of days (1 to 60),
   currency and an optional start date. Create trip goes straight to the trip.
-- **A row's actions:** Copy, Archive or Bring back, and Delete. Delete asks
-  first, and the trip goes for good with everything on it.
+  A tick box, "Fill it with a first plan, drafted by AI", opens the trip on a
+  drafted plan (see [Drafting a plan with AI](drafting-a-plan.md)). With a
+  destination and an Unsplash key, the new trip gets a cover photo by itself
+  (see "The cover photo" below).
+- **A row's actions:** Copy, Archive or Bring back, and Delete. Delete moves
+  the trip to the Bin at once, with Undo, so it doesn't ask first.
+- **The Bin** (Tyler, 3 Nov 2026: "A Bin tab") holds deleted trips for 30
+  days, with everything on them. Each row reads "Goes for good 3 Dec" under
+  its dates, and its actions are Put back and Delete for good.
+  - **Put back** returns the trip as it was, to the tab it came from, so an
+    archived trip goes back to Archived.
+  - **Delete for good** asks first, then the trip goes at once with every
+    activity and note on it.
+  - **After 30 days** a binned trip goes for good the next time the Trips
+    table loads.
+  - **While it is in the Bin** the trip doesn't open, its link answers like a
+    trip that doesn't exist, its phone calendar stops until it is put back,
+    and it is off the map of places visited and out of Copy trip.
+  - Trip settings' Delete trip does the same, then goes back to Trips.
+  - A binned sample trip still counts as given, so it never comes back as a
+    new sample.
 - **Copy trip** asks for a name, starting as "Copy of Tokyo". The copy keeps
   the days, their descriptions, every activity in its place with its
   type, times, place, links, notes, cost and picture, and both lists,
   unticked. It drops the dates, Done, ratings, documents and the phone
   calendar link.
+
+## The cover photo
+
+A new trip gets its cover by itself (Tyler, 3 Nov 2026: "Always, by
+itself"). Create trip searches Unsplash for the destination and takes the
+top photo, with the credit Unsplash asks for. Unsplash is told the photo was
+used before it is set, as its rules ask, the same as picking one by hand. The
+cover changes in Trip settings → Cover photo as usual.
+
+- **No cover** when the trip has no destination, there's no
+  `UNSPLASH_ACCESS_KEY`, Unsplash finds nothing, or it doesn't answer. The
+  trip is always made; a failed search never stops it.
+- **Copy trip** keeps the cover of the trip it copied, and the sample trip
+  has none.
+- **At most 30 covers in 10 minutes** per person, since Unsplash allows few
+  searches an hour. A trip past that is made with no cover.
+- The code is `src/server/travel/trip-cover.ts`, run by the New trip
+  endpoint in `src/lib/api/travel/trips.ts`.
 
 ## The sample trip
 

@@ -32,7 +32,7 @@ export function useSaveTrip() {
  * against a budget typed here, and a line per day.
  */
 export function BudgetCard() {
-  const { page } = useTrip()
+  const { page, readOnly } = useTrip()
   const { trip } = page
   const saveTripPatch = useSaveTrip()
   const { total, perDay, ideas } = tripTotals(trip.days, page.activities)
@@ -62,6 +62,7 @@ export function BudgetCard() {
           <Label htmlFor="trip-budget">Budget ({trip.currency})</Label>
           <SavingInput
             id="trip-budget"
+            disabled={readOnly}
             inputMode="decimal"
             value={trip.budgetCents === null ? "" : money(trip.budgetCents)}
             placeholder="No budget"

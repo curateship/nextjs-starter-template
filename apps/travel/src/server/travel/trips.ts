@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNotNull, isNull, sql } from "drizzle-orm"
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm"
 
 import type { ActivityType } from "@/lib/travel/activity-types"
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
@@ -28,6 +28,7 @@ import { tripViewScreen } from "@/lib/travel/trip-views"
 import { deleteSavedViewsFor, listSavedViews } from "@/server/saved-views"
 import { storedNotes } from "@/lib/travel/notes"
 import { checkTypeId, listTypes } from "@/server/travel/types"
+import { TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
 
 export const MAX_ACTIVITIES = 500
 
@@ -44,6 +45,8 @@ export type TripListRow = {
   tags: string[]
   isSample: boolean
   archived: boolean
+  /** When the trip went into the bin, or null (Travel features part 8). */
+  deletedAt: string | null
   activityCount: number
   timeZone: string | null
   createdAt: string
@@ -58,7 +61,7 @@ export type Activity = Omit<ActivityRow, "createdAt" | "updatedAt" | "deletedAt"
 /** One of a trip's notes, from the note icon beside its cog. */
 export type TripNote = { id: string; body: string; createdAt: string; updatedAt: string }
 
-export type Trip = Omit<TripRow, "ownerUserId" | "createdAt" | "updatedAt" | "archivedAt" | "calendarToken"> & {
+export type Trip = Omit<TripRow, "ownerUserId" | "createdAt" | "updatedAt" | "archivedAt" | "deletedAt" | "calendarToken"> & {
   archived: boolean
   hasCalendarLink: boolean
 }
@@ -75,7 +78,7 @@ export type TripPage = {
 }
 
 function toTrip(row: TripRow): Trip {
-  const { ownerUserId: _owner, createdAt: _created, updatedAt: _updated, archivedAt, calendarToken, ...rest } = row
+  const { ownerUserId: _owner, createdAt: _created, updatedAt: _updated, archivedAt, deletedAt: _deleted, calendarToken, ...rest } = row
   return { ...rest, archived: archivedAt !== null, hasCalendarLink: calendarToken !== null }
 }
 
@@ -108,6 +111,7 @@ export async function loadTripsPage(userId: string, database: CustomShellDb = db
       tags: trip.tags,
       isSample: trip.isSample,
       archived: trip.archivedAt !== null,
+      deletedAt: trip.deletedAt?.toISOString() ?? null,
       activityCount,
       timeZone: trip.timeZone,
       createdAt: trip.createdAt.toISOString(),
@@ -138,6 +142,7 @@ export async function createTrip(userId: string, input: CreateTripInput, databas
     calendarToken: null,
     isSample: false,
     archivedAt: null,
+    deletedAt: null,
     createdAt: at,
     updatedAt: at,
   })
@@ -213,11 +218,47 @@ export async function setDayInfo(
 }
 
 
-export async function deleteTrip(userId: string, tripId: string, database: CustomShellDb = db) {
+/**
+ * Delete puts a trip in the bin with everything on it (Tyler, 3 Nov 2026: "A
+ * Bin tab"). Nothing on it changes, and Put back returns it to the tab it
+ * came from. While it is in the bin it answers like a trip that doesn't
+ * exist, its phone calendar stops, and it is off the map of places visited.
+ */
+export async function binTrip(userId: string, tripId: string, database: CustomShellDb = db) {
   await requireTrip(userId, tripId, database)
-  await database.delete(travelTrips).where(eq(travelTrips.id, tripId))
+  await database.update(travelTrips).set({ deletedAt: now() }).where(eq(travelTrips.id, tripId))
+}
+
+/** Puts a trip back from the bin, as it was. */
+export async function restoreTrip(userId: string, tripId: string, database: CustomShellDb = db) {
+  await requireTrip(userId, tripId, database, { inBin: true })
+  await database.update(travelTrips).set({ deletedAt: null }).where(eq(travelTrips.id, tripId))
+}
+
+/** Delete for good, from the bin: the trip and everything on it go at once. */
+export async function purgeTrip(userId: string, tripId: string, database: CustomShellDb = db) {
+  await requireTrip(userId, tripId, database, { inBin: true })
+  await removeTripRows([tripId], database)
+}
+
+/** Trips in the bin more than 30 days go for good, the next time the Trips table loads. */
+export async function emptyTripBin(userId: string, database: CustomShellDb = db, at: Date = new Date()) {
+  const cutoff = new Date(at.getTime() - TRIP_BIN_DAYS * 24 * 60 * 60 * 1000)
+  const old = await database
+    .select({ id: travelTrips.id })
+    .from(travelTrips)
+    .where(and(eq(travelTrips.ownerUserId, userId), isNotNull(travelTrips.deletedAt), lt(travelTrips.deletedAt, cutoff)))
+  await removeTripRows(
+    old.map((trip) => trip.id),
+    database
+  )
+}
+
+async function removeTripRows(tripIds: string[], database: CustomShellDb) {
+  if (tripIds.length === 0) return
+  await database.delete(travelTrips).where(inArray(travelTrips.id, tripIds))
   // The shell's views table can't cascade from a trip, so its views go here.
-  await deleteSavedViewsFor({ screens: [tripViewScreen(tripId)] }, database)
+  await deleteSavedViewsFor({ screens: tripIds.map(tripViewScreen) }, database)
 }
 
 /** The cards in one column, in their saved order. Null is the Ideas column. */
@@ -274,6 +315,7 @@ export function blankActivity(tripId: string, at: Date): Omit<ActivityRow, "id" 
     tripId,
     typeId: null,
     startTime: null,
+    dayPart: null,
     durationMinutes: null,
     nights: null,
     place: null,
@@ -302,6 +344,8 @@ export async function updateActivity(userId: string, input: UpdateActivityInput,
   const values: Partial<ActivityRow> = { ...patch, updatedAt: now() }
   if (patch.notes !== undefined) values.notes = storedNotes(patch.notes)
   if (patch.photoUrl === null) values.photoCredit = null
+  // A part of the day is for a card with no start time: a time, new or kept, clears it (Travel features part 2).
+  if ((patch.startTime !== undefined ? patch.startTime : activity.startTime) !== null) values.dayPart = null
   await database.update(travelActivities).set(values).where(eq(travelActivities.id, activityId))
   await touchTrip(activity.tripId, database)
 }

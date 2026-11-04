@@ -15,9 +15,13 @@ import { cn } from "@/lib/utils"
 const DAY_COLORS = ["#2563eb", "#16a34a", "#ea580c", "#9333ea", "#db2777", "#0d9488", "#ca8a04", "#dc2626"]
 const ALL_DAYS = "all"
 
+/** The cards with a map position, the ones the map can draw. */
+const placedOf = (cards: Activity[]) => cards.filter((card) => typeof card.place?.lat === "number" && typeof card.place.lng === "number")
+
 /**
  * The Map tab (task part 42): the activities that have an address, as pins
- * numbered in each day's order, one colour per day. A day picker narrows it
+ * numbered in each day's order, one colour per day, joined in that order by a
+ * straight line in the day's colour (Travel features part 4). A day picker narrows it
  * to one day. Clicking a pin opens that activity in the right panel.
  * Activities with no address are listed under the map so none is lost.
  */
@@ -31,17 +35,21 @@ export function TripMapView({ activities }: { activities: Activity[] }) {
     .map(([, cards], index) => ({ day: index + 1, cards }))
     .filter(({ day }) => picked === ALL_DAYS || String(day) === picked)
   const pins = days.flatMap(({ day, cards }) =>
-    cards
-      .filter((card) => card.place?.lat !== null && card.place?.lat !== undefined && card.place.lng !== null)
-      .map((card, index) => ({
-        id: card.id,
-        lat: card.place!.lat!,
-        lng: card.place!.lng!,
-        label: String(index + 1),
-        title: `${dayLabel(day, trip.startDate)}: ${card.title}`,
-        color: DAY_COLORS[(day - 1) % DAY_COLORS.length],
-      }))
+    placedOf(cards).map((card, index) => ({
+      id: card.id,
+      lat: card.place!.lat!,
+      lng: card.place!.lng!,
+      label: String(index + 1),
+      title: `${dayLabel(day, trip.startDate)}: ${card.title}`,
+      color: DAY_COLORS[(day - 1) % DAY_COLORS.length],
+    }))
   )
+  // A straight line through each day's pins in order, in the day's colour (Tyler, 3 Nov 2026: "Straight lines").
+  const lines = days.map(({ day, cards }) => ({
+    id: `day-${day}`,
+    color: DAY_COLORS[(day - 1) % DAY_COLORS.length],
+    points: placedOf(cards).map((card) => ({ lat: card.place!.lat!, lng: card.place!.lng! })),
+  }))
   const unplaced = days.flatMap(({ cards }) => cards.filter((card) => card.place?.lat === null || card.place?.lat === undefined))
 
   return (
@@ -66,6 +74,7 @@ export function TripMapView({ activities }: { activities: Activity[] }) {
         <GoogleMap
           className="h-[28rem]"
           pins={pins}
+          lines={lines}
           onPick={openActivity}
           emptyText="No activity here has an address from Google yet. Pick one in an activity's Place card."
         />

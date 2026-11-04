@@ -50,7 +50,7 @@ async function forecastAt(point: Point, nowMs: number) {
   const url = `${FORECAST_URL}?${new URLSearchParams({
     latitude: String(point.latitude),
     longitude: String(point.longitude),
-    daily: "weather_code,temperature_2m_max,temperature_2m_min",
+    daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
     timezone: "auto",
     forecast_days: "16",
     // The forecast's days are the place's own; a day back covers a place already a day ahead of the trip's clock.
@@ -59,7 +59,13 @@ async function forecastAt(point: Point, nowMs: number) {
   const response = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) }).catch(() => null)
   if (!response?.ok) return null
   const body = (await response.json().catch(() => null)) as {
-    daily?: { time?: string[]; weather_code?: number[]; temperature_2m_max?: number[]; temperature_2m_min?: number[] }
+    daily?: {
+      time?: string[]
+      weather_code?: number[]
+      temperature_2m_max?: number[]
+      temperature_2m_min?: number[]
+      precipitation_probability_max?: (number | null)[]
+    }
   } | null
   const daily = body?.daily
   if (!daily?.time) return null
@@ -68,8 +74,15 @@ async function forecastAt(point: Point, nowMs: number) {
     const code = daily.weather_code?.[index]
     const high = daily.temperature_2m_max?.[index]
     const low = daily.temperature_2m_min?.[index]
+    const rain = daily.precipitation_probability_max?.[index]
     if (typeof code === "number" && typeof high === "number" && typeof low === "number") {
-      days.set(date, { high: Math.round(high), low: Math.round(low), kind: weatherKindOf(code) })
+      days.set(date, {
+        high: Math.round(high),
+        low: Math.round(low),
+        kind: weatherKindOf(code),
+        // Open-Meteo sends null for a day it has no chance for; that shows no rain line.
+        rain: typeof rain === "number" && rain >= 0 && rain <= 100 ? Math.round(rain) : null,
+      })
     }
   })
   forecastsKept.set(key, { at: nowMs, days })

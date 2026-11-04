@@ -12,13 +12,18 @@ import { giveSampleTrip } from "@/server/travel/sample"
 import { addSavedPlaceToTrip, saveActivityAsPlace } from "@/server/travel/saved-places"
 import { travelActivities, travelTrips } from "@/server/travel/schema"
 import { copyTrip, listBin, markEndedTripsDone, restoreFromBin, setTripArchived } from "@/server/travel/trip-admin"
+import { loadCalendarFeed, makeCalendarLink } from "@/server/travel/calendar"
 import {
   binActivities,
+  binTrip,
   createActivity,
   createTrip,
   loadTripPage,
   loadTripsPage,
+  emptyTripBin,
   moveActivity,
+  purgeTrip,
+  restoreTrip,
   setDayInfo,
   updateActivity,
   updateTrip,
@@ -200,6 +205,8 @@ describe("undo (part 16)", () => {
       day: activity.day,
       position: activity.position,
       inBin: false,
+      startTime: activity.startTime,
+      dayPart: activity.dayPart,
     }))
     await binActivities(anna.id, [a], database)
     const { id: copy } = await duplicateActivity(anna.id, b, database)
@@ -211,8 +218,33 @@ describe("undo (part 16)", () => {
     const tripId = await trip()
     const a = await add(tripId, 1, "A")
     await expect(
-      restoreActivities(ben.id, { tripId, places: [{ id: a, day: 2, position: 0, inBin: false }], created: [] }, database)
+      restoreActivities(
+        ben.id,
+        { tripId, places: [{ id: a, day: 2, position: 0, inBin: false, startTime: null, dayPart: null }], created: [] },
+        database
+      )
     ).rejects.toThrow(TRAVEL_ERRORS.tripNotFound)
+  })
+
+  it("brings back a card's time and part of the day after a move to Ideas cleared them", async () => {
+    const tripId = await trip()
+    const timed = await add(tripId, 1, "Breakfast")
+    const parted = await add(tripId, 1, "Temple")
+    await updateActivity(anna.id, { activityId: timed, startTime: "08:00" }, database)
+    await updateActivity(anna.id, { activityId: parted, dayPart: "afternoon" }, database)
+    const before = (await loadTripPage(anna.id, tripId, database)).activities.map((activity) => ({
+      id: activity.id,
+      day: activity.day,
+      position: activity.position,
+      inBin: false,
+      startTime: activity.startTime,
+      dayPart: activity.dayPart,
+    }))
+    await moveActivities(anna.id, { activityIds: [timed, parted], day: null }, database)
+    await restoreActivities(anna.id, { tripId, places: before, created: [] }, database)
+    const back = (await loadTripPage(anna.id, tripId, database)).activities
+    expect(back.find((activity) => activity.id === timed)).toMatchObject({ day: 1, startTime: "08:00" })
+    expect(back.find((activity) => activity.id === parted)).toMatchObject({ day: 1, dayPart: "afternoon" })
   })
 })
 
@@ -355,5 +387,94 @@ describe("the sample trip (part 2)", () => {
     await database.delete(travelTrips).where(eq(travelTrips.id, trips[0].id))
     await giveSampleTrip(anna.id, database)
     expect((await loadTripsPage(anna.id, database)).trips).toEqual([])
+  })
+})
+
+describe("parts of the day (Travel features part 2)", () => {
+  async function part(activityId: string) {
+    const [row] = await database
+      .select({ dayPart: travelActivities.dayPart, startTime: travelActivities.startTime })
+      .from(travelActivities)
+      .where(eq(travelActivities.id, activityId))
+    return row
+  }
+
+  it("keeps a part on an untimed card, and a start time clears it", async () => {
+    const tripId = await trip()
+    const id = await add(tripId, 1, "Senso-ji")
+    await updateActivity(anna.id, { activityId: id, dayPart: "morning" }, database)
+    expect(await part(id)).toEqual({ dayPart: "morning", startTime: null })
+    await updateActivity(anna.id, { activityId: id, startTime: "14:00" }, database)
+    expect(await part(id)).toEqual({ dayPart: null, startTime: "14:00" })
+    // A card that has a time can't take a part.
+    await updateActivity(anna.id, { activityId: id, dayPart: "night" }, database)
+    expect(await part(id)).toEqual({ dayPart: null, startTime: "14:00" })
+  })
+
+  it("drops the part on the way to Ideas, and Copy trip keeps it", async () => {
+    const tripId = await trip()
+    const id = await add(tripId, 2, "Ramen")
+    await updateActivity(anna.id, { activityId: id, dayPart: "evening" }, database)
+    const copy = await copyTrip(anna.id, { tripId, name: "Copy of Tokyo" }, database)
+    const copied = (await loadTripPage(anna.id, copy.id, database)).activities[0]
+    expect(copied.dayPart).toBe("evening")
+    await moveActivities(anna.id, { activityIds: [id], day: null }, database)
+    expect((await part(id)).dayPart).toBeNull()
+  })
+})
+
+describe("the trip bin (Travel features part 8)", () => {
+  it("moves a deleted trip to the bin with everything on it, and Put back returns it as it was", async () => {
+    const tripId = await trip(4, "2026-03-02")
+    await add(tripId, 2, "Senso-ji")
+    await setTripArchived(anna.id, tripId, true, database)
+    await binTrip(anna.id, tripId, database)
+    const row = (await loadTripsPage(anna.id, database)).trips[0]
+    expect(row.deletedAt).not.toBeNull()
+    // While binned it answers like a trip that doesn't exist.
+    await expect(loadTripPage(anna.id, tripId, database)).rejects.toThrow(TRAVEL_ERRORS.tripNotFound)
+    await restoreTrip(anna.id, tripId, database)
+    const back = (await loadTripsPage(anna.id, database)).trips[0]
+    expect(back).toMatchObject({ deletedAt: null, archived: true, activityCount: 1 })
+    expect(await titlesOn(tripId, 2)).toEqual(["Senso-ji"])
+  })
+
+  it("keeps a binned trip's activities, notes and phone calendar out of reach", async () => {
+    const tripId = await trip(2, "2026-03-02")
+    const activityId = await add(tripId, 1, "Breakfast")
+    await updateActivity(anna.id, { activityId, startTime: "08:00" }, database)
+    const note = await createTripNote(anna.id, tripId, database)
+    const token = (await makeCalendarLink(anna.id, tripId, database)).url.split("/").pop()!
+    await binTrip(anna.id, tripId, database)
+    await expect(updateActivity(anna.id, { activityId, title: "Lunch" }, database)).rejects.toThrow(TRAVEL_ERRORS.activityNotFound)
+    await expect(saveTripNote(anna.id, { noteId: note.id, body: "" }, database)).rejects.toThrow(TRAVEL_ERRORS.noteNotFound)
+    expect(await loadCalendarFeed(token, database)).toBeNull()
+    await expect(copyTrip(anna.id, { tripId, name: "Copy" }, database)).rejects.toThrow(TRAVEL_ERRORS.tripNotFound)
+    await restoreTrip(anna.id, tripId, database)
+    expect(await loadCalendarFeed(token, database)).toContain("BEGIN:VCALENDAR")
+  })
+
+  it("deletes for good only from the bin, and only the owner", async () => {
+    const tripId = await trip()
+    await expect(purgeTrip(anna.id, tripId, database)).rejects.toThrow(TRAVEL_ERRORS.tripNotFound)
+    await binTrip(anna.id, tripId, database)
+    await expect(purgeTrip(ben.id, tripId, database)).rejects.toThrow(TRAVEL_ERRORS.tripNotFound)
+    await expect(restoreTrip(ben.id, tripId, database)).rejects.toThrow(TRAVEL_ERRORS.tripNotFound)
+    await expect(binTrip(ben.id, tripId, database)).rejects.toThrow(TRAVEL_ERRORS.tripNotFound)
+    await purgeTrip(anna.id, tripId, database)
+    expect(await database.select().from(travelTrips)).toEqual([])
+  })
+
+  it("empties trips binned more than 30 days ago, and keeps newer ones", async () => {
+    const old = await trip()
+    const recent = await trip()
+    await add(old, 1, "Gone")
+    await binTrip(anna.id, old, database)
+    await binTrip(anna.id, recent, database)
+    await database.update(travelTrips).set({ deletedAt: new Date("2099-01-01T00:00:00Z") }).where(eq(travelTrips.id, old))
+    await database.update(travelTrips).set({ deletedAt: new Date("2099-01-20T00:00:00Z") }).where(eq(travelTrips.id, recent))
+    await emptyTripBin(anna.id, database, new Date("2099-02-05T00:00:00Z"))
+    expect((await database.select({ id: travelTrips.id }).from(travelTrips)).map((row) => row.id)).toEqual([recent])
+    expect(await database.select().from(travelActivities)).toEqual([])
   })
 })

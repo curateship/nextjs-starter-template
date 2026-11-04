@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest"
 import { boardColumns, formatTimeRange, gapsOf, sortColumn } from "@/lib/travel/board"
 import { tripTotals } from "@/lib/travel/budget"
 import { countdown, formatDayDate, formatTripDates, todaysDay, todayIn } from "@/lib/travel/dates"
-import { hoursWarning } from "@/lib/travel/hours"
-import { formatMoney, parseMoney } from "@/lib/travel/rules"
+import { closedAllDay, hoursWarning, nearestOpenDay } from "@/lib/travel/hours"
+import { formatMoney, parseMoney, partOfTime, type DayPart } from "@/lib/travel/rules"
 import { filterActivities } from "@/lib/travel/trip-search"
 
 const card = (id: string, startTime: string | null, position: number, durationMinutes: number | null = null) => ({
@@ -89,6 +89,79 @@ describe("opening hours (part 21)", () => {
     expect(hoursWarning(null, 2, "18:00")).toBeNull()
     expect(hoursWarning(nineToFive, null, "18:00")).toBeNull()
     expect(hoursWarning(nineToFive, 2, null)).toBeNull()
+  })
+})
+
+describe("parts of the day (Travel features part 2)", () => {
+  const parted = (id: string, dayPart: DayPart | null, position: number) => ({ ...card(id, null, position), dayPart })
+
+  it("puts a Morning card, a 2 PM card and an Evening card in that order, whatever order they were dragged", () => {
+    const sorted = sortColumn([parted("evening", "evening", 0), card("two", "14:00", 1), parted("morning", "morning", 2)])
+    expect(sorted.map((item) => item.id)).toEqual(["morning", "two", "evening"])
+  })
+
+  it("puts timed cards first inside their part, then untimed ones in dragged order, then cards with no part", () => {
+    const sorted = sortColumn([
+      card("loose", null, 0),
+      parted("morning-b", "morning", 1),
+      card("nine", "09:00", 2),
+      parted("morning-a", "morning", 3),
+      card("eleven", "11:30", 4),
+      parted("night", "night", 5),
+    ])
+    expect(sorted.map((item) => item.id)).toEqual(["nine", "eleven", "morning-b", "morning-a", "night", "loose"])
+  })
+
+  it("keeps the old order when no card has a part", () => {
+    const sorted = sortColumn([card("none", null, 0), card("two", "14:00", 1), card("nine", "09:00", 2)])
+    expect(sorted.map((item) => item.id)).toEqual(["nine", "two", "none"])
+  })
+
+  it("counts a time as the part its hour falls in", () => {
+    expect(partOfTime("00:30")).toBe("morning")
+    expect(partOfTime("11:59")).toBe("morning")
+    expect(partOfTime("12:00")).toBe("afternoon")
+    expect(partOfTime("16:59")).toBe("afternoon")
+    expect(partOfTime("17:00")).toBe("evening")
+    expect(partOfTime("20:59")).toBe("evening")
+    expect(partOfTime("21:00")).toBe("night")
+  })
+})
+
+describe("closed all day (Travel features part 1)", () => {
+  // Shut on Mondays, open 10 to 6 every other day.
+  const shutMondays = Array.from({ length: 7 }, (_, day) => (day === 1 ? [] : [{ open: "10:00", close: "18:00" }]))
+  // 2 Nov 2026 is a Monday, so Day 1 is a Monday and Day 8 the next.
+  const trip = { startDate: "2026-11-02", days: 9 }
+
+  it("warns an untimed card on a day its place is shut, and no other untimed card", () => {
+    expect(hoursWarning(shutMondays, 1, null)).toBe("Closed on Mondays")
+    expect(hoursWarning(shutMondays, 2, null)).toBeNull()
+    expect(closedAllDay(shutMondays, 1)).toBe(true)
+    expect(closedAllDay(shutMondays, 2)).toBe(false)
+  })
+
+  it("never calls a place with no hours, or with every day empty, shut", () => {
+    expect(closedAllDay(null, 1)).toBe(false)
+    expect(closedAllDay(Array.from({ length: 7 }, () => []), 1)).toBe(false)
+    expect(hoursWarning(Array.from({ length: 7 }, () => []), 1, null)).toBeNull()
+  })
+
+  it("moves to the nearest open day, a later one first when two are as near", () => {
+    // Day 1 (Mon) is shut; Day 2 (Tue) is the nearest.
+    expect(nearestOpenDay(shutMondays, trip, 1)).toBe(2)
+    // Day 8 (Mon) is shut; Day 9 and Day 7 are as near, and the later one wins.
+    expect(nearestOpenDay(shutMondays, trip, 8)).toBe(9)
+    // On the trip's last day, the day before is the nearest.
+    expect(nearestOpenDay(shutMondays, { startDate: "2026-11-02", days: 8 }, 8)).toBe(7)
+  })
+
+  it("offers no move on an open day, in Ideas, on a trip with no dates, or when no day is open", () => {
+    expect(nearestOpenDay(shutMondays, trip, 2)).toBeNull()
+    expect(nearestOpenDay(shutMondays, trip, null)).toBeNull()
+    expect(nearestOpenDay(shutMondays, { startDate: null, days: 9 }, 1)).toBeNull()
+    // A one-day trip on a Monday has nowhere to go.
+    expect(nearestOpenDay(shutMondays, { startDate: "2026-11-02", days: 1 }, 1)).toBeNull()
   })
 })
 

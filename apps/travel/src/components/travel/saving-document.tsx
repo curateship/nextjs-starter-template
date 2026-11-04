@@ -20,6 +20,7 @@ export function SavingDocument({
   onSave,
   placeholder = "Write something",
   focus = false,
+  readOnly = false,
   className,
 }: {
   /** The saved document as JSON text, or "". Read once, when it first shows. */
@@ -27,9 +28,14 @@ export function SavingDocument({
   onSave: (json: string) => Promise<unknown>
   placeholder?: string
   focus?: boolean
+  /** Shown, not written in: with no signal nothing could be saved. */
+  readOnly?: boolean
   className?: string
 }) {
   const [start] = React.useState(() => readNotes(value))
+  // What was last saved, so the editor reporting the same words again (as it does when it is
+  // locked and unlocked) sends nothing.
+  const saved = React.useRef(JSON.stringify(start))
   const draft = React.useRef<WrittenPageNode | null>(null)
   const timer = React.useRef(0)
   const box = React.useRef<HTMLDivElement>(null)
@@ -43,7 +49,10 @@ export function SavingDocument({
     const next = draft.current
     if (!next) return
     draft.current = null
-    void saveRef.current(JSON.stringify(next))
+    const json = JSON.stringify(next)
+    if (json === saved.current) return
+    saved.current = json
+    void saveRef.current(json)
   }, [])
 
   // Closing, or opening another, saves what was typed.
@@ -101,8 +110,11 @@ export function SavingDocument({
     >
       <DocumentEditor
         value={start}
+        disabled={readOnly}
         placeholder={placeholder}
         onChange={(body) => {
+          // Locked with no signal, nothing typed could be saved.
+          if (readOnly) return
           draft.current = body
           window.clearTimeout(timer.current)
           timer.current = window.setTimeout(flush, TYPING_SAVE_MS)

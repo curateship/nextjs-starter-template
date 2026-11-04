@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 
 import { loadWeather } from "@/lib/api/travel/weather"
-import { WEATHER_LABEL, type DayWeather, type WeatherKind } from "@/lib/travel/weather"
+import { rainLine, WEATHER_LABEL, type DayWeather, type WeatherKind } from "@/lib/travel/weather"
 
 const ICON: Record<WeatherKind, LucideIcon> = {
   clear: SunIcon,
@@ -49,17 +49,18 @@ export function useTripWeather(trip: { id: string; startDate: string | null; des
   return weather.key === key ? weather.days : []
 }
 
-/** "☀ 18° / 9°" under a day's heading. */
+/** "☀ 18° / 9°" under a day's heading, then "· 70% rain" when the chance is 30 out of 100 or more. */
 export function DayWeatherLine({ weather }: { weather: DayWeather }) {
   const Icon = ICON[weather.kind]
+  const rain = rainLine(weather)
   return (
     <span
       className="flex items-center gap-1 px-1 text-xs text-muted-foreground"
-      aria-label={`${WEATHER_LABEL[weather.kind]}, high ${weather.high}°, low ${weather.low}°`}
+      aria-label={`${WEATHER_LABEL[weather.kind]}, high ${weather.high}°, low ${weather.low}°${rain ? `, ${rain}` : ""}`}
     >
       <Icon className="size-3.5" aria-hidden />
       <span className="tabular-nums">
-        {weather.high}° / {weather.low}°
+        {weather.high}° / {weather.low}°{rain ? ` · ${rain}` : ""}
       </span>
     </span>
   )

@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { Activity } from "@/lib/api/travel/trips"
-import { boardColumns, formatTimeRange } from "@/lib/travel/board"
+import { boardColumns, formatWhen } from "@/lib/travel/board"
 import { formatMoney } from "@/lib/travel/rules"
 import { cn } from "@/lib/utils"
 
@@ -71,7 +71,7 @@ export function TripListView({ activities }: { activities: Activity[] }) {
                       </span>
                     </TableCell>
                     <TableCell column="preview" className="tabular-nums">
-                      {formatTimeRange(activity.startTime, activity.durationMinutes) ?? ""}
+                      {formatWhen(activity) ?? ""}
                     </TableCell>
                     <TableCell column="preview">{type?.name ?? ""}</TableCell>
                     <TableCell column="preview" className="tabular-nums">

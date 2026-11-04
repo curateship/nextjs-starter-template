@@ -50,6 +50,7 @@ export async function copyTrip(userId: string, input: { tripId: string; name: st
       calendarToken: null,
       isSample: false,
       archivedAt: null,
+      deletedAt: null,
       tags: trip.tags.filter((tag) => tag !== "Sample"),
       createdAt: at,
       updatedAt: at,
@@ -122,7 +123,13 @@ export async function restoreFromBin(userId: string, activityId: string, databas
   await database.transaction(async (tx) => {
     await tx
       .update(travelActivities)
-      .set({ deletedAt: null, day, startTime: day === null ? null : activity.startTime, updatedAt: now() })
+      .set({
+        deletedAt: null,
+        day,
+        startTime: day === null ? null : activity.startTime,
+        dayPart: day === null ? null : activity.dayPart,
+        updatedAt: now(),
+      })
       .where(eq(travelActivities.id, activity.id))
     await writePositions([...live.filter((item) => item.day === day).map((item) => item.id), activity.id], tx)
   })
@@ -146,7 +153,7 @@ export async function loadTripPins(userId: string, database: CustomShellDb = db)
   const trips = await database
     .select({ id: travelTrips.id, name: travelTrips.name, destination: travelTrips.destination })
     .from(travelTrips)
-    .where(and(eq(travelTrips.ownerUserId, userId), isNotNull(travelTrips.destination)))
+    .where(and(eq(travelTrips.ownerUserId, userId), isNotNull(travelTrips.destination), isNull(travelTrips.deletedAt)))
   const pins: TripPin[] = []
   for (const trip of trips.slice(0, 200)) {
     if (!trip.destination?.trim()) continue

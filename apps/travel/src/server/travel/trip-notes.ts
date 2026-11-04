@@ -1,4 +1,4 @@
-import { and, count, eq } from "drizzle-orm"
+import { and, count, eq, isNull } from "drizzle-orm"
 
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
 import { storedNotes } from "@/lib/travel/notes"
@@ -30,7 +30,7 @@ async function requireNote(userId: string, noteId: string, database: Pick<Custom
     .select({ id: travelTripNotes.id })
     .from(travelTripNotes)
     .innerJoin(travelTrips, eq(travelTrips.id, travelTripNotes.tripId))
-    .where(and(eq(travelTripNotes.id, noteId), eq(travelTrips.ownerUserId, userId)))
+    .where(and(eq(travelTripNotes.id, noteId), eq(travelTrips.ownerUserId, userId), isNull(travelTrips.deletedAt)))
     .limit(1)
   if (!row) throw new Error(TRAVEL_ERRORS.noteNotFound)
   return row

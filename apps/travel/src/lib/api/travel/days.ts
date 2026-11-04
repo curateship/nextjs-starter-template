@@ -1,8 +1,11 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { MAX_TRIP_DAYS, id } from "@/lib/travel/rules"
+import { TRAVEL_ERRORS } from "@/lib/travel/errors"
+import { DAY_PARTS, MAX_TRIP_DAYS, TIME_PATTERN, id } from "@/lib/travel/rules"
+import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { userPost } from "@/server/guards"
+import { bestOrderForDay } from "@/server/travel/best-order"
 import {
   addDay,
   copyDay,
@@ -13,7 +16,10 @@ import {
   restoreActivities,
 } from "@/server/travel/days"
 
+import type { ActivityPlace } from "@/server/travel/days"
+
 export type { ActivityPlace } from "@/server/travel/days"
+export type { BestOrderResult } from "@/server/travel/best-order"
 
 const day = z.number().int().min(1).max(MAX_TRIP_DAYS)
 
@@ -59,6 +65,8 @@ const restoreFn = createServerFn({ method: "POST" })
             day: day.nullable(),
             position: z.number().int().min(0).max(1000),
             inBin: z.boolean(),
+            startTime: z.string().regex(TIME_PATTERN).nullable(),
+            dayPart: z.enum(DAY_PARTS).nullable(),
           })
         )
         .max(500),
@@ -67,6 +75,24 @@ const restoreFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => restoreActivities(context.user.id, data))
 
+const bestOrderFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ tripId: id, day }))
+  .handler(async ({ data, context }) => {
+    // A day can be up to 36 new pairs for Google, each billed, so one person can only order so many.
+    try {
+      await enforceRateLimit(`travel-best-order:${context.user.id}`, { maxAttempts: 30, windowSeconds: 10 * 60 })
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("RATE_LIMITED")) throw new Error(TRAVEL_ERRORS.tooManySearches)
+      throw error
+    }
+    return bestOrderForDay(context.user.id, data)
+  })
+
+/** Puts a day's untimed cards in the quickest order to get round (Travel features part 5). */
+export function orderTripDay(tripId: string, dayNumber: number) {
+  return bestOrderFn({ data: { tripId, day: dayNumber } })
+}
 export function addTripDay(tripId: string, after: number) {
   return addDayFn({ data: { tripId, after } })
 }
@@ -85,10 +111,6 @@ export function duplicateTripActivity(activityId: string) {
 export function moveManyActivities(activityIds: string[], dayNumber: number | null) {
   return moveManyFn({ data: { activityIds, day: dayNumber } })
 }
-export function undoActivities(data: {
-  tripId: string
-  places: { id: string; day: number | null; position: number; inBin: boolean }[]
-  created: string[]
-}) {
+export function undoActivities(data: { tripId: string; places: ActivityPlace[]; created: string[] }) {
   return restoreFn({ data })
 }

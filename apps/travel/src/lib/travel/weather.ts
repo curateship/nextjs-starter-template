@@ -24,8 +24,16 @@ export function weatherKindOf(code: number): WeatherKind {
   return "storm"
 }
 
-/** One day's forecast: Celsius, rounded. */
-export type DayWeather = { day: number; high: number; low: number; kind: WeatherKind }
+/** One day's forecast: Celsius, rounded, and the chance of rain out of 100, or null when there is none. */
+export type DayWeather = { day: number; high: number; low: number; kind: WeatherKind; rain: number | null }
+
+/** The chance of rain a day's forecast shows from (Tyler, 3 Nov 2026: "70% rain", only at 30% or more). */
+export const RAIN_SHOWN_FROM = 30
+
+/** "70% rain", or null under 30 out of 100 or with no chance given. */
+export function rainLine(weather: Pick<DayWeather, "rain">) {
+  return weather.rain !== null && weather.rain >= RAIN_SHOWN_FROM ? `${weather.rain}% rain` : null
+}
 
 /** How far ahead a forecast is shown (task part 33: "inside the next 14 days"). */
 export const FORECAST_DAYS = 14

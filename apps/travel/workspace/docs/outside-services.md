@@ -52,12 +52,20 @@ is about a metre, so the same place always finds its saved time.
   asked again for that pair.
 - When Google finds no route, which happens most with transit, nothing is
   saved. Travel asks again next time.
+- Best order on a day's menu asks for every pair of its places at once, four
+  at a time, through the same saved times (see
+  [The day board](the-day-board.md)).
 
 ## Unsplash
 
 An "Unsplash" button sits next to Upload for a trip's cover and an activity's
 picture. It opens a search that starts from the activity's title or the trip's
 destination, with 20 photos a page and a Load more button.
+
+A new trip with a destination also gets the top photo for it as its cover,
+with no button pressed (see
+[Trips and the trip page](trips-and-the-trip-page.md)). That is one search and
+one ping per trip made.
 
 Unsplash's rules ask for two things, and Travel does both.
 
@@ -82,6 +90,11 @@ With no Unsplash key, the Unsplash button doesn't show and Upload still works.
 - **Weather on each day.** A day of the trip in the next 14 days shows its
   forecast under its heading: an icon and the high and low in Celsius, at the
   trip's destination. A trip with no destination shows none. Further out, or on a trip with no dates, nothing shows.
+- **Chance of rain.** When Open-Meteo gives the day a chance of rain of 30
+  out of 100 or more, the line ends with it: "18° / 11° · 70% rain". Below 30,
+  or with no chance given, the line is as before (Tyler, 3 Nov 2026: "70%
+  rain", picked to show only at 30% or more). The chance is Open-Meteo's
+  `precipitation_probability_max`, the highest chance in any hour of the day.
 - **Where a destination is.** The map of places visited finds each trip's
   destination with Open-Meteo's place search.
 - **Kept answers.** A place is remembered for a day and a forecast for an

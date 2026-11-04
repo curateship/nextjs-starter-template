@@ -49,7 +49,7 @@ const PointAnchor = React.forwardRef<HTMLSpanElement, { x: number; y: number }>(
  * is the shell's editor, saving itself, with Back to notes right under it.
  */
 export function TripNotes() {
-  const { page, refresh } = useTrip()
+  const { page, refresh, readOnly } = useTrip()
   const [openId, setOpenId] = React.useState<string | null>(null)
   const [justMade, setJustMade] = React.useState<string | null>(null)
   const [deleting, setDeleting] = React.useState<TripNote | null>(null)
@@ -92,6 +92,7 @@ export function TripNotes() {
       <SavingDocument
         key={open.id}
         value={open.body}
+        readOnly={readOnly}
         focus={justMade === open.id}
         onSave={(text) =>
           runSave(async () => {
@@ -109,6 +110,8 @@ export function TripNotes() {
         </div>
       </div>
     )
+  } else if (page.notes.length === 0 && readOnly) {
+    body = <p className="px-1 py-2 text-sm text-muted-foreground">No notes yet.</p>
   } else if (page.notes.length === 0) {
     body = (
       <button
@@ -134,7 +137,7 @@ export function TripNotes() {
                 onClick={() => setOpenId(note.id)}
                 onContextMenu={(event) => {
                   event.preventDefault()
-                  setMenu({ note, at: { x: event.clientX, y: event.clientY } })
+                  if (!readOnly) setMenu({ note, at: { x: event.clientX, y: event.clientY } })
                 }}
                 className="grid w-full min-w-0 gap-0.5 rounded-md px-2 py-2 text-left hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               >
@@ -144,10 +147,12 @@ export function TripNotes() {
             </li>
           ))}
         </ul>
-        <Button type="button" variant="outline" className="w-full" disabled={busy} onClick={() => void create()}>
-          {busy ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
-          New note
-        </Button>
+        {readOnly ? null : (
+          <Button type="button" variant="outline" className="w-full" disabled={busy} onClick={() => void create()}>
+            {busy ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
+            New note
+          </Button>
+        )}
       </div>
     )
   }

@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import {
   CURRENCIES,
+  DAY_PARTS,
   MAX_TRIP_DAYS,
   TIME_PATTERN,
   TRAVEL_MODES,
@@ -107,6 +108,8 @@ export const updateActivitySchema = z.object({
   title: title.optional(),
   typeId: id.nullable().optional(),
   startTime: startTime.optional(),
+  /** Only kept while there is no start time; a start time clears it. */
+  dayPart: z.enum(DAY_PARTS).nullable().optional(),
   durationMinutes: duration.optional(),
   nights: z.number().int().min(1).max(MAX_TRIP_DAYS).nullable().optional(),
   place: placeSchema.nullable().optional(),

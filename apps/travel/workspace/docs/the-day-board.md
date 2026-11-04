@@ -15,7 +15,8 @@ this browser.
   place: click it, type, then Enter or click away; Escape puts it back. An
   empty one shows "Add a description" only while the column is pointed at.
   The forecast for the day sits below on a trip within the next 14 days (see
-  [Outside services](outside-services.md)), at the trip's destination. Days
+  [Outside services](outside-services.md)), at the trip's destination, with
+  "· 70% rain" after it when the chance of rain is 30 out of 100 or more. Days
   no longer have a city; one saved before 3 Nov 2026 is ignored.
 - **Add a day:** the "+" after the last day's column adds one at the end of
   the trip, up to 60 (Tyler, 3 Nov 2026: "Add an + icon here to add a day").
@@ -23,9 +24,30 @@ this browser.
 - **A card shows everything** (Tyler, 2 Nov 2026): the picture, the type icon
   and name, the start and end time, the nights of a stay, the cost, and the
   stars once rated. A card set outside its place's opening hours says so in red.
-- **The order in a day:** cards with a start time come first, earliest first.
-  Cards with no time follow, in the order they were dragged. Dragging a timed
-  card somewhere else keeps its time, so it goes back to its time's place.
+- **Shut all day.** A card on a day its place is shut, such as a museum on
+  its closed Monday, says "Closed on Mondays" in red whether or not it has a
+  start time, with a "Move to Tue" button along its foot (Tyler, 3 Nov 2026:
+  "Warning + Move button"). The button moves it to the nearest day of the
+  trip the place is open, the later day when two are as near, with Undo. It
+  needs a start date, to know the weekdays, and opening hours on the place.
+  A place open on none of the trip's days warns with no button. Compact
+  cards leave the line off, to stay one line.
+- **Part of the day.** A card with no start time can be set to Morning,
+  Afternoon, Evening or Night in its When section (Tyler, 3 Nov 2026: "Add
+  Night too"). The card shows it where the time would be, with a sunrise,
+  sun, sunset or moon.
+- **The order in a day:** Morning, then Afternoon, then Evening, then Night.
+  A timed card counts as the part its hour falls in: before 12:00 Morning,
+  12:00 to 17:00 Afternoon, 17:00 to 21:00 Evening, after that Night. Inside
+  a part, timed cards come first, earliest first, then the untimed ones set
+  to that part, in the order they were dragged. Cards with no time and no
+  part go last, in dragged order. With no parts set this is the old order:
+  timed cards by time, then the rest. Dragging a card somewhere else in its
+  day keeps its time or part, so it goes back to its place. Setting a start
+  time clears the part. Mass select's Move to Ideas, putting a card back
+  from the bin into Ideas, and removing its day to Ideas drop both its time
+  and its part; dragging a card into Ideas keeps them, as dragging always
+  has.
 - **Free time.** Between two timed cards, a line reads "1h 30m free" when the
   first card has a length and the gap is 15 minutes or more, or "Overlaps by
   30m" in red. With Google on and both places picked from Google, the line
@@ -46,12 +68,36 @@ this browser.
   struck through.
 - **Undo.** After a move, delete, duplicate, copy or a change to several
   cards, a bar at the bottom says what happened, with Undo, for 6 seconds.
-  Undo puts every card back where it was and removes any copies. Marking
+  Undo puts every card back where it was, with its start time and part of
+  the day, and removes any copies. Marking
   Done or Booked has no Undo; pressing again undoes it.
-- **A day's menu** (the three dots) adds a day after it, copies its cards onto
-  another day, or removes it. Removing a day with cards asks whether to send
+- **A day's menu** (the three dots) adds a day after it, puts it in its best
+  order, copies its cards onto another day, or removes it. Removing a day with cards asks whether to send
   them to Ideas or delete them to the bin. Later days move back by one, with
   their descriptions, and a dated trip ends a day sooner.
+- **Best order** (Tyler, 3 Nov 2026: "From the hotel") puts the day's cards
+  with no start time and a place from Google in the quickest order to get
+  round, in the trip's way of getting around (Trip settings → Getting
+  around). The day sets out from the stay where last night was spent, or
+  tonight's when there was none, and comes back to tonight's. A stay is any
+  card with nights, such as a 3-night hotel checked in on Day 1, which covers
+  the nights of Days 1, 2 and 3. With no stay, the first of those cards stays
+  first. Timed cards stay where their times put them, and stays and cards
+  with no Google place keep their order after the rest. A part of the day
+  still wins over the order, so a Morning card stays before an Afternoon one.
+  - Up to 8 cards, every order is tried. Past 8, each step goes to the
+    nearest card left.
+  - The toast says what it saved, such as "Day 2 in its best order: saves
+    25m of walking", with Undo. A day already in its best order says so and
+    changes nothing. When Google finds no route between two of the places,
+    the order still changes, and the toast says the time saved isn't known.
+  - It needs `GOOGLE_MAPS_API_KEY`; without it the toast says Google Maps
+    isn't set up. Google charges for each new pair of places: five cards and
+    a hotel are 15 pairs the first time, and none after, because every time
+    is saved (see [Outside services](outside-services.md)). The time one way
+    counts for both ways. One person can order 30 days in 10 minutes.
+  - The code is `src/lib/travel/best-order.ts` and
+    `src/server/travel/best-order.ts`.
 - **Drag a day's heading** to move the whole day to another place in the trip.
 - **Fold a day** with the arrows in its heading, or a double-click on the
   heading, down to a thin strip with its name sideways. Fold every day folds them all, and pressing it again unfolds them. Folded days are remembered per trip in this browser.
@@ -94,7 +140,8 @@ this browser.
 - **Calendar:** the trip's dates as weeks, each day listing its activities by
   time. A trip with no start date says so, with a date picker that saves one.
 - **Map:** the activities picked from Google as numbered pins, one colour per
-  day, with a day picker. Clicking a pin opens the activity. Activities with
+  day, joined in the day's order by a straight line in the day's colour
+  (Tyler, 3 Nov 2026: "Straight lines", free, showing the order only), with a day picker. Clicking a pin opens the activity. Activities with
   no Google place are listed under the map. The map needs
   `GOOGLE_MAPS_BROWSER_KEY`.
 - **The ⋮ after the tabs** holds the Bin, with how many cards are in it.
@@ -110,6 +157,10 @@ The last button in the header is "+ Add" (Tyler, 3 Nov 2026: "Rename the
 
 - **New activity** opens the New activity dropdown in the same place, set to
   Day 1, with the cursor in Name.
+- **Paste Maps links** opens a window that takes up to 20 Google Maps links
+  at once (see [Activities](activities.md)).
+- **Draft a plan** asks AI for sights and meals on each empty day (see
+  [Drafting a plan with AI](drafting-a-plan.md)).
 - **Paste a booking** opens its window ([Booking emails](booking-emails.md)).
 - **Add to calendar** opens the phone calendar window
   ([Phone calendar](phone-calendar.md)).

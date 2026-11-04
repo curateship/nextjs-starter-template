@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import { SavingDocument } from "@/components/travel/saving-document"
-import { takeClickedOpen } from "@/components/travel/trip-context"
+import { takeClickedOpen, useTrip } from "@/components/travel/trip-context"
 import { useSaveActivity } from "@/components/travel/use-save-activity"
 import type { Activity } from "@/lib/api/travel/trips"
 
@@ -12,6 +12,14 @@ import type { Activity } from "@/lib/api/travel/trips"
  */
 export function ActivityNotes({ activity }: { activity: Activity }) {
   const [save] = useSaveActivity(activity.id)
+  const { readOnly } = useTrip()
   const [focus] = React.useState(() => takeClickedOpen(activity.id))
-  return <SavingDocument value={activity.notes} focus={focus} onSave={(notes) => save({ notes })} />
+  return (
+    <SavingDocument
+      value={activity.notes}
+      focus={focus && !readOnly}
+      readOnly={readOnly}
+      onSave={(notes) => save({ notes })}
+    />
+  )
 }
