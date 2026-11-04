@@ -6,6 +6,8 @@ import {
   PlayIcon,
   PlusIcon,
   Trash2Icon,
+  UploadIcon,
+  WandSparklesIcon,
 } from "lucide-react"
 
 import { getMediaErrorMessage, uploadMedia } from "@/lib/api/media/media"
@@ -13,6 +15,7 @@ import {
   addToMusicShelf,
   getMusicErrorMessage,
   loadMusicShelf,
+  makeMusicToFit,
   removeFromMusicShelf,
   type MusicShelfFile,
 } from "@/lib/api/video/music"
@@ -24,11 +27,38 @@ import {
 import { loadMediaDurationMs, formatClock } from "@/lib/video/timeline-utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  AI_MUSIC_MAX_MS,
+  AI_MUSIC_MOOD_MAX,
+  AI_MUSIC_NO_MOOD_MESSAGE,
+  aiMusicCostCents,
+  aiMusicLengthMs,
+} from "@/lib/video/ai-music"
+import { withEstimate } from "@/lib/video/ai-estimates"
 import { Hint } from "@/components/video-assets/hint"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
   timelineDurationMs,
+  useEditorDurationMs,
   useEditorRuntime,
 } from "@/components/video-editor/editor-store"
 import { forgetBeats } from "@/components/video-editor/sound-tool-store"
@@ -48,6 +78,7 @@ export function MusicPanel() {
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [uploading, setUploading] = React.useState(false)
   const [playingId, setPlayingId] = React.useState<string | null>(null)
+  const [making, setMaking] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
@@ -99,6 +130,14 @@ export function MusicPanel() {
     }
   }
 
+  // A track AI made is on the Music list already; it goes under the video
+  // straight away, the same as pressing its +.
+  function made(file: MusicShelfFile) {
+    forgetBeats(file.id)
+    setRefresh((count) => count + 1)
+    void layUnder(file)
+  }
+
   async function takeOffShelf(file: MusicShelfFile) {
     setBusyId(file.id)
     try {
@@ -143,18 +182,32 @@ export function MusicPanel() {
         title="Music"
         action={
           <>
-            <Hint label="Upload music" disabled={uploading}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                disabled={uploading}
-                aria-label="Upload music"
-                onClick={() => fileRef.current?.click()}
-              >
-                {uploading ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
-              </Button>
-            </Hint>
+            <DropdownMenu>
+              <Hint label="Add music" disabled={uploading}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={uploading}
+                    aria-label="Add music"
+                  >
+                    {uploading ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
+                  </Button>
+                </DropdownMenuTrigger>
+              </Hint>
+              <DropdownMenuContent align="end" className="w-52">
+                {/* After the menu has closed, so it does not take the window's focus with it. */}
+                <DropdownMenuItem onSelect={() => window.setTimeout(() => setMaking(true), 0)}>
+                  <WandSparklesIcon />
+                  Make music with AI
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => fileRef.current?.click()}>
+                  <UploadIcon />
+                  Upload music
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <input
               ref={fileRef}
               type="file"
@@ -206,7 +259,101 @@ export function MusicPanel() {
           )}
         </div>
       </ScrollArea>
+      <MakeMusicDialog open={making} onOpenChange={setMaking} onMade={made} />
     </div>
+  )
+}
+
+/**
+ * "Make music with AI", from the Music panel's + menu: a few words of mood,
+ * and ElevenLabs makes an instrumental track as long as the video, up to 5
+ * minutes (ai-music.md). The length and the price show before pressing,
+ * worked out from the timeline as it is now.
+ */
+function MakeMusicDialog({
+  open,
+  onOpenChange,
+  onMade,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onMade: (file: MusicShelfFile) => void
+}) {
+  const { videoId, saveNow } = useEditorRuntime()
+  const [mood, setMood] = React.useState("")
+  const [busy, setBusy] = React.useState(false)
+  const videoMs = useEditorDurationMs()
+  const lengthMs = aiMusicLengthMs(videoMs)
+
+  async function make() {
+    if (!mood.trim()) {
+      showErrorToast(AI_MUSIC_NO_MOOD_MESSAGE)
+      return
+    }
+    setBusy(true)
+    try {
+      await saveNow()
+      const result = await makeMusicToFit(videoId, mood)
+      onOpenChange(false)
+      setMood("")
+      onMade(result.media)
+    } catch (error) {
+      showErrorToast(getMusicErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => (busy ? undefined : onOpenChange(next))}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Make music with AI</DialogTitle>
+          <DialogDescription>
+            ElevenLabs makes a track with no singing, as long as the video.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>The music</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="ai-music-mood">What should it sound like?</Label>
+                <Textarea
+                  id="ai-music-mood"
+                  rows={1}
+                  maxLength={AI_MUSIC_MOOD_MAX}
+                  placeholder="calm piano, hopeful"
+                  value={mood}
+                  disabled={busy}
+                  onChange={(event) => setMood(event.target.value)}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {videoMs <= 0
+                  ? "Put something on the timeline first, so the music knows how long to be."
+                  : `${formatClock(lengthMs)} long${
+                      videoMs > AI_MUSIC_MAX_MS ? ", played again to cover the video" : ""
+                    }. It lands on the Music list and under the video.`}
+              </p>
+            </CardContent>
+          </Card>
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="button" disabled={busy} onClick={() => void make()}>
+            {busy ? <Loader2Icon className="animate-spin" /> : null}
+            {busy
+              ? "Making it… up to a couple of minutes"
+              : withEstimate("Make music", videoMs > 0 ? aiMusicCostCents(lengthMs) : null)}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

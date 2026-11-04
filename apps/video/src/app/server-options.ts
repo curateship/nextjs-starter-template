@@ -73,6 +73,13 @@ export const appServerOptions: AppServerOptions = {
           ),
       },
       {
+        // Asks Sync Labs about lip matching nobody's editor is waiting on, so
+        // it still lands, is charged, and the files sent are deleted.
+        name: "video-lip-sync",
+        tick: () =>
+          import("@/server/video/lip-sync").then((lipSync) => lipSync.lipSyncTick()),
+      },
+      {
         // Makes a brief's scenes one after another, then lays made scenes on
         // the timeline when no editor has the project open to do it.
         name: "video-briefs",

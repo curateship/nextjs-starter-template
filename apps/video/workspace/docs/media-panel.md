@@ -64,10 +64,12 @@ types and the collection but not the search words.
 
 ## Getting a file in
 
-The **+** at the top of the panel opens a menu with two choices:
+The **+** at the top of the panel opens a menu with three choices:
 
 - **Upload media** opens the file picker. Several files can be picked at once,
   and each is attached to the project as it finishes.
+- **From your phone** shows a QR code that opens a page on a phone for sending
+  videos and photos from its camera roll ([phone-uploads.md](phone-uploads.md)).
 - **New collection** makes an empty collection. Filling it is the grid's
   Select flow, described in the collections doc.
 

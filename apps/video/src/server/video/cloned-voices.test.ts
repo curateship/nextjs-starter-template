@@ -31,7 +31,7 @@ import {
   listClonedVoices,
   makeClonedVoice,
 } from "@/server/video/cloned-voices"
-import { videoClonedVoices } from "@/server/video/schema"
+import { videoActors, videoClonedVoices } from "@/server/video/schema"
 import { getVoiceDefaults, saveVoiceDefaults } from "@/server/video/settings"
 import { listVoices, speak } from "@/server/video/voice"
 
@@ -242,6 +242,35 @@ describe.skipIf(!hasFfmpeg)("deleting a voice of your own", () => {
     })
     expect(await listClonedVoices(me.id, database)).toEqual([])
     expect(await database.select().from(customShellMedia)).toHaveLength(1)
+  })
+
+  it("takes it off any actor that spoke in it, and leaves other actors alone", async () => {
+    const { voice } = await cloneOfMine()
+    const [picture] = await database.select().from(customShellMedia)
+    const actor = (id: string, voiceId: string) => ({
+      id,
+      userId: me.id,
+      name: id,
+      prompt: "A host",
+      model: "gemini-3.1-flash-image",
+      status: "active",
+      imageMediaId: picture.id,
+      voiceId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    await database.insert(videoActors).values([actor("sam", "voice-mine"), actor("ann", "alloy")])
+    fakeElevenLabs(json({ status: "ok" }))
+    await deleteClonedVoice(me.id, voice.id, database)
+
+    const left = await database
+      .select({ id: videoActors.id, voiceId: videoActors.voiceId })
+      .from(videoActors)
+      .orderBy(videoActors.id)
+    expect(left).toEqual([
+      { id: "ann", voiceId: "alloy" },
+      { id: "sam", voiceId: null },
+    ])
   })
 
   it("keeps it when ElevenLabs will not delete it", async () => {

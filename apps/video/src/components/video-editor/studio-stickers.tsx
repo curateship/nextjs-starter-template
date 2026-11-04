@@ -53,7 +53,7 @@ import { Hint } from "@/components/video-assets/hint"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 
 /**
- * The stickers in the Text panel: the person's own list, one press from the
+ * The stickers in the Graphics panel (Text in the carousel editor): the person's own list, one press from the
  * frame, with a field to add an emoji and a picker for a picture.
  *
  * An emoji lands exactly as the built-in ones always have, as a text clip in
@@ -109,7 +109,7 @@ type StickerAddingProps = {
 }
 
 /**
- * The + in the Text panel's header, in both editors (Tyler, 2 Nov 2026: "Add
+ * The + in the Graphics or Text panel's header, in both editors (Tyler, 2 Nov 2026: "Add
  * the + icon here that opens a dropdown to select emoji or image to add").
  * Built like the Media panel's + menu.
  */

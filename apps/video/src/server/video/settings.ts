@@ -305,82 +305,95 @@ export async function removeYoutubeApiKey(
 }
 
 /**
- * The Pexels key the B-roll tool searches stock video with, or null when none
- * is saved. A saved key that can no longer be unscrambled throws. SERVER ONLY:
- * the result is a live secret and must never be returned to the browser.
+ * Keys kept one to a column on the settings row, scrambled the same way the
+ * shell scrambles AI keys: Pexels for B-roll and carousel photos, Sync Labs
+ * for lips (lip-sync.md). The browser only ever sees a key's last four
+ * characters.
  */
-export async function getPexelsApiKey(
-  database: CustomShellDb = db
-): Promise<string | null> {
-  const [row] = await database
-    .select({ pexelsApiKey: videoSettings.pexelsApiKey })
-    .from(videoSettings)
-    .where(eq(videoSettings.id, SETTINGS_ROW_ID))
-    .limit(1)
-  return row?.pexelsApiKey ? decryptSecret(row.pexelsApiKey) : null
-}
+type SavedKeyColumn = "pexelsApiKey" | "syncApiKey"
 
 /**
- * What the settings card may know about the Pexels key: that it exists and
- * its last four characters, never the key itself. `unreadable` means the
- * server's encryption key changed, and the fix is pasting the key again.
+ * What a settings card may know about a saved key: that it exists and its
+ * last four characters, never the key itself. `unreadable` means the server's
+ * encryption key changed, and the fix is pasting the key again.
  */
-export type PexelsKeyStatus = {
+export type SavedKeyStatus = {
   configured: boolean
   maskedKey: string | null
   unreadable: boolean
 }
 
-export async function getPexelsKeyStatus(
-  database: CustomShellDb = db
-): Promise<PexelsKeyStatus> {
+async function readSavedKey(column: SavedKeyColumn, database: CustomShellDb) {
   const [row] = await database
-    .select({ pexelsApiKey: videoSettings.pexelsApiKey })
+    .select({ key: videoSettings[column] })
     .from(videoSettings)
     .where(eq(videoSettings.id, SETTINGS_ROW_ID))
     .limit(1)
-  if (!row?.pexelsApiKey) {
-    return { configured: false, maskedKey: null, unreadable: false }
-  }
+  return row?.key ?? null
+}
+
+/** A saved key, or null. A key that can't be unscrambled throws. SERVER ONLY. */
+async function getSavedKey(column: SavedKeyColumn, database: CustomShellDb) {
+  const key = await readSavedKey(column, database)
+  return key ? decryptSecret(key) : null
+}
+
+async function getSavedKeyStatus(column: SavedKeyColumn, database: CustomShellDb): Promise<SavedKeyStatus> {
+  const key = await readSavedKey(column, database)
+  if (!key) return { configured: false, maskedKey: null, unreadable: false }
   try {
-    const key = decryptSecret(row.pexelsApiKey)
-    return { configured: true, maskedKey: `••••${key.slice(-4)}`, unreadable: false }
+    return { configured: true, maskedKey: `••••${decryptSecret(key).slice(-4)}`, unreadable: false }
   } catch {
     return { configured: false, maskedKey: null, unreadable: true }
   }
 }
 
-/** Saves the key encrypted at rest, never as plain text. */
-export async function savePexelsApiKey(
-  apiKey: string,
-  database: CustomShellDb = db
-): Promise<void> {
+/** Saves a key encrypted at rest, never as plain text. */
+async function saveSavedKey(column: SavedKeyColumn, apiKey: string, database: CustomShellDb) {
   const trimmed = apiKey.trim()
   if (!trimmed) throw new Error("EMPTY_KEY")
-  const pexelsApiKey = encryptSecret(trimmed)
+  const scrambled = encryptSecret(trimmed)
   const timestamp = now()
   await database
     .insert(videoSettings)
-    .values({
-      id: SETTINGS_ROW_ID,
-      pexelsApiKey,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-    .onConflictDoUpdate({
-      target: videoSettings.id,
-      set: { pexelsApiKey, updatedAt: timestamp },
-    })
+    .values({ id: SETTINGS_ROW_ID, [column]: scrambled, createdAt: timestamp, updatedAt: timestamp })
+    .onConflictDoUpdate({ target: videoSettings.id, set: { [column]: scrambled, updatedAt: timestamp } })
 }
 
-/** Clears the saved key; B-roll then asks for one again. */
-export async function removePexelsApiKey(
-  database: CustomShellDb = db
-): Promise<void> {
+async function removeSavedKey(column: SavedKeyColumn, database: CustomShellDb) {
   await database
     .update(videoSettings)
-    .set({ pexelsApiKey: null, updatedAt: now() })
+    .set({ [column]: null, updatedAt: now() })
     .where(eq(videoSettings.id, SETTINGS_ROW_ID))
+}
+
+/** The Pexels key B-roll and carousel photos search with. SERVER ONLY. */
+export function getPexelsApiKey(database: CustomShellDb = db) {
+  return getSavedKey("pexelsApiKey", database)
+}
+export function getPexelsKeyStatus(database: CustomShellDb = db) {
+  return getSavedKeyStatus("pexelsApiKey", database)
+}
+export function savePexelsApiKey(apiKey: string, database: CustomShellDb = db) {
+  return saveSavedKey("pexelsApiKey", apiKey, database)
+}
+/** Clears the saved key; B-roll then asks for one again. */
+export function removePexelsApiKey(database: CustomShellDb = db) {
+  return removeSavedKey("pexelsApiKey", database)
+}
+
+/** The Sync Labs key that makes lips match a new voice (lip-sync.md). SERVER ONLY. */
+export function getSyncApiKey(database: CustomShellDb = db) {
+  return getSavedKey("syncApiKey", database)
+}
+export function getSyncKeyStatus(database: CustomShellDb = db) {
+  return getSavedKeyStatus("syncApiKey", database)
+}
+export function saveSyncApiKey(apiKey: string, database: CustomShellDb = db) {
+  return saveSavedKey("syncApiKey", apiKey, database)
+}
+export function removeSyncApiKey(database: CustomShellDb = db) {
+  return removeSavedKey("syncApiKey", database)
 }
 
 /**

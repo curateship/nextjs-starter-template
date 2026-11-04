@@ -7,7 +7,8 @@ import {
   PlayIcon,
   Plus,
   Search,
-  Type,
+  Shapes,
+  SmartphoneIcon,
   Upload,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -85,6 +86,7 @@ import {
   useEditorRuntime,
   useEditorSelector,
   useEditorStoreSelector,
+  type EditorClip,
 } from "@/components/video-editor/editor-store"
 import { Hint } from "@/components/video-assets/hint"
 import { usePlatformInset } from "@/components/video-editor/caption-settings-context"
@@ -94,11 +96,23 @@ import {
   DEFAULT_SHAPE_DURATION_MS,
   DEFAULT_SHAPE_LINE_WIDTH,
   newShapePlacement,
+  shapeDesignFrame,
   SHAPE_KINDS,
   SHAPE_LABELS,
   type ShapeKind,
 } from "@/lib/video/shapes"
 import { newBlurClip } from "@/components/video-editor/blur-clip"
+import { useStickerProfile } from "@/components/video-editor/use-sticker-profile"
+import { PhoneUploadDialog } from "@/components/video-editor/phone-upload-dialog"
+import {
+  DEFAULT_SOCIAL_DURATION_MS,
+  newSocialSticker,
+  SOCIAL_KINDS,
+  SOCIAL_LABELS,
+  SUBSCRIBE_PRESS_MS,
+  type SocialKind,
+} from "@/lib/video/social-stickers"
+import { findStockSound, stockSoundUrl } from "@/lib/video/stock-sounds"
 import { ThumbnailPanel } from "@/components/video-thumbnails/thumbnail-panel"
 
 /**
@@ -133,7 +147,7 @@ const PANEL_TITLE: Record<StudioPanel, string> = {
   music: "Music",
   sounds: "Sounds",
   voiceovers: "Voiceovers",
-  text: "Text",
+  text: "Graphics",
   ai: "AI tools",
   transcript: "Transcript",
   "ai-clip": "AI clip",
@@ -171,7 +185,7 @@ function TextPanelFrame({ title }: { title: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <DashboardCardTitleHeader
-        icon={<Type className="size-4" />}
+        icon={<Shapes className="size-4" />}
         title={title}
         action={guest ? undefined : <StickerAddMenu onPick={setAdding} />}
       />
@@ -240,6 +254,7 @@ function MediaPanel() {
   )
   const [uploading, setUploading] = React.useState(false)
   const [creatingCollection, setCreatingCollection] = React.useState(false)
+  const [fromPhone, setFromPhone] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
@@ -509,6 +524,10 @@ function MediaPanel() {
                   <Upload />
                   Upload media
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setFromPhone(true)}>
+                  <SmartphoneIcon />
+                  From your phone
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setCreatingCollection(true)}>
                   <FolderPlusIcon />
                   New collection
@@ -746,6 +765,8 @@ function MediaPanel() {
           reloadCollections()
         }}
       />
+
+      {fromPhone ? <PhoneUploadDialog onClose={() => setFromPhone(false)} /> : null}
 
       {ghost}
     </div>
@@ -1008,7 +1029,9 @@ function TextPanel({
 }) {
   const { dispatch, clock } = useEditorRuntime()
   const progressBar = useEditorSelector((state) => state.progressBar)
+  const aspect = useEditorSelector((state) => state.aspect)
   const inset = usePlatformInset()
+  const profile = useStickerProfile()
 
   function addBlur() {
     dispatch({ type: "ADD_OVERLAY", clip: newBlurClip(), atMs: clock.getTime() })
@@ -1031,6 +1054,47 @@ function TextPanel({
         durationMs: DEFAULT_SHAPE_DURATION_MS,
       },
       atMs: clock.getTime(),
+    })
+  }
+
+  // A social sticker lands at the playhead with the person's own name and
+  // picture. The Subscribe button brings its click with it, on a lane of its
+  // own at the moment the cursor presses, and one Undo takes both away.
+  function addSocial(kind: SocialKind) {
+    const [across, down] = aspect.split(":").map(Number)
+    const frame = shapeDesignFrame(across / down)
+    const clip: EditorClip = {
+      id: editorId(),
+      kind: "shape",
+      name: SOCIAL_LABELS[kind],
+      ...newSocialSticker(kind, frame, profile),
+      trimStartMs: 0,
+      startMs: 0,
+      durationMs: DEFAULT_SOCIAL_DURATION_MS,
+    }
+    const atMs = clock.getTime()
+    if (kind !== "subscribe") {
+      dispatch({ type: "ADD_OVERLAY", clip, atMs })
+      return
+    }
+    const click = findStockSound("click")!
+    dispatch({
+      type: "ADD_OVERLAY_WITH_SOUND",
+      clip,
+      atMs,
+      soundAtMs: atMs + SUBSCRIBE_PRESS_MS,
+      sound: {
+        id: editorId(),
+        kind: "audio",
+        name: `${click.label} (Subscribe)`,
+        pressFor: clip.id,
+        stockSound: click.id,
+        url: stockSoundUrl(click.id),
+        sourceDurationMs: click.durationMs,
+        trimStartMs: 0,
+        startMs: 0,
+        durationMs: click.durationMs,
+      },
     })
   }
 
@@ -1141,6 +1205,40 @@ function TextPanel({
           >
             <span style={{ fontWeight: 500, fontSize: 13, color: "var(--ink2)" }}>
               {item.label}
+            </span>
+            <Plus size={14} style={{ color: "var(--mut)" }} />
+          </button>
+        ))}
+      </div>
+
+      <Label>Social</Label>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr)",
+          gap: 12,
+          marginBottom: 20,
+        }}
+      >
+        {SOCIAL_KINDS.map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            className="st-hovcard"
+            onClick={() => addSocial(kind)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "15px",
+              background: "var(--panel2)",
+              border: "1px solid var(--line)",
+              borderRadius: 12,
+              cursor: "pointer",
+            }}
+          >
+            <span style={{ fontWeight: 500, fontSize: 13, color: "var(--ink2)" }}>
+              {SOCIAL_LABELS[kind]}
             </span>
             <Plus size={14} style={{ color: "var(--mut)" }} />
           </button>

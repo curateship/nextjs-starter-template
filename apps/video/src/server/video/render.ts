@@ -69,6 +69,19 @@ import {
 import { progressBarFilters, type ProgressBar } from "@/lib/video/progress-bar"
 import { shapeExportWindows, shapeSvg } from "@/lib/video/shapes"
 import {
+  isSocialClip,
+  socialExportWindows,
+  socialStickerSvg,
+} from "@/lib/video/social-stickers"
+import { loadSocialPictures } from "@/server/video/social-pictures"
+import { clipLook, lookCube, type FilmLookId } from "@/lib/video/film-looks"
+import {
+  frameMaskSvg,
+  frameRingSvg,
+  hasFrameShaping,
+  shapedPictureSize,
+} from "@/lib/video/clip-frame-shape"
+import {
   blurExpressions,
   blurMaskSvg,
   blurShape,
@@ -362,7 +375,7 @@ export async function renderTimeline({
 
     const { visuals, audio } = flattenForRender(timeline.tracks)
     // A Small export is a quick look, so it reads the smooth copies.
-    const { mediaRows, sourceFiles, release } = await openOwnedSources(
+    const { mediaRows, sourceFiles, pictures, release } = await openOwnedSources(
       userId,
       [...visuals, ...audio],
       { draft: quality === "low" }
@@ -385,6 +398,7 @@ export async function renderTimeline({
       visuals,
       audio,
       sourceFiles,
+      pictures,
       audioPresence,
       fps: frameRate,
       duckingGain: dbToGain(DEFAULT_DUCK_DB),
@@ -488,6 +502,7 @@ export async function renderTimelineFrame({
       visuals,
       audio: [],
       sourceFiles,
+      pictures: sources.pictures,
       audioPresence: new Map(),
       fps: PREVIEW_FRAME_RATE,
       duckingGain: 1,
@@ -549,6 +564,7 @@ export async function renderTimelineStills({
       visuals,
       audio: [],
       sourceFiles: sources.sourceFiles,
+      pictures: sources.pictures,
       audioPresence: new Map(),
       fps: PREVIEW_FRAME_RATE,
       duckingGain: 1,
@@ -611,6 +627,13 @@ async function openOwnedSources(
     throw new Error(MEDIA_MISSING_MESSAGE)
   }
 
+  const pictures = await loadSocialPictures(
+    userId,
+    clips
+      .map(({ clip }) => (isSocialClip(clip) ? clip.pictureUrl : undefined))
+      .filter((url): url is string => !!url)
+  )
+
   const sourceFiles = new Map<string, string>()
   const opened: RenderSource[] = []
   const release = async () => {
@@ -626,7 +649,7 @@ async function openOwnedSources(
     await release()
     throw error
   }
-  return { mediaRows, sourceFiles, release }
+  return { mediaRows, sourceFiles, pictures, release }
 }
 
 /**
@@ -749,6 +772,8 @@ async function buildFfmpegCommand(options: {
   visuals: RenderClip[]
   audio: RenderClip[]
   sourceFiles: Map<string, string>
+  /** Social stickers' round pictures, by their address (social-pictures.ts). */
+  pictures: Map<string, string>
   audioPresence: Map<string, boolean>
   fps: RenderFrameRate
   duckingGain: number
@@ -772,6 +797,7 @@ async function buildFfmpegCommand(options: {
     visuals,
     audio,
     sourceFiles,
+    pictures,
     audioPresence,
     fps,
     duckingGain,
@@ -782,6 +808,8 @@ async function buildFfmpegCommand(options: {
   const durationS = durationMs / 1000
   const fromS = fromMs / 1000
   const inputs: string[] = []
+  // Each film look's LUT, written once however many clips use it.
+  const lookFiles = new Map<FilmLookId, string>()
   // Moved on in whole frames: ffmpeg drops the fraction of a time it is
   // given, and a start a hair under a frame lands on the one before it.
   const filters: string[] = [
@@ -1009,12 +1037,23 @@ async function buildFfmpegCommand(options: {
       // A shape is a picture of its lines: one per frame while it draws
       // itself on, then one still for the rest, read by ffmpeg's `concat`
       // reader the way a run of captions is (see shapes.ts).
+      // A social sticker is drawn the same way, one picture per frame while
+      // it arrives or its cursor moves (social-stickers.ts).
       const option = `option framerate ${fps}`
       const lines = ["ffconcat version 1.0"]
-      const windows = shapeExportWindows(clip, fps)
+      const social = isSocialClip(clip)
+      const picture = social && clip.pictureUrl ? (pictures.get(clip.pictureUrl) ?? null) : null
+      const windows: { fromMs: number; toMs: number; atMs: number; progress: number }[] = social
+        ? socialExportWindows(clip, fps).map((window) => ({ ...window, progress: 1 }))
+        : shapeExportWindows(clip, fps).map((window) => ({ ...window, atMs: 0 }))
       for (const [index, window] of windows.entries()) {
         const file = path.join(dir, `shape-${visualStep}-${index}.png`)
-        await writeFile(file, renderSvgPng(shapeSvg(clip, size, window.progress)))
+        await writeFile(
+          file,
+          social
+            ? renderWordsPng(socialStickerSvg(clip, size, window.atMs, picture))
+            : renderSvgPng(shapeSvg(clip, size, window.progress))
+        )
         lines.push(
           `file '${path.basename(file)}'`,
           option,
@@ -1051,11 +1090,25 @@ async function buildFfmpegCommand(options: {
       // of its own: the clip is fitted or filled into those pixels instead of
       // the frame's.
       const colourFilter = colourEqFilter(clipColour(clip))
+      // A film look goes on before the sliders, from a LUT written once per
+      // look into the scratch folder (film-looks.ts).
+      const look = clipLook(clip)
+      let lookFilter: string | null = null
+      if (look) {
+        let cube = lookFiles.get(look)
+        if (!cube) {
+          cube = path.join(dir, `look-${look}.cube`)
+          await writeFile(cube, lookCube(look))
+          lookFiles.set(look, cube)
+        }
+        lookFilter = `lut3d=file='${cube.replace(/\\/g, "/").replace(/'/g, "")}'`
+      }
       const motion = clipMotion(clip)
       const scaleFilter = pictureScaleFilter(clip)
       const box = pictureBoxSize(clip, size)
       const pictureFilter = [
         frameFitFilter(clipFit(clip), box.width, box.height, clipFillFocus(clip)),
+        ...(lookFilter ? [lookFilter] : []),
         ...(colourFilter ? [colourFilter] : []),
         ...(motion
           ? [motionFilter(motion, box.width, box.height, durS * fps)]
@@ -1088,6 +1141,49 @@ async function buildFfmpegCommand(options: {
           ...inputArgs(file)
         )
       }
+      // A rounded or round picture, or one with a border, is cut out by a
+      // mask drawn at the picture's own size and ringed by a picture of its
+      // border (clip-frame-shape.ts). Both are stills read for as long as the
+      // clip's own input runs, and both go on before the clip is timed, so
+      // they line up with its first frame.
+      let head = `[${inputIndex}:v]${pictureFilter}`
+      let extraInputs = 0
+      if (hasFrameShaping(clip)) {
+        const shaped = shapedPictureSize(clip, size)
+        const holdS = clip.kind === "image" ? durS - skipS : sourceSpanMs(clip) / 1000 + 1
+        const still = (file: string) => [
+          "-loop",
+          "1",
+          "-framerate",
+          String(fps),
+          "-t",
+          String(holdS),
+          "-i",
+          file,
+        ]
+        const maskFile = path.join(dir, `frame-mask-${visualStep}.png`)
+        await writeFile(maskFile, renderSvgPng(frameMaskSvg(clip, shaped.width, shaped.height)))
+        inputs.push(...still(maskFile))
+        extraInputs = 1
+        filters.push(
+          `[${inputIndex}:v]${pictureFilter},format=rgba[fp${visualStep}]`,
+          `[${inputIndex + 1}:v]format=gray[fm${visualStep}]`,
+          `[fp${visualStep}][fm${visualStep}]alphamerge[fa${visualStep}]`
+        )
+        let shapedLabel = `fa${visualStep}`
+        const ring = frameRingSvg(clip, shaped.width, shaped.height, size)
+        if (ring) {
+          const ringFile = path.join(dir, `frame-ring-${visualStep}.png`)
+          await writeFile(ringFile, renderSvgPng(ring))
+          inputs.push(...still(ringFile))
+          extraInputs = 2
+          filters.push(
+            `[${shapedLabel}][${inputIndex + 2}:v]overlay=0:0:shortest=1[fr${visualStep}]`
+          )
+          shapedLabel = `fr${visualStep}`
+        }
+        head = `[${shapedLabel}]null`
+      }
       const speedStage = speed === 1 ? null : `setpts=(PTS-STARTPTS)/${speed}`
       // Once part of the clip is skipped, its blend in is over.
       const reach =
@@ -1104,7 +1200,7 @@ async function buildFfmpegCommand(options: {
         const blend = reach.durationMs / 1000
         const drawStartS = startS - blend
         const chain = [
-          `[${inputIndex}:v]${pictureFilter}`,
+          head,
           // Speed first, so the pad and the fade below are measured in the
           // seconds the finished film runs rather than the recording's own.
           ...(speedStage ? [speedStage] : []),
@@ -1133,13 +1229,14 @@ async function buildFfmpegCommand(options: {
         // The fades go on once the frames carry timeline time, so they start
         // where the clip does on the timeline.
         filters.push(
-          `[${inputIndex}:v]${[pictureFilter, `setpts=(PTS-STARTPTS)/${speed}+${startS + skipS}/TB`, ...pictureFadeStages(entry)].join(",")}[l${visualStep}]`,
+          `${head},${[`setpts=(PTS-STARTPTS)/${speed}+${startS + skipS}/TB`, ...pictureFadeStages(entry)].join(",")}[l${visualStep}]`,
           `[v${visualStep}][l${visualStep}]overlay=x=${place.x}:y=${place.y}:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
         )
       }
       if (clip.kind === "video" && !muted && audioPresence.get(clip.mediaId!)) {
         pushAudio(inputIndex, clip, duck)
       }
+      inputIndex += extraInputs
     }
     inputIndex += 1
     visualStep += 1
@@ -1359,6 +1456,20 @@ function renderTextLayerPng(
   return new Resvg(svg, {
     font: {
       fontFiles,
+      loadSystemFonts: false,
+      defaultFontFamily: "Inter",
+    },
+  })
+    .render()
+    .asPng()
+}
+
+/** A whole drawing with words in it, such as a social sticker, as a PNG. */
+function renderWordsPng(svg: string) {
+  const { Resvg } = loadResvg()
+  return new Resvg(svg, {
+    font: {
+      fontFiles: requireTextFontFiles(),
       loadSystemFonts: false,
       defaultFontFamily: "Inter",
     },

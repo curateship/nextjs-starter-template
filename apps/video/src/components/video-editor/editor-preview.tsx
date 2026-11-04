@@ -69,6 +69,13 @@ import {
   shapePathsMarkup,
   shapeProgress,
 } from "@/lib/video/shapes"
+import { frameShapeCss } from "@/lib/video/clip-frame-shape"
+import { clipLook, lookCurveTables, lookMatrixValues } from "@/lib/video/film-looks"
+import {
+  isSocialClip,
+  SOCIAL_PLACING_MS,
+  socialStickerMarkup,
+} from "@/lib/video/social-stickers"
 import {
   blurBoxAt,
   blurShape,
@@ -369,7 +376,7 @@ function colourFilterId(clip: EditorClip) {
 
 function colourFilterCss(clip: EditorClip) {
   if (clip.kind !== "video" && clip.kind !== "image") return ""
-  return isColourTouched(clipColour(clip))
+  return isColourTouched(clipColour(clip)) || clipLook(clip)
     ? `url(#${colourFilterId(clip)})`
     : ""
 }
@@ -513,6 +520,11 @@ export function EditorPreview() {
     stageHeight = containerBox.h
     stageWidth = stageHeight * ratio
   }
+  // For the frame loop, which sizes rounded corners and borders in pixels.
+  const stageSizeRef = React.useRef({ width: stageWidth, height: stageHeight })
+  React.useLayoutEffect(() => {
+    stageSizeRef.current = { width: stageWidth, height: stageHeight }
+  }, [stageWidth, stageHeight])
 
   const allClips = React.useMemo(
     () => tracks.flatMap((track) => track.clips),
@@ -906,8 +918,14 @@ export function EditorPreview() {
           }
         } else {
           const placing = !playing && clipId === selectedRef.current
-          const progress = placing ? 1 : shapeProgress(clip, intoMs)
-          const markup = shapePathsMarkup(clip, shapeFrame, progress)
+          const markup = isSocialClip(clip)
+            ? socialStickerMarkup(
+                clip,
+                shapeFrame,
+                placing ? SOCIAL_PLACING_MS : intoMs,
+                clip.pictureUrl ?? null
+              )
+            : shapePathsMarkup(clip, shapeFrame, placing ? 1 : shapeProgress(clip, intoMs))
           if (drawnShapes.get(element) !== markup) {
             drawnShapes.set(element, markup)
             element.innerHTML = markup
@@ -1041,6 +1059,15 @@ export function EditorPreview() {
         // Colour, for the same reason: it belongs to the clip, not the file.
         const filter = colourFilterCss(clip)
         if (element.style.filter !== filter) element.style.filter = filter
+        // A rounded or round bubble, and its border (clip-frame-shape.ts).
+        const shaped = frameShapeCss(clip, stageSizeRef.current)
+        if (element.style.borderRadius !== shaped.borderRadius) {
+          element.style.borderRadius = shaped.borderRadius
+        }
+        if (element.style.outline !== shaped.outline) element.style.outline = shaped.outline
+        if (element.style.outlineOffset !== shaped.outlineOffset) {
+          element.style.outlineOffset = shaped.outlineOffset
+        }
         const muted = entry.track.muted || !!clip.muted || !!entry.soundElsewhere
         if (element.muted !== muted) element.muted = muted
         const volume =
@@ -1569,6 +1596,7 @@ export function EditorPreview() {
                 objectFit: clipFit(clip),
                 objectPosition: objectPositionCss(clip),
                 filter: colourFilterCss(clip) || undefined,
+                ...frameShapeCss(clip, { width: stageWidth, height: stageHeight }),
                 zIndex,
                 visibility: isActive(clip, timeMs) ? "visible" : "hidden",
               }}
@@ -1694,7 +1722,9 @@ export function EditorPreview() {
                             : "Move the arrow's tip"
                           : blur
                             ? "Resize the blur"
-                            : "Resize the circle"
+                            : isSocialClip(clip)
+                              ? `Resize the ${clip.name.toLowerCase()}`
+                              : "Resize the circle"
                       }
                       onPointerDown={(event) => handleShapeDown(event, clip, part)}
                       onPointerMove={handleShapeMove}
@@ -1715,18 +1745,34 @@ export function EditorPreview() {
             sums run on the stored values, as `eq` does, rather than on the
             browser's default linear light. */}
         <svg aria-hidden="true" className="absolute size-0">
-          {colouredClips.map((clip) => (
-            <filter
-              key={clip.id}
-              id={colourFilterId(clip)}
-              colorInterpolationFilters="sRGB"
-            >
-              <feColorMatrix
-                type="matrix"
-                values={colourMatrix(clipColour(clip)).join(" ")}
-              />
-            </filter>
-          ))}
+          {colouredClips.map((clip) => {
+            // A film look first, as the export's LUT does: its colour mix,
+            // then its curve for each of red, green and blue (film-looks.ts).
+            const look = clipLook(clip)
+            const tables = look ? lookCurveTables(look) : null
+            return (
+              <filter
+                key={clip.id}
+                id={colourFilterId(clip)}
+                colorInterpolationFilters="sRGB"
+              >
+                {look && tables ? (
+                  <>
+                    <feColorMatrix type="matrix" values={lookMatrixValues(look).join(" ")} />
+                    <feComponentTransfer>
+                      <feFuncR type="table" tableValues={tables[0].join(" ")} />
+                      <feFuncG type="table" tableValues={tables[1].join(" ")} />
+                      <feFuncB type="table" tableValues={tables[2].join(" ")} />
+                    </feComponentTransfer>
+                  </>
+                ) : null}
+                <feColorMatrix
+                  type="matrix"
+                  values={colourMatrix(clipColour(clip)).join(" ")}
+                />
+              </filter>
+            )
+          })}
         </svg>
 
         {safeBox ? (

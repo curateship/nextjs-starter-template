@@ -47,6 +47,8 @@ const TOOL_LABELS: Record<string, string> = {
   thumbnail_check: "Thumbnail check",
   thumbnail_copy_style: "Copy a style",
   thumbnail_translate: "Thumbnail translation",
+  ai_music: "AI music",
+  lip_sync: "Lips matched",
 }
 
 export function projectSpendToolLabel(feature: string) {

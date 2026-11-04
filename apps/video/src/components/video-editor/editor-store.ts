@@ -73,9 +73,18 @@ export type EditorState = {
 export type EditorAction =
   | { type: "ADD_CLIP"; clip: EditorClip; atMs: number; trackId?: string }
   | { type: "ADD_CLIP_TO_NEW_TRACK"; clip: EditorClip; atMs: number }
-  // Words or a sticker from the Text panel. Unlike ADD_CLIP it never lands
+  // Words or a sticker from the Graphics panel. Unlike ADD_CLIP it never lands
   // under a picture that would hide it.
   | { type: "ADD_OVERLAY"; clip: EditorClip; atMs: number }
+  // A sticker and a sound that goes with it (the Subscribe button's click),
+  // laid down together as one Undo step. The sound gets a lane of its own.
+  | {
+      type: "ADD_OVERLAY_WITH_SOUND"
+      clip: EditorClip
+      atMs: number
+      sound: EditorClip
+      soundAtMs: number
+    }
   | { type: "MOVE_CLIP"; clipId: string; toTrackId: string; startMs: number }
   // `transient` skips the undo snapshot — for edits that arrive in a stream
   // (typing into a text clip, dragging a slider) so one undo does not step
@@ -530,6 +539,16 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
     case "ADD_OVERLAY":
       return placeOverlay(state, action.clip, action.atMs)
 
+    case "ADD_OVERLAY_WITH_SOUND": {
+      const placed = placeOverlay(state, action.clip, action.atMs)
+      const withSound =
+        placed.tracks.length >= MAX_TIMELINE_TRACKS
+          ? placeClip(placed, action.sound, action.soundAtMs)
+          : placeClipInNewTrack(placed, action.sound, action.soundAtMs)
+      // One step back takes both away, and the sticker stays the one picked.
+      return { ...withSound, past: placed.past, selectedClipId: action.clip.id }
+    }
+
     case "ADD_TRACK":
       return pushUndo(state, [...state.tracks, newTrack()])
 
@@ -573,6 +592,7 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
           // against a cut in the same footage, where a dissolve makes no sense.
           transition: isFirst ? found.clip.transition : undefined,
           origin: keptOrigin(found.clip),
+          pressFor: isFirst ? found.clip.pressFor : undefined,
         })
         timelineCursorMs += durationMs
       }
@@ -737,7 +757,8 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       // between a clip and itself is never what was meant.
       return placeClip(
         state,
-        { ...found.clip, id: editorId(), transition: undefined },
+        // A copy of a Subscribe click is a sound of its own, not the sticker's.
+        { ...found.clip, id: editorId(), transition: undefined, pressFor: undefined },
         found.clip.startMs + found.clip.durationMs,
         found.track.id
       )
@@ -958,6 +979,8 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         trimStartMs: sourceMsAt(clip, offset),
         transition: undefined,
         origin: keptOrigin(clip),
+        // Only the first piece stays a Subscribe sticker's click.
+        pressFor: undefined,
       }
       const tracks = withTrack(state.tracks, found.track.id, (track) => ({
         ...track,

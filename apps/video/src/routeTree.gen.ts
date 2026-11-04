@@ -17,6 +17,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as ManifestDotwebmanifestRouteImport } from './routes/manifest[.]webmanifest'
+import { Route as PhoneRouteImport } from './routes/phone'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReportUnwantedSignInRouteImport } from './routes/report-unwanted-sign-in'
@@ -141,6 +142,11 @@ const MaintenanceRoute = MaintenanceRouteImport.update({
 const ManifestDotwebmanifestRoute = ManifestDotwebmanifestRouteImport.update({
   id: '/manifest.webmanifest',
   path: '/manifest.webmanifest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PhoneRoute = PhoneRouteImport.update({
+  id: '/phone',
+  path: '/phone',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PricingRoute = PricingRouteImport.update({
@@ -634,6 +640,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/phone': typeof PhoneRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
@@ -729,6 +736,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/phone': typeof PhoneRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
@@ -820,6 +828,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/phone': typeof PhoneRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
@@ -917,6 +926,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/maintenance'
     | '/manifest.webmanifest'
+    | '/phone'
     | '/pricing'
     | '/register'
     | '/report-unwanted-sign-in'
@@ -1012,6 +1022,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/maintenance'
     | '/manifest.webmanifest'
+    | '/phone'
     | '/pricing'
     | '/register'
     | '/report-unwanted-sign-in'
@@ -1102,6 +1113,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/maintenance'
     | '/manifest.webmanifest'
+    | '/phone'
     | '/pricing'
     | '/register'
     | '/report-unwanted-sign-in'
@@ -1199,6 +1211,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MaintenanceRoute: typeof MaintenanceRoute
   ManifestDotwebmanifestRoute: typeof ManifestDotwebmanifestRoute
+  PhoneRoute: typeof PhoneRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
   ReportUnwantedSignInRoute: typeof ReportUnwantedSignInRoute
@@ -1290,6 +1303,13 @@ declare module '@tanstack/react-router' {
       path: '/manifest.webmanifest'
       fullPath: '/manifest.webmanifest'
       preLoaderRoute: typeof ManifestDotwebmanifestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/phone': {
+      id: '/phone'
+      path: '/phone'
+      fullPath: '/phone'
+      preLoaderRoute: typeof PhoneRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pricing': {
@@ -2132,6 +2152,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MaintenanceRoute: MaintenanceRoute,
   ManifestDotwebmanifestRoute: ManifestDotwebmanifestRoute,
+  PhoneRoute: PhoneRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,
   ReportUnwantedSignInRoute: ReportUnwantedSignInRoute,

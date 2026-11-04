@@ -26,7 +26,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { cleanOriginalName, storedFilename } from "@/server/media/library"
 import { deleteFromR2, getPublicMediaUrl, uploadToR2 } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
-import { videoClonedVoices } from "@/server/video/schema"
+import { videoActors, videoClonedVoices } from "@/server/video/schema"
 import { soundDurationMs } from "@/server/video/voice"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
@@ -306,4 +306,9 @@ export async function deleteClonedVoice(
   await database
     .delete(videoClonedVoices)
     .where(and(eq(videoClonedVoices.id, id), eq(videoClonedVoices.userId, userId)))
+  // An actor that spoke in it has no voice now, rather than one nobody can use.
+  await database
+    .update(videoActors)
+    .set({ voiceId: null })
+    .where(and(eq(videoActors.userId, userId), eq(videoActors.voiceId, row.voiceId)))
 }

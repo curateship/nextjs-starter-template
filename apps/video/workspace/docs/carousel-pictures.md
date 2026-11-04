@@ -48,8 +48,11 @@ crop position (`pictureRect` in `src/server/video/carousel-export.ts`).
 
 ## Pictures from your collections
 
-The Image panel's header has search, a funnel and +, the same as the video
-editor's Media panel. The + uploads files. The funnel opens the same filter
+The Image panel's header has a magnifier, a funnel and +. The magnifier opens
+a menu of what to search (Tyler, 4 Nov 2026): Search media, which opens a box
+to search this carousel's files, and Search Pexels, which opens the Pexels
+photo search below. Either opens beside the magnifier with the cursor in it.
+The + uploads files. The funnel opens the same filter
 menu the Media panel has (see [media-panel.md](media-panel.md)), drawn from
 Tyler's picture of 29 Oct 2026, with two differences:
 
@@ -86,9 +89,12 @@ carousels out was written down, so this was scope, not a decision. A
 collection's pictures have no delete on their right-click here, because they
 belong to the library, not to this carousel.
 
-## Free photos from Pexels
+## Pexels photos
 
-Under the media, "Free photos" searches Pexels' photo library.
+Search Pexels, in the magnifier's menu, searches Pexels' photo library in a
+box beside the magnifier, and the photos scroll inside it. Until 4 Nov 2026 it
+was a "Free photos" section at the foot of the Image panel; Tyler asked for it
+to be named after Pexels and moved into the search menu.
 
 - **The shape:** a 4:5 or story carousel asks for tall photos first, a square
   one for square photos.

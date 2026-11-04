@@ -1213,3 +1213,85 @@ describe("placing B-roll", () => {
     expect(editorReducer(after, { type: "UNDO" }).tracks).toEqual(START.tracks)
   })
 })
+
+describe("a sticker with its sound", () => {
+  const sticker: EditorClip = {
+    id: "sub",
+    kind: "shape",
+    name: "Subscribe button",
+    shape: "subscribe",
+    startMs: 0,
+    durationMs: 3_500,
+    trimStartMs: 0,
+  }
+  const click: EditorClip = {
+    id: "click",
+    kind: "audio",
+    name: "Click (Subscribe)",
+    stockSound: "click",
+    startMs: 0,
+    durationMs: 40,
+    trimStartMs: 0,
+  }
+
+  it("lays the sound on a lane of its own at the press, with the sticker picked", () => {
+    const after = editorReducer(START, {
+      type: "ADD_OVERLAY_WITH_SOUND",
+      clip: sticker,
+      atMs: 2_000,
+      sound: click,
+      soundAtMs: 3_100,
+    })
+    const placed = after.tracks.flatMap((track) => track.clips)
+    expect(placed.find((clip) => clip.id === "sub")?.startMs).toBe(2_000)
+    expect(placed.find((clip) => clip.id === "click")?.startMs).toBe(3_100)
+    const soundLane = after.tracks.find((track) => track.clips.some((clip) => clip.id === "click"))
+    expect(soundLane?.clips).toHaveLength(1)
+    expect(after.selectedClipId).toBe("sub")
+  })
+
+  it("comes off with one Undo", () => {
+    const after = editorReducer(START, {
+      type: "ADD_OVERLAY_WITH_SOUND",
+      clip: sticker,
+      atMs: 0,
+      sound: click,
+      soundAtMs: 1_100,
+    })
+    expect(editorReducer(after, { type: "UNDO" }).tracks).toEqual(START.tracks)
+  })
+})
+
+describe("a Subscribe click's link to its sticker", () => {
+  const withClick = createInitialEditorState({
+    aspect: "9:16",
+    tracks: [
+      {
+        id: "stickers",
+        muted: false,
+        clips: [
+          { id: "sub", kind: "shape", name: "Subscribe button", shape: "subscribe", startMs: 0, durationMs: 3_500, trimStartMs: 0 },
+        ],
+      },
+      {
+        id: "click-lane",
+        muted: false,
+        clips: [
+          { id: "click", kind: "audio", name: "Click", stockSound: "click", pressFor: "sub", startMs: 1_100, durationMs: 400, trimStartMs: 0 },
+        ],
+      },
+    ],
+  })
+  const clicks = (state: typeof withClick) =>
+    state.tracks.flatMap((track) => track.clips).filter((clip) => clip.kind === "audio")
+
+  it("is not copied to a duplicate", () => {
+    const after = editorReducer(withClick, { type: "DUPLICATE_CLIP", clipId: "click" })
+    expect(clicks(after).map((clip) => clip.pressFor)).toEqual(["sub", undefined])
+  })
+
+  it("stays with the first piece of a split", () => {
+    const after = editorReducer(withClick, { type: "SPLIT_CLIP", clipId: "click", atMs: 1_300 })
+    expect(clicks(after).map((clip) => clip.pressFor)).toEqual(["sub", undefined])
+  })
+})

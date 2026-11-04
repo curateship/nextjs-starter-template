@@ -70,6 +70,7 @@ import {
 } from "@/lib/video/voice-direction"
 import { useCaptionPlacement } from "@/components/video-editor/caption-settings-context"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
+import { listActors, type ActorItem } from "@/lib/api/video/actors"
 import {
   ScriptCheckList,
   ScriptFigures,
@@ -91,6 +92,9 @@ import {
  * chosen model understands on the server (`voice-direction.ts`); the run
  * length and the check only ever see the words that are said.
  */
+/** The Actor field's value for "no actor", since a Select item can't be empty. */
+const NO_ACTOR = "none"
+
 export function VoiceDialog({
   open,
   onOpenChange,
@@ -190,6 +194,32 @@ export function VoiceDialog({
       active = false
     }
   }, [open])
+
+  // The actors, so picking one fills in the voice it speaks in (actors.md).
+  // A guest or a failed load simply has no Actor field.
+  const [actors, setActors] = React.useState<ActorItem[] | null>(null)
+  const [actorId, setActorId] = React.useState("")
+  React.useEffect(() => {
+    if (!open) return
+    let active = true
+    listActors()
+      .then((loaded) => active && setActors(loaded.actors))
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [open])
+  const pickedActor = actors?.find((one) => one.id === actorId) ?? null
+  const actorVoiceGone =
+    !!pickedActor?.voice_id && !!voices && !voices.some((one) => one.id === pickedActor.voice_id)
+
+  function pickActor(id: string) {
+    setActorId(id === NO_ACTOR ? "" : id)
+    const actor = actors?.find((one) => one.id === id)
+    if (actor?.voice_id && voices?.some((one) => one.id === actor.voice_id)) {
+      setVoiceId(actor.voice_id)
+    }
+  }
 
   const chosen = voices?.find((one) => one.id === voiceId)
   const isOpenAi = chosen?.speaker === "openai"
@@ -421,6 +451,34 @@ export function VoiceDialog({
               <CardTitle>How it sounds</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4">
+              {actors?.length ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="voice-actor">Actor</Label>
+                  <Select value={actorId || NO_ACTOR} onValueChange={pickActor}>
+                    <SelectTrigger id="voice-actor" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_ACTOR}>No actor</SelectItem>
+                      {actors.map((actor) => (
+                        <SelectItem key={actor.id} value={actor.id}>
+                          {actor.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {pickedActor && !pickedActor.voice_id ? (
+                    <p className="text-sm text-muted-foreground">
+                      {pickedActor.name} has no voice yet. Give it one on the Actors page.
+                    </p>
+                  ) : actorVoiceGone ? (
+                    <p className="text-sm text-muted-foreground">
+                      {pickedActor?.name}'s voice is no longer on the list.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="grid gap-2">
                 <Label htmlFor="voice-who">Voice</Label>
                 <Select

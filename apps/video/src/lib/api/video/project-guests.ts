@@ -3,23 +3,9 @@ import { z } from "zod"
 
 import { describeAuthError } from "../error-message"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
-import { enforceRateLimit } from "@/server/auth/rate-limit"
-import { now, uuid } from "@/server/auth/security"
-import { db } from "@/server/db"
-import {
-  cleanOriginalName,
-  getMediaFileType,
-  prepareMediaContent,
-  serializeMedia,
-  storedFilename,
-  validateMediaFile,
-} from "@/server/media/library"
-import { deleteFromR2, getPublicMediaUrl, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media/storage"
-import { customShellMedia } from "@/server/schema"
-import { attachMediaToScope } from "@/server/video/media-list"
 import { editorGet, editorPost } from "@/server/video/editor-guards"
 import { actorFor } from "@/server/video/project-guests"
-import { workspaceIdForRequest } from "@/server/workspaces/for-request"
+import { storeProjectFile } from "@/server/video/project-uploads"
 
 /**
  * The two calls only the guest editor makes (`workspace/docs/project-guests.md`):
@@ -64,54 +50,8 @@ const uploadFn = createServerFn({ method: "POST" })
     return { file, projectId }
   })
   .handler(async ({ data, context }) => {
-    // The file goes in the project owner's library, as every file the project
-    // uses does, and onto the project at once. Checked and stored the same way
-    // as the shell's own upload (`src/lib/api/media/media.ts`).
     const { userId } = await actorFor(context.caller, data.projectId)
-    const mimeType = data.file.type || "application/octet-stream"
-    validateMediaFile(mimeType, data.file.size)
-    await enforceRateLimit(`media-upload:${userId}`, { maxAttempts: 60, windowSeconds: 10 * 60 })
-
-    const rawFileData = new Uint8Array(await data.file.arrayBuffer())
-    if (!rawFileData.byteLength) throw new Error("File is empty")
-    const fileData = prepareMediaContent(mimeType, rawFileData)
-    const originalName = cleanOriginalName(data.file.name)
-    const filename = storedFilename(originalName, mimeType)
-    const storagePath = `${userId}/${filename}`
-    try {
-      await getPublicMediaUrl(storagePath)
-      await uploadToR2(storagePath, fileData, mimeType)
-    } catch (error) {
-      if (error instanceof R2StorageNotConfiguredError) {
-        throw new Error("File storage is not set up, so files can't be added yet.")
-      }
-      throw new Error("Upload failed")
-    }
-
-    const createdAt = now()
-    const row = {
-      id: uuid(),
-      workspaceId: await workspaceIdForRequest(userId),
-      userId,
-      filename,
-      originalName,
-      altText: null,
-      fileSize: fileData.byteLength,
-      mimeType,
-      fileType: getMediaFileType(mimeType),
-      storagePath,
-      emailProtectedAt: null,
-      createdAt,
-      updatedAt: createdAt,
-    }
-    try {
-      await db.insert(customShellMedia).values(row)
-    } catch (error) {
-      await deleteFromR2(storagePath).catch(() => undefined)
-      throw error
-    }
-    await attachMediaToScope(userId, { type: "project", id: data.projectId }, row.id)
-    return serializeMedia(row)
+    return storeProjectFile(userId, data.projectId, data.file)
   })
 
 /** The guest behind this browser for the project, or a refusal once they have none. */

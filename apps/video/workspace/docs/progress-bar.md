@@ -5,11 +5,11 @@ plays, so a viewer can see how much is left.
 
 ## Turning it on
 
-- **From the Text panel:** the **Progress bar** button under Shapes switches
+- **From the Graphics panel:** the **Progress bar** button under Shapes switches
   it on and clears the picked clip, so its settings show on the right.
 - **From the right-hand panel:** with no clip picked, the **Progress bar** card
   has a switch, and the bar's settings once it is on.
-- **One per project:** a second press of the Text panel button says the
+- **One per project:** a second press of the Graphics panel button says the
   project already has one.
 
 ## What you can set

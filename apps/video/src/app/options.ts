@@ -51,6 +51,12 @@ export const appOptions: AppOptions = {
         label: "Pexels",
         panel: () => import("@/components/video-editor/pexels-settings"),
       }),
+      /** The Sync Labs key that makes a clip's lips match a new voice. */
+      defineSettingsTab({
+        id: "lip-sync",
+        label: "Lip sync",
+        panel: () => import("@/components/video-editor/sync-settings"),
+      }),
       /**
        * The Wan and Seedance keys for AI shots, which company new shots start
        * on, and what a Wan or Seedance shot starts with. Kept off the shell's

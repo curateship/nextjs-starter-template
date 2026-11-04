@@ -81,6 +81,27 @@ request that costs $0.039 anyway.
 Re-pose makes a new picture and makes it the main one. The picture it
 replaces stays on the sheet, where it can be made main again or taken off.
 
+## Its voice
+
+An actor can have a voice, picked in the actor window's Character card from
+the same list the Voice window offers, your own voices included. In the Voice
+window an Actor field sits above Voice. Picking an actor fills in its voice,
+and the voice can still be changed for that one voiceover. Tyler, 4 Nov 2026:
+used by voiceovers only, so AI clip shots and brief-to-video don't read it.
+
+- **No voice:** the Voice window says the actor has none yet and leaves the
+  voice as it was.
+- **A voice no longer listed** (its key was removed): the actor window shows it
+  as "A voice no longer listed" so a save doesn't quietly change it, and the
+  Voice window says so instead of picking it.
+- **Deleting one of your own voices** takes it off every actor that spoke in
+  it, so the actor has no voice rather than one nobody can use
+  (`deleteClonedVoice` in `cloned-voices.ts`).
+- **Saving from the AI clip panel**, which has no voice field, keeps the voice
+  the actor had.
+
+It is `video_actors.voice_id`, added by migration 0150.
+
 ## What removing and deleting keeps
 
 - **Taking a picture off the sheet** removes it from the sheet only. The file

@@ -16,6 +16,8 @@ export type RemakeClipsValue = {
    * (picture-clean-up.md). The same AI rule holds: a guest has neither.
    */
   cleanUp: (clipId: string, kind: "reflection" | "object") => void
+  /** Opens Match the lips on a video clip (lip-sync.md). A guest has none. */
+  matchLips: (clipId: string) => void
 }
 
 export const RemakeClipsContext = React.createContext<RemakeClipsValue | null>(null)

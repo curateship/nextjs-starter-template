@@ -68,6 +68,8 @@ export type ActorItem = {
   reference_media_url: string | null
   /** The main picture first, then the others oldest first. */
   sheet: ActorSheetPicture[]
+  /** The voice it speaks in, filled into the Voice window when it is picked. */
+  voice_id: string | null
   created_at: string
   updated_at: string
 }
@@ -89,6 +91,11 @@ export type ActorPayload = {
   lookProjectId?: string | null
   /** The video open in the editor, which pays for the picture. */
   spendVideoId?: string | null
+  /**
+   * The voice the actor speaks in, an id from the Voice window's list. Null
+   * takes it away; left out, a save keeps whatever the actor had.
+   */
+  voiceId?: string | null
 }
 
 function tags(value: unknown) {
@@ -161,6 +168,7 @@ async function serializeActor(
         main: row.media.id === actor.imageMediaId,
       }))
     ),
+    voice_id: actor.voiceId,
     created_at: actor.createdAt.toISOString(),
     updated_at: actor.updatedAt.toISOString(),
   }
@@ -313,6 +321,7 @@ export async function createActor(userId: string, payload: ActorPayload) {
         tags: normalizeAssetTags(payload.tags),
         imageMediaId: media.id,
         referenceMediaId: reference?.id ?? null,
+        voiceId: payload.voiceId ?? null,
         createdAt: at,
         updatedAt: at,
       })
@@ -384,6 +393,9 @@ export async function updateActor(
           tags: normalizeAssetTags(payload.tags),
           imageMediaId: generatedMedia?.id ?? current.imageMediaId,
           referenceMediaId: reference?.id ?? null,
+          // Left as it is by a save that does not mention it, such as the
+          // AI clip panel's, which has no voice to offer.
+          ...(payload.voiceId !== undefined ? { voiceId: payload.voiceId } : {}),
           updatedAt: at,
         })
         .where(and(eq(videoActors.id, actorId), eq(videoActors.userId, userId)))

@@ -59,7 +59,7 @@ export function LayersPanelBody({
   }
 
   return (
-    <ul aria-label="Layers on this slide" className="grid gap-1">
+    <ul aria-label="Layers on this slide" className="grid grid-cols-[minmax(0,1fr)] gap-1">
       {layers.map((item) => {
         const Icon = LAYER_ICONS[item.type]
         const picked = selectedItemIds.includes(item.id)

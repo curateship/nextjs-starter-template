@@ -151,6 +151,23 @@ describe("getting a copy ready to paste", () => {
     expect(alone[0].clip.spokenBy).toBeUndefined()
   })
 
+  it("points a pasted Subscribe click at the pasted sticker, and a lone click at none", () => {
+    const sticker: Clip = { id: "sub", kind: "shape", name: "Subscribe button", shape: "subscribe", startMs: 0, durationMs: 3_500, trimStartMs: 0 }
+    const click: Clip = { id: "click", kind: "audio", name: "Click", stockSound: "click", pressFor: "sub", startMs: 1_100, durationMs: 400, trimStartMs: 0 }
+    const lanes = [
+      { id: "s", muted: false, clips: [sticker] },
+      { id: "c", muted: false, clips: [click] },
+    ]
+    const both = prepareClipsForPaste(copyClips(lanes, ["sub", "click"])!, []).clips
+    const pastedSticker = both.find(({ clip }) => clip.kind === "shape")!.clip
+    const pastedClick = both.find(({ clip }) => clip.kind === "audio")!.clip
+    expect(pastedClick.pressFor).toBe(pastedSticker.id)
+    expect(pastedSticker.id).not.toBe("sub")
+
+    const alone = prepareClipsForPaste(copyClips(lanes, ["click"])!, []).clips
+    expect(alone[0].clip.pressFor).toBeUndefined()
+  })
+
   it("turns a clip whose file is gone into a named gap", () => {
     const { clips, missingNames } = prepareClipsForPaste(copied, ["media-b"])
     const gap = clips[1].clip

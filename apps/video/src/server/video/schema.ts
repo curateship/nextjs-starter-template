@@ -1094,6 +1094,10 @@ export const videoSettings = pgTable(
     // The Pexels API key the B-roll tool searches stock video with, scrambled
     // the same way. NULL means no key, and B-roll asks for one.
     pexelsApiKey: text("pexels_api_key"),
+    // The Sync Labs key that makes lips match a new voice (lip-sync.md),
+    // scrambled the same way. NULL means no key, and Match the lips asks for
+    // one (drizzle/0150).
+    syncApiKey: text("sync_api_key"),
     // The Wan and Seedance keys for AI shots, scrambled the same way, and the
     // site each came from, since a key works only there (drizzle/0143).
     wanApiKey: text("wan_api_key"),
@@ -1150,6 +1154,9 @@ export const videoActors = pgTable(
     referenceMediaId: varchar("reference_media_id", {
       length: 36,
     }).references(() => customShellMedia.id, { onDelete: "set null" }),
+    // The voice it speaks in (actors.md): an id from the Voice window's list,
+    // an ElevenLabs or OpenAI voice or one of the owner's own. Null for none.
+    voiceId: varchar("voice_id", { length: 100 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -1683,6 +1690,100 @@ export const videoProjectGuests = pgTable(
 )
 
 export type VideoProjectGuestRow = typeof videoProjectGuests.$inferSelect
+
+/**
+ * Sending files to a project from a phone (workspace/docs/phone-uploads.md).
+ * The QR code's link holds a secret whose hash is `token_hash`: it must be
+ * opened within 15 minutes, and once. Opening it gives that phone a sign-in
+ * of its own, `session_hash`, good for two hours of sending files into this
+ * one project. `files_received` counts what has arrived, so the editor's
+ * window can say so and fetch the Media panel again.
+ */
+export const videoPhoneLinks = pgTable(
+  "video_phone_links",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+    sessionHash: varchar("session_hash", { length: 64 }).unique(),
+    filesReceived: integer("files_received").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    sessionExpiresAt: timestamp("session_expires_at", { withTimezone: true }),
+  },
+  (table) => [index("ix_video_phone_links_user").on(table.userId)]
+)
+
+export type VideoPhoneLinkRow = typeof videoPhoneLinks.$inferSelect
+
+/**
+ * One ask of Sync Labs to make a clip's lips match a new voice
+ * (workspace/docs/lip-sync.md). `sent_paths` are the two files sent, kept in
+ * storage only until the job ends.
+ */
+export const videoLipSyncs = pgTable(
+  "video_lip_syncs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    videoId: varchar("video_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjectVideos.id, { onDelete: "cascade" }),
+    clipId: varchar("clip_id", { length: 64 }).notNull(),
+    soundClipId: varchar("sound_clip_id", { length: 64 }).notNull(),
+    generationId: varchar("generation_id", { length: 100 }),
+    status: varchar("status", { length: 10 }).notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    costCents: integer("cost_cents").notNull().default(0),
+    mediaId: varchar("media_id", { length: 36 }).references(() => customShellMedia.id, {
+      onDelete: "set null",
+    }),
+    sentPaths: jsonb("sent_paths").$type<string[]>().notNull().default([]),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("video_lip_syncs_status_check", sql`${table.status} in ('working', 'ready', 'failed')`),
+    index("ix_video_lip_syncs_video_clip").on(table.videoId, table.clipId),
+    // One working job per clip, so two presses at once make one job.
+    uniqueIndex("ux_video_lip_syncs_working_clip")
+      .on(table.videoId, table.clipId)
+      .where(sql`${table.status} = 'working'`),
+  ]
+)
+
+export type VideoLipSyncRow = typeof videoLipSyncs.$inferSelect
+
+/**
+ * Each person's own colour looks (workspace/docs/colour-looks.md): a film look
+ * or none, and the three colour sliders, under a name that is theirs alone.
+ */
+export const videoColourLooks = pgTable(
+  "video_colour_looks",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    look: varchar("look", { length: 30 }),
+    brightness: doublePrecision("brightness").notNull().default(0),
+    contrast: doublePrecision("contrast").notNull().default(1),
+    saturation: doublePrecision("saturation").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [uniqueIndex("video_colour_looks_user_name").on(table.userId, table.name)]
+)
 
 export type VideoMediaProxy = typeof videoMediaProxies.$inferSelect
 export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect

@@ -16,14 +16,17 @@
  * thickness on a tall video and a wide one.
  */
 
+import { SOCIAL_KINDS } from "@/lib/video/social-stickers"
+
 export const SHAPE_KINDS = ["arrow", "circle"] as const
 export type ShapeKind = (typeof SHAPE_KINDS)[number]
 
 /**
  * Every shape a shape clip can be. A blur is a shape clip too, placed by the
- * same two points, but it is drawn by blur.ts rather than as lines.
+ * same two points, but it is drawn by blur.ts rather than as lines, and the
+ * social stickers are drawn by social-stickers.ts.
  */
-export const CLIP_SHAPE_KINDS = [...SHAPE_KINDS, "blur"] as const
+export const CLIP_SHAPE_KINDS = [...SHAPE_KINDS, "blur", ...SOCIAL_KINDS] as const
 
 export const SHAPE_LABELS: Record<ShapeKind, string> = {
   arrow: "Arrow",
@@ -134,6 +137,8 @@ export function shapeStrokes(
     y: (clip.toY ?? 0.5) * frame.height,
   }
   if (progress <= 0) return []
+  // Only arrows and circles are lines; a blur or a sticker draws itself.
+  if (clip.shape !== "arrow" && clip.shape !== "circle") return []
   if (clip.shape === "circle") return circleStrokes(from, to, progress)
   return arrowStrokes(from, to, progress, lineWidthPx(clip, frame))
 }

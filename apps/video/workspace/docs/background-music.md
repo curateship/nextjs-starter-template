@@ -1,6 +1,7 @@
 # Background music
 
-The Music panel in the studio rail lists the tracks you uploaded as music. Each
+The Music panel in the studio rail lists the tracks you uploaded as music, and
+tracks AI made to fit a video (ai-music.md). Each
 row has a play button, the name and length, a + and a trash can. The + lays the
 track under the whole video on its own lane, with "Duck
 under voice" already on, so the music drops by itself wherever somebody talks.

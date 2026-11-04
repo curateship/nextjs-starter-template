@@ -4,6 +4,7 @@ import {
   EraserIcon,
   FilmIcon,
   Loader2Icon,
+  MicIcon,
   RotateCwIcon,
   SparklesIcon,
   XIcon,
@@ -43,6 +44,7 @@ import {
   type EditorClip,
 } from "@/components/video-editor/editor-store"
 import { blurOverClip, newBlurClip } from "@/components/video-editor/blur-clip"
+import { LipSyncDialog } from "@/components/video-editor/lip-sync-dialog"
 import {
   PictureCleanUpDialog,
   type CleanUpKind,
@@ -179,6 +181,7 @@ function OwnerRemakeClips({ children }: { children: React.ReactNode }) {
     clip: EditorClip
     kind: CleanUpKind
   } | null>(null)
+  const [lipping, setLipping] = React.useState<EditorClip | null>(null)
 
   const value = React.useMemo<RemakeClipsValue>(
     () => ({
@@ -198,6 +201,11 @@ function OwnerRemakeClips({ children }: { children: React.ReactNode }) {
         if (store.refuseIfLocked()) return
         const clip = onTimeline(store, clipId)
         if (clip?.kind === "image" && clip.mediaId) setCleaning({ clip, kind })
+      },
+      matchLips: (clipId) => {
+        if (store.refuseIfLocked()) return
+        const clip = onTimeline(store, clipId)
+        if (clip?.kind === "video" && clip.mediaId) setLipping(clip)
       },
     }),
     [store, stills]
@@ -221,6 +229,9 @@ function OwnerRemakeClips({ children }: { children: React.ReactNode }) {
           kind={cleaning.kind}
           onClose={() => setCleaning(null)}
         />
+      ) : null}
+      {lipping ? (
+        <LipSyncDialog key={lipping.id} clip={lipping} onClose={() => setLipping(null)} />
       ) : null}
       {editing && isVoiceOrigin(editing.origin) ? (
         <RemakeVoiceDialog
@@ -700,9 +711,10 @@ export function ClipContextMenu({
   const canMove = !!stills && clip.kind === "image"
   const canRemake = !!remake && !!clip.origin
   const canClean = !readOnly && !!remake && clip.kind === "image" && !!clip.mediaId
-  if (!canBlur && !canClean && !canMove && !canRemake && !failed) return children
+  const canMatchLips = !readOnly && !!remake && clip.kind === "video" && !!clip.mediaId
+  if (!canBlur && !canClean && !canMove && !canRemake && !canMatchLips && !failed) return children
 
-  // The same blur the Text panel's Blur button lays down, at the playhead
+  // The same blur the Graphics panel's Blur button lays down, at the playhead
   // when it is on this clip, and ending with the clip if that comes first.
   function blurSpot() {
     const { atMs, room } = blurOverClip(clip, clock.getTime())
@@ -745,6 +757,15 @@ export function ClipContextMenu({
                 Remove an object…
               </ContextMenuPrimitive.Item>
             </>
+          ) : null}
+          {canMatchLips ? (
+            <ContextMenuPrimitive.Item
+              className={CONTEXT_MENU_ITEM_CLASS}
+              onSelect={() => remake.matchLips(clip.id)}
+            >
+              <MicIcon />
+              Match the lips…
+            </ContextMenuPrimitive.Item>
           ) : null}
           {canMove ? (
             <ContextMenuPrimitive.Item

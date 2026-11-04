@@ -50,6 +50,39 @@ filled into that box instead of the whole frame, then shrunk by its size.
 - **Make it move refuses a clip in a box,** the same way it refuses a picture
   smaller than the frame.
 
+## Round bubble and border
+
+Every video and picture clip has a Shape card: Rectangle, Rounded or Circle,
+and a Border switch with a colour and a thickness from 1 to 30 (pixels of a
+frame whose short side is 1080). Tyler picked circle or rounded corners with
+an optional border on 4 Nov 2026. The card first showed only on a clip
+already smaller than the frame, which he found "too confusing", so it now
+shows on every clip:
+
+- **On a full-frame clip,** picking Rounded or Circle, or switching on the
+  border, shrinks the clip into the corner box first, in the same Undo. The
+  card says so before anything is picked.
+
+- **Circle** makes the box square, the biggest square the frame holds, then
+  shrinks it by the clip's size. On a tall project the corner box becomes a
+  324-pixel circle instead of a 324 by 576 rectangle.
+- **Rounded** rounds the corners by a share of the box's shorter side, 15 out
+  of 100 to start, from 2 to 50.
+- **Both** set the clip to Fill. A shape is drawn only on a filled clip,
+  because only then is the picture exactly its box in both the preview and the
+  export. A clip switched back to Fit draws as a plain rectangle with no
+  border; picking the shape again sets Fill again.
+- **The border** sits just inside the edge, so the clip stays the same size
+  with or without it.
+
+The preview rounds the element with `border-radius` and draws the border as an
+outline pulled inside the edge. The export draws a mask at the picture's exact
+pixel size, cuts the clip out with ffmpeg's `alphamerge`, and lays a picture
+of the ring over it before the clip is placed. Both take their sums from
+`src/lib/video/clip-frame-shape.ts`. `render-frame-shape.test.ts` exports a
+white bubble over black and checks a circle's corners, a rounded corner, the
+border's colour, and that a fitted clip is left square.
+
 ## How the preview and the export agree
 
 - **The preview** plays every clip of one file through one shared `<video>`

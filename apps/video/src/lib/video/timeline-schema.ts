@@ -42,6 +42,14 @@ import {
   MIN_BLUR_STRENGTH,
 } from "./blur"
 import { TEXT_FONT_IDS } from "./text-fonts"
+import { SOCIAL_NAME_MAX, SOCIAL_PLATFORMS } from "./social-stickers"
+import { FILM_LOOK_IDS } from "./film-looks"
+import {
+  FRAME_SHAPES,
+  MAX_CORNER_SHARE,
+  MAX_FRAME_BORDER,
+  MIN_CORNER_SHARE,
+} from "./clip-frame-shape"
 import {
   TEXT_STROKE_WIDTH_MAX,
   TEXT_WRAP_WIDTH,
@@ -106,6 +114,9 @@ export const clipSchema = z
     // means it holds still, so a timeline saved before this reads unchanged.
     // Only picture clips move; the preview and the export ignore it elsewhere.
     motion: z.enum(CLIP_MOTIONS).optional(),
+    // A film look, a LUT put on before the sliders below (film-looks.ts).
+    // Absent means none.
+    look: z.enum(FILM_LOOK_IDS).optional(),
     // Brightness, contrast and saturation, in ffmpeg's own `eq` numbers.
     // Absent means no change (0, 1 and 1), so a timeline saved before these
     // existed reads unchanged. Only video and picture clips use them.
@@ -183,6 +194,13 @@ export const clipSchema = z
     // means the whole frame.
     boxWidth: z.number().min(MIN_CLIP_BOX).max(MAX_CLIP_BOX).optional(),
     boxHeight: z.number().min(MIN_CLIP_BOX).max(MAX_CLIP_BOX).optional(),
+    // The shape of a picture or video smaller than the frame, its rounded
+    // corners as a share of its shorter side, and a border inside its edge
+    // (clip-frame-shape.ts). Absent means a plain rectangle with no border.
+    frameShape: z.enum(FRAME_SHAPES).optional(),
+    cornerRadius: z.number().min(MIN_CORNER_SHARE).max(MAX_CORNER_SHARE).optional(),
+    borderColor: z.string().max(32).optional(),
+    borderWidth: z.number().min(0).max(MAX_FRAME_BORDER).optional(),
     transition: clipTransitionSchema.optional(),
     // How the AI made this clip, so Make it again can make it once more in
     // the same place (clip-origin.ts). Absent on everything uploaded, from
@@ -208,6 +226,18 @@ export const clipSchema = z
     // `blurTrack` when it follows something.
     blurShape: z.enum(BLUR_SHAPES).optional(),
     blurStrength: z.number().min(MIN_BLUR_STRENGTH).max(MAX_BLUR_STRENGTH).optional(),
+    // Social stickers (social-stickers.ts): a shape clip whose shape is
+    // "comment", "subscribe" or "link-in-bio". `text` holds its
+    // words, these the look, the name and round picture on it, and which way
+    // the Link in bio arrow points. The picture is one of the owner's own
+    // uploads, checked again when the export reads it.
+    socialPlatform: z.enum(SOCIAL_PLATFORMS).optional(),
+    socialName: z.string().max(SOCIAL_NAME_MAX).optional(),
+    pictureUrl: z.string().max(2048).regex(/^https?:\/\//).optional(),
+    pointsUp: z.boolean().optional(),
+    // On a sound clip: the Subscribe sticker whose press it is, so the
+    // sticker's Click sound picker can find it and swap it (social-stickers.md).
+    pressFor: z.string().min(1).max(64).optional(),
     blurTrack: z
       .array(
         z

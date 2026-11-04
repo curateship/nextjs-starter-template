@@ -7,7 +7,7 @@ import {
 import { MIN_CLIP_MS, editorId } from "@/lib/video/timeline-utils"
 
 /**
- * A new blur, as the Text panel's Blur button and a clip's "Blur a spot" lay
+ * A new blur, as the Graphics panel's Blur button and a clip's "Blur a spot" lay
  * it down (blur.md). It runs 3 seconds, or `room` when that is shorter: from
  * the right-click, the room is what is left of the clip after the playhead,
  * so the blur ends with the clip it was asked for.

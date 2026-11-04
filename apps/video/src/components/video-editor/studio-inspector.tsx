@@ -101,6 +101,25 @@ import {
   type BlurShape,
 } from "@/lib/video/blur"
 import { BlurFollowCard } from "@/components/video-editor/blur-follow-card"
+import { SocialStickerCards } from "@/components/video-editor/social-sticker-inspector"
+import { ColourLookField } from "@/components/video-editor/colour-look-field"
+import {
+  canTakeFrameShape,
+  clipCornerShare,
+  clipFrameBorder,
+  clipFrameShape,
+  DEFAULT_FRAME_BORDER,
+  DEFAULT_FRAME_BORDER_COLOR,
+  FRAME_SHAPE_LABELS,
+  FRAME_SHAPES,
+  MAX_CORNER_SHARE,
+  MAX_FRAME_BORDER,
+  MIN_CORNER_SHARE,
+  MIN_FRAME_BORDER,
+  squareBox,
+  type FrameShape,
+} from "@/lib/video/clip-frame-shape"
+import { isSocialClip } from "@/lib/video/social-stickers"
 import {
   CLIP_COLOUR_STEP,
   clipColour,
@@ -212,7 +231,15 @@ export function StudioInspector() {
     <div data-screen-label="Inspector" className="flex h-full min-h-0 flex-col">
       <DashboardCardTitleHeader
         icon={<SlidersHorizontal className="size-4" />}
-        title={clip ? (isBlurClip(clip) ? "Blur" : CLIP_KIND_LABEL[clip.kind]) : "Inspector"}
+        title={
+          clip
+            ? isBlurClip(clip)
+              ? "Blur"
+              : isSocialClip(clip)
+                ? "Sticker"
+                : CLIP_KIND_LABEL[clip.kind]
+            : "Inspector"
+        }
         meta={clip ? clip.name : undefined}
       />
 
@@ -224,6 +251,12 @@ export function StudioInspector() {
             <TextInspector clip={clip} />
           ) : isBlurClip(clip) ? (
             <BlurInspector clip={clip} />
+          ) : isSocialClip(clip) ? (
+            <>
+              <SocialStickerCards clip={clip} />
+              <FadesSection clip={clip} />
+              <Timing clip={clip} />
+            </>
           ) : clip.kind === "shape" ? (
             <ShapeInspector clip={clip} />
           ) : (
@@ -286,7 +319,7 @@ function ProjectProps() {
 
 /**
  * The bar along one edge that fills as the video plays. It belongs to the
- * project, so it is set here with no clip picked. The Text panel's Progress
+ * project, so it is set here with no clip picked. The Graphics panel's Progress
  * bar button is the other way to switch it on.
  */
 function ProgressBarCard() {
@@ -1026,6 +1059,133 @@ function LayoutSection({ clip }: { clip: EditorClip }) {
 }
 
 /**
+ * The shape of a picture or video: rectangle, rounded corners or a circle,
+ * and an optional border inside its edge (clip-frame-shape.ts). It is on
+ * every video and picture clip (Tyler, 4 Nov 2026: "too confusing. how do i
+ * even shrink a clip for this to work"). A shape needs a clip smaller than the
+ * frame that fills its box, so picking Rounded or Circle, or switching on the
+ * border, on a full-frame clip shrinks it into the corner box first, in the
+ * same Undo. Circle also makes the box square.
+ */
+function FrameShapeSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  const aspect = useEditorSelector((state) => state.aspect)
+  const inset = usePlatformInset()
+  if (clip.kind !== "video" && clip.kind !== "image") return null
+  const placed = canTakeFrameShape(clip)
+
+  function patch(next: Partial<EditorClip>, transient = false) {
+    dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: next, transient })
+  }
+
+  // What a shape or border needs first: the corner box for a full-frame
+  // clip, or filling its box for a smaller one.
+  function room(): Partial<EditorClip> {
+    return placed ? { fit: "cover" } : layoutPatches("corner", clip, null, inset)[0].patch
+  }
+
+  function pickShape(shape: FrameShape) {
+    if (shape === "rectangle") {
+      patch({ frameShape: undefined })
+      return
+    }
+    const [across, down] = aspect.split(":").map(Number)
+    const base = room()
+    if (shape !== "circle") {
+      patch({ ...base, frameShape: shape })
+      return
+    }
+    // The square box is shorter (or narrower) than the frame-shaped corner
+    // box it replaces, so a clip just shrunk into the corner moves out by the
+    // difference, keeping the same gap to the corner.
+    const square = squareBox(across / down)
+    const shrunk = !placed && typeof base.scale === "number"
+    const half = shrunk ? base.scale! / 2 : 0
+    patch({
+      ...base,
+      ...square,
+      ...(shrunk && typeof base.x === "number" ? { x: base.x + half * (1 - square.boxWidth) } : {}),
+      ...(shrunk && typeof base.y === "number" ? { y: base.y + half * (1 - square.boxHeight) } : {}),
+      frameShape: shape,
+    })
+  }
+
+  const shape = clipFrameShape(clip)
+  const border = clipFrameBorder(clip)
+
+  return (
+    <InspectorCard
+      title="Shape"
+      description={
+        placed
+          ? "Round the corners or make it a circle, with a border if you like."
+          : "Picking Rounded or Circle, or a border, shrinks the clip into the corner."
+      }
+    >
+      <div className="grid gap-2.5">
+        <FieldLabel htmlFor="clip-frame-shape">Shape</FieldLabel>
+        <Select value={shape} onValueChange={(value) => pickShape(value as FrameShape)}>
+          <SelectTrigger id="clip-frame-shape" className="w-0 min-w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FRAME_SHAPES.map((option) => (
+              <SelectItem key={option} value={option}>
+                {FRAME_SHAPE_LABELS[option]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {shape === "rounded" ? (
+        <SliderField
+          id="clip-corner"
+          label="Corner size"
+          value={Math.round(clipCornerShare(clip) * 100)}
+          min={Math.round(MIN_CORNER_SHARE * 100)}
+          max={Math.round(MAX_CORNER_SHARE * 100)}
+          onChange={(value) => patch({ cornerRadius: value / 100 }, true)}
+        />
+      ) : null}
+      <SwitchField
+        id="clip-border"
+        label="Border"
+        description="A line just inside the edge."
+        checked={border !== null}
+        onChange={(on) =>
+          patch(
+            on
+              ? {
+                  ...room(),
+                  borderWidth: DEFAULT_FRAME_BORDER,
+                  borderColor: clip.borderColor ?? DEFAULT_FRAME_BORDER_COLOR,
+                }
+              : { borderWidth: undefined, borderColor: undefined }
+          )
+        }
+      />
+      {border ? (
+        <>
+          <ColorField
+            label="Border colour"
+            value={border.color}
+            onChange={(borderColor) => patch({ borderColor }, true)}
+          />
+          <SliderField
+            id="clip-border-width"
+            label="Border thickness"
+            value={border.width}
+            min={MIN_FRAME_BORDER}
+            max={MAX_FRAME_BORDER}
+            onChange={(borderWidth) => patch({ borderWidth }, true)}
+          />
+        </>
+      ) : null}
+    </InspectorCard>
+  )
+}
+
+/**
  * A slow move across a still picture. Only a picture gets the choice: footage
  * already moves, and sound and text have no picture to move.
  */
@@ -1100,7 +1260,7 @@ function ColourSection({ clip }: { clip: EditorClip }) {
   }
 
   function reset() {
-    if (!isColourTouched(colour)) {
+    if (!isColourTouched(colour) && !clip.look) {
       toast("This clip's colour is already untouched.")
       return
     }
@@ -1108,6 +1268,7 @@ function ColourSection({ clip }: { clip: EditorClip }) {
       type: "UPDATE_CLIP",
       clipId: clip.id,
       patch: {
+        look: undefined,
         brightness: undefined,
         contrast: undefined,
         saturation: undefined,
@@ -1118,8 +1279,9 @@ function ColourSection({ clip }: { clip: EditorClip }) {
   return (
     <InspectorCard
       title="Colour"
-      description="Lift a dark shot, or make the colours stronger or softer."
+      description="A film look, then lift a dark shot or make the colours stronger or softer."
     >
+      <ColourLookField clip={clip} />
       <FractionSliderField
         id="clip-brightness"
         label="Brightness"
@@ -1223,6 +1385,7 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
       <FrameFitSection clip={clip} />
 
       <LayoutSection clip={clip} />
+      <FrameShapeSection clip={clip} />
 
       <MotionSection clip={clip} />
 

@@ -103,7 +103,8 @@ import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Hint } from "@/components/video-assets/hint"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Popover as PopoverPrimitive } from "radix-ui"
+import { Popover, PopoverContent } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -295,7 +296,10 @@ export type BuilderAction =
 
 type StudioPanel = "carousels" | "slides" | "layers" | "text" | "image" | "shadow"
 
-const LAYOUT_KEY = "video-carousel-studio-horizontal-2"
+// Raised to 3 on 4 Nov 2026, when the left panel's narrowest went from 16% to
+// 18% so its header fits search, filter and upload; browsers that kept the
+// old widths would otherwise never see it.
+const LAYOUT_KEY = "video-carousel-studio-horizontal-3"
 
 const AUTOSAVE_DEBOUNCE_MS = 1200
 const UNDO_LIMIT = 50
@@ -1141,8 +1145,8 @@ export function CarouselBuilderPage({
         panelRef={panelRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="16%"
-        minSize="16%"
+        defaultSize="18%"
+        minSize="18%"
         maxSize="34%"
         onResize={(size) => setPanelCollapsed(size.asPercentage < 0.5)}
       >
@@ -2315,7 +2319,8 @@ function ImagePanel({
   const [dragOver, setDragOver] = React.useState(false)
   // Goes up when a Pexels photo joins the shelf from this panel.
   const [kept, setKept] = React.useState(0)
-  const [searchOpen, setSearchOpen] = React.useState(false)
+  // Which search the magnifier's menu opened, if any.
+  const [searchMode, setSearchMode] = React.useState<"media" | "pexels" | null>(null)
   // The filter menu's Collection row: "shelf" is this carousel's own
   // uploads; a collection's id lists that collection from the whole library.
   const [filter, setFilter] = React.useState<MediaFilterValue>(() =>
@@ -2386,6 +2391,9 @@ function ImagePanel({
     }
   }, [carouselId, debounced, mediaVersion, typesKey, kept, collections])
 
+  // What the search menu does once it has closed, so a search keeps the cursor.
+  const afterMenu = React.useRef<(() => void) | null>(null)
+
   // A picture from a collection joins this carousel's shelf as it goes on a
   // slide, so it is there next time without the collection.
   function place(item: MediaItem, tile: HTMLElement) {
@@ -2440,30 +2448,86 @@ function ImagePanel({
         icon={icon}
         title={title}
         action={
-          <div className="flex items-center gap-2">
-            <Popover open={searchOpen} onOpenChange={setSearchOpen}>
-              <Hint label="Search media">
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
+          <div className="flex items-center gap-1">
+            {/* The magnifier opens a choice of what to search (Tyler, 4 Nov
+                2026): this carousel's media, or Pexels' free photos. Either
+                search opens beside the magnifier, which is why the magnifier
+                sits inside the search's anchor. */}
+            <Popover
+              open={searchMode !== null}
+              onOpenChange={(open) => (open ? undefined : setSearchMode(null))}
+            >
+              <PopoverPrimitive.Anchor asChild>
+                <span className="inline-flex">
+                  <DropdownMenu>
+                    <Hint label="Search">
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="ghost" size="icon" aria-label="Search">
+                          <SearchIcon className={search ? "text-foreground" : undefined} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </Hint>
+                    <DropdownMenuContent
+                      align="start"
+                      className="w-44"
+                      // The search the menu opened takes the cursor, not the magnifier.
+                      onCloseAutoFocus={(event) => {
+                        const next = afterMenu.current
+                        if (!next) return
+                        event.preventDefault()
+                        afterMenu.current = null
+                        next()
+                      }}
+                    >
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          afterMenu.current = () => setSearchMode("media")
+                        }}
+                      >
+                        <ImageIcon />
+                        Search media
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          afterMenu.current = () => setSearchMode("pexels")
+                        }}
+                      >
+                        <SearchIcon />
+                        Search Pexels
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </span>
+              </PopoverPrimitive.Anchor>
+              <PopoverContent
+                align="start"
+                className={searchMode === "pexels" ? "w-80 p-3" : "w-60 p-2"}
+              >
+                {searchMode === "pexels" ? (
+                  <StockPhotoSearch
+                    carouselId={carouselId}
+                    onPlace={(picture, size) => {
+                      onAddItem(
+                        createImageItem(
+                          picture.url,
+                          picture.name,
+                          picture.id,
+                          fitImageBox(size.width, size.height, format)
+                        )
+                      )
+                      setKept((count) => count + 1)
+                    }}
+                  />
+                ) : (
+                  <Input
+                    autoFocus
+                    type="search"
+                    value={search}
+                    placeholder="Search media"
                     aria-label="Search media"
-                    aria-pressed={searchOpen}
-                  >
-                    <SearchIcon className={search ? "text-foreground" : undefined} />
-                  </Button>
-                </PopoverTrigger>
-              </Hint>
-              <PopoverContent align="start" className="w-60 p-2">
-                <Input
-                  autoFocus
-                  type="search"
-                  value={search}
-                  placeholder="Search media"
-                  aria-label="Search media"
-                  onChange={(event) => setSearch(event.target.value)}
-                />
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                )}
               </PopoverContent>
             </Popover>
             <MediaFilterMenu
@@ -2666,21 +2730,6 @@ function ImagePanel({
       </>
       )}
 
-      <StudioLabel style={{ marginTop: 18 }}>Free photos</StudioLabel>
-      <StockPhotoSearch
-        carouselId={carouselId}
-        onPlace={(picture, size) => {
-          onAddItem(
-            createImageItem(
-              picture.url,
-              picture.name,
-              picture.id,
-              fitImageBox(size.width, size.height, format)
-            )
-          )
-          setKept((count) => count + 1)
-        }}
-      />
       </div>
       </ScrollArea>
     </div>

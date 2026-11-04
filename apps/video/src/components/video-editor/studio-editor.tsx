@@ -18,7 +18,7 @@ import {
   Music,
   Share2,
   SparklesIcon,
-  Type,
+  Shapes,
   Upload,
 } from "lucide-react"
 
@@ -112,7 +112,10 @@ const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
   { id: "music", label: "Music", Icon: Music },
   { id: "sounds", label: "Sounds", Icon: AudioLines },
   { id: "voiceovers", label: "Voices", Icon: MicIcon },
-  { id: "text", label: "Text", Icon: Type },
+  // Words, shapes, stickers and the social stickers. Called Text until
+  // 4 Nov 2026 (Tyler: "rename text panel to Graphics"); its id stays "text"
+  // because saved editor views name it.
+  { id: "text", label: "Graphics", Icon: Shapes },
   { id: "transcript", label: "Transcript", Icon: CaptionsIcon },
   { id: "ai", label: "AI tools", Icon: SparklesIcon },
   { id: "ai-clip", label: "AI clip", Icon: ClapperboardIcon },

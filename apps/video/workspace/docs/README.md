@@ -24,16 +24,24 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [clip-colour.md](clip-colour.md) — what the brightness, contrast and
   saturation sliders do, and how the preview matches the export's `eq` filter
   to within a few levels.
+- [colour-looks.md](colour-looks.md) — the eight film looks and your own
+  saved looks on the Colour card, and how one LUT is drawn the same in the
+  preview and the export.
 - [clip-fades.md](clip-fades.md) — the four fade sliders for sound and
   picture, what happens when two fades are longer than the clip, why a
   transition wins over a picture fade at its seam, and how a split shares the
   fades out.
 - [video-on-video.md](video-on-video.md) — a video smaller than the frame
   over another: the Size slider, the corner box and the two splits, the box
-  a split clip is fitted into, and how one shared player is placed per clip.
+  a split clip is fitted into, the round bubble and its border, and how one
+  shared player is placed per clip.
 - [shapes.md](shapes.md) — arrows and circles over the video: adding and
   placing one, drawing itself on, and why a picked shape shows whole while
   paused.
+- [social-stickers.md](social-stickers.md) — the Graphics panel's comment
+  reply, Subscribe button and Link in bio: the looks, the Subscribe film and
+  choosing its click sound, the name and picture, and how the preview and the
+  export draw the same thing.
 - [blur.md](blur.md) — a blur over one spot: adding it from Shapes or a
   clip's right-click, box or oval, strength, what it blurs, and following a
   moving thing or a face with AI.
@@ -71,10 +79,13 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [background-music.md](background-music.md) — the Music panel: where the
   tracks come from, why a track arrives ducked and at a quarter volume, and
   what happens when the music and the video are different lengths.
+- [ai-music.md](ai-music.md) — music made to fit by ElevenLabs Music: the
+  mood box, the length and its 5 minute cap, where the track lands, and what
+  it costs.
 - [remembered-view.md](remembered-view.md) — how a project reopens with the
   left panel, playhead, zoom, scroll and selected clip you left it at, where
   that is kept, and what it does not survive.
-- [stickers.md](stickers.md) — the Text panel's stickers: each person's own
+- [stickers.md](stickers.md) — the Graphics panel's stickers: each person's own
   emoji and pictures, where the list is stored, where a sticker lands, and
   what happens to a project whose picture sticker's file is deleted.
 - [text-fonts.md](text-fonts.md) — the five faces video text, captions and
@@ -136,6 +147,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [frame-rate.md](frame-rate.md) — the choice of 30 or 60 frames a second on
   export, what it does to footage shot at each, the measured file sizes, and
   why 30 stays the default.
+- [export-notices.md](export-notices.md) — the bell notice when a video
+  export is ready or failed, what sends none, and why it has no link.
 - [retrying-an-export.md](retrying-an-export.md) — the Try again button on a
   failed export: when it is allowed, and what it resets.
 - [share-links.md](share-links.md) — a link to one finished export that
@@ -151,6 +164,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   menu and its saved views, the + menu
   that uploads files or makes a collection, and why only dragging, never a
   click, puts a file on the timeline.
+- [phone-uploads.md](phone-uploads.md) — sending videos and photos from a
+  phone's camera roll by scanning a code: how long the code and the phone's
+  sign-in last, how the secret is kept out of logs, and how the editor hears
+  a file arrived.
 - [media-collections.md](media-collections.md) — named groups of your own
   files in the editor's Media panel: whose they are, how to fill them many at
   a time, why deleting one never deletes a file, and when another tab sees a
@@ -209,10 +226,13 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   keeps every shot moving.
 - [actors.md](actors.md) — an actor's character sheet: several pictures of
   one person with one main picture, which ones a first frame sends on the
-  person board, and what removing or deleting keeps.
+  person board, the voice it speaks in, and what removing or deleting keeps.
 - [extras.md](extras.md) — clothing, backdrops, props and hair looks: the tabs
   on the Actors dashboard, the Extras button, the 4-picture person board, and
   what the first frame and the shot are sent.
+- [lip-sync.md](lip-sync.md) — Match the lips with Sync Labs: which voice,
+  the price, the wait, what is sent and deleted, and how the matched clip
+  takes the old one's place.
 - [animate-a-still.md](animate-a-still.md) — Make it move on a timeline
   picture: the right-click window, what is sent, how the moving shot takes
   the picture's place as one Undo step, who lands it when the tab is closed,

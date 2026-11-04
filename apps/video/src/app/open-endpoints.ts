@@ -29,6 +29,10 @@
  * behind the door is safe for anyone to read.
  */
 export const appOpenEndpoints: Record<string, string> = {
+  "video/phone-uploads.ts:openFn":
+    "A phone opening the QR code's link has no account. The 64-character random secret is the guard: it must match a link made within 15 minutes and never opened, it works once, and it gives that phone a sign-in for one project's uploads only. It answers only the project's name or why it was refused.",
+  "video/phone-uploads.ts:sessionFn":
+    "The phone's page asks whether its own cookie is still a live sign-in. It answers yes or no and nothing else, so it tells a stranger nothing.",
   "video/export-shares.ts:readSharedExportFn":
     "A share link is opened by somebody with no account. The 64-character random token is the guard: a revoked, expired or deleted link returns null, and a live one returns only the export's own title and shape, and for a kept carousel its slide count and the caption it was exported with.",
 }
@@ -142,4 +146,18 @@ export const appGuardedDeeper: Record<string, string> = {
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForMedia finds whose each file is, and readOwnedBeats only reads rows of files that person owns.",
   "video/project-guests.ts:uploadFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project, and attachMediaToScope checks the project's owner again.",
+  "video/phone-uploads.ts:makeLinkFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then signedInActor refuses a guest, and createPhoneLink checks the project is the signed-in person's own with getOwnedProject.",
+  "video/phone-uploads.ts:endLinkFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then signedInActor refuses a guest, and endPhoneLink only changes a link whose user_id is the signed-in person.",
+  "video/phone-uploads.ts:linkStatusFn":
+    "editorGet lets in a signed-in person or a guest sent from Project, then signedInActor refuses a guest, and phoneLinkStatus only reads a link whose user_id is the signed-in person.",
+  "video/phone-uploads.ts:pictureFn":
+    "phonePost refuses anyone without a live phone sign-in, a cookie whose hash matches an opened link that has not run out, and the file goes only into that link's own owner's library and project.",
+  "video/phone-uploads.ts:videoStartFn":
+    "phonePost refuses anyone without a live phone sign-in, and the upload is opened in that link's owner's own folder by startVideoUpload, with the owner's upload rate limit.",
+  "video/phone-uploads.ts:videoSignFn":
+    "phonePost refuses anyone without a live phone sign-in, and signVideoUploadPart checks the upload's key is in that link's owner's own folder and the piece is in range.",
+  "video/phone-uploads.ts:videoFinishFn":
+    "phonePost refuses anyone without a live phone sign-in, finishVideoUpload checks the key is the link owner's and the file that arrived, and attachMediaToScope checks the owner owns the project.",
 }

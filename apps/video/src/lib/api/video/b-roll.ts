@@ -12,9 +12,9 @@ import {
 import { adminGet, adminPost, userGet, userPost } from "@/server/guards"
 import type { BrollRow, BrollStatus, BrollSuggestion } from "@/server/video/b-roll"
 import type { PexelsBatch } from "@/server/video/pexels"
-import type { PexelsKeyStatus } from "@/server/video/settings"
+import type { SavedKeyStatus } from "@/server/video/settings"
 
-export type { BrollRow, BrollStatus, BrollSuggestion, PexelsBatch, PexelsKeyStatus }
+export type { BrollRow, BrollStatus, BrollSuggestion, PexelsBatch, SavedKeyStatus }
 
 /**
  * B-roll from Pexels, and its key. The key is admin only, like the YouTube
@@ -47,7 +47,7 @@ const loadKeyFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(() => import("@/server/video/settings").then((m) => m.getPexelsKeyStatus()))
 
-export function loadPexelsKeyStatus(): Promise<PexelsKeyStatus> {
+export function loadPexelsKeyStatus(): Promise<SavedKeyStatus> {
   return loadKeyFn()
 }
 
@@ -60,7 +60,7 @@ const saveKeyFn = createServerFn({ method: "POST" })
     return settings.getPexelsKeyStatus()
   })
 
-export function savePexelsKey(apiKey: string): Promise<PexelsKeyStatus> {
+export function savePexelsKey(apiKey: string): Promise<SavedKeyStatus> {
   return saveKeyFn({ data: { apiKey } })
 }
 
@@ -72,7 +72,7 @@ const removeKeyFn = createServerFn({ method: "POST" })
     return settings.getPexelsKeyStatus()
   })
 
-export function removePexelsKey(): Promise<PexelsKeyStatus> {
+export function removePexelsKey(): Promise<SavedKeyStatus> {
   return removeKeyFn()
 }
 

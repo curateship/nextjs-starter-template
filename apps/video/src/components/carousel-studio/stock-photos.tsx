@@ -3,6 +3,7 @@ import { Loader2Icon, SearchIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Tooltip,
   TooltipContent,
@@ -17,7 +18,7 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * Free photos from Pexels in the Image panel: a search, a grid of photos to
+ * Free photos from Pexels, from the Image panel's search menu: a search, a grid of photos to
  * suit the carousel's shape, and one press to put one on the slide. The
  * photo is saved to the library first, with its photographer's credit as its
  * description (workspace/docs/carousel-pictures.md).
@@ -75,8 +76,9 @@ export function StockPhotoSearch({
         }}
       >
         <Input
-          aria-label="Search free photos"
-          placeholder="Search free photos"
+          autoFocus
+          aria-label="Search Pexels photos"
+          placeholder="Search Pexels photos"
           value={query}
           maxLength={100}
           onChange={(event) => setQuery(event.target.value)}
@@ -109,6 +111,7 @@ export function StockPhotoSearch({
 
       {photos?.length ? (
         <>
+          <ScrollArea className="h-[min(55vh,420px)]">
           <div style={{ columnCount: 2, columnGap: 10 }}>
             {photos.map((photo) => (
               <button
@@ -136,6 +139,7 @@ export function StockPhotoSearch({
               </button>
             ))}
           </div>
+          </ScrollArea>
           <p className="text-xs text-muted-foreground">
             Photos from{" "}
             <a

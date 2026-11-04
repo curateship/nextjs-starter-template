@@ -149,6 +149,9 @@ export function prepareClipsForPaste(
       ...clip,
       id: freshIds.get(clip.id) ?? editorId(),
       spokenBy: clip.spokenBy ? freshIds.get(clip.spokenBy) : undefined,
+      // A click pasted with its Subscribe sticker belongs to the pasted
+      // sticker; one pasted alone belongs to no sticker.
+      pressFor: clip.pressFor ? freshIds.get(clip.pressFor) : undefined,
     }
     if (!clip.mediaId || !missing.has(clip.mediaId)) {
       return { clip: fresh, lane }

@@ -6,6 +6,9 @@ inspector on the right, in the **Colour** card, on video and picture clips.
 Sound has no picture, and text is drawn in the colour it is set to, so neither
 gets the card.
 
+The card starts with a Look field: a film look or one of your own saved looks,
+which goes on before these sliders ([colour-looks.md](colour-looks.md)).
+
 ## The three sliders
 
 - **Brightness** makes the whole picture lighter or darker by the same

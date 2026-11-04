@@ -3,6 +3,7 @@ import { Loader2Icon, SparklesIcon } from "lucide-react"
 
 import { ImageUpload } from "@/components/shared/image-upload"
 import { ActorSheetCard } from "@/components/video-assets/actor-sheet-card"
+import { ActorVoiceSelect } from "@/components/video-assets/actor-voice-select"
 import { TagInput } from "@/components/video-assets/tag-input"
 import { ProjectLookSelect } from "@/components/video-assets/project-look-select"
 import { Button } from "@/components/ui/button"
@@ -50,6 +51,8 @@ type FormState = {
   referenceMediaUrl: string
   /** A project id, or "" for no look. Used only when a picture is made. */
   lookProjectId: string
+  /** The voice it speaks in, or "" for none. */
+  voiceId: string
 }
 
 function startingForm(actor: ActorItem | null): FormState {
@@ -62,6 +65,7 @@ function startingForm(actor: ActorItem | null): FormState {
       tags: "",
       referenceMediaUrl: "",
       lookProjectId: "",
+      voiceId: "",
     }
   }
   return {
@@ -72,6 +76,7 @@ function startingForm(actor: ActorItem | null): FormState {
     tags: actor.tags.join(", "),
     referenceMediaUrl: actor.reference_media_url ?? "",
     lookProjectId: "",
+    voiceId: actor.voice_id ?? "",
   }
 }
 
@@ -132,6 +137,7 @@ export function ActorFormDialog({
         ...form,
         referenceMediaUrl: form.referenceMediaUrl || null,
         lookProjectId: form.lookProjectId || null,
+        voiceId: form.voiceId || null,
       }
       const saved = actor
         ? await updateActor(actor.id, payload, shouldRegenerate)
@@ -163,6 +169,12 @@ export function ActorFormDialog({
                   <Label htmlFor="actor-description">Description or new pose</Label>
                   <Textarea id="actor-description" value={form.prompt} onChange={(event) => setForm({ ...form, prompt: event.target.value })} aria-invalid={!form.prompt.trim() || undefined} />
                 </div>
+                <ActorVoiceSelect
+                  id="actor-voice"
+                  value={form.voiceId}
+                  onChange={(voiceId) => setForm({ ...form, voiceId })}
+                  disabled={busy}
+                />
                 <ImageUpload
                   label="Reference photo"
                   value={form.referenceMediaUrl}

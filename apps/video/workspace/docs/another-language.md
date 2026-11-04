@@ -208,6 +208,14 @@ minute. Several languages cost that much each: three languages of a minute of
 talking come to about 3 × ($0.002 + $0.14), which is about $0.43, plus the
 $0.006 of writing it down once.
 
+## Lips that match the new language
+
+A language copy keeps the original footage, so the speaker's mouth still moves
+to the old words. "Match the lips…" on the footage clip's right-click menu
+sends it with the new voice to Sync Labs, which moves the mouth to the new
+words ([lip-sync.md](lip-sync.md)). It is never done by itself, because it
+costs about $0.05 a second.
+
 ## The thumbnail
 
 A language copy gets a thumbnail of its own from the original's Thumbnail

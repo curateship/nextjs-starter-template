@@ -24,6 +24,8 @@ import {
 } from "@/lib/video/timeline-schema"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
+import { publishNotificationCreated } from "@/server/notifications/events"
+import { customShellNotifications } from "@/server/schema"
 import {
   deleteFromR2,
   uploadFileToR2,
@@ -740,6 +742,7 @@ async function runJob(job: ClaimedJob) {
       await coverFromMainThumbnail(job.user_id, job.video_id, job.aspect).catch((coverError) =>
         console.error("Covering an export with its thumbnail failed", job.id, coverError)
       )
+      await noticeExport({ id: job.id, userId: job.user_id }, "ready")
     }
   } catch (error) {
     await discardUploads(uploaded)
@@ -758,7 +761,7 @@ async function runJob(job: ClaimedJob) {
       error instanceof Error && SAFE_RENDER_ERRORS.has(error.message)
         ? error.message
         : RENDER_FAILED_MESSAGE
-    await db
+    const failed = await db
       .update(videoRenderJobs)
       .set({
         status: "error",
@@ -775,6 +778,8 @@ async function runJob(job: ClaimedJob) {
           eq(videoRenderJobs.status, "running")
         )
       )
+      .returning({ id: videoRenderJobs.id })
+    if (failed.length) await noticeExport({ id: job.id, userId: job.user_id }, "failed")
   } finally {
     clearInterval(stopCheck)
     clearInterval(heartbeat)
@@ -822,7 +827,7 @@ async function discardUploads(storagePaths: string[]) {
  * saying so is more use than trying forever.
  */
 async function reclaimStaleJobs() {
-  await db.execute(sql`
+  const result = await db.execute(sql`
     update video_render_jobs set
       status = case when attempts < ${MAX_ATTEMPTS} then 'queued' else 'error' end,
       error_message = case when attempts < ${MAX_ATTEMPTS} then error_message else ${INTERRUPTED_MESSAGE} end,
@@ -831,5 +836,69 @@ async function reclaimStaleJobs() {
       finished_at = case when attempts < ${MAX_ATTEMPTS} then null else now() end,
       updated_at = now()
     where status = 'running' and lease_expires_at < now()
+    returning id, user_id, status
   `)
+  const given = result.rows as { id: string; user_id: string; status: string }[]
+  for (const row of given) {
+    if (row.status === "error") await noticeExport({ id: row.id, userId: row.user_id }, "failed")
+  }
+}
+
+/**
+ * Tells the owner in the bell that an export is ready or has failed, with its
+ * name and shape. Only a video export: a carousel export is made while its
+ * window waits, so its owner is already looking. A stopped export sends
+ * nothing, because the owner stopped it. Written up in
+ * workspace/docs/export-notices.md.
+ */
+async function noticeExport(job: { id: string; userId: string }, outcome: "ready" | "failed") {
+  try {
+    const [row] = await db
+      .select({
+        kind: videoRenderJobs.kind,
+        title: videoRenderJobs.title,
+        aspect: videoRenderJobs.aspect,
+        videoName: videoProjectVideos.name,
+      })
+      .from(videoRenderJobs)
+      .leftJoin(videoProjectVideos, eq(videoProjectVideos.id, videoRenderJobs.videoId))
+      .where(eq(videoRenderJobs.id, job.id))
+      .limit(1)
+    if (!row || row.kind !== "video") return
+    const words = exportNoticeWords({
+      name: row.title || row.videoName || "Your video",
+      aspect: row.aspect,
+      outcome,
+    })
+    await db.insert(customShellNotifications).values({
+      id: uuid(),
+      recipientUserId: job.userId,
+      type: "app_activity",
+      message: words.message,
+      detail: words.detail,
+      createdAt: now(),
+    })
+    await publishNotificationCreated(job.userId)
+  } catch (error) {
+    // A notice is a nicety; the export itself is ready or failed either way.
+    console.error("Export notice failed", job.id, error)
+  }
+}
+
+/** The two lines of an export notice. */
+export function exportNoticeWords(input: {
+  name: string
+  aspect: string
+  outcome: "ready" | "failed"
+}) {
+  const shape = EXPORT_SHAPES.find((item) => item.id === input.aspect)?.label ?? input.aspect
+  return input.outcome === "ready"
+    ? {
+        message: `${input.name} (${shape}) is ready`,
+        detail: "Download or share it from the Exports page.",
+      }
+    : {
+        message: `${input.name} (${shape}) could not be exported`,
+        detail: "The Exports page says why, and Try again is there.",
+      }
 }
