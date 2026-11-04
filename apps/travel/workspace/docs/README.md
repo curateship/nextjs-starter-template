@@ -11,4 +11,5 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [Booking emails](booking-emails.md): pasting a confirmation email for AI to turn into an activity.
 - [Drafting a plan with AI](drafting-a-plan.md): the first plan of sights and meals for a trip's empty days, from New trip or "+ Add", checked before anything is saved.
 - [Phone calendar](phone-calendar.md): the subscribe link for Apple and Google Calendar, its secret, and Reset link.
+- [Going live](launch.md): travel.barelycompany.com on server1, what was decided at launch, every live value, the copy of Tyler's local trips, how to deploy, and the release record.
 - [Working without signal](working-without-signal.md): the Trips table and every trip opened, kept to open read only with no signal, the "No signal" line and what is turned off.
