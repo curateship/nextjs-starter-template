@@ -2,7 +2,6 @@ import { z } from "zod"
 
 import { isDynamicLucideIconName, isIconKey } from "@/lib/custom-shell"
 import { addDays, isRealDay, weekdayOf } from "@/lib/project/days"
-import { storedTaskNotes } from "@/lib/project/notes"
 
 /**
  * The Daily card's rules, shared by the server that keeps its rows and the
@@ -62,19 +61,8 @@ export const DAILY_LIMITS = {
   habitName: 60,
   habitsPerPart: 12,
   habitTarget: 99,
-  /**
-   * The intention is the editor's document saved as JSON text, so the limit is
-   * on that text, the same as a task's notes (Tyler, 30 Oct 2026: "Make that
-   * field using tip tap editor so I can add more advanced text and spacing").
-   */
-  intention: 20_000,
   note: 500,
   win: 200,
-  answer: 500,
-  ownLine: 160,
-  ownLines: 100,
-  ownQuestion: 160,
-  ownQuestions: 100,
   city: 80,
   search: 80,
 } as const
@@ -144,13 +132,6 @@ export function hoursInOrder(hours: DayHours) {
   return minutesOf(hours.morning) < minutesOf(hours.afternoon) && minutesOf(hours.afternoon) < minutesOf(hours.night)
 }
 
-export function hoursAndMinutes(minutes: number) {
-  const hours = Math.floor(minutes / 60)
-  const rest = minutes % 60
-  if (!hours) return `${rest}m`
-  return rest ? `${hours}h ${rest}m` : `${hours}h`
-}
-
 /** The Monday on or before `day`. */
 export function weekStartOf(day: string) {
   return addDays(day, -((weekdayOf(day) + 6) % 7))
@@ -216,14 +197,6 @@ export function habitIsSetFor(
   return habit.days.length === 0 || habit.days.includes(weekdayOf(day))
 }
 
-/** Picks one of `items` for `day`, the same every time for that day. */
-export function pickForDay<T>(items: readonly T[], day: string): T | null {
-  if (items.length === 0) return null
-  const [year, month, date] = day.split("-").map(Number)
-  const index = Math.floor(Date.UTC(year, month - 1, date) / 86_400_000)
-  return items[((index % items.length) + items.length) % items.length]
-}
-
 // --- Weather -------------------------------------------------------------------
 
 export type WeatherKind = "clear" | "partly-cloudy" | "cloudy" | "fog" | "drizzle" | "rain" | "snow" | "storm"
@@ -280,20 +253,17 @@ export const dailyRemindersSchema = z.object({ morning: time.nullable(), afterno
 /**
  * The Daily card's sections in the left panel, in the card's own order, which
  * the site admin can drag into another in the pencil window (Tyler, 30 Oct
- * 2026). Some show only at one part of the day: progress in the afternoon,
- * Done today at night.
+ * 2026). Tomorrow shows only at night. Line for the day, Afternoon progress,
+ * Done today, Today I want to..., the own lines and night questions, and
+ * Deep work were taken out (Tyler, 3 Nov 2026).
  */
-export const DAILY_SECTIONS = ["line", "progress", "deepWork", "meeting", "windDown", "routine", "journal"] as const
+export const DAILY_SECTIONS = ["meeting", "routine", "tomorrow"] as const
 export type DailySection = (typeof DAILY_SECTIONS)[number]
 
 export const DAILY_SECTION_LABEL: Record<DailySection, string> = {
-  line: "Line for the day",
-  progress: "Afternoon progress",
-  deepWork: "Deep work",
   meeting: "Next meeting",
-  windDown: "Done today, at night",
   routine: "Routine",
-  journal: "Today I want to... and Tomorrow",
+  tomorrow: "Tomorrow, at night",
 }
 
 /** A saved order with any unknown name dropped and any section it doesn't name added at the end. */
@@ -316,11 +286,6 @@ export const dailySectionOrderSchema = z.object({
     .array(z.enum(DAILY_SECTIONS))
     .length(DAILY_SECTIONS.length)
     .refine((order) => new Set(order).size === order.length, "Each section once."),
-})
-
-export const dailyOwnWordsSchema = z.object({
-  kind: z.enum(["lines", "questions"]),
-  items: z.array(z.string().trim().min(1).max(DAILY_LIMITS.ownLine)).max(DAILY_LIMITS.ownLines),
 })
 
 const habitFields = {
@@ -346,26 +311,16 @@ export const habitCountSchema = z.object({
 })
 export const readyRoutinesSchema = z.object({})
 
-/** The fields written as plain words; the intention has the editor's own schema below. */
-const PLAIN_JOURNAL_FIELDS = ["note", "win", "answer"] as const
-export type JournalField = "intention" | (typeof PLAIN_JOURNAL_FIELDS)[number]
-const JOURNAL_MAX: Record<(typeof PLAIN_JOURNAL_FIELDS)[number], number> = {
+const JOURNAL_FIELDS = ["note", "win"] as const
+export type JournalField = (typeof JOURNAL_FIELDS)[number]
+const JOURNAL_MAX: Record<JournalField, number> = {
   note: DAILY_LIMITS.note,
   win: DAILY_LIMITS.win,
-  answer: DAILY_LIMITS.answer,
 }
 
 export const journalTextSchema = z
-  .object({ day, field: z.enum(PLAIN_JOURNAL_FIELDS), text: z.string().trim(), question: z.string().max(200).optional() })
+  .object({ day, field: z.enum(JOURNAL_FIELDS), text: z.string().trim() })
   .refine((input) => input.text.length <= JOURNAL_MAX[input.field], "That's too long to save.")
-/** An intention as the editor's document, cleaned to what notes may hold and saved as text ("" when empty). */
-export const journalIntentionSchema = z.object({
-  day,
-  body: z
-    .unknown()
-    .transform(storedTaskNotes)
-    .refine((text) => text.length <= DAILY_LIMITS.intention, "That's too long to save."),
-})
 /** A day's rating, 1 to 10 (Tyler, 30 Oct 2026: "rating should be out of 10, not 5"). */
 export const DAY_RATING_TOP = 10
 export const journalRatingSchema = z.object({ day, rating: z.number().int().min(1).max(DAY_RATING_TOP).nullable() })

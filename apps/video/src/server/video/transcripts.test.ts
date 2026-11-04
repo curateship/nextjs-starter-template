@@ -29,6 +29,8 @@ const metered = vi.hoisted(
     }[]
 )
 const sent = vi.hoisted(() => [] as { provider: string; startMs: number; durationMs: number }[])
+// How many pieces were with the transcriber at once, at most.
+const inFlight = vi.hoisted(() => ({ now: 0, most: 0 }))
 
 vi.mock("@/server/ai/keys", () => ({
   getAiKey: async (provider: "openai" | "gemini" | "anthropic") =>
@@ -55,10 +57,15 @@ vi.mock("@/server/ai/usage", () => ({
     return result
   },
 }))
-vi.mock("@/server/video/storage-files", () => ({
-  downloadToFile: async (_storagePath: string, target: string) => {
-    await writeFile(target, "not really a video")
-  },
+// Where the sound is read from: a made-up path, since ffmpeg is stood in
+// for below and never opens it.
+const sound = vi.hoisted(() => ({ streamsBigOriginal: false }))
+vi.mock("@/server/video/sound-source", () => ({
+  openSoundSource: async () => ({
+    input: "/stand-in/recording.mp4",
+    release: async () => undefined,
+    streamsBigOriginal: sound.streamsBigOriginal,
+  }),
 }))
 
 /** A WAV header saying how long the sound is and where in the file it starts. */
@@ -132,6 +139,10 @@ function heard(bytes: Uint8Array) {
 vi.mock("@/server/video/whisper", () => ({
   requireOpenAiKey: async () => "openai-key",
   transcribeWithWhisper: async ({ audio }: { audio: Uint8Array }) => {
+    inFlight.now += 1
+    inFlight.most = Math.max(inFlight.most, inFlight.now)
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    inFlight.now -= 1
     const { piece, words } = heard(audio)
     sent.push({ provider: "openai", ...piece })
     return { text: "", words }
@@ -381,15 +392,38 @@ describe("long recordings", () => {
     ])
   })
 
-  it("refuses a recording over 30 minutes before anything is sent", async () => {
-    file.soundMs = 31 * MINUTE
+  it("waits for a big video's smooth copy rather than stream the whole original", async () => {
+    sound.streamsBigOriginal = true
+    try {
+      const mediaId = await insertMedia()
+      const videoId = await insertVideo(mediaId, { durationMs: 60 * MINUTE })
+      await expect(writeVideoCaptions(userId, videoId)).rejects.toThrow(
+        "too big to write down until its smooth copy is made"
+      )
+      expect(sent).toHaveLength(0)
+      expect(metered).toHaveLength(0)
+    } finally {
+      sound.streamsBigOriginal = false
+    }
+  })
+
+  it("writes down an hour-long recording to the end, four pieces at a time", async () => {
+    file.soundMs = 60 * MINUTE
+    inFlight.most = 0
     const mediaId = await insertMedia()
-    const videoId = await insertVideo(mediaId, { durationMs: 5 * MINUTE })
-    await expect(writeVideoCaptions(userId, videoId)).rejects.toThrow(
-      "Captioning covers up to 30 minutes"
-    )
-    expect(sent).toHaveLength(0)
-    expect(metered).toHaveLength(0)
+    const videoId = await insertVideo(mediaId, { durationMs: 60 * MINUTE })
+
+    const { captions } = await writeVideoCaptions(userId, videoId)
+
+    expect(sent).toHaveLength(6)
+    expect(inFlight.most).toBe(4)
+    expect(metered).toHaveLength(1)
+    // The pieces cover the hour end to end, in order.
+    const ordered = [...sent].sort((a, b) => a.startMs - b.startMs)
+    expect(ordered[0].startMs).toBe(0)
+    const last = ordered.at(-1)!
+    expect(last.startMs + last.durationMs).toBe(60 * MINUTE)
+    expect(captions.at(-1)!.endMs).toBeGreaterThan(60 * MINUTE - 2_000)
   })
 })
 

@@ -38,6 +38,10 @@ export type PromoNoticeKind =
   | "linkedin_searcher"
   | "linkedin_hidden"
   | "linkedin_code"
+  | "app_brake"
+  | "appeal_waiting"
+  | "ban_unknown"
+  | "looks_back"
 
 /** Each heading starts with words no other kind's does, because the bell tells them apart by these. */
 export const NOTICE_HEADINGS: Record<PromoNoticeKind, string> = {
@@ -73,4 +77,11 @@ export const NOTICE_HEADINGS: Record<PromoNoticeKind, string> = {
   linkedin_searcher: "LinkedIn search account stopped:",
   linkedin_hidden: "LinkedIn may be hiding",
   linkedin_code: "LinkedIn wants its emailed code:",
+  // The Bans task (workspace/tasks/Bans/01-ban-features.md).
+  // Tyler's words, "Two Instagram bans in a day. Every Instagram account is
+  // paused.", start with the only heading that begins "Two ".
+  app_brake: "Two ",
+  appeal_waiting: "No answer to ",
+  ban_unknown: "Promo doesn't know this screen.",
+  looks_back: "Looks back:",
 }

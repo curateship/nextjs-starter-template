@@ -1,6 +1,7 @@
 import { and, desc, eq, gt, isNotNull, isNull, ne, or, sql } from "drizzle-orm"
 
 import type { CommandTarget } from "@/server/browser/command"
+import { slowReason } from "@/server/bans/rules"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { MEDIUM_WARM_UP_DAYS } from "@/lib/social/medium/options"
 import { isAwake, localDateKey, wakeEndsAt } from "@/lib/social/waking"
@@ -71,6 +72,8 @@ export async function queueDueMediumWarmUps(
       .limit(1)
     if (last && (last.status === "queued" || last.status === "running")) continue
     if (last && localDateKey(last.createdAt, zone) === localDateKey(now, zone)) continue
+    // At half pace the visit comes every other day (Bans task, parts 20, 23 and 24).
+    if (last && now.getTime() - last.createdAt.getTime() < 2 * 86_400_000 && (await slowReason(account.userId, account, db, now))) continue
     const latest = Math.min(
       now.getTime() + MAX_DELAY_MS,
       wakeEndsAt(now, zone, settings.wakeUntilMinute).getTime() - END_OF_DAY_MARGIN_MS

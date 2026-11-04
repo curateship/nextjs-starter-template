@@ -3,6 +3,8 @@ import { Loader2Icon, ScissorsIcon, TypeIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
@@ -34,6 +36,8 @@ import {
 } from "@/lib/video/ai-estimates"
 import { sourceSpanMs } from "@/lib/video/clip-playback"
 import { hasSavedWords } from "@/lib/video/transcripts"
+import { clockText } from "@/lib/video/export-stretch"
+import { findSaidPlaces, SAID_PLACES_MAX } from "@/lib/video/transcript-search"
 
 /**
  * What the clip says, word by word.
@@ -46,7 +50,7 @@ import { hasSavedWords } from "@/lib/video/transcripts"
  * is paid for, after that it is free, and "Transcribe again" pays again.
  */
 export function TranscriptPanel() {
-  const { videoId, dispatch, saveNow } = useEditorRuntime()
+  const { videoId, dispatch, saveNow, clock } = useEditorRuntime()
   const selectedClipId = useEditorSelector((state) => state.selectedClipId)
   const tracks = useEditorSelector((state) => state.tracks)
   const [transcript, setTranscript] = React.useState<ClipTranscript | null>(
@@ -89,6 +93,24 @@ export function TranscriptPanel() {
   // A transcript belongs to one clip. Picking another leaves it behind rather
   // than showing words that describe something else.
   const forThisClip = transcript?.clipId === selectedClipId ? transcript : null
+
+  // Where something was said: every place, in order, and the words they
+  // cover so the list of words can mark them too.
+  const [search, setSearch] = React.useState("")
+  const places = React.useMemo(
+    () =>
+      forThisClip
+        ? findSaidPlaces(forThisClip.words, search, (index) => cutWords.has(index))
+        : [],
+    [forThisClip, search, cutWords]
+  )
+  const foundWords = React.useMemo(() => {
+    const found = new Set<number>()
+    for (const place of places) {
+      for (let offset = 0; offset < place.length; offset += 1) found.add(place.index + offset)
+    }
+    return found
+  }, [places])
 
   // Whether this clip's file is already written down, and what writing it
   // down costs when it is not: the whole file, the first time.
@@ -244,6 +266,51 @@ export function TranscriptPanel() {
             </p>
           ) : (
             <>
+              <div className="grid gap-2">
+                <Label htmlFor="transcript-search">Find what was said</Label>
+                <Input
+                  id="transcript-search"
+                  type="search"
+                  value={search}
+                  placeholder="pricing"
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </div>
+              {search.trim() ? (
+                places.length ? (
+                  <div className="grid gap-1">
+                    <p className="text-sm text-muted-foreground">
+                      {places.length >= SAID_PLACES_MAX
+                        ? `The first ${SAID_PLACES_MAX} places. Click one to go there.`
+                        : `Said ${places.length} ${plural(places.length, "time", "times")}. Click one to go there.`}
+                    </p>
+                    <ul className="grid gap-1" aria-label="Where it was said">
+                      {places.map((place) => (
+                        <li key={place.index}>
+                          <button
+                            type="button"
+                            onClick={() => clock.seek(place.startMs)}
+                            className="flex w-full gap-2 rounded px-1.5 py-1 text-left text-sm hover:bg-muted"
+                          >
+                            <span className="shrink-0 text-muted-foreground tabular-nums">
+                              {clockText(place.startMs)}
+                            </span>
+                            <span className="min-w-0 truncate">
+                              {place.before ? `${place.before} ` : ""}
+                              <strong className="font-semibold">{place.match}</strong>
+                              {place.after ? ` ${place.after}` : ""}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    That was not said in this clip.
+                  </p>
+                )
+              ) : null}
               <p className="text-sm text-muted-foreground">
                 Click a word, then shift-click another to take everything
                 between them.
@@ -279,7 +346,9 @@ export function TranscriptPanel() {
                           ? "text-muted-foreground/60 line-through"
                           : inRun
                             ? "bg-destructive/15 text-foreground line-through"
-                            : "hover:bg-muted"
+                            : foundWords.has(index)
+                              ? "bg-primary/15 hover:bg-primary/25"
+                              : "hover:bg-muted"
                       )}
                     >
                       {word.text}

@@ -3,6 +3,7 @@ import {
   BanIcon,
   BellRingIcon,
   CalendarClockIcon,
+  CircleHelpIcon,
   DownloadIcon,
   EyeOffIcon,
   FlaskConicalIcon,
@@ -12,6 +13,8 @@ import {
   MailIcon,
   MessageCircleReplyIcon,
   MessageSquareIcon,
+  OctagonPauseIcon,
+  RotateCcwIcon,
   SearchXIcon,
   ServerOffIcon,
   SignalZeroIcon,
@@ -67,6 +70,10 @@ const LOOKS: Record<PromoNoticeKind, Pick<AppNoticeDetail, "icon" | "toneClassNa
   linkedin_searcher: { icon: SearchXIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
   linkedin_hidden: { icon: EyeOffIcon, toneClassName: "bg-destructive/10 text-destructive" },
   linkedin_code: { icon: MailIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  app_brake: { icon: OctagonPauseIcon, toneClassName: "bg-destructive/10 text-destructive" },
+  appeal_waiting: { icon: CalendarClockIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  ban_unknown: { icon: CircleHelpIcon, toneClassName: "bg-destructive/10 text-destructive" },
+  looks_back: { icon: RotateCcwIcon, toneClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
 }
 
 /** Which of Promo's kinds a notice is, read off its heading, or null. */

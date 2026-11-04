@@ -18,7 +18,12 @@ import {
 } from "@/lib/phones/options"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { handleWords } from "@/lib/social/networks"
-import type { PromoNoticeKind } from "@/lib/social/notice-words"
+import { banKindFromWords, isBanKind, SLOW_RESTART_MS } from "@/lib/bans/options"
+import { recordAccountEvent } from "@/server/bans/history"
+import { NOTICE_HEADINGS, type PromoNoticeKind } from "@/lib/social/notice-words"
+import { answeredLine, askAboutScreen } from "@/server/bans/phrases"
+import { recordBan } from "@/server/bans/record"
+import { promoBans } from "@/server/bans/schema"
 import { noticeId, ringBell, type PromoNotice } from "@/server/social/notices"
 import { settleFailedLinkedinJob } from "@/server/social/linkedin/settle"
 import { settleFailedMediumJob } from "@/server/social/medium/settle"
@@ -453,8 +458,12 @@ export async function tidyPhoneReadings(db: CustomShellDb = defaultDb, now: Date
   return removed.length
 }
 
-/** What the rack found on screen: the app, which kind of screen, and its own words. */
-export type BanScreen = { app: string; kind: string; words: string }
+/**
+ * What the rack found on screen: the app, which kind of screen, and its own
+ * words. `unknown` is a short screen that matched no known line but holds a
+ * ban word (Bans task, part 9), with the line that held it.
+ */
+export type BanScreen = { app: string; kind: string; words: string; line?: string }
 
 const BAN_KIND_WORDS: Record<string, string> = {
   suspended: "suspended",
@@ -467,30 +476,69 @@ const BAN_KIND_WORDS: Record<string, string> = {
 /**
  * Stops the accounts a ban screen is about (part 15). Each account of that
  * app on the phone is marked blocked with the screen's own words, so the
- * Reddit accounts dashboard shows them; its waiting jobs on the phone are
- * dropped; and the bell rings with where the picture is. From then on its
- * jobs are refused (`runner.ts`) until a person lets it run again.
+ * Accounts dashboard shows them; its waiting jobs on the phone are dropped;
+ * and the bell rings with where the picture is. From then on its jobs are
+ * refused (`runner.ts`) until a person lets it run again.
+ *
+ * Only an account not already stopped is stopped, so the same screen read
+ * again (by the weekly look, or a second action) rings nothing and writes no
+ * second ban (Bans task, parts 1 and 26). A known screen writes the ban
+ * record (`recordBan`); a screen Promo does not know asks whether it is a
+ * ban instead (part 9), and writes the record only when a person says so.
  */
 export async function stopForBanScreen(
   userId: string,
   phoneId: string,
   ban: BanScreen,
   db: CustomShellDb = defaultDb,
-  now: Date = new Date()
+  now: Date = new Date(),
+  /** The phone action that found it, whose last picture is kept with the ban (part 10). */
+  actionId: string | null = null
 ): Promise<void> {
   const app = ban.app.slice(0, 20)
   const words = ban.words.trim().slice(0, 500) || "The app showed a screen that stops the account."
+  // A line a person already answered is that answer, even when the rack has
+  // not fetched it yet: harmless stops nothing, a ban is a known ban.
+  const answered = ban.kind === "unknown" ? await answeredLine(userId, app, ban.line ?? "", db) : ""
+  if (answered === "harmless") return
+  const unknown = ban.kind === "unknown" && answered !== "ban"
   const [phone] = await db
     .select({ id: promoPhones.id, name: promoPhones.name, shelfSlot: promoPhones.shelfSlot })
     .from(promoPhones)
     .where(and(eq(promoPhones.id, phoneId), eq(promoPhones.userId, userId)))
     .limit(1)
   if (!phone) return
+  const alreadyStopped = await db
+    .select({ id: promoAccounts.id })
+    .from(promoAccounts)
+    .where(
+      and(
+        eq(promoAccounts.userId, userId),
+        eq(promoAccounts.phoneId, phoneId),
+        eq(promoAccounts.platform, app),
+        isNotNull(promoAccounts.banScreenAt)
+      )
+    )
   const accounts = await db
     .update(promoAccounts)
     .set({ blocked: true, blockedReason: words, banScreenAt: now, updatedAt: now })
-    .where(and(eq(promoAccounts.userId, userId), eq(promoAccounts.phoneId, phoneId), eq(promoAccounts.platform, app)))
+    .where(
+      and(
+        eq(promoAccounts.userId, userId),
+        eq(promoAccounts.phoneId, phoneId),
+        eq(promoAccounts.platform, app),
+        isNull(promoAccounts.banScreenAt)
+      )
+    )
     .returning({ id: promoAccounts.id, handle: promoAccounts.handle, platform: promoAccounts.platform })
+
+  // An account already stopped rings nothing more, but a counted ban after an
+  // uncounted one (a suspension after "confirm it's you") is still recorded.
+  if (!unknown) {
+    for (const account of alreadyStopped) {
+      await recordBan(userId, { accountId: account.id, kind: isBanKind(ban.kind) ? ban.kind : banKindFromWords(ban.line || words, app), words, actionId }, db, now)
+    }
+  }
 
   for (const account of accounts) {
     // Jobs that name the account, and for Reddit the older ones that name
@@ -518,6 +566,30 @@ export async function stopForBanScreen(
     }
     const name = handleWords(account.platform, account.handle) || "The account"
     const appName = APP_WORDS[account.platform as TrackedApp] ?? account.platform
+    const droppedWords = dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""
+    if (unknown) {
+      await askAboutScreen(userId, { accountId: account.id, app, line: ban.line ?? "", words, phoneId, actionId }, db, now)
+      await ringBell(
+        userId,
+        {
+          kind: "ban_unknown",
+          targetId: account.id,
+          message: `${NOTICE_HEADINGS.ban_unknown} Is it a ban? ${name} on ${phoneWords(phone)}`,
+          detail: [
+            `${appName} showed: "${words}".`,
+            `Promo stopped the account${droppedWords} to be safe.`,
+            "Press It's a ban or Not a ban on the Bans dashboard. Not a ban lets it run again, and that screen never stops it again.",
+          ].join(" "),
+          href: "/admin/bans",
+        },
+        db,
+        now
+      )
+      continue
+    }
+    // A line a person taught Promo comes back as "learned", and reads its kind off its own words.
+    const kind = isBanKind(ban.kind) ? ban.kind : banKindFromWords(ban.line || words, app)
+    await recordBan(userId, { accountId: account.id, kind, words, actionId }, db, now)
     await ringBell(
       userId,
       {
@@ -525,11 +597,11 @@ export async function stopForBanScreen(
         targetId: account.id,
         message: `Ban screen: ${name} on ${phoneWords(phone)}`,
         detail: [
-          `${appName} showed it ${BAN_KIND_WORDS[ban.kind] ?? "stopped"}: "${words}".`,
-          `Promo stopped the account${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}.`,
-          "The picture is on the phone's Actions tab. Let it run again from its settings on the Accounts dashboard once it is sorted.",
+          `${appName} showed it ${BAN_KIND_WORDS[kind] ?? "stopped"}: "${words}".`,
+          `Promo stopped the account${droppedWords}.`,
+          "The picture is on the Bans dashboard. Appeal it in the app first if you want to, then let it run again or press Clean up from its settings on the Accounts dashboard.",
         ].join(" "),
-        href: phoneHref(phoneId),
+        href: "/admin/bans",
       },
       db,
       now
@@ -537,19 +609,44 @@ export async function stopForBanScreen(
   }
 }
 
-/** Lets an account stopped by a ban screen take jobs again, and takes its notice away. */
+/**
+ * Lets an account stopped by a ban screen take jobs again, and takes its
+ * notices away. Its ban keeps counting (Bans task, part 3), and is marked
+ * let run again. After a real ban it runs at half pace for 7 days (part 23);
+ * a screen a person said was not a ban (part 9) passes `slow: false`.
+ */
 export async function clearBanScreen(
   userId: string,
   accountId: string,
   db: CustomShellDb = defaultDb,
-  now: Date = new Date()
+  now: Date = new Date(),
+  options: { slow: boolean } = { slow: true }
 ): Promise<void> {
   const updated = await db
     .update(promoAccounts)
-    .set({ blocked: false, blockedReason: "", banScreenAt: null, updatedAt: now })
+    .set({
+      blocked: false,
+      blockedReason: "",
+      banScreenAt: null,
+      ...(options.slow ? { slowUntil: new Date(now.getTime() + SLOW_RESTART_MS) } : {}),
+      updatedAt: now,
+    })
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId), isNotNull(promoAccounts.banScreenAt)))
     .returning({ id: promoAccounts.id })
   if (!updated.length) throw new Error("That account was not stopped by a ban screen.")
-  await clearProblem(userId, "ban_screen", accountId, null, db, now)
+  await db
+    .update(promoBans)
+    .set({ letRunAt: now })
+    .where(and(eq(promoBans.accountId, accountId), eq(promoBans.userId, userId), isNull(promoBans.letRunAt), isNull(promoBans.cleanedUpAt)))
+  await recordAccountEvent(
+    userId,
+    accountId,
+    "let_run",
+    options.slow ? "Let run again, at half pace for 7 days." : "Let run again.",
+    db,
+    now
+  )
+  for (const kind of ["ban_screen", "ban_unknown", "looks_back", "appeal_waiting"] as const) {
+    await clearProblem(userId, kind, accountId, null, db, now)
+  }
 }
-

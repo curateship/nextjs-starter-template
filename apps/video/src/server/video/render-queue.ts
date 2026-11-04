@@ -1,3 +1,4 @@
+import { coverFromMainThumbnail } from "@/server/video/thumbnails"
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm"
 
 import {
@@ -23,18 +24,26 @@ import {
 } from "@/lib/video/timeline-schema"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
+import {
+  deleteFromR2,
+  uploadFileToR2,
+  uploadToR2,
+} from "@/server/media/storage"
 import { VIDEO_NOT_FOUND_MESSAGE } from "@/lib/video/project-videos"
 import {
   RENDER_FAILED_MESSAGE,
   renderRefusalReason,
   renderTimeline,
   SAFE_RENDER_ERRORS,
+  timelineEndMs,
+  type RenderResult,
 } from "@/server/video/render"
 import { workOutAiParts } from "@/server/video/ai-parts"
 import { getOwnedVideo } from "@/server/video/project-videos"
 import { videoProjectVideos, videoRenderJobs } from "@/server/video/schema"
 import { isUniqueViolation } from "@/server/video/unique-violation"
+import { stretchRefusal, timelineStretch } from "@/lib/video/export-stretch"
+import { DISK_WAIT_MS, isDiskFullError } from "@/server/video/disk-space"
 
 /**
  * The export queue.
@@ -67,8 +76,8 @@ const RENDER_CONCURRENCY = Math.max(
 // Interrupted once (a restart mid-render) it is retried; twice and it stops.
 // Pressing Try again on a failed export starts the count again from nothing.
 const MAX_ATTEMPTS = 2
-// One person cannot fill the queue without end and starve everybody else. At
-// thirty minutes a project, twenty is still hours of rendering.
+// One person cannot fill the queue without end and starve everybody else.
+// Twenty exports of long projects is still hours of rendering.
 const MAX_ACTIVE_JOBS_PER_USER = 20
 const LEASE_SECONDS = 60
 const HEARTBEAT_MS = 20_000
@@ -120,6 +129,8 @@ export type RenderJobSummary = {
   width: number | null
   height: number | null
   has_thumbnail: boolean
+  /** The part of the project exported, or null for the whole of it. */
+  range: { start_ms: number; end_ms: number } | null
   created_at: string
   finished_at: string | null
 }
@@ -164,6 +175,10 @@ export function serializeRenderJob(
     width: row.width,
     height: row.height,
     has_thumbnail: !!row.thumbnailStoragePath,
+    range:
+      row.rangeStartMs !== null && row.rangeEndMs !== null
+        ? { start_ms: row.rangeStartMs, end_ms: row.rangeEndMs }
+        : null,
     created_at: row.createdAt.toISOString(),
     finished_at: row.finishedAt ? row.finishedAt.toISOString() : null,
   }
@@ -282,6 +297,7 @@ export async function enqueueRenderJobs({
   frameRate,
   normalizeLoudness,
   title,
+  range,
   database = db,
 }: {
   userId: string
@@ -292,6 +308,8 @@ export async function enqueueRenderJobs({
   normalizeLoudness?: boolean
   /** What to call them. Left out, they take the video's name. */
   title?: string
+  /** The part of the project to export. Left out, the whole project. */
+  range?: { startMs: number; endMs: number }
   database?: CustomShellDb
 }): Promise<RenderJobSummary[]> {
   const shapes = Array.from(new Set(aspects))
@@ -305,6 +323,15 @@ export async function enqueueRenderJobs({
   // starts, because the timeline can change in between.
   const refusal = renderRefusalReason(video.timeline)
   if (refusal) throw new Error(refusal)
+  const part = range ? wholeMs(range) : null
+  if (part) {
+    const outOfRange = stretchRefusal(
+      part.startMs,
+      part.endMs,
+      timelineEndMs(requireCanonicalTimeline(video.timeline).tracks)
+    )
+    if (outOfRange) throw new Error(outOfRange)
+  }
 
   await refuseFullQueue(userId, shapes.length, database)
 
@@ -324,6 +351,8 @@ export async function enqueueRenderJobs({
         frameRate,
         normalizeLoudness: normalize,
         title: name,
+        rangeStartMs: part?.startMs ?? null,
+        rangeEndMs: part?.endMs ?? null,
         createdAt: timestamp,
         updatedAt: timestamp,
       }))
@@ -337,6 +366,11 @@ export async function enqueueRenderJobs({
 
   kickRenderWorker()
   return getLatestRenderJobs(userId, videoId, database)
+}
+
+/** A part of the project in whole milliseconds, which the columns hold. */
+function wholeMs(range: { startMs: number; endMs: number }) {
+  return { startMs: Math.round(range.startMs), endMs: Math.round(range.endMs) }
 }
 
 /** What a stopped export's row becomes: cancelled, and its lease let go. */
@@ -483,13 +517,15 @@ type ClaimedJob = {
   frame_rate: RenderFrameRate
   normalize_loudness: boolean
   lease_token: string
+  range_start_ms: number | null
+  range_end_ms: number | null
 }
 
 // How many renders this process has going. It lives on globalThis because the
 // dev server reloads modules and a second copy of this count would let it run
 // more at once than asked for.
 const globals = globalThis as typeof globalThis & {
-  __videoRenderActive?: { count: number; live: boolean }
+  __videoRenderActive?: { count: number; live: boolean; diskWaitUntil?: number }
 }
 const workerState = (globals.__videoRenderActive ??= { count: 0, live: false })
 
@@ -514,6 +550,8 @@ export function kickRenderWorker() {
 }
 
 async function pumpRenderQueue() {
+  // A render that found the disk too full holds every export back a minute.
+  if (Date.now() < (workerState.diskWaitUntil ?? 0)) return
   while (workerState.count < RENDER_CONCURRENCY) {
     const job = await claimNextJob()
     if (!job) return
@@ -546,7 +584,8 @@ async function claimNextJob(): Promise<ClaimedJob | null> {
       limit 1
       for update skip locked
     )
-    returning id, user_id, video_id, quality, aspect, frame_rate, normalize_loudness, lease_token
+    returning id, user_id, video_id, quality, aspect, frame_rate, normalize_loudness, lease_token,
+      range_start_ms, range_end_ms
   `)
   return (result.rows[0] as ClaimedJob | undefined) ?? null
 }
@@ -576,6 +615,9 @@ async function runJob(job: ClaimedJob) {
   // it — the lease was lost, or the finishing write failed — it is rubbish
   // nobody can reach, so it is thrown away rather than left to pile up.
   const uploaded: string[] = []
+  // The finished file, on disk until it is stored; its folder goes at the end
+  // whatever happened.
+  let result: RenderResult | null = null
 
   // Fires when the row stops being this run's. It kills ffmpeg and stops the
   // run before it uploads anything.
@@ -622,12 +664,18 @@ async function runJob(job: ClaimedJob) {
 
     // From the timeline this run draws, not the one the export was asked
     // for: the video can be edited while the export waits in the queue.
-    const drawn = requireCanonicalTimeline(video.timeline)
+    const whole = requireCanonicalTimeline(video.timeline)
+    // A part of the project is cut out before anything else reads it, so the
+    // file, its AI parts and its scene lines all describe the part.
+    const drawn =
+      job.range_start_ms !== null && job.range_end_ms !== null
+        ? timelineStretch(whole, job.range_start_ms, job.range_end_ms)
+        : whole
     const aiParts = await workOutAiParts(drawn)
 
-    const result = await renderTimeline({
+    result = await renderTimeline({
       userId: job.user_id,
-      timeline: video.timeline,
+      timeline: drawn,
       aspect: job.aspect,
       quality: job.quality,
       frameRate: job.frame_rate,
@@ -642,7 +690,9 @@ async function runJob(job: ClaimedJob) {
     // Pushed first: a stop can land while the upload is under way, and a file
     // that arrives after it must still be found and deleted.
     uploaded.push(storagePath)
-    await uploadToR2(storagePath, result.bytes, "video/mp4")
+    // From disk in pieces: an hour-long export is several gigabytes, past
+    // what Node holds in memory at once.
+    await uploadFileToR2(storagePath, result.filePath, "video/mp4")
     let thumbnailStoragePath: string | null = null
     if (result.thumbnail) {
       stop.signal.throwIfAborted()
@@ -657,7 +707,7 @@ async function runJob(job: ClaimedJob) {
         status: "ready",
         errorMessage: null,
         storagePath,
-        fileSize: result.bytes.byteLength,
+        fileSize: result.fileSize,
         thumbnailStoragePath,
         durationMs: result.durationMs,
         width: result.width,
@@ -683,13 +733,24 @@ async function runJob(job: ClaimedJob) {
     // The lease was taken away while this was rendering, so somebody else owns
     // the job now. Throw away what this run made rather than leaving a file
     // nothing points at.
-    if (!finished.length) await discardUploads(uploaded)
+    if (!finished.length) {
+      await discardUploads(uploaded)
+    } else {
+      // A main thumbnail of this shape is the cover (thumbnails.md).
+      await coverFromMainThumbnail(job.user_id, job.video_id, job.aspect).catch((coverError) =>
+        console.error("Covering an export with its thumbnail failed", job.id, coverError)
+      )
+    }
   } catch (error) {
     await discardUploads(uploaded)
     // The row was stopped or taken away, and whoever did that has already
     // written how it ended. There is no failure to record.
     if (stop.signal.aborted) {
       console.info("Render stopped", job.id)
+      return
+    }
+    if (isDiskFullError(error)) {
+      await waitForDisk(job, error.message)
       return
     }
     console.error("Render failed", job.id, error)
@@ -717,7 +778,35 @@ async function runJob(job: ClaimedJob) {
   } finally {
     clearInterval(stopCheck)
     clearInterval(heartbeat)
+    await result?.dispose().catch(() => undefined)
   }
+}
+
+/**
+ * Puts an export that found the disk too full back at its place in the
+ * queue, without using up a try, and holds the queue for a minute. The reason
+ * stays on the row while it waits.
+ */
+async function waitForDisk(job: ClaimedJob, message: string) {
+  console.warn("Render waiting for disk", job.id, message)
+  workerState.diskWaitUntil = Date.now() + DISK_WAIT_MS
+  await db
+    .update(videoRenderJobs)
+    .set({
+      status: "queued",
+      attempts: sql`greatest(${videoRenderJobs.attempts} - 1, 0)`,
+      errorMessage: message,
+      leaseToken: null,
+      leaseExpiresAt: null,
+      updatedAt: now(),
+    })
+    .where(
+      and(
+        eq(videoRenderJobs.id, job.id),
+        eq(videoRenderJobs.leaseToken, job.lease_token),
+        eq(videoRenderJobs.status, "running")
+      )
+    )
 }
 
 /** Files this run put in storage that nothing ended up pointing at. */

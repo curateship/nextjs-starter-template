@@ -1,20 +1,20 @@
 {
   "pomodoro": {
-    "server": "us",
-    "project": "Pomoder",
+    "server": "de",
+    "project": "Flowfly",
     "healthUrl": "https://flowfly.app/api/health",
     "resources": [
       {
         "role": "web",
-        "uuid": "w21w5iit9f1kgxxak2et2hmg"
+        "uuid": "v0hykgu0jg9yi2z9tieqlnlj"
       },
       {
         "role": "worker",
-        "uuid": "cxjb1e2704wr4ewqztrdnsm7"
+        "uuid": "hasivc8zbffsgaw7oq5sku2s"
       }
     ],
     "database": {
-      "uuid": "lemznkk0o4h0wqcq295kozv7"
+      "uuid": "agbwgycisgnvtbbyl6ivkdty"
     }
   },
   "trade": {
@@ -69,21 +69,21 @@
     }
   },
   "course": {
-    "server": "us",
-    "project": "Course",
+    "server": "de",
+    "project": "Course systemeverything.com",
     "healthUrl": "https://systemeverything.com/api/health",
     "resources": [
       {
         "role": "web",
-        "uuid": "pa1b5m2sh32735gbmxmc9kbl"
+        "uuid": "rk8qez2yn2jqyyxkzzlkaevf"
       },
       {
         "role": "worker",
-        "uuid": "dkut5awwx90heyq62qews9y0"
+        "uuid": "jh5sr2redrhforourfjnfq91"
       }
     ],
     "database": {
-      "uuid": "rw8qnp3xd1t2gqdzlxocevrk"
+      "uuid": "ji4n4zbyommqelno0xoz9wu5"
     }
   },
   "course-de": {
@@ -156,6 +156,24 @@
     ],
     "database": {
       "uuid": "qgmm1hiolawbjwhyq4ffhllh"
+    }
+  },
+  "travel": {
+    "server": "de",
+    "project": "Travel",
+    "healthUrl": "https://travel.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "pydrsqnwxph6chs9mkmjlqfq"
+      },
+      {
+        "role": "worker",
+        "uuid": "2d3g2mzhrpej3137gatm4iga"
+      }
+    ],
+    "database": {
+      "uuid": "nufmzgsvjhlbedjyksycgbsv"
     }
   }
 }

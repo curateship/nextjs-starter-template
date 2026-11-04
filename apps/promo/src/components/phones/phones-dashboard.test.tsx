@@ -40,6 +40,9 @@ vi.mock("@/lib/api/phones/phones", () => ({
   ...api,
   getPhoneErrorMessage: (error: unknown) => (error instanceof Error ? error.message : "failed"),
 }))
+// A phone's accounts over time, on its History tab (Bans task, part 2).
+const bansApi = vi.hoisted(() => ({ loadPhoneTenancies: vi.fn() }))
+vi.mock("@/lib/api/bans", () => ({ ...bansApi, getBansErrorMessage: () => "failed" }))
 const healthApi = vi.hoisted(() => ({
   clearActionPictures: vi.fn(),
   loadPhoneHistory: vi.fn(),
@@ -111,6 +114,7 @@ function phone(patch: Partial<PhoneRecord>): PhoneRecord {
     heldImportantAt: null,
     addressStop: null,
     setupChecking: false,
+    bannedOn: {},
     createdAt: new Date(),
     ...patch,
   }
@@ -230,6 +234,14 @@ describe("Phones dashboard", () => {
     expect(rows[1]).toContain("Mint Mobile 555 0100")
   })
 
+  it("says which apps banned an account on a phone, and filters to them from the address (Bans task, parts 1 and 4)", async () => {
+    const page = { ...PAGE, phones: [PAGE.phones[0], { ...PAGE.phones[1], bannedOn: { instagram: 2, tiktok: 1 } }] }
+    await render(page)
+    expect(text()).toContain("Banned on: Instagram twice, TikTok once")
+    await render(page, undefined, { banned: "instagram" })
+    expect(rowNames()).toEqual(["Galaxy A15"])
+  })
+
   it("says how to start when there are no phones and no rack", async () => {
     await render({ ...PAGE, phones: [], racks: [] })
     expect(text()).toContain("No phones yet. Press Rack to connect the computer the phones plug into")
@@ -325,6 +337,9 @@ describe("Phones dashboard", () => {
       { id: "e1", kind: "ran_hot", detail: "The battery reached 46.2°C.", at: new Date() },
       { id: "e2", kind: "plugged_in", detail: "On USB port usb:1-1.", at: new Date() },
     ])
+    bansApi.loadPhoneTenancies.mockResolvedValue([
+      { id: "t1", accountId: "a1", platform: "instagram", handle: "quiet.maple", arrivedAt: new Date(), leftAt: new Date(), leftHow: "banned" },
+    ])
     await render(PAGE, "p1")
     await openTab("Health")
     expect(text()).toContain("82 out of 100")
@@ -333,6 +348,8 @@ describe("Phones dashboard", () => {
     expect(text()).toContain("No readings yet. A point is kept every ten minutes.")
     expect(text()).toContain("2025.40.0")
     await openTab("History")
+    expect(text()).toContain("@quiet.maple")
+    expect(text()).toContain("Banned")
     expect(text()).toContain("Ran hot")
     expect(text()).toContain("The battery reached 46.2°C.")
     expect(text().indexOf("Ran hot")).toBeLessThan(text().indexOf("Plugged in"))

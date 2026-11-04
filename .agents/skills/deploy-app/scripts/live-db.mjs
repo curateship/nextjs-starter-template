@@ -111,6 +111,10 @@ export async function withLiveDatabase(appName, work) {
   try {
     if (!(await waitForPort(host, TEMPORARY_PORT, true, 90))) throw new Error("The port never opened.")
     const client = new Client({ host, port: TEMPORARY_PORT, ...login, ssl: false, connectionTimeoutMillis: 10_000 })
+    // A dropped link with no listener crashes Node before the `finally` below,
+    // leaving the port open (Travel's first deploy, 4 Nov 2026). With one, the
+    // job's query fails instead and the port still closes.
+    client.on("error", (error) => console.log(`The live database link dropped: ${error.message}`))
     await client.connect()
     openClients.set(appName, client)
     try {

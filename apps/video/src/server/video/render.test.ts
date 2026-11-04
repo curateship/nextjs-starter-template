@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { RENDER_QUALITIES } from "@/lib/video/render"
 import {
+  exportDiskBytes,
   exportDurationMs,
   exportTimeoutMs,
   renderSize,
@@ -59,5 +60,26 @@ describe("how long ffmpeg may take over one export", () => {
 
   it("grows with the export, so thirty minutes gets thirty", () => {
     expect(exportTimeoutMs(30 * 60_000)).toBe(30 * 60_000)
+  })
+})
+
+describe("the room an export needs on disk", () => {
+  const MB = 1024 * 1024
+
+  it("is an hour of the heaviest file, with room to spare over what was measured", () => {
+    // Wide at Best measured 40MB a minute; the check allows 60.
+    expect(exportDiskBytes(60 * 60_000, "high", false)).toBe(3600 * MB)
+  })
+
+  it("counts the second copy evening out the sound writes", () => {
+    expect(exportDiskBytes(10 * 60_000, "medium", true)).toBe(
+      2 * exportDiskBytes(10 * 60_000, "medium", false)
+    )
+  })
+
+  it("has no limit on length: two hours is simply twice one", () => {
+    expect(exportDiskBytes(120 * 60_000, "low", false)).toBe(
+      2 * exportDiskBytes(60 * 60_000, "low", false)
+    )
   })
 })

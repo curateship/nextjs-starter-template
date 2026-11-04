@@ -12,7 +12,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { uploadMedia } from "@/lib/api/media/media"
+import { isUploadCancelled } from "@/lib/media/upload-in-parts"
+import { queueUpload } from "@/lib/media/upload-queue"
 import { uploadProjectMedia } from "@/lib/api/video/project-guests"
 import { Button } from "@/components/ui/button"
 import {
@@ -97,6 +98,8 @@ import {
   SHAPE_LABELS,
   type ShapeKind,
 } from "@/lib/video/shapes"
+import { newBlurClip } from "@/components/video-editor/blur-clip"
+import { ThumbnailPanel } from "@/components/video-thumbnails/thumbnail-panel"
 
 /**
  * The panel beside the tool rail. Which one is showing is the rail's business;
@@ -113,6 +116,7 @@ export type StudioPanel =
   | "ai"
   | "transcript"
   | "ai-clip"
+  | "thumbnail"
   | "copy"
   | "exports"
   | "history"
@@ -133,6 +137,7 @@ const PANEL_TITLE: Record<StudioPanel, string> = {
   ai: "AI tools",
   transcript: "Transcript",
   "ai-clip": "AI clip",
+  thumbnail: "Thumbnail",
   copy: "Copy",
   exports: "Exports",
   history: "History",
@@ -150,6 +155,7 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   if (panel === "ai") return <AiPanel />
   if (panel === "transcript") return <TranscriptPanel />
   if (panel === "ai-clip") return <AiClipPanel />
+  if (panel === "thumbnail") return <ThumbnailPanel />
   if (panel === "copy") return <CopyPanel />
   if (panel === "exports") return <ExportsPanel />
   if (panel === "history") return <HistoryPanel />
@@ -385,12 +391,16 @@ function MediaPanel() {
           await uploadProjectMedia(projectId, file)
           continue
         }
-        const media = await uploadMedia(file)
+        // Through the app-wide upload list, so leaving the editor does not
+        // stop a big file, and the file still joins this project when it
+        // lands after the editor has closed.
+        const media = await queueUpload(file)
         await attachEditorMedia({ type: "project", id: projectId }, media.id)
       }
       setRefresh((count) => count + 1)
     } catch (error) {
-      showErrorToast(getVideoMediaErrorMessage(error))
+      // Cancelled from the upload line: nothing went wrong to report.
+      if (!isUploadCancelled(error)) showErrorToast(getVideoMediaErrorMessage(error))
     } finally {
       setUploading(false)
     }
@@ -787,7 +797,7 @@ function PreparationNote({
           aria-hidden
           className="mr-1 inline size-3 align-[-2px] motion-safe:animate-spin"
         />
-        Getting it ready to scrub
+        {item.proxy_note ? "Waiting for room on the server's disk" : "Getting it ready to scrub"}
       </p>
     )
   }
@@ -1000,6 +1010,10 @@ function TextPanel({
   const progressBar = useEditorSelector((state) => state.progressBar)
   const inset = usePlatformInset()
 
+  function addBlur() {
+    dispatch({ type: "ADD_OVERLAY", clip: newBlurClip(), atMs: clock.getTime() })
+  }
+
   function addShape(kind: ShapeKind) {
     dispatch({
       type: "ADD_OVERLAY",
@@ -1106,6 +1120,7 @@ function TextPanel({
             label: SHAPE_LABELS[kind],
             onClick: () => addShape(kind),
           })),
+          { key: "blur", label: "Blur", onClick: addBlur },
           { key: "progress", label: "Progress bar", onClick: addProgressBar },
         ].map((item) => (
           <button

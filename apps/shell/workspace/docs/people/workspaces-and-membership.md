@@ -20,6 +20,28 @@ screen can:
 A workspace can be active, draft, or inactive. Its public site can use a
 subdomain or custom domain.
 
+## Which site a request is about
+
+`currentWorkspaceId` answers with the id alone, through
+`findCurrentWorkspaceId`: the workspace the person points at, or else the oldest
+one they own. It throws "No workspace" when there is none. Most admin endpoints
+call it once per request just to scope a query, so it no longer loads and parses
+the whole settings row. Callers that need the row use `requireCurrentWorkspace`.
+
+## A saved left menu is brought up to date once
+
+Each site saves its own copy of the left menu, so an admin's changes stick. When
+the shell's default menu changes, a numbered step edits menus saved before the
+change, and the site's `navVersion` records how far it has come. The steps run
+when the whole workspace row is read, at sign-in and when the shell settings
+load, and each runs once.
+
+Steps 1 to 12 were deleted on 3 Nov 2026. That day every live site was at 12 or
+later, and the oldest was a Trade site at 12. Steps 13 to 21 stay, because Trade
+had sites at 12 and 18 and Fitness one at 20. A local database with a menu older
+than 12 skips straight to step 13, so it can be missing links such as Traffic
+or AI usage until they are added by hand in Settings → Navigation.
+
 ## Ownership and membership
 
 The user who creates a workspace is its creator, but the workspace does not

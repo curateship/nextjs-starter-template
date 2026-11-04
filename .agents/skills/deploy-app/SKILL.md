@@ -32,8 +32,7 @@ way inside a script, never by printing the file.
 
 | Name in the file | What it is |
 | --- | --- |
-| `COOLIFY_US_URL`, `COOLIFY_US_TOKEN` | US Hetzner, 5.78.189.158. Runs only Core now. Flowfly moved to server1 on 2 Nov 2026. Tyler: "Only core we dont need to move". |
-| `COOLIFY_DE_URL`, `COOLIFY_DE_TOKEN` | server1.barelycompany.com, 185.55.243.241, `http://185.55.243.241:8000`. Runs every app except Core. The German box's Coolify was copied there on 1 Nov 2026, so its token and login carry over. |
+| `COOLIFY_DE_URL`, `COOLIFY_DE_TOKEN` | server1.barelycompany.com, 185.55.243.241, `http://185.55.243.241:8000`. The only server, and every app runs on it. The German box's Coolify was copied there on 1 Nov 2026, so its token and login carry over. The US server (5.78.189.158) is not used. Tyler, 3 Nov 2026: "Remove the US server for deploy app skill. We dont use that server anymore". |
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | The Cloudflare account (typham2@gmail.com) and its one token for setting things up. |
 | `RESEND_API_KEY` | Resend (typham2@gmail.com), full access, so it can add sending domains. |
 | `FIRST_ADMIN_EMAIL`, `FIRST_ADMIN_NAME`, `FIRST_ADMIN_PASSWORD` | Tyler's admin account, created on every app by `create-admin.mjs`. Tyler, 8 Oct 2026. |
@@ -42,7 +41,7 @@ way inside a script, never by printing the file.
 - **A new Coolify server** gets its own pair, `COOLIFY_<NAME>_URL` and
   `COOLIFY_<NAME>_TOKEN`, a line in the table above, and its short name as
   `server` in `apps.json`.
-- **Both Coolifys build `develop`** from GitHub through the "Public GitHub"
+- **Coolify builds `develop`** from GitHub through the "Public GitHub"
   source. Auto-deploy is off everywhere, so pushing `develop` deploys nothing
   until a deploy button is pressed.
 - **Each app's own live values** (its database address, encryption key,
@@ -50,8 +49,8 @@ way inside a script, never by printing the file.
   gitignored.
 - **One Coolify project per app.** Tyler, 8 Oct 2026: the old "System
   Everything" project is out of date. Never add a resource to it.
-- **The `coolify-us` and `coolify-de` MCPs** in Claude Code use the same two
-  tokens. Codex has its own German entry in `~/.codex/config.toml`.
+- **The `coolify-de` MCP** in Claude Code uses the same token. Never deploy
+  through `coolify-us`. Codex has its own German entry in `~/.codex/config.toml`.
 
 ## One-time setup (Tyler, once ever)
 
@@ -77,8 +76,7 @@ Only redo a line when a key is lost or a server is added.
    of those does nothing for setup, and it hands the live server more power.
    The setup token is a **personal** token under My Profile.
 2. **A Coolify token per server.** Coolify → Keys & Tokens → API tokens, with
-   read, write and deploy permissions. The US and German ones are already in
-   the file.
+   read, write and deploy permissions. server1's is already in the file.
 3. **Resend** is already in the file. A replacement must be a **Full access**
    key, because sending-only keys cannot add domains.
 
@@ -252,7 +250,7 @@ He does one short sitting before the deploy and signs in after it.
 Ask for the answers up front:
 
 - **The domain**, already bought at any registrar.
-- **The server:** US unless he says otherwise.
+- **The server:** server1 (`de` in `apps.json`). There is no other.
 - **The first admin's email:** typham2@gmail.com unless he says otherwise.
 - **Anything off at launch:** payments and Google sign-in were off for
   Pomoder.
@@ -288,7 +286,7 @@ AI keys are already there, written by me straight after the first deploy.
    `.env.live`.
 5. **Storage.**
    - **The bucket:** `POST /accounts/{account}/r2/buckets` with `{name,
-     locationHint}`. Use `wnam` for the US server.
+     locationHint}`. Use `weur`, near server1.
    - **Its own key:** `POST /accounts/{account}/tokens` with the permission
      group "Workers R2 Storage Bucket Item Write" on the resource
      `com.cloudflare.edge.r2.bucket.<account>_default_<bucket>`. The Access

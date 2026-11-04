@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm"
 
+import { halfOf } from "@/lib/bans/options"
 import { uuid } from "@/server/auth/security"
 import type { CommandTarget } from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
@@ -136,10 +137,14 @@ export async function queueLinkedinConnect(
     // The day's pace is about writing; only a pause and the warm-up hold a request.
     const refusal = state.paused || state.warmUp.ageUnknown || (state.warmUp.endsAt && state.warmUp.endsAt > now) ? linkedinPostingRefusal(state, now, state.timeZone) : null
     if (refusal) throw new Refusal(refusal)
-    const { connectsPerWeek } = await readLinkedinSettings(userId, tx)
+    // At half pace it sends half as many (Bans task, parts 20, 23 and 24).
+    const weekly = (await readLinkedinSettings(userId, tx)).connectsPerWeek
+    const connectsPerWeek = state.slow ? halfOf(weekly) : weekly
     if ((await connectsThisWeek(userId, account.id, tx, now)) >= connectsPerWeek) {
       throw new Refusal(
-        `This account sent ${connectsPerWeek} connection requests in the last 7 days, the number in Settings → Behaviour. LinkedIn restricts accounts that send too many. Try again in a few days.`
+        state.slow
+          ? `${state.slow}: this account may send ${connectsPerWeek} connection requests in 7 days, half the number in Settings → Behaviour, and has. Try again in a few days.`
+          : `This account sent ${connectsPerWeek} connection requests in the last 7 days, the number in Settings → Behaviour. LinkedIn restricts accounts that send too many. Try again in a few days.`
       )
     }
     const connectId = uuid()

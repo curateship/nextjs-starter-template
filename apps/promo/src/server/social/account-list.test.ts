@@ -147,7 +147,7 @@ describe("the Reddit accounts list", () => {
     await sentFrom(oldest.id, 2)
     const next = await account(400)
 
-    await retireAccounts(userId, [oldest.id], true, db)
+    await retireAccounts(userId, [oldest.id], true, db, { reason: "given_up", note: "" })
     expect((await listRedditAccounts(userId, { retired: false }, db, NOW)).map((row) => row.id)).toEqual([next.id])
     expect((await readAccount(userId, db))?.id).toBe(next.id)
     expect(await listSentComments(userId, db)).toHaveLength(1)

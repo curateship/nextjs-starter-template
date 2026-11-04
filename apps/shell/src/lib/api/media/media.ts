@@ -29,11 +29,22 @@ import {
 import {
   cancelVideoUpload,
   finishVideoUpload,
+  resumeVideoUpload,
   signVideoUploadPart,
   startVideoUpload,
 } from "@/server/media/video-upload"
 import { VIDEO_MIME_TYPES } from "@/lib/media/media-upload"
-import { sendFileInParts } from "@/lib/media/upload-in-parts"
+import {
+  isUploadCancelled,
+  sendFileInParts,
+  type PauseGate,
+  type SentPart,
+} from "@/lib/media/upload-in-parts"
+import {
+  forgetUpload,
+  recallUpload,
+  rememberUpload,
+} from "@/lib/media/upload-resume"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { customShellMedia } from "@/server/schema"
 import { now } from "@/server/auth/security"
@@ -75,6 +86,10 @@ const videoUploadKeySchema = z.object({
   storagePath: z.string().min(1).max(600),
   uploadId: z.string().min(1).max(1024),
 })
+
+// Every step after the start repeats the size the start was told, because
+// nothing keeps it between steps (`assertStatedSize` in video-upload.ts).
+const statedSizeSchema = z.number().int().positive()
 
 export function getMediaErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ""
@@ -212,6 +227,7 @@ const signVideoUploadPartFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
     videoUploadKeySchema.extend({
+      fileSize: statedSizeSchema,
       partNumber: z.number().int(),
       size: z.number().int(),
     })
@@ -224,6 +240,7 @@ const finishVideoUploadFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
     videoUploadKeySchema.extend({
+      fileSize: statedSizeSchema,
       parts: z
         .array(
           z.object({
@@ -244,6 +261,13 @@ const finishVideoUploadFn = createServerFn({ method: "POST" })
       workspaceId: await workspaceIdForRequest(context.user.id),
       ...data,
     })
+  )
+
+const resumeVideoUploadFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(videoUploadKeySchema.extend({ fileSize: statedSizeSchema }))
+  .handler(({ data, context }) =>
+    resumeVideoUpload({ userId: context.user.id, ...data })
   )
 
 const cancelVideoUploadFn = createServerFn({ method: "POST" })
@@ -301,6 +325,8 @@ export type UploadMediaOptions = {
   onProgress?: (fraction: number) => void
   /** Aborting it cancels a video upload and leaves nothing behind. */
   signal?: AbortSignal
+  /** Pauses a video between pieces. Pictures and sound go in one request and ignore it. */
+  gate?: PauseGate
 }
 
 /**
@@ -325,36 +351,96 @@ export function uploadMedia(
   return uploadMediaFn({ data: formData })
 }
 
-async function uploadVideoInParts(
-  file: File,
-  altText: string | undefined,
-  { onProgress, signal }: UploadMediaOptions
-) {
+/**
+ * The upload this file already has in the bucket, picked back up, or a new
+ * one. A remembered upload that can no longer go on (finished, cancelled,
+ * cleared after seven days, or somebody else's on a shared computer) is
+ * forgotten and a new one started.
+ */
+async function openVideoUpload(file: File) {
+  const remembered = recallUpload(file)
+  if (remembered) {
+    try {
+      const { ticket, parts } = await resumeVideoUploadFn({
+        data: {
+          storagePath: remembered.storagePath,
+          uploadId: remembered.uploadId,
+          fileSize: file.size,
+        },
+      })
+      return { ticket, alreadySent: parts as SentPart[] }
+    } catch {
+      forgetUpload(file)
+    }
+  }
   const ticket = await startVideoUploadFn({
     data: { name: file.name, mimeType: file.type, size: file.size },
   })
-  const key = { storagePath: ticket.storagePath, uploadId: ticket.uploadId }
+  rememberUpload(file, {
+    storagePath: ticket.storagePath,
+    uploadId: ticket.uploadId,
+    fileSize: ticket.fileSize,
+  })
+  return { ticket, alreadySent: [] as SentPart[] }
+}
 
+async function uploadVideoInParts(
+  file: File,
+  altText: string | undefined,
+  { onProgress, signal, gate }: UploadMediaOptions
+) {
+  const { ticket, alreadySent } = await openVideoUpload(file)
+  const key = { storagePath: ticket.storagePath, uploadId: ticket.uploadId }
+  let reached = 0
+
+  let parts: SentPart[]
   try {
-    const parts = await sendFileInParts({
+    parts = await sendFileInParts({
       file,
       partBytes: ticket.partBytes,
       partCount: ticket.partCount,
+      alreadySent,
+      gate,
       signPart: (partNumber, size) =>
-        signVideoUploadPartFn({ data: { ...key, partNumber, size } }),
-      onProgress,
+        signVideoUploadPartFn({
+          data: { ...key, fileSize: ticket.fileSize, partNumber, size },
+        }),
+      onProgress: (fraction) => {
+        reached = fraction
+        onProgress?.(fraction)
+      },
       signal,
     })
-    return await finishVideoUploadFn({
-      data: { ...key, parts, originalName: file.name, altText: altText?.trim() },
-    })
   } catch (error) {
-    // Throws away whatever pieces reached the bucket. Once finishing has
-    // started the pieces are already joined, and finishing cleans up after
-    // itself, so a refusal here is expected and not worth reporting.
-    await cancelVideoUploadFn({ data: key }).catch(() => undefined)
-    throw error
+    if (isUploadCancelled(error)) {
+      // Cancel means gone: the pieces are thrown away and nothing is kept
+      // to pick back up.
+      forgetUpload(file)
+      await cancelVideoUploadFn({ data: key }).catch(() => undefined)
+      throw error
+    }
+    // Anything else keeps the pieces that landed, so picking the same file
+    // again carries on from here.
+    const reason = error instanceof Error ? error.message : "Upload failed."
+    throw new Error(
+      `${reason} It stopped at ${Math.floor(reached * 100)}%. Pick the same file again to carry on from there.`
+    )
   }
+
+  // Finishing cleans up after itself once the pieces are joined. A failure
+  // before they were joined leaves the remembered upload to pick up on the
+  // next try; after, the next try finds it gone and starts afresh.
+  const item = await finishVideoUploadFn({
+    data: {
+      ...key,
+      fileSize: ticket.fileSize,
+      parts,
+      originalName: file.name,
+      altText: altText?.trim(),
+    },
+  })
+  forgetUpload(file)
+  return item
 }
 
 export function updateMedia(mediaId: string, altText: string) {

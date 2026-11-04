@@ -4,6 +4,8 @@ import { Refusal } from "@/server/browser/refusal"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { handleWords } from "@/lib/social/networks"
+import { halfOf } from "@/lib/bans/options"
+import { slowReason } from "@/server/bans/rules"
 import { paceCounts, paceLimit } from "@/lib/social/pace"
 import { isAwake, nextWakeAt } from "@/lib/social/waking"
 import { holdsLink, X_WARM_UP_DAYS, xLength, xPostLimit, xPostUrl, type XIncoming, type XReplyKind } from "@/lib/social/x/options"
@@ -115,7 +117,7 @@ export function xAccountBorn(account: Pick<AccountRow, "xJoinedAt" | "signedInAt
 
 export async function readXPostingState(
   userId: string,
-  account: Pick<AccountRow, "id" | "profileId" | "phoneId" | "xJoinedAt" | "signedInAt" | "pausedAt" | "projectId" | "platform">,
+  account: Pick<AccountRow, "id" | "profileId" | "phoneId" | "xJoinedAt" | "signedInAt" | "pausedAt" | "projectId" | "platform" | "shadowbanned" | "slowUntil">,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<XPostingState> {
@@ -126,8 +128,12 @@ export async function readXPostingState(
   const ends = warmUpEndsAt(born, X_WARM_UP_DAYS, now)
   const young = isYoung(born, behaviour.youngDays, now)
   const { posted, waiting } = await recentPosting(userId, account.id, db, now)
+  const slow = await slowReason(userId, account, db, now)
+  const perHour = slow ? halfOf(settings.repliesPerHour) : settings.repliesPerHour
+  const perDay = slow ? halfOf(settings.repliesPerDay) : settings.repliesPerDay
   return {
     paused: await pausedBy(userId, account, db),
+    slow,
     timeZone,
     awake: isAwake(now, timeZone, behaviour.wakeFromMinute, behaviour.wakeUntilMinute),
     nextWakeAt: nextWakeAt(now, timeZone, behaviour.wakeFromMinute, behaviour.wakeUntilMinute),
@@ -135,11 +141,9 @@ export async function readXPostingState(
     young,
     ...paceCounts(posted, now),
     warnPerHour: behaviour.warnPerHour,
-    perHour: settings.repliesPerHour,
-    perDay: settings.repliesPerDay,
-    limit: young
-      ? paceLimit({ posted, waiting, now, perHour: settings.repliesPerHour, perDay: settings.repliesPerDay })
-      : null,
+    perHour,
+    perDay,
+    limit: young || slow ? paceLimit({ posted, waiting, now, perHour, perDay }) : null,
   }
 }
 

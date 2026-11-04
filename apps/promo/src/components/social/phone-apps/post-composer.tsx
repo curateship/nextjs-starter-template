@@ -1,4 +1,5 @@
 import * as React from "react"
+import { brakeWords } from "@/lib/bans/options"
 import { Loader2Icon, SendIcon, SparklesIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -52,7 +53,7 @@ export function PostComposer({
   const most = HASHTAG_MAX[network]
   const kind = VIDEO_ENDINGS.test(mediaUrl) ? "video" : "photo"
   const phone = account?.phone ?? null
-  const stopped = phoneStop(account)
+  const stopped = phoneStop(account, network)
 
   async function draft() {
     if (!account) {
@@ -172,14 +173,16 @@ export function PostComposer({
 }
 
 /** Why the picked account's phone cannot take a post now, in words, or null. */
-function phoneStop(account: AppAccount | null): string | null {
+function phoneStop(account: AppAccount | null, network: PhoneAppNetwork): string | null {
   if (!account) return null
   const name = account.handle ? `@${account.handle}` : "This account"
   if (account.banScreen) return `${name} hit a ban screen and was stopped. Let it run again from its settings on the Accounts dashboard.`
   if (account.paused) {
     return account.paused === "account"
       ? `${name} is paused.`
-      : account.paused === "network"
+      : account.paused === "brake"
+        ? brakeWords(network)
+        : account.paused === "network"
         ? `This network is paused on ${name}'s project.`
         : `${name}'s project is paused.`
   }

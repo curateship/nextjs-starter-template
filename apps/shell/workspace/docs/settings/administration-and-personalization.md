@@ -154,6 +154,21 @@ writes every colour at once and applying one is the way out of a bad colour.
 Provider key fields preserve exactly what the admin typed for the save in
 progress, even if another settings field changes while that request is running.
 
+The Email, Payments, AI and R2 storage cards save themselves through one hook,
+`useSettingsAutoSave` in `src/components/settings/use-settings-auto-save.ts`.
+Each field has its own timer. An edit made while another save is still running
+is saved straight after it, never dropped. Pasting an AI key and tabbing away
+while a second key was saving used to lose the first key. Remove waits for every
+save in flight before it runs. These cards report to the sticky header through
+`useReportedSaveStatus`, and report nothing when idle so the page's own status
+shows.
+
+Every masked key box is `SecretKeyField` (`secret-key-field.tsx`). A saved key
+shows as dots with "Set ••••" and its last four characters. Clicking the box
+clears the dots for typing. A label, a dropdown and its options in a settings
+row is `SettingsSelectRow` (`settings-select-row.tsx`), beside
+`SettingsSwitchRow` and `SettingsSliderRow`.
+
 The maintenance switch has its own server action because it shares the global
 settings record with this page. Both writers lock and merge the record so one
 change cannot erase another.

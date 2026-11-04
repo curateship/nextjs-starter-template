@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
+import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 
 import { ContactPanel } from "@/components/broadcasts/contact-panel"
@@ -29,7 +29,7 @@ import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useLastValue } from "@/lib/hooks/use-last-value"
 import { panelLayoutKey } from "@/lib/layout/panel-layout"
-import { useListSearchNavigate } from "@/lib/nav/list-search"
+import { useListSearchNavigate, useOpenRecord } from "@/lib/nav/list-search"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 const contactsRoute = getRouteApi("/_authenticated/admin/contacts")
@@ -61,7 +61,6 @@ type SegmentWindow =
  */
 export function ContactsDashboard({ data }: { data: ContactsPage }) {
   const router = useRouter()
-  const navigate = useNavigate()
   const listSearch = contactsRoute.useSearch()
   const setListSearch = useListSearchNavigate()
   const openId = listSearch.open
@@ -165,20 +164,7 @@ export function ContactsDashboard({ data }: { data: ContactsPage }) {
    * The open person goes in the address with a history entry of its own, so
    * Back closes the panel rather than leaving the list.
    */
-  const setOpenContact = React.useCallback(
-    (id: string | undefined) => {
-      void navigate({
-        to: ".",
-        search: (previous: Record<string, unknown>) => {
-          const next = { ...previous }
-          if (id) next.open = id
-          else delete next.open
-          return next
-        },
-      })
-    },
-    [navigate]
-  )
+  const setOpenContact = useOpenRecord()
 
   const [segmentWindow, setSegmentWindow] = React.useState<SegmentWindow | null>(null)
   const closingSegmentWindow = useLastValue(segmentWindow)

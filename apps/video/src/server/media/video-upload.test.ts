@@ -6,6 +6,13 @@ const storage = vi.hoisted(() => ({
   firstBytes: new Uint8Array(),
 }))
 
+// The app's own options, swapped per test: unset is every app's 5GB, and
+// `"bucket"` is Video's answer.
+const app = vi.hoisted(() => ({
+  appOptions: {} as { media?: { videoMaxBytes?: number | "bucket" } },
+}))
+vi.mock("@/app/options", () => app)
+
 vi.mock("@/server/media/storage", () => ({
   abortMultipartUpload: vi.fn(async () => undefined),
   completeMultipartUpload: vi.fn(async () => undefined),
@@ -15,6 +22,7 @@ vi.mock("@/server/media/storage", () => ({
     Body: { transformToByteArray: async () => storage.firstBytes },
   })),
   getPublicMediaUrl: async (path: string) => `https://media.example.test/${path}`,
+  listUploadedParts: vi.fn(async () => []),
   signUploadPart: vi.fn(
     async (path: string, _uploadId: string, partNumber: number) =>
       `https://bucket.example.test/${path}?partNumber=${partNumber}`
@@ -24,22 +32,30 @@ vi.mock("@/server/media/storage", () => ({
 }))
 
 import {
-  VIDEO_MAX_BYTES,
+  BUCKET_MAX_VIDEO_BYTES,
+  DEFAULT_VIDEO_MAX_BYTES,
   VIDEO_UPLOAD_MAX_PARTS,
-  VIDEO_UPLOAD_PART_BYTES,
+  VIDEO_UPLOAD_MIN_PART_BYTES,
+  videoMaxBytes,
+  videoUploadPartBytes,
+  videoUploadPartCount,
+  videoUploadPieceBytes,
 } from "@/lib/media/media-upload"
 import {
   abortMultipartUpload,
   completeMultipartUpload,
   deleteFromR2,
+  listUploadedParts,
   signUploadPart,
   startMultipartUpload,
 } from "@/server/media/storage"
 import {
   cancelVideoUpload,
   finishVideoUpload,
+  resumeVideoUpload,
   signVideoUploadPart,
   startVideoUpload,
+  UPLOAD_GONE_MESSAGE,
 } from "@/server/media/video-upload"
 import { customShellMedia } from "@/server/schema"
 import {
@@ -51,7 +67,9 @@ import {
 
 // An MP4 begins with a size and then "ftyp".
 const MP4_START = new Uint8Array([0, 0, 0, 0x20, 0x66, 0x74, 0x79, 0x70])
-const GB = 1024 * 1024 * 1024
+const MB = 1024 * 1024
+const GB = 1024 * MB
+const PART = VIDEO_UPLOAD_MIN_PART_BYTES
 
 let client: PGlite
 let database: TestDatabase
@@ -62,6 +80,7 @@ beforeEach(async () => {
   database = testDatabase.db
   storage.object = { size: 2 * GB, contentType: "video/mp4" }
   storage.firstBytes = MP4_START
+  app.appOptions = {}
   vi.clearAllMocks()
 })
 
@@ -69,7 +88,7 @@ afterEach(async () => {
   await client.close()
 })
 
-async function finish(userId: string, storagePath: string) {
+async function finish(userId: string, storagePath: string, fileSize = 2 * GB) {
   const workspace = await insertWorkspace(database)
   return finishVideoUpload(
     {
@@ -77,6 +96,7 @@ async function finish(userId: string, storagePath: string) {
       workspaceId: workspace.id,
       storagePath,
       uploadId: "upload-1",
+      fileSize,
       parts: [{ partNumber: 1, etag: '"abc"' }],
       originalName: "beach 4k.mp4",
       altText: "  The beach  ",
@@ -84,6 +104,44 @@ async function finish(userId: string, storagePath: string) {
     database
   )
 }
+
+describe("how big a video may be, and how it is cut", () => {
+  it("is 5GB unless the app says otherwise, and never past the bucket", () => {
+    expect(videoMaxBytes({})).toBe(5 * GB)
+    expect(videoMaxBytes({ media: { videoMaxBytes: 2 * GB } })).toBe(2 * GB)
+    expect(videoMaxBytes({ media: { videoMaxBytes: "bucket" } })).toBe(
+      BUCKET_MAX_VIDEO_BYTES
+    )
+    expect(
+      videoMaxBytes({ media: { videoMaxBytes: BUCKET_MAX_VIDEO_BYTES * 2 } })
+    ).toBe(BUCKET_MAX_VIDEO_BYTES)
+  })
+
+  it("cuts 5GB into 10MB pieces", () => {
+    expect(videoUploadPartBytes(5 * GB)).toBe(10 * MB)
+    expect(videoUploadPartCount(5 * GB)).toBe(512)
+  })
+
+  it("keeps 100GB and 500GB within the bucket's 10,000 pieces", () => {
+    for (const size of [100 * GB, 500 * GB, BUCKET_MAX_VIDEO_BYTES]) {
+      expect(videoUploadPartBytes(size)).toBeGreaterThanOrEqual(10 * MB)
+      expect(videoUploadPartBytes(size) % MB).toBe(0)
+      expect(videoUploadPartCount(size)).toBeLessThanOrEqual(VIDEO_UPLOAD_MAX_PARTS)
+    }
+    // The numbers the doc quotes.
+    expect(videoUploadPartBytes(100 * GB)).toBe(11 * MB)
+    expect(videoUploadPartCount(100 * GB)).toBe(9310)
+    expect(videoUploadPartBytes(500 * GB)).toBe(52 * MB)
+    expect(videoUploadPartCount(500 * GB)).toBe(9847)
+  })
+
+  it("gives every piece the piece size but the last, which holds the rest", () => {
+    const size = 25 * MB
+    expect(videoUploadPieceBytes(size, 1)).toBe(PART)
+    expect(videoUploadPieceBytes(size, 2)).toBe(PART)
+    expect(videoUploadPieceBytes(size, 3)).toBe(5 * MB)
+  })
+})
 
 describe("starting a video upload", () => {
   it("opens an upload under the person's own folder and says how to cut the file", async () => {
@@ -97,7 +155,8 @@ describe("starting a video upload", () => {
     expect(ticket.storagePath).toMatch(/^user-1\/[0-9a-f-]+_clip\.mov$/)
     expect(ticket).toMatchObject({
       uploadId: "upload-1",
-      partBytes: 10 * 1024 * 1024,
+      fileSize: 25 * MB,
+      partBytes: 10 * MB,
       partCount: 3,
     })
     expect(startMultipartUpload).toHaveBeenCalledWith(
@@ -112,18 +171,36 @@ describe("starting a video upload", () => {
         userId: "user-1",
         name: "big.mp4",
         mimeType: "video/mp4",
-        size: VIDEO_MAX_BYTES,
+        size: DEFAULT_VIDEO_MAX_BYTES,
       })
-    ).resolves.toMatchObject({ partCount: VIDEO_UPLOAD_MAX_PARTS })
+    ).resolves.toMatchObject({ partCount: 512 })
 
     await expect(
       startVideoUpload({
         userId: "user-1",
         name: "big.mp4",
         mimeType: "video/mp4",
-        size: VIDEO_MAX_BYTES + 1,
+        size: DEFAULT_VIDEO_MAX_BYTES + 1,
       })
-    ).rejects.toThrow("Maximum size is 5GB")
+    ).rejects.toThrow("Maximum size is 5 GB")
+  })
+
+  it("refuses a 6GB file in an app that keeps the default", async () => {
+    await expect(
+      startVideoUpload({ userId: "u", name: "a.mp4", mimeType: "video/mp4", size: 6 * GB })
+    ).rejects.toThrow("Maximum size is 5 GB")
+  })
+
+  it("takes a stated 100GB file in an app with no ceiling of its own", async () => {
+    app.appOptions = { media: { videoMaxBytes: "bucket" } }
+    const ticket = await startVideoUpload({
+      userId: "u",
+      name: "hour of 4k.mov",
+      mimeType: "video/quicktime",
+      size: 100 * GB,
+    })
+    expect(ticket.partCount).toBeLessThanOrEqual(VIDEO_UPLOAD_MAX_PARTS)
+    expect(ticket.partCount * ticket.partBytes).toBeGreaterThanOrEqual(100 * GB)
   })
 
   it("hides the bucket's own wording when it will not open the upload", async () => {
@@ -152,35 +229,64 @@ describe("signing pieces", () => {
       userId: "user-1",
       storagePath: "user-1/x_clip.mp4",
       uploadId: "upload-1",
+      fileSize: 25 * MB,
       partNumber: 2,
-      size: VIDEO_UPLOAD_PART_BYTES,
+      size: PART,
     })
     expect(url).toBe("https://bucket.example.test/user-1/x_clip.mp4?partNumber=2")
     expect(signUploadPart).toHaveBeenCalledWith(
       "user-1/x_clip.mp4",
       "upload-1",
       2,
-      VIDEO_UPLOAD_PART_BYTES
+      PART
     )
   })
 
-  it("refuses a piece bigger than a piece, or with nothing in it", async () => {
+  it("refuses a piece of any size but its own, or with nothing in it", async () => {
     const base = {
       userId: "user-1",
       storagePath: "user-1/x_clip.mp4",
       uploadId: "upload-1",
-      partNumber: 1,
+      fileSize: 25 * MB,
     }
     await expect(
-      signVideoUploadPart({ ...base, size: VIDEO_UPLOAD_PART_BYTES + 1 })
+      signVideoUploadPart({ ...base, partNumber: 1, size: PART + 1 })
     ).rejects.toThrow("Upload piece out of range")
-    await expect(signVideoUploadPart({ ...base, size: 0 })).rejects.toThrow(
-      "Upload piece out of range"
-    )
+    await expect(
+      signVideoUploadPart({ ...base, partNumber: 1, size: 0 })
+    ).rejects.toThrow("Upload piece out of range")
+    // The last piece holds 5MB of a 25MB file, not a whole piece.
+    await expect(
+      signVideoUploadPart({ ...base, partNumber: 3, size: PART })
+    ).rejects.toThrow("Upload piece out of range")
+    await expect(
+      signVideoUploadPart({ ...base, partNumber: 3, size: 5 * MB })
+    ).resolves.toContain("partNumber=3")
+  })
+
+  it("signs no piece past the ones the stated size needs, and no size past the ceiling", async () => {
+    const base = {
+      userId: "user-1",
+      storagePath: "user-1/x_clip.mp4",
+      uploadId: "upload-1",
+    }
+    await expect(
+      signVideoUploadPart({ ...base, fileSize: 25 * MB, partNumber: 4, size: PART })
+    ).rejects.toThrow("Upload piece out of range")
+    // Claiming a bigger file than the app takes gets nothing signed.
+    await expect(
+      signVideoUploadPart({ ...base, fileSize: 6 * GB, partNumber: 1, size: PART })
+    ).rejects.toThrow("Upload piece out of range")
   })
 
   it("refuses somebody else's upload, a deeper folder and a piece out of range", async () => {
-    const base = { userId: "user-1", uploadId: "upload-1", partNumber: 1, size: 10 }
+    const base = {
+      userId: "user-1",
+      uploadId: "upload-1",
+      fileSize: 10,
+      partNumber: 1,
+      size: 10,
+    }
     await expect(
       signVideoUploadPart({ ...base, storagePath: "user-2/x_clip.mp4" })
     ).rejects.toThrow("Upload not found")
@@ -191,7 +297,7 @@ describe("signing pieces", () => {
       signVideoUploadPart({
         ...base,
         storagePath: "user-1/x_clip.mp4",
-        partNumber: VIDEO_UPLOAD_MAX_PARTS + 1,
+        partNumber: 2,
       })
     ).rejects.toThrow("Upload piece out of range")
   })
@@ -231,12 +337,21 @@ describe("finishing a video upload", () => {
 
   it("deletes a joined file that came out bigger than the ceiling", async () => {
     const owner = await insertUser(database)
-    storage.object = { size: VIDEO_MAX_BYTES + 1, contentType: "video/mp4" }
+    storage.object = { size: DEFAULT_VIDEO_MAX_BYTES + 1, contentType: "video/mp4" }
 
     await expect(finish(owner.id, `${owner.id}/abc_big.mp4`)).rejects.toThrow(
-      "Maximum size is 5GB"
+      "Maximum size is 5 GB"
     )
     expect(deleteFromR2).toHaveBeenCalledWith(`${owner.id}/abc_big.mp4`)
+    expect(await database.select().from(customShellMedia)).toEqual([])
+  })
+
+  it("deletes a joined file that is not the size the browser said it sent", async () => {
+    const owner = await insertUser(database)
+    await expect(
+      finish(owner.id, `${owner.id}/abc_clip.mp4`, 2 * GB - 1)
+    ).rejects.toThrow("not the size that was sent")
+    expect(deleteFromR2).toHaveBeenCalledWith(`${owner.id}/abc_clip.mp4`)
     expect(await database.select().from(customShellMedia)).toEqual([])
   })
 
@@ -273,5 +388,49 @@ describe("cancelling a video upload", () => {
         uploadId: "upload-1",
       })
     ).rejects.toThrow("Upload not found")
+  })
+})
+
+describe("picking a video upload back up", () => {
+  const key = {
+    userId: "user-1",
+    storagePath: "user-1/x_clip.mp4",
+    uploadId: "upload-1",
+  }
+
+  it("hands back the pieces the bucket holds, at their right sizes", async () => {
+    vi.mocked(listUploadedParts).mockResolvedValueOnce([
+      { partNumber: 1, etag: '"one"', size: PART },
+      // A piece of the wrong size is sent again rather than joined.
+      { partNumber: 2, etag: '"two"', size: PART - 1 },
+      { partNumber: 3, etag: '"three"', size: 5 * MB },
+    ])
+
+    const { ticket, parts } = await resumeVideoUpload({ ...key, fileSize: 25 * MB })
+
+    expect(ticket).toMatchObject({
+      storagePath: key.storagePath,
+      uploadId: key.uploadId,
+      fileSize: 25 * MB,
+      partCount: 3,
+    })
+    expect(parts).toEqual([
+      { partNumber: 1, etag: '"one"' },
+      { partNumber: 3, etag: '"three"' },
+    ])
+  })
+
+  it("says an upload the bucket no longer has must start again", async () => {
+    vi.mocked(listUploadedParts).mockRejectedValueOnce(new Error("NoSuchUpload"))
+    await expect(resumeVideoUpload({ ...key, fileSize: 25 * MB })).rejects.toThrow(
+      UPLOAD_GONE_MESSAGE
+    )
+  })
+
+  it("refuses somebody else's upload before asking the bucket", async () => {
+    await expect(
+      resumeVideoUpload({ ...key, userId: "user-2", fileSize: 25 * MB })
+    ).rejects.toThrow("Upload not found")
+    expect(listUploadedParts).not.toHaveBeenCalled()
   })
 })

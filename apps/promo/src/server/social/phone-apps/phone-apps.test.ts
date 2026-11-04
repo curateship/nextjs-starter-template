@@ -63,7 +63,8 @@ describe("Instagram and TikTok on phones", () => {
     setDbForTests(db)
     userId = (await insertUser(db, { role: "admin" })).id
     workspaceId = (await insertWorkspace(db)).id
-    await db.insert(promoBehaviourSettings).values({ userId, wakeFromMinute: 0, wakeUntilMinute: 0 })
+    // No Instagram or TikTok warm-up (Bans task, part 19), which is tested on its own.
+    await db.insert(promoBehaviourSettings).values({ userId, wakeFromMinute: 0, wakeUntilMinute: 0, appWarmUpDays: 0 })
     const { code } = await createPairingCode(userId, db)
     const paired = await pairRack({ code, name: "Mac", platform: "", version: RACK_VERSION }, db)
     rack = { id: paired.rackId, userId, key: paired.key }
@@ -228,8 +229,10 @@ describe("Instagram and TikTok on phones", () => {
         (await db.select().from(customShellNotifications)).filter((row) => row.message?.startsWith("Shadowbanned:"))
       expect((await bells()).map((row) => row.message)).toEqual(["Shadowbanned: @quiet.maple on Instagram"])
 
+      // Shadowbanned is At risk, with the sign under it (Bans task, part 21), and the account goes at half pace (part 20).
       const [listed] = await listRedditAccounts(userId, { retired: false }, db)
-      expect(listed.status.warning).toContain("Shadowbanned")
+      expect(listed.status).toMatchObject({ status: "at_risk", warning: "At risk: shadowbanned" })
+      expect(listed.slow).toBe("Half pace while shadowbanned")
 
       // A second day still shadowbanned rings nothing new; a clear one takes the notice away.
       await queueJob(userId, "health", { accountId }, db)

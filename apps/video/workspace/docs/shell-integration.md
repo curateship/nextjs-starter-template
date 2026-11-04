@@ -10,6 +10,14 @@ conflicts on every future merge. A change the shell needs is made in
 `apps/shell` and carried over. The repo's `docs/shell/shell-and-apps.md`
 is the rulebook.
 
+## The folding menu, 3 November 2026
+
+`src/components/shared/folding-menu.tsx` is the shell's one ⋮ and "+ Add"
+dropdown ([docs/shell/folding-menu.md](../../../../docs/shell/folding-menu.md)).
+It moved into the shell from Travel on 3 Nov 2026 and was copied into Video
+by hand, byte for byte, for the Thumbnail panel's ⋮. The next shell merge
+finds the two the same.
+
 ## The 3 October 2026 hero background merge
 
 Six shell files came over: the front page model and its test, the front page
@@ -344,3 +352,29 @@ was added and two files deleted.
 
 No migration was new. `scripts/setup-database.mjs`, `src/app/open-endpoints.ts`
 and `public/fonts/README.md` stay Video's own.
+
+## Shell files carried early, 3 November 2026
+
+The big-files shell parts were built in this worktree's `apps/shell` and the
+same files copied here, so Video has them before the next shell merge and
+neither side forks. Every file below is identical in both apps. The other
+eleven apps pick them up at their next shell merge.
+
+- **Each app sets its own video ceiling** (`media.videoMaxBytes` in
+  `src/lib/app-options.ts`, read by `src/lib/media/media-upload.ts`,
+  `src/server/media/library.ts` and `src/server/media/video-upload.ts`).
+- **Uploads pick up where they stopped and can pause**
+  (`src/lib/media/upload-in-parts.ts`, `upload-resume.ts`,
+  `src/lib/api/media/media.ts`, and `listUploadedParts` in
+  `src/server/media/storage.ts`).
+- **The upload line on every page** (`src/lib/media/upload-queue.ts`,
+  `upload-speed.ts`, `src/components/media/upload-line.tsx`, drawn by
+  `src/components/shell/shell-layout.tsx`; the Media library page uses it).
+- **Storage used and its cost** (`media.storageUsed` in
+  `src/server/app-options.ts`, `mediaStorageUsed` in
+  `src/server/media/library.ts`, `src/lib/api/media/admin-media.ts`,
+  `src/lib/media/storage-cost.ts`, `src/components/media/storage-used.tsx`).
+- **Storage takes a file from disk** (`uploadFileToR2` in
+  `src/server/media/storage.ts`).
+
+Their tests came too. `docs/shell/big-uploads.md` describes all of it.

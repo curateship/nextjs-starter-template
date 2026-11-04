@@ -66,6 +66,7 @@ function job(aspect: AspectRatio): RenderJobSummary {
     finished_at: "2026-09-24T00:01:00.000Z",
     ai_parts: null,
     ai_hand_edited: true,
+    range: null,
   }
 }
 
@@ -122,7 +123,8 @@ describe("the frame rate", () => {
       "high",
       60,
       true,
-      "Video"
+      "Video",
+      undefined
     )
   })
 
@@ -170,5 +172,53 @@ describe("the export button", () => {
     open([job("9:16")])
     click(document.getElementById("export-shape-9x16")!)
     expect(exportButton().textContent).toBe("Export")
+  })
+})
+
+/** Types into a box the way a person does, so React hears the change. */
+function type(id: string, value: string) {
+  const input = document.getElementById(id) as HTMLInputElement
+  const setValue = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value"
+  )!.set!
+  act(() => {
+    setValue.call(input, value)
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+  })
+  return input
+}
+
+describe("exporting part of the project", () => {
+  const MINUTE = 60_000
+
+  it("starts on the whole project, and sends no part for it", async () => {
+    open([], 45 * MINUTE)
+    expect((document.getElementById("export-part-start") as HTMLInputElement).value).toBe("0:00")
+    expect((document.getElementById("export-part-end") as HTMLInputElement).value).toBe("45:00")
+    await act(async () => exportButton().click())
+    expect((vi.mocked(startExport).mock.lastCall as unknown[] | undefined)?.[6]).toBeUndefined()
+  })
+
+  it("sends the part typed, from ten minutes to twelve", async () => {
+    open([], 45 * MINUTE)
+    type("export-part-start", "10:00")
+    type("export-part-end", "12:00")
+    await act(async () => exportButton().click())
+    expect((vi.mocked(startExport).mock.lastCall as unknown[] | undefined)?.[6]).toEqual({
+      startMs: 10 * MINUTE,
+      endMs: 12 * MINUTE,
+    })
+  })
+
+  it("refuses an end before the start, and keeps what was typed", async () => {
+    vi.mocked(startExport).mockClear()
+    open([], 45 * MINUTE)
+    type("export-part-start", "12:00")
+    const end = type("export-part-end", "10:00")
+    await act(async () => exportButton().click())
+    expect(startExport).not.toHaveBeenCalled()
+    expect(end.value).toBe("10:00")
+    expect(end.getAttribute("aria-invalid")).toBe("true")
   })
 })

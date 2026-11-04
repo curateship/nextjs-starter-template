@@ -82,6 +82,16 @@ export const PHONE_ACTIONS = [
   "x/state",
   // And for a LinkedIn account, whose answer names its slug (LinkedIn task, part 9).
   "linkedin/state",
+  // The weekly look at a banned account's app (Bans task, part 26): the app
+  // opened and its screen read for a ban screen, never tapped, scrolled or
+  // typed into. The answer is the ban screen the rack reads after every
+  // app action, or none.
+  "reddit/ban_look",
+  "instagram/ban_look",
+  "tiktok/ban_look",
+  "medium/ban_look",
+  "x/ban_look",
+  "linkedin/ban_look",
 ] as const
 
 export type PhoneAction = (typeof PHONE_ACTIONS)[number]
@@ -103,6 +113,12 @@ const PHONE_ACTION_WORDS: Record<PhoneAction, string> = {
   "reddit/state": "Read who Reddit is signed in as",
   "x/state": "Read who X is signed in as",
   "linkedin/state": "Read who LinkedIn is signed in as",
+  "reddit/ban_look": "Weekly look at a banned Reddit account",
+  "instagram/ban_look": "Weekly look at a banned Instagram account",
+  "tiktok/ban_look": "Weekly look at a banned TikTok account",
+  "medium/ban_look": "Weekly look at a banned Medium account",
+  "x/ban_look": "Weekly look at a banned X account",
+  "linkedin/ban_look": "Weekly look at a banned LinkedIn account",
 }
 
 /** A job's app steps, which the rack does in the Reddit, Instagram, TikTok, Medium, X and LinkedIn apps, in words. */
@@ -217,12 +233,14 @@ export const PHONE_APP_ROUTINES = [
   "instagram/post",
   "instagram/inbox",
   "instagram/reply",
+  "instagram/warm_up",
   "tiktok/quick_state",
   "tiktok/health",
   "tiktok/profile",
   "tiktok/post",
   "tiktok/inbox",
   "tiktok/reply",
+  "tiktok/warm_up",
   "medium/state",
   "medium/quick_state",
   "medium/respond",
@@ -357,6 +375,8 @@ export type PhoneEventKind =
   | "notice_cleared"
   | "wiped"
   | "setup_checked"
+  // An account on it was banned (Bans task, part 1). A wipe never clears it.
+  | "banned"
 
 export const PHONE_EVENT_WORDS: Record<PhoneEventKind, string> = {
   plugged_in: "Plugged in",
@@ -370,6 +390,7 @@ export const PHONE_EVENT_WORDS: Record<PhoneEventKind, string> = {
   notice_cleared: "Notice cleared",
   wiped: "Wiped",
   setup_checked: "Setup check",
+  banned: "Banned",
 }
 
 /**

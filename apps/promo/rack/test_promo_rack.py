@@ -3182,5 +3182,124 @@ class IphoneAppsTest(unittest.TestCase):
         self.assertEqual(screen.calls, [])
 
 
+
+class BansTest(unittest.TestCase):
+    """The Bans task's rack side: a screen Promo does not know (part 9), the
+    Instagram and TikTok warm-up (part 19) and the weekly look (part 26).
+    Written from the apps' published wording; no real ban has happened yet."""
+
+    IG = promo_rack.APP_PACKAGES["instagram"]
+
+    def setUp(self):
+        self.saved = dict(promo_rack.LEARNED)
+        promo_rack.LEARNED.update({"bans": {}, "harmless": {}})
+
+    def tearDown(self):
+        promo_rack.LEARNED.update(self.saved)
+
+    def test_a_short_screen_telling_the_account_it_is_stopped_in_new_words_asks(self):
+        screen = app_screen(self.IG, ["Your account was restricted for 30 days", "Learn more", "OK"])
+        found = promo_rack.ban_screen_in(screen, "instagram")
+        self.assertEqual(found["kind"], "unknown")
+        self.assertEqual(found["line"], "Your account was restricted for 30 days")
+
+    def test_somebody_else_or_a_question_or_a_long_line_never_asks(self):
+        for line in [
+            "This account has been suspended",
+            "Account suspended after one comment?",
+            "X suspends accounts which violate the X Rules.",
+            "Your account " + "was talked about at length " * 6 + "and then suspended",
+        ]:
+            self.assertIsNone(promo_rack.ban_screen_in(app_screen(self.IG, [line, "Back"]), "instagram"), line)
+
+    def test_real_ban_wording_with_a_not_further_off_still_asks(self):
+        for line in [
+            "Your account has been disabled for not following our Terms",
+            "Your account has been suspended because it doesn't follow our Community Guidelines",
+        ]:
+            self.assertTrue(promo_rack.unknown_ban_line(line), line)
+
+    def test_the_warm_up_likes_only_the_posts_own_like_button(self):
+        screen = (
+            '<hierarchy><node text="" package="%s" bounds="[0,0][1080,2400]">'
+            '<node text="Follow" package="%s" bounds="[800,300][1000,380]" />'
+            '<node content-desc="Liked" package="%s" bounds="[40,600][140,700]" />'
+            '<node content-desc="Like" package="%s" bounds="[40,1500][140,1600]" />'
+            '<node content-desc="Comment" package="%s" bounds="[160,1500][260,1600]" />'
+            "</node></hierarchy>"
+        ) % ((self.IG,) * 5)
+        self.assertEqual(promo_rack.feed_like(screen, self.IG), (40, 1500, 140, 1600))
+        self.assertFalse(promo_rack.like_landed(screen, self.IG, (40, 1500, 140, 1600)))
+        pressed = screen.replace('content-desc="Like" package', 'content-desc="Liked" package')
+        self.assertTrue(promo_rack.like_landed(pressed, self.IG, (40, 1500, 140, 1600)))
+        # Nothing to like on screen: no Like at all, so nothing else is pressed.
+        self.assertIsNone(promo_rack.feed_like(app_screen(self.IG, ["Follow", "Shop now"]), self.IG))
+
+    def test_the_account_status_pages_never_ask(self):
+        # What Instagram's and TikTok's Account status pages say when all is
+        # well, which the daily reading opens (shadowban_from_screen).
+        for line in [
+            "You have no violations",
+            "Your account isn't restricted",
+            "Your account is not restricted",
+            "You haven't posted anything that goes against our Community Guidelines",
+            "Your account is in good standing",
+            "None of your content was removed for violating our guidelines",
+        ]:
+            self.assertFalse(promo_rack.unknown_ban_line(line), line)
+            self.assertIsNone(promo_rack.ban_screen_in(app_screen(self.IG, ["Account status", line]), "instagram"), line)
+
+    def test_a_line_called_a_ban_is_a_ban_and_a_harmless_one_passes(self):
+        line = "Your account was restricted for 30 days"
+        screen = app_screen(self.IG, [line, "OK"])
+        promo_rack.learn_phrases({"banPhrases": [{"app": "instagram", "line": line}], "harmless": []})
+        self.assertEqual(promo_rack.ban_screen_in(screen, "instagram")["kind"], "learned")
+        promo_rack.learn_phrases({"banPhrases": [], "harmless": [{"app": "instagram", "line": line}]})
+        self.assertIsNone(promo_rack.ban_screen_in(screen, "instagram"))
+        # Another app's learned line means nothing here.
+        promo_rack.learn_phrases({"banPhrases": [{"app": "tiktok", "line": line}], "harmless": []})
+        self.assertEqual(promo_rack.ban_screen_in(screen, "instagram")["kind"], "unknown")
+
+    def test_an_answer_with_no_lines_keeps_what_was_learned(self):
+        promo_rack.learn_phrases({"banPhrases": [{"app": "x", "line": "Gone"}], "harmless": []})
+        promo_rack.learn_phrases({"action": None})
+        self.assertIn("gone", promo_rack.LEARNED["bans"]["x"])
+
+    def test_the_weekly_look_only_opens_the_app(self):
+        device = FakeDevice(["Feed"])
+        opened = []
+        originals = (promo_rack.open_app, promo_rack.time.sleep)
+        promo_rack.open_app = lambda serial, app: opened.append(app)
+        promo_rack.time.sleep = lambda seconds: None
+        try:
+            walk = promo_rack.Walk("A1", connect=lambda serial: device)
+            answer = promo_rack.ACTIONS["instagram/ban_look"]("A1", {}, walk)
+        finally:
+            promo_rack.open_app, promo_rack.time.sleep = originals
+        self.assertEqual(answer["looked"], True)
+        self.assertIn("signedOut", answer)
+        self.assertEqual(opened, ["instagram"])
+        self.assertEqual(device.pressed, [])
+
+    def test_every_app_has_a_weekly_look_and_the_two_phone_apps_a_warm_up(self):
+        for app in ("reddit", "instagram", "tiktok", "medium", "x", "linkedin"):
+            self.assertIn("%s/ban_look" % app, promo_rack.ACTIONS)
+        for app in ("instagram", "tiktok"):
+            self.assertIn("%s/warm_up" % app, promo_rack.ACTIONS)
+            self.assertEqual(promo_rack.REHEARSALS["%s/warm_up" % app], {"likes": 0})
+
+    def test_a_warm_up_rehearsal_likes_nothing(self):
+        device = FakeDevice(["Feed"])
+        originals = (promo_rack.open_app, promo_rack.go_home)
+        promo_rack.open_app = lambda serial, app: None
+        promo_rack.go_home = lambda serial: None
+        try:
+            walk = promo_rack.Walk("A1", connect=lambda serial: device, rehearse=True)
+            answer = promo_rack.ACTIONS["tiktok/warm_up"]("A1", {"likes": 4}, walk)
+        finally:
+            promo_rack.open_app, promo_rack.go_home = originals
+        self.assertEqual(answer, {"liked": 0})
+
+
 if __name__ == "__main__":
     unittest.main()

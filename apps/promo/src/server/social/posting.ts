@@ -2,7 +2,10 @@ import { and, asc, eq, gt, inArray, sql } from "drizzle-orm"
 
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { halfOf } from "@/lib/bans/options"
 import { paceCounts, paceLimit, type PaceLimit } from "@/lib/social/pace"
+import { slowReason } from "@/server/bans/rules"
+import { refuseImportantFirstInSubreddit } from "@/server/bans/throwaway-first"
 import { isAwake, nextWakeAt } from "@/lib/social/waking"
 import { postingRefusalText } from "@/lib/social/wording"
 
@@ -39,6 +42,11 @@ export type PostingState = {
    * refuses Post until it is resumed. Null when it is running.
    */
   paused: PausedBy
+  /**
+   * Why it goes at half pace (Bans task, parts 20, 23 and 24), or null. While
+   * slowed, the young limits below are halved and apply whatever its age.
+   */
+  slow: string | null
   /** The account's own clock, which its waking hours are counted on. */
   timeZone: string
   awake: boolean
@@ -57,7 +65,7 @@ export type PostingState = {
   warnPerHour: number
   youngPerHour: number
   youngPerDay: number
-  /** The young account's limit it is at, or null. Always null for an older account. */
+  /** The limit it is at, or null. Null for an older account at full pace. */
   limit: PaceLimit | null
   /** Comments pressed and held back for the account's waking hours. */
   waiting: Array<{ findId: string; runAfter: Date }>
@@ -67,7 +75,7 @@ type AccountRow = typeof promoAccounts.$inferSelect
 
 export async function readPostingState(
   userId: string,
-  account: Pick<AccountRow, "id" | "profileId" | "phoneId" | "redditCreatedAt" | "pausedAt" | "projectId">,
+  account: Pick<AccountRow, "id" | "profileId" | "phoneId" | "redditCreatedAt" | "pausedAt" | "projectId" | "platform" | "shadowbanned" | "slowUntil">,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<PostingState> {
@@ -77,6 +85,9 @@ export async function readPostingState(
   const young = isYoung(account.redditCreatedAt, behaviour.youngDays, now)
   const { posted, waiting } = await recentComments(userId, account.id, db, now)
   const counts = paceCounts(posted, now)
+  const slow = await slowReason(userId, account, db, now)
+  const perHour = slow ? halfOf(behaviour.youngPerHour) : behaviour.youngPerHour
+  const perDay = slow ? halfOf(behaviour.youngPerDay) : behaviour.youngPerDay
 
   const held = await db
     .select({ payload: promoJobs.payload, runAfter: promoJobs.runAfter })
@@ -94,6 +105,7 @@ export async function readPostingState(
 
   return {
     paused: await pausedBy(userId, account, db),
+    slow,
     timeZone,
     awake: isAwake(now, timeZone, behaviour.wakeFromMinute, behaviour.wakeUntilMinute),
     nextWakeAt: nextWakeAt(now, timeZone, behaviour.wakeFromMinute, behaviour.wakeUntilMinute),
@@ -101,17 +113,9 @@ export async function readPostingState(
     young,
     ...counts,
     warnPerHour: behaviour.warnPerHour,
-    youngPerHour: behaviour.youngPerHour,
-    youngPerDay: behaviour.youngPerDay,
-    limit: young
-      ? paceLimit({
-          posted,
-          waiting,
-          now,
-          perHour: behaviour.youngPerHour,
-          perDay: behaviour.youngPerDay,
-        })
-      : null,
+    youngPerHour: perHour,
+    youngPerDay: perDay,
+    limit: young || slow ? paceLimit({ posted, waiting, now, perHour, perDay }) : null,
     waiting: held.flatMap((row) =>
       typeof row.payload.findId === "string" && row.runAfter
         ? [{ findId: row.payload.findId, runAfter: row.runAfter }]
@@ -148,6 +152,9 @@ export async function queueComment(
     | "redditCreatedAt"
     | "pausedAt"
     | "projectId"
+    | "platform"
+    | "shadowbanned"
+    | "slowUntil"
   >,
   input: { findId: string; text: string; draftId: string | null; sentBy?: string | null },
   db: CustomShellDb = defaultDb,
@@ -176,7 +183,7 @@ export async function queueComment(
   // Important and throwaway accounts are kept apart: the post's author, the
   // words, and who else commented under it (part 22 of the phone farm).
   const [find] = await db
-    .select({ author: promoFinds.author, redditId: promoFinds.redditId })
+    .select({ author: promoFinds.author, redditId: promoFinds.redditId, subreddit: promoFinds.subreddit })
     .from(promoFinds)
     .where(and(eq(promoFinds.id, input.findId), eq(promoFinds.userId, userId)))
     .limit(1)
@@ -187,6 +194,8 @@ export async function queueComment(
     { postAuthor: find.author, redditPostId: find.redditId, words: [input.text] },
     db
   )
+  // A throwaway goes first in a subreddit new to an important account (Bans task, part 22).
+  await refuseImportantFirstInSubreddit({ id: account.id, userId, importance: account.importance }, find.subreddit, db, now)
 
   const runAfter = state.nextWakeAt
   const undoUntil = runAfter ? null : new Date(now.getTime() + UNDO_SECONDS * 1000)

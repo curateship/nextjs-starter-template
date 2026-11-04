@@ -17,6 +17,14 @@ import { defineSettingsTab } from "@/lib/settings-tab"
  * object still reads as the full shape. Both catch a misspelled option.
  */
 export const appOptions: AppOptions = {
+  media: {
+    /**
+     * Tyler, 31 Oct 2026: "Don't have upload limit. File can be as big as
+     * 100gig or more", for Video only. The bucket's own 5TB is the one wall.
+     * `workspace/docs/big-files.md` says what that took.
+     */
+    videoMaxBytes: "bucket",
+  },
   workspaces: {
     /**
      * Video is one site and always will be. The shell defaults to this, and

@@ -32,9 +32,15 @@ import { VOICE_CLEAN_STRENGTHS } from "./voice-clean"
 import {
   MAX_SHAPE_LINE_WIDTH,
   MIN_SHAPE_LINE_WIDTH,
-  SHAPE_KINDS,
+  CLIP_SHAPE_KINDS,
 } from "./shapes"
 import { MAX_CAPTION_WORDS } from "./caption-words"
+import {
+  BLUR_SHAPES,
+  MAX_BLUR_STRENGTH,
+  MAX_BLUR_TRACK_POINTS,
+  MIN_BLUR_STRENGTH,
+} from "./blur"
 import { TEXT_FONT_IDS } from "./text-fonts"
 import {
   TEXT_STROKE_WIDTH_MAX,
@@ -188,7 +194,7 @@ export const clipSchema = z
     // Shape clips (shapes.ts): which shape, the second of its two points
     // (`x` and `y` are the first), how thick its line is, and whether it
     // draws itself on. `color` is its line's colour.
-    shape: z.enum(SHAPE_KINDS).optional(),
+    shape: z.enum(CLIP_SHAPE_KINDS).optional(),
     toX: z.number().min(0).max(1).optional(),
     toY: z.number().min(0).max(1).optional(),
     lineWidth: z
@@ -197,6 +203,23 @@ export const clipSchema = z
       .max(MAX_SHAPE_LINE_WIDTH)
       .optional(),
     drawOn: z.boolean().optional(),
+    // Blur clips (blur.ts): a shape clip whose shape is "blur", drawn as its
+    // box or the oval inside it, this soft, and following the places in
+    // `blurTrack` when it follows something.
+    blurShape: z.enum(BLUR_SHAPES).optional(),
+    blurStrength: z.number().min(MIN_BLUR_STRENGTH).max(MAX_BLUR_STRENGTH).optional(),
+    blurTrack: z
+      .array(
+        z
+          .object({
+            atMs: z.number().finite().min(0),
+            x: z.number().min(0).max(1),
+            y: z.number().min(0).max(1),
+          })
+          .strict()
+      )
+      .max(MAX_BLUR_TRACK_POINTS)
+      .optional(),
   })
   .strict()
   .superRefine((clip, context) => {

@@ -1,20 +1,7 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { FormDialog } from "@/components/ui/form-dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { NameDialog } from "@/components/shared/dashboard/name-dialog"
 import {
   createBroadcastTemplate,
   getBroadcastErrorMessage,
@@ -68,64 +55,26 @@ export function SaveTemplateDialog({
   }
 
   return (
-    // FormDialog, not Dialog: a typed name is work, so every way out asks
-    // before throwing it away.
-    <FormDialog
+    <NameDialog
       open={open}
-      dirty={Boolean(name.trim())}
+      title="Save this as a template"
+      description={
+        <>
+          Keeps these {blocks.length} {plural(blocks.length, "block", "blocks")} so the
+          next email can start from them.
+        </>
+      }
+      cardTitle="Template details"
+      inputId="template-name"
+      value={name}
+      onValueChange={setName}
+      maxLength={120}
+      placeholder="Weekly update"
       busy={busy}
+      submitLabel="Save template"
+      onSubmit={() => void submit()}
       onClose={() => onOpenChange(false)}
-    >
-      {(requestClose) => (
-        <DialogContent variant="admin" className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Save this as a template</DialogTitle>
-            <DialogDescription>
-              Keeps these {blocks.length} {plural(blocks.length, "block", "blocks")} so the
-              next email can start from them.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Template details</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="template-name">Name</Label>
-                  <Input
-                    id="template-name"
-                    autoFocus
-                    maxLength={120}
-                    value={name}
-                    placeholder="Weekly update"
-                    onChange={(event) => setName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") return
-                      event.preventDefault()
-                      void submit()
-                    }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </DialogBody>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busy}
-              onClick={requestClose}
-            >
-              Cancel
-            </Button>
-            <Button type="button" disabled={busy} onClick={() => void submit()}>
-              {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Save template
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      )}
-    </FormDialog>
+      className="sm:max-w-sm"
+    />
   )
 }

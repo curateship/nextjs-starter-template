@@ -54,12 +54,14 @@ doing" without finding the project first.
 ## Filters and the search box
 
 The toolbar filters by status (Connected, Busy, Held, Offline), kind (Android,
-iPhone), carrier, project and wiping, beside the folder, label and tag filters
+iPhone), carrier, project, wiping and the apps that banned an account on it,
+beside the folder, label and tag filters
 the Browser profiles dashboard has too, and the search box covers the name,
 model, serial, carrier, number, notes, slot, tags and account handles.
 
 - **Every filter lives in the address**, as `?status=offline`, `?kind=iphone`,
-  `?carrier=Mint Mobile`, `?project=<id>`, `?wipe=needed` and `?q=8a`, so a
+  `?carrier=Mint Mobile`, `?project=<id>`, `?wipe=needed`, `?banned=instagram`
+  and `?q=8a`, so a
   link can open a filtered list and the back button undoes a filter. Picking
   a filter is its own history entry; typing goes into the address 300
   milliseconds after the last letter, replacing rather than stacking.
@@ -72,6 +74,9 @@ model, serial, carrier, number, notes, slot, tags and account handles.
   with an account on a phone.
 - **Needs wiping** lists the phones an account left that need wiping before
   another account goes on ([making each phone look like one person's](looking-like-a-real-person.md)).
+- **Banned on** lists the phones an app banned an account on, one pick per
+  app ([Bans](../bans.md), part 4). Each row says "Banned on: Instagram
+  twice" under its accounts.
 - **On a phone-sized window the filters fold away**, like the folder, label
   and tag filters, so the search box keeps its room; a filter in the address
   still applies.
@@ -88,6 +93,8 @@ picked up first time.
 - **Each phone sits in the slot typed on its window**, with its status dot,
   the status word beside the colour, and its name. An empty slot shows its
   number faintly. Two phones typed into one slot both show there.
+- **A slot whose phone an app banned an account on** has a small ban mark
+  in its corner, naming the apps on hover.
 - **A phone with no slot, or a slot that is not on the shelf**, such as
   "12" on a shelf of ten or "top left", is listed under the grid with why.
 - **Clicking a phone opens its window**, through `?open=<id>` like the rows

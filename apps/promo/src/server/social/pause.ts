@@ -2,6 +2,7 @@ import { and, eq, isNull } from "drizzle-orm"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { isNetwork, type Network } from "@/lib/social/networks"
+import { isBraked } from "@/server/bans/rules"
 
 import { promoAccounts, promoProjects } from "./schema"
 
@@ -21,16 +22,25 @@ type PauseFields = Pick<typeof promoAccounts.$inferSelect, "pausedAt" | "project
   platform?: string
 }
 
-/** What paused an account: itself, its project, its network inside its project, or null when it runs. */
-export type PausedBy = "account" | "project" | "network" | null
+/**
+ * What paused an account: itself, its project, its network inside its
+ * project, the app-wide brake after two bans of its app in a day (Bans task,
+ * part 11), or null when it runs.
+ */
+export type PausedBy = "account" | "project" | "network" | "brake" | null
 
-/** Whether the account is paused, by itself, through its project or through its network there. */
+/**
+ * Whether the account is paused, by itself, through its project, through
+ * its network there, or by the app-wide brake. The brake is its own record,
+ * never an account's pause, so releasing it resumes nothing a person paused.
+ */
 export async function pausedBy(
   userId: string,
   account: PauseFields,
   db: CustomShellDb = defaultDb
 ): Promise<PausedBy> {
   if (account.pausedAt) return "account"
+  if (account.platform && (await isBraked(userId, account.platform, db))) return "brake"
   if (!account.projectId) return null
   const [project] = await db
     .select({ pausedAt: promoProjects.pausedAt, pausedNetworks: promoProjects.pausedNetworks })

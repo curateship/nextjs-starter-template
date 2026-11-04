@@ -1,9 +1,10 @@
 import { PHONE_KINDS, type PhoneKind, type PhoneStatus } from "@/lib/phones/options"
+import { isNetwork, type Network } from "@/lib/social/networks"
 
 /**
  * The Phones dashboard's filters and search box, as they sit in the address
  * (part 59 of the phone farm): `?status=offline&kind=iphone&carrier=Mint
- * Mobile&project=<id>&wipe=needed&q=8a`. A link can open a filtered list,
+ * Mobile&project=<id>&wipe=needed&banned=instagram&q=8a`. A link can open a filtered list,
  * and the back button undoes a filter. Anything unusable is left out rather
  * than guessed at, so a filter's value never changes silently.
  */
@@ -16,6 +17,8 @@ export type PhonesSearch = {
   project?: string
   /** "needed": only phones that need wiping before another account goes on. */
   wipe?: "needed"
+  /** Only phones an app has banned an account on, by the app: `?banned=instagram` (Bans task, part 4). */
+  banned?: Network
   /** The search box, over the name, serial and the rest of the row. */
   q?: string
 }
@@ -34,6 +37,7 @@ export function readPhonesSearch(search: Record<string, unknown>): PhonesSearch 
     carrier: word(search.carrier, 120),
     project: word(search.project, 36),
     wipe: search.wipe === "needed" ? "needed" : undefined,
+    banned: isNetwork(search.banned) ? search.banned : undefined,
     q: word(search.q, 200),
   }
 }

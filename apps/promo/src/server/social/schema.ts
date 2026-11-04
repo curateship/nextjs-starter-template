@@ -330,6 +330,20 @@ export const promoAccounts = pgTable(
     linkedinSeen: varchar("linkedin_seen", { length: 10 }).$type<LinkedinSeen | "">().notNull().default(""),
     linkedinSeenAt: timestamp("linkedin_seen_at", { withTimezone: true }),
     linkedinCodeAskedAt: timestamp("linkedin_code_asked_at", { withTimezone: true }),
+    /**
+     * The Bans task's columns, added by `drizzle/0133_promo_bans.sql`: why it
+     * was retired ('' for one retired before reasons were kept, then banned,
+     * sold, given_up or other, with a note for other, part 15), where it came
+     * from ('' not said, 'made' or 'bought', the seller and the price in
+     * cents, part 16), half pace until this moment after "Let it run again"
+     * (part 23).
+     */
+    retiredReason: varchar("retired_reason", { length: 10 }).notNull().default(""),
+    retiredNote: varchar("retired_note", { length: 200 }).notNull().default(""),
+    source: varchar("source", { length: 10 }).notNull().default(""),
+    seller: varchar("seller", { length: 120 }).notNull().default(""),
+    priceCents: integer("price_cents"),
+    slowUntil: timestamp("slow_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -525,6 +539,8 @@ export const promoBehaviourSettings = pgTable("promo_behaviour_settings", {
    * `drizzle/0110_promo_new_features.sql`.
    */
   searchEveryHours: integer("search_every_hours").notNull().default(4),
+  /** Days a new Instagram or TikTok account warms up before it posts. Added by `drizzle/0133_promo_bans.sql`. */
+  appWarmUpDays: integer("app_warm_up_days").notNull().default(7),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 

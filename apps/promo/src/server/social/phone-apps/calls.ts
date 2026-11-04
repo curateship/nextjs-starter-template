@@ -119,6 +119,17 @@ export function appPost(
   return call(target, `${network}/post`, { ...args }, postShape, POST_TIMEOUT_MS)
 }
 
+const warmUpShape = z.object({ liked: z.number().int().min(0).default(0) })
+
+/**
+ * A warming account's day in the app (Bans task, part 19): the feed scrolled
+ * for a few minutes and `likes` posts liked, at a person's pace. Nothing is
+ * posted, commented or followed.
+ */
+export function appWarmUp(target: CommandTarget, network: PhoneAppNetwork, args: { likes: number }) {
+  return call(target, `${network}/warm_up`, { ...args }, warmUpShape, READ_TIMEOUT_MS)
+}
+
 /**
  * Reads what arrived: the conversations and, on Instagram and TikTok, the
  * comments under the account's own posts. `via` "notification" taps the

@@ -193,6 +193,12 @@ the guess that one might:
   strings come out of a database
 - `notifications.categories` — the app's own tabs in the tray, after the
   shell's Unread and All. Each notice names one through its `categoryId`
+- `media.videoMaxBytes` — the biggest video one upload may be. Unset is 5GB;
+  `"bucket"` is the most R2 holds in one file, just under 5TB. Video uses
+  `"bucket"`. See `big-uploads.md`.
+- `media.storageUsed` (server) — what the app keeps in the bucket beside the
+  library's files, such as Video's smooth copies, so the Media library's
+  storage total and monthly cost count it.
 - `header.leftContent` — optional app-owned left navigation, lazy-loaded for
   the allowed roles. The component receives `fallback`, the current sidebar
   links, and renders that value when it has nothing to show. The same links

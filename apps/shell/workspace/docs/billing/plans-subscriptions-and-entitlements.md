@@ -163,6 +163,11 @@ waiting events for that Stripe customer one at a time. Stripe refuses events
 older than 35 days, so the admin usage page calls those out as failed instead of
 retrying forever.
 
+One retry marks every too-old event as failed in a single write before it
+contacts Stripe, and builds one Stripe connection for the whole run. The rest go
+to Stripe one at a time, oldest first. A run of 500 waiting events used to read
+the settings row 500 times. It now reads it once.
+
 Subscribe the Stripe webhook to `invoice.created` as well as the subscription
 events. That early invoice event is the recovery point for waiting meter events;
 the endpoint returns an error while more rows remain so Stripe delivers it

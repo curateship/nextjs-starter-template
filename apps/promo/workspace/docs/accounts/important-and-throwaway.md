@@ -55,6 +55,14 @@ are kept apart".
   its way to. The post is matched by Reddit's own id, so two keywords finding
   the same post count as one post.
 
+- **An important account going first somewhere new** (Bans task, part 22;
+  Tyler, 3 Nov 2026). Its first comment in a subreddit is refused until a
+  throwaway's comment there has stayed up 24 hours: "Post from a throwaway in
+  r/name first." On Instagram and TikTok its first photo, and its first
+  video, wait for a throwaway's post of that kind on the same app. The
+  throwaway must not be banned and its post must not be removed. Any
+  throwaway counts, so this never links the two groups.
+
 The checks run when the button is pressed (Post, Reply, Save changes on an
 edit, Post on a post of your own, Add account on a project, a voice picked, a
 proxy picked, where an account runs), before anything is queued.

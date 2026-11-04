@@ -2,9 +2,37 @@
 
 // Zoom bounds for the horizontal scale (pixels per second of timeline). The
 // default is a conservative pre-measure value; the timeline fits it to the
-// visible width on mount.
-export const MIN_PX_PER_SECOND = 18
+// visible width on mount. Fully zoomed out, an hour is 72 pixels, so a
+// project of up to about sixteen hours fits a 1,200-pixel timeline
+// (workspace/docs/big-files.md, "A whole hour on the timeline").
+export const MIN_PX_PER_SECOND = 0.02
 export const MAX_PX_PER_SECOND = 90
+
+/**
+ * Seconds between the ruler's labels: the shortest of these that leaves at
+ * least 54 pixels between two labels, which is where three-second labels
+ * sat at the old furthest zoom.
+ */
+const RULER_LABEL_STEPS = [1, 2, 3, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 14400]
+const RULER_LABEL_MIN_PX = 54
+
+export function rulerLabelStep(pxPerSecond: number) {
+  return (
+    RULER_LABEL_STEPS.find((step) => step * pxPerSecond >= RULER_LABEL_MIN_PX) ??
+    RULER_LABEL_STEPS[RULER_LABEL_STEPS.length - 1]
+  )
+}
+
+/** "45s" under a minute, then "10:00" and "1:05:00". */
+export function rulerLabel(second: number) {
+  if (second < 60) return `${second}s`
+  const hours = Math.floor(second / 3600)
+  const minutes = Math.floor((second % 3600) / 60)
+  const seconds = String(second % 60).padStart(2, "0")
+  return hours
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}`
+    : `${minutes}:${seconds}`
+}
 export const DEFAULT_PX_PER_SECOND = 30
 
 // Shortest a clip can get when trimming or splitting.

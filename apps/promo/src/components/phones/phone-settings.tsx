@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
+import { BrakeSettingsCard } from "@/components/bans/brake-settings-card"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
 import { CardGroup } from "@/components/ui/card"
@@ -124,6 +125,7 @@ function PhoneSettingsPanel() {
 
   return (
     <CardGroup>
+      <BrakeSettingsCard />
       <CollapsibleSettingsCard
         storageId="promo-phones-working"
         title="How many phones work at once"

@@ -27,6 +27,8 @@ const stateShape = z.object({
   handle: z.string().nullable(),
   blocked: z.boolean(),
   reason: z.string(),
+  /** Medium's own words when the page says the account is suspended (Bans task, part 7), or null. */
+  banScreen: z.string().nullable().default(null),
   joinedSeconds: z.number().nullable().default(null),
   followers: z.number().int().nullable().default(null),
 })

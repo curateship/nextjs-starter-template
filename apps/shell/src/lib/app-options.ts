@@ -64,6 +64,7 @@ export type AppOptions = {
   notifications?: NotificationOptions
   signIn?: SignInOptions
   homeScreen?: HomeScreenOptions
+  media?: MediaOptions
   /**
    * The app's own kinds of account, beside the shell's admin and member.
    *
@@ -681,6 +682,16 @@ type HomeScreenOptions = {
    * cut it after about 12 characters. Unset uses the app's name.
    */
   shortName?: string
+}
+
+type MediaOptions = {
+  /**
+   * The biggest video one upload may be, in bytes. Unset is 5GB. `"bucket"`
+   * lifts it to the most the R2 bucket holds in one file, just under 5TB,
+   * which is Video's answer. `videoMaxBytes()` in
+   * `src/lib/media/media-upload.ts` reads it for the browser and the server.
+   */
+  videoMaxBytes?: number | "bucket"
 }
 
 type SignInOptions = {

@@ -8,6 +8,7 @@ import {
   CaptionsIcon,
   HistoryIcon,
   ClapperboardIcon,
+  ImageIcon,
   CopyIcon,
   ListVideoIcon,
   Loader2Icon,
@@ -73,6 +74,10 @@ import { BriefsProvider } from "@/components/video-editor/brief-to-video"
 import { MovingStillsProvider } from "@/components/video-editor/moving-stills"
 import { RemakeClipsProvider } from "@/components/video-editor/remake-clips"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
+import { ThumbnailBoard } from "@/components/video-thumbnails/thumbnail-board"
+import { ThumbnailPreviewButton } from "@/components/video-thumbnails/thumbnail-preview-button"
+import { ThumbnailInspector } from "@/components/video-thumbnails/thumbnail-inspector"
+import { ThumbnailsProvider } from "@/components/video-thumbnails/thumbnail-provider"
 import "@/components/video-editor/studio.css"
 import "@/components/video-editor/text-fonts.css"
 
@@ -111,6 +116,8 @@ const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
   { id: "transcript", label: "Transcript", Icon: CaptionsIcon },
   { id: "ai", label: "AI tools", Icon: SparklesIcon },
   { id: "ai-clip", label: "AI clip", Icon: ClapperboardIcon },
+  // Designing the video's thumbnail with AI, after AI clip (Tyler, 3 Nov 2026).
+  { id: "thumbnail", label: "Thumbnail", Icon: ImageIcon },
 ]
 
 /**
@@ -126,11 +133,11 @@ const RAIL_FOOT: typeof RAIL = [
 
 /**
  * The panels a guest sent from Project sees: their project's videos, media
- * and text, and the open video's exports and history. The rest use AI, the
- * owner's library or things outside the project
- * (`workspace/docs/project-guests.md`).
+ * and text, the Thumbnail section with its AI (Tyler, 3 Nov 2026), and the
+ * open video's exports and history. The rest use AI, the owner's library or
+ * things outside the project (`workspace/docs/project-guests.md`).
  */
-const GUEST_PANELS = new Set<StudioPanel>(["videos", "media", "text", "exports", "history"])
+const GUEST_PANELS = new Set<StudioPanel>(["videos", "media", "text", "thumbnail", "exports", "history"])
 
 function railFor(guest: boolean) {
   const keep = (item: (typeof RAIL)[number]) => !guest || GUEST_PANELS.has(item.id)
@@ -155,6 +162,7 @@ export function StudioEditor({
   // Every video opens on the Videos tab, so switching videos from it keeps it
   // showing and a project always lands there.
   const [panel, setPanel] = React.useState<StudioPanel>(initialPanel)
+  const designing = panel === "thumbnail"
 
   // A timeline the editor cannot read is said once and left in the shared
   // error toast. A save refused by another window is said by EditorProvider,
@@ -215,6 +223,9 @@ export function StudioEditor({
         event.preventDefault()
         clock.toggle()
       } else if (event.key === "Delete" || event.key === "Backspace") {
+        // While a thumbnail is designed, these keys belong to the board's
+        // layers (thumbnail-board.tsx), never to a clip on the timeline.
+        if (designing) return
         const selectedClipId = store.getSnapshot().state.selectedClipId
         if (selectedClipId) {
           event.preventDefault()
@@ -240,7 +251,7 @@ export function StudioEditor({
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [clock, copy, dispatch, paste, store])
+  }, [clock, copy, designing, dispatch, paste, store])
 
   const contextPanel = (
     <div data-screen-label="Panel" className="flex h-full min-h-0">
@@ -253,15 +264,28 @@ export function StudioEditor({
 
   const stage = (
     <WorkspacePanel className="flex flex-col">
-      <StageHeader />
+      <StageHeader designing={designing} />
       <div
         className={cn(
-          "relative flex min-h-0 flex-1",
+          "relative flex min-h-0 flex-1 flex-col",
           desktop && !panelCollapsed && "studio-flat-stage-left",
           desktop && !inspectorCollapsed && "studio-flat-stage-right"
         )}
       >
-        <StudioStage />
+        {/* While a thumbnail is designed the board sits on top and the
+            preview shrinks to a strip under it, with its play bar, so a frame
+            can be found by playing or dragging the playhead (Tyler, 3 Nov
+            2026). The empty slot keeps the preview in the same place in the
+            page either way, so it is never rebuilt and keeps playing. */}
+        {designing ? <ThumbnailBoard /> : null}
+        <div className={cn("flex min-h-0 flex-col", designing ? "h-56 shrink-0 border-t" : "flex-1")}>
+          {designing ? (
+            <p className="px-4 pt-2 text-xs text-muted-foreground">
+              Play or drag the playhead to find a frame, then press This frame on the left.
+            </p>
+          ) : null}
+          <StudioStage />
+        </div>
         {panelCollapsed ? (
           <PanelReopenTab
             side="left"
@@ -324,7 +348,7 @@ export function StudioEditor({
           collapsed={inspectorCollapsed}
           onDoubleClick={inspectorDoubleClick}
         >
-          <StudioInspector />
+          {designing ? <ThumbnailInspector /> : <StudioInspector />}
         </WorkspacePanel>
       </ResizablePanel>
     </ResizablePanelGroup>
@@ -335,6 +359,7 @@ export function StudioEditor({
   )
 
   return (
+    <ThumbnailsProvider active={designing}>
     <MovingStillsProvider>
       <RemakeClipsProvider>
         <BriefsProvider>
@@ -373,6 +398,7 @@ export function StudioEditor({
         </BriefsProvider>
       </RemakeClipsProvider>
     </MovingStillsProvider>
+    </ThumbnailsProvider>
   )
 }
 
@@ -457,7 +483,7 @@ function ToolRail({
 }
 
 /** The picture's header: what this video is called, and a way back. */
-function StageHeader() {
+function StageHeader({ designing }: { designing: boolean }) {
   const guest = useProjectGuest()
   const videoName = useEditorVideoName()
   const { setVideoName, videoId } = useEditorRuntime()
@@ -571,6 +597,7 @@ function StageHeader() {
         {guest ? null : (
           <>
             <AiBudgetIndicator />
+            {designing ? <ThumbnailPreviewButton /> : null}
             <Button type="button" variant="outline" onClick={shareLink}>
               {shared ? <Check /> : <Share2 />}
               {shared ? "Copied" : "Share"}

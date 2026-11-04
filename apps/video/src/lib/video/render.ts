@@ -62,15 +62,6 @@ export const EXPORT_SHAPES: {
 export type RenderStatus = "queued" | "running" | "ready" | "error" | "cancelled"
 
 /**
- * The longest project this will render. Thirty minutes of the heaviest shape
- * and quality makes a file of about 1.2 GB, which the server reads whole
- * before storing it. `workspace/docs/long-exports.md` says why that sets the
- * limit.
- */
-const MAX_TIMELINE_MINUTES = 30
-export const MAX_TIMELINE_MS = MAX_TIMELINE_MINUTES * 60_000
-
-/**
  * Seconds of server time one minute of project takes to export, from the
  * download of its clips to the file landing in storage. Every number is a
  * render timed on 24 Sep 2026 on a Mac, written up in
@@ -139,7 +130,6 @@ export function exportEstimateSentence(
 export const RENDER_NOT_FOUND_MESSAGE = "Export not found"
 export const NOTHING_TO_EXPORT_MESSAGE = "There is nothing to export yet"
 export const MEDIA_MISSING_MESSAGE = "A clip's file is no longer in the library"
-export const TIMELINE_TOO_LONG_MESSAGE = `This project is longer than ${MAX_TIMELINE_MINUTES} minutes, which is as much as one export can take`
 export const NO_ACTIVE_EXPORT_MESSAGE = "There is no export to stop"
 export const QUEUE_FULL_MESSAGE =
   "Too many exports waiting already - let some finish first"

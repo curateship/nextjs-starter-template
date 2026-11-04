@@ -3,6 +3,8 @@ import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 import type { AccountImportance } from "@/lib/social/importance"
 import { aNetwork, handleWords, isNetwork, isPhoneAppNetwork, NETWORK_NAMES, type Network } from "@/lib/social/networks"
 import { uuid } from "@/server/auth/security"
+import { closeTenancy, openTenancy, recordAccountEvent } from "@/server/bans/history"
+import { refuseBannedPlace } from "@/server/bans/rules"
 import { promoProfiles } from "@/server/browser/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { recordPhoneEvent } from "@/server/phones/history"
@@ -96,17 +98,19 @@ export async function saveAccount(
   // Set by hand, so a move to a phone that was waiting is off.
   const fields = { profileId: input.profileId, phoneId: input.phoneId, voiceId: input.voiceId, movingToPhoneId: null }
 
+  const id = existing?.id ?? uuid()
   if (existing) {
     await db
       .update(promoAccounts)
       .set({ ...fields, updatedAt: new Date() })
       .where(and(eq(promoAccounts.id, existing.id), eq(promoAccounts.userId, userId)))
   } else {
-    await db.insert(promoAccounts).values({ id: uuid(), userId, platform: "reddit", ...fields })
+    await db.insert(promoAccounts).values({ id, userId, platform: "reddit", ...fields })
+    await recordAccountEvent(userId, id, "added", input.phoneId ? "Added on a phone." : "Added on a browser profile.", db)
   }
   await notePhoneMove(
     userId,
-    { handle: existing?.handle ?? "", importance: existing?.importance ?? "throwaway" },
+    { id, handle: existing?.handle ?? "", importance: existing?.importance ?? "throwaway" },
     existing?.phone?.id ?? null,
     input.phoneId,
     db
@@ -146,7 +150,8 @@ export async function addAccount(
     phoneId: input.phoneId,
     voiceId: input.voiceId,
   })
-  await notePhoneMove(userId, { handle: "", importance: "throwaway", platform }, null, input.phoneId, db)
+  await recordAccountEvent(userId, id, "added", input.phoneId ? "Added on a phone." : "Added on a browser profile.", db)
+  await notePhoneMove(userId, { id, handle: "", importance: "throwaway", platform }, null, input.phoneId, db)
   return id
 }
 
@@ -168,6 +173,7 @@ export async function setAccountRunsOn(
     .select({
       handle: promoAccounts.handle,
       phoneId: promoAccounts.phoneId,
+      profileId: promoAccounts.profileId,
       importance: promoAccounts.importance,
       platform: promoAccounts.platform,
     })
@@ -181,18 +187,22 @@ export async function setAccountRunsOn(
     // Set by hand, so a move to a phone that was waiting is off.
     .set({ profileId: input.profileId, phoneId: input.phoneId, movingToPhoneId: null, updatedAt: new Date() })
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
-  await notePhoneMove(userId, before, before.phoneId, input.phoneId, db)
+  await notePhoneMove(userId, { ...before, id: accountId }, before.phoneId, input.phoneId, db)
+  if (before.phoneId !== input.phoneId || before.profileId !== input.profileId) {
+    await recordAccountEvent(userId, accountId, "moved", input.phoneId ? "Moved to a phone." : "Moved to a browser profile.", db)
+  }
 }
 
 /**
  * A line in each phone's history when a Reddit account moves onto it or off
  * it. The phone it left needs wiping before another account goes on
  * (part 26 of the phone farm), and a phone an important account went onto
- * is marked as having held one (part 22).
+ * is marked as having held one (part 22). The phone's Accounts card closes
+ * the row it left and opens one where it arrived (Bans task, part 2).
  */
 async function notePhoneMove(
   userId: string,
-  account: { handle: string; importance: string; platform?: string },
+  account: { id: string; handle: string; importance: string; platform?: string },
   from: string | null,
   to: string | null,
   db: CustomShellDb
@@ -205,10 +215,12 @@ async function notePhoneMove(
   if (from) {
     await recordPhoneEvent(userId, from, "account_moved", `${name} moved off it. It needs wiping before another account goes on.`, db)
     await noteAccountLeftPhone(userId, from, db)
+    await closeTenancy(userId, account.id, "moved", db)
   }
   if (to) {
     await recordPhoneEvent(userId, to, "account_moved", `${name} moved onto it.`, db)
     if (account.importance === "important") await noteImportantOnPhone(userId, to, db)
+    await openTenancy(userId, { id: account.id, platform, handle: account.handle }, to, db)
   }
 }
 
@@ -251,6 +263,9 @@ async function checkPicks(
   refuseImportantOnProfile(group, input)
   await refuseThrowawayOnImportantPhone(userId, group, input.phoneId, db)
   await refusePhoneNotReady(userId, input.phoneId, accountId, db)
+  // A phone that lost two accounts to this app, or a proxy that was in one
+  // of its bans, takes no new account of it (Bans task, parts 3 and 5).
+  await refuseBannedPlace(userId, input, platform, accountId, db)
 
   if (input.phoneId) {
     const [phone] = await db

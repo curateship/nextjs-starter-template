@@ -21,8 +21,13 @@ import type { TranscriberId } from "@/lib/video/ai-choices"
 /** One word as it was said, timed from the start of the file. */
 export type FileWord = { text: string; startMs: number; endMs: number }
 
-/** The longest recording that will be written down. */
-export const TRANSCRIBE_MAX_SOURCE_MS = 30 * 60_000
+/**
+ * What writing down a big video says while its smooth copy is still being
+ * made. The whole recording would otherwise be streamed from storage just to
+ * keep its sound, which on 20GB takes longer than one listen is allowed.
+ */
+export const SMOOTH_COPY_FIRST_MESSAGE =
+  "This video is too big to write down until its smooth copy is made. Try again once the Media panel says it is ready."
 
 /** The longest piece of sound sent off in one request. */
 export const TRANSCRIPT_PIECE_MAX_MS = 10 * 60_000

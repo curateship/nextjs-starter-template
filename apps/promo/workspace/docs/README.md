@@ -232,6 +232,16 @@ the repo's `docs/`, and is never copied here.
   address, the rack map drawn by shelf slot, and the rack program's own log
   inside Promo.
 
+## Bans
+
+- [Bans](bans.md): Tyler's numbers of 3 Nov 2026, which bans count, the ban
+  record, a phone, proxy or SIM an app has flagged and the phones kept off
+  it, Clean up, ban pages in every browser, a suspended Reddit reading,
+  screens Promo does not know, the kept picture, the app-wide brake, the Bans
+  dashboard, each account's history, why it was retired, where it came from,
+  counts per app and per project, the Instagram and TikTok warm-up, half
+  pace, At risk, throwaway first, the appeal and the weekly look.
+
 ## Writing
 
 - [The Voices dashboard](voices-dashboard.md) — how the AI sounds and the lines

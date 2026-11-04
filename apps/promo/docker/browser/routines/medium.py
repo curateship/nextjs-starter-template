@@ -420,6 +420,35 @@ def medium_check(page, args):
     }
 
 
+# The words of Medium's own screens for a stopped account, the same as the
+# rack's BAN_SCREENS for the Medium app (rack/promo_rack.py), read off the
+# page in the browser too (Bans task, part 7). Only lines spoken to the
+# account: "This account is under investigation" shows on anybody's profile.
+BAN_PHRASES = (
+    "your account has been suspended",
+    "your account is suspended",
+)
+# A line that starts with a phrase counts only up to this long; a longer one
+# is somebody talking about a ban.
+BAN_LINE_CHARS = 90
+
+
+def ban_words(text):
+    """Medium's own words on a suspended or locked page, or None. Pure, so it is tested."""
+    lines = [" ".join(line.split()) for line in (text or "").splitlines() if line.strip()]
+    for index, line in enumerate(lines):
+        plain = line.lower().replace(u"\u2019", "'").rstrip(".")
+        # A question is somebody asking about a ban: a post's title.
+        if plain.endswith("?"):
+            continue
+        if any(plain == phrase or (plain.startswith(phrase) and len(plain) <= BAN_LINE_CHARS) for phrase in BAN_PHRASES):
+            words = line
+            if index + 1 < len(lines) and len(lines[index + 1]) > 20:
+                words = "%s %s" % (line, lines[index + 1])
+            return words[:300]
+    return None
+
+
 def _page_signs(page):
     """Whether the page on screen is something only a person can clear. Never moves the page."""
     script = """
@@ -429,17 +458,32 @@ def _page_signs(page):
       const turnstile = Boolean(document.querySelector('iframe[src*="challenges.cloudflare.com"], #challenge-form, #cf-challenge-running'))
       const refused = title.includes("attention required") || text.includes("sorry, you have been blocked")
       const checking = title.includes("just a moment") || text.includes("verify you are human")
-      return { turnstile, refused, checking, url: location.href, host: location.hostname }
+      // The page's own lines only: what posts, comments and stories say is
+      // somebody else's words, such as a title "Your account has been suspended".
+      const inside = new Set(
+        [...document.querySelectorAll("article, shreddit-post, shreddit-comment")]
+          .flatMap((node) => (node.innerText || "").split("\\n").map((line) => line.trim()))
+          .filter(Boolean)
+      )
+      const lines = ((document.body && document.body.innerText) || "")
+        .split("\\n")
+        .filter((line) => !inside.has(line.trim()))
+        .join("\\n")
+        .slice(0, 6000)
+      return { turnstile, refused, checking, lines, url: location.href, host: location.hostname }
     }
     """
     signs = page.evaluate(script) or {}
-    if signs.get("refused"):
+    ban = ban_words(signs.get("lines") or "")
+    if ban:
+        reason = ban
+    elif signs.get("refused"):
         reason = "Medium's Cloudflare says this browser is blocked"
     elif signs.get("turnstile") or signs.get("checking"):
         reason = "Medium is asking the browser to prove it is a person"
     else:
         reason = ""
-    return {"blocked": bool(reason), "reason": reason, "url": signs.get("url") or "", "host": signs.get("host") or ""}
+    return {"blocked": bool(reason), "reason": reason, "banScreen": ban, "url": signs.get("url") or "", "host": signs.get("host") or ""}
 
 
 def _viewer(page):
@@ -489,16 +533,20 @@ def medium_state_quick(page, args=None):
     """
     signs = _page_signs(page)
     if not _on_medium(page):
-        return {"checked": False, "handle": None, "blocked": False, "reason": "", "joinedSeconds": None, "followers": None}
+        return {"checked": False, "handle": None, "blocked": False, "reason": "", "banScreen": None, "joinedSeconds": None, "followers": None}
     checked, handle, _user_id = _viewer(page)
     if not checked:
-        return {"checked": False, "handle": None, "blocked": signs["blocked"], "reason": signs["reason"], "joinedSeconds": None, "followers": None}
+        # A suspended account's page may carry no viewer at all; the ban still counts as a look.
+        if signs["banScreen"]:
+            return {"checked": True, "handle": None, "blocked": True, "reason": signs["reason"], "banScreen": signs["banScreen"], "joinedSeconds": None, "followers": None}
+        return {"checked": False, "handle": None, "blocked": signs["blocked"], "reason": signs["reason"], "banScreen": None, "joinedSeconds": None, "followers": None}
     profile = _profile(page, handle) if handle else {"joinedSeconds": None, "followers": None}
     return {
         "checked": True,
         "handle": handle,
         "blocked": signs["blocked"],
         "reason": signs["reason"],
+        "banScreen": signs["banScreen"],
         "joinedSeconds": profile["joinedSeconds"],
         "followers": profile["followers"],
     }
@@ -511,7 +559,7 @@ def medium_state(page, args=None):
         page.wait_for_timeout(random.randint(2000, 3500))
     except Exception as error:  # noqa: BLE001 - reported, never swallowed
         # Not looked at, so never written down as signed out.
-        return {"checked": False, "handle": None, "blocked": False, "reason": _short(error), "joinedSeconds": None, "followers": None}
+        return {"checked": False, "handle": None, "blocked": False, "reason": _short(error), "banScreen": None, "joinedSeconds": None, "followers": None}
     return medium_state_quick(page)
 
 

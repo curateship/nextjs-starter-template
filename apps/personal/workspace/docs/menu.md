@@ -31,6 +31,10 @@ edited where it stands, with no settings screen.
     the menu, hover the link, and click its cog. It works for any link,
     sub-links and bottom links included, and for links that open in their own
     tab.
+  - **A pinned link with sub-links shows the three dots** at its right, the
+    same list as in its section, and one with no address opens that list when
+    clicked (3 Nov 2026: Tyler, "If I pinned a parent link, the 3 dot dropdown
+    does not show"). `PinnedRow` in `src/components/sidebar.tsx`.
   - **A pinned link stays in its own section too.** Pinned is a second way in,
     not a move. It is renamed in its section.
   - **A cog edits a link from Pinned too.** It shows between the drag handle

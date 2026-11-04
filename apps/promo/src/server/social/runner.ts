@@ -56,6 +56,9 @@ import { runWarmUp } from "./warm-up"
 import { appQuickState } from "./phone-apps/calls"
 import { recordAppHealth } from "./phone-apps/health"
 import { runInboxRead, runInboxReply } from "./phone-apps/inbox"
+import { stopForBanPage } from "@/server/bans/browser"
+import { finishBanLook } from "@/server/bans/look"
+import { runAppWarmUp } from "./phone-apps/warm-up"
 import { runAppPost } from "./phone-apps/posts"
 import { runProfileEdit } from "./phone-apps/profile"
 import { mediumQuickState, mediumState } from "./medium/calls"
@@ -270,6 +273,12 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   // another job on the same phone or browser.
   const lane = account.phoneId ? phoneLane(account.phoneId) : account.profileId
   if (lane && job.lane !== lane) throw new PutBack({ lane })
+  // The weekly look at a banned account only reads its page (Bans task,
+  // part 26), so it runs while the ban stops everything else.
+  if (job.kind === "ban_look") {
+    await runBanLook(job, account, db)
+    return
+  }
   // A phone found the app showing a suspended, locked or "confirm it's you"
   // screen. Nothing more goes out as this account until a person has looked.
   if (account.banScreenAt) {
@@ -284,7 +293,8 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
     job.kind === "warm_up" ||
     job.kind === "medium_warm_up" ||
     job.kind === "x_warm_up" ||
-    job.kind === "linkedin_warm_up"
+    job.kind === "linkedin_warm_up" ||
+    job.kind === "app_warm_up"
   if (account.retiredAt && writes) {
     throw new Refusal(
       "This account is retired, so it no longer posts or warms up. Bring it back on the Accounts dashboard first."
@@ -295,7 +305,9 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   // take a health reading. A comment or an answer pressed before the pause
   // waits, and can still be cancelled; a warm-up or a reading is refused.
   const paused = await pausedBy(job.userId, account, db)
-  if (paused && WRITE_JOB_KINDS.includes(job.kind)) {
+  // The app-wide brake (Bans task, part 11): every job waits, like a held
+  // phone's, and none is failed. Nothing restarts until a person releases it.
+  if (paused === "brake" || (paused && WRITE_JOB_KINDS.includes(job.kind))) {
     throw new PutBack({ runAfter: new Date(Date.now() + PAUSED_RECHECK_MS) })
   }
   if (paused) {
@@ -350,6 +362,30 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   }
 }
 
+/**
+ * The weekly look in a browser (Bans task, part 26): the network's own full
+ * look at who is signed in, which goes to its front page and reads it, and
+ * nothing else. A phone account gets its look as a phone action instead.
+ */
+async function runBanLook(job: QueuedJob, account: Account, db: CustomShellDb): Promise<void> {
+  const banId = String(job.payload.banId ?? "")
+  if (!account.profileId) throw new Refusal("That account is not in a browser profile any more, so its look is skipped.")
+  const session = await ensureSession(job.userId, account.profileId, db)
+  await touchSession(session.id, db)
+  const target = session.target
+  const look: { banScreen: string | null; signedIn: boolean } =
+    account.platform === "reddit"
+      ? await redditState(target).then((state) => ({ banScreen: state.banScreen, signedIn: Boolean(state.handle) }))
+      : account.platform === "medium"
+        ? await mediumState(target).then((state) => ({ banScreen: state.banScreen, signedIn: Boolean(state.handle) }))
+        : account.platform === "x"
+          ? await xState(target).then((state) => ({ banScreen: state.banScreen, signedIn: Boolean(state.handle) }))
+          : account.platform === "linkedin"
+            ? await linkedinState(target).then((state) => ({ banScreen: state.banScreen, signedIn: Boolean(state.slug) }))
+            : { banScreen: null, signedIn: false }
+  await finishBanLook(job.userId, { accountId: account.id, banId, banSeen: Boolean(look.banScreen), signedIn: look.signedIn }, db)
+}
+
 /** Jobs only a Reddit account does, in its browser or the Reddit app. */
 const REDDIT_ONLY_KINDS: readonly JobKind[] = ["comment", "reply", "submit", "delete_comment", "edit_comment", "warm_up"]
 
@@ -357,7 +393,7 @@ const REDDIT_ONLY_KINDS: readonly JobKind[] = ["comment", "reply", "submit", "de
 const MEDIUM_PHONE_KINDS: readonly JobKind[] = ["medium_respond", "medium_warm_up"]
 
 /** Jobs only an Instagram or TikTok account does, in its app. */
-const PHONE_APP_ONLY_KINDS: readonly JobKind[] = ["app_post", "app_profile"]
+const PHONE_APP_ONLY_KINDS: readonly JobKind[] = ["app_post", "app_profile", "app_warm_up"]
 
 /**
  * Refuses a job its account's network has no such thing for, before
@@ -366,6 +402,8 @@ const PHONE_APP_ONLY_KINDS: readonly JobKind[] = ["app_post", "app_profile"]
  * account. Instagram and TikTok run on a phone only.
  */
 function refuseWrongNetwork(kind: JobKind, account: Account): void {
+  // Every network's banned accounts get the weekly look (Bans task, part 26).
+  if (kind === "ban_look") return
   const network = account.platform
   const sharedInbox = kind === "inbox_read" || kind === "inbox_reply"
   if (LINKEDIN_ACCOUNT_KINDS.includes(kind) !== (network === "linkedin") && !(network === "linkedin" && sharedInbox)) {
@@ -510,6 +548,8 @@ async function runAccountJob(
       await runAppPost(job.userId, account, target, job.payload, job.id, db)
     } else if (job.kind === "app_profile") {
       await runProfileEdit(job.userId, account, target, job.payload, job.id, db)
+    } else if (job.kind === "app_warm_up") {
+      await runAppWarmUp(job.userId, account, target, db)
     } else if (job.kind === "inbox_read") {
       await runInboxRead(job.userId, account, target, job.payload, db)
     } else if (job.kind === "inbox_reply") {
@@ -896,12 +936,13 @@ async function readSignIns(
  * Writes who is signed in, and the karma and age that came in the same
  * answer. Signed out, the last karma reading is kept with its own date.
  * An account a ban screen stopped stays blocked with the screen's words
- * until a person lets it run again, whatever a later look says.
+ * until a person lets it run again, whatever a later look says. A page that
+ * says the account itself is suspended or locked stops it the same way.
  *
  * Returns the handle when the account was signed out and now is signed in.
  */
 async function saveSignIn(
-  account: { id: string; handle: string },
+  account: { id: string; userId: string; handle: string },
   state: {
     checked: boolean
     handle: string | null
@@ -909,11 +950,14 @@ async function saveSignIn(
     createdSeconds: number | null
     blocked: boolean
     reason: string
+    banScreen?: string | null
   },
   db: CustomShellDb
 ): Promise<string | null> {
   if (!state.checked) return null
   const now = new Date()
+  // Reddit's own suspended or locked page stops it until a person lets it run again (Bans task, part 7).
+  if (state.banScreen) await stopForBanPage(account, state.banScreen, db, now)
   await db
     .update(promoAccounts)
     .set({

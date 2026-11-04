@@ -1,5 +1,7 @@
 import { and, eq, sql } from "drizzle-orm"
 
+import { banKindFromWords } from "@/lib/bans/options"
+import { recordBan } from "@/server/bans/record"
 import type { CommandTarget } from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
@@ -154,7 +156,10 @@ export async function saveXSignIn(
       signedInAt: state.handle ? sql`coalesce(${promoAccounts.signedInAt}, ${now.toISOString()}::timestamptz)` : null,
     })
     .where(eq(promoAccounts.id, accountId))
-  if (!banned || account.banScreenAt) return
+  if (!banned) return
+  // Recorded even when already stopped: a suspension after a lock screen counts (`recordBan` writes nothing otherwise).
+  await recordBan(account.userId, { accountId, kind: banKindFromWords(banned, "x"), words: banned }, db, now)
+  if (account.banScreenAt) return
   const dropped = account.profileId
     ? await db
         .delete(promoJobs)

@@ -9,11 +9,17 @@ import { refuseBrokenAction } from "@/server/phones/action-checks"
 import { makeMediaLink } from "@/server/phones/media-links"
 import { promoPhones } from "@/server/phones/schema"
 import { customShellMedia } from "@/server/schema"
+import { brakeWords, halfOf } from "@/lib/bans/options"
+import { paceLimit } from "@/lib/social/pace"
+import { whenText } from "@/lib/social/wording"
+import { slowReason } from "@/server/bans/rules"
+import { refuseImportantFirstKind } from "@/server/bans/throwaway-first"
 import { phoneStepRefusal } from "@/lib/phones/options"
 import { handleWords, isPhoneAppNetwork, NETWORK_NAMES, type PhoneAppNetwork } from "@/lib/social/networks"
 import { captionProblem, type PhoneAppMediaKind, type PhoneAppPostStatus } from "@/lib/social/phone-apps"
 
 import { queueJob } from "../jobs"
+import { readBehaviour } from "../behaviour"
 import { pausedBy } from "../pause"
 import { promoAccounts, promoAppPosts, promoJobs } from "../schema"
 import { appPost } from "./calls"
@@ -96,7 +102,9 @@ export async function refuseAppAccount(
     throw new Error(
       paused === "account"
         ? `${name} is paused. Resume it on the Accounts dashboard first.`
-        : paused === "network"
+        : paused === "brake"
+          ? brakeWords(network)
+          : paused === "network"
           ? `${name}'s network is paused on its project. Resume it in the project's left column first.`
           : `${name}'s project is paused. Resume the project first.`
     )
@@ -117,6 +125,52 @@ export async function refuseAppAccount(
   if (cannot) throw new Error(cannot)
   await refuseBrokenAction(userId, routine, phone.kind, db)
   return network
+}
+
+/**
+ * When a new Instagram or TikTok account's warm-up ends (Bans task, part 19):
+ * the days in Settings → Behaviour, counted from when it was added to Promo.
+ * Null when it is over or switched off.
+ */
+export function appWarmUpEndsAt(account: Pick<AccountRow, "createdAt">, days: number, now: Date = new Date()): Date | null {
+  if (!days) return null
+  const ends = new Date(account.createdAt.getTime() + days * 86_400_000)
+  return ends > now ? ends : null
+}
+
+/**
+ * Refuses Post while the account warms up, with the day it ends (part 19),
+ * and past half its limits while it goes at half pace (parts 20, 23 and 24):
+ * half of the hourly and daily numbers in Settings → Behaviour, counting the
+ * posts that reached the app and the ones on their way.
+ */
+export async function refuseAppPostNow(userId: string, account: AccountRow, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
+  const behaviour = await readBehaviour(userId, db)
+  const name = handleWords(account.platform, account.handle) || "This account"
+  const warming = appWarmUpEndsAt(account, behaviour.appWarmUpDays, now)
+  if (warming) {
+    throw new Error(`${name} is warming up, so it only scrolls and likes for now. It may post from ${warming.toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })}.`)
+  }
+  const slow = await slowReason(userId, account, db, now)
+  if (!slow) return
+  const since = new Date(now.getTime() - 86_400_000)
+  const rows = await db
+    .select({ postedAt: promoAppPosts.postedAt, status: promoAppPosts.status })
+    .from(promoAppPosts)
+    .where(and(eq(promoAppPosts.accountId, account.id), sql`coalesce(${promoAppPosts.postedAt}, ${promoAppPosts.createdAt}) >= ${since.toISOString()}::timestamptz`))
+  const posted = rows.flatMap((row) => (row.postedAt ? [row.postedAt] : []))
+  const waiting = rows.filter((row) => row.status === "waiting").length
+  const perHour = halfOf(behaviour.youngPerHour)
+  const perDay = halfOf(behaviour.youngPerDay)
+  const limit = paceLimit({ posted, waiting, now, perHour, perDay })
+  if (!limit || (limit.nextAllowedAt && limit.nextAllowedAt <= now)) return
+  const allowed = limit.limit === "hour" ? perHour : perDay
+  const span = limit.limit === "hour" ? "an hour" : "a day"
+  throw new Error(
+    limit.nextAllowedAt
+      ? `${slow}: ${name} may post ${allowed} ${allowed === 1 ? "time" : "times"} ${span}, and has. The next is allowed ${whenText(limit.nextAllowedAt, now)}.`
+      : `${slow}: ${name} may post ${allowed} ${allowed === 1 ? "time" : "times"} ${span}, and that many are sent or on their way.`
+  )
 }
 
 /** The account, by id, if it is this person's. */
@@ -154,10 +208,13 @@ export async function queueAppPost(
 ): Promise<{ id: string }> {
   const account = await ownAccount(userId, input.accountId, db)
   const network = await refuseAppAccount(userId, account, `${account.platform}/post`, db)
+  await refuseAppPostNow(userId, account, db, now)
   const caption = input.caption.trim()
   const problem = captionProblem(network, caption)
   if (problem) throw new Error(problem)
   const media = await postableMedia(userId, network, input.mediaUrl, db)
+  // A throwaway goes first with a kind of post new to an important account (Bans task, part 22).
+  await refuseImportantFirstKind(account, network, media.kind, db, now)
 
   // Checked and written under a lock on the account, so two presses at once
   // cannot both pass the check. A post whose job failed or was dropped is not

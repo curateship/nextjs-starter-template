@@ -35,7 +35,11 @@ import type {
 } from "@/lib/video/retention"
 import type { ScriptCheck } from "@/lib/video/script-check"
 import type { VideoStatus } from "@/lib/video/project-videos"
-import { customShellMedia, customShellUsers } from "@/server/schema"
+import {
+  customShellMedia,
+  customShellUsers,
+  customShellWorkspaces,
+} from "@/server/schema"
 
 /**
  * The video app's own tables, kept apart from the shell's `src/server/schema.ts`
@@ -107,6 +111,10 @@ export const videoMediaFilmstrips = pgTable(
     frameWidth: integer("frame_width"),
     frameHeight: integer("frame_height"),
     columns: integer("columns"),
+    // How many pictures the frames are spread over, and each one's grid
+    // height (drizzle/0148). One sheet and no height is a strip made before.
+    sheetCount: integer("sheet_count").notNull().default(1),
+    rowsPerSheet: integer("rows_per_sheet"),
     durationMs: integer("duration_ms"),
     error: text("error"),
     attempts: integer("attempts").notNull().default(0),
@@ -130,6 +138,10 @@ export const videoMediaFilmstrips = pgTable(
       sql`${table.status} <> 'ready' or (${table.storagePath} is not null and ${table.frameCount} > 0 and ${table.frameWidth} > 0 and ${table.frameHeight} > 0 and ${table.columns} > 0 and ${table.durationMs} > 0)`
     ),
     check("video_media_filmstrips_attempts_check", sql`${table.attempts} >= 0`),
+    check(
+      "video_media_filmstrips_sheets_check",
+      sql`${table.sheetCount} >= 1 and (${table.rowsPerSheet} is null or ${table.rowsPerSheet} >= 1)`
+    ),
     index("ix_video_media_filmstrips_status_created").on(
       table.status,
       table.createdAt
@@ -674,6 +686,73 @@ export const videoProjectThumbnails = pgTable(
       table.status,
       table.updatedAt
     ),
+  ]
+)
+
+/**
+ * Every thumbnail made for one video in the editor's Thumbnail section
+ * (`workspace/docs/thumbnails.md`, drizzle/0149). The layers are validated
+ * JSON (`thumbnailLayersSchema`), so a new layer setting needs no column.
+ * One wide and one tall main thumbnail per video at most, and only a main one
+ * keeps a finished picture in the media library.
+ */
+export const videoThumbnails = pgTable(
+  "video_thumbnails",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    videoId: varchar("video_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjectVideos.id, { onDelete: "cascade" }),
+    shape: varchar("shape", { length: 8 }).$type<"wide" | "tall">().notNull(),
+    backgroundColor: varchar("background_color", { length: 7 }).notNull().default("#000000"),
+    layers: jsonb("layers").notNull().default([]),
+    isMain: boolean("is_main").notNull().default(false),
+    mediaId: varchar("media_id", { length: 36 }).references(() => customShellMedia.id, {
+      onDelete: "set null",
+    }),
+    title: varchar("title", { length: 200 }),
+    check: jsonb("check"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("video_thumbnails_shape_check", sql`${table.shape} in ('wide', 'tall')`),
+    check("video_thumbnails_version_check", sql`${table.version} >= 1`),
+    index("ix_video_thumbnails_video_created").on(table.videoId, table.createdAt),
+    uniqueIndex("ux_video_thumbnails_one_main")
+      .on(table.videoId, table.shape)
+      .where(sql`${table.isMain}`),
+  ]
+)
+
+/**
+ * A thumbnail layout anybody on the site can start from: words, looks and
+ * shapes, with empty spots where pictures go (drizzle/0149).
+ */
+export const videoThumbnailTemplates = pgTable(
+  "video_thumbnail_templates",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 }).references(
+      () => customShellWorkspaces.id,
+      { onDelete: "cascade" }
+    ),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    shape: varchar("shape", { length: 8 }).$type<"wide" | "tall">().notNull(),
+    backgroundColor: varchar("background_color", { length: 7 }).notNull().default("#000000"),
+    layers: jsonb("layers").notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("video_thumbnail_templates_shape_check", sql`${table.shape} in ('wide', 'tall')`),
+    index("ix_video_thumbnail_templates_workspace").on(table.workspaceId, table.createdAt),
   ]
 )
 
@@ -1426,6 +1505,9 @@ export const videoRenderJobs = pgTable(
     storagePath: text("storage_path").unique(),
     fileSize: bigint("file_size", { mode: "number" }),
     thumbnailStoragePath: text("thumbnail_storage_path"),
+    // The cover was set from the export's own frame with "Use this moment",
+    // so a main thumbnail starred later leaves it alone (drizzle/0149).
+    coverByHand: boolean("cover_by_hand").notNull().default(false),
     durationMs: integer("duration_ms"),
     width: integer("width"),
     height: integer("height"),
@@ -1439,12 +1521,20 @@ export const videoRenderJobs = pgTable(
     // Where the picture changes in the file, worked out by the render from
     // the timeline it drew. Null before drizzle/0142 and on carousel exports.
     scenes: jsonb("scenes").$type<ExportScene[]>(),
+    // The part of the project exported, in milliseconds into its timeline
+    // (drizzle/0147). Both null is the whole project.
+    rangeStartMs: integer("range_start_ms"),
+    rangeEndMs: integer("range_end_ms"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },
   (table) => [
+    check(
+      "video_render_jobs_range_check",
+      sql`(${table.rangeStartMs} is null and ${table.rangeEndMs} is null) or (${table.rangeStartMs} >= 0 and ${table.rangeEndMs} > ${table.rangeStartMs})`
+    ),
     check(
       "video_render_jobs_status_check",
       sql`${table.status} in ('queued', 'running', 'ready', 'error', 'cancelled')`

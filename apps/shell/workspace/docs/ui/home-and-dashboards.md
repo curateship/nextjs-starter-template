@@ -23,6 +23,11 @@ Overview combines:
 - People and scheduled cancellations.
 - Automation status and traffic.
 
+The Activity widget shows every kind of notice in its own words, the same as
+the bell. Account changes, app notices and follow-up reminders used to read
+"Changelog was published" with nothing under it. A follow-up opens its
+conversation in the CRM.
+
 Cards that use sample data label the figures as samples. A sample must not look
 like a live business number.
 

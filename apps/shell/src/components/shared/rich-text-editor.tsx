@@ -247,60 +247,79 @@ function Toolbar({
   editor: Editor
   allowImages: boolean
 }) {
+  // Read through `useEditorState`, the same as `SelectionToolbar` below.
+  // `editor.isActive(...)` read while drawing only refreshed when the text
+  // changed, so moving the cursor into bold text left Bold dark.
+  const state = useEditorState({
+    editor,
+    selector: ({ editor: current }) => ({
+      bold: current.isActive("bold"),
+      italic: current.isActive("italic"),
+      strike: current.isActive("strike"),
+      h2: current.isActive("heading", { level: 2 }),
+      h3: current.isActive("heading", { level: 3 }),
+      bullet: current.isActive("bulletList"),
+      ordered: current.isActive("orderedList"),
+      quote: current.isActive("blockquote"),
+      link: current.isActive("link"),
+      href: (current.getAttributes("link").href as string | undefined) ?? "",
+    }),
+  })
+
   return (
     <div className="flex flex-wrap items-center gap-0.5 border-b bg-muted/50 p-1">
       <ToolbarButton
         label="Bold"
-        active={editor.isActive("bold")}
+        active={state.bold}
         onClick={() => editor.chain().focus().toggleBold().run()}
       >
         <BoldIcon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Italic"
-        active={editor.isActive("italic")}
+        active={state.italic}
         onClick={() => editor.chain().focus().toggleItalic().run()}
       >
         <ItalicIcon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Strikethrough"
-        active={editor.isActive("strike")}
+        active={state.strike}
         onClick={() => editor.chain().focus().toggleStrike().run()}
       >
         <StrikethroughIcon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Heading 2"
-        active={editor.isActive("heading", { level: 2 })}
+        active={state.h2}
         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
       >
         <Heading2Icon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Heading 3"
-        active={editor.isActive("heading", { level: 3 })}
+        active={state.h3}
         onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
       >
         <Heading3Icon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Bullet list"
-        active={editor.isActive("bulletList")}
+        active={state.bullet}
         onClick={() => editor.chain().focus().toggleBulletList().run()}
       >
         <ListIcon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Numbered list"
-        active={editor.isActive("orderedList")}
+        active={state.ordered}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
       >
         <ListOrderedIcon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Quote"
-        active={editor.isActive("blockquote")}
+        active={state.quote}
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
       >
         <TextQuoteIcon className="size-3.5" />
@@ -308,8 +327,8 @@ function Toolbar({
       <UrlPopover
         label="Link"
         icon={<LinkIcon className="size-3.5" />}
-        active={editor.isActive("link")}
-        initialUrl={(editor.getAttributes("link").href as string) ?? ""}
+        active={state.link}
+        initialUrl={state.href}
         buttonLabel="Set link"
         onSubmit={(url) =>
           editor

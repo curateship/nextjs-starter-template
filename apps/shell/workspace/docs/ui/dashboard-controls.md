@@ -22,3 +22,20 @@ Dashboard controls follow these shared rules:
 - A row action disables only the button that started its request and shows
   `Loader2Icon` until the request ends. Buttons on the other rows stay
   available.
+- Plans and Announcements keep their page in the address. Opening `?page=3`,
+  or pressing Back to it, shows page 3. A search or sort change goes back to
+  page 1, and so does picking how many rows fit. `useClientPage` in
+  `src/lib/hooks/use-client-page.ts` takes the address's page through its
+  `addressPage` argument.
+- A table that sorts in the browser lists what each column sorts by and hands
+  that to `sortRows` in `src/lib/hooks/use-table-sort.ts`. Text sorts
+  alphabetically, numbers by size, and rows that tie keep their order.
+- Opening a record from a list puts `?open=<id>` in the address through
+  `useOpenRecord` in `src/lib/nav/list-search.ts`. Opening is its own history
+  step, so Back closes the record and leaves the list where it was.
+- A window that asks for one name (New newsletter, Save as template, Rename
+  automation) is `NameDialog` in `src/components/shared/dashboard/name-dialog.tsx`.
+  The name box sits in a card with a heading, Enter saves, and the box turns red
+  when it is left empty.
+- The AI usage and Traffic pages draw their "per day" bars with
+  `DailyBarChart` in `src/components/shared/dashboard/daily-bar-chart.tsx`.

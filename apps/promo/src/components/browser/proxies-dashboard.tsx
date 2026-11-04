@@ -1,4 +1,5 @@
 import * as React from "react"
+import { appName } from "@/lib/bans/options"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
   ActivityIcon,
@@ -320,6 +321,12 @@ export function ProxiesDashboard({
                   {PROXY_KIND_LABELS[proxy.kind]} · {proxy.protocol}
                   {proxy.country ? ` · ${proxy.country}` : ""}
                 </span>
+                {/* A proxy in a counted ban is refused for that app (Bans task, part 13). */}
+                {Object.keys(proxy.bannedOn).length ? (
+                  <span className="block text-xs text-destructive">
+                    Banned on: {Object.keys(proxy.bannedOn).map(appName).sort().join(", ")}
+                  </span>
+                ) : null}
               </TableCell>
               <TableCell column="meta">
                 <span className="font-mono text-xs text-muted-foreground">

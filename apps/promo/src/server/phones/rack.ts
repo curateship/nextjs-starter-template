@@ -1,4 +1,5 @@
 import { randomBytes, randomInt } from "node:crypto"
+import { banLookArgs, finishBanLook, isBanLookAction } from "@/server/bans/look"
 import { and, asc, desc, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm"
 
 import {
@@ -482,7 +483,7 @@ export async function finishAction(
   const kept = await keepStepPictures(running.phoneId, running.id, input.steps ?? [], db, now)
   // Before the action reads as finished, so the job waiting on it already
   // finds its account stopped and does not put itself back on the queue.
-  if (input.banScreen) await stopForBanScreen(rack.userId, running.phoneId, input.banScreen, db, now)
+  if (input.banScreen) await stopForBanScreen(rack.userId, running.phoneId, input.banScreen, db, now, running.id)
 
   const [done] = await db
     .update(promoPhoneActions)
@@ -527,6 +528,11 @@ export async function finishAction(
     await recordSetupCheck(rack.userId, done.phoneId, input.result, db, now)
   } else if (done.action === "phone/wipe" && input.ok && input.result?.wiped === true) {
     await recordWipe(rack.userId, done.phoneId, db, now)
+  } else if (isBanLookAction(done.action) && input.ok) {
+    // The weekly look at a banned account (Bans task, part 26).
+    const look = banLookArgs(done.args)
+    const signedIn = input.result?.signedOut === false && Number(input.result?.lines) > 0
+    if (look) await finishBanLook(rack.userId, { ...look, banSeen: Boolean(input.banScreen), signedIn }, db, now)
   } else if ((done.action === "reddit/state" || done.action === "x/state" || done.action === "linkedin/state") && input.ok) {
     const platform = done.action === "x/state" ? "x" : done.action === "linkedin/state" ? "linkedin" : "reddit"
     await finishMoveFromPhone(rack.userId, done.phoneId, input.result, db, now, platform)

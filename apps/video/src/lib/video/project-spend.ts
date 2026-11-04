@@ -40,6 +40,13 @@ const TOOL_LABELS: Record<string, string> = {
   viral_keyword_ideas: "Keyword ideas",
   viral_topic_match: "Topic match",
   viral_breakdown: "Breakdowns",
+  blur_follow: "Blur that follows",
+  blur_faces: "Find faces",
+  thumbnail_ideas: "Thumbnail ideas",
+  thumbnail_titles: "Thumbnail titles",
+  thumbnail_check: "Thumbnail check",
+  thumbnail_copy_style: "Copy a style",
+  thumbnail_translate: "Thumbnail translation",
 }
 
 export function projectSpendToolLabel(feature: string) {

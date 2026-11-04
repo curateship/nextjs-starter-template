@@ -142,8 +142,8 @@ describe("Medium", () => {
     }) as never)
     vi.mocked(calls.mediumQuickState).mockImplementation(async (at) =>
       at === readerTarget
-        ? { checked: true, handle: null, blocked: false, reason: "", joinedSeconds: null, followers: null }
-        : { checked: true, handle: "sam", blocked: false, reason: "", joinedSeconds: (Date.now() - 400 * DAY) / 1000, followers: 12 }
+        ? { checked: true, handle: null, blocked: false, reason: "", banScreen: null, joinedSeconds: null, followers: null }
+        : { checked: true, handle: "sam", blocked: false, reason: "", banScreen: null, joinedSeconds: (Date.now() - 400 * DAY) / 1000, followers: 12 }
     )
   })
 
@@ -407,7 +407,7 @@ describe("Medium", () => {
 
     it("refuses a reader that is signed in to Medium, before it searches", async () => {
       const id = await keyword()
-      vi.mocked(calls.mediumQuickState).mockResolvedValue({ checked: true, handle: "someone", blocked: false, reason: "", joinedSeconds: null, followers: null })
+      vi.mocked(calls.mediumQuickState).mockResolvedValue({ checked: true, handle: "someone", blocked: false, reason: "", banScreen: null, joinedSeconds: null, followers: null })
       const { queueJob } = await import("../jobs")
       await queueJob(userId, "medium_search", { keywordId: id }, db)
       expect(await runOneJob("worker", db)).toMatchObject({ ok: false })
@@ -566,7 +566,7 @@ describe("Medium", () => {
 
     it("writes who signed in, when they joined and their followers, from the link's answer", async () => {
       await db.update(promoAccounts).set({ handle: "", mediumJoinedAt: null }).where(eq(promoAccounts.id, accountId))
-      const signedIn = { checked: true, handle: "sam", blocked: false, reason: "", joinedSeconds: 1_700_000_000, followers: 3 }
+      const signedIn = { checked: true, handle: "sam", blocked: false, reason: "", banScreen: null, joinedSeconds: 1_700_000_000, followers: 3 }
       vi.mocked(calls.mediumSignIn).mockResolvedValueOnce(signedIn)
       vi.mocked(calls.mediumQuickState).mockResolvedValue(signedIn)
       await queueMediumSignIn(userId, accountId, "https://medium.com/m/callback/email?token=abc", db)

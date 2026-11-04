@@ -1,5 +1,13 @@
 import * as React from "react"
-import { FilmIcon, Loader2Icon, RotateCwIcon, XIcon } from "lucide-react"
+import {
+  DropletIcon,
+  EraserIcon,
+  FilmIcon,
+  Loader2Icon,
+  RotateCwIcon,
+  SparklesIcon,
+  XIcon,
+} from "lucide-react"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
 import { toast } from "sonner"
 
@@ -34,6 +42,11 @@ import {
   useEditorRuntime,
   type EditorClip,
 } from "@/components/video-editor/editor-store"
+import { blurOverClip, newBlurClip } from "@/components/video-editor/blur-clip"
+import {
+  PictureCleanUpDialog,
+  type CleanUpKind,
+} from "@/components/video-editor/picture-clean-up-dialog"
 import { useMovingStills } from "@/components/video-editor/moving-stills-context"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { useProjectSettings } from "@/components/video-editor/project-settings-context"
@@ -162,6 +175,10 @@ function OwnerRemakeClips({ children }: { children: React.ReactNode }) {
   const { store } = useEditorRuntime()
   const stills = useMovingStills()
   const [editing, setEditing] = React.useState<Editing | null>(null)
+  const [cleaning, setCleaning] = React.useState<{
+    clip: EditorClip
+    kind: CleanUpKind
+  } | null>(null)
 
   const value = React.useMemo<RemakeClipsValue>(
     () => ({
@@ -177,6 +194,11 @@ function OwnerRemakeClips({ children }: { children: React.ReactNode }) {
         if (isPictureOrigin(origin) && clip.kind === "image") setEditing({ clip, origin })
         if (isVoiceOrigin(origin) && clip.kind === "audio") setEditing({ clip, origin })
       },
+      cleanUp: (clipId, kind) => {
+        if (store.refuseIfLocked()) return
+        const clip = onTimeline(store, clipId)
+        if (clip?.kind === "image" && clip.mediaId) setCleaning({ clip, kind })
+      },
     }),
     [store, stills]
   )
@@ -190,6 +212,14 @@ function OwnerRemakeClips({ children }: { children: React.ReactNode }) {
           clip={editing.clip}
           origin={editing.origin}
           onClose={() => setEditing(null)}
+        />
+      ) : null}
+      {cleaning ? (
+        <PictureCleanUpDialog
+          key={`${cleaning.clip.id}:${cleaning.kind}`}
+          clip={cleaning.clip}
+          kind={cleaning.kind}
+          onClose={() => setCleaning(null)}
         />
       ) : null}
       {editing && isVoiceOrigin(editing.origin) ? (
@@ -646,25 +676,38 @@ function RemakeVoiceDialog({
 }
 
 /**
- * The right-click menu on a timeline clip: Make it move on a picture, Make
- * it again on anything the AI made, and Try again or Clear after a failed
- * shot. A clip with none of those gets no menu. Outside the editor itself,
- * such as the History preview, every clip is drawn without one.
+ * The right-click menu on a timeline clip: Blur a spot on a picture or video,
+ * Make it move on a picture, Make it again on anything the AI made, and Try
+ * again or Clear after a failed shot. A clip with none of those gets no menu.
+ * Outside the editor itself, such as the History preview (`readOnly`), every
+ * clip is drawn without one.
  */
 export function ClipContextMenu({
   clip,
+  readOnly,
   children,
 }: {
   clip: EditorClip
+  readOnly: boolean
   children: React.ReactElement
 }) {
+  const { dispatch, clock } = useEditorRuntime()
   const stills = useMovingStills()
   const remake = useRemakeClips()
   const shot = stills?.shotFor(clip.id)
   const failed = shot?.status === "error" ? shot : null
+  const canBlur = !readOnly && (clip.kind === "image" || clip.kind === "video")
   const canMove = !!stills && clip.kind === "image"
   const canRemake = !!remake && !!clip.origin
-  if (!canMove && !canRemake && !failed) return children
+  const canClean = !readOnly && !!remake && clip.kind === "image" && !!clip.mediaId
+  if (!canBlur && !canClean && !canMove && !canRemake && !failed) return children
+
+  // The same blur the Text panel's Blur button lays down, at the playhead
+  // when it is on this clip, and ending with the clip if that comes first.
+  function blurSpot() {
+    const { atMs, room } = blurOverClip(clip, clock.getTime())
+    dispatch({ type: "ADD_OVERLAY", clip: newBlurClip(room), atMs })
+  }
   return (
     <ContextMenuPrimitive.Root>
       <ContextMenuPrimitive.Trigger asChild>{children}</ContextMenuPrimitive.Trigger>
@@ -676,6 +719,33 @@ export function ClipContextMenu({
           // leave the item never chosen.
           onPointerDown={(event) => event.stopPropagation()}
         >
+          {canBlur ? (
+            <ContextMenuPrimitive.Item
+              className={CONTEXT_MENU_ITEM_CLASS}
+              onSelect={blurSpot}
+            >
+              <DropletIcon />
+              Blur a spot
+            </ContextMenuPrimitive.Item>
+          ) : null}
+          {canClean ? (
+            <>
+              <ContextMenuPrimitive.Item
+                className={CONTEXT_MENU_ITEM_CLASS}
+                onSelect={() => remake.cleanUp(clip.id, "reflection")}
+              >
+                <SparklesIcon />
+                Remove reflection…
+              </ContextMenuPrimitive.Item>
+              <ContextMenuPrimitive.Item
+                className={CONTEXT_MENU_ITEM_CLASS}
+                onSelect={() => remake.cleanUp(clip.id, "object")}
+              >
+                <EraserIcon />
+                Remove an object…
+              </ContextMenuPrimitive.Item>
+            </>
+          ) : null}
           {canMove ? (
             <ContextMenuPrimitive.Item
               className={CONTEXT_MENU_ITEM_CLASS}

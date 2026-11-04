@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, PlayIcon } from "lucide-react"
+import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -14,18 +14,21 @@ import {
 } from "@/components/ui/dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   getRedditAccountsErrorMessage,
   letRedditAccountRunAgain,
   setRedditAccountRunsOn,
   type RedditAccountRow,
 } from "@/lib/api/social/reddit-accounts"
-import { formatDateTime } from "@/lib/format/format-time"
 import { handleWords, isNetwork, isPhoneAppNetwork, NETWORK_NAMES } from "@/lib/social/networks"
 import { readRunsOn, runsOnValue } from "@/lib/social/runs-on"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
+import { AccountHistoryPanel } from "./account-history-panel"
+import { AccountSourceCard } from "./account-source"
 import { AppProfileCard } from "./app-profile-card"
+import { BanCard } from "./ban-card"
 import { ImportanceCard } from "./importance-card"
 import { RunsOnSelect } from "./runs-on-select"
 import { TwoFactorCard } from "./two-factor-card"
@@ -42,9 +45,16 @@ import { XAccountCard } from "./x-account-card"
  * Its two-factor code: the authenticator secret is saved at once, encrypted,
  * apart from Save changes, and never shown again; only the current code is.
  *
- * A ban screen: when a phone found the app suspended, locked or asking to
- * confirm it's you, the account is stopped and the screen's words show here,
- * with the button that lets it run again once it is sorted.
+ * A ban: when a phone or a browser found the app suspended, locked or
+ * asking to confirm it's you, the account is stopped and the ban card shows
+ * here (`ban-card.tsx`): the screen's words and picture, the appeal, Let it
+ * run again and Clean up (Bans task, parts 6, 10 and 25).
+ *
+ * Where it came from: made or bought, the seller and the price, saved as
+ * they change (part 16).
+ *
+ * The History tab: everything that happened to the account, newest first
+ * (part 14).
  *
  * Important or throwaway: marking a phone account important, or moving a
  * throwaway from its browser profile to a phone (`importance-card.tsx`).
@@ -65,6 +75,7 @@ export function AccountSettingsDialog({
   phones,
   onClose,
   onSaved,
+  onCleanedUp,
   onChanged,
 }: {
   /** Null when the window is closed. */
@@ -74,6 +85,8 @@ export function AccountSettingsDialog({
   phones: Array<{ id: string; name: string; note?: string }>
   onClose: () => void
   onSaved: () => Promise<void>
+  /** The account was cleaned up after a ban: it is retired, so the window closes. */
+  onCleanedUp: () => Promise<void>
   /** The row changed without the window closing: a secret saved or removed. */
   onChanged: () => Promise<void>
 }) {
@@ -83,22 +96,19 @@ export function AccountSettingsDialog({
   const [value, setValue] = React.useState(initial)
   const [invalid, setInvalid] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
-  const [releasing, setReleasing] = React.useState(false)
+  const [tab, setTab] = React.useState<"settings" | "history">("settings")
   const name = account?.handle ? handleWords(account.platform, account.handle) : "this account"
   const appNetwork = account && isPhoneAppNetwork(account.platform) ? account.platform : null
   const networkName = account && isNetwork(account.platform) ? NETWORK_NAMES[account.platform] : "the network"
 
   async function runAgain() {
     if (!account) return
-    setReleasing(true)
     try {
       await letRedditAccountRunAgain(account.id)
-      toast.success(`${name} takes jobs again.`)
+      toast.success(`${name} takes jobs again, at half pace for 7 days.`)
       await onChanged()
     } catch (error) {
       showErrorToast(getRedditAccountsErrorMessage(error))
-    } finally {
-      setReleasing(false)
     }
   }
 
@@ -134,8 +144,15 @@ export function AccountSettingsDialog({
     <FormDialog open={account !== null} dirty={value !== initial} busy={saving} onClose={onClose}>
       {(requestClose) => (
         <DialogContent variant="admin">
+          <Tabs value={tab} onValueChange={(value) => setTab(value === "history" ? "history" : "settings")} className="flex min-h-0 flex-1 flex-col gap-0">
           <DialogHeader>
-            <DialogTitle>Settings for {name}</DialogTitle>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <DialogTitle>Settings for {name}</DialogTitle>
+              <TabsList>
+                <TabsTrigger value="settings">Settings</TabsTrigger>
+                <TabsTrigger value="history">History</TabsTrigger>
+              </TabsList>
+            </div>
             <DialogDescription>
               {appNetwork
                 ? `Its ${NETWORK_NAMES[appNetwork]} profile, important or throwaway, the phone it runs on, and its two-factor code.`
@@ -150,28 +167,28 @@ export function AccountSettingsDialog({
             }}
           >
             <DialogBody>
+              <TabsContent value="history" className="min-w-0">
+                {account && tab === "history" ? <AccountHistoryPanel accountId={account.id} /> : null}
+              </TabsContent>
+              <TabsContent value="settings" className="min-w-0" forceMount hidden={tab !== "settings"}>
               <div className="grid gap-6">
               {account?.banScreen ? (
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Stopped by a ban screen</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
-                    <p className="text-sm">
-                      On {formatDateTime(account.banScreen.at)} the phone showed: &ldquo;{account.banScreen.words}&rdquo;
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Its jobs are refused and the ones waiting were dropped. Sort it out on the phone
-                      through its screen on the Phones dashboard, then let it run again.
-                    </p>
-                    <div>
-                      <Button type="button" variant="outline" disabled={releasing} onClick={() => void runAgain()}>
-                        {releasing ? <Loader2Icon className="animate-spin" /> : <PlayIcon />}
-                        Let it run again
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                <BanCard
+                  ban={
+                    account.ban
+                      ? { ...account.ban, words: account.banScreen.words }
+                      : // Stopped before bans were recorded: the screen's words, with no record behind them.
+                        { id: "", kind: "suspended", at: account.banScreen.at, words: account.banScreen.words, hasPicture: false, appealedAt: null, appealNote: "", appealAnswer: "" }
+                  }
+                  accountName={name}
+                  stopped
+                  cleanUpHeldBack={account.ban?.cleanUpHeldBack ?? ""}
+                  phoneId={account.phone?.id ?? null}
+                  accountId={account.id}
+                  onRunAgain={runAgain}
+                  onChanged={onChanged}
+                  onCleanedUp={onCleanedUp}
+                />
               ) : null}
               {account && appNetwork ? <AppProfileCard accountId={account.id} network={appNetwork} /> : null}
               {account?.platform === "x" ? <XAccountCard account={account} onChanged={onChanged} /> : null}
@@ -206,7 +223,9 @@ export function AccountSettingsDialog({
               {account ? (
                 <TwoFactorCard accountId={account.id} saved={account.twoFactor} onChanged={onChanged} />
               ) : null}
+              {account ? <AccountSourceCard accountId={account.id} initial={account.source} onSaved={onChanged} /> : null}
               </div>
+              </TabsContent>
             </DialogBody>
             <DialogFooter>
               <Button type="button" variant="outline" disabled={saving} onClick={requestClose}>
@@ -218,6 +237,7 @@ export function AccountSettingsDialog({
               </Button>
             </DialogFooter>
           </form>
+          </Tabs>
         </DialogContent>
       )}
     </FormDialog>

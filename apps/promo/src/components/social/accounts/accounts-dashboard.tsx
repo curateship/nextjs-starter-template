@@ -6,6 +6,7 @@ import {
   ArrowRightLeftIcon,
   BanIcon,
   EyeIcon,
+  GaugeIcon,
   EyeOffIcon,
   HandHelpingIcon,
   KeyRoundIcon,
@@ -67,6 +68,7 @@ import {
   type AccountStatus,
 } from "@/lib/social/account-status"
 import { ACCOUNT_IMPORTANCE, IMPORTANCE_WORDS } from "@/lib/social/importance"
+import { RETIRED_REASON_LABELS, RETIRED_REASONS } from "@/lib/bans/options"
 import { handleWords, isNetwork, NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
 import { countWords } from "@/lib/social/phone-apps"
 import { accountAgeText, postedDateText } from "@/lib/social/wording"
@@ -76,6 +78,8 @@ import { Hint } from "../hint"
 import { AccountStatusBadge } from "./account-status-badge"
 import { AddAccountDialog } from "./add-account-dialog"
 import { HelpPostsDialog } from "./help-posts-dialog"
+import { AccountCounts } from "./account-counts"
+import { RetireDialog } from "./retire-dialog"
 import { AccountSettingsDialog } from "./account-settings-dialog"
 import { LINKEDIN_SEEN_WORDS } from "@/lib/social/linkedin/options"
 import { X_REACH_HINT, xReachWords } from "../x/x-words"
@@ -99,14 +103,14 @@ const COLUMNS: TableHeaderColumn<SortColumn>[] = [
 ]
 
 /** Status order when sorting: the four in Tyler's order, then never read. */
-const STATUS_ORDER: Record<AccountStatus, number> = { warming_up: 0, ready: 1, working: 2, banned: 3 }
+const STATUS_ORDER: Record<AccountStatus, number> = { warming_up: 0, ready: 1, working: 2, at_risk: 3, banned: 4 }
 
 const time = (value: Date | null) => (value ? new Date(value).getTime() : Number.NEGATIVE_INFINITY)
 
 function compare(a: RedditAccountRow, b: RedditAccountRow, column: SortColumn): number {
   switch (column) {
     case "status":
-      return (a.status.status ? STATUS_ORDER[a.status.status] : 4) - (b.status.status ? STATUS_ORDER[b.status.status] : 4)
+      return (a.status.status ? STATUS_ORDER[a.status.status] : 5) - (b.status.status ? STATUS_ORDER[b.status.status] : 5)
     case "project":
       return (a.project?.name ?? "").localeCompare(b.project?.name ?? "")
     case "profile":
@@ -128,6 +132,8 @@ const ALL = "all"
 const APP_DECIDES = "app"
 /** The voice menu's value for "no voice". */
 const NO_VOICE = "none"
+/** The retired-reason filter's value for an account retired before reasons were kept. */
+const NOT_RECORDED = "not_recorded"
 
 /** A network's name, or the stored word for one Promo no longer offers. */
 function platformName(platform: string): string {
@@ -157,12 +163,17 @@ export function RedditAccountsDashboard({
   initial,
   platform,
   onPlatformChange,
+  openId,
+  onOpenChange,
 }: {
   initial: RedditAccountsPage
   /** The platform filtered to, read from the address, or null for every one. */
   platform: Network | null
   /** Puts a platform in the address, or null for every one. */
   onPlatformChange: (platform: Network | null) => void
+  /** The account whose settings window is open, from `?open=<id>`: a phone's Accounts card and the Bans dashboard lead here. */
+  openId?: string
+  onOpenChange?: (id: string | undefined) => void
 }) {
   const [page, setPage] = React.useState(initial)
   // The address holds the filter, so a link to the page, a reload or the left
@@ -174,6 +185,10 @@ export function RedditAccountsDashboard({
   const [statusFilter, setStatusFilter] = React.useState<string>(ALL)
   const [tagFilter, setTagFilter] = React.useState(ALL)
   const [kindFilter, setKindFilter] = React.useState<string>(ALL)
+  /** The retired accounts' reason, while Show retired is on (Bans task, part 15). */
+  const [reasonFilter, setReasonFilter] = React.useState<string>(ALL)
+  /** The accounts Retire's window is asking about. */
+  const [retiring, setRetiring] = React.useState<RedditAccountRow[] | null>(null)
   const { sort, direction, toggleSort } = useTableSort<SortColumn>("account")
   const selection = useSelection()
   const [busy, setBusy] = React.useState(false)
@@ -181,8 +196,16 @@ export function RedditAccountsDashboard({
   const [adding, setAdding] = React.useState(false)
   /** The account whose help-only posts are open. */
   const [helpFor, setHelpFor] = React.useState<string | null>(null)
-  /** The account whose "Runs on" window is open. */
-  const [runsOnFor, setRunsOnFor] = React.useState<RedditAccountRow | null>(null)
+  /** The account whose settings window is open: picked here, or named in the address. */
+  const [pickedFor, setPickedFor] = React.useState<RedditAccountRow | null>(null)
+  const addressed = openId ? (page.accounts.find((row) => row.id === openId) ?? null) : null
+  // With a route, the open window is the address's `?open=`, so a reload or a
+  // link opens the same one; without one it is kept here.
+  const runsOnFor = onOpenChange ? addressed : pickedFor
+  const setRunsOnFor = (row: RedditAccountRow | null) => {
+    if (onOpenChange) onOpenChange(row?.id)
+    else setPickedFor(row)
+  }
 
   const refresh = React.useCallback(
     (retired: boolean): Promise<void> =>
@@ -213,6 +236,7 @@ export function RedditAccountsDashboard({
         if (platformFilter !== ALL && row.platform !== platformFilter) return false
         if (statusFilter !== ALL && row.status.status !== statusFilter) return false
         if (kindFilter !== ALL && row.importance !== kindFilter) return false
+        if (showRetired && reasonFilter !== ALL && (!row.retiredAt || row.retiredReason.key !== (reasonFilter === NOT_RECORDED ? "" : reasonFilter))) return false
         if (tagFilter !== ALL && !(row.profile?.tags ?? row.phone?.tags ?? []).includes(tagFilter)) return false
         if (!query) return true
         return [row.handle, row.project?.name, row.profile?.name, row.phone?.name, row.voice?.name]
@@ -220,7 +244,7 @@ export function RedditAccountsDashboard({
           .some((value) => String(value).toLowerCase().includes(query))
       })
       .sort((a, b) => factor * compare(a, b, sort))
-  }, [accounts, direction, kindFilter, platformFilter, search, sort, statusFilter, tagFilter])
+  }, [accounts, direction, kindFilter, platformFilter, reasonFilter, search, showRetired, sort, statusFilter, tagFilter])
 
   /**
    * The rows under their profile's or phone's folder, folders by name and "No folder"
@@ -246,7 +270,7 @@ export function RedditAccountsDashboard({
   const columnCount = COLUMNS.length + 2
 
   /** Runs one action over the ticked rows and says what it did, in one line. */
-  async function bulk(run: () => Promise<BulkAnswer>, verb: string, keptReason?: string) {
+  async function bulk(run: () => Promise<BulkAnswer>, verb: string, keptReason?: string): Promise<boolean> {
     setBusy(true)
     try {
       const answer = await run()
@@ -262,25 +286,46 @@ export function RedditAccountsDashboard({
       )
       selection.clear()
       await refresh(showRetired)
+      return true
     } catch (failure) {
       showErrorToast(getRedditAccountsErrorMessage(failure))
+      return false
     } finally {
       setBusy(false)
     }
   }
 
-  async function oneRow(id: string, run: () => Promise<unknown>, success: string) {
+  async function oneRow(id: string, run: () => Promise<unknown>, success: string): Promise<boolean> {
     setRowBusy(id)
     try {
       await run()
       toast.success(success)
       await refresh(showRetired)
+      return true
     } catch (failure) {
       showErrorToast(getRedditAccountsErrorMessage(failure))
+      return false
     } finally {
       setRowBusy(null)
     }
   }
+
+  // A link to a retired account (from the Bans dashboard or a phone's
+  // History tab) finds it only with the retired accounts listed, so the list
+  // is read again with them, once, and Show retired goes on.
+  const lookedForRetired = React.useRef(false)
+  React.useEffect(() => {
+    if (!openId || addressed || showRetired || lookedForRetired.current) return
+    lookedForRetired.current = true
+    void loadRedditAccounts(true).then(
+      (next) => {
+        if (!next.accounts.some((row) => row.id === openId)) return
+        setPage(next)
+        setShowRetired(true)
+      },
+      () => {}
+    )
+  }, [addressed, openId, showRetired])
 
   /** X's six-digit sign-in code, typed in the account's own browser (part 6 of the X task). */
   async function sendXCode(id: string) {
@@ -297,6 +342,15 @@ export function RedditAccountsDashboard({
 
   return (
     <>
+      <AccountCounts
+        accounts={accounts}
+        platform={platform}
+        status={statusFilter}
+        onPick={(app, status) => {
+          onPlatformChange(app)
+          setStatusFilter(status)
+        }}
+      />
       <DashboardTable
         title="Accounts"
         icon={<UsersIcon />}
@@ -323,7 +377,8 @@ export function RedditAccountsDashboard({
                     <SelectValue placeholder="Set status" />
                   </DashboardToolbarSelectTrigger>
                   <SelectContent>
-                    {ACCOUNT_STATUSES.map((status) => (
+                    {/* At risk is worked out on each read from its signs, so it is never set by hand. */}
+                    {ACCOUNT_STATUSES.filter((status) => status !== "at_risk").map((status) => (
                       <SelectItem key={status} value={status}>
                         {ACCOUNT_STATUS_LABELS[status]}
                       </SelectItem>
@@ -385,9 +440,7 @@ export function RedditAccountsDashboard({
                   type="button"
                   variant="outline"
                   disabled={busy}
-                  onClick={() =>
-                    void bulk(() => retireRedditAccounts(selectedIds, true), "retired", "already retired")
-                  }
+                  onClick={() => setRetiring(accounts.filter((row) => selectedIds.includes(row.id)))}
                 >
                   <ArchiveIcon className="size-4" />
                   Retire ({selectedIds.length})
@@ -455,6 +508,22 @@ export function RedditAccountsDashboard({
                       {tag}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            {showRetired ? (
+              <Select value={reasonFilter} onValueChange={setReasonFilter}>
+                <DashboardToolbarSelectTrigger aria-label="Filter retired accounts by why" className="hidden sm:flex">
+                  <SelectValue />
+                </DashboardToolbarSelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Every reason</SelectItem>
+                  {RETIRED_REASONS.map((reason) => (
+                    <SelectItem key={reason} value={reason}>
+                      Retired: {RETIRED_REASON_LABELS[reason]}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={NOT_RECORDED}>Retired: not recorded</SelectItem>
                 </SelectContent>
               </Select>
             ) : null}
@@ -549,11 +618,9 @@ export function RedditAccountsDashboard({
                     )
                   }
                   onRetire={(retire) =>
-                    void oneRow(
-                      row.id,
-                      () => retireRedditAccounts([row.id], retire),
-                      retire ? "Retired. Its comments stay." : "Brought back."
-                    )
+                    retire
+                      ? setRetiring([row])
+                      : void oneRow(row.id, () => retireRedditAccounts([row.id], false), "Brought back.")
                   }
                 />
               ))}
@@ -562,12 +629,32 @@ export function RedditAccountsDashboard({
         </>
       </DashboardTable>
       <HelpPostsDialog accountId={helpFor} onClose={() => setHelpFor(null)} />
+      <RetireDialog
+        // A fresh window each time, so a reason picked before never carries over.
+        key={retiring ? `retire-${retiring.map((row) => row.id).join(",")}` : "retire-closed"}
+        names={retiring ? retiring.map((row) => (row.handle ? handleWords(row.platform, row.handle) : "an account not signed in")) : null}
+        onClose={() => setRetiring(null)}
+        onRetire={async (why) => {
+          const rows = retiring ?? []
+          // One row from its own button leaves the other ticks alone.
+          const done =
+            rows.length === 1
+              ? await oneRow(rows[0].id, () => retireRedditAccounts([rows[0].id], true, why), "Retired. Its comments stay.")
+              : await bulk(() => retireRedditAccounts(rows.map((row) => row.id), true, why), "retired", "already retired")
+          if (done) setRetiring(null)
+          return done
+        }}
+      />
       <AccountSettingsDialog
         key={runsOnFor?.id ?? "closed"}
         account={runsOnFor ? (accounts.find((row) => row.id === runsOnFor.id) ?? runsOnFor) : null}
         profiles={runsOnFor && isNetwork(runsOnFor.platform) ? page.freeProfiles[runsOnFor.platform] : page.freeProfiles.reddit}
         phones={runsOnFor && isNetwork(runsOnFor.platform) ? page.freePhones[runsOnFor.platform] : page.freePhones.reddit}
         onClose={() => setRunsOnFor(null)}
+        onCleanedUp={async () => {
+          setRunsOnFor(null)
+          await refresh(showRetired)
+        }}
         onSaved={async () => {
           setRunsOnFor(null)
           await refresh(showRetired)
@@ -676,7 +763,7 @@ function AccountRow({
         </span>
         {row.retiredAt ? (
           <span className="block truncate text-xs text-muted-foreground">
-            Retired {formatTimeAgo(row.retiredAt)}
+            Retired {formatTimeAgo(row.retiredAt)} · {row.retiredReason.words}
           </span>
         ) : null}
       </TableCell>
@@ -687,7 +774,19 @@ function AccountRow({
           {row.paused ? (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <PauseIcon className="size-3" aria-hidden="true" />
-              {row.paused === "account" ? "Paused" : row.paused === "network" ? "Network paused" : "Project paused"}
+              {row.paused === "account"
+                ? "Paused"
+                : row.paused === "brake"
+                  ? "Paused: two bans of its app in a day"
+                  : row.paused === "network"
+                    ? "Network paused"
+                    : "Project paused"}
+            </span>
+          ) : null}
+          {row.slow ? (
+            <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+              <GaugeIcon className="size-3" aria-hidden="true" />
+              {row.slow}
             </span>
           ) : null}
           {row.importance === "important" ? (
@@ -706,7 +805,7 @@ function AccountRow({
             <Hint label={row.banScreen.words}>
               <span className="flex items-center gap-1 text-xs text-destructive">
                 <BanIcon className="size-3" aria-hidden="true" />
-                Stopped by a ban screen
+                {row.ban?.appealedAt && !row.ban.appealAnswer ? "Stopped by a ban, appealed" : "Stopped by a ban"}
               </span>
             </Hint>
           ) : null}

@@ -202,6 +202,27 @@ describe("asking for an export", () => {
     expect(sixty.frame_rate).toBe(60)
   })
 
+  it("keeps the part of the project asked for, and none for the whole", async () => {
+    const whole = await projectWithContent()
+    const part = await projectWithContent()
+    const [all] = await ask(whole.id)
+    const [some] = await ask(part.id, { range: { startMs: 1_000, endMs: 2_500 } })
+    expect(all.range).toBeNull()
+    expect(some.range).toEqual({ start_ms: 1_000, end_ms: 2_500 })
+  })
+
+  it("refuses a part that runs past the project's end, and queues nothing", async () => {
+    // The project is three seconds long.
+    const project = await projectWithContent()
+    await expect(
+      ask(project.id, { range: { startMs: 0, endMs: 9_000 } })
+    ).rejects.toThrow("The end is after the project finishes")
+    await expect(
+      ask(project.id, { range: { startMs: 2_000, endMs: 1_000 } })
+    ).rejects.toThrow("The end has to come after the start")
+    expect(await database.select().from(videoRenderJobs)).toEqual([])
+  })
+
   it("the database refuses any frame rate but 30 or 60", async () => {
     const project = await projectWithContent()
     const [job] = await ask(project.id)

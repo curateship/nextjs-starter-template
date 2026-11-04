@@ -4,6 +4,8 @@ import { Refusal } from "@/server/browser/refusal"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { handleWords } from "@/lib/social/networks"
+import { halfOf } from "@/lib/bans/options"
+import { slowReason } from "@/server/bans/rules"
 import { paceCounts, paceLimit } from "@/lib/social/pace"
 import { LINKEDIN_COMMENT_CHARS, LINKEDIN_WARM_UP_DAYS, type LinkedinCommentKind, type LinkedinIncoming } from "@/lib/social/linkedin/options"
 import { linkedinPostingRefusal, type LinkedinPostingState } from "@/lib/social/linkedin/wording"
@@ -98,7 +100,7 @@ async function recentPosting(userId: string, accountId: string, db: CustomShellD
 
 export async function readLinkedinPostingState(
   userId: string,
-  account: Pick<AccountRow, "id" | "profileId" | "phoneId" | "signedInAt" | "pausedAt" | "projectId" | "platform">,
+  account: Pick<AccountRow, "id" | "profileId" | "phoneId" | "signedInAt" | "pausedAt" | "projectId" | "platform" | "shadowbanned" | "slowUntil">,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<LinkedinPostingState> {
@@ -109,8 +111,11 @@ export async function readLinkedinPostingState(
   const young = isYoung(account.signedInAt, behaviour.youngDays, now)
   const { posted, waiting } = await recentPosting(userId, account.id, db, now)
   const nextWorkAt = nextWorkdayAt(now, timeZone)
+  const slow = await slowReason(userId, account, db, now)
+  const perDay = slow ? halfOf(settings.commentsPerDay) : settings.commentsPerDay
   return {
     paused: await pausedBy(userId, account, db),
+    slow,
     timeZone,
     working: nextWorkAt === null,
     nextWorkAt,
@@ -118,9 +123,9 @@ export async function readLinkedinPostingState(
     young,
     ...paceCounts(posted, now),
     warnPerHour: behaviour.warnPerHour,
-    perDay: settings.commentsPerDay,
+    perDay,
     // No hourly number of its own: the day's number is the hour's too.
-    limit: young ? paceLimit({ posted, waiting, now, perHour: settings.commentsPerDay, perDay: settings.commentsPerDay }) : null,
+    limit: young || slow ? paceLimit({ posted, waiting, now, perHour: perDay, perDay }) : null,
   }
 }
 

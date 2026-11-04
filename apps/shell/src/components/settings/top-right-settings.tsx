@@ -6,7 +6,6 @@ import {
 } from "@dnd-kit/core"
 import {
   SortableContext,
-  arrayMove,
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import {
@@ -21,6 +20,7 @@ import { CollapsibleSettingsCard } from "@/components/settings/collapsible-setti
 import {
   createShellId,
   DRAG_GRIP_CLASS,
+  reorderByDrag,
   useCheckedAddress,
   useNavSensors,
   useSortableChip,
@@ -353,14 +353,8 @@ export function TopRightSettings({
   const sensors = useNavSensors()
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    const oldIndex = items.findIndex((item) => item.id === active.id)
-    const newIndex = items.findIndex((item) => item.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-
-    onItemsChange(arrayMove(items, oldIndex, newIndex))
+    const moved = reorderByDrag(items, items.map((item) => item.id), event)
+    if (moved) onItemsChange(moved)
   }
 
   const handleAddLink = () => {

@@ -382,6 +382,144 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
   (`src/components/ui/loading-row.tsx`) while loading, a muted line saying what
   is missing and what to do when empty, never a page-level spinner.
 
+## Three-panel guide: copy Travel's trip page
+
+Tyler, 3 Nov 2026: "Write a section in Ui standard skill for a 3 panel ui
+guide ... so that when I use this skill, the agent can copy the exact Ui
+pattern we have here. If something is drastically different or has conflict
+then the agent ask me to clarify."
+
+The pattern is Travel's trip page, as Tyler shaped it on 2 and 3 Nov 2026.
+Open it before building: `http://localhost:3026/trips`, then the Tokyo sample
+trip. The frame is `apps/travel/src/components/travel/trip-workspace.tsx`.
+Copy what is below exactly: the same pieces, sizes, order and wording. Use
+judgement only where this section says to.
+
+### When to stop and ask Tyler
+
+Ask before writing code, with the option tool, one question per difference.
+Name the screen, what this guide does, and what the other rule or screen
+does. Never pick a side quietly. Ask when:
+
+- **A rule below disagrees with this guide.** The known ones are listed under
+  "Where this guide and the older rules disagree". Until Tyler answers for
+  that screen, neither side wins.
+- **The screen is drastically different.** Its middle panel is not a list or
+  board of records, it has no single record in its left panel, it has no
+  record to open on the right, or it needs a piece this guide doesn't have.
+- **Copying means a second copy of a Travel file.** `notes-morph-icon.tsx`
+  and `panel-bits.tsx` live only in Travel. Ask whether to move them into the
+  shell's `src/components/shared/` first, so every app gets one copy, or to
+  copy them into the app. `folding-menu.tsx` is already in the shell.
+
+### The frame
+
+- **The shell's `ThreePanels`** (`src/components/shared/three-panels.tsx`)
+  with a `layoutKey` and a `place`: left is the record the page is about,
+  middle is what it holds, right is the one item open (`?open=<id>`). The
+  first item opens on arrival. Everything in "Three-column dashboards" above
+  about widths, phones and remembered places applies unchanged.
+
+### Left panel: the record
+
+- **Header.** `DashboardCardTitleHeader` with the back arrow to the list, the
+  record's name, then two icon buttons: the notes icon, then the ⋮.
+- **Banner.** The record's cover lies behind the top of the panel at 30 out
+  of 100 strength and fades into it (`BlendedBanner` in `panel-bits.tsx`).
+  There is no avatar.
+- **Body.** The description, written in place in the shell's editor and
+  saving itself 700ms after the last letter (`SavingDocument`). Under it the
+  record's own cards, such as Money.
+- **Notes icon.** Lucide's NotebookPen, drawn as runs of points so it bends
+  into an × while the notes show in the panel, and back when they close
+  (`NotesMorphIcon` in `notes-morph-icon.tsx`, 240ms). The notes replace the
+  panel's body. The header keeps the record's name and back arrow.
+- **The ⋮ is the record's settings.** It is the folding menu below, opening
+  to the right of the ⋮ (`align="start"`) so it covers the board, not the
+  left menu. One folding row per setting, then a line, then Delete in red.
+  The description isn't in it, because it is written in place. Reference:
+  `trip-menu.tsx`.
+
+### Middle panel: what the record holds
+
+- **Tabs** are `DashboardTabs`, words only: Board, List, Calendar, Map.
+- **A ⋮ after the tabs** holds the rarely used actions, such as the Bin with
+  its count. It sits level with the tab names: wrap it in
+  `flex items-center border-b-2 border-transparent`, the same see-through
+  line every tab has. It opens to the right and is as wide as its longest
+  row.
+- **Toolbar**, left to right: "N selected" while cards are ticked, Mass
+  select, search, any show or hide toggle (Ideas), Filter, Views, then
+  "+ Add".
+- **"+ Add"** is the one primary button. It opens a menu, not a form: New
+  activity first, then the other ways in (Paste a booking, Add to calendar).
+  New activity opens the usual New dropdown hanging from the same button,
+  with the cursor in its first field. In a narrow panel the button is the +
+  alone. Reference: `AddMenu` in `schedule-panel.tsx`.
+
+### Right panel: the open item
+
+- **Header.** `DashboardCardTitleHeader` with the item's type icon, its
+  title, then the ⋮. No ×, no cog.
+- **Body.** The item's notes in the shell's editor, saving themselves, with
+  its picture faintly behind the top as on the left.
+- **The ⋮ is the item's details and actions.** It is the folding menu: Name
+  and type, When, Place, Cost, Picture and the like as folding rows, then a
+  line, then Duplicate, then Delete in red. Reference: `activity-menu.tsx`.
+
+### The one dropdown look
+
+Every ⋮ and "+ Add" menu is `FoldingMenu` from the shell's
+`src/components/shared/folding-menu.tsx`, drawn like Project's task menu. It
+moved there from Travel on 3 Nov 2026 so every app has the same one (Tyler:
+"we still need to have all apps to be standardize"); Travel and Video use it,
+and every other app gets it with its next shell merge
+([docs/shell/folding-menu.md](../../../docs/shell/folding-menu.md)). Tyler, 3 Nov 2026: "every time you created a dropdown, you made
+something different so all of the dropdown has slightly different ui". Never
+draw a menu any other way on this pattern.
+
+- **Width.** 294px when it has folding rows. A menu of actions alone (`fit`)
+  is as wide as its longest row, at least 160px ("Too much space here").
+- **Rows.** 32px tall, 13px text, normal weight, `p-2` around them, and no
+  gap and no line between them ("the items dont have dividers except the
+  divider that seperate the delete"; "reduce space between items a bit").
+- **Folding rows** (`MenuSection`) show the name on the left, what it holds
+  now on the right in muted text, and an arrow that turns as it opens. The
+  fields inside sit 16px from the menu's edge, and every field saves itself.
+  There is no Save button.
+- **One line**, edge to edge (`MenuLine`), between the folding rows and the
+  actions. The actions follow it: Duplicate, then Delete in red last ("duplicate
+  goes here").
+- **Boxes opened from inside** (selects, date pickers, time zones, the media
+  library, Unsplash) don't close the menu.
+- **Delete asks first** in a `ConfirmDialog` when it can't be undone. When it
+  goes to a bin with Undo, it doesn't ask.
+
+### Where this guide and the older rules disagree
+
+Each of these is a rule in "Three-column dashboards" or "Tabs" above that
+Travel's trip page breaks on purpose. On any other screen, ask Tyler which
+one he wants before building:
+
+- **Settings.** The rule above opens a settings window from a cog. Travel
+  puts settings in the ⋮ folding menu, saving as you go ("change this to 3
+  vertical dot and isntead of modal, make it into a dropdown").
+- **The New button.** The rule above has one "New …" button opening the New
+  form. Travel has "+ Add" opening a menu, with New activity first ("Rename
+  the "new activity" button to "+ Add"").
+- **More after the tabs.** The rule above draws More as a tab with
+  `DashboardTabButton`. Travel has a ⋮ ("Replace the "More" dropdown with a 3
+  vertical dot").
+- **The left header's buttons.** The rule above has the pin and the cog.
+  Travel has the notes icon and the ⋮.
+- **The avatar.** The rule above puts an avatar at the banner's foot. Travel
+  has the banner only.
+- **The right header.** The rule above has the item's action icons and a cog.
+  Travel has the ⋮ alone.
+- **The reference.** The section above names Project's project page as the
+  reference. This guide names Travel's trip page. Until Tyler settles which
+  one leads, ask on every new three-panel screen.
+
 ## Controls and forms
 
 | Size | Height |

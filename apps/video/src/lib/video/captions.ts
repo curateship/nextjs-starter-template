@@ -1,7 +1,7 @@
+import { SMOOTH_COPY_FIRST_MESSAGE } from "@/lib/video/transcripts"
 import type { CaptionAnimationId } from "@/lib/video/caption-animations"
 import type { CaptionWordTime } from "@/lib/video/caption-words"
 import { clipMsAt } from "@/lib/video/clip-playback"
-import { TRANSCRIBE_MAX_SOURCE_MS } from "@/lib/video/transcripts"
 
 /**
  * What captions are, on both sides of the wire.
@@ -42,8 +42,6 @@ export const CAPTIONS_NOT_POSSIBLE_MESSAGE =
   "There is nothing on the timeline with sound in it to caption"
 export const CAPTIONS_NONE_HEARD_MESSAGE =
   "No speech could be made out in that clip"
-export const CAPTIONS_TOO_LONG_MESSAGE =
-  "That recording is too long to caption. Captioning covers up to 30 minutes"
 export const CAPTIONS_FAILED_MESSAGE = "The captions could not be written"
 
 /**
@@ -56,17 +54,11 @@ export const CAPTIONS_FAILED_MESSAGE = "The captions could not be written"
  * module's whole world into the page.
  */
 export const SAFE_CAPTION_ERRORS = new Set([
+  SMOOTH_COPY_FIRST_MESSAGE,
   CAPTIONS_NOT_POSSIBLE_MESSAGE,
   CAPTIONS_NONE_HEARD_MESSAGE,
-  CAPTIONS_TOO_LONG_MESSAGE,
   CAPTIONS_FAILED_MESSAGE,
 ])
-
-/**
- * The longest recording that will be captioned. Longer than ten minutes is
- * sent in pieces (`src/lib/video/transcripts.ts`).
- */
-export const CAPTIONS_MAX_SOURCE_MS = TRANSCRIBE_MAX_SOURCE_MS
 
 /**
  * What one caption clip is called on the timeline. Kept short so a lane full

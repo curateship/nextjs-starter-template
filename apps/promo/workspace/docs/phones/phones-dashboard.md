@@ -131,6 +131,11 @@ phone's live screen ([the screen window](screen-window.md)). It has six tabs:
 - **An amber line under the name** says the most urgent setup problem: stopped
   for showing the wrong address, needs wiping, wiped and not set up again, or
   how many setup check lines fail.
+- **"Banned on: Instagram twice, TikTok once"** in red under the accounts, and
+  under the name below 1280 pixels wide, lists the apps that banned an account
+  on the phone. A wipe never clears it. The phone's window says the same on
+  its Settings tab, and its History tab lists every account it has held
+  ([Bans](../bans.md)).
 - **Mix** in the toolbar counts the phones on each model, carrier and Android
   version, and turns amber when more than half of four or more share one.
 - **Self-test** in the toolbar opens the daily self-test's answers and app
