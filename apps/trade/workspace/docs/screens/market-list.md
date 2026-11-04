@@ -186,6 +186,11 @@ it has nothing to list; `panels-and-loading.md` holds that rule.
   is not — KuCoin has no all-markets feed, so its rows had no distance at all
   until 23 Aug 2026. With neither, the pill is left off, because a dash there
   would read as zero.
+- **A coin held here keeps its Value and PnL when its market is under the
+  volume cutoff.** The cutoff only shortens the market lists. Manual orders
+  reads prices from every market the exchange lists, the same as Grid and DCA.
+  Before 4 Nov 2026 it read only the shortened list, so PONS on KuCoin, which
+  traded $892k that day against Tyler's $1M cutoff, showed a dash for both.
 - **Loading, empty and failed are three different answers.** "Nothing is
   waiting" is only said once the read has come back.
 - **It opens on the levels this browser saw last time**, so there is no spinner
