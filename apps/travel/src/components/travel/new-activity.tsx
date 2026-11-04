@@ -8,7 +8,7 @@ import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { fillActivityFromMapsLink } from "@/lib/api/travel/maps-link"
+import { makeActivityFromLink } from "@/lib/api/travel/maps-link"
 import { makeActivity } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { dateOfDay, formatDayDate } from "@/lib/travel/dates"
@@ -48,33 +48,45 @@ export function useNewActivity() {
       return
     }
     let id = ""
-    let filled: { title: string; partial: boolean } | null = null
-    const ok = await run(async () => {
-      id = (
-        await makeActivity({
+    let filled: { title: string; partial: boolean; failed?: string } | null = null
+    const dayPicked = day === IDEAS ? null : Number(day)
+    await run(async () => {
+      if (link.trim()) {
+        // Filled from the link on the server. One already on the trip makes no card and says where it is.
+        const result = await makeActivityFromLink({
           tripId: page.trip.id,
-          day: day === IDEAS ? null : Number(day),
-          title: title.trim() || "New place",
+          link,
+          day: dayPicked,
+          title: title.trim(),
           typeId,
-          startTime: day === IDEAS ? null : startTime || null,
+          startTime: dayPicked === null ? null : startTime || null,
         })
-      ).id
-      try {
-        if (link.trim()) filled = await fillActivityFromMapsLink(id, link)
-      } finally {
-        // The activity is made either way; a link Google can't read leaves it to fill by hand.
-        await refresh()
+        filled = result
+        id = result.id
+      } else {
+        id = (
+          await makeActivity({
+            tripId: page.trip.id,
+            day: dayPicked,
+            title: title.trim(),
+            typeId,
+            startTime: dayPicked === null ? null : startTime || null,
+          })
+        ).id
       }
+      await refresh()
     })
     // Made, even when the link couldn't be read: it closes and opens, and the error toast says why.
     if (!id) return
+    const made = filled as { title: string; partial: boolean; failed?: string } | null
     setAnchor(null)
     setTitle("")
     setStartTime("")
     setTypeId(null)
     setLink("")
     openActivity(id)
-    if (ok && filled) toast.success(filledLine(filled))
+    if (made?.failed) showErrorToast(getTravelErrorMessage(new Error(made.failed)))
+    else if (made) toast.success(filledLine(made))
   }
 
   /** Opens one trigger's dropdown, set to the column it was opened from; null is Ideas. */

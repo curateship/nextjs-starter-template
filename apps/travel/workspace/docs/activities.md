@@ -29,13 +29,21 @@ and move delete there too." The ⋮ in the panel's header opens a menu drawn lik
 the ⋮ on a task in Project. Each row shows what it holds now on the right and
 folds open to change it. Every field saves itself.
 
-- **Name and type.**
+- **Name and type,** and the Must do tick box (see "Must do" below).
 - **When:** the day (Ideas or Day N), start time, length in hours and minutes,
   and nights for a stay. Nights shows for a Hotel or anything with nights set.
   Moving to another day can be undone from the bar at the bottom. A card on a
   day with no start time also has Part of the day: Any time, Morning,
   Afternoon, Evening or Night (see [The day board](the-day-board.md)). The
   row's summary reads "Day 2 · Morning".
+- **Weather,** after When, on a card on a dated day (Tyler, 4 Nov 2026: "put
+  it in the 3 dot dropdown right panel"). The row's summary is the day's
+  forecast, such as "18° / 9° · 70% rain", or "Usually 24° / 15°" past the
+  14-day forecast, or the holiday's name; folded open it shows the holiday,
+  then the forecast or "Usually 24° / 15° · rain on 8 of 30 days". A card in
+  Ideas, or a day with none of these, has no Weather row. The weather is
+  loaded once per trip page and shared by both panels
+  (`useTripWeather`, `src/components/travel/day-weather.tsx`).
 - **Place:** a Google Maps link first (see below), then a search for the
   address. With Google on, picking a suggestion
   saves the place and fills its opening hours, website and phone. A typed
@@ -52,16 +60,23 @@ folds open to change it. Every field saves itself.
   photographer's credit.
 - **How was it:** once the activity is done or its day is over, 1 to 5 stars,
   "Would go again", and Save to saved places.
-- **Duplicate activity** and **Delete activity** end the menu. Delete moves it
+- **Add tips** (see "Tips by AI" below), **Duplicate activity** and
+  **Delete activity** end the menu, under the one line. Delete moves it
   to the trip's bin, with Undo. Delete is red.
 
 The menu is drawn like Project's task menu (Tyler, 3 Nov 2026, from two
 pictures of it: "the items dont have dividers except the divider that
 seperate the delete"; then "duplicate goes here", with an arrow under the
 line). Its rows have no lines between them. The one line runs edge to edge
-under the last folding row, and Duplicate activity and Delete activity sit
-under it. Every row is 32px tall, and the rows touch with no gap between
+under the last folding row, and Add tips, Duplicate activity and Delete
+activity sit under it. Every row is 32px tall, and the rows touch with no gap between
 them ("reduce space between items a bit").
+
+Inside a folding row the row's own name is the field's label, so a field on
+its own carries no second label on screen; screen readers still read one
+(Tyler, 4 Nov 2026: "Remove all these duplicate labels"). The Cost field says
+its money in its placeholder, such as "0 CAD". A row with several fields,
+such as When, keeps a label on each.
 
 Trip settings (the ⋮ in the trip's left panel), the schedule's "+ Add" and
 the ⋮ after its tabs are the same menu, built from the same file,
@@ -126,7 +141,8 @@ fields automatically including the cover"; Tyler then picked "On an activity".
   other.
 - **When it can't:** a link to something else says it isn't a Google Maps
   link; a link with no place in it says to copy the place's own link. From
-  New activity the activity is still made, and opens to be filled by hand.
+  New activity the activity is still made, on the day picked with the name
+  typed, and opens to be filled by hand; the error toast says why.
 - **The code:** `src/server/travel/maps-link.ts` and `maps-browser.ts`.
 
 ## Pasting several Maps links
@@ -147,6 +163,9 @@ fields automatically including the cover"; Tyler then picked "On an activity".
   its photo and nobody else waits behind a long paste.
 - **A link it can't read** makes no card. It is listed with why, such as
   "Google couldn't find a place from that link", and the rest carry on.
+- **A place already on the trip** makes no card either. It is listed as
+  "Skipped: Kinkaku-ji is already on Day 2." in grey, not as a failure (see
+  "A place already on the trip" below).
 - **Stopping:** "Stop after this one" ends the paste after the link being
   read, and closing the window does the same. What was made stays.
 - **The limit:** each link counts as one of the 60 fills a person has in 10
@@ -163,11 +182,122 @@ Tyler removed the booking feature on 2 Nov 2026. An activity has no Booked or
 To book mark, confirmation number, booking link or files of its own; only the
 cost stayed. The columns went in
 `drizzle/0099_travel_remove_booking_and_journal.sql`. The trip's own documents
-are still on the left panel.
+went too, on 2 Nov 2026 (see [The trip's left panel](the-trip-panel.md)).
+
+## Google's rating, reviews and price
+
+Tyler, 4 Nov 2026: "Rating, reviews, price", and "New fills only".
+
+- **What shows:** a card whose place came from Google reads "Google 4.6
+  (2,300) · $$" in grey, after its cost and the person's own stars. The words
+  "Google" keep it from reading as the person's own rating. The Place section
+  of the ⋮ menu shows the same line under the address. Compact cards leave it
+  off.
+- **The price** is Google's own scale of one to four $, whatever the trip's
+  money, or Free.
+- **Which cards:** only places picked from the search, filled from a Maps
+  link, or found for a drafted plan since 4 Nov 2026. Older cards show
+  nothing until their place is picked again. Without a Google key, a Maps
+  link fills no rating.
+- **Where it is kept:** inside the card's place, with Google's kinds of place
+  (used for the rainy-day swap on [The day board](the-day-board.md)). So it
+  travels with Copy trip, Copy day, Duplicate and saved places.
+- **The code:** `placeExtras` in `src/server/travel/google.ts`, and the line
+  in `src/lib/travel/google-rating.ts`.
+
+## The picture of a picked place
+
+Tyler, 4 Nov 2026: "Only fill if empty".
+
+- **What happens:** picking a place from the search in the Place section
+  fills the card's picture with that place's first Google photo, the way a
+  Maps link does. It lands a moment after the place, saved into the person's
+  media library.
+- **Only when empty:** a card that already has a picture, uploaded or from
+  Unsplash, keeps it. A picture set while the photo downloads wins too.
+- **Drafted plans:** each place Google finds for Draft a plan or Fill this day
+  gets its photo the same way.
+- **Safety:** the photo must belong to the place saved on the card, so the
+  server can't be made to fetch anything else, and only Google's photo host
+  is ever downloaded from. At most 120 a person per 10 minutes.
+- **Without a Google key,** nothing changes.
+- **The code:** `fillPickedPlacePhoto` in `src/server/travel/place-photo.ts`,
+  which also holds the photo code Maps links use.
+
+## A place already on the trip
+
+Tyler, 4 Nov 2026: "Skip it, say where". Adding a place the trip already has
+is skipped, with a message such as "Kinkaku-ji is already on Day 2."
+
+- **Two places are the same** when Google's id for them is the same. When
+  either has no Google id, the names are compared, ignoring case and spaces:
+  a card's place name, or its own name when it has no place.
+- **Where it is checked:** Paste Maps links, a Maps link in New activity or
+  in the Place section, picking a place from the search, Add from saved
+  places, and Go again's Add to trip.
+- **What doesn't count:** cards in the trip's bin, and the card being filled
+  itself. A place typed by hand in the Place section is the person's own
+  words, so it is never refused. Duplicate, Copy day and Copy trip copy on
+  purpose and aren't checked.
+- **Known gap:** two different places with the same typed name, such as two
+  "Starbucks", count as one when neither came from Google.
+- **The code:** `src/lib/travel/same-place.ts`, and `refuseSamePlace` in
+  `src/server/travel/trips.ts`.
+
+## Must do
+
+Tyler, 4 Nov 2026: "Filter: Must do only", "AI plans around it", "Warn if
+left in Ideas".
+
+- **Setting it:** the Must do tick box in the ⋮ menu's Name and type section,
+  whose summary then reads "Food · Must do", or Mark must do on a card's
+  right-click.
+- **On the card:** a filled flag after the name, never a star, so it can't be
+  taken for a rating. Compact cards show it too.
+- **Filter** has Must do, and a saved view keeps it.
+- **AI:** Draft a plan and Fill this day are told every place already on the
+  trip, Must do ones first, and never to plan them again. Fill this day is
+  told which of the day's cards are Must do, and keeps them. Neither ever
+  moves or changes a card.
+- **Left in Ideas:** once a dated trip has started, a Must do card still in
+  Ideas reads "Must do, not on a day yet" in red. A trip with no start date
+  never warns.
+- **Copies** keep it: Copy trip, Copy day and Duplicate.
+- **Where it is kept:** `must_do` on `travel_activities`, migration
+  `drizzle/0103_travel_must_do.sql`.
+
+## Tips by AI
+
+Tyler, 4 Nov 2026: "Into the card's notes".
+
+- **Where:** Add tips in the card's ⋮ menu, under the line, before Duplicate.
+  The menu stays open with "Writing tips…" while the AI answers.
+- **What it writes:** three to five short tips, such as the best time to go,
+  what to order, tickets or how long to allow, added after whatever the notes
+  hold, under a "Tips" heading, as a list. The notes then show them, to change
+  like anything else written there.
+- **It never rewrites:** pressing it again adds a second Tips list.
+- **What the AI is told:** the place's name and address, its type and the
+  trip's destination, and never to invent prices, hours or phone numbers.
+- **Limits:** the person's monthly AI allowance, and at most 30 a person per
+  10 minutes. With no AI key it says AI isn't set up. An answer with fewer
+  than three tips saves nothing and says to try again. Tips that would take
+  the notes past 100,000 characters, the most a save takes, add nothing and
+  say to shorten the notes.
+- **The code:** `src/server/travel/place-tips.ts`.
 
 ## Saved places
 
 Save to saved places copies the name, type, place, links, notes and picture.
+
+The Saved places window has two tabs, Saved and Go again (Tyler, 4 Nov 2026:
+"Tab in Saved places", "Ticked only"). Go again lists every place ticked
+"Would go again" in its How was it section, on any of the person's trips not
+in the Bin, newest trip first, each with its trip and day. Opened from a
+trip's Ideas column, each has Add to trip, which copies it into Ideas the way
+a saved place is copied, with no cost, rating or Done. Opened from the Trips
+table, each has Open trip, which opens that trip on that card. The list is
+`listGoAgain` in `src/server/travel/saved-places.ts`.
 The Trips table's Saved places button lists them and removes one. The bookmark
 on a trip's Ideas column adds one to that trip's Ideas. The copy is its own
 from then on, so editing it never changes the saved place.

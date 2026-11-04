@@ -50,6 +50,8 @@ function OpenActivity({ activity }: { activity: Activity }) {
   const { typesById, readOnly } = useTrip()
   // A picture whose address no longer loads is left out rather than drawn broken.
   const [broken, setBroken] = React.useState<string | null>(null)
+  // Bumped when the notes change from outside the editor, such as AI tips, so the editor reads them again.
+  const [notesRound, setNotesRound] = React.useState(0)
   const banner = activity.photoUrl && activity.photoUrl !== broken ? activity.photoUrl : null
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -59,11 +61,11 @@ function OpenActivity({ activity }: { activity: Activity }) {
         className={cn("relative", banner && "border-b-transparent")}
         icon={<ActivityTypeIcon type={typeOf(activity, typesById)} />}
         title={activity.title}
-        action={readOnly ? undefined : <ActivityMenu activity={activity} />}
+        action={readOnly ? undefined : <ActivityMenu activity={activity} onNotesChanged={() => setNotesRound((was) => was + 1)} />}
       />
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
         <div className="grid gap-2 p-3">
-          <ActivityNotes key={activity.id} activity={activity} />
+          <ActivityNotes key={`${activity.id}:${notesRound}`} activity={activity} />
           {/* A credited picture says whose it is wherever it shows, as its licence asks. */}
           {banner && activity.photoCredit ? <PhotoCreditLine credit={activity.photoCredit} className="px-1" /> : null}
         </div>

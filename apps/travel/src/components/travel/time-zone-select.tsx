@@ -110,7 +110,8 @@ export function TimeZoneSelect({
         {shown.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">No time zone matches.</p>
         ) : (
-          <ScrollArea className="max-h-60">
+          // The height goes on the scrolling box itself, or the list spills past the dropdown (Tyler, 4 Nov 2026).
+          <ScrollArea viewportClassName="max-h-60">
             <div role="listbox" aria-label="Time zones" className="grid gap-0.5 p-1">
               {shown.map((row) => {
                 const on = row.value === value

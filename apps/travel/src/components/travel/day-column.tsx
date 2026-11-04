@@ -10,6 +10,7 @@ import {
   Loader2Icon,
   PlusIcon,
   RouteIcon,
+  SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -65,10 +66,10 @@ export function DayColumn({
   folded,
   fullWidth = false,
   count,
-  weather,
   onFold,
   onCopyDay,
   onBestOrder,
+  onFillDay,
   readOnly = false,
   addButton,
   children,
@@ -83,12 +84,12 @@ export function DayColumn({
   /** On a phone the one day shown takes the whole width (task part 46). */
   fullWidth?: boolean
   count: number
-  /** The forecast line for the day (task part 33), when there is one. */
-  weather?: React.ReactNode
   onFold: () => void
   onCopyDay: (to: number) => void
   /** Puts the day's untimed cards in the quickest order to get round (Travel features part 5). */
   onBestOrder: () => void
+  /** Asks AI for sights and meals in the day's free time (More Travel features part 6). */
+  onFillDay: () => void
   /** No signal: no menu, no moving the day, and its description shows but doesn't edit. */
   readOnly?: boolean
   addButton: React.ReactNode
@@ -175,7 +176,6 @@ export function DayColumn({
               readOnly={readOnly}
             />
           )}
-          {weather}
         </div>
         {day !== null ? (
           <Button
@@ -190,7 +190,7 @@ export function DayColumn({
           </Button>
         ) : null}
         {addButton}
-        {day !== null && !readOnly ? <DayMenu day={day} count={count} onCopyDay={onCopyDay} onBestOrder={onBestOrder} /> : null}
+        {day !== null && !readOnly ? <DayMenu day={day} count={count} onCopyDay={onCopyDay} onBestOrder={onBestOrder} onFillDay={onFillDay} /> : null}
       </div>
       {children}
     </section>
@@ -327,17 +327,19 @@ function InlineText({
   )
 }
 
-/** A day's own menu: add a day after it, put it in its best order, copy it onto another day, remove it. */
+/** A day's own menu: add a day after it, fill it with AI, put it in its best order, copy it onto another day, remove it. */
 function DayMenu({
   day,
   count,
   onCopyDay,
   onBestOrder,
+  onFillDay,
 }: {
   day: number
   count: number
   onCopyDay: (to: number) => void
   onBestOrder: () => void
+  onFillDay: () => void
 }) {
   const { page, refresh } = useTrip()
   const { trip } = page
@@ -394,6 +396,11 @@ function DayMenu({
               <DropdownMenuItem disabled={trip.days >= MAX_TRIP_DAYS} onSelect={() => void addAfter()}>
                 <PlusIcon className="size-4" />
                 Add a day after
+              </DropdownMenuItem>
+              {/* More Travel features part 6: "Timed, in the gaps". Without an AI key the window says so. */}
+              <DropdownMenuItem onSelect={onFillDay}>
+                <SparklesIcon className="size-4" />
+                Fill this day
               </DropdownMenuItem>
               {/* Tyler, 3 Nov 2026: "From the hotel". Without a Google key it says so when pressed. */}
               <DropdownMenuItem disabled={count < 2} onSelect={onBestOrder}>

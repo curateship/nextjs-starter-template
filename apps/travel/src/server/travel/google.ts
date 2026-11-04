@@ -31,6 +31,14 @@ const DETAIL_FIELDS = [
   "regularOpeningHours",
   "websiteUri",
   "internationalPhoneNumber",
+  // More Travel features: Google's rating and price (part 1), its kinds of place for outdoors (part 9),
+  // and its photos, for the picture of a picked place (part 2).
+  "rating",
+  "userRatingCount",
+  "priceLevel",
+  "primaryType",
+  "types",
+  "photos",
 ].join(",")
 
 const ROUTE_MODE: Record<TravelMode, string> = {
@@ -52,6 +60,45 @@ export type PlaceDetails = {
   openingHours: OpeningHours | null
   website: string | null
   phone: string | null
+  /** Google's name for the place's first photo, such as "places/ChIJ…/photos/Aa…", or null. */
+  photoName: string | null
+}
+
+/** Google's price words as 0 (free) to 4. */
+const PRICE_LEVEL: Record<string, number> = {
+  PRICE_LEVEL_FREE: 0,
+  PRICE_LEVEL_INEXPENSIVE: 1,
+  PRICE_LEVEL_MODERATE: 2,
+  PRICE_LEVEL_EXPENSIVE: 3,
+  PRICE_LEVEL_VERY_EXPENSIVE: 4,
+}
+
+/**
+ * What Google says of a place beyond its address (More Travel features parts
+ * 1 and 9): its stars, how many reviews, its price and its kinds of place.
+ * Anything Google left out, or sent in a shape Travel doesn't expect, is left
+ * off rather than guessed.
+ */
+export function placeExtras(body: GoogleExtras): Pick<Place, "rating" | "ratingCount" | "priceLevel" | "kinds"> {
+  const rating = typeof body.rating === "number" && body.rating >= 0 && body.rating <= 5 ? Math.round(body.rating * 10) / 10 : null
+  const ratingCount =
+    typeof body.userRatingCount === "number" && Number.isInteger(body.userRatingCount) && body.userRatingCount >= 0
+      ? body.userRatingCount
+      : null
+  const priceLevel = typeof body.priceLevel === "string" ? (PRICE_LEVEL[body.priceLevel] ?? null) : null
+  const kinds = [...new Set([body.primaryType, ...(body.types ?? [])])]
+    .filter((kind): kind is string => typeof kind === "string" && /^[a-z_]{1,60}$/.test(kind))
+    .slice(0, 30)
+  return { rating, ratingCount, priceLevel, kinds }
+}
+
+/** A Google photo's name, such as "places/ChIJ…/photos/Aa…". Nothing else is ever asked for. */
+export const PHOTO_NAME = /^places\/[\w-]+\/photos\/[\w-]+$/
+
+/** The first photo's name, when it is shaped like one of Google's. */
+export function firstPhotoName(photos: { name?: string }[] | undefined) {
+  const name = photos?.[0]?.name
+  return name && PHOTO_NAME.test(name) ? name : null
 }
 
 export type LatLng = { lat: number; lng: number }
@@ -131,10 +178,12 @@ export async function placeDetails(placeId: string, sessionToken: string): Promi
       lat: hasPosition ? lat : null,
       lng: hasPosition ? lng : null,
       placeId: (body.id ?? placeId).slice(0, 300),
+      ...placeExtras(body),
     },
     openingHours: toOpeningHours(body.regularOpeningHours?.periods),
     website: body.websiteUri?.startsWith("http") ? body.websiteUri.slice(0, 2000) : null,
     phone: body.internationalPhoneNumber ? body.internationalPhoneNumber.slice(0, 40) : null,
+    photoName: firstPhotoName(body.photos),
   }
 }
 
@@ -277,7 +326,17 @@ type GoogleAutocomplete = {
 export type GooglePoint = { day?: number; hour?: number; minute?: number }
 export type GooglePeriod = { open?: GooglePoint; close?: GooglePoint }
 
-type GooglePlace = {
+/** The fields `placeExtras` reads, in both the details and the Maps link answers. */
+export type GoogleExtras = {
+  rating?: number
+  userRatingCount?: number
+  priceLevel?: string
+  primaryType?: string
+  types?: string[]
+}
+
+type GooglePlace = GoogleExtras & {
+  photos?: { name?: string }[]
   id?: string
   displayName?: GoogleText
   formattedAddress?: string

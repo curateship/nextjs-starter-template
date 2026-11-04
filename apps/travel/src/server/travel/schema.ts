@@ -104,6 +104,8 @@ export const travelActivities = pgTable("travel_activities", {
   done: boolean("done").notNull(),
   rating: smallint("rating"),
   goAgain: boolean("go_again").notNull(),
+  /** Must do (More Travel features part 4): AI plans around it, and it warns when still in Ideas once the trip is on. */
+  mustDo: boolean("must_do").notNull(),
   photoUrl: text("photo_url"),
   photoCredit: jsonb("photo_credit").$type<PhotoCredit>(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),

@@ -13,6 +13,9 @@ Both ways Tyler picked ("Both"):
   asking. A ticked box needs a destination, and New trip says so before
   making the trip.
 - **"+ Add" → Draft a plan** on any trip opens the same window.
+- **A day's menu → Fill this day** (Tyler, 4 Nov 2026: "Timed, in the gaps")
+  opens the same window titled "Fill Day 2", for one day that already has
+  cards. It fills only that day's free time; see "Filling one day" below.
 
 ## What it plans
 
@@ -25,13 +28,45 @@ Both ways Tyler picked ("Both"):
   to plan with its date when the trip has one, so it can mind what is shut on
   which weekday. It answers with each place's own name, as Google Maps knows
   it, a kind (sight, food, transport or other), a start time and how long to
-  spend there.
+  spend there. It is also told every place already on the trip, Must do ones
+  first, and never to plan them again (Tyler, 4 Nov 2026: "AI plans around
+  it").
 - **What is kept:** only the days asked for, at most 5 cards a day. A card
   with no name is dropped, and a time, length or kind the AI got wrong is
   left empty or made Other, rather than failing the plan. An answer with no
   usable plan at all says "The AI didn't send back a plan it could use".
 - **Types** are the person's own Sight, Food, Transport and Other, whatever
   they renamed them to. One they removed gives no type.
+
+## Filling one day
+
+Fill this day plans a day that already has something on it, around what is
+there.
+
+- **The free time:** every gap of 45 minutes or more between 8:00 AM and
+  10:00 PM, between the day's timed cards. A timed card with no length counts
+  as an hour. A day with no such gap says "That day has no free time of 45
+  minutes or more between 8 AM and 10 PM to fill." and asks the AI nothing.
+- **What the AI is told:** the day and its date, every card on it with its
+  time or part of the day, which are Must do, where the night is spent, the
+  free time, and every place already on the trip. Untimed cards are named
+  too, so it leaves room for them. It adds 1 to 4 timed cards.
+- **What is kept:** only cards with a start time and a length. One that
+  starts outside the free time is dropped; one that runs past the end of its
+  gap is cut to fit, or dropped when under 30 minutes would be left; two
+  never overlap. At most 5. None fitting says "None of the AI's ideas fit the
+  free time on that day."
+- **A misnumbered day:** one day was asked for, so a single day sent back
+  is taken as that day whatever number the AI put on it.
+- **Short ideas:** an idea of 15 minutes or more that fits its gap whole is
+  kept; the 30-minute floor is only for ideas cut to fit.
+- **Undo:** Create adds them with Undo on the bar at the bottom for 6
+  seconds, which removes them again.
+- **Nothing already there changes.** Must do cards included, no card is moved
+  or replaced.
+- **The code:** `fillTripDay` in `src/server/travel/trip-draft.ts`, with the
+  free time and fitting in `src/lib/travel/fill-day.ts`. It shares Draft a
+  plan's allowance of 20 in 10 minutes.
 
 ## Checking it
 
@@ -44,10 +79,20 @@ first, and nothing is saved.
 
 With `GOOGLE_MAPS_API_KEY` set, each card made is searched on Google as
 "name, destination", and the first real place is saved with its address,
-map position, opening hours, website and phone. The toast says how many were
+map position, opening hours, website and phone, Google's rating and price,
+and the place's first Google photo as the card's picture (More Travel
+features parts 1 and 2). The toast says how many were
 found, such as "Google found 16 of 18 places". One Google can't find keeps its
 name alone. Four are looked up at once. Without the key the cards are made
 with their names only.
+
+## Places already on the trip
+
+Draft a plan and Fill this day tell the AI every place already on the trip.
+Create checks again: a card whose Google place, or whose name when Google
+found none, is already on the trip or earlier in the same plan is left out,
+before its photo is fetched, and the toast says "2 activities already on the
+trip were left out." (More Travel features part 3).
 
 ## The AI call and its cost
 

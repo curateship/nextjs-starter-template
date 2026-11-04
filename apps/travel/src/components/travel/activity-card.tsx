@@ -1,9 +1,10 @@
-import { BedDoubleIcon, ClockIcon, MoonIcon, StarIcon, SunIcon, SunriseIcon, SunsetIcon, type LucideIcon } from "lucide-react"
+import { BedDoubleIcon, ClockIcon, FlagIcon, MoonIcon, StarIcon, SunIcon, SunriseIcon, SunsetIcon, type LucideIcon } from "lucide-react"
 
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import type { Activity } from "@/lib/api/travel/trips"
 import type { ActivityType } from "@/lib/travel/activity-types"
 import { formatTimeRange } from "@/lib/travel/board"
+import { googleRatingLine } from "@/lib/travel/google-rating"
 import { DAY_PART_LABEL, type DayPart } from "@/lib/travel/rules"
 import { formatMoney } from "@/lib/travel/rules"
 import { cn } from "@/lib/utils"
@@ -14,6 +15,11 @@ const DAY_PART_ICON: Record<DayPart, LucideIcon> = {
   afternoon: SunIcon,
   evening: SunsetIcon,
   night: MoonIcon,
+}
+
+/** The Must do mark after a card's name (More Travel features part 4): a flag, never a star, so it can't pass for a rating. */
+function MustDoMark() {
+  return <FlagIcon role="img" aria-label="Must do" className="mt-0.5 size-3.5 shrink-0 fill-current text-foreground" />
 }
 
 export const CARD_CLASS = "grid w-full gap-1.5 rounded-lg border bg-card p-2.5 text-left text-sm shadow-xs"
@@ -55,11 +61,13 @@ export function ActivityCardContent({
           <span className="shrink-0 text-xs text-muted-foreground">{DAY_PART_LABEL[part]}</span>
         ) : null}
         <span className={cn("truncate font-medium", activity.done && "line-through")}>{activity.title}</span>
+        {activity.mustDo ? <MustDoMark /> : null}
       </span>
     )
   }
   const nights = activity.nights && activity.nights > 1 ? activity.nights : null
-  const marks = activity.costCents !== null || activity.rating
+  const google = googleRatingLine(activity.place)
+  const marks = activity.costCents !== null || activity.rating || google
   return (
     <span className={cn("grid gap-1.5", activity.done && "opacity-60")}>
       {activity.photoUrl ? (
@@ -75,6 +83,7 @@ export function ActivityCardContent({
         <span className={cn("min-w-0 font-medium break-words", activity.done && "line-through")}>
           {activity.title}
         </span>
+        {activity.mustDo ? <MustDoMark /> : null}
       </span>
       {time || part || warning || nights ? (
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -111,6 +120,8 @@ export function ActivityCardContent({
               ))}
             </span>
           ) : null}
+          {/* Google's own stars, in words, so they never read as the person's rating beside them. */}
+          {google ? <span className="text-muted-foreground tabular-nums">{google}</span> : null}
         </span>
       ) : null}
     </span>

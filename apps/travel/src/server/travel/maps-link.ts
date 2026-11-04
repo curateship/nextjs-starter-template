@@ -2,27 +2,17 @@ import { eq } from "drizzle-orm"
 
 import type { BuiltinType } from "@/lib/travel/activity-types"
 import { isMapsLink } from "@/lib/travel/maps-links"
-import { TRAVEL_ERRORS } from "@/lib/travel/errors"
+import { getTravelErrorMessage, isAlreadyOnTrip, TRAVEL_ERRORS } from "@/lib/travel/errors"
 import type { Place } from "@/lib/travel/rules"
-import { now, uuid } from "@/server/auth/security"
+import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import {
-  cleanOriginalName,
-  getMediaFileType,
-  prepareMediaContent,
-  serializeMedia,
-  storedFilename,
-  validateMediaFile,
-} from "@/server/media/library"
-import { getPublicMediaUrl, uploadToR2 } from "@/server/media/storage"
-import { customShellMedia } from "@/server/schema"
 import { requireActivity } from "@/server/travel/access"
-import { toOpeningHours, type GooglePeriod } from "@/server/travel/google"
+import { placeExtras, toOpeningHours, type GoogleExtras, type GooglePeriod } from "@/server/travel/google"
+import { downloadPicture, googlePhoto, PHOTO_TYPES, savePicture, type Picture } from "@/server/travel/place-photo"
 import { travelActivities } from "@/server/travel/schema"
-import { createActivity } from "@/server/travel/trips"
+import { createActivity, refuseSamePlace } from "@/server/travel/trips"
 import { readVenue, type Venue } from "@/server/travel/maps-browser"
 import { builtinTypeId } from "@/server/travel/types"
-import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 /**
  * A Google Maps link fills an activity in (task "Misc": "Add ability to add a
@@ -117,7 +107,7 @@ async function findPlaceId(clues: LinkClues, key: string) {
   return id
 }
 
-type GoogleDetails = {
+type GoogleDetails = GoogleExtras & {
   id?: string
   displayName?: { text?: string }
   formattedAddress?: string
@@ -125,8 +115,6 @@ type GoogleDetails = {
   regularOpeningHours?: { periods?: GooglePeriod[] }
   websiteUri?: string
   internationalPhoneNumber?: string
-  primaryType?: string
-  types?: string[]
   photos?: { name?: string }[]
 }
 
@@ -141,6 +129,10 @@ const DETAIL_FIELDS = [
   "primaryType",
   "types",
   "photos",
+  // Google's stars, reviews and price (More Travel features part 1).
+  "rating",
+  "userRatingCount",
+  "priceLevel",
 ].join(",")
 
 /** Google's kinds of place, as one of the person's built-in types. */
@@ -176,69 +168,6 @@ export function builtinOf(types: readonly string[]): BuiltinType {
     return "sight"
   }
   return "other"
-}
-
-const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
-
-type Picture = { mimeType: string; data: Uint8Array; isMap?: boolean }
-
-/** Saves picture bytes into the person's media library, returning its address, or null when it won't save. */
-async function savePicture(userId: string, raw: Uint8Array, mimeType: string, title: string, database: CustomShellDb) {
-  if (!PHOTO_TYPES.has(mimeType) || raw.byteLength === 0) return null
-  try {
-    validateMediaFile(mimeType, raw.byteLength)
-    const data = prepareMediaContent(mimeType, raw)
-    const originalName = cleanOriginalName(`${title}.${mimeType.split("/")[1]}`)
-    const filename = storedFilename(originalName, mimeType)
-    const storagePath = `${userId}/${filename}`
-    await getPublicMediaUrl(storagePath)
-    await uploadToR2(storagePath, data, mimeType)
-    const at = now()
-    const row = {
-      id: uuid(),
-      workspaceId: await workspaceIdForRequest(userId),
-      userId,
-      filename,
-      originalName,
-      altText: title.slice(0, 200),
-      fileSize: data.byteLength,
-      mimeType,
-      fileType: getMediaFileType(mimeType),
-      storagePath,
-      emailProtectedAt: null,
-      createdAt: at,
-      updatedAt: at,
-    }
-    await database.insert(customShellMedia).values(row)
-    return (await serializeMedia(row)).url
-  } catch {
-    // Storage that isn't set up, or a picture the library refuses, leaves the activity without one.
-    return null
-  }
-}
-
-/** Downloads a picture from one of Google's own picture hosts. Null for anything else or a failed download. */
-async function downloadPicture(url: string) {
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    return null
-  }
-  if (parsed.protocol !== "https:" || !isPictureHost(parsed.hostname)) return null
-  try {
-    const response = await fetch(parsed, { redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS) })
-    if (!response.ok) return null
-    const mimeType = (response.headers.get("content-type") ?? "").split(";")[0].trim()
-    return { mimeType, data: new Uint8Array(await response.arrayBuffer()) }
-  } catch {
-    return null
-  }
-}
-
-/** Google's hosts for place photos and map snapshots; nothing else is ever downloaded. */
-function isPictureHost(host: string) {
-  return host === "maps.google.com" || host === "maps.googleapis.com" || /^lh\d\.googleusercontent\.com$/.test(host)
 }
 
 const BROWSER =
@@ -334,18 +263,6 @@ function cleanWebsite(link: string | null) {
   }
 }
 
-/** The place's first Google photo, with a key; null when there is none. */
-async function googlePhoto(photoName: string | undefined, key: string) {
-  if (!photoName || !/^places\/[\w-]+\/photos\/[\w-]+$/.test(photoName)) return null
-  try {
-    const response = await google(`https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=1600&key=${encodeURIComponent(key)}`)
-    const mimeType = (response.headers.get("content-type") ?? "").split(";")[0].trim()
-    return { mimeType, data: new Uint8Array(await response.arrayBuffer()) }
-  } catch {
-    return null
-  }
-}
-
 /** Fills an activity in from a Maps link. Returns what it filled, for the toast. */
 export async function fillFromMapsLink(
   userId: string,
@@ -358,7 +275,7 @@ export async function fillFromMapsLink(
   const clues = readLinkClues(full)
   const key = process.env.GOOGLE_MAPS_API_KEY?.trim()
   // With no key, the link alone still gives the place's name, its pin and a picture.
-  if (!key) return fillFromClues(userId, activity.id, full, clues, database)
+  if (!key) return fillFromClues(userId, activity, full, clues, database)
   const placeId = await findPlaceId(clues, key)
   if (!/^[\w-]{1,300}$/.test(placeId)) throw new Error(TRAVEL_ERRORS.mapsLinkNoPlace)
   const response = await google(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
@@ -374,9 +291,11 @@ export async function fillFromMapsLink(
     lat: details.location?.latitude ?? clues.lat,
     lng: details.location?.longitude ?? clues.lng,
     placeId: details.id ?? placeId,
+    ...placeExtras(details),
   }
-  const kinds = [details.primaryType, ...(details.types ?? [])].filter((kind): kind is string => Boolean(kind))
-  const typeId = await builtinTypeId(userId, builtinOf(kinds), database)
+  // Checked before the photo is downloaded, so a skipped place costs no picture (More Travel features part 3).
+  await refuseSamePlace(activity.tripId, { title, place }, activity.id, database)
+  const typeId = await builtinTypeId(userId, builtinOf(place.kinds ?? []), database)
   const googleOwn = await googlePhoto(details.photos?.[0]?.name, key)
   // The hidden browser is only opened when Google's service has no photo.
   const venue = isPhoto(googleOwn) ? null : await readVenue(full, { name: title, lat: place.lat, lng: place.lng })
@@ -401,21 +320,41 @@ export async function fillFromMapsLink(
 }
 
 /**
- * One link of a Paste Maps links paste (Travel features part 6; Tyler, 3 Nov
- * 2026: "Ideas, wait for photos"): a new card at the end of the trip's Ideas,
- * filled from the link with its photo. A link that can't be read makes no
- * card: the card made for it goes again, for good, and the reason is thrown.
+ * A new card filled from a Maps link. Paste Maps links (Travel features part
+ * 6; Tyler, 3 Nov 2026: "Ideas, wait for photos") makes each at the end of
+ * Ideas; a link that can't be read makes no card: the card made for it goes
+ * again, for good, and the reason is thrown. New activity with a link
+ * (`keepOnFailure`) keeps its card, named as typed, to fill by hand, and says
+ * why the link didn't fill it. Either way, a place already on the trip makes
+ * no card (More Travel features part 3: "Skip it, say where").
  */
 export async function addActivityFromMapsLink(
   userId: string,
-  input: { tripId: string; link: string },
-  database: CustomShellDb = db
-) {
+  input: { tripId: string; link: string; day?: number | null; title?: string; typeId?: string | null; startTime?: string | null },
+  database: CustomShellDb = db,
+  { keepOnFailure = false }: { keepOnFailure?: boolean } = {}
+): Promise<{ id: string; title: string; photo: boolean; partial: boolean; failed?: string }> {
   if (!isMapsLink(input.link)) throw new Error(TRAVEL_ERRORS.notMapsLink)
-  const { id } = await createActivity(userId, { tripId: input.tripId, day: null, title: "New place" }, database)
+  const typed = input.title?.trim() ?? ""
+  const { id } = await createActivity(
+    userId,
+    {
+      tripId: input.tripId,
+      day: input.day ?? null,
+      title: typed || "New place",
+      typeId: input.typeId ?? null,
+      startTime: input.day == null ? null : (input.startTime ?? null),
+    },
+    database
+  )
   try {
     return { id, ...(await fillFromMapsLink(userId, { activityId: id, link: input.link }, database)) }
   } catch (error) {
+    const reason = error instanceof Error ? error.message : ""
+    if (keepOnFailure && !isAlreadyOnTrip(reason)) {
+      // Only a sentence written for people goes back, never an internal error's own text.
+      return { id, title: typed || "New place", photo: false, partial: false, failed: getTravelErrorMessage(error) }
+    }
     await database.delete(travelActivities).where(eq(travelActivities.id, id))
     throw error
   }
@@ -427,11 +366,25 @@ export async function addActivityFromMapsLink(
  * shows (or there's no browser on the server), the link's own name, address
  * and pin still fill in, with the map snapshot from its preview.
  */
-async function fillFromClues(userId: string, activityId: string, page: URL, clues: LinkClues, database: CustomShellDb) {
+async function fillFromClues(
+  userId: string,
+  activity: { id: string; tripId: string },
+  page: URL,
+  clues: LinkClues,
+  database: CustomShellDb
+) {
   if (!clues.name) throw new Error(TRAVEL_ERRORS.mapsLinkNoPlace)
   const [name, ...rest] = clues.name.split(",")
   const venue = await readVenue(page, { name: name.trim(), lat: clues.lat, lng: clues.lng })
   const title = (venue?.name || name.trim()).slice(0, 200)
+  const place: Place = {
+    name: title,
+    address: (venue?.address ?? rest.join(",").trim()).slice(0, 400),
+    lat: clues.lat,
+    lng: clues.lng,
+    placeId: clues.placeId,
+  }
+  await refuseSamePlace(activity.tripId, { title, place }, activity.id, database)
   const picture = await venuePicture(async () => null, venue, page)
   const photoUrl = picture ? await savePicture(userId, picture.data, picture.mimeType, title, database) : null
   const typeId = venue?.category ? await builtinTypeId(userId, builtinOfCategory(venue.category), database) : null
@@ -441,19 +394,13 @@ async function fillFromClues(userId: string, activityId: string, page: URL, clue
     .set({
       title,
       ...(typeId ? { typeId } : {}),
-      place: {
-        name: title,
-        address: (venue?.address ?? rest.join(",").trim()).slice(0, 400),
-        lat: clues.lat,
-        lng: clues.lng,
-        placeId: clues.placeId,
-      },
+      place,
       ...(website ? { website } : {}),
       ...(venue?.phone ? { phone: venue.phone.replace(/[^0-9+()\-.\s]/g, "").trim().slice(0, 40) || null } : {}),
       ...(photoUrl ? { photoUrl, photoCredit: null } : {}),
       updatedAt: now(),
     })
-    .where(eq(travelActivities.id, activityId))
+    .where(eq(travelActivities.id, activity.id))
   // Partial now means only that hours need the key; a venue read in the browser has the rest.
   return { title, photo: photoUrl !== null, partial: venue === null }
 }

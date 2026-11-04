@@ -18,7 +18,8 @@ import {
 } from "@/components/ui/dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
-import { createPlan, draftPlan, type DraftItem, type MadePlan, type TripDraft } from "@/lib/api/travel/trip-draft"
+import { undoActivities } from "@/lib/api/travel/days"
+import { createPlan, draftPlan, fillDay, type DraftItem, type MadePlan, type TripDraft } from "@/lib/api/travel/trip-draft"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import type { ActivityType } from "@/lib/travel/activity-types"
 import { formatMinutes } from "@/lib/travel/board"
@@ -49,12 +50,17 @@ const activities = (count: number) => (count === 1 ? "1 activity" : `${count} ac
  * timed", from "Both" New trip and "+ Add"). Opening it asks the AI at once
  * for 3 to 5 timed sights and meals on each empty day. The plan shows here,
  * day by day, to untick, rename or retime; nothing is saved until Create.
+ *
+ * With `day` set it is Fill this day (More Travel features part 6: "Timed, in
+ * the gaps"): the AI fills that one day's free time around what it holds, and
+ * what is added can be undone from the bar at the bottom.
  */
 export function DraftPlanDialog({
   open,
   tripId,
   startDate,
   types,
+  day = null,
   onClose,
   onMade,
 }: {
@@ -62,6 +68,8 @@ export function DraftPlanDialog({
   tripId: string
   startDate: string | null
   types: readonly ActivityType[]
+  /** Fill this one day's free time, rather than drafting every empty day. */
+  day?: number | null
   onClose: () => void
   /** The plan was made; the trip reloads, then the window closes. */
   onMade: () => Promise<void>
@@ -93,7 +101,8 @@ export function DraftPlanDialog({
   React.useEffect(() => {
     if (!open || ask === 0) return
     let alive = true
-    const asking = ask === 1 && wantsDraftOnArrival(tripId) ? arrivalPlan(tripId) : draftPlan(tripId)
+    const asking =
+      day !== null ? fillDay(tripId, day) : ask === 1 && wantsDraftOnArrival(tripId) ? arrivalPlan(tripId) : draftPlan(tripId)
     asking
       .then((plan) => {
         if (!alive) return
@@ -106,7 +115,7 @@ export function DraftPlanDialog({
     return () => {
       alive = false
     }
-  }, [ask, open, tripId])
+  }, [ask, day, open, tripId])
 
   // Closing ends the arrival's plan too, so coming back to the trip doesn't open it again.
   const close = () => {
@@ -151,7 +160,25 @@ export function DraftPlanDialog({
     const result = made as MadePlan | null
     if (!ok || !result) return
     const found = result.looked ? ` Google found ${result.placed} of ${result.created.length} places.` : ""
-    toast.success(`Added ${activities(result.created.length)} to the trip.${found}`)
+    const left = result.repeated
+      ? ` ${activities(result.repeated)} already on the trip ${result.repeated === 1 ? "was" : "were"} left out.`
+      : ""
+    if (day === null) {
+      toast.success(`Added ${activities(result.created.length)} to the trip.${found}${left}`)
+    } else {
+      // Fill this day can be undone, the way every other change to the board can.
+      const created = result.created
+      toast.success(`Added ${activities(created.length)} to Day ${day}.${found}${left}`, {
+        duration: 6000,
+        action: {
+          label: "Undo",
+          onClick: () =>
+            void undoActivities({ tripId, places: [], created })
+              .then(() => onMade())
+              .catch((error: unknown) => showErrorToast(getTravelErrorMessage(error))),
+        },
+      })
+    }
     close()
   }
 
@@ -163,16 +190,18 @@ export function DraftPlanDialog({
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Draft a plan</DialogTitle>
+            <DialogTitle>{day === null ? "Draft a plan" : `Fill Day ${day}`}</DialogTitle>
             <DialogDescription>
-              AI suggests sights and meals for each day with nothing planned. Untick or change any before adding them.
+              {day === null
+                ? "AI suggests sights and meals for each day with nothing planned. Untick or change any before adding them."
+                : `AI suggests sights and meals for the free time on Day ${day}, around what's planned. Untick or change any before adding them.`}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
             {reading ? (
               <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground" aria-live="polite">
                 <Loader2Icon className="size-4 animate-spin" aria-hidden />
-                Drafting the days. This takes up to a minute.
+                {day === null ? "Drafting the days. This takes up to a minute." : `Filling Day ${day}. This takes up to a minute.`}
               </p>
             ) : reason ? (
               <div className="grid justify-items-start gap-3 py-2">

@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { TRAVEL_ERRORS } from "@/lib/travel/errors"
+import { alreadyOnTripMessage, TRAVEL_ERRORS } from "@/lib/travel/errors"
 import { findMapsLinks, isMapsLink } from "@/lib/travel/maps-links"
 import type { CustomShellDb } from "@/server/db"
 import type { CustomShellUser } from "@/server/schema"
@@ -168,6 +168,9 @@ describe("filling an activity from a link", () => {
           internationalPhoneNumber: "+81 3-3842-0181",
           primaryType: "buddhist_temple",
           photos: [{ name: "places/ChIJsensoji/photos/abc" }],
+          rating: 4.5,
+          userRatingCount: 98765,
+          priceLevel: "PRICE_LEVEL_FREE",
         })
       })
     )
@@ -180,6 +183,8 @@ describe("filling an activity from a link", () => {
     expect(activity.title).toBe("Senso-ji")
     expect(activity.typeId).toBe(sight.id)
     expect(activity.place).toMatchObject({ address: "2-3-1 Asakusa, Taito City, Tokyo", placeId: "ChIJsensoji" })
+    // More Travel features part 1: Google's stars, reviews and price come with the place.
+    expect(activity.place).toMatchObject({ rating: 4.5, ratingCount: 98765, priceLevel: 0, kinds: ["buddhist_temple"] })
     expect(activity.openingHours?.[1]).toEqual([{ open: "06:00", close: "17:00" }])
     expect(activity.website).toBe("https://www.senso-ji.jp/")
     expect(activity.phone).toBe("+81 3-3842-0181")
@@ -283,5 +288,36 @@ describe("pasting several Maps links (Travel features part 6)", () => {
     )
     await expect(addActivityFromMapsLink(ben.id, { tripId, link: LONG }, database)).rejects.toThrow(TRAVEL_ERRORS.tripNotFound)
     expect((await loadTripPage(anna.id, tripId, database)).activities).toEqual([])
+  })
+
+  it("skips a place already on the trip and says where it is (More Travel features part 3)", async () => {
+    vi.stubEnv("GOOGLE_MAPS_API_KEY", "")
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html></html>", { headers: { "content-type": "text/html" } })))
+    const { id: tripId } = await createTrip(anna.id, { name: "Tokyo", days: 3, currency: "JPY", startDate: null }, database)
+    const link = "https://www.google.com/maps/place/Fuunji,+2-14-3+Yoyogi/@35.6866,139.6983,17z/data=!3d35.6866!4d139.6983"
+    await addActivityFromMapsLink(anna.id, { tripId, link }, database)
+    await expect(addActivityFromMapsLink(anna.id, { tripId, link }, database)).rejects.toThrow(
+      alreadyOnTripMessage("Fuunji", null)
+    )
+    // New activity keeps a card whose link can't be read, but never one already on the trip.
+    await expect(
+      addActivityFromMapsLink(anna.id, { tripId, link, day: 2, title: "Ramen" }, database, { keepOnFailure: true })
+    ).rejects.toThrow("Fuunji is already on Ideas.")
+    expect((await loadTripPage(anna.id, tripId, database)).activities).toHaveLength(1)
+  })
+
+  it("keeps New activity's card, named as typed, when its link can't be read", async () => {
+    vi.stubEnv("GOOGLE_MAPS_API_KEY", "")
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html></html>", { headers: { "content-type": "text/html" } })))
+    const { id: tripId } = await createTrip(anna.id, { name: "Tokyo", days: 3, currency: "JPY", startDate: null }, database)
+    const made = await addActivityFromMapsLink(
+      anna.id,
+      { tripId, link: "https://www.google.com/maps/@35.6866,139.6983,17z", day: 2, title: "Lunch", startTime: "12:30" },
+      database,
+      { keepOnFailure: true }
+    )
+    expect(made).toMatchObject({ title: "Lunch", failed: TRAVEL_ERRORS.mapsLinkNoPlace })
+    const [card] = (await loadTripPage(anna.id, tripId, database)).activities
+    expect(card).toMatchObject({ id: made.id, day: 2, title: "Lunch", startTime: "12:30" })
   })
 })

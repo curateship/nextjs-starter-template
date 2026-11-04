@@ -27,7 +27,6 @@ import { SavedPlacesDialog } from "@/components/travel/saved-places-dialog"
 import { TripMapView } from "@/components/travel/trip-map-view"
 import { DayBoard } from "@/components/travel/day-board"
 import { useBoardLayout } from "@/components/travel/use-board-layout"
-import { DayWeatherLine, useTripWeather } from "@/components/travel/day-weather"
 import { dayLabel, useNewActivity } from "@/components/travel/new-activity"
 import { TripCalendarView } from "@/components/travel/trip-calendar-view"
 import { useTrip } from "@/components/travel/trip-context"
@@ -54,10 +53,13 @@ import { COMPACT_CARDS_KEY, TRIP_VIEW_KEY } from "@/lib/travel/panel-keys"
 import {
   filterActivities,
   filterCount,
+  readTripFilters,
+  TRIP_FILTER_KEYS,
   TRIP_VIEWS,
   type TripSearch,
   type TripView,
 } from "@/lib/travel/trip-search"
+import { DAY_PART_LABEL, DAY_PARTS } from "@/lib/travel/rules"
 import {
   describeTripView,
   keptTripFilters,
@@ -86,7 +88,7 @@ export function SchedulePanel({
   search: TripSearch
   onSearch: (patch: Partial<TripSearch>, options?: { history?: boolean }) => void
 }) {
-  const { page, refresh, openActivity, readOnly } = useTrip()
+  const { page, refresh, openActivity, readOnly, weather } = useTrip()
   const { trip } = page
   const newActivity = useNewActivity()
   const layout = useBoardLayout(trip.id, trip.days)
@@ -95,6 +97,9 @@ export function SchedulePanel({
     () => (wantsDraftOnArrival(trip.id) ? "draft" : null)
   )
   const actions = useBoardActions()
+  // The day Fill this day is filling, from its day's menu (More Travel features part 6).
+  // The day stays set while the window closes, so its title doesn't change on the way out.
+  const [filling, setFilling] = React.useState<{ day: number; open: boolean }>({ day: 1, open: false })
   // The tab is in the address; with none there, the one this browser used last.
   const [rememberedView, rememberView] = useRememberedChoice<TripView>(TRIP_VIEW_KEY, "board", TRIP_VIEWS)
   const view: TripView = search.view ?? rememberedView
@@ -103,10 +108,10 @@ export function SchedulePanel({
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(new Set())
   const [filterOpen, setFilterOpen] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
-  const weather = useTripWeather(trip)
   const shown = React.useMemo(() => filterActivities(page.activities, search), [page.activities, search])
-  const filtering = Boolean(search.type || search.q)
+  const filtering = filterCount(search) > 0 || Boolean(search.q)
   const selectedIds = [...selected].filter((id) => shown.some((activity) => activity.id === id))
+  const allDone = selectedIds.length > 0 && selectedIds.every((id) => shown.find((activity) => activity.id === id)?.done)
 
   const here = React.useMemo<SavedViewsScreen>(
     () => ({
@@ -140,7 +145,10 @@ export function SchedulePanel({
 
   return (
     <>
-      <DashboardCardHeader className="@container">
+      {/* group/title: the shell's Mass select chip shows while this header is pointed at. Without it the chip
+          stayed invisible, since the board has no heading cell to point at (Tyler, 4 Nov 2026: "How do I access
+          mass select?"). */}
+      <DashboardCardHeader className="group/title @container">
         <DashboardTabs
           value={view}
           onValueChange={(value) => pickView(value as TripView)}
@@ -160,6 +168,18 @@ export function SchedulePanel({
               onClear={() => setSelected(new Set())}
               main={(menu) => (
                 <>
+                  {/* The most common change first (UI standard, mass select; More Travel features part 12). It reads
+                      Mark not done when every ticked card is already done. */}
+                  <SelectedMenuRow
+                    onClick={() => {
+                      menu.close()
+                      void actions
+                        .markDone(selectedIds, !allDone)
+                        .then((ok) => (ok ? setSelected(new Set()) : undefined))
+                    }}
+                  >
+                    {allDone ? "Mark not done" : "Mark done"}
+                  </SelectedMenuRow>
                   <SelectedMenuRow page="move" onClick={() => menu.step("move")}>
                     Move to day
                   </SelectedMenuRow>
@@ -230,7 +250,7 @@ export function SchedulePanel({
             count={filterCount(search)}
             open={filterOpen}
             onOpenChange={setFilterOpen}
-            onClear={() => onSearch({ type: undefined })}
+            onClear={() => onSearch(Object.fromEntries(TRIP_FILTER_KEYS.map((key) => [key, undefined])))}
             save={
               <Button
                 type="button"
@@ -270,6 +290,53 @@ export function SchedulePanel({
                   ))}
                 </SelectContent>
               </Select>
+              {/* More Travel features part 11: Done, Part of the day, No place yet, Cost, and Must do (part 4). */}
+              <FilterSelect
+                id="trip-filter-done"
+                label="Done"
+                value={search.done}
+                anyLabel="Done or not"
+                options={[
+                  ["todo", "Not done"],
+                  ["done", "Done"],
+                ]}
+                onChange={(done) => onSearch({ done })}
+              />
+              <FilterSelect
+                id="trip-filter-part"
+                label="Part of day"
+                value={search.part}
+                anyLabel="Any time"
+                options={DAY_PARTS.map((part) => [part, DAY_PART_LABEL[part]])}
+                onChange={(part) => onSearch({ part })}
+              />
+              <FilterSelect
+                id="trip-filter-place"
+                label="Place"
+                value={search.place}
+                anyLabel="Any place"
+                options={[["none", "No place yet"]]}
+                onChange={(place) => onSearch({ place })}
+              />
+              <FilterSelect
+                id="trip-filter-cost"
+                label="Cost"
+                value={search.cost}
+                anyLabel="Any cost"
+                options={[
+                  ["yes", "Has a cost"],
+                  ["no", "No cost"],
+                ]}
+                onChange={(cost) => onSearch({ cost })}
+              />
+              <FilterSelect
+                id="trip-filter-must"
+                label="Must do"
+                value={search.must}
+                anyLabel="Every activity"
+                options={[["yes", "Must do only"]]}
+                onChange={(must) => onSearch({ must })}
+              />
             </div>
           </FilterPopover>
           <SavedViewsControls
@@ -282,9 +349,13 @@ export function SchedulePanel({
               const type = typeof saved.filters.type === "string" ? saved.filters.type : undefined
               const typeGone = type && !page.types.some((item) => item.id === type)
               if (typeGone) showErrorToast(`${saved.names.type ?? "A type"} was removed, so the view opens without it.`)
+              // Every filter the view holds, and none it doesn't, so it opens exactly as it was saved.
+              const kept = readTripFilters(saved.filters)
               onSearch({
-                type: typeGone ? undefined : type,
-                q: typeof saved.filters.q === "string" ? saved.filters.q : undefined,
+                ...Object.fromEntries(TRIP_FILTER_KEYS.map((key) => [key, undefined])),
+                q: undefined,
+                ...kept,
+                type: typeGone ? undefined : kept.type,
               })
             }}
           />
@@ -318,6 +389,7 @@ export function SchedulePanel({
             onToggleSelected={toggleSelected}
             layout={layout}
             showGaps={!filtering}
+            onFillDay={(day) => setFilling({ day, open: true })}
             between={(first, next) => <RouteTime first={first} next={next} mode={trip.travelMode} />}
             ideasButton={
             <Tooltip>
@@ -335,10 +407,8 @@ export function SchedulePanel({
               <TooltipContent>Add from saved places</TooltipContent>
             </Tooltip>
             }
-            weatherOf={(day) => {
-              const forecast = weather.find((item) => item.day === day)
-              return forecast ? <DayWeatherLine weather={forecast} /> : null
-            }}
+            holidayOn={(day) => weather.holidays.some((holiday) => holiday.day === day)}
+            forecast={weather.forecast}
           />
           <BoardCorner
             compact={compact === "on"}
@@ -385,12 +455,61 @@ export function SchedulePanel({
         onClose={() => setWindowOpen(null)}
         onMade={refresh}
       />
+      <DraftPlanDialog
+        open={filling.open}
+        tripId={trip.id}
+        startDate={trip.startDate}
+        types={page.types}
+        day={filling.day}
+        onClose={() => setFilling((was) => ({ ...was, open: false }))}
+        onMade={refresh}
+      />
       <CalendarLinkDialog
         open={windowOpen === "calendar"}
         onClose={() => setWindowOpen(null)}
         tripId={trip.id}
         hasStartDate={trip.startDate !== null}
       />
+    </>
+  )
+}
+
+/**
+ * One filter's row in Filter: a label, then its Select, with "any" as the
+ * first choice, which clears it. The choices are fixed lists, so whatever is
+ * picked is one of them.
+ */
+function FilterSelect<T extends string>({
+  id,
+  label,
+  value,
+  anyLabel,
+  options,
+  onChange,
+}: {
+  id: string
+  label: string
+  value: T | undefined
+  anyLabel: string
+  options: readonly (readonly [T, string])[]
+  onChange: (next: T | undefined) => void
+}) {
+  return (
+    <>
+      <Label htmlFor={id}>{label}</Label>
+      <Select value={value ?? ANY} onValueChange={(next) => onChange(next === ANY ? undefined : (next as T))}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY}>{anyLabel}</SelectItem>
+          {options.map(([option, text]) => (
+            <SelectItem key={option} value={option}>
+              {text}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </>
   )
 }

@@ -2,6 +2,7 @@ import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 
 import { ActivityPanel } from "@/components/travel/activity-panel"
+import { useTripWeather } from "@/components/travel/day-weather"
 import { SchedulePanel } from "@/components/travel/schedule-panel"
 import { markClickedOpen, TripProvider, type TripContextValue } from "@/components/travel/trip-context"
 import { TripDetailsPanel } from "@/components/travel/trip-details-panel"
@@ -38,6 +39,8 @@ export function TripWorkspace({
   const navigate = useNavigate()
   const tripId = page.trip.id
   const readOnly = useTravelOffline()
+  // Loaded once here, for the board's warnings and the open card's ⋮ menu (Tyler, 4 Nov 2026).
+  const weather = useTripWeather(page.trip)
 
   const refresh = React.useCallback(
     () => router.invalidate({ filter: (match) => match.routeId === TRIP_ROUTE_ID }),
@@ -69,8 +72,8 @@ export function TripWorkspace({
   const openId = search.open && page.activities.some((activity) => activity.id === search.open) ? search.open : undefined
 
   const context = React.useMemo<TripContextValue>(
-    () => ({ page, typesById, refresh, openActivity, openActivityId: openId, readOnly }),
-    [openActivity, openId, page, readOnly, refresh, typesById]
+    () => ({ page, typesById, refresh, openActivity, openActivityId: openId, readOnly, weather }),
+    [openActivity, openId, page, readOnly, refresh, typesById, weather]
   )
 
   return (

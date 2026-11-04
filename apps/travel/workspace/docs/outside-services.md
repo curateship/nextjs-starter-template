@@ -2,8 +2,9 @@
 
 Travel asks outside services for help. Google Maps finds places and travel
 times and draws the maps. Unsplash finds free photos. Open-Meteo gives the
-weather and finds where a destination is, free and with no key. All are
-optional. With no key, Travel still works and the parts that need the service
+weather, what far-off days are usually like, and finds where a destination
+is, free and with no key. Nager.Date gives public holidays, free and with no
+key. All are optional. With no key, Travel still works and the parts that need the service
 fall back or hide.
 
 The server makes every call except drawing a map, and its keys never reach the
@@ -27,7 +28,16 @@ reads them on every call, so a new key works without a restart.
 
 - **Place suggestions.** Typing in an activity's place field shows matching
   places under it. Picking one fills in the name, address, map position,
-  opening hours, website and phone.
+  opening hours, website and phone, Google's rating, number of reviews and
+  price, and its kinds of place. A card with no picture then gets the
+  place's first Google photo (see [Activities](activities.md)).
+- **What a lookup costs.** Google bills a place's details at the dearest
+  tier of the fields asked for. Opening hours, website and phone already put
+  every lookup in Place Details Enterprise, and the rating, reviews and price
+  added on 4 Nov 2026 are in that same tier, so they add nothing per lookup.
+  The kinds of place and the photo's name are in a cheaper tier. Downloading
+  the photo itself is a separate Place Photos charge, once per card that gets
+  a picture. Google's price list was checked on 4 Nov 2026; it can change.
 - **One bill per search.** Google charges the typing and the pick as one
   session. The browser makes a new session for each place picked.
 - **Opening hours.** Google's weekly hours are saved as seven days, Sunday
@@ -87,20 +97,47 @@ With no Unsplash key, the Unsplash button doesn't show and Upload still works.
 
 ## Open-Meteo
 
-- **Weather on each day.** A day of the trip in the next 14 days shows its
-  forecast under its heading: an icon and the high and low in Celsius, at the
-  trip's destination. A trip with no destination shows none. Further out, or on a trip with no dates, nothing shows.
+- **Weather on each day.** A day of the trip in the next 14 days has its
+  forecast in the Weather row of each of its cards' ⋮ menu (Tyler, 4 Nov
+  2026, moved off the day's heading): an icon and the high and low in
+  Celsius, at the trip's destination. A trip with no destination shows none. Further out, or on a trip with no dates, nothing shows.
 - **Chance of rain.** When Open-Meteo gives the day a chance of rain of 30
   out of 100 or more, the line ends with it: "18° / 11° · 70% rain". Below 30,
   or with no chance given, the line is as before (Tyler, 3 Nov 2026: "70%
   rain", picked to show only at 30% or more). The chance is Open-Meteo's
   `precipitation_probability_max`, the highest chance in any hour of the day.
+- **What far-off days are usually like** (Tyler, 4 Nov 2026: "Usual high,
+  low, rain"). A day past the 14-day forecast shows "Usually 24° / 15° · rain
+  on 8 of 30 days" in the same Weather row, from Open-Meteo's historical archive
+  (`archive-api.open-meteo.com`) at the destination. One request covers every
+  such day of the trip: the same dates in each of the last 10 years whose
+  dates, and the 15 days either side, are a week or more in the past. The high
+  and low average the 15 days around each date across those years; the rain
+  counts the days of 1mm or more in the 31 days around it, scaled to 30. A
+  date with under half its history shows nothing.
 - **Where a destination is.** The map of places visited finds each trip's
-  destination with Open-Meteo's place search.
-- **Kept answers.** A place is remembered for a day and a forecast for an
-  hour, in the server's memory. A failed answer shows nothing rather than an
-  error, because weather is an extra.
-- The code is `src/server/travel/weather.ts`.
+  destination with Open-Meteo's place search. The same search gives the
+  destination's country, for its holidays.
+- **Kept answers.** A place is remembered for a day, a forecast for an hour
+  and an archive answer for a day, in the server's memory. A failed answer
+  shows nothing rather than an error, because weather is an extra.
+- The code is `src/server/travel/weather.ts`, and `trip-outlook.ts` for what
+  days are usually like.
+
+## Nager.Date
+
+- **Public holidays** (Tyler, 4 Nov 2026: "Heading + card warning"). For a
+  dated trip, `date.nager.at/api/v3/PublicHolidays/{year}/{country}` gives
+  the holidays of each year the trip covers, in the destination's country.
+  Only those the whole country keeps (`global`) count, so a regional one
+  never warns where nothing is shut. Two on one day are joined with "and".
+- **Where they show:** the Weather row of the day's cards' ⋮ menu names it,
+  and its Sight and Food cards read "Holiday, may be shut" (see
+  [The day board](the-day-board.md)).
+- **Gaps:** Nager.Date covers about 100 countries. Anywhere else, or a
+  destination Open-Meteo gives no country for, shows no holidays.
+- **Kept answers:** each country and year for a day. A failed answer shows
+  nothing. The code is `src/server/travel/trip-outlook.ts`.
 
 ## When a service fails
 

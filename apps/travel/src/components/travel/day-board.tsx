@@ -39,6 +39,9 @@ import { dateOfDay, formatDayDate, todaysDay, weekday } from "@/lib/travel/dates
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { MAX_TRIP_DAYS } from "@/lib/travel/rules"
 import { hoursWarning, nearestOpenDay } from "@/lib/travel/hours"
+import { mustDoWarning } from "@/lib/travel/must-do"
+import { rainyDayMove } from "@/lib/travel/rainy-day"
+import { HOLIDAY_WARNING } from "@/lib/travel/weather"
 import { readDayInfo } from "@/lib/travel/trip-days"
 import { usePhone } from "@/lib/travel/use-phone"
 import { cn } from "@/lib/utils"
@@ -67,8 +70,10 @@ export function DayBoard({
   layout,
   showGaps,
   between,
-  weatherOf,
   ideasButton,
+  onFillDay,
+  holidayOn,
+  forecast = [],
 }: {
   /** The activities shown, after any filter. */
   activities: Activity[]
@@ -85,10 +90,14 @@ export function DayBoard({
   showGaps: boolean
   /** Something more for the line between two cards, such as the travel time (task part 43). */
   between?: (first: Activity, next: Activity) => React.ReactNode
-  /** The forecast line for a day's heading (task part 33). */
-  weatherOf?: (day: number) => React.ReactNode
   /** Beside the Ideas column's "+": add from saved places (task part 41). */
   ideasButton?: React.ReactNode
+  /** A day's Fill this day (More Travel features part 6). */
+  onFillDay: (day: number) => void
+  /** Whether a day is a public holiday at the destination (More Travel features part 8). */
+  holidayOn?: (day: number) => boolean
+  /** Each day's chance of rain, for moving outdoor cards off a rainy day (More Travel features part 9). */
+  forecast?: readonly { day: number; rain: number | null }[]
 }) {
   const { page, typesById, refresh, openActivity, openActivityId, readOnly } = useTrip()
   const { trip } = page
@@ -274,10 +283,10 @@ export function DayBoard({
                     readOnly={readOnly}
                     fullWidth={phone}
                     count={cards.length}
-                    weather={day !== null && weatherOf ? weatherOf(day) : undefined}
                     onFold={() => toggleFold(key)}
                     onCopyDay={(to) => (day === null ? undefined : void actions.copyDay(day, to))}
                     onBestOrder={() => (day === null ? undefined : void actions.bestOrder(day))}
+                    onFillDay={() => (day === null ? undefined : onFillDay(day))}
                     addButton={
                       readOnly ? null : <>
                         {day === null ? ideasButton : null}
@@ -302,9 +311,19 @@ export function DayBoard({
                             const gap = gaps.find((item) => item.afterId === card.id)
                             const next = cards[index + 1]
                             const extra = next && between && showGaps && !held ? between(card, next) : null
-                            const warning = hoursWarning(card.openingHours, date ? weekday(date) : null, card.startTime)
+                            // A sight or meal on a public holiday may find it shut (More Travel features part 8), and a
+                            // Must do card left in Ideas once the trip is on says so (part 4).
+                            const builtin = typeOf(card, typesById)?.builtin
+                            const warning =
+                              hoursWarning(card.openingHours, date ? weekday(date) : null, card.startTime) ??
+                              (day !== null && holidayOn?.(day) && (builtin === "sight" || builtin === "food")
+                                ? HOLIDAY_WARNING
+                                : null) ??
+                              mustDoWarning(card, trip)
                             // A place shut all day offers the nearest open day (Travel features part 1); compact cards stay one line.
                             const openDay = compact || held || readOnly ? null : nearestOpenDay(card.openingHours, trip, day)
+                            // An outdoor place on a very rainy day offers the driest day (More Travel features part 9).
+                            const rainy = compact || held || readOnly || openDay !== null ? null : rainyDayMove(card, trip, forecast)
                             return (
                               <React.Fragment key={card.id}>
                                 <BoardCard
@@ -326,6 +345,14 @@ export function DayBoard({
                                         startDate={trip.startDate}
                                         onMove={() => void actions.moveTo(card, openDay)}
                                       />
+                                    ) : rainy?.toDay ? (
+                                      <ClosedDayMove
+                                        warning={rainy.warning}
+                                        title={card.title}
+                                        toDay={rainy.toDay}
+                                        startDate={trip.startDate}
+                                        onMove={() => void actions.moveTo(card, rainy.toDay)}
+                                      />
                                     ) : undefined
                                   }
                                 >
@@ -335,7 +362,7 @@ export function DayBoard({
                                     currency={trip.currency}
                                     compact={compact}
                                     roomForMenu
-                                    warning={openDay !== null ? null : warning}
+                                    warning={openDay !== null ? null : (warning ?? (rainy && !rainy.toDay ? rainy.warning : null))}
                                   />
                                 </BoardCard>
                                 {gap || extra ? <GapLine gap={gap} extra={extra} /> : null}
@@ -393,8 +420,9 @@ function columnOf(columns: Record<string, string[]>, id: UniqueIdentifier) {
 
 /**
  * "Closed on Mondays" with "Move to Tue", along the foot of a card whose
- * place is shut all day (Tyler, 3 Nov 2026: "Warning + Move button"). The
- * move is the board's usual one, with Undo.
+ * place is shut all day (Tyler, 3 Nov 2026: "Warning + Move button"), or
+ * "Rain on Tue" with "Move to Thu" on an outdoor card on a very rainy day
+ * (More Travel features part 9). The move is the board's usual one, with Undo.
  */
 export function ClosedDayMove({
   warning,

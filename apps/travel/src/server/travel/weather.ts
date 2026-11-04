@@ -16,7 +16,8 @@ const TIMEOUT_MS = 5000
 const PLACE_KEEP_MS = 24 * 60 * 60_000
 const FORECAST_KEEP_MS = 60 * 60_000
 
-type Point = { latitude: number; longitude: number }
+/** A place's position, and its country's two-letter code when the place search gave one (for holidays). */
+export type Point = { latitude: number; longitude: number; countryCode: string | null }
 const placesKept = new Map<string, { at: number; point: Point | null }>()
 const forecastsKept = new Map<string, { at: number; days: Map<string, Omit<DayWeather, "day">> }>()
 
@@ -36,9 +37,12 @@ export async function findPlace(name: string, nowMs: number = Date.now()): Promi
   const url = `${GEOCODING_URL}?${new URLSearchParams({ name: search, count: "1", language: "en", format: "json" })}`
   const response = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) }).catch(() => null)
   if (!response?.ok) return null
-  const body = (await response.json().catch(() => null)) as { results?: { latitude: number; longitude: number }[] } | null
+  const body = (await response.json().catch(() => null)) as {
+    results?: { latitude: number; longitude: number; country_code?: string }[]
+  } | null
   const first = body?.results?.[0]
-  const point = first ? { latitude: first.latitude, longitude: first.longitude } : null
+  const countryCode = typeof first?.country_code === "string" && /^[A-Za-z]{2}$/.test(first.country_code) ? first.country_code.toUpperCase() : null
+  const point = first ? { latitude: first.latitude, longitude: first.longitude, countryCode } : null
   placesKept.set(key, { at: nowMs, point })
   return point
 }
