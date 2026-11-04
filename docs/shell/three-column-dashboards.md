@@ -74,7 +74,12 @@ All of them are in `src/components/shared/`.
   `DashboardTabButton` is a control drawn as one more tab, such as Project's
   More dropdown. The setting is `ShellStyling.dashboardTabs`
   (`src/lib/layout/styling-values.ts`), optional, so a site saved before it
-  existed reads as pills. The CRM inbox's All / Unread uses it too.
+  existed reads as pills. The CRM inbox's All / Unread uses it too, and so do
+  the Overview widgets' tabs (Activity, Visitors over time, People joining),
+  which pass `tabClassName` to keep the smaller card-header font. Tyler, 4 Nov
+  2026: "wire the dashboard widgets tabs to the settings tab styling". In a
+  widget header the tabs' box is as tall as the header row, so the line sits on
+  the header's bottom divider ("border to be at the edge").
 - **`saved-views.tsx`, `SavedViewsControls` and `SaveViewDialog`.** Views: a
   person's own named filters on one dashboard, the Views button with its menu
   ("Delete views…", a cog per row for Edit view) and the Save view window,

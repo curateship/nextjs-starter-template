@@ -7,11 +7,18 @@ Dashboard controls follow these shared rules:
   padding.
 - A chart-header tab strip occupies one grid row and lines up with the title and
   icon.
-- Tabs in a card header are the same pill tabs as everywhere else, in the
-  card-header tab font, with words only and no icons. That covers Activity,
-  Visitors over time and People joining. The underline tabs they used before
-  were deleted on 25 Sep 2026. On a phone the tabs take a row of their own
-  under the title, because four pills beside it cut "Activity" to "Ac".
+- Tabs in a widget's card header are `DashboardTabs`, so they follow
+  Settings → Styling → Dashboard tabs like every other dashboard header: pills,
+  or words with a line under the one showing. Tyler, 4 Nov 2026: "wire the
+  dashboard widgets tabs to the settings tab styling". That covers Activity,
+  Visitors over time and People joining. They keep the card-header tab font,
+  with words only and no icons.
+- An underlined tab's line sits on the header's bottom divider, not floating
+  above it (Tyler, 4 Nov 2026: "border to be at the edge"). `CardHeaderRow`
+  makes the tabs' box as tall as the header row so the line can reach it.
+- On a phone the tabs take a row of their own under the title, because four
+  pills beside it cut "Activity" to "Ac". Underlined tabs on that row get 12px
+  of room above them, so they do not crowd the title.
 - Sortable lists use `SortableTableHeader`. Each sortable heading sets
   `aria-sort` to `ascending`, `descending`, or `none`, so the arrow and
   accessibility tree agree. A column with no meaningful order can remain a
