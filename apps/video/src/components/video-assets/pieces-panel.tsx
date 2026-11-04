@@ -133,7 +133,13 @@ export type PiecesAdapter<T extends PieceItem> = {
   describeDelete: (summary: { count: number; exports: number }) => string
   errorMessage: (error: unknown) => string
   /** A row's picture and two lines of detail. */
-  row: (item: T) => { thumbnail: string | null; lines: [string, string]; Icon: LucideIcon }
+  row: (item: T) => {
+    thumbnail: string | null
+    lines: [string, string]
+    Icon: LucideIcon
+    /** A third line, cut short, with its whole words on hover, such as a brief from Promo. */
+    note?: { line: string; full: string }
+  }
   /** True while a picture is being made, so the list looks again shortly. */
   pending?: (item: T) => boolean
   /** The header's + and what it opens; left out for a guest. */
@@ -698,6 +704,14 @@ function PieceRow<T extends PieceItem>({
               <span className="grid min-w-0 text-[0.625rem] leading-tight text-muted-foreground tabular-nums">
                 <span className="truncate">{details.lines[0]}</span>
                 <span className="truncate">{details.lines[1]}</span>
+                {details.note ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="truncate">{details.note.line}</span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-80 whitespace-pre-wrap">{details.note.full}</TooltipContent>
+                  </Tooltip>
+                ) : null}
               </span>
             </span>
           </button>

@@ -33,12 +33,16 @@ import { promoPhoneActionChecks } from "./schema"
  * task, part 2): with no LinkedIn post found lately, the comment is walked
  * on the first post of the test account's home feed, a post needs nothing to
  * walk on, and the connect is walked on the writer of a found post; with
- * none, its walk only opens the app.
+ * none, its walk only opens the app. A carousel of pictures on Instagram or
+ * TikTok is on it too (Video's task promo/01, part 40): a rack too old to
+ * know the steps never passes them, so carousels are refused until it does.
  */
 const NEEDS_A_PASS = new Set([
   "reddit/comment",
   "instagram/post",
   "tiktok/post",
+  "instagram/post_carousel",
+  "tiktok/post_carousel",
   "instagram/profile",
   "tiktok/profile",
   "x/reply",

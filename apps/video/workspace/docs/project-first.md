@@ -78,7 +78,8 @@ rather than on a dashboard of its own (`workspace/tasks/flow/`).
 ## Exports
 
 The Exports panel lists the open video's exports, newest first, with download,
-share link, details, Try again and delete. New exports are still started from
+Send to Promo, share link, details, Try again and delete. Under each name it
+says where the export went in Promo ([send-to-promo.md](send-to-promo.md)). New exports are still started from
 the Export button at the top. The Exports page in the left menu lists every
 video's, naming the project and the video.
 

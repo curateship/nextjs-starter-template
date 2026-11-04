@@ -310,7 +310,7 @@ export async function removeYoutubeApiKey(
  * for lips (lip-sync.md). The browser only ever sees a key's last four
  * characters.
  */
-type SavedKeyColumn = "pexelsApiKey" | "syncApiKey"
+type SavedKeyColumn = "pexelsApiKey" | "syncApiKey" | "promoApiKey"
 
 /**
  * What a settings card may know about a saved key: that it exists and its
@@ -394,6 +394,39 @@ export function saveSyncApiKey(apiKey: string, database: CustomShellDb = db) {
 }
 export function removeSyncApiKey(database: CustomShellDb = db) {
   return removeSavedKey("syncApiKey", database)
+}
+
+/** The key Promo made for Video, for Send to Promo (send-to-promo.md). SERVER ONLY. */
+export function getPromoApiKey(database: CustomShellDb = db) {
+  return getSavedKey("promoApiKey", database)
+}
+export function getPromoKeyStatus(database: CustomShellDb = db) {
+  return getSavedKeyStatus("promoApiKey", database)
+}
+export function savePromoApiKey(apiKey: string, database: CustomShellDb = db) {
+  return saveSavedKey("promoApiKey", apiKey, database)
+}
+export function removePromoApiKey(database: CustomShellDb = db) {
+  return removeSavedKey("promoApiKey", database)
+}
+
+/** Promo's address on Settings → Promo, or "". */
+export async function getPromoUrl(database: CustomShellDb = db): Promise<string> {
+  const [row] = await database
+    .select({ url: videoSettings.promoUrl })
+    .from(videoSettings)
+    .where(eq(videoSettings.id, SETTINGS_ROW_ID))
+    .limit(1)
+  return row?.url ?? ""
+}
+
+/** Keeps Promo's address as typed after cleaning; "" clears it. */
+export async function savePromoUrl(url: string, database: CustomShellDb = db): Promise<void> {
+  const timestamp = now()
+  await database
+    .insert(videoSettings)
+    .values({ id: SETTINGS_ROW_ID, promoUrl: url, createdAt: timestamp, updatedAt: timestamp })
+    .onConflictDoUpdate({ target: videoSettings.id, set: { promoUrl: url, updatedAt: timestamp } })
 }
 
 /**

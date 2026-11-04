@@ -65,8 +65,9 @@ project or list.
   status, archived), + in the header, Select for many, Load more past 200,
   and a row menu with Rename, Duplicate, Move to project, Pin, Archive, the
   statuses and Delete.
-- **Its own extra:** "Offer as template" in the row menu
-  ([carousel-templates.md](carousel-templates.md)).
+- **Its own extras:** "Offer as template" in the row menu
+  ([carousel-templates.md](carousel-templates.md)), and Send to Promo, which
+  sends the carousel's newest finished export ([send-to-promo.md](send-to-promo.md)).
 - **New carousel (+)** opens the New carousel window, which asks for a name
   and a shape, or a template, or what AI should write from. It never makes a
   carousel by itself.

@@ -2,7 +2,8 @@
 
 A photo or video from the media library, a caption the AI can draft in the
 account's voice, and Post, which sends it to the account's phone to post in
-the app once. Phone farm file 06, parts 34 and 35. The same on TikTok.
+the app once. Phone farm file 06, parts 34 and 35. The same on TikTok. A
+carousel from the Archive goes as one post of several pictures, below.
 
 Nothing here has run on a real phone yet.
 
@@ -83,6 +84,45 @@ Only after a person pressed Post, and tried once, never again.
    with no link, and it gets no numbers.
 8. A little of the app's feed afterwards, which can never fail the post.
 
+## A carousel of pictures
+
+A carousel from the Archive posts as one Instagram post of all its pictures,
+or one TikTok photo post, in the carousel's order (Video's task promo/01,
+part 40). The post writer sends its pictures as a list; the first is the one
+the Posts tab shows, with a carousel mark.
+
+- **It holds 2 to 20 pictures.** Each passes the same check as a single photo:
+  one of the person's own files, JPEG or PNG on Instagram, WebP too on TikTok.
+  A video among them is refused, since a carousel from the phones is pictures
+  only.
+- **It has its own step name,** `instagram/post_carousel` or
+  `tiktok/post_carousel`. The self-test walks it on its own, so a broken
+  carousel step stops carousels only, and single posts keep going. Like a
+  single post, it never goes out before the self-test has passed it once.
+- **An important account's first carousel** waits for a throwaway's carousel
+  to stay up 24 hours, the same as its first photo or video
+  ([bans](../bans.md)).
+- **On an Android,** the phone downloads every picture and puts them in the
+  camera folder last one first, a second apart, so the first picture is the
+  newest. The share screen takes one file, so the phone opens the app itself:
+  its create button, its library (TikTok's Photos), "Select multiple", and
+  the newest pictures tapped in order. Instagram already counts the picture
+  its preview shows as the first pick, so its taps start at the second.
+  Then Next to the caption, the caption typed, and Share or Post pressed once.
+- **On an iPhone,** each picture comes through its own one-time Safari link,
+  saved to Photos last one first, then the same steps in the app. The links
+  last ten minutes from when the job starts, so a long carousel has to save
+  every picture inside that time.
+- **The rehearsal** puts two plain pictures in the Android test phone's
+  gallery, walks to Share or Post without pressing it, and deletes both. On
+  the iPhone test phone it saves nothing and walks with the two newest
+  pictures in Photos, so that phone needs at least two.
+- **Not proven yet (4 Nov 2026).** The create, library, "Select multiple" and
+  picture-cell buttons were written from how the apps are known to look. No
+  real phone has walked them, and whether TikTok's photo post opens this way
+  is still open. A carousel longer than one screen of the library has never
+  been tried; the phone stops and names the picture it could not see.
+
 ## Afterwards
 
 - **The Posts tab** lists the project's posts on the network, newest first:
@@ -106,5 +146,8 @@ Only after a person pressed Post, and tried once, never again.
 - The screen: `src/components/social/phone-apps/post-composer.tsx` and the
   Posts table in `app-tables.tsx`.
 - The rack: `action_app_post`, `download_media`, `put_in_gallery` and
-  `read_post_link` in `rack/promo_rack.py`.
+  `read_post_link` in `rack/promo_rack.py`; a carousel is
+  `action_app_carousel`, `put_slides_in_gallery` and `pick_carousel_pictures`.
 - The table: `promo_app_posts`, from `drizzle/0120_promo_instagram_tiktok.sql`.
+  A carousel's pictures are `media_urls`, from
+  `drizzle/0135_promo_archive_posts.sql`.

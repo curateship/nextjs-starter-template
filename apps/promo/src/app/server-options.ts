@@ -1,4 +1,5 @@
 import type { AppServerOptions } from "@/server/app-options"
+import { archiveSavedViewScreens } from "@/server/archive/saved-views"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -21,6 +22,8 @@ import type { AppServerOptions } from "@/server/app-options"
  * door nobody is told about.
  */
 export const appServerOptions: AppServerOptions = {
+  /** Views on a project's Archive (`workspace/docs/archive.md`). */
+  savedViews: { screens: archiveSavedViewScreens },
   background: {
     /**
      * Only the quick jobs ride the shell's ticker. The Reddit browser is its
@@ -192,6 +195,21 @@ export const appServerOptions: AppServerOptions = {
           const { queueIphoneInboxReads } = await import("@/server/social/phone-apps/iphone-inbox")
           await queueIphoneInboxReads()
           await tidyPhoneRecords()
+        },
+      },
+      {
+        name: "promo-archive",
+        /**
+         * The Archive's upkeep (`src/server/archive/`): starts a copy from
+         * Video whose start was lost and ends one past its three hours, and
+         * deletes items 30 days in a Bin, a bounded number each pass. Each
+         * copy runs on its own, so this never waits for one.
+         */
+        tick: async () => {
+          const { sweepArrivals } = await import("@/server/archive/arrivals")
+          await sweepArrivals()
+          const { emptyOldBins } = await import("@/server/archive/items")
+          await emptyOldBins()
         },
       },
       {

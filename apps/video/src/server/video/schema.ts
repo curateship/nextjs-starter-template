@@ -16,6 +16,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core"
 
+import type { PromoSendKind, PromoSendOptions, PromoSendStatus } from "@/lib/video/promo"
 import type {
   BriefLanding,
   BriefPlatform,
@@ -554,6 +555,9 @@ export const videoProjectVideos = pgTable(
       { onDelete: "set null" }
     ),
     language: varchar("language", { length: 40 }),
+    // What was asked for when this video came from Ask for a video in Promo
+    // (send-to-promo.md, drizzle/0152). Null on every other video.
+    promoBrief: text("promo_brief"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -1123,6 +1127,11 @@ export const videoSettings = pgTable(
     // The one YouTube channel the app reads retention from, its refresh token
     // scrambled. NULL while no channel is connected.
     youtubeOauth: jsonb("youtube_oauth").$type<StoredYoutubeConnection>(),
+    // Promo's address and the key Promo made for Video, scrambled like the
+    // other keys, for Send to Promo (workspace/docs/send-to-promo.md,
+    // drizzle/0151). "" and NULL until somebody fills in Settings → Promo.
+    promoUrl: varchar("promo_url", { length: 500 }).notNull().default(""),
+    promoApiKey: text("promo_api_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -1655,6 +1664,63 @@ export const videoExportShares = pgTable(
       .where(sql`${table.revokedAt} is null`),
   ]
 )
+
+/**
+ * One thing sent to one Promo project by Send to Promo
+ * (`workspace/docs/send-to-promo.md`, `drizzle/0151_video_promo.sql`). The
+ * id is the send's id on both sides, so sending the same row twice never
+ * makes two archive items. Promo fetches the files with the token, whose hash
+ * is kept here, for two hours.
+ */
+export const videoPromoSends = pgTable(
+  "video_promo_sends",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    // export, thumbnail or slideshow.
+    kind: varchar("kind", { length: 12 }).$type<PromoSendKind>().notNull(),
+    exportId: varchar("export_id", { length: 36 }).references(() => videoRenderJobs.id, { onDelete: "set null" }),
+    thumbnailId: varchar("thumbnail_id", { length: 36 }),
+    // The video or carousel project it came from, for the remembered pick.
+    sourceProjectId: varchar("source_project_id", { length: 36 }),
+    promoProjectId: varchar("promo_project_id", { length: 64 }).notNull(),
+    promoProjectName: varchar("promo_project_name", { length: 200 }).notNull().default(""),
+    // sending, sent or failed.
+    status: varchar("status", { length: 10 }).$type<PromoSendStatus>().notNull(),
+    error: text("error").notNull().default(""),
+    promoItemId: varchar("promo_item_id", { length: 64 }).notNull().default(""),
+    promoItemUrl: varchar("promo_item_url", { length: 600 }).notNull().default(""),
+    tokenHash: varchar("token_hash", { length: 64 }).unique(),
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    bytesDone: bigint("bytes_done", { mode: "number" }).notNull().default(0),
+    bytesTotal: bigint("bytes_total", { mode: "number" }).notNull().default(0),
+    options: jsonb("options").$type<PromoSendOptions>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("ix_video_promo_sends_export").on(table.userId, table.exportId, table.createdAt.desc()),
+    index("ix_video_promo_sends_status").on(table.status, table.updatedAt),
+  ]
+)
+
+export type VideoPromoSendRow = typeof videoPromoSends.$inferSelect
+
+/**
+ * The Promo projects last picked for each video or carousel project, so the
+ * send window opens on them next time (part 5).
+ */
+export const videoPromoPicks = pgTable("video_promo_picks", {
+  sourceProjectId: varchar("source_project_id", { length: 36 }).primaryKey(),
+  userId: varchar("user_id", { length: 36 })
+    .notNull()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  promoProjectIds: jsonb("promo_project_ids").$type<string[]>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
 
 /**
  * The one-time id of every note Project has sent here that was used, so a

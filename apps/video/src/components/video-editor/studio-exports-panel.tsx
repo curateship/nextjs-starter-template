@@ -5,6 +5,7 @@ import {
   Link2Icon,
   Loader2Icon,
   RotateCwIcon,
+  SendIcon,
   SettingsIcon,
   Trash2Icon,
   UploadIcon,
@@ -22,6 +23,9 @@ import { ExportDetailsDialog } from "@/components/video-editor/export-details-di
 import { ExportShareDialog } from "@/components/video-editor/export-share-dialog"
 import { ExportRowStatus } from "@/components/video-editor/exports-page"
 import { isExportActive } from "@/components/video-editor/use-project-exports"
+import { PromoSendStatusLine } from "@/components/video-promo/promo-send-status"
+import { useSendToPromo } from "@/components/video-promo/use-send-to-promo"
+import { getPromoErrorMessage, refreshPromoSends, retryPromoSend } from "@/lib/api/video/promo"
 import {
   deleteExports,
   getExportErrorMessage,
@@ -59,6 +63,7 @@ export function ExportsPanel() {
   const [deleting, setDeleting] = React.useState<RenderJobSummary | null>(null)
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const reload = () => setReads((count) => count + 1)
+  const sendToPromo = useSendToPromo(reload)
 
   React.useEffect(() => {
     let active = true
@@ -78,12 +83,29 @@ export function ExportsPanel() {
     }
   }, [videoId, reads])
 
-  const anyActive = list?.exports.some(isExportActive) ?? false
+  // Sends to Promo on their way are asked about too, then the list reads again.
+  const sendingKey = (list?.promo_sends ?? [])
+    .filter((send) => send.status === "sending")
+    .map((send) => send.id)
+    .join(",")
+  const anyActive = (list?.exports.some(isExportActive) ?? false) || Boolean(sendingKey)
   React.useEffect(() => {
     if (!anyActive) return
-    const timer = setTimeout(() => setReads((count) => count + 1), POLL_MS)
+    const timer = setTimeout(() => {
+      const asked = sendingKey ? refreshPromoSends(sendingKey.split(",")).catch(() => undefined) : Promise.resolve()
+      void asked.then(() => setReads((count) => count + 1))
+    }, POLL_MS)
     return () => clearTimeout(timer)
-  }, [anyActive, list])
+  }, [anyActive, list, sendingKey])
+
+  async function retrySend(sendId: string) {
+    try {
+      await retryPromoSend(sendId)
+      reload()
+    } catch (error) {
+      showErrorToast(getPromoErrorMessage(error))
+    }
+  }
 
   async function retry(item: RenderJobSummary) {
     setBusyId(item.id)
@@ -186,6 +208,10 @@ export function ExportsPanel() {
                         <span className="text-xs">
                           <ExportRowStatus item={item} shared={sharedIds.has(item.id)} />
                         </span>
+                        <PromoSendStatusLine
+                          sends={(list.promo_sends ?? []).filter((send) => send.exportId === item.id)}
+                          onRetry={(sendId) => void retrySend(sendId)}
+                        />
                       </div>
                     </div>
                     <div className="flex items-center justify-end gap-1">
@@ -200,6 +226,17 @@ export function ExportsPanel() {
                               <DownloadIcon />
                             </a>
                           </Button>
+                          {guest ? null : (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Send ${name} to Promo`}
+                              onClick={() => void sendToPromo.open({ exportId: item.id })}
+                            >
+                              <SendIcon />
+                            </Button>
+                          )}
                           {guest ? null : (
                             <Button
                               type="button"
@@ -275,6 +312,8 @@ export function ExportsPanel() {
         onClose={() => setEditing(null)}
         onSaved={reload}
       />
+
+      {sendToPromo.dialog}
 
       {sharing ? (
         <ExportShareDialog

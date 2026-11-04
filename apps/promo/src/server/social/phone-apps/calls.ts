@@ -32,6 +32,14 @@ const HEALTH_TIMEOUT_MS = 6 * 60_000
  */
 const POST_TIMEOUT_MS = 930_000
 
+/**
+ * A carousel is up to 20 files put in the gallery, or saved one by one
+ * through Safari on an iPhone, then each picked in the app's picker: 18
+ * minutes. The post job's claim lasts 25 (`jobs.ts`), and the phone may wait a
+ * few minutes behind its other actions, so this stays well under it.
+ */
+const CAROUSEL_TIMEOUT_MS = 18 * 60_000
+
 /** A reply: the conversation or the comment found, the words typed, Send pressed once, a little feed. */
 const REPLY_TIMEOUT_MS = 10 * 60_000
 
@@ -117,6 +125,19 @@ export function appPost(
   args: { mediaUrl: string; mediaKind: "photo" | "video"; caption: string; mediaFromSafari?: true }
 ) {
   return call(target, `${network}/post`, { ...args }, postShape, POST_TIMEOUT_MS)
+}
+
+/**
+ * Posts several pictures as one post with its caption (Video's task
+ * promo/01, part 40): an Instagram carousel or a TikTok photo post, the
+ * pictures in the order given. Only ever after a person pressed Post.
+ */
+export function appCarousel(
+  target: CommandTarget,
+  network: PhoneAppNetwork,
+  args: { mediaUrls: string[]; caption: string; mediaFromSafari?: true }
+) {
+  return call(target, `${network}/post_carousel`, { ...args }, postShape, CAROUSEL_TIMEOUT_MS)
 }
 
 const warmUpShape = z.object({ liked: z.number().int().min(0).default(0) })

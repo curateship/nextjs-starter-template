@@ -25,13 +25,27 @@ import { X_VIEWS, type XView } from "@/lib/social/x/options"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { KeywordRow } from "@/server/social/keywords"
 
+import { ArchiveItemPanel } from "@/components/archive/archive-item-panel"
+import { ArchiveItemsPanel } from "@/components/archive/archive-items-panel"
+import { usePromoGuest } from "@/components/social/guest/guest-mode"
+import type { ArchiveSearch } from "@/lib/archive/search"
+
 import { ProjectColumns } from "./project-columns"
 import { ProjectDialogs, type ProjectDialog } from "./project-dialogs"
 import { ProjectPanel } from "./project-panel"
 
-/** What a project's page keeps in its address: the picked network, and that network's own. */
+/**
+ * What a project's page keeps in its address: the picked network and that
+ * network's own, or `?archive=1` with the Archive's own tab and filters
+ * (part 21).
+ */
 export type ProjectSearch = RedditSearch &
-  Omit<MediumSearch, "list" | "window" | "tab"> & { network?: Network; tab?: Exclude<MediumView | XView | LinkedinView, "new"> }
+  Omit<MediumSearch, "list" | "window" | "tab"> &
+  Omit<ArchiveSearch, "project" | "open"> & {
+    network?: Network
+    tab?: Exclude<MediumView | XView | LinkedinView, "new">
+    archive?: "1"
+  }
 
 /** The address's tab when it is one of this module's, else none. */
 function tabOf<T extends string>(tab: string | undefined, views: readonly T[]): Exclude<T, "new"> | undefined {
@@ -80,12 +94,15 @@ export function ProjectsWorkspace({
   const [dialog, setDialog] = React.useState<ProjectDialog>(null)
 
   const networks = view.project.networks
-  const network = search.network && networks.includes(search.network) ? search.network : (networks[0] ?? null)
+  const archive = search.archive === "1"
+  const network = archive ? null : search.network && networks.includes(search.network) ? search.network : (networks[0] ?? null)
+  const guest = usePromoGuest()
 
   const setSearch = React.useCallback(
-    (patch: ProjectSearch) =>
+    (patch: ProjectSearch, options: { replace?: boolean } = {}) =>
       void navigate({
         to: ".",
+        replace: options.replace,
         search: (previous: Record<string, unknown>) => {
           const next: Record<string, unknown> = { ...previous, ...patch }
           for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key]
@@ -126,8 +143,12 @@ export function ProjectsWorkspace({
       selectedNetwork={network}
       onSelectNetwork={(picked) => {
         if (picked !== network) {
-          setSearch({ network: picked, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined, tab: undefined, open: undefined })
+          setSearch({ ...LEAVE_ARCHIVE, network: picked, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined, tab: undefined, open: undefined })
         }
+      }}
+      archiveSelected={archive}
+      onSelectArchive={() => {
+        if (!archive) setSearch({ archive: "1", network: undefined, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined, tab: undefined, open: undefined })
       }}
       onAddNetwork={(added) => changeNetwork(added, true)}
       onRemoveNetwork={(removed) => changeNetwork(removed, false)}
@@ -165,6 +186,14 @@ export function ProjectsWorkspace({
   )
 
   const dialogs = <ProjectDialogs dialog={dialog} onClose={() => setDialog(null)} />
+
+  if (archive) {
+    return (
+      <ProjectArchive projectId={projectId} projectName={view.project.name} canManage={!guest} left={left} search={search} onSearch={setSearch}>
+        {dialogs}
+      </ProjectArchive>
+    )
+  }
 
   if (network === "instagram" || network === "tiktok") {
     return (
@@ -256,6 +285,75 @@ export function ProjectsWorkspace({
       rightLabel="Show the right column"
     >
       {dialogs}
+    </ProjectColumns>
+  )
+}
+
+/** Every Archive key, cleared when a network is picked instead. */
+const LEAVE_ARCHIVE: ProjectSearch = { archive: undefined, kind: undefined, q: undefined, posted: undefined, sort: undefined, group: undefined, bin: undefined }
+
+/**
+ * The project's own Archive in its middle and right columns (part 21): the
+ * same panels as the Archive dashboard, for this project only. A guest from
+ * Project sees and posts its items, with nothing to manage (part 33). The
+ * first item opens on arrival, as on every three-column dashboard.
+ */
+function ProjectArchive({
+  projectId,
+  projectName,
+  canManage,
+  left,
+  search,
+  onSearch,
+  children,
+}: {
+  projectId: string
+  projectName: string
+  canManage: boolean
+  left: React.ReactNode
+  search: ProjectSearch
+  onSearch: (patch: ProjectSearch, options?: { replace?: boolean }) => void
+  children: React.ReactNode
+}) {
+  const [listKey, setListKey] = React.useState(0)
+  const openId = search.open
+  const onShown = React.useCallback(
+    (ids: string[]) => {
+      // Opened by itself, so it replaces the address: Back still leaves the page.
+      if (!openId && ids[0]) onSearch({ open: ids[0] }, { replace: true })
+    },
+    [onSearch, openId]
+  )
+  return (
+    <ProjectColumns
+      left={left}
+      middle={
+        <ArchiveItemsPanel
+          key={`${projectId}:${listKey}`}
+          projectId={projectId}
+          projectName={projectName}
+          search={search}
+          onSearch={(patch) => onSearch(patch)}
+          openId={openId}
+          onOpen={(itemId) => onSearch({ open: itemId })}
+          onShown={onShown}
+          canManage={canManage}
+        />
+      }
+      right={
+        <ArchiveItemPanel
+          key={openId ?? "none"}
+          itemId={openId}
+          canManage={canManage}
+          projects={[]}
+          onChanged={() => setListKey((count) => count + 1)}
+          onOpen={(itemId) => onSearch({ open: itemId })}
+        />
+      }
+      rightOpen={Boolean(openId)}
+      rightLabel="Show the item"
+    >
+      {children}
     </ProjectColumns>
   )
 }

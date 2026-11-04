@@ -57,6 +57,9 @@ no queue and no "waiting" row.
   column.
 - **Download:** the same ZIP again, saved as `<title>.zip`. The page icon
   beside it saves the PDF, `<title>.pdf`.
+- **Send to Promo:** the paper plane copies the carousel into a Promo
+  project's Archive, slide by slide, and can add its PDF for LinkedIn and a
+  9:16 slideshow video ([send-to-promo.md](send-to-promo.md)).
 - **Settings:** the title and "What it is about" can be changed, as for a
   video. The cover is always the first slide, so there is no moment to pick
   and no Save as a picture. To change the cover, move another slide to the

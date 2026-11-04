@@ -82,6 +82,12 @@ export const appOptions: AppOptions = {
         label: "Scripts",
         panel: () => import("@/components/video-editor/script-settings"),
       }),
+      /** Promo's address and key, for Send to Promo (`workspace/docs/send-to-promo.md`). */
+      defineSettingsTab({
+        id: "promo",
+        label: "Promo",
+        panel: () => import("@/components/video-promo/promo-settings"),
+      }),
     ],
   },
 }

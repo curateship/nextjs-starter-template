@@ -92,7 +92,7 @@ except Exception as _failure:  # A missing file, or one its own imports break.
     iphone = None
     _IPHONE_IMPORT_ERROR = _failure
 
-VERSION = "2026.11.03.1"
+VERSION = "2026.11.04.1"
 
 # The launcher restarts the program when it exits with this code: a new
 # version was written, or someone switched versions on disk.
@@ -2570,6 +2570,54 @@ APP_SCREENS[IOS_TIKTOK] = {
     "link_shape": APP_SCREENS["tiktok"]["link_shape"],
 }
 
+# A carousel of pictures in one post (Video's task promo/01, part 40): an
+# Instagram carousel, a TikTok photo post. The share screen takes one file,
+# so the app is opened and walked like a person would: its create button,
+# its library, the "select multiple" control, then the newest pictures
+# tapped in order. "picker_cells" are the library's picture cells, newest
+# first, each one tapped by its place (uiautomator2's and iphone.py's
+# `instance`). Instagram counts the picture its preview already shows as the
+# first pick once "select multiple" is on, so its taps start at the second
+# cell ("multiple_keeps_first"); TikTok picks nothing by itself. Written from
+# how the apps are known to look and unproven on a real phone (4 Nov 2026);
+# the self-test walks them first, and a step that does not find its button
+# stops with a picture of the screen. None of these words may be a last
+# button's (LAST_BUTTONS), or a rehearsal would refuse to tap them.
+APP_SCREENS["instagram"].update({
+    "create": shapes(INSTAGRAM, "(?i)^(create|new post|camera)$") + [{"resourceIdMatches": "(?i).*(creation_tab|tab_create|camera_tab).*", "packageName": INSTAGRAM}],
+    "upload": [],
+    # Instagram may open on Story or Reel; the feed post's tab, found by its id only.
+    "post_mode": [{"resourceIdMatches": "(?i).*(cam_dest_feed|feed_post_tab|post_destination).*", "packageName": INSTAGRAM}],
+    "photos_tab": [],
+    "picker_multiple": shapes(INSTAGRAM, "(?i)^(select multiple|multi.?select)$") + [{"resourceIdMatches": "(?i).*(multi_select|multiple_select|select_multiple).*", "packageName": INSTAGRAM}],
+    "picker_cells": [{"resourceIdMatches": "(?i).*(gallery_grid_item|media_picker_item|gallery_item_thumbnail).*", "packageName": INSTAGRAM}],
+    "multiple_keeps_first": True,
+})
+APP_SCREENS["tiktok"].update({
+    "create": shapes(TIKTOK, "(?i)^(create|record|add)$") + [{"resourceIdMatches": "(?i).*(main_bottom_button_add|tab_create|record_tab).*", "packageName": TIKTOK}],
+    "upload": shapes(TIKTOK, "(?i)^(upload|album|gallery)$"),
+    "post_mode": [],
+    # The library opens on All; Photos keeps videos out of the cells.
+    "photos_tab": shapes(TIKTOK, "(?i)^(photos|photo)$"),
+    "picker_multiple": shapes(TIKTOK, "(?i)^(select multiple|multiple)$") + [{"resourceIdMatches": "(?i).*(multi_select|select_multiple).*", "packageName": TIKTOK}],
+    "picker_cells": [{"resourceIdMatches": "(?i).*(media_item|gallery_item|thumbnail|cover).*", "packageName": TIKTOK}],
+    "multiple_keeps_first": False,
+})
+APP_SCREENS[IOS_INSTAGRAM].update({
+    "post_mode": [{"resourceIdMatches": "(?i).*(post|feed).?(mode|destination).*", "packageName": IOS_INSTAGRAM}],
+    "photos_tab": [],
+    "picker_multiple": shapes(IOS_INSTAGRAM, "(?i)^(select multiple|multi.?select)$") + [{"resourceIdMatches": "(?i).*(multi.?select|select.?multiple).*", "packageName": IOS_INSTAGRAM}],
+    "picker_cells": ios_first_cell(IOS_INSTAGRAM),
+    "multiple_keeps_first": True,
+})
+APP_SCREENS[IOS_TIKTOK].update({
+    "post_mode": [],
+    "photos_tab": shapes(IOS_TIKTOK, "(?i)^(photos|photo)$"),
+    "picker_multiple": shapes(IOS_TIKTOK, "(?i)^(select multiple|multiple)$") + [{"resourceIdMatches": "(?i).*(multi.?select|select.?multiple).*", "packageName": IOS_TIKTOK}],
+    "picker_cells": ios_first_cell(IOS_TIKTOK),
+    "multiple_keeps_first": False,
+})
+
 
 # Medium's app (Medium task, part 42). Written from how the app is put
 # together, like Instagram's and TikTok's were (phone farm file 06), and not
@@ -3002,9 +3050,10 @@ def camera_name(extension, now=None):
     return "%s_%s%s" % ("VID" if MEDIA_TYPES[extension].startswith("video/") else "IMG", stamp, extension)
 
 
-def put_in_gallery(serial, data, extension):
-    """Puts the file in the camera folder and has the gallery read it. Returns its path on the phone."""
-    name = camera_name(extension)
+def put_in_gallery(serial, data, extension, now=None):
+    """Puts the file in the camera folder and has the gallery read it. Returns its path on the phone.
+    `now` names it for that moment, so files put in one after another never share a name."""
+    name = camera_name(extension, now)
     folder = os.path.join(HOME, "media")
     os.makedirs(folder, exist_ok=True)
     local = os.path.join(folder, name)
@@ -3299,6 +3348,170 @@ def ios_app_post(serial, args, walk, app):
         walk.home()
         return {"postUrl": ""}
     return wait_for_post(serial, walk, app, screens)
+
+
+# A carousel (Video's task promo/01, part 40): at most this many pictures,
+# and the gap between two pushes into the gallery, so each has its own
+# second and the gallery sorts them the way they were put in.
+CAROUSEL_MOST = 20
+CAROUSEL_PUSH_GAP_SECONDS = 1.1
+
+
+def carousel_urls(args):
+    """The carousel's addresses in order, or a failure saying why: 2 to 20, each https."""
+    urls = args.get("mediaUrls")
+    if not isinstance(urls, list) or not all(isinstance(url, str) for url in urls):
+        raise RuntimeError("post: a carousel needs its pictures' addresses (mediaUrls), and Promo sent none")
+    urls = [url.strip() for url in urls]
+    if len(urls) < 2 or len(urls) > CAROUSEL_MOST:
+        raise RuntimeError("post: a carousel holds 2 to %d pictures, and Promo sent %d" % (CAROUSEL_MOST, len(urls)))
+    for url in urls:
+        if not url.startswith("https://"):
+            raise RuntimeError("post: a carousel picture's address is not an https address")
+    return urls
+
+
+def put_slides_in_gallery(serial, files):
+    """Puts the pictures in the camera folder last one first, a second apart,
+    so the first picture is the newest and the library lists them in order.
+    Returns their paths on the phone, in the carousel's order."""
+    remotes = [None] * len(files)
+    start = time.time()
+    for step, index in enumerate(reversed(range(len(files)))):
+        if step:
+            time.sleep(CAROUSEL_PUSH_GAP_SECONDS)
+        data, extension = files[index]
+        remotes[index] = put_in_gallery(serial, data, extension, now=start + step)
+    return remotes
+
+
+def pick_carousel_pictures(walk, screens, count):
+    """In the app's library: "select multiple", then the newest `count`
+    pictures tapped in order, each by its place among the picture cells. One
+    the library does not show is a failure that names it; a carousel longer
+    than one screen of the library is unproven."""
+    walk.tap_first("Choose several pictures", selectors=screens["picker_multiple"])
+    time.sleep(1)
+    first = 1 if screens.get("multiple_keeps_first") else 0
+    for index in range(first, count):
+        walk.tap_first("Pick picture %d of %d" % (index + 1, count), selectors=[dict(cell, instance=index) for cell in screens["picker_cells"]])
+        time.sleep(random.uniform(0.4, 1.0))
+    walk.shot("Picked %d pictures" % count)
+
+
+def open_create_library(serial, walk, app, screens):
+    """The app opened, then its create button, its library and its photos,
+    each optional step tried briefly in case this version opens straight on it."""
+    open_app(serial, app)
+    walk.shot("Opened %s" % APP_NAMES[app])
+    if signed_out(walk.screen().dump_hierarchy(), app):
+        raise RuntimeError("post: the app is not signed in to %s" % APP_NAMES[app])
+    walk.tap_first("Open the create screen", selectors=screens["create"])
+    time.sleep(2)
+    for key, step in (("post_mode", "Pick a feed post"), ("upload", "Open the library"), ("photos_tab", "Show photos only")):
+        if screens.get(key):
+            try:
+                walk.tap_first(step, timeout=4, selectors=screens[key])
+                time.sleep(1.5)
+            except StepFailed:
+                pass  # Already there on this version.
+
+
+def caption_and_last_button(serial, walk, app, screens, caption):
+    """Next until the caption box, the caption typed at a person's pace, the
+    keyboard closed, and Share or Post pressed once (found only, in a
+    rehearsal). True when it was pressed."""
+    device = walk.screen()
+    if screens["share_to"]:
+        try:
+            walk.tap_first("Pick the feed", timeout=4, selectors=screens["share_to"])
+        except StepFailed:
+            pass  # Straight to the editor on this version.
+    tap_next_until(walk, "Press Next", screens["next"], screens["caption"])
+    walk.tap_first("Open the caption box", selectors=screens["caption"])
+    if not walk.rehearse and caption:
+        gaps = type_like_a_person(serial, device, caption, walk.check)
+        walk.shot("Typed the caption")
+        log("caption typed: %d characters, gaps %.2f to %.2f seconds" % (len(caption), min(gaps or [0]), max(gaps or [0])))
+        if is_iphone(serial):
+            try:
+                walk.tap_first("Close the keyboard", timeout=3, selectors=screens["keyboard_done"])
+            except StepFailed:
+                pass
+        else:
+            go_back(serial)  # The keyboard down, so Share is on screen.
+        time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
+    return walk.final_first("Press %s" % ("Share" if app == "instagram" else "Post"), selectors=screens["share"])
+
+
+def action_app_carousel(app):
+    def action(serial, args, walk):
+        """Posts 2 to 20 pictures as one post with its caption, once: an
+        Instagram carousel or a TikTok photo post.
+
+        On an Android every picture is downloaded from Promo's own address
+        and put in the camera folder last one first, so the first is the
+        newest. On an iPhone each comes through its own one-time Safari link,
+        saved last one first for the same reason. Then the app's create
+        screen, its library, "select multiple", the pictures tapped in order,
+        Next until the caption box, the caption typed, and Share or Post
+        pressed once. It counts as posted when the app says so.
+
+        A rehearsal puts two plain pictures in an Android's gallery and
+        deletes them afterwards; on an iPhone it saves nothing and walks
+        with the newest two in Photos. Either way the last button is found
+        and never pressed.
+        """
+        screens = app_screens(serial, app)
+        caption = str(args.get("caption") or "")
+        device = walk.screen()
+        wake_screen(device)
+        iphone_run = is_iphone(serial)
+        if walk.rehearse:
+            count = 2
+            urls = []
+        else:
+            urls = carousel_urls(args)
+            count = len(urls)
+        remotes = []
+        if iphone_run:
+            if not walk.rehearse:
+                if args.get("mediaFromSafari") is not True:
+                    raise RuntimeError("post: an iPhone takes its pictures through one-time Safari links (mediaFromSafari), and Promo sent none")
+                for url in reversed(urls):
+                    save_from_safari(serial, walk, url)
+        else:
+            if walk.rehearse:
+                files = [rehearsal_picture() for _ in range(count)]
+            else:
+                files = [download_media(url) for url in urls]
+                for index, (_, extension) in enumerate(files):
+                    if MEDIA_TYPES[extension].startswith("video/"):
+                        raise RuntimeError("post: picture %d of the carousel is a video, and a carousel here holds pictures only" % (index + 1))
+            remotes = put_slides_in_gallery(serial, files)
+            walk.shot("Put %d pictures in the gallery" % count)
+        try:
+            open_create_library(serial, walk, app, screens)
+            pick_carousel_pictures(walk, screens, count)
+            pressed = caption_and_last_button(serial, walk, app, screens, caption)
+        except Cancelled:
+            raise
+        except Exception:
+            # Stopped before the last button: the draft is discarded and nothing was posted.
+            if not walk.rehearse:
+                leave_app_screen(serial, walk, app)
+            raise
+        finally:
+            if walk.rehearse:
+                leave_app_screen(serial, walk, app)
+                for remote in remotes:
+                    quietly(serial, "rm -f '%s'" % remote)
+                    quietly(serial, "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d 'file://%s'" % remote)
+        if not pressed:
+            walk.home()
+            return {"postUrl": ""}
+        return wait_for_post(serial, walk, app, screens)
+    return action
 
 
 def action_app_post(app):
@@ -4008,6 +4221,8 @@ for _app in ("instagram", "tiktok"):
         "%s/health" % _app: {"postUrls": []},
         "%s/profile" % _app: {},
         "%s/post" % _app: {"mediaUrl": "", "mediaKind": "photo", "caption": ""},
+        # Two plain pictures on an Android, the newest two in Photos on an iPhone (part 40).
+        "%s/post_carousel" % _app: {"mediaUrls": [], "caption": ""},
         "%s/inbox" % _app: {"kind": "message", "via": "inbox", "handle": ""},
         "%s/reply" % _app: {"kind": "message", "thread": "", "author": "", "quote": "", "text": ""},
         # Opens the feed and stops: nothing is liked in a rehearsal.
@@ -5289,6 +5504,8 @@ def linkedin_publish_refusal(args):
     group post, tags and a company page are made in a browser."""
     if args.get("poll"):
         return "a poll"
+    if str(args.get("documentUrl") or "").strip():
+        return "a document post"
     if str(args.get("videoUrl") or "").strip():
         return "a video post"
     if str(args.get("repostOf") or "").strip():
@@ -5776,6 +5993,7 @@ for _app in ("instagram", "tiktok"):
         "%s/health" % _app: action_app_health(_app),
         "%s/profile" % _app: action_app_profile(_app),
         "%s/post" % _app: action_app_post(_app),
+        "%s/post_carousel" % _app: action_app_carousel(_app),
         "%s/inbox" % _app: action_app_inbox(_app),
         "%s/reply" % _app: action_app_reply(_app),
     })

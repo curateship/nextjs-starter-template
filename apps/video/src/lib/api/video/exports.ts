@@ -43,6 +43,8 @@ import {
   type ExportListResponse,
 } from "@/server/video/exports"
 import { listLiveSharedExportIds } from "@/server/video/export-shares"
+import { listPromoSends } from "@/server/video/promo-sends"
+import type { PromoSendView } from "@/lib/video/promo"
 import {
   STRETCH_INVALID_MESSAGE,
   STRETCH_ORDER_MESSAGE,
@@ -66,9 +68,13 @@ import {
 
 export type { ExportListResponse, RenderJobSummary }
 
-/** The gallery page, plus which of its exports a share link opens right now. */
+/**
+ * The gallery page, plus which of its exports a share link opens right now,
+ * and the newest send of each to each Promo project (send-to-promo.md).
+ */
 export type ExportListWithShares = ExportListResponse & {
   shared_ids: string[]
+  promo_sends: PromoSendView[]
 }
 
 const KNOWN_MESSAGES = new Set([
@@ -207,7 +213,11 @@ const listExportsFn = createServerFn({ method: "GET" })
           userId,
           list.exports.map((item) => item.id)
         )
-    return { ...list, shared_ids: sharedIds }
+    // Sending is the admin's, so a guest never sees where things went.
+    const promoSends = guest
+      ? []
+      : await listPromoSends(userId, { exportIds: list.exports.map((item) => item.id) })
+    return { ...list, shared_ids: sharedIds, promo_sends: promoSends }
   })
 
 const updateExportFn = createServerFn({ method: "POST" })

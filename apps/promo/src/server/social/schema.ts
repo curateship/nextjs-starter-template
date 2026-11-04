@@ -1002,6 +1002,18 @@ export const promoAppPosts = pgTable(
     numbersReadAt: timestamp("numbers_read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     postedAt: timestamp("posted_at", { withTimezone: true }),
+    /**
+     * The archive item it was made from, or null. Added by
+     * `drizzle/0134_promo_archive.sql`, which also sets it to null when the
+     * item is deleted for good.
+     */
+    archiveItemId: varchar("archive_item_id", { length: 36 }),
+    /**
+     * A carousel's pictures in order (part 40), the first also in
+     * `mediaUrl`; [] on a photo or video post. Added by
+     * `drizzle/0135_promo_archive_posts.sql`.
+     */
+    mediaUrls: jsonb("media_urls").$type<string[]>().notNull().default([]),
   },
   (table) => [
     index("ix_promo_app_posts_account").on(table.accountId, table.createdAt.desc()),

@@ -41,7 +41,9 @@ task and his answers are in
 - **Every thumbnail made for a video stays** in the Versions card, newest
   first, two to a row. Each tile's picture is as wide as the tile, whatever
   width the panel is dragged to. Clicking one opens it on the board. The trash can deletes one after a
-  confirm.
+  confirm. The paper plane sends that version to Promo as a picture, drawn
+  fresh as a JPEG, starred or not ([send-to-promo.md](send-to-promo.md)).
+  A guest sent from Project has no paper plane.
 - **The star marks the main one**, one wide and one tall per video at most.
   Starring another takes the star off the old one.
 - **The main wide thumbnail is the video's picture** in the Videos tab and on

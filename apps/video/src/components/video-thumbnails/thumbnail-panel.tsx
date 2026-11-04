@@ -8,6 +8,7 @@ import {
   LightbulbIcon,
   Loader2Icon,
   PlusIcon,
+  SendIcon,
   StarIcon,
   Trash2Icon,
   WandSparklesIcon,
@@ -54,6 +55,13 @@ import {
 import {
   FittedPreview,
 } from "@/components/video-thumbnails/thumbnail-layer"
+import {
+  useProjectGuest,
+} from "@/components/video-editor/project-guest"
+import {
+  SendToPromoDialog,
+  type PromoSendTarget,
+} from "@/components/video-promo/send-to-promo-dialog"
 import {
   AddLayers,
 } from "@/components/video-thumbnails/thumbnail-add-layers"
@@ -201,9 +209,12 @@ function NewThumbnailMenu() {
 
 /** Every thumbnail made for this video, newest first, with its star (part 7). */
 function Versions() {
-  const { store } = useEditorRuntime()
+  const { store, projectId } = useEditorRuntime()
   const { list, loadError, open, openThumbnail, replaceRow, removeRow, run } = useThumbnails()
   const [deleting, setDeleting] = React.useState<string | null>(null)
+  // Sending to Promo is the owner's, so a guest from Project has no button (part 10).
+  const guest = useProjectGuest() !== null
+  const [sending, setSending] = React.useState<PromoSendTarget | null>(null)
   if (loadError) return <p className="text-sm text-muted-foreground">{loadError}</p>
   if (!list) return <LoadingRow label="Loading the thumbnails" />
   if (!list.length) {
@@ -252,6 +263,26 @@ function Versions() {
                   <StarIcon className={cn(row.is_main && "fill-current")} />
                 </Button>
               </Hint>
+              {guest ? null : (
+                <Hint label="Send to Promo">
+                  <Button
+                    type="button"
+                    size="icon-xs"
+                    variant="secondary"
+                    aria-label="Send this thumbnail to Promo"
+                    onClick={() =>
+                      setSending({
+                        name: row.title || "This thumbnail",
+                        kind: "picture",
+                        thumbnailIds: [row.id],
+                        sourceProjectId: projectId,
+                      })
+                    }
+                  >
+                    <SendIcon />
+                  </Button>
+                </Hint>
+              )}
               <Hint label="Delete">
                 <Button
                   type="button"
@@ -267,6 +298,7 @@ function Versions() {
           </li>
         ))}
       </ul>
+      {sending ? <SendToPromoDialog target={sending} onClose={() => setSending(null)} /> : null}
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(next) => !next && setDeleting(null)}

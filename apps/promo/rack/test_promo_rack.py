@@ -1199,6 +1199,140 @@ class AppActionsTest(unittest.TestCase):
             self.assertIn(name, promo_rack.REHEARSALS)
 
 
+class CellPhone(ScriptedAppPhone):
+    """A library on a fake screen whose picture cells are "Cell 1", "Cell 2"
+    and on, newest first, found by their place the way uiautomator2's
+    `instance` finds them."""
+
+    def __call__(self, **selector):
+        if "instance" in selector and "textMatches" in selector:
+            found = sorted((text for text in self.texts if re.match(selector["textMatches"], text)), key=lambda text: int(text.split()[-1]))
+            index = selector["instance"]
+            return FakeElement(self, {"text": found[index] if index < len(found) else "no cell %d" % index})
+        return ScriptedAppPhone.__call__(self, **selector)
+
+
+CELLS = {"picker_cells": [{"textMatches": "^Cell \\d+$"}]}
+ORIGINAL_DOWNLOAD = promo_rack.download_media
+
+
+class CarouselTest(unittest.TestCase):
+    """Video's task promo/01, part 40: several pictures in one post, put in the
+    gallery last one first, picked in order, and the last button pressed once
+    in a real run and never in a rehearsal."""
+
+    run_action = AppActionsTest.run_action
+
+    def carousel_phone(self, app, count, after):
+        package = promo_rack.INSTAGRAM if app == "instagram" else promo_rack.TIKTOK
+        caption, last = ("Write a caption...", "Share") if app == "instagram" else ("Add description", "Post")
+        texts = ["Create", "Upload", "Photos", "Select multiple", "Feed", caption, last, "Profile", "Photo at row 1, column 1", "More", "Copy link"]
+        texts += ["Cell %d" % index for index in range(1, count + 1)]
+        return CellPhone(package, texts, last, after, clipboard="https://www.instagram.com/p/CAR7/")
+
+    def cells_pressed(self, device):
+        return [label for label in device.pressed if label.startswith("Cell ")]
+
+    def test_a_seven_picture_instagram_carousel_picks_them_in_order_and_presses_share_once(self):
+        device = self.carousel_phone("instagram", 7, ["Your post has been shared"])
+        urls = ["https://media.example/slide-%d.jpg" % index for index in range(1, 8)]
+        with mock.patch.dict(promo_rack.APP_SCREENS["instagram"], CELLS):
+            result, sent = self.run_action(promo_rack.action_app_carousel("instagram"), device, {"mediaUrls": urls, "caption": "Seven steps"})
+        self.assertEqual(result, {"postUrl": "https://www.instagram.com/p/CAR7/"})
+        self.assertEqual(device.pressed.count("Share"), 1)
+        # Instagram's preview is the first pick once Select multiple is on, so the taps start at the second cell.
+        self.assertEqual(self.cells_pressed(device), ["Cell %d" % index for index in range(2, 8)])
+        self.assertLess(device.pressed.index("Select multiple"), device.pressed.index("Cell 2"))
+        pushes = [command for command in sent if command.startswith("push ")]
+        self.assertEqual(len(pushes), 7)
+        names = [command.split("/sdcard/DCIM/Camera/")[1] for command in pushes]
+        self.assertEqual(len(set(names)), 7)
+        self.assertFalse(any("android.intent.action.SEND" in command for command in sent))
+        self.assertEqual(len([command for command in sent if command.startswith("input text")]), len("Seven steps"))
+
+    def test_the_pictures_go_in_last_one_first_a_second_apart_so_the_first_is_newest(self):
+        put = []
+        with mock.patch.object(promo_rack, "put_in_gallery", lambda serial, data, extension, now=None: put.append((data, now)) or "/sdcard/DCIM/Camera/%s.jpg" % data.decode()), \
+                mock.patch("time.sleep"):
+            remotes = promo_rack.put_slides_in_gallery("A1", [(b"one", ".jpg"), (b"two", ".jpg"), (b"three", ".jpg")])
+        self.assertEqual([data for data, _ in put], [b"three", b"two", b"one"])
+        self.assertEqual([now for _, now in put], sorted(now for _, now in put))
+        self.assertEqual(len({promo_rack.camera_name(".jpg", now) for _, now in put}), 3)
+        self.assertEqual(remotes, ["/sdcard/DCIM/Camera/one.jpg", "/sdcard/DCIM/Camera/two.jpg", "/sdcard/DCIM/Camera/three.jpg"])
+
+    def test_a_tiktok_photo_post_opens_the_library_picks_every_cell_and_presses_post_once(self):
+        device = self.carousel_phone("tiktok", 3, ["Your post is live"])
+        urls = ["https://media.example/slide-%d.webp" % index for index in range(1, 4)]
+        with mock.patch.dict(promo_rack.APP_SCREENS["tiktok"], CELLS), mock.patch.object(promo_rack, "read_post_link", lambda serial, walk, app: ""):
+            result, _ = self.run_action(promo_rack.action_app_carousel("tiktok"), device, {"mediaUrls": urls, "caption": "Three"})
+        self.assertEqual(result, {"postUrl": ""})
+        self.assertEqual(device.pressed.count("Post"), 1)
+        self.assertEqual(self.cells_pressed(device), ["Cell 1", "Cell 2", "Cell 3"])
+        self.assertEqual(device.pressed[:3], ["Create", "Upload", "Photos"])
+
+    def test_a_rehearsed_carousel_picks_two_finds_share_never_presses_it_and_deletes_both_pictures(self):
+        device = self.carousel_phone("instagram", 2, ["Your post has been shared"])
+        with mock.patch.dict(promo_rack.APP_SCREENS["instagram"], CELLS):
+            result, sent = self.run_action(promo_rack.action_app_carousel("instagram"), device, dict(promo_rack.REHEARSALS["instagram/post_carousel"]), rehearse=True)
+        self.assertEqual(result, {"postUrl": ""})
+        self.assertNotIn("Share", device.pressed)
+        self.assertEqual(self.cells_pressed(device), ["Cell 2"])
+        self.assertFalse([command for command in sent if command.startswith("input text")])
+        self.assertEqual(len([command for command in sent if command.startswith("rm -f '/sdcard/DCIM/Camera/")]), 2)
+
+    def test_one_or_twenty_one_pictures_or_a_video_are_refused_before_anything_is_put_on_the_phone(self):
+        for urls in (["https://media.example/a.jpg"], ["https://media.example/%d.jpg" % index for index in range(21)]):
+            failure, sent = self.run_action(promo_rack.action_app_carousel("instagram"), self.carousel_phone("instagram", 2, []), {"mediaUrls": urls, "caption": ""})
+            self.assertIn("2 to 20 pictures", str(failure))
+            self.assertFalse([command for command in sent if command.startswith("push ")])
+        # The real download, which reads the kind off the address, with the fetch stood in.
+        fetched = lambda url, fetch=None: ORIGINAL_DOWNLOAD(url, fetch=lambda address: b"x")
+        sent = []
+        device = self.carousel_phone("instagram", 2, [])
+        walk = promo_rack.Walk("A1", connect=lambda serial: device)
+        with mock.patch.object(promo_rack, "download_media", fetched), \
+                mock.patch.object(promo_rack, "adb", lambda args, serial=None, timeout=30: sent.append(" ".join(args)) or ""), \
+                mock.patch.object(promo_rack, "shell", lambda serial, command, timeout=30: sent.append(command) or ""):
+            with self.assertRaises(RuntimeError) as refused:
+                promo_rack.action_app_carousel("instagram")("A1", {"mediaUrls": ["https://media.example/a.jpg", "https://media.example/b.mp4"], "caption": ""}, walk)
+        self.assertIn("picture 2 of the carousel is a video", str(refused.exception))
+        self.assertFalse([command for command in sent if command.startswith("push ")])
+
+    def test_an_iphone_carousel_saves_each_link_from_safari_last_one_first(self):
+        saved = []
+        promo_rack._KINDS["I1"] = "iphone"
+        screen = FakeIphoneScreen("I1")
+        walk = promo_rack.Walk("I1", connect=lambda serial: screen)
+        stop = promo_rack.StepFailed("Open the create screen", "Could not find it.")
+        try:
+            with mock.patch.object(promo_rack, "save_from_safari", lambda serial, walk, url: saved.append(url)), \
+                    mock.patch.object(promo_rack, "open_create_library", mock.Mock(side_effect=stop)), \
+                    mock.patch.object(promo_rack, "leave_app_screen", lambda serial, walk, app: None), \
+                    mock.patch.object(promo_rack, "adb", no_adb), mock.patch.object(promo_rack, "shell", no_adb):
+                urls = ["https://promo.test/api/media-link/%d" % index for index in range(1, 4)]
+                with self.assertRaises(promo_rack.StepFailed):
+                    promo_rack.action_app_carousel("instagram")("I1", {"mediaUrls": urls, "mediaFromSafari": True, "caption": ""}, walk)
+                with self.assertRaises(RuntimeError) as refused:
+                    promo_rack.action_app_carousel("instagram")("I1", {"mediaUrls": urls, "caption": ""}, walk)
+        finally:
+            promo_rack._KINDS.pop("I1", None)
+        self.assertEqual(saved, list(reversed(urls)))
+        self.assertIn("mediaFromSafari", str(refused.exception))
+
+    def test_the_carousel_is_known_rehearsed_and_its_steps_are_never_last_buttons(self):
+        for app in ("instagram", "tiktok"):
+            self.assertIn("%s/post_carousel" % app, promo_rack.ACTIONS)
+            self.assertIn("%s/post_carousel" % app, promo_rack.REHEARSALS)
+        for key in ("instagram", "tiktok", promo_rack.IOS_INSTAGRAM, promo_rack.IOS_TIKTOK):
+            screens = promo_rack.APP_SCREENS[key]
+            for name in ("create", "upload", "post_mode", "photos_tab", "picker_multiple", "picker_cells"):
+                self.assertFalse([one for one in screens[name] if promo_rack.could_be_last_button(one)], "%s %s" % (key, name))
+            self.assertIn("multiple_keeps_first", screens)
+
+    def test_the_linkedin_app_refuses_a_document_post(self):
+        self.assertEqual(promo_rack.linkedin_publish_refusal({"documentUrl": "https://media.example/a.pdf"}), "a document post")
+
+
 class MediumAppTest(unittest.TestCase):
     """Medium task, part 42: a response in the Medium app is typed and Respond pressed once in a real run, never in a rehearsal."""
 

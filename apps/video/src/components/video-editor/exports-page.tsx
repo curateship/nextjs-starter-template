@@ -9,6 +9,7 @@ import {
   Link2Icon,
   Loader2Icon,
   RotateCwIcon,
+  SendIcon,
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -61,6 +62,9 @@ import { ExportCover } from "@/components/video-editor/export-cover"
 import { ExportDetailsDialog } from "@/components/video-editor/export-details-dialog"
 import { ExportShareDialog } from "@/components/video-editor/export-share-dialog"
 import { isExportActive } from "@/components/video-editor/use-project-exports"
+import { PromoSendStatusLine } from "@/components/video-promo/promo-send-status"
+import { SendToPromoDialog, type PromoSendTarget } from "@/components/video-promo/send-to-promo-dialog"
+import { getPromoErrorMessage, refreshPromoSends, retryPromoSend, type PromoSendView } from "@/lib/api/video/promo"
 
 export type ExportSortColumn =
   | "title"
@@ -184,17 +188,34 @@ export function ExportsPage({
     []
   )
   const [clearingOut, setClearingOut] = React.useState(false)
+  const [sendTarget, setSendTarget] = React.useState<PromoSendTarget | null>(null)
   const [run, busy] = useAsyncAction(getExportErrorMessage)
   const selection = useSelection()
 
   const items = initial.exports
   const sharedIds = new Set(initial.shared_ids)
-  const anyActive = items.some(isExportActive)
+  const promoSends = React.useMemo(() => {
+    const byExport = new Map<string, PromoSendView[]>()
+    for (const send of initial.promo_sends) {
+      if (!send.exportId) continue
+      byExport.set(send.exportId, [...(byExport.get(send.exportId) ?? []), send])
+    }
+    return byExport
+  }, [initial.promo_sends])
+  // Sends on their way are asked about on each pass, then the list redraws.
+  const sendingKey = initial.promo_sends
+    .filter((send) => send.status === "sending")
+    .map((send) => send.id)
+    .join(",")
+  const anyActive = items.some(isExportActive) || Boolean(sendingKey)
   React.useEffect(() => {
     if (!anyActive) return
-    const timer = setInterval(() => void router.invalidate(), POLL_MS)
+    const timer = setInterval(() => {
+      const asked = sendingKey ? refreshPromoSends(sendingKey.split(",")).catch(() => undefined) : Promise.resolve()
+      void asked.then(() => router.invalidate())
+    }, POLL_MS)
     return () => clearInterval(timer)
-  }, [anyActive, router])
+  }, [anyActive, router, sendingKey])
   // Sorted, then each project's language copies gathered under it.
   const { rows: sortedItems, originals } = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
@@ -268,6 +289,33 @@ export function ExportsPage({
   const selectedItems = items.filter((item) => selection.selected.has(item.id))
   const selectedCount = selection.selected.size
 
+  /** Send to Promo for one row or every ticked one (parts 4 and 7). */
+  function openSend(targets: RenderJobSummary[]) {
+    const ready = targets.filter((item) => item.status === "ready")
+    if (!ready.length) {
+      showErrorToast("Only a finished export can go to Promo. Wait for it to finish first.")
+      return
+    }
+    const first = ready[0]
+    setSendTarget({
+      name: ready.length === 1 ? (first.title ?? "This export") : `${ready.length} exports`,
+      kind: first.kind === "carousel" && ready.every((item) => item.kind === "carousel") ? "carousel" : "video",
+      exportIds: ready.map((item) => item.id),
+      sourceProjectId: ready.length === 1 ? first.project_id : null,
+      hasLanguageCopies: ready.some((item) => exportGroupId(item, originals) !== null),
+      earlier: ready.flatMap((item) => promoSends.get(item.id) ?? []),
+    })
+  }
+
+  async function handleRetrySend(sendId: string) {
+    try {
+      await retryPromoSend(sendId)
+      await router.invalidate()
+    } catch (error) {
+      showErrorToast(getPromoErrorMessage(error))
+    }
+  }
+
   return (
     <>
       <DashboardTable
@@ -278,6 +326,12 @@ export function ExportsPage({
         onClearSelection={selection.clear}
         controls={
           <>
+            {selectedCount ? (
+              <DashboardToolbarButton type="button" variant="outline" onClick={() => openSend(selectedItems)}>
+                <SendIcon className="size-4" />
+                Send to Promo ({selectedCount})
+              </DashboardToolbarButton>
+            ) : null}
             {selectedCount ? (
               <DashboardToolbarButton
                 type="button"
@@ -419,6 +473,10 @@ export function ExportsPage({
                         item={item}
                         shared={sharedIds.has(item.id)}
                       />
+                      <PromoSendStatusLine
+                        sends={promoSends.get(item.id) ?? []}
+                        onRetry={(sendId) => void handleRetrySend(sendId)}
+                      />
                     </div>
                   </div>
                 </TableCell>
@@ -470,6 +528,17 @@ export function ExportsPage({
                             </Button>
                           </Hint>
                         ) : null}
+                        <Hint label="Send to Promo">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openSend([item])}
+                            aria-label={`Send ${item.title ?? "this export"} to Promo`}
+                          >
+                            <SendIcon className="size-4" />
+                          </Button>
+                        </Hint>
                         <Hint label="Share link">
                           <Button
                             type="button"
@@ -553,6 +622,17 @@ export function ExportsPage({
           onCleared={async () => {
             selection.clear()
             await router.invalidate()
+          }}
+        />
+      ) : null}
+
+      {sendTarget ? (
+        <SendToPromoDialog
+          target={sendTarget}
+          onClose={() => setSendTarget(null)}
+          onSent={() => {
+            selection.clear()
+            void router.invalidate()
           }}
         />
       ) : null}

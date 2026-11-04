@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { getPhoneAppErrorMessage, sendAppPost, writeCaption, type AppAccount } from "@/lib/api/social/phone-apps"
+import { ArchivePickButton, type ArchivePick } from "@/components/archive/archive-picker"
+import { Checkbox } from "@/components/ui/checkbox"
+import { getArchiveErrorMessage, loadArchiveItem } from "@/lib/api/archive/items"
+import { loadArchivePicks, sendAppPosts } from "@/lib/api/archive/posting"
+import { fitWarnings } from "@/lib/archive/fit"
+import { getPhoneAppErrorMessage, writeCaption, type AppAccount } from "@/lib/api/social/phone-apps"
 import { slotWords } from "@/lib/phones/options"
 import { NETWORK_NAMES, type PhoneAppNetwork } from "@/lib/social/networks"
 import { ABOUT_MAX, appAccountName, CAPTION_MAX, captionProblem, hashtagCount, HASHTAG_MAX } from "@/lib/social/phone-apps"
@@ -31,17 +36,29 @@ const VIDEO_ENDINGS = /\.(mp4|mov|webm|m4v)(\?|$)/i
  */
 export function PostComposer({
   network,
+  projectId,
   account,
+  accounts,
   accountPicker,
+  guest = false,
   onPosted,
 }: {
   network: PhoneAppNetwork
+  projectId: string
   /** The account picked in the dropdown above Post, or null when none is. */
   account: AppAccount | null
+  /** Every account of this network in the project, for "Also post from" (part 39). */
+  accounts: AppAccount[]
   accountPicker: React.ReactNode
+  /** A guest from Project posts from the archive only (part 33). */
+  guest?: boolean
   onPosted: () => Promise<void>
 }) {
   const [mediaUrl, setMediaUrl] = React.useState("")
+  /** The archive item picked, with its slides for a carousel and its warnings (parts 34, 37, 38, 40). */
+  const [pick, setPick] = React.useState<ArchivePick | null>(null)
+  const [alsoFrom, setAlsoFrom] = React.useState<Set<string>>(new Set())
+  const [waitingDraft, setWaitingDraft] = React.useState<{ id: string; title: string } | null>(null)
   const [about, setAbout] = React.useState("")
   const [caption, setCaption] = React.useState("")
   /** What the AI last wrote, kept beside what went out. */
@@ -51,7 +68,42 @@ export function PostComposer({
   const problem = captionProblem(network, caption)
   const tags = hashtagCount(caption)
   const most = HASHTAG_MAX[network]
-  const kind = VIDEO_ENDINGS.test(mediaUrl) ? "video" : "photo"
+  const kind = pick ? (pick.item.kind === "video" ? "video" : "photo") : VIDEO_ENDINGS.test(mediaUrl) ? "video" : "photo"
+  const carousel = pick?.item.kind === "carousel" ? pick.mediaUrls : null
+  const others = accounts.filter((row) => row.id !== account?.id)
+
+  // A draft ticked for this network in Video's send window waits here (part 35).
+  React.useEffect(() => {
+    let cancelled = false
+    loadArchivePicks(projectId, network).then(
+      (answer) => {
+        const first = answer.items.find((item) => answer.draftIds.includes(item.id))
+        if (!cancelled) setWaitingDraft(first ? { id: first.id, title: first.title || "Untitled" } : null)
+      },
+      () => undefined
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [network, projectId])
+
+  function applyPick(picked: ArchivePick) {
+    setPick(picked)
+    setMediaUrl(picked.mediaUrl)
+    if (!caption.trim() && picked.caption) setCaption(picked.caption)
+    if (!about.trim()) setAbout([picked.item.title, picked.item.description].filter(Boolean).join(". ").slice(0, ABOUT_MAX))
+  }
+
+  async function applyDraft(itemId: string) {
+    try {
+      const item = await loadArchiveItem(itemId)
+      const mediaUrls = item.kind === "carousel" ? item.slideFiles.map((slide) => slide.url) : [item.fileUrl]
+      applyPick({ item, mediaUrl: mediaUrls[0] ?? "", mediaUrls, caption: item.captions[network] ?? item.caption, warnings: fitWarnings(network, item) })
+      setWaitingDraft(null)
+    } catch (failure) {
+      showErrorToast(getArchiveErrorMessage(failure))
+    }
+  }
   const phone = account?.phone ?? null
   const stopped = phoneStop(account, network)
 
@@ -82,7 +134,7 @@ export function PostComposer({
       return
     }
     if (!mediaUrl) {
-      showErrorToast("Pick a photo or video from your media library first.")
+      showErrorToast(guest ? "Pick something from the archive first." : "Pick a photo or video from your media library or the archive first.")
       return
     }
     if (problem) {
@@ -95,8 +147,23 @@ export function PostComposer({
     }
     setPosting(true)
     try {
-      await sendAppPost({ accountId: account.id, mediaUrl, caption, draftCaption: drafted })
-      toast.success(`Sent to ${phone?.name ?? "the phone"}. It posts in the ${NETWORK_NAMES[network]} app, once, and shows under Posts.`)
+      const accountIds = [account.id, ...others.filter((row) => alsoFrom.has(row.id)).map((row) => row.id)]
+      const result = await sendAppPosts({ accountIds, mediaUrl, mediaUrls: carousel ?? undefined, caption, draftCaption: drafted })
+      if (!result.sent) {
+        showErrorToast(result.refused[0] ? getPhoneAppErrorMessage(new Error(result.refused[0].reason)) : "Nothing was sent.")
+        return
+      }
+      toast.success(
+        result.sent === 1
+          ? `Sent to ${phone?.name ?? "the phone"}. It posts in the ${NETWORK_NAMES[network]} app, once, and shows under Posts.`
+          : `Sent to ${result.sent} phones. Each posts it in the ${NETWORK_NAMES[network]} app, once, and shows under Posts.`
+      )
+      for (const refusal of result.refused) {
+        const name = appAccountName(network, accounts.find((row) => row.id === refusal.accountId)?.handle ?? "")
+        showErrorToast(`${name} didn't post: ${getPhoneAppErrorMessage(new Error(refusal.reason))}`)
+      }
+      setPick(null)
+      setAlsoFrom(new Set())
       setMediaUrl("")
       setAbout("")
       setCaption("")
@@ -111,14 +178,50 @@ export function PostComposer({
 
   return (
     <div className="grid gap-4 p-4">
-      <ImageUpload
-        label="Photo or video"
-        value={mediaUrl}
-        onChange={(value) => setMediaUrl(value)}
-        aspect="square"
-        showVideos
-        emptyLabel="Pick from the media library"
-      />
+      {waitingDraft && !pick ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border p-3 text-sm">
+          <span className="min-w-0 flex-1">A draft from the archive is waiting: {waitingDraft.title}</span>
+          <Button type="button" size="sm" onClick={() => void applyDraft(waitingDraft.id)}>
+            Use it
+          </Button>
+        </div>
+      ) : null}
+      {pick ? (
+        <div className="grid gap-2">
+          <Label>From the archive</Label>
+          <div className="flex items-center gap-3">
+            <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+              {pick.item.coverUrl ? <img src={pick.item.coverUrl} alt="" className="size-full object-cover" /> : null}
+            </span>
+            <div className="grid min-w-0 gap-0.5 text-sm">
+              <span className="truncate font-medium">{pick.item.title || "Untitled"}</span>
+              <span className="text-muted-foreground">
+                {carousel ? `${carousel.length} pictures in one post` : pick.item.kind === "video" ? "Video" : "Picture"}
+              </span>
+            </div>
+            <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={() => { setPick(null); setMediaUrl("") }}>
+              Clear
+            </Button>
+          </div>
+          {pick.warnings.map((warning) => (
+            <p key={warning} className="text-sm text-amber-600 dark:text-amber-400">
+              {warning}
+            </p>
+          ))}
+        </div>
+      ) : guest ? null : (
+        <ImageUpload
+          label="Photo or video"
+          value={mediaUrl}
+          onChange={(value) => setMediaUrl(value)}
+          aspect="square"
+          showVideos
+          emptyLabel="Pick from the media library"
+        />
+      )}
+      <div>
+        <ArchivePickButton projectId={projectId} network={network} onPick={applyPick} label={pick ? "Pick another from the archive" : "From archive"} />
+      </div>
       <div className="grid gap-2">
         <FieldLabel htmlFor={`about-${network}`} hint="A line or two for the AI. It is never posted.">
           What the post is about
@@ -156,6 +259,32 @@ export function PostComposer({
         <div className="flex min-w-0 items-center gap-2">{accountPicker}</div>
         {stopped ? <p className="text-sm text-amber-600 dark:text-amber-400">{stopped}</p> : null}
       </div>
+      {others.length ? (
+        <div className="grid gap-2">
+          <Label>Also post from</Label>
+          {others.map((row) => (
+            <div key={row.id} className="flex items-center gap-2">
+              <Checkbox
+                id={`also-${network}-${row.id}`}
+                checked={alsoFrom.has(row.id)}
+                onCheckedChange={() =>
+                  setAlsoFrom((current) => {
+                    const next = new Set(current)
+                    if (next.has(row.id)) next.delete(row.id)
+                    else next.add(row.id)
+                    return next
+                  })
+                }
+              />
+              <Label htmlFor={`also-${network}-${row.id}`} className="font-normal">
+                {appAccountName(network, row.handle)}
+                {row.phone ? <span className="text-muted-foreground"> · {row.phone.name}</span> : null}
+              </Label>
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground">One press posts from every ticked account straight away, each on its own phone.</p>
+        </div>
+      ) : null}
       <div>
         <Button type="button" disabled={posting} onClick={() => void post()}>
           {posting ? <Loader2Icon className="animate-spin" /> : <SendIcon />}

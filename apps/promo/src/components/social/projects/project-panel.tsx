@@ -1,6 +1,7 @@
 import * as React from "react"
 import { ProjectBansLink } from "./project-bans-link"
 import {
+  ArchiveIcon,
   FolderOpenIcon,
   Loader2Icon,
   PauseIcon,
@@ -62,6 +63,8 @@ export function ProjectPanel({
   onDeleteProject,
   onTogglePause,
   onSaved,
+  archiveSelected,
+  onSelectArchive,
 }: {
   view: ProjectView
   /** The network whose panels fill the middle and right columns. */
@@ -77,6 +80,9 @@ export function ProjectPanel({
   onTogglePause: () => Promise<void>
   /** The name, description or picture was saved, so the page should read it again. */
   onSaved: () => void
+  /** Whether the project's Archive fills the middle and right columns (part 21). */
+  archiveSelected: boolean
+  onSelectArchive: () => void
 }) {
   const project = view.project
   const [pausing, setPausing] = React.useState(false)
@@ -170,6 +176,21 @@ export function ProjectPanel({
             onRemove={guest ? null : onRemoveNetwork}
             onTogglePause={guest ? null : onToggleNetworkPause}
           />
+
+          <div className="grid gap-2">
+            <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Content</h3>
+            <div className={cn("flex min-w-0 items-center rounded-lg border", archiveSelected && "bg-muted")}>
+              <button
+                type="button"
+                aria-pressed={archiveSelected}
+                onClick={onSelectArchive}
+                className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-left text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <ArchiveIcon className="size-4" />
+                <span className="truncate">Archive</span>
+              </button>
+            </div>
+          </div>
         </div>
       </ScrollArea>
     </div>

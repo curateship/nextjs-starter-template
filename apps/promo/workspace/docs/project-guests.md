@@ -80,7 +80,8 @@ the server whatever the screen shows:
 | Send comments, replies and posts from the project's own accounts, and undo one in its 10 seconds | Add, move or take out an account, or open Manage accounts |
 | Edit a sent comment's words | Delete a sent comment from Reddit, or switch a comment's Voice example |
 | See the Comments, Failed and Posts tabs, cut to the project, and Try again | Open the Jobs window, which lists every project's work |
-| Answer and skip Instagram and TikTok comments | Post a picture or a video, or call one off. Both need the owner's media library |
+| Answer and skip Instagram and TikTok comments | Post from the owner's media library, or call a post off |
+| Open the project's Archive, play its items, edit their captions and Write captions, and post them from the project's Instagram and TikTok accounts ([archive.md](archive.md)) | Download an archive file, open the Bin, upload, copy, move, pin or delete one |
 | Look for self-promotion threads | Block a subreddit, which hides it from every project |
 
 **Who sent it.** A comment, reply or post a guest sends carries "Sam via

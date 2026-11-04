@@ -83,6 +83,12 @@ export const appOptions: AppOptions = {
          */
         panel: () => import("@/components/social/behaviour-settings"),
       },
+      {
+        id: "video",
+        label: "Video",
+        /** The key the Video app sends things into the Archive with (`workspace/docs/archive.md`). */
+        panel: () => import("@/components/archive/video-link-settings"),
+      },
     ],
   },
 }

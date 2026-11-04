@@ -17,7 +17,7 @@ import { readAppModuleView, type AppAccount, type AppModuleView } from "@/server
 import { cancelAppPosts, queueAppPost, type AppPostRow } from "@/server/social/phone-apps/posts"
 import { queueProfileEdit, readProfileEdits, type ProfileEditView } from "@/server/social/phone-apps/profile"
 import { PHONE_ONLY_NETWORKS, type PhoneAppNetwork } from "@/lib/social/networks"
-import { ABOUT_MAX } from "@/lib/social/phone-apps"
+import { ABOUT_MAX, CAROUSEL_SLIDES } from "@/lib/social/phone-apps"
 import { readerWrittenRefusal } from "@/lib/social/refusal-words"
 
 import { createErrorMessage } from "../error-message"
@@ -64,6 +64,8 @@ const WRITTEN_HERE = [
   "found it broken",
   "cannot answer here",
   "does not answer",
+  "A carousel holds",
+  "of the carousel",
 ]
 
 const lookup = createErrorMessage(
@@ -117,14 +119,19 @@ const postFn = createServerFn({ method: "POST" })
     z.object({
       accountId: id,
       mediaUrl: z.string().min(1).max(2048),
+      // A carousel's pictures in order (part 40); the server checks there are 2 to 20.
+      mediaUrls: z.array(z.string().min(1).max(2048)).max(CAROUSEL_SLIDES.max).optional(),
       caption: z.string().max(10_000),
       draftCaption: z.string().max(10_000),
     })
   )
   .handler(async ({ context, data }): Promise<{ id: string }> => queueAppPost(context.user.id, data))
 
-/** Sends one photo or video to the account's phone to post. Tried once, never again. */
-export function sendAppPost(data: { accountId: string; mediaUrl: string; caption: string; draftCaption: string }) {
+/**
+ * Sends one photo or video to the account's phone to post, or with
+ * `mediaUrls` several pictures as one carousel. Tried once, never again.
+ */
+export function sendAppPost(data: { accountId: string; mediaUrl: string; mediaUrls?: string[]; caption: string; draftCaption: string }) {
   return postFn({ data })
 }
 

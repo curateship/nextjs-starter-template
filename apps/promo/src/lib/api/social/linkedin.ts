@@ -571,6 +571,8 @@ const savePostFn = createServerFn({ method: "POST" })
       title: z.string().max(400),
       pictureUrl: z.string().max(2_048),
       videoUrl: z.string().max(2_048),
+      documentUrl: z.string().max(2_048).default(""),
+      documentTitle: z.string().max(400).default(""),
       poll: pollShape.nullable(),
       tags: z.array(tagShape).max(20),
       repostFindId: id.nullable(),
@@ -597,6 +599,9 @@ export function saveLinkedinPostDraft(input: {
   title: string
   pictureUrl: string
   videoUrl: string
+  /** An archive carousel's PDF (part 16), or "". */
+  documentUrl?: string
+  documentTitle?: string
   poll: { question: string; choices: string[]; days: number } | null
   tags: LinkedinTag[]
   repostFindId: string | null

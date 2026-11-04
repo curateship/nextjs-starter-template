@@ -35,7 +35,8 @@ export type ApiKeyCardProps = {
   load: () => Promise<KeyStatus>
   save: (apiKey: string) => Promise<KeyStatus>
   remove: () => Promise<KeyStatus>
-  test: (apiKey?: string) => Promise<{ ok: true } | { ok: false; message: string }>
+  /** A working key may come back with its own words, such as whose account answered. */
+  test: (apiKey?: string) => Promise<{ ok: true; message?: string } | { ok: false; message: string }>
   errorMessage: (error: unknown) => string
 }
 
@@ -136,7 +137,7 @@ export function ApiKeyCard({
     dismissErrorToast()
     try {
       const result = await testKey(draft.trim() || undefined)
-      setVerdict(result.ok ? `${company} answered. The key works.` : result.message)
+      setVerdict(result.ok ? (result.message ?? `${company} answered. The key works.`) : result.message)
     } catch (error) {
       showErrorToast(errorMessage(error))
     } finally {

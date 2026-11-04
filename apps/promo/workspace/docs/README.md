@@ -19,6 +19,10 @@ the repo's `docs/`, and is never copied here.
   uses, each a row in its left column that fills the middle and right columns,
   Reddit's screens folded into its module as tabs and windows, the tables that
   fold by the column's width, and where the old addresses lead.
+- [The Archive](archive.md): each project's videos, carousels and pictures, sent
+  from Video or uploaded, the key on Settings → Video, how a send is copied,
+  the Bin, the zip, and posting from it with drafts, warnings and several
+  accounts at once.
 - [Guests sent from Project](project-guests.md): somebody on a Project task
   presses Open in Promo and works one Promo project for 12 hours with no
   Promo account, what they can and can't do, the stamped note and the key

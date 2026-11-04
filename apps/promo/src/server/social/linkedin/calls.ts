@@ -286,9 +286,11 @@ export function linkedinComment(
 
 /**
  * One post of the account's own, or a repost with thoughts (`repostOf`), with
- * a picture, a video or a poll, tags typed through LinkedIn's own picker and
- * read back, into a group, or as a company page. Only ever called after a
- * person pressed Post.
+ * a picture, a video, a poll or a document, tags typed through LinkedIn's own
+ * picker and read back, into a group, or as a company page. Only ever called
+ * after a person pressed Post. A document is an archive carousel's PDF with
+ * its title (Video's task promo/01, part 16); `subtitles` is a video's .srt
+ * file's words, uploaded with it (part 13), or "".
  */
 export function linkedinPublish(
   target: CommandTarget,
@@ -296,6 +298,9 @@ export function linkedinPublish(
     text: string
     pictureUrl: string
     videoUrl: string
+    documentUrl: string
+    documentTitle: string
+    subtitles: string
     poll: { question: string; choices: string[]; days: number } | null
     tags: Array<{ name: string; slug: string; kind: "person" | "company" }>
     repostOf: string

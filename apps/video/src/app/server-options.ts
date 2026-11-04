@@ -80,6 +80,14 @@ export const appServerOptions: AppServerOptions = {
           import("@/server/video/lip-sync").then((lipSync) => lipSync.lipSyncTick()),
       },
       {
+        // Ends a Send to Promo nobody's window is watching once it has waited
+        // three hours, with a bell, so a send never sits "sending" for ever
+        // (workspace/docs/send-to-promo.md).
+        name: "video-promo-sends",
+        tick: () =>
+          import("@/server/video/promo-sends").then((sends) => sends.sweepStalePromoSends()),
+      },
+      {
         // Makes a brief's scenes one after another, then lays made scenes on
         // the timeline when no editor has the project open to do it.
         name: "video-briefs",

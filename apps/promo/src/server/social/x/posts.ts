@@ -5,6 +5,7 @@ import type { CommandTarget } from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { storagePathForUrl } from "@/server/media/library"
+import { archiveFileAt, archivePostWentOut } from "@/server/archive/files"
 import { customShellMedia } from "@/server/schema"
 import { isAwake, zoneClockText } from "@/lib/social/waking"
 import {
@@ -173,20 +174,27 @@ const X_PICTURE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/
  * images. The browser and the phone only ever download Promo's own files, so
  * no address a person typed is fetched from the server or a phone.
  */
-async function refuseStrangePictures(userId: string, pieces: Array<{ pictureUrl: string }>, db: CustomShellDb): Promise<void> {
+async function refuseStrangePictures(userId: string, pieces: Array<{ pictureUrl: string }>, db: CustomShellDb): Promise<string | null> {
+  let fromArchive: string | null = null
   for (const piece of pieces) {
     if (!piece.pictureUrl) continue
     const storagePath = await storagePathForUrl(piece.pictureUrl)
-    const [file] = storagePath
+    const [library] = storagePath
       ? await db
           .select({ mimeType: customShellMedia.mimeType })
           .from(customShellMedia)
           .where(and(eq(customShellMedia.userId, userId), eq(customShellMedia.storagePath, storagePath)))
           .limit(1)
       : []
-    if (!file) throw new Refusal("Pick the picture from your media library.")
+    // A picture from the Archive is this person's own too (part 34).
+    const archived = library || !storagePath ? null : await archiveFileAt(userId, storagePath, db)
+    const file = library ?? archived
+    if (!file) throw new Refusal("Pick the picture from your media library or the archive.")
     if (!X_PICTURE_TYPES.has(file.mimeType)) throw new Refusal(`X can't post that file (${file.mimeType}). Pick a JPEG, PNG, WebP or GIF picture.`)
+    fromArchive ??= archived?.itemId ?? null
   }
+  // The first archive picture names the item the thread was made from (part 41).
+  return fromArchive
 }
 
 /** Refuses a poll X would not take: two to four choices of at most 25 characters, open 5 minutes to 7 days. */
@@ -220,8 +228,9 @@ export async function saveXPost(
     throw new Refusal("Add that community on the Communities tab first.")
   }
   const pieces = cleanPieces(input.pieces)
-  await refuseStrangePictures(userId, pieces, db)
+  const archiveItemId = await refuseStrangePictures(userId, pieces, db)
   const values = {
+    archiveItemId,
     accountId: input.accountId,
     pieces,
     poll: cleanPoll(input.poll),
@@ -434,6 +443,7 @@ export async function runXPublish(
     .returning({ id: promoXPosts.id })
   if (!posted) return
   if (row.accountId) await db.update(promoAccounts).set({ lastPostedAt: now }).where(eq(promoAccounts.id, row.accountId))
+  await archivePostWentOut(userId, row.archiveItemId, "x", "", { db, now })
   if (!pieces[0]?.postId) {
     try {
       await queueJob(userId, "x_check", { postRowId: row.id }, db, new Date(now.getTime() + 60_000))

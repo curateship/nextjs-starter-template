@@ -2,6 +2,7 @@ import { and, eq, isNull, lte, ne, or, sql } from "drizzle-orm"
 
 import { THROWAWAY_FIRST_MS } from "@/lib/bans/options"
 import { NETWORK_NAMES, type PhoneAppNetwork } from "@/lib/social/networks"
+import type { PhoneAppMediaKind } from "@/lib/social/phone-apps"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoAccounts, promoAppPosts, promoComments, promoFinds } from "@/server/social/schema"
@@ -77,7 +78,7 @@ export async function refuseImportantFirstInSubreddit(
 export async function refuseImportantFirstKind(
   account: Important,
   network: PhoneAppNetwork,
-  kind: "photo" | "video",
+  kind: PhoneAppMediaKind,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<void> {

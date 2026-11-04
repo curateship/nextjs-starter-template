@@ -42,6 +42,7 @@ export type PromoNoticeKind =
   | "appeal_waiting"
   | "ban_unknown"
   | "looks_back"
+  | "archive_arrived"
 
 /** Each heading starts with words no other kind's does, because the bell tells them apart by these. */
 export const NOTICE_HEADINGS: Record<PromoNoticeKind, string> = {
@@ -83,5 +84,6 @@ export const NOTICE_HEADINGS: Record<PromoNoticeKind, string> = {
   app_brake: "Two ",
   appeal_waiting: "No answer to ",
   ban_unknown: "Promo doesn't know this screen.",
+  archive_arrived: "Arrived in the archive:",
   looks_back: "Looks back:",
 }

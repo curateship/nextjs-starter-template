@@ -1,11 +1,13 @@
 import { useNavigate } from "@tanstack/react-router"
-import { FilmIcon, ListVideoIcon, PlusIcon } from "lucide-react"
+import { FilmIcon, ListVideoIcon, PlusIcon, SendIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { PiecesPanel, type PiecesAdapter } from "@/components/video-assets/pieces-panel"
 import { useEditorRuntime, useEditorSelector, useEditorVideoName } from "@/components/video-editor/editor-store"
 import { NewVideoPopover } from "@/components/video-editor/new-video-popover"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
+import { useSendToPromo } from "@/components/video-promo/use-send-to-promo"
 import { getProjectErrorMessage, listProjects } from "@/lib/api/video/projects"
 import {
   archiveProjectVideos,
@@ -41,6 +43,7 @@ export function VideosPanel() {
   const openAspect = useEditorSelector((state) => state.aspect)
   const guest = useProjectGuest() !== null
   const navigate = useNavigate()
+  const sendToPromo = useSendToPromo()
 
   /** Opens a video in the player, saving the open one's last edit first. */
   async function open(id: string, inProject = projectId) {
@@ -96,7 +99,20 @@ export function VideosPanel() {
         `${video.aspect} · ${formatDate(video.updated_at)}`,
       ],
       Icon: FilmIcon,
+      // A video asked for in Promo shows what was asked (part 42).
+      note: video.promo_brief
+        ? { line: `Asked for in Promo: ${video.promo_brief.trim().split("\n")[0]}`, full: video.promo_brief }
+        : undefined,
     }),
+    // Its newest finished export goes to Promo (part 8). Sending is the owner's.
+    extraMenu: guest
+      ? undefined
+      : (video) => (
+          <DropdownMenuItem onSelect={() => void sendToPromo.open({ videoId: video.id })}>
+            <SendIcon />
+            Send to Promo
+          </DropdownMenuItem>
+        ),
     pending: (video) => video.thumbnail_pending,
     newButton: (
       <NewVideoPopover projectId={projectId} aspect={openAspect} tooltip="New video" onCreated={open}>
@@ -107,5 +123,10 @@ export function VideosPanel() {
     ),
   }
 
-  return <PiecesPanel adapter={adapter} />
+  return (
+    <>
+      <PiecesPanel adapter={adapter} />
+      {sendToPromo.dialog}
+    </>
+  )
 }

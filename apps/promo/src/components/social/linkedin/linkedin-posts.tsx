@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { ArchivePickButton, type ArchivePick } from "@/components/archive/archive-picker"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Hint } from "@/components/social/hint"
@@ -50,6 +51,7 @@ import {
   type LinkedinRulesVerdict,
 } from "@/lib/api/social/linkedin"
 import {
+  LINKEDIN_DOCUMENT_TITLE_CHARS,
   LINKEDIN_POLL_CHOICE_CHARS,
   LINKEDIN_POLL_CHOICES,
   LINKEDIN_POLL_DAYS,
@@ -536,6 +538,9 @@ type Fields = {
   title: string
   pictureUrl: string
   videoUrl: string
+  /** An archive carousel's PDF for a document post (Video's task promo/01, part 16), and its title. */
+  documentUrl: string
+  documentTitle: string
   pollOn: boolean
   question: string
   choices: string[]
@@ -566,6 +571,9 @@ function pollToSave(fields: Fields): { question: string; choices: string[]; days
   return { question, choices, days: fields.days }
 }
 
+/** Said under the With it menu while the video carries its archive item's subtitles (part 13). */
+const SUBTITLES_NOTE = "The video's subtitles go with it, so viewers can switch captions on."
+
 /** What the LinkedIn app on a phone cannot send, in the server's words, or null. */
 function phoneRefusal(account: Account | null, kind: LinkedinPostKind, fields: Fields): string | null {
   if (!account?.onPhone) return null
@@ -574,6 +582,7 @@ function phoneRefusal(account: Account | null, kind: LinkedinPostKind, fields: F
     kind === "repost" ? "A repost" : null,
     fields.pollOn ? "A poll" : null,
     fields.videoUrl ? "A video" : null,
+    fields.documentUrl ? "A document" : null,
     fields.tags.length ? "Tagging people" : null,
     fields.groupId ? "Posting into a group" : null,
     fields.asPageId ? "Posting as a company page" : null,
@@ -621,6 +630,8 @@ function PostComposer({
     title: post.title,
     pictureUrl: post.pictureUrl,
     videoUrl: post.videoUrl,
+    documentUrl: post.documentUrl,
+    documentTitle: post.documentTitle,
     pollOn: Boolean(post.poll),
     question: post.poll?.question ?? "",
     choices: post.poll?.choices.length ? post.poll.choices : ["", ""],
@@ -631,10 +642,12 @@ function PostComposer({
     scheduledFor: toLocalInput(post.scheduledFor),
   }))
   const [about, setAbout] = React.useState("")
-  // What goes with a post's words, picked before the file is: one of a picture, a video or a poll.
-  const [media, setMedia] = React.useState<"none" | "picture" | "video" | "poll">(() =>
-    post.poll ? "poll" : post.videoUrl ? "video" : post.pictureUrl ? "picture" : "none"
+  // What goes with a post's words, picked before the file is: one of a picture, a video, a poll or a document.
+  const [media, setMedia] = React.useState<"none" | "picture" | "video" | "poll" | "document">(() =>
+    post.poll ? "poll" : post.documentUrl ? "document" : post.videoUrl ? "video" : post.pictureUrl ? "picture" : "none"
   )
+  // What the Archive said about the last item picked from it: shape, length and size warnings, or why it can't go.
+  const [archiveNotes, setArchiveNotes] = React.useState<string[]>(() => (post.hasSubtitles ? [SUBTITLES_NOTE] : []))
   const [outline, setOutline] = React.useState("")
   const [tagName, setTagName] = React.useState("")
   const [tagAddress, setTagAddress] = React.useState("")
@@ -697,6 +710,8 @@ function PostComposer({
           title: next.title,
           pictureUrl: next.pictureUrl,
           videoUrl: next.videoUrl,
+          documentUrl: next.documentUrl,
+          documentTitle: next.documentTitle,
           poll: pollToSave(next),
           tags: next.tags,
           // A repost's shared post was named when its draft was made, from To look at.
@@ -789,6 +804,36 @@ function PostComposer({
     setTagAddress("")
   }
 
+  /**
+   * A file from the project's Archive (parts 13, 16 and 34): a video or a
+   * picture fills its field, and a carousel goes as a document post with its
+   * PDF. The item's caption fills the words when they are empty.
+   */
+  function pickFromArchive(pick: ArchivePick) {
+    const { item } = pick
+    if (item.kind === "carousel" && !item.pdfUrl) {
+      setArchiveNotes(["This carousel came without its PDF. Send it again from Video with Also as a PDF for LinkedIn ticked."])
+      return
+    }
+    const words = latest.current.text.trim() || !pick.caption ? {} : { text: pick.caption }
+    const cleared = { pictureUrl: "", videoUrl: "", documentUrl: "", documentTitle: "", pollOn: false }
+    const next = item.kind === "carousel" ? "document" : item.kind === "video" ? "video" : "picture"
+    setMedia(next)
+    change(
+      {
+        ...cleared,
+        ...words,
+        ...(next === "document"
+          ? { documentUrl: item.pdfUrl, documentTitle: item.title.slice(0, LINKEDIN_DOCUMENT_TITLE_CHARS) }
+          : next === "video"
+            ? { videoUrl: pick.mediaUrl }
+            : { pictureUrl: pick.mediaUrl }),
+      },
+      true
+    )
+    setArchiveNotes([...pick.warnings, ...(next === "video" && item.hasSubtitles ? [SUBTITLES_NOTE] : [])])
+  }
+
   function publish() {
     if (!account) {
       showErrorToast("Pick the account it goes out as.")
@@ -804,6 +849,14 @@ function PostComposer({
     }
     if (length > limit) {
       showErrorToast(`That is ${length} characters. LinkedIn takes ${limit}.`)
+      return
+    }
+    if (media === "document" && !fields.documentUrl) {
+      showErrorToast("Pick a carousel from the archive for the document, or post words only.")
+      return
+    }
+    if (fields.documentUrl && !fields.documentTitle.trim()) {
+      showErrorToast("Give the document a title first. LinkedIn shows it above the pages.")
       return
     }
     if (pollInvalid) {
@@ -1086,32 +1139,43 @@ function PostComposer({
               <div className="grid gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="linkedin-post-media">With it</Label>
-                  <Select
-                    value={media}
-                    disabled={locked}
-                    onValueChange={(value) => {
-                      const next = value === "picture" || value === "video" || value === "poll" ? value : "none"
-                      setMedia(next)
-                      change(
-                        {
-                          pollOn: next === "poll",
-                          ...(next !== "picture" ? { pictureUrl: "" } : {}),
-                          ...(next !== "video" ? { videoUrl: "" } : {}),
-                        },
-                        true
-                      )
-                    }}
-                  >
-                    <SelectTrigger id="linkedin-post-media" className="w-full sm:w-fit sm:min-w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Words only</SelectItem>
-                      <SelectItem value="picture">A picture</SelectItem>
-                      <SelectItem value="video">A video</SelectItem>
-                      <SelectItem value="poll">A poll</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select
+                      value={media}
+                      disabled={locked}
+                      onValueChange={(value) => {
+                        const next = value === "picture" || value === "video" || value === "poll" || value === "document" ? value : "none"
+                        setMedia(next)
+                        setArchiveNotes([])
+                        change(
+                          {
+                            pollOn: next === "poll",
+                            ...(next !== "picture" ? { pictureUrl: "" } : {}),
+                            ...(next !== "video" ? { videoUrl: "" } : {}),
+                            ...(next !== "document" ? { documentUrl: "", documentTitle: "" } : {}),
+                          },
+                          true
+                        )
+                      }}
+                    >
+                      <SelectTrigger id="linkedin-post-media" className="w-full sm:w-fit sm:min-w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Words only</SelectItem>
+                        <SelectItem value="picture">A picture</SelectItem>
+                        <SelectItem value="video">A video</SelectItem>
+                        <SelectItem value="poll">A poll</SelectItem>
+                        <SelectItem value="document">A document</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {locked ? null : <ArchivePickButton projectId={projectId} network="linkedin" onPick={pickFromArchive} />}
+                  </div>
+                  {archiveNotes.map((note) => (
+                    <p key={note} className="text-xs text-muted-foreground">
+                      {note}
+                    </p>
+                  ))}
                 </div>
                 {media === "picture" ? (
                   <ImageUpload
@@ -1133,8 +1197,34 @@ function PostComposer({
                     disabled={locked}
                     emptyLabel="Add a video"
                     hint="Pick an MP4, MOV or WebM video from the media library, under 500 MB. LinkedIn plays it in the feed by itself."
-                    onChange={(value) => change({ videoUrl: value }, true)}
+                    onChange={(value) => {
+                      setArchiveNotes([])
+                      change({ videoUrl: value }, true)
+                    }}
                   />
+                ) : null}
+                {media === "document" ? (
+                  <div className="grid gap-2">
+                    <Label htmlFor="linkedin-document-title">Document title</Label>
+                    <Input
+                      id="linkedin-document-title"
+                      value={fields.documentTitle}
+                      maxLength={LINKEDIN_DOCUMENT_TITLE_CHARS}
+                      disabled={locked || !fields.documentUrl}
+                      aria-invalid={(Boolean(fields.documentUrl) && !fields.documentTitle.trim()) || undefined}
+                      onChange={(event) => change({ documentTitle: event.target.value })}
+                      onBlur={saveSoon}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {fields.documentUrl ? (
+                        <a href={fields.documentUrl} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">
+                          Open the PDF
+                        </a>
+                      ) : (
+                        "Pick a carousel from the archive. Its PDF goes up as the document."
+                      )}
+                    </p>
+                  </div>
                 ) : null}
                 {fields.pollOn ? (
                   <div className="grid gap-4 rounded-lg border p-3">

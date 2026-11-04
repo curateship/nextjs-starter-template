@@ -108,6 +108,8 @@ export type VideoItem = {
   language: string | null
   /** The video this one is a language copy of. */
   language_of: string | null
+  /** What was asked for when this video came from Ask for a video in Promo (send-to-promo.md). */
+  promo_brief: string | null
   created_at: string
   updated_at: string
 }
@@ -342,6 +344,7 @@ function serializeVideo(
     source_viral_project_id: row.sourceViralProjectId,
     language: row.language,
     language_of: row.languageOf,
+    promo_brief: row.promoBrief,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }

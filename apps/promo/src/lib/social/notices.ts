@@ -1,5 +1,6 @@
 import {
   AlertTriangleIcon,
+  ArchiveIcon,
   BanIcon,
   BellRingIcon,
   CalendarClockIcon,
@@ -74,6 +75,7 @@ const LOOKS: Record<PromoNoticeKind, Pick<AppNoticeDetail, "icon" | "toneClassNa
   appeal_waiting: { icon: CalendarClockIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
   ban_unknown: { icon: CircleHelpIcon, toneClassName: "bg-destructive/10 text-destructive" },
   looks_back: { icon: RotateCcwIcon, toneClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  archive_arrived: { icon: ArchiveIcon, toneClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
 }
 
 /** Which of Promo's kinds a notice is, read off its heading, or null. */

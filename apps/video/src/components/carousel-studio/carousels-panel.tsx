@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { ImagesIcon, LayoutTemplateIcon, PlusIcon } from "lucide-react"
+import { ImagesIcon, LayoutTemplateIcon, PlusIcon, SendIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { NewCarouselDialog } from "@/components/carousel-studio/new-carousel-dialog"
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PiecesPanel, type PiecesAdapter } from "@/components/video-assets/pieces-panel"
+import { useSendToPromo } from "@/components/video-promo/use-send-to-promo"
 import { listCarouselProjects } from "@/lib/api/video/carousel-projects"
 import {
   archiveCarousels,
@@ -49,6 +50,7 @@ export function CarouselsPanel({
   const navigate = useNavigate()
   const router = useRouter()
   const [creating, setCreating] = React.useState(false)
+  const sendToPromo = useSendToPromo()
 
   async function open(id: string, inProject = projectId) {
     await beforeLeaving()
@@ -129,6 +131,7 @@ export function CarouselsPanel({
     ),
     // Templates are marked here, and offered in New carousel.
     extraMenu: (carousel, reload) => (
+      <>
       <DropdownMenuItem
         onSelect={() =>
           void markCarouselTemplate(carousel.id, !carousel.is_template)
@@ -146,12 +149,19 @@ export function CarouselsPanel({
         <LayoutTemplateIcon />
         {carousel.is_template ? "Stop offering as template" : "Offer as template"}
       </DropdownMenuItem>
+      {/* Its newest finished export goes to Promo (part 8). */}
+      <DropdownMenuItem onSelect={() => void sendToPromo.open({ carouselId: carousel.id })}>
+        <SendIcon />
+        Send to Promo
+      </DropdownMenuItem>
+      </>
     ),
   }
 
   return (
     <>
       <PiecesPanel adapter={adapter} />
+      {sendToPromo.dialog}
       <NewCarouselDialog
         open={creating}
         carouselProjectId={projectId}

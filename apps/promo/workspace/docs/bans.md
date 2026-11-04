@@ -216,8 +216,8 @@ Instagram twice".
   refused until a throwaway's comment there has stayed up 24 hours: "Post
   from a throwaway in r/name first." Important accounts only run on phones,
   where the Reddit app only comments, so a comment is the only post there.
-  On Instagram and TikTok it covers the first photo and the first video
-  instead. The throwaway must not be banned, and its comment must not be
+  On Instagram and TikTok it covers the first photo, the first video and
+  the first carousel of pictures instead. The throwaway must not be banned, and its comment must not be
   removed or deleted. Any throwaway counts, so the apart rules still hold.
 
 ## After a ban (parts 25 and 26)

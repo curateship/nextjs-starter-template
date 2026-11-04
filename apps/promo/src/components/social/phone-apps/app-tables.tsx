@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ExternalLinkIcon, ImageIcon, Loader2Icon, PlayIcon, XIcon } from "lucide-react"
+import { ExternalLinkIcon, GalleryHorizontalIcon, ImageIcon, Loader2Icon, PlayIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
@@ -184,6 +184,8 @@ export function AppPostsTable({
               <span className="flex min-w-0 items-center gap-2">
                 {row.mediaKind === "video" ? (
                   <PlayIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Video" />
+                ) : row.mediaKind === "carousel" ? (
+                  <GalleryHorizontalIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Carousel" />
                 ) : (
                   <ImageIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Photo" />
                 )}

@@ -56,6 +56,9 @@ export const NEWSLETTER_BODY_CHARS = 20_000
 /** A short note on a connection request. LinkedIn caps it at 300 characters (200 on a free account most months). */
 export const CONNECT_NOTE_CHARS = 200
 
+/** A document post's title, which LinkedIn shows above the PDF's pages (Video's task promo/01, part 16). */
+export const LINKEDIN_DOCUMENT_TITLE_CHARS = 200
+
 /** LinkedIn's poll: a question of 140 characters, two to four answers of 30, open one day to two weeks (part 31). */
 export const LINKEDIN_POLL_QUESTION_CHARS = 140
 export const LINKEDIN_POLL_CHOICES = { min: 2, max: 4 } as const

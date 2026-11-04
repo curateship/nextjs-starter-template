@@ -263,6 +263,12 @@ export const promoXPosts = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     postedAt: timestamp("posted_at", { withTimezone: true }),
+    /**
+     * The archive item it was made from, or null. Added by
+     * `drizzle/0134_promo_archive.sql`, which also sets it to null when the
+     * item is deleted for good.
+     */
+    archiveItemId: varchar("archive_item_id", { length: 36 }),
   },
   (table) => [
     index("ix_promo_x_posts_project").on(table.projectId, table.createdAt.desc()),

@@ -72,7 +72,11 @@ The Carousels tab in the carousel editor is the same panel, `PiecesPanel`
 - **The count line:** "Videos · 12" in small capitals with Select beside it,
   as the Media tab has. Select turns on the tick boxes and becomes Done.
 - **A row's menu:** Rename, Duplicate, Move to project, Pin, Archive (or Bring
-  back), the three statuses, and Delete.
+  back), the three statuses, Send to Promo, and Delete. Send to Promo sends
+  the video's newest finished export ([send-to-promo.md](send-to-promo.md)),
+  and is left off for a guest.
+- **A video asked for in Promo** shows "Asked for in Promo:" and the first
+  line of the brief under its name, with the whole brief on hover.
 - **Duplicate:** the copy goes in the same project, named "copy". It takes a
   moment before its original's last edited time, so under Last edited it sits
   right under it. Under Newest it is at the top.

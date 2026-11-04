@@ -284,7 +284,7 @@ describe("Instagram and TikTok on phones", () => {
       await passSelfTest("instagram/post")
       await expect(
         queueAppPost(userId, { accountId, mediaUrl: "https://elsewhere.test/b.jpg", caption: "Hi", draftCaption: "" }, db)
-      ).rejects.toThrow("Pick a photo or video from your media library first.")
+      ).rejects.toThrow("Pick a photo or video from your media library or the archive first.")
       const gif = await mediaFile("c.gif", "image/gif", "image")
       await expect(queueAppPost(userId, { accountId, mediaUrl: gif, caption: "Hi", draftCaption: "" }, db)).rejects.toThrow(
         "Instagram cannot post that file"
@@ -393,6 +393,88 @@ describe("Instagram and TikTok on phones", () => {
       expect(prompt).toContain("Never say best.")
       expect(prompt).toContain("at most 30 hashtags")
       expect(prompt).toContain("Night mode")
+    })
+  })
+
+  describe("carousels (Video's task promo/01, part 40)", () => {
+    let batch = 0
+    /** Pictures in the media library, named so each call's are its own. */
+    async function slides(count: number, ending = "jpg", mimeType = "image/jpeg") {
+      batch += 1
+      const urls: string[] = []
+      for (let index = 1; index <= count; index += 1) urls.push(await mediaFile(`set${batch}-slide-${index}.${ending}`, mimeType, "image"))
+      return urls
+    }
+
+    it("queues a 7-picture carousel as one post with one job, the pictures in order, and sends them to the phone in that order", async () => {
+      const { A1 } = await plugIn("A1")
+      const accountId = await instagramOn(A1)
+      await passSelfTest("instagram/post_carousel")
+      const urls = await slides(7)
+      const { id } = await queueAppPost(userId, { accountId, mediaUrl: "", mediaUrls: urls, caption: "Seven steps #study", draftCaption: "" }, db)
+      const posts = await db.select().from(promoAppPosts)
+      expect(posts.map((post) => [post.id, post.mediaKind, post.mediaUrl, post.mediaUrls])).toEqual([[id, "carousel", urls[0], urls]])
+      expect(await db.select().from(promoJobs).where(eq(promoJobs.kind, "app_post"))).toHaveLength(1)
+
+      const { turn, seen } = await runPhoneJob((action) =>
+        action.action === "instagram/post_carousel" ? { ok: true, result: { postUrl: "https://www.instagram.com/p/CAR7/" } } : signedIn("quiet.maple")
+      )
+      expect(turn).toMatchObject({ did: "job", ok: true })
+      expect(seen.filter((action) => action.action.startsWith("instagram/post"))).toEqual([
+        { action: "instagram/post_carousel", args: { mediaUrls: urls, caption: "Seven steps #study" } },
+      ])
+      const [post] = await db.select().from(promoAppPosts).where(eq(promoAppPosts.id, id))
+      expect([post.status, post.postUrl]).toEqual(["posted", "https://www.instagram.com/p/CAR7/"])
+    })
+
+    it("refuses 1 or 21 pictures, a video among them, and a file that is not the person's own", async () => {
+      const { A1 } = await plugIn("A1")
+      const accountId = await instagramOn(A1)
+      await passSelfTest("instagram/post_carousel")
+      const post = (mediaUrls: string[]) => queueAppPost(userId, { accountId, mediaUrl: "", mediaUrls, caption: "Hi", draftCaption: "" }, db)
+      await expect(post(await slides(1))).rejects.toThrow("A carousel holds 2 to 20 pictures. This one has 1.")
+      await expect(post(await slides(21, "png", "image/png"))).rejects.toThrow("A carousel holds 2 to 20 pictures. This one has 21.")
+      const video = await mediaFile("clip.mp4", "video/mp4", "video")
+      const three = await slides(2)
+      await expect(post([...three, video])).rejects.toThrow("Picture 3 of the carousel is a video.")
+      await expect(post([...three, "https://elsewhere.test/c.jpg"])).rejects.toThrow("Picture 3 of the carousel is not in your media library or the archive.")
+      const webp = await mediaFile("slide.webp", "image/webp", "image")
+      await expect(post([...three, webp])).rejects.toThrow("Picture 3 of the carousel is image/webp, which Instagram cannot post. A carousel takes JPEG or PNG pictures.")
+      expect(await db.select().from(promoAppPosts)).toEqual([])
+    })
+
+    it("needs the carousel's own self-test pass, so a single photo still goes while carousels wait", async () => {
+      const { A1 } = await plugIn("A1")
+      const accountId = await instagramOn(A1)
+      await passSelfTest("instagram/post")
+      const urls = await slides(2)
+      await expect(queueAppPost(userId, { accountId, mediaUrl: "", mediaUrls: urls, caption: "Hi", draftCaption: "" }, db)).rejects.toThrow(
+        "self-test has not walked Post a carousel on Instagram"
+      )
+      await expect(queueAppPost(userId, { accountId, mediaUrl: urls[0], caption: "Hi", draftCaption: "" }, db)).resolves.toMatchObject({ id: expect.any(String) })
+    })
+
+    it("sends an iPhone carousel as one one-time Safari link per picture, in order", async () => {
+      await checkIn(
+        rack,
+        { version: RACK_VERSION, platform: "", phones: [{ serial: "I1", state: "device", usb: "usb:2", model: "iPhone 12", android: "17.6", kind: "iphone", timezone: "UTC" }], rolledBack: null },
+        db
+      )
+      const [phone] = await db.select().from(promoPhones)
+      const accountId = await instagramOn(phone.id)
+      await db.insert(promoPhoneActionChecks).values({ userId, action: "instagram/post_carousel", kind: "iphone", passed: true })
+      const urls = await slides(3)
+      await queueAppPost(userId, { accountId, mediaUrl: "", mediaUrls: urls, caption: "Three", draftCaption: "" }, db)
+      const { seen } = await runPhoneJob((action) =>
+        action.action === "instagram/post_carousel" ? { ok: true, result: { postUrl: "" } } : signedIn("quiet.maple")
+      )
+      const sent = seen.find((one) => one.action === "instagram/post_carousel")!
+      expect(sent.args).toMatchObject({ caption: "Three", mediaFromSafari: true })
+      const links = sent.args.mediaUrls as string[]
+      expect(links).toHaveLength(3)
+      for (const link of links) expect(link).toMatch(/\/api\/media-link\/[0-9a-f]{64}$/)
+      const stored = await db.select().from(promoMediaLinks)
+      expect(stored.map((row) => row.storagePath).sort()).toEqual(urls.map((url) => url.slice("https://media.test/".length)).sort())
     })
   })
 

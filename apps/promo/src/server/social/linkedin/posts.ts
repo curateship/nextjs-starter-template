@@ -5,9 +5,12 @@ import type { CommandTarget } from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { storagePathForUrl } from "@/server/media/library"
+import { archiveFileAt, archivePostWentOut } from "@/server/archive/files"
+import { promoArchiveItems } from "@/server/archive/schema"
 import { customShellMedia } from "@/server/schema"
 import { zoneClockText } from "@/lib/social/waking"
 import {
+  LINKEDIN_DOCUMENT_TITLE_CHARS,
   LINKEDIN_POLL_CHOICE_CHARS,
   LINKEDIN_POLL_CHOICES,
   LINKEDIN_POLL_DAYS,
@@ -72,6 +75,10 @@ export type LinkedinPostInput = {
   title: string
   pictureUrl: string
   videoUrl: string
+  /** An archive carousel's PDF, posted as a document (Video's task promo/01, part 16), or "". */
+  documentUrl?: string
+  /** The document's title, which LinkedIn shows above its pages. "" takes the archive item's title. */
+  documentTitle?: string
   poll: { question: string; choices: string[]; days: number } | null
   tags: LinkedinTag[]
   /** The find whose post a repost shares (part 33). */
@@ -91,6 +98,10 @@ export type LinkedinPostView = {
   title: string
   pictureUrl: string
   videoUrl: string
+  documentUrl: string
+  documentTitle: string
+  /** True when the video carries its archive item's subtitles file (part 13). */
+  hasSubtitles: boolean
   poll: LinkedinPoll | null
   tags: LinkedinTag[]
   repostOf: string
@@ -128,6 +139,9 @@ function view(row: PostRow, handle: string | null, onPhone: boolean, answered: S
     title: row.title,
     pictureUrl: row.pictureUrl,
     videoUrl: row.videoUrl,
+    documentUrl: row.documentUrl,
+    documentTitle: row.documentTitle,
+    hasSubtitles: Boolean(row.videoUrl && row.subtitles),
     poll: row.poll,
     tags: row.tags,
     repostOf: row.repostOf,
@@ -211,23 +225,56 @@ const VIDEO_MAX_BYTES = 500 * 1024 * 1024
  * only ever download Promo's own files, so no address a person typed is
  * fetched from the server or a phone.
  */
-async function refuseStrangeMedia(userId: string, url: string, kind: "picture" | "video", db: CustomShellDb): Promise<void> {
-  if (!url) return
+async function refuseStrangeMedia(userId: string, url: string, kind: "picture" | "video", db: CustomShellDb): Promise<string | null> {
+  if (!url) return null
   if (!/^https:\/\//.test(url)) throw new Refusal(`Pick the ${kind} from the media library.`)
   const storagePath = await storagePathForUrl(url)
-  const [file] = storagePath
+  const [library] = storagePath
     ? await db
         .select({ mimeType: customShellMedia.mimeType, fileSize: customShellMedia.fileSize })
         .from(customShellMedia)
         .where(and(eq(customShellMedia.userId, userId), eq(customShellMedia.storagePath, storagePath)))
         .limit(1)
     : []
-  if (!file) throw new Refusal(`Pick the ${kind} from your media library.`)
+  // A file from the Archive is this person's own too (part 34).
+  const archived = library || !storagePath ? null : await archiveFileAt(userId, storagePath, db)
+  const file = library ?? (archived ? { mimeType: archived.mimeType, fileSize: await archivedSize(archived.itemId, db) } : null)
+  if (!file) throw new Refusal(`Pick the ${kind} from your media library or the archive.`)
   if (kind === "picture" && !PICTURE_TYPES.has(file.mimeType)) throw new Refusal(`LinkedIn can't post that file (${file.mimeType}). Pick a JPEG, PNG, WebP or GIF picture.`)
   if (kind === "video") {
     if (!VIDEO_TYPES.has(file.mimeType)) throw new Refusal(`LinkedIn can't post that file (${file.mimeType}). Pick an MP4, MOV or WebM video.`)
     if (Number(file.fileSize) > VIDEO_MAX_BYTES) throw new Refusal("That video is over 500 MB, more than the app uploads through a proxy. Pick a shorter one.")
   }
+  return archived?.itemId ?? null
+}
+
+/**
+ * Refuses a document that is not an archive carousel's PDF (part 16). A
+ * document post takes only the PDF Video sent with a carousel, so the
+ * browser only ever downloads Promo's own file. Answers the item's id and
+ * title.
+ */
+async function refuseStrangeDocument(userId: string, url: string, db: CustomShellDb): Promise<{ itemId: string; title: string } | null> {
+  if (!url) return null
+  const storagePath = /^https:\/\//.test(url) ? await storagePathForUrl(url) : null
+  const archived = storagePath ? await archiveFileAt(userId, storagePath, db) : null
+  if (!archived || archived.mimeType !== "application/pdf") {
+    throw new Refusal("A document post takes a carousel's PDF from the archive. Pick the carousel there again.")
+  }
+  return { itemId: archived.itemId, title: archived.name }
+}
+
+/** The subtitles kept on a video's archive item, as an .srt file's words, or "". */
+async function archivedSubtitles(itemId: string | null, db: CustomShellDb): Promise<string> {
+  if (!itemId) return ""
+  const [row] = await db.select({ subtitles: promoArchiveItems.subtitles }).from(promoArchiveItems).where(eq(promoArchiveItems.id, itemId)).limit(1)
+  return row?.subtitles ?? ""
+}
+
+/** An archive item's stored size, for the video limit. */
+async function archivedSize(itemId: string, db: CustomShellDb): Promise<number> {
+  const [row] = await db.select({ size: promoArchiveItems.fileSize }).from(promoArchiveItems).where(eq(promoArchiveItems.id, itemId)).limit(1)
+  return row?.size ?? 0
 }
 
 /** Refuses a poll LinkedIn would not take: a question of 140 characters, two to four answers of 30, open 1, 3, 7 or 14 days. */
@@ -300,10 +347,14 @@ export async function saveLinkedinPost(
   if (input.kind === "newsletter" && input.groupId) throw new Refusal("A newsletter issue goes to the account's subscribers, not into a group.")
   const pictureUrl = input.pictureUrl.trim().slice(0, 2_048)
   const videoUrl = input.kind === "post" ? input.videoUrl.trim().slice(0, 2_048) : ""
-  await refuseStrangeMedia(userId, pictureUrl, "picture", db)
-  await refuseStrangeMedia(userId, videoUrl, "video", db)
+  const documentUrl = input.kind === "post" ? (input.documentUrl ?? "").trim().slice(0, 2_048) : ""
+  const fromPicture = await refuseStrangeMedia(userId, pictureUrl, "picture", db)
+  const fromVideo = await refuseStrangeMedia(userId, videoUrl, "video", db)
+  const fromDocument = await refuseStrangeDocument(userId, documentUrl, db)
   const poll = input.kind === "post" ? cleanPoll(input.poll) : null
-  if ([pictureUrl && input.kind === "post", videoUrl, poll].filter(Boolean).length > 1) throw new Refusal("A post carries one of a picture, a video or a poll.")
+  if ([pictureUrl && input.kind === "post", videoUrl, poll, documentUrl].filter(Boolean).length > 1) {
+    throw new Refusal("A post carries one of a picture, a video, a poll or a document.")
+  }
   const values = {
     accountId: input.accountId,
     kind: input.kind,
@@ -311,6 +362,10 @@ export async function saveLinkedinPost(
     title: input.kind === "newsletter" ? input.title.trim() : "",
     pictureUrl,
     videoUrl,
+    documentUrl,
+    documentTitle: fromDocument ? ((input.documentTitle ?? "").trim() || fromDocument.title).slice(0, LINKEDIN_DOCUMENT_TITLE_CHARS) : "",
+    // A video from the Archive carries its subtitles file, copied now so a later change there never alters a checked post (part 13).
+    subtitles: await archivedSubtitles(fromVideo, db),
     poll,
     tags: input.kind === "newsletter" ? [] : cleanTags(input.tags, text),
     repostOf,
@@ -319,6 +374,8 @@ export async function saveLinkedinPost(
     firstComment,
     source: input.source.slice(0, 80),
     scheduledFor: input.scheduledFor,
+    // The archive item it was made from, for the posted marks (part 41).
+    archiveItemId: fromDocument?.itemId ?? fromVideo ?? fromPicture,
     updatedAt: new Date(),
   }
   if (!postRowId) {
@@ -391,6 +448,10 @@ export async function queueLinkedinPublish(userId: string, postRowId: string, db
   if (row.firstComment) refuseLinkedinOnPhone(account, "A post with a link")
   if (row.poll) refuseLinkedinOnPhone(account, "A poll")
   if (row.videoUrl) refuseLinkedinOnPhone(account, "A video")
+  if (row.documentUrl) {
+    refuseLinkedinOnPhone(account, "A document")
+    if (!row.documentTitle.trim()) throw new Refusal("Give the document a title first. LinkedIn shows it above the pages.")
+  }
   if (row.tags.length) refuseLinkedinOnPhone(account, "Tagging people")
   if (row.groupId) {
     refuseLinkedinOnPhone(account, "Posting into a group")
@@ -402,6 +463,7 @@ export async function queueLinkedinPublish(userId: string, postRowId: string, db
   await refuseLinkedinPage(userId, account, row.asPageId, db)
   await refuseStrangeMedia(userId, row.pictureUrl, "picture", db)
   await refuseStrangeMedia(userId, row.videoUrl, "video", db)
+  await refuseStrangeDocument(userId, row.documentUrl, db)
   // The LinkedIn app looks nowhere before it types, so a phone's failure that
   // may have landed is never sent again from here (nothing is tried twice).
   if (row.status === "failed" && account.phoneId && linkedinMayHaveLanded(row.lastError)) {
@@ -496,6 +558,8 @@ export async function runLinkedinPublish(
   }
   let postId = row.postId
   if (!postId) {
+    // The account may have moved to a phone since Post was pressed, and the app there would post the words alone.
+    if (onPhone && row.documentUrl) return fail(new Refusal("The account is on a phone now, and the LinkedIn app there can't post a document. Nothing was sent."), "")
     try {
       const since = Math.floor(row.createdAt.getTime() / 1000)
       const sent =
@@ -505,6 +569,9 @@ export async function runLinkedinPublish(
               text: row.text,
               pictureUrl: row.pictureUrl && onPhone ? (await mediaArgs(userId, account?.phoneId ?? null, row.pictureUrl, db, now)).mediaUrl : row.pictureUrl,
               videoUrl: row.videoUrl,
+              documentUrl: row.documentUrl,
+              documentTitle: row.documentTitle,
+              subtitles: row.videoUrl ? row.subtitles : "",
               poll: row.poll ? { question: row.poll.question, choices: row.poll.choices, days: row.poll.days } : null,
               tags: row.tags,
               repostOf: row.repostOf,
@@ -538,6 +605,7 @@ export async function runLinkedinPublish(
     .returning({ id: promoLinkedinPosts.id })
   if (!posted) return
   if (row.accountId) await db.update(promoAccounts).set({ lastPostedAt: now }).where(eq(promoAccounts.id, row.accountId))
+  await archivePostWentOut(userId, row.archiveItemId, "linkedin", "", { db, now })
   if (!postId) {
     try {
       await queueJob(userId, "linkedin_check", { postRowId: row.id }, db, new Date(now.getTime() + 60_000))

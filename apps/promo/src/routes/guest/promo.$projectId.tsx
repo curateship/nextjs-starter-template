@@ -11,6 +11,7 @@ import { loadGuestSession } from "@/lib/api/social/project-guests"
 import { loadProject } from "@/lib/api/social/projects"
 import { loadKeywords } from "@/lib/api/social/reddit/keywords"
 import { isNetwork } from "@/lib/social/networks"
+import { readProjectArchiveSearch } from "@/lib/archive/search"
 
 type Search = ProjectSearch & { post?: string; retry?: string; newPost?: string }
 
@@ -44,6 +45,8 @@ export const Route = createFileRoute("/guest/promo/$projectId")({
     post: id(search.post),
     retry: id(search.retry),
     newPost: id(search.newPost),
+    // The Archive in the project's columns (part 33): its open item, tab and filters.
+    ...(readProjectArchiveSearch(search).archive ? { open: id(search.open), ...readProjectArchiveSearch(search) } : {}),
   }),
   loaderDeps: ({ search }) => ({ retry: search.retry }),
   loader: async ({ params, deps }) => {

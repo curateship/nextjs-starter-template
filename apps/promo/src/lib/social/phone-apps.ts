@@ -10,8 +10,19 @@ import { handleWords, type PhoneAppNetwork } from "./networks"
  * person pressed for, tried once and never again.
  */
 
-/** A post's photo or video, read off the media library file's own type. */
-export type PhoneAppMediaKind = "photo" | "video"
+/**
+ * A post's photo or video, read off the media library file's own type, or a
+ * carousel: several pictures in one Instagram post or one TikTok photo post
+ * (Video's task promo/01, part 40).
+ */
+export type PhoneAppMediaKind = "photo" | "video" | "carousel"
+
+/**
+ * How many pictures a carousel from the phones holds. Instagram takes up to
+ * 20 in one post; TikTok takes more, and 20 is kept for both so one list fits
+ * either.
+ */
+export const CAROUSEL_SLIDES = { min: 2, max: 20 } as const
 
 /** Where a post Promo sent has got to. */
 export type PhoneAppPostStatus = "waiting" | "posted" | "failed"

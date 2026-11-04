@@ -2,6 +2,7 @@ import { and, asc, count, eq, isNull, max, notInArray } from "drizzle-orm"
 
 import { projectBanCounts } from "@/server/bans/dashboard"
 import { uuid } from "@/server/auth/security"
+import { promoArchiveItems } from "@/server/archive/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import type { AccountImportance } from "@/lib/social/importance"
 import { postPhone, type PostPhone } from "@/server/phones/phones"
@@ -290,14 +291,22 @@ export async function deleteProject(
     .from(promoLinkedinKeywords)
     .where(eq(promoLinkedinKeywords.projectId, projectId))
   const keywords = { n: redditKeywords.n + mediumKeywords.n + xKeywords.n + linkedinKeywords.n }
+  // Archive items, Bin included: their files would go with the project, so
+  // they are moved or deleted first (workspace/docs/archive.md).
+  const [archived] = await db
+    .select({ n: count() })
+    .from(promoArchiveItems)
+    .where(eq(promoArchiveItems.projectId, projectId))
   const held = [
     accounts.n ? `${accounts.n} ${accounts.n === 1 ? "account" : "accounts"}` : "",
     keywords.n ? `${keywords.n} ${keywords.n === 1 ? "keyword" : "keywords"}` : "",
+    archived.n ? `${archived.n} archive ${archived.n === 1 ? "item" : "items"}` : "",
   ].filter(Boolean)
   if (held.length) {
     const steps = [
       accounts.n ? "take its accounts out" : "",
       keywords.n ? "remove its keywords" : "",
+      archived.n ? "move or delete its archive items, the Bin's too" : "",
     ].filter(Boolean)
     const first = steps.join(" and ")
     throw new Error(

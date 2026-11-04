@@ -41,6 +41,7 @@ import { Route as AuthenticatedAdminAccountsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
+import { Route as AuthenticatedAdminArchiveRouteImport } from './routes/_authenticated/admin/archive'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
 import { Route as AuthenticatedAdminBansRouteImport } from './routes/_authenticated/admin/bans'
 import { Route as AuthenticatedAdminCommentsRouteImport } from './routes/_authenticated/admin/comments'
@@ -97,11 +98,16 @@ import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminProjectsProjectIdRouteImport } from './routes/_authenticated/admin/projects_.$projectId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
+import { Route as ApiArchiveZipProjectIdRouteImport } from './routes/api/archive/zip/$projectId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
+import { Route as ApiConnectVideoHelloRouteImport } from './routes/api/connect/video/hello'
+import { Route as ApiConnectVideoItemsRouteImport } from './routes/api/connect/video/items'
+import { Route as ApiConnectVideoProjectsRouteImport } from './routes/api/connect/video/projects'
 import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
+import { Route as ApiConnectVideoSendsSendIdRouteImport } from './routes/api/connect/video/sends/$sendId'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
 const IndexRoute = IndexRouteImport.update({
@@ -264,6 +270,12 @@ const AuthenticatedAdminAnnouncementsRoute =
   AuthenticatedAdminAnnouncementsRouteImport.update({
     id: '/announcements',
     path: '/announcements',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminArchiveRoute =
+  AuthenticatedAdminArchiveRouteImport.update({
+    id: '/archive',
+    path: '/archive',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminAutomationsRoute =
@@ -578,9 +590,29 @@ const AuthenticatedAdminSystemEmailsKindRoute =
     path: '/system-emails/$kind',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const ApiArchiveZipProjectIdRoute = ApiArchiveZipProjectIdRouteImport.update({
+  id: '/api/archive/zip/$projectId',
+  path: '/api/archive/zip/$projectId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   id: '/api/auth/google_/callback',
   path: '/api/auth/google/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConnectVideoHelloRoute = ApiConnectVideoHelloRouteImport.update({
+  id: '/api/connect/video/hello',
+  path: '/api/connect/video/hello',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConnectVideoItemsRoute = ApiConnectVideoItemsRouteImport.update({
+  id: '/api/connect/video/items',
+  path: '/api/connect/video/items',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConnectVideoProjectsRoute = ApiConnectVideoProjectsRouteImport.update({
+  id: '/api/connect/video/projects',
+  path: '/api/connect/video/projects',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1MediaResizedRoute = ApiV1MediaResizedRouteImport.update({
@@ -604,6 +636,12 @@ const AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute =
     id: '/automations_/templates_/$templateKey',
     path: '/automations/templates/$templateKey',
     getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const ApiConnectVideoSendsSendIdRoute =
+  ApiConnectVideoSendsSendIdRouteImport.update({
+    id: '/api/connect/video/sends/$sendId',
+    path: '/api/connect/video/sends/$sendId',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
@@ -642,6 +680,7 @@ export interface FileRoutesByFullPath {
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
+  '/admin/archive': typeof AuthenticatedAdminArchiveRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/bans': typeof AuthenticatedAdminBansRoute
   '/admin/comments': typeof AuthenticatedAdminCommentsRoute
@@ -699,11 +738,16 @@ export interface FileRoutesByFullPath {
   '/admin/projects/$projectId': typeof AuthenticatedAdminProjectsProjectIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/api/archive/zip/$projectId': typeof ApiArchiveZipProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/connect/video/hello': typeof ApiConnectVideoHelloRoute
+  '/api/connect/video/items': typeof ApiConnectVideoItemsRoute
+  '/api/connect/video/projects': typeof ApiConnectVideoProjectsRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/connect/video/sends/$sendId': typeof ApiConnectVideoSendsSendIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesByTo {
@@ -735,6 +779,7 @@ export interface FileRoutesByTo {
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
+  '/admin/archive': typeof AuthenticatedAdminArchiveRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/bans': typeof AuthenticatedAdminBansRoute
   '/admin/comments': typeof AuthenticatedAdminCommentsRoute
@@ -792,11 +837,16 @@ export interface FileRoutesByTo {
   '/admin/projects/$projectId': typeof AuthenticatedAdminProjectsProjectIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/api/archive/zip/$projectId': typeof ApiArchiveZipProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/connect/video/hello': typeof ApiConnectVideoHelloRoute
+  '/api/connect/video/items': typeof ApiConnectVideoItemsRoute
+  '/api/connect/video/projects': typeof ApiConnectVideoProjectsRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/connect/video/sends/$sendId': typeof ApiConnectVideoSendsSendIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesById {
@@ -832,6 +882,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
+  '/_authenticated/admin/archive': typeof AuthenticatedAdminArchiveRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/_authenticated/admin/bans': typeof AuthenticatedAdminBansRoute
   '/_authenticated/admin/comments': typeof AuthenticatedAdminCommentsRoute
@@ -889,11 +940,16 @@ export interface FileRoutesById {
   '/_authenticated/admin/projects_/$projectId': typeof AuthenticatedAdminProjectsProjectIdRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/api/archive/zip/$projectId': typeof ApiArchiveZipProjectIdRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/connect/video/hello': typeof ApiConnectVideoHelloRoute
+  '/api/connect/video/items': typeof ApiConnectVideoItemsRoute
+  '/api/connect/video/projects': typeof ApiConnectVideoProjectsRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/connect/video/sends/$sendId': typeof ApiConnectVideoSendsSendIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRouteTypes {
@@ -929,6 +985,7 @@ export interface FileRouteTypes {
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
+    | '/admin/archive'
     | '/admin/automations'
     | '/admin/bans'
     | '/admin/comments'
@@ -986,11 +1043,16 @@ export interface FileRouteTypes {
     | '/admin/projects/$projectId'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
+    | '/api/archive/zip/$projectId'
     | '/api/auth/google/callback'
+    | '/api/connect/video/hello'
+    | '/api/connect/video/items'
+    | '/api/connect/video/projects'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
+    | '/api/connect/video/sends/$sendId'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1022,6 +1084,7 @@ export interface FileRouteTypes {
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
+    | '/admin/archive'
     | '/admin/automations'
     | '/admin/bans'
     | '/admin/comments'
@@ -1079,11 +1142,16 @@ export interface FileRouteTypes {
     | '/admin/projects/$projectId'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
+    | '/api/archive/zip/$projectId'
     | '/api/auth/google/callback'
+    | '/api/connect/video/hello'
+    | '/api/connect/video/items'
+    | '/api/connect/video/projects'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
+    | '/api/connect/video/sends/$sendId'
     | '/api/v1/media/$mediaId/file'
   id:
     | '__root__'
@@ -1118,6 +1186,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
+    | '/_authenticated/admin/archive'
     | '/_authenticated/admin/automations'
     | '/_authenticated/admin/bans'
     | '/_authenticated/admin/comments'
@@ -1175,11 +1244,16 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/projects_/$projectId'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
+    | '/api/archive/zip/$projectId'
     | '/api/auth/google_/callback'
+    | '/api/connect/video/hello'
+    | '/api/connect/video/items'
+    | '/api/connect/video/projects'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/_authenticated/admin/automations_/templates_/$templateKey'
+    | '/api/connect/video/sends/$sendId'
     | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
 }
@@ -1222,10 +1296,15 @@ export interface RootRouteChildren {
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   GuestPromoProjectIdRoute: typeof GuestPromoProjectIdRoute
+  ApiArchiveZipProjectIdRoute: typeof ApiArchiveZipProjectIdRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+  ApiConnectVideoHelloRoute: typeof ApiConnectVideoHelloRoute
+  ApiConnectVideoItemsRoute: typeof ApiConnectVideoItemsRoute
+  ApiConnectVideoProjectsRoute: typeof ApiConnectVideoProjectsRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
+  ApiConnectVideoSendsSendIdRoute: typeof ApiConnectVideoSendsSendIdRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
 }
 
@@ -1453,6 +1532,13 @@ declare module '@tanstack/react-router' {
       path: '/announcements'
       fullPath: '/admin/announcements'
       preLoaderRoute: typeof AuthenticatedAdminAnnouncementsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/archive': {
+      id: '/_authenticated/admin/archive'
+      path: '/archive'
+      fullPath: '/admin/archive'
+      preLoaderRoute: typeof AuthenticatedAdminArchiveRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/automations': {
@@ -1847,11 +1933,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSystemEmailsKindRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/api/archive/zip/$projectId': {
+      id: '/api/archive/zip/$projectId'
+      path: '/api/archive/zip/$projectId'
+      fullPath: '/api/archive/zip/$projectId'
+      preLoaderRoute: typeof ApiArchiveZipProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/google_/callback': {
       id: '/api/auth/google_/callback'
       path: '/api/auth/google/callback'
       fullPath: '/api/auth/google/callback'
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/connect/video/hello': {
+      id: '/api/connect/video/hello'
+      path: '/api/connect/video/hello'
+      fullPath: '/api/connect/video/hello'
+      preLoaderRoute: typeof ApiConnectVideoHelloRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/connect/video/items': {
+      id: '/api/connect/video/items'
+      path: '/api/connect/video/items'
+      fullPath: '/api/connect/video/items'
+      preLoaderRoute: typeof ApiConnectVideoItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/connect/video/projects': {
+      id: '/api/connect/video/projects'
+      path: '/api/connect/video/projects'
+      fullPath: '/api/connect/video/projects'
+      preLoaderRoute: typeof ApiConnectVideoProjectsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/media/resized': {
@@ -1881,6 +1995,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/automations/templates/$templateKey'
       preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/api/connect/video/sends/$sendId': {
+      id: '/api/connect/video/sends/$sendId'
+      path: '/api/connect/video/sends/$sendId'
+      fullPath: '/api/connect/video/sends/$sendId'
+      preLoaderRoute: typeof ApiConnectVideoSendsSendIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
@@ -1923,6 +2044,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAiRoute: typeof AuthenticatedAdminAiRoute
   AuthenticatedAdminAiUsageRoute: typeof AuthenticatedAdminAiUsageRoute
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
+  AuthenticatedAdminArchiveRoute: typeof AuthenticatedAdminArchiveRoute
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
   AuthenticatedAdminBansRoute: typeof AuthenticatedAdminBansRoute
   AuthenticatedAdminCommentsRoute: typeof AuthenticatedAdminCommentsRoute
@@ -1968,6 +2090,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAiRoute: AuthenticatedAdminAiRoute,
   AuthenticatedAdminAiUsageRoute: AuthenticatedAdminAiUsageRoute,
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
+  AuthenticatedAdminArchiveRoute: AuthenticatedAdminArchiveRoute,
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
   AuthenticatedAdminBansRoute: AuthenticatedAdminBansRoute,
   AuthenticatedAdminCommentsRoute: AuthenticatedAdminCommentsRoute,
@@ -2092,10 +2215,15 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   GuestPromoProjectIdRoute: GuestPromoProjectIdRoute,
+  ApiArchiveZipProjectIdRoute: ApiArchiveZipProjectIdRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+  ApiConnectVideoHelloRoute: ApiConnectVideoHelloRoute,
+  ApiConnectVideoItemsRoute: ApiConnectVideoItemsRoute,
+  ApiConnectVideoProjectsRoute: ApiConnectVideoProjectsRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
+  ApiConnectVideoSendsSendIdRoute: ApiConnectVideoSendsSendIdRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
 }
 export const routeTree = rootRouteImport

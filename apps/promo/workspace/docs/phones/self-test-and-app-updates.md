@@ -49,8 +49,8 @@ per kind of phone: a spare Android and a spare iPhone
 - **What it walks:** reading the system version off Settings; in the Reddit
   app who is signed in, the health reading, the comment, and reading and
   answering a chat (phone farm files 05 and 06); and in the Instagram and
-  TikTok apps who is signed in, the daily reading, the profile, a post, and
-  reading and answering a message; and in the Medium app who is signed in and
+  TikTok apps who is signed in, the daily reading, the profile, a post, a
+  carousel of pictures, and reading and answering a message; and in the Medium app who is signed in and
   a response, up to Respond, on the newest Medium story found in the last week
   (Medium task, part 42). About twenty rehearsals, so
   it has half an hour. The wipe is never rehearsed. The test phone needs the
@@ -62,13 +62,20 @@ per kind of phone: a spare Android and a spare iPhone
   phone's gallery, hands it to the app's share screen, presses Next to the
   caption box, types nothing, finds Share or Post without pressing it,
   discards the draft and deletes the picture.
+- **The carousel rehearsal** puts two plain pictures in the Android test
+  phone's gallery, opens the app's create screen and library, presses
+  "Select multiple", taps the two pictures, presses Next to the caption box,
+  types nothing, finds Share or Post without pressing it, discards the draft
+  and deletes both pictures. On the iPhone test phone it saves nothing and
+  picks the two newest pictures in Photos.
 - **The profile rehearsal** opens Edit profile and the bio's screen, finds its
   box and its Save, types nothing and backs out without pressing Save.
 - **The answer rehearsal** opens the inbox and its first conversation, if the
   test account has one, and finds the box and Send without pressing it. An
   empty inbox passes at the inbox.
-- **The comment, the post and the profile change only go out from a phone once
-  the self-test has passed them** at least once. Before that, Post or Apply on
+- **The comment, the post, the carousel and the profile change only go out from
+  a phone once the self-test has passed them** at least once. A rack too old to
+  know the carousel never passes it, so carousels wait for the new rack. Before that, Post or Apply on
   a phone account is refused with how to run the self-test. An answer to a
   message or a comment is refused only when the self-test last found it
   broken, since the test account may have nothing in its inbox to rehearse on.

@@ -115,6 +115,15 @@ SELECTORS = {
     "media_next": "[role='dialog'] button:has-text('Next'), [role='dialog'] button:has-text('Done')",
     "more_options": "[role='dialog'] button[aria-label*='More'], [role='dialog'] button[aria-label*='Add to your post']",
     "poll_open": "[role='dialog'] button[aria-label*='Create a poll'], [role='dialog'] button:has-text('Create a poll')",
+    # A document post (Video's task promo/01, part 16): "Add a document" in
+    # the composer's tools, the PDF chosen, the title LinkedIn asks for, Done.
+    # A video's subtitles file (part 13): the video editor's caption button and
+    # its file box for an .srt. Both written from LinkedIn's pages as they were
+    # known on 4 Nov 2026 and never run against the live site.
+    "document_open": "[role='dialog'] button[aria-label*='Add a document'], [role='dialog'] button:has-text('Add a document')",
+    "document_title": "[role='dialog'] input[id*='document-title'], [role='dialog'] input[name*='title'], [role='dialog'] input[placeholder*='title' i]",
+    "captions_open": "[role='dialog'] button:has-text('Select caption'), [role='dialog'] button:has-text('Add captions'), [role='dialog'] button[aria-label*='caption' i]",
+    "captions_input": "[role='dialog'] input[type='file'][accept*='srt'], [role='dialog'] input[type='file'][accept*='vtt']",
     "poll_question": "#poll-question, textarea[name='question']",
     "poll_option": "input[id^='poll-option'], input[name^='option']",
     "poll_add_option": "button:has-text('Add option')",
@@ -206,6 +215,13 @@ VIDEO_SECONDS = 300
 MEDIA_CHUNK_BYTES = 64 * 1024
 PICTURE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp"}
 VIDEO_TYPES = {"video/mp4": ".mp4", "video/quicktime": ".mov", "video/webm": ".webm"}
+# A document post's PDF: LinkedIn takes up to 100 MB. Its title is at most 200
+# characters here. A video's subtitles are an .srt file's words, sent inline.
+DOCUMENT_TYPES = {"application/pdf": ".pdf"}
+DOCUMENT_MAX_BYTES = 100 * 1024 * 1024
+DOCUMENT_SECONDS = 120
+DOCUMENT_TITLE_CHARS = 200
+SUBTITLES_MAX_CHARS = 1_500_000
 
 # LinkedIn's poll: a question of 140 characters, two to four answers of 30, open 1, 3, 7 or 14 days.
 POLL_QUESTION_CHARS = 140
@@ -2227,6 +2243,18 @@ def _video_file(url, step):
     return _media_file(url, step, VIDEO_TYPES, VIDEO_MAX_BYTES, VIDEO_SECONDS, "video")
 
 
+def _document_file(url, step):
+    return _media_file(url, step, DOCUMENT_TYPES, DOCUMENT_MAX_BYTES, DOCUMENT_SECONDS, "document")
+
+
+def _subtitles_file(words):
+    """The subtitles written to an .srt file for LinkedIn's file box, and its path."""
+    handle, path = tempfile.mkstemp(prefix="promo-linkedin-", suffix=".srt")
+    with os.fdopen(handle, "w", encoding="utf-8") as out:
+        out.write(words)
+    return path
+
+
 # --- Posts of the account's own ----------------------------------------------
 
 
@@ -2259,8 +2287,8 @@ def _mine_as_page(posts, text, since=None):
     return None
 
 
-def _attach_media(page, picture_path, video_path, step):
-    """Adds the picture or the video in LinkedIn's composer."""
+def _attach_media(page, picture_path, video_path, step, subtitles_path=None):
+    """Adds the picture or the video in LinkedIn's composer, and a video's subtitles file when there is one."""
     path = picture_path or video_path
     if not path:
         return
@@ -2273,10 +2301,53 @@ def _attach_media(page, picture_path, video_path, step):
     except Exception as error:  # noqa: BLE001
         raise CommandError("%s: the file could not be added in LinkedIn's composer: %s. Nothing was sent." % (step, _short(error)))
     page.wait_for_timeout(random.randint(2000, 4000))
+    if video_path and subtitles_path:
+        _attach_captions(page, subtitles_path, step)
     after = _first_visible(page, [SELECTORS["media_next"]], 60_000 if video_path else 20_000)
     if after is None:
         raise CommandError("%s: the file did not finish loading in LinkedIn's composer. Nothing was sent." % step)
     human.click(after)
+    page.wait_for_timeout(random.randint(800, 1500))
+
+
+def _attach_captions(page, subtitles_path, step):
+    """Adds the video's .srt file in LinkedIn's video editor, so viewers can switch captions on (part 13)."""
+    opener = _first_visible(page, [SELECTORS["captions_open"]], 20_000)
+    if opener is None:
+        raise CommandError("%s: LinkedIn's video settings had no place to add the subtitles file. Nothing was sent." % step)
+    human.click(opener)
+    page.wait_for_timeout(random.randint(700, 1300))
+    try:
+        page.locator(SELECTORS["captions_input"]).first.set_input_files(subtitles_path)
+    except Exception as error:  # noqa: BLE001
+        raise CommandError("%s: the subtitles file could not be added to the video: %s. Nothing was sent." % (step, _short(error)))
+    page.wait_for_timeout(random.randint(1500, 3000))
+
+
+def _attach_document(page, document_path, title, step):
+    """Adds a PDF as a document in LinkedIn's composer, with its title (part 16)."""
+    more = _first_visible(page, [SELECTORS["more_options"]], 4_000)
+    if more is not None:
+        human.click(more)
+        page.wait_for_timeout(random.randint(500, 900))
+    opener = _first_visible(page, [SELECTORS["document_open"]], 5_000)
+    if opener is None:
+        raise CommandError("%s: there is no Add a document in LinkedIn's composer. Nothing was sent." % step)
+    human.click(opener)
+    page.wait_for_timeout(random.randint(700, 1300))
+    try:
+        page.locator("[role='dialog'] " + SELECTORS["file_input"]).first.set_input_files(document_path)
+    except Exception as error:  # noqa: BLE001
+        raise CommandError("%s: the PDF could not be added in LinkedIn's composer: %s. Nothing was sent." % (step, _short(error)))
+    field = _first_visible(page, [SELECTORS["document_title"]], 60_000)
+    if field is None:
+        raise CommandError("%s: LinkedIn did not ask for the document's title, so the PDF may not have loaded. Nothing was sent." % step)
+    human.click(field)
+    human.type_text(field, title)
+    done = _first_visible(page, [SELECTORS["media_next"]], 10_000)
+    if done is None:
+        raise CommandError("%s: LinkedIn's document window has no Done button. Nothing was sent." % step)
+    human.click(done)
     page.wait_for_timeout(random.randint(800, 1500))
 
 
@@ -2388,7 +2459,7 @@ def _check_poll(page, poll, step):
 
 
 def linkedin_publish(page, args):
-    """One post of the account's own, or a repost with thoughts, with a picture, a video or a poll, tags, into a group, or as a page.
+    """One post of the account's own, or a repost with thoughts, with a picture, a video, a poll or a document, tags, into a group, or as a page.
 
     Looks first (from `since`, or the last hour) for a post with these words:
     on the account's own activity, or on the company page's own posts when it
@@ -2396,7 +2467,10 @@ def linkedin_publish(page, args):
     is typed. Then the composer; who it writes as read back; the words typed
     with each tag picked from LinkedIn's own @ list; the file or poll added;
     the words (with the tags as LinkedIn draws them) and the poll read back
-    last; and Post pressed once.
+    last; and Post pressed once. A video may carry `subtitles`, an .srt file's
+    words, added in LinkedIn's video editor; a document is a PDF from
+    `documentUrl` with its `documentTitle` (Video's task promo/01, parts 13
+    and 16).
     """
     step = "publish"
     text = _text_arg(args, "text", step, POST_CHARS)
@@ -2412,8 +2486,17 @@ def linkedin_publish(page, args):
     picture_url = (args.get("pictureUrl") or "").strip() if isinstance(args.get("pictureUrl"), str) else ""
     video_url = (args.get("videoUrl") or "").strip() if isinstance(args.get("videoUrl"), str) else ""
     poll = _poll_arg(args.get("poll"), step) if args.get("poll") else None
-    if sum(bool(item) for item in (picture_url, video_url, poll, repost_of)) > 1:
-        raise CommandError("%s: a post carries one of a picture, a video, a poll or a repost, not several" % step)
+    document_url = (args.get("documentUrl") or "").strip() if isinstance(args.get("documentUrl"), str) else ""
+    document_title = (args.get("documentTitle") or "").strip() if isinstance(args.get("documentTitle"), str) else ""
+    subtitles = args.get("subtitles") if isinstance(args.get("subtitles"), str) and video_url else ""
+    if sum(bool(item) for item in (picture_url, video_url, poll, repost_of, document_url)) > 1:
+        raise CommandError("%s: a post carries one of a picture, a video, a poll, a document or a repost, not several" % step)
+    if document_url and not document_title:
+        raise CommandError("%s: a document needs its title" % step)
+    if len(document_title) > DOCUMENT_TITLE_CHARS:
+        raise CommandError("%s: the document's title is longer than %d characters" % (step, DOCUMENT_TITLE_CHARS))
+    if len(subtitles) > SUBTITLES_MAX_CHARS:
+        raise CommandError("%s: the subtitles are longer than %d characters" % (step, SUBTITLES_MAX_CHARS))
     _begin_write("publish", step)
     started = time.monotonic()
     deadline = started + VISIT_BUDGET_SECONDS
@@ -2436,7 +2519,9 @@ def linkedin_publish(page, args):
             before = {post["postId"] for post in posts} | {repost_of}
             picture_path = _picture_file(picture_url, step) if picture_url else None
             video_path = _video_file(video_url, step) if video_url else None
-            files = [path for path in (picture_path, video_path) if path]
+            document_path = _document_file(document_url, step) if document_url else None
+            subtitles_path = _subtitles_file(subtitles) if subtitles.strip() else None
+            files = [path for path in (picture_path, video_path, document_path, subtitles_path) if path]
             # A video's download counts against the visit: what is left must still cover the typing and the press.
             if time.monotonic() + WRITE_RESERVE_SECONDS + len(text) * TYPING_SECONDS_PER_CHARACTER > deadline:
                 raise CommandError("%s: the file took too long to download, so there is no time left to post it. Nothing was sent." % step)
@@ -2449,7 +2534,9 @@ def linkedin_publish(page, args):
             name = _pick_actor(page, SELECTORS["post_as"], page_id, step) if page_id else me["name"]
             _check_actor(page, SELECTORS["post_as"], name, step)
             gaps = _type_into(page, box, text, step, tags)
-            _attach_media(page, picture_path, video_path, step)
+            if document_path:
+                _attach_document(page, document_path, document_title, step)
+            _attach_media(page, picture_path, video_path, step, subtitles_path)
             if poll:
                 _attach_poll(page, poll, step)
             # Read back last, after the file or poll is in, right before the press.

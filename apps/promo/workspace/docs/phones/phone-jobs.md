@@ -23,8 +23,8 @@ pressing Post, and a comment is never tried twice.
   comment, since phone farm file 05 ([Reddit on phones](../reddit/reddit-on-phones.md)),
   and reading and answering its chats since file 06.
 - **What Instagram and TikTok do,** on phones only: who is signed in, the
-  daily reading, the profile, a post, and reading and answering messages and
-  comments ([Instagram and TikTok accounts](../instagram/accounts-and-the-daily-reading.md)).
+  daily reading, the profile, a post, a carousel of pictures, and reading and
+  answering messages and comments ([Instagram and TikTok accounts](../instagram/accounts-and-the-daily-reading.md)).
   A Reddit step for an Instagram or TikTok account, or a post of photos for a
   Reddit one, is refused before anything reaches the phone.
 - **Who is signed in, after each job,** is read in the app the job worked in

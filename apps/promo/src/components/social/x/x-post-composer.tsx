@@ -2,6 +2,7 @@ import * as React from "react"
 import { AlertTriangleIcon, ClockIcon, Loader2Icon, PlusIcon, ShieldCheckIcon, SparklesIcon, Trash2Icon, Undo2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { ArchivePickButton } from "@/components/archive/archive-picker"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
@@ -494,6 +495,20 @@ export function XPostComposer({
                     hint="Pick one from the media library. X shows it under the post's words."
                     onChange={(value) => changePiece(index, { pictureUrl: value }, true)}
                   />
+                  {locked ? null : (
+                    <div>
+                      <ArchivePickButton
+                        projectId={projectId}
+                        network="x"
+                        label={piece.pictureUrl ? "Another picture from the archive" : "Picture from the archive"}
+                        onPick={(pick) => {
+                          // The first post of a thread takes the item's words when it has none yet.
+                          const words = index === 0 && !piece.text.trim() && pick.caption ? { text: pick.caption } : {}
+                          changePiece(index, { pictureUrl: pick.mediaUrl, ...words }, true)
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               )
             })}

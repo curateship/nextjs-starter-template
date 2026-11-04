@@ -13,7 +13,20 @@ Words up to 3,000 characters, with one of:
 - a video from the media library, an MP4, MOV or WebM up to 500 MB, the most
   the app uploads through a proxy;
 - a poll: a question of 140 characters, two to four answers of 30, open 1, 3,
-  7 or 14 days. Its votes are read back with the daily check.
+  7 or 14 days. Its votes are read back with the daily check;
+- a document: a carousel's PDF from the Archive, with a title of up to 200
+  characters that LinkedIn shows above the pages. Only an archive carousel's
+  PDF is taken. The title starts as the carousel's own and must be there
+  when Post is pressed.
+
+A video picked from the Archive brings its subtitles, when Video sent an .srt
+file with it. They are copied onto the draft when it is saved, and the
+browser adds them in LinkedIn's video settings so viewers can switch captions
+on. From archive, beside the With it menu, fills any of these
+([the Archive](../archive.md#posting-from-the-archive-on-linkedin-and-as-carousels)).
+The document and subtitles steps have never run against the real LinkedIn
+(4 Nov 2026). A step that is not found stops the post with a sentence saying
+which, and nothing is sent.
 
 Write with AI fills the box in the account's voice. A set hour must fall in
 the account's workday, weekdays 8:00 to 18:00, or Post refuses it.
@@ -92,7 +105,7 @@ down. A newsletter issue is edited on LinkedIn itself.
 ## On a phone
 
 The LinkedIn app on a phone posts words with at most one picture. A poll, a
-video, a repost, tags, a group, a company page, a newsletter and a post with
+video, a document, a repost, tags, a group, a company page, a newsletter and a post with
 a link need the account on a browser profile (the app never says where a post
 landed, so the link's first comment could never follow), and Post says so
 before anything is sent. Edit and Delete are browser-only too, so they are

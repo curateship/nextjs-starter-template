@@ -16,13 +16,15 @@ import { slowReason } from "@/server/bans/rules"
 import { refuseImportantFirstKind } from "@/server/bans/throwaway-first"
 import { phoneStepRefusal } from "@/lib/phones/options"
 import { handleWords, isPhoneAppNetwork, NETWORK_NAMES, type PhoneAppNetwork } from "@/lib/social/networks"
-import { captionProblem, type PhoneAppMediaKind, type PhoneAppPostStatus } from "@/lib/social/phone-apps"
+import { CAROUSEL_SLIDES, captionProblem, type PhoneAppMediaKind, type PhoneAppPostStatus } from "@/lib/social/phone-apps"
+
+import { archiveFileAt, archivePostWentOut } from "@/server/archive/files"
 
 import { queueJob } from "../jobs"
 import { readBehaviour } from "../behaviour"
 import { pausedBy } from "../pause"
 import { promoAccounts, promoAppPosts, promoJobs } from "../schema"
-import { appPost } from "./calls"
+import { appCarousel, appPost } from "./calls"
 
 /**
  * Photos and videos posted on Instagram and TikTok from the media library
@@ -38,8 +40,11 @@ import { appPost } from "./calls"
 
 type AccountRow = typeof promoAccounts.$inferSelect
 
+/** One file's kind: a carousel is several photos. */
+type OneFileKind = Exclude<PhoneAppMediaKind, "carousel">
+
 /** The file types each app takes from the gallery. */
-const TAKES: Record<PhoneAppNetwork, Record<PhoneAppMediaKind, ReadonlySet<string>>> = {
+const TAKES: Record<PhoneAppNetwork, Record<OneFileKind, ReadonlySet<string>>> = {
   instagram: {
     photo: new Set(["image/jpeg", "image/jpg", "image/png"]),
     video: new Set(["video/mp4", "video/quicktime"]),
@@ -61,22 +66,65 @@ async function postableMedia(
   network: PhoneAppNetwork,
   url: string,
   db: CustomShellDb = defaultDb
-): Promise<{ kind: PhoneAppMediaKind; name: string }> {
-  const storagePath = url ? await storagePathForUrl(url) : null
-  const [row] = storagePath
-    ? await db
-        .select({ mimeType: customShellMedia.mimeType, fileType: customShellMedia.fileType, name: customShellMedia.originalName })
-        .from(customShellMedia)
-        .where(and(eq(customShellMedia.userId, userId), eq(customShellMedia.storagePath, storagePath)))
-        .limit(1)
-    : []
-  if (!row) throw new Error("Pick a photo or video from your media library first.")
-  const kind: PhoneAppMediaKind | null = row.fileType === "image" ? "photo" : row.fileType === "video" ? "video" : null
+): Promise<{ kind: OneFileKind; name: string; archiveItemId: string | null }> {
+  const row = await ownFile(userId, url, db)
+  if (!row) throw new Error("Pick a photo or video from your media library or the archive first.")
+  const kind: OneFileKind | null = row.fileType === "image" ? "photo" : row.fileType === "video" ? "video" : null
   if (!kind || !TAKES[network][kind].has(row.mimeType)) {
     const allowed = network === "instagram" ? "a JPEG or PNG photo, or an MP4 or MOV video" : "a JPEG, PNG or WebP photo, or an MP4, MOV or WebM video"
     throw new Error(`${NETWORK_NAMES[network]} cannot post that file (${row.mimeType}). Pick ${allowed}.`)
   }
-  return { kind, name: row.name }
+  return { kind, name: row.name, archiveItemId: row.archiveItemId }
+}
+
+/** One of this person's own files by its address, from the media library or the Archive, or null. */
+async function ownFile(
+  userId: string,
+  url: string,
+  db: CustomShellDb
+): Promise<{ mimeType: string; fileType: string; name: string; archiveItemId: string | null } | null> {
+  const storagePath = url ? await storagePathForUrl(url) : null
+  if (!storagePath) return null
+  const [library] = await db
+    .select({ mimeType: customShellMedia.mimeType, fileType: customShellMedia.fileType, name: customShellMedia.originalName })
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.userId, userId), eq(customShellMedia.storagePath, storagePath)))
+    .limit(1)
+  if (library) return { ...library, archiveItemId: null }
+  // A file from the Archive is this person's own too (part 34).
+  const archived = await archiveFileAt(userId, storagePath, db)
+  return archived ? { mimeType: archived.mimeType, fileType: archived.mimeType.split("/")[0], name: archived.name, archiveItemId: archived.itemId } : null
+}
+
+/**
+ * A carousel's pictures (part 40), each one of this person's own files that
+ * passes the same check as a single photo, in the order given. Instagram
+ * takes JPEG and PNG, TikTok WebP too; a video anywhere in it is refused,
+ * since a carousel from the phones is photos only. Its archive item is the
+ * first picture's, when that came from the Archive.
+ */
+async function postableCarousel(
+  userId: string,
+  network: PhoneAppNetwork,
+  urls: string[],
+  db: CustomShellDb = defaultDb
+): Promise<{ name: string; archiveItemId: string | null }> {
+  if (urls.length < CAROUSEL_SLIDES.min || urls.length > CAROUSEL_SLIDES.max) {
+    throw new Refusal(`A carousel holds ${CAROUSEL_SLIDES.min} to ${CAROUSEL_SLIDES.max} pictures. This one has ${urls.length}.`)
+  }
+  let first: { name: string; archiveItemId: string | null } | null = null
+  for (const [index, url] of urls.entries()) {
+    const which = `Picture ${index + 1} of the carousel`
+    const file = await ownFile(userId, url, db)
+    if (!file) throw new Refusal(`${which} is not in your media library or the archive.`)
+    if (file.fileType === "video") throw new Refusal(`${which} is a video. A carousel from the phones holds pictures only.`)
+    if (file.fileType !== "image" || !TAKES[network].photo.has(file.mimeType)) {
+      const allowed = network === "instagram" ? "JPEG or PNG" : "JPEG, PNG or WebP"
+      throw new Refusal(`${which} is ${file.mimeType}, which ${NETWORK_NAMES[network]} cannot post. A carousel takes ${allowed} pictures.`)
+    }
+    first ??= { name: file.name, archiveItemId: file.archiveItemId }
+  }
+  return first!
 }
 
 /**
@@ -193,27 +241,43 @@ export async function lockAccountWrites(tx: Pick<CustomShellDb, "execute">, acco
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`promo-app-write:${accountId}`}))`)
 }
 
+/** The rack's routine for a post: one file, or several pictures in one post (part 40). */
+export function appPostRoutine(platform: string, kind: PhoneAppMediaKind): string {
+  return kind === "carousel" ? `${platform}/post_carousel` : `${platform}/post`
+}
+
 /**
  * Sends one photo or video to the account's phone to post, because a person
  * pressed Post. `draftCaption` is what the AI wrote before any edit, kept so
  * what was asked for and what went out can be compared. The same file and
  * caption already on its way from the same account is refused, so a second
  * press never posts twice.
+ *
+ * `mediaUrls`, when given, makes it a carousel (Video's task promo/01, part
+ * 40): 2 to 20 pictures in order, one Instagram post or one TikTok photo
+ * post, through its own routine, so a carousel step the self-test found
+ * broken stops carousels only. `mediaUrl` is then the first picture.
  */
 export async function queueAppPost(
   userId: string,
-  input: { accountId: string; mediaUrl: string; caption: string; draftCaption: string },
+  input: { accountId: string; mediaUrl: string; mediaUrls?: string[]; caption: string; draftCaption: string },
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<{ id: string }> {
+  const mediaUrls = input.mediaUrls?.length ? input.mediaUrls : []
+  const carousel = mediaUrls.length > 0
+  const mediaUrl = carousel ? mediaUrls[0] : input.mediaUrl
   const account = await ownAccount(userId, input.accountId, db)
-  const network = await refuseAppAccount(userId, account, `${account.platform}/post`, db)
+  const network = await refuseAppAccount(userId, account, appPostRoutine(account.platform, carousel ? "carousel" : "photo"), db)
   await refuseAppPostNow(userId, account, db, now)
   const caption = input.caption.trim()
   const problem = captionProblem(network, caption)
   if (problem) throw new Error(problem)
-  const media = await postableMedia(userId, network, input.mediaUrl, db)
+  const media: { kind: PhoneAppMediaKind; name: string; archiveItemId: string | null } = carousel
+    ? { kind: "carousel", ...(await postableCarousel(userId, network, mediaUrls, db)) }
+    : await postableMedia(userId, network, mediaUrl, db)
   // A throwaway goes first with a kind of post new to an important account (Bans task, part 22).
+  // A carousel is its own kind: an important account's first one waits for a throwaway's.
   await refuseImportantFirstKind(account, network, media.kind, db, now)
 
   // Checked and written under a lock on the account, so two presses at once
@@ -231,7 +295,7 @@ export async function queueAppPost(
         and(
           eq(promoAppPosts.accountId, account.id),
           eq(promoAppPosts.status, "waiting"),
-          eq(promoAppPosts.mediaUrl, input.mediaUrl),
+          eq(promoAppPosts.mediaUrl, mediaUrl),
           eq(promoAppPosts.caption, caption),
           inArray(promoJobs.status, ["queued", "running"])
         )
@@ -244,13 +308,15 @@ export async function queueAppPost(
       accountId: account.id,
       projectId: account.projectId,
       platform: network,
-      mediaUrl: input.mediaUrl,
+      mediaUrl,
+      mediaUrls,
       mediaKind: media.kind,
       mediaName: media.name.slice(0, 255),
       caption,
       draftCaption: input.draftCaption.trim().slice(0, 10_000),
       jobId,
       createdAt: now,
+      archiveItemId: media.archiveItemId,
     })
     await queueJob(userId, "app_post", { accountId: account.id, postId: id }, tx, null, jobId)
   })
@@ -281,11 +347,14 @@ export async function runAppPost(
     throw new Refusal("That post is not waiting for this job any more. Nothing was sent.")
   }
   try {
-    const answer = await appPost(target, account.platform, {
-      ...(await mediaArgs(userId, account.phoneId, post.mediaUrl, db, now)),
-      mediaKind: post.mediaKind,
-      caption: post.caption,
-    })
+    const answer =
+      post.mediaKind === "carousel"
+        ? await appCarousel(target, account.platform, { ...(await carouselArgs(userId, account.phoneId, post.mediaUrls, db, now)), caption: post.caption })
+        : await appPost(target, account.platform, {
+            ...(await mediaArgs(userId, account.phoneId, post.mediaUrl, db, now)),
+            mediaKind: post.mediaKind,
+            caption: post.caption,
+          })
     await db
       .update(promoAppPosts)
       .set({ status: "posted", postUrl: postLink(account.platform, answer.postUrl), postedAt: now, lastError: "" })
@@ -294,6 +363,7 @@ export async function runAppPost(
       .update(promoAccounts)
       .set({ lastPostedAt: now, updatedAt: now })
       .where(eq(promoAccounts.id, account.id))
+    await archivePostWentOut(userId, post.archiveItemId, account.platform, postLink(account.platform, answer.postUrl), { db, now })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     await db
@@ -324,15 +394,37 @@ export async function mediaArgs(
     : []
   if (phone?.kind !== "iphone") return { mediaUrl }
   const storagePath = await storagePathForUrl(mediaUrl)
-  const [file] = storagePath
+  const [library] = storagePath
     ? await db
         .select({ mimeType: customShellMedia.mimeType })
         .from(customShellMedia)
         .where(and(eq(customShellMedia.userId, userId), eq(customShellMedia.storagePath, storagePath)))
         .limit(1)
     : []
-  if (!storagePath || !file) throw new Refusal("That file is not in your media library any more, so nothing was posted.")
+  const file = library ?? (storagePath ? await archiveFileAt(userId, storagePath, db) : null)
+  if (!storagePath || !file) throw new Refusal("That file is not in your media library or the archive any more, so nothing was posted.")
   return { mediaUrl: await makeMediaLink(userId, { storagePath, mimeType: file.mimeType }, db, now), mediaFromSafari: true }
+}
+
+/**
+ * A carousel's pictures as the phone takes them, in order: each one's own
+ * address on an Android, or each one's one-time Safari link on an iPhone,
+ * made the way `mediaArgs` makes one. Every link is made when the job starts,
+ * and each lasts ten minutes, so a long carousel on an iPhone must save all
+ * its pictures inside that time.
+ */
+export async function carouselArgs(
+  userId: string,
+  phoneId: string | null,
+  mediaUrls: string[],
+  db: CustomShellDb,
+  now: Date
+): Promise<{ mediaUrls: string[]; mediaFromSafari?: true }> {
+  if (mediaUrls.length < CAROUSEL_SLIDES.min) throw new Refusal("That carousel has lost its pictures, so nothing was posted.")
+  const each = []
+  for (const url of mediaUrls) each.push(await mediaArgs(userId, phoneId, url, db, now))
+  const safari = each.some((one) => one.mediaFromSafari)
+  return { mediaUrls: each.map((one) => one.mediaUrl), ...(safari ? { mediaFromSafari: true as const } : {}) }
 }
 
 /**

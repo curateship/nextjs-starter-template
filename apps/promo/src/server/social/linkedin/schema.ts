@@ -330,6 +330,21 @@ export const promoLinkedinPosts = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     postedAt: timestamp("posted_at", { withTimezone: true }),
+    /**
+     * The archive item it was made from, or null. Added by
+     * `drizzle/0134_promo_archive.sql`, which also sets it to null when the
+     * item is deleted for good.
+     */
+    archiveItemId: varchar("archive_item_id", { length: 36 }),
+    /**
+     * A document post's PDF, an archive carousel's, and the title LinkedIn
+     * asks for (part 16); "" on every other post. Added by
+     * `drizzle/0135_promo_archive_posts.sql`, like `subtitles`.
+     */
+    documentUrl: varchar("document_url", { length: 2048 }).notNull().default(""),
+    documentTitle: varchar("document_title", { length: 200 }).notNull().default(""),
+    /** A video's subtitles as an .srt file's words, copied from its archive item on save (part 13), or "". */
+    subtitles: text("subtitles").notNull().default(""),
   },
   (table) => [
     index("ix_promo_linkedin_posts_project").on(table.projectId, table.createdAt.desc()),

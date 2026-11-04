@@ -1059,6 +1059,107 @@ class LateReadBackTest(WritingBase):
         self.assertNotIn(("pressed", "post"), self.record)
 
 
+class FileBox(object):
+    """A file box that writes down what it was handed, and the file's words while it is still there."""
+
+    def __init__(self, record, selector):
+        self.record, self.selector = record, selector
+
+    @property
+    def first(self):
+        return self
+
+    def set_input_files(self, path):
+        with open(path, "rb") as handle:
+            self.record.append(("file", "srt" if "srt" in self.selector else "file", os.path.basename(path), handle.read()))
+
+
+class FilePage(FakePage):
+    def locator(self, selector):
+        if "input[type='file']" in selector:
+            return FileBox(self.record, selector)
+        return FakePage.locator(self, selector)
+
+
+class ArchivePostTest(WritingBase):
+    """Video's task promo/01, parts 13 and 16: a carousel's PDF as a document
+    post with its title, and a video's subtitles file in LinkedIn's video
+    editor. Written from LinkedIn's pages as they were known; never run on
+    the live site."""
+
+    ACTIVITY = "https://www.linkedin.com/in/sam-kim/recent-activity/all/"
+    SRT = "1\n00:00:00,000 --> 00:00:02,500\nNight mode is out.\n"
+
+    def file_page(self):
+        plays = {POST_URL: {"cards": [card(POST)]}, li.FEED: {"cards": [card(OTHER)]}, self.ACTIVITY: {"cards": []}}
+        return FilePage(plays, record=self.record)
+
+    def downloaded(self, suffix):
+        handle, path = li.tempfile.mkstemp(suffix=suffix)
+        os.write(handle, b"bytes")
+        os.close(handle)
+        return path
+
+    def test_a_document_post_adds_the_pdf_types_its_title_and_presses_post_once(self):
+        self.visible.update({"Add a document": FakeButton("add document"), "document-title": FakeButton("title"), "has-text('Next')": FakeButton("done")})
+        self.box.shown = "Seven steps to a calm week."
+        pdf = self.downloaded(".pdf")
+        with mock.patch.object(li, "_document_file", return_value=pdf), mock.patch.object(li, "_post_landed", return_value=OTHER):
+            found = li.linkedin_publish(self.file_page(), {"text": "Seven steps to a calm week.", "documentUrl": "https://cdn.test/c.pdf", "documentTitle": "Seven steps"})
+        self.assertEqual(found["postId"], OTHER)
+        presses = [item[1] for item in self.record if item[0] == "pressed"]
+        self.assertLess(presses.index("add document"), presses.index("post"))
+        self.assertEqual(presses.count("post"), 1)
+        self.assertIn(("typed", "Seven steps"), self.record)
+        self.assertEqual([item[1] for item in self.record if item[0] == "file"], ["file"])
+        self.assertFalse(os.path.exists(pdf))
+
+    def test_a_composer_without_add_a_document_sends_nothing(self):
+        pdf = self.downloaded(".pdf")
+        with mock.patch.object(li, "_document_file", return_value=pdf), self.assertRaises(li.CommandError) as caught:
+            li.linkedin_publish(self.file_page(), {"text": "Seven steps.", "documentUrl": "https://cdn.test/c.pdf", "documentTitle": "Seven steps"})
+        self.assertEqual(str(caught.exception), "publish: there is no Add a document in LinkedIn's composer. Nothing was sent.")
+        self.assertNotIn(("pressed", "post"), self.record)
+        self.assertFalse(os.path.exists(pdf))
+
+    def test_a_document_needs_its_title_and_goes_alone(self):
+        with self.assertRaises(li.CommandError) as caught:
+            li.linkedin_publish(self.file_page(), {"text": "Hi", "documentUrl": "https://cdn.test/c.pdf"})
+        self.assertIn("a document needs its title", str(caught.exception))
+        with self.assertRaises(li.CommandError) as caught:
+            li.linkedin_publish(self.file_page(), {"text": "Hi", "documentUrl": "https://cdn.test/c.pdf", "documentTitle": "T", "pictureUrl": "https://cdn.test/a.png"})
+        self.assertIn("one of a picture, a video, a poll, a document or a repost", str(caught.exception))
+
+    def test_a_video_carries_its_subtitles_file_into_the_video_editor_before_done(self):
+        self.visible.update({"Select caption": FakeButton("captions"), "has-text('Next')": FakeButton("next")})
+        self.box.shown = "Night mode is out."
+        video = self.downloaded(".mp4")
+        with mock.patch.object(li, "_video_file", return_value=video), mock.patch.object(li, "_post_landed", return_value=OTHER):
+            li.linkedin_publish(self.file_page(), {"text": "Night mode is out.", "videoUrl": "https://cdn.test/v.mp4", "subtitles": self.SRT})
+        files = [item for item in self.record if item[0] == "file"]
+        self.assertEqual([item[1] for item in files], ["file", "srt"])
+        self.assertTrue(files[1][2].endswith(".srt"))
+        self.assertEqual(files[1][3].decode("utf-8"), self.SRT)
+        presses = [item[1] for item in self.record if item[0] == "pressed"]
+        self.assertLess(presses.index("captions"), presses.index("next"))
+        self.assertEqual(presses.count("post"), 1)
+        # The .srt file and the video are gone from the browser's disk afterwards.
+        self.assertFalse(os.path.exists(video))
+        self.assertFalse([name for name in os.listdir(li.tempfile.gettempdir()) if name == files[1][2]])
+
+    def test_a_video_editor_with_no_place_for_subtitles_sends_nothing(self):
+        video = self.downloaded(".mp4")
+        with mock.patch.object(li, "_video_file", return_value=video), self.assertRaises(li.CommandError) as caught:
+            li.linkedin_publish(self.file_page(), {"text": "Night mode is out.", "videoUrl": "https://cdn.test/v.mp4", "subtitles": self.SRT})
+        self.assertEqual(str(caught.exception), "publish: LinkedIn's video settings had no place to add the subtitles file. Nothing was sent.")
+        self.assertNotIn(("pressed", "post"), self.record)
+
+    def test_a_document_must_be_https(self):
+        for url in ["http://cdn.test/a.pdf", "file:///etc/passwd", ""]:
+            with self.assertRaises(li.CommandError, msg=url):
+                li._document_file(url, "publish")
+
+
 class MessageTimesTest(WritingBase):
     THREAD = "https://www.linkedin.com/messaging/thread/2-abcDEF123/"
 

@@ -40,6 +40,18 @@ export const appOpenEndpoints: Record<string, string> = {}
  * as, and refuses a guest anything outside their one project.
  */
 export const appGuardedDeeper: Record<string, string> = {
+  "archive/items.ts:listFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, and never its Bin; anyone else must be a signed-in admin.",
+  "archive/items.ts:itemFn":
+    "editorGet, then actorFor on the item's own project in src/server/social/project-guests.ts: a guest only for an item in their project, with no download; anyone else must be a signed-in admin.",
+  "archive/posting.ts:picksFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project's archive; anyone else must be a signed-in admin.",
+  "archive/posting.ts:postsFn":
+    "editorPost, then actorFor on each account's own project in queuePostsFrom (src/server/archive/posting.ts): a guest only for their project's accounts and only with archive files of that project; anyone else must be a signed-in admin.",
+  "archive/posting.ts:captionsFn":
+    "editorPost, then actorFor on the item's own project in src/server/social/project-guests.ts: a guest only for an item in their project; anyone else must be a signed-in admin.",
+  "archive/items.ts:saveFn":
+    "editorPost, then actorFor on the item's own project in src/server/social/project-guests.ts: a guest only for an item in their project and only its captions; anyone else must be a signed-in admin.",
   "social/comments.ts:listFn":
     "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, whose list is cut to that project; anyone else must be a signed-in admin.",
   "social/comments.ts:checkFn":

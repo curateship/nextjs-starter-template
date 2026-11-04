@@ -9,6 +9,7 @@ import { MEDIUM_VIEWS } from "@/lib/social/medium/options"
 import { LINKEDIN_VIEWS } from "@/lib/social/linkedin/options"
 import { X_VIEWS } from "@/lib/social/x/options"
 import { isNetwork } from "@/lib/social/networks"
+import { readProjectArchiveSearch } from "@/lib/archive/search"
 
 type Search = ProjectSearch & { post?: string; retry?: string; newPost?: string }
 
@@ -53,6 +54,7 @@ export const Route = createFileRoute("/_authenticated/admin/projects_/$projectId
     newPost: id(search.newPost),
     tab: oneOf(search.tab, [...MEDIUM_VIEWS, ...X_VIEWS, ...LINKEDIN_VIEWS].filter((view) => view !== "new")),
     open: id(search.open),
+    ...readProjectArchiveSearch(search),
   }),
   loaderDeps: ({ search }) => ({ retry: search.retry }),
   loader: async ({ params, deps }) => {

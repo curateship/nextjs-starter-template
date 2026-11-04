@@ -90,10 +90,14 @@ import { Route as AuthenticatedAdminVideoFavouritesCollectionIdRouteImport } fro
 import { Route as AuthenticatedAdminVideoViralIndexRouteImport } from './routes/_authenticated/admin/video-viral.index'
 import { Route as AuthenticatedAdminVideoViralProjectIdRouteImport } from './routes/_authenticated/admin/video-viral_.$projectId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
+import { Route as ApiConnectPromoEventsRouteImport } from './routes/api/connect/promo/events'
+import { Route as ApiConnectPromoProjectsRouteImport } from './routes/api/connect/promo/projects'
+import { Route as ApiConnectPromoRequestsRouteImport } from './routes/api/connect/promo/requests'
 import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
+import { Route as ApiConnectPromoFileTokenRouteImport } from './routes/api/connect/promo/file/$token'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 import { Route as ApiV1VideoYoutubeCallbackRouteImport } from './routes/api/v1/video/youtube/callback'
 import { Route as ApiV1VideoYoutubeConnectRouteImport } from './routes/api/v1/video/youtube/connect'
@@ -550,6 +554,21 @@ const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   path: '/api/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiConnectPromoEventsRoute = ApiConnectPromoEventsRouteImport.update({
+  id: '/api/connect/promo/events',
+  path: '/api/connect/promo/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConnectPromoProjectsRoute = ApiConnectPromoProjectsRouteImport.update({
+  id: '/api/connect/promo/projects',
+  path: '/api/connect/promo/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConnectPromoRequestsRoute = ApiConnectPromoRequestsRouteImport.update({
+  id: '/api/connect/promo/requests',
+  path: '/api/connect/promo/requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1MediaResizedRoute = ApiV1MediaResizedRouteImport.update({
   id: '/api/v1/media/resized',
   path: '/api/v1/media/resized',
@@ -571,6 +590,12 @@ const AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute =
     id: '/automations_/templates_/$templateKey',
     path: '/automations/templates/$templateKey',
     getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const ApiConnectPromoFileTokenRoute =
+  ApiConnectPromoFileTokenRouteImport.update({
+    id: '/api/connect/promo/file/$token',
+    path: '/api/connect/promo/file/$token',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
@@ -709,6 +734,9 @@ export interface FileRoutesByFullPath {
   '/admin/video-favourites/$collectionId': typeof AuthenticatedAdminVideoFavouritesCollectionIdRoute
   '/admin/video-viral/$projectId': typeof AuthenticatedAdminVideoViralProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/connect/promo/events': typeof ApiConnectPromoEventsRoute
+  '/api/connect/promo/projects': typeof ApiConnectPromoProjectsRoute
+  '/api/connect/promo/requests': typeof ApiConnectPromoRequestsRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
@@ -717,6 +745,7 @@ export interface FileRoutesByFullPath {
   '/admin/video-favourites/': typeof AuthenticatedAdminVideoFavouritesIndexRoute
   '/admin/video-viral/': typeof AuthenticatedAdminVideoViralIndexRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/connect/promo/file/$token': typeof ApiConnectPromoFileTokenRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/video/youtube/callback': typeof ApiV1VideoYoutubeCallbackRoute
   '/api/v1/video/youtube/connect': typeof ApiV1VideoYoutubeConnectRoute
@@ -799,6 +828,9 @@ export interface FileRoutesByTo {
   '/admin/video-favourites/$collectionId': typeof AuthenticatedAdminVideoFavouritesCollectionIdRoute
   '/admin/video-viral/$projectId': typeof AuthenticatedAdminVideoViralProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/connect/promo/events': typeof ApiConnectPromoEventsRoute
+  '/api/connect/promo/projects': typeof ApiConnectPromoProjectsRoute
+  '/api/connect/promo/requests': typeof ApiConnectPromoRequestsRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
@@ -807,6 +839,7 @@ export interface FileRoutesByTo {
   '/admin/video-favourites': typeof AuthenticatedAdminVideoFavouritesIndexRoute
   '/admin/video-viral': typeof AuthenticatedAdminVideoViralIndexRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/connect/promo/file/$token': typeof ApiConnectPromoFileTokenRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/video/youtube/callback': typeof ApiV1VideoYoutubeCallbackRoute
   '/api/v1/video/youtube/connect': typeof ApiV1VideoYoutubeConnectRoute
@@ -897,6 +930,9 @@ export interface FileRoutesById {
   '/_authenticated/admin/video-favourites/$collectionId': typeof AuthenticatedAdminVideoFavouritesCollectionIdRoute
   '/_authenticated/admin/video-viral_/$projectId': typeof AuthenticatedAdminVideoViralProjectIdRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/connect/promo/events': typeof ApiConnectPromoEventsRoute
+  '/api/connect/promo/projects': typeof ApiConnectPromoProjectsRoute
+  '/api/connect/promo/requests': typeof ApiConnectPromoRequestsRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
@@ -905,6 +941,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/video-favourites/': typeof AuthenticatedAdminVideoFavouritesIndexRoute
   '/_authenticated/admin/video-viral/': typeof AuthenticatedAdminVideoViralIndexRoute
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/connect/promo/file/$token': typeof ApiConnectPromoFileTokenRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/video/youtube/callback': typeof ApiV1VideoYoutubeCallbackRoute
   '/api/v1/video/youtube/connect': typeof ApiV1VideoYoutubeConnectRoute
@@ -995,6 +1032,9 @@ export interface FileRouteTypes {
     | '/admin/video-favourites/$collectionId'
     | '/admin/video-viral/$projectId'
     | '/api/auth/google/callback'
+    | '/api/connect/promo/events'
+    | '/api/connect/promo/projects'
+    | '/api/connect/promo/requests'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
@@ -1003,6 +1043,7 @@ export interface FileRouteTypes {
     | '/admin/video-favourites/'
     | '/admin/video-viral/'
     | '/admin/automations/templates/$templateKey'
+    | '/api/connect/promo/file/$token'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/video/youtube/callback'
     | '/api/v1/video/youtube/connect'
@@ -1085,6 +1126,9 @@ export interface FileRouteTypes {
     | '/admin/video-favourites/$collectionId'
     | '/admin/video-viral/$projectId'
     | '/api/auth/google/callback'
+    | '/api/connect/promo/events'
+    | '/api/connect/promo/projects'
+    | '/api/connect/promo/requests'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
@@ -1093,6 +1137,7 @@ export interface FileRouteTypes {
     | '/admin/video-favourites'
     | '/admin/video-viral'
     | '/admin/automations/templates/$templateKey'
+    | '/api/connect/promo/file/$token'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/video/youtube/callback'
     | '/api/v1/video/youtube/connect'
@@ -1182,6 +1227,9 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/video-favourites/$collectionId'
     | '/_authenticated/admin/video-viral_/$projectId'
     | '/api/auth/google_/callback'
+    | '/api/connect/promo/events'
+    | '/api/connect/promo/projects'
+    | '/api/connect/promo/requests'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
@@ -1190,6 +1238,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/video-favourites/'
     | '/_authenticated/admin/video-viral/'
     | '/_authenticated/admin/automations_/templates_/$templateKey'
+    | '/api/connect/promo/file/$token'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/video/youtube/callback'
     | '/api/v1/video/youtube/connect'
@@ -1232,9 +1281,13 @@ export interface RootRouteChildren {
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   GuestVideoEditorProjectIdRoute: typeof GuestVideoEditorProjectIdRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+  ApiConnectPromoEventsRoute: typeof ApiConnectPromoEventsRoute
+  ApiConnectPromoProjectsRoute: typeof ApiConnectPromoProjectsRoute
+  ApiConnectPromoRequestsRoute: typeof ApiConnectPromoRequestsRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
+  ApiConnectPromoFileTokenRoute: typeof ApiConnectPromoFileTokenRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
   ApiV1VideoYoutubeCallbackRoute: typeof ApiV1VideoYoutubeCallbackRoute
   ApiV1VideoYoutubeConnectRoute: typeof ApiV1VideoYoutubeConnectRoute
@@ -1816,6 +1869,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/connect/promo/events': {
+      id: '/api/connect/promo/events'
+      path: '/api/connect/promo/events'
+      fullPath: '/api/connect/promo/events'
+      preLoaderRoute: typeof ApiConnectPromoEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/connect/promo/projects': {
+      id: '/api/connect/promo/projects'
+      path: '/api/connect/promo/projects'
+      fullPath: '/api/connect/promo/projects'
+      preLoaderRoute: typeof ApiConnectPromoProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/connect/promo/requests': {
+      id: '/api/connect/promo/requests'
+      path: '/api/connect/promo/requests'
+      fullPath: '/api/connect/promo/requests'
+      preLoaderRoute: typeof ApiConnectPromoRequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/media/resized': {
       id: '/api/v1/media/resized'
       path: '/api/v1/media/resized'
@@ -1843,6 +1917,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/automations/templates/$templateKey'
       preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/api/connect/promo/file/$token': {
+      id: '/api/connect/promo/file/$token'
+      path: '/api/connect/promo/file/$token'
+      fullPath: '/api/connect/promo/file/$token'
+      preLoaderRoute: typeof ApiConnectPromoFileTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
@@ -2173,9 +2254,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   GuestVideoEditorProjectIdRoute: GuestVideoEditorProjectIdRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+  ApiConnectPromoEventsRoute: ApiConnectPromoEventsRoute,
+  ApiConnectPromoProjectsRoute: ApiConnectPromoProjectsRoute,
+  ApiConnectPromoRequestsRoute: ApiConnectPromoRequestsRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
+  ApiConnectPromoFileTokenRoute: ApiConnectPromoFileTokenRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
   ApiV1VideoYoutubeCallbackRoute: ApiV1VideoYoutubeCallbackRoute,
   ApiV1VideoYoutubeConnectRoute: ApiV1VideoYoutubeConnectRoute,
