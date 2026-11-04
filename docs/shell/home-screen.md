@@ -40,8 +40,9 @@ Project opens My dashboard (`/dashboard`).
 
 - **No notices on the phone.** Nothing is pushed to the phone. Project's rule
   that the check-in reminder is a bell notice only still holds.
-- **No offline pages.** There is no service worker. With no connection the
-  icon opens the same error a browser would show.
+- **No offline pages unless the app asks.** With no connection the icon opens
+  the same error a browser would show, except on pages an app keeps with
+  `useOfflinePages` (see `offline-pages.md`). Travel keeps its trips.
 - **No app stores.** It is a shortcut to the website.
 
 ## Things to know

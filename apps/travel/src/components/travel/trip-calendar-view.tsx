@@ -7,6 +7,7 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { Activity } from "@/lib/api/travel/trips"
 import { boardColumns, formatTime } from "@/lib/travel/board"
+import { DAY_PART_LABEL } from "@/lib/travel/rules"
 import { addDays, daysBetween, lastDate, localDateToIso, todayIn, weekday } from "@/lib/travel/dates"
 import { cn } from "@/lib/utils"
 
@@ -20,7 +21,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
  * Trip settings window it used to open became the trip's ⋮ menu).
  */
 export function TripCalendarView({ activities }: { activities: Activity[] }) {
-  const { page, typesById, openActivity, openActivityId } = useTrip()
+  const { page, typesById, openActivity, openActivityId, readOnly } = useTrip()
   const { trip } = page
   const saveTrip = useSaveTrip()
 
@@ -29,11 +30,11 @@ export function TripCalendarView({ activities }: { activities: Activity[] }) {
       <div className="grid flex-1 content-center justify-items-center gap-3 p-6 text-center">
         <CalendarDaysIcon className="size-5 text-muted-foreground" aria-hidden />
         <p className="max-w-64 text-sm text-muted-foreground">Add a start date to see the calendar.</p>
-        <DatePicker
+        {readOnly ? null : <DatePicker
           value={undefined}
           placeholder="Add a start date"
           onChange={(date) => (date ? void saveTrip({ startDate: localDateToIso(date) }) : undefined)}
-        />
+        />}
       </div>
     )
   }
@@ -90,6 +91,8 @@ export function TripCalendarView({ activities }: { activities: Activity[] }) {
                     <ActivityTypeIcon type={typeOf(activity, typesById)} className="size-3" />
                     {activity.startTime ? (
                       <span className="shrink-0 text-muted-foreground tabular-nums">{formatTime(activity.startTime)}</span>
+                    ) : activity.dayPart ? (
+                      <span className="shrink-0 text-muted-foreground">{DAY_PART_LABEL[activity.dayPart]}</span>
                     ) : null}
                     <span className="truncate">{activity.title}</span>
                   </button>

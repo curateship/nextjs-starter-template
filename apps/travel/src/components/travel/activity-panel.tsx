@@ -47,7 +47,7 @@ export function ActivityPanel({ activityId }: { activityId: string | undefined }
 }
 
 function OpenActivity({ activity }: { activity: Activity }) {
-  const { typesById } = useTrip()
+  const { typesById, readOnly } = useTrip()
   // A picture whose address no longer loads is left out rather than drawn broken.
   const [broken, setBroken] = React.useState<string | null>(null)
   const banner = activity.photoUrl && activity.photoUrl !== broken ? activity.photoUrl : null
@@ -59,7 +59,7 @@ function OpenActivity({ activity }: { activity: Activity }) {
         className={cn("relative", banner && "border-b-transparent")}
         icon={<ActivityTypeIcon type={typeOf(activity, typesById)} />}
         title={activity.title}
-        action={<ActivityMenu activity={activity} />}
+        action={readOnly ? undefined : <ActivityMenu activity={activity} />}
       />
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
         <div className="grid gap-2 p-3">

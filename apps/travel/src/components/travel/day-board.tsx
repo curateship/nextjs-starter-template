@@ -26,6 +26,7 @@ import type { BoardActions } from "@/components/travel/board-actions"
 import type { BoardLayout } from "@/components/travel/use-board-layout"
 import { BoardCard, CardMenu } from "@/components/travel/board-card"
 import { COLUMN_DRAG, COLUMN_GAP, DayColumn } from "@/components/travel/day-column"
+import { dayLabel } from "@/components/travel/new-activity"
 import { typeOf, useTrip } from "@/components/travel/trip-context"
 import { Button } from "@/components/ui/button"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -34,10 +35,10 @@ import { addTripDay, moveTripDay } from "@/lib/api/travel/days"
 import type { Activity } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { boardColumns, dayOfColumn, formatMinutes, gapsOf } from "@/lib/travel/board"
-import { dateOfDay, todaysDay, weekday } from "@/lib/travel/dates"
+import { dateOfDay, formatDayDate, todaysDay, weekday } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { MAX_TRIP_DAYS } from "@/lib/travel/rules"
-import { hoursWarning } from "@/lib/travel/hours"
+import { hoursWarning, nearestOpenDay } from "@/lib/travel/hours"
 import { readDayInfo } from "@/lib/travel/trip-days"
 import { usePhone } from "@/lib/travel/use-phone"
 import { cn } from "@/lib/utils"
@@ -89,7 +90,7 @@ export function DayBoard({
   /** Beside the Ideas column's "+": add from saved places (task part 41). */
   ideasButton?: React.ReactNode
 }) {
-  const { page, typesById, refresh, openActivity, openActivityId } = useTrip()
+  const { page, typesById, refresh, openActivity, openActivityId, readOnly } = useTrip()
   const { trip } = page
   const [run] = useAsyncAction(getTravelErrorMessage)
   const { folded, toggleFold, ideasHidden } = layout
@@ -105,7 +106,7 @@ export function DayBoard({
     heldRef.current = next
     setHeldState(next)
   }
-  // A drag starts after 8px, so a click still opens the card.
+  // A drag starts after 8px, so a click still opens the card. With no signal each card and day is set not to drag.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
   const dndId = React.useId()
   const allKeys = [...columns.keys()].filter((key) => !(ideasHidden && key === "ideas"))
@@ -270,13 +271,15 @@ export function DayBoard({
                     info={day === null ? null : dayInfo[day - 1]}
                     isToday={day !== null && day === today}
                     folded={!phone && folded.has(key)}
+                    readOnly={readOnly}
                     fullWidth={phone}
                     count={cards.length}
                     weather={day !== null && weatherOf ? weatherOf(day) : undefined}
                     onFold={() => toggleFold(key)}
                     onCopyDay={(to) => (day === null ? undefined : void actions.copyDay(day, to))}
+                    onBestOrder={() => (day === null ? undefined : void actions.bestOrder(day))}
                     addButton={
-                      <>
+                      readOnly ? null : <>
                         {day === null ? ideasButton : null}
                         {newActivity(
                           key,
@@ -299,17 +302,32 @@ export function DayBoard({
                             const gap = gaps.find((item) => item.afterId === card.id)
                             const next = cards[index + 1]
                             const extra = next && between && showGaps && !held ? between(card, next) : null
+                            const warning = hoursWarning(card.openingHours, date ? weekday(date) : null, card.startTime)
+                            // A place shut all day offers the nearest open day (Travel features part 1); compact cards stay one line.
+                            const openDay = compact || held || readOnly ? null : nearestOpenDay(card.openingHours, trip, day)
                             return (
                               <React.Fragment key={card.id}>
                                 <BoardCard
                                   activity={card}
+                                  locked={readOnly}
                                   open={card.id === openActivityId}
                                   selecting={selecting}
                                   selected={selected.has(card.id)}
                                   onToggleSelected={() => onToggleSelected(card.id)}
                                   onOpen={() => openActivity(card.id)}
-                                  onMenu={(at) => setMenu({ id: card.id, at })}
-                                  onDone={() => void actions.setField(card, { done: !card.done })}
+                                  onMenu={(at) => (readOnly ? undefined : setMenu({ id: card.id, at }))}
+                                  onDone={readOnly ? undefined : () => void actions.setField(card, { done: !card.done })}
+                                  footer={
+                                    openDay !== null && warning ? (
+                                      <ClosedDayMove
+                                        warning={warning}
+                                        title={card.title}
+                                        toDay={openDay}
+                                        startDate={trip.startDate}
+                                        onMove={() => void actions.moveTo(card, openDay)}
+                                      />
+                                    ) : undefined
+                                  }
                                 >
                                   <ActivityCardContent
                                     activity={card}
@@ -317,11 +335,7 @@ export function DayBoard({
                                     currency={trip.currency}
                                     compact={compact}
                                     roomForMenu
-                                    warning={hoursWarning(
-                                      card.openingHours,
-                                      date ? weekday(date) : null,
-                                      card.startTime
-                                    )}
+                                    warning={openDay !== null ? null : warning}
                                   />
                                 </BoardCard>
                                 {gap || extra ? <GapLine gap={gap} extra={extra} /> : null}
@@ -335,7 +349,7 @@ export function DayBoard({
                 )
               })}
               {/* After the last day, a "+" that adds one more (Tyler, 3 Nov 2026: "Add an + icon here to add a day"). */}
-              {phone ? null : <AddDayButton />}
+              {phone || readOnly ? null : <AddDayButton />}
             </div>
           </SortableContext>
         </div>
@@ -375,6 +389,42 @@ function columnOf(columns: Record<string, string[]>, id: UniqueIdentifier) {
   const key = String(id)
   if (key in columns) return key
   return Object.keys(columns).find((column) => columns[column].includes(key)) ?? null
+}
+
+/**
+ * "Closed on Mondays" with "Move to Tue", along the foot of a card whose
+ * place is shut all day (Tyler, 3 Nov 2026: "Warning + Move button"). The
+ * move is the board's usual one, with Undo.
+ */
+export function ClosedDayMove({
+  warning,
+  title,
+  toDay,
+  startDate,
+  onMove,
+}: {
+  warning: string
+  title: string
+  toDay: number
+  startDate: string | null
+  onMove: () => void
+}) {
+  const date = dateOfDay(startDate, toDay)
+  return (
+    <>
+      <span className="min-w-0 truncate text-xs text-destructive">{warning}</span>
+      <Button
+        type="button"
+        variant="outline"
+        size="xs"
+        className="ml-auto shrink-0"
+        aria-label={`Move ${title} to ${dayLabel(toDay, startDate)}`}
+        onClick={onMove}
+      >
+        Move to {date ? formatDayDate(date).split(" ")[0] : `Day ${toDay}`}
+      </Button>
+    </>
+  )
 }
 
 /** The thin line between two timed cards (task part 8): "1h 30m free", or how much they overlap. */

@@ -16,11 +16,12 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Activity } from "@/lib/api/travel/trips"
 import { formatTime } from "@/lib/travel/board"
-import { formatMoney, parseMoney } from "@/lib/travel/rules"
+import { DAY_PART_LABEL, DAY_PARTS, formatMoney, parseMoney, type DayPart } from "@/lib/travel/rules"
 import type { UpdateActivityInput } from "@/lib/travel/schemas"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const IDEAS = "ideas"
+const NO_PART = "any"
 
 type Section = "name" | "when" | "place" | "cost" | "picture" | "rating"
 
@@ -42,7 +43,12 @@ export function ActivityMenu({ activity }: { activity: Activity }) {
   const when =
     activity.day === null
       ? "Ideas"
-      : [`Day ${activity.day}`, activity.startTime ? formatTime(activity.startTime) : null].filter(Boolean).join(" · ")
+      : [
+          `Day ${activity.day}`,
+          activity.startTime ? formatTime(activity.startTime) : activity.dayPart ? DAY_PART_LABEL[activity.dayPart] : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
 
   return (
     <FoldingMenu label="More for this activity" busy={actions.busy} open={open} onOpenChange={setOpen}>
@@ -165,6 +171,28 @@ function WhenFields({ activity }: { activity: Activity }) {
         </Select>
       </div>
       <TimeFields activity={activity} save={save} />
+      {activity.day !== null && !activity.startTime ? (
+        // A rough time for a card with no start time; the day sorts by it (Travel features part 2).
+        <div className="grid gap-2">
+          <Label htmlFor={`${idBase}-part`}>Part of the day</Label>
+          <Select
+            value={activity.dayPart ?? NO_PART}
+            onValueChange={(value) => void save({ dayPart: value === NO_PART ? null : (value as DayPart) })}
+          >
+            <SelectTrigger id={`${idBase}-part`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_PART}>Any time</SelectItem>
+              {DAY_PARTS.map((part) => (
+                <SelectItem key={part} value={part}>
+                  {DAY_PART_LABEL[part]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
       {type?.builtin === "hotel" || activity.nights ? (
         <div className="grid gap-2">
           <Label htmlFor={`${idBase}-nights`}>Nights</Label>

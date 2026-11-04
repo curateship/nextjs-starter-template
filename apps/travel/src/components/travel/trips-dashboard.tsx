@@ -10,6 +10,7 @@ import {
   PlaneTakeoffIcon,
   PlusIcon,
   Trash2Icon,
+  Undo2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -17,6 +18,9 @@ import { CopyTripDialog } from "@/components/travel/copy-trip-dialog"
 import { GoogleMap } from "@/components/travel/google-map"
 import { NewTripDialog } from "@/components/travel/new-trip-dialog"
 import { SavedPlacesDialog } from "@/components/travel/saved-places-dialog"
+import { useTripBin } from "@/components/travel/use-trip-bin"
+import { NoSignalLine } from "@/components/travel/no-signal-line"
+import { useTravelOffline } from "@/components/travel/use-travel-offline"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import {
@@ -38,7 +42,7 @@ import {
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { archiveTrip, loadPins, type TripPin } from "@/lib/api/travel/trip-admin"
-import { removeTrip, type TripListRow, type TripsPage } from "@/lib/api/travel/trips"
+import { purgeTripById, restoreTripById, type TripListRow, type TripsPage } from "@/lib/api/travel/trips"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
@@ -48,15 +52,16 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { useRememberedChoice } from "@/lib/remembered-choice"
-import { countdown, formatTripDates, tripHasEnded } from "@/lib/travel/dates"
+import { addDays, countdown, formatDayDate, formatTripDates, tripHasEnded } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { TRIPS_MAP_KEY } from "@/lib/travel/panel-keys"
 import { TRIP_STATUS_LABEL } from "@/lib/travel/rules"
+import { TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 type Column = "name" | "days" | "start" | "status"
-export type TripsShow = "upcoming" | "past" | "archived"
+export type TripsShow = "upcoming" | "past" | "archived" | "bin"
 
 const COLUMNS: SortableColumn<Column>[] = [
   { key: "name", label: "Trip", column: "main", className: "min-w-0 md:min-w-72" },
@@ -67,15 +72,25 @@ const COLUMNS: SortableColumn<Column>[] = [
 const STATUS_RANK = { planning: 0, booked: 1, done: 2 } as const
 const ON_OFF = ["on", "off"] as const
 
-/** Upcoming holds every trip that hasn't ended, trips with no dates included; Past the ones that have. */
+/**
+ * Upcoming holds every trip that hasn't ended, trips with no dates included;
+ * Past the ones that have. A deleted trip is in the Bin, whatever else it is.
+ */
 function showOf(row: TripListRow): TripsShow {
+  if (row.deletedAt) return "bin"
   if (row.archived) return "archived"
   return tripHasEnded(row) ? "past" : "upcoming"
 }
 
+/** "Goes for good 3 Dec": a binned trip's line under its dates, short enough for the column. */
+function binLine(deletedAt: string) {
+  const gone = formatDayDate(addDays(deletedAt.slice(0, 10), TRIP_BIN_DAYS))
+  return `Goes for good ${gone.split(" ").slice(1).join(" ")}`
+}
+
 /**
  * The Trips table: every trip of the person signed in (task parts 1 and 36
- * to 41). Upcoming, Past and Archived tabs, kept in the address; the search
+ * to 41). Upcoming, Past, Archived and Bin tabs, kept in the address; the search
  * first, then the tag filter, Saved places and New trip. Each row has its
  * dates, a countdown and its status, and Copy, Archive and Delete. The map of
  * places visited sits above it and hides with its switch.
@@ -95,6 +110,7 @@ export function TripsDashboard({
   const [creating, setCreating] = React.useState(false)
   const [savedOpen, setSavedOpen] = React.useState(false)
   const [copying, setCopying] = React.useState<TripListRow | null>(null)
+  // Delete for good, from the Bin: the one delete that asks first.
   const [deleting, setDeleting] = React.useState<TripListRow[] | null>(null)
   const closingDeleting = useLastValue(deleting)
   const shownDeleting = deleting ?? closingDeleting
@@ -102,8 +118,12 @@ export function TripsDashboard({
   const [tags, setTags] = React.useState<ReadonlySet<string>>(new Set())
   const { sort, direction, toggleSort } = useTableSort<Column>("start")
   const selection = useSelection()
-  const [run, busy] = useAsyncAction(getTravelErrorMessage)
+  const [run, running] = useAsyncAction(getTravelErrorMessage)
+  const tripBin = useTripBin()
+  const busy = running || tripBin.busy
   const [mapShown, setMapShown] = useRememberedChoice(TRIPS_MAP_KEY, "on", ON_OFF)
+  // Kept to open with no signal, then read only (Travel features part 10).
+  const readOnly = useTravelOffline()
 
   const allTags = React.useMemo(
     () => [...new Set(page.trips.flatMap((trip) => trip.tags))].sort((a, b) => a.localeCompare(b)),
@@ -113,6 +133,7 @@ export function TripsDashboard({
     upcoming: page.trips.filter((trip) => showOf(trip) === "upcoming").length,
     past: page.trips.filter((trip) => showOf(trip) === "past").length,
     archived: page.trips.filter((trip) => showOf(trip) === "archived").length,
+    bin: page.trips.filter((trip) => showOf(trip) === "bin").length,
   }
 
   const rows = React.useMemo(() => {
@@ -139,13 +160,30 @@ export function TripsDashboard({
   useClearSelectionOnListChange(selection.setSelected, `${show}|${query}|${[...tags]}`)
   const selected = page.trips.filter((trip) => selection.selected.has(trip.id))
 
-  async function deleteTrips(trips: TripListRow[]) {
+  /** Delete: into the Bin with Undo (Travel features part 8). */
+  async function binTrips(trips: TripListRow[]) {
+    if (await tripBin.binTrips(trips)) selection.clear()
+  }
+
+  /** Put back from the Bin, to the tab each came from. */
+  async function restoreTrips(trips: TripListRow[]) {
+    const ok = await run(async () => {
+      for (const trip of trips) await restoreTripById(trip.id)
+      await router.invalidate()
+    })
+    if (!ok) return
+    selection.clear()
+    toast.success(describeBulkResult({ done: trips.length, kept: 0, one: "trip", many: "trips", verb: "put back" }))
+  }
+
+  /** Delete for good, from the Bin, after the confirm. */
+  async function purgeTrips(trips: TripListRow[]) {
     let done = 0
     let failed = 0
     const ok = await run(async () => {
       for (const trip of trips) {
         try {
-          await removeTrip(trip.id)
+          await purgeTripById(trip.id)
           done += 1
         } catch {
           failed += 1
@@ -155,7 +193,7 @@ export function TripsDashboard({
     if (!ok) return
     setDeleting(null)
     selection.clear()
-    const line = describeBulkResult({ done, kept: failed, one: "trip", many: "trips", verb: "deleted" })
+    const line = describeBulkResult({ done, kept: failed, one: "trip", many: "trips", verb: "deleted for good" })
     if (failed) showErrorToast(line)
     else toast.success(line)
     await router.invalidate()
@@ -183,7 +221,8 @@ export function TripsDashboard({
 
   return (
     <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
-      {mapShown === "on" ? <PlacesMap onHide={() => setMapShown("off")} /> : null}
+      {readOnly ? <NoSignalLine /> : null}
+      {mapShown === "on" && !readOnly ? <PlacesMap onHide={() => setMapShown("off")} /> : null}
       <DashboardTable
         title="Trips"
         tabs={
@@ -198,6 +237,9 @@ export function TripsDashboard({
               <TabsTrigger value="archived">
                 Archived <TabsCount>{counts.archived}</TabsCount>
               </TabsTrigger>
+              <TabsTrigger value="bin">
+                Bin <TabsCount>{counts.bin}</TabsCount>
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         }
@@ -207,7 +249,18 @@ export function TripsDashboard({
         onClearSelection={selection.clear}
         controls={
           <>
-            {selected.length ? (
+            {readOnly ? null : selected.length && show === "bin" ? (
+              <>
+                <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => void restoreTrips(selected)}>
+                  <Undo2Icon className="size-4" />
+                  Put back ({selected.length})
+                </DashboardToolbarButton>
+                <DashboardToolbarButton type="button" variant="outline" onClick={() => setDeleting(selected)}>
+                  <Trash2Icon className="size-4" />
+                  Delete for good ({selected.length})
+                </DashboardToolbarButton>
+              </>
+            ) : selected.length ? (
               <>
                 <DashboardToolbarButton
                   type="button"
@@ -218,7 +271,7 @@ export function TripsDashboard({
                   {show === "archived" ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />}
                   {show === "archived" ? "Bring back" : "Archive"} ({selected.length})
                 </DashboardToolbarButton>
-                <DashboardToolbarButton type="button" variant="outline" onClick={() => setDeleting(selected)}>
+                <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => void binTrips(selected)}>
                   <Trash2Icon className="size-4" />
                   Delete ({selected.length})
                 </DashboardToolbarButton>
@@ -263,20 +316,24 @@ export function TripsDashboard({
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
-            {mapShown === "off" ? (
+            {mapShown === "off" && !readOnly ? (
               <DashboardToolbarButton type="button" variant="outline" onClick={() => setMapShown("on")}>
                 <MapIcon className="size-4" />
                 Show map
               </DashboardToolbarButton>
             ) : null}
-            <DashboardToolbarButton type="button" variant="outline" onClick={() => setSavedOpen(true)}>
-              <BookmarkIcon className="size-4" />
-              Saved places
-            </DashboardToolbarButton>
-            <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
-              <PlusIcon className="size-4" />
-              New trip
-            </DashboardToolbarButton>
+            {readOnly ? null : (
+              <>
+                <DashboardToolbarButton type="button" variant="outline" onClick={() => setSavedOpen(true)}>
+                  <BookmarkIcon className="size-4" />
+                  Saved places
+                </DashboardToolbarButton>
+                <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
+                  <PlusIcon className="size-4" />
+                  New trip
+                </DashboardToolbarButton>
+              </>
+            )}
           </>
         }
         header={
@@ -300,7 +357,9 @@ export function TripsDashboard({
         emptyText={
           query || tags.size
             ? "No trips match that search."
-            : show === "archived"
+            : show === "bin"
+              ? "The bin is empty. A deleted trip waits here for 30 days."
+              : show === "archived"
               ? "No archived trips."
               : show === "past"
                 ? "No past trips yet."
@@ -310,15 +369,18 @@ export function TripsDashboard({
         footer={footer}
       >
         {visible.map((row) => {
-          const open = () => void navigate({ to: "/trips/$tripId", params: { tripId: row.id } })
+          // A trip in the bin doesn't open until it is put back.
+          const open = row.deletedAt ? undefined : () => void navigate({ to: "/trips/$tripId", params: { tripId: row.id } })
           return (
             <TableRow key={row.id} rowAction={open} data-trip-id={row.id}>
               <TableCell column="select">
-                <Checkbox
-                  checked={selection.selected.has(row.id)}
-                  onCheckedChange={() => selection.toggle(row.id)}
-                  aria-label={`Select ${row.name}`}
-                />
+                {readOnly ? null : (
+                  <Checkbox
+                    checked={selection.selected.has(row.id)}
+                    onCheckedChange={() => selection.toggle(row.id)}
+                    aria-label={`Select ${row.name}`}
+                  />
+                )}
               </TableCell>
               <TableCell column="main">
                 <span className="flex min-w-0 items-center gap-3">
@@ -345,7 +407,9 @@ export function TripsDashboard({
               <TableCell column="preview">
                 <span className="grid">
                   <span>{formatTripDates(row.startDate, row.days) ?? <span className="text-muted-foreground">No dates</span>}</span>
-                  {row.startDate ? (
+                  {row.deletedAt ? (
+                    <span className="text-xs text-muted-foreground">{binLine(row.deletedAt)}</span>
+                  ) : row.startDate ? (
                     <span className={cn("text-xs text-muted-foreground", countdown(row) === "on now" && "font-medium text-foreground")}>
                       {countdown(row)}
                     </span>
@@ -358,6 +422,18 @@ export function TripsDashboard({
               <TableCell column="preview">
                 {TRIP_STATUS_LABEL[row.status]}
               </TableCell>
+              {readOnly ? (
+                <TableCell column="actions" />
+              ) : row.deletedAt ? (
+                <TableCell column="actions">
+                  <RowButton label={`Put back ${row.name}`} disabled={busy} onClick={() => void restoreTrips([row])}>
+                    <Undo2Icon className="size-4" />
+                  </RowButton>
+                  <RowButton label={`Delete ${row.name} for good`} onClick={() => setDeleting([row])}>
+                    <Trash2Icon className="size-4" />
+                  </RowButton>
+                </TableCell>
+              ) : (
               <TableCell column="actions">
                 <RowButton label={`Copy ${row.name}`} onClick={() => setCopying(row)}>
                   <CopyIcon className="size-4" />
@@ -369,10 +445,11 @@ export function TripsDashboard({
                 >
                   {row.archived ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />}
                 </RowButton>
-                <RowButton label={`Delete ${row.name}`} onClick={() => setDeleting([row])}>
+                <RowButton label={`Delete ${row.name}`} disabled={busy} onClick={() => void binTrips([row])}>
                   <Trash2Icon className="size-4" />
                 </RowButton>
               </TableCell>
+              )}
             </TableRow>
           )
         })}
@@ -387,15 +464,15 @@ export function TripsDashboard({
         }}
         title={
           shownDeleting && shownDeleting.length === 1
-            ? `Delete ${shownDeleting[0].name}?`
-            : `Delete ${shownDeleting?.length ?? 0} trips?`
+            ? `Delete ${shownDeleting[0].name} for good?`
+            : `Delete ${shownDeleting?.length ?? 0} trips for good?`
         }
-        description="The trip goes for good, with every activity, file and note on it."
-        confirmLabel={shownDeleting && shownDeleting.length > 1 ? "Delete trips" : "Delete trip"}
+        description="It goes at once, with every activity and note on it, and can't be put back."
+        confirmLabel="Delete for good"
         destructive
         loading={busy}
         onConfirm={() => {
-          if (deleting) void deleteTrips(deleting)
+          if (deleting) void purgeTrips(deleting)
         }}
       />
     </div>

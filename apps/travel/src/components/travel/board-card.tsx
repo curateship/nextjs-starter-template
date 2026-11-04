@@ -140,10 +140,13 @@ const LONG_PRESS_MS = 550
 /**
  * One card on the board: drags by itself, opens on a click, opens its menu on
  * a right-click or a long press, and carries the Done tick (task part 6) and,
- * while Mass select is on, a tick box (task part 14).
+ * while Mass select is on, a tick box (task part 14). A `footer` sits along
+ * the card's foot inside its edge, for a button the card's own button can't
+ * hold, such as "Move to Tue" (Travel features part 1).
  */
 export function BoardCard({
   activity,
+  locked = false,
   open,
   selecting,
   selected,
@@ -151,9 +154,12 @@ export function BoardCard({
   onOpen,
   onMenu,
   onDone,
+  footer,
   children,
 }: {
   activity: Activity
+  /** No signal: the card still opens, but doesn't drag. */
+  locked?: boolean
   /** Open in the right panel: outlined in the text colour. */
   open: boolean
   selecting: boolean
@@ -161,10 +167,15 @@ export function BoardCard({
   onToggleSelected: () => void
   onOpen: () => void
   onMenu: (at: { x: number; y: number }) => void
-  onDone: () => void
+  /** The Done tick; left off with no signal. */
+  onDone?: () => void
+  footer?: React.ReactNode
   children: React.ReactNode
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: activity.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: activity.id,
+    disabled: locked,
+  })
   const style: React.CSSProperties | undefined = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, transition }
     : undefined
@@ -211,19 +222,29 @@ export function BoardCard({
         {...listeners}
         {...attributes}
         role="button"
-        aria-roledescription="draggable activity"
+        // Locked with no signal, the card still opens: it just doesn't drag, so it isn't called disabled.
+        aria-disabled={undefined}
+        aria-roledescription={locked ? undefined : "draggable activity"}
         aria-current={open || undefined}
         className={cn(
           CARD_CLASS,
           // A card opens on a click, so it shows a pointer rather than the board's hand.
           "cursor-pointer overflow-hidden hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
           selecting && "pl-8",
+          // Room under the card's lines for the footer's 24px row, 6px above it.
+          footer && "pb-10",
           open && "border-foreground ring-1 ring-foreground",
           selected && "bg-accent/60"
         )}
       >
         {children}
       </button>
+      {footer ? (
+        // Beside the card's button rather than in it, like the tick box: a button can't hold another.
+        <div className={cn("absolute right-2.5 bottom-2.5 left-2.5 flex items-center gap-2", selecting && "left-8")}>
+          {footer}
+        </div>
+      ) : null}
       {selecting ? (
         // Beside the card's button rather than in it: a button can't hold another.
         <Checkbox
@@ -233,7 +254,7 @@ export function BoardCard({
           className="absolute top-3 left-2.5 bg-card"
         />
       ) : null}
-      <button
+      {onDone ? <button
         type="button"
         onClick={onDone}
         aria-label={activity.done ? `Mark ${activity.title} not done` : `Mark ${activity.title} done`}
@@ -247,7 +268,7 @@ export function BoardCard({
         )}
       >
         <CheckIcon className="size-3.5" aria-hidden />
-      </button>
+      </button> : null}
     </li>
   )
 }

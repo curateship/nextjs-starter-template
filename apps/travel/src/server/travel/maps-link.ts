@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm"
 
 import type { BuiltinType } from "@/lib/travel/activity-types"
+import { isMapsLink } from "@/lib/travel/maps-links"
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
 import type { Place } from "@/lib/travel/rules"
 import { now, uuid } from "@/server/auth/security"
@@ -18,6 +19,7 @@ import { customShellMedia } from "@/server/schema"
 import { requireActivity } from "@/server/travel/access"
 import { toOpeningHours, type GooglePeriod } from "@/server/travel/google"
 import { travelActivities } from "@/server/travel/schema"
+import { createActivity } from "@/server/travel/trips"
 import { readVenue, type Venue } from "@/server/travel/maps-browser"
 import { builtinTypeId } from "@/server/travel/types"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
@@ -41,29 +43,6 @@ import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 const TIMEOUT_MS = 10_000
 const MAX_HOPS = 4
-
-/** Hosts a Maps link may live on. */
-function isMapsHost(host: string) {
-  return (
-    host === "maps.app.goo.gl" ||
-    host === "goo.gl" ||
-    host === "maps.google.com" ||
-    /^(www\.)?google\.[a-z.]{2,6}$/.test(host)
-  )
-}
-
-export function isMapsLink(text: string) {
-  let url: URL
-  try {
-    url = new URL(text.trim())
-  } catch {
-    return false
-  }
-  if (url.protocol !== "https:" || !isMapsHost(url.hostname)) return false
-  if (url.hostname === "goo.gl") return url.pathname.startsWith("/maps")
-  if (/^(www\.)?google\./.test(url.hostname)) return url.pathname.startsWith("/maps")
-  return true
-}
 
 async function google(url: string, init: RequestInit = {}) {
   try {
@@ -419,6 +398,27 @@ export async function fillFromMapsLink(
     })
     .where(eq(travelActivities.id, activity.id))
   return { title, photo: photoUrl !== null, partial: false }
+}
+
+/**
+ * One link of a Paste Maps links paste (Travel features part 6; Tyler, 3 Nov
+ * 2026: "Ideas, wait for photos"): a new card at the end of the trip's Ideas,
+ * filled from the link with its photo. A link that can't be read makes no
+ * card: the card made for it goes again, for good, and the reason is thrown.
+ */
+export async function addActivityFromMapsLink(
+  userId: string,
+  input: { tripId: string; link: string },
+  database: CustomShellDb = db
+) {
+  if (!isMapsLink(input.link)) throw new Error(TRAVEL_ERRORS.notMapsLink)
+  const { id } = await createActivity(userId, { tripId: input.tripId, day: null, title: "New place" }, database)
+  try {
+    return { id, ...(await fillFromMapsLink(userId, { activityId: id, link: input.link }, database)) }
+  } catch (error) {
+    await database.delete(travelActivities).where(eq(travelActivities.id, id))
+    throw error
+  }
 }
 
 /**

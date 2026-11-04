@@ -5,6 +5,7 @@ import { ActivityPanel } from "@/components/travel/activity-panel"
 import { SchedulePanel } from "@/components/travel/schedule-panel"
 import { markClickedOpen, TripProvider, type TripContextValue } from "@/components/travel/trip-context"
 import { TripDetailsPanel } from "@/components/travel/trip-details-panel"
+import { useTravelOffline } from "@/components/travel/use-travel-offline"
 import { ThreePanels } from "@/components/shared/three-panels"
 import type { TripPage } from "@/lib/api/travel/trips"
 import { boardColumns } from "@/lib/travel/board"
@@ -36,6 +37,7 @@ export function TripWorkspace({
   const router = useRouter()
   const navigate = useNavigate()
   const tripId = page.trip.id
+  const readOnly = useTravelOffline()
 
   const refresh = React.useCallback(
     () => router.invalidate({ filter: (match) => match.routeId === TRIP_ROUTE_ID }),
@@ -67,8 +69,8 @@ export function TripWorkspace({
   const openId = search.open && page.activities.some((activity) => activity.id === search.open) ? search.open : undefined
 
   const context = React.useMemo<TripContextValue>(
-    () => ({ page, typesById, refresh, openActivity, openActivityId: openId }),
-    [openActivity, openId, page, refresh, typesById]
+    () => ({ page, typesById, refresh, openActivity, openActivityId: openId, readOnly }),
+    [openActivity, openId, page, readOnly, refresh, typesById]
   )
 
   return (

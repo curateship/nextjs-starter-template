@@ -15,6 +15,14 @@ export type MapPin = {
   color?: string
 }
 
+/** A line joining points in order, such as one day's stops (Travel features part 4). */
+export type MapLine = {
+  id: string
+  /** The line's colour, a CSS colour. */
+  color: string
+  points: { lat: number; lng: number }[]
+}
+
 type GoogleMaps = {
   maps: {
     Map: new (element: HTMLElement, options: Record<string, unknown>) => {
@@ -26,6 +34,7 @@ type GoogleMaps = {
       addListener: (event: string, handler: () => void) => void
       setMap: (map: unknown) => void
     }
+    Polyline: new (options: Record<string, unknown>) => { setMap: (map: unknown) => void }
     LatLngBounds: new () => { extend: (point: { lat: number; lng: number }) => void }
     SymbolPath: { CIRCLE: unknown }
   }
@@ -64,11 +73,14 @@ function loadGoogleMaps(key: string): Promise<GoogleMaps> {
  */
 export function GoogleMap({
   pins,
+  lines = [],
   onPick,
   className,
   emptyText,
 }: {
   pins: MapPin[]
+  /** Straight lines drawn under the pins, such as each day's route. */
+  lines?: MapLine[]
   onPick: (id: string) => void
   className?: string
   emptyText: string
@@ -81,10 +93,12 @@ export function GoogleMap({
     onPickRef.current = onPick
   })
   const pinsJson = JSON.stringify(pins)
+  const linesJson = JSON.stringify(lines)
 
   React.useEffect(() => {
     if (!mapsKey || !box.current) return
     let alive = true
+    // Pins and lines both come off the map when it is drawn again.
     const markers: { setMap: (map: unknown) => void }[] = []
     loadGoogleMaps(mapsKey)
       .then((google) => {
@@ -98,6 +112,22 @@ export function GoogleMap({
           fullscreenControl: false,
         })
         const bounds = new google.maps.LatLngBounds()
+        for (const line of JSON.parse(linesJson) as MapLine[]) {
+          if (line.points.length < 2) continue
+          markers.push(
+            new google.maps.Polyline({
+              map,
+              path: line.points,
+              geodesic: true,
+              clickable: false,
+              strokeColor: line.color,
+              strokeOpacity: 0.8,
+              strokeWeight: 3,
+              // Under the pins, so a pin is always what a click lands on.
+              zIndex: 0,
+            })
+          )
+        }
         for (const pin of shown) {
           const marker = new google.maps.Marker({
             map,
@@ -126,7 +156,7 @@ export function GoogleMap({
       alive = false
       for (const marker of markers) marker.setMap(null)
     }
-  }, [mapsKey, pinsJson])
+  }, [mapsKey, pinsJson, linesJson])
 
   if (ready && !mapsKey) {
     return (

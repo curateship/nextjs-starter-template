@@ -1,11 +1,20 @@
-import { BedDoubleIcon, ClockIcon, StarIcon } from "lucide-react"
+import { BedDoubleIcon, ClockIcon, MoonIcon, StarIcon, SunIcon, SunriseIcon, SunsetIcon, type LucideIcon } from "lucide-react"
 
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import type { Activity } from "@/lib/api/travel/trips"
 import type { ActivityType } from "@/lib/travel/activity-types"
 import { formatTimeRange } from "@/lib/travel/board"
+import { DAY_PART_LABEL, type DayPart } from "@/lib/travel/rules"
 import { formatMoney } from "@/lib/travel/rules"
 import { cn } from "@/lib/utils"
+
+/** The icon beside a part of the day on a card with no start time (Travel features part 2). */
+const DAY_PART_ICON: Record<DayPart, LucideIcon> = {
+  morning: SunriseIcon,
+  afternoon: SunIcon,
+  evening: SunsetIcon,
+  night: MoonIcon,
+}
 
 export const CARD_CLASS = "grid w-full gap-1.5 rounded-lg border bg-card p-2.5 text-left text-sm shadow-xs"
 
@@ -33,12 +42,17 @@ export function ActivityCardContent({
   warning?: string | null
 }) {
   const time = formatTimeRange(activity.startTime, activity.durationMinutes)
+  // A card with no start time may carry a part of the day instead.
+  const part = activity.startTime ? null : activity.dayPart
+  const PartIcon = part ? DAY_PART_ICON[part] : null
   if (compact) {
     return (
       <span className={cn("flex min-w-0 items-center gap-2", roomForMenu && "pr-6", activity.done && "opacity-60")}>
         <ActivityTypeIcon type={type} />
         {activity.startTime ? (
           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{time?.split(" to ")[0]}</span>
+        ) : part ? (
+          <span className="shrink-0 text-xs text-muted-foreground">{DAY_PART_LABEL[part]}</span>
         ) : null}
         <span className={cn("truncate font-medium", activity.done && "line-through")}>{activity.title}</span>
       </span>
@@ -62,12 +76,18 @@ export function ActivityCardContent({
           {activity.title}
         </span>
       </span>
-      {time || warning || nights ? (
+      {time || part || warning || nights ? (
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           {time ? (
             <span className="flex items-center gap-1 tabular-nums">
               <ClockIcon className="size-3" aria-hidden />
               {time}
+            </span>
+          ) : null}
+          {part && PartIcon ? (
+            <span className="flex items-center gap-1">
+              <PartIcon className="size-3" aria-hidden />
+              {DAY_PART_LABEL[part]}
             </span>
           ) : null}
           {nights ? (

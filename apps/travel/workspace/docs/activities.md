@@ -32,14 +32,20 @@ folds open to change it. Every field saves itself.
 - **Name and type.**
 - **When:** the day (Ideas or Day N), start time, length in hours and minutes,
   and nights for a stay. Nights shows for a Hotel or anything with nights set.
-  Moving to another day can be undone from the bar at the bottom.
+  Moving to another day can be undone from the bar at the bottom. A card on a
+  day with no start time also has Part of the day: Any time, Morning,
+  Afternoon, Evening or Night (see [The day board](the-day-board.md)). The
+  row's summary reads "Day 2 · Morning".
 - **Place:** a Google Maps link first (see below), then a search for the
   address. With Google on, picking a suggestion
   saves the place and fills its opening hours, website and phone. A typed
   place keeps what was there. "Open in Google Maps" opens it in a new tab.
   Opening hours can be typed by hand, a day at a time, with Closed. A start
-  time outside the hours warns, such as "Closed at 6:00 PM on Tuesdays";
-  with no start date the weekday isn't known, so it doesn't warn. Website and
+  time outside the hours warns, such as "Closed at 6:00 PM on Tuesdays". A
+  day the place is shut all day warns with or without a start time, "Closed
+  on Mondays", with a "Move to Day 2 · Tue 3 Nov" button for the nearest
+  day it's open, the same move as on the card. With no start date the
+  weekday isn't known, so it doesn't warn. Website and
   Menu open in a new tab, and Phone has a Call button.
 - **Cost:** in the trip's currency, added up in the trip's Money card.
 - **Picture:** upload one, or search Unsplash. An Unsplash photo shows its
@@ -64,7 +70,9 @@ you made something different so all of the dropdown has slightly different
 ui"). A menu of actions alone, such as "+ Add", is as wide as its longest
 row ("Too much space here").
 
-The menu is 294px wide. That is Project's 363px task menu made 10% narrower
+The menu is 294px wide, and nothing inside it is ever wider: a long place
+name is cut short with "…" in its row (Tyler, 3 Nov 2026: "drop down gets
+cut off", when a long name pushed every field past the right edge). That is Project's 363px task menu made 10% narrower
 twice (Tyler, 3 Nov 2026: "Reduce the dropdown by 10%", then again "reduce
 dropdown with by 10%").
 
@@ -120,6 +128,34 @@ fields automatically including the cover"; Tyler then picked "On an activity".
   link; a link with no place in it says to copy the place's own link. From
   New activity the activity is still made, and opens to be filled by hand.
 - **The code:** `src/server/travel/maps-link.ts` and `maps-browser.ts`.
+
+## Pasting several Maps links
+
+"+ Add" → Paste Maps links takes up to 20 Google Maps links in one go
+(Tyler, 3 Nov 2026: "Ideas, wait for photos").
+
+- **What it takes:** links one per line, or anywhere in other text, such as
+  a list a friend sent. Only Google Maps addresses are picked out, each once,
+  and a full stop or bracket after one isn't part of it. The window says how
+  many it found as the text is pasted.
+- **Where they go:** every card lands at the end of the trip's Ideas.
+- **One at a time:** each link is filled the way the Google Maps link field
+  fills one, photo included, then the next. The board reloads as each lands,
+  and the window lists each by name, with "no photo" when none was found.
+  Each takes a few seconds, so 15 links take about a minute. One at a time
+  keeps the hidden browser's waiting line under its 4, so every card gets
+  its photo and nobody else waits behind a long paste.
+- **A link it can't read** makes no card. It is listed with why, such as
+  "Google couldn't find a place from that link", and the rest carry on.
+- **Stopping:** "Stop after this one" ends the paste after the link being
+  read, and closing the window does the same. What was made stays.
+- **The limit:** each link counts as one of the 60 fills a person has in 10
+  minutes. At the limit the paste stops and says to wait a few minutes.
+- **The live site** has no hidden browser yet (see below), so there each
+  card fills from its link alone, with no photo, until Chromium is added.
+- **The code:** `src/components/travel/paste-links-dialog.tsx`,
+  `addActivityFromMapsLink` in `src/server/travel/maps-link.ts`, and the link
+  check, shared with the server, in `src/lib/travel/maps-links.ts`.
 
 ## No bookings
 

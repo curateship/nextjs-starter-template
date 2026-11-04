@@ -15,6 +15,8 @@ export type TripContextValue = {
   refresh: () => Promise<void>
   openActivity: (activityId: string) => void
   openActivityId: string | undefined
+  /** No signal: the page is the kept copy, and every change is off (Travel features part 10). */
+  readOnly: boolean
 }
 
 const TripContext = React.createContext<TripContextValue | null>(null)

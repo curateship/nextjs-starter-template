@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
+import { findMapsLinks, isMapsLink } from "@/lib/travel/maps-links"
 import type { CustomShellDb } from "@/server/db"
 import type { CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -9,8 +10,8 @@ import { readVenue } from "@/server/travel/maps-browser"
 import {
   builtinOf,
   builtinOfCategory,
+  addActivityFromMapsLink,
   fillFromMapsLink,
-  isMapsLink,
   linkPicture,
   readLinkClues,
 } from "@/server/travel/maps-link"
@@ -236,5 +237,51 @@ describe("filling an activity from a link", () => {
     const { id: tripId } = await createTrip(anna.id, { name: "Tokyo", days: 3, currency: "JPY", startDate: null }, database)
     const { id } = await createActivity(anna.id, { tripId, day: 1, title: "New place" }, database)
     expect((await fillFromMapsLink(anna.id, { activityId: id, link: "https://maps.app.goo.gl/AbC123" }, database)).title).toBe("Senso-ji")
+  })
+})
+
+describe("pasting several Maps links (Travel features part 6)", () => {
+  it("picks every Maps link out of pasted text once, in order, leaving other links and a closing full stop", () => {
+    const text = [
+      "Places for Kyoto:",
+      "https://maps.app.goo.gl/AbC123",
+      "ramen https://www.google.com/maps/place/Fuunji/@35.6866,139.6983,17z. and the temple",
+      "(https://maps.app.goo.gl/XyZ789)",
+      "https://evil.example/maps/place/x https://www.google.com/search?q=senso-ji",
+      "https://maps.app.goo.gl/AbC123 again",
+    ].join("\n")
+    expect(findMapsLinks(text)).toEqual([
+      "https://maps.app.goo.gl/AbC123",
+      "https://www.google.com/maps/place/Fuunji/@35.6866,139.6983,17z",
+      "https://maps.app.goo.gl/XyZ789",
+    ])
+    expect(findMapsLinks("no links here")).toEqual([])
+  })
+
+  it("makes one filled card in Ideas per link", async () => {
+    vi.stubEnv("GOOGLE_MAPS_API_KEY", "")
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html></html>", { headers: { "content-type": "text/html" } })))
+    const { id: tripId } = await createTrip(anna.id, { name: "Tokyo", days: 3, currency: "JPY", startDate: null }, database)
+    const link = "https://www.google.com/maps/place/Fuunji,+2-14-3+Yoyogi/@35.6866,139.6983,17z/data=!3d35.6866!4d139.6983"
+    const made = await addActivityFromMapsLink(anna.id, { tripId, link }, database)
+    expect(made).toMatchObject({ title: "Fuunji", partial: true })
+    const activities = (await loadTripPage(anna.id, tripId, database)).activities
+    expect(activities).toHaveLength(1)
+    expect(activities[0]).toMatchObject({ id: made.id, day: null, title: "Fuunji" })
+  })
+
+  it("makes no card for a link it can't read, or someone else's trip", async () => {
+    vi.stubEnv("GOOGLE_MAPS_API_KEY", "")
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html></html>", { headers: { "content-type": "text/html" } })))
+    const { id: tripId } = await createTrip(anna.id, { name: "Tokyo", days: 3, currency: "JPY", startDate: null }, database)
+    // A Maps link with no place in it, and one that isn't Google Maps at all.
+    await expect(
+      addActivityFromMapsLink(anna.id, { tripId, link: "https://www.google.com/maps/@35.6866,139.6983,17z" }, database)
+    ).rejects.toThrow(TRAVEL_ERRORS.mapsLinkNoPlace)
+    await expect(addActivityFromMapsLink(anna.id, { tripId, link: "https://evil.example/maps" }, database)).rejects.toThrow(
+      TRAVEL_ERRORS.notMapsLink
+    )
+    await expect(addActivityFromMapsLink(ben.id, { tripId, link: LONG }, database)).rejects.toThrow(TRAVEL_ERRORS.tripNotFound)
+    expect((await loadTripPage(anna.id, tripId, database)).activities).toEqual([])
   })
 })

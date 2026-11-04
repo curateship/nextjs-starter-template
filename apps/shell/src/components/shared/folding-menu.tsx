@@ -84,7 +84,9 @@ export function FoldingMenu({
       >
         {/* The viewport holds the height, so a tall menu scrolls inside the screen rather than running off it. */}
         <ScrollArea viewportClassName="max-h-[min(75vh,40rem)]">
-          <div className="grid p-2">{children}</div>
+          {/* One column the menu's own width: an "auto" column grew to fit a long place name and pushed every
+              field past the menu's right edge (Tyler, 3 Nov 2026: "drop down gets cut off"). */}
+          <div className="grid grid-cols-[minmax(0,1fr)] p-2">{children}</div>
         </ScrollArea>
       </PopoverContent>
     </Popover>

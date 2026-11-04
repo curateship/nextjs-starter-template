@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils"
  * closes them; the ⋮ opens the trip's menu of settings and Delete trip.
  */
 export function TripDetailsPanel() {
-  const { page } = useTrip()
+  const { page, readOnly } = useTrip()
   const { trip } = page
   const [notesOpen, setNotesOpen] = React.useState(false)
   // A cover whose address no longer loads is left out rather than drawn broken.
@@ -46,7 +46,7 @@ export function TripDetailsPanel() {
             >
               <NotesMorphIcon open={notesOpen} />
             </HeaderButton>
-            <TripMenu />
+            {readOnly ? null : <TripMenu />}
           </div>
         }
       />
@@ -66,7 +66,7 @@ export function TripDetailsPanel() {
 
 /** The trip's description in place, and the cover's credit (the card with the name and dates went: task "Misc"). */
 function TripDescription() {
-  const { page } = useTrip()
+  const { page, readOnly } = useTrip()
   const { trip } = page
   const save = useSaveTrip()
   return (
@@ -74,6 +74,7 @@ function TripDescription() {
       <SavingDocument
         value={trip.description}
         placeholder="Write something about the trip"
+        readOnly={readOnly}
         onSave={(description) => save({ description })}
       />
       {trip.coverCredit ? <PhotoCreditLine credit={trip.coverCredit} className="px-1" /> : null}

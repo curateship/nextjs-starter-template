@@ -10,17 +10,22 @@ import {
   updateActivitySchema,
   updateTripSchema,
 } from "@/lib/travel/schemas"
+import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { userGet, userPost } from "@/server/guards"
 import { giveSampleTrip } from "@/server/travel/sample"
+import { pickTripCover } from "@/server/travel/trip-cover"
 import { markEndedTripsDone } from "@/server/travel/trip-admin"
 import {
   binActivities,
+  binTrip,
   createActivity,
   createTrip,
-  deleteTrip,
+  emptyTripBin,
   loadTripPage,
   loadTripsPage,
   moveActivity,
+  purgeTrip,
+  restoreTrip,
   setDayInfo,
   updateActivity,
   updateTrip,
@@ -42,6 +47,8 @@ const loadTripsPageFn = createServerFn({ method: "GET" })
     await giveSampleTrip(context.user.id)
     // A trip past its last day turns Done by itself (task part 36).
     await markEndedTripsDone(context.user.id)
+    // A trip in the bin more than 30 days goes for good (Travel features part 8).
+    await emptyTripBin(context.user.id)
     return loadTripsPage(context.user.id)
   })
 
@@ -53,17 +60,36 @@ const loadTripPageFn = createServerFn({ method: "GET" })
 const createTripFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(createTripSchema)
-  .handler(async ({ data, context }) => createTrip(context.user.id, data))
+  .handler(async ({ data, context }) => {
+    const made = await createTrip(context.user.id, data)
+    // The top Unsplash photo of the destination, when there is one (Travel features part 9). Unsplash
+    // allows few searches an hour, so past 30 new trips in 10 minutes the trip is made with no cover.
+    const coverAllowed = await enforceRateLimit(`travel-trip-cover:${context.user.id}`, { maxAttempts: 30, windowSeconds: 10 * 60 })
+      .then(() => true)
+      .catch(() => false)
+    if (coverAllowed) await pickTripCover(made.id, data.destination)
+    return made
+  })
 
 const updateTripFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(updateTripSchema)
   .handler(async ({ data, context }) => updateTrip(context.user.id, data))
 
-const deleteTripFn = createServerFn({ method: "POST" })
+const binTripFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ tripId: id }))
-  .handler(async ({ data, context }) => deleteTrip(context.user.id, data.tripId))
+  .handler(async ({ data, context }) => binTrip(context.user.id, data.tripId))
+
+const restoreTripFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ tripId: id }))
+  .handler(async ({ data, context }) => restoreTrip(context.user.id, data.tripId))
+
+const purgeTripFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ tripId: id }))
+  .handler(async ({ data, context }) => purgeTrip(context.user.id, data.tripId))
 
 const setDayInfoFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -102,8 +128,17 @@ export function makeTrip(data: z.input<typeof createTripSchema>) {
 export function saveTrip(data: z.input<typeof updateTripSchema>) {
   return updateTripFn({ data })
 }
-export function removeTrip(tripId: string) {
-  return deleteTripFn({ data: { tripId } })
+/** Delete: the trip goes into the bin for 30 days (Travel features part 8). */
+export function binTripById(tripId: string) {
+  return binTripFn({ data: { tripId } })
+}
+/** Put back, from the bin. */
+export function restoreTripById(tripId: string) {
+  return restoreTripFn({ data: { tripId } })
+}
+/** Delete for good, from the bin. */
+export function purgeTripById(tripId: string) {
+  return purgeTripFn({ data: { tripId } })
 }
 export function saveDayInfo(data: z.input<typeof dayInfoInputSchema>) {
   return setDayInfoFn({ data })

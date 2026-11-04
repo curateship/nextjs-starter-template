@@ -2,8 +2,10 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
+import { draftWhenOpened } from "@/components/travel/draft-on-arrival"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
 import {
   DialogBody,
@@ -37,7 +39,9 @@ export function NewTripDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [days, setDays] = React.useState(5)
   const [currency, setCurrency] = React.useState<Currency>("USD")
   const [startDate, setStartDate] = React.useState<string | null>(null)
+  const [draft, setDraft] = React.useState(false)
   const [invalid, setInvalid] = React.useState(false)
+  const [destinationInvalid, setDestinationInvalid] = React.useState(false)
   const [run, saving] = useAsyncAction(getTravelErrorMessage)
   const dirty = Boolean(name.trim() || destination.trim() || startDate)
 
@@ -47,7 +51,9 @@ export function NewTripDialog({ open, onClose }: { open: boolean; onClose: () =>
     setDays(5)
     setCurrency("USD")
     setStartDate(null)
+    setDraft(false)
     setInvalid(false)
+    setDestinationInvalid(false)
     onClose()
   }
 
@@ -57,11 +63,18 @@ export function NewTripDialog({ open, onClose }: { open: boolean; onClose: () =>
       showErrorToast("Give the trip a name.")
       return
     }
+    if (draft && !destination.trim()) {
+      setDestinationInvalid(true)
+      showErrorToast("Add a destination, so the AI knows where to plan.")
+      return
+    }
     let tripId = ""
     const ok = await run(async () => {
       tripId = (await makeTrip({ name, days, currency, startDate, destination: destination || null })).id
     }, "Trip created.")
     if (!ok) return
+    // The trip opens on its drafted plan, still to be checked before anything is saved (Travel features part 7).
+    if (draft) draftWhenOpened(tripId)
     close()
     await navigate({ to: "/trips/$tripId", params: { tripId } })
   }
@@ -108,7 +121,11 @@ export function NewTripDialog({ open, onClose }: { open: boolean; onClose: () =>
                       value={destination}
                       maxLength={120}
                       placeholder="Tokyo, Japan"
-                      onChange={(event) => setDestination(event.target.value)}
+                      aria-invalid={destinationInvalid || undefined}
+                      onChange={(event) => {
+                        setDestination(event.target.value)
+                        setDestinationInvalid(false)
+                      }}
                     />
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -144,6 +161,16 @@ export function NewTripDialog({ open, onClose }: { open: boolean; onClose: () =>
                       placeholder="No dates yet"
                       onChange={(date) => setStartDate(localDateToIso(date))}
                     />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="new-trip-draft"
+                      checked={draft}
+                      onCheckedChange={(on) => setDraft(on === true)}
+                    />
+                    <Label htmlFor="new-trip-draft" className="font-normal">
+                      Fill it with a first plan, drafted by AI
+                    </Label>
                   </div>
                 </CardContent>
               </Card>

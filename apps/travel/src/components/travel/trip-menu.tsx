@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { Trash2Icon } from "lucide-react"
 
 import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
+import { useTripBin } from "@/components/travel/use-trip-bin"
 import { SavingInput } from "@/components/travel/saving-fields"
 import { TimeZoneSelect } from "@/components/travel/time-zone-select"
 import { useSaveTrip } from "@/components/travel/trip-budget-card"
@@ -10,15 +11,11 @@ import { useTrip } from "@/components/travel/trip-context"
 import { PhotoCreditLine, UnsplashPicker } from "@/components/travel/unsplash-picker"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DatePicker } from "@/components/ui/date-picker"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { removeTrip } from "@/lib/api/travel/trips"
-import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { formatLongDate, isoToLocalDate, localDateToIso } from "@/lib/travel/dates"
-import { getTravelErrorMessage } from "@/lib/travel/errors"
 import {
   CURRENCIES,
   TRAVEL_MODES,
@@ -53,14 +50,12 @@ export function TripMenu() {
   const save = useSaveTrip()
   const [open, setOpen] = React.useState(false)
   const [shown, toggle] = useOpenSections<Section>()
-  const [confirmDelete, setConfirmDelete] = React.useState(false)
-  const [run, deleting] = useAsyncAction(getTravelErrorMessage)
+  const { binTrips, busy: deleting } = useTripBin()
 
+  // Into the Trips table's bin with Undo, so it doesn't ask first (Travel features part 8).
   async function deleteTrip() {
-    const ok = await run(() => removeTrip(trip.id), "Trip deleted.")
-    if (!ok) return
-    setConfirmDelete(false)
-    await navigate({ to: "/trips" })
+    setOpen(false)
+    if (await binTrips([trip])) await navigate({ to: "/trips" })
   }
 
   const row = (section: Section) => ({ open: shown.has(section), onToggle: () => toggle(section) })
@@ -224,25 +219,11 @@ export function TripMenu() {
           icon={<Trash2Icon className="size-4" />}
           destructive
           disabled={deleting}
-          onClick={() => {
-            // One box at a time: the menu closes, then the confirm opens.
-            setOpen(false)
-            setConfirmDelete(true)
-          }}
+          onClick={() => void deleteTrip()}
         >
           Delete trip
         </MenuAction>
       </FoldingMenu>
-      <ConfirmDialog
-        open={confirmDelete}
-        onOpenChange={setConfirmDelete}
-        title={`Delete ${trip.name}?`}
-        description="The trip goes for good, with every activity, file and note on it."
-        confirmLabel="Delete trip"
-        destructive
-        loading={deleting}
-        onConfirm={() => void deleteTrip()}
-      />
     </>
   )
 }

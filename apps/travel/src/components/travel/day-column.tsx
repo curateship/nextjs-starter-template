@@ -9,6 +9,7 @@ import {
   EllipsisIcon,
   Loader2Icon,
   PlusIcon,
+  RouteIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -67,6 +68,8 @@ export function DayColumn({
   weather,
   onFold,
   onCopyDay,
+  onBestOrder,
+  readOnly = false,
   addButton,
   children,
 }: {
@@ -84,11 +87,15 @@ export function DayColumn({
   weather?: React.ReactNode
   onFold: () => void
   onCopyDay: (to: number) => void
+  /** Puts the day's untimed cards in the quickest order to get round (Travel features part 5). */
+  onBestOrder: () => void
+  /** No signal: no menu, no moving the day, and its description shows but doesn't edit. */
+  readOnly?: boolean
   addButton: React.ReactNode
   children: React.ReactNode
 }) {
   const { setNodeRef, isOver } = useDroppable({ id })
-  const sortable = useSortable({ id: day === null ? `${id}-fixed` : COLUMN_DRAG + id, disabled: day === null })
+  const sortable = useSortable({ id: day === null ? `${id}-fixed` : COLUMN_DRAG + id, disabled: day === null || readOnly })
   const headingId = `board-column-${id}`
   const label = day === null ? "Ideas" : `Day ${day}`
 
@@ -146,9 +153,9 @@ export function DayColumn({
       <div
         // 4px more under the heading than between cards, so the day's name and description read as a heading
         // (Tyler, 3 Nov 2026: "add some spacing here").
-        className={cn("mb-1 flex min-h-7 items-start gap-1", day !== null && "cursor-grab active:cursor-grabbing")}
+        className={cn("mb-1 flex min-h-7 items-start gap-1", day !== null && !readOnly && "cursor-grab active:cursor-grabbing")}
         // The heading is the handle; its buttons still click, since a drag starts only after 8px.
-        {...(day !== null ? sortable.listeners : {})}
+        {...(day !== null && !readOnly ? sortable.listeners : {})}
         // A double-click on the heading folds the day (task "Misc").
         onDoubleClick={day !== null ? onFold : undefined}
         aria-roledescription={day !== null ? "movable day" : undefined}
@@ -165,6 +172,7 @@ export function DayColumn({
               date={date}
               info={info ?? { note: "" }}
               isToday={isToday}
+              readOnly={readOnly}
             />
           )}
           {weather}
@@ -182,7 +190,7 @@ export function DayColumn({
           </Button>
         ) : null}
         {addButton}
-        {day !== null ? <DayMenu day={day} count={count} onCopyDay={onCopyDay} /> : null}
+        {day !== null && !readOnly ? <DayMenu day={day} count={count} onCopyDay={onCopyDay} onBestOrder={onBestOrder} /> : null}
       </div>
       {children}
     </section>
@@ -200,12 +208,14 @@ function DayHeading({
   date,
   info,
   isToday,
+  readOnly,
 }: {
   headingId: string
   day: number
   date: string | null
   info: DayInfo
   isToday: boolean
+  readOnly: boolean
 }) {
   const { page, refresh } = useTrip()
   const [run] = useAsyncAction(getTravelErrorMessage)
@@ -225,14 +235,16 @@ function DayHeading({
         {date ? <span className="truncate text-xs font-normal text-muted-foreground">· {formatDayDate(date)}</span> : null}
         {isToday ? <span className="shrink-0 text-xs font-medium">· Today</span> : null}
       </h3>
-      <InlineText
+      {readOnly ? (
+        info.note ? <p className="line-clamp-2 text-xs break-words text-muted-foreground">{info.note}</p> : null
+      ) : <InlineText
         label={`Day ${day}'s description`}
         value={info.note}
         placeholder="Add a description"
         maxLength={200}
         multiline
         onSave={(note) => save({ note })}
-      />
+      />}
     </div>
   )
 }
@@ -315,8 +327,18 @@ function InlineText({
   )
 }
 
-/** A day's own menu: add a day after it, copy it onto another day, remove it. */
-function DayMenu({ day, count, onCopyDay }: { day: number; count: number; onCopyDay: (to: number) => void }) {
+/** A day's own menu: add a day after it, put it in its best order, copy it onto another day, remove it. */
+function DayMenu({
+  day,
+  count,
+  onCopyDay,
+  onBestOrder,
+}: {
+  day: number
+  count: number
+  onCopyDay: (to: number) => void
+  onBestOrder: () => void
+}) {
   const { page, refresh } = useTrip()
   const { trip } = page
   const [run, busy] = useAsyncAction(getTravelErrorMessage)
@@ -372,6 +394,11 @@ function DayMenu({ day, count, onCopyDay }: { day: number; count: number; onCopy
               <DropdownMenuItem disabled={trip.days >= MAX_TRIP_DAYS} onSelect={() => void addAfter()}>
                 <PlusIcon className="size-4" />
                 Add a day after
+              </DropdownMenuItem>
+              {/* Tyler, 3 Nov 2026: "From the hotel". Without a Google key it says so when pressed. */}
+              <DropdownMenuItem disabled={count < 2} onSelect={onBestOrder}>
+                <RouteIcon className="size-4" />
+                Best order
               </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={count === 0 || trip.days < 2}

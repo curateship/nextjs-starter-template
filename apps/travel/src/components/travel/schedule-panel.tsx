@@ -10,7 +10,9 @@ import {
   LightbulbOffIcon,
   UnfoldHorizontalIcon,
   MailOpenIcon,
+  MapPinPlusIcon,
   PlusIcon,
+  SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -19,6 +21,7 @@ import { useBoardActions } from "@/components/travel/board-actions"
 import { CalendarLinkDialog } from "@/components/travel/calendar-link-dialog"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
 import { PasteBookingDialog } from "@/components/travel/paste-booking-dialog"
+import { PasteLinksDialog } from "@/components/travel/paste-links-dialog"
 import { RouteTime } from "@/components/travel/route-time"
 import { SavedPlacesDialog } from "@/components/travel/saved-places-dialog"
 import { TripMapView } from "@/components/travel/trip-map-view"
@@ -28,6 +31,9 @@ import { DayWeatherLine, useTripWeather } from "@/components/travel/day-weather"
 import { dayLabel, useNewActivity } from "@/components/travel/new-activity"
 import { TripCalendarView } from "@/components/travel/trip-calendar-view"
 import { useTrip } from "@/components/travel/trip-context"
+import { wantsDraftOnArrival } from "@/components/travel/draft-on-arrival"
+import { NoSignalLine } from "@/components/travel/no-signal-line"
+import { DraftPlanDialog } from "@/components/travel/draft-plan-dialog"
 import { TripListView } from "@/components/travel/trip-list-view"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
@@ -80,11 +86,14 @@ export function SchedulePanel({
   search: TripSearch
   onSearch: (patch: Partial<TripSearch>, options?: { history?: boolean }) => void
 }) {
-  const { page, refresh, openActivity } = useTrip()
+  const { page, refresh, openActivity, readOnly } = useTrip()
   const { trip } = page
   const newActivity = useNewActivity()
   const layout = useBoardLayout(trip.id, trip.days)
-  const [windowOpen, setWindowOpen] = React.useState<"bin" | "saved" | "paste" | "calendar" | null>(null)
+  // A trip just made with "Fill it with a first plan" opens on its drafted plan (Travel features part 7).
+  const [windowOpen, setWindowOpen] = React.useState<"bin" | "saved" | "paste" | "links" | "draft" | "calendar" | null>(
+    () => (wantsDraftOnArrival(trip.id) ? "draft" : null)
+  )
   const actions = useBoardActions()
   // The tab is in the address; with none there, the one this browser used last.
   const [rememberedView, rememberView] = useRememberedChoice<TripView>(TRIP_VIEW_KEY, "board", TRIP_VIEWS)
@@ -141,10 +150,10 @@ export function SchedulePanel({
             { value: "calendar", label: "Calendar" },
             { value: "map", label: "Map" },
           ]}
-          after={<ScheduleMenu binCount={page.binCount} onBin={() => setWindowOpen("bin")} />}
+          after={readOnly ? undefined : <ScheduleMenu binCount={page.binCount} onBin={() => setWindowOpen("bin")} />}
         />
         <div className="flex shrink-0 items-center gap-1">
-          {selectedIds.length ? (
+          {selectedIds.length && !readOnly ? (
             <SelectedMenu
               count={selectedIds.length}
               busy={actions.busy}
@@ -189,7 +198,7 @@ export function SchedulePanel({
               }}
             />
           ) : null}
-          {view !== "board" ? null : (
+          {view !== "board" || readOnly ? null : (
             <MassSelectChip on={selecting} onToggle={() => (selecting ? stopSelecting() : setSelecting(true))} />
           )}
           <SearchToggle
@@ -279,13 +288,17 @@ export function SchedulePanel({
               })
             }}
           />
-          <AddMenu
+          {readOnly ? null : <AddMenu
             newActivity={newActivity}
+            onLinks={() => setWindowOpen("links")}
+            onDraft={() => setWindowOpen("draft")}
             onPaste={() => setWindowOpen("paste")}
             onCalendar={() => setWindowOpen("calendar")}
-          />
+          />}
         </div>
       </DashboardCardHeader>
+      {/* With no signal the trip is the copy kept from the last visit, and every change is off (Travel features part 10). */}
+      {readOnly ? <NoSignalLine /> : null}
       {view === "list" ? (
         <TripListView activities={shown} />
       ) : view === "calendar" ? (
@@ -300,7 +313,7 @@ export function SchedulePanel({
             newActivity={newActivity}
             actions={actions}
             compact={compact === "on"}
-            selecting={selecting}
+            selecting={selecting && !readOnly}
             selected={selected}
             onToggleSelected={toggleSelected}
             layout={layout}
@@ -357,6 +370,20 @@ export function SchedulePanel({
           setWindowOpen(null)
           void refresh().then(() => openActivity(id))
         }}
+      />
+      <PasteLinksDialog
+        open={windowOpen === "links"}
+        tripId={trip.id}
+        onClose={() => setWindowOpen(null)}
+        onLanded={refresh}
+      />
+      <DraftPlanDialog
+        open={windowOpen === "draft"}
+        tripId={trip.id}
+        startDate={trip.startDate}
+        types={page.types}
+        onClose={() => setWindowOpen(null)}
+        onMade={refresh}
       />
       <CalendarLinkDialog
         open={windowOpen === "calendar"}
@@ -426,15 +453,20 @@ function BoardCorner({
  * "+ Add" at the end of the header (Tyler, 3 Nov 2026: "Rename the "new
  * activity" button to "+ Add" clicking on this opens a dropdown to give me 3
  * options: New activity, Paste a booking, Add to calender"). New activity
- * opens the New activity dropdown in the same place; the other two open
- * their windows. In a narrow panel the button is the + alone.
+ * opens the New activity dropdown in the same place; the others open their
+ * windows. Paste Maps links and Draft a plan (Travel features parts 6 and 7)
+ * sit after New activity, as the other ways to add places. In a narrow panel the button is the + alone.
  */
 function AddMenu({
   newActivity,
+  onLinks,
+  onDraft,
   onPaste,
   onCalendar,
 }: {
   newActivity: ReturnType<typeof useNewActivity>
+  onLinks: () => void
+  onDraft: () => void
   onPaste: () => void
   onCalendar: () => void
 }) {
@@ -468,6 +500,24 @@ function AddMenu({
           }}
         >
           New activity
+        </MenuAction>
+        <MenuAction
+          icon={<MapPinPlusIcon className="size-4" />}
+          onClick={() => {
+            setOpen(false)
+            onLinks()
+          }}
+        >
+          Paste Maps links
+        </MenuAction>
+        <MenuAction
+          icon={<SparklesIcon className="size-4" />}
+          onClick={() => {
+            setOpen(false)
+            onDraft()
+          }}
+        >
+          Draft a plan
         </MenuAction>
         <MenuAction
           icon={<MailOpenIcon className="size-4" />}

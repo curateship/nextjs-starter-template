@@ -2,6 +2,8 @@ import * as React from "react"
 import { toast } from "sonner"
 import { ClockIcon, ExternalLinkIcon, Loader2Icon, MapIcon, PhoneIcon, TriangleAlertIcon } from "lucide-react"
 
+import { useBoardActions } from "@/components/travel/board-actions"
+import { dayLabel } from "@/components/travel/new-activity"
 import { PlaceSearchField } from "@/components/travel/place-search-field"
 import { SavingInput } from "@/components/travel/saving-fields"
 import { useTrip } from "@/components/travel/trip-context"
@@ -15,7 +17,7 @@ import type { Activity } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { dateOfDay, weekday } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
-import { hoursLines, hoursWarning } from "@/lib/travel/hours"
+import { hoursLines, hoursWarning, nearestOpenDay } from "@/lib/travel/hours"
 import type { OpeningHours } from "@/lib/travel/rules"
 import { webAddress } from "@/lib/travel/schemas"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -42,6 +44,9 @@ export function ActivityPlaceFields({ activity }: { activity: Activity }) {
   const idBase = `activity-${activity.id}`
   const date = activity.day === null ? null : dateOfDay(page.trip.startDate, activity.day)
   const warning = hoursWarning(activity.openingHours, date ? weekday(date) : null, activity.startTime)
+  // Shut all day: the nearest day it's open, as on the card (Travel features part 1).
+  const openDay = nearestOpenDay(activity.openingHours, page.trip, activity.day)
+  const actions = useBoardActions()
 
   return (
       <div className="grid gap-3">
@@ -106,10 +111,24 @@ export function ActivityPlaceFields({ activity }: { activity: Activity }) {
             </Button>
           </div>
           {warning ? (
-            <p className="flex items-start gap-1.5 text-xs text-destructive">
-              <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" aria-hidden />
-              {warning}
-            </p>
+            // The button goes under the warning, since "Move to Day 4 · Fri 22 Jan" is too long to sit beside it.
+            <div className="grid justify-items-start gap-1.5">
+              <p className="flex min-w-0 items-start gap-1.5 text-xs text-destructive">
+                <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" aria-hidden />
+                {warning}
+              </p>
+              {openDay !== null ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  disabled={actions.busy}
+                  onClick={() => void actions.moveTo(activity, openDay)}
+                >
+                  Move to {dayLabel(openDay, page.trip.startDate)}
+                </Button>
+              ) : null}
+            </div>
           ) : null}
           {editingHours ? (
             <HoursEditor

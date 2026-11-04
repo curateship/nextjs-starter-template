@@ -72,7 +72,8 @@ the left menu ("dropdown to appear aligned right side").
   button. An empty name is refused with "Give the trip a name."
 - Tags go in with a comma between them and filter the Trips table.
 - The cover photo is uploaded or picked from Unsplash.
-- Delete trip asks first, then goes back to Trips.
+- Delete trip moves the trip to the Trips table's Bin with Undo, then goes
+  back to Trips (see [Trips and the trip page](trips-and-the-trip-page.md)).
 - The number of days changes on the board.
 - With no start date, the Calendar tab has its own date picker that saves
   the start date.

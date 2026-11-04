@@ -21,6 +21,29 @@ export const TRAVEL_MODE_LABEL: Record<TravelMode, string> = {
   drive: "Drive",
 }
 
+/**
+ * A rough time for a card with no start time (Travel features part 2; Tyler,
+ * 3 Nov 2026: "Add Night too"). A day sorts by these, and a timed card counts
+ * as the part its hour falls in.
+ */
+export const DAY_PARTS = ["morning", "afternoon", "evening", "night"] as const
+export type DayPart = (typeof DAY_PARTS)[number]
+export const DAY_PART_LABEL: Record<DayPart, string> = {
+  morning: "Morning",
+  afternoon: "Afternoon",
+  evening: "Evening",
+  night: "Night",
+}
+
+/** The part of the day a start time falls in: before 12:00 Morning, to 17:00 Afternoon, to 21:00 Evening, then Night. */
+export function partOfTime(time: string): DayPart {
+  const hour = Number(time.slice(0, 2))
+  if (hour < 12) return "morning"
+  if (hour < 17) return "afternoon"
+  if (hour < 21) return "evening"
+  return "night"
+}
+
 export const MAX_TRIP_DAYS = 60
 export const TRIP_NAME_MAX = 120
 

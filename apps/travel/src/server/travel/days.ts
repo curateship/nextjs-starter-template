@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, isNull } from "drizzle-orm"
 
-import { MAX_TRIP_DAYS } from "@/lib/travel/rules"
+import { MAX_TRIP_DAYS, type DayPart } from "@/lib/travel/rules"
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
@@ -92,7 +92,7 @@ export async function removeDay(
       for (const activity of onDay) {
         await tx
           .update(travelActivities)
-          .set({ day: null, startTime: null, updatedAt: at })
+          .set({ day: null, startTime: null, dayPart: null, updatedAt: at })
           .where(eq(travelActivities.id, activity.id))
       }
       await writePositions([...ideas, ...onDay].map((activity) => activity.id), tx)
@@ -205,7 +205,12 @@ export async function moveActivities(
       leftFrom.add(activity.day)
       await tx
         .update(travelActivities)
-        .set({ day: input.day, startTime: input.day === null ? null : activity.startTime, updatedAt: at })
+        .set({
+          day: input.day,
+          startTime: input.day === null ? null : activity.startTime,
+          dayPart: input.day === null ? null : activity.dayPart,
+          updatedAt: at,
+        })
         .where(eq(travelActivities.id, id))
     }
     const stay = all.filter((activity) => activity.day === input.day && !moving.includes(activity.id))
@@ -221,8 +226,19 @@ export async function moveActivities(
   return { done: moving }
 }
 
-/** Where an activity was before a change, so Undo can put it back exactly. */
-export type ActivityPlace = { id: string; day: number | null; position: number; inBin: boolean }
+/**
+ * Where an activity was before a change, so Undo can put it back exactly. Its
+ * time and part of the day are part of where it was, because moving to Ideas
+ * clears them.
+ */
+export type ActivityPlace = {
+  id: string
+  day: number | null
+  position: number
+  inBin: boolean
+  startTime: string | null
+  dayPart: DayPart | null
+}
 
 /**
  * Undo (task part 16). Puts each activity back on its day, at its position,
@@ -251,7 +267,15 @@ export async function restoreActivities(
       const day = place.day !== null && place.day > trip.days ? null : place.day
       await tx
         .update(travelActivities)
-        .set({ day, position: place.position, deletedAt: place.inBin ? at : null, updatedAt: at })
+        .set({
+          day,
+          position: place.position,
+          // A day that has gone sends the card to Ideas, where it has no time.
+          startTime: day === null ? null : place.startTime,
+          dayPart: day === null ? null : place.dayPart,
+          deletedAt: place.inBin ? at : null,
+          updatedAt: at,
+        })
         .where(eq(travelActivities.id, place.id))
     }
   })

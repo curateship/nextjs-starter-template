@@ -6,7 +6,8 @@ import { TRAVEL_ERRORS } from "@/lib/travel/errors"
 import type { CustomShellDb } from "@/server/db"
 import { customShellAiUsageEvents, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
-import { meteredAi, readBookingEmail, type AskAi } from "@/server/travel/booking-email"
+import type { AskAi } from "@/server/travel/ai"
+import { bookingAi, readBookingEmail } from "@/server/travel/booking-email"
 import { createTrip } from "@/server/travel/trips"
 import { listTypes } from "@/server/travel/types"
 
@@ -159,7 +160,7 @@ describe("reading a booking email", () => {
     vi.stubEnv("CUSTOM_SHELL_OPENAI_API_KEY", "")
     vi.stubEnv("CUSTOM_SHELL_GEMINI_API_KEY", "")
     await expect(
-      readBookingEmail(anna.id, { tripId, text: HOTEL_EMAIL }, { database, ask: meteredAi(anna.id) })
+      readBookingEmail(anna.id, { tripId, text: HOTEL_EMAIL }, { database, ask: bookingAi(anna.id) })
     ).rejects.toThrow(TRAVEL_ERRORS.aiOff)
     const rows = await database.select().from(customShellAiUsageEvents).where(eq(customShellAiUsageEvents.userId, anna.id))
     expect(rows).toHaveLength(0)

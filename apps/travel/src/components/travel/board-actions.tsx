@@ -6,12 +6,15 @@ import {
   copyTripDay,
   duplicateTripActivity,
   moveManyActivities,
+  orderTripDay,
   undoActivities,
   type ActivityPlace,
+  type BestOrderResult,
 } from "@/lib/api/travel/days"
 import { binActivityList, placeActivity, saveActivity, type Activity } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { boardColumns } from "@/lib/travel/board"
+import { boardColumns, formatMinutes } from "@/lib/travel/board"
+import type { TravelMode } from "@/lib/travel/rules"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -19,6 +22,20 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 const UNDO_MS = 6000
 
 const activities = (count: number) => (count === 1 ? "1 activity" : `${count} activities`)
+
+const GETTING_ABOUT: Record<TravelMode, string> = { walk: "walking", transit: "on transit", drive: "driving" }
+
+/** What Best order says it did, such as "Day 2 in its best order: saves 25m of walking." */
+function bestOrderLine(day: number, result: BestOrderResult, mode: TravelMode) {
+  if (result.ordered < 2) {
+    return { line: `Day ${day} needs two or more untimed activities with a place from Google to order.`, unchanged: true }
+  }
+  if (result.savedMinutes === 0) return { line: `Day ${day} is already in its best order.`, unchanged: true }
+  if (result.savedMinutes === null) {
+    return { line: `Put Day ${day} in order. Google found no route between some of its places, so the time saved isn't known.` }
+  }
+  return { line: `Day ${day} in its best order: saves ${formatMinutes(result.savedMinutes)} of ${GETTING_ABOUT[mode]}.` }
+}
 
 /**
  * Every change to where cards are, in one place, so each one can be undone
@@ -38,21 +55,38 @@ export function useBoardActions() {
         day: activity.day,
         position: activity.position,
         inBin: false,
+        startTime: activity.startTime,
+        dayPart: activity.dayPart,
       })),
     [page.activities]
   )
 
-  /** Runs a change, reloads, then offers Undo with the line said. */
+  /**
+   * Runs a change, reloads, then offers Undo with the line said. A change may
+   * say its own line, from what it did, and may say there's nothing to undo.
+   */
   const withUndo = React.useCallback(
-    async (line: string, change: () => Promise<{ created?: string[] } | void>) => {
+    async (
+      line: string,
+      change: () => Promise<{ created?: string[]; line?: string; unchanged?: boolean } | void>
+    ) => {
       const places = snapshot()
       let created: string[] = []
+      let said = line
+      let unchanged = false
       const ok = await run(async () => {
-        created = (await change())?.created ?? []
+        const result = await change()
+        created = result?.created ?? []
+        said = result?.line ?? line
+        unchanged = result?.unchanged ?? false
         await refresh()
       })
       if (!ok) return false
-      toast.success(line, {
+      if (unchanged) {
+        toast.success(said)
+        return true
+      }
+      toast.success(said, {
         duration: UNDO_MS,
         action: {
           label: "Undo",
@@ -109,6 +143,12 @@ export function useBoardActions() {
     },
     copyDay: (from: number, to: number) =>
       withUndo(`Copied Day ${from} onto Day ${to}`, () => copyTripDay(tripId, from, to)),
+    /** Best order for a day (Travel features part 5), with Undo when it moved anything. */
+    bestOrder: (day: number) =>
+      withUndo(`Put Day ${day} in its best order`, async () => {
+        const result = await orderTripDay(tripId, day)
+        return bestOrderLine(day, result, page.trip.travelMode)
+      }),
     /** Done is a plain field change: no Undo, just saved. */
     setField: (activity: Activity, patch: { done?: boolean }) =>
       run(async () => {

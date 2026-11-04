@@ -14,6 +14,7 @@ import {
 
 import type {
   DayInfo,
+  DayPart,
   OpeningHours,
   PhotoCredit,
   Place,
@@ -58,6 +59,8 @@ export const travelTrips = pgTable("travel_trips", {
   calendarToken: varchar("calendar_token", { length: 64 }),
   isSample: boolean("is_sample").notNull(),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
+  /** When the trip went into the Trips table's bin, or null (`drizzle/0102_travel_trip_bin.sql`). */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 })
@@ -86,6 +89,8 @@ export const travelActivities = pgTable("travel_activities", {
     onDelete: "set null",
   }),
   startTime: varchar("start_time", { length: 5 }),
+  /** Morning, afternoon, evening or night, for a card with no start time (`drizzle/0101_travel_day_part.sql`). */
+  dayPart: varchar("day_part", { length: 12 }).$type<DayPart>(),
   durationMinutes: integer("duration_minutes"),
   nights: smallint("nights"),
   place: jsonb("place").$type<Place>(),

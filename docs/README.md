@@ -43,6 +43,9 @@ sat in thirteen app folders, and nothing read them.
   a site has more addresses than one sitemap file can hold.
 - `home-screen.md` — adding any app to a phone's home screen: the manifest,
   the icons cut from the logo, and the `homeScreen` app option.
+- `offline-pages.md` — the worker that keeps an app's chosen pages to open
+  read only with no signal, `useOfflinePages` and `useOnline`, and when what
+  it keeps is emptied.
 - `big-uploads.md` — videos up to 5GB sent straight to the bucket in pieces,
   the progress number, what cancelling leaves behind, and the CORS rule the
   bucket needs once.
