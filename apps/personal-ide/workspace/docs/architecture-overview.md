@@ -91,9 +91,11 @@ Tauri apps are detected by `src-tauri`. They are labeled as desktop apps and do 
 Workspace removal has two paths:
 
 - Detach: removes the workspace from Personal IDE and closes its terminals. Files, branch, and worktree stay on disk.
-- Delete: removes the worktree only if Git is clean. If there are uncommitted changes, the app refuses.
+- Delete: removes the worktree only if Git is clean. If there are uncommitted changes, the app refuses. It also refuses while the branch has commits not yet synced.
 
-Delete does not delete the Git branch in V1.
+Delete then closes the workspace's terminals, runs `docker compose down` when the app folder has a `docker-compose.yml`, removes the worktree, and deletes its local branch.
+
+The `docker` call is given the same PATH as the IDE's other commands (`default_command_path`). An IDE opened from the Dock only has `/usr/bin:/bin` on its PATH, and Docker lives in `/usr/local/bin`, so without it every app with a compose file failed to delete with "No such file or directory (os error 2)". Fixed 5 Nov 2026.
 
 ## File Browser
 

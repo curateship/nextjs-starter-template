@@ -4479,8 +4479,12 @@ fn stop_workspace_compose_services(workspace: &WorkspaceRecord) -> Result<(), St
         return Ok(());
     };
 
+    // An app opened from the Dock only has /usr/bin:/bin on its PATH, and Docker
+    // lives in /usr/local/bin, so without this the call fails with "No such file
+    // or directory (os error 2)" and the workspace cannot be deleted.
     let output = Command::new("docker")
         .args(&args)
+        .env("PATH", default_command_path())
         .current_dir(&workspace.app_root)
         .output()
         .map_err(|error| error.to_string())?;
