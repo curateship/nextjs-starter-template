@@ -9,8 +9,10 @@ import {
   MapIcon,
   PlaneTakeoffIcon,
   PlusIcon,
+  StarIcon,
   Trash2Icon,
   Undo2Icon,
+  XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -40,8 +42,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { archiveTrip, loadPins, type TripPin } from "@/lib/api/travel/trip-admin"
+import { archiveTrip, loadPins, loadVisited, type TripPin, type VisitedPin } from "@/lib/api/travel/trip-admin"
 import { purgeTripById, restoreTripById, type TripListRow, type TripsPage } from "@/lib/api/travel/trips"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -54,7 +57,7 @@ import { pageGutter } from "@/lib/layout/shell-gutter"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { addDays, countdown, formatDayDate, formatTripDates, tripHasEnded } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
-import { TRIPS_MAP_KEY } from "@/lib/travel/panel-keys"
+import { TRIPS_MAP_KEY, TRIPS_MAP_PINS_KEY } from "@/lib/travel/panel-keys"
 import { TRIP_STATUS_LABEL } from "@/lib/travel/rules"
 import { TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -498,10 +501,22 @@ function RowButton({
   )
 }
 
-/** The places-visited map above the table (task part 40): a pin per trip's destination; a click opens the trip. */
+const MAP_PINS = ["destinations", "visited"] as const
+
+/**
+ * The map above the table. Destinations (task part 40) pins each trip's
+ * destination, and a click opens the trip. Places I've been (Travel features
+ * 3, part 12; Tyler, 5 Nov 2026: "Small card on the map") pins every card
+ * marked Done on every trip, and a click shows a small card with the place,
+ * its trip and its rating, and a way to open the trip. The choice is
+ * remembered in this browser.
+ */
 function PlacesMap({ onHide }: { onHide: () => void }) {
   const navigate = useNavigate()
+  const [which, setWhich] = useRememberedChoice(TRIPS_MAP_PINS_KEY, "destinations", MAP_PINS)
   const [pins, setPins] = React.useState<TripPin[] | null>(null)
+  const [visited, setVisited] = React.useState<VisitedPin[] | null>(null)
+  const [picked, setPicked] = React.useState<string | null>(null)
   React.useEffect(() => {
     let alive = true
     loadPins()
@@ -515,17 +530,89 @@ function PlacesMap({ onHide }: { onHide: () => void }) {
       alive = false
     }
   }, [])
+  React.useEffect(() => {
+    if (which !== "visited") return
+    let alive = true
+    loadVisited()
+      .then((loaded) => {
+        if (alive) setVisited(loaded)
+      })
+      .catch((error: unknown) => {
+        if (!alive) return
+        setVisited([])
+        showErrorToast(getTravelErrorMessage(error))
+      })
+    return () => {
+      alive = false
+    }
+  }, [which])
+  const shownPin = which === "visited" ? visited?.find((pin) => pin.activityId === picked) : undefined
   return (
     <section aria-label="Places visited" className="relative">
-      <GoogleMap
-        className="h-64"
-        pins={(pins ?? []).map((pin) => ({ id: pin.tripId, lat: pin.lat, lng: pin.lng, title: `${pin.name}, ${pin.destination}` }))}
-        emptyText={pins === null ? "Finding your destinations…" : "Give a trip a destination to see it on the map."}
-        onPick={(tripId) => void navigate({ to: "/trips/$tripId", params: { tripId } })}
-      />
+      {which === "visited" ? (
+        <GoogleMap
+          className="h-64"
+          pins={(visited ?? []).map((pin) => ({ id: pin.activityId, lat: pin.lat, lng: pin.lng, title: `${pin.title}, ${pin.tripName}` }))}
+          emptyText={visited === null ? "Finding the places you've been…" : "Mark a card with a place Done to see it here."}
+          onPick={setPicked}
+        />
+      ) : (
+        <GoogleMap
+          className="h-64"
+          pins={(pins ?? []).map((pin) => ({ id: pin.tripId, lat: pin.lat, lng: pin.lng, title: `${pin.name}, ${pin.destination}` }))}
+          emptyText={pins === null ? "Finding your destinations…" : "Give a trip a destination to see it on the map."}
+          onPick={(tripId) => void navigate({ to: "/trips/$tripId", params: { tripId } })}
+        />
+      )}
+      <Tabs
+        value={which}
+        onValueChange={(next) => {
+          setPicked(null)
+          setWhich(next as (typeof MAP_PINS)[number])
+        }}
+        className="absolute top-2 left-2"
+      >
+        <TabsList aria-label="Pins on the map" className="bg-card">
+          <TabsTrigger value="destinations">Destinations</TabsTrigger>
+          <TabsTrigger value="visited">Places I've been</TabsTrigger>
+        </TabsList>
+      </Tabs>
       <Button type="button" variant="outline" size="sm" className="absolute top-2 right-2 bg-card" onClick={onHide}>
         Hide map
       </Button>
+      {shownPin ? (
+        <Card size="sm" className="absolute bottom-2 left-2 w-64 max-w-[calc(100%-1rem)]">
+          <CardContent className="grid gap-1">
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <span className="min-w-0 truncate font-medium">{shownPin.title}</span>
+              <Button type="button" variant="ghost" size="icon-xs" aria-label="Close" onClick={() => setPicked(null)}>
+                <XIcon className="size-3.5" />
+              </Button>
+            </div>
+            <span className="truncate text-sm text-muted-foreground">{shownPin.tripName}</span>
+            {shownPin.rating ? (
+              <span className="flex items-center gap-0.5 text-muted-foreground" aria-label={`Rated ${shownPin.rating} out of 5`}>
+                {Array.from({ length: shownPin.rating }, (_, index) => (
+                  <StarIcon key={index} className="size-3.5 fill-current" aria-hidden />
+                ))}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">Not rated</span>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-1 justify-self-start"
+              onClick={() =>
+                void navigate({ to: "/trips/$tripId", params: { tripId: shownPin.tripId }, search: { open: shownPin.activityId } })
+              }
+            >
+              Open trip
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
     </section>
   )
 }

@@ -113,6 +113,8 @@ function tripPage(activities: Activity[]): TripPage {
     notes: [],
     binCount: 0,
     views: [],
+    photos: [],
+    beenHere: [],
   }
 }
 
@@ -125,6 +127,8 @@ function withTrip(activities: Activity[], children: React.ReactNode) {
     openActivityId: undefined,
     readOnly: false,
     weather: { forecast: [], typical: [], holidays: [] },
+    openTripNote: () => {},
+    noteRequest: null,
   }
   return (
     <TooltipProvider>

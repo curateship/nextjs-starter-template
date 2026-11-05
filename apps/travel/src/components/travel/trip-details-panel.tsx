@@ -21,9 +21,15 @@ import { cn } from "@/lib/utils"
  * closes them; the ⋮ opens the trip's menu of settings and Delete trip.
  */
 export function TripDetailsPanel() {
-  const { page, readOnly } = useTrip()
+  const { page, readOnly, noteRequest } = useTrip()
   const { trip } = page
   const [notesOpen, setNotesOpen] = React.useState(false)
+  // A picture clicked on the Photos tab shows the note it's in, or the description.
+  const [seenRequest, setSeenRequest] = React.useState(noteRequest)
+  if (noteRequest !== seenRequest) {
+    setSeenRequest(noteRequest)
+    if (noteRequest) setNotesOpen(noteRequest.noteId !== null)
+  }
   // A cover whose address no longer loads is left out rather than drawn broken.
   const [broken, setBroken] = React.useState<string | null>(null)
   const banner = trip.coverUrl && trip.coverUrl !== broken ? trip.coverUrl : null
@@ -51,7 +57,7 @@ export function TripDetailsPanel() {
         }
       />
       {notesOpen ? (
-        <TripNotes />
+        <TripNotes key={noteRequest?.at ?? "notes"} startOpen={noteRequest?.noteId ?? null} />
       ) : (
         <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
           <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">

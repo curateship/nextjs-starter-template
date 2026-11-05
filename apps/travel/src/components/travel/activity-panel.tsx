@@ -1,8 +1,10 @@
 import * as React from "react"
-import { SquareMousePointerIcon } from "lucide-react"
+import { Link } from "@tanstack/react-router"
+import { HistoryIcon, SquareMousePointerIcon } from "lucide-react"
 
 import { ActivityMenu } from "@/components/travel/activity-menu"
 import { ActivityNotes } from "@/components/travel/activity-notes"
+import { ActivityPhotosRow } from "@/components/travel/activity-photos-row"
 import { BlendedBanner } from "@/components/travel/panel-bits"
 import { PhotoCreditLine } from "@/components/travel/unsplash-picker"
 import { typeOf, useTrip } from "@/components/travel/trip-context"
@@ -10,6 +12,7 @@ import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { Activity } from "@/lib/api/travel/trips"
+import { beenHereText } from "@/lib/travel/been-here"
 import { cn } from "@/lib/utils"
 
 /**
@@ -65,11 +68,42 @@ function OpenActivity({ activity }: { activity: Activity }) {
       />
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
         <div className="grid gap-2 p-3">
+          <ActivityPhotosRow activity={activity} />
+          <BeenHereLine activityId={activity.id} />
           <ActivityNotes key={`${activity.id}:${notesRound}`} activity={activity} />
           {/* A credited picture says whose it is wherever it shows, as its licence asks. */}
           {banner && activity.photoCredit ? <PhotoCreditLine credit={activity.photoCredit} className="px-1" /> : null}
         </div>
       </ScrollArea>
     </div>
+  )
+}
+
+/**
+ * "Been here: Kyoto, March 2026, you gave it 2 of 5" (Travel features 3, part
+ * 10), when this card's place was done on another trip. The trip's name opens
+ * that visit.
+ */
+function BeenHereLine({ activityId }: { activityId: string }) {
+  const { page } = useTrip()
+  const visit = page.beenHere.find((each) => each.activityId === activityId)
+  if (!visit) return null
+  const [, rest] = beenHereText(visit).split(`Been here: ${visit.tripName}`)
+  return (
+    <p className="flex items-start gap-2 px-1 text-sm text-muted-foreground">
+      <HistoryIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <span>
+        Been here:{" "}
+        <Link
+          to="/trips/$tripId"
+          params={{ tripId: visit.tripId }}
+          search={{ open: visit.visitId }}
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          {visit.tripName}
+        </Link>
+        {rest}
+      </span>
+    </p>
   )
 }

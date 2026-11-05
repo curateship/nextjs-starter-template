@@ -58,6 +58,21 @@ Whether `npm run db:setup` starts Docker depends on where the database lives.
 Both paths run the migrations and development seed. Production uses `npm run db:migrate`
 instead because that command never loads development data.
 
+## Vite's start-up scan
+
+On a cold start Vite scans the app's code and bundles every package it finds
+for the browser. The scan doesn't know which files only run on the server, so
+it bundles server packages too, which is harmless for most of them. A package
+with a native add-on breaks it, and the dev server stops with
+`[UNLOADABLE_DEPENDENCY] Could not load ... .node`. The scan keeps its results
+in `node_modules/.vite/deps`, so the fault only shows once that folder is
+cleared, for example by a fresh install.
+
+`playwright-core` is one such package: Travel reads Google Maps links with it,
+and it carries `fsevents.node`. The shell's `vite.config.ts` leaves it out of
+the scan under `optimizeDeps.exclude`. A server package that hits the same
+error goes on that list, in the shell, and is copied out to the apps.
+
 ## Ports
 
 `local-apps.json` is the only place an app port is assigned.

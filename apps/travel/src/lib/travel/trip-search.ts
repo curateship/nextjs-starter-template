@@ -1,7 +1,7 @@
 import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import { DAY_PARTS, partOfTime, type DayPart } from "@/lib/travel/rules"
 
-export const TRIP_VIEWS = ["board", "list", "calendar", "map"] as const
+export const TRIP_VIEWS = ["board", "list", "calendar", "map", "photos"] as const
 export type TripView = (typeof TRIP_VIEWS)[number]
 
 /** Done or still to do (More Travel features part 11). */

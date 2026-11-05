@@ -30,6 +30,8 @@ import { deleteSavedViewsFor, listSavedViews } from "@/server/saved-views"
 import { storedNotes } from "@/lib/travel/notes"
 import { checkTypeId, listTypes } from "@/server/travel/types"
 import { TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
+import { listTripPhotos, type ActivityPhoto } from "@/server/travel/activity-photos"
+import { listBeenHere, type BeenHere } from "@/server/travel/been-here"
 
 export const MAX_ACTIVITIES = 500
 
@@ -76,6 +78,10 @@ export type TripPage = {
   binCount: number
   /** The person's saved views on this trip's board. */
   views: SavedView[]
+  /** Each card's photos after its first, in its row's order (Travel features 3, part 5). */
+  photos: ActivityPhoto[]
+  /** Cards whose place was done on another trip (Travel features 3, part 10). */
+  beenHere: BeenHere[]
 }
 
 function toTrip(row: TripRow): Trip {
@@ -152,7 +158,7 @@ export async function createTrip(userId: string, input: CreateTripInput, databas
 
 export async function loadTripPage(userId: string, tripId: string, database: CustomShellDb = db): Promise<TripPage> {
   const trip = await requireTrip(userId, tripId, database)
-  const [activities, types, notes, bin, views] = await Promise.all([
+  const [activities, types, notes, bin, views, photos] = await Promise.all([
     database
       .select()
       .from(travelActivities)
@@ -169,7 +175,9 @@ export async function loadTripPage(userId: string, tripId: string, database: Cus
       .from(travelActivities)
       .where(and(eq(travelActivities.tripId, tripId), isNotNull(travelActivities.deletedAt))),
     listSavedViews(userId, tripViewScreen(tripId), database),
+    listTripPhotos(tripId, database),
   ])
+  const beenHere = await listBeenHere(userId, tripId, activities, database)
   return {
     trip: toTrip(trip),
     activities: activities.map(toActivity),
@@ -182,6 +190,8 @@ export async function loadTripPage(userId: string, tripId: string, database: Cus
     })),
     binCount: bin[0]?.value ?? 0,
     views,
+    photos,
+    beenHere,
   }
 }
 

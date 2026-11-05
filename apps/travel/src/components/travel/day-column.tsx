@@ -33,9 +33,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Meter } from "@/components/ui/meter"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { addTripDay, removeTripDay } from "@/lib/api/travel/days"
 import { saveDayInfo } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { FULL_DAY_MINUTES, formatMinutes } from "@/lib/travel/board"
 import { formatDayDate } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { MAX_TRIP_DAYS, type DayInfo } from "@/lib/travel/rules"
@@ -71,6 +74,7 @@ export function DayColumn({
   onBestOrder,
   onFillDay,
   readOnly = false,
+  planned = null,
   addButton,
   children,
 }: {
@@ -92,6 +96,8 @@ export function DayColumn({
   onFillDay: () => void
   /** No signal: no menu, no moving the day, and its description shows but doesn't edit. */
   readOnly?: boolean
+  /** Minutes the day's timed cards fill, for How full each day is (Travel features 3, part 8). Null on Ideas. */
+  planned?: number | null
   addButton: React.ReactNode
   children: React.ReactNode
 }) {
@@ -192,8 +198,29 @@ export function DayColumn({
         {addButton}
         {day !== null && !readOnly ? <DayMenu day={day} count={count} onCopyDay={onCopyDay} onBestOrder={onBestOrder} onFillDay={onFillDay} /> : null}
       </div>
+      {day !== null && planned !== null ? <DayFullness label={label} minutes={planned} /> : null}
       {children}
     </section>
+  )
+}
+
+/**
+ * How full the day is (Travel features 3, part 8; Tyler, 5 Nov 2026: "12
+ * hours, warn past it"): a thin bar of the timed cards' hours against 12,
+ * in the warning colour past 12. The hours show on hover.
+ */
+function DayFullness({ label, minutes }: { label: string; minutes: number }) {
+  const over = minutes > FULL_DAY_MINUTES
+  const text = minutes ? `${formatMinutes(minutes)} of 12h planned${over ? ", more than 12 hours" : ""}` : "Nothing timed yet"
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="-mt-1 px-1 py-1" tabIndex={0} aria-label={`${label}: ${text}`}>
+          <Meter value={minutes} max={FULL_DAY_MINUTES} size="sm" tone={over ? "warning" : "muted"} label={`${label} planned`} valueText={text} />
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
   )
 }
 

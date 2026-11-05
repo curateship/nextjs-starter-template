@@ -45,6 +45,9 @@ export const TRAVEL_ERRORS = {
   notMapsLink: "That isn't a Google Maps link. Copy the link from Share in Google Maps, then paste it.",
   mapsLinkNoPlace: "Google couldn't find a place from that link. Open the place itself in Google Maps and copy its link.",
   undoGone: "That can't be undone any more. The activities have changed since.",
+  tooManyPhotos: "A card can hold at most 30 photos. Remove one to add another.",
+  ideasFailed: "The AI didn't send back places it could use. Try again in a minute.",
+  ideasNoneNew: "Every place the AI suggested is already on the trip. Try again for others.",
 } as const
 
 const KNOWN_MESSAGES = new Set<string>(Object.values(TRAVEL_ERRORS))

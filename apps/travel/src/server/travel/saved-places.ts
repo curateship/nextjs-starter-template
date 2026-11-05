@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, isNull } from "drizzle-orm"
 import type { Place } from "@/lib/travel/rules"
 
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
+import { copiedNotes } from "@/lib/travel/notes"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { requireActivity, requireTrip } from "@/server/travel/access"
@@ -49,7 +50,7 @@ export async function saveActivityAsPlace(userId: string, activityId: string, da
     website: activity.website,
     menuUrl: activity.menuUrl,
     phone: activity.phone,
-    notes: activity.notes,
+    notes: copiedNotes(activity.notes),
     photoUrl: activity.photoUrl,
     photoCredit: activity.photoCredit,
     createdAt: now(),
@@ -97,7 +98,7 @@ export async function addSavedPlaceToTrip(
     website: saved.website,
     menuUrl: saved.menuUrl,
     phone: saved.phone,
-    notes: saved.notes,
+    notes: copiedNotes(saved.notes),
     photoUrl: saved.photoUrl,
     photoCredit: saved.photoCredit,
   })
@@ -180,7 +181,7 @@ export async function addGoAgainToTrip(
     website: activity.website,
     menuUrl: activity.menuUrl,
     phone: activity.phone,
-    notes: activity.notes,
+    notes: copiedNotes(activity.notes),
     photoUrl: activity.photoUrl,
     photoCredit: activity.photoCredit,
   })

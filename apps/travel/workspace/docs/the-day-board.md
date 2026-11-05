@@ -15,6 +15,14 @@ this browser.
   place: click it, type, then Enter or click away; Escape puts it back. An
   empty one shows "Add a description" only while the column is pointed at.
   Days no longer have a city; one saved before 3 Nov 2026 is ignored.
+- **How full the day is** (Tyler, 5 Nov 2026: "12 hours, warn past it"): a
+  thin bar under each day's heading fills with the hours its timed cards
+  take, against 12 hours, and turns the warning colour past 12. Pointing at
+  it says "7h 30m of 12h planned". Every card on the day counts, whatever
+  Filter is showing. An overlap counts once. Cards with no start time or no
+  length count as nothing, and so do stays, so a day of untimed cards looks
+  empty. Nothing counts past midnight. Ideas and folded days have no bar.
+  The sum is `plannedMinutes` in `src/lib/travel/board.ts`.
 - **No weather on the heading.** The day's forecast, what a far-off day is
   usually like, and its public holiday moved into each card's ⋮ menu, as a
   Weather row (Tyler, 4 Nov 2026: "remove the weather from the cards (except
@@ -137,6 +145,11 @@ this browser.
 - **Drag a day's heading** to move the whole day to another place in the trip.
 - **Fold a day** with the arrows in its heading, or a double-click on the
   heading, down to a thin strip with its name sideways. Fold every day folds them all, and pressing it again unfolds them. Folded days are remembered per trip in this browser.
+- **Jump to a day** with the calendar button beside the Ideas bulb, on the
+  Board tab (Tyler, 5 Nov 2026: "Day and date only"). It lists every day as
+  "Day 3 · Wed 12 Mar", or "Day 3" on a trip with no dates. Picking one
+  scrolls the board to it, smoothly unless the device asks for less motion,
+  and opens it first if it was folded. On a phone it switches to that day.
 - **Hide Ideas** with the bulb between the search and Filter in the header.
   It's lit while Ideas shows and unlit while it's hidden; press it again to
   bring Ideas back (Tyler, 3 Nov 2026: "the eye icon should be an idea kind
@@ -199,6 +212,16 @@ this browser.
   (Tyler, 3 Nov 2026: "Straight lines", free, showing the order only), with a day picker. Clicking a pin opens the activity. Activities with
   no Google place are listed under the map. The map needs
   `GOOGLE_MAPS_BROWSER_KEY`.
+- **Photos** (Tyler, 5 Nov 2026: "Cards and notes"): every card's photos and
+  every picture in the notes, as one grid with a heading per day and how
+  many photos it holds, then Ideas, then "Trip notes" for the pictures in the
+  trip's description and notes. Days with no photo are left out. A card's
+  photo, or a picture in a card's notes, opens that card. A picture in the
+  trip's description or a trip note opens it in the left panel. It follows
+  the search and Filter, like the other tabs. Unsplash photos load small; an
+  uploaded photo loads as it is. A trip with no photos says how to add one.
+  On a screen under 1280px wide, or with the left panel folded away, the note
+  opens out of sight, so the left panel has to be shown first.
 - **The ⋮ after the tabs** holds the Bin, with how many cards are in it.
   It took the place of the More dropdown and sits level with the tab names
   (Tyler, 3 Nov 2026: "Replace the "More" dropdown with a 3 vertical dot";

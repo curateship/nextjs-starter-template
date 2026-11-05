@@ -625,25 +625,33 @@ const NO_EXTENSIONS: Extensions = []
  * email cannot work that way (an email *is* HTML), which is why both doors
  * exist onto one editor rather than one door and a converter.
  */
-export function DocumentEditor({
+export function DocumentEditor<Body extends { type: string } = WrittenPageNode>({
   value,
   onChange,
   disabled,
   placeholder = "Write the page…",
   extensions = NO_EXTENSIONS,
+  clean = cleanWrittenPageBody as unknown as (value: unknown) => Body,
 }: {
-  value: WrittenPageNode
-  onChange: (body: WrittenPageNode) => void
+  value: Body
+  onChange: (body: Body) => void
   disabled?: boolean
   placeholder?: string
   /**
    * Behaviour an app adds on top, such as a list that opens on a key. They
-   * may not add new kinds of content: what is saved is still cleaned to what
-   * a written page may hold. Pass the same array every render.
+   * may not add new kinds of content unless `clean` keeps them: what is saved
+   * is cleaned to what a written page may hold. Pass the same array every
+   * render.
    */
   extensions?: Extensions
+  /**
+   * What the document may hold, in place of a written page's rules, for an
+   * app whose extensions add kinds of content (Travel's "/" blocks). It must
+   * drop anything it doesn't know, the way `cleanWrittenPageBody` does.
+   */
+  clean?: (value: unknown) => Body
 }) {
-  const untouched = React.useRef(writtenPageBodyIsEmpty(value))
+  const untouched = React.useRef(writtenPageBodyIsEmpty(value as unknown as WrittenPageNode))
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -665,7 +673,7 @@ export function DocumentEditor({
       untouched.current = false
       // Cleaned on the way out as well as on the way in, so what the form
       // holds is already only what a page may contain.
-      onChange(cleanWrittenPageBody(current.getJSON()))
+      onChange(clean(current.getJSON()))
     },
   })
 

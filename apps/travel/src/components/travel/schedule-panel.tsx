@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   BookmarkIcon,
   BookmarkPlusIcon,
+  CalendarDaysIcon,
   CalendarPlusIcon,
   ChevronsDownUpIcon,
   EllipsisVerticalIcon,
@@ -25,6 +26,8 @@ import { PasteLinksDialog } from "@/components/travel/paste-links-dialog"
 import { RouteTime } from "@/components/travel/route-time"
 import { SavedPlacesDialog } from "@/components/travel/saved-places-dialog"
 import { TripMapView } from "@/components/travel/trip-map-view"
+import { TripPhotosView } from "@/components/travel/trip-photos-view"
+import { SuggestIdeasDialog } from "@/components/travel/suggest-ideas-dialog"
 import { DayBoard } from "@/components/travel/day-board"
 import { useBoardLayout } from "@/components/travel/use-board-layout"
 import { dayLabel, useNewActivity } from "@/components/travel/new-activity"
@@ -73,7 +76,7 @@ const ANY = "any"
 const ON_OFF = ["on", "off"] as const
 
 /**
- * The trip's middle panel: the schedule as Board, List or Calendar, Board
+ * The trip's middle panel: the schedule as Board, List, Calendar, Map or Photos, Board
  * first (Tyler, 2 Nov 2026: "board view as default"). The header holds, in
  * the UI standard's order: the "N selected" button while cards are ticked,
  * Mass select, the search, Show or hide Ideas, Filter (by type, task part
@@ -93,7 +96,7 @@ export function SchedulePanel({
   const newActivity = useNewActivity()
   const layout = useBoardLayout(trip.id, trip.days)
   // A trip just made with "Fill it with a first plan" opens on its drafted plan (Travel features part 7).
-  const [windowOpen, setWindowOpen] = React.useState<"bin" | "saved" | "paste" | "links" | "draft" | "calendar" | null>(
+  const [windowOpen, setWindowOpen] = React.useState<"bin" | "saved" | "paste" | "links" | "draft" | "ideas" | "calendar" | null>(
     () => (wantsDraftOnArrival(trip.id) ? "draft" : null)
   )
   const actions = useBoardActions()
@@ -157,6 +160,7 @@ export function SchedulePanel({
             { value: "list", label: "List" },
             { value: "calendar", label: "Calendar" },
             { value: "map", label: "Map" },
+            { value: "photos", label: "Photos" },
           ]}
           after={readOnly ? undefined : <ScheduleMenu binCount={page.binCount} onBin={() => setWindowOpen("bin")} />}
         />
@@ -246,6 +250,7 @@ export function SchedulePanel({
               <TooltipContent>{layout.ideasHidden ? "Show Ideas" : "Hide Ideas"}</TooltipContent>
             </Tooltip>
           ) : null}
+          {view === "board" ? <JumpToDay days={trip.days} startDate={trip.startDate} onJump={layout.jumpTo} /> : null}
           <FilterPopover
             count={filterCount(search)}
             open={filterOpen}
@@ -363,6 +368,7 @@ export function SchedulePanel({
             newActivity={newActivity}
             onLinks={() => setWindowOpen("links")}
             onDraft={() => setWindowOpen("draft")}
+            onIdeas={() => setWindowOpen("ideas")}
             onPaste={() => setWindowOpen("paste")}
             onCalendar={() => setWindowOpen("calendar")}
           />}
@@ -376,6 +382,8 @@ export function SchedulePanel({
         <TripCalendarView activities={shown} />
       ) : view === "map" ? (
         <TripMapView activities={shown} />
+      ) : view === "photos" ? (
+        <TripPhotosView activities={shown} />
       ) : (
         // The board fills the panel; its two fold buttons float at its bottom right.
         <div className="relative flex min-h-0 flex-1 flex-col">
@@ -446,6 +454,13 @@ export function SchedulePanel({
         tripId={trip.id}
         onClose={() => setWindowOpen(null)}
         onLanded={refresh}
+      />
+      <SuggestIdeasDialog
+        open={windowOpen === "ideas"}
+        tripId={trip.id}
+        types={page.types}
+        onClose={() => setWindowOpen(null)}
+        onMade={refresh}
       />
       <DraftPlanDialog
         open={windowOpen === "draft"}
@@ -573,19 +588,22 @@ function BoardCorner({
  * activity" button to "+ Add" clicking on this opens a dropdown to give me 3
  * options: New activity, Paste a booking, Add to calender"). New activity
  * opens the New activity dropdown in the same place; the others open their
- * windows. Paste Maps links and Draft a plan (Travel features parts 6 and 7)
- * sit after New activity, as the other ways to add places. In a narrow panel the button is the + alone.
+ * windows. Paste Maps links, Draft a plan and Suggest Ideas (Travel features
+ * parts 6 and 7, Travel features 3 part 9) sit after New activity, as the
+ * other ways to add places. In a narrow panel the button is the + alone.
  */
 function AddMenu({
   newActivity,
   onLinks,
   onDraft,
+  onIdeas,
   onPaste,
   onCalendar,
 }: {
   newActivity: ReturnType<typeof useNewActivity>
   onLinks: () => void
   onDraft: () => void
+  onIdeas: () => void
   onPaste: () => void
   onCalendar: () => void
 }) {
@@ -639,6 +657,15 @@ function AddMenu({
           Draft a plan
         </MenuAction>
         <MenuAction
+          icon={<LightbulbIcon className="size-4" />}
+          onClick={() => {
+            setOpen(false)
+            onIdeas()
+          }}
+        >
+          Suggest Ideas
+        </MenuAction>
+        <MenuAction
           icon={<MailOpenIcon className="size-4" />}
           onClick={() => {
             setOpen(false)
@@ -661,6 +688,48 @@ function AddMenu({
           lets clicks through to "+ Add" underneath. */}
       {newActivity("header", 1, <span aria-hidden tabIndex={-1} className="pointer-events-none absolute inset-0" />)}
     </div>
+  )
+}
+
+/**
+ * Jump to a day (Travel features 3, part 7; Tyler, 5 Nov 2026: "Day and date
+ * only"): every day as "Day 3 · Wed 12 Mar", or "Day 3" on a trip with no
+ * dates. Picking one scrolls the board to it and opens it if it was folded; on
+ * a phone it switches to that day.
+ */
+function JumpToDay({ days, startDate, onJump }: { days: number; startDate: string | null; onJump: (day: number) => void }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    // The tooltip and the menu both hang from the one button.
+    <Tooltip>
+      <FoldingMenu
+        label="Jump to a day"
+        fit
+        open={open}
+        onOpenChange={setOpen}
+        trigger={
+          <TooltipTrigger asChild>
+            <DashboardToolbarButton type="button" variant="ghost" aria-label="Jump to a day">
+              <CalendarDaysIcon className="size-4" />
+            </DashboardToolbarButton>
+          </TooltipTrigger>
+        }
+      >
+        {Array.from({ length: days }, (_, index) => index + 1).map((day) => (
+          <MenuAction
+            key={day}
+            icon={null}
+            onClick={() => {
+              setOpen(false)
+              onJump(day)
+            }}
+          >
+            {dayLabel(day, startDate)}
+          </MenuAction>
+        ))}
+      </FoldingMenu>
+      <TooltipContent>Jump to a day</TooltipContent>
+    </Tooltip>
   )
 }
 

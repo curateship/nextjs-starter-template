@@ -19,8 +19,57 @@ letter, when the editor is left, and when another activity opens.
 
 Notes are kept as the editor's own document (JSON), the way Project keeps a
 task's notes, and cleaned on the server to what the shell's written pages
-allow (`src/lib/travel/notes.ts`). Anything that isn't such a document is
-saved as no notes.
+allow plus Travel's "/" blocks (`src/lib/travel/notes.ts`). Typing "/" in the
+notes adds an Image, Place, Video or Map block: see
+[Notes and the "/" blocks](notes-and-blocks.md). Anything that isn't such a
+document is saved as no notes.
+
+## More photos on a card
+
+Tyler, 5 Nov 2026: "Row of small photos". A card holds up to 30 photos.
+
+- **The row** sits at the top of the open card, above its notes, once the card
+  has a picture. The picture itself is still set from the ⋮ menu's Picture
+  section, or by picking a place.
+- **The first photo is the card's picture,** the one on the board and behind
+  the panel, and it has a ring round it. Dragging another photo to the front
+  makes that one the card's picture.
+- **"+" at the end** adds more, uploaded or from Unsplash, the same two ways as
+  the picture. Each one is checked like the picture: one the person uploaded,
+  or Unsplash's with its credit.
+- **Clicking a photo** shows it large, with its credit, the arrows to the next
+  and the one before, and Remove. Removing takes it off the card; the file
+  stays in the media library.
+- **Duplicate, Copy day and Copy trip** keep the photos with each copy. A card
+  in the bin keeps its photos for when it comes back.
+- **With no signal** the photos show and open, but can't be added, moved or
+  removed.
+
+The photos after the first are the `travel_activity_photos` table
+(`drizzle/0104_travel_activity_photos.sql`); the whole row is saved at once by
+`setActivityPhotos` in `src/server/travel/activity-photos.ts`.
+
+## Been here before
+
+Tyler, 5 Nov 2026: "Card mark + panel line". When a card's place was marked
+Done on another of the person's trips:
+
+- **The board card** gets a small clock-with-an-arrow mark after its name.
+- **The right panel** says, above the notes, "Been here: Kyoto, March 2026, you
+  gave it 2 of 5". The trip's name opens that card on that trip. With no
+  dates on that trip the month is left out, and with no rating the rating is.
+  More visits add "and 2 more times", and the line names the latest: by date,
+  or, on trips with no dates, by when the card last changed.
+- **Only cards with a place count, on both sides,** so two cards both called
+  "Lunch" never match. Two places match when Google's place is the same, or,
+  when either has no Google place, when the place names match
+  (`samePlace` in `src/lib/travel/same-place.ts`). Two different cafes with
+  the same name and no Google place do look like the same one.
+- **Left out:** this trip's own cards, cards not Done, and trips and cards in a
+  bin.
+
+The matching is `listBeenHere` in `src/server/travel/been-here.ts`, loaded with
+the trip page.
 
 ## The ⋮ menu
 
@@ -304,7 +353,7 @@ from then on, so editing it never changes the saved place.
 
 ## Where it lives
 
-`src/components/travel/activity-panel.tsx`, `activity-notes.tsx`, `saving-document.tsx`,
+`src/components/travel/activity-panel.tsx`, `activity-notes.tsx`, `activity-photos-row.tsx`, `saving-document.tsx`,
 `activity-menu.tsx` and the `activity-*-fields.tsx` sections it folds open.
 Saving is `src/server/travel/trips.ts` (`updateActivity`), saved places
 `saved-places.ts`.

@@ -113,6 +113,22 @@ export const travelActivities = pgTable("travel_activities", {
   updatedAt: updatedAt(),
 })
 
+/**
+ * A card's photos after its first, in the order its row shows them (Travel
+ * features 3, part 5; `drizzle/0104_travel_activity_photos.sql`). The first
+ * photo is the card's own `photoUrl`, the one the board shows.
+ */
+export const travelActivityPhotos = pgTable("travel_activity_photos", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  activityId: varchar("activity_id", { length: 36 })
+    .notNull()
+    .references(() => travelActivities.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  credit: jsonb("credit").$type<PhotoCredit>(),
+  position: integer("position").notNull(),
+  createdAt: createdAt(),
+})
+
 /** A trip's notes, from the note icon beside its cog (`drizzle/0100_travel_misc.sql`). */
 export const travelTripNotes = pgTable("travel_trip_notes", {
   id: varchar("id", { length: 36 }).primaryKey(),

@@ -25,6 +25,8 @@ export const foldedDaysKey = (tripId: string) => `travel-folded-days-${tripId}`
 
 /** Whether the Trips table shows the places-visited map. */
 export const TRIPS_MAP_KEY = "travel-trips-map"
+/** Which pins the Trips map shows: each trip's destination, or every place done (Travel features 3, part 12). */
+export const TRIPS_MAP_PINS_KEY = "travel-trips-map-pins"
 
 /** Whether a trip's Ideas column is hidden behind its eye. */
 export const hiddenIdeasKey = (tripId: string) => `travel-hidden-ideas-${tripId}`

@@ -7,6 +7,8 @@ import { db, type CustomShellDb } from "@/server/db"
 import { requireActivity, requireTrip } from "@/server/travel/access"
 import { travelActivities, travelTrips } from "@/server/travel/schema"
 import { MAX_ACTIVITIES, toActivity, writePositions, type Activity } from "@/server/travel/trips"
+import { copyActivityPhotos } from "@/server/travel/activity-photos"
+import { copiedNotes } from "@/lib/travel/notes"
 import { findPlace } from "@/server/travel/weather"
 
 /** How long an activity stays in a trip's bin (task part 38). */
@@ -29,7 +31,9 @@ export async function setTripArchived(userId: string, tripId: string, archived: 
  * description, every activity in its place with its type, times, place, links,
  * notes, cost and picture, and the trip's description. It drops the dates,
  * Done ticks, ratings, the trip's notes and the calendar link,
- * because those belong to the trip that happened.
+ * because those belong to the trip that happened. Each card keeps its row of
+ * photos, and a note's Place and Map blocks point at the copied cards
+ * (Travel features 3, parts 2, 4 and 5).
  */
 export async function copyTrip(userId: string, input: { tripId: string; name: string }, database: CustomShellDb = db) {
   const trip = await requireTrip(userId, input.tripId, database)
@@ -40,10 +44,12 @@ export async function copyTrip(userId: string, input: { tripId: string; name: st
     .orderBy(asc(travelActivities.position))
   const id = uuid()
   const at = now()
+  const copies = new Map(activities.map((activity) => [activity.id, uuid()]))
   await database.transaction(async (tx) => {
     await tx.insert(travelTrips).values({
       ...trip,
       id,
+      description: copiedNotes(trip.description, copies),
       name: input.name,
       startDate: null,
       status: "planning",
@@ -59,8 +65,9 @@ export async function copyTrip(userId: string, input: { tripId: string; name: st
       await tx.insert(travelActivities).values(
         activities.map((activity) => ({
           ...activity,
-          id: uuid(),
+          id: copies.get(activity.id)!,
           tripId: id,
+          notes: copiedNotes(activity.notes, copies),
           done: false,
           rating: null,
           goAgain: false,
@@ -68,6 +75,7 @@ export async function copyTrip(userId: string, input: { tripId: string; name: st
           updatedAt: at,
         }))
       )
+      await copyActivityPhotos(copies, tx)
     }
   })
   return { id }
@@ -161,4 +169,52 @@ export async function loadTripPins(userId: string, database: CustomShellDb = db)
     if (point) pins.push({ tripId: trip.id, name: trip.name, destination: trip.destination, lat: point.latitude, lng: point.longitude })
   }
   return pins
+}
+
+/** A pin for a place done on one of the person's trips (Travel features 3, part 12). */
+export type VisitedPin = {
+  activityId: string
+  title: string
+  tripId: string
+  tripName: string
+  rating: number | null
+  lat: number
+  lng: number
+}
+
+/** The most pins the map of places been to draws. */
+const VISITED_PINS_MAX = 2000
+
+/**
+ * Every card marked Done that has a place on the map, across all the
+ * person's trips, for Places I've been on the Trips map (Travel features 3,
+ * part 12; Tyler, 5 Nov 2026: "Small card on the map"). Trips and cards in a
+ * bin are left out.
+ */
+export async function loadVisitedPins(userId: string, database: Pick<CustomShellDb, "select"> = db): Promise<VisitedPin[]> {
+  const rows = await database
+    .select({
+      activityId: travelActivities.id,
+      title: travelActivities.title,
+      place: travelActivities.place,
+      rating: travelActivities.rating,
+      tripId: travelTrips.id,
+      tripName: travelTrips.name,
+    })
+    .from(travelActivities)
+    .innerJoin(travelTrips, eq(travelTrips.id, travelActivities.tripId))
+    .where(
+      and(
+        eq(travelTrips.ownerUserId, userId),
+        isNull(travelTrips.deletedAt),
+        isNull(travelActivities.deletedAt),
+        eq(travelActivities.done, true)
+      )
+    )
+    .orderBy(asc(travelTrips.name), asc(travelActivities.title))
+  return rows
+    .flatMap(({ place, ...row }) =>
+      typeof place?.lat === "number" && typeof place?.lng === "number" ? [{ ...row, lat: place.lat, lng: place.lng }] : []
+    )
+    .slice(0, VISITED_PINS_MAX)
 }

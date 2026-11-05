@@ -131,3 +131,30 @@ export function gapsOf(sorted: readonly BoardActivity[]): Gap[] {
   return gaps
 }
 
+
+/** The hours a day is measured against for How full each day is (Tyler, 5 Nov 2026: "12 hours, warn past it"). */
+export const FULL_DAY_MINUTES = 12 * 60
+
+/**
+ * How many minutes of a day are planned (Travel features 3, part 8): the
+ * timed cards' lengths added up, with any overlap counted once. A card with
+ * no start time or no length counts as nothing, and so does a stay, since
+ * its nights aren't hours of the day. Nothing runs past midnight.
+ */
+export function plannedMinutes(cards: readonly (BoardActivity & { nights?: number | null })[]) {
+  const spans = cards
+    .filter((card) => card.startTime && card.durationMinutes && !card.nights)
+    .map((card) => {
+      const start = minutesOf(card.startTime!)
+      return [start, Math.min(24 * 60, start + card.durationMinutes!)] as const
+    })
+    .sort((a, b) => a[0] - b[0])
+  let total = 0
+  let reached = 0
+  for (const [start, end] of spans) {
+    const from = Math.max(start, reached)
+    if (end > from) total += end - from
+    reached = Math.max(reached, end)
+  }
+  return total
+}

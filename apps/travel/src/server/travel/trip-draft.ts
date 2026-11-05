@@ -51,6 +51,9 @@ export type DraftItem = {
   durationMinutes: number | null
 }
 
+/** An activity to make from AI: on a day, or in Ideas when `day` is null (Travel features 3, part 9). */
+export type PlannedItem = Omit<DraftItem, "day"> & { day: number | null }
+
 export type TripDraft = {
   items: DraftItem[]
   /** The days planned. */
@@ -94,19 +97,22 @@ const SYSTEM_PROMPT = [
   "Only name places that exist and are open to visitors.",
 ].join(" ")
 
-/** The JSON object in an answer, with any code fence or stray words around it taken off. */
-function readAnswer(text: string) {
+/**
+ * The JSON object in an answer, with any code fence or stray words around it
+ * taken off, read with `schema`. Throws `failed` when there's none to read.
+ */
+function readAnswer<T>(text: string, schema: z.ZodType<T>, failed: string): T {
   const start = text.indexOf("{")
   const end = text.lastIndexOf("}")
-  if (start === -1 || end <= start) throw new Error(TRAVEL_ERRORS.draftFailed)
+  if (start === -1 || end <= start) throw new Error(failed)
   let parsed: unknown
   try {
     parsed = JSON.parse(text.slice(start, end + 1))
   } catch {
-    throw new Error(TRAVEL_ERRORS.draftFailed)
+    throw new Error(failed)
   }
-  const answer = answerSchema.safeParse(parsed)
-  if (!answer.success) throw new Error(TRAVEL_ERRORS.draftFailed)
+  const answer = schema.safeParse(parsed)
+  if (!answer.success) throw new Error(failed)
   return answer.data
 }
 
@@ -167,7 +173,7 @@ export async function draftTripPlan(
   ]
     .filter(Boolean)
     .join(" ")
-  const answer = readAnswer(await ask(SYSTEM_PROMPT, prompt))
+  const answer = readAnswer(await ask(SYSTEM_PROMPT, prompt), answerSchema, TRAVEL_ERRORS.draftFailed)
 
   const wanted = new Set(days)
   const typeIds = new Map<BuiltinType, string | null>()
@@ -247,7 +253,7 @@ export async function fillTripDay(
   ]
     .filter(Boolean)
     .join(" ")
-  const answer = readAnswer(await ask(SYSTEM_PROMPT, prompt))
+  const answer = readAnswer(await ask(SYSTEM_PROMPT, prompt), answerSchema, TRAVEL_ERRORS.draftFailed)
   // One day was asked for, so a single day sent back is that day, whatever number the AI put on it.
   const asked = answer.days.find((planned) => planned.day === input.day) ?? (answer.days.length === 1 ? answer.days[0] : undefined)
   const ideas = (asked?.activities ?? [])
@@ -294,7 +300,7 @@ export type MadePlan = { created: string[]; placed: number; looked: boolean; rep
  */
 export async function createDraftActivities(
   userId: string,
-  input: { tripId: string; items: DraftItem[] },
+  input: { tripId: string; items: PlannedItem[] },
   {
     database = db,
     findPlace = googleEnabled() ? googlePlace : null,
@@ -303,7 +309,7 @@ export async function createDraftActivities(
 ): Promise<MadePlan> {
   const trip = await requireTrip(userId, input.tripId, database)
   for (const item of input.items) {
-    if (item.day < 1 || item.day > trip.days) throw new Error(TRAVEL_ERRORS.dayOutOfRange)
+    if (item.day !== null && (item.day < 1 || item.day > trip.days)) throw new Error(TRAVEL_ERRORS.dayOutOfRange)
     await checkTypeId(userId, item.typeId, database)
   }
   const live = await database
@@ -344,8 +350,9 @@ export async function createDraftActivities(
   // With no Google lookups, names alone are compared.
   if (!(findPlace && destination)) input.items.forEach((_, index) => claim(index))
 
-  const nextPosition = new Map<number, number>()
-  for (const row of live) if (row.day !== null) nextPosition.set(row.day, (nextPosition.get(row.day) ?? 0) + 1)
+  // Ideas is the null day, so a suggested place goes after the ideas already there.
+  const nextPosition = new Map<number | null, number>()
+  for (const row of live) nextPosition.set(row.day, (nextPosition.get(row.day) ?? 0) + 1)
   const at = now()
   const rows = input.items.flatMap((item, index) => {
     if (repeated[index]) return []
@@ -379,4 +386,73 @@ export async function createDraftActivities(
     looked: Boolean(findPlace && destination),
     repeated: repeated.filter(Boolean).length,
   }
+}
+
+/** The most places one Suggest Ideas brings back. */
+export const IDEAS_MAX = 10
+
+/** A place the AI suggests for the trip's Ideas, with why it's worth a visit. */
+export type IdeaItem = { title: string; typeId: string | null; reason: string }
+
+const ideaSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  kind: z.enum(KINDS).catch("other"),
+  reason: z.string().trim().max(200).catch(""),
+})
+const ideasAnswerSchema = z.object({ ideas: z.array(z.unknown()) })
+
+const IDEAS_PROMPT = [
+  "You suggest places for a trip, as a well-travelled local friend would.",
+  "Answer with one JSON object and nothing else. No code fence, no words before or after.",
+  'The shape is {"ideas":[{"title":"...","kind":"sight","reason":"..."}]}.',
+  '"title" is the place\'s own name as Google Maps knows it, such as "Fushimi Inari Taisha" or "Nishiki Market".',
+  '"kind" is one of "sight", "food", "transport", "other".',
+  '"reason" is one short sentence on why it is worth going, under 20 words.',
+  "Mix sights and places to eat, spread across the destination, and only name places that exist and are open to visitors.",
+].join(" ")
+
+/**
+ * Suggest Ideas (Travel features 3, part 9; Tyler, 5 Nov 2026: "+ Add,
+ * checked first"): AI names 10 places in the trip's destination for its
+ * Ideas column, never one already on the trip. Nothing is saved here; the
+ * window shows them ticked to check, and only what stays ticked goes into
+ * Ideas, never onto a day.
+ */
+export async function suggestTripIdeas(
+  userId: string,
+  input: { tripId: string },
+  { database = db, ask = draftAi(userId) }: { database?: CustomShellDb; ask?: AskAi } = {}
+): Promise<{ items: IdeaItem[] }> {
+  const trip = await requireTrip(userId, input.tripId, database)
+  const destination = trip.destination?.trim()
+  if (!destination) throw new Error(TRAVEL_ERRORS.draftNeedsDestination)
+  const live = await database
+    .select({ title: travelActivities.title, place: travelActivities.place })
+    .from(travelActivities)
+    .where(and(eq(travelActivities.tripId, trip.id), isNull(travelActivities.deletedAt)))
+  const prompt = [
+    `The trip is ${trip.days} days in ${destination}.`,
+    `Suggest ${IDEAS_MAX} places to visit there.`,
+    await alreadyOnTrip(trip.id, database),
+  ]
+    .filter(Boolean)
+    .join(" ")
+  const answer = readAnswer(await ask(IDEAS_PROMPT, prompt), ideasAnswerSchema, TRAVEL_ERRORS.ideasFailed)
+  const ideas = answer.ideas
+    .map((idea) => ideaSchema.safeParse(idea))
+    .flatMap((each) => (each.success ? [each.data] : []))
+  if (!ideas.length) throw new Error(TRAVEL_ERRORS.ideasFailed)
+
+  // The AI is told what's on the trip; this catches what it missed, and any it named twice.
+  const taken: PlaceLike[] = [...live]
+  const items: IdeaItem[] = []
+  for (const idea of ideas) {
+    const card = { title: idea.title, place: null }
+    if (findSamePlace(card, taken)) continue
+    taken.push(card)
+    items.push({ title: idea.title, typeId: await builtinTypeId(userId, idea.kind, database), reason: idea.reason })
+    if (items.length === IDEAS_MAX) break
+  }
+  if (!items.length) throw new Error(TRAVEL_ERRORS.ideasNoneNew)
+  return { items }
 }

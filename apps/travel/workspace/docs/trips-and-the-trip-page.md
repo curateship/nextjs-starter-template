@@ -30,10 +30,19 @@ They outrank the code.
 ## The Trips table
 
 - **At `/trips`**, reached from Trips in the left menu's Travel section.
-- **The map of places visited** sits above the table: a pin per trip's
-  destination, which opens the trip. Hide map takes it away, and Show map in
-  the toolbar brings it back; the choice is remembered in this browser. It
-  needs `GOOGLE_MAPS_BROWSER_KEY` ([Outside services](outside-services.md)).
+- **The map of places visited** sits above the table. Hide map takes it away,
+  and Show map in the toolbar brings it back; the choice is remembered in this
+  browser. It needs `GOOGLE_MAPS_BROWSER_KEY` ([Outside services](outside-services.md)).
+  A switch at its top left picks what it pins, also remembered in this
+  browser:
+  - **Destinations:** a pin per trip's destination, which opens the trip.
+  - **Places I've been** (Tyler, 5 Nov 2026: "Small card on the map"): a pin
+    for every card marked Done that has a place on the map, on every trip not
+    in the Bin, up to 2,000. Clicking one shows a small card at the map's
+    bottom left with the place, its trip and its rating, and Open trip, which
+    opens that card on that trip. Many pins close together aren't grouped yet,
+    so a lot of them make a busy map. The pins are `loadVisitedPins` in
+    `src/server/travel/trip-admin.ts`.
 - **Tabs:** Upcoming (every trip that hasn't ended, trips with no dates
   included), Past, Archived and Bin, kept in the address as `?show=past`,
   `?show=archived` or `?show=bin`.
@@ -120,6 +129,14 @@ after the day it was made. It is given once, ever:
   empty. A trip with no activities says how to add one.
 - **The page remembers where it was** per trip, in this browser: arriving at
   the bare address puts back the open activity and the view.
+- **Rate the trip** is in the trip's ⋮ menu, after the line, and opens from
+  nowhere else (Tyler, 5 Nov 2026: "Only from the menu"). It walks through
+  every card marked Done that has no rating yet, one at a time in the board's
+  order with Ideas last: its picture, name and day, 1 to 5 stars and Would go
+  again, each saved as it's picked, then Next (Skip before rating) and Back.
+  The walk is the cards unrated when it opened, so Back reaches a card just
+  rated. With none left it says every Done card already has a rating
+  (`src/components/travel/rate-trip-dialog.tsx`).
 - **Opening an activity doesn't reload the trip.** The route's loader ignores
   the address's search, so only a saved change reloads it.
 

@@ -59,6 +59,10 @@ export function TripWorkspace({
     [navigate]
   )
 
+  // The Photos tab asks the left panel to show the note a picture is in.
+  const [noteRequest, setNoteRequest] = React.useState<TripContextValue["noteRequest"]>(null)
+  const openTripNote = React.useCallback((noteId: string | null) => setNoteRequest({ noteId, at: Date.now() }), [])
+
   const typesById = React.useMemo(() => new Map(page.types.map((type) => [type.id, type])), [page.types])
 
   // The first activity of the first day opens on arrival; Ideas come last.
@@ -72,8 +76,8 @@ export function TripWorkspace({
   const openId = search.open && page.activities.some((activity) => activity.id === search.open) ? search.open : undefined
 
   const context = React.useMemo<TripContextValue>(
-    () => ({ page, typesById, refresh, openActivity, openActivityId: openId, readOnly, weather }),
-    [openActivity, openId, page, readOnly, refresh, typesById, weather]
+    () => ({ page, typesById, refresh, openActivity, openActivityId: openId, readOnly, weather, openTripNote, noteRequest }),
+    [noteRequest, openActivity, openId, openTripNote, page, readOnly, refresh, typesById, weather]
   )
 
   return (

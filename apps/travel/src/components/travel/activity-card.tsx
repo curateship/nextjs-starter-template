@@ -1,4 +1,4 @@
-import { BedDoubleIcon, ClockIcon, FlagIcon, MoonIcon, StarIcon, SunIcon, SunriseIcon, SunsetIcon, type LucideIcon } from "lucide-react"
+import { BedDoubleIcon, ClockIcon, FlagIcon, HistoryIcon, MoonIcon, StarIcon, SunIcon, SunriseIcon, SunsetIcon, type LucideIcon } from "lucide-react"
 
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import type { Activity } from "@/lib/api/travel/trips"
@@ -22,6 +22,11 @@ function MustDoMark() {
   return <FlagIcon role="img" aria-label="Must do" className="mt-0.5 size-3.5 shrink-0 fill-current text-foreground" />
 }
 
+/** The Been here mark after a card's name (Travel features 3, part 10): its place was done on another trip. */
+function BeenHereMark({ label }: { label: string }) {
+  return <HistoryIcon role="img" aria-label={label} className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+}
+
 export const CARD_CLASS = "grid w-full gap-1.5 rounded-lg border bg-card p-2.5 text-left text-sm shadow-xs"
 
 /**
@@ -38,6 +43,7 @@ export function ActivityCardContent({
   compact = false,
   roomForMenu = false,
   warning,
+  beenHere = null,
 }: {
   activity: Activity
   type: ActivityType | null
@@ -46,6 +52,8 @@ export function ActivityCardContent({
   roomForMenu?: boolean
   /** Such as "Closed at this time", from the opening hours (task part 21). */
   warning?: string | null
+  /** "Been here: Kyoto, March 2026", when the place was done on another trip (Travel features 3, part 10). */
+  beenHere?: string | null
 }) {
   const time = formatTimeRange(activity.startTime, activity.durationMinutes)
   // A card with no start time may carry a part of the day instead.
@@ -62,6 +70,7 @@ export function ActivityCardContent({
         ) : null}
         <span className={cn("truncate font-medium", activity.done && "line-through")}>{activity.title}</span>
         {activity.mustDo ? <MustDoMark /> : null}
+        {beenHere ? <BeenHereMark label={beenHere} /> : null}
       </span>
     )
   }
@@ -84,6 +93,7 @@ export function ActivityCardContent({
           {activity.title}
         </span>
         {activity.mustDo ? <MustDoMark /> : null}
+        {beenHere ? <BeenHereMark label={beenHere} /> : null}
       </span>
       {time || part || warning || nights ? (
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">

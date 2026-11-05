@@ -1,7 +1,9 @@
 import * as React from "react"
 
+import { NoteBlocksMenu } from "@/components/travel/note-blocks-menu"
+import { useNoteBlocks } from "@/components/travel/use-note-blocks"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
-import type { WrittenPageNode } from "@/lib/pages/written-page-body"
+import { cleanNoteBody, type NoteNode } from "@/lib/travel/note-blocks"
 import { readNotes } from "@/lib/travel/notes"
 import { cn } from "@/lib/utils"
 
@@ -13,7 +15,8 @@ const TYPING_SAVE_MS = 700
  * selected words, as a task's notes are in Project. Used for an activity's
  * notes, a trip's description and a trip's notes. It saves 700ms after the
  * last letter, when the editor is left, and when it closes. `focus` puts the
- * blinking cursor at the end as soon as it shows.
+ * blinking cursor at the end as soon as it shows. Typing "/" opens the list of
+ * blocks: Image, Place, Video and Map (Travel features 3, `note-block-nodes.ts`).
  */
 export function SavingDocument({
   value,
@@ -36,7 +39,8 @@ export function SavingDocument({
   // What was last saved, so the editor reporting the same words again (as it does when it is
   // locked and unlocked) sends nothing.
   const saved = React.useRef(JSON.stringify(start))
-  const draft = React.useRef<WrittenPageNode | null>(null)
+  const draft = React.useRef<NoteNode | null>(null)
+  const blocks = useNoteBlocks()
   const timer = React.useRef(0)
   const box = React.useRef<HTMLDivElement>(null)
   const saveRef = React.useRef(onSave)
@@ -108,10 +112,12 @@ export function SavingDocument({
         flush()
       }}
     >
-      <DocumentEditor
+      <DocumentEditor<NoteNode>
         value={start}
         disabled={readOnly}
         placeholder={placeholder}
+        extensions={blocks.extensions}
+        clean={cleanNoteBody}
         onChange={(body) => {
           // Locked with no signal, nothing typed could be saved.
           if (readOnly) return
@@ -120,6 +126,7 @@ export function SavingDocument({
           timer.current = window.setTimeout(flush, TYPING_SAVE_MS)
         }}
       />
+      <NoteBlocksMenu blocks={blocks} />
     </div>
   )
 }

@@ -34,7 +34,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { addTripDay, moveTripDay } from "@/lib/api/travel/days"
 import type { Activity } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { boardColumns, dayOfColumn, formatMinutes, gapsOf } from "@/lib/travel/board"
+import { boardColumns, dayOfColumn, formatMinutes, gapsOf, plannedMinutes } from "@/lib/travel/board"
 import { dateOfDay, formatDayDate, todaysDay, weekday } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { MAX_TRIP_DAYS } from "@/lib/travel/rules"
@@ -44,6 +44,7 @@ import { rainyDayMove } from "@/lib/travel/rainy-day"
 import { HOLIDAY_WARNING } from "@/lib/travel/weather"
 import { readDayInfo } from "@/lib/travel/trip-days"
 import { usePhone } from "@/lib/travel/use-phone"
+import { beenHereText } from "@/lib/travel/been-here"
 import { cn } from "@/lib/utils"
 
 type Held = { id: string; columns: Record<string, string[]> }
@@ -107,6 +108,10 @@ export function DayBoard({
   const phone = usePhone()
   const columns = React.useMemo(() => boardColumns(trip.days, activities), [activities, trip.days])
   const byId = React.useMemo(() => new Map(activities.map((activity) => [activity.id, activity])), [activities])
+  const beenHereById = React.useMemo(
+    () => new Map(page.beenHere.map((visit) => [visit.activityId, beenHereText(visit)])),
+    [page.beenHere]
+  )
   const dayInfo = readDayInfo(trip)
   const today = todaysDay(trip)
   const [held, setHeldState] = React.useState<Held | null>(null)
@@ -129,6 +134,12 @@ export function DayBoard({
     if (next) setPhoneKey(next)
   }
   const swipeFrom = React.useRef<number | null>(null)
+  // Jump to a day (Travel features 3, part 7): a phone switches to that day, a wider screen scrolls to it.
+  const [seenJump, setSeenJump] = React.useState(layout.jump)
+  if (layout.jump !== seenJump) {
+    setSeenJump(layout.jump)
+    if (layout.jump && phone) setPhoneKey(layout.jump.key)
+  }
 
   // During the trip the board opens on today's column (task part 6).
   const boardRef = React.useRef<HTMLDivElement>(null)
@@ -140,6 +151,14 @@ export function DayBoard({
       ?.querySelector(`[data-day-column="day-${today}"]`)
       ?.scrollIntoView({ block: "nearest", inline: "start" })
   }, [today, trip.id])
+
+  React.useEffect(() => {
+    if (!layout.jump || phone) return
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    boardRef.current
+      ?.querySelector(`[data-day-column="${layout.jump.key}"]`)
+      ?.scrollIntoView({ block: "nearest", inline: "start", behavior: still ? "auto" : "smooth" })
+  }, [layout.jump, phone])
 
   // Cards land on cards and columns; a day only on another day.
   const collisionDetection = React.useCallback<CollisionDetection>((args) => {
@@ -281,6 +300,8 @@ export function DayBoard({
                     isToday={day !== null && day === today}
                     folded={!phone && folded.has(key)}
                     readOnly={readOnly}
+                    // Every card on the day counts, whatever Filter is showing.
+                    planned={day === null ? null : plannedMinutes(page.activities.filter((activity) => activity.day === day))}
                     fullWidth={phone}
                     count={cards.length}
                     onFold={() => toggleFold(key)}
@@ -363,6 +384,7 @@ export function DayBoard({
                                     compact={compact}
                                     roomForMenu
                                     warning={openDay !== null ? null : (warning ?? (rainy && !rainy.toDay ? rainy.warning : null))}
+                                    beenHere={beenHereById.get(card.id) ?? null}
                                   />
                                 </BoardCard>
                                 {gap || extra ? <GapLine gap={gap} extra={extra} /> : null}

@@ -16,6 +16,8 @@ Both ways Tyler picked ("Both"):
 - **A day's menu → Fill this day** (Tyler, 4 Nov 2026: "Timed, in the gaps")
   opens the same window titled "Fill Day 2", for one day that already has
   cards. It fills only that day's free time; see "Filling one day" below.
+- **"+ Add" → Suggest Ideas** fills the Ideas column instead of any day; see
+  "Suggesting Ideas" below.
 
 ## What it plans
 
@@ -67,6 +69,29 @@ there.
 - **The code:** `fillTripDay` in `src/server/travel/trip-draft.ts`, with the
   free time and fitting in `src/lib/travel/fill-day.ts`. It shares Draft a
   plan's allowance of 20 in 10 minutes.
+
+## Suggesting Ideas
+
+Tyler, 5 Nov 2026: "+ Add, checked first".
+
+- **What it asks:** 10 places in the trip's destination, sights and places to
+  eat, each with a one-line reason it's worth going. The AI is told what is
+  already on the trip, Must do first, and never to name those again.
+- **What comes back** shows ticked in the Suggest Ideas window, with each
+  reason under its name, to untick or rename. "Add 7 places to Ideas" adds
+  the ticked ones into Ideas only, after the ideas already there, with no day,
+  time or length.
+- **Places already on the trip** are left out twice over: once when the
+  answer comes back, and again when they are added, after Google has said
+  what each place is. A place named twice in the answer is kept once.
+- **Places from Google:** with Google set up, each added place is looked up
+  and filled in like a drafted one, photo included; without it, by name only.
+- **Needs a destination,** like drafting. A muddled answer says "The AI didn't
+  send back places it could use", and an answer naming only places already on
+  the trip says so; both have Try again.
+- **The same allowance** as drafting: it counts against the shell's AI
+  allowance, and the rate limit of 20 plans in 10 minutes covers asking and
+  adding (`suggestTripIdeas` in `src/server/travel/trip-draft.ts`).
 
 ## Checking it
 

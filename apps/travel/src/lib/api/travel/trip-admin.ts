@@ -8,11 +8,12 @@ import {
   deleteFromBin,
   listBin,
   loadTripPins,
+  loadVisitedPins,
   restoreFromBin,
   setTripArchived,
 } from "@/server/travel/trip-admin"
 
-export type { BinEntry, TripPin } from "@/server/travel/trip-admin"
+export type { BinEntry, TripPin, VisitedPin } from "@/server/travel/trip-admin"
 
 const archiveFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -52,6 +53,10 @@ const pinsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }) => loadTripPins(context.user.id))
 
+const visitedFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) => loadVisitedPins(context.user.id))
+
 export function archiveTrip(tripId: string, archived: boolean) {
   return archiveFn({ data: { tripId, archived } })
 }
@@ -69,4 +74,8 @@ export function purgeActivity(activityId: string) {
 }
 export function loadPins() {
   return pinsFn()
+}
+/** Every place marked Done on the person's trips, for Places I've been (Travel features 3, part 12). */
+export function loadVisited() {
+  return visitedFn()
 }

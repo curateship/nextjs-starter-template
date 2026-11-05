@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { GoogleMap } from "@/components/travel/google-map"
 import { dayLabel } from "@/components/travel/new-activity"
+import { DAY_COLORS } from "@/lib/travel/day-colors"
 import { typeOf, useTrip } from "@/components/travel/trip-context"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import { Label } from "@/components/ui/label"
@@ -11,8 +12,6 @@ import type { Activity } from "@/lib/api/travel/trips"
 import { boardColumns } from "@/lib/travel/board"
 import { cn } from "@/lib/utils"
 
-/** One colour per day, so a day's pins read as a group. Repeats after eight days. */
-const DAY_COLORS = ["#2563eb", "#16a34a", "#ea580c", "#9333ea", "#db2777", "#0d9488", "#ca8a04", "#dc2626"]
 const ALL_DAYS = "all"
 
 /** The cards with a map position, the ones the map can draw. */

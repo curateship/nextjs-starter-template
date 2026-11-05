@@ -24,7 +24,8 @@ function write(key: string, value: string) {
  * How a trip's board is laid out in this browser: which day columns are folded
  * (task part 12, and "Misc": a double-click on a day's heading folds it, and a
  * header button folds or unfolds every day), and whether the Ideas column is
- * hidden behind its eye (task "Misc").
+ * hidden behind its eye (task "Misc"). It also carries Jump to a day from the
+ * header to the board (Travel features 3, part 7).
  */
 export function useBoardLayout(tripId: string, days: number) {
   const foldKey = foldedDaysKey(tripId)
@@ -64,7 +65,20 @@ export function useBoardLayout(tripId: string, days: number) {
     setIdeasHiddenState(hidden)
   }
 
-  return { folded, toggleFold, allFolded, toggleFoldAll, ideasHidden, setIdeasHidden }
+  // The day the header's Jump to a day asked for, and when, so asking for the same day again scrolls again.
+  const [jump, setJump] = React.useState<{ key: string; at: number } | null>(null)
+  const jumpTo = (day: number) => {
+    const key = `day-${day}`
+    // A folded day opens, so there's something to see once it's reached.
+    if (folded.has(key)) {
+      const next = new Set(folded)
+      next.delete(key)
+      setFolded(store(next))
+    }
+    setJump({ key, at: Date.now() })
+  }
+
+  return { folded, toggleFold, allFolded, toggleFoldAll, ideasHidden, setIdeasHidden, jump, jumpTo }
 }
 
 export type BoardLayout = ReturnType<typeof useBoardLayout>

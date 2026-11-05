@@ -5,11 +5,11 @@ import { TRAVEL_ERRORS } from "@/lib/travel/errors"
 import { MAX_TRIP_DAYS, TIME_PATTERN, id } from "@/lib/travel/rules"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { userPost } from "@/server/guards"
-import { createDraftActivities, DRAFT_DAYS_MAX, draftTripPlan, fillTripDay } from "@/server/travel/trip-draft"
+import { createDraftActivities, DRAFT_DAYS_MAX, draftTripPlan, fillTripDay, IDEAS_MAX, suggestTripIdeas } from "@/server/travel/trip-draft"
 
 import type { DraftItem } from "@/server/travel/trip-draft"
 
-export type { DraftItem, MadePlan, TripDraft } from "@/server/travel/trip-draft"
+export type { DraftItem, IdeaItem, MadePlan, TripDraft } from "@/server/travel/trip-draft"
 
 /** Each plan made can look up 70 places on Google, so one person can only make so many. */
 async function limitPlans(userId: string) {
@@ -62,6 +62,49 @@ const createFn = createServerFn({ method: "POST" })
     await limitPlans(context.user.id)
     return createDraftActivities(context.user.id, data)
   })
+
+// Suggest Ideas (Travel features 3, part 9): the same allowance, and nothing saved either.
+const ideasFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ tripId: id }))
+  .handler(async ({ data, context }) => {
+    await limitPlans(context.user.id)
+    return suggestTripIdeas(context.user.id, data)
+  })
+
+const createIdeasFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      tripId: id,
+      items: z
+        .array(
+          z.object({
+            title: z.string().trim().min(1, "Give every place a name, or untick it.").max(200),
+            typeId: id.nullable(),
+          })
+        )
+        .min(1, "Tick at least one place to add.")
+        .max(IDEAS_MAX),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    await limitPlans(context.user.id)
+    return createDraftActivities(context.user.id, {
+      tripId: data.tripId,
+      items: data.items.map((item) => ({ ...item, day: null, startTime: null, durationMinutes: null })),
+    })
+  })
+
+/** Asks the AI for 10 places for the trip's Ideas (Travel features 3, part 9). Nothing is saved. */
+export function suggestIdeas(tripId: string) {
+  return ideasFn({ data: { tripId } })
+}
+
+/** Puts the ticked suggested places into Ideas, never onto a day. */
+export function createIdeas(tripId: string, items: { title: string; typeId: string | null }[]) {
+  return createIdeasFn({ data: { tripId, items } })
+}
 
 /** Asks the AI for a first plan for the trip's empty days (Travel features part 7). Nothing is saved. */
 export function draftPlan(tripId: string) {

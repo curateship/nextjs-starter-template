@@ -1,8 +1,9 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { Trash2Icon } from "lucide-react"
+import { StarIcon, Trash2Icon } from "lucide-react"
 
 import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
+import { RateTripDialog } from "@/components/travel/rate-trip-dialog"
 import { useTripBin } from "@/components/travel/use-trip-bin"
 import { SavingInput } from "@/components/travel/saving-fields"
 import { TimeZoneSelect } from "@/components/travel/time-zone-select"
@@ -52,6 +53,8 @@ export function TripMenu() {
   const navigate = useNavigate()
   const save = useSaveTrip()
   const [open, setOpen] = React.useState(false)
+  // Rate the trip (Travel features 3, part 11), opened from this menu only.
+  const [rating, setRating] = React.useState(false)
   const [shown, toggle] = useOpenSections<Section>()
   const { binTrips, busy: deleting } = useTripBin()
 
@@ -219,6 +222,15 @@ export function TripMenu() {
         </MenuSection>
         <MenuLine />
         <MenuAction
+          icon={<StarIcon className="size-4" />}
+          onClick={() => {
+            setOpen(false)
+            setRating(true)
+          }}
+        >
+          Rate the trip
+        </MenuAction>
+        <MenuAction
           icon={<Trash2Icon className="size-4" />}
           destructive
           disabled={deleting}
@@ -227,6 +239,7 @@ export function TripMenu() {
           Delete trip
         </MenuAction>
       </FoldingMenu>
+      <RateTripDialog open={rating} onClose={() => setRating(false)} />
     </>
   )
 }

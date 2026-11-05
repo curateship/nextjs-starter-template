@@ -43,6 +43,8 @@ sat in thirteen app folders, and nothing read them.
   a site has more addresses than one sitemap file can hold.
 - `home-screen.md` — adding any app to a phone's home screen: the manifest,
   the icons cut from the logo, and the `homeScreen` app option.
+- `document-editor.md` — the shell's document editor: what a document may
+  hold, and how an app adds kinds of content with its `clean` prop.
 - `offline-pages.md` — the worker that keeps an app's chosen pages to open
   read only with no signal, `useOfflinePages` and `useOnline`, and when what
   it keeps is emptied.

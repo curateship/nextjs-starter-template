@@ -20,6 +20,10 @@ export type TripContextValue = {
   readOnly: boolean
   /** Each day's forecast, what far-off days are usually like, and holidays, loaded once for both panels. */
   weather: TripWeather
+  /** Shows a trip note in the left panel, or the description when null (from the Photos tab, Travel features 3 part 6). */
+  openTripNote: (noteId: string | null) => void
+  /** The last note asked for, and when, so asking again for the same one still opens it. */
+  noteRequest: { noteId: string | null; at: number } | null
 }
 
 const TripContext = React.createContext<TripContextValue | null>(null)

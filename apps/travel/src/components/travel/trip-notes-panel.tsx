@@ -17,15 +17,15 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { copyNote, newTripNote, removeNote, saveNote } from "@/lib/api/travel/trip-notes"
 import type { TripNote } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { writtenPageText } from "@/lib/pages/written-page-body"
 import { formatLongDate } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
+import { noteText } from "@/lib/travel/note-blocks"
 import { readNotes } from "@/lib/travel/notes"
 
 /** A note's first line, as its name in the list. */
 function firstLine(body: string) {
-  const first = (readNotes(body).content ?? []).find((block) => writtenPageText(block).trim())
-  return first ? writtenPageText(first).trim() : "Empty note"
+  const first = (readNotes(body).content ?? []).find((block) => noteText(block).trim())
+  return first ? noteText(first).trim() : "Empty note"
 }
 
 /** A point on the page for a menu to open from, in the page's body so no scroller shifts it off the mouse. */
@@ -48,9 +48,9 @@ const PointAnchor = React.forwardRef<HTMLSpanElement, { x: number; y: number }>(
  * click feature to delete and duplicate note in the notes list"). An open note
  * is the shell's editor, saving itself, with Back to notes right under it.
  */
-export function TripNotes() {
+export function TripNotes({ startOpen = null }: { startOpen?: string | null }) {
   const { page, refresh, readOnly } = useTrip()
-  const [openId, setOpenId] = React.useState<string | null>(null)
+  const [openId, setOpenId] = React.useState<string | null>(startOpen)
   const [justMade, setJustMade] = React.useState<string | null>(null)
   const [deleting, setDeleting] = React.useState<TripNote | null>(null)
   const [menu, setMenu] = React.useState<{ note: TripNote; at: { x: number; y: number } } | null>(null)

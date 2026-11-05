@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm"
 import { MAX_TRIP_DAYS, type DayPart } from "@/lib/travel/rules"
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
 import { now, uuid } from "@/server/auth/security"
+import { copyActivityPhotos } from "@/server/travel/activity-photos"
 import { db, type CustomShellDb } from "@/server/db"
 import { requireActivity, requireTrip, type ActivityRow, type TripRow } from "@/server/travel/access"
 import { travelActivities, travelTrips } from "@/server/travel/schema"
@@ -165,7 +166,13 @@ export async function copyDay(
     day: to,
     position: startAt + index,
   }))
-  if (made.length) await database.insert(travelActivities).values(made)
+  if (made.length) {
+    await database.transaction(async (tx) => {
+      await tx.insert(travelActivities).values(made)
+      // Each copy keeps its card's row of photos (Travel features 3, part 5).
+      await copyActivityPhotos(new Map(source.map((activity, index) => [activity.id, made[index].id])), tx)
+    })
+  }
   return { created: made.map((activity) => activity.id) }
 }
 
@@ -177,6 +184,7 @@ export async function duplicateActivity(userId: string, activityId: string, data
   const id = uuid()
   await database.transaction(async (tx) => {
     await tx.insert(travelActivities).values({ ...copyOf(activity, now()), id, day: activity.day, position: 0 })
+    await copyActivityPhotos(new Map([[activity.id, id]]), tx)
     const column = all.filter((item) => item.day === activity.day).map((item) => item.id)
     column.splice(column.indexOf(activity.id) + 1, 0, id)
     await writePositions(column, tx)
