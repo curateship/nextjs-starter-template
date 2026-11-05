@@ -93,11 +93,15 @@ import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/goo
 import { Route as ApiConnectPromoEventsRouteImport } from './routes/api/connect/promo/events'
 import { Route as ApiConnectPromoProjectsRouteImport } from './routes/api/connect/promo/projects'
 import { Route as ApiConnectPromoRequestsRouteImport } from './routes/api/connect/promo/requests'
+import { Route as ApiConnectViralDraftsRouteImport } from './routes/api/connect/viral/drafts'
+import { Route as ApiConnectViralHelloRouteImport } from './routes/api/connect/viral/hello'
+import { Route as ApiConnectViralProjectsRouteImport } from './routes/api/connect/viral/projects'
 import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
 import { Route as ApiConnectPromoFileTokenRouteImport } from './routes/api/connect/promo/file/$token'
+import { Route as ApiConnectViralSendsSendIdRouteImport } from './routes/api/connect/viral/sends/$sendId'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 import { Route as ApiV1VideoYoutubeCallbackRouteImport } from './routes/api/v1/video/youtube/callback'
 import { Route as ApiV1VideoYoutubeConnectRouteImport } from './routes/api/v1/video/youtube/connect'
@@ -569,6 +573,21 @@ const ApiConnectPromoRequestsRoute = ApiConnectPromoRequestsRouteImport.update({
   path: '/api/connect/promo/requests',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiConnectViralDraftsRoute = ApiConnectViralDraftsRouteImport.update({
+  id: '/api/connect/viral/drafts',
+  path: '/api/connect/viral/drafts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConnectViralHelloRoute = ApiConnectViralHelloRouteImport.update({
+  id: '/api/connect/viral/hello',
+  path: '/api/connect/viral/hello',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConnectViralProjectsRoute = ApiConnectViralProjectsRouteImport.update({
+  id: '/api/connect/viral/projects',
+  path: '/api/connect/viral/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1MediaResizedRoute = ApiV1MediaResizedRouteImport.update({
   id: '/api/v1/media/resized',
   path: '/api/v1/media/resized',
@@ -595,6 +614,12 @@ const ApiConnectPromoFileTokenRoute =
   ApiConnectPromoFileTokenRouteImport.update({
     id: '/api/connect/promo/file/$token',
     path: '/api/connect/promo/file/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiConnectViralSendsSendIdRoute =
+  ApiConnectViralSendsSendIdRouteImport.update({
+    id: '/api/connect/viral/sends/$sendId',
+    path: '/api/connect/viral/sends/$sendId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
@@ -737,6 +762,9 @@ export interface FileRoutesByFullPath {
   '/api/connect/promo/events': typeof ApiConnectPromoEventsRoute
   '/api/connect/promo/projects': typeof ApiConnectPromoProjectsRoute
   '/api/connect/promo/requests': typeof ApiConnectPromoRequestsRoute
+  '/api/connect/viral/drafts': typeof ApiConnectViralDraftsRoute
+  '/api/connect/viral/hello': typeof ApiConnectViralHelloRoute
+  '/api/connect/viral/projects': typeof ApiConnectViralProjectsRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
@@ -746,6 +774,7 @@ export interface FileRoutesByFullPath {
   '/admin/video-viral/': typeof AuthenticatedAdminVideoViralIndexRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/connect/promo/file/$token': typeof ApiConnectPromoFileTokenRoute
+  '/api/connect/viral/sends/$sendId': typeof ApiConnectViralSendsSendIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/video/youtube/callback': typeof ApiV1VideoYoutubeCallbackRoute
   '/api/v1/video/youtube/connect': typeof ApiV1VideoYoutubeConnectRoute
@@ -831,6 +860,9 @@ export interface FileRoutesByTo {
   '/api/connect/promo/events': typeof ApiConnectPromoEventsRoute
   '/api/connect/promo/projects': typeof ApiConnectPromoProjectsRoute
   '/api/connect/promo/requests': typeof ApiConnectPromoRequestsRoute
+  '/api/connect/viral/drafts': typeof ApiConnectViralDraftsRoute
+  '/api/connect/viral/hello': typeof ApiConnectViralHelloRoute
+  '/api/connect/viral/projects': typeof ApiConnectViralProjectsRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
@@ -840,6 +872,7 @@ export interface FileRoutesByTo {
   '/admin/video-viral': typeof AuthenticatedAdminVideoViralIndexRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/connect/promo/file/$token': typeof ApiConnectPromoFileTokenRoute
+  '/api/connect/viral/sends/$sendId': typeof ApiConnectViralSendsSendIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/video/youtube/callback': typeof ApiV1VideoYoutubeCallbackRoute
   '/api/v1/video/youtube/connect': typeof ApiV1VideoYoutubeConnectRoute
@@ -933,6 +966,9 @@ export interface FileRoutesById {
   '/api/connect/promo/events': typeof ApiConnectPromoEventsRoute
   '/api/connect/promo/projects': typeof ApiConnectPromoProjectsRoute
   '/api/connect/promo/requests': typeof ApiConnectPromoRequestsRoute
+  '/api/connect/viral/drafts': typeof ApiConnectViralDraftsRoute
+  '/api/connect/viral/hello': typeof ApiConnectViralHelloRoute
+  '/api/connect/viral/projects': typeof ApiConnectViralProjectsRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
@@ -942,6 +978,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/video-viral/': typeof AuthenticatedAdminVideoViralIndexRoute
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/connect/promo/file/$token': typeof ApiConnectPromoFileTokenRoute
+  '/api/connect/viral/sends/$sendId': typeof ApiConnectViralSendsSendIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/video/youtube/callback': typeof ApiV1VideoYoutubeCallbackRoute
   '/api/v1/video/youtube/connect': typeof ApiV1VideoYoutubeConnectRoute
@@ -1035,6 +1072,9 @@ export interface FileRouteTypes {
     | '/api/connect/promo/events'
     | '/api/connect/promo/projects'
     | '/api/connect/promo/requests'
+    | '/api/connect/viral/drafts'
+    | '/api/connect/viral/hello'
+    | '/api/connect/viral/projects'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
@@ -1044,6 +1084,7 @@ export interface FileRouteTypes {
     | '/admin/video-viral/'
     | '/admin/automations/templates/$templateKey'
     | '/api/connect/promo/file/$token'
+    | '/api/connect/viral/sends/$sendId'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/video/youtube/callback'
     | '/api/v1/video/youtube/connect'
@@ -1129,6 +1170,9 @@ export interface FileRouteTypes {
     | '/api/connect/promo/events'
     | '/api/connect/promo/projects'
     | '/api/connect/promo/requests'
+    | '/api/connect/viral/drafts'
+    | '/api/connect/viral/hello'
+    | '/api/connect/viral/projects'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
@@ -1138,6 +1182,7 @@ export interface FileRouteTypes {
     | '/admin/video-viral'
     | '/admin/automations/templates/$templateKey'
     | '/api/connect/promo/file/$token'
+    | '/api/connect/viral/sends/$sendId'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/video/youtube/callback'
     | '/api/v1/video/youtube/connect'
@@ -1230,6 +1275,9 @@ export interface FileRouteTypes {
     | '/api/connect/promo/events'
     | '/api/connect/promo/projects'
     | '/api/connect/promo/requests'
+    | '/api/connect/viral/drafts'
+    | '/api/connect/viral/hello'
+    | '/api/connect/viral/projects'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
@@ -1239,6 +1287,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/video-viral/'
     | '/_authenticated/admin/automations_/templates_/$templateKey'
     | '/api/connect/promo/file/$token'
+    | '/api/connect/viral/sends/$sendId'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/video/youtube/callback'
     | '/api/v1/video/youtube/connect'
@@ -1284,10 +1333,14 @@ export interface RootRouteChildren {
   ApiConnectPromoEventsRoute: typeof ApiConnectPromoEventsRoute
   ApiConnectPromoProjectsRoute: typeof ApiConnectPromoProjectsRoute
   ApiConnectPromoRequestsRoute: typeof ApiConnectPromoRequestsRoute
+  ApiConnectViralDraftsRoute: typeof ApiConnectViralDraftsRoute
+  ApiConnectViralHelloRoute: typeof ApiConnectViralHelloRoute
+  ApiConnectViralProjectsRoute: typeof ApiConnectViralProjectsRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
   ApiConnectPromoFileTokenRoute: typeof ApiConnectPromoFileTokenRoute
+  ApiConnectViralSendsSendIdRoute: typeof ApiConnectViralSendsSendIdRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
   ApiV1VideoYoutubeCallbackRoute: typeof ApiV1VideoYoutubeCallbackRoute
   ApiV1VideoYoutubeConnectRoute: typeof ApiV1VideoYoutubeConnectRoute
@@ -1890,6 +1943,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiConnectPromoRequestsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/connect/viral/drafts': {
+      id: '/api/connect/viral/drafts'
+      path: '/api/connect/viral/drafts'
+      fullPath: '/api/connect/viral/drafts'
+      preLoaderRoute: typeof ApiConnectViralDraftsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/connect/viral/hello': {
+      id: '/api/connect/viral/hello'
+      path: '/api/connect/viral/hello'
+      fullPath: '/api/connect/viral/hello'
+      preLoaderRoute: typeof ApiConnectViralHelloRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/connect/viral/projects': {
+      id: '/api/connect/viral/projects'
+      path: '/api/connect/viral/projects'
+      fullPath: '/api/connect/viral/projects'
+      preLoaderRoute: typeof ApiConnectViralProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/media/resized': {
       id: '/api/v1/media/resized'
       path: '/api/v1/media/resized'
@@ -1923,6 +1997,13 @@ declare module '@tanstack/react-router' {
       path: '/api/connect/promo/file/$token'
       fullPath: '/api/connect/promo/file/$token'
       preLoaderRoute: typeof ApiConnectPromoFileTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/connect/viral/sends/$sendId': {
+      id: '/api/connect/viral/sends/$sendId'
+      path: '/api/connect/viral/sends/$sendId'
+      fullPath: '/api/connect/viral/sends/$sendId'
+      preLoaderRoute: typeof ApiConnectViralSendsSendIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/media/$mediaId/file': {
@@ -2257,10 +2338,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiConnectPromoEventsRoute: ApiConnectPromoEventsRoute,
   ApiConnectPromoProjectsRoute: ApiConnectPromoProjectsRoute,
   ApiConnectPromoRequestsRoute: ApiConnectPromoRequestsRoute,
+  ApiConnectViralDraftsRoute: ApiConnectViralDraftsRoute,
+  ApiConnectViralHelloRoute: ApiConnectViralHelloRoute,
+  ApiConnectViralProjectsRoute: ApiConnectViralProjectsRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
   ApiConnectPromoFileTokenRoute: ApiConnectPromoFileTokenRoute,
+  ApiConnectViralSendsSendIdRoute: ApiConnectViralSendsSendIdRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
   ApiV1VideoYoutubeCallbackRoute: ApiV1VideoYoutubeCallbackRoute,
   ApiV1VideoYoutubeConnectRoute: ApiV1VideoYoutubeConnectRoute,

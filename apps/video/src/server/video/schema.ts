@@ -558,6 +558,12 @@ export const videoProjectVideos = pgTable(
     // What was asked for when this video came from Ask for a video in Promo
     // (send-to-promo.md, drizzle/0152). Null on every other video.
     promoBrief: text("promo_brief"),
+    // What came with a draft sent from the Viral app's vault: the script, the
+    // person's notes and the vault item's address (viral-connection.md,
+    // drizzle/0153). Null on every other video.
+    viralScript: text("viral_script"),
+    viralNotes: text("viral_notes"),
+    viralVaultUrl: varchar("viral_vault_url", { length: 600 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -2406,3 +2412,69 @@ export type VideoViralProjectKeywordRow =
   typeof videoViralProjectKeywords.$inferSelect
 export type VideoViralProjectResultRow =
   typeof videoViralProjectResults.$inferSelect
+
+/**
+ * The key the Viral app sends drafts into Video with (viral-connection.md).
+ * One per admin, made on Settings → Viral. The hash finds the caller; the
+ * key is also kept scrambled so Copy can show it again and so Video can call
+ * Viral back with it. Making a new key ends the old one at once.
+ */
+export const videoViralLinks = pgTable("video_viral_links", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  keyHash: varchar("key_hash", { length: 64 }).notNull().unique(),
+  keySecret: text("key_secret").notNull(),
+  // The Viral address that last pressed Test, the only one Video fetches
+  // files from or calls back.
+  viralUrl: varchar("viral_url", { length: 500 }).notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+})
+
+export type VideoViralLinkRow = typeof videoViralLinks.$inferSelect
+
+export type ViralArrivalStatus = "copying" | "ready" | "failed"
+
+/** What a send carries, kept until its file is in. */
+export type ViralArrivalPending = {
+  title: string
+  script: string
+  notes: string
+  vaultItemUrl: string
+  viralProjectName: string
+  file: { token: string; name: string; contentType: string; size: number } | null
+}
+
+/**
+ * One send from Viral's Send to Video. The send's own id comes from Viral,
+ * so the same send twice finds this row and makes nothing new.
+ */
+export const videoViralArrivals = pgTable(
+  "video_viral_arrivals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    sendId: varchar("send_id", { length: 64 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
+    // The draft made, or the draft a Replace send updates. Deleting the
+    // video ends the send's link to it.
+    videoId: varchar("video_id", { length: 36 }).references(() => videoProjectVideos.id, { onDelete: "set null" }),
+    replacing: boolean("replacing").notNull().default(false),
+    status: varchar("status", { length: 8 }).$type<ViralArrivalStatus>().notNull(),
+    error: text("error").notNull().default(""),
+    pending: jsonb("pending").$type<ViralArrivalPending>().notNull(),
+    mediaId: varchar("media_id", { length: 36 }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_video_viral_arrivals_send").on(table.userId, table.sendId),
+    index("ix_video_viral_arrivals_status").on(table.status, table.claimedAt),
+  ]
+)
+
+export type VideoViralArrivalRow = typeof videoViralArrivals.$inferSelect

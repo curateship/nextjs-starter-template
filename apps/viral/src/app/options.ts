@@ -1,4 +1,5 @@
 import type { AppOptions } from "@/lib/app-options"
+import { defineSettingsTab } from "@/lib/settings-tab"
 
 /**
  * What this app changes about the shell.
@@ -15,4 +16,21 @@ import type { AppOptions } from "@/lib/app-options"
  * The type is written as an annotation rather than `satisfies` so that an empty
  * object still reads as the full shape. Both catch a misspelled option.
  */
-export const appOptions: AppOptions = {}
+export const appOptions: AppOptions = {
+  settings: {
+    tabs: [
+      // The key Viral searches YouTube with, and today's units (task part 1).
+      defineSettingsTab({
+        id: "youtube",
+        label: "YouTube",
+        panel: () => import("@/components/viral/settings/youtube-settings"),
+      }),
+      // Video's address and key, for Send to Video (task parts 21 and 22).
+      defineSettingsTab({
+        id: "video-connection",
+        label: "Video connection",
+        panel: () => import("@/components/viral/settings/video-connection-settings"),
+      }),
+    ],
+  },
+}

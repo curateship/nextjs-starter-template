@@ -110,6 +110,10 @@ export type VideoItem = {
   language_of: string | null
   /** What was asked for when this video came from Ask for a video in Promo (send-to-promo.md). */
   promo_brief: string | null
+  /** The script sent with this draft from the Viral app's vault (viral-connection.md). */
+  viral_script: string | null
+  /** The vault item it came from, to go back to. */
+  viral_vault_url: string | null
   created_at: string
   updated_at: string
 }
@@ -345,6 +349,8 @@ function serializeVideo(
     language: row.language,
     language_of: row.languageOf,
     promo_brief: row.promoBrief,
+    viral_script: row.viralScript,
+    viral_vault_url: row.viralVaultUrl,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }

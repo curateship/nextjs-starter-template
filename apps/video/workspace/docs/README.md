@@ -151,6 +151,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   export is ready or failed, what sends none, and why it has no link.
 - [retrying-an-export.md](retrying-an-export.md) — the Try again button on a
   failed export: when it is allowed, and what it resets.
+- [viral-connection.md](viral-connection.md) — Send to Video from the Viral app:
+  the key on Settings → Viral, the draft with its script and the original
+  on the Media shelf, Replace, and the messages between the two apps.
 - [send-to-promo.md](send-to-promo.md) — Send to Promo: copying a finished
   video, carousel or thumbnail into a Promo project's Archive, the key on
   Settings → Promo, the send window, subtitles, slideshows, posted marks and

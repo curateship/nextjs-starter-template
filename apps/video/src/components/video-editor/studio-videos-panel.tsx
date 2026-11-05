@@ -100,9 +100,12 @@ export function VideosPanel() {
       ],
       Icon: FilmIcon,
       // A video asked for in Promo shows what was asked (part 42).
+      // A draft sent from Viral's vault shows its script's first line.
       note: video.promo_brief
         ? { line: `Asked for in Promo: ${video.promo_brief.trim().split("\n")[0]}`, full: video.promo_brief }
-        : undefined,
+        : video.viral_script
+          ? { line: `From Viral: ${video.viral_script.trim().split("\n")[0]}`, full: video.viral_script }
+          : undefined,
     }),
     // Its newest finished export goes to Promo (part 8). Sending is the owner's.
     extraMenu: guest

@@ -88,6 +88,12 @@ export const appOptions: AppOptions = {
         label: "Promo",
         panel: () => import("@/components/video-promo/promo-settings"),
       }),
+      /** The key Viral sends drafts with, for Send to Video (`workspace/docs/viral-connection.md`). */
+      defineSettingsTab({
+        id: "viral",
+        label: "Viral",
+        panel: () => import("@/components/viral-link/viral-link-settings"),
+      }),
     ],
   },
 }

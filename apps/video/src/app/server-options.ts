@@ -88,6 +88,13 @@ export const appServerOptions: AppServerOptions = {
           import("@/server/video/promo-sends").then((sends) => sends.sweepStalePromoSends()),
       },
       {
+        // Starts a Send to Video from Viral whose copy was lost to a restart,
+        // and ends one stuck past its hour (workspace/docs/viral-connection.md).
+        name: "video-viral-arrivals",
+        tick: () =>
+          import("@/server/video/viral-link/arrivals").then((arrivals) => arrivals.sweepViralArrivals()),
+      },
+      {
         // Makes a brief's scenes one after another, then lays made scenes on
         // the timeline when no editor has the project open to do it.
         name: "video-briefs",
