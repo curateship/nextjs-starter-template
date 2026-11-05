@@ -123,6 +123,13 @@ type WorkerState = {
   /** Nothing new is claimed before this, after a job found the disk too full. */
   diskWaitUntil: number
   lastCacheSweep: number
+  /**
+   * Set by the first tick. Only the worker runs the ticker in production, and
+   * only the worker has ffmpeg, so a process that never ticked (the website, a
+   * script) must never claim a job: it would download the whole original and
+   * then fail, spending one of the job's tries.
+   */
+  live: boolean
 }
 
 declare global {
@@ -142,6 +149,7 @@ function workerState(): WorkerState {
       nextKind: "proxy",
       diskWaitUntil: 0,
       lastCacheSweep: 0,
+      live: false,
     }
   }
   return globalThis.__videoMediaWorkerState
@@ -149,6 +157,7 @@ function workerState(): WorkerState {
 
 /** The tick registered with the shell. Each step fails alone. */
 export async function videoMediaTick() {
+  workerState().live = true
   await discoverNewVideos().catch((error) => {
     console.error("Video media discovery failed", error)
   })
@@ -188,8 +197,13 @@ async function sweepFileCache() {
   )
 }
 
-/** Lets a route nudge the queue without waiting for the next tick. */
+/**
+ * Lets a route nudge the queue without waiting for the next tick. On the
+ * website this does nothing: the row is already queued, and the worker takes
+ * it on its next tick.
+ */
 export function kickVideoMediaWorker() {
+  if (!workerState().live) return
   pumpQueue()
 }
 

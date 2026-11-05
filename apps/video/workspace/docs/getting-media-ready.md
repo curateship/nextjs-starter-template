@@ -28,6 +28,16 @@ Pictures and sound files get neither, so they are never marked.
 - **Before it starts:** the worker runs every 15 seconds, and a new upload is
   picked up on the next run. Until then the file has no rows at all, and the
   editor treats that as "getting ready".
+- **Only the worker makes them.** Try again, a new music track or sound
+  effect, a cleaned voice, and the editor asking for a clip's frames or
+  sound shape all nudge the queue. The nudge does nothing on the website,
+  because the website has no ffmpeg and never runs the 15-second rounds
+  (`kickVideoMediaWorker` in `src/server/video/media-workers.ts`). Before
+  5 Nov 2026 the website could take a job, download the whole original, fail
+  with "ffmpeg is not installed" and spend one of the job's three tries. The
+  worker then downloaded the same file again into its own folder. Locally the
+  dev server runs the rounds, so after its first round a nudge still starts a
+  job straight away.
 - **Measured locally:** a 40-second 1080p video was ready about 14 seconds
   after its upload finished. Both markers were gone by then, with no reload.
 - **Longer files take longer.** A smooth copy may take twice the video's own

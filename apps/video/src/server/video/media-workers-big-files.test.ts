@@ -171,6 +171,34 @@ describe.skipIf(!hasFfmpeg)("the media worker on a big video", () => {
     return row
   }
 
+  // The website calls the kick too, but has no ffmpeg and never runs the
+  // ticker. A job it claimed would download the whole original, fail, and
+  // spend one of the job's three tries.
+  it("leaves a queued job to the worker when kicked from a process that never ticked", async () => {
+    const { id, storagePath } = await insertVideo("queued.mov", 1024 * 1024)
+    const now = new Date()
+    await database.insert(videoMediaProxies).values({
+      mediaId: id,
+      status: "queued",
+      profile: "h264-720p",
+      createdAt: now,
+      updatedAt: now,
+    })
+    const { kickVideoMediaWorker } = await import("@/server/video/media-workers")
+
+    kickVideoMediaWorker()
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    expect((await statusOf(videoMediaProxies, id))?.status).toBe("queued")
+    expect(stand.downloads).not.toContain(storagePath)
+
+    // The worker's own tick takes it.
+    await videoMediaTick()
+    await until(async () =>
+      (await statusOf(videoMediaProxies, id))?.status === "ready" ? true : undefined
+    )
+  }, 120_000)
+
   it("makes frames only from the smooth copy, and downloads the original once", async () => {
     const { id, storagePath } = await insertVideo("beach.mov", 20 * GB)
 
