@@ -134,8 +134,9 @@ the guess that one might:
   `confirmCheckoutSession`. Pomodoro points all three at `/plans`.
 - `homeScreen` — where the icon opens once someone adds the app to a phone's
   home screen (`startPath`), and the name under it (`shortName`). Unset opens
-  the front page under the app's name. See `home-screen.md`. Project opens
-  `/dashboard`.
+  the front page under the app's name. `shareTarget` puts the app in an
+  Android phone's share menu, opening the page it names with the shared link.
+  See `home-screen.md`. Project opens `/dashboard`; Viral names a share page.
 - `landing.page` — replace `/` outright: loader, `<head>` and component together
 - `signIn.frame` — the frame drawn around the shell's ten signed-out pages
   (sign in, register, forgot and reset password, verify email, the sign-in

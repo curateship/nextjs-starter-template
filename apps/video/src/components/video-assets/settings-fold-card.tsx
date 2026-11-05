@@ -14,7 +14,7 @@ import {
 } from "@/lib/remembered-choice"
 
 /**
- * One card in a Project settings window, the editor's and a Viral project's.
+ * One card in a Project settings window.
  * In the settings window it folds from its header, and this browser
  * remembers which cards were left shut (Tyler, 20 Oct 2026: "Project setting
  * cog modal cards should be collapsible"). The New project window keeps every

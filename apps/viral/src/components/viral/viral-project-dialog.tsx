@@ -25,7 +25,7 @@ import { createViralProjectFn, suggestViralKeywords, type ViralFolderSummary } f
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { ANALYSIS_TOPIC_MAX } from "@/lib/viral/analysis"
 import { NO_FOLDER } from "@/lib/viral/project-folders"
-import { SOCIAL_NAMES, SOCIALS, socialHasKeywords, type Social } from "@/lib/viral/socials"
+import { SOCIAL_NAMES, SOCIALS, socialHasKeywords, VIDEO_SOCIALS, type Social } from "@/lib/viral/socials"
 import { unitsPerKeyword, VIRAL_DESCRIPTION_MAX, VIRAL_PROJECT_NAME_MAX, type ViralProjectItem } from "@/lib/viral/viral"
 
 /**
@@ -45,7 +45,8 @@ type Draft = {
   keywords: string[]
 }
 
-const EMPTY: Draft = { name: "", topic: "", description: "", socials: [...SOCIALS], keywords: [] }
+// YouTube and TikTok are ticked to begin with; X, Reddit and LinkedIn need Promo, so they start unticked.
+const EMPTY: Draft = { name: "", topic: "", description: "", socials: [...VIDEO_SOCIALS], keywords: [] }
 
 export function ViralProjectDialog({
   open,
@@ -228,7 +229,10 @@ export function ViralProjectDialog({
               <Card size="sm">
                 <CardHeader>
                   <CardTitle>Socials</CardTitle>
-                  <CardDescription>YouTube is searched by keyword and by creator. TikTok follows creators.</CardDescription>
+                  <CardDescription>
+                    YouTube is searched by keyword and by creator. TikTok follows creators. X, Reddit and LinkedIn are read by
+                    Promo, once Promo is connected.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   {SOCIALS.map((social) => (

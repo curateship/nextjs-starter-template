@@ -1,6 +1,4 @@
 import type { AppServerOptions } from "@/server/app-options"
-import { VIRAL_SAVED_VIEW_KIND } from "@/lib/video/viral-saved-views"
-import { viralSavedViewScreen } from "@/server/video/viral/saved-views"
 import {
   CAROUSEL_MEDIA_FILTER,
   EDITOR_MEDIA_FILTER,
@@ -102,50 +100,21 @@ export const appServerOptions: AppServerOptions = {
           import("@/server/video/briefs").then((briefs) => briefs.briefTick()),
       },
       {
-        // Downloads a saved video and has Gemini break it down. Closing the
-        // browser never stops one, and a restart puts an interrupted job back.
+        // Downloads the viral video an editor video copies and has Gemini
+        // break it down, when Try again on the Copy panel put it back in the
+        // queue. A restart puts an interrupted job back.
         name: "video-viral-breakdown",
         tick: () =>
           import("@/server/video/viral/saved-videos").then((saved) =>
             saved.viralVideoTick()
           ),
       },
-      {
-        // Searches the Viral keywords somebody pressed Search on, one at a
-        // time, so the page never waits on YouTube. Only ever runs a keyword a
-        // person queued, after the day's allowance was checked.
-        name: "video-viral-search",
-        tick: () =>
-          import("@/server/video/viral/project-search").then((search) =>
-            search.viralSearchTick()
-          ),
-      },
-      {
-        // Keeps a copy of each followed TikTok and Instagram video's cover,
-        // five a pass, because their cover addresses expire. Reads only the
-        // picture: no video is downloaded and no AI runs.
-        name: "video-creator-covers",
-        tick: () =>
-          import("@/server/video/creators/covers").then(async (covers) => {
-            await covers.creatorCoverTick()
-          }),
-      },
-      {
-        // Checks followed creators for new posts every six hours. Does nothing
-        // at all unless VIDEO_WATCH_ENABLED=1, and never downloads a file.
-        name: "video-creator-watch",
-        tick: () =>
-          import("@/server/video/creators/watch").then((watch) =>
-            watch.creatorWatchTick()
-          ),
-      },
     ],
   },
-  // Views on a Viral project's videos, the video editor's Media panel and
-  // the carousel editor's Image panel.
+  // Views on the video editor's Media panel and the carousel editor's Image
+  // panel.
   savedViews: {
     screens: {
-      [VIRAL_SAVED_VIEW_KIND]: viralSavedViewScreen,
       [EDITOR_MEDIA_FILTER.kind]: mediaSavedViewScreen(EDITOR_MEDIA_FILTER),
       [CAROUSEL_MEDIA_FILTER.kind]: mediaSavedViewScreen(CAROUSEL_MEDIA_FILTER),
     },

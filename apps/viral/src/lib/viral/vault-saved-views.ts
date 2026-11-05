@@ -5,16 +5,22 @@ import { cleanTag, VAULT_STATUSES, vaultStatusLabels, type VaultStatus } from "@
 /**
  * Saved views on the Vault page's middle panel (`viral-vault:` in the shell's
  * saved views; the record part is empty, because the page is every project's
- * vault). A view keeps the search, the status, the tag and the project picked.
+ * vault). A view keeps the search, the status, the tag, the project picked,
+ * and whether the ideas show as a list or a board (task part 15).
  */
 
 export const VAULT_SAVED_VIEW_KIND = "viral-vault"
+
+/** List is the default, so only Board is ever kept. */
+export const VAULT_SHOW_AS = ["list", "board"] as const
+export type VaultShowAs = (typeof VAULT_SHOW_AS)[number]
 
 export type VaultViewFilters = {
   q?: string
   status?: VaultStatus
   tag?: string
   project?: string
+  show?: "board"
 }
 
 export function vaultViewFilters(values: SavedViewValues): VaultViewFilters {
@@ -27,6 +33,7 @@ export function vaultViewFilters(values: SavedViewValues): VaultViewFilters {
   if (tag) kept.tag = tag
   const project = typeof values.project === "string" && /^[\w-]{1,36}$/.test(values.project) ? values.project : ""
   if (project) kept.project = project
+  if (values.show === "board") kept.show = "board"
   return kept
 }
 
@@ -36,5 +43,6 @@ export function describeVaultView(filters: VaultViewFilters) {
   if (filters.q) parts.push(`"${filters.q}"`)
   if (filters.status) parts.push(vaultStatusLabels[filters.status])
   if (filters.tag) parts.push(`Tag: ${filters.tag}`)
+  if (filters.show === "board") parts.push("Board")
   return parts.join(" · ")
 }

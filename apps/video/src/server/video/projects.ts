@@ -468,18 +468,13 @@ export async function getOwnedProjectItem(
 /**
  * A new project with its first video, named after the project. `folderId`
  * puts it straight into that folder, the one the list was showing when New
- * project was pressed. A project made by Make this a template has its first
- * video copy the viral video.
+ * project was pressed.
  */
 export async function createOwnedProject(
   userId: string,
   name: string,
   database: CustomShellDb = db,
-  folderId: string | null = null,
-  /** The saved viral video the first video copies, from Make this a template. */
-  sourceViralVideoId: string | null = null,
-  /** The Viral project Make this a template was pressed in. */
-  sourceViralProjectId: string | null = null
+  folderId: string | null = null
 ): Promise<{ project: ProjectItem; video: VideoItem["id"] }> {
   const createdAt = now()
   const cleanedName = cleanProjectName(name)
@@ -503,7 +498,7 @@ export async function createOwnedProject(
     const video = await insertVideo(
       userId,
       row.id,
-      { name: cleanedName, sourceViralVideoId, sourceViralProjectId },
+      { name: cleanedName },
       tx
     )
     return { row, videoId: video.id }

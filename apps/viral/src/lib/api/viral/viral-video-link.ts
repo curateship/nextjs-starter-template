@@ -58,8 +58,8 @@ export function saveVideoUrlFn(url: string) {
 const saveKeyFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ apiKey: z.string().min(1).max(200) }))
-  .handler(async ({ data }): Promise<SavedKeyStatus> => {
-    await saveVideoApiKey(data.apiKey)
+  .handler(async ({ data, context }): Promise<SavedKeyStatus> => {
+    await saveVideoApiKey(data.apiKey, context.user.id)
     return getVideoKeyStatus()
   })
 

@@ -8,9 +8,11 @@ import { loadViralProject } from "@/lib/api/viral/viral-projects"
 import { readDirection, readOneOf, readSearchText } from "@/lib/nav/list-search"
 import { savedViewScreen } from "@/lib/saved-views"
 import { isSocial, type Social } from "@/lib/viral/socials"
+import { readTextPostMin, TEXT_POST_SORTS, TEXT_POSTS_SAVED_VIEW_KIND } from "@/lib/viral/text-posts"
 import { readStartMs } from "@/lib/viral/viral-breakdown"
 import { VIRAL_SAVED_VIEW_KIND } from "@/lib/viral/viral-saved-views"
 import {
+  readSubscriberStep,
   VIRAL_FIT_CHOICES,
   VIRAL_SORTS,
   VIRAL_SOURCES,
@@ -19,12 +21,12 @@ import {
 } from "@/lib/viral/viral-view"
 
 /** The middle panel's tabs other than Videos, which is the default, and the project's vault. */
-const VIRAL_PROJECT_TABS = ["downloaded", "analysed", "hooks", "vault"] as const
+const VIRAL_PROJECT_TABS = ["downloaded", "analysed", "hooks", "sounds", "vault", "ads"] as const
 
 type ViralProjectSearch = {
   /** Videos is the default and stays out of the address. */
   view?: (typeof VIRAL_PROJECT_TABS)[number]
-  /** The open video, `platform:id`, or on the vault view the open vault item's id. */
+  /** The open video, `platform:id`; on the vault view the open vault item's id; with X, Reddit or LinkedIn picked, the open post's id. */
   open?: string
   /** Where the open video starts, in milliseconds: its hook, opened from Hooks. */
   at?: number
@@ -38,6 +40,19 @@ type ViralProjectSearch = {
   from?: Exclude<ViralSource, "both">
   keyword?: string
   fit?: ViralFit
+  /** Followers from and up to, steps of the creators card's range. */
+  fmin?: number
+  fmax?: number
+  /** On the Sounds tab, the picked sound's key (`soundKey`). */
+  sound?: string
+  /** The video whose "same idea, other creators" search fills the middle, `platform:id`. */
+  same?: string
+  /** With X, Reddit or LinkedIn picked, how its posts are sorted (`TEXT_POST_SORTS`). */
+  psort?: (typeof TEXT_POST_SORTS)[number]
+  /** With X, Reddit or LinkedIn picked, "asc" turns the sort round: lowest or oldest first. */
+  pdir?: "asc"
+  /** With X, Reddit or LinkedIn picked, the fewest likes a post may have (`TEXT_POST_MIN_STEPS`). */
+  pmin?: number
 }
 
 /** A video or creator key, or a vault item's id: no oddities. */
@@ -72,19 +87,27 @@ export const Route = createFileRoute("/_authenticated/admin/projects_/$projectId
     from: readOneOf(search.from, VIRAL_SOURCES.filter((one) => one !== "both") as Exclude<ViralSource, "both">[]),
     keyword: readSearchText(search.keyword),
     fit: readFit(search.fit),
+    fmin: readSubscriberStep(search.fmin) ?? undefined,
+    fmax: readSubscriberStep(search.fmax) ?? undefined,
+    sound: typeof search.sound === "string" && search.sound.length <= 520 ? search.sound : undefined,
+    same: readKey(search.same),
+    psort: readOneOf(search.psort, TEXT_POST_SORTS),
+    pdir: search.pdir === "asc" ? "asc" : undefined,
+    pmin: readTextPostMin(search.pmin),
   }),
   loader: async ({ params }) => {
-    const [screen, views] = await Promise.all([
+    const [screen, views, postViews] = await Promise.all([
       loadViralProject(params.projectId),
       loadSavedViews(savedViewScreen(VIRAL_SAVED_VIEW_KIND, params.projectId)),
+      loadSavedViews(savedViewScreen(TEXT_POSTS_SAVED_VIEW_KIND, params.projectId)),
     ])
-    return { screen, views }
+    return { screen, views, postViews }
   },
   component: ProjectRoute,
   errorComponent: routeErrorComponent(getViralErrorMessage),
 })
 
 function ProjectRoute() {
-  const { screen, views } = Route.useLoaderData()
-  return <ViralProjectScreenView key={screen.project.id} screen={screen} views={views} />
+  const { screen, views, postViews } = Route.useLoaderData()
+  return <ViralProjectScreenView key={screen.project.id} screen={screen} views={views} postViews={postViews} />
 }

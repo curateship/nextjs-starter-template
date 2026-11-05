@@ -23,6 +23,7 @@ import { promoLinkedinPages } from "./schema"
 import { readLinkedinPost, runLinkedinFeed, runLinkedinSearch, type LinkedinReader } from "./search"
 import { settleFailedLinkedinJob } from "./settle"
 import { runLinkedinWarmUp } from "./warm-up"
+import { runViralLinkedinRead } from "@/server/viral-link/reads"
 
 /**
  * LinkedIn's jobs, handed out by the browser program's runner
@@ -87,6 +88,8 @@ export async function runLinkedinSearcherJob(job: QueuedJob, reader: LinkedinRea
     await readLinkedinGroup(job.userId, text(job.payload.groupRowId), reader, db)
   } else if (job.kind === "linkedin_seen") {
     await recordLinkedinSeen(job.userId, text(job.payload.accountId), reader, db)
+  } else if (job.kind === "linkedin_viral_read") {
+    await runViralLinkedinRead(job, reader, db)
   } else {
     throw new Error(`There is no LinkedIn read called "${job.kind}".`)
   }

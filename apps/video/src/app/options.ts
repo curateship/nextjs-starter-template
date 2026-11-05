@@ -35,15 +35,11 @@ export const appOptions: AppOptions = {
   },
   settings: {
     tabs: [
-      /**
-       * The YouTube API key the Viral page searches with. The shell's AI key
-       * list is shell-owned and YouTube is not an AI provider, so the key
-       * lives on the app's own tab instead.
-       */
+      /** The YouTube channel retention curves are read from (`workspace/docs/retention-curve.md`). */
       defineSettingsTab({
         id: "youtube",
         label: "YouTube",
-        panel: () => import("@/components/video-viral/youtube-settings"),
+        panel: () => import("@/components/video-retention/youtube-settings"),
       }),
       /** The Pexels API key the editor's B-roll tool searches stock video with. */
       defineSettingsTab({

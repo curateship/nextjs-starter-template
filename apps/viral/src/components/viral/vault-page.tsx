@@ -16,14 +16,15 @@ import { ThreePanels } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { VaultBoard } from "@/components/viral/vault-board"
 import { VaultItemPanel } from "@/components/viral/vault-item-panel"
 import { VaultList } from "@/components/viral/vault-list"
 import { VaultSelectedMenu } from "@/components/viral/vault-selected-menu"
 import type { SavedView } from "@/lib/api/saved-views"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
-import type { VaultItem } from "@/lib/api/viral/viral-vault"
+import { changeVaultItemsFn, type VaultItem } from "@/lib/api/viral/viral-vault"
 import { plural } from "@/lib/format/plural"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 import { SAVED_VIEW_ERRORS, savedViewScreen, type SavedViewValues } from "@/lib/saved-views"
@@ -34,6 +35,7 @@ import {
   describeVaultView,
   VAULT_SAVED_VIEW_KIND,
   vaultViewFilters,
+  type VaultShowAs,
   type VaultViewFilters,
 } from "@/lib/viral/vault-saved-views"
 import { filterVaultItems } from "@/lib/viral/vault-view"
@@ -52,7 +54,9 @@ type VaultPageProject = { id: string; name: string; vaultCount: number }
  * left with their counts, "All projects" first; the picked project's ideas in
  * the middle, with search, Filter (status and tag, which combine) and Views;
  * the open idea on the right, the same panel the project page's vault opens.
- * Ideas only arrive from Save to vault, so there is no + Add.
+ * Ideas only arrive from Save to vault, so there is no + Add. Filter's Show
+ * as turns the middle into a board of the four statuses (task part 15,
+ * Tyler: "List or Board switch").
  */
 export function VaultPage({
   items: loadedItems,
@@ -96,9 +100,11 @@ export function VaultPage({
         ...(search.status ? { status: search.status } : {}),
         ...(search.tag ? { tag: search.tag } : {}),
         ...(projectId ? { project: projectId } : {}),
+        ...(search.show === "board" ? { show: "board" } : {}),
       }),
-    [projectId, search.q, search.status, search.tag]
+    [projectId, search.q, search.status, search.tag, search.show]
   )
+  const board = currentView.show === "board"
   const shown = React.useMemo(() => filterVaultItems(items, currentView), [currentView, items])
   const openItem = search.open ? (items.find((item) => item.id === search.open) ?? null) : null
   const tickedIds = shown.filter((item) => ticked.has(item.id)).map((item) => item.id)
@@ -115,6 +121,23 @@ export function VaultPage({
   function pickProject(id: string | undefined) {
     setTicked(new Set())
     setSearch({ project: id, open: undefined })
+  }
+
+  /** A card dropped on another column. Sent is refused: it turns on only after Send to Video. */
+  async function moveCard(item: VaultItem, status: VaultStatus) {
+    if (status === "sent") {
+      showErrorToast("Sent turns on by itself after Send to Video, so an idea can't be dragged there.")
+      return
+    }
+    setEdited((was) => ({ ...was, [item.id]: { ...item, status } }))
+    try {
+      const result = await changeVaultItemsFn([item.id], { kind: "status", status })
+      if (result.skipped.length) throw new Error(`VIRAL_SAYS: That idea is ${result.skipped[0].reason}.`)
+      await refresh()
+    } catch (error) {
+      setEdited((was) => ({ ...was, [item.id]: item }))
+      showErrorToast(getViralErrorMessage(error))
+    }
   }
 
   function toggleTick(id: string) {
@@ -154,7 +177,14 @@ export function VaultPage({
       delete filters.tag
     }
     setTicked(new Set())
-    setSearch({ q: filters.q, status: filters.status, tag: filters.tag, project: filters.project, open: undefined })
+    setSearch({
+      q: filters.q,
+      status: filters.status,
+      tag: filters.tag,
+      project: filters.project,
+      show: filters.show,
+      open: undefined,
+    })
   }
 
   function saveAsView() {
@@ -178,7 +208,12 @@ export function VaultPage({
           onChange={(event) => change({ q: event.target.value || undefined })}
         />
       </div>
-      <VaultFilterRows idPrefix="edit-vault-view" values={vaultViewFilters(filters)} tags={tags} onChange={change} />
+      <VaultFilterRows
+        idPrefix="edit-vault-view"
+        values={vaultViewFilters(filters)}
+        tags={tags}
+        onChange={(patch) => change(searchPatch(patch))}
+      />
     </>
   )
 
@@ -247,14 +282,19 @@ export function VaultPage({
           </Button>
         }
       >
-        <VaultFilterRows idPrefix="vault-filter" values={currentView} tags={tags} onChange={(patch) => setSearch(patch)} />
+        <VaultFilterRows
+          idPrefix="vault-filter"
+          values={currentView}
+          tags={tags}
+          onChange={(patch) => setSearch(searchPatch(patch))}
+        />
       </FilterPopover>
       <SavedViewsControls
         here={viewsHere}
         views={views}
         filters={currentView as SavedViewValues}
         onOpen={openView}
-        onClose={() => setSearch({ q: undefined, status: undefined, tag: undefined, project: undefined })}
+        onClose={() => setSearch({ q: undefined, status: undefined, tag: undefined, project: undefined, show: undefined })}
         editFields={editViewFields}
         saveButton={false}
         buttonVariant="ghost"
@@ -275,6 +315,17 @@ export function VaultPage({
           <p className="px-3 py-10 text-center text-sm text-muted-foreground">
             Save a video to the vault from a project's right panel.
           </p>
+        ) : shown.length && board ? (
+          <>
+            <VaultBoard
+              items={shown}
+              selectedId={openItem?.id ?? null}
+              showProject={!project}
+              onPick={(item) => setSearch({ open: item.id })}
+              onMove={(item, status) => void moveCard(item, status)}
+            />
+            <ScrollBar orientation="horizontal" />
+          </>
         ) : shown.length ? (
           <VaultList
             items={shown}
@@ -360,6 +411,14 @@ function ProjectRow({
   )
 }
 
+type VaultFilterPatch = { status?: VaultStatus; tag?: string; show?: VaultShowAs }
+
+/** A filter row's change as the address keeps it: List is the default, so it is left out. */
+function searchPatch(patch: VaultFilterPatch): Omit<VaultViewFilters, "q" | "project"> {
+  const { show, ...rest } = patch
+  return "show" in patch ? { ...rest, show: show === "board" ? "board" : undefined } : rest
+}
+
 function VaultFilterRows({
   idPrefix,
   values,
@@ -369,7 +428,7 @@ function VaultFilterRows({
   idPrefix: string
   values: VaultViewFilters
   tags: string[]
-  onChange: (patch: { status?: VaultStatus; tag?: string }) => void
+  onChange: (patch: VaultFilterPatch) => void
 }) {
   // A tag kept in a view but no longer on any idea still shows, so it can be cleared.
   const tagChoices = values.tag && !tags.includes(values.tag) ? [values.tag, ...tags] : tags
@@ -405,6 +464,17 @@ function VaultFilterRows({
                 {tag}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-show`} label="Show as">
+        <Select value={values.show ?? "list"} onValueChange={(next) => onChange({ show: next as VaultShowAs })}>
+          <SelectTrigger id={`${idPrefix}-show`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="list">List</SelectItem>
+            <SelectItem value="board">Board</SelectItem>
           </SelectContent>
         </Select>
       </FilterRow>

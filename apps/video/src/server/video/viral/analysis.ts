@@ -1,7 +1,6 @@
 import { z } from "zod"
 
 import { runAiCall } from "@/server/ai/usage"
-import { viralProjectSpendMetadata } from "@/server/video/project-spend"
 import {
   generateJson,
   requireGeminiKey,
@@ -98,15 +97,12 @@ export async function breakDownVideo({
   mimeType,
   durationSeconds,
   savedVideoId,
-  viralProjectId,
 }: {
   userId: string
   bytes: Uint8Array
   mimeType: string
   durationSeconds: number | null
   savedVideoId: string
-  /** The Viral project it was saved from, whose spend limit it counts on. */
-  viralProjectId: string | null
 }): Promise<ViralBreakdown> {
   const apiKey = await requireGeminiKey()
   const durationMs = durationSeconds ? Math.round(durationSeconds * 1000) : null
@@ -117,9 +113,7 @@ export async function breakDownVideo({
       provider: "gemini",
       model: ANALYSIS_MODEL,
       feature: "viral_breakdown",
-      metadata: viralProjectId
-        ? { savedVideoId, ...viralProjectSpendMetadata(viralProjectId) }
-        : { savedVideoId },
+      metadata: { savedVideoId },
     },
     async () => {
       const result = await withGeminiFile(

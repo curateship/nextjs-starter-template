@@ -12,7 +12,8 @@ import {
  * the browser tab, so there is nothing new to upload.
  *
  * Nothing here sends notices to the phone. It is a shortcut that opens the
- * app, the same pages as in the browser.
+ * app, the same pages as in the browser. An app that names a share page
+ * (`homeScreen.shareTarget`) is also listed in an Android phone's share menu.
  */
 export const HOME_SCREEN_MANIFEST_PATH = "/manifest.webmanifest"
 
@@ -23,6 +24,11 @@ export type WebAppManifest = {
   scope: string
   display: "standalone"
   icons: { src: string; sizes: string; type: "image/png" }[]
+  share_target?: {
+    action: string
+    method: "GET"
+    params: { title: "title"; text: "text"; url: "url" }
+  }
 }
 
 /**
@@ -35,12 +41,15 @@ export function webAppManifest({
   appName,
   shortName,
   startPath,
+  sharePath = null,
   faviconSet,
   faviconMode = DEFAULT_FAVICON_MODE,
 }: {
   appName: string
   shortName: string | null
   startPath: string
+  /** The page a shared link opens, or null to stay out of the share menu. */
+  sharePath?: string | null
   faviconSet: PublicFaviconSet | null
   faviconMode?: FaviconMode
 }): WebAppManifest {
@@ -58,5 +67,8 @@ export function webAppManifest({
           { src: variant.icon512, sizes: "512x512", type: "image/png" },
         ]
       : [],
+    ...(sharePath
+      ? { share_target: { action: sharePath, method: "GET", params: { title: "title", text: "text", url: "url" } } }
+      : {}),
   }
 }

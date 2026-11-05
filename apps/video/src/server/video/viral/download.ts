@@ -3,7 +3,7 @@ import { mkdtemp, readdir, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
-import type { CreatorPlatform } from "@/lib/video/creators"
+import type { SavedVideoPlatform } from "@/lib/video/saved-video"
 
 /**
  * Fetching a video file with yt-dlp.
@@ -63,7 +63,7 @@ export type DownloadedVideo = {
 }
 
 export type VideoLink = {
-  platform: CreatorPlatform
+  platform: SavedVideoPlatform
   /** The platform's own id for the video, which keys the saved row. */
   platformVideoId: string
 }

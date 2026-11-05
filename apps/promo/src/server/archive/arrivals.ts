@@ -68,6 +68,8 @@ export const arrivalShape = z.object({
   videoProjectId: shortText(64),
   videoProjectName: shortText(200),
   videoEditUrl: shortText(600),
+  /** The Viral vault idea the video started as, so posts made from it are reported back to Viral. */
+  viralIdeaId: z.string().regex(/^[A-Za-z0-9-]{0,64}$/).default(""),
   /** Networks to leave a draft in, ticked in Video's send window (part 35). */
   drafts: z.array(z.enum(NETWORKS)).max(NETWORKS.length).default([]),
 })
@@ -161,6 +163,7 @@ export async function acceptArrival(
     videoProjectId: note.videoProjectId,
     videoProjectName: note.videoProjectName,
     videoEditUrl: editUrl,
+    viralIdeaId: note.viralIdeaId,
     groupKey: note.groupKey,
     language: note.language,
     pending: { files, replaceItemId: note.replaceItemId, drafts: note.drafts },
@@ -284,6 +287,7 @@ export async function copyArrival(itemId: string, deps: CopyDeps = {}): Promise<
             subtitles: item.subtitles,
             videoExportId: item.videoExportId,
             videoEditUrl: item.videoEditUrl || old.videoEditUrl,
+            viralIdeaId: item.viralIdeaId || old.viralIdeaId,
             sendId: item.sendId,
             updatedAt: at,
           })

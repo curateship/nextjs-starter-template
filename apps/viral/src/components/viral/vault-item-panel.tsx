@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ArchiveIcon, ExternalLinkIcon, LinkIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react"
+import { ArchiveIcon, CopyPlusIcon, ExternalLinkIcon, LinkIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { InspectorCard } from "@/components/shared/inspector-card"
@@ -12,8 +12,10 @@ import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AnalysisCards } from "@/components/viral/analysis-cards"
+import { CopyToProjectDialog, type CopyTarget } from "@/components/viral/copy-to-project-dialog"
 import { CoverImage } from "@/components/viral/cover-image"
 import { SavingTextarea } from "@/components/viral/saving-fields"
+import { WritePostForPromoButton, YourPostRows } from "@/components/viral/promo-posts"
 import { SendToVideoButton } from "@/components/viral/send-to-video"
 import { SocialIcon } from "@/components/viral/social-icon"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
@@ -56,6 +58,7 @@ export function VaultItemPanel({
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
+  const [copying, setCopying] = React.useState<CopyTarget | null>(null)
   const platform = creatorPlatformLabels[item.platform]
 
   async function update(change: { notes?: string; status?: VaultStatus; tags?: string[] }) {
@@ -128,6 +131,15 @@ export function VaultItemPanel({
               }}
             >
               Copy link
+            </MenuAction>
+            <MenuAction
+              icon={<CopyPlusIcon className="size-4" />}
+              onClick={() => {
+                setMenuOpen(false)
+                setCopying({ kind: "idea", itemId: item.id, title: item.title })
+              }}
+            >
+              Copy to another project
             </MenuAction>
             <MenuLine />
             <MenuAction
@@ -204,11 +216,13 @@ export function VaultItemPanel({
               <Detail label="Outlier" value={badge ?? "-"} />
               <Detail label="Score" value={item.stats.score === null ? "-" : String(item.stats.score)} />
               <Detail label="Length" value={formatDuration(item.stats.durationSeconds) || "-"} />
+              {/* Your own posts of it, as Promo reported them (features task part 21). */}
+              <YourPostRows itemId={item.id} refreshKey={item.status} />
             </dl>
           </InspectorCard>
 
           {item.analysis ? (
-            <AnalysisCards pieces={item.analysis} topic={item.analysisTopic ?? ""} />
+            <AnalysisCards pieces={item.analysis} topic={item.analysisTopic ?? ""} sourceTitle={item.title} />
           ) : (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <ArchiveIcon className="size-4" />
@@ -219,9 +233,15 @@ export function VaultItemPanel({
         </div>
       </ScrollArea>
       {/* The sticky footer, as on the project page (Tyler, 4 Nov 2026: "this should be in the sticky footer"). */}
-      <div className="shrink-0 border-t p-3">
-        <SendToVideoButton item={item} projectId={item.projectId} onChanged={onChanged} className="w-full" />
+      <div className="@container flex shrink-0 gap-2 border-t p-3">
+        <div className="min-w-0 flex-1">
+          <SendToVideoButton item={item} projectId={item.projectId} onChanged={onChanged} className="w-full" compact />
+        </div>
+        <div className="min-w-0 flex-1">
+          <WritePostForPromoButton itemId={item.id} className="w-full" />
+        </div>
       </div>
+      <CopyToProjectDialog target={copying} currentProjectId={item.projectId} onClose={() => setCopying(null)} />
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}
@@ -240,7 +260,7 @@ export function VaultItemPanel({
  * and tags"). Tags already used anywhere are offered as you type; each
  * change saves at once.
  */
-function TagField({
+export function TagField({
   id,
   value,
   known,

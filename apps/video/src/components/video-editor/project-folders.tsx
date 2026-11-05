@@ -63,8 +63,9 @@ function projectsWord(count: number) {
 }
 
 /**
- * The folder doors a list uses. The editor's projects and Viral's projects
- * keep separate folders, so each list hands its own set to these menus.
+ * The folder doors a list uses. The editor's projects and the carousel
+ * projects keep separate folders, so each list hands its own set to these
+ * menus.
  */
 export type FolderApi = {
   create: (name: string) => Promise<{ id: string; name: string }>

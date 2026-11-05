@@ -593,18 +593,15 @@ export const videoProjectVideos = pgTable(
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     // The most AI spending this video may reach, in cents. Null is no limit.
     spendLimitCents: integer("spend_limit_cents"),
-    // The viral video this video copies, set by Make this a template.
-    // Deleting the saved video blanks it and the video stays.
+    // The viral video this video copies, set by Make this a template before
+    // Viral moved to its own app. A blank here and a title below means that
+    // saved video was deleted, and the video stays.
     sourceViralVideoId: varchar("source_viral_video_id", {
       length: 36,
     }).references(() => videoViralVideos.id, { onDelete: "set null" }),
-    // The copied video's title, written just before that saved video is
-    // deleted, so the Copy panel can still name what it copied.
+    // The copied video's title, written when that saved video was deleted,
+    // so the Copy panel can still name what it copied.
     sourceViralVideoTitle: text("source_viral_video_title"),
-    // The Viral project Make this a template was pressed in.
-    sourceViralProjectId: varchar("source_viral_project_id", {
-      length: 36,
-    }).references(() => videoViralProjects.id, { onDelete: "set null" }),
     // "Sam via Project" when a guest sent from Project made the last save,
     // null when the owner did.
     lastEditedBy: text("last_edited_by"),
@@ -900,8 +897,7 @@ export const videoEditorWindows = pgTable(
 )
 
 /**
- * Folders for carousel projects, kept the way Viral keeps its projects':
- * the folder is a column on the project.
+ * Folders for carousel projects. The folder is a column on the project.
  */
 export const videoCarouselProjectFolders = pgTable(
   "video_carousel_project_folders",
@@ -1158,9 +1154,6 @@ export const videoSettings = pgTable(
     // Which AI writes down speech, and which one rewrites words. Empty until
     // somebody chooses, at which point the choice sticks.
     aiDefaults: jsonb("ai_defaults").notNull().default({}),
-    // The YouTube Data API key for the Viral page, scrambled the same way the
-    // shell scrambles AI keys. NULL falls back to VIDEO_YOUTUBE_API_KEY.
-    youtubeApiKey: text("youtube_api_key"),
     // The Pexels API key the B-roll tool searches stock video with, scrambled
     // the same way. NULL means no key, and B-roll asks for one.
     pexelsApiKey: text("pexels_api_key"),
@@ -1941,117 +1934,16 @@ export type VideoAiGenerationRow = typeof videoAiGenerations.$inferSelect
 
 
 /**
- * One creator somebody follows, on one platform. The handle is stored
- * lowercased and matched that way, so adding @Alice and @alice twice is one
- * creator rather than two — the same rule the old app matched on.
- *
- * Deleting a creator takes its saved posts with it but leaves any saved
- * breakdown standing: the archive stores the channel as plain text and has no
- * key pointing back here, so a video you studied survives losing interest in
- * whoever made it.
- */
-export const videoCreators = pgTable(
-  "video_creators",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    ownerId: varchar("owner_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    platform: varchar("platform", { length: 20 }).notNull(),
-    handle: varchar("handle", { length: 100 }).notNull(),
-    /**
-     * YouTube's own channel id, kept because the Data API needs it to list
-     * uploads and resolving a handle to one costs a unit. Null on the other
-     * two platforms, which are read by their handle.
-     */
-    platformChannelId: varchar("platform_channel_id", { length: 100 }),
-    displayName: text("display_name"),
-    followerCount: bigint("follower_count", { mode: "number" }),
-    avatarStoragePath: text("avatar_storage_path"),
-    profileUrl: text("profile_url").notNull(),
-    /** Off means the watch timer skips this creator but keeps its posts. */
-    watch: boolean("watch").notNull().default(true),
-    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
-    /** "viral" when the Follow button on the Viral page added it. */
-    source: varchar("source", { length: 20 }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    uniqueIndex("ux_video_creators_owner_platform_handle").on(
-      table.ownerId,
-      table.platform,
-      sql`lower(${table.handle})`
-    ),
-    index("ix_video_creators_watch").on(table.watch, table.lastCheckedAt),
-  ]
-)
-
-/**
- * One video a followed creator posted, as the watch timer found it. Metadata
- * only — no file is ever downloaded to make one of these rows, which is what
- * keeps the timer cheap enough to run unattended.
- *
- * `firstSeenAt` exists because not every platform says when something was
- * posted; a project's grid orders by the posted date when there is one and by
- * when it was first seen when there is not, so a post never falls off the end.
- */
-export const videoCreatorPosts = pgTable(
-  "video_creator_posts",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    ownerId: varchar("owner_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    creatorId: varchar("creator_id", { length: 36 })
-      .notNull()
-      .references(() => videoCreators.id, { onDelete: "cascade" }),
-    platform: varchar("platform", { length: 20 }).notNull(),
-    platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
-    url: text("url").notNull(),
-    title: text("title"),
-    thumbnailUrl: text("thumbnail_url"),
-    durationSeconds: integer("duration_seconds"),
-    views: bigint("views", { mode: "number" }),
-    likes: bigint("likes", { mode: "number" }),
-    comments: bigint("comments", { mode: "number" }),
-    postedAt: timestamp("posted_at", { withTimezone: true }),
-    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
-    /**
-     * The app's own copy of the cover picture. TikTok and Instagram cover
-     * addresses stop working after a set date, so the card shows this copy
-     * whenever there is one.
-     */
-    thumbnailStoragePath: text("thumbnail_storage_path"),
-    /** When the app last tried to keep a copy of the cover. */
-    coverCheckedAt: timestamp("cover_checked_at", { withTimezone: true }),
-  },
-  (table) => [
-    // The same video seen twice (two projects, a second tick) updates this row
-    // rather than adding another. It is also the key the archive is joined on.
-    uniqueIndex("ux_video_creator_posts_owner_video").on(
-      table.ownerId,
-      table.platform,
-      table.platformVideoId
-    ),
-    index("ix_video_creator_posts_feed").on(table.ownerId, table.postedAt),
-    index("ix_video_creator_posts_creator").on(table.creatorId, table.postedAt),
-  ]
-)
-
-/**
- * A video somebody pressed Download or AI analyse on: the downloaded file, and
- * what Gemini made of it.
+ * A viral video an editor video copies (`video_project_videos.source_viral_video_id`):
+ * the downloaded file, and what Gemini made of it. The rows were made by Make
+ * this a template, before Viral moved to its own app; nothing makes new ones.
  *
  * The status is the job. A worker claims a `waiting` row, downloads it, then
- * has Gemini watch it unless it was saved with Download alone, which stops at
- * `downloaded`. A restart puts an interrupted row back to `waiting`
- * — so closing the browser never strands a half-done job. A failure keeps its
- * reason in `error` and can be tried again.
+ * has Gemini watch it unless it wants no analysis, which stops at
+ * `downloaded`. A restart puts an interrupted row back to `waiting`. A failure
+ * keeps its reason in `error`, and Try again on the Copy panel queues it again.
  *
- * It has no key pointing at a creator on purpose. A saved video belongs to the
- * person who saved it, not to whoever is being followed this week, so deleting
- * a creator leaves it alone. The channel is kept as plain text instead.
+ * The channel is kept as plain text.
  */
 export const videoViralVideos = pgTable(
   "video_viral_videos",
@@ -2095,21 +1987,11 @@ export const videoViralVideos = pgTable(
     /** Who is working on it now, and until when. Null means free to claim. */
     leaseToken: varchar("lease_token", { length: 36 }),
     leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
-    /**
-     * The Viral project whose Save & break down made it, so the breakdown's AI
-     * cost counts against that project's spend limit. Null when it was saved
-     * anywhere else, or the project was deleted.
-     */
-    viralProjectId: varchar("viral_project_id", { length: 36 }).references(
-      () => videoViralProjects.id,
-      { onDelete: "set null" }
-    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    // Pressing the button twice, or saving the same video from two projects,
-    // is one row. The project screen joins on these three columns.
+    // One row per person per video.
     uniqueIndex("ux_video_viral_videos_owner_video").on(
       table.ownerId,
       table.platform,
@@ -2123,284 +2005,7 @@ export const videoViralVideos = pgTable(
   ]
 )
 
-export type VideoCreatorRow = typeof videoCreators.$inferSelect
-export type VideoCreatorPostRow = typeof videoCreatorPosts.$inferSelect
 export type VideoViralVideoRow = typeof videoViralVideos.$inferSelect
-
-/**
- * Viral's own folders, apart from the editor's so the two lists never mix.
- * Names are unique per person ignoring case.
- */
-export const videoViralProjectFolders = pgTable(
-  "video_viral_project_folders",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    ownerId: varchar("owner_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    name: varchar("name", { length: 120 }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    uniqueIndex("ux_video_viral_project_folders_owner_name").on(
-      table.ownerId,
-      sql`lower(${table.name})`
-    ),
-  ]
-)
-
-/**
- * One Viral project: a niche, described in words, searched by its keywords.
- *
- * `days` and `videoLength` are what YouTube is asked, so changing them means
- * searching again. Minimum views and minimum score are applied when results
- * are read, so changing them costs nothing. `unitsSpent` adds up every
- * YouTube unit this project's searches and creator look-ups used.
- */
-export const videoViralProjects = pgTable(
-  "video_viral_projects",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    ownerId: varchar("owner_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    folderId: varchar("folder_id", { length: 36 }).references(
-      () => videoViralProjectFolders.id,
-      { onDelete: "set null" }
-    ),
-    name: varchar("name", { length: 200 }).notNull(),
-    description: text("description").notNull().default(""),
-    days: integer("days").notNull().default(30),
-    minViews: bigint("min_views", { mode: "number" }).notNull().default(0),
-    minScore: integer("min_score").notNull().default(0),
-    videoLength: varchar("video_length", { length: 10 })
-      .notNull()
-      .default("shorts"),
-    spendLimitCents: integer("spend_limit_cents"),
-    unitsSpent: integer("units_spent").notNull().default(0),
-    /** The best-scoring result's thumbnail when the last search finished. */
-    coverUrl: text("cover_url"),
-    /** Made by "Add a sample project": made-up videos, never searched. */
-    isSample: boolean("is_sample").notNull().default(false),
-    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
-    archivedAt: timestamp("archived_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    index("ix_video_viral_projects_owner_updated").on(
-      table.ownerId,
-      table.updatedAt
-    ),
-    check(
-      "ck_video_viral_projects_length",
-      sql`${table.videoLength} in ('shorts', 'long', 'both')`
-    ),
-    check("ck_video_viral_projects_days", sql`${table.days} in (7, 30, 90)`),
-  ]
-)
-
-/**
- * One keyword of one project, and the job that searches it. The status row is
- * the job: Search marks it `queued`, the worker claims it with a lease and
- * takes it to `done` or `failed`, and a restart puts an abandoned claim back.
- */
-export const videoViralProjectKeywords = pgTable(
-  "video_viral_project_keywords",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    projectId: varchar("project_id", { length: 36 })
-      .notNull()
-      .references(() => videoViralProjects.id, { onDelete: "cascade" }),
-    keyword: varchar("keyword", { length: 100 }).notNull(),
-    position: integer("position").notNull().default(0),
-    status: varchar("status", { length: 20 }).notNull().default("idle"),
-    error: text("error"),
-    leaseToken: varchar("lease_token", { length: 36 }),
-    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
-    queuedAt: timestamp("queued_at", { withTimezone: true }),
-    ranAt: timestamp("ran_at", { withTimezone: true }),
-    unitsSpent: integer("units_spent").notNull().default(0),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    uniqueIndex("ux_video_viral_project_keywords_project_keyword").on(
-      table.projectId,
-      sql`lower(${table.keyword})`
-    ),
-    index("ix_video_viral_project_keywords_status").on(
-      table.status,
-      table.queuedAt
-    ),
-    check(
-      "ck_video_viral_project_keywords_status",
-      sql`${table.status} in ('idle', 'queued', 'searching', 'done', 'failed')`
-    ),
-  ]
-)
-
-/**
- * One video one keyword found. A keyword's search replaces its own rows and
- * nobody else's. `isNew` is true when the project did not have the video
- * before that search; `topicMatch` is the AI's 0 to 100 for how well the
- * title fits the description, null until asked. Counts a channel hides are
- * null, never zero.
- */
-export const videoViralProjectResults = pgTable(
-  "video_viral_project_results",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    keywordId: varchar("keyword_id", { length: 36 })
-      .notNull()
-      .references(() => videoViralProjectKeywords.id, { onDelete: "cascade" }),
-    projectId: varchar("project_id", { length: 36 })
-      .notNull()
-      .references(() => videoViralProjects.id, { onDelete: "cascade" }),
-    platform: varchar("platform", { length: 20 }).notNull(),
-    platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
-    url: text("url").notNull(),
-    title: text("title").notNull(),
-    channelId: varchar("channel_id", { length: 100 }).notNull(),
-    channelName: text("channel_name").notNull(),
-    subscribers: bigint("subscribers", { mode: "number" }),
-    views: bigint("views", { mode: "number" }).notNull(),
-    likes: bigint("likes", { mode: "number" }),
-    comments: bigint("comments", { mode: "number" }),
-    postedAt: timestamp("posted_at", { withTimezone: true }),
-    durationSeconds: integer("duration_seconds").notNull(),
-    thumbnailUrl: text("thumbnail_url"),
-    isNew: boolean("is_new").notNull().default(false),
-    topicMatch: integer("topic_match"),
-    foundAt: timestamp("found_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    uniqueIndex("ux_video_viral_project_results_keyword_video").on(
-      table.keywordId,
-      table.platformVideoId
-    ),
-    index("ix_video_viral_project_results_project").on(table.projectId),
-  ]
-)
-
-/** A channel somebody hid from one project. Every other project still shows it. */
-export const videoViralProjectHiddenChannels = pgTable(
-  "video_viral_project_hidden_channels",
-  {
-    projectId: varchar("project_id", { length: 36 })
-      .notNull()
-      .references(() => videoViralProjects.id, { onDelete: "cascade" }),
-    platform: varchar("platform", { length: 20 }).notNull(),
-    channelId: varchar("channel_id", { length: 100 }).notNull(),
-    channelName: text("channel_name").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    primaryKey({
-      columns: [table.projectId, table.platform, table.channelId],
-    }),
-  ]
-)
-
-/**
- * Which followed creators belong to which project. A creator is stored once,
- * so the watch timer checks them once however many projects they are in.
- */
-export const videoViralProjectCreators = pgTable(
-  "video_viral_project_creators",
-  {
-    projectId: varchar("project_id", { length: 36 })
-      .notNull()
-      .references(() => videoViralProjects.id, { onDelete: "cascade" }),
-    creatorId: varchar("creator_id", { length: 36 })
-      .notNull()
-      .references(() => videoCreators.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.projectId, table.creatorId] }),
-    index("ix_video_viral_project_creators_creator").on(table.creatorId),
-  ]
-)
-
-/**
- * A video pasted into a project by its link (viral task 08, drizzle/0136).
- * The saved video is its owner's; this row is only why it shows in this
- * project. Deleting the project keeps the saved video.
- */
-export const videoViralProjectLinks = pgTable(
-  "video_viral_project_links",
-  {
-    projectId: varchar("project_id", { length: 36 })
-      .notNull()
-      .references(() => videoViralProjects.id, { onDelete: "cascade" }),
-    savedVideoId: varchar("saved_video_id", { length: 36 })
-      .notNull()
-      .references(() => videoViralVideos.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.projectId, table.savedVideoId] }),
-    index("ix_video_viral_project_links_saved_video").on(table.savedVideoId),
-  ]
-)
-
-/** A person's favourites collection. Holds videos from any project. */
-export const videoViralCollections = pgTable(
-  "video_viral_collections",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    ownerId: varchar("owner_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    name: varchar("name", { length: 120 }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    uniqueIndex("ux_video_viral_collections_owner_name").on(
-      table.ownerId,
-      sql`lower(${table.name})`
-    ),
-  ]
-)
-
-/**
- * One starred video. It keeps its own copy of the video's details, so a
- * re-run that replaces a keyword's results, or deleting the project it came
- * from, never empties a collection.
- */
-export const videoViralCollectionItems = pgTable(
-  "video_viral_collection_items",
-  {
-    collectionId: varchar("collection_id", { length: 36 })
-      .notNull()
-      .references(() => videoViralCollections.id, { onDelete: "cascade" }),
-    platform: varchar("platform", { length: 20 }).notNull(),
-    platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
-    url: text("url").notNull(),
-    title: text("title").notNull(),
-    channelId: varchar("channel_id", { length: 100 }).notNull(),
-    channelName: text("channel_name").notNull(),
-    subscribers: bigint("subscribers", { mode: "number" }),
-    views: bigint("views", { mode: "number" }),
-    likes: bigint("likes", { mode: "number" }),
-    comments: bigint("comments", { mode: "number" }),
-    postedAt: timestamp("posted_at", { withTimezone: true }),
-    durationSeconds: integer("duration_seconds"),
-    thumbnailUrl: text("thumbnail_url"),
-    sourceProjectId: varchar("source_project_id", { length: 36 }).references(
-      () => videoViralProjects.id,
-      { onDelete: "set null" }
-    ),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    primaryKey({
-      columns: [table.collectionId, table.platform, table.platformVideoId],
-    }),
-  ]
-)
 
 /**
  * A brief and the storyboard written from it (`workspace/docs/brief-to-video.md`,
@@ -2456,28 +2061,6 @@ export const videoBriefs = pgTable(
 )
 
 export type VideoBriefRow = typeof videoBriefs.$inferSelect
-
-/**
- * Every YouTube call the app makes, in units. The free 10,000 a day belong to
- * the API key, which is the whole app's, so a run can be refused before it
- * starts when today's spend would not leave room for it.
- */
-export const videoYoutubeUnitSpend = pgTable(
-  "video_youtube_unit_spend",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    units: integer("units").notNull(),
-    reason: varchar("reason", { length: 40 }).notNull(),
-    spentAt: timestamp("spent_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [index("ix_video_youtube_unit_spend_spent_at").on(table.spentAt)]
-)
-
-export type VideoViralProjectRow = typeof videoViralProjects.$inferSelect
-export type VideoViralProjectKeywordRow =
-  typeof videoViralProjectKeywords.$inferSelect
-export type VideoViralProjectResultRow =
-  typeof videoViralProjectResults.$inferSelect
 
 /**
  * The key the Viral app sends drafts into Video with (viral-connection.md).

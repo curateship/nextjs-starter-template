@@ -8,13 +8,15 @@ import {
   postsPerWeek,
   typical,
   type ViralCreator,
+  type ViralSound,
   type ViralKeyword,
   type ViralKeywordStatus,
   type ViralProjectScreen,
   type ViralVideo,
 } from "@/lib/viral/viral"
 import { hookLine } from "@/lib/viral/viral-breakdown"
-import { outlierFor } from "@/lib/viral/outlier"
+import { channelUsual, outlierFor } from "@/lib/viral/outlier"
+import { NO_GROWTH, type ViralGrowth } from "@/lib/viral/rising"
 import { scoreViralVideo } from "@/lib/viral/viral-score"
 import { db } from "@/server/db"
 import { getPublicMediaUrl } from "@/server/media/storage"
@@ -38,6 +40,8 @@ import {
   getViralProjectItem,
   requireOwnedViralProject,
 } from "@/server/viral/projects"
+import { seenKeys } from "@/server/viral/seen"
+import { growthByKey } from "@/server/viral/view-history"
 
 /**
  * Everything one Viral project's screen shows, read in one go.
@@ -52,6 +56,9 @@ import {
 
 /** How many of the followed creators' newest posts the grid can show. */
 const CREATOR_POSTS_SHOWN = 200
+
+/** Posts read in the first minute after following someone were already there, so they aren't new. */
+const FOLLOW_GRACE_MS = 60_000
 
 export async function loadViralProjectScreen(
   ownerId: string,
@@ -78,7 +85,7 @@ export async function loadViralProjectScreen(
         .from(viralProjectHiddenChannels)
         .where(eq(viralProjectHiddenChannels.projectId, projectId)),
       db
-        .select({ creator: viralCreators })
+        .select({ creator: viralCreators, followedAt: viralProjectCreators.createdAt })
         .from(viralProjectCreators)
         .innerJoin(
           viralCreators,
@@ -115,6 +122,7 @@ export async function loadViralProjectScreen(
   )
 
   const followedCreators = followed.map((one) => one.creator)
+  const followedAt = new Map(followed.map((one) => [one.creator.id, one.followedAt]))
   const posts = followedCreators.length
     ? await db
         .select()
@@ -159,7 +167,9 @@ export async function loadViralProjectScreen(
         durationSeconds: post.durationSeconds,
         thumbnailUrl: covers[index],
         keywords: [],
-        isNew: false,
+        // A post the watch found after the creator was followed here is new.
+        // The posts read when they were followed are what was already there.
+        isNew: post.firstSeenAt.getTime() > (followedAt.get(creator.id)?.getTime() ?? Infinity) + FOLLOW_GRACE_MS,
         topicMatch: null,
         source: "creator" as const,
         sample: false,
@@ -178,17 +188,14 @@ export async function loadViralProjectScreen(
   // search's, which knows its keywords. A pasted video that either found is
   // that card too.
   const seen = new Set<string>()
-  const videos = await scoreVideos(
-    ownerId,
-    [...searched, ...fromCreators, ...pasted].filter((video) => {
-      const key = `${video.platform}:${video.platformVideoId}`
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    }),
-    new Date(),
-    projectId
-  )
+  const unscored = [...searched, ...fromCreators, ...pasted].filter((video) => {
+    const key = `${video.platform}:${video.platformVideoId}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  const recentViews = await recentViewsByChannel(ownerId, unscored)
+  const videos = await scoreVideos(ownerId, unscored, new Date(), projectId, recentViews)
 
   const keywords: ViralKeyword[] = keywordRows.map((keyword) => {
     const mine = visibleResults.filter((result) => result.keywordId === keyword.id)
@@ -208,7 +215,7 @@ export async function loadViralProjectScreen(
     project,
     keywords,
     videos,
-    creators: listCreators(videos, followedCreators, posts),
+    creators: listCreators(videos, followedCreators, posts, recentViews),
     hidden: hidden.flatMap((channel) =>
       isCreatorPlatform(channel.platform)
         ? [
@@ -233,7 +240,7 @@ export function creatorChannelId(creator: {
 
 export type UnscoredVideo = Omit<
   ViralVideo,
-  "key" | "score" | "savedVideoId" | "savedStatus" | "hook" | "outlier" | "vaultItemId" | "analysed"
+  "key" | "score" | "savedVideoId" | "savedStatus" | "hook" | "outlier" | "vaultItemId" | "analysed" | "seen" | "growth" | "sound"
 >
 
 /**
@@ -380,11 +387,16 @@ export async function scoreVideos(
   ownerId: string,
   videos: UnscoredVideo[],
   at: Date = new Date(),
-  projectId: string | null = null
+  projectId: string | null = null,
+  /** Each channel's recent views, when the caller has already read them. */
+  knownRecentViews?: Map<string, Record<string, number>>
 ): Promise<ViralVideo[]> {
-  const [recentViews, vault] = await Promise.all([
-    recentViewsByChannel(ownerId, videos),
+  const [recentViews, vault, seen, growth, sounds] = await Promise.all([
+    knownRecentViews ?? recentViewsByChannel(ownerId, videos),
     projectId ? vaultItemsByKey(ownerId, projectId) : Promise.resolve(new Map<string, string>()),
+    seenKeys(ownerId, videos),
+    growthByKey(videos, at),
+    soundsByKey(ownerId, videos),
   ])
   const byPlatform = new Map<string, string[]>()
   for (const video of videos) {
@@ -443,6 +455,9 @@ export async function scoreVideos(
       outlier: outlierFor(video, recentViews.get(`${video.platform}:${video.channelId}`)),
       vaultItemId: vault.get(key) ?? null,
       analysed: copy ? analysedIds.has(copy.id) : false,
+      seen: seen.has(key),
+      growth: video.sample ? sampleGrowth(video) : (growth.get(key) ?? NO_GROWTH),
+      sound: video.sample ? sampleSound(video) : (sounds.get(key) ?? null),
       score: scoreViralVideo({
         views: video.views,
         likes: video.likes,
@@ -464,7 +479,8 @@ export async function scoreVideos(
 function listCreators(
   videos: ViralVideo[],
   followed: (typeof viralCreators.$inferSelect)[],
-  posts: (typeof viralCreatorPosts.$inferSelect)[]
+  posts: (typeof viralCreatorPosts.$inferSelect)[],
+  recentViews: Map<string, Record<string, number>>
 ): ViralCreator[] {
   const found = new Map<
     string,
@@ -523,6 +539,7 @@ function listCreators(
       postsPerWeek: postsPerWeek(
         theirPosts.map((post) => post.postedAt ?? post.firstSeenAt)
       ),
+      ...channelUsual(recentViews.get(key)),
     })
   }
 
@@ -547,6 +564,7 @@ function listCreators(
           ? `https://www.youtube.com/channel/${encodeURIComponent(entry.channelId)}`
           : "",
       postsPerWeek: null,
+      ...(entry.sample ? sampleUsual(entry.channelId) : channelUsual(recentViews.get(key))),
     })
   }
 
@@ -556,4 +574,55 @@ function listCreators(
       (right.typicalScore ?? -1) - (left.typicalScore ?? -1) ||
       left.name.localeCompare(right.name)
   )
+}
+
+/** Each TikTok post's sound, by `platform:platformVideoId`, from the followed creators' posts. */
+async function soundsByKey(ownerId: string, videos: UnscoredVideo[]) {
+  const sounds = new Map<string, ViralSound>()
+  const ids = [...new Set(videos.filter((video) => video.platform === "tiktok").map((video) => video.platformVideoId))]
+  if (!ids.length) return sounds
+  const rows = await db
+    .select({
+      platform: viralCreatorPosts.platform,
+      platformVideoId: viralCreatorPosts.platformVideoId,
+      soundName: viralCreatorPosts.soundName,
+      soundArtist: viralCreatorPosts.soundArtist,
+    })
+    .from(viralCreatorPosts)
+    .where(and(eq(viralCreatorPosts.ownerId, ownerId), inArray(viralCreatorPosts.platformVideoId, ids)))
+  for (const row of rows) {
+    if (row.soundName) sounds.set(`${row.platform}:${row.platformVideoId}`, { name: row.soundName, artist: row.soundArtist })
+  }
+  return sounds
+}
+
+// The sample project's made-up videos have no daily figures, sound or channel
+// history, so they get made-up ones, enough for Rising, Sounds and the creator
+// page to show something. Nothing is stored and nothing is asked.
+
+function sampleNumber(platformVideoId: string) {
+  return Number(/\d+/.exec(platformVideoId)?.[0] ?? 0)
+}
+
+function sampleGrowth(video: UnscoredVideo): ViralGrowth {
+  const n = sampleNumber(video.platformVideoId)
+  if (n % 4 !== 2 || video.views === null) return { times: 1.1, gained: Math.round((video.views ?? 0) / 11) }
+  const times = n === 2 ? 3.2 : 2.4
+  return { times, gained: Math.round(video.views - video.views / times) }
+}
+
+const SAMPLE_SOUNDS: ViralSound[] = [
+  { name: "original sound", artist: "Desk Fit Daily" },
+  { name: "Lo-fi Focus Beat", artist: "Chill Office" },
+  { name: "Stretch It Out", artist: "Posture Lab" },
+]
+
+function sampleSound(video: UnscoredVideo): ViralSound | null {
+  const n = sampleNumber(video.platformVideoId)
+  return n % 3 === 0 ? null : SAMPLE_SOUNDS[n % SAMPLE_SOUNDS.length]
+}
+
+function sampleUsual(channelId: string): Pick<ViralCreator, "typicalViews" | "beatsUsual"> {
+  const n = sampleNumber(channelId) || 1
+  return { typicalViews: 40_000 * n, beatsUsual: { hits: n === 3 ? 0 : 1, of: 3 * n } }
 }

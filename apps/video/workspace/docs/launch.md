@@ -11,9 +11,6 @@ can show it in a panel.
   2026. Tyler: "Just transfer everything over from both servers."
 - **Fresh start.** Live began empty. Nothing was copied from the Mac's local
   database or bucket. Tyler, 18 Oct 2026.
-- **Creator watching off.** `VIDEO_WATCH_ENABLED` is not set, so the worker
-  never checks followed creators for new posts by itself. Setting it to `1` on
-  Video Worker and restarting switches it on. Tyler, 18 Oct 2026.
 - **Payments off, Google sign-in off.** `CUSTOM_SHELL_BILLING_ENABLED` and the
   two Google values are not set. Tyler, 18 Oct 2026.
 - **First admin:** typham2@gmail.com, made by the deploy-app skill's
@@ -81,11 +78,9 @@ each one breaks when missing.
 | `WORKER_PACKAGES` | `ffmpeg yt-dlp`, build time, worker only |
 
 The worker calls `ffmpeg`, `ffprobe` and `yt-dlp`. Alpine's `ffmpeg` package
-brings `ffprobe` with it. The YouTube key for Viral search is pasted in
-Settings → YouTube after launch, not set as `VIDEO_YOUTUBE_API_KEY`. The
-Google client that reads retention curves is pasted on the same tab, and the
-live site's return address must be listed on that client in Google Cloud
-(`retention-curve.md`).
+brings `ffprobe` with it. The Google client that reads retention curves is
+pasted on Settings → YouTube after launch, and the live site's return address
+must be listed on that client in Google Cloud (`retention-curve.md`).
 
 ## Deploying
 

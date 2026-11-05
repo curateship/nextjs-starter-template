@@ -17,6 +17,8 @@ import { defineSettingsTab } from "@/lib/settings-tab"
  * object still reads as the full shape. Both catch a misspelled option.
  */
 export const appOptions: AppOptions = {
+  // A video shared from a phone opens the Save to Viral page (features task part 22).
+  homeScreen: { shareTarget: { path: "/admin/share" } },
   settings: {
     tabs: [
       // The key Viral searches YouTube with, and today's units (task part 1).
@@ -30,6 +32,30 @@ export const appOptions: AppOptions = {
         id: "video-connection",
         label: "Video connection",
         panel: () => import("@/components/viral/settings/video-connection-settings"),
+      }),
+      // The Meta ad library token, for Winning ads (features task part 23).
+      defineSettingsTab({
+        id: "meta",
+        label: "Meta",
+        panel: () => import("@/components/viral/settings/meta-settings"),
+      }),
+      // The space downloaded videos use, and deleting unopened ones (part 19).
+      defineSettingsTab({
+        id: "storage",
+        label: "Storage",
+        panel: () => import("@/components/viral/settings/storage-settings"),
+      }),
+      // How to share videos to Viral from a phone (part 22).
+      defineSettingsTab({
+        id: "phone",
+        label: "Save from phone",
+        panel: () => import("@/components/viral/settings/phone-settings"),
+      }),
+      // Promo's address and key, for reads through Promo and Write a post for Promo (features task parts 11 and 20).
+      defineSettingsTab({
+        id: "promo-connection",
+        label: "Promo connection",
+        panel: () => import("@/components/viral/settings/promo-connection-settings"),
       }),
     ],
   },

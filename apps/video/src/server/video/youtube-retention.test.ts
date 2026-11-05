@@ -36,6 +36,7 @@ import {
 } from "@/server/video/youtube-oauth"
 import {
   getExportRetention,
+  parseIsoDuration,
   postExportOnYoutube,
   refreshExportRetention,
   removeExportYoutube,
@@ -543,5 +544,18 @@ describe("connecting the channel", () => {
     const status = await getYoutubeConnectionStatus(database)
     expect(status.clientId).toBe("client-1")
     expect(status.maskedSecret).toBe("••••et-1")
+  })
+})
+
+describe("reading YouTube's durations", () => {
+  it("adds hours, minutes and seconds", () => {
+    expect(parseIsoDuration("PT2M41S")).toBe(161)
+    expect(parseIsoDuration("PT1H")).toBe(3600)
+    expect(parseIsoDuration("PT59S")).toBe(59)
+  })
+
+  it("refuses what is not a duration", () => {
+    expect(parseIsoDuration(undefined)).toBeNull()
+    expect(parseIsoDuration("tomorrow")).toBeNull()
   })
 })

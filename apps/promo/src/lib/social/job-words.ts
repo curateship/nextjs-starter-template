@@ -92,6 +92,9 @@ export const JOB_KIND_WORDS: Record<JobKind, string> = {
   linkedin_numbers: "Read a LinkedIn account's numbers",
   linkedin_feed: "Read a LinkedIn account's own feed",
   linkedin_warm_up: "LinkedIn warm-up visit",
+  viral_read: "Read Reddit for Viral",
+  x_viral_read: "Read X for Viral",
+  linkedin_viral_read: "Read LinkedIn for Viral",
 }
 
 /**

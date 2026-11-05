@@ -1,9 +1,8 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
-import { ChartNoAxesCombinedIcon, CopyIcon, Loader2Icon } from "lucide-react"
+import { CopyIcon, Loader2Icon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { BreakdownPanel } from "@/components/video-viral/breakdown-panel"
+import { BreakdownPanel } from "@/components/video-editor/breakdown-panel"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -18,7 +17,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   isSavedVideoWorking,
   savedVideoStatusLabels,
-} from "@/lib/video/creators"
+} from "@/lib/video/saved-video"
 
 /** How often the panel asks again while the video is downloading or being read. */
 const POLL_MS = 3_000
@@ -27,8 +26,8 @@ const POLL_MS = 3_000
  * The Copy panel at the foot of the editor rail: the viral video the open video
  * copies, playing at the top, and what Gemini made of it underneath, part by
  * part with the hook marked. Clicking a line jumps the player there. A
- * project made from scratch copies nothing, and the panel says where to find
- * a video (see `workspace/docs/project-first.md`).
+ * video made from scratch copies nothing, and the panel says how to start
+ * from one through the Viral app (see `workspace/docs/project-first.md`).
  */
 export function CopyPanel() {
   const { videoId } = useEditorRuntime()
@@ -116,12 +115,11 @@ export function CopyPanel() {
               </p>
             ) : (
               <p>
-                This video copies no viral video. Find one that went viral in a
-                Viral project and press Make this a template under it. It opens
-                as a new video with the original here.
+                This video copies no viral video. To start from one, open it in
+                the Viral app and press Send to Video. The draft arrives with
+                its script, and the original lands on the Media shelf.
               </p>
             )}
-            <OpenViralButton viral={detail?.viral ?? null} />
           </div>
         ) : (
           <div className="grid grid-cols-[minmax(0,1fr)]">
@@ -163,7 +161,6 @@ export function CopyPanel() {
                 </div>
               ) : null}
               <div className="flex flex-wrap gap-2">
-                {detail?.viral ? <OpenViralButton viral={detail.viral} /> : null}
                 <Button asChild variant="ghost" size="sm">
                   <a href={video.sourceUrl} target="_blank" rel="noreferrer noopener">
                     Open the original
@@ -188,32 +185,5 @@ export function CopyPanel() {
         )}
       </ScrollArea>
     </div>
-  )
-}
-
-/**
- * Back to the research: the Viral project this one was copied from, with the
- * copied video playing, or the list of Viral projects when it came from
- * nowhere or that project was deleted.
- */
-function OpenViralButton({ viral }: { viral: ProjectSourceDetail["viral"] }) {
-  return (
-    <Button asChild variant="outline" size="sm">
-      {viral ? (
-        <Link
-          to="/admin/video-viral/$projectId"
-          params={{ projectId: viral.projectId }}
-          search={viral.videoKey ? { open: viral.videoKey } : {}}
-        >
-          <ChartNoAxesCombinedIcon />
-          Open Viral
-        </Link>
-      ) : (
-        <Link to="/admin/video-viral">
-          <ChartNoAxesCombinedIcon />
-          Open Viral
-        </Link>
-      )}
-    </Button>
   )
 }

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { isVideoCaller } from "@/server/viral/video-link"
+import { videoCallerOwnerId } from "@/server/viral/video-link"
 import { sendForToken, streamSendFile } from "@/server/viral/video-sends"
 
 const NEVER_CACHE = { "cache-control": "no-store" }
@@ -15,10 +15,11 @@ export const Route = createFileRoute("/api/connect/video/file/$token")({
   server: {
     handlers: {
       GET: async ({ params, request }) => {
-        if (!(await isVideoCaller(request))) {
+        const ownerId = await videoCallerOwnerId(request)
+        if (!ownerId) {
           return Response.json({ error: "Viral does not know this key." }, { status: 401, headers: NEVER_CACHE })
         }
-        const send = await sendForToken(params.token)
+        const send = await sendForToken(ownerId, params.token)
         if (!send) return Response.json({ error: "No such file." }, { status: 404, headers: NEVER_CACHE })
         try {
           return await streamSendFile(send)

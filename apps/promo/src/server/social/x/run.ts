@@ -24,6 +24,7 @@ import { recordXLookup, recordXReach } from "./reach"
 import { recordXCheck, recordXMentions, runXChange, runXReply } from "./replies"
 import { readXPost, readXTrends, runXSearch, type XReader } from "./search"
 import { runXWarmUp } from "./warm-up"
+import { runViralXRead } from "@/server/viral-link/reads"
 
 /**
  * X's jobs, handed out by the browser program's runner (`../runner.ts`),
@@ -74,6 +75,8 @@ export async function runXSearcherJob(job: QueuedJob, reader: XReader, db: Custo
     await readXCommunity(job.userId, text(job.payload.communityRowId), reader, db)
   } else if (job.kind === "x_reach") {
     await recordXReach(job.userId, text(job.payload.accountId), reader, db)
+  } else if (job.kind === "x_viral_read") {
+    await runViralXRead(job, reader, db)
   } else {
     throw new Error(`There is no X read called "${job.kind}".`)
   }

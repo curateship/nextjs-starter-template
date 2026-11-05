@@ -40,9 +40,7 @@ import {
   videoFirstFrames,
   videoProjects,
   videoProjectVideos,
-  videoViralVideos,
 } from "@/server/video/schema"
-import { copyVideoIntoProject } from "@/server/video/viral/copy-into-project"
 
 const removed: string[] = []
 vi.mock("@/server/media/storage", async (importOriginal) => ({
@@ -414,27 +412,5 @@ describe("first frames belong to their project", () => {
       .from(videoCarouselProjects)
       .where(eq(videoCarouselProjects.id, row.carouselProjectId))
     expect(into.name).toBe("Reel carousels")
-  })
-})
-
-describe("Copy this", () => {
-  it("makes two projects from two presses, on one saved video", async () => {
-    const url = "https://www.youtube.com/shorts/abcdefghijk"
-    const one = await copyVideoIntoProject(user.id, url, "Viral thing")
-    const two = await copyVideoIntoProject(user.id, url, "Viral thing")
-
-    expect(one.projectId).not.toBe(two.projectId)
-    const projects = await database.select().from(videoProjects)
-    expect(projects.map((project) => project.name)).toEqual(["Viral thing", "Viral thing"])
-    const saved = await database.select().from(videoViralVideos)
-    expect(saved).toHaveLength(1)
-    // Each project's one video copies the same saved video.
-    const videos = await database.select().from(videoProjectVideos)
-    expect(videos.map((video) => [video.id, video.sourceViralVideoId]).sort()).toEqual(
-      [
-        [one.videoId, saved[0].id],
-        [two.videoId, saved[0].id],
-      ].sort()
-    )
   })
 })

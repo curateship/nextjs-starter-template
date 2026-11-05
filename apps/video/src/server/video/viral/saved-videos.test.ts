@@ -9,7 +9,6 @@ import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   loadSavedVideo,
   retrySavedVideo,
-  saveVideoForBreakdown,
   viralVideoTick,
 } from "@/server/video/viral/saved-videos"
 import { videoViralVideos } from "@/server/video/schema"
@@ -17,8 +16,8 @@ import * as download from "@/server/video/viral/download"
 
 /**
  * The job's own rules, which are what make closing the browser harmless:
- * pressing the button twice is one row, a row left mid-job by a restart goes
- * back in the queue, and a failure keeps its reason rather than vanishing.
+ * a row left mid-job by a restart goes back in the queue, and a failure keeps
+ * its reason rather than vanishing until Try again on the Copy panel.
  *
  * None of these let the worker run for real — downloading would need yt-dlp and
  * a network. They check the states around it, which is where the bugs live.
@@ -50,45 +49,35 @@ afterEach(async () => {
 
 const SOURCE = "https://www.tiktok.com/@creator/video/7312345678901234567"
 
-describe("saving a video", () => {
-  it("writes one waiting row, ready for the worker", async () => {
-    const saved = await saveVideoForBreakdown(user.id, SOURCE)
-    expect(saved.status).toBe("waiting")
-    expect(saved.breakdown).toBeNull()
-    expect(saved.playbackUrl).toBeNull()
+/** A row waiting for the worker, as Make this a template used to leave one. */
+async function insertWaiting(ownerId: string) {
+  const at = now()
+  const id = uuid()
+  await database.insert(videoViralVideos).values({
+    id,
+    ownerId,
+    platform: "tiktok",
+    platformVideoId: "7312345678901234567",
+    sourceUrl: SOURCE,
+    status: "waiting",
+    createdAt: at,
+    updatedAt: at,
   })
+  return { id }
+}
 
-  it("pressing the button twice never makes two rows", async () => {
-    const first = await saveVideoForBreakdown(user.id, SOURCE)
-    const second = await saveVideoForBreakdown(user.id, SOURCE)
-
-    expect(second.id).toBe(first.id)
-    const rows = await database
-      .select()
-      .from(videoViralVideos)
-      .where(eq(videoViralVideos.ownerId, user.id))
-    expect(rows).toHaveLength(1)
-  })
-
-  it("saving the same video as somebody else is each person's own row", async () => {
-    const other = await insertUser(database)
-    const mine = await saveVideoForBreakdown(user.id, SOURCE)
-    const theirs = await saveVideoForBreakdown(other.id, SOURCE)
-    expect(theirs.id).not.toBe(mine.id)
-  })
-
-  it("refuses a link to anywhere but the three platforms", async () => {
-    await expect(
-      saveVideoForBreakdown(user.id, "https://example.com/video/1")
-    ).rejects.toThrow(/Only YouTube, TikTok and Instagram/)
-    // Nothing was written, so a refused link leaves no ghost row behind.
-    const rows = await database.select().from(videoViralVideos)
-    expect(rows).toHaveLength(0)
+describe("reading a saved video", () => {
+  it("reads back a waiting row with no file and no breakdown yet", async () => {
+    const saved = await insertWaiting(user.id)
+    const read = await loadSavedVideo(user.id, saved.id)
+    expect(read.status).toBe("waiting")
+    expect(read.breakdown).toBeNull()
+    expect(read.playbackUrl).toBeNull()
   })
 
   it("will not read back somebody else's saved video", async () => {
     const other = await insertUser(database)
-    const theirs = await saveVideoForBreakdown(other.id, SOURCE)
+    const theirs = await insertWaiting(other.id)
     await expect(loadSavedVideo(user.id, theirs.id)).rejects.toThrow(
       /SAVED_VIDEO_NOT_FOUND/
     )
@@ -97,7 +86,7 @@ describe("saving a video", () => {
 
 describe("a job interrupted by a restart", () => {
   it("goes back to waiting, so closing the browser does not strand it", async () => {
-    const saved = await saveVideoForBreakdown(user.id, SOURCE)
+    const saved = await insertWaiting(user.id)
     // What a restart leaves behind: mid-job, with a lease nobody holds.
     await database
       .update(videoViralVideos)
@@ -121,7 +110,7 @@ describe("a job interrupted by a restart", () => {
   })
 
   it("leaves a job alone while its lease is still good", async () => {
-    const saved = await saveVideoForBreakdown(user.id, SOURCE)
+    const saved = await insertWaiting(user.id)
     const token = uuid()
     await database
       .update(videoViralVideos)
@@ -145,7 +134,7 @@ describe("a job interrupted by a restart", () => {
 
 describe("a failure", () => {
   it("keeps its reason and can be tried again", async () => {
-    const saved = await saveVideoForBreakdown(user.id, SOURCE)
+    const saved = await insertWaiting(user.id)
     await database
       .update(videoViralVideos)
       .set({ status: "failed", error: "This post is private" })
@@ -161,7 +150,7 @@ describe("a failure", () => {
   })
 
   it("will not retry a video that is not failed", async () => {
-    const saved = await saveVideoForBreakdown(user.id, SOURCE)
+    const saved = await insertWaiting(user.id)
     await expect(retrySavedVideo(user.id, saved.id)).rejects.toThrow(
       /SAVED_VIDEO_NOT_FAILED/
     )
@@ -169,7 +158,7 @@ describe("a failure", () => {
 
   it("will not let somebody else retry your video", async () => {
     const other = await insertUser(database)
-    const saved = await saveVideoForBreakdown(user.id, SOURCE)
+    const saved = await insertWaiting(user.id)
     await database
       .update(videoViralVideos)
       .set({ status: "failed", error: "nope" })
@@ -181,7 +170,7 @@ describe("a failure", () => {
   })
 
   it("a refused download fails the row and keeps the platform's own words", async () => {
-    await saveVideoForBreakdown(user.id, SOURCE)
+    await insertWaiting(user.id)
     await viralVideoTick()
 
     const [row] = await database.select().from(videoViralVideos)
@@ -202,7 +191,7 @@ describe("a failure", () => {
 
 describe("the claim", () => {
   it("is taken once, so a tick never downloads the same video twice", async () => {
-    await saveVideoForBreakdown(user.id, SOURCE)
+    await insertWaiting(user.id)
 
     await viralVideoTick()
     await viralVideoTick()
@@ -214,7 +203,7 @@ describe("the claim", () => {
   })
 
   it("does not hand the job to a second worker while the first still holds it", async () => {
-    const saved = await saveVideoForBreakdown(user.id, SOURCE)
+    const saved = await insertWaiting(user.id)
     const token = uuid()
     // Mid-breakdown, with a claim that has minutes left on it. Gemini can take
     // a while; releasing here would download and pay for the video twice.

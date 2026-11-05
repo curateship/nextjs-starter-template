@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto"
 
 import { appUrl } from "@/server/app-url"
-import { getVideoApiKey, getVideoUrl } from "@/server/viral/settings"
+import { getVideoApiKey, getVideoKeyOwnerId, getVideoUrl } from "@/server/viral/settings"
 
 /**
  * The link from Viral to the Video app (`workspace/docs/send-to-video.md`).
@@ -112,17 +112,56 @@ export async function listVideoProjects(fetchImpl: typeof fetch = fetch): Promis
 
 const hashed = (value: string) => createHash("sha256").update(value, "utf8").digest()
 
-/** Whether a call to Viral carries the key saved on Settings → Video connection. */
-export async function isVideoCaller(request: Request): Promise<boolean> {
+/**
+ * Who a call to Viral acts for: the person who saved the key on Settings →
+ * Video connection, when the call carries that key. Null refuses the call,
+ * including for a key saved before its owner was kept.
+ */
+export function videoCallerOwnerId(request: Request): Promise<string | null> {
+  return keyCallerOwnerId(request, getVideoApiKey, getVideoKeyOwnerId)
+}
+
+/**
+ * The rule every call into Viral from another app follows, Video's and
+ * Promo's alike: `Authorization: Bearer <key>` must match the saved key,
+ * compared in constant time, and the call acts for the person who saved it.
+ */
+export async function keyCallerOwnerId(
+  request: Request,
+  readKey: () => Promise<string | null>,
+  readOwnerId: () => Promise<string | null>
+): Promise<string | null> {
   const header = request.headers.get("authorization") ?? ""
   const given = header.startsWith("Bearer ") ? header.slice(7).trim() : ""
-  if (!given) return false
+  if (!given) return null
   let saved: string | null
+  let ownerId: string | null
   try {
-    saved = await getVideoApiKey()
+    ;[saved, ownerId] = await Promise.all([readKey(), readOwnerId()])
   } catch {
-    return false
+    return null
   }
-  if (!saved) return false
-  return timingSafeEqual(hashed(given), hashed(saved))
+  if (!saved || !ownerId) return null
+  return timingSafeEqual(hashed(given), hashed(saved)) ? ownerId : null
+}
+
+/**
+ * The body of a call from another app, as JSON, or `tooLarge`. The
+ * `content-length` header is only the sender's claim, so a missing or wrong
+ * one is caught by the length of what really arrived. A body that isn't JSON
+ * reads as null, which every shape refuses.
+ */
+export async function readCallBody(
+  request: Request,
+  maxChars: number
+): Promise<{ tooLarge: true } | { tooLarge: false; body: unknown }> {
+  const claimed = Number(request.headers.get("content-length") ?? 0)
+  if (!(claimed <= maxChars)) return { tooLarge: true }
+  const text = await request.text().catch(() => "")
+  if (text.length > maxChars) return { tooLarge: true }
+  try {
+    return { tooLarge: false, body: JSON.parse(text) as unknown }
+  } catch {
+    return { tooLarge: false, body: null }
+  }
 }

@@ -34,6 +34,7 @@ Send to Promo copies a finished video, carousel or thumbnail into a project's Ar
 - **Subtitles:** the video's captions as an .srt file, for a LinkedIn video. Captions are the text clips written from speech, the ones with word times or a voice line behind them. Words typed by hand, such as a title, are left out. An export of part of a project gets only the captions inside that part, timed from its start. They are read from the video as it is when the send starts, because an export keeps no copy of its timeline.
 - **A carousel's slides,** one file each, in order. Promo never gets the ZIP.
 - **Where to edit it:** a link back to the video or carousel in Video, for Edit in Video in Promo.
+- **The Viral idea:** when the video's draft came from Viral's Send to Video, the idea's id goes too (`viralIdeaOf` in `src/server/video/promo-sends.ts`). Promo keeps it on the archive item and tells Viral when a post made from it goes up (`apps/promo/workspace/docs/viral-link.md`).
 
 ## On the Exports row
 

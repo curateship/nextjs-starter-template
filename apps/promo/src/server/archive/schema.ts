@@ -88,6 +88,12 @@ export const promoArchiveItems = pgTable(
     /** Items with the same key belong together: a video's language copies, or a carousel and its slideshow. */
     groupKey: varchar("group_key", { length: 64 }).notNull().default(""),
     language: varchar("language", { length: 40 }).notNull().default(""),
+    /**
+     * The Viral vault idea the video started as, or "". A post made from the
+     * item is reported back to Viral (`src/server/viral-link/reports.ts`).
+     * Added by `drizzle/0136_promo_viral_link.sql`.
+     */
+    viralIdeaId: varchar("viral_idea_id", { length: 64 }).notNull().default(""),
     /** The files still to fetch while copying, and how many tries it has had. */
     pending: jsonb("pending").$type<ArchivePending | null>(),
     attempts: integer("attempts").notNull().default(0),
