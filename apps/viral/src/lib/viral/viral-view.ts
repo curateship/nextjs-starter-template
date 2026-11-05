@@ -17,7 +17,8 @@ export type ViralCardSize = (typeof VIRAL_CARD_SIZES)[number]
 /**
  * The middle panel's Sort menu. Video's five, then the six Tyler added on
  * 4 Nov 2026: "Outlier", "Views per follower", "Engagement" and "Likes,
- * comments, length" (`workspace/docs/sorts-and-score.md`).
+ * comments, length", then Rising fast, how many times as many views as the
+ * day before (`workspace/docs/sorts-and-score.md`).
  */
 export const VIRAL_SORTS = [
   "score",
@@ -31,6 +32,7 @@ export const VIRAL_SORTS = [
   "likes",
   "comments",
   "length",
+  "rising",
 ] as const
 export type ViralSort = (typeof VIRAL_SORTS)[number]
 
@@ -46,6 +48,7 @@ export const viralSortLabels: Record<ViralSort, string> = {
   likes: "Likes",
   comments: "Comments",
   length: "Length",
+  rising: "Rising fast",
 }
 
 /** Views for every follower, such as 20 for 1,000,000 views on 50,000 followers. Null when either is hidden. */
@@ -88,6 +91,12 @@ export type ViralVideoFilter = {
   text: string
   /** Only videos the AI matched at least this well. 0 keeps every video. */
   minFit: number
+  /**
+   * Only creators of this size: "Small creators, big hits". A video whose
+   * follower count is hidden is left out while a range is set, as the
+   * creators filter does.
+   */
+  followers?: SubscriberRange
 }
 
 export function filterVideos(
@@ -102,6 +111,7 @@ export function filterVideos(
     if ((video.views ?? 0) < filter.minViews) return false
     if (video.score.score < filter.minScore) return false
     if (filter.keyword && !video.keywords.includes(filter.keyword)) return false
+    if (filter.followers && !inRange(video.subscribers, filter.followers)) return false
     // A video the AI has not matched yet is kept: hiding it would make the
     // filter look like it removed something it never judged.
     if (filter.minFit > 0 && video.topicMatch !== null && video.topicMatch < filter.minFit) {
@@ -146,6 +156,8 @@ export function sortVideos(
         return video.comments ?? -1
       case "length":
         return video.durationSeconds ?? -1
+      case "rising":
+        return video.growth.times ?? -1
       default:
         return video.score.score
     }
@@ -164,6 +176,21 @@ export const SUBSCRIBER_STEPS = [
   1_000, 10_000, 50_000, 100_000, 500_000, 1_000_000, 10_000_000,
 ] as const
 
+/** Inside the range, or no range set. A hidden count is outside any range. */
+function inRange(subscribers: number | null, range: SubscriberRange) {
+  if (range.min === null && range.max === null) return true
+  if (subscribers === null) return false
+  if (range.min !== null && subscribers < range.min) return false
+  if (range.max !== null && subscribers > range.max) return false
+  return true
+}
+
+/** A step from the subscriber range, as the address or a saved view holds it, or null. */
+export function readSubscriberStep(value: unknown): number | null {
+  const step = Number(value)
+  return (SUBSCRIBER_STEPS as readonly number[]).includes(step) ? step : null
+}
+
 export function filterCreators(
   creators: ViralCreator[],
   range: SubscriberRange,
@@ -173,11 +200,7 @@ export function filterCreators(
   return creators.filter((creator) => {
     // A creator whose count is hidden is kept only when no range is set:
     // nobody can say whether they are inside it.
-    if (range.min !== null || range.max !== null) {
-      if (creator.subscribers === null) return false
-      if (range.min !== null && creator.subscribers < range.min) return false
-      if (range.max !== null && creator.subscribers > range.max) return false
-    }
+    if (!inRange(creator.subscribers, range)) return false
     if (
       words &&
       !creator.name.toLowerCase().includes(words) &&

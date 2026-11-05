@@ -19,32 +19,27 @@ import {
 import { runFfmpeg } from "@/server/video/ffmpeg"
 import { videoPlaybackUrl } from "@/server/video/media-urls"
 import { videoMediaProxies, videoViralVideos } from "@/server/video/schema"
-import { isUniqueViolation } from "@/server/video/unique-violation"
 import {
   breakDownVideo,
   readStoredBreakdown,
 } from "@/server/video/viral/analysis"
-import {
-  downloadViralVideo,
-  parseVideoLink,
-} from "@/server/video/viral/download"
+import { downloadViralVideo } from "@/server/video/viral/download"
 import type { ViralBreakdown } from "@/lib/video/viral-breakdown"
-import type { SavedVideoStatus } from "@/lib/video/creators"
+import type { SavedVideoStatus } from "@/lib/video/saved-video"
 
 /**
- * Saving a video, and having it broken down.
+ * The viral video an editor video copies, and having it broken down
+ * (`workspace/docs/project-first.md`).
  *
- * The status is the job. Pressing Download or AI analyse writes a `waiting`
- * row and returns; a background worker claims it, downloads the file, stores
- * it in the library and takes a cover frame. A row saved with Download alone
- * stops there, at `downloaded`, and no AI runs. Otherwise Gemini watches it.
- * AI analyse on a video already downloaded hands Gemini the stored file
- * rather than downloading it again. Closing the browser does nothing to it,
- * and a restart puts an interrupted row back to `waiting` rather than leaving
- * it stuck.
+ * The status is the job. A background worker claims a `waiting` row, downloads
+ * the file, stores it in the library and takes a cover frame. A row that
+ * wants no analysis stops there, at `downloaded`, and no AI runs. Otherwise
+ * Gemini watches it. Closing the browser does nothing to it, and a restart
+ * puts an interrupted row back to `waiting` rather than leaving it stuck.
  *
- * Nothing here is ever started from a click, because a download is minutes and
- * a hundred megabytes. The one thing a click does is write the row.
+ * Nothing new is saved here any more: the rows are the ones Make this a
+ * template made before Viral moved to its own app. Try again on the Copy
+ * panel puts a failed one back in the queue.
  */
 
 export const SAVED_VIDEO_ERRORS = {
@@ -85,90 +80,6 @@ export type SavedVideoDetail = {
   breakdown: ViralBreakdown | null
 }
 
-/** AI analyse, and Copy this: download if needed, then break it down. */
-export async function saveVideoForBreakdown(
-  ownerId: string,
-  url: string,
-  /** The Viral project it was saved from, so its AI cost counts there. */
-  viralProjectId: string | null = null
-): Promise<SavedVideoDetail> {
-  return saveVideo(ownerId, url, viralProjectId, true)
-}
-
-/**
- * Writes the row the worker will pick up, or hands back the one that is
- * already there. Pressing a button twice, or saving the same video from two
- * Viral projects, is one row — the unique index says so and this
- * reads it back rather than refusing.
- *
- * `analyse` false is Download: the worker stops once the file is in the
- * library. AI analyse on a video already saved with Download turns the AI on
- * for that same row. A `downloaded` one goes back in the queue, and the
- * worker hands Gemini the stored file. One still downloading is broken down
- * as soon as its download lands. The project it was pressed in is then the
- * one whose spend limit the breakdown counts against.
- */
-export async function saveVideo(
-  ownerId: string,
-  url: string,
-  viralProjectId: string | null,
-  analyse: boolean
-): Promise<SavedVideoDetail> {
-  const link = parseVideoLink(url)
-  const at = now()
-
-  try {
-    const [created] = await db
-      .insert(videoViralVideos)
-      .values({
-        id: uuid(),
-        ownerId,
-        platform: link.platform,
-        platformVideoId: link.platformVideoId,
-        sourceUrl: url,
-        status: "waiting",
-        wantsAnalysis: analyse,
-        viralProjectId,
-        createdAt: at,
-        updatedAt: at,
-      })
-      .returning()
-    if (created) return await detailFor(created)
-  } catch (error) {
-    if (!isUniqueViolation(error)) throw error
-  }
-
-  const [existing] = await db
-    .select()
-    .from(videoViralVideos)
-    .where(
-      and(
-        eq(videoViralVideos.ownerId, ownerId),
-        eq(videoViralVideos.platform, link.platform),
-        eq(videoViralVideos.platformVideoId, link.platformVideoId)
-      )
-    )
-  if (!existing) throw new Error(SAVED_VIDEO_ERRORS.notFound)
-  if (!analyse || existing.wantsAnalysis) return detailFor(existing)
-
-  const [turnedOn] = await db
-    .update(videoViralVideos)
-    .set({
-      wantsAnalysis: true,
-      status: sql`case when ${videoViralVideos.status} = 'downloaded' then 'waiting' else ${videoViralVideos.status} end`,
-      viralProjectId: viralProjectId ?? existing.viralProjectId,
-      updatedAt: now(),
-    })
-    .where(
-      and(
-        eq(videoViralVideos.id, existing.id),
-        eq(videoViralVideos.wantsAnalysis, false)
-      )
-    )
-    .returning()
-  return detailFor(turnedOn ?? existing)
-}
-
 /** Puts a failed row back in the queue. Only a failed one can be retried. */
 export async function retrySavedVideo(
   ownerId: string,
@@ -207,26 +118,6 @@ export async function loadSavedVideo(
     )
   if (!row) throw new Error(SAVED_VIDEO_ERRORS.notFound)
   return detailFor(row)
-}
-
-/**
- * Where several saved videos have got to, in one read. The screen asks this
- * every few seconds while any of its cards is still downloading or being
- * watched, so a card keeps saying so after somebody clicks another video. Ids
- * that are not this person's are left out.
- */
-export async function listSavedVideoStatuses(
-  ownerId: string,
-  ids: string[]
-): Promise<{ id: string; status: SavedVideoStatus }[]> {
-  if (!ids.length) return []
-  const rows = await db
-    .select({ id: videoViralVideos.id, status: videoViralVideos.status })
-    .from(videoViralVideos)
-    .where(
-      and(eq(videoViralVideos.ownerId, ownerId), inArray(videoViralVideos.id, ids))
-    )
-  return rows.map((row) => ({ id: row.id, status: row.status as SavedVideoStatus }))
 }
 
 /**
@@ -385,9 +276,8 @@ async function runJob(job: ClaimedVideo): Promise<void> {
     // The claim is pushed forward here too: downloading has already eaten part
     // of it, and the breakdown about to run is the expensive half.
     //
-    // A row saved with Download alone stops here, at `downloaded`, with its
-    // claim let go. `wants_analysis` is read in this same statement, so an AI
-    // analyse pressed while the download ran is never missed.
+    // A row that wants no analysis stops here, at `downloaded`, with its
+    // claim let go.
     const movedAt = now()
     const [moved] = await db
       .update(videoViralVideos)
@@ -497,7 +387,6 @@ async function finishBreakdown(
     mimeType: file.mimeType,
     durationSeconds: file.durationSeconds,
     savedVideoId: job.id,
-    viralProjectId: job.viralProjectId,
   })
 
   await db

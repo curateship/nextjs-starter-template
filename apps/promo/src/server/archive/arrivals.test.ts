@@ -105,6 +105,7 @@ describe("the archive's arrivals from Video", () => {
       videoProjectId: "vp-1",
       videoProjectName: "Launch",
       videoEditUrl: `${VIDEO}/admin/video-editor/vp-1`,
+      viralIdeaId: "",
       drafts: [],
       ...overrides,
     }

@@ -92,6 +92,10 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  *
  * `READER_JOB_KINDS` run in the signed-out reader browser, never in the
  * account's own: the account Reddit sees commenting never searches.
+ *
+ * `viral_read`, `x_viral_read` and `linkedin_viral_read` are reads the Viral
+ * app asked for (`workspace/docs/viral-link.md`): Reddit in the reader, X and
+ * LinkedIn in a search account's browser, the same as Promo's own reads.
  */
 export type JobKind =
   | "search"
@@ -170,6 +174,9 @@ export type JobKind =
   | "linkedin_numbers"
   | "linkedin_feed"
   | "linkedin_warm_up"
+  | "viral_read"
+  | "x_viral_read"
+  | "linkedin_viral_read"
 
 /** The kinds that run in the reader browser, signed in to nobody. */
 export const READER_JOB_KINDS: readonly JobKind[] = [
@@ -186,6 +193,7 @@ export const READER_JOB_KINDS: readonly JobKind[] = [
   "medium_check",
   "medium_profile",
   "medium_find",
+  "viral_read",
 ]
 
 /**
@@ -201,6 +209,7 @@ export const X_SEARCHER_JOB_KINDS: readonly JobKind[] = [
   "x_lookup",
   "x_community",
   "x_reach",
+  "x_viral_read",
 ]
 
 /**
@@ -214,6 +223,7 @@ export const LINKEDIN_SEARCHER_JOB_KINDS: readonly JobKind[] = [
   "linkedin_lookup",
   "linkedin_group",
   "linkedin_seen",
+  "linkedin_viral_read",
 ]
 
 /**

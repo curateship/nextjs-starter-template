@@ -44,6 +44,7 @@ import {
   switchKeyword,
 } from "@/lib/api/social/reddit/keywords"
 import { loadFailedPost } from "@/lib/api/social/reddit/own-posts"
+import { loadViralRedditDraft } from "@/lib/api/social/viral-link"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { EVERYTHING, isFindsTab, type RedditView } from "@/lib/social/reddit/options"
 import {
@@ -151,24 +152,27 @@ export function RedditModule({
   /** The New post window: shut, or open with what it starts with. */
   const [newPost, setNewPost] = React.useState<{ start: NewPostStart | null } | null>(null)
 
-  // A failed post's words, for Try again from the Comments tab's Failed list:
-  // read once, then New post opens with them. Nothing is sent.
+  // A failed post's words, for Try again from the Comments tab's Failed list,
+  // or a post the Viral app wrote (`workspace/docs/viral-link.md`): read once,
+  // then New post opens with them. Nothing is sent.
   React.useEffect(() => {
     if (!newPostRetryId) return
     let live = true
-    loadFailedPost(newPostRetryId).then(
-      (failed) => {
-        if (!live) return
-        if (!failed) {
-          showErrorToast("That post is not a failed one any more, so there is nothing to try again.")
-          return
+    loadFailedPost(newPostRetryId)
+      .then(async (failed) => failed ?? (await loadViralRedditDraft(newPostRetryId)))
+      .then(
+        (start) => {
+          if (!live) return
+          if (!start) {
+            showErrorToast("That post is not a failed one any more, so there is nothing to try again.")
+            return
+          }
+          setNewPost({ start })
+        },
+        () => {
+          if (live) showErrorToast("That post's words could not be read. Please try again.")
         }
-        setNewPost({ start: failed })
-      },
-      () => {
-        if (live) showErrorToast("That post's words could not be read. Please try again.")
-      }
-    )
+      )
     return () => {
       live = false
     }

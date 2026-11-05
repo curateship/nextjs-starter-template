@@ -35,7 +35,7 @@ import { savedViewScreen } from "@/lib/saved-views"
 import { VIRAL_SAVED_VIEW_KIND } from "@/lib/viral/viral-saved-views"
 import { ANALYSIS_TOPIC_MAX, type AnalysisPieces } from "@/lib/viral/analysis"
 import { storedNotes } from "@/lib/viral/notes"
-import { readSocials, socialHasKeywords, SOCIAL_NAMES, type Social } from "@/lib/viral/socials"
+import { isTextSocial, readSocials, socialHasKeywords, SOCIAL_NAMES, type Social } from "@/lib/viral/socials"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
@@ -50,10 +50,13 @@ import {
   viralProjectKeywords,
   viralProjectResults,
   viralProjects,
+  viralSocialWatches,
   type ViralProjectRow,
 } from "@/server/viral/schema"
 import { deleteSavedViewsFor } from "@/server/saved-views"
 import { isUniqueViolation } from "@/server/viral/unique-violation"
+import { addSampleLibrary } from "@/server/viral/sample-library"
+import { addSampleSocials, SAMPLE_TEXT_SOCIALS } from "@/server/viral/sample-socials"
 
 /**
  * Viral projects: one niche each, with a description and its keywords.
@@ -455,15 +458,16 @@ export async function archiveViralProjects(
 
 /**
  * A copy to start a nearby niche: the name with " copy", the description,
- * the keywords, the filters, the spend limit and the hidden channels. Not
- * the results, so the copy has searched nothing until Search is pressed.
+ * the keywords, what it reads on X, Reddit and LinkedIn, the filters, the
+ * spend limit and the hidden channels. Not the results, so the copy has
+ * searched nothing until Search is pressed.
  */
 export async function duplicateViralProject(
   ownerId: string,
   projectId: string
 ): Promise<ViralProjectItem> {
   const source = await requireOwnedViralProject(ownerId, projectId)
-  const [keywords, hidden] = await Promise.all([
+  const [keywords, hidden, watches] = await Promise.all([
     db
       .select()
       .from(viralProjectKeywords)
@@ -472,6 +476,7 @@ export async function duplicateViralProject(
       .select()
       .from(viralProjectHiddenChannels)
       .where(eq(viralProjectHiddenChannels.projectId, projectId)),
+    db.select().from(viralSocialWatches).where(eq(viralSocialWatches.projectId, projectId)),
   ])
   const at = now()
   const id = uuid()
@@ -508,6 +513,11 @@ export async function duplicateViralProject(
     if (hidden.length) {
       await tx.insert(viralProjectHiddenChannels).values(
         hidden.map((channel) => ({ ...channel, projectId: id, createdAt: at }))
+      )
+    }
+    if (watches.length) {
+      await tx.insert(viralSocialWatches).values(
+        watches.map((watch) => ({ ...watch, id: uuid(), ownerId, projectId: id, createdAt: at }))
       )
     }
   })
@@ -929,7 +939,7 @@ export async function createSampleViralProject(
       description:
         "A made-up niche to try the screen with: short workouts and stretches for people who sit at a desk all day.",
       topic: "a meal-prep course for busy dads",
-      socials: ["youtube"],
+      socials: ["youtube", ...SAMPLE_TEXT_SOCIALS],
       // Its made-up videos have no thumbnails, so the banner gets a photo of its own.
       coverUrl: SAMPLE_COVER_URL,
       coverChosen: true,
@@ -1025,7 +1035,26 @@ export async function createSampleViralProject(
         createdAt: new Date(at.getTime() - 1_000),
         updatedAt: at,
       },
+      {
+        id: uuid(),
+        ownerId,
+        projectId,
+        platform: "youtube",
+        platformVideoId: results[2].platformVideoId,
+        sourceUrl: results[2].url,
+        title: results[2].title,
+        channelName: results[2].channelName,
+        stats: stats(2),
+        notes: "Posted our version last week.",
+        status: "posted",
+        createdAt: new Date(at.getTime() - 2_000),
+        updatedAt: at,
+      },
     ])
+    // A saved format and two made-up ads, for Library → Formats and the Ads row.
+    await addSampleLibrary(tx, ownerId, projectId, at)
+    // What it reads on X and Reddit, with made-up posts already found.
+    await addSampleSocials(tx, ownerId, projectId, at)
   })
   return getViralProjectItem(ownerId, projectId)
 }
@@ -1078,7 +1107,7 @@ export async function removeViralSocial(ownerId: string, projectId: string, soci
   const project = await requireOwnedViralProject(ownerId, projectId)
   const socials = readSocials(project.socials)
   if (!socials.includes(social)) return getViralProjectItem(ownerId, projectId)
-  const [keywords, creators] = await Promise.all([
+  const [keywords, creators, watches] = await Promise.all([
     socialHasKeywords(social)
       ? db.select({ total: count() }).from(viralProjectKeywords).where(eq(viralProjectKeywords.projectId, projectId))
       : Promise.resolve([{ total: 0 }]),
@@ -1087,10 +1116,18 @@ export async function removeViralSocial(ownerId: string, projectId: string, soci
       .from(viralProjectCreators)
       .innerJoin(viralCreators, eq(viralCreators.id, viralProjectCreators.creatorId))
       .where(and(eq(viralProjectCreators.projectId, projectId), eq(viralCreators.platform, social))),
+    // X, Reddit and LinkedIn hold searches, accounts, people and subreddits instead.
+    isTextSocial(social)
+      ? db
+          .select({ total: count() })
+          .from(viralSocialWatches)
+          .where(and(eq(viralSocialWatches.projectId, projectId), eq(viralSocialWatches.network, social)))
+      : Promise.resolve([{ total: 0 }]),
   ])
   const held = [
     keywords[0]?.total ? plural(keywords[0].total, "keyword") : null,
     creators[0]?.total ? plural(creators[0].total, "creator") : null,
+    watches[0]?.total ? `${watches[0].total} ${watches[0].total === 1 ? "thing it reads" : "things it reads"}` : null,
   ].filter(Boolean)
   if (held.length) {
     throw viralSays(

@@ -23,6 +23,9 @@ the repo's `docs/`, and is never copied here.
   from Video or uploaded, the key on Settings → Video, how a send is copied,
   the Bin, the zip, and posting from it with drafts, warnings and several
   accounts at once.
+- [The link with Viral](viral-link.md): the key on Settings → Viral, the X,
+  LinkedIn and Reddit reads Promo runs for Viral, the posts Viral leaves as
+  drafts, and the posts from Viral ideas reported back.
 - [Guests sent from Project](project-guests.md): somebody on a Project task
   presses Open in Promo and works one Promo project for 12 hours with no
   Promo account, what they can and can't do, the stamped note and the key

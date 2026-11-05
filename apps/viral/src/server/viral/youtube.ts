@@ -287,11 +287,65 @@ export async function listYoutubeChannelUploads(
   })
 }
 
+/** One comment as the Top comments card shows it. */
+export type YoutubeComment = { author: string; text: string; likes: number; postedAt: string | null }
+
+/** How many comments the Top comments card shows (Tyler, 4 Nov 2026: "20 comments only"). */
+export const TOP_COMMENTS = 20
+
+/**
+ * A video's most-liked comments: one `commentThreads` call ordered by
+ * relevance, which YouTube ranks mostly by likes, re-sorted here by likes.
+ * One unit. A video with comments switched off answers `disabled`.
+ */
+export async function listYoutubeTopComments(
+  videoId: string,
+  apiKey: string,
+  fetchFn: typeof fetch = fetch
+): Promise<{ comments: YoutubeComment[]; disabled: boolean }> {
+  let payload: Record<string, unknown>
+  try {
+    payload = await callYoutube(
+      fetchFn,
+      apiKey,
+      "commentThreads",
+      new URLSearchParams({
+        part: "snippet",
+        videoId,
+        order: "relevance",
+        maxResults: String(TOP_COMMENTS),
+        textFormat: "plainText",
+      })
+    )
+  } catch (error) {
+    if (error instanceof Error && error.message === "YOUTUBE_COMMENTS_DISABLED") return { comments: [], disabled: true }
+    throw error
+  }
+  const comments = itemsOf(payload)
+    .flatMap((item): YoutubeComment[] => {
+      const path = ["snippet", "topLevelComment", "snippet"]
+      const text = stringAt(item, [...path, "textDisplay"]) ?? stringAt(item, [...path, "textOriginal"])
+      if (!text?.trim()) return []
+      const likes = valueAt(item, [...path, "likeCount"])
+      return [
+        {
+          author: (stringAt(item, [...path, "authorDisplayName"]) ?? "").slice(0, 120),
+          text: text.trim().slice(0, 2000),
+          likes: typeof likes === "number" && likes >= 0 ? likes : 0,
+          postedAt: stringAt(item, [...path, "publishedAt"]) ?? null,
+        },
+      ]
+    })
+    .sort((left, right) => right.likes - left.likes)
+    .slice(0, TOP_COMMENTS)
+  return { comments, disabled: false }
+}
+
 /** One API call, with YouTube's refusals turned into throwable sentences. */
 async function callYoutube(
   fetchFn: typeof fetch,
   apiKey: string,
-  resource: "search" | "videos" | "channels" | "playlistItems",
+  resource: "search" | "videos" | "channels" | "playlistItems" | "commentThreads",
   params: URLSearchParams
 ): Promise<Record<string, unknown>> {
   let response: Response
@@ -318,6 +372,7 @@ async function callYoutube(
     ) {
       throw new Error("YOUTUBE_QUOTA")
     }
+    if (reasons.includes("commentsDisabled")) throw new Error("YOUTUBE_COMMENTS_DISABLED")
     const message =
       typeof error.message === "string" && error.message.trim()
         ? error.message.trim()

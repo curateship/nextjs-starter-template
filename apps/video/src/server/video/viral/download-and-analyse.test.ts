@@ -13,18 +13,16 @@ import {
 import { videoViralVideos } from "@/server/video/schema"
 import * as download from "@/server/video/viral/download"
 import {
-  saveVideo,
-  saveVideoForBreakdown,
+  retrySavedVideo,
   viralVideoTick,
 } from "@/server/video/viral/saved-videos"
 import type { ViralBreakdown } from "@/lib/video/viral-breakdown"
 
 /**
- * Download and AI analyse, the two buttons (polish task, part 7).
- *
- * Download keeps the file and spends no AI. AI analyse breaks a video down,
- * and on a video already downloaded it hands Gemini the stored file instead
- * of downloading it again. Nothing here touches the network or spends money:
+ * The worker behind the editor's Copy panel. A row that wants no analysis
+ * keeps the file and spends no AI. Otherwise Gemini breaks it down, and Try
+ * again after a failed breakdown hands Gemini the stored file instead of
+ * downloading it again. Nothing here touches the network or spends money:
  * yt-dlp, the bucket, ffmpeg and Gemini are all stood in for.
  */
 
@@ -38,7 +36,10 @@ const BREAKDOWN: ViralBreakdown = {
 
 const stored = vi.hoisted(() => new Map<string, Uint8Array>())
 const workspace = vi.hoisted(() => ({ id: "" }))
-const gemini = vi.hoisted(() => ({ calls: [] as { bytes: Uint8Array; mimeType: string }[] }))
+const gemini = vi.hoisted(() => ({
+  calls: [] as { bytes: Uint8Array; mimeType: string }[],
+  failNext: false,
+}))
 
 vi.mock("@/server/media/storage", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/media/storage")>()),
@@ -103,6 +104,10 @@ vi.mock("@/server/video/viral/analysis", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/video/viral/analysis")>()),
   breakDownVideo: async (options: { bytes: Uint8Array; mimeType: string }) => {
     gemini.calls.push({ bytes: options.bytes, mimeType: options.mimeType })
+    if (gemini.failNext) {
+      gemini.failNext = false
+      throw new Error("Gemini could not be reached. Try again in a moment.")
+    }
     return BREAKDOWN
   },
 }))
@@ -121,6 +126,7 @@ beforeEach(async () => {
   workspace.id = (await insertWorkspace(database, { userId: user.id })).id
   stored.clear()
   gemini.calls.length = 0
+  gemini.failNext = false
   vi.spyOn(download, "downloadViralVideo").mockResolvedValue({
     bytes: FILE_BYTES,
     mimeType: "video/mp4",
@@ -142,6 +148,24 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
+/** A row waiting for the worker, as Make this a template used to leave one. */
+async function insertWaiting(wantsAnalysis: boolean) {
+  const at = now()
+  const id = uuid()
+  await database.insert(videoViralVideos).values({
+    id,
+    ownerId: user.id,
+    platform: "tiktok",
+    platformVideoId: "7312345678901234567",
+    sourceUrl: SOURCE,
+    status: "waiting",
+    wantsAnalysis,
+    createdAt: at,
+    updatedAt: at,
+  })
+  return id
+}
+
 async function readRow(id: string) {
   const [row] = await database
     .select()
@@ -150,20 +174,17 @@ async function readRow(id: string) {
   return row
 }
 
-describe("Download", () => {
+describe("a row that wants no analysis", () => {
   it("keeps the file in the media library, stops at downloaded and spends no AI", async () => {
-    const saved = await saveVideo(user.id, SOURCE, null, false)
-    expect(saved.status).toBe("waiting")
-    expect(saved.wantsAnalysis).toBe(false)
+    const id = await insertWaiting(false)
 
     await viralVideoTick()
 
-    const row = await readRow(saved.id)
+    const row = await readRow(id)
     expect(row.status).toBe("downloaded")
     expect(row.mediaId).not.toBeNull()
     expect(row.title).toBe("A dare that went viral")
-    // yt-dlp's own channel and follower count, which a pasted video has no
-    // search result to take from.
+    // yt-dlp's own channel and follower count.
     expect(row.channelId).toBe("@creator")
     expect(row.subscribers).toBe(50_000)
     expect(row.breakdown).toBeNull()
@@ -179,103 +200,51 @@ describe("Download", () => {
     expect(media.fileType).toBe("video")
   })
 
-  it("a second tick leaves a downloaded video alone", async () => {
-    const saved = await saveVideo(user.id, SOURCE, null, false)
+  it("is left alone by a second tick", async () => {
+    const id = await insertWaiting(false)
     await viralVideoTick()
     await viralVideoTick()
 
     expect(download.downloadViralVideo).toHaveBeenCalledTimes(1)
-    expect((await readRow(saved.id)).status).toBe("downloaded")
+    expect((await readRow(id)).status).toBe("downloaded")
     expect(gemini.calls).toHaveLength(0)
-  })
-
-  it("pressed on a video already broken down changes nothing", async () => {
-    const analysed = await saveVideoForBreakdown(user.id, SOURCE)
-    await viralVideoTick()
-    const again = await saveVideo(user.id, SOURCE, null, false)
-
-    expect(again.id).toBe(analysed.id)
-    expect(again.status).toBe("ready")
-    expect(again.wantsAnalysis).toBe(true)
   })
 })
 
-describe("AI analyse", () => {
-  it("on a downloaded video breaks it down without downloading it again", async () => {
-    const saved = await saveVideo(user.id, SOURCE, null, false)
-    await viralVideoTick()
-    const mediaId = (await readRow(saved.id)).mediaId
-
-    const pressed = await saveVideo(user.id, SOURCE, null, true)
-    expect(pressed.id).toBe(saved.id)
-    expect(pressed.status).toBe("waiting")
-    expect(pressed.wantsAnalysis).toBe(true)
-
+describe("a row that wants the AI", () => {
+  it("downloads and breaks down in one go", async () => {
+    const id = await insertWaiting(true)
     await viralVideoTick()
 
-    const row = await readRow(saved.id)
+    const row = await readRow(id)
+    expect(row.status).toBe("ready")
+    expect(row.breakdown).toEqual(BREAKDOWN)
+    expect(download.downloadViralVideo).toHaveBeenCalledTimes(1)
+    expect(gemini.calls).toHaveLength(1)
+  })
+
+  it("tried again after a failed breakdown reads the stored file instead of downloading again", async () => {
+    const id = await insertWaiting(true)
+    gemini.failNext = true
+    await viralVideoTick()
+
+    const failed = await readRow(id)
+    expect(failed.status).toBe("failed")
+    expect(failed.error).toMatch(/Gemini could not be reached/)
+    expect(failed.mediaId).not.toBeNull()
+
+    await retrySavedVideo(user.id, id)
+    await viralVideoTick()
+
+    const row = await readRow(id)
     expect(row.status).toBe("ready")
     expect(row.breakdown).toEqual(BREAKDOWN)
     // The same file, read back from storage, not a second download.
-    expect(row.mediaId).toBe(mediaId)
+    expect(row.mediaId).toBe(failed.mediaId)
     expect(download.downloadViralVideo).toHaveBeenCalledTimes(1)
-    expect(gemini.calls).toHaveLength(1)
-    expect([...gemini.calls[0].bytes]).toEqual([...FILE_BYTES])
-    expect(gemini.calls[0].mimeType).toBe("video/mp4")
-  })
-
-  it("on a video never saved downloads it and breaks it down in one go", async () => {
-    const saved = await saveVideo(user.id, SOURCE, null, true)
-    await viralVideoTick()
-
-    const row = await readRow(saved.id)
-    expect(row.status).toBe("ready")
-    expect(download.downloadViralVideo).toHaveBeenCalledTimes(1)
-    expect(gemini.calls).toHaveLength(1)
-  })
-
-  it("pressed while a Download is still running breaks it down once the file lands", async () => {
-    const saved = await saveVideo(user.id, SOURCE, null, false)
-    vi.mocked(download.downloadViralVideo).mockImplementationOnce(async () => {
-      // Somebody presses AI analyse mid-download.
-      const pressed = await saveVideo(user.id, SOURCE, null, true)
-      expect(pressed.status).toBe("downloading")
-      return {
-        bytes: FILE_BYTES,
-        mimeType: "video/mp4",
-        title: "A dare that went viral",
-        channelName: "creator",
-        channelId: null,
-        subscribers: null,
-        durationSeconds: 21,
-        views: null,
-        likes: null,
-        comments: null,
-        postedAt: null,
-      }
-    })
-
-    await viralVideoTick()
-
-    expect((await readRow(saved.id)).status).toBe("ready")
-    expect(gemini.calls).toHaveLength(1)
-  })
-
-  it("turned on from a project counts the breakdown against that project", async () => {
-    const at = now()
-    const { videoViralProjects } = await import("@/server/video/schema")
-    const projectId = uuid()
-    await database.insert(videoViralProjects).values({
-      id: projectId,
-      ownerId: user.id,
-      name: "Dares",
-      createdAt: at,
-      updatedAt: at,
-    })
-    const saved = await saveVideo(user.id, SOURCE, null, false)
-    await saveVideo(user.id, SOURCE, projectId, true)
-
-    expect((await readRow(saved.id)).viralProjectId).toBe(projectId)
+    expect(gemini.calls).toHaveLength(2)
+    expect([...gemini.calls[1].bytes]).toEqual([...FILE_BYTES])
+    expect(gemini.calls[1].mimeType).toBe("video/mp4")
   })
 })
 

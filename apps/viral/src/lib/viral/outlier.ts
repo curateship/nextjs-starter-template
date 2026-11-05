@@ -1,4 +1,4 @@
-import { typical, type ViralOutlier } from "@/lib/viral/viral"
+import { OUTLIER_BADGE_MIN, typical, type ViralOutlier } from "@/lib/viral/viral"
 
 /**
  * The Outlier figure: a video's views against its channel's typical video
@@ -30,4 +30,23 @@ export function outlierFor(
   if (typicalViews === null) return { times: null, typicalViews: null }
   if (video.views === null || typicalViews <= 0) return { times: null, typicalViews }
   return { times: video.views / typicalViews, typicalViews }
+}
+
+/**
+ * A channel's usual views and how often it doubles them, for the creator page:
+ * each recent video is held against the others, the same way the Outlier
+ * figure is, and counts when it reached the badge's bar.
+ */
+export function channelUsual(recentViews: Record<string, number> | undefined): {
+  typicalViews: number | null
+  beatsUsual: { hits: number; of: number } | null
+} {
+  const views = Object.values(recentViews ?? {})
+  if (views.length <= OUTLIER_SAMPLE_MIN) return { typicalViews: typical(views), beatsUsual: null }
+  let hits = 0
+  for (const [id, count] of Object.entries(recentViews ?? {})) {
+    const times = outlierFor({ platformVideoId: id, views: count }, recentViews).times
+    if (times !== null && times >= OUTLIER_BADGE_MIN) hits += 1
+  }
+  return { typicalViews: typical(views), beatsUsual: { hits, of: views.length } }
 }

@@ -15,7 +15,7 @@ import { viralSettings } from "@/server/viral/schema"
 const SETTINGS_ROW_ID = "viral"
 const YOUTUBE_ENV_VAR = "VIRAL_YOUTUBE_API_KEY"
 
-type KeyColumn = "youtubeApiKey" | "videoKey"
+type KeyColumn = "youtubeApiKey" | "videoKey" | "metaToken" | "promoKey"
 
 async function readRow(database: CustomShellDb) {
   const [row] = await database.select().from(viralSettings).where(eq(viralSettings.id, SETTINGS_ROW_ID)).limit(1)
@@ -99,12 +99,20 @@ export async function getVideoKeyStatus(database: CustomShellDb = db): Promise<S
   return statusOf((await readRow(database))?.videoKey)
 }
 
-export function saveVideoApiKey(apiKey: string, database: CustomShellDb = db) {
-  return saveKey("videoKey", apiKey, database)
+/** The person who saved the Video key, the only one Video's calls back may act for, or null. */
+export async function getVideoKeyOwnerId(database: CustomShellDb = db): Promise<string | null> {
+  return (await readRow(database))?.videoKeyOwnerId ?? null
 }
 
-export function removeVideoApiKey(database: CustomShellDb = db) {
-  return removeKey("videoKey", database)
+/** Keeps the key scrambled with the person who saved it, since Video's calls back act for them. */
+export async function saveVideoApiKey(apiKey: string, ownerId: string, database: CustomShellDb = db) {
+  await saveKey("videoKey", apiKey, database)
+  await upsert({ videoKeyOwnerId: ownerId }, database)
+}
+
+export async function removeVideoApiKey(database: CustomShellDb = db) {
+  await removeKey("videoKey", database)
+  await upsert({ videoKeyOwnerId: null }, database)
 }
 
 /** The Video app's address on Settings → Video connection, or "". */
@@ -114,4 +122,57 @@ export async function getVideoUrl(database: CustomShellDb = db): Promise<string>
 
 export function saveVideoUrl(url: string, database: CustomShellDb = db) {
   return upsert({ videoUrl: url }, database)
+}
+
+/** The Meta ad library token on Settings → Meta, for Winning ads, or null. */
+export async function getMetaToken(database: CustomShellDb = db): Promise<string | null> {
+  const row = await readRow(database)
+  return row?.metaToken ? decryptSecret(row.metaToken) : null
+}
+
+export async function getMetaTokenStatus(database: CustomShellDb = db): Promise<SavedKeyStatus> {
+  return statusOf((await readRow(database))?.metaToken)
+}
+
+export function saveMetaToken(token: string, database: CustomShellDb = db) {
+  return saveKey("metaToken", token, database)
+}
+
+export function removeMetaToken(database: CustomShellDb = db) {
+  return removeKey("metaToken", database)
+}
+
+/** The key the Promo app made for Viral on its Settings → Viral, or null (`workspace/docs/promo-connection.md`). */
+export async function getPromoApiKey(database: CustomShellDb = db): Promise<string | null> {
+  const row = await readRow(database)
+  return row?.promoKey ? decryptSecret(row.promoKey) : null
+}
+
+export async function getPromoKeyStatus(database: CustomShellDb = db): Promise<SavedKeyStatus> {
+  return statusOf((await readRow(database))?.promoKey)
+}
+
+/** The person who saved the Promo key, the only one Promo's calls back may act for, or null. */
+export async function getPromoKeyOwnerId(database: CustomShellDb = db): Promise<string | null> {
+  return (await readRow(database))?.promoKeyOwnerId ?? null
+}
+
+/** Keeps the key scrambled with the person who saved it, since Promo's calls back act for them. */
+export async function savePromoApiKey(apiKey: string, ownerId: string, database: CustomShellDb = db) {
+  await saveKey("promoKey", apiKey, database)
+  await upsert({ promoKeyOwnerId: ownerId }, database)
+}
+
+export async function removePromoApiKey(database: CustomShellDb = db) {
+  await removeKey("promoKey", database)
+  await upsert({ promoKeyOwnerId: null }, database)
+}
+
+/** The Promo app's address on Settings → Promo connection, or "". */
+export async function getPromoUrl(database: CustomShellDb = db): Promise<string> {
+  return (await readRow(database))?.promoUrl ?? ""
+}
+
+export function savePromoUrl(url: string, database: CustomShellDb = db) {
+  return upsert({ promoUrl: url }, database)
 }

@@ -33,8 +33,15 @@ check-in is one tap away, and chose to give it to every app from the shell.
   the front page. A signed-out person is sent to sign in as usual.
 - `shortName`: the name under the icon, when the app's name is longer than
   a phone shows (about 12 characters). Unset uses the app's name.
+- `shareTarget`: `{ path }`, a page on this site that a link shared from
+  another app opens. The manifest then carries a `share_target`, and the
+  phone opens `path` with `?url=`, `?text=` and `?title=`, whichever the
+  sharing app filled in. A path that starts with `//` is dropped, so a share
+  can never be sent to another host. Unset leaves the app out of the share
+  menu.
 
-Project opens My dashboard (`/dashboard`).
+Project opens My dashboard (`/dashboard`). Viral names `/admin/share`, its
+Save to Viral page.
 
 ## What it doesn't do
 
@@ -44,6 +51,10 @@ Project opens My dashboard (`/dashboard`).
   the same error a browser would show, except on pages an app keeps with
   `useOfflinePages` (see `offline-pages.md`). Travel keeps its trips.
 - **No app stores.** It is a shortcut to the website.
+- **No share menu on an iPhone.** Only Android's Chrome lists a home-screen
+  app in its share menu. An iPhone never lists a website there, so an app
+  that wants iPhone shares explains an Apple Shortcut that opens its share
+  page instead, as Viral does.
 
 ## Things to know
 
@@ -64,3 +75,7 @@ Project opens My dashboard (`/dashboard`).
 3. On the deployed site, on a phone: Share then "Add to Home Screen" on an
    iPhone, or the menu then "Add to Home screen" on Android. The icon shows the
    logo, and opening it shows the start page with no address bar.
+4. For an app with a share page: the manifest from step 1 has `share_target`
+   with that page as its `action`. On an Android phone, with the app on the
+   home screen, Share in the YouTube app lists it, and picking it opens the
+   page with the video's link.

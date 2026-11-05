@@ -6,6 +6,7 @@ import { VAULT_STATUSES, VAULT_TAG_MAX, VAULT_TAGS_PER_ITEM_MAX, type VaultItem,
 import { adminGet, adminPost } from "@/server/guards"
 import {
   changeVaultItems,
+  copyVaultItem,
   listVault,
   listVaultTags,
   loadVaultItem,
@@ -13,6 +14,7 @@ import {
   updateVaultItem,
   type VaultBulkChange,
   type VaultBulkResult,
+  type VaultCopyResult,
 } from "@/server/viral/vault"
 
 /**
@@ -20,7 +22,7 @@ import {
  * The owner comes from the session, never from the request.
  */
 
-export type { VaultBulkChange, VaultBulkResult, VaultItem }
+export type { VaultBulkChange, VaultBulkResult, VaultCopyResult, VaultItem }
 
 const id = z.string().min(1).max(36)
 
@@ -100,4 +102,14 @@ const bulkFn = createServerFn({ method: "POST" })
 /** Mass select: set a status, add a tag, or delete, in one request. Answers what changed and what was skipped. */
 export function changeVaultItemsFn(itemIds: string[], change: VaultBulkChange) {
   return bulkFn({ data: { itemIds, change } })
+}
+
+const copyFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ itemId: id, projectId: id }))
+  .handler(async ({ data, context }): Promise<VaultCopyResult> => copyVaultItem(context.user.id, data.itemId, data.projectId))
+
+/** Copy to another project: both projects keep the idea, sharing one file. */
+export function copyVaultItemFn(itemId: string, projectId: string) {
+  return copyFn({ data: { itemId, projectId } })
 }

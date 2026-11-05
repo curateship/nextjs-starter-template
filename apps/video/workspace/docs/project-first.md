@@ -13,9 +13,9 @@ panel itself is in `ai-clip.md`.
   with it.
 - **Its look and picked extras,** shared by every video in it.
 - **Each video's own pieces:** the viral video it copies, when it was made with
-  Make this a template (`video_project_videos.source_viral_video_id`), its spend
-  limit and its exports. Deleting the saved viral video blanks the link and the
-  video stays, with the viral video's title kept on it.
+  Make this a template before Viral moved to its own app
+  (`video_project_videos.source_viral_video_id`), its spend limit and its
+  exports.
 
 Actors are shared, because one face is used in many videos. Deleting a project
 never deletes an actor.
@@ -44,37 +44,55 @@ from its header, the arrow showing on hover, and this browser remembers
 which cards were left shut (Tyler, 20 Oct 2026). A shut card opens by itself
 while a field in it is refused, such as an empty name or a spend limit that is
 not a number, so the field the error names is always in view. The New project
-window keeps every card open. A Viral project's settings fold the same way
-(`viral-projects.md`); both use
+window keeps every card open. The cards are
 `src/components/video-assets/settings-fold-card.tsx`.
 
 ## Copy
 
-The Copy panel plays the viral video the open video copies and shows its
-breakdown underneath: How it is built, Shots and What is said (`creator-research.md`).
-Clicking a line jumps the player there. While the video is downloading or
-being read, the panel says so and asks again every 3 seconds. A failed
-download offers Try again.
+The Copy panel plays the viral video the open video copies and shows what
+Gemini made of it underneath (`src/components/video-editor/studio-copy-panel.tsx`).
 
-When the saved video is deleted in Viral, the panel says "The original video,
-<title>, was deleted" instead of the player and breakdown. The title is
-written onto each video that copied it just before the delete
-(`video_project_videos.source_viral_video_title`), because the delete blanks
-the link. The delete window in Viral lists those videos first, so nobody
-deletes a viral video without knowing what copied it. A duplicate carries the
-title too, so its Copy panel says the same.
+- **Which videos copy one.** Only videos made with Make this a template, a
+  button in Video's old Viral section. Viral research moved to its own app on
+  4 Nov 2026 and that section was removed, so no new video starts copying one
+  (Tyler picked "Keep the Copy panel" for the videos that already do).
+- **A video that copies nothing.** The panel says so, and points to the
+  Viral app: press Send to Video there, and the draft arrives with its script
+  and the original on the Media shelf (`viral-connection.md`).
+- **The breakdown.** Three folding sections, each clickable to jump the
+  player there (`src/components/video-editor/breakdown-panel.tsx`). The
+  browser remembers which were left shut.
+  - **How it is built:** the parts of the video's story, such as the hook,
+    with their times and a line on what each part does.
+  - **Shots:** where each new shot starts.
+  - **What is said:** every line spoken and any words written on screen.
+- **Open the original** opens the video where it was posted.
+- **The original was deleted.** When the saved video was deleted, before
+  the Viral section went, the panel says "The original video, <title>, was
+  deleted" instead. The title was written onto each copying video at the
+  delete (`video_project_videos.source_viral_video_title`). A duplicate carries
+  it too.
 
-A video starts copying a viral video from **Make this a template** under a
-video in a Viral project or a favourites collection. It asks whether the new
-video goes into a new project, named after the viral video, or one of your
-projects, then opens it with the Copy panel showing. Made from a Viral project,
-it remembers that project, and the Copy panel's Open Viral goes back to it with
-the video playing (`viral-projects.md`). Pressing it twice makes two videos on
-one saved viral video, so it downloads once. A video made from scratch copies
-nothing, and the panel says where to find one.
+### The worker behind it
 
-Flow, the six steps that copy a viral video, is planned to live in this panel
-rather than on a dashboard of its own (`workspace/tasks/flow/`).
+A saved viral video is a row of `video_viral_videos`, and its status is the
+job (`src/server/video/viral/saved-videos.ts`, worker `video-viral-breakdown`).
+
+1. yt-dlp downloads it, capped at `VIDEO_MAX_DOWNLOAD_BYTES` (100MB by
+   default), and keeps the title, channel, length and counts it reports.
+2. The file goes in the media library, and ffmpeg takes a cover frame.
+3. A row that wants no analysis stops at `downloaded`.
+4. Otherwise Gemini watches the file and writes the breakdown, metered as
+   `viral_breakdown`.
+
+- **Try again.** A failed row shows its reason and a Try again button. Try
+  again on a breakdown that failed after the download landed reads the stored
+  file, so it is never downloaded twice.
+- **Closing the browser stops nothing.** A row left half done by a restart
+  goes back in the queue once its claim runs out.
+- **While it works** the panel says what it is doing and asks again every 3
+  seconds.
+- **The file stays** while a saved video points at it (`media-in-use.ts`).
 
 ## Exports
 

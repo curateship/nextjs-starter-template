@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm"
 import {
   bigint,
   boolean,
+  date,
   check,
   index,
   integer,
@@ -14,9 +15,11 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
-import type { Social } from "@/lib/viral/socials"
+import type { Social, TextSocial, WatchKind } from "@/lib/viral/socials"
 import type { AnalysisPieces } from "@/lib/viral/analysis"
 import type { VaultStatus, VaultStats } from "@/lib/viral/vault"
+import type { PromoPostNetwork, PromoReadKind, PromoReadNetwork, PromoReadStatus, PromoSendStatus, SocialPostReply } from "@/lib/viral/promo-link"
+import type { FormatPart } from "@/lib/viral/formats"
 import { customShellMedia, customShellUsers } from "@/server/schema"
 
 /**
@@ -111,6 +114,9 @@ export const viralCreatorPosts = pgTable(
     thumbnailStoragePath: text("thumbnail_storage_path"),
     /** When the app last tried to keep a copy of the cover. */
     coverCheckedAt: timestamp("cover_checked_at", { withTimezone: true }),
+    /** The TikTok sound under the post, such as "original sound", and who made it (0101). */
+    soundName: text("sound_name"),
+    soundArtist: text("sound_artist"),
   },
   (table) => [
     // The same video seen twice (two projects, a second tick) updates this row
@@ -198,6 +204,8 @@ export const viralVideos = pgTable(
       () => viralProjects.id,
       { onDelete: "set null" }
     ),
+    /** When its right panel last opened it, so Storage clean-up can find copies nobody opens (0103). */
+    lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -483,6 +491,15 @@ export const viralSettings = pgTable("viral_settings", {
   /** The Video app's address, as Viral keeps it: no query, no trailing slash. */
   videoUrl: text("video_url").notNull().default(""),
   videoKey: text("video_key"),
+  /** Who saved the Video key: Video's calls back only touch their sends and files (0106). */
+  videoKeyOwnerId: varchar("video_key_owner_id", { length: 36 }).references(() => customShellUsers.id, { onDelete: "set null" }),
+  /** The Promo app's address and key (Settings → Promo connection), added by `drizzle/0102_viral_promo_link.sql`. */
+  promoUrl: text("promo_url").notNull().default(""),
+  promoKey: text("promo_key"),
+  /** Who saved the Promo key: Promo's calls back only touch their reads and ideas (0105). */
+  promoKeyOwnerId: varchar("promo_key_owner_id", { length: 36 }).references(() => customShellUsers.id, { onDelete: "set null" }),
+  /** The Meta ad library token on Settings → Meta, for Winning ads (0103). */
+  metaToken: text("meta_token"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
@@ -697,3 +714,337 @@ export const viralSampleMade = pgTable("viral_sample_made", {
     .references(() => customShellUsers.id, { onDelete: "cascade" }),
   madeAt: timestamp("made_at", { withTimezone: true }).notNull(),
 })
+
+/**
+ * One views figure per video per day (drizzle/0101_viral_finding.sql), written
+ * whenever a search or a creator read sees the video. Rising fast compares the
+ * last two days (`workspace/docs/sorts-and-score.md`). Views are public
+ * numbers, so the rows belong to the video, not to a person.
+ */
+export const viralViewHistory = pgTable(
+  "viral_view_history",
+  {
+    platform: varchar("platform", { length: 20 }).notNull(),
+    platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
+    day: date("day").notNull(),
+    views: bigint("views", { mode: "number" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.platform, table.platformVideoId, table.day] })]
+)
+
+/** Who has opened which video, so New clears for that person alone (Tyler: "Opening that video"). */
+export const viralSeenVideos = pgTable(
+  "viral_seen_videos",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    platform: varchar("platform", { length: 20 }).notNull(),
+    platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
+    seenAt: timestamp("seen_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.platform, table.platformVideoId] })]
+)
+
+/**
+ * A video's 20 most-liked comments, kept for a day so opening it again costs
+ * no YouTube unit. `disabled` means the channel switched comments off.
+ */
+export const viralVideoComments = pgTable(
+  "viral_video_comments",
+  {
+    platform: varchar("platform", { length: 20 }).notNull(),
+    platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
+    comments: jsonb("comments").$type<ViralCommentRow[]>().notNull().default([]),
+    disabled: boolean("disabled").notNull().default(false),
+    readAt: timestamp("read_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.platform, table.platformVideoId] })]
+)
+
+export type ViralCommentRow = { author: string; text: string; likes: number; postedAt: string | null }
+
+/** The last "same idea, other creators" search for one video in one project. */
+export const viralSameIdea = pgTable(
+  "viral_same_idea",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => viralProjects.id, { onDelete: "cascade" }),
+    platform: varchar("platform", { length: 20 }).notNull(),
+    platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
+    searchLine: text("search_line").notNull(),
+    results: jsonb("results").$type<ViralSameIdeaResultRow[]>().notNull().default([]),
+    units: integer("units").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_viral_same_idea_project_video").on(table.projectId, table.platform, table.platformVideoId),
+  ]
+)
+
+/** One video a "same idea" search found, as YouTube described it. */
+export type ViralSameIdeaResultRow = {
+  platformVideoId: string
+  url: string
+  title: string
+  channelId: string
+  channelName: string
+  subscribers: number | null
+  views: number
+  likes: number | null
+  comments: number | null
+  postedAt: string
+  durationSeconds: number
+  thumbnailUrl: string | null
+}
+
+/**
+ * A winning structure saved from an analysis (drizzle/0103, Library →
+ * Formats): each part's role, rough length and what it does. Formats belong
+ * to the person, so one saved in one project writes scripts in all of them.
+ */
+export const viralFormats = pgTable(
+  "viral_formats",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    parts: jsonb("parts").$type<FormatPart[]>().notNull(),
+    /** The title of the video it was saved from, when there was one. */
+    sourceTitle: text("source_title"),
+    isSample: boolean("is_sample").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_viral_formats_owner").on(table.ownerId, table.createdAt)]
+)
+
+/** One script written from a format, for one idea line. */
+export const viralFormatScripts = pgTable(
+  "viral_format_scripts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    formatId: varchar("format_id", { length: 36 })
+      .notNull()
+      .references(() => viralFormats.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 }).references(() => viralProjects.id, { onDelete: "set null" }),
+    idea: text("idea").notNull(),
+    script: jsonb("script").$type<AnalysisPieces["script"]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_viral_format_scripts_format").on(table.formatId, table.createdAt)]
+)
+
+/** The person's own tags on a hook in the Library, from the same list as the vault's. */
+export const viralHookTags = pgTable(
+  "viral_hook_tags",
+  {
+    savedVideoId: varchar("saved_video_id", { length: 36 })
+      .notNull()
+      .references(() => viralVideos.id, { onDelete: "cascade" }),
+    tagId: varchar("tag_id", { length: 36 })
+      .notNull()
+      .references(() => viralTags.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.savedVideoId, table.tagId] }), index("ix_viral_hook_tags_tag").on(table.tagId)]
+)
+
+/**
+ * One project's last Winning ads search: ads from Meta's ad library that
+ * match its keywords and have run 30 days or more (`workspace/docs/winning-ads.md`).
+ */
+export const viralAds = pgTable(
+  "viral_ads",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => viralProjects.id, { onDelete: "cascade" }),
+    adArchiveId: varchar("ad_archive_id", { length: 64 }).notNull(),
+    pageName: text("page_name").notNull().default(""),
+    body: text("body").notNull().default(""),
+    title: text("title").notNull().default(""),
+    keyword: text("keyword").notNull().default(""),
+    platforms: jsonb("platforms").$type<string[]>().notNull().default([]),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    foundAt: timestamp("found_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [uniqueIndex("ux_viral_ads_project_ad").on(table.projectId, table.adArchiveId)]
+)
+
+/** When a project's Winning ads were last searched, and why it failed if it did. */
+export const viralAdRuns = pgTable("viral_ad_runs", {
+  projectId: varchar("project_id", { length: 36 })
+    .primaryKey()
+    .references(() => viralProjects.id, { onDelete: "cascade" }),
+  searchedAt: timestamp("searched_at", { withTimezone: true }).notNull(),
+  error: text("error"),
+})
+
+export type ViralFormatRow = typeof viralFormats.$inferSelect
+export type ViralAdRow = typeof viralAds.$inferSelect
+
+/**
+ * The link with the Promo app (`workspace/docs/promo-connection.md`), made by
+ * `drizzle/0102_viral_promo_link.sql`: the reads Viral asks Promo for, the
+ * posts they found, the posts Viral writes for Promo, and your own posts of
+ * an idea as Promo reported them.
+ */
+export const viralPromoReads = pgTable(
+  "viral_promo_reads",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => viralProjects.id, { onDelete: "cascade" }),
+    network: varchar("network", { length: 20 }).$type<PromoReadNetwork>().notNull(),
+    kind: varchar("kind", { length: 20 }).$type<PromoReadKind>().notNull(),
+    value: varchar("value", { length: 300 }).notNull(),
+    status: varchar("status", { length: 10 }).$type<PromoReadStatus>().notNull().default("waiting"),
+    error: text("error").notNull().default(""),
+    found: integer("found").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("ck_viral_promo_reads_status", sql`${table.status} in ('waiting', 'done', 'failed')`),
+    index("ix_viral_promo_reads_project").on(table.projectId, table.createdAt),
+    index("ix_viral_promo_reads_watch").on(table.projectId, table.network, table.kind, table.value, table.createdAt),
+  ]
+)
+
+export const viralSocialPosts = pgTable(
+  "viral_social_posts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => viralProjects.id, { onDelete: "cascade" }),
+    readId: varchar("read_id", { length: 36 }).references(() => viralPromoReads.id, { onDelete: "set null" }),
+    network: varchar("network", { length: 20 }).$type<PromoReadNetwork>().notNull(),
+    postId: varchar("post_id", { length: 40 }).notNull(),
+    url: varchar("url", { length: 300 }).notNull(),
+    title: text("title").notNull().default(""),
+    text: text("text").notNull().default(""),
+    authorHandle: varchar("author_handle", { length: 60 }).notNull().default(""),
+    authorName: varchar("author_name", { length: 200 }).notNull().default(""),
+    authorFollowers: bigint("author_followers", { mode: "number" }),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    views: bigint("views", { mode: "number" }),
+    likes: bigint("likes", { mode: "number" }),
+    replies: bigint("replies", { mode: "number" }),
+    reposts: bigint("reposts", { mode: "number" }),
+    link: text("link").notNull().default(""),
+    community: varchar("community", { length: 60 }).notNull().default(""),
+    topReplies: jsonb("top_replies").$type<SocialPostReply[]>().notNull().default([]),
+    repliesReadAt: timestamp("replies_read_at", { withTimezone: true }),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_viral_social_posts_project_post").on(table.projectId, table.network, table.postId),
+    index("ix_viral_social_posts_owner").on(table.ownerId, table.network),
+  ]
+)
+
+export const viralPromoSends = pgTable(
+  "viral_promo_sends",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    vaultItemId: varchar("vault_item_id", { length: 36 })
+      .notNull()
+      .references(() => viralVaultItems.id, { onDelete: "cascade" }),
+    network: varchar("network", { length: 20 }).$type<PromoPostNetwork>().notNull(),
+    promoProjectId: varchar("promo_project_id", { length: 36 }),
+    title: text("title").notNull().default(""),
+    pieces: jsonb("pieces").$type<string[]>().notNull().default([]),
+    status: varchar("status", { length: 10 }).$type<PromoSendStatus>().notNull().default("written"),
+    draftUrl: text("draft_url"),
+    error: text("error").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("ck_viral_promo_sends_status", sql`${table.status} in ('written', 'sent', 'failed')`),
+    index("ix_viral_promo_sends_item").on(table.vaultItemId, table.createdAt),
+  ]
+)
+
+export const viralVaultPosts = pgTable(
+  "viral_vault_posts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    vaultItemId: varchar("vault_item_id", { length: 36 })
+      .notNull()
+      .references(() => viralVaultItems.id, { onDelete: "cascade" }),
+    postKey: varchar("post_key", { length: 60 }).notNull(),
+    network: varchar("network", { length: 20 }).notNull(),
+    url: text("url").notNull(),
+    views: bigint("views", { mode: "number" }),
+    likes: bigint("likes", { mode: "number" }),
+    comments: bigint("comments", { mode: "number" }),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    figuresAt: timestamp("figures_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_viral_vault_posts_key").on(table.ownerId, table.postKey),
+    index("ix_viral_vault_posts_item").on(table.vaultItemId),
+  ]
+)
+
+/**
+ * What a project keeps reading on X, Reddit and LinkedIn through Promo
+ * (`workspace/docs/projects-and-socials.md`). A watch's state is its newest
+ * read in `viral_promo_reads` with the same network, kind and value.
+ */
+export const viralSocialWatches = pgTable(
+  "viral_social_watches",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => viralProjects.id, { onDelete: "cascade" }),
+    network: varchar("network", { length: 20 }).$type<TextSocial>().notNull(),
+    kind: varchar("kind", { length: 20 }).$type<WatchKind>().notNull(),
+    value: varchar("value", { length: 300 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_viral_social_watches_value").on(table.projectId, table.network, table.kind, sql`lower(${table.value})`),
+  ]
+)
+
+export type ViralSocialWatchRow = typeof viralSocialWatches.$inferSelect
+
+export type ViralPromoReadRow = typeof viralPromoReads.$inferSelect
+export type ViralSocialPostRow = typeof viralSocialPosts.$inferSelect
+export type ViralPromoSendRow = typeof viralPromoSends.$inferSelect

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { z } from "zod"
 
-import { isVideoCaller } from "@/server/viral/video-link"
+import { readCallBody, videoCallerOwnerId } from "@/server/viral/video-link"
 import { applyVideoEvent } from "@/server/viral/video-sends"
 
 const eventShape = z.discriminatedUnion("type", [
@@ -25,17 +25,19 @@ export const Route = createFileRoute("/api/connect/video/events")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        if (!(await isVideoCaller(request))) {
+        const ownerId = await videoCallerOwnerId(request)
+        if (!ownerId) {
           return Response.json({ error: "Viral does not know this key." }, { status: 401, headers: NEVER_CACHE })
         }
-        if (Number(request.headers.get("content-length") ?? 0) > 20_000) {
+        const read = await readCallBody(request, 20_000)
+        if (read.tooLarge) {
           return Response.json({ error: "This message is too large." }, { status: 413, headers: NEVER_CACHE })
         }
-        const parsed = eventShape.safeParse(await request.json().catch(() => null))
+        const parsed = eventShape.safeParse(read.body)
         if (!parsed.success) {
           return Response.json({ error: "This message is not in a shape Viral knows." }, { status: 400, headers: NEVER_CACHE })
         }
-        return Response.json(await applyVideoEvent(parsed.data), { headers: NEVER_CACHE })
+        return Response.json(await applyVideoEvent(ownerId, parsed.data), { headers: NEVER_CACHE })
       },
     },
   },

@@ -21,6 +21,7 @@ import { ringRecheckBell } from "@/server/viral/daily-checks"
 import { matchTopics } from "@/server/viral/topic-match"
 import { requireOwnedViralProject } from "@/server/viral/projects"
 import { scoreVideos } from "@/server/viral/project-view"
+import { recordViews } from "@/server/viral/view-history"
 import {
   searchYoutubeVideos,
   type YoutubeVideo,
@@ -306,6 +307,12 @@ async function runSearch(job: ClaimedKeyword): Promise<void> {
       })
       .where(eq(viralProjects.id, project.id))
   })
+  // Today's views figure for each video, for Rising fast. The search already
+  // carried the numbers, so this costs no unit.
+  await recordViews(
+    [...found.values()].map((video) => ({ platform: "youtube", platformVideoId: video.id, views: video.views })),
+    at
+  ).catch((error) => console.error("The views figures were not kept", error))
   // Each channel's typical views, for the Outlier sort. A figure kept from
   // the last week is reused, so searching the same keyword again costs
   // nothing more here.

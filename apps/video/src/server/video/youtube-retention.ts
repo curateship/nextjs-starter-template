@@ -17,7 +17,6 @@ import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { getOwnedExport } from "@/server/video/exports"
 import { videoExportYoutube, videoProjectVideos, videoSettings } from "@/server/video/schema"
-import { parseIsoDuration } from "@/server/video/viral/youtube"
 import { youtubeAccess, youtubeJson } from "@/server/video/youtube-oauth"
 
 /**
@@ -32,6 +31,18 @@ import { youtubeAccess, youtubeJson } from "@/server/video/youtube-oauth"
  * export with the time they were read. Opening the export again reads them
  * from the database and asks YouTube nothing; only Refresh asks again.
  */
+
+/** "PT2M41S" → 161 seconds. Null when the string is not a duration. */
+export function parseIsoDuration(value: string | undefined): number | null {
+  if (!value) return null
+  const match = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(value)
+  if (!match || (!match[1] && !match[2] && !match[3])) return null
+  return (
+    Number(match[1] ?? 0) * 3600 +
+    Number(match[2] ?? 0) * 60 +
+    Number(match[3] ?? 0)
+  )
+}
 
 const ANALYTICS_REPORTS = "https://youtubeanalytics.googleapis.com/v2/reports"
 const DATA_API = "https://www.googleapis.com/youtube/v3"

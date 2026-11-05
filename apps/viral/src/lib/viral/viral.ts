@@ -7,6 +7,7 @@
  */
 
 import type { CreatorPlatform } from "./creators"
+import type { ViralGrowth } from "./rising"
 import type { Social } from "./socials"
 import type { HookLine } from "./viral-breakdown"
 import type { ViralScore } from "./viral-score"
@@ -136,6 +137,25 @@ export type ViralVideo = {
   vaultItemId: string | null
   /** Analyse with AI has written about it at least once. */
   analysed: boolean
+  /** This person has opened it before, so New is cleared and it looks dimmer. */
+  seen: boolean
+  /** Views since the day before (`src/lib/viral/rising.ts`). */
+  growth: ViralGrowth
+  /** The TikTok sound under it, when the reader said. */
+  sound: ViralSound | null
+}
+
+/** A TikTok sound, such as "original sound" by tiff. */
+export type ViralSound = { name: string; artist: string | null }
+
+/** One sound, the same however its name was spelled in capitals. */
+export function soundKey(sound: ViralSound): string {
+  return `${sound.name.trim().toLowerCase()}|${(sound.artist ?? "").trim().toLowerCase()}`
+}
+
+/** "original sound · tiff" */
+export function soundLabel(sound: ViralSound): string {
+  return sound.artist ? `${sound.name} · ${sound.artist}` : sound.name
 }
 
 export type ViralOutlier = { times: number | null; typicalViews: number | null }
@@ -176,6 +196,21 @@ export type ViralCreator = {
   profileUrl: string
   /** Videos a week over the last four weeks, or null with too few posts. */
   postsPerWeek: number | null
+  /** The middle of their recent videos' views, or null with too few to say. */
+  typicalViews: number | null
+  /**
+   * How many of their recent videos got at least twice their usual views, the
+   * Outlier badge's bar, out of how many. Null with too few videos to say.
+   */
+  beatsUsual: { hits: number; of: number } | null
+}
+
+/** "Beats its usual 1 time in 3", or null with nothing to say. */
+export function beatsUsualLine(beats: ViralCreator["beatsUsual"]): string | null {
+  if (!beats || beats.of === 0) return null
+  if (beats.hits === 0) return `None of their last ${beats.of} videos doubled their usual`
+  const every = Math.round(beats.of / beats.hits)
+  return every <= 1 ? "Every recent video doubles their usual" : `Doubles their usual 1 time in ${every}`
 }
 
 export type ViralProjectFilters = {

@@ -455,9 +455,9 @@ describe("the sample project", () => {
     expect(screen.videos.every((video) => video.sample)).toBe(true)
     expect(screen.creators.length).toBeGreaterThan(0)
     expect(screen.creators.every((creator) => creator.profileUrl === "")).toBe(true)
-    // Every panel has something: an analysed video and two ideas in the vault.
-    expect(sample.vault_count).toBe(2)
-    expect(sample.socials).toEqual(["youtube"])
+    // Every panel has something: an analysed video and three ideas in the vault, one per board column but Sent.
+    expect(sample.vault_count).toBe(3)
+    expect(sample.socials).toEqual(["youtube", "x", "reddit"])
     expect(screen.videos.find((video) => video.platformVideoId === "sample-1")?.savedStatus).toBe("ready")
     expect(await database.select().from(viralAnalyses)).toHaveLength(1)
   })
@@ -480,7 +480,7 @@ describe("the sample project", () => {
     const second = await createSampleViralProject(user.id)
     await deleteViralProjects(user.id, [first.id, second.id])
     const third = await createSampleViralProject(user.id)
-    expect(third.vault_count).toBe(2)
+    expect(third.vault_count).toBe(3)
     const screen = await loadViralProjectScreen(user.id, third.id)
     expect(screen.videos.find((video) => video.platformVideoId === "sample-1")?.savedStatus).toBe("ready")
     expect(await database.select().from(viralVideos)).toHaveLength(1)

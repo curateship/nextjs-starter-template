@@ -19,6 +19,7 @@ import {
   pasteVideoLink,
   type PastedLink,
 } from "@/server/viral/pasted-links"
+import { markSavedVideoOpened } from "@/server/viral/storage"
 import {
   deleteSavedVideos,
   savedVideoDeleteSummary,
@@ -164,10 +165,12 @@ export function deleteSavedVideosFn(ids: string[]) {
 const readFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(z.object({ id: videoId }))
-  .handler(
-    async ({ data, context }): Promise<SavedVideoDetail> =>
-      loadSavedVideo(context.user.id, data.id)
-  )
+  .handler(async ({ data, context }): Promise<SavedVideoDetail> => {
+    const detail = await loadSavedVideo(context.user.id, data.id)
+    // Opening it on the right panel keeps its copy out of Storage clean-up for another 30 days.
+    await markSavedVideoOpened(context.user.id, data.id)
+    return detail
+  })
 
 /** The saved video's state, player address and breakdown. */
 export function loadSavedVideoDetail(id: string) {

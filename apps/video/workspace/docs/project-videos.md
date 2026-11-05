@@ -117,13 +117,6 @@ The Carousels tab in the carousel editor is the same panel, `PiecesPanel`
   plus the look, extras and first frames.
 - **Delete:** says how many videos go, then everything else as before.
 
-## Make this a template
-
-Pressed under a viral video, it asks where the new video goes: "A new project"
-or one of your projects. It then opens that video with the Copy panel showing
-(`?panel=copy`). Each video copies its own viral video, so one project can copy
-many.
-
 ## Another language and kept work
 
 - **A language copy** is a new video in the same project, named "My Short

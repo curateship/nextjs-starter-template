@@ -1,6 +1,8 @@
 import { readDirection, readOneOf, readSearchText } from "@/lib/nav/list-search"
 import type { SavedViewValues } from "@/lib/saved-views"
+import { formatCount } from "@/lib/viral/creators"
 import {
+  readSubscriberStep,
   VIRAL_FIT_CHOICES,
   VIRAL_SORTS,
   VIRAL_SOURCES,
@@ -14,8 +16,8 @@ import {
 /**
  * Saved views on a Viral project's middle panel (`viral-project:<id>` in the
  * shell's saved views). A view keeps the same values the address does: the
- * search, where the videos come from, how well they fit, the keyword, and the
- * sort. The defaults (every source, any fit, sorted by score, highest first)
+ * search, where the videos come from, how well they fit, the keyword, the
+ * creators' size, and the sort. The defaults (every source, any fit, sorted by score, highest first)
  * stay out, as they do in the address.
  */
 
@@ -24,6 +26,9 @@ export type ViralViewFilters = {
   from?: Exclude<ViralSource, "both">
   fit?: Exclude<ViralFit, 0>
   keyword?: string
+  /** Followers from and up to, steps of `SUBSCRIBER_STEPS`. */
+  fmin?: number
+  fmax?: number
   sort?: Exclude<ViralSort, "score">
   direction?: "asc"
 }
@@ -41,6 +46,10 @@ export function viralViewFilters(values: SavedViewValues): ViralViewFilters {
   if ((VIRAL_FIT_CHOICES as readonly number[]).includes(fit) && fit > 0) kept.fit = fit as Exclude<ViralFit, 0>
   const keyword = readSearchText(values.keyword)?.trim()
   if (keyword) kept.keyword = keyword
+  const fmin = readSubscriberStep(values.fmin)
+  if (fmin !== null) kept.fmin = fmin
+  const fmax = readSubscriberStep(values.fmax)
+  if (fmax !== null) kept.fmax = fmax
   const sort = readOneOf(values.sort, VIRAL_SORTS)
   if (sort && sort !== "score") kept.sort = sort
   if (readDirection(values.direction) === "asc") kept.direction = "asc"
@@ -54,10 +63,19 @@ export function describeViralView(filters: ViralViewFilters) {
   if (filters.from) parts.push(viralSourceLabels[filters.from])
   if (filters.fit) parts.push(`Fits ${filters.fit} or more`)
   if (filters.keyword) parts.push(`Keyword: ${filters.keyword}`)
+  const followers = describeFollowers(filters.fmin ?? null, filters.fmax ?? null)
+  if (followers) parts.push(followers)
   if (filters.sort || filters.direction) {
     parts.push(
       `Sort: ${viralSortLabels[filters.sort ?? "score"]}${filters.direction === "asc" ? ", lowest first" : ""}`
     )
   }
   return parts.join(" · ")
+}
+
+/** "Followers: 10k to 50k", "Followers: up to 50k", or null with no range. */
+export function describeFollowers(min: number | null, max: number | null): string | null {
+  if (min === null && max === null) return null
+  if (min !== null && max !== null) return `Followers: ${formatCount(min)} to ${formatCount(max)}`
+  return min !== null ? `Followers: ${formatCount(min)} or more` : `Followers: up to ${formatCount(max)}`
 }

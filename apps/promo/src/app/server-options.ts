@@ -213,6 +213,21 @@ export const appServerOptions: AppServerOptions = {
         },
       },
       {
+        name: "promo-viral",
+        /**
+         * The link with the Viral app (`src/server/viral-link/`): a read
+         * whose job failed is told to Viral, an answer Viral missed is sent
+         * again, and posts made from Viral's ideas are reported back, at most
+         * every ten minutes.
+         */
+        tick: async () => {
+          const { sweepViralReads } = await import("@/server/viral-link/reads")
+          await sweepViralReads()
+          const { reportAllViralPosts } = await import("@/server/viral-link/reports")
+          await reportAllViralPosts()
+        },
+      },
+      {
         name: "promo-browser-reaper",
         /**
          * Shuts down a browser nobody has used for an hour, marks one whose

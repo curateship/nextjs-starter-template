@@ -3,7 +3,6 @@ import { and, desc, eq, sql } from "drizzle-orm"
 import {
   projectSpendLimitMessage,
   projectSpendToolLabel,
-  type SpendSubject,
   type VideoSpend,
 } from "@/lib/video/project-spend"
 import { db, type CustomShellDb } from "@/server/db"
@@ -36,16 +35,7 @@ export function videoSpendMetadata(
   return { projectId: video.projectId, videoId: video.id }
 }
 
-/**
- * What a Viral project's AI calls carry. A different key from an editor
- * project's, because the two kinds of project are different tables and an id
- * must never be read as the other kind.
- */
-export function viralProjectSpendMetadata(viralProjectId: string) {
-  return { viralProjectId }
-}
-
-type SpendKey = "projectId" | "videoId" | "viralProjectId"
+type SpendKey = "projectId" | "videoId"
 
 async function spentByTool(
   userId: string,
@@ -121,39 +111,16 @@ export async function requireVideoBudget(
     await spentByTool(userId, video.id, database, "videoId"),
     video.spendLimitCents,
     nextCents,
-    generatingCents,
-    "video"
+    generatingCents
   )
   return video
-}
-
-/**
- * Refuses a Viral project's AI call that would pass its limit. The caller has
- * already proven the project is theirs and read its limit.
- */
-export async function requireViralProjectBudget(
-  ownerId: string,
-  viralProjectId: string,
-  limitCents: number | null,
-  nextCents: number,
-  database: CustomShellDb = db
-) {
-  if (limitCents === null) return
-  await refuseOverLimit(
-    await spentByTool(ownerId, viralProjectId, database, "viralProjectId"),
-    limitCents,
-    nextCents,
-    0,
-    "project"
-  )
 }
 
 async function refuseOverLimit(
   rows: { cents: number }[],
   limitCents: number | null,
   nextCents: number,
-  generatingCents: number,
-  subject: SpendSubject
+  generatingCents: number
 ) {
   if (limitCents === null) return
   const spentCents = rows.reduce((sum, row) => sum + row.cents, 0)
@@ -163,7 +130,7 @@ async function refuseOverLimit(
       : spentCents >= limitCents
   if (over) {
     throw new Error(
-      projectSpendLimitMessage({ spentCents, generatingCents, nextCents, limitCents, subject })
+      projectSpendLimitMessage({ spentCents, generatingCents, nextCents, limitCents })
     )
   }
 }

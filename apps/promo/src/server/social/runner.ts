@@ -74,6 +74,7 @@ import { settleFailedMediumJob } from "./medium/settle"
 import { ringBell } from "./notices"
 import { xQuickState, xState } from "./x/calls"
 import { runXAccountJob, runXSearcherJob, saveXSignIn, X_ACCOUNT_KINDS, X_PHONE_KINDS } from "./x/run"
+import { runViralRedditRead } from "@/server/viral-link/reads"
 import { handlePosts, saveSearcherHandle, searcherForLane, stopSearcher, utcDay, type PickedSearcher } from "./x/searchers"
 import { settleFailedXJob } from "./x/settle"
 import { linkedinQuickState, linkedinState } from "./linkedin/calls"
@@ -627,6 +628,8 @@ async function runReaderJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
       await readPromoThreads(job.userId, job.payload, session.target, db)
     } else if (job.kind === "comment_link") {
       await findCommentLink(job.userId, job.payload, session.target, db)
+    } else if (job.kind === "viral_read") {
+      await runViralRedditRead(job, session.target, db)
     } else {
       throw new Error(`There is no job kind called "${job.kind}".`)
     }

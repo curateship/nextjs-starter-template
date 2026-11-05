@@ -36,6 +36,9 @@ function video(id: string, overrides: Partial<ViralVideo> = {}): ViralVideo {
     outlier: { times: null, typicalViews: null },
     vaultItemId: null,
     analysed: false,
+    seen: false,
+    growth: { times: null, gained: null },
+    sound: null,
     ...merged,
     score: scoreViralVideo({
       views: merged.views,
@@ -113,6 +116,8 @@ describe("creators", () => {
     avatarUrl: null,
     profileUrl: "",
     postsPerWeek: null,
+    typicalViews: null,
+    beatsUsual: null,
   })
 
   it("keeps only creators inside the subscriber range", () => {
@@ -173,6 +178,7 @@ describe("the eleven sorts on 20 videos", () => {
     likes: (one) => one.likes ?? -1,
     comments: (one) => one.comments ?? -1,
     length: (one) => one.durationSeconds ?? -1,
+    rising: (one) => one.growth.times ?? -1,
   }
 
   for (const sort of VIRAL_SORTS) {
@@ -195,5 +201,23 @@ describe("the eleven sorts on 20 videos", () => {
     expect(viewsPerFollower({ views: 1_000, subscribers: null })).toBeNull()
     expect(engagementPer100({ views: 10_000, likes: 450, comments: 50 })).toBe(5)
     expect(engagementPer100({ views: 10_000, likes: null, comments: null })).toBeNull()
+  })
+})
+
+describe("small creators, big hits", () => {
+  const sized = [
+    video("small", { subscribers: 30_000, views: 1_000_000 }),
+    video("big", { subscribers: 2_000_000, views: 1_000_000 }),
+    video("hidden", { subscribers: null, views: 1_000_000 }),
+  ]
+  const base = { minViews: 0, minScore: 0, source: "both" as const, keyword: null, text: "", minFit: 0 }
+
+  it("keeps creators under 50,000 followers and leaves out the rest and the hidden counts", () => {
+    const kept = filterVideos(sized, { ...base, followers: { min: null, max: 50_000 } })
+    expect(kept.map((one) => one.platformVideoId)).toEqual(["small"])
+  })
+
+  it("keeps every video with no range set", () => {
+    expect(filterVideos(sized, { ...base, followers: { min: null, max: null } })).toHaveLength(3)
   })
 })
