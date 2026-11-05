@@ -154,6 +154,8 @@ import {
 } from "@/lib/api/media/media"
 import { attachEditorMedia, listVideoMedia } from "@/lib/api/video/media"
 import { CarouselsPanel } from "@/components/carousel-studio/carousels-panel"
+import { AdSlideMenu } from "@/components/carousel-studio/ad-slide-menu"
+import type { ShelfAd } from "@/lib/api/video/ads"
 import { LayersPanelBody } from "@/components/carousel-studio/layers-panel"
 import type { CarouselProjectItem } from "@/lib/api/video/carousel-projects"
 import {
@@ -275,6 +277,8 @@ export type BuilderAction =
     }
   | { type: "COMMIT_HISTORY"; before: Snapshot }
   | { type: "ADD_SLIDE" }
+  // An ad from the ads shelf as the last slide (workspace/docs/ads.md).
+  | { type: "ADD_AD_SLIDE"; slide: CarouselSlide }
   | { type: "DUPLICATE_SLIDE"; slideId: string }
   | { type: "DELETE_SLIDE"; slideId: string }
   | { type: "MOVE_SLIDE"; slideId: string; toIndex: number }
@@ -870,6 +874,10 @@ export function CarouselBuilderPage({
     dispatch({ type: "ADD_SLIDE" })
   }
 
+  function addAdSlide(ad: ShelfAd) {
+    dispatch({ type: "ADD_AD_SLIDE", slide: createAdSlide(ad) })
+  }
+
   function duplicateSlide(slideId: string) {
     if (state.slides.length >= 20) {
       showErrorToast("A carousel can have at most 20 slides.")
@@ -1041,6 +1049,7 @@ export function CarouselBuilderPage({
             dispatch({ type: "SELECT_SLIDE", slideId })
           }
           onAddSlide={addSlide}
+          onAddAdSlide={addAdSlide}
           onDuplicateSlide={duplicateSlide}
           onDeleteSlide={(slideId) =>
             dispatch({ type: "DELETE_SLIDE", slideId })
@@ -1517,6 +1526,7 @@ function CarouselContextPanel({
   selectedSlideId,
   onSelectSlide,
   onAddSlide,
+  onAddAdSlide,
   onDuplicateSlide,
   onDeleteSlide,
   onMoveSlide,
@@ -1537,6 +1547,7 @@ function CarouselContextPanel({
   selectedSlideId: string
   onSelectSlide: (slideId: string) => void
   onAddSlide: () => void
+  onAddAdSlide: (ad: ShelfAd) => void
   onDuplicateSlide: (slideId: string) => void
   onDeleteSlide: (slideId: string) => void
   onMoveSlide: (slideId: string, toIndex: number) => void
@@ -1590,6 +1601,7 @@ function CarouselContextPanel({
               selectedSlideId={selectedSlideId}
               onSelectSlide={onSelectSlide}
               onAddSlide={onAddSlide}
+              onAddAdSlide={onAddAdSlide}
               onDuplicateSlide={onDuplicateSlide}
               onDeleteSlide={onDeleteSlide}
               onMoveSlide={onMoveSlide}
@@ -1680,6 +1692,7 @@ function SlidesPanelBody({
   selectedSlideId,
   onSelectSlide,
   onAddSlide,
+  onAddAdSlide,
   onDuplicateSlide,
   onDeleteSlide,
   onMoveSlide,
@@ -1691,6 +1704,7 @@ function SlidesPanelBody({
   selectedSlideId: string
   onSelectSlide: (slideId: string) => void
   onAddSlide: () => void
+  onAddAdSlide: (ad: ShelfAd) => void
   onDuplicateSlide: (slideId: string) => void
   onDeleteSlide: (slideId: string) => void
   onMoveSlide: (slideId: string, toIndex: number) => void
@@ -1727,6 +1741,9 @@ function SlidesPanelBody({
         Add slide
       </Button>
     </DisabledReason>
+  )
+  const addAdButton = (
+    <AdSlideMenu disabled={slides.length >= 20} onPick={onAddAdSlide} />
   )
 
   return (
@@ -1791,6 +1808,7 @@ function SlidesPanelBody({
       </SortableContext>
 
       {addButton}
+      {addAdButton}
     </DndContext>
   )
 }
@@ -5218,6 +5236,15 @@ export function builderReducer(
         selectedItemIds: firstItemIds(slide),
       })
     }
+    case "ADD_AD_SLIDE": {
+      if (state.slides.length >= 20) return state
+      return withHistory(state, {
+        ...state,
+        slides: [...state.slides, action.slide],
+        selectedSlideId: action.slide.id,
+        selectedItemIds: firstItemIds(action.slide),
+      })
+    }
     case "DUPLICATE_SLIDE": {
       if (state.slides.length >= 20) return state
       const index = state.slides.findIndex(
@@ -5405,6 +5432,48 @@ function currentSnapshot(
     slides: state.slides,
     caption: state.caption,
     format: state.format,
+  }
+}
+
+/**
+ * An ad from the ads shelf as a slide: a sponsor clip fills the slide as a
+ * video, and a text ad's words sit across the middle in its look.
+ */
+function createAdSlide(ad: ShelfAd): CarouselSlide {
+  if (ad.kind !== "text" && ad.media) {
+    return {
+      id: builderId(),
+      title: `Ad: ${ad.name}`.slice(0, 120),
+      backgroundColor: "#000000",
+      items: [
+        createImageItem(ad.media.url, ad.name, ad.media.id, { x: 0, y: 0, width: 1, height: 1 }, "video"),
+      ],
+    }
+  }
+  const look = ad.look
+  return {
+    id: builderId(),
+    title: "Ad",
+    backgroundColor: DEFAULT_BACKGROUND,
+    items: [
+      {
+        ...createTextItem(),
+        text: ad.text ?? ad.name,
+        x: 0.08,
+        y: 0.4,
+        width: 0.84,
+        height: 0.2,
+        align: "center",
+        ...(look
+          ? {
+              fontId: look.fontId,
+              fontSize: look.fontSize,
+              color: look.color,
+              ...(look.boxColor ? { boxColor: look.boxColor } : {}),
+            }
+          : {}),
+      },
+    ],
   }
 }
 

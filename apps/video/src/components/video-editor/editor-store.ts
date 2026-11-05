@@ -15,6 +15,14 @@ import {
   type SceneWithFiles,
 } from "@/lib/video/brief"
 import { landBroll, type BrollPlacement } from "@/lib/video/b-roll"
+import {
+  changeAd,
+  isAd,
+  layAd,
+  moveAd,
+  removeAd,
+  respaceAds,
+} from "@/lib/video/ads"
 import type { CaptionLook, CaptionPlacement } from "@/lib/video/caption-look"
 import type { ClipboardClip } from "@/lib/video/clip-clipboard"
 import { LEFT_OF_CUT, RIGHT_OF_CUT } from "@/lib/video/clip-fades"
@@ -198,6 +206,12 @@ export type EditorAction =
   | { type: "MOVE_TRACK"; trackId: string; toIndex: number }
   | { type: "TOGGLE_TRACK_MUTE"; trackId: string }
   | { type: "TOGGLE_TRACK_DUCK"; trackId: string }
+  // The lock on the Ads lane: its ads are not dragged, cut or moved by an
+  // edit elsewhere. Undoable, because it changes what later edits do.
+  | { type: "TOGGLE_TRACK_LOCK"; trackId: string }
+  // Anything the Ads panel does to the ads (ads.ts works the lanes out, so
+  // it can say why when it cannot), as one undo step.
+  | { type: "EDIT_ADS"; tracks: EditorTrack[]; selectClipId?: string }
   // Clips copied out of a project (see clip-clipboard.ts), dropped as one
   // block: each keeps its distance from the others and its lane relative to
   // them. One action, one undo.
@@ -391,12 +405,14 @@ function placeClip(
   preferredTrackId?: string
 ): EditorState {
   const desired = Math.max(0, atMs)
+  // The Ads lane holds ads only (ads.ts), whatever lane a drop was aimed at.
+  const lanes = state.tracks.filter((track) => !track.ads)
   const candidates = preferredTrackId
     ? [
-        ...state.tracks.filter((track) => track.id === preferredTrackId),
-        ...state.tracks.filter((track) => track.id !== preferredTrackId),
+        ...lanes.filter((track) => track.id === preferredTrackId),
+        ...lanes.filter((track) => track.id !== preferredTrackId),
       ]
-    : state.tracks
+    : lanes
 
   for (const track of candidates) {
     const start =
@@ -433,6 +449,8 @@ function placeOverlay(
   const end = start + clip.durationMs
   const placed = { ...clip, startMs: start }
   for (const track of state.tracks) {
+    // The Ads lane holds ads only; words go on the lanes under it.
+    if (track.ads) continue
     if (fitsAt(track, null, start, clip.durationMs)) {
       const tracks = withTrack(state.tracks, track.id, (lane) => ({
         ...lane,
@@ -454,10 +472,26 @@ function placeOverlay(
     return placeClip(state, clip, start)
   }
   const track = { ...newTrack(), clips: [placed] }
+  // Under the Ads lanes, which stay on top.
+  const under = state.tracks.filter((lane) => lane.ads).length
   return {
-    ...pushUndo(state, [track, ...state.tracks]),
+    ...pushUndo(state, [
+      ...state.tracks.slice(0, under),
+      track,
+      ...state.tracks.slice(under),
+    ]),
     selectedClipId: clip.id,
   }
+}
+
+/** An ad edit from ads.ts, or the state unchanged when it was refused. */
+function withAdEdit(
+  state: EditorState,
+  result: EditorTrack[] | { refusal: string }
+): EditorState {
+  return Array.isArray(result) && result !== state.tracks
+    ? pushUndo(state, result)
+    : state
 }
 
 // Drop a copied group at `atMs`, starting on the lane `trackId` names. The
@@ -473,9 +507,12 @@ function pasteClips(
   if (!clips.length) return state
   const desired = Math.max(0, atMs)
   const laneCount = Math.max(...clips.map((entry) => entry.lane)) + 1
+  // A paste aimed at the Ads lane starts on the first lane under it: the
+  // Ads lane holds ads only, and a pasted clip is never an ad.
+  const aimed = state.tracks.findIndex((track) => track.id === trackId && !track.ads)
   const firstLane = Math.max(
     0,
-    state.tracks.findIndex((track) => track.id === trackId)
+    aimed !== -1 ? aimed : state.tracks.findIndex((track) => !track.ads)
   )
   const fitsInPlace = clips.every(({ clip, lane }) => {
     const track = state.tracks[firstLane + lane]
@@ -508,11 +545,49 @@ function pasteClips(
   }
 }
 
+/** Actions that are an edit to the ads themselves, so the placed ads are not spread out again after them. */
+const AD_EDITS = new Set<EditorAction["type"]>([
+  "EDIT_ADS",
+  "UNDO",
+  "REDO",
+  "RESTORE_TIMELINE",
+  "TOGGLE_TRACK_LOCK",
+])
+
+/** Ads lanes first, so ads cover the video whatever lane was added on top since. */
+function adsOnTop(tracks: EditorTrack[]) {
+  const firstOther = tracks.findIndex((track) => !track.ads)
+  const misplaced =
+    firstOther !== -1 && tracks.slice(firstOther).some((track) => track.ads)
+  if (!misplaced) return tracks
+  return [
+    ...tracks.filter((track) => track.ads),
+    ...tracks.filter((track) => !track.ads),
+  ]
+}
+
+/**
+ * After an edit makes the video longer or shorter, the ads Place ads put down
+ * move to keep their share of the way through (ads.ts, respaceAds), inside
+ * the same undo step. A stream of small edits (a slider, typing) waits for
+ * the edit that ends it.
+ */
+function afterEdit(state: EditorState, action: EditorAction, next: EditorState) {
+  if (next.tracks === state.tracks) return next
+  const transient = "transient" in action && action.transient
+  const spread =
+    transient || AD_EDITS.has(action.type)
+      ? next.tracks
+      : respaceAds(state.tracks, next.tracks, editorId)
+  const tracks = adsOnTop(spread)
+  return tracks === next.tracks ? next : { ...next, tracks }
+}
+
 export function editorReducer(
   state: EditorState,
   action: EditorAction
 ): EditorState {
-  const next = reduceEditor(state, action)
+  const next = afterEdit(state, action, reduceEditor(state, action))
   // Every action that moves the selection without saying what the group is —
   // a new clip dropped on, a delete, an undo — leaves just that one clip
   // selected, so the group can never name a clip the inspector is not on.
@@ -752,6 +827,19 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
     case "DUPLICATE_CLIP": {
       const found = findClip(state.tracks, action.clipId)
       if (!found) return state
+      if (isAd(found.clip)) {
+        // A copy of an ad is an ad put by hand, straight after this one.
+        const { id: _id, startMs: _start, ...template } = found.clip
+        const laid = layAd(
+          state.tracks,
+          { ...template, ad: { ...found.clip.ad, auto: undefined } },
+          found.clip.startMs + found.clip.durationMs,
+          editorId
+        )
+        return "refusal" in laid
+          ? state
+          : { ...pushUndo(state, laid.tracks), selectedClipId: laid.clipId }
+      }
       // The copy goes straight after the original. It drops any blend coming
       // into it: a copy butts against the clip it came from, and a dissolve
       // between a clip and itself is never what was meant.
@@ -768,6 +856,16 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       const found = findClip(state.tracks, action.clipId)
       const target = state.tracks.find((track) => track.id === action.toTrackId)
       if (!found || !target) return state
+      // A locked lane's clips stay where they are, and take no visitors.
+      if (found.track.locked || target.locked) return state
+      // An ad stays on the Ads lane, and moving it carries its pause with it.
+      if (isAd(found.clip)) {
+        return withAdEdit(
+          state,
+          moveAd(state.tracks, action.clipId, action.startMs, editorId)
+        )
+      }
+      if (target.ads) return state
 
       const start = resolveStart(
         target,
@@ -871,6 +969,24 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
     case "UPDATE_CLIP": {
       const found = findClip(state.tracks, action.clipId)
       if (!found) return state
+      const reshapes =
+        "startMs" in action.patch ||
+        "durationMs" in action.patch ||
+        "trimStartMs" in action.patch
+      if (reshapes && found.track.locked) return state
+      // A pause ad that gets longer or shorter takes its gap with it.
+      if (reshapes && !action.transient && isAd(found.clip)) {
+        const { startMs, ...patch } = action.patch
+        const moved =
+          startMs === undefined || startMs === found.clip.startMs
+            ? state.tracks
+            : moveAd(state.tracks, action.clipId, startMs, editorId)
+        if (!Array.isArray(moved)) return state
+        return withAdEdit(
+          state,
+          changeAd(moved, action.clipId, () => patch, editorId)
+        )
+      }
       const tracks = withTrack(state.tracks, found.track.id, (track) => ({
         ...track,
         clips: sortClips(
@@ -907,6 +1023,22 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       const found = findClip(state.tracks, action.clipId)
       if (!found) return state
       const { clip } = found
+      // An ad's new length moves the video after a pause ad (ads.ts).
+      if (isAd(clip) && !action.transient) {
+        const speed = Math.min(Math.max(action.speed, MIN_CLIP_SPEED), MAX_CLIP_SPEED)
+        return withAdEdit(
+          state,
+          changeAd(
+            state.tracks,
+            clip.id,
+            () => ({
+              speed: storedPlaybackValue(speed, DEFAULT_CLIP_SPEED),
+              durationMs: Math.max(MIN_CLIP_MS, sourceSpanMs(clip) / speed),
+            }),
+            editorId
+          )
+        )
+      }
       const speed = Math.min(
         Math.max(action.speed, MIN_CLIP_SPEED),
         MAX_CLIP_SPEED
@@ -951,7 +1083,7 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
 
     case "SPLIT_CLIP": {
       const found = findClip(state.tracks, action.clipId)
-      if (!found) return state
+      if (!found || found.track.locked) return state
       const { clip } = found
       const offset = action.atMs - clip.startMs
       // Neither half may end up shorter than the shortest clip allowed.
@@ -996,10 +1128,13 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
     case "DELETE_CLIP": {
       const found = findClip(state.tracks, action.clipId)
       if (!found) return state
-      const tracks = withTrack(state.tracks, found.track.id, (track) => ({
-        ...track,
-        clips: track.clips.filter((clip) => clip.id !== action.clipId),
-      }))
+      // Taking an ad off closes the gap a pause ad made.
+      const tracks = isAd(found.clip)
+        ? removeAd(state.tracks, action.clipId)
+        : withTrack(state.tracks, found.track.id, (track) => ({
+            ...track,
+            clips: track.clips.filter((clip) => clip.id !== action.clipId),
+          }))
       return {
         ...pushUndo(state, tracks),
         selectedClipId:
@@ -1013,7 +1148,14 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       const deletedSelection = track.clips.some(
         (clip) => clip.id === state.selectedClipId
       )
-      const remaining = state.tracks.filter((lane) => lane.id !== action.trackId)
+      // An Ads lane's pause ads close their gaps on the way out.
+      const cleared = track.ads
+        ? track.clips.reduce(
+            (lanes, clip) => removeAd(lanes, clip.id),
+            state.tracks
+          )
+        : state.tracks
+      const remaining = cleared.filter((lane) => lane.id !== action.trackId)
       // Always leave one lane to drop footage onto.
       const tracks = remaining.length ? remaining : [newTrack()]
       return {
@@ -1050,6 +1192,21 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
           ...track,
           duck: !track.duck,
         })),
+      }
+
+    case "TOGGLE_TRACK_LOCK":
+      return pushUndo(
+        state,
+        withTrack(state.tracks, action.trackId, (track) => ({
+          ...track,
+          locked: track.locked ? undefined : true,
+        }))
+      )
+
+    case "EDIT_ADS":
+      return {
+        ...pushUndo(state, action.tracks),
+        selectedClipId: action.selectClipId ?? state.selectedClipId,
       }
 
     case "SELECT_CLIP": {

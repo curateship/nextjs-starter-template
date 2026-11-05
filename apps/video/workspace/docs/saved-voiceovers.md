@@ -1,8 +1,8 @@
 # Saved voiceovers
 
 Every voiceover the studio reads aloud is kept on a shelf with the words it
-said. The Voiceovers panel on the studio rail (the microphone, labelled
-"Voices") lists them, and one press lays one into the project you are in.
+said. The Voices tab of the editor's Sounds panel lists them, and one press
+lays one into the project you are in. Other docs call it the Voices panel.
 Reusing a voiceover costs nothing. Only reading new words spends ElevenLabs or
 OpenAI characters, plus Whisper's minutes for an OpenAI reading, which Whisper
 listens to straight after to time its words

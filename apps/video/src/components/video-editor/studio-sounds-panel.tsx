@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  AudioLines,
   Loader2Icon,
   PauseIcon,
   PlayIcon,
@@ -30,7 +29,7 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { SoundsTabsHeader } from "@/components/video-editor/sounds-tabs"
 import { Hint } from "@/components/video-assets/hint"
 import {
   useEditorRuntime,
@@ -187,9 +186,7 @@ export function SoundsPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <DashboardCardTitleHeader
-        icon={<AudioLines className="size-4" />}
-        title="Sounds"
+      <SoundsTabsHeader
         action={
           <>
             <Hint label="Upload a sound">

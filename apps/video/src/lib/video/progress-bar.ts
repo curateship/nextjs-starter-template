@@ -122,3 +122,59 @@ export function progressBarFilters({
     `[${inputLabel}][pbar]overlay=x='-w+w*min(t/${durationS.toFixed(3)},1)':y=${top}:eof_action=pass[${outputLabel}]`,
   ]
 }
+
+/**
+ * The marks on the bar where the ad breaks start (`workspace/docs/ads.md`),
+ * in white, or black on a pale bar, so they show on the filled part and the
+ * empty part alike. Each is as wide as the bar is tall, 4 pixels at least.
+ */
+export function progressMarkColor(bar: ProgressBar) {
+  const value = Number.parseInt(bar.color.slice(1), 16)
+  const red = (value >> 16) & 255
+  const green = (value >> 8) & 255
+  const blue = value & 255
+  const light = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255
+  return light > 0.6 ? "#000000" : "#ffffff"
+}
+
+export function progressMarkWidthPx(bar: ProgressBar, frame: { width: number; height: number }) {
+  return Math.max(4, Math.round(progressBarThicknessPx(bar, frame)))
+}
+
+/** Where each mark sits, as a share of the width, for times in a video `durationMs` long. */
+export function progressMarkShares(marksMs: number[], durationMs: number) {
+  return marksMs
+    .map((ms) => progressBarShare(ms, durationMs))
+    .filter((share) => share > 0 && share < 1)
+}
+
+/** The export's marks: one filled box per ad break, on top of the bar. */
+export function progressMarkFilters({
+  bar,
+  frame,
+  marksMs,
+  durationMs,
+  inputLabel,
+  outputLabel,
+}: {
+  bar: ProgressBar
+  frame: { width: number; height: number }
+  marksMs: number[]
+  durationMs: number
+  inputLabel: string
+  outputLabel: string
+}) {
+  const shares = progressMarkShares(marksMs, durationMs)
+  if (!shares.length) return null
+  const height = Math.max(2, Math.round(progressBarThicknessPx(bar, frame) / 2) * 2)
+  const top = Math.round(progressBarTopPx(bar, frame))
+  const width = progressMarkWidthPx(bar, frame)
+  const color = `0x${progressMarkColor(bar).slice(1)}`
+  const boxes = shares
+    .map((share) => {
+      const x = Math.max(0, Math.round(share * frame.width - width / 2))
+      return `drawbox=x=${x}:y=${top}:w=${width}:h=${height}:color=${color}:t=fill`
+    })
+    .join(",")
+  return `[${inputLabel}]${boxes}[${outputLabel}]`
+}

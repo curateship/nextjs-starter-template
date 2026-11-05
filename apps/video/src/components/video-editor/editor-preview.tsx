@@ -54,7 +54,11 @@ import {
   progressBarShare,
   progressBarThicknessPx,
   progressBarTopPx,
+  progressMarkColor,
+  progressMarkShares,
+  progressMarkWidthPx,
 } from "@/lib/video/progress-bar"
+import { adBreakStarts } from "@/lib/video/ads"
 import {
   captionEntranceProgress,
   captionWordAnimation,
@@ -543,6 +547,11 @@ export function EditorPreview() {
     [tracks, cleanUrls]
   )
   const projectDurationMs = React.useMemo(() => timelineDurationMs(tracks), [tracks])
+  // Where the ad breaks start, marked on the progress bar (ads.ts).
+  const progressMarks = React.useMemo(
+    () => progressMarkShares(adBreakStarts(tracks), projectDurationMs),
+    [tracks, projectDurationMs]
+  )
   const shapeFrame = React.useMemo(() => shapeDesignFrame(ratio), [ratio])
 
   /**
@@ -1827,6 +1836,19 @@ export function EditorPreview() {
               className="h-full"
               style={{ width: 0, backgroundColor: progressBar.color }}
             />
+            {progressMarks.map((share) => (
+              <div
+                key={share}
+                data-progress-mark
+                className="absolute top-0 h-full"
+                style={{
+                  left: `${share * 100}%`,
+                  width: progressMarkWidthPx(progressBar, { width: stageWidth, height: stageHeight }),
+                  transform: "translateX(-50%)",
+                  backgroundColor: progressMarkColor(progressBar),
+                }}
+              />
+            ))}
           </div>
         ) : null}
 

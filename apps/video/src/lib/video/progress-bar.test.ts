@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  progressMarkColor,
+  progressMarkFilters,
   newProgressBar,
   progressBarFilters,
   progressBarSchema,
@@ -70,5 +72,31 @@ describe("the export's drawing", () => {
     expect(overlay).toBe(
       "[v3][pbar]overlay=x='-w+w*min(t/30.000,1)':y=1912:eof_action=pass[v4]"
     )
+  })
+})
+
+describe("ad marks on the progress bar", () => {
+  const bar = { edge: "bottom" as const, color: "#ff0000", thickness: 8, inset: 0 }
+  const frame = { width: 1080, height: 1920 }
+
+  it("draws one box per ad break, in white on a dark bar and black on a pale one", () => {
+    const filter = progressMarkFilters({
+      bar,
+      frame,
+      marksMs: [30_000, 60_000],
+      durationMs: 120_000,
+      inputLabel: "v3",
+      outputLabel: "v4",
+    })
+    expect(filter).toBe(
+      "[v3]drawbox=x=266:y=1912:w=8:h=8:color=0xffffff:t=fill,drawbox=x=536:y=1912:w=8:h=8:color=0xffffff:t=fill[v4]"
+    )
+    expect(progressMarkColor({ ...bar, color: "#ffee00" })).toBe("#000000")
+  })
+
+  it("draws nothing without a break inside the video", () => {
+    expect(
+      progressMarkFilters({ bar, frame, marksMs: [0], durationMs: 120_000, inputLabel: "a", outputLabel: "b" })
+    ).toBeNull()
   })
 })

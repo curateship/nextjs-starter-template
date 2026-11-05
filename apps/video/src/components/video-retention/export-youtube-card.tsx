@@ -297,6 +297,7 @@ function PostedFigures({
           points={posted.points}
           lengthSeconds={posted.length_seconds}
           scenes={retention.scenes}
+          ads={retention.ads}
         />
       ) : posted.read_at ? (
         <p className="text-sm text-muted-foreground">

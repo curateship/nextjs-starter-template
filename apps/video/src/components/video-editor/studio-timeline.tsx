@@ -7,6 +7,9 @@ import {
   Layers as LayersIcon,
   GripVertical,
   Loader2,
+  Lock,
+  LockOpen,
+  Megaphone,
   Image as ImageIcon,
   Maximize2,
   Minus,
@@ -131,6 +134,8 @@ const ACCENTS = {
   audio: "var(--good)",
   image: "var(--violet)",
   shape: "var(--warn)",
+  // The Ads lane and every ad on it (workspace/docs/ads.md).
+  ad: "var(--coral)",
   mixed: "var(--mut)",
 } as const
 
@@ -145,6 +150,7 @@ function clampRowDelta(dy: number, trackIndex: number, trackCount: number) {
 // A lane has no kind of its own — read it off its clips, so the gutter can
 // colour-code lanes.
 function trackKind(track: EditorTrack): keyof typeof ACCENTS {
+  if (track.ads) return "ad"
   if (!track.clips.length) return "mixed"
   const kinds = new Set(track.clips.map((clip) => clip.kind))
   if (kinds.size === 1) {
@@ -176,6 +182,8 @@ function trackIcon(kind: keyof typeof ACCENTS, size = 16) {
       return <Type size={size} />
     case "shape":
       return <Shapes size={size} />
+    case "ad":
+      return <Megaphone size={size} />
     default:
       return <LayersIcon size={size} />
   }
@@ -193,6 +201,8 @@ function trackName(track: EditorTrack, index: number) {
       return "Text"
     case "shape":
       return "Shapes"
+    case "ad":
+      return "Ads"
     default:
       return `Track ${index + 1}`
   }
@@ -208,7 +218,9 @@ function beatTicksPath(clip: EditorClip, beats: number[], pps: number) {
 }
 
 function clipLabel(clip: EditorClip) {
-  return clip.kind === "text" ? clip.text || clip.name : clip.name
+  const label = clip.kind === "text" ? clip.text || clip.name : clip.name
+  // The tag that tells an ad from the clip next to it.
+  return clip.ad ? `Ad · ${label}` : label
 }
 
 const iconBtn: React.CSSProperties = {
@@ -719,7 +731,8 @@ function TimelineRow({
           zIndex: 2,
         }}
       >
-        {readOnly ? null : (
+        {/* The Ads lane always stays on top, so it has no grip to move it. */}
+        {readOnly || track.ads ? null : (
           <Hint label="Drag to reorder track">
             <span
               onPointerDown={gripDown}
@@ -773,6 +786,25 @@ function TimelineRow({
                 )}
               </button>
             </Hint>
+            {track.ads ? (
+              <Hint label={track.locked ? "Unlock the ads" : "Lock the ads"}>
+                <button
+                  type="button"
+                  className="st-hovbg"
+                  onClick={() =>
+                    dispatch({ type: "TOGGLE_TRACK_LOCK", trackId: track.id })
+                  }
+                  style={{
+                    ...gutterIconBtn,
+                    color: track.locked ? "var(--ink)" : "var(--mut)",
+                  }}
+                  aria-label={track.locked ? "Unlock the ads" : "Lock the ads"}
+                  aria-pressed={!!track.locked}
+                >
+                  {track.locked ? <Lock size={13} /> : <LockOpen size={13} />}
+                </button>
+              </Hint>
+            ) : null}
             <Hint label="Delete this track">
               <button
                 type="button"
@@ -812,6 +844,7 @@ function TimelineRow({
                 trackIndex={index}
                 accent={accent}
                 trackMuted={track.muted}
+                trackLocked={!!track.locked}
                 readOnly={readOnly}
               />
               {transition ? (
@@ -852,12 +885,15 @@ const ClipChip = React.memo(function ClipChip({
   trackIndex,
   accent,
   trackMuted,
+  trackLocked,
   readOnly,
 }: {
   clip: EditorClip
   trackIndex: number
   accent: string
   trackMuted: boolean
+  /** A locked lane's clips can be picked but not dragged, trimmed or cut. */
+  trackLocked: boolean
   readOnly: boolean
 }) {
   const selected = useEditorSelector((state) =>
@@ -1070,6 +1106,10 @@ const ClipChip = React.memo(function ClipChip({
   ) {
     if (event.button !== 0) return
     event.stopPropagation()
+    if (trackLocked) {
+      dispatch({ type: "SELECT_CLIP", clipId: clip.id })
+      return
+    }
     // With the cut tool on, a click on the body splits instead of dragging.
     if (cutMode && mode === "move") {
       const rect = ref.current!.getBoundingClientRect()

@@ -13,9 +13,8 @@ import {
   ListVideoIcon,
   Loader2Icon,
   LockIcon,
-  MicIcon,
   AudioLines,
-  Music,
+  MegaphoneIcon,
   Share2,
   SparklesIcon,
   Shapes,
@@ -62,6 +61,7 @@ import {
   StudioContextPanel,
   type StudioPanel,
 } from "@/components/video-editor/studio-panels"
+import type { SoundsTab } from "@/lib/video/sounds-tabs"
 import { AiBudgetIndicator } from "@/components/video-editor/ai-budget-indicator"
 import { ExportDialog } from "@/components/video-editor/export-dialog"
 import { useProjectExports } from "@/components/video-editor/use-project-exports"
@@ -109,9 +109,12 @@ const LAYOUT_KEY = {
 const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
   { id: "videos", label: "Videos", Icon: ListVideoIcon },
   { id: "media", label: "Media", Icon: FilmIcon },
-  { id: "music", label: "Music", Icon: Music },
+  // Music, Sounds and Voices, as tabs in one panel's header (Tyler, 4 Nov
+  // 2026: "Combine music, voices and sound into one Rail tab").
   { id: "sounds", label: "Sounds", Icon: AudioLines },
-  { id: "voiceovers", label: "Voices", Icon: MicIcon },
+  // Tools for putting ads into the video (Tyler, 4 Nov 2026,
+  // workspace/docs/ads.md). Not for a guest sent from Project.
+  { id: "ads", label: "Ads", Icon: MegaphoneIcon },
   // Words, shapes, stickers and the social stickers. Called Text until
   // 4 Nov 2026 (Tyler: "rename text panel to Graphics"); its id stays "text"
   // because saved editor views name it.
@@ -166,6 +169,9 @@ export function StudioEditor({
   // showing and a project always lands there.
   const [panel, setPanel] = React.useState<StudioPanel>(initialPanel)
   const designing = panel === "thumbnail"
+  // Which of Voices, Music and Sounds the Sounds panel is on. Held here, so
+  // the tab is kept while another panel is open. Voices is first.
+  const [soundsTab, setSoundsTab] = React.useState<SoundsTab>("voiceovers")
 
   // A timeline the editor cannot read is said once and left in the shared
   // error toast. A save refused by another window is said by EditorProvider,
@@ -260,7 +266,11 @@ export function StudioEditor({
     <div data-screen-label="Panel" className="flex h-full min-h-0">
       <ToolRail panel={panel} onSelect={setPanel} guest={guest} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <StudioContextPanel panel={panel} />
+        <StudioContextPanel
+          panel={panel}
+          soundsTab={soundsTab}
+          onSoundsTabChange={setSoundsTab}
+        />
       </div>
     </div>
   )

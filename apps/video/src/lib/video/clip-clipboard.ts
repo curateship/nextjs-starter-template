@@ -152,6 +152,9 @@ export function prepareClipsForPaste(
       // A click pasted with its Subscribe sticker belongs to the pasted
       // sticker; one pasted alone belongs to no sticker.
       pressFor: clip.pressFor ? freshIds.get(clip.pressFor) : undefined,
+      // A pasted ad is a plain clip: ads live on the Ads lane, and a paste
+      // lands wherever it was aimed (workspace/docs/ads.md).
+      ad: undefined,
     }
     if (!clip.mediaId || !missing.has(clip.mediaId)) {
       return { clip: fresh, lane }

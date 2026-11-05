@@ -31,6 +31,8 @@ import {
   type RenderJobSummary,
 } from "@/server/video/render-queue"
 import { getCaptionSettings } from "@/server/video/settings"
+import { withAdsInLanguage, type AdInLanguage } from "@/server/video/ad-languages"
+import { pauseAtAds } from "@/lib/video/ads"
 
 /**
  * One language of Every language in one press
@@ -110,6 +112,7 @@ export async function makeLanguageCopy(
     language,
     said,
     startsAtMs,
+    ads,
   }: {
     userId: string
     videoId: string
@@ -118,6 +121,8 @@ export async function makeLanguageCopy(
     said: SpokenLine
     /** Where the original talking starts; the new voice starts there too. */
     startsAtMs: number
+    /** The video's ads in this language (ad-languages.ts), by ad. */
+    ads?: Map<string, AdInLanguage>
   },
   database: CustomShellDb = db
 ): Promise<LanguageCopyResult> {
@@ -165,7 +170,15 @@ export async function makeLanguageCopy(
   const video = await insertLanguageCopy(
     source,
     language,
-    { ...timeline, tracks },
+    {
+      ...timeline,
+      // The new voice and its captions pause at each pause ad, as the video
+      // does, before the ads themselves come over in the language (ads.md).
+      tracks: withAdsInLanguage(
+        pauseAtAds(tracks, new Set([audioId, ...captions.map((caption) => caption.id)]), uuid),
+        ads ?? new Map()
+      ),
+    },
     database
   )
 

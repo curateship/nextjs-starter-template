@@ -66,7 +66,12 @@ import {
   type RenderFrameRate,
   type RenderQuality,
 } from "@/lib/video/render"
-import { progressBarFilters, type ProgressBar } from "@/lib/video/progress-bar"
+import {
+  progressBarFilters,
+  progressMarkFilters,
+  type ProgressBar,
+} from "@/lib/video/progress-bar"
+import { adBreakStarts } from "@/lib/video/ads"
 import { shapeExportWindows, shapeSvg } from "@/lib/video/shapes"
 import {
   isSocialClip,
@@ -403,6 +408,7 @@ export async function renderTimeline({
       fps: frameRate,
       duckingGain: dbToGain(DEFAULT_DUCK_DB),
       progressBar: timeline.progressBar,
+      progressMarksMs: adBreakStarts(timeline.tracks),
     })
 
     const exportMs = exportDurationMs(durationMs)
@@ -507,6 +513,7 @@ export async function renderTimelineFrame({
       fps: PREVIEW_FRAME_RATE,
       duckingGain: 1,
       progressBar: timeline.progressBar,
+      progressMarksMs: adBreakStarts(timeline.tracks),
       fromMs,
     })
     const out = path.join(dir, "frame.jpg")
@@ -779,6 +786,8 @@ async function buildFfmpegCommand(options: {
   duckingGain: number
   /** The bar along one edge that fills as the film plays, if the project has one. */
   progressBar?: ProgressBar
+  /** Where the ad breaks start, marked on the progress bar (ads.ts). */
+  progressMarksMs?: number[]
   /**
    * Where the film starts, on a frame. Zero for an export. A single saved
    * frame starts at its own moment, so nothing before it is drawn.
@@ -802,6 +811,7 @@ async function buildFfmpegCommand(options: {
     fps,
     duckingGain,
     progressBar,
+    progressMarksMs = [],
     fromMs = 0,
     finish,
   } = options
@@ -1288,6 +1298,18 @@ async function buildFfmpegCommand(options: {
       })
     )
     visualStep += 1
+    const marks = progressMarkFilters({
+      bar: progressBar,
+      frame: size,
+      marksMs: progressMarksMs,
+      durationMs,
+      inputLabel: `v${visualStep}`,
+      outputLabel: `v${visualStep + 1}`,
+    })
+    if (marks) {
+      filters.push(marks)
+      visualStep += 1
+    }
   }
 
   if (finish) {

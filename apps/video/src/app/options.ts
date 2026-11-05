@@ -82,6 +82,12 @@ export const appOptions: AppOptions = {
         label: "Scripts",
         panel: () => import("@/components/video-editor/script-settings"),
       }),
+      /** How many ads a video gets for its length, and the too-many limit (`workspace/docs/ads.md`). */
+      defineSettingsTab({
+        id: "ads",
+        label: "Ads",
+        panel: () => import("@/components/video-editor/ad-settings"),
+      }),
       /** Promo's address and key, for Send to Promo (`workspace/docs/send-to-promo.md`). */
       defineSettingsTab({
         id: "promo",

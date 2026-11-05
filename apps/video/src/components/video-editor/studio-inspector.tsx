@@ -102,6 +102,12 @@ import {
 } from "@/lib/video/blur"
 import { BlurFollowCard } from "@/components/video-editor/blur-follow-card"
 import { SocialStickerCards } from "@/components/video-editor/social-sticker-inspector"
+import { AdInspectorCard } from "@/components/video-editor/ad-inspector-card"
+import {
+  InspectorCollapseAllButton,
+  InspectorCollapseAllProvider,
+  useInspectorCollapseAll,
+} from "@/components/shared/inspector-card"
 import { ColourLookField } from "@/components/video-editor/colour-look-field"
 import {
   canTakeFrameShape,
@@ -226,6 +232,10 @@ export function StudioInspector() {
       ? (findClip(state.tracks, state.selectedClipId)?.clip ?? null)
       : null
   )
+  // Shuts or opens every card at once (Tyler, 4 Nov 2026: "add an icon in the
+  // inspector panel to collapse and uncollapse all the cards at once"). The
+  // shell's own button, as the page editor's panel uses it.
+  const collapseAll = useInspectorCollapseAll()
 
   return (
     <div data-screen-label="Inspector" className="flex h-full min-h-0 flex-col">
@@ -241,10 +251,18 @@ export function StudioInspector() {
             : "Inspector"
         }
         meta={clip ? clip.name : undefined}
+        action={
+          <InspectorCollapseAllButton
+            nextOpen={collapseAll.nextOpen}
+            onPress={() => collapseAll.setAll(collapseAll.nextOpen)}
+          />
+        }
       />
 
+      <InspectorCollapseAllProvider signal={collapseAll.signal}>
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid auto-rows-min gap-3 p-3">
+          {clip?.ad ? <AdInspectorCard clip={clip} /> : null}
           {!clip ? (
             <ProjectProps />
           ) : clip.kind === "text" ? (
@@ -264,6 +282,7 @@ export function StudioInspector() {
           )}
         </div>
       </ScrollArea>
+      </InspectorCollapseAllProvider>
     </div>
   )
 }

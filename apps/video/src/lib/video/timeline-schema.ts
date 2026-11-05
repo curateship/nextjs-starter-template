@@ -64,6 +64,29 @@ import {
  * check it: the browser before it saves, the server before it writes.
  */
 
+/**
+ * What happens to the video where an ad sits (`workspace/docs/ads.md`):
+ * "pause" cuts the video there and carries on after the ad, so the video gets
+ * longer; "over" lays the ad on top while the video keeps running underneath.
+ * Tyler, 4 Nov 2026: "I pick per ad".
+ */
+export const AD_MODES = ["pause", "over"] as const
+export type AdMode = (typeof AD_MODES)[number]
+
+/**
+ * Marks a clip as an ad, so the Ads panel can find, move, swap and remove the
+ * ads together. `shelfId` is the shelf ad it came from; `auto` says Place ads
+ * put it there, and goes when it is moved by hand, so an edit later spreads
+ * the placed ads out again but never moves one you put somewhere yourself.
+ */
+const adMarkSchema = z
+  .object({
+    shelfId: z.string().min(1).max(36).optional(),
+    mode: z.enum(AD_MODES),
+    auto: z.boolean().optional(),
+  })
+  .strict()
+
 // A blend at the seam entering this clip (see clip-transitions.ts). Absent =
 // hard cut.
 const clipTransitionSchema = z
@@ -250,6 +273,7 @@ export const clipSchema = z
       )
       .max(MAX_BLUR_TRACK_POINTS)
       .optional(),
+    ad: adMarkSchema.optional(),
   })
   .strict()
   .superRefine((clip, context) => {
@@ -286,6 +310,12 @@ export const timelineSchema = z
             // When set, this track's audio is lowered under any overlapping
             // audio on other tracks ("duck under voice").
             duck: z.boolean().optional(),
+            // The lane the ads sit on, at the top so they cover the video
+            // (ads.ts). Absent on every other lane.
+            ads: z.boolean().optional(),
+            // A locked lane's clips are not dragged, cut or moved by an edit
+            // elsewhere. Only the Ads lane offers the lock.
+            locked: z.boolean().optional(),
             clips: z.array(clipSchema).max(MAX_TRACK_CLIPS),
           })
           .strict()

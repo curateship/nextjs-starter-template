@@ -12,8 +12,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   what the last merge carried, the migrations it owes, and the files that stay
   Video's own.
 - [editor-chrome.md](editor-chrome.md) — which lines around the editor come from
-  the shell, which ones the editor draws itself, and why it never hides a shell
-  one.
+  the shell, which ones the editor draws itself, why it never hides a shell
+  one, and the one Sounds button with Music, Sounds and Voices as tabs.
 - [clip-volume-and-speed.md](clip-volume-and-speed.md) — how loud and how fast
   one clip plays, why volume stops at full, and how a speed other than 1x
   changes every sum that turns clip time into file time.
@@ -70,6 +70,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [clean-up-the-voice.md](clean-up-the-voice.md) — taking hum and hiss
   out of a clip's sound at three strengths: the two ffmpeg stages, the
   measured numbers, and the cleaned copy the preview waits for.
+- [ads.md](ads.md) — the Ads panel: the ads shelf, placing ads in equal
+  parts or where viewers stay, pause or over, text ads, the AI sponsor read,
+  volume and length, the ad rules on Settings, and ads on the progress bar,
+  the viewer curve, language copies and carousels.
 - [sound-effects.md](sound-effects.md) — the Sounds panel: thirty starter
   sounds made by a script, where they are kept, your own uploaded sounds, and
   the shell fix that made sound uploads work.

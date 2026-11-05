@@ -679,27 +679,31 @@ function PieceRow<T extends PieceItem>({
         />
       ) : (
         <>
-          {/* The panel opens about 130px wide, so the name has the row's
-              full width on top and the picture and details sit under it. */}
+          {/* The picture on the left and the name beside it, with the
+              details under the name (Tyler, 4 Nov 2026: "the title should be
+              beside the thumbnail ... and make the thumbnail bigger"). */}
           <button
             type="button"
             aria-current={current ? "true" : undefined}
             onClick={onOpen}
-            className="grid min-w-0 gap-1 rounded-md text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className={cn(
+              "flex min-w-0 items-center gap-2 rounded-md text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+              selecting && "pl-6"
+            )}
           >
-            <span className="line-clamp-2 min-w-0 pr-6 text-xs font-medium [overflow-wrap:anywhere]">
-              {item.pinned ? (
-                <PinIcon className="mr-0.5 inline size-3 text-muted-foreground" aria-label="Pinned" />
-              ) : null}
-              {name}
+            <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+              {details.thumbnail ? (
+                <img src={details.thumbnail} alt="" className="size-full object-cover" />
+              ) : (
+                <Icon className="size-5 text-muted-foreground" />
+              )}
             </span>
-            <span className={cn("flex min-w-0 items-center gap-1.5", selecting && "pl-6")}>
-              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-                {details.thumbnail ? (
-                  <img src={details.thumbnail} alt="" className="size-full object-cover" />
-                ) : (
-                  <Icon className="size-4 text-muted-foreground" />
-                )}
+            <span className="grid min-w-0 flex-1 gap-0.5">
+              <span className="line-clamp-2 min-w-0 pr-6 text-xs font-medium [overflow-wrap:anywhere]">
+                {item.pinned ? (
+                  <PinIcon className="mr-0.5 inline size-3 text-muted-foreground" aria-label="Pinned" />
+                ) : null}
+                {name}
               </span>
               <span className="grid min-w-0 text-[0.625rem] leading-tight text-muted-foreground tabular-nums">
                 <span className="truncate">{details.lines[0]}</span>
@@ -720,7 +724,7 @@ function PieceRow<T extends PieceItem>({
               checked={ticked}
               onCheckedChange={onTick}
               aria-label={`Select ${name}`}
-              className="absolute bottom-3.5 left-1.5"
+              className="absolute top-1/2 left-1.5 -translate-y-1/2"
             />
           ) : null}
         </>

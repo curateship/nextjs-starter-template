@@ -63,6 +63,7 @@ function retention(overrides: Partial<ExportRetention> = {}): ExportRetention {
     export_length_ms: 30_000,
     scenes: [{ startMs: 0, endMs: 30_000, name: "Hook" }],
     scenes_from_project_now: false,
+    ads: [],
     ...overrides,
   }
 }

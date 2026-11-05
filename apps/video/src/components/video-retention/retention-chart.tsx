@@ -16,6 +16,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { sceneAt, type ExportScene } from "@/lib/video/export-scenes"
+import { formatAdLength, watchingAroundAd, type ExportAd } from "@/lib/video/ads"
 import {
   betterThanOutOf100,
   stillWatchingOutOf100,
@@ -48,11 +49,14 @@ export function RetentionChart({
   points,
   lengthSeconds,
   scenes,
+  ads = [],
 }: {
   points: RetentionPoint[]
   /** The video's length on YouTube, which the curve's points are fractions of. */
   lengthSeconds: number
   scenes: ExportScene[]
+  /** Where the export's ads were, each marked with a line (ads.md). */
+  ads?: ExportAd[]
 }) {
   const data: Row[] = points.map((point) => ({
     seconds: Math.round(point.ratio * lengthSeconds * 10) / 10,
@@ -114,6 +118,21 @@ export function RetentionChart({
             width={32}
             allowDecimals={false}
           />
+          {ads.map((ad) => (
+            <ReferenceLine
+              key={`ad-${ad.startMs}`}
+              x={ad.startMs / 1000}
+              stroke="var(--destructive)"
+              strokeDasharray="3 3"
+              ifOverflow="hidden"
+              label={{
+                value: "Ad",
+                position: "insideTopLeft",
+                className: "fill-destructive",
+                fontSize: 10,
+              }}
+            />
+          ))}
           <ReferenceLine
             y={50}
             stroke="var(--muted-foreground)"
@@ -178,7 +197,28 @@ export function RetentionChart({
           <span aria-hidden className="size-3 rounded-sm border bg-muted" />
           Numbered columns are the scenes
         </li>
+        {ads.length ? (
+          <li className="flex items-center gap-1.5">
+            <span aria-hidden className="h-3 w-0 border-l border-dashed border-destructive" />
+            Dashed lines are the ads
+          </li>
+        ) : null}
       </ul>
+      {ads.length ? (
+        <ul className="grid gap-1 text-xs" aria-label="Viewers at each ad">
+          {ads.map((ad) => {
+            const around = watchingAroundAd(points, lengthSeconds, ad)
+            return (
+              <li key={`ad-row-${ad.startMs}`}>
+                Ad at {formatAdLength(ad.startMs)}, {ad.name}
+                {around
+                  ? `: ${around.before} out of 100 watching just before, ${around.after} just after.`
+                  : "."}
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
     </div>
   )
 }
