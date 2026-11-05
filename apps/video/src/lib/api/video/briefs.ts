@@ -3,12 +3,10 @@ import { z } from "zod"
 
 import { getAiToolErrorMessage } from "@/lib/api/video/ai-tools"
 import {
-  briefRequestSchema,
   sceneDraftSchema,
   BRIEF_SCENES_MAX,
   SAFE_BRIEF_ERRORS,
   type BriefLanding,
-  type BriefRequest,
   type SceneDraft,
 } from "@/lib/video/brief"
 import { userGet, userPost } from "@/server/guards"
@@ -29,13 +27,6 @@ export function getBriefErrorMessage(error: unknown) {
   if (message.includes("AI_LIMIT_REACHED")) return "Your monthly AI allowance is used up."
   return getAiToolErrorMessage(error)
 }
-
-const writeFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(briefRequestSchema)
-  .handler(({ data, context }) =>
-    import("@/server/video/briefs").then((m) => m.writeBrief(context.user.id, data))
-  )
 
 const listFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -79,16 +70,13 @@ const settleFn = createServerFn({ method: "POST" })
       briefId: idSchema,
       sceneIds: z.array(idSchema).min(1).max(BRIEF_SCENES_MAX),
       lanes: z.object({ words: laneId, pictures: laneId, voice: laneId }).strict(),
+      musicLane: laneId,
     })
   )
   .handler(({ data, context }) =>
     import("@/server/video/briefs").then((m) => m.settleBriefScenes(context.user.id, data))
   )
 
-/** Writes the script from a brief and keeps it as a storyboard. */
-export function writeBrief(request: BriefRequest) {
-  return writeFn({ data: request })
-}
 /** This project's briefs, newest first. */
 export function listBriefs(videoId: string) {
   return listFn({ data: { videoId } })
@@ -114,6 +102,8 @@ export function settleBriefScenes(data: {
   briefId: string
   sceneIds: string[]
   lanes: BriefLanding["lanes"]
+  /** The lane the template's music went on, when this landing laid it. */
+  musicLane?: string
 }) {
   return settleFn({ data })
 }

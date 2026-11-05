@@ -681,14 +681,15 @@ async function runJob(job: ClaimedJob) {
     const whole = requireCanonicalTimeline(video.timeline)
     // A part of the project is cut out before anything else reads it, so the
     // file, its AI parts and its scene lines all describe the part.
-    // The project's intro and outro go round a whole export, unless the
+    // The video's own intro and outro (a template's), or else the
+    // project's, go round a whole export, unless the
     // Export window's switch left them off; a part never gets them
     // (intro-and-outro.md).
     const drawn =
       job.range_start_ms !== null && job.range_end_ms !== null
         ? timelineStretch(whole, job.range_start_ms, job.range_end_ms)
         : job.with_intro_outro
-          ? withIntroOutro(whole, await introOutroParts(job.user_id, video.projectId))
+          ? withIntroOutro(whole, await introOutroParts(job.user_id, video.projectId, db, video))
           : whole
     const aiParts = await workOutAiParts(drawn)
 

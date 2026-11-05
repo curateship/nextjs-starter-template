@@ -353,6 +353,17 @@ export function teaserCostCents(stills: number) {
   return tokenCostCents(PICTURE_READER_MODEL, stills * GEMINI_PICTURE_TOKENS + asks * 300, stills * 25)
 }
 
+/**
+ * Gemini watching a reference video shot by shot (templates.md, part 8):
+ * Google counts a second of video with its sound at about 300 tokens, and
+ * the breakdown back runs to about 3,000. A video of unknown length is
+ * priced as a minute.
+ */
+export function videoBreakdownCostCents(durationSeconds: number | null) {
+  const seconds = durationSeconds && durationSeconds > 0 ? durationSeconds : 60
+  return tokenCostCents(PICTURE_READER_MODEL, seconds * 300 + 800, 3_000)
+}
+
 export function findFacesCostCents() {
   return tokenCostCents(PICTURE_READER_MODEL, GEMINI_PICTURE_TOKENS + 200, 400)
 }

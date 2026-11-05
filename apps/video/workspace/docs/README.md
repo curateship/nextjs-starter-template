@@ -245,6 +245,11 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   cut into scenes on a priced storyboard, then made into stills, voice lines
   and captions laid end to end: what the writer is asked, where scenes land,
   who lays them, what a failed scene leaves, and what it costs.
+- [templates.md](templates.md) — the Templates panel: a template as saved
+  instructions for the AI, the three starters, the video's card with its
+  script box, scene breaks and picture notes, references and their
+  breakdowns, music, languages, the cap, To review, and redoing only the
+  scenes whose words changed.
 - [say-what-ai-made.md](say-what-ai-made.md) — the Made by AI card in an
   export's window: which parts are listed, how the render works them out from
   the timeline it draws, the Edited by hand tick, the one-paragraph copy for

@@ -42,10 +42,16 @@ export async function makeAiMusic({
   userId,
   videoId,
   mood,
+  forMs,
 }: {
   userId: string
   videoId: string
   mood: string
+  /**
+   * How long the music must run, when the video isn't laid yet: a template's
+   * brief asks for its music before its scenes land (templates.md).
+   */
+  forMs?: number
 }) {
   const prompt = mood.trim().slice(0, AI_MUSIC_MOOD_MAX)
   if (!prompt) throw new Error(AI_MUSIC_NO_MOOD_MESSAGE)
@@ -53,7 +59,7 @@ export async function makeAiMusic({
   if (!apiKey) throw new Error(ELEVENLABS_KEY_MISSING_MESSAGE)
 
   const unchecked = await requireVideoBudget(userId, videoId, 0)
-  const videoMs = timelineEndMs(requireCanonicalTimeline(unchecked.timeline).tracks)
+  const videoMs = forMs ?? timelineEndMs(requireCanonicalTimeline(unchecked.timeline).tracks)
   if (videoMs <= 0) throw new Error(AI_MUSIC_EMPTY_VIDEO_MESSAGE)
   const lengthMs = aiMusicLengthMs(videoMs)
   const cents = aiMusicCostCents(lengthMs)

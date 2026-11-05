@@ -6,8 +6,9 @@ with the outro. Tyler, 4 Nov 2026: "Per project".
 
 ## Setting them
 
-- **Where:** Project settings, from the cog on the projects list or the AI
-  spend figure in the editor. The card has an Intro choice and an Outro
+- **Where:** Project settings, from the cog on the projects list. The AI
+  spend figure in the editor's inspector that also opened it was removed on
+  5 Nov 2026. The card has an Intro choice and an Outro
   choice, each None or one of the videos in this project's Media.
 - **A video from another project** has to be added to this project's Media
   first. The choice lists only this project's videos, up to 100.
@@ -17,6 +18,11 @@ with the outro. Tyler, 4 Nov 2026: "Per project".
   `outro_media_id` (drizzle/0154). Deleting the file in the media library
   takes it off the project. The card then shows None, and exports go on
   without it.
+- **A template's own intro and outro win for its videos** (templates.md). Make
+  it writes them onto the video as `video_project_videos.intro_media_id` and
+  `outro_media_id` (drizzle/0155), and an export uses each one the video has
+  before the project's (`introOutroParts` in `src/server/video/intro-outro.ts`).
+  A template with none leaves the project's.
 
 ## Exports
 

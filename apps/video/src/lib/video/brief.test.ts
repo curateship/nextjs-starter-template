@@ -5,7 +5,6 @@ import {
   briefLaneRefusal,
   briefStartMs,
   landBriefScenes,
-  lengthIsClose,
   newScene,
   sceneLeftCents,
   storyboardCents,
@@ -206,12 +205,6 @@ describe("prices and lengths", () => {
     const half = made("one", 3000)
     expect(sceneLeftCents(half, voice, "gemini-3.1-flash-image")).toBe(0)
     expect(sceneLeftCents({ ...half, voice: undefined }, voice, "gemini-3.1-flash-image")).toBeGreaterThan(0)
-  })
-
-  it("is close enough within a tenth of the asked length", () => {
-    expect(lengthIsClose(49, 45)).toBe(true)
-    expect(lengthIsClose(50, 45)).toBe(false)
-    expect(lengthIsClose(40, 45)).toBe(false)
   })
 
   it("keeps a scene's seconds whole, between 1 and 60", () => {

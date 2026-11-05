@@ -2,14 +2,15 @@ import { z } from "zod"
 
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import { voiceCostCents } from "@/lib/video/ai-estimates"
-import { IMAGE_MODEL_IDS, type GeminiImageModelId } from "@/lib/video/asset-factories"
-import type { CaptionPlacement } from "@/lib/video/caption-look"
+import type { GeminiImageModelId } from "@/lib/video/asset-factories"
+import { DEFAULT_CAPTION_LOOK, type CaptionPlacement } from "@/lib/video/caption-look"
 import type { CaptionLine } from "@/lib/video/captions"
 import type { ClipMotion } from "@/lib/video/clip-motion"
 import type { ScenePictureOrigin, VoiceOrigin } from "@/lib/video/clip-origin"
+import type { TranslateLanguage } from "@/lib/video/translate"
 import { clipsFit, OPENAI_VOICE_MODEL } from "@/lib/video/remake-clip"
 import { voiceoverClips } from "@/lib/video/saved-voiceovers"
-import { SCRIPT_BASE_WORDS_PER_MINUTE } from "@/lib/video/script-check"
+import { DEFAULT_SAFE_BOXES } from "@/lib/video/safe-box"
 import {
   MAX_TIMELINE_TRACKS,
   type ProjectTimeline,
@@ -46,8 +47,6 @@ export const BRIEF_PLATFORM_IDS = BRIEF_PLATFORMS.map((one) => one.id) as [
   ...BriefPlatform[],
 ]
 
-export const BRIEF_ABOUT_MAX = 1_000
-export const BRIEF_AUDIENCE_MAX = 300
 /** A Short, a TikTok or a Reel runs 15 seconds to 3 minutes. */
 export const BRIEF_SHORT_SECONDS_MIN = 15
 export const BRIEF_SHORT_SECONDS_MAX = 180
@@ -63,8 +62,6 @@ export const SCENE_PICTURE_MAX = 500
 export const SCENE_SECONDS_MAX = 60
 /** The pause between one scene's voice and the next. */
 export const BRIEF_BREATH_MS = 200
-/** Within this share of the asked length, the script is long enough. */
-export const BRIEF_LENGTH_SLACK = 0.1
 /** Nano Banana 2, about 7 cents, unless the window is changed. */
 export const BRIEF_DEFAULT_PICTURE_MODEL: GeminiImageModelId = "gemini-3.1-flash-image"
 
@@ -73,7 +70,6 @@ export const BRIEF_BUSY_MESSAGE =
   "This brief is being made. Wait for it to finish before changing it."
 export const BRIEF_NO_SCENES_MESSAGE = "Keep at least one scene."
 export const BRIEF_NO_ROOM_MESSAGE = `A brief needs three lanes of its own, and this project already has close to ${MAX_TIMELINE_TRACKS}. Delete empty lanes, then press Make it again.`
-export const BRIEF_NO_ABOUT_MESSAGE = "Say what the video is about."
 export const BRIEF_NOTHING_TO_RETRY_MESSAGE = "Only a scene that failed can be tried again."
 
 export const SAFE_BRIEF_ERRORS = new Set([
@@ -81,7 +77,6 @@ export const SAFE_BRIEF_ERRORS = new Set([
   BRIEF_BUSY_MESSAGE,
   BRIEF_NO_SCENES_MESSAGE,
   BRIEF_NO_ROOM_MESSAGE,
-  BRIEF_NO_ABOUT_MESSAGE,
   BRIEF_NOTHING_TO_RETRY_MESSAGE,
 ])
 
@@ -109,37 +104,22 @@ export const briefVoiceSchema = z
 
 export type BriefVoice = z.infer<typeof briefVoiceSchema>
 
-/** What the window sends to have a script written. */
-export const briefRequestSchema = z.object({
-  /** The video the storyboard is for. Its scenes land on its timeline. */
-  videoId: z.string().min(1).max(36),
-  about: z.string().trim().min(1, BRIEF_NO_ABOUT_MESSAGE).max(BRIEF_ABOUT_MAX),
-  audience: z.string().trim().max(BRIEF_AUDIENCE_MAX),
-  lengthSeconds: z.number().int().min(BRIEF_SHORT_SECONDS_MIN).max(BRIEF_LONG_SECONDS_MAX),
-  platform: z.enum(BRIEF_PLATFORM_IDS),
-  voice: briefVoiceSchema,
-  pictureModel: z.enum(IMAGE_MODEL_IDS),
-})
-
-export type BriefRequest = z.infer<typeof briefRequestSchema>
-
 /** One scene as the writer answers it, and as the storyboard edits it. */
 export const sceneDraftSchema = z.object({
   words: z.string().trim().min(1).max(SCENE_WORDS_MAX),
   picture: z.string().trim().min(1).max(SCENE_PICTURE_MAX),
   seconds: z.number().positive().max(SCENE_SECONDS_MAX),
+  /**
+   * Whether the template's actor is in this scene's picture. Only a brief
+   * made from a template with an actor sets it (templates.md).
+   */
+  person: z.boolean().optional(),
 })
 
 export type SceneDraft = z.infer<typeof sceneDraftSchema>
 
-/** The writer's whole answer. A shape that does not fit is asked for again once. */
-export const briefScriptSchema = z.object({
-  title: z.string().trim().min(1).max(120),
-  hook: z.string().trim().min(1).max(SCENE_WORDS_MAX),
-  scenes: z.array(sceneDraftSchema).min(1).max(BRIEF_SCENES_MAX),
-})
-
-export type BriefScript = z.infer<typeof briefScriptSchema>
+/** The script a brief is written into: its name, its opening line and its scenes. */
+export type BriefScript = { title: string; hook: string; scenes: SceneDraft[] }
 
 /**
  * Where a scene is up to. `draft` until Make it; then `queued` until the
@@ -177,10 +157,43 @@ export type SceneWithFiles = StoredScene & {
 /** `draft` while the storyboard is edited, `making` while the worker works, then `stopped` or `done`. */
 export type BriefStatus = "draft" | "making" | "stopped" | "done"
 
-/** Where the scenes go: the start, and the three lanes once they exist. */
+/**
+ * Where the scenes go: the start, and the three lanes once they exist. A
+ * brief made from a template with music also carries the track, made or
+ * picked when Make it was pressed, which lands under the whole video with
+ * the last scene (templates.md).
+ */
 export type BriefLanding = {
   startMs: number
   lanes: { words?: string; pictures?: string; voice?: string }
+  music?: BriefMusic
+  /** Why the template's music could not be made or found. The scenes carry on without it. */
+  musicError?: string
+}
+
+export type BriefMusic = {
+  mediaId: string
+  name: string
+  durationMs: number
+  /** Filled in by the editor, which plays it; the worker lays it without. */
+  url?: string
+  /** Set once it is on the timeline, with the lane it went on. */
+  laid?: boolean
+  lane?: string
+}
+
+/** What was in the script box when the brief was written (templates.md). */
+export type BriefSource = { kind: "script"; text: string }
+
+/**
+ * What happened once a template's brief was made: the language copies it
+ * started (templates.md). The video stays Draft; a template no longer sets
+ * its status (Tyler, 5 Nov 2026: "A new generate video is always draft").
+ */
+export type BriefFinish = {
+  state: "running" | "done"
+  languages: { language: TranslateLanguage; videoId?: string; error?: string }[]
+  at: string
 }
 
 /**
@@ -253,16 +266,6 @@ export function totalSeconds(scenes: Pick<SceneDraft, "seconds">[]) {
   return scenes.reduce((sum, scene) => sum + scene.seconds, 0)
 }
 
-/** Whether a script runs close enough to the asked length. */
-export function lengthIsClose(seconds: number, askedSeconds: number) {
-  return Math.abs(seconds - askedSeconds) <= askedSeconds * BRIEF_LENGTH_SLACK
-}
-
-/** About how many words fill this many seconds at 170 words a minute. */
-export function wordsFor(seconds: number) {
-  return Math.round((seconds * SCRIPT_BASE_WORDS_PER_MINUTE) / 60)
-}
-
 /** The words of every scene, as one script for the script check. */
 export function storyboardScript(scenes: Pick<SceneDraft, "words">[]) {
   return scenes.map((scene) => scene.words.trim()).join(" ")
@@ -290,8 +293,11 @@ export function landBriefScenes(
   tracks: Tracks,
   brief: { scenes: SceneWithFiles[]; landing: BriefLanding },
   newId: () => string,
-  /** The saved caption look, on the project's shape. */
-  captions: CaptionPlacement
+  /**
+   * The caption look, on the project's shape: the saved one, or the
+   * template's. Null lays no captions, for a template with captions off.
+   */
+  captions: CaptionPlacement | null
 ): { tracks: Tracks; placed: string[]; landing: BriefLanding } | null {
   let next = tracks
   const lanes = { ...brief.landing.lanes }
@@ -312,11 +318,11 @@ export function landBriefScenes(
         url: voice.url ?? "",
         name: voice.name,
         durationMs: voice.durationMs,
-        captions: voice.captions,
+        captions: captions ? voice.captions : [],
         origin: voice.origin,
       },
       atMs,
-      captions
+      captions ?? NO_CAPTIONS_PLACEMENT
     )
     const still: Clip = {
       id: newId(),
@@ -347,8 +353,112 @@ export function landBriefScenes(
     atMs += voice.durationMs + BRIEF_BREATH_MS
   }
 
+  // The music goes under the whole video once the last scene is down, in
+  // the same change, on a lane of its own at the bottom that ducks under the
+  // voice, the way the Music tab's + lays a track.
+  let music = brief.landing.music
+  const everyScene = brief.scenes.every((scene) => scene.state === "placed" || placed.includes(scene.id))
+  if (music && !music.laid && placed.length && everyScene) {
+    const runs = Math.min(music.durationMs, atMs - brief.landing.startMs)
+    if (runs > 0) {
+      const lane: Track = {
+        id: newId(),
+        muted: false,
+        duck: true,
+        clips: [
+          {
+            id: newId(),
+            kind: "audio",
+            name: music.name,
+            mediaId: music.mediaId,
+            ...(music.url ? { url: music.url } : {}),
+            startMs: brief.landing.startMs,
+            durationMs: runs,
+            trimStartMs: 0,
+            sourceDurationMs: music.durationMs,
+          },
+        ],
+      }
+      next = [...next, lane]
+      music = { ...music, laid: true, lane: lane.id }
+    }
+  }
+
   if (next.length > MAX_TIMELINE_TRACKS) return null
-  return { tracks: next, placed, landing: { startMs: brief.landing.startMs, lanes } }
+  return {
+    tracks: next,
+    placed,
+    landing: { startMs: brief.landing.startMs, lanes, ...(music ? { music } : {}) },
+  }
+}
+
+/** Any placement will do when no captions are laid; nothing reads it. */
+const NO_CAPTIONS_PLACEMENT = {
+  aspect: "9:16",
+  look: DEFAULT_CAPTION_LOOK,
+  safeBoxes: DEFAULT_SAFE_BOXES,
+} satisfies CaptionPlacement
+
+/**
+ * A scene read again after its words changed, where it already sits on the
+ * timeline (templates.md, part 35): the old reading and its captions come
+ * off the brief's lanes, the new one goes on at the same start, the picture
+ * grows or shrinks with it, and everything after it on the brief's three
+ * lanes moves by the difference. Other lanes, the music included, stay.
+ *
+ * Null when the scene's clips are no longer where the brief left them.
+ */
+export function relayBriefScene(
+  tracks: Tracks,
+  landing: BriefLanding,
+  change: {
+    oldVoiceMediaId: string
+    stillMediaId: string
+    voice: NonNullable<SceneWithFiles["voice"]>
+  },
+  captions: CaptionPlacement | null
+): Tracks | null {
+  const laneIds = [landing.lanes.words, landing.lanes.pictures, landing.lanes.voice].filter(
+    (id): id is string => !!id
+  )
+  const voiceLane = tracks.find((track) => track.id === landing.lanes.voice)
+  const old = voiceLane?.clips.find((clip) => clip.kind === "audio" && clip.mediaId === change.oldVoiceMediaId)
+  const pictureLane = tracks.find((track) => track.id === landing.lanes.pictures)
+  const still = pictureLane?.clips.find(
+    (clip) => clip.mediaId === change.stillMediaId && Math.abs(clip.startMs - (old?.startMs ?? -1)) < 1
+  )
+  if (!old || !still) return null
+
+  const difference = change.voice.durationMs - old.durationMs
+  const endedAt = old.startMs + old.durationMs
+  const sound = voiceoverClips(
+    {
+      mediaId: change.voice.mediaId,
+      url: change.voice.url ?? "",
+      name: change.voice.name,
+      durationMs: change.voice.durationMs,
+      captions: captions ? change.voice.captions : [],
+      origin: change.voice.origin,
+    },
+    old.startMs,
+    captions ?? NO_CAPTIONS_PLACEMENT
+  )
+  const audio: Clip = change.voice.url ? sound.audio : { ...sound.audio, url: undefined }
+  const shift = (clip: Clip): Clip =>
+    clip.startMs >= endedAt - 1 ? { ...clip, startMs: Math.max(0, clip.startMs + difference) } : clip
+
+  const next = tracks.map((track) => {
+    if (!laneIds.includes(track.id)) return track
+    let clips = track.clips
+      .filter((clip) => clip.id !== old.id && !(clip.kind === "text" && clip.spokenBy === old.id))
+      .map((clip) =>
+        clip.id === still.id ? { ...clip, durationMs: Math.max(1, clip.durationMs + difference) } : shift(clip)
+      )
+    if (track.id === landing.lanes.voice) clips = [...clips, audio]
+    if (track.id === landing.lanes.words) clips = [...clips, ...sound.captions]
+    return { ...track, clips: sortedClips(clips) }
+  })
+  return next
 }
 
 type LaneKind = keyof BriefLanding["lanes"]
@@ -417,6 +527,7 @@ export function newScene(draft: SceneDraft, id: string): StoredScene {
     picture: draft.picture.trim(),
     // Whole seconds: the storyboard edits them as whole numbers.
     seconds: Math.min(SCENE_SECONDS_MAX, Math.max(1, Math.round(draft.seconds))),
+    ...(draft.person ? { person: true } : {}),
     state: "draft",
   }
 }

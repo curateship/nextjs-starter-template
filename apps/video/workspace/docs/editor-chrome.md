@@ -69,8 +69,8 @@ here", pointing at the title.
   Voices panel" means that tab.
 
 The menu now reads Videos, Media, Sounds, Ads ([ads.md](ads.md)), Graphics,
-Transcript, AI tools, AI clip, Thumbnail, then Copy, Exports and History at the
-foot.
+Transcript, AI tools, Templates ([templates.md](templates.md), since 5 Nov
+2026), AI clip, Thumbnail, then Copy, Exports and History at the foot.
 
 ## Shut or open every inspector card at once
 

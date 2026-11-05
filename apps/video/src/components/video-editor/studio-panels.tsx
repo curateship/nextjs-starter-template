@@ -120,6 +120,7 @@ import {
   type SocialKind,
 } from "@/lib/video/social-stickers"
 import { findStockSound, stockSoundUrl } from "@/lib/video/stock-sounds"
+import { TemplatesPanel } from "@/components/video-templates/templates-panel"
 import { ThumbnailPanel } from "@/components/video-thumbnails/thumbnail-panel"
 
 /**
@@ -134,6 +135,7 @@ export type StudioPanel =
   | "ads"
   | "text"
   | "ai"
+  | "templates"
   | "transcript"
   | "ai-clip"
   | "thumbnail"
@@ -154,6 +156,7 @@ const PANEL_TITLE: Record<StudioPanel, string> = {
   ads: "Ads",
   text: "Graphics",
   ai: "AI tools",
+  templates: "Templates",
   transcript: "Transcript",
   "ai-clip": "AI clip",
   thumbnail: "Thumbnail",
@@ -182,6 +185,7 @@ export function StudioContextPanel({
   if (panel === "ads") return <AdsPanel />
   // The AI panel draws its own header too, so its tools can say what they need.
   if (panel === "ai") return <AiPanel />
+  if (panel === "templates") return <TemplatesPanel />
   if (panel === "transcript") return <TranscriptPanel />
   if (panel === "ai-clip") return <AiClipPanel />
   if (panel === "thumbnail") return <ThumbnailPanel />

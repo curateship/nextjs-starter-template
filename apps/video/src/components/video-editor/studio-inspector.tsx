@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  FilmIcon,
   Loader2Icon,
   Replace,
   RotateCcw,
@@ -189,8 +188,11 @@ import { cn } from "@/lib/utils"
 import { MakeItMoveCard } from "@/components/video-editor/moving-stills"
 import { RemakeCard } from "@/components/video-editor/remake-clips"
 import { ZoomInspectorCard } from "@/components/video-editor/zoom-inspector-card"
+import { AiBudgetCard } from "@/components/video-editor/ai-budget-indicator"
+import { formatCents } from "@/lib/video/project-spend"
+import { useProjectGuest } from "@/components/video-editor/project-guest"
+import { useProjectSettings } from "@/components/video-editor/project-settings-context"
 import { SteadyInspectorCard } from "@/components/video-editor/steady-inspector-card"
-import { ProjectSpendRow } from "@/components/video-editor/project-settings"
 import {
   ReplaceMediaDialog,
   type ReplacementMedia,
@@ -206,19 +208,12 @@ import {
 
 /**
  * The right-hand panel: what the selected clip is, and every setting on it.
- * With nothing selected it shows the project's own facts instead.
+ * With nothing selected it shows the video's stats and the AI budget instead.
  *
  * It is built from the app's own options-panel parts — the same cards, sliders,
  * colour rows and switches the newsletter editor uses — so a setting here looks
  * and behaves like a setting anywhere else in the app.
  */
-
-const RESOLUTION: Record<AspectRatio, string> = {
-  "9:16": "1080 × 1920",
-  "16:9": "1920 × 1080",
-  "1:1": "1080 × 1080",
-  "4:3": "1440 × 1080",
-}
 
 const CLIP_KIND_LABEL: Record<EditorClip["kind"], string> = {
   video: "Video",
@@ -312,30 +307,76 @@ function ReadOnlyRows({ rows }: { rows: [string, string][] }) {
   )
 }
 
-function ProjectProps() {
-  const durationMs = useEditorDurationMs()
-  const aspect = useEditorSelector((state) => state.aspect)
+const RESOLUTION: Record<AspectRatio, string> = {
+  "9:16": "1080 × 1920",
+  "16:9": "1920 × 1080",
+  "1:1": "1080 × 1080",
+  "4:3": "1440 × 1080",
+}
 
+/**
+ * The inspector with no clip picked: the video's stats and this month's AI
+ * budget. Tyler, 5 Nov 2026: "This panel should now show all the video
+ * stats. Move this Ai stats there", after taking off the "Select a clip"
+ * line, the Project card and the Progress bar card shown by default. The
+ * Progress bar card shows only once the Graphics panel has put a bar on the
+ * video, since its settings live nowhere else.
+ */
+function ProjectProps() {
+  const guest = useProjectGuest() !== null
+  const bar = useEditorSelector((state) => state.progressBar)
   return (
     <>
-      <div className="grid place-items-center gap-2 px-2 py-6 text-center">
-        <FilmIcon className="size-7 text-muted-foreground/40" />
-        <p className="text-sm text-muted-foreground">
-          Select a clip on the timeline to edit it.
-        </p>
-      </div>
-      <InspectorCard title="Project">
-        <ReadOnlyRows
-          rows={[
-            ["Shape", aspect],
-            ["Size", RESOLUTION[aspect]],
-            ["Length", formatClock(durationMs)],
-          ]}
-        />
-        <ProjectSpendRow />
-      </InspectorCard>
-      <ProgressBarCard />
+      <VideoStatsCard />
+      {/* A guest sent from Project uses no AI and sees no spending. */}
+      {guest ? null : <AiBudgetCard />}
+      {bar ? <ProgressBarCard /> : null}
     </>
+  )
+}
+
+/** Everything about the open video at a glance, its AI spending included. */
+function VideoStatsCard() {
+  const durationMs = useEditorDurationMs()
+  const aspect = useEditorSelector((state) => state.aspect)
+  const tracks = useEditorSelector((state) => state.tracks)
+  const guest = useProjectGuest() !== null
+  const { spend } = useProjectSettings()
+  const clips = tracks.reduce((sum, track) => sum + track.clips.length, 0)
+
+  return (
+    <InspectorCard title="This video">
+      <ReadOnlyRows
+        rows={[
+          ["Shape", aspect],
+          ["Size", RESOLUTION[aspect]],
+          ["Length", formatClock(durationMs)],
+          ["Clips", String(clips)],
+          ["Lanes", String(tracks.length)],
+        ]}
+      />
+      {spend && !guest ? (
+        <div className="grid gap-2">
+          <ReadOnlyRows
+            rows={[
+              ["AI spent", formatCents(spend.total_cents)],
+              ["Spend limit", spend.limit_cents === null ? "None" : formatCents(spend.limit_cents)],
+              ["Whole project", formatCents(spend.project_total_cents)],
+            ]}
+          />
+          {spend.by_tool.length ? (
+            <ul className="grid gap-1" aria-label="AI spent on this video, by tool">
+              {spend.by_tool.map((line) => (
+                <li key={line.label} className="flex items-baseline justify-between gap-3 text-sm text-muted-foreground">
+                  <span className="truncate">{line.label}</span>
+                  <span className="tabular-nums">{formatCents(line.cents)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </InspectorCard>
   )
 }
 

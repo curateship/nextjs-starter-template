@@ -23,7 +23,7 @@ export function useBriefs() {
   return React.useContext(BriefsContext)
 }
 
-/** "Making scene 3 of 8" for the AI panel's tile, or null when nothing is being made. */
+/** "Making scene 3 of 8" for the Templates panel's video card, or null when nothing is being made. */
 export function useBriefProgress() {
   const briefs = useBriefs()?.briefs
   const making = briefs?.find((brief) => brief.status === "making")

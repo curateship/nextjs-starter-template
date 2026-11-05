@@ -16,14 +16,23 @@ import { videoProjects } from "@/server/video/schema"
 export async function introOutroParts(
   userId: string,
   projectId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  /**
+   * The video's own intro and outro, set from its template when it was made
+   * (templates.md). Each one the video has wins over the project's.
+   */
+  video?: { introMediaId: string | null; outroMediaId: string | null }
 ): Promise<{ intro: IntroOutroPart | null; outro: IntroOutroPart | null }> {
-  const [project] = await database
+  const [saved] = await database
     .select({ intro: videoProjects.introMediaId, outro: videoProjects.outroMediaId })
     .from(videoProjects)
     .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
     .limit(1)
-  const ids = [project?.intro, project?.outro].filter((id): id is string => !!id)
+  const project = {
+    intro: video?.introMediaId ?? saved?.intro ?? null,
+    outro: video?.outroMediaId ?? saved?.outro ?? null,
+  }
+  const ids = [project.intro, project.outro].filter((id): id is string => !!id)
   if (!ids.length) return { intro: null, outro: null }
   const rows = await database
     .select()
@@ -46,7 +55,7 @@ export async function introOutroParts(
       await source.release().catch(() => undefined)
     }
   }
-  return { intro: await part(project?.intro), outro: await part(project?.outro) }
+  return { intro: await part(project.intro), outro: await part(project.outro) }
 }
 
 /** How long a file runs, in whole milliseconds, or 0 when it can't be read. */

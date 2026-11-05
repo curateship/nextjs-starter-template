@@ -6,7 +6,7 @@ import {
   BRIEF_BREATH_MS,
   BRIEF_BUSY_MESSAGE,
   BRIEF_NOTHING_TO_RETRY_MESSAGE,
-  type BriefRequest,
+  newScene,
   type BriefScript,
 } from "@/lib/video/brief"
 import type { ScriptCheck } from "@/lib/video/script-check"
@@ -16,14 +16,12 @@ import { type CustomShellDb } from "@/server/db"
 import { customShellMedia, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser, insertWorkspace } from "@/server/test-support"
 import {
-  briefPrompt,
   briefTick,
   listBriefs,
   retryBriefScene,
   saveBriefScenes,
   settleBriefScenes,
   startBrief,
-  writeBrief,
 } from "@/server/video/briefs"
 import { remakeFirstFrame } from "@/server/video/asset-factories/first-frames"
 import { getOwnedVideo, writeVideoTimeline } from "@/server/video/project-videos"
@@ -144,22 +142,45 @@ function script(seconds: number[]): BriefScript {
   }
 }
 
-function request(videoId: string): BriefRequest {
-  return {
-    videoId,
+const VOICE = {
+  id: "rachel",
+  name: "Rachel",
+  speaker: "elevenlabs" as const,
+  modelId: "eleven_multilingual_v2" as const,
+  settings: { stability: 0.5, similarityBoost: 0.75, styleExaggeration: 0, speed: 1, speakerBoost: true },
+}
+
+/**
+ * A storyboard on the video, as Generate video leaves one (templates.md).
+ * Writing it is the template tests' job; these tests start from the row.
+ */
+async function storyboardOn(video: { id: string; projectId: string }, seconds = [15, 15, 15]) {
+  const drafted = script(seconds)
+  const id = uuid()
+  const at = now()
+  await database.insert(videoBriefs).values({
+    id,
+    userId: user.id,
+    projectId: video.projectId,
+    videoId: video.id,
     about: "Why bread goes stale",
     audience: "Home bakers",
     lengthSeconds: 45,
     platform: "shorts",
-    voice: {
-      id: "rachel",
-      name: "Rachel",
-      speaker: "elevenlabs",
-      modelId: "eleven_multilingual_v2",
-      settings: { stability: 0.5, similarityBoost: 0.75, styleExaggeration: 0, speed: 1, speakerBoost: true },
-    },
+    voice: VOICE,
     pictureModel: "gemini-3.1-flash-image",
-  }
+    title: drafted.title,
+    hook: drafted.hook,
+    scenes: drafted.scenes.map((draft) => newScene(draft, uuid())),
+    check: PASSING_CHECK,
+    status: "draft",
+    createdAt: at,
+    updatedAt: at,
+  })
+  const { briefs } = await listBriefs(user.id, video.id)
+  const brief = briefs.find((item) => item.id === id)
+  if (!brief) throw new Error("The storyboard was not kept")
+  return brief
 }
 
 /** A new project's one video, as the brief calls take it. */
@@ -197,68 +218,9 @@ async function briefRow(id: string) {
 
 async function writtenBrief(seconds = [15, 15, 15]) {
   const video = await seedVideo()
-  writer.answers.push(script(seconds))
-  const brief = await writeBrief(user.id, request(video.id))
+  const brief = await storyboardOn(video, seconds)
   return { video, brief }
 }
-
-describe("writing the script", () => {
-  it("keeps the storyboard with the check, and spends nothing on the scenes", async () => {
-    const { brief } = await writtenBrief()
-    expect(brief).toMatchObject({ status: "draft", title: "Why bread goes stale", check: PASSING_CHECK })
-    expect(brief.scenes.map((scene) => [scene.words, scene.seconds, scene.state])).toEqual([
-      ["Scene 1 words.", 15, "draft"],
-      ["Scene 2 words.", 15, "draft"],
-      ["Scene 3 words.", 15, "draft"],
-    ])
-    expect(pictures.calls + voices.calls).toBe(0)
-    // Reopening reads the row and costs nothing.
-    expect((await listBriefs(user.id, brief.video_id)).briefs.map((item) => item.id)).toEqual([brief.id])
-  })
-
-  it("asks once more when the answer comes back in the wrong shape, then fails with the reason", async () => {
-    const video = await seedVideo()
-    writer.answers.push(new Error("Brief script came back in an unexpected shape"), script([15, 15, 15]))
-    await expect(writeBrief(user.id, request(video.id))).resolves.toMatchObject({ status: "draft" })
-    expect(writer.prompts).toHaveLength(2)
-
-    writer.answers.push(
-      new Error("Brief script came back in an unexpected shape"),
-      new Error("Brief script came back in an unexpected shape")
-    )
-    await expect(writeBrief(user.id, request(video.id))).rejects.toThrow("unexpected shape")
-    // A key problem is not asked again.
-    writer.prompts = []
-    writer.answers.push(new Error("Add a Google Gemini key in Settings first"))
-    await expect(writeBrief(user.id, request(video.id))).rejects.toThrow("Gemini key")
-    expect(writer.prompts).toHaveLength(1)
-  })
-
-  it("asks once more, naming the shortfall, when the scenes run more than a tenth off", async () => {
-    const video = await seedVideo()
-    writer.answers.push(script([10, 10]), script([15, 15, 14]))
-    const brief = await writeBrief(user.id, request(video.id))
-    expect(writer.prompts).toHaveLength(2)
-    expect(writer.prompts[1]).toContain("added up to 20 seconds, but the video must run 45 seconds")
-    expect(brief.scenes).toHaveLength(3)
-  })
-
-  it("writes the rules into the prompt, with the banned words", () => {
-    const prompt = briefPrompt(
-      { about: "Bread", audience: "", lengthSeconds: 45, platform: "shorts" },
-      ["crucial"]
-    )
-    expect(prompt).toContain('turn with a "but"')
-    expect(prompt).toContain("about 128 words")
-    expect(prompt).toContain("crucial")
-    expect(prompt).toContain("never any text")
-    expect(prompt).toContain("four words or fewer")
-    expect(prompt).toContain("Every thirty seconds of speech")
-    const long = briefPrompt({ about: "Bread", audience: "", lengthSeconds: 600, platform: "youtube" }, [])
-    expect(long).not.toContain('"but"')
-    expect(long).toContain("Every thirty seconds of speech")
-  })
-})
 
 describe("editing the storyboard", () => {
   it("keeps edits, new scenes and removals, and refuses once making has begun", async () => {
@@ -459,8 +421,7 @@ describe("making it", () => {
 
   it("starts at the playhead on an empty timeline", async () => {
     const video = await newVideo("Empty")
-    writer.answers.push(script([15, 15, 15]))
-    const brief = await writeBrief(user.id, request(video.id))
+    const brief = await storyboardOn(video)
     const started = await startBrief(user.id, { briefId: brief.id, scenes: brief.scenes, playheadMs: 2500 })
     expect(started.landing?.startMs).toBe(2500)
   })

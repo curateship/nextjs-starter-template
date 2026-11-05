@@ -10,6 +10,7 @@ import {
   ClapperboardIcon,
   ImageIcon,
   CopyIcon,
+  LayoutTemplateIcon,
   ListVideoIcon,
   Loader2Icon,
   LockIcon,
@@ -62,7 +63,6 @@ import {
   type StudioPanel,
 } from "@/components/video-editor/studio-panels"
 import type { SoundsTab } from "@/lib/video/sounds-tabs"
-import { AiBudgetIndicator } from "@/components/video-editor/ai-budget-indicator"
 import { ExportDialog } from "@/components/video-editor/export-dialog"
 import { useProjectExports } from "@/components/video-editor/use-project-exports"
 import { StudioInspector } from "@/components/video-editor/studio-inspector"
@@ -73,6 +73,7 @@ import { useDropMarker } from "@/components/video-editor/use-drop-marker"
 import { useProjectSettings } from "@/components/video-editor/project-settings-context"
 import { OpenElsewhereDialog } from "@/components/video-editor/open-elsewhere-dialog"
 import { BriefsProvider } from "@/components/video-editor/brief-to-video"
+import { TemplateHeaderMenu } from "@/components/video-templates/template-header-menu"
 import { MovingStillsProvider } from "@/components/video-editor/moving-stills"
 import { RemakeClipsProvider } from "@/components/video-editor/remake-clips"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
@@ -123,6 +124,9 @@ const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
   { id: "text", label: "Graphics", Icon: Shapes },
   { id: "transcript", label: "Transcript", Icon: CaptionsIcon },
   { id: "ai", label: "AI tools", Icon: SparklesIcon },
+  // A video's template and script, and Brief to video, which moved here from
+  // AI tools (Tyler, 5 Nov 2026, workspace/docs/templates.md).
+  { id: "templates", label: "Templates", Icon: LayoutTemplateIcon },
   { id: "ai-clip", label: "AI clip", Icon: ClapperboardIcon },
   // Designing the video's thumbnail with AI, after AI clip (Tyler, 3 Nov 2026).
   { id: "thumbnail", label: "Thumbnail", Icon: ImageIcon },
@@ -160,7 +164,7 @@ export function StudioEditor({
   timelineError?: string | null
   /** Where "Saving…" and "Saved" are shown: the app header, or the guest page's own. */
   reportSaveStatus: (status: SaveStatus | null) => void
-  /** The rail panel to open on. Make this a template opens on Copy. */
+  /** The rail panel to open on. Make this a template opens on Copy, a video made from a template on Templates. */
   initialPanel?: StudioPanel
 }) {
   const { store, dispatch, clock } = useEditorRuntime()
@@ -169,7 +173,11 @@ export function StudioEditor({
   const desktop = useWideScreen()
   // Every video opens on the Videos tab, so switching videos from it keeps it
   // showing and a project always lands there.
-  const [panel, setPanel] = React.useState<StudioPanel>(initialPanel)
+  // A guest only opens on a panel a guest has; an address naming another,
+  // such as ?panel=templates, opens on Videos.
+  const [panel, setPanel] = React.useState<StudioPanel>(
+    guest && !GUEST_PANELS.has(initialPanel) ? "videos" : initialPanel
+  )
   const designing = panel === "thumbnail"
   // Which of Voices, Music and Sounds the Sounds panel is on. Held here, so
   // the tab is kept while another panel is open. Voices is first.
@@ -626,12 +634,13 @@ function StageHeader({ designing }: { designing: boolean }) {
       <div className="flex items-center justify-end gap-2">
         {guest ? null : (
           <>
-            <AiBudgetIndicator />
             {designing ? <ThumbnailPreviewButton /> : null}
             <Button type="button" variant="outline" onClick={shareLink}>
               {shared ? <Check /> : <Share2 />}
               {shared ? "Copied" : "Share"}
             </Button>
+            {/* The video's template, between Share and Export (templates.md). */}
+            <TemplateHeaderMenu />
           </>
         )}
         <Button type="button" onClick={() => setExportOpen(true)}>

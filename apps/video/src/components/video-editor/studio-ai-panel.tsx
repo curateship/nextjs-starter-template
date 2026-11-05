@@ -1,11 +1,9 @@
 import * as React from "react"
 import {
   CaptionsIcon,
-  FileTextIcon,
   FilmIcon,
   LanguagesIcon,
   MicIcon,
-  PenLineIcon,
   ScissorsIcon,
   SparklesIcon,
   SplitIcon,
@@ -16,8 +14,6 @@ import {
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { BrollDialog } from "@/components/video-editor/b-roll-dialog"
-import { BriefDialog } from "@/components/video-editor/brief-to-video"
-import { useBriefProgress } from "@/components/video-editor/briefs-context"
 import { CaptionsDialog } from "@/components/video-editor/captions-dialog"
 import { HookDialog } from "@/components/video-editor/hook-dialog"
 import { JumpCutsDialog } from "@/components/video-editor/jump-cuts-dialog"
@@ -33,7 +29,9 @@ import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 /**
- * The AI panel: a tile for each thing the app can do to a project.
+ * The AI panel: a tile for each thing the app can do to a project. Brief to
+ * video and the Script tile moved to the Templates panel on 5 Nov 2026
+ * (workspace/docs/templates.md).
  *
  * One press each, laid out the way the old app laid them out, because that is
  * what these are — a button you press, not a form you fill in. Each one works
@@ -47,8 +45,6 @@ type ToolId =
   | "voice"
   | "hook"
   | "translate"
-  | "script"
-  | "brief"
   | "b-roll"
   | "teaser"
 
@@ -89,18 +85,6 @@ const TOOLS: {
     Icon: LanguagesIcon,
   },
   {
-    id: "script",
-    label: "Script",
-    description: "Write the script from an idea.",
-    Icon: PenLineIcon,
-  },
-  {
-    id: "brief",
-    label: "Brief to video",
-    description: "Turn a brief into a script, then into scenes on the timeline.",
-    Icon: FileTextIcon,
-  },
-  {
     id: "b-roll",
     label: "B-roll",
     description: "Free Pexels clips under each sentence of the voice line.",
@@ -114,18 +98,6 @@ const TOOLS: {
   },
 ]
 
-/** The ones that are built. The rest show as what is coming, greyed out. */
-const BUILT: ToolId[] = [
-  "captions",
-  "jump-cut",
-  "voice",
-  "hook",
-  "translate",
-  "brief",
-  "b-roll",
-  "teaser",
-]
-
 export function AiPanel() {
   const { store } = useEditorRuntime()
   const [available, setAvailable] = React.useState<AiToolsAvailability | null>(
@@ -136,10 +108,8 @@ export function AiPanel() {
   const [voiceOpen, setVoiceOpen] = React.useState(false)
   const [hookOpen, setHookOpen] = React.useState(false)
   const [translateOpen, setTranslateOpen] = React.useState(false)
-  const [briefOpen, setBriefOpen] = React.useState(false)
   const [brollOpen, setBrollOpen] = React.useState(false)
   const [teaserOpen, setTeaserOpen] = React.useState(false)
-  const briefProgress = useBriefProgress()
 
   React.useEffect(() => {
     let active = true
@@ -162,7 +132,6 @@ export function AiPanel() {
     if (id === "voice") setVoiceOpen(true)
     if (id === "hook") setHookOpen(true)
     if (id === "translate") setTranslateOpen(true)
-    if (id === "brief") setBriefOpen(true)
     if (id === "b-roll") setBrollOpen(true)
     if (id === "teaser") setTeaserOpen(true)
   }
@@ -177,19 +146,13 @@ export function AiPanel() {
         <div className="grid gap-3 p-3">
           <div className="grid gap-3">
             {TOOLS.map(({ id, label, description, Icon }) => {
-              const ready = BUILT.includes(id)
               return (
                 <button
                   key={id}
                   type="button"
-                  disabled={!ready}
                   onClick={() => press(id)}
-                  title={ready ? undefined : "Not built yet"}
                   className={cn(
-                    "flex w-full items-start gap-2 overflow-hidden rounded-lg border border-foreground/5 bg-card p-2 text-left transition-colors",
-                    ready
-                      ? "hover:border-primary/40 hover:bg-muted/30"
-                      : "text-muted-foreground",
+                    "flex w-full items-start gap-2 overflow-hidden rounded-lg border border-foreground/5 bg-card p-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/30",
                     focusRingInset
                   )}
                 >
@@ -201,11 +164,7 @@ export function AiPanel() {
                       {label}
                     </span>
                     <span className="line-clamp-2 text-[10px] leading-4 text-muted-foreground">
-                      {!ready
-                        ? "Not built yet."
-                        : id === "brief" && briefProgress
-                          ? briefProgress
-                          : description}
+                      {description}
                     </span>
                   </span>
                 </button>
@@ -239,11 +198,6 @@ export function AiPanel() {
       <TranslateDialog
         open={translateOpen}
         onOpenChange={setTranslateOpen}
-        available={available}
-      />
-      <BriefDialog
-        open={briefOpen}
-        onOpenChange={setBriefOpen}
         available={available}
       />
       <BrollDialog

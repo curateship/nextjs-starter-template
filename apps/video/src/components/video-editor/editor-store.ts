@@ -11,6 +11,7 @@ import {
 } from "@/lib/video/clip-playback"
 import {
   landBriefScenes,
+  relayBriefScene,
   type BriefLanding,
   type SceneWithFiles,
 } from "@/lib/video/brief"
@@ -171,7 +172,17 @@ export type EditorAction =
       type: "LAND_BRIEF_SCENES"
       scenes: SceneWithFiles[]
       landing: BriefLanding
-      captions: CaptionPlacement
+      /** Null for a template with captions off (templates.md). */
+      captions: CaptionPlacement | null
+    }
+  // Scenes read again after their words were edited, swapped in where they
+  // sit with the later scenes moved along (templates.md, part 35). One
+  // action, one Undo.
+  | {
+      type: "RELAY_BRIEF_SCENES"
+      landing: BriefLanding
+      changes: Parameters<typeof relayBriefScene>[2][]
+      captions: CaptionPlacement | null
     }
   // Pexels clips picked in the B-roll window, on one new lane under their
   // sentences (b-roll.ts). One action, one Undo.
@@ -1067,6 +1078,14 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       const landed = landBriefScenes(state.tracks, action, editorId, action.captions)
       if (!landed?.placed.length) return state
       return pushUndo(state, landed.tracks)
+    }
+
+    case "RELAY_BRIEF_SCENES": {
+      let tracks = state.tracks
+      for (const change of action.changes) {
+        tracks = relayBriefScene(tracks, action.landing, change, action.captions) ?? tracks
+      }
+      return tracks === state.tracks ? state : pushUndo(state, tracks)
     }
 
     case "REMAKE_VOICE_LINE": {

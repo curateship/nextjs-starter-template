@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  FileTextIcon,
   Loader2Icon,
   PlusIcon,
   RotateCwIcon,
@@ -20,7 +19,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NumberField } from "@/components/ui/number-field"
 import {
@@ -33,18 +31,11 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { BriefsContext, useBriefs, type BriefsValue } from "@/components/video-editor/briefs-context"
-import { useCaptionPlacement } from "@/components/video-editor/caption-settings-context"
-import { useEditorLock, useEditorRuntime } from "@/components/video-editor/editor-store"
+import { useCaptionSettings } from "@/components/video-editor/caption-settings-context"
+import { useEditorLock, useEditorRuntime, useEditorSelector } from "@/components/video-editor/editor-store"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { useProjectSettings } from "@/components/video-editor/project-settings-context"
 import { ScriptCheckList } from "@/components/video-editor/script-check-results"
-import {
-  getAiToolErrorMessage,
-  loadVoiceDefaults,
-  loadVoices,
-  type AiToolsAvailability,
-  type Voice,
-} from "@/lib/api/video/ai-tools"
 import {
   getBriefErrorMessage,
   listBriefs,
@@ -52,54 +43,35 @@ import {
   saveBriefScenes,
   settleBriefScenes,
   startBrief,
-  writeBrief,
   type BriefItem,
 } from "@/lib/api/video/briefs"
+import { remakeChangedScenes } from "@/lib/api/video/templates"
 import { plural } from "@/lib/format/plural"
-import { aiUnitCostCents } from "@/lib/ai/ai-models"
+import { IMAGE_MODELS } from "@/lib/video/asset-factories"
 import {
-  briefScriptCostCents,
-  formatAiEstimate,
-  withEstimate,
-} from "@/lib/video/ai-estimates"
-import { WRITERS } from "@/lib/video/ai-choices"
-import { IMAGE_MODELS, type GeminiImageModelId } from "@/lib/video/asset-factories"
-import {
-  BRIEF_ABOUT_MAX,
-  BRIEF_AUDIENCE_MAX,
   BRIEF_BUSY_MESSAGE,
-  BRIEF_DEFAULT_PICTURE_MODEL,
-  BRIEF_NO_ABOUT_MESSAGE,
   BRIEF_NO_SCENES_MESSAGE,
-  BRIEF_PLATFORMS,
   BRIEF_SCENES_MAX,
   SCENE_PICTURE_MAX,
   SCENE_SECONDS_MAX,
   SCENE_WORDS_MAX,
-  briefLengthRange,
   landBriefScenes,
   platformFor,
   scenePictureCents,
   sceneVoiceCents,
-  storyboardCents,
   totalSeconds,
-  type BriefPlatform,
-  type BriefVoice,
   type SceneDraft,
 } from "@/lib/video/brief"
 import { formatCents, isProjectSpendLimitMessage } from "@/lib/video/project-spend"
+import { makingCents, templateCaptions } from "@/lib/video/templates"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { editorId } from "@/lib/video/timeline-utils"
-import {
-  createDefaultVoiceSettings,
-  VOICE_MODELS,
-  type VoiceModelId,
-} from "@/lib/video/voice"
 
 /**
- * Brief to video (`workspace/docs/brief-to-video.md`): the brief window, the
- * storyboard it turns into, and the part of the editor that lays made scenes
- * on the timeline. The provider keeps the project's briefs, asks again while
+ * Brief to video (`workspace/docs/brief-to-video.md`): the storyboard a
+ * template's brief turns into, and the part of the editor that lays made
+ * scenes on the timeline. The Templates panel writes the brief
+ * (`workspace/docs/templates.md`). The provider keeps the project's briefs, asks again while
  * scenes are being made, and lands each made scene as one Undo step. The
  * background worker lands them instead whenever no editor has the project
  * open, so closing the tab never stops a brief.
@@ -141,7 +113,8 @@ export function BriefsProvider({ children }: { children: React.ReactNode }) {
 
 function OwnerBriefs({ children }: { children: React.ReactNode }) {
   const { store, dispatch, videoId } = useEditorRuntime()
-  const captions = useCaptionPlacement()
+  const captionSettings = useCaptionSettings()
+  const aspect = useEditorSelector((state) => state.aspect)
   const { refreshSpend } = useProjectSettings()
   const lock = useEditorLock()
   const [briefs, setBriefs] = React.useState<BriefItem[] | null>(null)
@@ -187,6 +160,8 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
     if (lock || !briefs) return
     for (const brief of briefs) {
       if (!brief.landing || !brief.scenes.some((scene) => scene.state === "made")) continue
+      // A template's captions: its own look, or none when it switched them off.
+      const captions = templateCaptions(brief.template?.fields, captionSettings, aspect)
       const landed = landBriefScenes(
         store.getSnapshot().state.tracks,
         { scenes: brief.scenes, landing: brief.landing },
@@ -198,7 +173,9 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
       if (landing.current.has(key)) continue
       landing.current.add(key)
       const placed = new Set(landed.placed)
-      settleBriefScenes({ briefId: brief.id, sceneIds: landed.placed, lanes: landed.landing.lanes })
+      const musicLane =
+        landed.landing.music?.laid && !brief.landing.music?.laid ? landed.landing.music.lane : undefined
+      settleBriefScenes({ briefId: brief.id, sceneIds: landed.placed, lanes: landed.landing.lanes, musicLane })
         .then(({ settled }) => {
           if (!settled) return
           dispatch({
@@ -234,7 +211,7 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
           landing.current.delete(key)
         })
     }
-  }, [briefs, lock, store, dispatch, refreshSpend, captions])
+  }, [briefs, lock, store, dispatch, refreshSpend, captionSettings, aspect])
 
   const value = React.useMemo<BriefsValue>(
     () => ({
@@ -246,352 +223,6 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
   )
 
   return <BriefsContext.Provider value={value}>{children}</BriefsContext.Provider>
-}
-
-/**
- * The Brief window. It opens on the newest brief's storyboard when the
- * project has one, and on a new brief otherwise.
- */
-export function BriefDialog({
-  open,
-  onOpenChange,
-  available,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  available: AiToolsAvailability | null
-}) {
-  const briefs = useBriefs()
-  const [view, setView] = React.useState<{ briefId: string } | "new" | null>(null)
-  const [wasOpen, setWasOpen] = React.useState(open)
-  if (wasOpen !== open) {
-    setWasOpen(open)
-    if (open) setView(null)
-  }
-  if (!briefs || !open) return null
-  const shown =
-    view === "new"
-      ? null
-      : (briefs.briefs?.find((brief) => brief.id === view?.briefId) ?? briefs.briefs?.[0] ?? null)
-
-  if (!shown) {
-    return (
-      <NewBriefDialog
-        available={available}
-        onClose={() => onOpenChange(false)}
-        onWritten={(brief) => {
-          briefs.replace(brief)
-          setView({ briefId: brief.id })
-        }}
-      />
-    )
-  }
-  return (
-    <StoryboardDialog
-      key={shown.id}
-      brief={shown}
-      briefs={briefs.briefs ?? []}
-      onPick={(briefId) => setView({ briefId })}
-      onNew={() => setView("new")}
-      onClose={() => onOpenChange(false)}
-    />
-  )
-}
-
-/** The voice list, opened on the voice this app usually speaks in. */
-function useBriefVoices() {
-  const [voices, setVoices] = React.useState<Voice[] | null>(null)
-  const [refused, setRefused] = React.useState(false)
-  const [voiceId, setVoiceId] = React.useState("")
-  const [modelId, setModelId] = React.useState<VoiceModelId>("eleven_multilingual_v2")
-  const [settings, setSettings] = React.useState(createDefaultVoiceSettings)
-
-  React.useEffect(() => {
-    let active = true
-    Promise.all([loadVoices(), loadVoiceDefaults().catch(() => null)])
-      .then(([loaded, remembered]) => {
-        if (!active) return
-        setVoices(loaded)
-        const known = remembered && loaded.some((voice) => voice.id === remembered.voiceId)
-        setVoiceId(known ? remembered.voiceId : (loaded[0]?.id ?? ""))
-        if (known) {
-          const start = createDefaultVoiceSettings()
-          setModelId(remembered.modelId)
-          setSettings({
-            ...start,
-            speed: remembered.speed,
-            stability: remembered.stability ?? start.stability,
-            styleExaggeration: remembered.styleExaggeration ?? start.styleExaggeration,
-          })
-        }
-      })
-      .catch((error: unknown) => {
-        if (!active) return
-        setRefused(true)
-        showErrorToast(getAiToolErrorMessage(error))
-      })
-    return () => {
-      active = false
-    }
-  }, [])
-
-  const chosen = voices?.find((voice) => voice.id === voiceId)
-  const voice: BriefVoice | null = chosen
-    ? { id: chosen.id, name: chosen.name, speaker: chosen.speaker, modelId, settings }
-    : null
-  return { voices, loading: voices === null && !refused, voiceId, setVoiceId, modelId, setModelId, voice }
-}
-
-function NewBriefDialog({
-  available,
-  onClose,
-  onWritten,
-}: {
-  available: AiToolsAvailability | null
-  onClose: () => void
-  onWritten: (brief: BriefItem) => void
-}) {
-  const { videoId } = useEditorRuntime()
-  const { project, refreshSpend } = useProjectSettings()
-  const reportError = useReportError()
-  const voices = useBriefVoices()
-  const [about, setAbout] = React.useState("")
-  const [audience, setAudience] = React.useState("")
-  const [platform, setPlatform] = React.useState<BriefPlatform>("shorts")
-  const [lengthSeconds, setLengthSeconds] = React.useState(45)
-  const [pictureModel, setPictureModel] = React.useState<GeminiImageModelId>(BRIEF_DEFAULT_PICTURE_MODEL)
-  const [aboutInvalid, setAboutInvalid] = React.useState(false)
-  const [busy, setBusy] = React.useState(false)
-  const range = briefLengthRange(platform)
-  const writer = WRITERS.find((one) => one.id === available?.writer)
-  const scriptCents = writer
-    ? briefScriptCostCents({
-        writer: writer.id,
-        lengthSeconds,
-        briefCharacters: about.length + audience.length,
-      })
-    : null
-  const isOpenAi = voices.voice?.speaker === "openai"
-
-  async function submit() {
-    if (!about.trim()) {
-      setAboutInvalid(true)
-      showErrorToast(BRIEF_NO_ABOUT_MESSAGE)
-      return
-    }
-    if (!voices.voice) {
-      showErrorToast("Pick a voice first")
-      return
-    }
-    setBusy(true)
-    try {
-      const brief = await writeBrief({
-        videoId,
-        about: about.trim(),
-        audience: audience.trim(),
-        lengthSeconds,
-        platform,
-        voice: voices.voice,
-        pictureModel,
-      })
-      refreshSpend()
-      onWritten(brief)
-    } catch (error) {
-      reportError(error)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <FormDialog open dirty={!!about.trim() || !!audience.trim()} busy={busy} onClose={onClose}>
-      {(requestClose) => (
-        <DialogContent variant="admin" className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Brief to video</DialogTitle>
-            <DialogDescription>
-              The script is written and cut into scenes first. Every scene&apos;s
-              price shows on the storyboard before anything is made.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="flex min-h-0 flex-1 flex-col"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void submit()
-            }}
-          >
-            <DialogBody>
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>The brief</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="brief-about">What it is about</Label>
-                    <Textarea
-                      id="brief-about"
-                      rows={1}
-                      maxLength={BRIEF_ABOUT_MAX}
-                      value={about}
-                      disabled={busy}
-                      aria-invalid={aboutInvalid || undefined}
-                      placeholder="Why bread goes stale, and how to stop it"
-                      onChange={(event) => {
-                        setAbout(event.target.value)
-                        setAboutInvalid(false)
-                      }}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="brief-audience">Who it is for</Label>
-                    <Input
-                      id="brief-audience"
-                      maxLength={BRIEF_AUDIENCE_MAX}
-                      value={audience}
-                      disabled={busy}
-                      placeholder="Home bakers"
-                      onChange={(event) => setAudience(event.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="grid gap-2">
-                      <Label htmlFor="brief-platform">Platform</Label>
-                      <Select
-                        value={platform}
-                        disabled={busy}
-                        onValueChange={(next) => {
-                          if (!next) return
-                          const picked = next as BriefPlatform
-                          setPlatform(picked)
-                          setLengthSeconds((current) => Math.min(current, briefLengthRange(picked).max))
-                        }}
-                      >
-                        <SelectTrigger id="brief-platform" className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BRIEF_PLATFORMS.map((one) => (
-                            <SelectItem key={one.id} value={one.id}>
-                              {one.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <NumberField
-                      id="brief-length"
-                      label="Length in seconds"
-                      hint={`${range.min} to ${range.max.toLocaleString()} seconds on ${platformFor(platform).label}.`}
-                      value={lengthSeconds}
-                      min={range.min}
-                      max={range.max}
-                      disabled={busy}
-                      onChange={setLengthSeconds}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>How it is made</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="brief-voice">Voice</Label>
-                    <Select
-                      value={voices.voiceId}
-                      onValueChange={(next) => {
-                        if (next) voices.setVoiceId(next)
-                      }}
-                      disabled={busy || !voices.voices?.length}
-                    >
-                      <SelectTrigger id="brief-voice" className="w-full">
-                        <SelectValue placeholder={voices.loading ? "Fetching voices…" : "No voices"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(voices.voices ?? []).map((voice) => (
-                          <SelectItem key={voice.id} value={voice.id}>
-                            {voice.name}
-                            {voice.yours ? " (yours)" : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {!isOpenAi ? (
-                    <div className="grid gap-2">
-                      <Label htmlFor="brief-voice-model">Voice quality</Label>
-                      <Select
-                        value={voices.modelId}
-                        disabled={busy}
-                        onValueChange={(next) => {
-                          if (next) voices.setModelId(next as VoiceModelId)
-                        }}
-                      >
-                        <SelectTrigger id="brief-voice-model" className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {VOICE_MODELS.map((model) => (
-                            <SelectItem key={model.id} value={model.id}>
-                              {model.label}, {model.note.toLowerCase()}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : null}
-                  <div className="grid gap-2">
-                    <Label htmlFor="brief-picture-model">Picture model</Label>
-                    <Select
-                      value={pictureModel}
-                      disabled={busy}
-                      onValueChange={(next) => {
-                        if (next) setPictureModel(next as GeminiImageModelId)
-                      }}
-                    >
-                      <SelectTrigger id="brief-picture-model" className="w-full sm:w-auto">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {IMAGE_MODELS.map((item) => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.label} · {formatCents(aiUnitCostCents(item.id, 1))} a picture
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-                    {project.look?.style
-                      ? `Every picture is made in the project's look: "${project.look.style}".`
-                      : "This project has no look, so each picture follows its own direction. Set one in the project's Settings to keep every scene alike."}
-                  </p>
-                </CardContent>
-              </Card>
-              <p className="text-sm text-muted-foreground">
-                {writer
-                  ? `Writing the script and checking it costs ${formatAiEstimate(scriptCents ?? 0)} with ${writer.label}.`
-                  : available
-                    ? "Writing the script needs a Gemini, OpenAI or Anthropic key in Settings → AI."
-                    : null}
-              </p>
-            </DialogBody>
-            <DialogFooter>
-              <Button type="button" variant="outline" disabled={busy} onClick={requestClose}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={busy || voices.loading}>
-                {busy ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-                {busy ? "Writing…" : withEstimate("Write the script", scriptCents)}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      )}
-    </FormDialog>
-  )
 }
 
 /** "Scene 3 failed." and what that left, for a brief that stopped. */
@@ -623,33 +254,47 @@ const STATE_TEXT = {
 /**
  * The storyboard: every scene's words, picture direction and seconds, each
  * one's price, and the total. Edits are kept 700ms after typing stops. Once
- * Make it is pressed it shows where each scene is up to instead.
+ * Make it is pressed it shows where each scene is up to instead. Once every
+ * scene is on the timeline, a scene's words can be changed and only the
+ * changed scenes are read again (templates.md, part 35).
+ *
+ * Opened from the Templates panel's "This video" card.
  */
-function StoryboardDialog({
+export function BriefStoryboard({
   brief,
   briefs,
   onPick,
-  onNew,
   onClose,
 }: {
   brief: BriefItem
   briefs: BriefItem[]
   onPick: (briefId: string) => void
-  onNew: () => void
   onClose: () => void
 }) {
-  const { store, saveNow, clock } = useEditorRuntime()
+  const { store, saveNow, clock, dispatch } = useEditorRuntime()
+  const captionSettings = useCaptionSettings()
+  const aspect = useEditorSelector((state) => state.aspect)
   const { refreshSpend } = useProjectSettings()
   const context = useBriefs()
   const reportError = useReportError()
   const editable = brief.status === "draft"
+  const done = brief.status === "done" && !!brief.landing
   const [scenes, setScenes] = React.useState<DraftScene[]>(() =>
-    brief.scenes.map(({ id, words, picture, seconds }) => ({ id, words, picture, seconds }))
+    brief.scenes.map(({ id, words, picture, seconds, person }) => ({
+      id,
+      words,
+      picture,
+      seconds,
+      ...(person ? { person } : {}),
+    }))
   )
   const [edited, setEdited] = React.useState(false)
   const [invalid, setInvalid] = React.useState<string | null>(null)
   const [starting, setStarting] = React.useState(false)
   const [retrying, setRetrying] = React.useState<string | null>(null)
+  const [redoing, setRedoing] = React.useState(false)
+  // Words changed on a made video, by scene, before Make changed scenes again.
+  const [rewords, setRewords] = React.useState<Record<string, string>>({})
 
   // Edits are kept a moment after typing stops, so the storyboard reopens as
   // it was left. A scene with no words or no picture direction waits.
@@ -731,17 +376,59 @@ function StoryboardDialog({
     }
   }
 
+  const changedScenes = brief.scenes.filter((scene) => {
+    const words = rewords[scene.id]
+    return words !== undefined && words.trim() && words.trim() !== scene.words
+  })
+
+  async function redo() {
+    if (!changedScenes.length || !brief.landing) {
+      showErrorToast("Nothing changed: edit a scene's words first.")
+      return
+    }
+    if (store.refuseIfLocked()) return
+    setRedoing(true)
+    try {
+      const answer = await remakeChangedScenes(
+        brief.id,
+        changedScenes.map((scene) => ({ id: scene.id, words: rewords[scene.id].trim() }))
+      )
+      dispatch({
+        type: "RELAY_BRIEF_SCENES",
+        landing: brief.landing,
+        changes: answer.changed,
+        captions: templateCaptions(brief.template?.fields, captionSettings, aspect),
+      })
+      context?.replace(answer.brief)
+      store.refreshMediaShelf()
+      refreshSpend()
+      setRewords({})
+      toast.success(
+        `${answer.changed.length} ${plural(answer.changed.length, "scene was", "scenes were")} read again and swapped in. Undo puts the old ${plural(answer.changed.length, "one", "ones")} back.`
+      )
+    } catch (error) {
+      reportError(error)
+    } finally {
+      setRedoing(false)
+    }
+  }
+
+  const fields = brief.template?.fields ?? null
   const shownScenes = editable ? scenes : brief.scenes
-  const totalCents = storyboardCents(shownScenes, brief.voice, brief.picture_model)
+  const price = makingCents(shownScenes, brief.voice, brief.picture_model, fields)
+  const totalCents = price.total
   const seconds = totalSeconds(shownScenes)
   const pictureCents = scenePictureCents(brief.picture_model)
   const platform = platformFor(brief.platform)
   const pictureModel = IMAGE_MODELS.find((item) => item.id === brief.picture_model)?.label ?? brief.picture_model
   const making = brief.status === "making"
   const firstWaiting = making ? brief.scenes.findIndex((scene) => scene.state === "queued") : -1
+  const fromScript = brief.source?.kind === "script"
+  const redoCents = changedScenes.reduce((sum, scene) => sum + sceneVoiceCents(brief.voice, rewords[scene.id]), 0)
+  const overCap = editable && fields?.spendCapCents ? totalCents > fields.spendCapCents : false
 
   return (
-    <FormDialog open dirty={false} busy={starting} onClose={onClose}>
+    <FormDialog open dirty={false} busy={starting || redoing} onClose={onClose}>
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-2xl">
           <DialogHeader>
@@ -749,8 +436,8 @@ function StoryboardDialog({
             <DialogDescription>
               {editable
                 ? "Nothing has been made or charged for the scenes yet. Change anything, then press Make it."
-                : brief.status === "done"
-                  ? "Every scene is on the timeline. Right-click a scene's picture or voice there to make it again."
+                : done
+                  ? "Every scene is on the timeline. Change a scene's words below and only that scene is read again."
                   : brief.status === "stopped"
                     ? stoppedLine(brief)
                     : "The scenes are being made one after another. Each lands on the timeline when it is ready."}
@@ -759,12 +446,12 @@ function StoryboardDialog({
           <DialogBody>
             <Card size="sm">
               <CardHeader>
-                <CardTitle>The brief</CardTitle>
+                <CardTitle>{brief.template ? `From the ${brief.template.name} template` : "The brief"}</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4">
                 {briefs.length > 1 ? (
                   <div className="grid gap-2">
-                    <Label htmlFor="brief-pick">Brief</Label>
+                    <Label htmlFor="brief-pick">Storyboard</Label>
                     <Select
                       value={brief.id}
                       onValueChange={(next) => {
@@ -784,16 +471,21 @@ function StoryboardDialog({
                     </Select>
                   </div>
                 ) : null}
-                <p className="text-sm [overflow-wrap:anywhere]">{brief.about}</p>
+                {/* A brief from the old window had no script box, only what it was about. */}
+                {!brief.source ? (
+                  <p className="text-sm [overflow-wrap:anywhere]">{brief.about}</p>
+                ) : null}
                 <p className="text-sm text-muted-foreground">
-                  {brief.length_seconds} seconds on {platform.label}
-                  {brief.audience ? `, for ${brief.audience.toLowerCase()}` : ""}. Read by{" "}
-                  {brief.voice.name}, pictures by {pictureModel}.
+                  {fromScript ? "Your script, " : `${brief.length_seconds} seconds asked, `}on {platform.label}
+                  {brief.audience ? `, for ${brief.audience.toLowerCase()}` : ""}. Read by {brief.voice.name}, pictures
+                  by {pictureModel}.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  The scenes add up to {Math.round(seconds)} seconds, against the{" "}
-                  {brief.length_seconds} asked. The reading decides the real length.
+                  {fromScript
+                    ? `Your words run about ${Math.round(seconds)} seconds read aloud. The reading decides the real length.`
+                    : `The scenes add up to ${Math.round(seconds)} seconds, against the ${brief.length_seconds} asked. The reading decides the real length.`}
                 </p>
+                {fields ? <TemplateExtrasLine brief={brief} /> : null}
               </CardContent>
             </Card>
             <Card size="sm">
@@ -854,7 +546,26 @@ function StoryboardDialog({
                             )}
                           </span>
                         </div>
-                        <p className="text-sm [overflow-wrap:anywhere]">{scene.words}</p>
+                        {done && scene.voice ? (
+                          <div className="grid gap-2">
+                            <Label htmlFor={`brief-reword-${scene.id}`} className="sr-only">
+                              Scene {index + 1}&apos;s words
+                            </Label>
+                            <Textarea
+                              id={`brief-reword-${scene.id}`}
+                              rows={1}
+                              maxLength={SCENE_WORDS_MAX}
+                              value={rewords[scene.id] ?? scene.words}
+                              disabled={redoing}
+                              onChange={(event) => {
+                                const value = event.target.value
+                                setRewords((current) => ({ ...current, [scene.id]: value }))
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <p className="text-sm [overflow-wrap:anywhere]">{scene.words}</p>
+                        )}
                         <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
                           Picture: {scene.picture}
                         </p>
@@ -885,19 +596,23 @@ function StoryboardDialog({
                 <p className="text-sm font-medium tabular-nums">
                   {editable ? "Making them costs" : "Making them cost about"} {dollars(totalCents)}:{" "}
                   {shownScenes.length} {plural(shownScenes.length, "picture", "pictures")} at{" "}
-                  {formatCents(pictureCents)} and the voice by the character.
+                  {formatCents(pictureCents)} and the voice by the character
+                  {price.total > price.thisVideo
+                    ? `, with ${dollars(price.total - price.thisVideo)} of it for the language copies`
+                    : ""}
+                  .
                 </p>
+                {overCap && fields?.spendCapCents ? (
+                  <p className="text-sm text-destructive">
+                    That is over this template&apos;s cap of {formatCents(fields.spendCapCents)} a video, so Make it
+                    will refuse. Cut some scenes or raise the cap in the template.
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
           </DialogBody>
           <DialogFooter>
-            {!making ? (
-              <Button type="button" variant="ghost" className="mr-auto" disabled={starting} onClick={onNew}>
-                <FileTextIcon />
-                New brief
-              </Button>
-            ) : null}
-            <Button type="button" variant="outline" disabled={starting} onClick={requestClose}>
+            <Button type="button" variant="outline" disabled={starting || redoing} onClick={requestClose}>
               Done
             </Button>
             {editable ? (
@@ -906,11 +621,38 @@ function StoryboardDialog({
                 Make it · {dollars(totalCents)}
               </Button>
             ) : null}
+            {done ? (
+              <Button type="button" disabled={redoing} onClick={() => void redo()}>
+                {redoing ? <Loader2Icon className="animate-spin" /> : <RotateCwIcon />}
+                {changedScenes.length
+                  ? `Make ${changedScenes.length} changed ${plural(changedScenes.length, "scene", "scenes")} again · ${dollars(redoCents)}`
+                  : "Make changed scenes again"}
+              </Button>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       )}
     </FormDialog>
   )
+}
+
+/** What a template adds to a brief: music, intro and outro, languages, the status, and how it finished. */
+function TemplateExtrasLine({ brief }: { brief: BriefItem }) {
+  const fields = brief.template?.fields
+  if (!fields) return null
+  const lines: string[] = []
+  if (!fields.captions.on) lines.push("No captions.")
+  if (fields.music.kind === "ai") lines.push(`AI music: "${fields.music.mood}".`)
+  if (fields.music.kind === "track") lines.push(`Music: ${fields.music.name}.`)
+  if (brief.landing?.musicError) lines.push(`The music could not be had: ${brief.landing.musicError}`)
+  if (fields.introMediaId || fields.outroMediaId) lines.push("The template's own intro and outro go round every export.")
+  if (fields.languages.length) lines.push(`Copies in ${fields.languages.join(", ")} once it is made.`)
+  if (brief.finish?.state === "done") {
+    const failed = brief.finish.languages.filter((one) => one.error)
+    for (const one of failed) lines.push(`The ${one.language} copy could not be started: ${one.error}`)
+  }
+  if (!lines.length) return null
+  return <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{lines.join(" ")}</p>
 }
 
 function EditableScene({

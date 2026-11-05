@@ -71,6 +71,34 @@ proved the requested behavior.
 
 ## This Repo
 
+- **Never make Tyler approve a browser check.** Tyler, 5 Nov 2026: "stop
+  fuicking asking!", then "change the validate app skill so it never ask me
+  that shit again". Claude Code stops and asks for permission when a command
+  carries a password or reaches into a database or server config, even with
+  every tool allowed. So:
+  - **Sign in through `browser.mjs` in this folder.** It finds Playwright,
+    reads the test account from this file and signs in, retrying until the
+    page has hydrated. `openSignedIn({ port })` hands back the page and a list
+    of console errors and failed requests. Never write the email or password
+    into a command, an environment variable on the command line, or a script.
+  - **One script, one command.** Write the whole check as one `.mjs` file in
+    the session's scratchpad and run it with a single `node <file>`. No
+    `python3` or `sed` edits to the script, no `touch vite.config.ts`, no
+    `psql` with the database address, no `curl` probes in between. Change a
+    script with the Edit tool, then run it again.
+  - **Find test records with the app's own pages**, not by querying the
+    database from the shell.
+- **The check script's shape:**
+
+  ```js
+  import { openSignedIn } from "<repo root>/.agents/skills/validate-app/browser.mjs"
+  const { browser, page, problems } = await openSignedIn({ port: 3016 })
+  await page.goto("http://localhost:3016/admin/…", { waitUntil: "domcontentloaded" })
+  // … click through, measure with getBoundingClientRect(), print numbers …
+  console.log(problems.length ? problems.join("\n") : "no console errors or failed requests")
+  await browser.close()
+  ```
+
 - **Browse local apps as `http://localhost:<port>`**, using the port from
   `local-apps.json`. The servers listen on `::1`, and `localhost` resolves
   there — but the sign-in server fn checks the request's origin and rejects a

@@ -46,12 +46,12 @@ export function VideosPanel() {
   const sendToPromo = useSendToPromo()
 
   /** Opens a video in the player, saving the open one's last edit first. */
-  async function open(id: string, inProject = projectId) {
+  async function open(id: string, inProject = projectId, panel?: "templates") {
     await saveNow()
     await navigate({
       to: guest ? "/guest/video-editor/$projectId" : "/admin/video-editor/$projectId",
       params: { projectId: inProject },
-      search: { video: id },
+      search: { video: id, ...(panel ? { panel } : {}) },
     })
   }
 
@@ -118,7 +118,13 @@ export function VideosPanel() {
         ),
     pending: (video) => video.thumbnail_pending,
     newButton: (
-      <NewVideoPopover projectId={projectId} aspect={openAspect} tooltip="New video" onCreated={open}>
+      <NewVideoPopover
+        projectId={projectId}
+        aspect={openAspect}
+        tooltip="New video"
+        withTemplates={!guest}
+        onCreated={(id, panel) => open(id, projectId, panel)}
+      >
         <Button type="button" variant="ghost" size="icon" aria-label="New video">
           <PlusIcon />
         </Button>

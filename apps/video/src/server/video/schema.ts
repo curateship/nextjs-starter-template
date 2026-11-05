@@ -18,8 +18,10 @@ import {
 
 import type { PromoSendKind, PromoSendOptions, PromoSendStatus } from "@/lib/video/promo"
 import type {
+  BriefFinish,
   BriefLanding,
   BriefPlatform,
+  BriefSource,
   BriefStatus,
   BriefVoice,
   StoredScene,
@@ -684,6 +686,23 @@ export const videoProjectVideos = pgTable(
     viralScript: text("viral_script"),
     viralNotes: text("viral_notes"),
     viralVaultUrl: varchar("viral_vault_url", { length: 600 }),
+    // The Templates panel's "This video" card (templates.md, drizzle/0155):
+    // the template picked, what is in the script box, and this video's own
+    // changes to the template. Deleting the template blanks the pick.
+    templateId: varchar("template_id", { length: 36 }).references(
+      (): AnyPgColumn => videoTemplates.id,
+      { onDelete: "set null" }
+    ),
+    templateScript: text("template_script"),
+    templateChanges: jsonb("template_changes"),
+    // The template's own intro and outro, written when Make it is pressed.
+    // An export uses them before the project's (intro-and-outro.md).
+    introMediaId: varchar("intro_media_id", { length: 36 }).references(() => customShellMedia.id, {
+      onDelete: "set null",
+    }),
+    outroMediaId: varchar("outro_media_id", { length: 36 }).references(() => customShellMedia.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -2114,6 +2133,16 @@ export const videoBriefs = pgTable(
     // Set when Make it is pressed: where scene one starts, and the lanes the
     // scenes went on once they exist.
     landing: jsonb("landing").$type<BriefLanding>(),
+    // Made from a template (templates.md, drizzle/0155): which one, the
+    // settings it was made with (the video's copy), what the script box
+    // held, and what happened once it was made.
+    templateId: varchar("template_id", { length: 36 }).references(
+      (): AnyPgColumn => videoTemplates.id,
+      { onDelete: "set null" }
+    ),
+    template: jsonb("template"),
+    source: jsonb("source").$type<BriefSource>(),
+    finish: jsonb("finish").$type<BriefFinish>(),
     leaseToken: varchar("lease_token", { length: 36 }),
     leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -2130,6 +2159,41 @@ export const videoBriefs = pgTable(
 )
 
 export type VideoBriefRow = typeof videoBriefs.$inferSelect
+
+/**
+ * A person's templates (`workspace/docs/templates.md`, drizzle/0155): saved
+ * instructions for the AI, picked on any of their videos. What the AI follows
+ * is one JSON object read through `readTemplateFields`, so a field added later
+ * needs no migration.
+ */
+export const videoTemplates = pgTable(
+  "video_templates",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    fields: jsonb("fields").notNull(),
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
+    // Which starter this began as, or null. A label only.
+    starter: varchar("starter", { length: 40 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_video_templates_user").on(table.userId, table.updatedAt)]
+)
+
+export type VideoTemplateRow = typeof videoTemplates.$inferSelect
+
+/** When a person's starter templates were made, so deleting them never brings them back. */
+export const videoTemplateStarts = pgTable("video_template_starts", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+})
 
 /**
  * The key the Viral app sends drafts into Video with (viral-connection.md).

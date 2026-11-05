@@ -162,6 +162,7 @@ export async function writeCarouselDraft({
   source,
   slideCount,
   format,
+  madeFromProjectId,
   database = db,
 }: {
   userId: string
@@ -170,6 +171,12 @@ export async function writeCarouselDraft({
   source: CarouselSource
   slideCount: number
   format: CarouselFormat
+  /**
+   * The video project a script came from, when the source is notes pasted
+   * from one: the Templates panel's script (templates.md), so the carousel
+   * shows on that project's Carousels card.
+   */
+  madeFromProjectId?: string
   database?: CustomShellDb
 }) {
   const count = Math.min(
@@ -197,7 +204,7 @@ export async function writeCarouselDraft({
     format,
     slides,
     // Written from a video's script, it was made from that video's project.
-    madeFrom,
+    madeFrom: madeFrom ?? madeFromProjectId ?? null,
   })
   return serializeCarousel(row)
 }

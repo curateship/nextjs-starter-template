@@ -15,18 +15,27 @@ for the task to be built, which answered the 8 Aug question.
 
 ## Where it is
 
-Video editor → AI tools → **Brief to video**. The tile opens the newest
-brief's storyboard when the project has one, and a new brief when it does not.
-While scenes are being made, the tile reads "Making scene 3 of 8." instead of
-its description. The Script tile beside it is still greyed out.
+Video editor → **Templates** → the "This video" card → **Brief to video**,
+since 5 Nov 2026. It moved there from AI tools with the Script tile, and every
+brief now comes from a template and a pasted script or a one-line idea
+(`templates.md`). The card's line reads "Making scene 3 of 8." while scenes are
+being made, and its Storyboard button opens the newest brief.
 
-The code is `src/components/video-editor/brief-to-video.tsx` (the windows and
-the editor's landing), `src/server/video/briefs.ts` (the writer, the job and
-the worker's landing) and `src/lib/video/brief.ts` (the shapes, the prices and
-where scenes land). A guest sent from Project has no tile, because a guest
-uses no AI (`project-guests.md`).
+The code is `src/components/video-editor/brief-to-video.tsx` (the storyboard
+and the editor's landing), `src/server/video/briefs.ts` (the writer, the job
+and the worker's landing) and `src/lib/video/brief.ts` (the shapes, the prices
+and where scenes land). A guest sent from Project has no Templates button,
+because a guest uses no AI (`project-guests.md`).
 
-## The brief window
+## The brief window, until 5 Nov 2026
+
+The brief window below is gone. Its fields now live on the template: platform,
+length, audience, voice and picture model. The rules the writer is asked
+below still hold for Write it for me; a pasted script is cut by the app and
+the writer only writes its pictures (`templates.md`). Briefs written in the
+old window still open on the storyboard. The window's code and its writer
+prompt were removed on 5 Nov 2026; the rules below describe how it wrote, and
+the Instructions card (`templates.md`) is what the writer reads now.
 
 - **What it is about:** required, up to 1,000 characters.
 - **Who it is for:** optional, up to 300 characters.

@@ -14,11 +14,11 @@ import { type ProjectItem } from "@/lib/api/video/projects"
 export function EmptyProject({ project, guest }: { project: ProjectItem; guest: boolean }) {
   const navigate = useNavigate()
 
-  async function openMade(videoId: string) {
+  async function openMade(videoId: string, panel?: "templates") {
     await navigate({
       to: "/admin/video-editor/$projectId",
       params: { projectId: project.id },
-      search: { video: videoId },
+      search: { video: videoId, ...(panel ? { panel } : {}) },
     })
   }
 
@@ -48,6 +48,7 @@ export function EmptyProject({ project, guest }: { project: ProjectItem; guest: 
               projectId={project.id}
               aspect={project.aspects[0] ?? "9:16"}
               side="bottom"
+              withTemplates
               onCreated={openMade}
             >
               <Button type="button">

@@ -14,6 +14,7 @@ The Viral app's Send to Video makes a draft video in one of your Video projects.
 
 - **A new draft** in the picked project, named after the vault item's title, or the script's first line when there is no title.
 - **Its script, notes and vault link** are kept on the video. The Videos tab shows "From Viral:" and the script's first line under its name, and the whole script on hover.
+- **The script fills the Templates panel's script box** until something else is typed there, so a template can be picked and Brief to video pressed straight away ([templates.md](templates.md)).
 - **The vault link is kept only when it is on the Viral address Test saved.** Any other link, or one that isn't a web address, is dropped and the draft has none.
 - **The original video** is fetched once from Viral, kept in the media library like an upload, and put on the project's Media shelf.
 - **The bell rings** for the draft's owner: "Meal prep in 30 seconds arrived from Viral", from the Viral project's name. With the original coming too, it rings once the file is in.

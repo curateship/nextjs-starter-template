@@ -66,12 +66,19 @@ The Carousels tab in the carousel editor is the same panel, `PiecesPanel`
   edited, Newest, Name), Status (Any, Draft, Ready, Posted) and Show (Videos
   or Archived), each with a tick on the one picked, and Clear filters under a
   line once one is set. Pinned videos stay on top whatever the sort.
-- **New video:** the + opens a small window asking for a name, a shape and a
-  status, then Create video makes it and opens it. It never makes a video by
+- **New video:** the + opens a small window asking for a name and a shape,
+  then Create video makes it and opens it. Every new video starts as Draft;
+  the status tabs came off on 5 Nov 2026 (Tyler: "remove the status tabs, new
+  videos are alwayhs draft first"). It never makes a video by
   itself or with a made-up name (Tyler, 1 Nov 2026: "Click add should not
   automatically add a video with a random name"). The shape starts on the
   open video's. A project with no videos asks the same from its New video
   button.
+- **Start from:** From scratch, or one of your templates (Tyler, 5 Nov 2026:
+  "If I create a new video, I can select a template or start from scratch").
+  A template sets the shape from its platform and opens the video on the
+  Templates panel with it picked ([templates.md](templates.md)). A guest is
+  not offered templates.
 - **The count line:** "Videos · 12" in small capitals with Select beside it,
   as the Media tab has. Select turns on the tick boxes and becomes Done.
 - **A row's menu:** Rename, Duplicate, Move to project, Pin, Archive (or Bring
@@ -102,8 +109,10 @@ The Carousels tab in the carousel editor is the same panel, `PiecesPanel`
   id onto its row of the AI meter. A first frame or AI shot is paid for by the
   video that was open when it was made, though it belongs to the whole
   project.
-- **The project's total:** hovering the video's AI spend in the inspector
-  shows the whole project's total under the video's own lines.
+- **The project's total:** until 5 Nov 2026 the inspector's Project card
+  showed the video's AI spend, with the whole project's total on hover. Tyler
+  had the card removed that day ("remove this card"), so no figure shows in
+  the editor now. The meter still records every call.
 - **A picture made from the Actors page** in a project's look names the
   project only. It counts toward the project's total and no video's limit.
 
