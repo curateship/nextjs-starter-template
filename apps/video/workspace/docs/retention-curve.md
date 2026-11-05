@@ -143,6 +143,14 @@ numbered when there are 20 or fewer.
   more than a second, the card says so, because the columns may sit a little
   off.
 
+## Ad lines
+
+An export keeps where its ads were (`video_render_jobs.ads`, drizzle/0153), and
+the curve draws a dashed line at the start of each with "Ad" at its top. Under
+the chart, each ad has one line: where it was, its name, and how many out of
+100 were still watching just before it started and just after it ended. An
+export made before 4 Nov 2026 kept no ads and shows none ([ads.md](ads.md)).
+
 ## YouTube's day or two of lag
 
 YouTube's figures arrive a day or two after the views do. For a video that

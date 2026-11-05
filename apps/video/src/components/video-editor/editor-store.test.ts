@@ -6,7 +6,9 @@ import {
   createInitialEditorState,
   editorReducer,
   type EditorClip,
+  type EditorTrack,
 } from "./editor-store"
+import { clipAdTemplate, layAd, placeAds } from "@/lib/video/ads"
 
 function caption(id: string, startMs: number): EditorClip {
   return {
@@ -1293,5 +1295,222 @@ describe("a Subscribe click's link to its sticker", () => {
   it("stays with the first piece of a split", () => {
     const after = editorReducer(withClick, { type: "SPLIT_CLIP", clipId: "click", atMs: 1_300 })
     expect(clicks(after).map((clip) => clip.pressFor)).toEqual(["sub", undefined])
+  })
+})
+
+describe("ads on the timeline", () => {
+  const MIN = 60_000
+  let count = 0
+  const newId = () => `ad-id-${++count}`
+
+  function talk(durationMs: number): EditorClip {
+    return {
+      id: "talk",
+      kind: "video",
+      name: "Talk",
+      mediaId: "talk",
+      startMs: 0,
+      durationMs,
+      trimStartMs: 0,
+      sourceDurationMs: 20 * MIN,
+    }
+  }
+
+  function withAds(mode: "pause" | "over") {
+    const base = createInitialEditorState({
+      aspect: "9:16",
+      tracks: [{ id: "footage", muted: false, clips: [talk(12 * MIN)] }],
+    })
+    const tracks = placeAds(
+      base.tracks,
+      clipAdTemplate({
+        shelfId: "shelf-1",
+        name: "Sponsor",
+        mediaId: "sponsor",
+        url: "https://example.com/sponsor.mp4",
+        fileType: "video",
+        durationMs: 30_000,
+        mode,
+      }),
+      3,
+      newId
+    )
+    if (!Array.isArray(tracks)) throw new Error(tracks.refusal)
+    return editorReducer(base, { type: "EDIT_ADS", tracks })
+  }
+
+  const starts = (tracks: EditorTrack[]) =>
+    tracks.flatMap((track) => track.clips.filter((clip) => clip.ad).map((clip) => clip.startMs))
+
+  it("places ads as one undo step", () => {
+    const state = withAds("over")
+    expect(starts(state.tracks)).toEqual([3 * MIN, 6 * MIN, 9 * MIN])
+    expect(starts(editorReducer(state, { type: "UNDO" }).tracks)).toEqual([])
+  })
+
+  it("spreads the placed ads again when the video gets shorter, in the same undo step", () => {
+    const state = withAds("over")
+    const cut = editorReducer(state, {
+      type: "UPDATE_CLIP",
+      clipId: "talk",
+      patch: { durationMs: 11 * MIN },
+    })
+    expect(starts(cut.tracks)).toEqual([165_000, 330_000, 495_000])
+    expect(starts(editorReducer(cut, { type: "UNDO" }).tracks)).toEqual([3 * MIN, 6 * MIN, 9 * MIN])
+  })
+
+  it("leaves locked ads where they were after a cut elsewhere, and will not drag them", () => {
+    const state = withAds("over")
+    const adsLane = state.tracks[0]
+    const locked = editorReducer(state, { type: "TOGGLE_TRACK_LOCK", trackId: adsLane.id })
+    const cut = editorReducer(locked, {
+      type: "UPDATE_CLIP",
+      clipId: "talk",
+      patch: { durationMs: 11 * MIN },
+    })
+    expect(starts(cut.tracks)).toEqual([3 * MIN, 6 * MIN, 9 * MIN])
+    const dragged = editorReducer(cut, {
+      type: "MOVE_CLIP",
+      clipId: adsLane.clips[0].id,
+      toTrackId: adsLane.id,
+      startMs: 2 * MIN,
+    })
+    expect(dragged).toBe(cut)
+  })
+
+  it("closes a pause ad's gap when the ad is deleted", () => {
+    const state = withAds("pause")
+    const first = state.tracks[0].clips[0]
+    const deleted = editorReducer(state, { type: "DELETE_CLIP", clipId: first.id })
+    expect(starts(deleted.tracks)).toHaveLength(2)
+    // The video is 30 seconds shorter. The other two placed ads stay where
+    // they were: the video without its placed ads is the same length.
+    const footageEnd = Math.max(
+      ...deleted.tracks.filter((track) => !track.ads).flatMap((track) =>
+        track.clips.map((clip) => clip.startMs + clip.durationMs)
+      )
+    )
+    expect(footageEnd).toBe(13 * MIN)
+  })
+
+  it("keeps other clips off the Ads lane and the Ads lane on top", () => {
+    const state = withAds("over")
+    const adsLane = state.tracks[0]
+    const dropped = editorReducer(state, {
+      type: "ADD_CLIP",
+      clip: { ...talk(5_000), id: "drop" },
+      atMs: 0,
+      trackId: adsLane.id,
+    })
+    expect(dropped.tracks.find((track) => track.ads)?.clips.some((clip) => clip.id === "drop")).toBe(false)
+    const captioned = editorReducer(dropped, {
+      type: "INSERT_CAPTIONS",
+      captions: [caption("words", 0)],
+    })
+    expect(captioned.tracks[0].ads).toBe(true)
+  })
+})
+
+describe("pasting onto the Ads lane", () => {
+  it("lands on the first lane under it instead", () => {
+    const base = createInitialEditorState({
+      aspect: "9:16",
+      tracks: [
+        { id: "ads", muted: false, ads: true, clips: [] },
+        { id: "footage", muted: false, clips: [] },
+      ],
+    })
+    const pasted = editorReducer(base, {
+      type: "PASTE_CLIPS",
+      clips: [{ clip: caption("copy", 0), lane: 0 }],
+      atMs: 0,
+      trackId: "ads",
+    })
+    expect(pasted.tracks[0].clips).toHaveLength(0)
+    expect(pasted.tracks[1].clips.map((clip) => clip.id)).toEqual(["copy"])
+  })
+})
+
+describe("dragging and trimming a pause ad", () => {
+  const MIN = 60_000
+  let count = 0
+  const newId = () => `drag-id-${++count}`
+
+  function withOnePauseAd() {
+    const base = createInitialEditorState({
+      aspect: "9:16",
+      tracks: [
+        {
+          id: "footage",
+          muted: false,
+          clips: [
+            {
+              id: "talk",
+              kind: "video",
+              name: "Talk",
+              mediaId: "talk",
+              startMs: 0,
+              durationMs: 12 * MIN,
+              trimStartMs: 0,
+              sourceDurationMs: 12 * MIN,
+            },
+          ],
+        },
+      ],
+    })
+    const laid = layAd(
+      base.tracks,
+      clipAdTemplate({
+        shelfId: "shelf-1",
+        name: "Sponsor",
+        mediaId: "sponsor",
+        url: "https://example.com/sponsor.mp4",
+        fileType: "video",
+        durationMs: 30_000,
+      }),
+      6 * MIN,
+      newId
+    )
+    if ("refusal" in laid) throw new Error(laid.refusal)
+    return { state: editorReducer(base, { type: "EDIT_ADS", tracks: laid.tracks }), adId: laid.clipId }
+  }
+
+  const adOf = (tracks: EditorTrack[]) => tracks[0].clips[0]
+
+  it("stays at its cut when dropped 2 seconds to the right, inside its own gap", () => {
+    const { state, adId } = withOnePauseAd()
+    const moved = editorReducer(state, {
+      type: "MOVE_CLIP",
+      clipId: adId,
+      toTrackId: state.tracks[0].id,
+      startMs: 6 * MIN + 2_000,
+    })
+    expect(adOf(moved.tracks).startMs).toBe(6 * MIN)
+  })
+
+  it("lands where the video was when dropped past its end", () => {
+    const { state, adId } = withOnePauseAd()
+    const moved = editorReducer(state, {
+      type: "MOVE_CLIP",
+      clipId: adId,
+      toTrackId: state.tracks[0].id,
+      startMs: 8 * MIN,
+    })
+    // 8:00 on the timeline was 7:30 of the video, before the ad's 30 seconds.
+    expect(adOf(moved.tracks).startMs).toBe(7.5 * MIN)
+  })
+
+  it("keeps its place and shrinks its gap when its left edge is trimmed", () => {
+    const { state, adId } = withOnePauseAd()
+    const trimmed = editorReducer(state, {
+      type: "UPDATE_CLIP",
+      clipId: adId,
+      patch: { startMs: 6 * MIN + 10_000, durationMs: 20_000, trimStartMs: 10_000 },
+    })
+    expect(adOf(trimmed.tracks)).toMatchObject({ startMs: 6 * MIN, durationMs: 20_000, trimStartMs: 10_000 })
+    const footageEnd = Math.max(
+      ...trimmed.tracks[1].clips.map((clip) => clip.startMs + clip.durationMs)
+    )
+    expect(footageEnd).toBe(12 * MIN + 20_000)
   })
 })

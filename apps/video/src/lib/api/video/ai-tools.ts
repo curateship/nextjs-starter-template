@@ -75,6 +75,7 @@ import {
   type SpendTag,
 } from "@/server/video/project-spend"
 import { getExportErrorMessage } from "@/lib/api/video/exports"
+import { adsInLanguage } from "@/server/video/ad-languages"
 import {
   checkLanguageCopy,
   makeLanguageCopy,
@@ -523,6 +524,16 @@ const makeLanguageCopyFn = createServerFn({ method: "POST" })
       throw new Error(TRANSLATE_TOO_LONG_TO_SPEAK_MESSAGE)
     }
     const settings = rememberedVoiceSettings(await getVoiceDefaults())
+    // The ads first: text ads translated and sponsor reads said again in the
+    // language (workspace/docs/ads.md). A failure here stops the copy before
+    // its voice is paid for.
+    const ads = await adsInLanguage({
+      userId,
+      videoId: data.videoId,
+      language: data.language,
+      settings,
+      spend: await budget(userId, data.videoId, 0),
+    })
     const said = await speakTranslated(userId, {
       voiceId: data.voiceId,
       voiceName: data.voiceName,
@@ -537,6 +548,7 @@ const makeLanguageCopyFn = createServerFn({ method: "POST" })
       language: data.language,
       said,
       startsAtMs,
+      ads,
     })
     return {
       ...made,

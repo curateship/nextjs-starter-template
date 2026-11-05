@@ -51,8 +51,11 @@ The Carousels tab in the carousel editor is the same panel, `PiecesPanel`
 (`src/components/video-assets/pieces-panel.tsx`), handed carousel calls
 ([carousel-project-carousels.md](carousel-project-carousels.md)).
 
-- **Each row:** the video's picture, its name, then its length, status, shape
-  and last edited date. The open video's row is shaded.
+- **Each row:** the video's picture on the left, 48px square, and beside it
+  its name, then its length, status, shape and last edited date (Tyler, 4 Nov
+  2026: "the title should be beside the thumbnail ... and make the thumbnail
+  bigger"). The Carousels tab draws its rows the same way. The open video's
+  row is shaded.
 - **Clicking a row:** saves the open video's last edit, then opens the other
   one in the player.
 - **The header:** the rail's icon and the title, then three icons, as the

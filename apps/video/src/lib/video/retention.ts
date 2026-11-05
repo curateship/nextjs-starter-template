@@ -1,4 +1,5 @@
 import type { ExportScene } from "@/lib/video/export-scenes"
+import type { ExportAd } from "@/lib/video/ads"
 
 /**
  * The retention curve of a posted export (`workspace/docs/retention-curve.md`):
@@ -65,6 +66,8 @@ export type ExportRetention = {
   scenes: ExportScene[]
   /** True when the export kept no scenes and these are the project as it is now. */
   scenes_from_project_now: boolean
+  /** Where the export's ads were (ads.ts); empty for one made before exports kept them. */
+  ads: ExportAd[]
 }
 
 /** YouTube's figures arrive a day or two late. Younger than this, the page says so. */

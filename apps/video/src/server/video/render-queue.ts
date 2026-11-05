@@ -18,6 +18,7 @@ import { DEFAULT_NORMALIZE_LOUDNESS } from "@/lib/video/audio-loudness"
 import type { CarouselFormat } from "@/lib/video/carousel-schema"
 import type { AiPart } from "@/lib/video/ai-parts"
 import { scenesOfTimeline } from "@/lib/video/export-scenes"
+import { adsOfTimeline } from "@/lib/video/ads"
 import {
   requireCanonicalTimeline,
   type AspectRatio,
@@ -718,6 +719,8 @@ async function runJob(job: ClaimedJob) {
         // Kept with the file, so the retention curve's scene lines stay where
         // they were when it was made (workspace/docs/retention-curve.md).
         scenes: scenesOfTimeline(drawn, result.durationMs),
+        // And where its ads were, for the marks on that curve (ads.md).
+        ads: adsOfTimeline(drawn.tracks, result.durationMs),
         leaseToken: null,
         leaseExpiresAt: null,
         finishedAt: now(),

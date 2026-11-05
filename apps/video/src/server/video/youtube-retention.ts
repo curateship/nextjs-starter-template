@@ -334,6 +334,7 @@ async function describeRetention(
     export_length_ms: lengthMs,
     scenes,
     scenes_from_project_now: !kept,
+    ads: job.ads ?? [],
   }
 }
 

@@ -1,7 +1,6 @@
 import * as React from "react"
 import {
   Loader2Icon,
-  MicIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
@@ -30,7 +29,7 @@ import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { SoundsTabsHeader } from "@/components/video-editor/sounds-tabs"
 import { useCaptionPlacement } from "@/components/video-editor/caption-settings-context"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import { OwnVoices } from "@/components/video-editor/studio-own-voices"
@@ -117,9 +116,7 @@ export function VoiceoversPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <DashboardCardTitleHeader
-        icon={<MicIcon className="size-4" />}
-        title="Voiceovers"
+      <SoundsTabsHeader
         action={
           // A search and a + in the header, as the Media panel has.
           <div className="flex items-center gap-2">

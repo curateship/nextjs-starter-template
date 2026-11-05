@@ -43,6 +43,46 @@ cards; the Text and Media panels set it inline as 12. Gaps between whole
 sections, such as Your sounds and the library in Sounds, are larger on purpose
 and are not the gutter.
 
+## One Sounds button for music, sounds and voices
+
+Music, Sounds and Voices were three buttons on the editor's left menu until
+4 Nov 2026. Now they are one button, **Sounds**, with the three as tabs in its
+header, where the panel's title was. Tyler: "Combine music, voices and sound
+into one Rail tab with just "Sounds" and in the sounds panel, add the 3 tabs
+here", pointing at the title.
+
+- **The order:** Voices, Music, Sounds. Voices moved first on 4 Nov 2026
+  (Tyler: "put voices as first tab").
+- **Which tab opens first:** Voices, the first of the three. The editor holds the
+  tab picked, so going to Media and back keeps it (`studio-editor.tsx`,
+  `soundsTab`).
+- **Each tab keeps its own buttons** at the header's right end: Music's +,
+  Sounds' upload +, and Voices' search and +.
+- **A narrow panel shows a picker instead of the tabs.** The three tabs and
+  Voices' two buttons need about 280px. The left panel opens at its narrowest,
+  which on a 1440px screen leaves the header 108px, so below 280px the header
+  shows one Music, Sounds or Voices picker in the tabs' place. It is a
+  container query on the header (`sounds-tabs.tsx`), so it follows the panel's
+  own width, not the window's.
+- **The tab ids** are the old panels' ids (`music`, `sounds`, `voiceovers`,
+  `src/lib/video/sounds-tabs.ts`), so a doc that says "the Music panel" or "the
+  Voices panel" means that tab.
+
+The menu now reads Videos, Media, Sounds, Ads ([ads.md](ads.md)), Graphics,
+Transcript, AI tools, AI clip, Thumbnail, then Copy, Exports and History at the
+foot.
+
+## Shut or open every inspector card at once
+
+The inspector's header, on the right, has one button that shuts every card in
+it, and on the next press opens them all again (Tyler, 4 Nov 2026: "add an icon
+in the inspector panel to collapse and uncollapse all the cards at once"). It is
+the shell's own `InspectorCollapseAllButton` from
+`src/components/shared/inspector-card.tsx`, the one the page editor uses. Each
+card still remembers its own state, so a panel shut from the header stays shut
+after a reload, and cards that appear when another clip is picked open as they
+were last left.
+
 ## No loading circle in the side panels
 
 A rail tab's panel stays blank under its header until its list arrives, then

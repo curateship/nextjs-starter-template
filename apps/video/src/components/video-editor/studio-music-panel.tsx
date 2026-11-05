@@ -1,7 +1,6 @@
 import * as React from "react"
 import {
   Loader2Icon,
-  Music,
   PauseIcon,
   PlayIcon,
   PlusIcon,
@@ -55,7 +54,7 @@ import {
 } from "@/lib/video/ai-music"
 import { withEstimate } from "@/lib/video/ai-estimates"
 import { Hint } from "@/components/video-assets/hint"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { SoundsTabsHeader } from "@/components/video-editor/sounds-tabs"
 import {
   timelineDurationMs,
   useEditorDurationMs,
@@ -177,9 +176,7 @@ export function MusicPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <DashboardCardTitleHeader
-        icon={<Music className="size-4" />}
-        title="Music"
+      <SoundsTabsHeader
         action={
           <>
             <DropdownMenu>

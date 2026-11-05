@@ -33,6 +33,13 @@ import { AiPanel } from "@/components/video-editor/studio-ai-panel"
 import { MusicPanel } from "@/components/video-editor/studio-music-panel"
 import { SoundsPanel } from "@/components/video-editor/studio-sounds-panel"
 import { VoiceoversPanel } from "@/components/video-editor/studio-voiceovers-panel"
+import {
+  SoundsTabContext,
+  isSoundsTab,
+  type SoundsTab,
+} from "@/lib/video/sounds-tabs"
+import { AdsPanel } from "@/components/video-editor/studio-ads-panel"
+import { Tabs } from "@/components/ui/tabs"
 import { TranscriptPanel } from "@/components/video-editor/studio-transcript-panel"
 import { AiClipPanel } from "@/components/video-editor/studio-ai-clip-panel"
 import { CopyPanel } from "@/components/video-editor/studio-copy-panel"
@@ -123,9 +130,8 @@ import { ThumbnailPanel } from "@/components/video-thumbnails/thumbnail-panel"
 export type StudioPanel =
   | "videos"
   | "media"
-  | "music"
   | "sounds"
-  | "voiceovers"
+  | "ads"
   | "text"
   | "ai"
   | "transcript"
@@ -144,9 +150,8 @@ const PREPARATION_RECHECK_MS = 5000
 const PANEL_TITLE: Record<StudioPanel, string> = {
   videos: "Videos",
   media: "Media",
-  music: "Music",
   sounds: "Sounds",
-  voiceovers: "Voiceovers",
+  ads: "Ads",
   text: "Graphics",
   ai: "AI tools",
   transcript: "Transcript",
@@ -157,14 +162,24 @@ const PANEL_TITLE: Record<StudioPanel, string> = {
   history: "History",
 }
 
-export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
+export function StudioContextPanel({
+  panel,
+  soundsTab,
+  onSoundsTabChange,
+}: {
+  panel: StudioPanel
+  /** Which of Music, Sounds and Voices the Sounds panel shows. */
+  soundsTab: SoundsTab
+  onSoundsTabChange: (tab: SoundsTab) => void
+}) {
   // Media has search and upload buttons to put in its header, so it draws its
   // own; Text has the sticker +.
   if (panel === "videos") return <VideosPanel />
   if (panel === "media") return <MediaPanel />
-  if (panel === "music") return <MusicPanel />
-  if (panel === "sounds") return <SoundsPanel />
-  if (panel === "voiceovers") return <VoiceoversPanel />
+  if (panel === "sounds") {
+    return <SoundsRailPanel tab={soundsTab} onTabChange={onSoundsTabChange} />
+  }
+  if (panel === "ads") return <AdsPanel />
   // The AI panel draws its own header too, so its tools can say what they need.
   if (panel === "ai") return <AiPanel />
   if (panel === "transcript") return <TranscriptPanel />
@@ -175,6 +190,33 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   if (panel === "history") return <HistoryPanel />
 
   return <TextPanelFrame title={PANEL_TITLE[panel]} />
+}
+
+/**
+ * Music, Sounds and Voices, one at a time, under the tabs in their header
+ * (`sounds-tabs.tsx`). The editor holds the tab, so it is kept while the
+ * editor is open.
+ */
+function SoundsRailPanel({
+  tab,
+  onTabChange,
+}: {
+  tab: SoundsTab
+  onTabChange: (tab: SoundsTab) => void
+}) {
+  return (
+    <Tabs
+      value={tab}
+      onValueChange={(next) => {
+        if (isSoundsTab(next)) onTabChange(next)
+      }}
+      className="h-full min-h-0 gap-0"
+    >
+      <SoundsTabContext.Provider value={{ tab, onTabChange }}>
+        {tab === "music" ? <MusicPanel /> : tab === "sounds" ? <SoundsPanel /> : <VoiceoversPanel />}
+      </SoundsTabContext.Provider>
+    </Tabs>
+  )
 }
 
 function TextPanelFrame({ title }: { title: string }) {

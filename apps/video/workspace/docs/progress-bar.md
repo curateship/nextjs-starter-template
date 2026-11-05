@@ -39,6 +39,14 @@ of the last clip: halfway through a 30 second video it covers half the width.
 It always runs the whole length, however the clips move, which is why it
 belongs to the project and is not a clip on a lane.
 
+## Marks where the ads are
+
+A video with ads ([ads.md](ads.md)) shows a small mark on the bar where each ad
+break starts: every ad that is not a text ad. A mark is as wide as the bar is
+thick, 4 pixels at least, white, or black on a pale bar so it shows on the
+filled part too. The preview and the export draw them the same way
+(`progressMarkFilters` in `progress-bar.ts`).
+
 ## How it is stored and drawn
 
 - **Saved:** as `progressBar` on the project's timeline, beside its shape:

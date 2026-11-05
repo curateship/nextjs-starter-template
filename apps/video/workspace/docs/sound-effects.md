@@ -1,7 +1,9 @@
 # Sound effects
 
-The **Sounds** panel, under Music on the editor's rail, holds short sound
-effects to drop on cuts: whooshes, pops, dings and the like.
+The **Sounds** tab of the editor's Sounds panel holds short sound effects to
+drop on cuts: whooshes, pops, dings and the like. Where the three tabs sit is in
+[editor-chrome.md](editor-chrome.md), "One Sounds button for music, sounds and
+voices".
 
 ## Using it
 

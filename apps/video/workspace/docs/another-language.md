@@ -142,6 +142,16 @@ left out because the task asked for the multilingual model, and that model
 belongs to ElevenLabs. The voice's speed comes from the voice saved as the
 usual one in the Voice tool.
 
+## Ads
+
+A copy's ads come over in its language (Tyler, 4 Nov 2026: "Translate
+everything"). Before the copy's voice is paid for, every text ad's words are
+translated, and every sponsor read the AI made is translated and said again by
+the same voice. A read that comes out longer than its spot is fitted to it,
+sped up to 1.2 times at most and then trimmed. If that step fails, the copy is
+not made and nothing is spent on its voice ([ads.md](ads.md),
+`src/server/video/ad-languages.ts`).
+
 ## Captions
 
 Each translated line goes on as one caption, at exactly the time of the line it

@@ -27,6 +27,7 @@ import type {
 import type { AiPart } from "@/lib/video/ai-parts"
 import type { CarouselLook } from "@/lib/video/carousel-look"
 import type { ExportScene } from "@/lib/video/export-scenes"
+import type { ExportAd, TextAdLook } from "@/lib/video/ads"
 import type { ExtraPicks, SentExtra } from "@/lib/video/extras"
 import type { ClipOutcome } from "@/lib/video/moving-still"
 import type {
@@ -361,6 +362,65 @@ export const videoVoiceovers = pgTable("video_voiceovers", {
   durationMs: integer("duration_ms").notNull(),
   captions: jsonb("captions").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * Each person's ads shelf (see `src/server/video/ads.ts`): a sponsor clip is
+ * a file, a text ad is words and a look. A read the AI made keeps its script
+ * and voice so a language copy can say it again.
+ */
+export const videoAds = pgTable(
+  "video_ads",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 10 }).$type<"clip" | "text">().notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    mediaId: varchar("media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "cascade" }
+    ),
+    text: varchar("text", { length: 200 }),
+    look: jsonb("look").$type<TextAdLook>(),
+    readScript: text("read_script"),
+    readVoiceId: varchar("read_voice_id", { length: 64 }),
+    readVoiceName: varchar("read_voice_name", { length: 255 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_video_ads_user_id").on(table.userId),
+    check("video_ads_kind_check", sql`${table.kind} IN ('clip', 'text')`),
+    check(
+      "video_ads_check",
+      sql`(${table.kind} = 'clip' AND ${table.mediaId} IS NOT NULL) OR (${table.kind} = 'text' AND ${table.text} IS NOT NULL)`
+    ),
+  ]
+)
+
+/** Named looks for text ads, each person's own. */
+export const videoAdLooks = pgTable(
+  "video_ad_looks",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    look: jsonb("look").$type<TextAdLook>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_video_ad_looks_user_id").on(table.userId)]
+)
+
+/** How loud a file is, measured once (`src/server/video/ads.ts`). NULL lufs: no sound. */
+export const videoMediaLoudness = pgTable("video_media_loudness", {
+  mediaId: varchar("media_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellMedia.id, { onDelete: "cascade" }),
+  lufs: doublePrecision("lufs"),
+  measuredAt: timestamp("measured_at", { withTimezone: true }).notNull(),
 })
 
 /**
@@ -1138,6 +1198,9 @@ export const videoSettings = pgTable(
     // drizzle/0151). "" and NULL until somebody fills in Settings → Promo.
     promoUrl: varchar("promo_url", { length: 500 }).notNull().default(""),
     promoApiKey: text("promo_api_key"),
+    // How many ads a video gets for its length and when the Ads panel warns,
+    // read through readAdRules (drizzle/0153). NULL until somebody saves.
+    adRules: jsonb("ad_rules"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -1543,6 +1606,9 @@ export const videoRenderJobs = pgTable(
     // Where the picture changes in the file, worked out by the render from
     // the timeline it drew. Null before drizzle/0142 and on carousel exports.
     scenes: jsonb("scenes").$type<ExportScene[]>(),
+    // Where the export's ads were, for marks on its viewer curve
+    // (drizzle/0153). NULL on exports made before.
+    ads: jsonb("ads").$type<ExportAd[]>(),
     // The part of the project exported, in milliseconds into its timeline
     // (drizzle/0147). Both null is the whole project.
     rangeStartMs: integer("range_start_ms"),
