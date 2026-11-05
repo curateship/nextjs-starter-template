@@ -16,3 +16,6 @@ export const PROJECT_NAME_MAX = 200
  * it is.
  */
 export const REFUSED_COPY_SUFFIX = "(unsaved edits)"
+
+/** Project settings refused an intro or outro that is not the person's own video. */
+export const INTRO_OUTRO_NOT_A_VIDEO_MESSAGE = "An intro or outro has to be one of your own videos."

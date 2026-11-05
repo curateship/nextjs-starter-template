@@ -39,7 +39,19 @@ when its saved video was deleted in between and the new one has no file yet.
 ## Status and tags
 
 - **Statuses.** Idea, Scripted, Sent and Posted. You change them by hand,
-  except Sent, which turns on by itself after Send to Video.
+  except two that turn on by themselves. Sent turns on after Send to Video.
+  Posted turns on when Promo reports a post made from the idea
+  (`promo-connection.md`).
+- **Your views.** Once Promo has reported your post of an idea, the Numbers
+  card lists "Your X views" under the original's numbers, one line per post,
+  each linking to it. Promo sends fresh views at most once a day.
+- **The board.** Filter's Show as on the Vault page has List and Board
+  (Tyler, 4 Nov 2026: "List or Board switch"). Board draws a column for each
+  status, and dragging a card to another column changes its status, in one
+  request through `changeVaultItems`. Sent refuses a drop and says it turns
+  on after Send to Video. Board is kept in the address (`?show=board`) and in
+  saved views; List is the default, so it is never written down
+  (`src/components/viral/vault-board.tsx`).
 - **Tags.** Tags are free text, kept per person and offered as you type
   (`viral_tags`). "Hooks" and "hooks" are one tag, spelled the first way it
   was typed.
@@ -53,6 +65,26 @@ when its saved video was deleted in between and the new one has no file yet.
   set to Posted. 1 was no longer in the vault." (`src/lib/viral/vault-bulk.ts`).
   The menu is `src/components/viral/vault-selected-menu.tsx`, the same on the
   Vault page and on a project's vault.
+
+## Copy to another project
+
+Tyler, 4 Nov 2026: "Copy, both keep it". Copy to another project is in the ⋮
+of a vault idea and of a video on the project page's right panel. It opens a
+window listing your other projects, leaving out archived ones and samples
+(`src/components/viral/copy-to-project-dialog.tsx`).
+
+- **An idea.** The copy keeps the analysis, the numbers, the notes, the status,
+  the tags and the Open in Video link, and points at the same file and cover
+  (`copyVaultItem` in `src/server/viral/vault.ts`). `media-in-use.ts` counts
+  both ideas, so deleting one leaves the other playing.
+- **A video.** It joins the other project the way a pasted link does: through
+  `viral_project_links` and your one saved row, so both projects show one
+  downloaded file (`src/server/viral/copy-to-project.ts`). A video nobody saved
+  yet is saved with Download alone, so the copy has a file. No AI runs.
+- **Already there.** A project that already holds the video changes nothing
+  and says so.
+- **Refused.** A sample project, a made-up sample video, an archived project,
+  and anybody else's project.
 
 ## Where it shows
 

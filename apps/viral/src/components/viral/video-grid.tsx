@@ -37,6 +37,8 @@ import {
 import { formatShortDay, type ViralCardSize, type ViralSort } from "@/lib/viral/viral-view"
 import { CoverImage } from "@/components/viral/cover-image"
 import { OutlierBadge } from "@/components/viral/outlier-badge"
+import { RisingBadge } from "@/components/viral/rising-badge"
+import { isRising } from "@/lib/viral/rising"
 
 /**
  * The middle panel's two ways to show videos, a grid of covers or a list of
@@ -57,6 +59,38 @@ type GridProps = {
   /** Left out where ticked videos have nothing to be done to them. */
   ticked?: Set<string>
   onTick?: (key: string) => void
+  /** Opens the video's channel as a creator page. Left out where it has none. */
+  onPickChannel?: (video: ViralVideo) => void
+  /** Whether this video's channel has a creator page to open. */
+  hasChannel?: (video: ViralVideo) => boolean
+}
+
+/** New until this person opens it (Tyler, 4 Nov 2026: "Opening that video"). */
+function showsNew(video: ViralVideo) {
+  return video.isNew && !video.seen
+}
+
+/**
+ * The channel's name under a title: a button to its creator page where the
+ * screen has one, plain text otherwise.
+ */
+function ChannelName({ video, onPickChannel }: { video: ViralVideo; onPickChannel?: (video: ViralVideo) => void }) {
+  const name = video.channelName || creatorPlatformLabels[video.platform]
+  if (!onPickChannel || !video.channelName) {
+    return <span className="truncate text-xs text-muted-foreground">{name}</span>
+  }
+  return (
+    <button
+      type="button"
+      className="truncate text-left text-xs text-muted-foreground hover:text-foreground hover:underline"
+      onClick={(event) => {
+        event.stopPropagation()
+        onPickChannel(video)
+      }}
+    >
+      {name}
+    </button>
+  )
 }
 
 export function VideoGrid({
@@ -91,13 +125,17 @@ export function VideoGrid({
             <Cover video={video} />
             <ProcessingStrip video={video} />
             <span className="grid gap-1 p-2">
-              <span className="line-clamp-2 text-sm leading-snug font-medium">
+              <span
+                className={cn(
+                  "line-clamp-2 text-sm leading-snug font-medium",
+                  video.seen && "font-normal text-muted-foreground"
+                )}
+              >
                 {video.title}
               </span>
               <PastedChip video={video} />
-              <span className="truncate text-xs text-muted-foreground">
-                {video.channelName || creatorPlatformLabels[video.platform]}
-              </span>
+              {/* Plain text here: the card is already one button, and a button can't hold another. */}
+              <ChannelName video={video} />
               <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground tabular-nums">
                 <span>{formatCount(video.views)} views</span>
                 {video.postedAt ? <span>{formatDate(video.postedAt)}</span> : null}
@@ -151,8 +189,11 @@ function Cover({ video }: { video: ViralVideo }) {
           {length}
         </span>
       ) : null}
-      {video.isNew ? (
-        <Badge className="absolute bottom-6 left-1">New</Badge>
+      {showsNew(video) || isRising(video.growth) ? (
+        <span className="absolute bottom-6 left-1 flex gap-1">
+          {showsNew(video) ? <Badge>New</Badge> : null}
+          {isRising(video.growth) ? <RisingBadge growth={video.growth} /> : null}
+        </span>
       ) : null}
     </span>
   )
@@ -220,6 +261,7 @@ const LIST_COLUMNS: TableHeaderColumn<ViralSort>[] = [
   { key: "video", label: "Video", sortable: false, column: "main", className: "w-full min-w-56" },
   { key: "score", label: "Score", column: "meta" },
   { key: "outlier", label: "Outlier", column: "meta" },
+  { key: "rising", label: "Rising", column: "meta" },
   { key: "topic", label: "Fits", column: "meta" },
   { key: "views", label: "Views", column: "meta" },
   { key: "views_per_day", label: "Views a day", column: "meta" },
@@ -237,7 +279,7 @@ export function VideoList({
   direction: "asc" | "desc"
   onSort: (sort: ViralSort) => void
 }) {
-  const { videos, selectedKey, onPick, ticked, onTick } = props
+  const { videos, selectedKey, onPick, ticked, onTick, onPickChannel, hasChannel } = props
   const columns = LIST_COLUMNS
   return (
     <>
@@ -288,19 +330,23 @@ export function VideoList({
                     <span className="flex min-w-0 items-center gap-1.5">
                       <button
                         type="button"
-                        className="truncate text-left font-medium hover:underline"
+                        className={cn(
+                          "truncate text-left font-medium hover:underline",
+                          video.seen && "font-normal text-muted-foreground"
+                        )}
                         onClick={() => onPick(video)}
                       >
                         {video.title}
                       </button>
-                      {video.isNew ? <Badge>New</Badge> : null}
+                      {showsNew(video) ? <Badge>New</Badge> : null}
                       <PastedChip video={video} />
                     </span>
                     {/* Where saving has got to sits with the channel, leaving the title its row. */}
                     <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate text-xs text-muted-foreground">
-                        {video.channelName || creatorPlatformLabels[video.platform]}
-                      </span>
+                      <ChannelName
+                        video={video}
+                        onPickChannel={onPickChannel && (hasChannel?.(video) ?? true) ? onPickChannel : undefined}
+                      />
                       {isProcessing(video) ? (
                         <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300">
                           <Loader2Icon className="size-3.5 animate-spin" />
@@ -318,6 +364,9 @@ export function VideoList({
               </TableCell>
               <TableCell column="meta">
                 <OutlierBadge outlier={video.outlier} />
+              </TableCell>
+              <TableCell column="meta" className="whitespace-nowrap">
+                <RisingBadge growth={video.growth} />
               </TableCell>
               <TableCell column="meta" className="tabular-nums">
                 {video.topicMatch ?? "-"}

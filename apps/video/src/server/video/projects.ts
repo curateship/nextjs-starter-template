@@ -17,6 +17,7 @@ import {
   PROJECT_NAME_MAX,
   PROJECT_NAME_REQUIRED_MESSAGE,
   PROJECT_NOT_FOUND_MESSAGE,
+  INTRO_OUTRO_NOT_A_VIDEO_MESSAGE,
 } from "@/lib/video/projects"
 import type { AspectRatio } from "@/lib/video/timeline-schema"
 import { LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE } from "@/lib/video/visual-style"
@@ -80,6 +81,9 @@ export type ProjectItem = {
    * when it has neither a style line nor a look picture.
    */
   look: { style: string | null; picture_url: string | null } | null
+  /** Videos from the library added before and after every export (intro-and-outro.md). */
+  intro_media_id: string | null
+  outro_media_id: string | null
   pinned: boolean
   archived: boolean
   /** The actors with a first frame in this project, earliest first. */
@@ -156,6 +160,8 @@ function serializeProject(
       row.style || lookPicture
         ? { style: row.style, picture_url: lookPicture }
         : null,
+    intro_media_id: row.introMediaId,
+    outro_media_id: row.outroMediaId,
     pinned: row.pinnedAt !== null,
     archived: row.archivedAt !== null,
     actors,
@@ -468,18 +474,13 @@ export async function getOwnedProjectItem(
 /**
  * A new project with its first video, named after the project. `folderId`
  * puts it straight into that folder, the one the list was showing when New
- * project was pressed. A project made by Make this a template has its first
- * video copy the viral video.
+ * project was pressed.
  */
 export async function createOwnedProject(
   userId: string,
   name: string,
   database: CustomShellDb = db,
-  folderId: string | null = null,
-  /** The saved viral video the first video copies, from Make this a template. */
-  sourceViralVideoId: string | null = null,
-  /** The Viral project Make this a template was pressed in. */
-  sourceViralProjectId: string | null = null
+  folderId: string | null = null
 ): Promise<{ project: ProjectItem; video: VideoItem["id"] }> {
   const createdAt = now()
   const cleanedName = cleanProjectName(name)
@@ -503,7 +504,7 @@ export async function createOwnedProject(
     const video = await insertVideo(
       userId,
       row.id,
-      { name: cleanedName, sourceViralVideoId, sourceViralProjectId },
+      { name: cleanedName },
       tx
     )
     return { row, videoId: video.id }
@@ -614,9 +615,15 @@ export async function saveOwnedProjectSettings(
     name: string
     style: string | null
     lookPictureUrl: string | null
+    /** Left out keeps what is set. Null takes it off. */
+    introMediaId?: string | null
+    outroMediaId?: string | null
   },
   database: CustomShellDb = db
 ): Promise<ProjectItem> {
+  for (const mediaId of [settings.introMediaId, settings.outroMediaId]) {
+    if (mediaId) await requireOwnedVideoFile(userId, mediaId, database)
+  }
   let styleMediaId: string | null = null
   if (settings.lookPictureUrl) {
     const picture = await findOwnedImageByUrl(
@@ -635,6 +642,8 @@ export async function saveOwnedProjectSettings(
       name: cleanProjectName(settings.name),
       style: settings.style?.trim() || null,
       styleMediaId,
+      ...(settings.introMediaId !== undefined ? { introMediaId: settings.introMediaId } : {}),
+      ...(settings.outroMediaId !== undefined ? { outroMediaId: settings.outroMediaId } : {}),
       updatedAt: now(),
     })
     .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
@@ -643,6 +652,21 @@ export async function saveOwnedProjectSettings(
     throw new Error(PROJECT_NOT_FOUND_MESSAGE)
   }
   return serializeOneProject(row, database)
+}
+
+async function requireOwnedVideoFile(userId: string, mediaId: string, database: CustomShellDb) {
+  const [media] = await database
+    .select({ id: customShellMedia.id })
+    .from(customShellMedia)
+    .where(
+      and(
+        eq(customShellMedia.id, mediaId),
+        eq(customShellMedia.userId, userId),
+        eq(customShellMedia.fileType, "video")
+      )
+    )
+    .limit(1)
+  if (!media) throw new Error(INTRO_OUTRO_NOT_A_VIDEO_MESSAGE)
 }
 
 /**

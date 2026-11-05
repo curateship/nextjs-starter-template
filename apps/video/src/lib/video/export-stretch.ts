@@ -15,6 +15,7 @@
 
 import { LEFT_OF_CUT, RIGHT_OF_CUT } from "@/lib/video/clip-fades"
 import { sourceMsAt } from "@/lib/video/clip-playback"
+import { markersInStretch, type TimelineMarker } from "@/lib/video/timeline-markers"
 
 export const STRETCH_INVALID_MESSAGE =
   "Write the start and the end as minutes and seconds, such as 10:00"
@@ -85,10 +86,15 @@ type StretchClip = {
 export function timelineStretch<
   Clip extends StretchClip,
   Track extends { clips: Clip[] },
-  Timeline extends { tracks: Track[] },
+  Timeline extends { tracks: Track[]; markers?: TimelineMarker[] },
 >(timeline: Timeline, startMs: number, endMs: number): Timeline {
   return {
     ...timeline,
+    // The pins inside the part, counted from its start, so the export's
+    // chapters start where its file does (timeline-markers.md).
+    ...(timeline.markers
+      ? { markers: markersInStretch(timeline.markers, startMs, endMs) }
+      : {}),
     tracks: timeline.tracks.map((track) => ({
       ...track,
       clips: track.clips.flatMap((clip) => {

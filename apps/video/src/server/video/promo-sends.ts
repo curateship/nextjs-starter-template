@@ -29,6 +29,7 @@ import {
   videoPromoSends,
   videoRenderJobs,
   videoThumbnails,
+  videoViralArrivals,
   type VideoPromoSendRow,
 } from "@/server/video/schema"
 
@@ -135,6 +136,31 @@ async function subtitlesFor(row: ExportRow, db: CustomShellDb): Promise<string> 
   return toSrt(subtitleLines(parsed.data, range))
 }
 
+/**
+ * The Viral vault idea a video started as, when Viral's Send to Video made
+ * it, or "". Promo keeps it on the archive item and reports posts made from
+ * it back to Viral (Viral's task features/01, part 21). Read from the link
+ * Viral sent with the draft, which opens the idea on Viral's Vault page.
+ */
+async function viralIdeaOf(row: ExportRow, db: CustomShellDb): Promise<string> {
+  if (!row.videoId) return ""
+  const [arrival] = await db
+    .select({ pending: videoViralArrivals.pending })
+    .from(videoViralArrivals)
+    .where(
+      and(eq(videoViralArrivals.userId, row.userId), eq(videoViralArrivals.videoId, row.videoId), eq(videoViralArrivals.status, "ready"))
+    )
+    .orderBy(desc(videoViralArrivals.createdAt))
+    .limit(1)
+  if (!arrival) return ""
+  try {
+    const idea = new URL(arrival.pending.vaultItemUrl).searchParams.get("open") ?? ""
+    return /^[A-Za-z0-9-]{1,64}$/.test(idea) ? idea : ""
+  } catch {
+    return ""
+  }
+}
+
 /** The note Promo is posted for one send of an export, or of its slideshow (part 15). */
 async function exportNote(send: VideoPromoSendRow, row: ExportRow, token: string, db: CustomShellDb) {
   const base = `${videoAddress()}/api/connect/promo/file/${token}`
@@ -164,6 +190,7 @@ async function exportNote(send: VideoPromoSendRow, row: ExportRow, token: string
       videoProjectId: about.sourceProjectId ?? "",
       videoProjectName: about.sourceName,
       videoEditUrl: about.editPath ? `${videoAddress()}${about.editPath}` : "",
+      viralIdeaId: await viralIdeaOf(row, db),
       drafts: options.drafts ?? [],
     }
   }
@@ -201,6 +228,7 @@ async function exportNote(send: VideoPromoSendRow, row: ExportRow, token: string
     videoProjectId: about.sourceProjectId ?? "",
     videoProjectName: about.sourceName,
     videoEditUrl: about.editPath ? `${videoAddress()}${about.editPath}` : "",
+    viralIdeaId: await viralIdeaOf(row, db),
     drafts: options.drafts ?? [],
   }
 }

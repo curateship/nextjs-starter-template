@@ -75,6 +75,7 @@ export function ExportDialog({
   projectMs,
   jobs,
   onJobsChange,
+  hasIntroOutro = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -87,6 +88,8 @@ export function ExportDialog({
   /** The newest export in each shape, watched by the editor. */
   jobs: RenderJobSummary[]
   onJobsChange: (jobs: RenderJobSummary[]) => void
+  /** The project has an intro or an outro, so the window offers to leave them off. */
+  hasIntroOutro?: boolean
 }) {
   const [quality, setQuality] = React.useState<RenderQuality>(
     DEFAULT_RENDER_QUALITY
@@ -94,6 +97,7 @@ export function ExportDialog({
   const [frameRate, setFrameRate] =
     React.useState<RenderFrameRate>(DEFAULT_FRAME_RATE)
   const [normalize, setNormalize] = React.useState(true)
+  const [introOutro, setIntroOutro] = React.useState(true)
   const [busy, setBusy] = React.useState(false)
   const [name, setName] = React.useState(videoName)
   const [shapes, setShapes] = React.useState<AspectRatio[]>([projectAspect])
@@ -124,6 +128,7 @@ export function ExportDialog({
       setStartText("0:00")
       setEndText(wholeEndText)
       setPartInvalid(false)
+      setIntroOutro(true)
     }
   }
 
@@ -201,7 +206,8 @@ export function ExportDialog({
         frameRate,
         normalize,
         name,
-        read.part ?? undefined
+        read.part ?? undefined,
+        introOutro
       )
       dismissErrorToast()
       onJobsChange(started)
@@ -368,6 +374,21 @@ export function ExportDialog({
                   onCheckedChange={setNormalize}
                 />
               </div>
+              {hasIntroOutro ? (
+                <div className="flex items-center justify-between gap-4">
+                  <span className="grid gap-0.5">
+                    <Label htmlFor="export-intro-outro">Add the intro and outro</Label>
+                    <span className="text-sm text-muted-foreground">
+                      The ones set in Project settings. An export of part of the video never has them.
+                    </span>
+                  </span>
+                  <Switch
+                    id="export-intro-outro"
+                    checked={introOutro}
+                    onCheckedChange={setIntroOutro}
+                  />
+                </div>
+              ) : null}
               {estimate ? (
                 <p className="text-sm text-muted-foreground">{estimate}</p>
               ) : null}

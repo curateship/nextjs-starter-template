@@ -1,7 +1,7 @@
 import { featureLabel } from "@/lib/video/ai-budget"
 
 /**
- * What one video, or one Viral project, has spent on AI, and the limit that
+ * What one video has spent on AI, and the limit that
  * stops it (see `workspace/docs/project-first.md`). Shared by the server,
  * which adds it up and refuses a call, and the browser, which shows it.
  */
@@ -37,9 +37,6 @@ const TOOL_LABELS: Record<string, string> = {
   brief_script: "Brief script",
   broll_phrases: "B-roll phrases",
   broll_transcript: "B-roll transcript",
-  viral_keyword_ideas: "Keyword ideas",
-  viral_topic_match: "Topic match",
-  viral_breakdown: "Breakdowns",
   blur_follow: "Blur that follows",
   blur_faces: "Find faces",
   thumbnail_ideas: "Thumbnail ideas",
@@ -60,9 +57,6 @@ export function formatCents(cents: number) {
   return `$${(cents / 100).toFixed(2)}`
 }
 
-/** What the limit belongs to: a video in the editor, or a Viral project. */
-export type SpendSubject = "video" | "project"
-
 /**
  * The sentence a refused call ends with. It carries the numbers, so the
  * person can see the sum: what is spent, what shots still being made will
@@ -74,13 +68,11 @@ export function projectSpendLimitMessage({
   generatingCents = 0,
   nextCents,
   limitCents,
-  subject = "video",
 }: {
   spentCents: number
   generatingCents?: number
   nextCents: number
   limitCents: number
-  subject?: SpendSubject
 }) {
   const generating =
     generatingCents > 0
@@ -91,11 +83,11 @@ export function projectSpendLimitMessage({
     nextCents > 0
       ? `, and this costs about ${formatCents(nextCents)}, so the limit is ${formatCents(short)} short`
       : ""
-  return `This ${subject} has spent ${formatCents(spentCents)} of its ${formatCents(limitCents)} limit${generating}${next}. Raise the limit in the ${subject}'s settings.`
+  return `This video has spent ${formatCents(spentCents)} of its ${formatCents(limitCents)} limit${generating}${next}. Raise the limit in the video's settings.`
 }
 
 export function isProjectSpendLimitMessage(message: string) {
-  return /^This (video|project) has spent /.test(message)
+  return /^This video has spent /.test(message)
 }
 
 /** Dollars typed into a spend limit box, as cents; empty is no limit. */

@@ -31,6 +31,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { EXPORT_TITLE_MAX } from "@/lib/video/render"
 import { ExportAiPartsCard } from "@/components/video-editor/export-ai-parts-card"
+import { ExportChaptersCard } from "@/components/video-editor/export-chapters-card"
 import { ExportCover } from "@/components/video-editor/export-cover"
 import { ExportYoutubeCard } from "@/components/video-retention/export-youtube-card"
 
@@ -191,6 +192,8 @@ export function ExportDetailsDialog({
               {carousel ? null : (
                 <ExportAiPartsCard item={item} onSaved={onSaved} />
               )}
+
+              {carousel ? null : <ExportChaptersCard item={item} />}
 
               {!carousel && item.status === "ready" ? (
                 <ExportYoutubeCard key={item.id} item={item} />

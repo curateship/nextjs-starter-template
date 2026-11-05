@@ -11,6 +11,12 @@ Send to Video puts a vault idea into the Video app as a draft. Tyler, 4 Nov
    to the Video admin who made it.
 2. On Viral's Settings → Video connection, fill in Video's address and paste
    the key. Both save themselves, and the key is kept scrambled.
+   - **Whose key it is.** Viral also keeps who pasted the key
+     (`viral_settings.video_key_owner_id`, `drizzle/0106_viral_video_key_owner.sql`).
+     Video's calls back act only for that person. News about someone else's
+     send changes nothing, and someone else's file link answers "No such
+     file". A key saved before Viral kept the owner has none, so Video's calls
+     are refused until the key is pasted again.
 3. Press Test. It tells Video this Viral's address, the only address Video
    will fetch files from or call back, and says whose Video answered.
 
@@ -50,6 +56,9 @@ Send to Video puts a vault idea into the Video app as a draft. Tyler, 4 Nov
 ## The messages
 
 Every message carries the key as `Authorization: Bearer <key>`, both ways.
+Viral checks the key before it reads Video's news, then refuses news longer
+than 20,000 characters by what really arrived, not by what the sender's
+`content-length` claims (`readCallBody` in `src/server/viral/video-link.ts`).
 
 - **Viral → Video `POST /api/connect/viral/hello`** `{ viralUrl }`: Test.
   The answer is `{ name, projects }`.

@@ -100,7 +100,7 @@ import {
   MIN_BLUR_STRENGTH,
   type BlurShape,
 } from "@/lib/video/blur"
-import { BlurFollowCard } from "@/components/video-editor/blur-follow-card"
+import { BlurFollowCard, ItemFollowCard } from "@/components/video-editor/blur-follow-card"
 import { SocialStickerCards } from "@/components/video-editor/social-sticker-inspector"
 import { AdInspectorCard } from "@/components/video-editor/ad-inspector-card"
 import {
@@ -188,6 +188,8 @@ import { formatClock } from "@/lib/video/timeline-utils"
 import { cn } from "@/lib/utils"
 import { MakeItMoveCard } from "@/components/video-editor/moving-stills"
 import { RemakeCard } from "@/components/video-editor/remake-clips"
+import { ZoomInspectorCard } from "@/components/video-editor/zoom-inspector-card"
+import { SteadyInspectorCard } from "@/components/video-editor/steady-inspector-card"
 import { ProjectSpendRow } from "@/components/video-editor/project-settings"
 import {
   ReplaceMediaDialog,
@@ -280,6 +282,7 @@ export function StudioInspector() {
           ) : (
             <MediaInspector clip={clip} />
           )}
+          {clip && !clip.ad && !isBlurClip(clip) ? <ItemFollowCard clip={clip} /> : null}
         </div>
       </ScrollArea>
       </InspectorCollapseAllProvider>
@@ -1407,6 +1410,10 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
       <FrameShapeSection clip={clip} />
 
       <MotionSection clip={clip} />
+
+      <SteadyInspectorCard clip={clip} />
+
+      <ZoomInspectorCard clip={clip} />
 
       <ColourSection clip={clip} />
 

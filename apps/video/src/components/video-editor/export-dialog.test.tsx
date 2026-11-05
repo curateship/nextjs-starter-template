@@ -66,6 +66,7 @@ function job(aspect: AspectRatio): RenderJobSummary {
     finished_at: "2026-09-24T00:01:00.000Z",
     ai_parts: null,
     ai_hand_edited: true,
+    markers: null,
     range: null,
   }
 }
@@ -124,7 +125,8 @@ describe("the frame rate", () => {
       60,
       true,
       "Video",
-      undefined
+      undefined,
+      true
     )
   })
 

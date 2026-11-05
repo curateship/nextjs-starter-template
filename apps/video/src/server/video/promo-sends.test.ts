@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
-import { videoCarousels, videoProjectVideos, videoPromoSends, videoRenderJobs, videoThumbnails } from "@/server/video/schema"
+import { videoCarousels, videoProjectVideos, videoPromoSends, videoRenderJobs, videoThumbnails, videoViralArrivals } from "@/server/video/schema"
 
 /**
  * Send to Promo from Video's side: the note Promo is posted, the file token,
@@ -143,6 +143,46 @@ describe("sending an export to Promo", () => {
     expect(send?.id).toBe(view.id)
     const response = await sends.streamPart(send!, { kind: "main" }, db)
     expect(await response.text()).toBe("12345")
+  })
+
+  it("carries the Viral idea a video came from, and nothing for a video made in Video", async () => {
+    const plain = promo()
+    await sends.startPromoSends(
+      { userId: user.id, exportIds: [(await readyExport()).id], promoProjects: [{ id: "pp", name: "P" }] },
+      { db, fetchImpl: plain.fetchImpl, connection: PROMO }
+    )
+    expect((plain.notes[0] as Record<string, unknown>).viralIdeaId).toBe("")
+
+    const arrival = async (userId: string, idea: string) => {
+      const at = new Date()
+      await db.insert(videoViralArrivals).values({
+        id: crypto.randomUUID(),
+        userId,
+        sendId: `viral-send-${idea}`,
+        projectId,
+        videoId,
+        status: "ready",
+        pending: { title: "T", script: "", notes: "", vaultItemUrl: `http://localhost:3030/admin/vault?open=${idea}`, viralProjectName: "", file: null },
+        createdAt: at,
+        updatedAt: at,
+      })
+    }
+    // Somebody else's send naming this video never gives it their idea.
+    await arrival((await insertUser(db, { role: "admin" })).id, "theirs")
+    const notTheirs = promo()
+    await sends.startPromoSends(
+      { userId: user.id, exportIds: [(await readyExport()).id], promoProjects: [{ id: "pp", name: "P" }] },
+      { db, fetchImpl: notTheirs.fetchImpl, connection: PROMO }
+    )
+    expect((notTheirs.notes[0] as Record<string, unknown>).viralIdeaId).toBe("")
+
+    await arrival(user.id, "idea-42")
+    const fromViral = promo()
+    await sends.startPromoSends(
+      { userId: user.id, exportIds: [(await readyExport()).id], promoProjects: [{ id: "pp", name: "P" }] },
+      { db, fetchImpl: fromViral.fetchImpl, connection: PROMO }
+    )
+    expect((fromViral.notes[0] as Record<string, unknown>).viralIdeaId).toBe("idea-42")
   })
 
   it("ends a send Promo refuses as failed, with Promo's words and a bell", async () => {

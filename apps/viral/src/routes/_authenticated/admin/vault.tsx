@@ -30,6 +30,7 @@ export const Route = createFileRoute("/_authenticated/admin/vault")({
       q: readSearchText(search.q),
       status: readOneOf(search.status, VAULT_STATUSES),
       tag: tag || undefined,
+      show: search.show === "board" ? "board" : undefined,
       open: readId(search.open),
     }
   },

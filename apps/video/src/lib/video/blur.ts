@@ -250,8 +250,8 @@ export function blurExpressions(
   return {
     width,
     height,
-    x: pieceByPiece(corners.map((point) => ({ atS: point.atS, value: point.x }))),
-    y: pieceByPiece(corners.map((point) => ({ atS: point.atS, value: point.y }))),
+    x: linearOverTime(corners.map((point) => ({ atS: point.atS, value: point.x }))),
+    y: linearOverTime(corners.map((point) => ({ atS: point.atS, value: point.y }))),
   }
 }
 
@@ -260,7 +260,7 @@ export function blurExpressions(
  * one ffmpeg expression of `t`: the first value before the first point, and
  * the last after the last.
  */
-function pieceByPiece(points: { atS: number; value: number }[]) {
+export function linearOverTime(points: { atS: number; value: number }[]) {
   if (points.length === 1) return String(points[0].value)
   let expression = String(points[points.length - 1].value)
   for (let index = points.length - 2; index >= 0; index -= 1) {

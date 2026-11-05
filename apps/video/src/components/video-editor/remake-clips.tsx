@@ -1,5 +1,7 @@
 import * as React from "react"
 import {
+  ClipboardPasteIcon,
+  CopyIcon,
   DropletIcon,
   EraserIcon,
   FilmIcon,
@@ -13,6 +15,7 @@ import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
 import { toast } from "sonner"
 
 import { InspectorCard } from "@/components/broadcasts/inspector-fields"
+import { copyLook, takesLook } from "@/lib/video/copied-look"
 import {
   CONTEXT_MENU_CONTENT_CLASS,
   CONTEXT_MENU_ITEM_CLASS,
@@ -41,6 +44,7 @@ import { useCaptionSettings } from "@/components/video-editor/caption-settings-c
 import {
   findClip,
   useEditorRuntime,
+  useEditorSelector,
   type EditorClip,
 } from "@/components/video-editor/editor-store"
 import { blurOverClip, newBlurClip } from "@/components/video-editor/blur-clip"
@@ -702,9 +706,10 @@ export function ClipContextMenu({
   readOnly: boolean
   children: React.ReactElement
 }) {
-  const { dispatch, clock } = useEditorRuntime()
+  const { dispatch, clock, store } = useEditorRuntime()
   const stills = useMovingStills()
   const remake = useRemakeClips()
+  const copiedLook = useEditorSelector((state) => state.copiedLook)
   const shot = stills?.shotFor(clip.id)
   const failed = shot?.status === "error" ? shot : null
   const canBlur = !readOnly && (clip.kind === "image" || clip.kind === "video")
@@ -712,7 +717,21 @@ export function ClipContextMenu({
   const canRemake = !!remake && !!clip.origin
   const canClean = !readOnly && !!remake && clip.kind === "image" && !!clip.mediaId
   const canMatchLips = !readOnly && !!remake && clip.kind === "video" && !!clip.mediaId
-  if (!canBlur && !canClean && !canMove && !canRemake && !canMatchLips && !failed) return children
+  const canLook = !readOnly && takesLook(clip.kind)
+  if (!canLook && !canBlur && !canClean && !canMove && !canRemake && !canMatchLips && !failed) {
+    return children
+  }
+
+  // Onto every picked clip when this one is among them, otherwise onto this
+  // one alone (copy-a-clips-look.md).
+  function pasteLook() {
+    const { selectedClipIds } = store.getSnapshot().state
+    const clipIds = selectedClipIds.includes(clip.id) ? selectedClipIds : [clip.id]
+    dispatch({ type: "PASTE_LOOK", clipIds })
+    toast.success(
+      clipIds.length === 1 ? "Pasted the look." : `Pasted the look onto ${clipIds.length} clips.`
+    )
+  }
 
   // The same blur the Graphics panel's Blur button lays down, at the playhead
   // when it is on this clip, and ending with the clip if that comes first.
@@ -731,6 +750,29 @@ export function ClipContextMenu({
           // leave the item never chosen.
           onPointerDown={(event) => event.stopPropagation()}
         >
+          {canLook ? (
+            <>
+              <ContextMenuPrimitive.Item
+                className={CONTEXT_MENU_ITEM_CLASS}
+                onSelect={() => {
+                  const look = copyLook(clip)
+                  if (look) dispatch({ type: "COPY_LOOK", look })
+                }}
+              >
+                <CopyIcon />
+                Copy look
+              </ContextMenuPrimitive.Item>
+              {copiedLook ? (
+                <ContextMenuPrimitive.Item
+                  className={CONTEXT_MENU_ITEM_CLASS}
+                  onSelect={pasteLook}
+                >
+                  <ClipboardPasteIcon />
+                  Paste look
+                </ContextMenuPrimitive.Item>
+              ) : null}
+            </>
+          ) : null}
           {canBlur ? (
             <ContextMenuPrimitive.Item
               className={CONTEXT_MENU_ITEM_CLASS}

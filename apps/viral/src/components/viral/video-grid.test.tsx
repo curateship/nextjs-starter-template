@@ -37,6 +37,9 @@ function video(id: string, savedStatus: string | null): ViralVideo {
     outlier: { times: null, typicalViews: null },
     vaultItemId: null,
     analysed: false,
+    seen: false,
+    growth: { times: null, gained: null },
+    sound: null,
     score: scoreViralVideo({
       views: 10_000,
       likes: 100,
@@ -158,6 +161,8 @@ function creator(name: string, followed: Partial<ViralCreator> | null): ViralCre
     avatarUrl: null,
     profileUrl: "",
     postsPerWeek: null,
+    typicalViews: null,
+    beatsUsual: null,
     ...followed,
   }
 }

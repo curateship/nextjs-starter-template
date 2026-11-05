@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE } from "@/lib/video/visual-style"
+import { INTRO_OUTRO_NOT_A_VIDEO_MESSAGE } from "@/lib/video/projects"
 import { now } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { customShellMedia, type CustomShellUser } from "@/server/schema"
@@ -210,5 +211,39 @@ describe("a project's look, read for the AI tools", () => {
     await expect(
       readProjectLook(stranger.id, project.id, database)
     ).rejects.toThrow("Project not found")
+  })
+})
+
+describe("a project's intro and outro", () => {
+  it("keeps one of the person's own videos for each, and takes it off with null", async () => {
+    await insertMedia("intro-video", { fileType: "video" })
+    const project = (await createOwnedProject(user.id, "Cooking", database)).project
+    const save = (introMediaId: string | null | undefined) =>
+      saveOwnedProjectSettings(
+        user.id,
+        project.id,
+        { name: "Cooking", style: null, lookPictureUrl: null, introMediaId },
+        database
+      )
+    expect((await save("intro-video")).intro_media_id).toBe("intro-video")
+    expect((await save(undefined)).intro_media_id).toBe("intro-video")
+    expect((await save(null)).intro_media_id).toBeNull()
+  })
+
+  it("refuses a picture or somebody else's video", async () => {
+    const other = await insertUser(database)
+    await insertMedia("a-picture")
+    await insertMedia("their-video", { userId: other.id, fileType: "video" })
+    const project = (await createOwnedProject(user.id, "Cooking", database)).project
+    for (const mediaId of ["a-picture", "their-video"]) {
+      await expect(
+        saveOwnedProjectSettings(
+          user.id,
+          project.id,
+          { name: "Cooking", style: null, lookPictureUrl: null, outroMediaId: mediaId },
+          database
+        )
+      ).rejects.toThrow(INTRO_OUTRO_NOT_A_VIDEO_MESSAGE)
+    }
   })
 })

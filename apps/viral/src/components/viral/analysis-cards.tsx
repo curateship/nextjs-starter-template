@@ -1,11 +1,14 @@
 import * as React from "react"
-import { CheckIcon, CopyIcon } from "lucide-react"
+import { BookmarkPlusIcon, CheckIcon, CopyIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { InspectorCard } from "@/components/shared/inspector-card"
 import { Button } from "@/components/ui/button"
+import { getViralErrorMessage } from "@/lib/api/viral/viral"
+import { saveFormatFn } from "@/lib/api/viral/viral-library"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { scriptText, type AnalysisPieces } from "@/lib/viral/analysis"
+import { formatFromAnalysis, partsName } from "@/lib/viral/formats"
 import { segmentRoleLabels } from "@/lib/viral/viral-breakdown"
 
 /**
@@ -13,9 +16,19 @@ import { segmentRoleLabels } from "@/lib/viral/viral-breakdown"
  * "Script for my topic", "3 to 5 more ideas", "Title + hashtags"), each a
  * folding `InspectorCard` with its own Copy. The right panel and a vault
  * item both draw them, so a saved idea reads exactly as it did when it was
- * written.
+ * written. Save format under the script keeps its structure for Library →
+ * Formats (task part 18).
  */
-export function AnalysisCards({ pieces, topic }: { pieces: AnalysisPieces; topic: string }) {
+export function AnalysisCards({
+  pieces,
+  topic,
+  sourceTitle = null,
+}: {
+  pieces: AnalysisPieces
+  topic: string
+  /** The video it was written about, kept with a saved format. */
+  sourceTitle?: string | null
+}) {
   const { whyItWorks, script, ideas, title } = pieces
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
@@ -58,7 +71,10 @@ export function AnalysisCards({ pieces, topic }: { pieces: AnalysisPieces; topic
               <p className="whitespace-pre-wrap">{part.words}</p>
             </div>
           ))}
-          <CopyButton label="Copy" name="Copy the script" text={scriptText(script, segmentRoleLabels)} />
+          <div className="flex flex-wrap gap-2">
+            <CopyButton label="Copy" name="Copy the script" text={scriptText(script, segmentRoleLabels)} />
+            <SaveFormatButton pieces={pieces} sourceTitle={sourceTitle} />
+          </div>
         </div>
       </InspectorCard>
 
@@ -91,6 +107,29 @@ export function AnalysisCards({ pieces, topic }: { pieces: AnalysisPieces; topic
         </div>
       </InspectorCard>
     </div>
+  )
+}
+
+/** Keeps the script's structure as a format on Library → Formats, named by its parts. */
+function SaveFormatButton({ pieces, sourceTitle }: { pieces: AnalysisPieces; sourceTitle: string | null }) {
+  const [busy, setBusy] = React.useState(false)
+  async function save() {
+    setBusy(true)
+    try {
+      const parts = formatFromAnalysis(pieces)
+      const format = await saveFormatFn({ name: partsName(parts), parts, sourceTitle })
+      toast.success(`Saved as the format "${format.name}". Find it on Library → Formats.`)
+    } catch (error) {
+      showErrorToast(getViralErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void save()}>
+      {busy ? <Loader2Icon className="animate-spin" /> : <BookmarkPlusIcon />}
+      Save format
+    </Button>
   )
 }
 

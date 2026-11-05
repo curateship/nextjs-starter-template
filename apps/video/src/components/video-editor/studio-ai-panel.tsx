@@ -9,6 +9,7 @@ import {
   ScissorsIcon,
   SparklesIcon,
   SplitIcon,
+  ClapperboardIcon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -22,6 +23,7 @@ import { HookDialog } from "@/components/video-editor/hook-dialog"
 import { JumpCutsDialog } from "@/components/video-editor/jump-cuts-dialog"
 import { TranslateDialog } from "@/components/video-editor/translate-dialog"
 import { VoiceDialog } from "@/components/video-editor/voice-dialog"
+import { TeaserDialog } from "@/components/video-editor/teaser-dialog"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import {
   loadAiToolsAvailability,
@@ -48,6 +50,7 @@ type ToolId =
   | "script"
   | "brief"
   | "b-roll"
+  | "teaser"
 
 const TOOLS: {
   id: ToolId
@@ -103,6 +106,12 @@ const TOOLS: {
     description: "Free Pexels clips under each sentence of the voice line.",
     Icon: FilmIcon,
   },
+  {
+    id: "teaser",
+    label: "Teaser",
+    description: "The best 1 to 3 second moments, cut on the beat, at the start.",
+    Icon: ClapperboardIcon,
+  },
 ]
 
 /** The ones that are built. The rest show as what is coming, greyed out. */
@@ -114,6 +123,7 @@ const BUILT: ToolId[] = [
   "translate",
   "brief",
   "b-roll",
+  "teaser",
 ]
 
 export function AiPanel() {
@@ -128,6 +138,7 @@ export function AiPanel() {
   const [translateOpen, setTranslateOpen] = React.useState(false)
   const [briefOpen, setBriefOpen] = React.useState(false)
   const [brollOpen, setBrollOpen] = React.useState(false)
+  const [teaserOpen, setTeaserOpen] = React.useState(false)
   const briefProgress = useBriefProgress()
 
   React.useEffect(() => {
@@ -153,6 +164,7 @@ export function AiPanel() {
     if (id === "translate") setTranslateOpen(true)
     if (id === "brief") setBriefOpen(true)
     if (id === "b-roll") setBrollOpen(true)
+    if (id === "teaser") setTeaserOpen(true)
   }
 
   return (
@@ -239,6 +251,7 @@ export function AiPanel() {
         onOpenChange={setBrollOpen}
         available={available}
       />
+      <TeaserDialog open={teaserOpen} onOpenChange={setTeaserOpen} />
     </div>
   )
 }

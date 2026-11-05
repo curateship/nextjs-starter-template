@@ -165,12 +165,12 @@ export async function sendToVideo(
 }
 
 /** The send a file link belongs to, while the link still works. */
-export async function sendForToken(token: string): Promise<ViralSendRow | null> {
+export async function sendForToken(ownerId: string, token: string): Promise<ViralSendRow | null> {
   if (!/^[A-Za-z0-9_-]{16,200}$/.test(token)) return null
   const [row] = await db
     .select()
     .from(viralSends)
-    .where(and(eq(viralSends.tokenHash, tokenHash(token)), gt(viralSends.tokenExpiresAt, now())))
+    .where(and(eq(viralSends.tokenHash, tokenHash(token)), eq(viralSends.ownerId, ownerId), gt(viralSends.tokenExpiresAt, now())))
   return row ?? null
 }
 
@@ -201,11 +201,12 @@ export type VideoEvent =
  * already ready or failed is finished, and news about it changes nothing,
  * nor does "arrived" naming a different draft than Video answered with.
  */
-export async function applyVideoEvent(event: VideoEvent): Promise<{ ok: true }> {
+export async function applyVideoEvent(ownerId: string, event: VideoEvent): Promise<{ ok: true }> {
+  // Only the owner's sends: news about another person's send changes nothing.
   const [send] = await db
     .select()
     .from(viralSends)
-    .where(and(eq(viralSends.id, event.sendId), inArray(viralSends.status, ["sending", "copying"])))
+    .where(and(eq(viralSends.id, event.sendId), eq(viralSends.ownerId, ownerId), inArray(viralSends.status, ["sending", "copying"])))
   if (!send) return { ok: true }
   const at = now()
   if (event.type === "arrived") {
@@ -254,7 +255,7 @@ export async function refreshSendStatus(ownerId: string, sendId: string, fetchIm
   const [send] = await db.select().from(viralSends).where(and(eq(viralSends.id, sendId), eq(viralSends.ownerId, ownerId)))
   if (!send) throw viralSays("That send is gone.")
   if (send.status === "sending" && now().getTime() - send.createdAt.getTime() > SENDING_STALE_MS) {
-    await applyVideoEvent({ type: "failed", sendId: send.id, error: "The send didn't finish. Send it again." })
+    await applyVideoEvent(send.ownerId, { type: "failed", sendId: send.id, error: "The send didn't finish. Send it again." })
   }
   if (send.status === "copying") {
     const connection = await readVideoConnection().catch((error: Error) => {
@@ -269,9 +270,9 @@ export async function refreshSendStatus(ownerId: string, sendId: string, fetchIm
       throw viralSays(error instanceof Error ? error.message : "Video couldn't be reached.")
     })
     if (answer.status === "ready" && answer.videoId && answer.editUrl) {
-      await applyVideoEvent({ type: "arrived", sendId: send.id, videoId: answer.videoId, editUrl: answer.editUrl })
+      await applyVideoEvent(send.ownerId, { type: "arrived", sendId: send.id, videoId: answer.videoId, editUrl: answer.editUrl })
     } else if (answer.status === "gone") {
-      await applyVideoEvent({ type: "failed", sendId: send.id, error: "Video could not copy the video. Send it again." })
+      await applyVideoEvent(send.ownerId, { type: "failed", sendId: send.id, error: "Video could not copy the video. Send it again." })
     }
   }
   return loadVaultItem(ownerId, send.itemId)

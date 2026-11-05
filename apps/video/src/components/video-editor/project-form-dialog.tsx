@@ -40,6 +40,7 @@ import {
   type ProjectItem,
 } from "@/lib/api/video/projects"
 import { saveSpendLimit, type VideoItem } from "@/lib/api/video/project-videos"
+import { listVideoMedia, type VideoMediaItem } from "@/lib/api/video/media"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { parseSpendLimit } from "@/lib/video/project-spend"
 import { MAX_STYLE_LENGTH } from "@/lib/video/visual-style"
@@ -50,7 +51,12 @@ type ProjectDraft = {
   lookPictureUrl: string
   /** Dollars as typed; empty is no limit. */
   spendLimit: string
+  /** The intro and outro videos, NO_VIDEO for none (intro-and-outro.md). */
+  introMediaId: string
+  outroMediaId: string
 }
+
+const NO_VIDEO = "none"
 
 /** The open video, when the window is opened from the editor. */
 type SpendingVideo = Pick<VideoItem, "id" | "name" | "spend_limit_cents">
@@ -62,6 +68,8 @@ function draftOf(project: ProjectItem | null, video: SpendingVideo | null): Proj
     lookPictureUrl: project?.look?.picture_url ?? "",
     spendLimit:
       video?.spend_limit_cents != null ? String(video.spend_limit_cents / 100) : "",
+    introMediaId: project?.intro_media_id ?? NO_VIDEO,
+    outroMediaId: project?.outro_media_id ?? NO_VIDEO,
   }
 }
 
@@ -107,6 +115,7 @@ export function ProjectFormDialog({
   // A new project's folder, picked in the window. Starts on the open folder.
   const [newFolderId, setNewFolderId] = React.useState(folderId)
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const projectVideos = useProjectVideoFiles(open && project ? project.id : null)
 
   // Start from what is stored every time the window opens.
   const [wasOpen, setWasOpen] = React.useState(open)
@@ -155,13 +164,17 @@ export function ProjectFormDialog({
       const projectChanged =
         draft.name !== stored.name ||
         draft.style !== stored.style ||
-        draft.lookPictureUrl !== stored.lookPictureUrl
+        draft.lookPictureUrl !== stored.lookPictureUrl ||
+        draft.introMediaId !== stored.introMediaId ||
+        draft.outroMediaId !== stored.outroMediaId
       if (projectChanged) {
         const saved = await saveProjectSettings({
           projectId: project.id,
           name: draft.name,
           style: draft.style || null,
           lookPictureUrl: draft.lookPictureUrl || null,
+          introMediaId: draft.introMediaId === NO_VIDEO ? null : draft.introMediaId,
+          outroMediaId: draft.outroMediaId === NO_VIDEO ? null : draft.outroMediaId,
         })
         onSaved(saved)
       }
@@ -322,6 +335,53 @@ export function ProjectFormDialog({
                 </SettingsFoldCard>
               ) : null}
 
+              {project ? (
+                <SettingsFoldCard
+                  fold
+                  storageId="video-project-settings-intro-outro"
+                  title="Intro and outro"
+                  description="Added before and after every export of every video in this project. Pick from this project's Media."
+                >
+                  {(["intro", "outro"] as const).map((which) => {
+                    const key = which === "intro" ? "introMediaId" : "outroMediaId"
+                    const value = draft[key]
+                    const known = projectVideos?.some((file) => file.id === value)
+                    return (
+                      <div key={which} className="grid gap-2">
+                        <Label htmlFor={`project-${which}`}>
+                          {which === "intro" ? "Intro" : "Outro"}
+                        </Label>
+                        <Select
+                          value={value}
+                          onValueChange={(next) => setDraft({ ...draft, [key]: next })}
+                          disabled={saving || projectVideos === null}
+                        >
+                          <SelectTrigger id={`project-${which}`} className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NO_VIDEO}>None</SelectItem>
+                            {value !== NO_VIDEO && !known ? (
+                              <SelectItem value={value}>The video set before</SelectItem>
+                            ) : null}
+                            {projectVideos?.map((file) => (
+                              <SelectItem key={file.id} value={file.id}>
+                                {file.original_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )
+                  })}
+                  {projectVideos?.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No videos in this project&apos;s Media yet. Upload the intro there first.
+                    </p>
+                  ) : null}
+                </SettingsFoldCard>
+              ) : null}
+
               {project && video ? (
                 <SettingsFoldCard
                   fold
@@ -372,4 +432,28 @@ export function ProjectFormDialog({
       )}
     </FormDialog>
   )
+}
+
+/**
+ * The videos in this project's Media, for the intro and outro choices. Null
+ * while they load, or when there is no project open in the window.
+ */
+function useProjectVideoFiles(projectId: string | null) {
+  const [files, setFiles] = React.useState<{ projectId: string; items: VideoMediaItem[] } | null>(null)
+  React.useEffect(() => {
+    if (!projectId) return
+    let active = true
+    listVideoMedia({ scope: { type: "project", id: projectId }, fileType: "video", pageSize: 100 })
+      .then((page) => {
+        if (active) setFiles({ projectId, items: page.media })
+      })
+      .catch((error) => {
+        console.error("Reading the project's videos failed", error)
+        if (active) setFiles({ projectId, items: [] })
+      })
+    return () => {
+      active = false
+    }
+  }, [projectId])
+  return files && files.projectId === projectId ? files.items : null
 }

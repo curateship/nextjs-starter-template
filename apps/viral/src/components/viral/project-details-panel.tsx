@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ArchiveIcon, FlameIcon, PauseIcon, PlayIcon, PlusIcon, XIcon } from "lucide-react"
+import { ArchiveIcon, FlameIcon, MegaphoneIcon, PauseIcon, PlayIcon, PlusIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
@@ -21,7 +21,7 @@ import { changeViralSocial, saveViralProjectNotesFn } from "@/lib/api/viral/vira
 import { focusRing } from "@/lib/layout/focus-ring"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
-import { SOCIAL_NAMES, SOCIALS, type Social } from "@/lib/viral/socials"
+import { isTextSocial, SOCIAL_NAMES, SOCIALS, type Social } from "@/lib/viral/socials"
 import { VIRAL_DESCRIPTION_MAX } from "@/lib/viral/viral"
 
 /**
@@ -39,6 +39,9 @@ export function ProjectDetailsPanel({
   onPickSocial,
   vaultOpen,
   onOpenVault,
+  adsOpen = false,
+  onOpenAds,
+  promoMissing = false,
   children,
 }: {
   /** The social picked in the Socials card, narrowing the middle panel to it; null is every social. */
@@ -47,6 +50,11 @@ export function ProjectDetailsPanel({
   /** Whether the middle panel shows the project's vault. */
   vaultOpen: boolean
   onOpenVault: () => void
+  /** Whether the middle panel shows the project's Winning ads (`workspace/docs/winning-ads.md`). */
+  adsOpen?: boolean
+  onOpenAds?: () => void
+  /** Promo isn't set up, so X, Reddit and LinkedIn can't be read; their rows say so. */
+  promoMissing?: boolean
   /** Each social's own cards: YouTube's keywords, then every social's creators. */
   children: React.ReactNode
 }) {
@@ -116,8 +124,9 @@ export function ProjectDetailsPanel({
                 onSave={(description) => save({ description })}
               />
             </div>
-            <SocialsCard activeSocial={activeSocial} onPickSocial={onPickSocial} />
+            <SocialsCard activeSocial={activeSocial} onPickSocial={onPickSocial} promoMissing={promoMissing} />
             <VaultRow open={vaultOpen} count={project.vault_count} onOpen={onOpenVault} />
+            {onOpenAds ? <AdsRow open={adsOpen} onOpen={onOpenAds} /> : null}
             {children}
           </div>
         </ScrollArea>
@@ -136,9 +145,11 @@ export function ProjectDetailsPanel({
 function SocialsCard({
   activeSocial,
   onPickSocial,
+  promoMissing,
 }: {
   activeSocial: Social | null
   onPickSocial: (social: Social | null) => void
+  promoMissing: boolean
 }) {
   const { screen, refresh } = useProject()
   const { project } = screen
@@ -227,6 +238,9 @@ function SocialsCard({
                   <SocialIcon social={social} />
                   <span className="min-w-0 truncate font-medium">{SOCIAL_NAMES[social]}</span>
                   {paused ? <span className="text-xs text-muted-foreground">Paused</span> : null}
+                  {promoMissing && isTextSocial(social) && !project.sample ? (
+                    <span className="truncate text-xs text-muted-foreground">Promo not connected</span>
+                  ) : null}
                   {fresh ? <span className="ml-auto shrink-0 text-xs whitespace-nowrap text-muted-foreground tabular-nums">{fresh} new</span> : null}
                 </button>
                 <RowButton
@@ -248,7 +262,7 @@ function SocialsCard({
           })}
         </ul>
       ) : (
-        <p className="text-sm text-muted-foreground">No socials yet. Press + to add YouTube or TikTok.</p>
+        <p className="text-sm text-muted-foreground">No socials yet. Press + to add YouTube, TikTok, X, Reddit or LinkedIn.</p>
       )}
     </PanelCard>
   )
@@ -270,6 +284,25 @@ function VaultRow({ open, count, onOpen }: { open: boolean; count: number; onOpe
       <ArchiveIcon className="size-4 text-muted-foreground" aria-hidden />
       <span className="flex-1 text-[15px] font-semibold">Vault</span>
       <span className="text-muted-foreground tabular-nums">{count}</span>
+    </button>
+  )
+}
+
+/** Winning ads, one row like the Vault's, that fills the middle panel with ads from Meta's ad library. */
+function AdsRow({ open, onOpen }: { open: boolean; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={open}
+      onClick={onOpen}
+      className={cn(
+        "flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm",
+        open ? "bg-muted" : "bg-muted/50 hover:bg-muted",
+        focusRing
+      )}
+    >
+      <MegaphoneIcon className="size-4 text-muted-foreground" aria-hidden />
+      <span className="flex-1 text-[15px] font-semibold">Winning ads</span>
     </button>
   )
 }

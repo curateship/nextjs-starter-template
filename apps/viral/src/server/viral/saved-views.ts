@@ -1,4 +1,6 @@
 import type { SavedViewScreen } from "@/server/app-options"
+import { libraryFilters } from "@/lib/viral/library"
+import { textPostsViewFilters } from "@/lib/viral/text-posts"
 import { vaultViewFilters } from "@/lib/viral/vault-saved-views"
 import { viralViewFilters } from "@/lib/viral/viral-saved-views"
 
@@ -28,4 +30,28 @@ export const vaultSavedViewScreen: SavedViewScreen = {
     if (recordId) throw new Error("The Vault page's views name no record.")
   },
   keep: ({ filters }) => vaultViewFilters(filters),
+}
+
+/**
+ * The Library page's saved views on its Hooks tab (`src/lib/viral/library.ts`).
+ * Like the Vault page, there is no record: a view is its owner's alone.
+ */
+export const librarySavedViewScreen: SavedViewScreen = {
+  authorize: async ({ recordId }) => {
+    if (recordId) throw new Error("The Library page's views name no record.")
+  },
+  keep: ({ filters }) => libraryFilters(filters),
+}
+
+/**
+ * Saved views on a project's X, Reddit and LinkedIn list
+ * (`src/lib/viral/text-posts.ts`): the project's owner only, like the video
+ * list's, but a kind of their own so the two lists never share one menu.
+ */
+export const textPostsSavedViewScreen: SavedViewScreen = {
+  authorize: async ({ userId, recordId }) => {
+    const { requireOwnedViralProject } = await import("@/server/viral/projects")
+    await requireOwnedViralProject(userId, recordId)
+  },
+  keep: ({ filters }) => textPostsViewFilters(filters),
 }

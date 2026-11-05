@@ -102,8 +102,6 @@ export type VideoItem = {
   source: VideoSource | null
   /** The title of the copied video once that saved video was deleted. */
   source_title_kept: string | null
-  /** The Viral project Make this a template was pressed in. */
-  source_viral_project_id: string | null
   /** The language a language copy speaks, null on every other video. */
   language: string | null
   /** The video this one is a language copy of. */
@@ -345,7 +343,6 @@ function serializeVideo(
     thumbnail_pending: thumbnail.pending,
     source,
     source_title_kept: row.sourceViralVideoTitle,
-    source_viral_project_id: row.sourceViralProjectId,
     language: row.language,
     language_of: row.languageOf,
     promo_brief: row.promoBrief,
@@ -575,7 +572,6 @@ type NewVideo = {
   timeline?: ProjectTimeline
   sourceViralVideoId?: string | null
   sourceViralVideoTitle?: string | null
-  sourceViralProjectId?: string | null
   spendLimitCents?: number | null
   languageOf?: string | null
   language?: string | null
@@ -647,7 +643,6 @@ export async function insertVideo(
       spendLimitCents: video.spendLimitCents ?? null,
       sourceViralVideoId: video.sourceViralVideoId ?? null,
       sourceViralVideoTitle: video.sourceViralVideoTitle ?? null,
-      sourceViralProjectId: video.sourceViralProjectId ?? null,
       languageOf: video.languageOf ?? null,
       language: video.language ?? null,
       createdAt: at,
@@ -668,7 +663,6 @@ function carriedFrom(source: VideoProjectVideoRow): NewVideo {
   return {
     sourceViralVideoId: source.sourceViralVideoId,
     sourceViralVideoTitle: source.sourceViralVideoTitle,
-    sourceViralProjectId: source.sourceViralProjectId,
     spendLimitCents: source.spendLimitCents,
   }
 }

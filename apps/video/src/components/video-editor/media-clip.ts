@@ -1,4 +1,6 @@
 import type { VideoMediaItem } from "@/lib/api/video/media"
+import { loadLoudness } from "@/lib/api/video/ads"
+import { levelDbFor } from "@/lib/video/clip-level"
 import {
   DEFAULT_IMAGE_DURATION_MS,
   editorId,
@@ -29,7 +31,10 @@ export async function buildMediaClip(
     }
   }
   const kind = item.file_type === "video" ? "video" : "audio"
-  const sourceDurationMs = await loadMediaDurationMs(item.playback_url, kind)
+  const [sourceDurationMs, levelDb] = await Promise.all([
+    loadMediaDurationMs(item.playback_url, kind),
+    arrivalLevel(item.id),
+  ])
   return {
     id: editorId(),
     kind,
@@ -40,5 +45,25 @@ export async function buildMediaClip(
     trimStartMs: 0,
     startMs: 0,
     durationMs: sourceDurationMs,
+    ...(levelDb !== undefined ? { levelDb } : {}),
   }
+}
+
+/** How long a drop waits for a file's loudness before it lands as recorded. */
+const LEVEL_WAIT_MS = 4000
+
+/**
+ * The change that brings this file to the even loudness every dropped clip
+ * gets (even-out-clip-volume.md). The background worker measures each upload
+ * once, so this is usually a quick read. A file not measured yet is measured
+ * now, and a drop that would wait longer than four seconds lands as recorded
+ * while the measuring carries on for the next drop.
+ */
+async function arrivalLevel(mediaId: string): Promise<number | undefined> {
+  const measured = loadLoudness([mediaId]).then(
+    (loudness) => levelDbFor(loudness[mediaId]),
+    () => undefined
+  )
+  const giveUp = new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), LEVEL_WAIT_MS))
+  return Promise.race([measured, giveUp])
 }

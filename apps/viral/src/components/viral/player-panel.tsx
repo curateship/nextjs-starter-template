@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  CopyPlusIcon,
   DownloadIcon,
   EyeOffIcon,
   ExternalLinkIcon,
@@ -8,6 +9,7 @@ import {
   PlayIcon,
   RotateCwIcon,
   Trash2Icon,
+  UsersIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -17,10 +19,13 @@ import { FoldingMenu, MenuAction, MenuLine } from "@/components/shared/folding-m
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { CopyToProjectDialog, type CopyTarget } from "@/components/viral/copy-to-project-dialog"
 import { BreakdownPanel } from "@/components/viral/breakdown-panel"
+import { CommentsCard } from "@/components/viral/comments-card"
 import { AnalyseSection } from "@/components/viral/analyse-section"
 import { DeleteSavedVideosDialog } from "@/components/viral/delete-saved-videos-dialog"
 import { OutlierBadge } from "@/components/viral/outlier-badge"
+import { RisingBadge } from "@/components/viral/rising-badge"
 import { SocialIcon } from "@/components/viral/social-icon"
 import { ViralScoreBlock } from "@/components/viral/viral-score-parts"
 import {
@@ -38,7 +43,7 @@ import {
   isSavedVideoWorking,
   savedVideoStatusLabels,
 } from "@/lib/viral/creators"
-import type { ViralVideo } from "@/lib/viral/viral"
+import { soundLabel, type ViralVideo } from "@/lib/viral/viral"
 import { engagementPer100, viewsPerFollower } from "@/lib/viral/viral-view"
 import { CoverImage } from "@/components/viral/cover-image"
 
@@ -106,6 +111,10 @@ type PlayerBodyProps = {
   onDeleted?: (video: ViralVideo) => void | Promise<void>
   /** Where the video starts, in milliseconds: its hook, opened from Hooks. */
   startAtMs?: number
+  /** Opens the video's channel as a creator page in the middle. Absent where it has none. */
+  onOpenChannel?: (video: ViralVideo) => void
+  /** "Same idea, other creators" in the ⋮. Absent outside a project. */
+  onSameIdea?: (video: ViralVideo) => void
 }
 
 function PlayerBody({
@@ -118,11 +127,14 @@ function PlayerBody({
   onSavedChange,
   onDeleted,
   startAtMs,
+  onOpenChannel,
+  onSameIdea,
 }: PlayerBodyProps) {
   const [saved, setSavedHere] = React.useState<SavedVideoDetail | null>(null)
   const [busy, setBusy] = React.useState<"download" | "analyse" | "retry" | null>(null)
   const [deleting, setDeleting] = React.useState(false)
   const [menuOpen, setMenuOpen] = React.useState(false)
+  const [copying, setCopying] = React.useState<CopyTarget | null>(null)
   // The sticky footer the Analyse section draws its vault buttons into.
   const [footer, setFooter] = React.useState<HTMLDivElement | null>(null)
   const [atMs, setAtMs] = React.useState<number | undefined>(undefined)
@@ -260,9 +272,18 @@ function PlayerBody({
         title={
           <span className="grid leading-tight">
             <span className="truncate">{video.title}</span>
-            <span className="truncate text-xs font-normal text-muted-foreground">
-              {video.channelName ? `${platform} · ${video.channelName}` : platform}
-            </span>
+            {video.channelName && onOpenChannel ? (
+              <span className="truncate text-xs font-normal text-muted-foreground">
+                {platform} ·{" "}
+                <button type="button" className="hover:text-foreground hover:underline" onClick={() => onOpenChannel(video)}>
+                  {video.channelName}
+                </button>
+              </span>
+            ) : (
+              <span className="truncate text-xs font-normal text-muted-foreground">
+                {video.channelName ? `${platform} · ${video.channelName}` : platform}
+              </span>
+            )}
           </span>
         }
         action={
@@ -283,6 +304,14 @@ function PlayerBody({
                 Copy link
               </MenuAction>
             )}
+            {video.sample ? null : (
+              <MenuAction icon={<CopyPlusIcon className="size-4" />} onClick={() => {
+                setMenuOpen(false)
+                setCopying({ kind: "video", url: video.url, title: video.title })
+              }}>
+                Copy to another project
+              </MenuAction>
+            )}
             {video.sample || saved ? null : (
               <MenuAction icon={<DownloadIcon className="size-4" />} disabled={busy !== null} onClick={() => {
                 setMenuOpen(false)
@@ -297,6 +326,14 @@ function PlayerBody({
                 void onTryAgain()
               }}>
                 Try the download again
+              </MenuAction>
+            ) : null}
+            {onSameIdea ? (
+              <MenuAction icon={<UsersIcon className="size-4" />} onClick={() => {
+                setMenuOpen(false)
+                onSameIdea(video)
+              }}>
+                Same idea, other creators
               </MenuAction>
             ) : null}
             {onHideChannel ? (
@@ -344,6 +381,12 @@ function PlayerBody({
           {/* Label and number on one row, like Details: three across did not fit a narrow panel. */}
           <dl className="grid gap-2 text-sm">
             <Detail label="Views" value={formatCount(video.views)} />
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Since yesterday</dt>
+              <dd className="min-w-0 text-right font-medium">
+                <RisingBadge growth={video.growth} />
+              </dd>
+            </div>
             <Detail label="Likes" value={formatCount(video.likes)} />
             <Detail label="Comments" value={formatCount(video.comments)} />
             <div className="flex justify-between gap-3">
@@ -367,8 +410,11 @@ function PlayerBody({
               {video.keywords.length ? (
                 <Detail label="Found by" value={video.keywords.map((keyword) => `“${keyword}”`).join(", ")} />
               ) : null}
+              {video.sound ? <Detail label="Sound" value={soundLabel(video.sound)} /> : null}
             </dl>
           </InspectorCard>
+
+          <CommentsCard video={video} projectId={projectId} />
 
           {working ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -403,6 +449,7 @@ function PlayerBody({
       {/* The sticky footer, as Project's task panel has one: Save to vault and Send to Video, drawn by the
           Analyse section. */}
       <div ref={setFooter} className="shrink-0 border-t p-3 empty:hidden" />
+      <CopyToProjectDialog target={copying} currentProjectId={projectId} onClose={() => setCopying(null)} />
 
       {onDeleted ? (
         <DeleteSavedVideosDialog

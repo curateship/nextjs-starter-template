@@ -19,6 +19,9 @@ import type { CarouselFormat } from "@/lib/video/carousel-schema"
 import type { AiPart } from "@/lib/video/ai-parts"
 import { scenesOfTimeline } from "@/lib/video/export-scenes"
 import { adsOfTimeline } from "@/lib/video/ads"
+import type { TimelineMarker } from "@/lib/video/timeline-markers"
+import { withIntroOutro } from "@/lib/video/intro-outro"
+import { introOutroParts } from "@/server/video/intro-outro"
 import {
   requireCanonicalTimeline,
   type AspectRatio,
@@ -127,6 +130,8 @@ export type RenderJobSummary = {
   ai_parts: AiPart[] | null
   /** Whether the copied paragraph says the script and pictures were edited. */
   ai_hand_edited: boolean
+  /** The markers in the file, for its chapters. Null before 4 Nov 2026 and on carousels. */
+  markers: TimelineMarker[] | null
   file_size: number | null
   duration_ms: number | null
   width: number | null
@@ -173,6 +178,7 @@ export function serializeRenderJob(
     description: row.description,
     ai_parts: row.aiParts,
     ai_hand_edited: row.aiHandEdited,
+    markers: row.markers,
     file_size: row.fileSize,
     duration_ms: row.durationMs,
     width: row.width,
@@ -301,6 +307,7 @@ export async function enqueueRenderJobs({
   normalizeLoudness,
   title,
   range,
+  withIntroOutro: includeIntroOutro = true,
   database = db,
 }: {
   userId: string
@@ -313,6 +320,8 @@ export async function enqueueRenderJobs({
   title?: string
   /** The part of the project to export. Left out, the whole project. */
   range?: { startMs: number; endMs: number }
+  /** Off leaves out the project's intro and outro. A part never has them. */
+  withIntroOutro?: boolean
   database?: CustomShellDb
 }): Promise<RenderJobSummary[]> {
   const shapes = Array.from(new Set(aspects))
@@ -356,6 +365,7 @@ export async function enqueueRenderJobs({
         title: name,
         rangeStartMs: part?.startMs ?? null,
         rangeEndMs: part?.endMs ?? null,
+        withIntroOutro: includeIntroOutro,
         createdAt: timestamp,
         updatedAt: timestamp,
       }))
@@ -521,6 +531,7 @@ type ClaimedJob = {
   normalize_loudness: boolean
   lease_token: string
   range_start_ms: number | null
+  with_intro_outro: boolean
   range_end_ms: number | null
 }
 
@@ -588,7 +599,7 @@ async function claimNextJob(): Promise<ClaimedJob | null> {
       for update skip locked
     )
     returning id, user_id, video_id, quality, aspect, frame_rate, normalize_loudness, lease_token,
-      range_start_ms, range_end_ms
+      range_start_ms, range_end_ms, with_intro_outro
   `)
   return (result.rows[0] as ClaimedJob | undefined) ?? null
 }
@@ -670,10 +681,15 @@ async function runJob(job: ClaimedJob) {
     const whole = requireCanonicalTimeline(video.timeline)
     // A part of the project is cut out before anything else reads it, so the
     // file, its AI parts and its scene lines all describe the part.
+    // The project's intro and outro go round a whole export, unless the
+    // Export window's switch left them off; a part never gets them
+    // (intro-and-outro.md).
     const drawn =
       job.range_start_ms !== null && job.range_end_ms !== null
         ? timelineStretch(whole, job.range_start_ms, job.range_end_ms)
-        : whole
+        : job.with_intro_outro
+          ? withIntroOutro(whole, await introOutroParts(job.user_id, video.projectId))
+          : whole
     const aiParts = await workOutAiParts(drawn)
 
     result = await renderTimeline({
@@ -721,6 +737,8 @@ async function runJob(job: ClaimedJob) {
         scenes: scenesOfTimeline(drawn, result.durationMs),
         // And where its ads were, for the marks on that curve (ads.md).
         ads: adsOfTimeline(drawn.tracks, result.durationMs),
+        // And its markers, for the Chapters card (youtube-chapters.md).
+        markers: drawn.markers ?? [],
         leaseToken: null,
         leaseExpiresAt: null,
         finishedAt: now(),

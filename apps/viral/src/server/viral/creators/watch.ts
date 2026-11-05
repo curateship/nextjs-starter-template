@@ -14,6 +14,7 @@ import { recordYoutubeUnits, youtubeUnitsLeftToday } from "@/server/viral/youtub
 import { readSocials } from "@/lib/viral/socials"
 import { MANUAL_UNITS_RESERVE } from "@/lib/viral/viral"
 import { isCreatorPlatform } from "@/lib/viral/creators"
+import { recordViews } from "@/server/viral/view-history"
 
 /**
  * The watch timer: the one thing in this app that goes looking on its own.
@@ -200,6 +201,8 @@ export async function recordUploads(
         likes: upload.likes,
         comments: upload.comments,
         postedAt: upload.postedAt,
+        soundName: upload.soundName ?? null,
+        soundArtist: upload.soundArtist ?? null,
         firstSeenAt: at,
       })
       .onConflictDoUpdate({
@@ -214,6 +217,8 @@ export async function recordUploads(
           comments: upload.comments,
           title: upload.title,
           thumbnailUrl: upload.thumbnailUrl,
+          // A read that didn't say the sound keeps the one already known.
+          ...(upload.soundName ? { soundName: upload.soundName, soundArtist: upload.soundArtist ?? null } : {}),
         },
       })
       .returning({
@@ -226,6 +231,12 @@ export async function recordUploads(
       written += 1
     }
   }
+
+  // Today's views figure for each post, for Rising fast.
+  await recordViews(
+    uploads.map((upload) => ({ platform: creator.platform, platformVideoId: upload.platformVideoId, views: upload.views })),
+    at
+  ).catch((error) => console.error("The views figures were not kept", error))
 
   return written
 }

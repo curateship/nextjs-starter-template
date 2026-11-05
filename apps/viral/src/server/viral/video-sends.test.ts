@@ -7,9 +7,9 @@ import { type CustomShellDb } from "@/server/db"
 import { customShellMedia, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser, insertWorkspace } from "@/server/test-support"
 import { createViralProject } from "@/server/viral/projects"
-import { viralProjects, viralSends, viralVaultItems } from "@/server/viral/schema"
+import { viralProjects, viralSends, viralSettings, viralVaultItems } from "@/server/viral/schema"
 import { saveVideoApiKey, saveVideoUrl } from "@/server/viral/settings"
-import { isVideoCaller } from "@/server/viral/video-link"
+import { videoCallerOwnerId } from "@/server/viral/video-link"
 import { applyVideoEvent, refreshSendStatus, sendForToken, sendToVideo } from "@/server/viral/video-sends"
 
 /**
@@ -39,7 +39,7 @@ beforeEach(async () => {
   user = await insertUser(database)
   workspaceId = (await insertWorkspace(database, { userId: user.id })).id
   await saveVideoUrl("http://video.test")
-  await saveVideoApiKey("vv_secret_key_for_tests")
+  await saveVideoApiKey("vv_secret_key_for_tests", user.id)
 })
 
 afterEach(async () => {
@@ -120,8 +120,8 @@ describe("sending a vault item", () => {
     const file = message.body.file as { token: string; size: number; contentType: string }
     expect(file.size).toBe(12_345)
     expect(file.contentType).toBe("video/mp4")
-    expect((await sendForToken(file.token))?.itemId).toBe(id)
-    expect(await sendForToken("x".repeat(43))).toBeNull()
+    expect((await sendForToken(user.id, file.token))?.itemId).toBe(id)
+    expect(await sendForToken(user.id, "x".repeat(43))).toBeNull()
 
     expect(item.status).toBe("sent")
     expect(item.sentEditUrl).toContain("vid-1")
@@ -166,25 +166,25 @@ describe("Video's news", () => {
     await sendToVideo(user.id, { itemId: id, videoProjectId: "p1", mode: null }, video.fetchFn)
     const sendId = String(video.messages[0].body.sendId)
     const token = (video.messages[0].body.file as { token: string }).token
-    await applyVideoEvent({ type: "arrived", sendId, videoId: "vid-1", editUrl: "http://video.test/e" })
+    await applyVideoEvent(user.id, { type: "arrived", sendId, videoId: "vid-1", editUrl: "http://video.test/e" })
     const [send] = await database.select().from(viralSends)
     expect(send.status).toBe("ready")
-    expect(await sendForToken(token)).toBeNull()
+    expect(await sendForToken(user.id, token)).toBeNull()
   })
 
   it("a failed new draft stops the item saying Sent; a failed Replace keeps it", async () => {
     const { id } = await vaultItem()
     const video = fakeVideo()
     await sendToVideo(user.id, { itemId: id, videoProjectId: "p1", mode: null }, video.fetchFn)
-    await applyVideoEvent({ type: "failed", sendId: String(video.messages[0].body.sendId), error: "Too big" })
+    await applyVideoEvent(user.id, { type: "failed", sendId: String(video.messages[0].body.sendId), error: "Too big" })
     let [item] = await database.select().from(viralVaultItems)
     expect(item.status).toBe("scripted")
     expect(item.sentVideoId).toBeNull()
 
     await sendToVideo(user.id, { itemId: id, videoProjectId: "p1", mode: null }, video.fetchFn)
-    await applyVideoEvent({ type: "arrived", sendId: String(video.messages[1].body.sendId), videoId: "vid-1", editUrl: "http://video.test/e" })
+    await applyVideoEvent(user.id, { type: "arrived", sendId: String(video.messages[1].body.sendId), videoId: "vid-1", editUrl: "http://video.test/e" })
     await sendToVideo(user.id, { itemId: id, videoProjectId: "p1", mode: "replace" }, video.fetchFn)
-    await applyVideoEvent({ type: "failed", sendId: String(video.messages[2].body.sendId), error: "Too big" })
+    await applyVideoEvent(user.id, { type: "failed", sendId: String(video.messages[2].body.sendId), error: "Too big" })
     ;[item] = await database.select().from(viralVaultItems)
     expect(item.status).toBe("sent")
     expect(item.sentVideoId).toBe("vid-1")
@@ -207,12 +207,12 @@ describe("Video's news", () => {
     const video = fakeVideo()
     await sendToVideo(user.id, { itemId: id, videoProjectId: "p1", mode: null }, video.fetchFn)
     const sendId = String(video.messages[0].body.sendId)
-    await applyVideoEvent({ type: "arrived", sendId, videoId: "someone-elses", editUrl: "http://video.test/x" })
+    await applyVideoEvent(user.id, { type: "arrived", sendId, videoId: "someone-elses", editUrl: "http://video.test/x" })
     let [send] = await database.select().from(viralSends)
     expect(send.status).toBe("copying")
 
-    await applyVideoEvent({ type: "arrived", sendId, videoId: "vid-1", editUrl: "http://video.test/e" })
-    await applyVideoEvent({ type: "failed", sendId, error: "Too big" })
+    await applyVideoEvent(user.id, { type: "arrived", sendId, videoId: "vid-1", editUrl: "http://video.test/e" })
+    await applyVideoEvent(user.id, { type: "failed", sendId, error: "Too big" })
     ;[send] = await database.select().from(viralSends)
     expect(send.status).toBe("ready")
     const [item] = await database.select().from(viralVaultItems)
@@ -230,7 +230,7 @@ describe("Video's news", () => {
     item = await sendToVideo(user.id, { itemId: id, videoProjectId: "p1", mode: "new" }, elsewhere.fetchFn)
     expect(item.sentEditUrl).toBeNull()
 
-    await applyVideoEvent({ type: "arrived", sendId: String(scripted.messages[0].body.sendId), videoId: "vid-1", editUrl: "https://evil.test/e" })
+    await applyVideoEvent(user.id, { type: "arrived", sendId: String(scripted.messages[0].body.sendId), videoId: "vid-1", editUrl: "https://evil.test/e" })
     const sends = await database.select().from(viralSends)
     expect(sends.map((one) => one.editUrl)).toEqual(["", ""])
   })
@@ -256,7 +256,7 @@ describe("Video's news", () => {
     const racing = (async (url: RequestInfo | URL, init?: RequestInit) => {
       const reply = await realFetch(url, init)
       const sendId = JSON.parse(String(init?.body)).sendId
-      await applyVideoEvent({ type: "failed", sendId, error: "Too big" })
+      await applyVideoEvent(user.id, { type: "failed", sendId, error: "Too big" })
       return reply
     }) as typeof fetch
     await sendToVideo(user.id, { itemId: id, videoProjectId: "p1", mode: null }, racing)
@@ -279,8 +279,31 @@ describe("Video's news", () => {
 
   it("only Video's key opens Viral's doors", async () => {
     const asking = (auth: string | null) => new Request("http://viral.test/api/connect/video/events", auth ? { headers: { authorization: auth } } : {})
-    expect(await isVideoCaller(asking("Bearer vv_secret_key_for_tests"))).toBe(true)
-    expect(await isVideoCaller(asking("Bearer vv_wrong"))).toBe(false)
-    expect(await isVideoCaller(asking(null))).toBe(false)
+    expect(await videoCallerOwnerId(asking("Bearer vv_secret_key_for_tests"))).toBe(user.id)
+    expect(await videoCallerOwnerId(asking("Bearer vv_wrong"))).toBeNull()
+    expect(await videoCallerOwnerId(asking(null))).toBeNull()
+  })
+
+  it("a call acts only for the person who saved the key", async () => {
+    const asking = new Request("http://viral.test/api/connect/video/events", { headers: { authorization: "Bearer vv_secret_key_for_tests" } })
+    const other = await insertUser(database)
+    await saveVideoApiKey("vv_secret_key_for_tests", other.id)
+    expect(await videoCallerOwnerId(asking)).toBe(other.id)
+    await database.update(viralSettings).set({ videoKeyOwnerId: null })
+    expect(await videoCallerOwnerId(asking)).toBeNull()
+  })
+
+  it("never touches another person's send or file", async () => {
+    const { id } = await vaultItem()
+    const video = fakeVideo()
+    await sendToVideo(user.id, { itemId: id, videoProjectId: "p1", mode: null }, video.fetchFn)
+    const sendId = String(video.messages[0].body.sendId)
+    const token = (video.messages[0].body.file as { token: string }).token
+    const other = await insertUser(database)
+    expect(await sendForToken(other.id, token)).toBeNull()
+    await applyVideoEvent(other.id, { type: "failed", sendId, error: "Too big" })
+    const [send] = await database.select().from(viralSends)
+    expect(send.status).not.toBe("failed")
+    expect((await sendForToken(user.id, token))?.itemId).toBe(id)
   })
 })

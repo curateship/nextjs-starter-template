@@ -29,6 +29,7 @@ function serializeTimeline(timeline: ProjectTimeline) {
     tracks: timeline.tracks,
     aspect: timeline.aspect,
     progressBar: timeline.progressBar,
+    markers: timeline.markers,
   })
 }
 
@@ -43,8 +44,13 @@ function showReadOnlyNotice() {
 }
 
 function timelineOf(store: EditorStore): ProjectTimeline {
-  const { tracks, aspect, progressBar } = store.getSnapshot().state
-  return { tracks, aspect, ...(progressBar ? { progressBar } : {}) }
+  const { tracks, aspect, progressBar, markers } = store.getSnapshot().state
+  return {
+    tracks,
+    aspect,
+    ...(progressBar ? { progressBar } : {}),
+    ...(markers.length ? { markers } : {}),
+  }
 }
 
 /** The video the editor opens on, in its project. */
@@ -147,6 +153,10 @@ export function EditorProvider({
   const progressBar = useEditorStoreSelector(
     store,
     (snapshot) => snapshot.state.progressBar
+  )
+  const markers = useEditorStoreSelector(
+    store,
+    (snapshot) => snapshot.state.markers
   )
   // The version this editor's saves are built on. It moves forward with every
   // accepted save; a refusal means somebody else wrote first.
@@ -262,6 +272,7 @@ export function EditorProvider({
       tracks,
       aspect,
       ...(progressBar ? { progressBar } : {}),
+      ...(markers.length ? { markers } : {}),
     }
     const serialized = serializeTimeline(snapshot)
     // Nothing has actually changed — opening a project is not an edit.
@@ -274,7 +285,7 @@ export function EditorProvider({
     const timer = setTimeout(() => void saveNow(), AUTOSAVE_DEBOUNCE_MS)
 
     return () => clearTimeout(timer)
-  }, [saveNow, tracks, aspect, progressBar, locked])
+  }, [saveNow, tracks, aspect, progressBar, markers, locked])
 
   // Work still inside the debounce window when the editor closes — going back
   // to the list, say — is sent on the way out.

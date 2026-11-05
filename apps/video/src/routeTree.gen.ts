@@ -62,11 +62,8 @@ import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminVideoCarouselExportsRouteImport } from './routes/_authenticated/admin/video-carousel-exports'
 import { Route as AuthenticatedAdminVideoCarouselsRouteImport } from './routes/_authenticated/admin/video-carousels'
-import { Route as AuthenticatedAdminVideoCreatorsRouteImport } from './routes/_authenticated/admin/video-creators'
 import { Route as AuthenticatedAdminVideoEditorRouteImport } from './routes/_authenticated/admin/video-editor'
 import { Route as AuthenticatedAdminVideoExportsRouteImport } from './routes/_authenticated/admin/video-exports'
-import { Route as AuthenticatedAdminVideoFavouritesRouteImport } from './routes/_authenticated/admin/video-favourites'
-import { Route as AuthenticatedAdminVideoViralRouteImport } from './routes/_authenticated/admin/video-viral'
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
@@ -85,10 +82,6 @@ import { Route as AuthenticatedAdminVideoCarouselsProjectIdRouteImport } from '.
 import { Route as AuthenticatedAdminVideoEditorIndexRouteImport } from './routes/_authenticated/admin/video-editor.index'
 import { Route as AuthenticatedAdminVideoEditorActorsRouteImport } from './routes/_authenticated/admin/video-editor.actors'
 import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './routes/_authenticated/admin/video-editor_.$projectId'
-import { Route as AuthenticatedAdminVideoFavouritesIndexRouteImport } from './routes/_authenticated/admin/video-favourites.index'
-import { Route as AuthenticatedAdminVideoFavouritesCollectionIdRouteImport } from './routes/_authenticated/admin/video-favourites.$collectionId'
-import { Route as AuthenticatedAdminVideoViralIndexRouteImport } from './routes/_authenticated/admin/video-viral.index'
-import { Route as AuthenticatedAdminVideoViralProjectIdRouteImport } from './routes/_authenticated/admin/video-viral_.$projectId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
 import { Route as ApiConnectPromoEventsRouteImport } from './routes/api/connect/promo/events'
 import { Route as ApiConnectPromoProjectsRouteImport } from './routes/api/connect/promo/projects'
@@ -106,7 +99,6 @@ import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media
 import { Route as ApiV1VideoYoutubeCallbackRouteImport } from './routes/api/v1/video/youtube/callback'
 import { Route as ApiV1VideoYoutubeConnectRouteImport } from './routes/api/v1/video/youtube/connect'
 import { Route as ApiV1VideoActorsActorIdImageRouteImport } from './routes/api/v1/video/actors/$actorId/image'
-import { Route as ApiV1VideoCreatorsCreatorIdAvatarRouteImport } from './routes/api/v1/video/creators/$creatorId/avatar'
 import { Route as ApiV1VideoExportsExportIdCoverRouteImport } from './routes/api/v1/video/exports/$exportId/cover'
 import { Route as ApiV1VideoExportsExportIdFileRouteImport } from './routes/api/v1/video/exports/$exportId/file'
 import { Route as ApiV1VideoMediaMediaIdFilmstripRouteImport } from './routes/api/v1/video/media/$mediaId/filmstrip'
@@ -394,12 +386,6 @@ const AuthenticatedAdminVideoCarouselsRoute =
     path: '/video-carousels',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminVideoCreatorsRoute =
-  AuthenticatedAdminVideoCreatorsRouteImport.update({
-    id: '/video-creators',
-    path: '/video-creators',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminVideoEditorRoute =
   AuthenticatedAdminVideoEditorRouteImport.update({
     id: '/video-editor',
@@ -410,18 +396,6 @@ const AuthenticatedAdminVideoExportsRoute =
   AuthenticatedAdminVideoExportsRouteImport.update({
     id: '/video-exports',
     path: '/video-exports',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminVideoFavouritesRoute =
-  AuthenticatedAdminVideoFavouritesRouteImport.update({
-    id: '/video-favourites',
-    path: '/video-favourites',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminVideoViralRoute =
-  AuthenticatedAdminVideoViralRouteImport.update({
-    id: '/video-viral',
-    path: '/video-viral',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedChangelogIndexRoute =
@@ -529,30 +503,6 @@ const AuthenticatedAdminVideoEditorProjectIdRoute =
     path: '/video-editor/$projectId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminVideoFavouritesIndexRoute =
-  AuthenticatedAdminVideoFavouritesIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedAdminVideoFavouritesRoute,
-  } as any)
-const AuthenticatedAdminVideoFavouritesCollectionIdRoute =
-  AuthenticatedAdminVideoFavouritesCollectionIdRouteImport.update({
-    id: '/$collectionId',
-    path: '/$collectionId',
-    getParentRoute: () => AuthenticatedAdminVideoFavouritesRoute,
-  } as any)
-const AuthenticatedAdminVideoViralIndexRoute =
-  AuthenticatedAdminVideoViralIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedAdminVideoViralRoute,
-  } as any)
-const AuthenticatedAdminVideoViralProjectIdRoute =
-  AuthenticatedAdminVideoViralProjectIdRouteImport.update({
-    id: '/video-viral_/$projectId',
-    path: '/video-viral/$projectId',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   id: '/api/auth/google_/callback',
   path: '/api/auth/google/callback',
@@ -645,12 +595,6 @@ const ApiV1VideoActorsActorIdImageRoute =
     path: '/api/v1/video/actors/$actorId/image',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiV1VideoCreatorsCreatorIdAvatarRoute =
-  ApiV1VideoCreatorsCreatorIdAvatarRouteImport.update({
-    id: '/api/v1/video/creators/$creatorId/avatar',
-    path: '/api/v1/video/creators/$creatorId/avatar',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiV1VideoExportsExportIdCoverRoute =
   ApiV1VideoExportsExportIdCoverRouteImport.update({
     id: '/api/v1/video/exports/$exportId/cover',
@@ -734,11 +678,8 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/video-carousel-exports': typeof AuthenticatedAdminVideoCarouselExportsRoute
   '/admin/video-carousels': typeof AuthenticatedAdminVideoCarouselsRouteWithChildren
-  '/admin/video-creators': typeof AuthenticatedAdminVideoCreatorsRoute
   '/admin/video-editor': typeof AuthenticatedAdminVideoEditorRouteWithChildren
   '/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
-  '/admin/video-favourites': typeof AuthenticatedAdminVideoFavouritesRouteWithChildren
-  '/admin/video-viral': typeof AuthenticatedAdminVideoViralRouteWithChildren
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -756,8 +697,6 @@ export interface FileRoutesByFullPath {
   '/admin/video-carousels/$projectId': typeof AuthenticatedAdminVideoCarouselsProjectIdRoute
   '/admin/video-editor/actors': typeof AuthenticatedAdminVideoEditorActorsRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
-  '/admin/video-favourites/$collectionId': typeof AuthenticatedAdminVideoFavouritesCollectionIdRoute
-  '/admin/video-viral/$projectId': typeof AuthenticatedAdminVideoViralProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/connect/promo/events': typeof ApiConnectPromoEventsRoute
   '/api/connect/promo/projects': typeof ApiConnectPromoProjectsRoute
@@ -770,8 +709,6 @@ export interface FileRoutesByFullPath {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/video-carousels/': typeof AuthenticatedAdminVideoCarouselsIndexRoute
   '/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
-  '/admin/video-favourites/': typeof AuthenticatedAdminVideoFavouritesIndexRoute
-  '/admin/video-viral/': typeof AuthenticatedAdminVideoViralIndexRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/connect/promo/file/$token': typeof ApiConnectPromoFileTokenRoute
   '/api/connect/viral/sends/$sendId': typeof ApiConnectViralSendsSendIdRoute
@@ -779,7 +716,6 @@ export interface FileRoutesByFullPath {
   '/api/v1/video/youtube/callback': typeof ApiV1VideoYoutubeCallbackRoute
   '/api/v1/video/youtube/connect': typeof ApiV1VideoYoutubeConnectRoute
   '/api/v1/video/actors/$actorId/image': typeof ApiV1VideoActorsActorIdImageRoute
-  '/api/v1/video/creators/$creatorId/avatar': typeof ApiV1VideoCreatorsCreatorIdAvatarRoute
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
   '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
@@ -835,7 +771,6 @@ export interface FileRoutesByTo {
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/video-carousel-exports': typeof AuthenticatedAdminVideoCarouselExportsRoute
-  '/admin/video-creators': typeof AuthenticatedAdminVideoCreatorsRoute
   '/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
@@ -854,8 +789,6 @@ export interface FileRoutesByTo {
   '/admin/video-carousels/$projectId': typeof AuthenticatedAdminVideoCarouselsProjectIdRoute
   '/admin/video-editor/actors': typeof AuthenticatedAdminVideoEditorActorsRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
-  '/admin/video-favourites/$collectionId': typeof AuthenticatedAdminVideoFavouritesCollectionIdRoute
-  '/admin/video-viral/$projectId': typeof AuthenticatedAdminVideoViralProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/connect/promo/events': typeof ApiConnectPromoEventsRoute
   '/api/connect/promo/projects': typeof ApiConnectPromoProjectsRoute
@@ -868,8 +801,6 @@ export interface FileRoutesByTo {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/video-carousels': typeof AuthenticatedAdminVideoCarouselsIndexRoute
   '/admin/video-editor': typeof AuthenticatedAdminVideoEditorIndexRoute
-  '/admin/video-favourites': typeof AuthenticatedAdminVideoFavouritesIndexRoute
-  '/admin/video-viral': typeof AuthenticatedAdminVideoViralIndexRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/connect/promo/file/$token': typeof ApiConnectPromoFileTokenRoute
   '/api/connect/viral/sends/$sendId': typeof ApiConnectViralSendsSendIdRoute
@@ -877,7 +808,6 @@ export interface FileRoutesByTo {
   '/api/v1/video/youtube/callback': typeof ApiV1VideoYoutubeCallbackRoute
   '/api/v1/video/youtube/connect': typeof ApiV1VideoYoutubeConnectRoute
   '/api/v1/video/actors/$actorId/image': typeof ApiV1VideoActorsActorIdImageRoute
-  '/api/v1/video/creators/$creatorId/avatar': typeof ApiV1VideoCreatorsCreatorIdAvatarRoute
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
   '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
@@ -938,11 +868,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/video-carousel-exports': typeof AuthenticatedAdminVideoCarouselExportsRoute
   '/_authenticated/admin/video-carousels': typeof AuthenticatedAdminVideoCarouselsRouteWithChildren
-  '/_authenticated/admin/video-creators': typeof AuthenticatedAdminVideoCreatorsRoute
   '/_authenticated/admin/video-editor': typeof AuthenticatedAdminVideoEditorRouteWithChildren
   '/_authenticated/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
-  '/_authenticated/admin/video-favourites': typeof AuthenticatedAdminVideoFavouritesRouteWithChildren
-  '/_authenticated/admin/video-viral': typeof AuthenticatedAdminVideoViralRouteWithChildren
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -960,8 +887,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/video-carousels_/$projectId': typeof AuthenticatedAdminVideoCarouselsProjectIdRoute
   '/_authenticated/admin/video-editor/actors': typeof AuthenticatedAdminVideoEditorActorsRoute
   '/_authenticated/admin/video-editor_/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
-  '/_authenticated/admin/video-favourites/$collectionId': typeof AuthenticatedAdminVideoFavouritesCollectionIdRoute
-  '/_authenticated/admin/video-viral_/$projectId': typeof AuthenticatedAdminVideoViralProjectIdRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/connect/promo/events': typeof ApiConnectPromoEventsRoute
   '/api/connect/promo/projects': typeof ApiConnectPromoProjectsRoute
@@ -974,8 +899,6 @@ export interface FileRoutesById {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/_authenticated/admin/video-carousels/': typeof AuthenticatedAdminVideoCarouselsIndexRoute
   '/_authenticated/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
-  '/_authenticated/admin/video-favourites/': typeof AuthenticatedAdminVideoFavouritesIndexRoute
-  '/_authenticated/admin/video-viral/': typeof AuthenticatedAdminVideoViralIndexRoute
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/connect/promo/file/$token': typeof ApiConnectPromoFileTokenRoute
   '/api/connect/viral/sends/$sendId': typeof ApiConnectViralSendsSendIdRoute
@@ -983,7 +906,6 @@ export interface FileRoutesById {
   '/api/v1/video/youtube/callback': typeof ApiV1VideoYoutubeCallbackRoute
   '/api/v1/video/youtube/connect': typeof ApiV1VideoYoutubeConnectRoute
   '/api/v1/video/actors/$actorId/image': typeof ApiV1VideoActorsActorIdImageRoute
-  '/api/v1/video/creators/$creatorId/avatar': typeof ApiV1VideoCreatorsCreatorIdAvatarRoute
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
   '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
@@ -1044,11 +966,8 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/video-carousel-exports'
     | '/admin/video-carousels'
-    | '/admin/video-creators'
     | '/admin/video-editor'
     | '/admin/video-exports'
-    | '/admin/video-favourites'
-    | '/admin/video-viral'
     | '/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -1066,8 +985,6 @@ export interface FileRouteTypes {
     | '/admin/video-carousels/$projectId'
     | '/admin/video-editor/actors'
     | '/admin/video-editor/$projectId'
-    | '/admin/video-favourites/$collectionId'
-    | '/admin/video-viral/$projectId'
     | '/api/auth/google/callback'
     | '/api/connect/promo/events'
     | '/api/connect/promo/projects'
@@ -1080,8 +997,6 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/admin/video-carousels/'
     | '/admin/video-editor/'
-    | '/admin/video-favourites/'
-    | '/admin/video-viral/'
     | '/admin/automations/templates/$templateKey'
     | '/api/connect/promo/file/$token'
     | '/api/connect/viral/sends/$sendId'
@@ -1089,7 +1004,6 @@ export interface FileRouteTypes {
     | '/api/v1/video/youtube/callback'
     | '/api/v1/video/youtube/connect'
     | '/api/v1/video/actors/$actorId/image'
-    | '/api/v1/video/creators/$creatorId/avatar'
     | '/api/v1/video/exports/$exportId/cover'
     | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
@@ -1145,7 +1059,6 @@ export interface FileRouteTypes {
     | '/admin/traffic'
     | '/admin/users'
     | '/admin/video-carousel-exports'
-    | '/admin/video-creators'
     | '/admin/video-exports'
     | '/changelog/whats-new'
     | '/api/auth/google'
@@ -1164,8 +1077,6 @@ export interface FileRouteTypes {
     | '/admin/video-carousels/$projectId'
     | '/admin/video-editor/actors'
     | '/admin/video-editor/$projectId'
-    | '/admin/video-favourites/$collectionId'
-    | '/admin/video-viral/$projectId'
     | '/api/auth/google/callback'
     | '/api/connect/promo/events'
     | '/api/connect/promo/projects'
@@ -1178,8 +1089,6 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/admin/video-carousels'
     | '/admin/video-editor'
-    | '/admin/video-favourites'
-    | '/admin/video-viral'
     | '/admin/automations/templates/$templateKey'
     | '/api/connect/promo/file/$token'
     | '/api/connect/viral/sends/$sendId'
@@ -1187,7 +1096,6 @@ export interface FileRouteTypes {
     | '/api/v1/video/youtube/callback'
     | '/api/v1/video/youtube/connect'
     | '/api/v1/video/actors/$actorId/image'
-    | '/api/v1/video/creators/$creatorId/avatar'
     | '/api/v1/video/exports/$exportId/cover'
     | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
@@ -1247,11 +1155,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/video-carousel-exports'
     | '/_authenticated/admin/video-carousels'
-    | '/_authenticated/admin/video-creators'
     | '/_authenticated/admin/video-editor'
     | '/_authenticated/admin/video-exports'
-    | '/_authenticated/admin/video-favourites'
-    | '/_authenticated/admin/video-viral'
     | '/_authenticated/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -1269,8 +1174,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/video-carousels_/$projectId'
     | '/_authenticated/admin/video-editor/actors'
     | '/_authenticated/admin/video-editor_/$projectId'
-    | '/_authenticated/admin/video-favourites/$collectionId'
-    | '/_authenticated/admin/video-viral_/$projectId'
     | '/api/auth/google_/callback'
     | '/api/connect/promo/events'
     | '/api/connect/promo/projects'
@@ -1283,8 +1186,6 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/_authenticated/admin/video-carousels/'
     | '/_authenticated/admin/video-editor/'
-    | '/_authenticated/admin/video-favourites/'
-    | '/_authenticated/admin/video-viral/'
     | '/_authenticated/admin/automations_/templates_/$templateKey'
     | '/api/connect/promo/file/$token'
     | '/api/connect/viral/sends/$sendId'
@@ -1292,7 +1193,6 @@ export interface FileRouteTypes {
     | '/api/v1/video/youtube/callback'
     | '/api/v1/video/youtube/connect'
     | '/api/v1/video/actors/$actorId/image'
-    | '/api/v1/video/creators/$creatorId/avatar'
     | '/api/v1/video/exports/$exportId/cover'
     | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
@@ -1345,7 +1245,6 @@ export interface RootRouteChildren {
   ApiV1VideoYoutubeCallbackRoute: typeof ApiV1VideoYoutubeCallbackRoute
   ApiV1VideoYoutubeConnectRoute: typeof ApiV1VideoYoutubeConnectRoute
   ApiV1VideoActorsActorIdImageRoute: typeof ApiV1VideoActorsActorIdImageRoute
-  ApiV1VideoCreatorsCreatorIdAvatarRoute: typeof ApiV1VideoCreatorsCreatorIdAvatarRoute
   ApiV1VideoExportsExportIdCoverRoute: typeof ApiV1VideoExportsExportIdCoverRoute
   ApiV1VideoExportsExportIdFileRoute: typeof ApiV1VideoExportsExportIdFileRoute
   ApiV1VideoMediaMediaIdFilmstripRoute: typeof ApiV1VideoMediaMediaIdFilmstripRoute
@@ -1726,13 +1625,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminVideoCarouselsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/video-creators': {
-      id: '/_authenticated/admin/video-creators'
-      path: '/video-creators'
-      fullPath: '/admin/video-creators'
-      preLoaderRoute: typeof AuthenticatedAdminVideoCreatorsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/video-editor': {
       id: '/_authenticated/admin/video-editor'
       path: '/video-editor'
@@ -1745,20 +1637,6 @@ declare module '@tanstack/react-router' {
       path: '/video-exports'
       fullPath: '/admin/video-exports'
       preLoaderRoute: typeof AuthenticatedAdminVideoExportsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/video-favourites': {
-      id: '/_authenticated/admin/video-favourites'
-      path: '/video-favourites'
-      fullPath: '/admin/video-favourites'
-      preLoaderRoute: typeof AuthenticatedAdminVideoFavouritesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/video-viral': {
-      id: '/_authenticated/admin/video-viral'
-      path: '/video-viral'
-      fullPath: '/admin/video-viral'
-      preLoaderRoute: typeof AuthenticatedAdminVideoViralRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/changelog/': {
@@ -1887,34 +1765,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminVideoEditorProjectIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/video-favourites/': {
-      id: '/_authenticated/admin/video-favourites/'
-      path: '/'
-      fullPath: '/admin/video-favourites/'
-      preLoaderRoute: typeof AuthenticatedAdminVideoFavouritesIndexRouteImport
-      parentRoute: typeof AuthenticatedAdminVideoFavouritesRoute
-    }
-    '/_authenticated/admin/video-favourites/$collectionId': {
-      id: '/_authenticated/admin/video-favourites/$collectionId'
-      path: '/$collectionId'
-      fullPath: '/admin/video-favourites/$collectionId'
-      preLoaderRoute: typeof AuthenticatedAdminVideoFavouritesCollectionIdRouteImport
-      parentRoute: typeof AuthenticatedAdminVideoFavouritesRoute
-    }
-    '/_authenticated/admin/video-viral/': {
-      id: '/_authenticated/admin/video-viral/'
-      path: '/'
-      fullPath: '/admin/video-viral/'
-      preLoaderRoute: typeof AuthenticatedAdminVideoViralIndexRouteImport
-      parentRoute: typeof AuthenticatedAdminVideoViralRoute
-    }
-    '/_authenticated/admin/video-viral_/$projectId': {
-      id: '/_authenticated/admin/video-viral_/$projectId'
-      path: '/video-viral/$projectId'
-      fullPath: '/admin/video-viral/$projectId'
-      preLoaderRoute: typeof AuthenticatedAdminVideoViralProjectIdRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/api/auth/google_/callback': {
       id: '/api/auth/google_/callback'
       path: '/api/auth/google/callback'
@@ -2034,13 +1884,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1VideoActorsActorIdImageRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/v1/video/creators/$creatorId/avatar': {
-      id: '/api/v1/video/creators/$creatorId/avatar'
-      path: '/api/v1/video/creators/$creatorId/avatar'
-      fullPath: '/api/v1/video/creators/$creatorId/avatar'
-      preLoaderRoute: typeof ApiV1VideoCreatorsCreatorIdAvatarRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/v1/video/exports/$exportId/cover': {
       id: '/api/v1/video/exports/$exportId/cover'
       path: '/api/v1/video/exports/$exportId/cover'
@@ -2138,39 +1981,6 @@ const AuthenticatedAdminVideoEditorRouteWithChildren =
     AuthenticatedAdminVideoEditorRouteChildren,
   )
 
-interface AuthenticatedAdminVideoFavouritesRouteChildren {
-  AuthenticatedAdminVideoFavouritesCollectionIdRoute: typeof AuthenticatedAdminVideoFavouritesCollectionIdRoute
-  AuthenticatedAdminVideoFavouritesIndexRoute: typeof AuthenticatedAdminVideoFavouritesIndexRoute
-}
-
-const AuthenticatedAdminVideoFavouritesRouteChildren: AuthenticatedAdminVideoFavouritesRouteChildren =
-  {
-    AuthenticatedAdminVideoFavouritesCollectionIdRoute:
-      AuthenticatedAdminVideoFavouritesCollectionIdRoute,
-    AuthenticatedAdminVideoFavouritesIndexRoute:
-      AuthenticatedAdminVideoFavouritesIndexRoute,
-  }
-
-const AuthenticatedAdminVideoFavouritesRouteWithChildren =
-  AuthenticatedAdminVideoFavouritesRoute._addFileChildren(
-    AuthenticatedAdminVideoFavouritesRouteChildren,
-  )
-
-interface AuthenticatedAdminVideoViralRouteChildren {
-  AuthenticatedAdminVideoViralIndexRoute: typeof AuthenticatedAdminVideoViralIndexRoute
-}
-
-const AuthenticatedAdminVideoViralRouteChildren: AuthenticatedAdminVideoViralRouteChildren =
-  {
-    AuthenticatedAdminVideoViralIndexRoute:
-      AuthenticatedAdminVideoViralIndexRoute,
-  }
-
-const AuthenticatedAdminVideoViralRouteWithChildren =
-  AuthenticatedAdminVideoViralRoute._addFileChildren(
-    AuthenticatedAdminVideoViralRouteChildren,
-  )
-
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAiRoute: typeof AuthenticatedAdminAiRoute
   AuthenticatedAdminAiUsageRoute: typeof AuthenticatedAdminAiUsageRoute
@@ -2195,11 +2005,8 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminVideoCarouselExportsRoute: typeof AuthenticatedAdminVideoCarouselExportsRoute
   AuthenticatedAdminVideoCarouselsRoute: typeof AuthenticatedAdminVideoCarouselsRouteWithChildren
-  AuthenticatedAdminVideoCreatorsRoute: typeof AuthenticatedAdminVideoCreatorsRoute
   AuthenticatedAdminVideoEditorRoute: typeof AuthenticatedAdminVideoEditorRouteWithChildren
   AuthenticatedAdminVideoExportsRoute: typeof AuthenticatedAdminVideoExportsRoute
-  AuthenticatedAdminVideoFavouritesRoute: typeof AuthenticatedAdminVideoFavouritesRouteWithChildren
-  AuthenticatedAdminVideoViralRoute: typeof AuthenticatedAdminVideoViralRouteWithChildren
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
   AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
@@ -2208,7 +2015,6 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
   AuthenticatedAdminVideoCarouselsProjectIdRoute: typeof AuthenticatedAdminVideoCarouselsProjectIdRoute
   AuthenticatedAdminVideoEditorProjectIdRoute: typeof AuthenticatedAdminVideoEditorProjectIdRoute
-  AuthenticatedAdminVideoViralProjectIdRoute: typeof AuthenticatedAdminVideoViralProjectIdRoute
   AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
 }
 
@@ -2238,14 +2044,9 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminVideoCarouselExportsRoute,
   AuthenticatedAdminVideoCarouselsRoute:
     AuthenticatedAdminVideoCarouselsRouteWithChildren,
-  AuthenticatedAdminVideoCreatorsRoute: AuthenticatedAdminVideoCreatorsRoute,
   AuthenticatedAdminVideoEditorRoute:
     AuthenticatedAdminVideoEditorRouteWithChildren,
   AuthenticatedAdminVideoExportsRoute: AuthenticatedAdminVideoExportsRoute,
-  AuthenticatedAdminVideoFavouritesRoute:
-    AuthenticatedAdminVideoFavouritesRouteWithChildren,
-  AuthenticatedAdminVideoViralRoute:
-    AuthenticatedAdminVideoViralRouteWithChildren,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminAutomationsAutomationIdRoute:
     AuthenticatedAdminAutomationsAutomationIdRoute,
@@ -2260,8 +2061,6 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminVideoCarouselsProjectIdRoute,
   AuthenticatedAdminVideoEditorProjectIdRoute:
     AuthenticatedAdminVideoEditorProjectIdRoute,
-  AuthenticatedAdminVideoViralProjectIdRoute:
-    AuthenticatedAdminVideoViralProjectIdRoute,
   AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute:
     AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute,
 }
@@ -2350,8 +2149,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1VideoYoutubeCallbackRoute: ApiV1VideoYoutubeCallbackRoute,
   ApiV1VideoYoutubeConnectRoute: ApiV1VideoYoutubeConnectRoute,
   ApiV1VideoActorsActorIdImageRoute: ApiV1VideoActorsActorIdImageRoute,
-  ApiV1VideoCreatorsCreatorIdAvatarRoute:
-    ApiV1VideoCreatorsCreatorIdAvatarRoute,
   ApiV1VideoExportsExportIdCoverRoute: ApiV1VideoExportsExportIdCoverRoute,
   ApiV1VideoExportsExportIdFileRoute: ApiV1VideoExportsExportIdFileRoute,
   ApiV1VideoMediaMediaIdFilmstripRoute: ApiV1VideoMediaMediaIdFilmstripRoute,

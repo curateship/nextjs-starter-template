@@ -267,8 +267,8 @@ export async function updateVaultItem(
   return loadVaultItem(ownerId, itemId)
 }
 
-/** Finds each tag by name, ignoring case, or makes it. Answers their ids. */
-async function tagIds(ownerId: string, names: string[]): Promise<string[]> {
+/** Finds each tag by name, ignoring case, or makes it. Answers their ids. The Library's hook tags use the same list. */
+export async function tagIds(ownerId: string, names: string[]): Promise<string[]> {
   // The first spelling typed wins: "Hooks" then "hooks" is one tag, "Hooks".
   const byKey = new Map<string, string>()
   for (const name of names.map(cleanTag)) if (name && !byKey.has(name.toLowerCase())) byKey.set(name.toLowerCase(), name)
@@ -395,4 +395,44 @@ export async function discardVaultFiles(
       .limit(1)
     if (!stillSaved && !stillKept) await deleteFromR2(path).catch((error) => console.error("A vault cover stayed in storage", path, error))
   }
+}
+
+export type VaultCopyResult = { state: "copied"; item: VaultItem } | { state: "already"; projectName: string }
+
+/**
+ * Copy to another project (task part 16, Tyler: "Copy, both keep it"). The
+ * copy keeps the analysis, the numbers, the notes, the status, the tags and
+ * the Open in Video link, and points at the same downloaded file and cover:
+ * `media-in-use.ts` counts both ideas, so deleting one leaves the other
+ * playing. A project that already holds the video changes nothing.
+ */
+export async function copyVaultItem(ownerId: string, itemId: string, targetProjectId: string): Promise<VaultCopyResult> {
+  const item = await requireOwnedItem(ownerId, itemId)
+  const target = await requireOwnedViralProject(ownerId, targetProjectId)
+  if (target.id === item.projectId) throw viralSays("That is the project it is already in. Pick another.")
+  // The same refusals as copying a video (`copy-to-project.ts`).
+  if (target.isSample) throw viralSays("A sample project's videos are made up, so nothing can be copied into it.")
+  if (target.archivedAt) throw viralSays(`"${target.name}" is archived. Bring it back first, then copy into it.`)
+  if (item.platformVideoId.startsWith("sample-")) {
+    throw viralSays("This is a made-up sample video, so there is nothing real to copy.")
+  }
+  const at = now()
+  const [row] = await db
+    .insert(viralVaultItems)
+    .values({
+      ...item,
+      id: uuid(),
+      projectId: target.id,
+      createdAt: at,
+      updatedAt: at,
+    })
+    .onConflictDoNothing({
+      target: [viralVaultItems.projectId, viralVaultItems.platform, viralVaultItems.platformVideoId],
+    })
+    .returning()
+  if (!row) return { state: "already", projectName: target.name }
+  const tags = await db.select({ tagId: viralVaultItemTags.tagId }).from(viralVaultItemTags).where(eq(viralVaultItemTags.itemId, item.id))
+  if (tags.length) await db.insert(viralVaultItemTags).values(tags.map((tag) => ({ itemId: row.id, tagId: tag.tagId })))
+  const [copied] = await serialize([row])
+  return { state: "copied", item: copied }
 }

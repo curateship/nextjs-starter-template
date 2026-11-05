@@ -29,6 +29,9 @@ export type CreatorUpload = {
   likes: number | null
   comments: number | null
   postedAt: Date | null
+  /** The TikTok sound, such as "original sound", and who made it. Null elsewhere or when unsaid. */
+  soundName?: string | null
+  soundArtist?: string | null
 }
 
 export type CreatorUploads = {
@@ -135,6 +138,10 @@ async function tiktokUploads(
       likes: readCount(entry.like_count),
       comments: readCount(entry.comment_count),
       postedAt: readTimestamp(entry.timestamp),
+      // yt-dlp names the sound `track` and its maker `artist` (checked on one
+      // public video, 4 Nov 2026: "original sound" by "tiff").
+      soundName: readString(entry.track, 300),
+      soundArtist: readString(entry.artist, 200) ?? readString(Array.isArray(entry.artists) ? entry.artists[0] : null, 200),
     })
   }
 

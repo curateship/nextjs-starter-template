@@ -89,6 +89,12 @@ export const appOptions: AppOptions = {
         /** The key the Video app sends things into the Archive with (`workspace/docs/archive.md`). */
         panel: () => import("@/components/archive/video-link-settings"),
       },
+      {
+        id: "viral",
+        label: "Viral",
+        /** The key the Viral app reads X, LinkedIn and Reddit, and leaves posts, with (`workspace/docs/viral-link.md`). */
+        panel: () => import("@/components/social/viral-link-settings"),
+      },
     ],
   },
 }
