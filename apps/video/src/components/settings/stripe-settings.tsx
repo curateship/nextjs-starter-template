@@ -1,8 +1,9 @@
 import * as React from "react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { SecretKeyField } from "@/components/settings/secret-key-field"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
-import { useShellRuntime } from "@/components/shell/shell-layout"
+import { useSettingsAutoSave } from "@/components/settings/use-settings-auto-save"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
@@ -19,22 +20,10 @@ import {
   saveStripeText,
   saveStripeUseSandbox,
   type StripeSecretField,
-  type StripeSecretStatus,
-  type StripeSettingsStatus,
   type StripeTextField,
 } from "@/lib/api/billing/stripe-settings"
-import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
-
-// An edit saves itself this long after the last keystroke; leaving the field
-// (or pressing Enter) saves straight away. Same rhythm as the Email tab.
-const SAVE_DELAY_MS = 1200
-
-// What a saved secret's field displays while it is not being edited. Any
-// string renders as dots in a password field; the length just makes it look
-// like one.
-const SAVED_SENTINEL = "••••••••••••"
+import { useLoad } from "@/lib/hooks/use-load"
 
 type SecretFieldConfig = {
   id: StripeSecretField
@@ -110,22 +99,31 @@ const SECRET_NAMES: Record<StripeSecretField, string> = {
  * Saving…/Saved indicator, like every other auto-save in the app.
  */
 export function StripeSettings() {
-  const { reportSaveStatus } = useShellRuntime()
-  const [status, setStatus] = React.useState<StripeSettingsStatus | null>(null)
-  const [loadError, setLoadError] = React.useState<string | null>(null)
-  const [reloads, setReloads] = React.useState(0)
-
-  // What was typed but not yet saved, per secret field.
-  const [drafts, setDrafts] = React.useState<Record<string, string>>({})
   // The publishable keys as typed; null until the load fills them in.
   const [texts, setTexts] = React.useState<Record<
     StripeTextField,
     string
   > | null>(null)
-  // The secret field that is focused: its saved-key dots make way for typing.
-  const [editing, setEditing] = React.useState<string | null>(null)
-  // What is auto-saving right now: a field id, or "sandbox" for the switch.
-  const [saving, setSaving] = React.useState<string | null>(null)
+  const loaded = useLoad(loadStripeSettings, getStripeSettingsErrorMessage, {
+    onLoad: (next) =>
+      setTexts(
+        (prev) =>
+          prev ?? {
+            livePublishableKey: next.livePublishableKey,
+            sandboxPublishableKey: next.sandboxPublishableKey,
+          }
+      ),
+  })
+  const status = loaded.data
+  // Saves report through the sticky header. `saving` is a field id, or
+  // "sandbox" for the switch.
+  const autoSave = useSettingsAutoSave(
+    getStripeSettingsErrorMessage,
+    loaded.setData
+  )
+
+  // What was typed but not yet saved, per secret field.
+  const [drafts, setDrafts] = React.useState<Record<string, string>>({})
   // Which secret's Remove is waiting on its confirmation, if any.
   const [removing, setRemoving] = React.useState<StripeSecretField | null>(
     null
@@ -133,130 +131,42 @@ export function StripeSettings() {
   // True while the Remove call itself runs.
   const [runRemove, removeBusy] = useAsyncAction(getStripeSettingsErrorMessage)
 
-  // The auto-save's outcome, shown in the shared sticky header like every
-  // other settings save.
-  const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
-  React.useEffect(() => {
-    reportSaveStatus(saveStatus)
-  }, [reportSaveStatus, saveStatus])
-  React.useEffect(() => {
-    return () => reportSaveStatus(null)
-  }, [reportSaveStatus])
-  React.useEffect(() => {
-    if (saveStatus !== "saved") return
-    const timer = setTimeout(() => setSaveStatus("idle"), 2000)
-    return () => clearTimeout(timer)
-  }, [saveStatus])
-
-  // One pending auto-save timer per field.
-  const timers = React.useRef<Record<string, ReturnType<typeof setTimeout>>>(
-    {}
-  )
-  React.useEffect(() => {
-    const pending = timers.current
-    return () => {
-      for (const id of Object.keys(pending)) clearTimeout(pending[id])
-    }
-  }, [])
-
-  React.useEffect(() => {
-    let cancelled = false
-    loadStripeSettings()
-      .then((next) => {
-        if (cancelled) return
-        setStatus(next)
-        setTexts(
-          (prev) =>
-            prev ?? {
-              livePublishableKey: next.livePublishableKey,
-              sandboxPublishableKey: next.sandboxPublishableKey,
-            }
-        )
-        setLoadError(null)
-      })
-      .catch((error) => {
-        if (!cancelled) setLoadError(getStripeSettingsErrorMessage(error))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [reloads])
-
-  const runSave = async (
-    id: string,
-    call: () => Promise<StripeSettingsStatus>,
-    onSaved?: () => void
-  ) => {
-    setSaving(id)
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      setStatus(await call())
-      onSaved?.()
-      setSaveStatus("saved")
-      return true
-    } catch (error) {
-      // What was typed stays in the field so a failed save loses nothing.
-      setSaveStatus("idle")
-      showErrorToast(getStripeSettingsErrorMessage(error))
-      return false
-    } finally {
-      setSaving(null)
-    }
-  }
-
-  // `value` rides in as an argument, not read from state: the timer's closure
-  // must save exactly what was typed when it was scheduled.
-  const saveSecret = (field: StripeSecretField, value: string) => {
-    const key = value.trim()
-    if (!key) return
-    void runSave(field, () => saveStripeSecret(field, key), () =>
-      // Clear the field only if it still holds what was saved — a newer edit
-      // must survive and will save itself in turn.
-      setDrafts((prev) =>
-        prev[field] === value ? { ...prev, [field]: "" } : prev
-      )
+  // The save of exactly `value`, and the draft cleared after it only if it
+  // still holds that value: a newer edit survives and saves itself in turn.
+  const saveSecret = (field: StripeSecretField, value: string) => () =>
+    saveStripeSecret(field, value.trim())
+  const clearDraft = (field: StripeSecretField, value: string) => () =>
+    setDrafts((prev) =>
+      prev[field] === value ? { ...prev, [field]: "" } : prev
     )
-  }
+  const saveText = (field: StripeTextField, value: string) => () =>
+    saveStripeText(field, value)
 
-  const saveText = (field: StripeTextField, value: string) => {
-    void runSave(field, () => saveStripeText(field, value))
-  }
-
-  const scheduleSave = (field: string, run: () => void) => {
-    clearTimeout(timers.current[field])
-    timers.current[field] = setTimeout(run, SAVE_DELAY_MS)
+  const editSecret = (field: StripeSecretField, value: string) => {
+    setDrafts((prev) => ({ ...prev, [field]: value }))
+    if (!value.trim()) {
+      autoSave.cancel(field)
+      return
+    }
+    autoSave.schedule(field, saveSecret(field, value), clearDraft(field, value))
   }
 
   const flushSecret = (field: StripeSecretField) => {
     const value = drafts[field] ?? ""
     if (!value.trim()) return
-    clearTimeout(timers.current[field])
-    if (saving !== null) {
-      // Another save is mid-flight. Dropping the edit would lose it for good
-      // — tabbing from one field into the next lands exactly here — so it
-      // stays scheduled instead.
-      scheduleSave(field, () => saveSecret(field, value))
-      return
-    }
-    saveSecret(field, value)
+    autoSave.flush(field, saveSecret(field, value), clearDraft(field, value))
   }
 
   const flushText = (field: StripeTextField) => {
     if (!texts || !status) return
     const value = texts[field]
     if (value.trim() === status[field]) return
-    clearTimeout(timers.current[field])
-    if (saving !== null) {
-      scheduleSave(field, () => saveText(field, value))
-      return
-    }
-    saveText(field, value)
+    autoSave.flush(field, saveText(field, value))
   }
 
   const remove = async (field: StripeSecretField) => {
     await runRemove(async () => {
-      setStatus(await removeStripeSecret(field))
+      loaded.setData(await removeStripeSecret(field))
       setRemoving(null)
     }, `The ${SECRET_NAMES[field]} was removed.`)
   }
@@ -264,57 +174,32 @@ export function StripeSettings() {
   const renderSecretField = ({ id, label, placeholder }: SecretFieldConfig) => {
     if (!status) return null
     const fieldStatus = status.secrets[id]
-    const draft = drafts[id] ?? ""
-    // A saved key shows as dots until the field is focused or typed in, so a
-    // filled field means a key is there.
-    const showSentinel =
-      !draft && editing !== id && fieldStatus.configured &&
-      fieldStatus.source === "settings"
     return (
-      <div className="grid gap-2">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <FieldLabel htmlFor={`stripe-${id}`}>{label}</FieldLabel>
-          <span className="text-sm text-muted-foreground">
-            {secretStatusLabel(fieldStatus)}
-          </span>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            id={`stripe-${id}`}
-            className="sm:flex-1"
-            type="password"
-            autoComplete="off"
-            placeholder={placeholder}
-            value={showSentinel ? SAVED_SENTINEL : draft}
-            onFocus={() => setEditing(id)}
-            onBlur={() => {
-              setEditing(null)
-              flushSecret(id)
-            }}
-            onChange={(event) => {
-              const value = event.target.value
-              setDrafts((prev) => ({ ...prev, [id]: value }))
-              scheduleSave(id, () => saveSecret(id, value))
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") flushSecret(id)
-            }}
-          />
-          {fieldStatus.source === "settings" ? (
+      <SecretKeyField
+        id={`stripe-${id}`}
+        label={label}
+        secret={fieldStatus}
+        saved={fieldStatus.configured && fieldStatus.source === "settings"}
+        placeholder={placeholder}
+        value={drafts[id] ?? ""}
+        onChange={(value) => editSecret(id, value)}
+        onCommit={() => flushSecret(id)}
+        actions={
+          fieldStatus.source === "settings" ? (
             // Remove waits out an in-flight save: a delete racing the save's
             // upsert could resurrect the key that was just removed.
             <Button
               type="button"
               variant="outline"
               className="shrink-0"
-              disabled={removeBusy || saving !== null}
+              disabled={removeBusy || autoSave.saving !== null}
               onClick={() => setRemoving(id)}
             >
               Remove
             </Button>
-          ) : null}
-        </div>
-      </div>
+          ) : null
+        }
+      />
     )
   }
 
@@ -331,7 +216,7 @@ export function StripeSettings() {
           onChange={(event) => {
             const value = event.target.value
             setTexts((prev) => (prev ? { ...prev, [id]: value } : prev))
-            scheduleSave(id, () => saveText(id, value))
+            autoSave.schedule(id, saveText(id, value))
           }}
           onBlur={() => flushText(id)}
           onKeyDown={(event) => {
@@ -359,11 +244,8 @@ export function StripeSettings() {
         description="Payment processing for plans and subscriptions. Two full sets of keys — live and sandbox — and one switch saying which set the app charges through. Secrets are scrambled before they are stored and never leave the server."
         contentClassName="space-y-6"
       >
-        {loadError ? (
-          <ErrorRow
-            message={loadError}
-            onRetry={() => setReloads((count) => count + 1)}
-          />
+        {loaded.error ? (
+          <ErrorRow message={loaded.error} onRetry={loaded.retry} />
         ) : !status || !texts ? (
           <LoadingRow
             label="Loading Stripe settings…"
@@ -374,9 +256,11 @@ export function StripeSettings() {
             <SettingsSwitchRow
               id="stripe-use-sandbox"
               checked={status.useSandbox}
-              disabled={saving === "sandbox"}
+              disabled={autoSave.saving === "sandbox"}
               onCheckedChange={(checked) =>
-                void runSave("sandbox", () => saveStripeUseSandbox(checked))
+                void autoSave.run("sandbox", () =>
+                  saveStripeUseSandbox(checked)
+                )
               }
               label="Use sandbox keys — test payments that move no real money"
             />
@@ -408,14 +292,4 @@ export function StripeSettings() {
       />
     </CardGroup>
   )
-}
-
-/** One short line saying whether a key exists and where it lives. */
-function secretStatusLabel(status: StripeSecretStatus) {
-  if (status.unreadable) return "Set, but unreadable — paste it again"
-  if (!status.configured) return "Not set"
-  if (status.source === "env") {
-    return `Using the server's own key ${status.maskedKey}`
-  }
-  return `Set ${status.maskedKey}`
 }

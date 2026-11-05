@@ -12,6 +12,7 @@ import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { SettingsCardSection } from "@/components/settings/settings-card-section"
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { PublicThemePresetsCard } from "@/components/settings/public-theme-presets-card"
+import { SettingsSelectRow } from "@/components/settings/settings-select-row"
 import {
   BackgroundField,
   FieldGroup,
@@ -31,11 +32,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import {
-  Select,
-  SelectContent,
   SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select"
 import {
   DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY,
@@ -59,16 +56,9 @@ import {
   PUBLIC_THEME_HEADING_FONT_LABELS,
   isPublicBrandColor,
   normalizePublicBrandOverrides,
-  type PublicBackgroundPattern,
-  type PublicBackgroundPatternSize,
   type PublicBrandOverrideKey,
-  type PublicButtonCasing,
-  type PublicButtonStyle,
-  type PublicColorScheme,
-  type PublicContentAlignment,
   type PublicTheme,
   type PublicThemeFont,
-  type PublicThemeHeadingFont,
 } from "@/lib/public-theme"
 import {
   MAX_CARD_BORDER_WIDTH,
@@ -366,61 +356,29 @@ export function PublicThemeSettings({
           description="The faces the public frontend reads in. The signed-in app keeps its own."
         >
           <div className="space-y-6">
-          <div className="grid gap-2">
-            <FieldLabel
-              htmlFor="public-theme-font"
-              hint="Built-in choices use the device or this app. An uploaded font is served through this app too."
-            >
-              Font
-            </FieldLabel>
-            <Select
-              value={theme.useCustomFont && publicFont ? "custom" : theme.font}
-              onValueChange={changeFont}
-            >
-              <SelectTrigger id="public-theme-font" className="w-full sm:w-fit">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PUBLIC_THEME_FONTS.map((font) => (
-                  <SelectItem key={font} value={font}>
-                    {PUBLIC_THEME_FONT_LABELS[font]}
-                  </SelectItem>
-                ))}
-                {publicFont ? (
-                  <SelectItem value="custom">{publicFont.name}</SelectItem>
-                ) : null}
-              </SelectContent>
-            </Select>
-          </div>
+          <SettingsSelectRow
+            id="public-theme-font"
+            label="Font"
+            hint="Built-in choices use the device or this app. An uploaded font is served through this app too."
+            value={theme.useCustomFont && publicFont ? "custom" : theme.font}
+            options={PUBLIC_THEME_FONTS}
+            optionLabel={(font) => PUBLIC_THEME_FONT_LABELS[font]}
+            onValueChange={changeFont}
+          >
+            {publicFont ? (
+              <SelectItem value="custom">{publicFont.name}</SelectItem>
+            ) : null}
+          </SettingsSelectRow>
 
-          <div className="grid gap-2">
-            <FieldLabel
-              htmlFor="public-theme-heading-font"
-              hint="The face headings use. Same as the body leaves them on the font above."
-            >
-              Heading font
-            </FieldLabel>
-            <Select
-              value={theme.headingFont}
-              onValueChange={(headingFont) =>
-                update({ headingFont: headingFont as PublicThemeHeadingFont })
-              }
-            >
-              <SelectTrigger
-                id="public-theme-heading-font"
-                className="w-full sm:w-fit"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PUBLIC_THEME_HEADING_FONTS.map((font) => (
-                  <SelectItem key={font} value={font}>
-                    {PUBLIC_THEME_HEADING_FONT_LABELS[font]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <SettingsSelectRow
+            id="public-theme-heading-font"
+            label="Heading font"
+            hint="The face headings use. Same as the body leaves them on the font above."
+            value={theme.headingFont}
+            options={PUBLIC_THEME_HEADING_FONTS}
+            optionLabel={(font) => PUBLIC_THEME_HEADING_FONT_LABELS[font]}
+            onValueChange={(headingFont) => update({ headingFont })}
+          />
 
           <div className="grid gap-2">
             <FieldLabel
@@ -478,63 +436,27 @@ export function PublicThemeSettings({
           description="The default public button treatment and label casing."
         >
           <div className="space-y-4">
-          <div className="grid gap-2">
-            <FieldLabel
-              htmlFor="public-theme-button-style"
-              hint="Changes primary public buttons. Destructive, ghost, and deliberately secondary buttons keep their own style."
-            >
-              Default style
-            </FieldLabel>
-            <Select
-              value={theme.buttonStyle}
-              onValueChange={(buttonStyle) =>
-                update({ buttonStyle: buttonStyle as PublicButtonStyle })
-              }
-            >
-              <SelectTrigger
-                id="public-theme-button-style"
-                className="w-full sm:w-fit"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PUBLIC_BUTTON_STYLES.map((style) => (
-                  <SelectItem key={style} value={style}>
-                    {style === "solid" ? "Solid" : "Outline"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <SettingsSelectRow
+            id="public-theme-button-style"
+            label="Default style"
+            hint="Changes primary public buttons. Destructive, ghost, and deliberately secondary buttons keep their own style."
+            value={theme.buttonStyle}
+            options={PUBLIC_BUTTON_STYLES}
+            optionLabel={(style) => (style === "solid" ? "Solid" : "Outline")}
+            onValueChange={(buttonStyle) => update({ buttonStyle })}
+          />
 
-          <div className="grid gap-2">
-            <FieldLabel
-              htmlFor="public-theme-button-casing"
-              hint="Changes button labels only. Headings and body text stay as written."
-            >
-              Label casing
-            </FieldLabel>
-            <Select
-              value={theme.buttonCasing}
-              onValueChange={(buttonCasing) =>
-                update({ buttonCasing: buttonCasing as PublicButtonCasing })
-              }
-            >
-              <SelectTrigger
-                id="public-theme-button-casing"
-                className="w-full sm:w-fit"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PUBLIC_BUTTON_CASINGS.map((casing) => (
-                  <SelectItem key={casing} value={casing}>
-                    {casing === "as-written" ? "As written" : "Capitals"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <SettingsSelectRow
+            id="public-theme-button-casing"
+            label="Label casing"
+            hint="Changes button labels only. Headings and body text stay as written."
+            value={theme.buttonCasing}
+            options={PUBLIC_BUTTON_CASINGS}
+            optionLabel={(casing) =>
+              casing === "as-written" ? "As written" : "Capitals"
+            }
+            onValueChange={(buttonCasing) => update({ buttonCasing })}
+          />
           </div>
         </SettingsCardSection>
       </CollapsibleSettingsCard>
@@ -545,73 +467,37 @@ export function PublicThemeSettings({
         description="The shared width, canvas, borders, spacing and background texture behind every public page."
         contentClassName="space-y-6"
       >
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="public-theme-colour-scheme"
-            hint="Follow device lets visitors choose and remember light or dark. A fixed mode hides their switch."
-          >
-            Colour mode
-          </FieldLabel>
-          <Select
-            value={theme.colorScheme}
-            onValueChange={(colorScheme) =>
-              update({ colorScheme: colorScheme as PublicColorScheme })
-            }
-          >
-            <SelectTrigger
-              id="public-theme-colour-scheme"
-              className="w-full sm:w-fit"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PUBLIC_COLOR_SCHEMES.map((colorScheme) => (
-                <SelectItem key={colorScheme} value={colorScheme}>
-                  {colorScheme === "system"
-                    ? "Follow device"
-                    : colorScheme === "light"
-                      ? "Always light"
-                      : "Always dark"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <SettingsSelectRow
+          id="public-theme-colour-scheme"
+          label="Colour mode"
+          hint="Follow device lets visitors choose and remember light or dark. A fixed mode hides their switch."
+          value={theme.colorScheme}
+          options={PUBLIC_COLOR_SCHEMES}
+          optionLabel={(colorScheme) =>
+            colorScheme === "system"
+              ? "Follow device"
+              : colorScheme === "light"
+                ? "Always light"
+                : "Always dark"
+          }
+          onValueChange={(colorScheme) => update({ colorScheme })}
+        />
 
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="public-theme-content-alignment"
-            hint="Sets the horizontal alignment of the main content on every public page."
-          >
-            Content alignment
-          </FieldLabel>
-          <Select
-            value={theme.contentAlignment}
-            onValueChange={(contentAlignment) =>
-              update({
-                contentAlignment: contentAlignment as PublicContentAlignment,
-              })
-            }
-          >
-            <SelectTrigger
-              id="public-theme-content-alignment"
-              className="w-full sm:w-fit"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PUBLIC_CONTENT_ALIGNMENTS.map((contentAlignment) => (
-                <SelectItem key={contentAlignment} value={contentAlignment}>
-                  {contentAlignment === "center"
-                    ? "Centre"
-                    : contentAlignment === "left"
-                      ? "Left"
-                      : "Right"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <SettingsSelectRow
+          id="public-theme-content-alignment"
+          label="Content alignment"
+          hint="Sets the horizontal alignment of the main content on every public page."
+          value={theme.contentAlignment}
+          options={PUBLIC_CONTENT_ALIGNMENTS}
+          optionLabel={(contentAlignment) =>
+            contentAlignment === "center"
+              ? "Centre"
+              : contentAlignment === "left"
+                ? "Left"
+                : "Right"
+          }
+          onValueChange={(contentAlignment) => update({ contentAlignment })}
+        />
 
         <SettingsSliderRow
           label="Page width"
@@ -671,78 +557,33 @@ export function PublicThemeSettings({
           description="Add a faint dot or grid texture over the public canvas."
         >
           <div className="space-y-4">
-          <div className="grid gap-2">
-            <FieldLabel
-              htmlFor="public-theme-background-pattern"
-              hint="None leaves the canvas exactly as it is today."
-            >
-              Pattern
-            </FieldLabel>
-            <Select
-              value={theme.backgroundPattern}
-              onValueChange={(backgroundPattern) =>
-                update({
-                  backgroundPattern: backgroundPattern as PublicBackgroundPattern,
-                })
-              }
-            >
-              <SelectTrigger
-                id="public-theme-background-pattern"
-                className="w-full sm:w-fit"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PUBLIC_BACKGROUND_PATTERNS.map((pattern) => (
-                  <SelectItem key={pattern} value={pattern}>
-                    {pattern === "none"
-                      ? "None"
-                      : pattern === "dots"
-                        ? "Dots"
-                        : "Grid"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <SettingsSelectRow
+            id="public-theme-background-pattern"
+            label="Pattern"
+            hint="None leaves the canvas exactly as it is today."
+            value={theme.backgroundPattern}
+            options={PUBLIC_BACKGROUND_PATTERNS}
+            optionLabel={(pattern) =>
+              pattern === "none" ? "None" : pattern === "dots" ? "Dots" : "Grid"
+            }
+            onValueChange={(backgroundPattern) => update({ backgroundPattern })}
+          />
 
           {theme.backgroundPattern !== "none" ? (
             <>
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="public-theme-background-pattern-size"
-                  hint="Sets the space between dots or grid lines."
-                >
-                  Pattern size
-                </FieldLabel>
-                <Select
-                  value={theme.backgroundPatternSize}
-                  onValueChange={(backgroundPatternSize) =>
-                    update({
-                      backgroundPatternSize:
-                        backgroundPatternSize as PublicBackgroundPatternSize,
-                    })
-                  }
-                >
-                  <SelectTrigger
-                    id="public-theme-background-pattern-size"
-                    className="w-full sm:w-fit"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PUBLIC_BACKGROUND_PATTERN_SIZES.map((size) => (
-                      <SelectItem key={size} value={size}>
-                        {size === "small"
-                          ? "Small"
-                          : size === "medium"
-                            ? "Medium"
-                            : "Large"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <SettingsSelectRow
+                id="public-theme-background-pattern-size"
+                label="Pattern size"
+                hint="Sets the space between dots or grid lines."
+                value={theme.backgroundPatternSize}
+                options={PUBLIC_BACKGROUND_PATTERN_SIZES}
+                optionLabel={(size) =>
+                  size === "small" ? "Small" : size === "medium" ? "Medium" : "Large"
+                }
+                onValueChange={(backgroundPatternSize) =>
+                  update({ backgroundPatternSize })
+                }
+              />
 
               <SettingsSliderRow
                 label="Pattern opacity"

@@ -150,6 +150,49 @@ describe("Joined-segment trigger", () => {
     ])
   })
 
+  it("leaves a member's snapshot row untouched on every look after the first", async () => {
+    await setAutomationEnabled(workspaceId, automationId, true, database)
+    await addContactToSegment("Stays put")
+    await runJoinedSegmentTriggers(database)
+
+    // `xmin` is the transaction that last wrote a row. If a look rewrote it,
+    // this number would move.
+    const snapshot = () =>
+      client.query<{ xmin: string; segment_id: string }>(
+        `select xmin::text as xmin, segment_id
+           from automation_segment_snapshot
+          where automation_id = $1`,
+        [automationId]
+      )
+    const before = (await snapshot()).rows
+    expect(before).toHaveLength(1)
+
+    await runJoinedSegmentTriggers(database)
+    await runJoinedSegmentTriggers(database)
+    expect((await snapshot()).rows).toEqual(before)
+
+    // A row recorded against some other segment is still brought back in line.
+    const otherSegmentId = uuid()
+    await database.insert(customShellContactSegments).values({
+      id: otherSegmentId,
+      workspaceId,
+      name: "Some other segment",
+      kind: "static",
+      rules: { conditions: [] },
+      createdAt: now(),
+      updatedAt: now(),
+    })
+    await client.query(
+      `update automation_segment_snapshot set segment_id = $2
+        where automation_id = $1`,
+      [automationId, otherSegmentId]
+    )
+    await runJoinedSegmentTriggers(database)
+    expect((await snapshot()).rows.map((row) => row.segment_id)).toEqual([
+      segmentId,
+    ])
+  })
+
   it("never starts the same person again after they leave and rejoin", async () => {
     await setAutomationEnabled(workspaceId, automationId, true, database)
     await runJoinedSegmentTriggers(database)

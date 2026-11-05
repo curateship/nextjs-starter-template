@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { BookmarkIcon, BookmarkPlusIcon, CheckIcon, Loader2Icon, SettingsIcon, Trash2Icon } from "lucide-react"
+import { BookmarkIcon, BookmarkPlusIcon, CheckIcon, Loader2Icon, SettingsIcon, Trash2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -28,7 +28,8 @@ import { Label } from "@/components/ui/label"
 import { deleteView, saveView, updateView } from "@/lib/api/saved-views"
 import { describeAuthError } from "@/lib/api/error-message"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { SAVED_VIEW_LIMITS, type SavedView, type SavedViewValues } from "@/lib/saved-views"
+import { useRememberedChoice } from "@/lib/remembered-choice"
+import { activeViewKey, SAVED_VIEW_LIMITS, type SavedView, type SavedViewValues } from "@/lib/saved-views"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -44,6 +45,27 @@ export type SavedViewsScreen = {
   describeError?: (error: unknown) => string
 }
 
+/** No view picked. View ids are never empty, so "" can't name one. */
+const NO_VIEW = ""
+
+/**
+ * The picked view's moving rainbow edge, the same as the "N selected"
+ * button's (`mass-select.tsx`); it holds still for anyone whose device asks
+ * for less motion. Nothing is drawn while no view is picked.
+ */
+function ActiveEdge({ on, children }: { on: boolean; children: React.ReactNode }) {
+  if (!on) return children
+  return (
+    <span className="relative inline-flex shrink-0 overflow-hidden rounded-lg p-px">
+      <span
+        aria-hidden
+        className="absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 animate-spin bg-[conic-gradient(#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#8b5cf6,#ec4899,#ef4444)] [animation-duration:2.5s] motion-reduce:animate-none"
+      />
+      {children}
+    </span>
+  )
+}
+
 function defaultDescribeError(error: unknown) {
   const message = error instanceof Error ? error.message : ""
   return describeAuthError(message) ?? (message || "The view could not be saved. Try again.")
@@ -56,6 +78,14 @@ function defaultDescribeError(error: unknown) {
  * it (`onOpen`), so it can say what a view names that has gone and open with
  * the rest. Each row's cog opens Edit view, to rename it or change what it
  * shows. Started in Project, moved here on 20 Oct 2026 for every app.
+ *
+ * The view last opened is remembered in this browser, per screen, and the
+ * button shows its name inside a moving rainbow edge in place of "Views"
+ * (Tyler, 2 Nov 2026: "whatever view I selected, that view should show
+ * inplace of "Views"", with a rainbow border). Arriving with no filters in
+ * the address, from the left menu or a new tab, opens it again ("It should
+ * stay the same view I selected even on refresh"). "No view" at the top of
+ * the menu forgets it and, through `onClose`, takes its filters away.
  */
 export function SavedViewsControls({
   here,
@@ -65,12 +95,15 @@ export function SavedViewsControls({
   editFields,
   saveButton = true,
   buttonVariant = "outline",
+  onClose,
 }: {
   here: SavedViewsScreen
   views: SavedView[]
   /** The filters showing now, for Save view. */
   filters: SavedViewValues
   onOpen: (view: SavedView) => void
+  /** "No view": the screen takes the view's filters away. Without it, the pick is only forgotten. */
+  onClose?: () => void
   /** Edit view's "What it shows" rows, given the filters being edited and a way to change them. */
   editFields?: EditFields
   /** Off where Save as view sits elsewhere, as in a Filter popover. */
@@ -85,6 +118,30 @@ export function SavedViewsControls({
   // "Delete views…" turns the menu's rows into delete buttons until it closes.
   const [removing, setRemoving] = React.useState(false)
   const [editing, setEditing] = React.useState<SavedView | null>(null)
+  const ids = React.useMemo(() => [NO_VIEW, ...views.map((view) => view.id)], [views])
+  const [activeId, setActiveId, settled] = useRememberedChoice(activeViewKey(here.screen), NO_VIEW, ids)
+  // A view deleted since it was picked is simply not active any more.
+  const active = views.find((view) => view.id === activeId) ?? null
+
+  // On arrival with no filters of its own, the address takes the view last
+  // opened here. Once per visit, so emptying the filters by hand later stays empty.
+  const arrived = React.useRef(false)
+  const bareAddress = Object.keys(here.kept(filters)).length === 0
+  React.useEffect(() => {
+    if (!settled || arrived.current) return
+    arrived.current = true
+    if (active && bareAddress) onOpen(active)
+  }, [settled, active, bareAddress, onOpen])
+
+  function open(view: SavedView) {
+    setActiveId(view.id)
+    onOpen(view)
+  }
+
+  function close() {
+    setActiveId(NO_VIEW)
+    onClose?.()
+  }
 
   async function remove(view: SavedView) {
     setDeleting(view.id)
@@ -102,17 +159,34 @@ export function SavedViewsControls({
         </DashboardToolbarButton>
       ) : null}
       <DropdownMenu onOpenChange={(open) => (open ? undefined : setRemoving(false))}>
-        <DropdownMenuTrigger asChild>
-          <DashboardToolbarButton type="button" variant={buttonVariant}>
-            <BookmarkIcon className="size-4" />
-            {/* The header is the container: in a narrow one the icon stays and the word goes. */}
-            <span className="@max-4xl:sr-only">Views</span>
-            {views.length ? <span className="text-muted-foreground">{views.length}</span> : null}
-          </DashboardToolbarButton>
-        </DropdownMenuTrigger>
+        <ActiveEdge on={Boolean(active)}>
+          <DropdownMenuTrigger asChild>
+            <DashboardToolbarButton
+              type="button"
+              variant={active ? "outline" : buttonVariant}
+              aria-label={active ? `View: ${active.name}` : undefined}
+              // Inset, so the focus ring isn't cut off by the rainbow's edge.
+              className={cn(active && "relative border-transparent bg-background hover:bg-muted focus-visible:ring-inset dark:bg-background")}
+            >
+              <BookmarkIcon className="size-4" />
+              {/* The header is the container: in a narrow one the icon stays and the words go. */}
+              <span className="max-w-40 truncate @max-4xl:sr-only">{active ? active.name : "Views"}</span>
+              {views.length && !active ? <span className="text-muted-foreground">{views.length}</span> : null}
+            </DashboardToolbarButton>
+          </DropdownMenuTrigger>
+        </ActiveEdge>
         <DropdownMenuContent align="end" className="w-72">
           <DropdownMenuLabel>My views</DropdownMenuLabel>
           <DropdownMenuSeparator />
+          {active && !removing ? (
+            <>
+              <DropdownMenuItem onSelect={close}>
+                <XIcon aria-hidden />
+                No view
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
           {views.length === 0 ? (
             <p className="px-2 py-2 text-sm text-muted-foreground">
               None yet. Search or pick filters, then save them as a view.
@@ -125,7 +199,7 @@ export function SavedViewsControls({
                     className={cn("flex min-w-0 flex-1 items-center gap-2", removing && "text-destructive")}
                     aria-label={removing ? `Delete ${view.name}` : undefined}
                     onSelect={(event) => {
-                      if (!removing) return onOpen(view)
+                      if (!removing) return open(view)
                       // Deleting keeps the menu open for the next one.
                       event.preventDefault()
                       void remove(view)
@@ -137,6 +211,7 @@ export function SavedViewsControls({
                         {here.describe(view.filters, view.names)}
                       </span>
                     </span>
+                    {!removing && view.id === active?.id ? <CheckIcon aria-hidden /> : null}
                     {removing ? (
                       busy && deleting === view.id ? (
                         <Loader2Icon className="animate-spin" aria-hidden />

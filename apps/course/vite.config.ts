@@ -93,6 +93,13 @@ export default defineConfig({
       },
     ],
   },
+  // Vite's start-up scan reads server code too, so it tries to bundle every
+  // server package for the browser. playwright-core (Travel's maps-link reader)
+  // carries a native Mac add-on, fsevents.node, that the scan can't read, and
+  // the dev server won't start. It never runs in a browser, so leave it out.
+  optimizeDeps: {
+    exclude: ["playwright-core"],
+  },
   // Handed to the server bundle so `src/server/auth/origin.ts` can allow this app's
   // own dev address without the port being written out a second time.
   define: {

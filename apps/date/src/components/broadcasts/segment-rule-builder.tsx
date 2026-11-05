@@ -200,17 +200,6 @@ export function SegmentRuleBuilder({
 }
 
 /**
- * One rule, in a card of its own.
- *
- * A card each rather than rows sharing one, because a rule is a group of fields
- * that only make sense together — and because the button that throws it away
- * then sits on the rule it removes, instead of floating at the edge of the
- * section beside whichever row happens to be level with it.
- *
- * The card's title is the rule's visible name; each control inside carries its
- * own accessible name, since "is" and "On the list" mean nothing read alone.
- */
-/**
  * The tags a tag rule matches, picked from the ones contacts actually carry.
  *
  * It was a text field you typed comma-separated names into until 5 Oct 2026.
@@ -246,6 +235,58 @@ function TagConditionInput({ condition, index, incomplete, onChange, tags }: {
   )
 }
 
+type Choice = { value: string; label: string }
+
+const IS_OR_ISNT: Choice[] = [
+  { value: "is", label: "is" },
+  { value: "isnt", label: "is not" },
+]
+
+const SENT_IN_THE_LAST: Choice[] = [
+  { value: "within", label: "in the last" },
+  { value: "before", label: "not in the last" },
+  { value: "never", label: "never" },
+]
+
+/** The comparisons each kind of rule offers, in the order the dropdown shows them. */
+const RULE_OPERATORS: Record<
+  Exclude<SegmentConditionType, "in" | "notIn">,
+  Choice[]
+> = {
+  tag: [
+    { value: "includes", label: "has any of" },
+    { value: "excludes", label: "has none of" },
+  ],
+  status: IS_OR_ISNT,
+  source: IS_OR_ISNT,
+  joined: [
+    { value: "within", label: "in the last" },
+    { value: "before", label: "more than" },
+  ],
+  emailed: SENT_IN_THE_LAST,
+  engaged: SENT_IN_THE_LAST,
+  opened: [
+    { value: "has", label: "opened one of the last" },
+    { value: "hasnt", label: "opened none of the last" },
+  ],
+  account: [
+    { value: "has", label: "yes, they have one" },
+    { value: "hasnt", label: "no, just an address" },
+  ],
+  plan: IS_OR_ISNT,
+}
+
+/**
+ * One rule, in a card of its own.
+ *
+ * A card each rather than rows sharing one, because a rule is a group of fields
+ * that only make sense together — and because the button that throws it away
+ * then sits on the rule it removes, instead of floating at the edge of the
+ * section beside whichever row happens to be level with it.
+ *
+ * The card's title is the rule's visible name; each control inside carries its
+ * own accessible name, since "is" and "On the list" mean nothing read alone.
+ */
 function ConditionRow({
   index,
   idPrefix,
@@ -265,7 +306,6 @@ function ConditionRow({
 }) {
   const id = `${idPrefix}-${index}`
   const label = segmentConditionLabels[condition.type]
-  const operatorLabel = `${label} comparison for rule ${index + 1}`
   const incomplete = !segmentConditionIsComplete(condition)
 
   return (
@@ -287,270 +327,102 @@ function ConditionRow({
       </CardHeader>
 
       <CardContent className="flex flex-col gap-2 sm:flex-row sm:items-start">
-        {condition.type === "tag" ? (
-          <>
-            <OperatorSelect
-              id={`${id}-operator`}
-              aria-label={operatorLabel}
-              value={condition.operator}
-              options={[
-                { value: "includes", label: "has any of" },
-                { value: "excludes", label: "has none of" },
-              ]}
-              onChange={(operator) =>
-                onChange({ ...condition, operator: operator as "includes" | "excludes" })
-              }
-            />
-            <TagConditionInput condition={condition} index={index} tags={options.tags} incomplete={incomplete} onChange={onChange} />
-          </>
-        ) : null}
-
-        {condition.type === "status" ? (
-          <>
-            <OperatorSelect
-              id={`${id}-operator`}
-              aria-label={operatorLabel}
-              value={condition.operator}
-              options={[
-                { value: "is", label: "is" },
-                { value: "isnt", label: "is not" },
-              ]}
-              onChange={(operator) =>
-                onChange({ ...condition, operator: operator as "is" | "isnt" })
-              }
-            />
-            <Select
-              value={condition.status}
-              onValueChange={(value) =>
-                onChange({
-                  ...condition,
-                  status: value as (typeof CONTACT_SEGMENT_STATUSES)[number],
-                })
-              }
-            >
-              <SelectTrigger
-                className="w-full sm:w-fit"
-                aria-label={`Status for rule ${index + 1}`}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CONTACT_SEGMENT_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {segmentStatusLabels[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </>
-        ) : null}
-
-        {condition.type === "source" ? (
-          <>
-            <OperatorSelect
-              id={`${id}-operator`}
-              aria-label={operatorLabel}
-              value={condition.operator}
-              options={[
-                { value: "is", label: "is" },
-                { value: "isnt", label: "is not" },
-              ]}
-              onChange={(operator) =>
-                onChange({ ...condition, operator: operator as "is" | "isnt" })
-              }
-            />
-            <Select
-              value={condition.source}
-              onValueChange={(value) => onChange({ ...condition, source: value })}
-            >
-              <SelectTrigger
-                className="w-full sm:w-fit"
-                aria-label={`Where they came from, for rule ${index + 1}`}
-                aria-invalid={incomplete || undefined}
-              >
-                <SelectValue placeholder="Pick one" />
-              </SelectTrigger>
-              <SelectContent>
-                {options.sources.map((source) => (
-                  <SelectItem key={source} value={source}>
-                    {source}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </>
-        ) : null}
-
-        {condition.type === "joined" ? (
-          <>
-            <OperatorSelect
-              id={`${id}-operator`}
-              aria-label={operatorLabel}
-              value={condition.operator}
-              options={[
-                { value: "within", label: "in the last" },
-                { value: "before", label: "more than" },
-              ]}
-              onChange={(operator) =>
-                onChange({
-                  ...condition,
-                  operator: operator as "within" | "before",
-                })
-              }
-            />
-            <AmountInput
-              id={`${id}-days`}
-              index={index}
-              amount={condition.days}
-              suffix={condition.operator === "within" ? "days" : "days ago"}
-              onChange={(days) => onChange({ ...condition, days })}
-            />
-          </>
-        ) : null}
-
-        {condition.type === "emailed" ? (
-          <>
-            <OperatorSelect
-              id={`${id}-operator`}
-              aria-label={operatorLabel}
-              value={condition.operator}
-              options={[
-                { value: "within", label: "in the last" },
-                { value: "before", label: "not in the last" },
-                { value: "never", label: "never" },
-              ]}
-              onChange={(operator) =>
-                onChange({
-                  ...condition,
-                  operator: operator as "within" | "before" | "never",
-                })
-              }
-            />
-            {/* "Never" has no number to fill in. The typed one is kept in the
-                rule rather than reset, so switching back and forth does not
-                quietly lose it. */}
-            {condition.operator === "never" ? null : (
-              <AmountInput
-                id={`${id}-days`}
-                index={index}
-                amount={condition.days}
-                suffix="days"
-                onChange={(days) => onChange({ ...condition, days })}
-              />
-            )}
-          </>
-        ) : null}
-
-        {condition.type === "engaged" ? (
-          <>
-            <OperatorSelect
-              id={`${id}-operator`}
-              aria-label={operatorLabel}
-              value={condition.operator}
-              options={[
-                { value: "within", label: "in the last" },
-                { value: "before", label: "not in the last" },
-                { value: "never", label: "never" },
-              ]}
-              onChange={(operator) =>
-                onChange({
-                  ...condition,
-                  operator: operator as "within" | "before" | "never",
-                })
-              }
-            />
-            {/* "Never" has no number to fill in, and the typed one is kept in
-                the rule rather than reset, so switching back and forth does not
-                quietly lose it. */}
-            {condition.operator === "never" ? null : (
-              <AmountInput
-                id={`${id}-days`}
-                index={index}
-                amount={condition.days}
-                suffix="days"
-                onChange={(days) => onChange({ ...condition, days })}
-              />
-            )}
-          </>
-        ) : null}
-
-        {condition.type === "opened" ? (
-          <>
-            <OperatorSelect
-              id={`${id}-operator`}
-              aria-label={operatorLabel}
-              value={condition.operator}
-              options={[
-                { value: "has", label: "opened one of the last" },
-                { value: "hasnt", label: "opened none of the last" },
-              ]}
-              onChange={(operator) =>
-                onChange({ ...condition, operator: operator as "has" | "hasnt" })
-              }
-            />
-            <AmountInput
-              id={`${id}-emails`}
-              index={index}
-              amount={condition.emails}
-              suffix="emails"
-              unit="emails"
-              max={MAX_RULE_EMAILS}
-              onChange={(emails) => onChange({ ...condition, emails })}
-            />
-          </>
-        ) : null}
-
-        {condition.type === "account" ? (
-          <OperatorSelect
+        {"operator" in condition ? (
+          <ChoiceSelect
             id={`${id}-operator`}
-            aria-label={operatorLabel}
+            aria-label={`${label} comparison for rule ${index + 1}`}
             value={condition.operator}
-            options={[
-              { value: "has", label: "yes, they have one" },
-              { value: "hasnt", label: "no, just an address" },
-            ]}
+            choices={RULE_OPERATORS[condition.type]}
             onChange={(operator) =>
-              onChange({ ...condition, operator: operator as "has" | "hasnt" })
+              // The table above only offers this rule's own operators.
+              onChange({ ...condition, operator } as SegmentCondition)
             }
           />
         ) : null}
 
+        {condition.type === "tag" ? (
+          <TagConditionInput condition={condition} index={index} tags={options.tags} incomplete={incomplete} onChange={onChange} />
+        ) : null}
+
+        {condition.type === "status" ? (
+          <ChoiceSelect
+            aria-label={`Status for rule ${index + 1}`}
+            value={condition.status}
+            choices={CONTACT_SEGMENT_STATUSES.map((status) => ({
+              value: status,
+              label: segmentStatusLabels[status],
+            }))}
+            onChange={(status) =>
+              onChange({
+                ...condition,
+                status: status as (typeof CONTACT_SEGMENT_STATUSES)[number],
+              })
+            }
+          />
+        ) : null}
+
+        {condition.type === "source" ? (
+          <ChoiceSelect
+            aria-label={`Where they came from, for rule ${index + 1}`}
+            value={condition.source}
+            placeholder="Pick one"
+            invalid={incomplete}
+            choices={options.sources.map((source) => ({
+              value: source,
+              label: source,
+            }))}
+            onChange={(source) => onChange({ ...condition, source })}
+          />
+        ) : null}
+
+        {condition.type === "joined" ? (
+          <AmountInput
+            id={`${id}-days`}
+            index={index}
+            amount={condition.days}
+            suffix={condition.operator === "within" ? "days" : "days ago"}
+            onChange={(days) => onChange({ ...condition, days })}
+          />
+        ) : null}
+
+        {/* "Never" has no number to fill in. The typed one is kept in the rule
+            rather than reset, so switching back and forth does not quietly
+            lose it. */}
+        {(condition.type === "emailed" || condition.type === "engaged") &&
+        condition.operator !== "never" ? (
+          <AmountInput
+            id={`${id}-days`}
+            index={index}
+            amount={condition.days}
+            suffix="days"
+            onChange={(days) => onChange({ ...condition, days })}
+          />
+        ) : null}
+
+        {condition.type === "opened" ? (
+          <AmountInput
+            id={`${id}-emails`}
+            index={index}
+            amount={condition.emails}
+            suffix="emails"
+            unit="emails"
+            max={MAX_RULE_EMAILS}
+            onChange={(emails) => onChange({ ...condition, emails })}
+          />
+        ) : null}
+
         {condition.type === "plan" ? (
-          <>
-            <OperatorSelect
-              id={`${id}-operator`}
-              aria-label={operatorLabel}
-              value={condition.operator}
-              options={[
-                { value: "is", label: "is" },
-                { value: "isnt", label: "is not" },
-              ]}
-              onChange={(operator) =>
-                onChange({ ...condition, operator: operator as "is" | "isnt" })
-              }
-            />
-            <Select
-              value={condition.planSlug}
-              onValueChange={(value) =>
-                onChange({ ...condition, planSlug: value })
-              }
-            >
-              <SelectTrigger
-                className="w-full sm:w-fit"
-                aria-label={`Plan for rule ${index + 1}`}
-                aria-invalid={incomplete || undefined}
-              >
-                <SelectValue placeholder="Pick a plan" />
-              </SelectTrigger>
-              <SelectContent>
-                {options.plans.map((plan) => (
-                  <SelectItem key={plan.slug} value={plan.slug}>
-                    {plan.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </>
+          <ChoiceSelect
+            aria-label={`Plan for rule ${index + 1}`}
+            value={condition.planSlug}
+            placeholder="Pick a plan"
+            invalid={incomplete}
+            choices={options.plans.map((plan) => ({
+              value: plan.slug,
+              label: plan.name,
+            }))}
+            onChange={(planSlug) => onChange({ ...condition, planSlug })}
+          />
         ) : null}
 
         {condition.type === "in" || condition.type === "notIn" ? (
@@ -583,13 +455,6 @@ function ConditionRow({
   )
 }
 
-/**
- * The number of days a "when they joined" or "when they were last emailed"
- * rule counts back, with the word after it.
- *
- * Uses the same 1–3650 limits as the saved shape, and only passes a valid whole
- * number back to the rule.
- */
 /**
  * The number beside an operator, whether it counts days or emails.
  *
@@ -636,28 +501,38 @@ function AmountInput({
   )
 }
 
-function OperatorSelect({
+/** A dropdown of fixed choices: a rule's comparison, or the value it compares. */
+function ChoiceSelect({
   id,
   value,
-  options,
+  choices,
+  placeholder,
+  invalid,
   onChange,
   "aria-label": ariaLabel,
 }: {
-  id: string
+  id?: string
   value: string
-  options: { value: string; label: string }[]
+  choices: Choice[]
+  placeholder?: string
+  invalid?: boolean
   onChange: (value: string) => void
   "aria-label": string
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger id={id} aria-label={ariaLabel} className="w-full sm:w-fit">
-        <SelectValue />
+      <SelectTrigger
+        id={id}
+        aria-label={ariaLabel}
+        aria-invalid={invalid || undefined}
+        className="w-full sm:w-fit"
+      >
+        <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
+        {choices.map((choice) => (
+          <SelectItem key={choice.value} value={choice.value}>
+            {choice.label}
           </SelectItem>
         ))}
       </SelectContent>

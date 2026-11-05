@@ -5,6 +5,8 @@
  * that decides. Checking here only saves someone a long upload just to be told
  * no, so the wording matches on both sides.
  */
+import { appOptions } from "@/app/options"
+import type { AppOptions } from "@/lib/app-options"
 import { formatFileSize } from "@/lib/format/format-bytes"
 
 export const IMAGE_MIME_TYPES = [
@@ -25,25 +27,63 @@ export const VIDEO_MIME_TYPES = [
 ]
 
 const IMAGE_MAX_BYTES = 10 * 1024 * 1024
-/**
- * 5GB, about 12 minutes of 4K at 60 frames a second from a phone. Shared with
- * the server, which refuses anything bigger once the pieces are joined.
- */
-export const VIDEO_MAX_BYTES = 5 * 1024 * 1024 * 1024
+const MB = 1024 * 1024
+const GB = 1024 * MB
 
 /**
- * Videos go straight to the bucket in pieces of this size. 10MB keeps the
- * number climbing often and makes a retried piece cheap, and a 5GB file comes
- * to 512 pieces, well under the bucket's 10,000.
+ * 5GB, about 12 minutes of 4K at 60 frames a second from a phone. What every
+ * app allows unless its `media.videoMaxBytes` option says otherwise.
  */
-export const VIDEO_UPLOAD_PART_BYTES = 10 * 1024 * 1024
-export const VIDEO_UPLOAD_MAX_PARTS = Math.ceil(
-  VIDEO_MAX_BYTES / VIDEO_UPLOAD_PART_BYTES
-)
+export const DEFAULT_VIDEO_MAX_BYTES = 5 * GB
+
+/**
+ * The most R2 keeps in one file sent in pieces: 5TB less 5GB. No app option
+ * can go past it, because the bucket would refuse the join.
+ */
+export const BUCKET_MAX_VIDEO_BYTES = 5 * 1024 * GB - 5 * GB
+
+/**
+ * The biggest video this app takes, shared by the browser and the server,
+ * which refuses anything bigger once the pieces are joined.
+ */
+export function videoMaxBytes(options: AppOptions = appOptions) {
+  const chosen = options.media?.videoMaxBytes
+  if (chosen === "bucket") return BUCKET_MAX_VIDEO_BYTES
+  return Math.min(chosen ?? DEFAULT_VIDEO_MAX_BYTES, BUCKET_MAX_VIDEO_BYTES)
+}
+
+/**
+ * Videos go straight to the bucket in pieces of at least this size. 10MB keeps
+ * the number climbing often and makes a retried piece cheap.
+ */
+export const VIDEO_UPLOAD_MIN_PART_BYTES = 10 * MB
+
+/** The bucket joins at most this many pieces into one file. */
+export const VIDEO_UPLOAD_MAX_PARTS = 10_000
+
+/**
+ * How big each piece of a file this size is. 10MB up to about 100GB, then
+ * whole megabytes big enough that 10,000 pieces still cover the file: a 500GB
+ * file goes in 52MB pieces.
+ */
+export function videoUploadPartBytes(size: number) {
+  const fitting = Math.ceil(size / VIDEO_UPLOAD_MAX_PARTS / MB) * MB
+  return Math.max(VIDEO_UPLOAD_MIN_PART_BYTES, fitting)
+}
 
 /** How many pieces a file of this size is cut into. */
 export function videoUploadPartCount(size: number) {
-  return Math.max(1, Math.ceil(size / VIDEO_UPLOAD_PART_BYTES))
+  return Math.max(1, Math.ceil(size / videoUploadPartBytes(size)))
+}
+
+/**
+ * How many bytes one piece holds: the piece size for every piece but the
+ * last, and whatever is left for the last.
+ */
+export function videoUploadPieceBytes(size: number, partNumber: number) {
+  const partBytes = videoUploadPartBytes(size)
+  const count = videoUploadPartCount(size)
+  return partNumber < count ? partBytes : size - (count - 1) * partBytes
 }
 
 /** What to hand a file input's `accept`, so the picker only offers valid files. */
@@ -65,7 +105,7 @@ export function getMediaUploadError(file: File, allowVideo: boolean) {
       : "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) are allowed."
   }
 
-  const maximumSize = isImage ? IMAGE_MAX_BYTES : VIDEO_MAX_BYTES
+  const maximumSize = isImage ? IMAGE_MAX_BYTES : videoMaxBytes()
   if (file.size > maximumSize) {
     return `File size too large. Maximum size is ${formatFileSize(maximumSize)}.`
   }

@@ -6,12 +6,20 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  ListPartsCommand,
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
   type S3ClientConfig,
 } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { open, stat } from "node:fs/promises"
+
+import {
+  videoUploadPartBytes,
+  videoUploadPartCount,
+  videoUploadPieceBytes,
+} from "@/lib/media/media-upload"
 
 import {
   getStorageConfig,
@@ -92,6 +100,91 @@ export async function uploadToR2(
 }
 
 /**
+ * Sends a file from disk to the bucket, so a big file never sits in memory.
+ *
+ * A file of one piece or less goes in one request. Anything bigger goes in
+ * pieces of the size a browser upload of the same file would use (10MB, more
+ * past about 100GB), four at a time, each read off disk just before it is
+ * sent. At most four pieces are in memory at once, 40MB for anything under
+ * 100GB. A piece that fails is sent again, up to three tries; after that the
+ * pieces already sent are thrown away and the error is passed on.
+ */
+export async function uploadFileToR2(
+  storagePath: string,
+  filePath: string,
+  contentType: string
+) {
+  const { size } = await stat(filePath)
+  const partBytes = videoUploadPartBytes(size)
+  const file = await open(filePath, "r")
+  try {
+    if (size <= partBytes) {
+      const bytes = Buffer.alloc(size)
+      const { bytesRead } = await file.read(bytes, 0, size, 0)
+      if (bytesRead !== size) throw new Error("The file changed while it was being sent")
+      await uploadToR2(storagePath, bytes, contentType)
+      return { size }
+    }
+
+    const { client, bucket } = await openBucket()
+    const uploadId = await startMultipartUpload(storagePath, contentType)
+    const partCount = videoUploadPartCount(size)
+    const etags = new Array<string>(partCount)
+    let next = 1
+    const sendPieces = async () => {
+      while (next <= partCount) {
+        const partNumber = next
+        next += 1
+        const length = videoUploadPieceBytes(size, partNumber)
+        const body = Buffer.alloc(length)
+        const { bytesRead } = await file.read(body, 0, length, (partNumber - 1) * partBytes)
+        if (bytesRead !== length) throw new Error("The file changed while it was being sent")
+        for (let attempt = 1; ; attempt += 1) {
+          try {
+            const response = await client.send(
+              new UploadPartCommand({
+                Bucket: bucket,
+                Key: storagePath,
+                UploadId: uploadId,
+                PartNumber: partNumber,
+                Body: body,
+                ContentLength: length,
+              })
+            )
+            if (!response.ETag) throw new Error("The bucket kept no receipt for a piece")
+            etags[partNumber - 1] = response.ETag
+            break
+          } catch (error) {
+            if (attempt >= DISK_UPLOAD_TRIES) throw error
+          }
+        }
+      }
+    }
+    try {
+      await Promise.all(
+        Array.from({ length: Math.min(DISK_UPLOAD_PARALLEL, partCount) }, sendPieces)
+      )
+      await completeMultipartUpload(
+        storagePath,
+        uploadId,
+        etags.map((etag, index) => ({ partNumber: index + 1, etag }))
+      )
+    } catch (error) {
+      // Stop the other pieces taking new work, then throw away what landed.
+      next = partCount + 1
+      await abortMultipartUpload(storagePath, uploadId).catch(() => undefined)
+      throw error
+    }
+    return { size }
+  } finally {
+    await file.close()
+  }
+}
+
+const DISK_UPLOAD_PARALLEL = 4
+const DISK_UPLOAD_TRIES = 3
+
+/**
  * Opens an upload that arrives in pieces. Nothing appears in the bucket, and
  * nothing shows in a listing, until `completeMultipartUpload` joins them.
  */
@@ -165,6 +258,39 @@ export async function completeMultipartUpload(
       },
     })
   )
+}
+
+/**
+ * The pieces an unfinished upload already holds, with each one's receipt and
+ * size, so a browser that lost its place can carry on after the last one.
+ * Throws the bucket's `NoSuchUpload` once the upload was finished, cancelled,
+ * or cleared by R2's seven-day rule.
+ */
+export async function listUploadedParts(storagePath: string, uploadId: string) {
+  const { client, bucket } = await openBucket()
+  const parts: { partNumber: number; etag: string; size: number }[] = []
+  let marker: string | undefined
+  do {
+    const response = await client.send(
+      new ListPartsCommand({
+        Bucket: bucket,
+        Key: storagePath,
+        UploadId: uploadId,
+        PartNumberMarker: marker,
+      })
+    )
+    for (const part of response.Parts ?? []) {
+      if (part.PartNumber && part.ETag) {
+        parts.push({
+          partNumber: part.PartNumber,
+          etag: part.ETag,
+          size: part.Size ?? 0,
+        })
+      }
+    }
+    marker = response.IsTruncated ? response.NextPartNumberMarker : undefined
+  } while (marker)
+  return parts
 }
 
 /** Throws away every piece sent so far. The key never becomes a file. */

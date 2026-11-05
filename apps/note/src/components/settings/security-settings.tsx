@@ -3,15 +3,8 @@ import * as React from "react"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { DataCleanupCard } from "@/components/settings/data-cleanup-card"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
+import { SettingsSelectRow } from "@/components/settings/settings-select-row"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { FieldLabel } from "@/components/ui/field-label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   SESSION_IDLE_MINUTE_OPTIONS,
   SESSION_MAX_AGE_DAY_OPTIONS,
@@ -82,59 +75,31 @@ export function SecuritySettings({
         description="How long a sign-in lasts before people have to sign in again. Applies to everyone, admins included."
         contentClassName="space-y-6"
       >
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="session-max-age"
-            hint="The longest anyone can stay signed in on one browser, however active they are. When their time is up they just sign in again."
-          >
-            Sign-ins expire
-          </FieldLabel>
-          <Select
-            value={String(policy.maxAgeDays)}
-            disabled={sessionPolicyBusy}
-            onValueChange={(value) =>
-              requestChange({ ...policy, maxAgeDays: Number(value) })
-            }
-          >
-            <SelectTrigger id="session-max-age" className="w-full sm:w-fit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SESSION_MAX_AGE_DAY_OPTIONS.map((days) => (
-                <SelectItem key={days} value={String(days)}>
-                  {maxAgeLabel(days)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <SettingsSelectRow
+          id="session-max-age"
+          label="Sign-ins expire"
+          hint="The longest anyone can stay signed in on one browser, however active they are. When their time is up they just sign in again."
+          value={String(policy.maxAgeDays)}
+          options={SESSION_MAX_AGE_DAY_OPTIONS.map(String)}
+          optionLabel={(days) => maxAgeLabel(Number(days))}
+          disabled={sessionPolicyBusy}
+          onValueChange={(value) =>
+            requestChange({ ...policy, maxAgeDays: Number(value) })
+          }
+        />
 
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="session-idle"
-            hint="How long someone can be away before they are signed out. Using the app — opening pages, clicking around — counts as being here."
-          >
-            Sign out inactive people
-          </FieldLabel>
-          <Select
-            value={String(policy.idleMinutes)}
-            disabled={sessionPolicyBusy}
-            onValueChange={(value) =>
-              requestChange({ ...policy, idleMinutes: Number(value) })
-            }
-          >
-            <SelectTrigger id="session-idle" className="w-full sm:w-fit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SESSION_IDLE_MINUTE_OPTIONS.map((minutes) => (
-                <SelectItem key={minutes} value={String(minutes)}>
-                  {idleLabel(minutes)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <SettingsSelectRow
+          id="session-idle"
+          label="Sign out inactive people"
+          hint="How long someone can be away before they are signed out. Using the app — opening pages, clicking around — counts as being here."
+          value={String(policy.idleMinutes)}
+          options={SESSION_IDLE_MINUTE_OPTIONS.map(String)}
+          optionLabel={(minutes) => idleLabel(Number(minutes))}
+          disabled={sessionPolicyBusy}
+          onValueChange={(value) =>
+            requestChange({ ...policy, idleMinutes: Number(value) })
+          }
+        />
       </CollapsibleSettingsCard>
 
       <DataCleanupCard />

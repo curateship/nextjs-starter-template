@@ -1,7 +1,6 @@
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core"
 import {
   SortableContext,
-  arrayMove,
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import {
@@ -14,6 +13,7 @@ import {
 
 import {
   DRAG_GRIP_CLASS,
+  reorderByDrag,
   useNavSensors,
   useSortableChip,
 } from "@/components/settings/nav-editor-shared"
@@ -59,11 +59,8 @@ export function PublicHeaderActionsEditor({
   const ids = actions.map((action) => `public-header-action-${action.id}`)
 
   const handleDragEnd = (event: DragEndEvent) => {
-    if (!event.over || event.active.id === event.over.id) return
-    const from = ids.indexOf(String(event.active.id))
-    const to = ids.indexOf(String(event.over.id))
-    if (from === -1 || to === -1) return
-    onActionsChange(arrayMove(actions, from, to))
+    const moved = reorderByDrag(actions, ids, event)
+    if (moved) onActionsChange(moved)
   }
 
   return (

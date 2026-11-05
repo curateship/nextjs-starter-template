@@ -10,6 +10,7 @@ import {
   appHeaderLeftContentForRole,
   appHeaderRightActions,
   appHeaderRightActionsForRole,
+  appHomeScreen,
   appNoticeCategories,
   appNoticeDescription,
   appNotificationDetails,
@@ -101,6 +102,10 @@ describe("an option nobody set means what the shell always did", () => {
     ).toEqual({})
   })
 
+  it("keeps the app out of a phone's share menu", () => {
+    expect(appHomeScreen({}).sharePath).toBeNull()
+  })
+
   it("leaves the catch-all to the written pages", () => {
     // Null is what `$.tsx` checks for before it asks anything of the app, so
     // this is the difference between "written pages as always" and an app
@@ -110,6 +115,12 @@ describe("an option nobody set means what the shell always did", () => {
 })
 
 describe("an app's answer wins", () => {
+  it("names the app's share page, and never one on another host", () => {
+    expect(appHomeScreen({ homeScreen: { shareTarget: { path: "/admin/share" } } }).sharePath).toBe("/admin/share")
+    expect(appHomeScreen({ homeScreen: { shareTarget: { path: "//elsewhere.test/x" } } }).sharePath).toBeNull()
+    expect(appHomeScreen({ homeScreen: { shareTarget: { path: "/\\elsewhere.test/x" } } }).sharePath).toBeNull()
+  })
+
   it("uses the app's default public look", () => {
     const publicTheme = {
       brandColor: "#123456",

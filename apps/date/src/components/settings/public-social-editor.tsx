@@ -2,17 +2,18 @@ import * as React from "react"
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core"
 import {
   SortableContext,
-  arrayMove,
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { GripVertical, PlusIcon, Trash2Icon } from "lucide-react"
 
 import {
   DRAG_GRIP_CLASS,
+  reorderByDrag,
+  stableItemIds,
   useNavSensors,
   useSortableChip,
-  stableItemIds,
 } from "@/components/settings/nav-editor-shared"
+import { SettingsSelectRow } from "@/components/settings/settings-select-row"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
@@ -35,13 +36,6 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   MAX_PUBLIC_SOCIAL_LINKS,
   MAX_PUBLIC_SOCIAL_URL_LENGTH,
   PUBLIC_SOCIAL_LINKS_FULL_MESSAGE,
@@ -50,7 +44,6 @@ import {
   PUBLIC_SOCIAL_URL_MESSAGE,
   normalizePublicSocialUrl,
   type PublicSocialLink,
-  type PublicSocialPlatform,
 } from "@/lib/pages/public-social"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -83,11 +76,8 @@ export function PublicSocialEditor({
     pendingDeleteIndex === null ? null : (links[pendingDeleteIndex] ?? null)
 
   const handleDragEnd = (event: DragEndEvent) => {
-    if (!event.over || event.active.id === event.over.id) return
-    const from = ids.indexOf(String(event.active.id))
-    const to = ids.indexOf(String(event.over.id))
-    if (from === -1 || to === -1) return
-    onLinksChange(arrayMove(links, from, to))
+    const moved = reorderByDrag(links, ids, event)
+    if (moved) onLinksChange(moved)
   }
 
   /**
@@ -313,30 +303,18 @@ function SocialDialog({
                 <CardTitle>Account</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <FieldLabel htmlFor={`${id}-platform`}>Platform</FieldLabel>
-                  <Select
-                    value={draft.platform}
-                    disabled={saving}
-                    onValueChange={(platform) =>
-                      setDraft((current) => ({
-                        ...current,
-                        platform: platform as PublicSocialPlatform,
-                      }))
-                    }
-                  >
-                    <SelectTrigger id={`${id}-platform`} className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PUBLIC_SOCIAL_PLATFORMS.map((platform) => (
-                        <SelectItem key={platform} value={platform}>
-                          {PUBLIC_SOCIAL_PLATFORM_LABELS[platform]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <SettingsSelectRow
+                  id={`${id}-platform`}
+                  label="Platform"
+                  value={draft.platform}
+                  options={PUBLIC_SOCIAL_PLATFORMS}
+                  optionLabel={(platform) => PUBLIC_SOCIAL_PLATFORM_LABELS[platform]}
+                  disabled={saving}
+                  onValueChange={(platform) =>
+                    setDraft((current) => ({ ...current, platform }))
+                  }
+                  triggerClassName="w-full"
+                />
                 <div className="grid gap-2">
                   <FieldLabel
                     htmlFor={`${id}-url`}

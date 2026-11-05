@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { brandImagesForLockedSave } from "@/lib/api/shell-settings"
+import { getNotificationErrorMessage } from "@/lib/api/notification"
+import {
+  brandImagesForLockedSave,
+  getShellSettingsErrorMessage,
+} from "@/lib/api/shell-settings"
 
 const logo = "https://media.example.test/owner/logo.png"
 const darkSource =
@@ -42,6 +46,40 @@ describe("what the settings save stores for the brand pictures", () => {
         {}
       )
     ).toThrow("The logo changed while these settings were saving")
+  })
+})
+
+describe("what a failed settings or notification request says", () => {
+  it("turns the guards' codes into words and passes a written reason through", () => {
+    expect(getShellSettingsErrorMessage(new Error("FORBIDDEN"))).toBe(
+      "You do not have access to that."
+    )
+    expect(getShellSettingsErrorMessage(new Error("AUTH_REQUIRED"))).toBe(
+      "Please sign in again."
+    )
+    expect(
+      getShellSettingsErrorMessage(
+        new Error("That logo is no longer in your media library. Pick another one.")
+      )
+    ).toBe("That logo is no longer in your media library. Pick another one.")
+    expect(getShellSettingsErrorMessage("not an error")).toBe(
+      "Shell settings request failed."
+    )
+  })
+
+  it("never shows the inbox's internal phrases", () => {
+    expect(
+      getNotificationErrorMessage(new Error("Missing Custom Shell session"))
+    ).toBe("Please sign in again.")
+    expect(getNotificationErrorMessage(new Error("Not authorized"))).toBe(
+      "You do not have access to that."
+    )
+    expect(getNotificationErrorMessage(new Error("FORBIDDEN"))).toBe(
+      "You do not have access to that."
+    )
+    expect(
+      getNotificationErrorMessage(new Error("connection terminated unexpectedly"))
+    ).toBe("Notification request failed.")
   })
 })
 

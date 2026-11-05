@@ -14,11 +14,13 @@ import {
   setContactStatusMatching,
   setWorkspaceContactNotes,
   setWorkspaceContactTags,
+  syncContactsFromUsers,
 } from "@/server/people/contacts"
 import { type CustomShellDb } from "@/server/db"
 import {
   customShellContacts,
   customShellDeliveries,
+  customShellUsers,
   customShellWorkspaces,
 } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -918,5 +920,62 @@ describe("a contact's notes", () => {
     await expect(
       setWorkspaceContactNotes(WORKSPACE_ID, "theirs", "x", db)
     ).rejects.toThrow("CONTACT_NOT_FOUND")
+  })
+})
+
+describe("bringing the list in line with the site's accounts", () => {
+  it("adds new accounts, fixes a changed name, and leaves notes, hand tags and opt-outs alone", async () => {
+    // Pointed at this site, so it does not hang on which of two equally old
+    // sites counts as the deployment's first.
+    await db
+      .update(customShellUsers)
+      .set({ currentWorkspaceId: WORKSPACE_ID })
+      .where(eq(customShellUsers.email, "owner@example.test"))
+    const renamed = await insertUser(db, {
+      email: "grace@example.test",
+      name: "Grace Hopper",
+      currentWorkspaceId: WORKSPACE_ID,
+    })
+    await insertUser(db, {
+      email: "new@example.test",
+      name: "New Person",
+      currentWorkspaceId: WORKSPACE_ID,
+    })
+    await insertContact("grace", {
+      userId: renamed.id,
+      email: "grace@example.test",
+      firstName: "Grace",
+      lastName: "Brewster",
+      tags: ["member", "beta"],
+      status: "unsubscribed",
+      notes: "Met at the conference.",
+    })
+
+    const result = await syncContactsFromUsers(WORKSPACE_ID, db)
+
+    expect(result).toEqual({ added: 2, updated: 1 })
+    const rows = await db
+      .select()
+      .from(customShellContacts)
+      .where(eq(customShellContacts.workspaceId, WORKSPACE_ID))
+    const grace = rows.find((row) => row.id === "grace")
+    expect(grace).toMatchObject({
+      firstName: "Grace",
+      lastName: "Hopper",
+      tags: ["member", "beta"],
+      status: "unsubscribed",
+      notes: "Met at the conference.",
+    })
+    expect(rows.map((row) => row.email).sort()).toEqual([
+      "grace@example.test",
+      "new@example.test",
+      "owner@example.test",
+    ])
+
+    // A second pass finds nothing to do.
+    expect(await syncContactsFromUsers(WORKSPACE_ID, db)).toEqual({
+      added: 0,
+      updated: 0,
+    })
   })
 })

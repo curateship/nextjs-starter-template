@@ -24,6 +24,8 @@ import {
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import { z } from "zod"
 
+import { createErrorMessage } from "./error-message"
+
 export type NotificationItem = {
   id: string
   type: NotificationType
@@ -118,9 +120,21 @@ const deleteNotificationsSchema = z.object({
   notificationIds: z.array(z.string().min(1).max(100)).min(1).max(500),
 })
 
-export function getNotificationErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Notification request failed."
-}
+/**
+ * The inbox throws its own phrases rather than the guards' codes, so they are
+ * named here. Before this, "Missing Custom Shell session" and "Not authorized"
+ * reached the toast word for word.
+ */
+export const getNotificationErrorMessage = createErrorMessage(
+  {
+    "Missing Custom Shell session": "Please sign in again.",
+    "Not authorized": "You do not have access to that.",
+    "Notification not found": "That notification is no longer there.",
+    "Invalid notification cursor":
+      "We could not load more notifications. Please refresh and try again.",
+  },
+  "Notification request failed."
+)
 
 const listNotificationsPageFn = createServerFn({ method: "GET" })
   .inputValidator(listNotificationsSchema)

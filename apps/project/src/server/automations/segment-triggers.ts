@@ -84,6 +84,7 @@ async function replaceSnapshot(
     on conflict ("automation_id", "contact_id") do update set
       "segment_id" = excluded."segment_id",
       "last_seen_at" = excluded."last_seen_at"
+    where ${customShellAutomationSegmentSnapshot.segmentId} is distinct from excluded."segment_id"
   `)
 }
 

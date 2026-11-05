@@ -30,6 +30,7 @@ import { CollapsibleSettingsCard } from "@/components/settings/collapsible-setti
 import {
   createShellId,
   DRAG_HANDLE_CLASS,
+  reorderByDrag,
   useCheckedAddress,
   useNavSensors,
   useSortableRow,
@@ -827,19 +828,12 @@ export function SidebarSettings({
   }
 
   const handleSectionDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    const oldIndex = sections.findIndex(
-      (section) => section.id === active.id
+    const moved = reorderByDrag(
+      sections,
+      sections.map((section) => section.id),
+      event
     )
-    const newIndex = sections.findIndex(
-      (section) => section.id === over.id
-    )
-
-    if (oldIndex === -1 || newIndex === -1) return
-
-    onSectionsChange(arrayMove(sections, oldIndex, newIndex))
+    if (moved) onSectionsChange(moved)
   }
 
   const findItemLocation = (itemId: string) => {
@@ -1072,15 +1066,12 @@ export function SidebarSettings({
           if (!isShellItem(entry) || entry.id !== itemId) return entry
 
           const children = entry.children ?? []
-          const oldIndex = children.findIndex((child) => child.id === active.id)
-          const newIndex = children.findIndex((child) => child.id === over.id)
-
-          if (oldIndex === -1 || newIndex === -1) return entry
-
-          return {
-            ...entry,
-            children: arrayMove(children, oldIndex, newIndex),
-          }
+          const moved = reorderByDrag(
+            children,
+            children.map((child) => child.id),
+            event
+          )
+          return moved ? { ...entry, children: moved } : entry
         }),
       }))
     )

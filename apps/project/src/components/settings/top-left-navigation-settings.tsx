@@ -1,3 +1,4 @@
+import { SettingsSelectRow } from "@/components/settings/settings-select-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import {
   Select,
@@ -66,34 +67,17 @@ export function TopLeftNavigationSettings({
         </Select>
       </div>
       {audience === "admin" ? (
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="top-left-nav-limit"
-            hint="Applies to Sidebar links and Shortcuts, for admins and members. Extra links go into the three-dot menu. Phones keep their compact menu."
-          >
-            Top left max items
-          </FieldLabel>
-          <Select
-            value={String(config.topLeftNavLimit)}
-            onValueChange={(value) =>
-              onConfigChange({
-                ...config,
-                topLeftNavLimit: Number(value),
-              })
-            }
-          >
-            <SelectTrigger id="top-left-nav-limit" className="w-full sm:w-fit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TOP_LEFT_NAV_LIMIT_OPTIONS.map((value) => (
-                <SelectItem key={value} value={String(value)}>
-                  {value === 0 ? "Show all" : value}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <SettingsSelectRow
+          id="top-left-nav-limit"
+          label="Top left max items"
+          hint="Applies to Sidebar links and Shortcuts, for admins and members. Extra links go into the three-dot menu. Phones keep their compact menu."
+          value={String(config.topLeftNavLimit)}
+          options={TOP_LEFT_NAV_LIMIT_OPTIONS.map(String)}
+          optionLabel={(value) => (value === "0" ? "Show all" : value)}
+          onValueChange={(value) =>
+            onConfigChange({ ...config, topLeftNavLimit: Number(value) })
+          }
+        />
       ) : null}
     </div>
   )

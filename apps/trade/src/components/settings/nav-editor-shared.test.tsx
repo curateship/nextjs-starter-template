@@ -3,11 +3,12 @@
 import { act } from "react"
 import { createPortal } from "react-dom"
 import { createRoot } from "react-dom/client"
-import { DndContext } from "@dnd-kit/core"
+import { DndContext, type DragEndEvent } from "@dnd-kit/core"
 import { SortableContext } from "@dnd-kit/sortable"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import {
+  reorderByDrag,
   stableItemIds,
   useNavSensors,
   useSortableChip,
@@ -179,5 +180,25 @@ describe("useSortableChip", () => {
     if (!chip) throw new Error("no chip")
 
     expect(pressSpaceOn(chip).defaultPrevented).toBe(true)
+  })
+})
+
+describe("reorderByDrag", () => {
+  const drop = (active: string, over: string | null) =>
+    ({
+      active: { id: active },
+      over: over === null ? null : { id: over },
+    }) as unknown as DragEndEvent
+  const ids = ["a", "b", "c"]
+
+  it("moves the dragged row to where it was dropped", () => {
+    expect(reorderByDrag([1, 2, 3], ids, drop("a", "c"))).toEqual([2, 3, 1])
+    expect(reorderByDrag([1, 2, 3], ids, drop("c", "a"))).toEqual([3, 1, 2])
+  })
+
+  it("answers null when the drop moved nothing, so nothing is saved", () => {
+    expect(reorderByDrag([1, 2, 3], ids, drop("a", "a"))).toBeNull()
+    expect(reorderByDrag([1, 2, 3], ids, drop("a", null))).toBeNull()
+    expect(reorderByDrag([1, 2, 3], ids, drop("a", "elsewhere"))).toBeNull()
   })
 })

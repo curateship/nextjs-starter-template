@@ -17,6 +17,7 @@ import {
 } from "@/lib/api/crm/blocked"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useLoad } from "@/lib/hooks/use-load"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -32,32 +33,14 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * The list is short by nature, so it is rows in a card rather than a table.
  */
 export function BlockedSendersCard() {
-  const [rows, setRows] = React.useState<BlockedSender[] | null>(null)
-  const [loadError, setLoadError] = React.useState<string | null>(null)
-  const [reloads, setReloads] = React.useState(0)
+  const loaded = useLoad(loadBlockedSenders, getBlockedSenderErrorMessage)
+  const rows = loaded.data
+  const reload = loaded.retry
   const [pattern, setPattern] = React.useState("")
   const [note, setNote] = React.useState("")
   const [run, busy] = useAsyncAction(getBlockedSenderErrorMessage)
   // Which row's Remove is running, so only that one spins.
   const [removingId, setRemovingId] = React.useState<string | null>(null)
-
-  React.useEffect(() => {
-    let cancelled = false
-    loadBlockedSenders()
-      .then((next) => {
-        if (cancelled) return
-        setRows(next)
-        setLoadError(null)
-      })
-      .catch((error) => {
-        if (!cancelled) setLoadError(getBlockedSenderErrorMessage(error))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [reloads])
-
-  const reload = () => setReloads((count) => count + 1)
 
   const add = async () => {
     const typed = pattern.trim()
@@ -109,14 +92,11 @@ export function BlockedSendersCard() {
       description="Mail from these addresses never reaches the inbox, so a spam run does not fill the pipeline. Nothing is deleted: the message is still recorded, in a conversation that arrives already closed, and setting the inbox's status filter to All finds it."
       contentClassName="space-y-6"
     >
-      {loadError ? (
+      {loaded.error ? (
         <ErrorRow
           className="min-h-32"
-          message={loadError}
-          onRetry={() => {
-            setLoadError(null)
-            reload()
-          }}
+          message={loaded.error}
+          onRetry={reload}
         />
       ) : (
         <>

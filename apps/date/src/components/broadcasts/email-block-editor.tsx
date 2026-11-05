@@ -5,17 +5,9 @@ import type { PanelImperativeHandle } from "react-resizable-panels"
 import { BlockInspector } from "@/components/broadcasts/block-inspector"
 import { BlockPalette } from "@/components/broadcasts/block-palette"
 import { BroadcastCanvas } from "@/components/broadcasts/broadcast-canvas"
+import { EditorFrame } from "@/components/broadcasts/editor-frame"
 import { SaveTemplateDialog } from "@/components/broadcasts/template-dialogs"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { useShellRuntime } from "@/components/shell/shell-layout"
-import {
-  BOTTOM_COLLAPSED_HEIGHT,
-  PanelReopenTab,
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  WorkspacePanel,
-} from "@/components/ui/resizable"
 import {
   Tooltip,
   TooltipContent,
@@ -35,21 +27,11 @@ import {
   PREVIEW_WIDTHS,
   type PreviewWidth,
 } from "@/lib/broadcasts/preview-width"
-import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useAutoSave } from "@/lib/hooks/use-auto-save"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { focusRing } from "@/lib/layout/focus-ring"
-import {
-  useBlankSpaceDoubleClick,
-  usePanelCollapsed,
-  usePanelToggle,
-} from "@/lib/layout/panel-collapse"
-import {
-  panelLayoutKey,
-  useRememberedPanelLayout,
-} from "@/lib/layout/panel-layout"
-import { pageGutter } from "@/lib/layout/shell-gutter"
+import { panelLayoutKey } from "@/lib/layout/panel-layout"
 import { cn } from "@/lib/utils"
-import { useWideScreen } from "@/lib/layout/wide-screen"
-import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
 /**
  * Draws the email at phone width or at the 600px every inbox gives it. A view
@@ -162,9 +144,6 @@ export function EmailBlockEditor({
   layout?: "broadcast" | "systemEmail" | "automationEmail"
   onSave: (fields: EmailEditableFields) => Promise<void | boolean>
 }) {
-  const { reportSaveStatus } = useShellRuntime()
-  const [fields, setFields] =
-    React.useState<EmailEditableFields>(incomingFields)
   const [selectedBlockId, setSelectedBlockId] = React.useState<string | null>(
     null
   )
@@ -180,7 +159,6 @@ export function EmailBlockEditor({
     null
   )
   const [blockDefaults, setBlockDefaults] = React.useState(initialBlockDefaults)
-  const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [saveTemplateOpen, setSaveTemplateOpen] = React.useState(false)
   // Bumped after a template is saved, which is what sends the Templates tab
   // back for a fresh list rather than showing one without the new entry.
@@ -190,122 +168,17 @@ export function EmailBlockEditor({
   const [previewWidth, setPreviewWidth] =
     React.useState<PreviewWidth>("desktop")
 
-  // Known before the first render on the server too, so the editor opens in the
-  // layout it is going to keep rather than painting the narrow one and
-  // rebuilding itself a beat later.
-  const desktop = useWideScreen()
-  const [paletteCollapsed, setPaletteCollapsed] = React.useState(false)
-  const [inspectorCollapsed, setInspectorCollapsed] = React.useState(false)
-  const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const bottomPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const horizontalLayout = useRememberedPanelLayout(
-    layout === "broadcast"
-      ? panelLayoutKey.broadcastEditorHorizontal
-      : layout === "systemEmail"
-        ? panelLayoutKey.systemEmailEditorHorizontal
-        : panelLayoutKey.automationEmailEditorHorizontal
-  )
-  const verticalLayout = useRememberedPanelLayout(
-    layout === "broadcast"
-      ? panelLayoutKey.broadcastEditorVertical
-      : layout === "systemEmail"
-        ? panelLayoutKey.systemEmailEditorVertical
-        : panelLayoutKey.automationEmailEditorVertical
-  )
 
-  const togglePalette = usePanelToggle(palettePanelRef)
-  const toggleInspector = usePanelToggle(inspectorPanelRef)
-  const toggleBottom = usePanelToggle(bottomPanelRef)
-
-  // Shut, the bottom panel is exactly its own header, and the header's line
-  // would sit on top of the panel's bottom edge. See `headerOnly`.
-  const bottomShut = usePanelCollapsed(bottomPanelRef)
-
-  // Double-clicking the empty part of a panel shuts it, and double-clicking
-  // what is left of it opens it again.
-  const paletteDoubleClick = useBlankSpaceDoubleClick(togglePalette)
-  const inspectorDoubleClick = useBlankSpaceDoubleClick(toggleInspector)
-  const bottomDoubleClick = useBlankSpaceDoubleClick(toggleBottom)
-
-  // ----- Auto-save: 700ms debounce, one queue, newest answer wins -----
-  const serialize = React.useCallback(
-    (next: EmailEditableFields) => JSON.stringify(next),
-    []
-  )
-  const lastSavedRef = React.useRef(serialize(incomingFields))
-  const latestRef = React.useRef(fields)
-  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  const saveQueueRef = React.useRef(Promise.resolve())
-  const saveVersionRef = React.useRef(0)
-  // Read inside the flush-on-unmount effect, which must not re-run — and so
-  // must not depend on — a save function that changes on every render.
-  const onSaveRef = React.useRef(onSave)
-  React.useEffect(() => {
-    onSaveRef.current = onSave
-  }, [onSave])
-
-  const saveNow = React.useCallback(async () => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = null
-    }
-    const snapshot = latestRef.current
-    const serialized = serialize(snapshot)
-    if (serialized === lastSavedRef.current) return true
-
-    const version = saveVersionRef.current + 1
-    saveVersionRef.current = version
-    setSaveStatus("saving")
-
-    const save = saveQueueRef.current
-      .catch(() => undefined)
-      .then(() => onSaveRef.current(snapshot))
-    saveQueueRef.current = save.then(
-      () => undefined,
-      () => undefined
-    )
-
-    try {
-      const saved = await save
-      if (saved === false) {
-        if (version === saveVersionRef.current) setSaveStatus("idle")
-        return false
-      }
-      lastSavedRef.current = serialized
-      if (version === saveVersionRef.current) setSaveStatus("saved")
-      return true
-    } catch (error) {
-      if (version === saveVersionRef.current) {
-        setSaveStatus("idle")
-        showErrorToast(getBroadcastErrorMessage(error))
-      }
-      return false
-    }
-  }, [serialize])
-
-  const scheduleSave = React.useCallback(() => {
-    dismissErrorToast()
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => {
-      saveTimerRef.current = null
-      void saveNow()
-    }, SAVE_DEBOUNCE_MS)
-  }, [saveNow])
-
-  const changeFields = React.useCallback(
-    (updater: (current: EmailEditableFields) => EmailEditableFields) => {
-      // Worked out eagerly from the ref rather than inside a functional
-      // setState: the ref has to move synchronously, because the save snapshot
-      // reads it, and a setState updater must stay pure — React may run it
-      // twice.
-      const next = updater(latestRef.current)
-      latestRef.current = next
-      setFields(next)
-      scheduleSave()
-    },
-    [scheduleSave]
-  )
+  const {
+    value: fields,
+    change: changeFields,
+    saveNow,
+    reset,
+  } = useAutoSave(incomingFields, {
+    save: onSave,
+    describeError: getBroadcastErrorMessage,
+  })
 
   // The owner has newer values than what is in the boxes. Only ever on a
   // version bump — watching the values themselves would fight every keystroke,
@@ -314,39 +187,8 @@ export function EmailBlockEditor({
   React.useEffect(() => {
     if (appliedVersionRef.current === fieldsVersion) return
     appliedVersionRef.current = fieldsVersion
-    latestRef.current = incomingFields
-    lastSavedRef.current = serialize(incomingFields)
-    setFields(incomingFields)
-  }, [fieldsVersion, incomingFields, serialize])
-
-  // Flush a pending edit if the editor goes away mid-debounce, so navigating
-  // off cannot drop the last thing that was typed.
-  React.useEffect(() => {
-    return () => {
-      if (!saveTimerRef.current) return
-      clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = null
-      const snapshot = latestRef.current
-      if (serialize(snapshot) === lastSavedRef.current) return
-      void onSaveRef.current(snapshot).catch(() => undefined)
-    }
-  }, [serialize])
-
-  React.useEffect(() => {
-    if (saveStatus !== "saved") return
-    const timer = setTimeout(() => setSaveStatus("idle"), 2000)
-    return () => clearTimeout(timer)
-  }, [saveStatus])
-
-  // This editor has no bar of its own, so its saving shows in the sticky header
-  // alongside every other auto-save. Clearing on the way out matters, or
-  // "Saved" would still be sitting there on the next page.
-  React.useEffect(() => {
-    reportSaveStatus(saveStatus)
-  }, [reportSaveStatus, saveStatus])
-  React.useEffect(() => {
-    return () => reportSaveStatus(null)
-  }, [reportSaveStatus])
+    reset(incomingFields)
+  }, [fieldsVersion, incomingFields, reset])
 
   // The previewed block wins while it is up: picking one from the left panel
   // clears the canvas selection, and picking a block on the canvas clears this.
@@ -520,15 +362,8 @@ export function EmailBlockEditor({
       action={
         <div className="flex items-center gap-2">
           <WidthToggle value={previewWidth} onChange={setPreviewWidth} />
-          {/*
-            The rule's worry is that `headerAction` might call `saveNow` while
-            the page is being drawn, and `saveNow` reads refs. It does not: both
-            callers (`broadcast-editor.tsx`, `system-email-editor.tsx`) only ever
-            hang it off a button's onClick. Keep it that way — a caller that
-            called it during render really would be the bug this is guarding
-            against.
-          */}
-          {/* eslint-disable-next-line react-hooks/refs */}
+          {/* Callers only ever hang `saveNow` off a button's onClick. Calling
+              it while the page is drawn would save mid-render. */}
           {headerAction?.(saveNow)}
         </div>
       }
@@ -555,140 +390,54 @@ export function EmailBlockEditor({
     />
   )
 
-  const workspace = desktop ? (
-    <ResizablePanelGroup
-      key={horizontalLayout.layoutKey}
-      orientation="horizontal"
-      className="min-h-0 flex-1"
-      defaultLayout={horizontalLayout.defaultLayout}
-      onLayoutChanged={horizontalLayout.onLayoutChanged}
-    >
-      <ResizablePanel
-        id="palette"
-        panelRef={palettePanelRef}
-        collapsible
-        collapsedSize="0%"
-        defaultSize="14%"
-        minSize="14%"
-        maxSize="26%"
-        onResize={(size) => setPaletteCollapsed(size.asPercentage < 0.5)}
-      >
-        <WorkspacePanel
-          collapsed={paletteCollapsed}
-          onDoubleClick={paletteDoubleClick}
-        >
-          <BlockPalette
-            disabled={!editable}
-            hasBlocks={fields.blocks.length > 0}
-            templatesVersion={templatesVersion}
-            selectedKind={previewBlock?.kind ?? null}
-            onSelect={previewBlockKind}
-            onAdd={addBlock}
-            onApplyTemplate={applyTemplate}
-            onSaveAsTemplate={() => setSaveTemplateOpen(true)}
-          />
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={paletteCollapsed} />
-      <ResizablePanel id="canvas" defaultSize="68%" minSize="30%">
-        <WorkspacePanel className="relative flex flex-col">
-          {canvasHeader}
-          {canvas}
-          {paletteCollapsed ? (
-            <PanelReopenTab
-              side="left"
-              label="Show the blocks"
-              onClick={togglePalette}
-            />
-          ) : null}
-          {inspectorCollapsed ? (
-            <PanelReopenTab
-              side="right"
-              label="Show the options"
-              onClick={toggleInspector}
-            />
-          ) : null}
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={inspectorCollapsed} />
-      <ResizablePanel
-        id="inspector"
-        panelRef={inspectorPanelRef}
-        collapsible
-        collapsedSize="0%"
-        defaultSize="18%"
-        minSize="18%"
-        maxSize="34%"
-        onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}
-      >
-        <WorkspacePanel
-          collapsed={inspectorCollapsed}
-          onDoubleClick={inspectorDoubleClick}
-        >
-          {inspector}
-        </WorkspacePanel>
-      </ResizablePanel>
-    </ResizablePanelGroup>
-  ) : (
-    // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and with no
-    // width to fill it would shrink to its content and read as a stray line.
-    <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
-      {canvasHeader}
-      {canvas}
-    </WorkspacePanel>
-  )
-
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col"
-      style={{ gap: pageGutter }}
+    <EditorFrame
+      layoutKeys={
+        layout === "broadcast"
+          ? {
+              horizontal: panelLayoutKey.broadcastEditorHorizontal,
+              vertical: panelLayoutKey.broadcastEditorVertical,
+            }
+          : layout === "systemEmail"
+            ? {
+                horizontal: panelLayoutKey.systemEmailEditorHorizontal,
+                vertical: panelLayoutKey.systemEmailEditorVertical,
+              }
+            : {
+                horizontal: panelLayoutKey.automationEmailEditorHorizontal,
+                vertical: panelLayoutKey.automationEmailEditorVertical,
+              }
+      }
+      palette={
+        <BlockPalette
+          disabled={!editable}
+          hasBlocks={fields.blocks.length > 0}
+          templatesVersion={templatesVersion}
+          selectedKind={previewBlock?.kind ?? null}
+          onSelect={previewBlockKind}
+          onAdd={addBlock}
+          onApplyTemplate={applyTemplate}
+          onSaveAsTemplate={() => setSaveTemplateOpen(true)}
+        />
+      }
+      inspector={inspector}
+      inspectorPanelRef={inspectorPanelRef}
+      canvasHeader={canvasHeader}
+      canvas={canvas}
+      reopenLabels={{ palette: "Show the blocks", inspector: "Show the options" }}
+      bottom={{
+        id: "status",
+        defaultSize: 26,
+        render: (active) =>
+          typeof bottomPanel === "function" ? bottomPanel(active) : bottomPanel,
+      }}
     >
-      {/* No bar of its own. The three panels and the bar along the bottom are
-          the whole screen — the way back out is the sidebar, and the name of
-          this one is already in the strip along the top of the page. */}
-      <div className="flex min-h-0 flex-1 flex-col">
-        <ResizablePanelGroup
-          key={verticalLayout.layoutKey}
-          orientation="vertical"
-          className="min-h-0 flex-1"
-          defaultLayout={verticalLayout.defaultLayout}
-          onLayoutChanged={verticalLayout.onLayoutChanged}
-        >
-          <ResizablePanel id="workspace" defaultSize="74%" minSize="40%">
-            <div className="flex h-full min-h-0">{workspace}</div>
-          </ResizablePanel>
-          {/* Keeps its gap even while the panel below is shut — that collapsed
-              strip is still a panel on screen, and this handle is what drags it
-              back open. Never pass `collapsed` here. */}
-          <ResizableHandle gap />
-          <ResizablePanel
-            id="status"
-            panelRef={bottomPanelRef}
-            defaultSize="26%"
-            minSize="12%"
-            maxSize="60%"
-            collapsible
-            collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
-            onResize={bottomShut.onResize}
-          >
-            <WorkspacePanel
-              onDoubleClick={bottomDoubleClick}
-              headerOnly={bottomShut.collapsed}
-            >
-              {typeof bottomPanel === "function"
-                ? bottomPanel(!bottomShut.collapsed)
-                : bottomPanel}
-            </WorkspacePanel>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
-
       <SaveTemplateDialog
         open={saveTemplateOpen}
         onOpenChange={setSaveTemplateOpen}
         blocks={fields.blocks}
         onSaved={() => setTemplatesVersion((current) => current + 1)}
       />
-    </div>
+    </EditorFrame>
   )
 }

@@ -247,60 +247,79 @@ function Toolbar({
   editor: Editor
   allowImages: boolean
 }) {
+  // Read through `useEditorState`, the same as `SelectionToolbar` below.
+  // `editor.isActive(...)` read while drawing only refreshed when the text
+  // changed, so moving the cursor into bold text left Bold dark.
+  const state = useEditorState({
+    editor,
+    selector: ({ editor: current }) => ({
+      bold: current.isActive("bold"),
+      italic: current.isActive("italic"),
+      strike: current.isActive("strike"),
+      h2: current.isActive("heading", { level: 2 }),
+      h3: current.isActive("heading", { level: 3 }),
+      bullet: current.isActive("bulletList"),
+      ordered: current.isActive("orderedList"),
+      quote: current.isActive("blockquote"),
+      link: current.isActive("link"),
+      href: (current.getAttributes("link").href as string | undefined) ?? "",
+    }),
+  })
+
   return (
     <div className="flex flex-wrap items-center gap-0.5 border-b bg-muted/50 p-1">
       <ToolbarButton
         label="Bold"
-        active={editor.isActive("bold")}
+        active={state.bold}
         onClick={() => editor.chain().focus().toggleBold().run()}
       >
         <BoldIcon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Italic"
-        active={editor.isActive("italic")}
+        active={state.italic}
         onClick={() => editor.chain().focus().toggleItalic().run()}
       >
         <ItalicIcon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Strikethrough"
-        active={editor.isActive("strike")}
+        active={state.strike}
         onClick={() => editor.chain().focus().toggleStrike().run()}
       >
         <StrikethroughIcon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Heading 2"
-        active={editor.isActive("heading", { level: 2 })}
+        active={state.h2}
         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
       >
         <Heading2Icon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Heading 3"
-        active={editor.isActive("heading", { level: 3 })}
+        active={state.h3}
         onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
       >
         <Heading3Icon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Bullet list"
-        active={editor.isActive("bulletList")}
+        active={state.bullet}
         onClick={() => editor.chain().focus().toggleBulletList().run()}
       >
         <ListIcon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Numbered list"
-        active={editor.isActive("orderedList")}
+        active={state.ordered}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
       >
         <ListOrderedIcon className="size-3.5" />
       </ToolbarButton>
       <ToolbarButton
         label="Quote"
-        active={editor.isActive("blockquote")}
+        active={state.quote}
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
       >
         <TextQuoteIcon className="size-3.5" />
@@ -308,8 +327,8 @@ function Toolbar({
       <UrlPopover
         label="Link"
         icon={<LinkIcon className="size-3.5" />}
-        active={editor.isActive("link")}
-        initialUrl={(editor.getAttributes("link").href as string) ?? ""}
+        active={state.link}
+        initialUrl={state.href}
         buttonLabel="Set link"
         onSubmit={(url) =>
           editor
@@ -606,25 +625,33 @@ const NO_EXTENSIONS: Extensions = []
  * email cannot work that way (an email *is* HTML), which is why both doors
  * exist onto one editor rather than one door and a converter.
  */
-export function DocumentEditor({
+export function DocumentEditor<Body extends { type: string } = WrittenPageNode>({
   value,
   onChange,
   disabled,
   placeholder = "Write the page…",
   extensions = NO_EXTENSIONS,
+  clean = cleanWrittenPageBody as unknown as (value: unknown) => Body,
 }: {
-  value: WrittenPageNode
-  onChange: (body: WrittenPageNode) => void
+  value: Body
+  onChange: (body: Body) => void
   disabled?: boolean
   placeholder?: string
   /**
    * Behaviour an app adds on top, such as a list that opens on a key. They
-   * may not add new kinds of content: what is saved is still cleaned to what
-   * a written page may hold. Pass the same array every render.
+   * may not add new kinds of content unless `clean` keeps them: what is saved
+   * is cleaned to what a written page may hold. Pass the same array every
+   * render.
    */
   extensions?: Extensions
+  /**
+   * What the document may hold, in place of a written page's rules, for an
+   * app whose extensions add kinds of content (Travel's "/" blocks). It must
+   * drop anything it doesn't know, the way `cleanWrittenPageBody` does.
+   */
+  clean?: (value: unknown) => Body
 }) {
-  const untouched = React.useRef(writtenPageBodyIsEmpty(value))
+  const untouched = React.useRef(writtenPageBodyIsEmpty(value as unknown as WrittenPageNode))
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -646,7 +673,7 @@ export function DocumentEditor({
       untouched.current = false
       // Cleaned on the way out as well as on the way in, so what the form
       // holds is already only what a page may contain.
-      onChange(cleanWrittenPageBody(current.getJSON()))
+      onChange(clean(current.getJSON()))
     },
   })
 

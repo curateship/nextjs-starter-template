@@ -6,18 +6,13 @@ import {
   UsersIcon,
   WorkflowIcon,
 } from "lucide-react"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
-import { chartHeightClassName, ChartCard, EmptyChart } from "@/components/shared/dashboard/chart-card"
+import { ChartCard, EmptyChart } from "@/components/shared/dashboard/chart-card"
+import { DailyBarChart } from "@/components/shared/dashboard/daily-bar-chart"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { StatStrip, type StatFigure } from "@/components/shared/dashboard/stat-strip"
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart"
+import type { ChartConfig } from "@/components/ui/chart"
 import {
   SortableTableHeader,
   type SortableColumn,
@@ -36,7 +31,7 @@ import { formatSharePercent, formatTokenCount } from "@/lib/format/format-number
 import { describeCode } from "@/lib/format/code-label"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { useClientPage } from "@/lib/hooks/use-client-page"
-import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { sortRows, useTableSort, type SortKey } from "@/lib/hooks/use-table-sort"
 
 /**
  * Settings → the sidebar's AI usage page: what AI cost, who spent it, and
@@ -121,7 +116,14 @@ export function AdminAiUsageDashboard({
         }
       >
         {hasAnyUsage ? (
-          <SpendChart daily={data.daily} />
+          <DailyBarChart
+            daily={data.daily}
+            config={spendConfig}
+            bars={[{ key: "spend", value: (point) => point.costCents / 100 }]}
+            yAxisWidth={44}
+            fewDaysLabelInterval={2}
+            formatValue={(value) => formatMoney(value * 100)}
+          />
         ) : (
           <EmptyChart message="Nothing has used AI yet." />
         )}
@@ -168,57 +170,6 @@ export function AdminAiUsageDashboard({
           rangeLabel={rangeLabel}
         />
       </div>
-    </div>
-  )
-}
-
-function SpendChart({ daily }: { daily: AiUsageDashboard["daily"] }) {
-  const data = daily.map((point) => ({
-    label: new Date(`${point.day}T00:00:00Z`).toLocaleDateString("en-US", {
-      timeZone: "UTC",
-      month: "short",
-      day: "numeric",
-    }),
-    spend: point.costCents / 100,
-  }))
-
-  return (
-    <div className={chartHeightClassName}>
-      <ChartContainer config={spendConfig} className="h-full w-full">
-        <BarChart data={data}>
-          <CartesianGrid strokeDasharray="0" vertical={false} />
-          <XAxis
-            dataKey="label"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fontSize: 10 }}
-            dy={8}
-            // A month of days is too many labels to read; a quarter even more so.
-            interval={data.length > 45 ? 13 : data.length > 20 ? 5 : 2}
-          />
-          <YAxis
-            axisLine={false}
-            tickLine={false}
-            tick={{ fontSize: 10, dx: -5 }}
-            width={44}
-            allowDecimals={false}
-            tickFormatter={(value: number) => formatMoney(value * 100)}
-          />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                formatter={(value) => formatMoney(Number(value) * 100)}
-              />
-            }
-          />
-          <Bar
-            dataKey="spend"
-            fill="var(--color-spend)"
-            radius={[3, 3, 0, 0]}
-            maxBarSize={28}
-          />
-        </BarChart>
-      </ChartContainer>
     </div>
   )
 }
@@ -279,8 +230,7 @@ function PersonTable({
       (row) =>
         !query || `${row.name} ${row.email}`.toLowerCase().includes(query)
     )
-    const factor = direction === "asc" ? 1 : -1
-    return matching.sort((a, b) => factor * comparePeople(a, b, sort))
+    return sortRows(matching, { sort, direction }, personSortKeys)
   }, [rows, searchText, sort, direction])
 
   const { visible, footer } = useClientPage(
@@ -388,16 +338,17 @@ function formatAllowance(row: AiUsagePersonRow) {
   return `${formatMoney(row.monthSpentCents)} of ${formatMoney(row.allowanceCents)}`
 }
 
-function comparePeople(a: AiUsagePersonRow, b: AiUsagePersonRow, sort: PersonSort) {
-  if (sort === "calls") return a.calls - b.calls
-  if (sort === "tokens") return a.tokens - b.tokens
+const personSortKeys: Record<PersonSort, SortKey<AiUsagePersonRow>> = {
+  person: (row) => row.name,
+  calls: (row) => row.calls,
+  tokens: (row) => row.tokens,
   // Share orders the same way spend does; both compare cents.
-  if (sort === "spend" || sort === "share") return a.costCents - b.costCents
+  spend: (row) => row.costCents,
+  share: (row) => row.costCents,
   // Closest to their ceiling first (descending). No ceiling sorts as furthest
   // from trouble, which is what "sort by allowance" is really asking about.
-  if (sort === "allowance") return allowanceUsedShare(a) - allowanceUsedShare(b)
-  if (sort === "last") return a.lastUsedAt.getTime() - b.lastUsedAt.getTime()
-  return a.name.localeCompare(b.name)
+  allowance: (row) => allowanceUsedShare(row),
+  last: (row) => row.lastUsedAt.getTime(),
 }
 
 function allowanceUsedShare(row: AiUsagePersonRow) {
@@ -419,6 +370,13 @@ type BreakdownRow = {
 }
 
 type BreakdownSort = "name" | "calls" | "tokens" | "spend"
+
+const breakdownSortKeys: Record<BreakdownSort, SortKey<BreakdownRow>> = {
+  name: (row) => row.name,
+  calls: (row) => row.calls,
+  tokens: (row) => row.tokens,
+  spend: (row) => row.costCents,
+}
 
 /** Only the name reads as words; every other column starts biggest-first. */
 const breakdownSortDirection = (column: BreakdownSort) =>
@@ -443,15 +401,10 @@ function BreakdownTable({
     breakdownSortDirection
   )
 
-  const sorted = React.useMemo(() => {
-    const factor = direction === "asc" ? 1 : -1
-    return [...rows].sort((a, b) => {
-      if (sort === "calls") return factor * (a.calls - b.calls)
-      if (sort === "tokens") return factor * (a.tokens - b.tokens)
-      if (sort === "spend") return factor * (a.costCents - b.costCents)
-      return factor * a.name.localeCompare(b.name)
-    })
-  }, [rows, sort, direction])
+  const sorted = React.useMemo(
+    () => sortRows(rows, { sort, direction }, breakdownSortKeys),
+    [rows, sort, direction]
+  )
 
   const columns: SortableColumn<BreakdownSort>[] = [
     { key: "name", label: nameLabel, column: "main" },

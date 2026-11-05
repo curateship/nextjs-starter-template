@@ -14,13 +14,14 @@ specifically, and it wins wherever the two halves disagree.
 ## Where the work happens
 
 These apps are active, and they are the only ones worked on. The list is the
-Active workspaces in the Personal IDE (Tyler, 30 Oct 2026):
+Active workspaces in the Personal IDE (Tyler, 30 Oct 2026; Travel and Viral
+added 5 Nov 2026):
 
 - `apps/shell` — the template every app is copied from.
 - `apps/trade`, `apps/directory`, `apps/video`, `apps/project`,
   `apps/pomodoro`, `apps/promo`, `apps/date`, `apps/course`, `apps/note`,
-  `apps/fitness`, `apps/task` — the products, each a copy of the shell, and
-  each one a shell merge goes into.
+  `apps/fitness`, `apps/task`, `apps/travel`, `apps/viral` — the products,
+  each a copy of the shell, and each one a shell merge goes into.
 - `apps/personal`, `apps/personal-ide` — active, but not copies of the shell,
   so a shell merge leaves them alone.
 

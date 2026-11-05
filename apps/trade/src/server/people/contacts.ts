@@ -87,8 +87,17 @@ export async function syncContactsFromUsers(
   if (users.length === 0) return { added: 0, updated: 0 }
   const ownedTags = roleTags()
 
+  // Only what the comparison below reads. Every column used to come back here,
+  // notes included, on every contacts page load and before every send batch.
   const existing = await database
-    .select()
+    .select({
+      id: customShellContacts.id,
+      userId: customShellContacts.userId,
+      email: customShellContacts.email,
+      firstName: customShellContacts.firstName,
+      lastName: customShellContacts.lastName,
+      tags: customShellContacts.tags,
+    })
     .from(customShellContacts)
     .where(eq(customShellContacts.workspaceId, workspaceId))
 

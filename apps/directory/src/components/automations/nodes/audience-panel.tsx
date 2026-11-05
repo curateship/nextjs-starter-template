@@ -6,6 +6,7 @@ import {
   InspectorCard,
   InspectorNote,
 } from "@/components/automations/inspector-card"
+import { SegmentSelectField } from "@/components/automations/nodes/segment-select-field"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import {
@@ -21,10 +22,6 @@ import {
   type AudiencePreview,
 } from "@/lib/api/automations/audience-preview"
 import { loadAdminPlans, type AdminPlan } from "@/lib/api/billing/admin-plans"
-import {
-  loadSegmentChoices,
-  type SegmentChoice,
-} from "@/lib/api/people/contact-segments"
 import type {
   AutomationNodeFieldsProps,
   AutomationNodeSettings,
@@ -90,26 +87,6 @@ export default function AudienceFields({
   const choices = (plans ?? []).filter((plan) => plan.active && !plan.isDefault)
   const slugKnown = choices.some((plan) => plan.slug === planSlug)
   const noPlans = plans !== null && choices.length === 0
-
-  // The segments to choose between, loaded the same advisory way as the plans.
-  const [segments, setSegments] = React.useState<SegmentChoice[] | null>(null)
-  React.useEffect(() => {
-    if (audience !== "segment") return
-    let cancelled = false
-    loadSegmentChoices()
-      .then((rows) => {
-        if (!cancelled) setSegments(rows)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [audience])
-
-  const segmentKnown = (segments ?? []).some(
-    (segment) => segment.id === segmentId
-  )
-  const noSegments = segments !== null && segments.length === 0
 
   const setSettings = (settings: AutomationNodeSettings) =>
     onChange({ ...node, settings: { ...node.settings, ...settings } })
@@ -205,64 +182,13 @@ export default function AudienceFields({
       ) : null}
 
       {audience === "segment" ? (
-        <div className="grid gap-1.5">
-          <FieldLabel
-            htmlFor={`audience-${node.id}-segment`}
-            className="text-xs"
-            hint="Who is in the segment is worked out when the flow runs, not when you save it, so the segment can keep changing underneath."
-          >
-            Segment
-          </FieldLabel>
-          <Select
-            value={segmentId || undefined}
-            onValueChange={(value) => {
-              const picked = (segments ?? []).find(
-                (segment) => segment.id === value
-              )
-              // The name rides along for the node card's wording only — the
-              // run always looks the segment up by id.
-              setSettings({
-                segmentId: value,
-                segmentName: picked?.name ?? segmentName,
-              })
-            }}
-          >
-            <SelectTrigger
-              id={`audience-${node.id}-segment`}
-              className="w-full sm:w-fit"
-            >
-              <SelectValue placeholder="Choose a segment" />
-            </SelectTrigger>
-            <SelectContent>
-              {(segments ?? []).map((segment) => (
-                <SelectItem key={segment.id} value={segment.id}>
-                  {segment.name}
-                </SelectItem>
-              ))}
-              {/* A flow can point at a segment that has since been deleted.
-                  Keep it selectable so opening the node cannot silently change
-                  who the flow means; the run says plainly if the segment has
-                  gone. */}
-              {segmentId && !segmentKnown ? (
-                <SelectItem value={segmentId}>
-                  {segmentName || "A segment that no longer exists"}
-                </SelectItem>
-              ) : null}
-            </SelectContent>
-          </Select>
-          {noSegments ? (
-            <InspectorNote className="mt-1">
-              There are no segments yet. Make one in{" "}
-              <Link
-                to="/admin/contacts"
-                className="underline underline-offset-2 hover:text-foreground"
-              >
-                Contacts
-              </Link>{" "}
-              before this flow runs.
-            </InspectorNote>
-          ) : null}
-        </div>
+        <SegmentSelectField
+          id={`audience-${node.id}-segment`}
+          segmentId={segmentId}
+          segmentName={segmentName}
+          hint="Who is in the segment is worked out when the flow runs, not when you save it, so the segment can keep changing underneath."
+          onChange={setSettings}
+        />
       ) : null}
 
       {audience === "tag" ? (

@@ -14,3 +14,4 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [Phone calendar](phone-calendar.md): the subscribe link for Apple and Google Calendar, its secret, and Reset link.
 - [Going live](launch.md): travel.barelycompany.com on server1, what was decided at launch, every live value, the copy of Tyler's local trips, how to deploy, and the release record.
 - [Working without signal](working-without-signal.md): the Trips table and every trip opened, kept to open read only with no signal, the "No signal" line and what is turned off.
+- [Shell merges](shell-integration.md): each shell merge into Travel, what arrived and what stays Travel's own.

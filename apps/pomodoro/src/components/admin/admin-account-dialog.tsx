@@ -63,6 +63,7 @@ import {
 } from "@/lib/api/people/admin-users"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useLoad } from "@/lib/hooks/use-load"
 import { pauseRefusalCode, pausedPlanLabel } from "@/lib/billing/pause-rules"
 import { saveAiAllowanceOverride } from "@/lib/api/ai"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
@@ -126,11 +127,6 @@ export function AdminAccountDialog({
   // The account and the plans it can be granted arrive together, so the window
   // needs nothing from whoever opened it beyond an id — which is what lets a
   // pasted `?open=` link work for somebody who is not on the page of the list.
-  const [loaded, setLoaded] = React.useState<{
-    detail: AccountDetail
-    plans: AssignablePlan[]
-  } | null>(null)
-  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [status, setStatus] = React.useState<EditStatus>({
     dirty: false,
     saving: false,
@@ -138,31 +134,20 @@ export function AdminAccountDialog({
   const [cancellingPlan, setCancellingPlan] = React.useState(false)
   const [confirmingPause, setConfirmingPause] = React.useState(false)
   const [runPause, pausing] = useAsyncAction(getAdminUserErrorMessage)
-  // Bumped by Retry. The load lives in the effect rather than in a callback the
-  // effect calls, so a reply that lands after the window moved on is dropped
-  // instead of overwriting whoever is on screen now.
-  const [attempt, setAttempt] = React.useState(0)
+  // A reply that lands after the window moved on is dropped instead of
+  // overwriting whoever is on screen now. Closed, there is nobody to load, and
+  // whoever was showing stays put while the window fades out.
+  const account = useLoad(
+    () =>
+      userId
+        ? loadAdminAccountDetail(userId)
+        : new Promise<never>(() => undefined),
+    getAdminUserErrorMessage,
+    { keys: [userId] }
+  )
+  const loaded = account.data
+  const loadError = account.error
   const detail = loaded?.detail ?? null
-
-  React.useEffect(() => {
-    if (!userId) return
-    let active = true
-
-    loadAdminAccountDetail(userId)
-      .then((result) => {
-        if (!active) return
-        setLoaded(result)
-        setLoadError(null)
-      })
-      .catch((error) => {
-        if (!active) return
-        setLoadError(getAdminUserErrorMessage(error))
-      })
-
-    return () => {
-      active = false
-    }
-  }, [userId, attempt])
 
   // Nothing has answered yet. Derived rather than a flag set on the way in, so
   // there is no state to keep in step with the request.
@@ -232,13 +217,7 @@ export function AdminAccountDialog({
 
               {loadError ? (
                 <DialogBody>
-                  <ErrorRow
-                    message={loadError}
-                    onRetry={() => {
-                      setLoadError(null)
-                      setAttempt((count) => count + 1)
-                    }}
-                  />
+                  <ErrorRow message={loadError} onRetry={account.retry} />
                 </DialogBody>
               ) : loading || !loaded ? (
                 <DialogBody>

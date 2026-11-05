@@ -46,4 +46,14 @@ describe("the home-screen manifest", () => {
     expect(onlyLight.icons[0].src).toBe("https://cdn.test/light-180.png")
     expect(webAppManifest({ appName: "A", shortName: null, startPath: "/", faviconSet: null }).icons).toEqual([])
   })
+
+  it("joins Android's share menu only when the app names a share page", () => {
+    const base = { appName: "Viral", shortName: null, startPath: "/", faviconSet: null }
+    expect(webAppManifest(base).share_target).toBeUndefined()
+    expect(webAppManifest({ ...base, sharePath: "/admin/share" }).share_target).toEqual({
+      action: "/admin/share",
+      method: "GET",
+      params: { title: "title", text: "text", url: "url" },
+    })
+  })
 })

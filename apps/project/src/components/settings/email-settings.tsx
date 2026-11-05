@@ -5,7 +5,6 @@ import { toast } from "sonner"
 import { BlockedSendersCard } from "@/components/settings/blocked-senders-card"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { DripSettingsFields } from "@/components/shared/drip-settings-fields"
-import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardGroup } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -18,7 +17,9 @@ import {
   QUIET_AFTER_EMAILS_MAX,
   QUIET_AFTER_EMAILS_MIN,
 } from "@/lib/contacts/gone-quiet"
+import { SecretKeyField } from "@/components/settings/secret-key-field"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
+import { useSettingsAutoSave } from "@/components/settings/use-settings-auto-save"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Tooltip,
@@ -52,17 +53,58 @@ import {
   emailStatusLine,
 } from "@/lib/email/email-delivery"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { useLoad } from "@/lib/hooks/use-load"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
-import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
-// An edit saves itself this long after the last keystroke; leaving the field
-// (or pressing Enter) saves straight away. Same rhythm as the AI keys tab.
-const SAVE_DELAY_MS = 1200
+type Sender = {
+  systemFromEmail: string
+  fromEmail: string
+  fromName: string
+  inboundAddress: string
+  crmReplyName: string
+  crmReplySignature: string
+  crmQuoteReplies: boolean
+}
+type SenderBox = Exclude<keyof Sender, "crmQuoteReplies">
 
-// What the saved key's field displays while it is not being edited. Any string
-// renders as dots in a password field; the length just makes it look like one.
-const SAVED_SENTINEL = "••••••••••••"
+// Each sender box's save, and the timer it shares. The newsletter name and
+// address are one sender, so they save together under one timer.
+const SENDER_SAVES: Record<
+  SenderBox,
+  { timer: string; save: (sender: Sender) => Promise<EmailSettingsStatus> }
+> = {
+  systemFromEmail: {
+    timer: "systemSender",
+    save: (sender) => saveSystemEmailSenderSetting(sender.systemFromEmail),
+  },
+  fromName: {
+    timer: "sender",
+    save: (sender) => saveEmailSenderSettings(sender.fromEmail, sender.fromName),
+  },
+  fromEmail: {
+    timer: "sender",
+    save: (sender) => saveEmailSenderSettings(sender.fromEmail, sender.fromName),
+  },
+  inboundAddress: {
+    timer: "inbound",
+    save: (sender) => saveInboundAddressSetting(sender.inboundAddress),
+  },
+  crmReplyName: {
+    timer: "crmReplyName",
+    save: (sender) => saveCrmReplyNameSetting(sender.crmReplyName),
+  },
+  crmReplySignature: {
+    timer: "crmReplySignature",
+    save: (sender) => saveCrmReplySignatureSetting(sender.crmReplySignature),
+  },
+}
+
+const SECRET_SAVES = {
+  key: saveEmailApiKey,
+  webhook: saveResendWebhookSecret,
+}
+type Secret = keyof typeof SECRET_SAVES
 
 /**
  * Settings → Email. The Resend key every email in the app sends with, the
@@ -72,90 +114,17 @@ const SAVED_SENTINEL = "••••••••••••"
  * indicator, like every other auto-save in the app — no Save button.
  */
 export function EmailSettings() {
-  const { reportSaveStatus } = useShellRuntime()
-  const [status, setStatus] = React.useState<EmailSettingsStatus | null>(null)
-  const [loadError, setLoadError] = React.useState<string | null>(null)
-  const [reloads, setReloads] = React.useState(0)
-
   // The sender fields as typed; null until the load fills them in.
-  const [sender, setSender] = React.useState<{
-    systemFromEmail: string
-    fromEmail: string
-    fromName: string
-    inboundAddress: string
-    crmReplyName: string
-    crmReplySignature: string
-    crmQuoteReplies: boolean
-  } | null>(null)
+  const [sender, setSender] = React.useState<Sender | null>(null)
   // The pace a new newsletter starts from, as edited; null until the load.
   const [drip, setDrip] = React.useState<DripConfig | null>(null)
   // The run of unopened sends that marks somebody quiet; null until the load.
   const [quietAfter, setQuietAfter] = React.useState<number | null>(null)
   const [linkExpiry, setLinkExpiry] = React.useState<AuthLinkExpiry | null>(null)
-  // The key and webhook secret as typed but not yet saved.
-  const [keyDraft, setKeyDraft] = React.useState("")
-  const [webhookDraft, setWebhookDraft] = React.useState("")
-  // The secret field that is focused: its saved dots make way for typing.
-  const [editing, setEditing] = React.useState<"key" | "webhook" | null>(null)
-  // Which button is running — the others grey out, the active one spins.
-  const [runningId, setRunningId] = React.useState<"test" | "remove" | null>(
-    null
-  )
-  // What is auto-saving right now. Deliberately NOT part of `busy`: clicking
-  // "Test this key" right after typing blurs the field, the blur starts the
-  // save, and a save that disabled the buttons would swallow that very click.
-  const [saving, setSaving] = React.useState<
-    | "systemSender"
-    | "sender"
-    | "inbound"
-    | "crmReplyName"
-    | "crmReplySignature"
-    | "crmQuoteReplies"
-    | "key"
-    | "webhook"
-    | "drip"
-    | "quietAfter"
-    | "linkExpiry"
-    | null
-  >(null)
-  // Which secret's Remove is waiting on its confirmation, if any.
-  const [removing, setRemoving] = React.useState<"key" | "webhook" | null>(
-    null
-  )
-
-  // The auto-save's outcome, shown in the shared sticky header like every
-  // other settings save.
-  const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
-  React.useEffect(() => {
-    reportSaveStatus(saveStatus)
-  }, [reportSaveStatus, saveStatus])
-  React.useEffect(() => {
-    return () => reportSaveStatus(null)
-  }, [reportSaveStatus])
-  React.useEffect(() => {
-    if (saveStatus !== "saved") return
-    const timer = setTimeout(() => setSaveStatus("idle"), 2000)
-    return () => clearTimeout(timer)
-  }, [saveStatus])
-
-  // One pending auto-save timer per field group.
-  const timers = React.useRef<Record<string, ReturnType<typeof setTimeout>>>(
-    {}
-  )
-  React.useEffect(() => {
-    const pending = timers.current
-    return () => {
-      for (const id of Object.keys(pending)) clearTimeout(pending[id])
-    }
-  }, [])
-
-  React.useEffect(() => {
-    let cancelled = false
-    loadEmailSettings()
-      .then((next) => {
-        if (cancelled) return
-        setStatus(next)
-        setSender((prev) =>
+  const loaded = useLoad(loadEmailSettings, getEmailSettingsErrorMessage, {
+    onLoad: (next) => {
+      setSender(
+        (prev) =>
           prev ?? {
             systemFromEmail: next.systemFromEmail,
             fromEmail: next.fromEmail,
@@ -165,401 +134,146 @@ export function EmailSettings() {
             crmReplySignature: next.crmReplySignature,
             crmQuoteReplies: next.crmQuoteReplies,
           }
-        )
-        setDrip((prev) => prev ?? next.dripDefaults)
-        setQuietAfter((prev) => prev ?? next.quietAfterEmails)
-        setLinkExpiry((prev) => prev ?? next.authLinkExpiry)
-        setLoadError(null)
-      })
-      .catch((error) => {
-        if (!cancelled) setLoadError(getEmailSettingsErrorMessage(error))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [reloads])
+      )
+      setDrip((prev) => prev ?? next.dripDefaults)
+      setQuietAfter((prev) => prev ?? next.quietAfterEmails)
+      setLinkExpiry((prev) => prev ?? next.authLinkExpiry)
+    },
+  })
+  const status = loaded.data
+  // What is auto-saving right now. Deliberately NOT part of `busy`: clicking
+  // "Test this key" right after typing blurs the field, the blur starts the
+  // save, and a save that disabled the buttons would swallow that very click.
+  const autoSave = useSettingsAutoSave(
+    getEmailSettingsErrorMessage,
+    loaded.setData
+  )
+
+  // The key and webhook secret as typed but not yet saved.
+  const [drafts, setDrafts] = React.useState<Record<Secret, string>>({
+    key: "",
+    webhook: "",
+  })
+  // Which button is running — the others grey out, the active one spins.
+  const [runningId, setRunningId] = React.useState<"test" | "remove" | null>(
+    null
+  )
+  // Which secret's Remove is waiting on its confirmation, if any.
+  const [removing, setRemoving] = React.useState<Secret | null>(null)
 
   const busy = runningId !== null
 
-  const saveSystemSender = async (systemFromEmail: string) => {
-    setSaving("systemSender")
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      setStatus(await saveSystemEmailSenderSetting(systemFromEmail))
-      setSaveStatus("saved")
-    } catch (error) {
-      setSaveStatus("idle")
-      showErrorToast(getEmailSettingsErrorMessage(error))
-    } finally {
-      setSaving(null)
-    }
+  // A sender box saves the whole sender as it stood after this keystroke.
+  const editSender = (box: SenderBox, value: string) => {
+    if (!sender) return
+    const next = { ...sender, [box]: value }
+    setSender(next)
+    const { timer, save } = SENDER_SAVES[box]
+    autoSave.schedule(timer, () => save(next))
   }
-
-  // `values` ride in as arguments, not read from state: the timer's closure
-  // must save exactly what was typed when it was scheduled.
-  const saveSender = async (fromEmail: string, fromName: string) => {
-    setSaving("sender")
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      setStatus(await saveEmailSenderSettings(fromEmail, fromName))
-      setSaveStatus("saved")
-    } catch (error) {
-      // The fields keep what was typed so a failed save loses nothing.
-      setSaveStatus("idle")
-      showErrorToast(getEmailSettingsErrorMessage(error))
-    } finally {
-      setSaving(null)
-    }
+  const flushSender = (box: SenderBox) => {
+    if (!sender) return
+    const { timer, save } = SENDER_SAVES[box]
+    autoSave.flush(timer, () => save(sender))
   }
-
-  const saveInbound = async (inboundAddress: string) => {
-    setSaving("inbound")
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      setStatus(await saveInboundAddressSetting(inboundAddress))
-      setSaveStatus("saved")
-    } catch (error) {
-      setSaveStatus("idle")
-      showErrorToast(getEmailSettingsErrorMessage(error))
-    } finally {
-      setSaving(null)
-    }
-  }
-
-  const saveCrmName = async (crmReplyName: string) => {
-    setSaving("crmReplyName")
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      setStatus(await saveCrmReplyNameSetting(crmReplyName))
-      setSaveStatus("saved")
-    } catch (error) {
-      setSaveStatus("idle")
-      showErrorToast(getEmailSettingsErrorMessage(error))
-    } finally {
-      setSaving(null)
-    }
-  }
-
-  const saveCrmSignature = async (crmReplySignature: string) => {
-    setSaving("crmReplySignature")
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      setStatus(await saveCrmReplySignatureSetting(crmReplySignature))
-      setSaveStatus("saved")
-    } catch (error) {
-      setSaveStatus("idle")
-      showErrorToast(getEmailSettingsErrorMessage(error))
-    } finally {
-      setSaving(null)
-    }
-  }
+  // What every sender box shares: its value, and saving as it is typed in
+  // and when it is left. Enter saves too, except in the signature, where it
+  // starts a new line.
+  const senderBox = (box: SenderBox) => ({
+    value: sender?.[box] ?? "",
+    onChange: (
+      event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    ) => editSender(box, event.target.value),
+    onBlur: () => flushSender(box),
+    onKeyDown: (event: React.KeyboardEvent) => {
+      if (event.key === "Enter" && box !== "crmReplySignature") flushSender(box)
+    },
+  })
 
   // No debounce: a switch takes effect when it is flipped, and there is no
   // half-typed state to wait for the way there is in a text box.
   const saveQuoteReplies = async (crmQuoteReplies: boolean) => {
     setSender((prev) => (prev ? { ...prev, crmQuoteReplies } : prev))
-    setSaving("crmQuoteReplies")
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      setStatus(await saveCrmQuoteRepliesSetting(crmQuoteReplies))
-      setSaveStatus("saved")
-    } catch (error) {
-      // Put the switch back: it never took, so it must not look as if it did.
+    const saved = await autoSave.run("crmQuoteReplies", () =>
+      saveCrmQuoteRepliesSetting(crmQuoteReplies)
+    )
+    // Put the switch back: it never took, so it must not look as if it did.
+    if (!saved) {
       setSender((prev) =>
         prev ? { ...prev, crmQuoteReplies: !crmQuoteReplies } : prev
       )
-      setSaveStatus("idle")
-      showErrorToast(getEmailSettingsErrorMessage(error))
-    } finally {
-      setSaving(null)
     }
   }
 
-  const saveKey = async (value: string) => {
-    const key = value.trim()
-    if (!key) return
-    setSaving("key")
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      setStatus(await saveEmailApiKey(key))
-      // Clear the field only if it still holds what was saved — a newer edit
-      // must survive and will save itself in turn.
-      setKeyDraft((prev) => (prev === value ? "" : prev))
-      setSaveStatus("saved")
-    } catch (error) {
-      setSaveStatus("idle")
-      showErrorToast(getEmailSettingsErrorMessage(error))
-    } finally {
-      setSaving(null)
+  // The save of exactly `value`, and the box cleared after it only if it
+  // still holds that value: a newer edit survives and saves itself in turn.
+  const saveSecret = (which: Secret, value: string) => () =>
+    SECRET_SAVES[which](value.trim())
+  const clearDraft = (which: Secret, value: string) => () =>
+    setDrafts((prev) =>
+      prev[which] === value ? { ...prev, [which]: "" } : prev
+    )
+  const editSecret = (which: Secret, value: string) => {
+    setDrafts((prev) => ({ ...prev, [which]: value }))
+    if (!value.trim()) {
+      autoSave.cancel(which)
+      return
     }
+    autoSave.schedule(which, saveSecret(which, value), clearDraft(which, value))
+  }
+  const flushSecret = (which: Secret) => {
+    const value = drafts[which]
+    if (!value.trim()) return
+    autoSave.flush(which, saveSecret(which, value), clearDraft(which, value))
   }
 
-  const saveWebhook = async (value: string) => {
-    const secret = value.trim()
-    if (!secret) return
-    setSaving("webhook")
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      setStatus(await saveResendWebhookSecret(secret))
-      setWebhookDraft((prev) => (prev === value ? "" : prev))
-      setSaveStatus("saved")
-    } catch (error) {
-      setSaveStatus("idle")
-      showErrorToast(getEmailSettingsErrorMessage(error))
-    } finally {
-      setSaving(null)
-    }
+  const editLinkExpiry = (next: AuthLinkExpiry) => {
+    setLinkExpiry(next)
+    autoSave.schedule("linkExpiry", () => saveAuthLinkExpirySetting(next))
+  }
+  const flushLinkExpiry = () => {
+    if (!linkExpiry) return
+    autoSave.flush("linkExpiry", () => saveAuthLinkExpirySetting(linkExpiry))
   }
 
-  const saveDrip = async (next: DripConfig) => {
+  const editQuiet = (next: number) => {
+    setQuietAfter(next)
+    autoSave.schedule("quietAfter", () => saveQuietAfterEmailsSetting(next))
+  }
+  const flushQuiet = () => {
+    if (quietAfter === null) return
+    autoSave.flush("quietAfter", () => saveQuietAfterEmailsSetting(quietAfter))
+  }
+
+  const editDrip = (next: DripConfig) => {
+    setDrip(next)
     // Settings that contradict each other are simply not sent. The blur below
     // is what says so out loud — complaining 1.2 seconds after every keystroke
     // would fire halfway through typing a two-digit number.
-    if (validateDripConfig(next)) return
-    setSaving("drip")
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      setStatus(await saveNewsletterDripDefaults(next))
-      setSaveStatus("saved")
-    } catch (error) {
-      setSaveStatus("idle")
-      showErrorToast(getEmailSettingsErrorMessage(error))
-    } finally {
-      setSaving(null)
-    }
-  }
-
-  const saveLinkExpiry = async (next: AuthLinkExpiry) => {
-    setSaving("linkExpiry")
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      setStatus(await saveAuthLinkExpirySetting(next))
-      setSaveStatus("saved")
-    } catch (error) {
-      setSaveStatus("idle")
-      showErrorToast(getEmailSettingsErrorMessage(error))
-    } finally {
-      setSaving(null)
-    }
-  }
-
-  const scheduleLinkExpirySave = (next: AuthLinkExpiry) => {
-    clearTimeout(timers.current.linkExpiry)
-    timers.current.linkExpiry = setTimeout(
-      () => void saveLinkExpiry(next),
-      SAVE_DELAY_MS
-    )
-  }
-
-  const flushLinkExpirySave = () => {
-    if (!linkExpiry) return
-    clearTimeout(timers.current.linkExpiry)
-    if (saving !== null) {
-      scheduleLinkExpirySave(linkExpiry)
+    if (validateDripConfig(next)) {
+      autoSave.cancel("drip")
       return
     }
-    void saveLinkExpiry(linkExpiry)
+    autoSave.schedule("drip", () => saveNewsletterDripDefaults(next))
   }
-
-  const saveQuiet = async (next: number) => {
-    setSaving("quietAfter")
-    setSaveStatus("saving")
-    dismissErrorToast()
-    try {
-      setStatus(await saveQuietAfterEmailsSetting(next))
-      setSaveStatus("saved")
-    } catch (error) {
-      setSaveStatus("idle")
-      showErrorToast(getEmailSettingsErrorMessage(error))
-    } finally {
-      setSaving(null)
-    }
-  }
-
-  const scheduleQuietSave = (next: number) => {
-    clearTimeout(timers.current.quietAfter)
-    timers.current.quietAfter = setTimeout(
-      () => void saveQuiet(next),
-      SAVE_DELAY_MS
-    )
-  }
-
-  const flushQuietSave = () => {
-    if (quietAfter === null) return
-    clearTimeout(timers.current.quietAfter)
-    if (saving !== null) {
-      scheduleQuietSave(quietAfter)
-      return
-    }
-    void saveQuiet(quietAfter)
-  }
-
-  const scheduleDripSave = (next: DripConfig) => {
-    clearTimeout(timers.current.drip)
-    timers.current.drip = setTimeout(() => void saveDrip(next), SAVE_DELAY_MS)
-  }
-
   // Fires when focus leaves the card, which is when a half-typed number has
   // become a finished answer worth judging.
-  const flushDripSave = () => {
+  const flushDrip = () => {
     if (!drip) return
-    clearTimeout(timers.current.drip)
     const invalid = validateDripConfig(drip)
     if (invalid) {
+      autoSave.cancel("drip")
       showErrorToast(`Not saved. ${invalid}`)
       return
     }
-    if (saving !== null) {
-      scheduleDripSave(drip)
-      return
-    }
-    void saveDrip(drip)
-  }
-
-  const scheduleSenderSave = (fromEmail: string, fromName: string) => {
-    clearTimeout(timers.current.sender)
-    timers.current.sender = setTimeout(
-      () => void saveSender(fromEmail, fromName),
-      SAVE_DELAY_MS
-    )
-  }
-
-  const scheduleSystemSenderSave = (systemFromEmail: string) => {
-    clearTimeout(timers.current.systemSender)
-    timers.current.systemSender = setTimeout(
-      () => void saveSystemSender(systemFromEmail),
-      SAVE_DELAY_MS,
-    )
-  }
-
-  const flushSystemSenderSave = () => {
-    if (!sender) return
-    clearTimeout(timers.current.systemSender)
-    if (saving !== null) {
-      scheduleSystemSenderSave(sender.systemFromEmail)
-      return
-    }
-    void saveSystemSender(sender.systemFromEmail)
-  }
-
-  const flushSenderSave = () => {
-    if (!sender) return
-    clearTimeout(timers.current.sender)
-    if (saving !== null) {
-      // Another save is mid-flight. Dropping the edit here would lose it for
-      // good — moving focus from one field straight into the next lands
-      // exactly on this path — so it stays scheduled instead.
-      scheduleSenderSave(sender.fromEmail, sender.fromName)
-      return
-    }
-    void saveSender(sender.fromEmail, sender.fromName)
-  }
-
-  const scheduleInboundSave = (inboundAddress: string) => {
-    clearTimeout(timers.current.inbound)
-    timers.current.inbound = setTimeout(
-      () => void saveInbound(inboundAddress),
-      SAVE_DELAY_MS
-    )
-  }
-
-  const flushInboundSave = () => {
-    if (!sender) return
-    clearTimeout(timers.current.inbound)
-    if (saving !== null) {
-      scheduleInboundSave(sender.inboundAddress)
-      return
-    }
-    void saveInbound(sender.inboundAddress)
-  }
-
-  const scheduleCrmNameSave = (crmReplyName: string) => {
-    clearTimeout(timers.current.crmReplyName)
-    timers.current.crmReplyName = setTimeout(
-      () => void saveCrmName(crmReplyName),
-      SAVE_DELAY_MS
-    )
-  }
-
-  const flushCrmNameSave = () => {
-    if (!sender) return
-    clearTimeout(timers.current.crmReplyName)
-    if (saving !== null) {
-      scheduleCrmNameSave(sender.crmReplyName)
-      return
-    }
-    void saveCrmName(sender.crmReplyName)
-  }
-
-  const scheduleCrmSignatureSave = (crmReplySignature: string) => {
-    clearTimeout(timers.current.crmReplySignature)
-    timers.current.crmReplySignature = setTimeout(
-      () => void saveCrmSignature(crmReplySignature),
-      SAVE_DELAY_MS
-    )
-  }
-
-  const flushCrmSignatureSave = () => {
-    if (!sender) return
-    clearTimeout(timers.current.crmReplySignature)
-    if (saving !== null) {
-      scheduleCrmSignatureSave(sender.crmReplySignature)
-      return
-    }
-    void saveCrmSignature(sender.crmReplySignature)
-  }
-
-  const scheduleKeySave = (value: string) => {
-    clearTimeout(timers.current.key)
-    if (!value.trim()) return
-    timers.current.key = setTimeout(() => void saveKey(value), SAVE_DELAY_MS)
-  }
-
-  const flushKeySave = () => {
-    if (!keyDraft.trim()) return
-    clearTimeout(timers.current.key)
-    if (saving !== null) {
-      // Same as the sender flush: an in-flight save must not eat this edit.
-      scheduleKeySave(keyDraft)
-      return
-    }
-    void saveKey(keyDraft)
-  }
-
-  const scheduleWebhookSave = (value: string) => {
-    clearTimeout(timers.current.webhook)
-    if (!value.trim()) return
-    timers.current.webhook = setTimeout(
-      () => void saveWebhook(value),
-      SAVE_DELAY_MS
-    )
-  }
-
-  const flushWebhookSave = () => {
-    if (!webhookDraft.trim()) return
-    clearTimeout(timers.current.webhook)
-    if (saving !== null) {
-      scheduleWebhookSave(webhookDraft)
-      return
-    }
-    void saveWebhook(webhookDraft)
+    autoSave.flush("drip", () => saveNewsletterDripDefaults(drip))
   }
 
   const test = async () => {
     setRunningId("test")
     dismissErrorToast()
     try {
-      const verdict = await testEmailKey(keyDraft)
+      const verdict = await testEmailKey(drafts.key)
       const message = testMessage(verdict)
       if (verdict.result === "ok") toast.success(message)
       else showErrorToast(message)
@@ -570,11 +284,11 @@ export function EmailSettings() {
     }
   }
 
-  const remove = async (what: "key" | "webhook") => {
+  const remove = async (what: Secret) => {
     setRunningId("remove")
     dismissErrorToast()
     try {
-      setStatus(
+      loaded.setData(
         await (what === "key" ? removeEmailApiKey() : removeResendWebhookSecret())
       )
       setRemoving(null)
@@ -588,24 +302,14 @@ export function EmailSettings() {
     }
   }
 
-  // A saved secret shows as dots until its field is focused or typed in, so a
-  // filled field means a secret is there.
-  const showSentinel =
-    !keyDraft && editing !== "key" && Boolean(status?.keyConfigured)
-  const showWebhookSentinel =
-    !webhookDraft && editing !== "webhook" && Boolean(status?.webhookConfigured)
-
-  if (loadError) {
+  if (loaded.error) {
     return (
       <CardGroup>
         <Card>
           <ErrorRow
             className="min-h-32"
-            message={loadError}
-            onRetry={() => {
-              setLoadError(null)
-              setReloads((count) => count + 1)
-            }}
+            message={loaded.error}
+            onRetry={loaded.retry}
           />
         </Card>
       </CardGroup>
@@ -641,58 +345,28 @@ export function EmailSettings() {
                 type="email"
                 autoComplete="off"
                 placeholder="e.g. notifications@yourdomain.com"
-                value={sender.systemFromEmail}
-                onChange={(event) => {
-                  const next = {
-                    ...sender,
-                    systemFromEmail: event.target.value,
-                  }
-                  setSender(next)
-                  scheduleSystemSenderSave(next.systemFromEmail)
-                }}
-                onBlur={flushSystemSenderSave}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") flushSystemSenderSave()
-                }}
+                {...senderBox("systemFromEmail")}
               />
             </div>
 
-            <div className="grid gap-2">
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <FieldLabel
-                  htmlFor="email-resend-key"
-                  hint="The key from resend.com → API keys. It is scrambled before it is stored, and only its last four characters are ever shown again."
-                >
-                  Resend API key
-                </FieldLabel>
-                <span className="text-sm text-muted-foreground">
-                  {keyStatusLabel(status)}
-                </span>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  id="email-resend-key"
-                  className="sm:flex-1"
-                  type="password"
-                  autoComplete="off"
-                  placeholder="Paste your Resend API key"
-                  value={showSentinel ? SAVED_SENTINEL : keyDraft}
-                  onFocus={() => setEditing("key")}
-                  onBlur={() => {
-                    setEditing(null)
-                    flushKeySave()
-                  }}
-                  onChange={(event) => {
-                    setKeyDraft(event.target.value)
-                    scheduleKeySave(event.target.value)
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") flushKeySave()
-                  }}
-                />
-                {/* Never disabled while idle — a disabled button fades to
-                    near-invisible and cannot say why. Clicked with nothing
-                    to test, it explains itself in a toast. */}
+            <SecretKeyField
+              id="email-resend-key"
+              label="Resend API key"
+              hint="The key from resend.com → API keys. It is scrambled before it is stored, and only its last four characters are ever shown again."
+              secret={{
+                configured: status.keyConfigured,
+                unreadable: status.keyUnreadable,
+                maskedKey: status.maskedKey,
+              }}
+              saved={status.keyConfigured}
+              placeholder="Paste your Resend API key"
+              value={drafts.key}
+              onChange={(value) => editSecret("key", value)}
+              onCommit={() => flushSecret("key")}
+              actions={
+                // Never disabled while idle — a disabled button fades to
+                // near-invisible and cannot say why. Clicked with nothing to
+                // test, it explains itself in a toast.
                 <div className="flex shrink-0 gap-2">
                   <Button
                     type="button"
@@ -712,62 +386,44 @@ export function EmailSettings() {
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={busy || saving !== null}
+                      disabled={busy || autoSave.saving !== null}
                       onClick={() => setRemoving("key")}
                     >
                       Remove
                     </Button>
                   ) : null}
                 </div>
-              </div>
-            </div>
+              }
+            />
 
-            <div className="grid gap-2">
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <FieldLabel
-                  htmlFor="email-webhook-secret"
-                  hint="In Resend → Webhooks, point an endpoint at this app's /api/webhooks/resend and select delivered, opened, clicked, bounced, and complained. Paste its signing secret here."
-                >
-                  Webhook secret
-                </FieldLabel>
-                <span className="text-sm text-muted-foreground">
-                  {webhookStatusLabel(status)}
-                </span>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  id="email-webhook-secret"
-                  className="sm:flex-1"
-                  type="password"
-                  autoComplete="off"
-                  placeholder="Paste the webhook signing secret"
-                  value={showWebhookSentinel ? SAVED_SENTINEL : webhookDraft}
-                  onFocus={() => setEditing("webhook")}
-                  onBlur={() => {
-                    setEditing(null)
-                    flushWebhookSave()
-                  }}
-                  onChange={(event) => {
-                    setWebhookDraft(event.target.value)
-                    scheduleWebhookSave(event.target.value)
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") flushWebhookSave()
-                  }}
-                />
-                {status.webhookConfigured || status.webhookUnreadable ? (
+            <SecretKeyField
+              id="email-webhook-secret"
+              label="Webhook secret"
+              hint="In Resend → Webhooks, point an endpoint at this app's /api/webhooks/resend and select delivered, opened, clicked, bounced, and complained. Paste its signing secret here."
+              secret={{
+                configured: status.webhookConfigured,
+                unreadable: status.webhookUnreadable,
+                maskedKey: status.maskedWebhookSecret,
+              }}
+              saved={status.webhookConfigured}
+              placeholder="Paste the webhook signing secret"
+              value={drafts.webhook}
+              onChange={(value) => editSecret("webhook", value)}
+              onCommit={() => flushSecret("webhook")}
+              actions={
+                status.webhookConfigured || status.webhookUnreadable ? (
                   <Button
                     type="button"
                     variant="outline"
                     className="shrink-0 self-start"
-                    disabled={busy || saving !== null}
+                    disabled={busy || autoSave.saving !== null}
                     onClick={() => setRemoving("webhook")}
                   >
                     Remove
                   </Button>
-                ) : null}
-              </div>
-            </div>
+                ) : null
+              }
+            />
 
             <div className="grid gap-2">
               <FieldLabel
@@ -780,16 +436,7 @@ export function EmailSettings() {
                 id="email-from-name"
                 autoComplete="off"
                 placeholder="e.g. The Custom Shell team"
-                value={sender.fromName}
-                onChange={(event) => {
-                  const next = { ...sender, fromName: event.target.value }
-                  setSender(next)
-                  scheduleSenderSave(next.fromEmail, next.fromName)
-                }}
-                onBlur={flushSenderSave}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") flushSenderSave()
-                }}
+                {...senderBox("fromName")}
               />
             </div>
 
@@ -805,16 +452,7 @@ export function EmailSettings() {
                 type="email"
                 autoComplete="off"
                 placeholder="e.g. hello@yourdomain.com"
-                value={sender.fromEmail}
-                onChange={(event) => {
-                  const next = { ...sender, fromEmail: event.target.value }
-                  setSender(next)
-                  scheduleSenderSave(next.fromEmail, next.fromName)
-                }}
-                onBlur={flushSenderSave}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") flushSenderSave()
-                }}
+                {...senderBox("fromEmail")}
               />
             </div>
 
@@ -830,19 +468,7 @@ export function EmailSettings() {
                 type="email"
                 autoComplete="off"
                 placeholder="e.g. leads@inbox.yourdomain.com"
-                value={sender.inboundAddress}
-                onChange={(event) => {
-                  const next = {
-                    ...sender,
-                    inboundAddress: event.target.value,
-                  }
-                  setSender(next)
-                  scheduleInboundSave(next.inboundAddress)
-                }}
-                onBlur={flushInboundSave}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") flushInboundSave()
-                }}
+                {...senderBox("inboundAddress")}
               />
               <p className="text-xs text-muted-foreground">
                 Empty means the CRM has no mailbox, so it cannot reply.
@@ -861,19 +487,7 @@ export function EmailSettings() {
                 autoComplete="off"
                 maxLength={255}
                 placeholder="e.g. Tyler"
-                value={sender.crmReplyName}
-                onChange={(event) => {
-                  const next = {
-                    ...sender,
-                    crmReplyName: event.target.value,
-                  }
-                  setSender(next)
-                  scheduleCrmNameSave(next.crmReplyName)
-                }}
-                onBlur={flushCrmNameSave}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") flushCrmNameSave()
-                }}
+                {...senderBox("crmReplyName")}
               />
               <p className="text-xs text-muted-foreground">
                 Empty sends replies under the app name.
@@ -892,16 +506,7 @@ export function EmailSettings() {
                 rows={1}
                 maxLength={2000}
                 placeholder="e.g. your name, your business, your phone number"
-                value={sender.crmReplySignature}
-                onChange={(event) => {
-                  const next = {
-                    ...sender,
-                    crmReplySignature: event.target.value,
-                  }
-                  setSender(next)
-                  scheduleCrmSignatureSave(next.crmReplySignature)
-                }}
-                onBlur={flushCrmSignatureSave}
+                {...senderBox("crmReplySignature")}
               />
               <p className="text-xs text-muted-foreground">
                 Empty adds nothing to a reply.
@@ -933,7 +538,7 @@ export function EmailSettings() {
             className="grid gap-4 sm:grid-cols-2"
             onBlur={(event) => {
               if (event.currentTarget.contains(event.relatedTarget)) return
-              flushLinkExpirySave()
+              flushLinkExpiry()
             }}
           >
             <NumberField
@@ -943,12 +548,10 @@ export function EmailSettings() {
               value={linkExpiry.verificationHours}
               min={1}
               max={168}
-              onChange={(verificationHours) => {
-                const next = { ...linkExpiry, verificationHours }
-                setLinkExpiry(next)
-                scheduleLinkExpirySave(next)
-              }}
-              onCommit={flushLinkExpirySave}
+              onChange={(verificationHours) =>
+                editLinkExpiry({ ...linkExpiry, verificationHours })
+              }
+              onCommit={flushLinkExpiry}
             />
             <NumberField
               id="password-reset-link-expiry"
@@ -957,12 +560,10 @@ export function EmailSettings() {
               value={linkExpiry.passwordResetMinutes}
               min={5}
               max={1440}
-              onChange={(passwordResetMinutes) => {
-                const next = { ...linkExpiry, passwordResetMinutes }
-                setLinkExpiry(next)
-                scheduleLinkExpirySave(next)
-              }}
-              onCommit={flushLinkExpirySave}
+              onChange={(passwordResetMinutes) =>
+                editLinkExpiry({ ...linkExpiry, passwordResetMinutes })
+              }
+              onCommit={flushLinkExpiry}
             />
             <NumberField
               id="sign-in-link-expiry"
@@ -971,12 +572,10 @@ export function EmailSettings() {
               value={linkExpiry.signInMinutes}
               min={5}
               max={60}
-              onChange={(signInMinutes) => {
-                const next = { ...linkExpiry, signInMinutes }
-                setLinkExpiry(next)
-                scheduleLinkExpirySave(next)
-              }}
-              onCommit={flushLinkExpirySave}
+              onChange={(signInMinutes) =>
+                editLinkExpiry({ ...linkExpiry, signInMinutes })
+              }
+              onCommit={flushLinkExpiry}
             />
             <NumberField
               id="email-change-link-expiry"
@@ -985,12 +584,10 @@ export function EmailSettings() {
               value={linkExpiry.emailChangeHours}
               min={1}
               max={168}
-              onChange={(emailChangeHours) => {
-                const next = { ...linkExpiry, emailChangeHours }
-                setLinkExpiry(next)
-                scheduleLinkExpirySave(next)
-              }}
-              onCommit={flushLinkExpirySave}
+              onChange={(emailChangeHours) =>
+                editLinkExpiry({ ...linkExpiry, emailChangeHours })
+              }
+              onCommit={flushLinkExpiry}
             />
           </div>
         ) : (
@@ -1016,16 +613,13 @@ export function EmailSettings() {
           <div
             onBlur={(event) => {
               if (event.currentTarget.contains(event.relatedTarget)) return
-              flushDripSave()
+              flushDrip()
             }}
           >
             <DripSettingsFields
               idPrefix="drip-defaults"
               value={drip}
-              onChange={(next) => {
-                setDrip(next)
-                scheduleDripSave(next)
-              }}
+              onChange={editDrip}
             />
           </div>
         ) : (
@@ -1045,7 +639,7 @@ export function EmailSettings() {
           <div
             onBlur={(event) => {
               if (event.currentTarget.contains(event.relatedTarget)) return
-              flushQuietSave()
+              flushQuiet()
             }}
           >
             <NumberField
@@ -1055,11 +649,8 @@ export function EmailSettings() {
               value={quietAfter}
               min={QUIET_AFTER_EMAILS_MIN}
               max={QUIET_AFTER_EMAILS_MAX}
-              onChange={(next) => {
-                setQuietAfter(next)
-                scheduleQuietSave(next)
-              }}
-              onCommit={flushQuietSave}
+              onChange={editQuiet}
+              onCommit={flushQuiet}
             />
           </div>
         ) : (
@@ -1193,19 +784,6 @@ function EmailStatusRow({ on, line }: { on: boolean; line: string }) {
       </p>
     </div>
   )
-}
-
-/** One short line saying whether a key exists. */
-function keyStatusLabel(status: EmailSettingsStatus) {
-  if (status.keyUnreadable) return "Set, but unreadable — paste it again"
-  if (!status.keyConfigured) return "Not set"
-  return `Set ${status.maskedKey}`
-}
-
-function webhookStatusLabel(status: EmailSettingsStatus) {
-  if (status.webhookUnreadable) return "Set, but unreadable — paste it again"
-  if (!status.webhookConfigured) return "Not set"
-  return `Set ${status.maskedWebhookSecret}`
 }
 
 /** The test verdict in plain words — each outcome clearly its own message. */

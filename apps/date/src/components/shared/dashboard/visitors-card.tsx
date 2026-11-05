@@ -3,6 +3,7 @@ import { LineChartIcon } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
 
 import { dashboardCardTabClassName } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { CardHeaderRow, FeedCard } from "@/components/shared/feed-card"
 import { CardContent } from "@/components/ui/card"
 import {
@@ -11,7 +12,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   loadTrafficSummary,
   TRAFFIC_RANGE_LABELS,
@@ -82,22 +82,15 @@ export function VisitorsCard({
   return (
     <FeedCard className={cn("flex flex-col", className)}>
       <CardHeaderRow icon={LineChartIcon} title={title}>
-        <Tabs
+        <DashboardTabs
           value={String(range)}
           onValueChange={(value) => setRange(Number(value) as TrafficRange)}
-        >
-          <TabsList>
-            {RANGES.map((key) => (
-              <TabsTrigger
-                key={key}
-                value={String(key)}
-                className={dashboardCardTabClassName}
-              >
-                {TRAFFIC_RANGE_LABELS[key]}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+          tabs={RANGES.map((key) => ({
+            value: String(key),
+            label: TRAFFIC_RANGE_LABELS[key],
+          }))}
+          tabClassName={dashboardCardTabClassName}
+        />
       </CardHeaderRow>
       <CardContent className="flex min-h-0 flex-1 flex-col py-4 sm:px-5 sm:py-5">
         {failed ? (

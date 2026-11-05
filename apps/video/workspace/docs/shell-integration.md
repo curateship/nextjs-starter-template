@@ -378,3 +378,21 @@ eleven apps pick them up at their next shell merge.
   `src/server/media/storage.ts`).
 
 Their tests came too. `docs/shell/big-uploads.md` describes all of it.
+
+## Shell merge, 5 November 2026
+
+Every shell change up to 5 Nov is in Video: 72 files replaced and 16 added, with nothing deleted. Each replaced file was first matched against every version of that file in the shell's history, and each was an unedited older shell copy.
+
+**What arrived.**
+
+- **The Views button keeps the picked view picked.** It remembers the view last opened on each screen in this browser. It opens that view again on arrival, and has a "No view" row to leave it.
+- **The 3 Nov shell clean-up.** The Settings cards share one auto-save hook, one secret key box and one dropdown row. The email and automation editors share one frame. Menu upgrade steps 1 to 12 are gone from `src/lib/workspaces.ts`. On 3 Nov every live site counted (Trade, Fitness, Video, Project, Date, Note, Flowfly, Course and course-de) was on step 12 or later.
+- **Pages that open with no signal**, through `useOfflinePages` and `public/offline-worker.js`. Nothing switches it on until the app calls the hook, as `docs/shell/offline-pages.md` explains.
+- **The Overview's widget tabs follow Settings → Styling → Dashboard tabs.**
+- **`homeScreen.shareTarget`**, which can put the app in an Android phone's share menu. It does nothing until the app sets it.
+- **The dev server leaves `playwright-core` out of its start-up scan**, in `vite.config.ts`. That package's Mac add-on stopped the dev server starting.
+- **The document editor takes an app's own `clean` rule**, so an app can add kinds of content to a document. Leaving it out keeps today's rules. See `docs/shell/document-editor.md`.
+
+**No migration was new.** The shell has added none since 0097, and Video already had every one.
+
+**Kept as Video's own.** `src/app/` stays Video's own, and so does `src/app/open-endpoints.ts`, which lists Video's own open endpoints. `public/fonts/README.md` and `src/theme.css` stay Video's own. The shell has not changed either file since Video's copy was taken, so there was nothing to bring in. The shell's sample scripts `crm-samples.mjs`, `crm-samples.test.mjs` and `send-sample-inbound.mjs` were left out, because Video keeps its own `scripts/setup-database.mjs`, which never loads them.

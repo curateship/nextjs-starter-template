@@ -1,15 +1,9 @@
 import { ImageUpload } from "@/components/shared/image-upload"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { SettingsSelectRow } from "@/components/settings/settings-select-row"
 import { CardGroup } from "@/components/ui/card"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { ShellConfig } from "@/lib/custom-shell"
 import {
@@ -18,7 +12,6 @@ import {
   MAX_PUBLIC_SEO_TITLE_LENGTH,
   MAX_SOCIAL_HANDLE_LENGTH,
   SOCIAL_CARD_TYPES,
-  type SocialCardType,
 } from "@/lib/pages/public-metadata"
 
 type PublicSettingsProps = {
@@ -40,31 +33,17 @@ export function PublicSocialSettings({
       description="Choose how links from the public site appear on X."
       contentClassName="space-y-4"
     >
-      <div className="grid gap-2">
-        <FieldLabel
-          htmlFor="social-card-type"
-          hint="Large image gives the picture most of the card. Small image keeps it beside the text."
-        >
-          X card style
-        </FieldLabel>
-        <Select
-          value={config.socialCardType}
-          onValueChange={(socialCardType) =>
-            update({ socialCardType: socialCardType as SocialCardType })
-          }
-        >
-          <SelectTrigger id="social-card-type" className="w-full sm:w-fit">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SOCIAL_CARD_TYPES.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type === "summary_large_image" ? "Large image" : "Small image"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <SettingsSelectRow
+        id="social-card-type"
+        label="X card style"
+        hint="Large image gives the picture most of the card. Small image keeps it beside the text."
+        value={config.socialCardType}
+        options={SOCIAL_CARD_TYPES}
+        optionLabel={(type) =>
+          type === "summary_large_image" ? "Large image" : "Small image"
+        }
+        onValueChange={(socialCardType) => update({ socialCardType })}
+      />
 
       <div className="grid gap-2">
         <FieldLabel

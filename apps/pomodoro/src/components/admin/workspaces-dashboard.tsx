@@ -1,6 +1,6 @@
 import { capitalise, workspaceWord } from "@/lib/app-options"
 import * as React from "react"
-import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
+import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 import {
   ArrowRightIcon,
@@ -47,6 +47,7 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { useSwitchWorkspace } from "@/lib/hooks/use-switch-workspace"
+import { useOpenRecord } from "@/lib/nav/list-search"
 
 type WorkspaceSortColumn = "name" | "address" | "status"
 
@@ -95,7 +96,6 @@ export function WorkspacesDashboard({
   // can import its way back here.
   const word = workspaceWord()
   const router = useRouter()
-  const navigate = useNavigate()
   const { open: openWorkspaceId } = workspacesRoute.useSearch()
   const { config } = useShellRuntime()
   const [searchQuery, setSearchQuery] = React.useState("")
@@ -114,20 +114,7 @@ export function WorkspacesDashboard({
   // switching has to throw the page away, and that reasoning lives in one file.
   const { switchToWorkspace, busyWorkspaceId } = useSwitchWorkspace()
   const selectedIds = selection.selected
-  const setOpenWorkspace = React.useCallback(
-    (id: string | undefined) => {
-      void navigate({
-        to: ".",
-        search: (previous: Record<string, unknown>) => {
-          const next = { ...previous }
-          if (id) next.open = id
-          else delete next.open
-          return next
-        },
-      })
-    },
-    [navigate]
-  )
+  const setOpenWorkspace = useOpenRecord()
   const editing = React.useMemo(
     () =>
       workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null,

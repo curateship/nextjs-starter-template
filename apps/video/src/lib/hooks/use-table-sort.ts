@@ -31,3 +31,29 @@ export function useTableSort<Column extends string>(
 
   return { sort, direction, toggleSort }
 }
+
+/** What one column sorts by: text sorts alphabetically, numbers by size. */
+export type SortKey<Row> = (row: Row) => string | number
+
+/**
+ * A copy of `rows` in the order the table's header asks for. Each column names
+ * the one value it sorts by, so a table states what its columns mean instead
+ * of writing the comparison out again. Rows that tie keep their order.
+ */
+export function sortRows<Row, Column extends string>(
+  rows: readonly Row[],
+  { sort, direction }: { sort: Column; direction: TableSortDirection },
+  keys: Record<Column, SortKey<Row>>
+): Row[] {
+  const factor = direction === "asc" ? 1 : -1
+  const key = keys[sort]
+  return [...rows].sort((a, b) => {
+    const left = key(a)
+    const right = key(b)
+    const compared =
+      typeof left === "string" && typeof right === "string"
+        ? left.localeCompare(right)
+        : Number(left) - Number(right)
+    return factor * compared
+  })
+}

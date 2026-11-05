@@ -210,7 +210,7 @@ function SimpleFieldControl({
       return (
         <div className="grid gap-2">
           {label}
-          <DocumentEditor
+          <DocumentEditor<WrittenPageNode>
             value={
               value && typeof value === "object" && !Array.isArray(value)
                 ? (value as WrittenPageNode)

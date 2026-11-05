@@ -12,6 +12,7 @@ import { toast } from "sonner"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 
+import { NameDialog } from "@/components/shared/dashboard/name-dialog"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -25,20 +26,8 @@ import {
 } from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { FormDialog } from "@/components/ui/form-dialog"
-import {
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   TableCell,
   TableHead,
@@ -59,8 +48,9 @@ import { quoteOneLine } from "@/lib/format/quote-text"
 import { useLastValue } from "@/lib/hooks/use-last-value"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useClientPage } from "@/lib/hooks/use-client-page"
 import { useSelection } from "@/lib/hooks/use-selection"
-import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { sortRows, useTableSort, type SortKey } from "@/lib/hooks/use-table-sort"
 
 type SortColumn = "name" | "status" | "sent" | "updated"
 
@@ -94,6 +84,13 @@ const STATUS_LABELS: Record<BroadcastListItem["status"], string> = {
   sent: "Sent",
 }
 
+const BROADCAST_SORT_KEYS: Record<SortColumn, SortKey<BroadcastListItem>> = {
+  name: (item) => item.name,
+  status: (item) => STATUS_LABELS[item.status],
+  sent: (item) => item.totalSent,
+  updated: (item) => item.updated_at,
+}
+
 /** How far along a send is, in plain numbers rather than a percentage. */
 function progressText(item: BroadcastListItem) {
   if (item.status === "draft") return "Not sent yet"
@@ -117,12 +114,8 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
     (column) => (column === "updated" || column === "sent" ? "desc" : "asc")
   )
   const [search, setSearch] = React.useState("")
-  const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [createName, setCreateName] = React.useState("")
-  const [createNameTouched, setCreateNameTouched] = React.useState(false)
-  const [createAttempted, setCreateAttempted] = React.useState(false)
   const [runCreate, creating] = useAsyncAction(getBroadcastErrorMessage)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] =
@@ -135,34 +128,27 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
   const closingDeleteTarget = useLastValue(deleteTarget)
 
   const sorted = React.useMemo(() => {
-    const factor = direction === "asc" ? 1 : -1
     const query = search.trim().toLowerCase()
-    return broadcasts
-      .filter(
+    return sortRows(
+      broadcasts.filter(
         (item) =>
           !query ||
           item.name.toLowerCase().includes(query) ||
           item.subject.toLowerCase().includes(query)
-      )
-      .sort((left, right) => {
-        if (sort === "name") return factor * left.name.localeCompare(right.name)
-        if (sort === "status") {
-          return factor * STATUS_LABELS[left.status].localeCompare(STATUS_LABELS[right.status])
-        }
-        if (sort === "sent") return factor * (left.totalSent - right.totalSent)
-        return factor * left.updated_at.localeCompare(right.updated_at)
-      })
+      ),
+      { sort, direction },
+      BROADCAST_SORT_KEYS
+    )
   }, [broadcasts, direction, search, sort])
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
-  // Clamped rather than reset in an effect: changing the search or the page
-  // size can leave `page` past the end of the shorter list, and correcting it
-  // here shows the right rows in the same render instead of one render later.
-  const currentPage = Math.min(page, totalPages)
-  const visible = React.useMemo(
-    () => sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize),
-    [currentPage, pageSize, sorted]
-  )
+  // No reset key: a new search keeps your place, clamped to the last page of
+  // the shorter list.
+  const {
+    page: currentPage,
+    pageSize,
+    visible,
+    footer,
+  } = useClientPage(sorted, config.dashboardRowsPerPage)
 
   useClearSelectionOnListChange(
     selection.setSelected,
@@ -177,7 +163,6 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
 
   const handleCreate = async () => {
     if (creating) return
-    setCreateAttempted(true)
     if (!createName.trim()) {
       showErrorToast("Newsletter name is required.")
       return
@@ -187,8 +172,6 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
       toast.success(`Created "${created.name}".`)
       setCreateOpen(false)
       setCreateName("")
-      setCreateNameTouched(false)
-      setCreateAttempted(false)
       await openEditor(created.id)
     })
   }
@@ -260,13 +243,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-            <DashboardToolbarButton
-              onClick={() => {
-                setCreateNameTouched(false)
-                setCreateAttempted(false)
-                setCreateOpen(true)
-              }}
-            >
+            <DashboardToolbarButton onClick={() => setCreateOpen(true)}>
               <PlusIcon className="size-4" />
               New newsletter
             </DashboardToolbarButton>
@@ -295,19 +272,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
             : "No newsletters yet. Write the first one."
         }
         emptyColSpan={6}
-        footer={{
-          type: "pagination",
-          page: currentPage,
-          pageSize,
-          total: sorted.length,
-          totalPages,
-          onPageChange: (next) =>
-            setPage(Math.max(1, Math.min(next, totalPages))),
-          onPageSizeChange: (next) => {
-            setPage(1)
-            setPageSize(next)
-          },
-        }}
+        footer={footer}
       >
         {visible.map((item) => (
           <TableRow
@@ -377,75 +342,22 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
         ))}
       </DashboardTable>
 
-      {/* FormDialog, not Dialog: a typed name is work, so every way out asks
-          before throwing it away. */}
-      <FormDialog
+      <NameDialog
         open={createOpen}
-        dirty={Boolean(createName.trim())}
+        title="New newsletter"
+        description="Name it — only you see this name — then write it in the editor."
+        cardTitle="Newsletter details"
+        inputId="broadcast-name"
+        value={createName}
+        onValueChange={setCreateName}
+        maxLength={255}
+        placeholder="March update"
         busy={creating}
-        onClose={() => {
-          setCreateNameTouched(false)
-          setCreateAttempted(false)
-          setCreateOpen(false)
-        }}
-      >
-        {(requestClose) => (
-        <DialogContent variant="admin" className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>New newsletter</DialogTitle>
-            <DialogDescription>
-              Name it — only you see this name — then write it in the editor.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <Card size="sm">
-              <CardContent className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="broadcast-name">Name</Label>
-                  <Input
-                    id="broadcast-name"
-                    value={createName}
-                    maxLength={255}
-                    autoFocus
-                    placeholder="March update"
-                    onChange={(event) => setCreateName(event.target.value)}
-                    onBlur={() => setCreateNameTouched(true)}
-                    aria-invalid={
-                      (!createName.trim() &&
-                        (createNameTouched || createAttempted)) ||
-                      undefined
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") return
-                      event.preventDefault()
-                      void handleCreate()
-                    }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </DialogBody>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={creating}
-              onClick={requestClose}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={creating}
-              onClick={() => void handleCreate()}
-            >
-              {creating ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Create newsletter
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-        )}
-      </FormDialog>
+        submitLabel="Create newsletter"
+        onSubmit={() => void handleCreate()}
+        onClose={() => setCreateOpen(false)}
+        className="sm:max-w-lg"
+      />
 
       <ConfirmDialog
         open={deleteTarget !== null}

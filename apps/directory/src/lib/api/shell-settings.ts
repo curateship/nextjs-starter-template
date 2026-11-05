@@ -133,6 +133,8 @@ import {
 import { adminPost, userPost } from "@/server/guards"
 import { now } from "@/server/auth/security"
 
+import { describeAuthError } from "./error-message"
+
 const shellIconSchema = z.string().trim().min(1).max(2048)
 const publicFontAssetSchema = z
   .object({
@@ -555,8 +557,15 @@ const shellConfigSchema = z.object({
   dashboardWidgets: dashboardWidgetsSchema,
 })
 
+/**
+ * The save's own errors are written for the reader ("That logo is no longer in
+ * your media library…") and pass through. The guards' bare codes do not.
+ */
 export function getShellSettingsErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Shell settings request failed."
+  const message = error instanceof Error ? error.message : ""
+  return (
+    describeAuthError(message) ?? (message || "Shell settings request failed.")
+  )
 }
 
 const saveShellSettingsFn = createServerFn({ method: "POST" })

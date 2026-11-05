@@ -74,6 +74,31 @@ export function useListSearchNavigate() {
 }
 
 /**
+ * Opens a record by putting `?open=<id>` in the address, and closes it by
+ * taking that out. Opening is a real step, not a filter change, so it gets its
+ * own history entry — Back closes the record rather than leaving the list.
+ * `use-open-from-link.ts` is the reading half.
+ */
+export function useOpenRecord() {
+  const navigate = useNavigate()
+
+  return React.useCallback(
+    (id: string | undefined) => {
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => {
+          const next = { ...previous }
+          if (id) next.open = id
+          else delete next.open
+          return next
+        },
+      })
+    },
+    [navigate]
+  )
+}
+
+/**
  * Sort state that lives in the address. Clicking the active column flips the
  * direction; a new column starts on its natural direction. Either way the list
  * goes back to page 1, because the order just changed under it.

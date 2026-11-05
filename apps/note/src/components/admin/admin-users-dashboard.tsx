@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, useNavigate } from "@tanstack/react-router"
+import { getRouteApi } from "@tanstack/react-router"
 import {
   EyeIcon,
   Loader2Icon,
@@ -69,6 +69,7 @@ import { allRoles, roleLabel } from "@/lib/roles"
 import {
   useListSearchNavigate,
   useListSort,
+  useOpenRecord,
   useSearchBoxText,
 } from "@/lib/nav/list-search"
 
@@ -203,7 +204,6 @@ export function AdminUsersDashboard({
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
   )
 
-  const navigate = useNavigate()
   // Which account's window is open rides in the address, so it can be handed to
   // somebody else and Back closes it. Which tab it opens on does not: that is
   // whether you clicked the row or its settings icon, not something to share.
@@ -211,20 +211,7 @@ export function AdminUsersDashboard({
   const [openTab, setOpenTab] = React.useState<AdminAccountTab>("details")
   // Opening an account is a real step, not a filter change, so it gets its own
   // history entry — unlike the list state above, which replaces.
-  const setOpenAccount = React.useCallback(
-    (id: string | undefined) => {
-      void navigate({
-        to: ".",
-        search: (previous: Record<string, unknown>) => {
-          const next = { ...previous }
-          if (id) next.open = id
-          else delete next.open
-          return next
-        },
-      })
-    },
-    [navigate]
-  )
+  const setOpenAccount = useOpenRecord()
   const openAccount = React.useCallback(
     (id: string, tab: AdminAccountTab) => {
       setOpenTab(tab)

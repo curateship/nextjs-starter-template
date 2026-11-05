@@ -5,7 +5,7 @@ import {
   LineChartIcon,
   MonitorSmartphoneIcon,
 } from "lucide-react"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, XAxis, YAxis } from "recharts"
 
 import {
   chartHeightClassName,
@@ -13,6 +13,7 @@ import {
   EmptyChart,
   LegendDot,
 } from "@/components/shared/dashboard/chart-card"
+import { DailyBarChart } from "@/components/shared/dashboard/daily-bar-chart"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   StatStrip,
@@ -41,7 +42,7 @@ import { shade } from "@/lib/dashboard/chart-colours"
 import { formatSharePercent } from "@/lib/format/format-number"
 import { useListSearchNavigate } from "@/lib/nav/list-search"
 import { pageGutter } from "@/lib/layout/shell-gutter"
-import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { sortRows, useTableSort, type SortKey } from "@/lib/hooks/use-table-sort"
 
 /**
  * The admin's Traffic page: how many people visit, what they read, where
@@ -138,7 +139,15 @@ export function AdminTrafficDashboard({
           }
         >
           {data.totals.views > 0 ? (
-            <ViewsChart daily={data.daily} />
+            <DailyBarChart
+              daily={data.daily}
+              config={viewsConfig}
+              bars={[
+                { key: "visitorViews", value: (point) => point.visitorViews },
+                { key: "memberViews", value: (point) => point.memberViews },
+              ]}
+              yAxisWidth={36}
+            />
           ) : (
             <EmptyChart message="No visits have been counted yet. They start appearing as soon as somebody opens a page." />
           )}
@@ -174,58 +183,6 @@ export function AdminTrafficDashboard({
           rangeLabel={rangeLabel}
         />
       </div>
-    </div>
-  )
-}
-
-function ViewsChart({ daily }: { daily: TrafficSummary["daily"] }) {
-  const data = daily.map((point) => ({
-    label: new Date(`${point.day}T00:00:00Z`).toLocaleDateString("en-US", {
-      timeZone: "UTC",
-      month: "short",
-      day: "numeric",
-    }),
-    memberViews: point.memberViews,
-    visitorViews: point.visitorViews,
-  }))
-
-  return (
-    <div className={chartHeightClassName}>
-      <ChartContainer config={viewsConfig} className="h-full w-full">
-        <BarChart data={data}>
-          <CartesianGrid strokeDasharray="0" vertical={false} />
-          <XAxis
-            dataKey="label"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fontSize: 10 }}
-            dy={8}
-            // A month of days is too many labels to read; a quarter even more so.
-            interval={data.length > 45 ? 13 : data.length > 20 ? 5 : 1}
-          />
-          <YAxis
-            axisLine={false}
-            tickLine={false}
-            tick={{ fontSize: 10, dx: -5 }}
-            width={36}
-            allowDecimals={false}
-          />
-          <ChartTooltip content={<ChartTooltipContent />} />
-          <Bar
-            dataKey="visitorViews"
-            stackId="views"
-            fill="var(--color-visitorViews)"
-            maxBarSize={28}
-          />
-          <Bar
-            dataKey="memberViews"
-            stackId="views"
-            fill="var(--color-memberViews)"
-            radius={[3, 3, 0, 0]}
-            maxBarSize={28}
-          />
-        </BarChart>
-      </ChartContainer>
     </div>
   )
 }
@@ -299,6 +256,11 @@ function DeviceCard({
 
 type TopSort = "name" | "views"
 
+const topSortKeys: Record<TopSort, SortKey<TrafficKeyCount>> = {
+  name: (row) => row.key,
+  views: (row) => row.views,
+}
+
 /** Views read as a number, so that column starts biggest-first. */
 const topSortDirection = (column: TopSort) =>
   column === "name" ? "asc" : "desc"
@@ -326,14 +288,10 @@ function TopTable({
     topSortDirection
   )
 
-  const sorted = React.useMemo(() => {
-    const factor = direction === "asc" ? 1 : -1
-    return [...rows].sort((a, b) =>
-      sort === "views"
-        ? factor * (a.views - b.views)
-        : factor * a.key.localeCompare(b.key)
-    )
-  }, [rows, sort, direction])
+  const sorted = React.useMemo(
+    () => sortRows(rows, { sort, direction }, topSortKeys),
+    [rows, sort, direction]
+  )
 
   const columns: SortableColumn<TopSort>[] = [
     {

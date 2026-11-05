@@ -7,7 +7,7 @@ import type { ReadableStream as WebReadableStream } from "node:stream/web"
 
 import { eq } from "drizzle-orm"
 
-import { VIDEO_UPLOAD_PART_BYTES } from "@/lib/media/media-upload"
+import { videoUploadPartBytes } from "@/lib/media/media-upload"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { AUDIO_TYPES, validateMediaContent, VIDEO_TYPES } from "@/server/media/library"
@@ -132,9 +132,10 @@ export async function discardFile(file: StoredFile): Promise<void> {
 }
 
 /**
- * Sends a file on this machine to the bucket ten megabytes at a time. Each
- * piece is signed and sent the way the browser sends an upload's pieces, and
- * a failure throws away whatever pieces had arrived.
+ * Sends a file on this machine to the bucket in pieces, ten megabytes each
+ * unless the file is big enough to need bigger ones. Each piece is signed and
+ * sent the way the browser sends an upload's pieces, and a failure throws away
+ * whatever pieces had arrived.
  */
 export async function uploadFileInParts(
   storagePath: string,
@@ -147,9 +148,10 @@ export async function uploadFileInParts(
   const uploadId = await startMultipartUpload(storagePath, mimeType)
   const handle = await open(filePath, "r")
   try {
+    const partBytes = videoUploadPartBytes(size)
     const parts: { partNumber: number; etag: string }[] = []
-    for (let offset = 0, partNumber = 1; offset < size; offset += VIDEO_UPLOAD_PART_BYTES, partNumber += 1) {
-      const length = Math.min(VIDEO_UPLOAD_PART_BYTES, size - offset)
+    for (let offset = 0, partNumber = 1; offset < size; offset += partBytes, partNumber += 1) {
+      const length = Math.min(partBytes, size - offset)
       const piece = new Uint8Array(length)
       await handle.read(piece, 0, length, offset)
       parts.push({

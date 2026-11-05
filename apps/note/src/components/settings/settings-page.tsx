@@ -250,6 +250,16 @@ export function SettingsPage({
       onConfigChange({ ...latestConfig.current, ...part }),
     [onConfigChange]
   )
+  // The public theme is one record inside the config, so a change to one of
+  // its fields spreads the current theme too, never the render's.
+  const changePublicTheme = React.useCallback(
+    (part: Partial<ShellConfig["publicTheme"]>) =>
+      onConfigChange({
+        ...latestConfig.current,
+        publicTheme: { ...latestConfig.current.publicTheme, ...part },
+      }),
+    [onConfigChange]
+  )
 
   const adminHeaderActions = appHeaderRightActionsForRole("admin")
   const memberHeaderActions = appHeaderRightActionsForRole("member")
@@ -325,9 +335,7 @@ export function SettingsPage({
               changeConfig({ publicFooterSocial })
             }
             onFooterAlignmentChange={(footerAlignment) =>
-              changeConfig({
-                publicTheme: { ...config.publicTheme, footerAlignment },
-              })
+              changePublicTheme({ footerAlignment })
             }
             onFooterCopyrightChange={(publicFooterCopyright) =>
               changeConfig({ publicFooterCopyright })
@@ -336,9 +344,7 @@ export function SettingsPage({
               changeConfig({ publicHeader })
             }
             onChromeFontChange={(chromeFont) =>
-              changeConfig({
-                publicTheme: { ...config.publicTheme, chromeFont },
-              })
+              changePublicTheme({ chromeFont })
             }
             onHeaderActionsChange={(publicHeaderActions) =>
               changeConfig({ publicHeaderActions })

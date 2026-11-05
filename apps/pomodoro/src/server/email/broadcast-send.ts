@@ -111,9 +111,21 @@ async function audienceConditions(
   return and(...conditions)
 }
 
-async function resolveBroadcastAudience(
+/**
+ * The next people in the audience this newsletter has not been sent to yet, in
+ * the order they joined, at most `limit` of them.
+ *
+ * The "not sent yet" and the limit are asked of the database. This used to
+ * read the whole audience and every delivery row for the newsletter on every
+ * batch and keep fifty in memory, which on a 10,000-person list is about
+ * 8 million rows read to send 10,000 emails. The unique index on
+ * (broadcast, contact) answers the NOT EXISTS row by row.
+ */
+async function resolveUnsentBroadcastAudience(
   workspaceId: string,
+  broadcastId: string,
   filter: BroadcastAudienceFilter,
+  limit: number,
   database: CustomShellDb = db
 ): Promise<AudienceContact[]> {
   return database
@@ -124,8 +136,18 @@ async function resolveBroadcastAudience(
       lastName: customShellContacts.lastName,
     })
     .from(customShellContacts)
-    .where(await audienceConditions(workspaceId, filter, database))
+    .where(
+      and(
+        await audienceConditions(workspaceId, filter, database),
+        sql`not exists (
+          select 1 from ${customShellDeliveries}
+          where ${customShellDeliveries.broadcastId} = ${broadcastId}
+            and ${customShellDeliveries.contactId} = ${customShellContacts.id}
+        )`
+      )
+    )
     .orderBy(asc(customShellContacts.createdAt), asc(customShellContacts.id))
+    .limit(limit)
 }
 
 export async function countBroadcastAudience(
@@ -501,11 +523,24 @@ async function processBroadcastBatch(
   // delivery row the rule reads. That is not a hole: the people who drop out
   // are exactly the people already sent this, and `unsent` below leaves those
   // out anyway. Everybody still waiting is still in it.
-  let audience: AudienceContact[]
+  //
+  // Picked once, before the read, because a paced size is random and the read
+  // asks for one more than it so the batch knows whether anybody is left.
+  const batchSize = drip.enabled ? pickBatchSize(drip) : BATCH_SIZE
+  const audienceFilter = parseAudienceFilter(broadcast.audienceFilter)
+  let unsent: AudienceContact[]
+  let audienceSize: number
   try {
-    audience = await resolveBroadcastAudience(
+    unsent = await resolveUnsentBroadcastAudience(
       broadcast.workspaceId,
-      parseAudienceFilter(broadcast.audienceFilter),
+      broadcastId,
+      audienceFilter,
+      batchSize + 1,
+      database
+    )
+    audienceSize = await countBroadcastAudience(
+      broadcast.workspaceId,
+      audienceFilter,
       database
     )
   } catch (error) {
@@ -521,12 +556,15 @@ async function processBroadcastBatch(
     return
   }
 
-  const deliveredRows = await database
-    .select({ contactId: customShellDeliveries.contactId })
+  // Everybody this newsletter has been written down for so far, including
+  // people who have since left the audience, so the total never shrinks when
+  // somebody already mailed opts out. One row per person: the unique index on
+  // (broadcast, contact) sees to that.
+  const [delivered] = await database
+    .select({ total: sql<number>`count(*)::int` })
     .from(customShellDeliveries)
     .where(eq(customShellDeliveries.broadcastId, broadcastId))
-  const deliveredIds = new Set(deliveredRows.map((row) => row.contactId))
-  const unsent = audience.filter((contact) => !deliveredIds.has(contact.id))
+  const deliveredCount = delivered?.total ?? 0
 
   const finalizeTotals = async () => {
     const [counts] = await database
@@ -548,8 +586,8 @@ async function processBroadcastBatch(
 
   const totalRecipients = Math.max(
     broadcast.totalRecipients,
-    audience.length,
-    deliveredIds.size
+    audienceSize,
+    deliveredCount
   )
 
   if (unsent.length === 0) {
@@ -564,7 +602,9 @@ async function processBroadcastBatch(
     return
   }
 
-  const batch = unsent.slice(0, drip.enabled ? pickBatchSize(drip) : BATCH_SIZE)
+  const batch = unsent.slice(0, batchSize)
+  /** Asked for one past the batch, so a row beyond it means more to come. */
+  const moreWaiting = unsent.length > batchSize
   const html =
     broadcast.renderedHtml ||
     renderBroadcastEmailHtml(parseStoredBlocks(broadcast.blocks), {
@@ -725,7 +765,7 @@ async function processBroadcastBatch(
     return
   }
 
-  if (batch.length >= unsent.length) {
+  if (!moreWaiting) {
     await release({ ...counters, status: "sent", sentAt: nowFn() })
     return
   }

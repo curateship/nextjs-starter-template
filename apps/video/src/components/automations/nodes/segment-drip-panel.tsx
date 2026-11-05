@@ -1,4 +1,3 @@
-import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import {
@@ -11,12 +10,12 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import {
   getSegmentDripProgressErrorMessage,
   loadSegmentDripProgress,
-  type SegmentDripProgress,
 } from "@/lib/api/automations/segment-drip"
 import { describeNextBatch } from "@/lib/broadcasts/drip"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
 import { readSegmentDrip } from "@/lib/automations/nodes/segment-drip"
 import { plural } from "@/lib/format/plural"
+import { useLoad } from "@/lib/hooks/use-load"
 
 export default function SegmentDripFields({
   node,
@@ -62,38 +61,24 @@ function SegmentDripProgressCard({
   automationId: string
   segmentId: string
 }) {
-  const [progress, setProgress] = React.useState<SegmentDripProgress | null>(
-    null
-  )
-  const [loadError, setLoadError] = React.useState("")
-  const [loadAttempt, setLoadAttempt] = React.useState(0)
-
-  React.useEffect(() => {
-    let cancelled = false
-    loadSegmentDripProgress(automationId)
-      .then((next) => {
-        if (!cancelled) setProgress(next)
-      })
-      .catch((error) => {
-        if (!cancelled) setLoadError(getSegmentDripProgressErrorMessage(error))
-      })
-    return () => {
-      cancelled = true
-    }
+  const load = useLoad(
+    () => loadSegmentDripProgress(automationId),
+    getSegmentDripProgressErrorMessage,
     // The segment is in the list so picking another one reads again.
-  }, [automationId, segmentId, loadAttempt])
+    { keys: [automationId, segmentId] }
+  )
+  const progress = load.data
 
   const nextBatch = progress ? describeNextBatch(progress.nextBatchAt) : null
 
   return (
     <InspectorCard title="Progress">
-      {loadError ? (
+      {load.error ? (
         <ErrorRow
-          message={loadError}
+          message={load.error}
           onRetry={() => {
-            setProgress(null)
-            setLoadError("")
-            setLoadAttempt((attempt) => attempt + 1)
+            load.setData(null)
+            load.retry()
           }}
         />
       ) : !progress ? (

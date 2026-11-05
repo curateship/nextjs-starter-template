@@ -1,4 +1,3 @@
-import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import {
@@ -21,7 +20,8 @@ import {
   DEFAULT_AI_MODEL,
   isAiTextProvider,
 } from "@/lib/ai/ai-models"
-import { loadAiKeyStatuses, type AiKeyStatus } from "@/lib/api/ai"
+import { loadAiKeyStatuses } from "@/lib/api/ai"
+import { useLoad } from "@/lib/hooks/use-load"
 import type {
   AutomationNodeFieldsProps,
   AutomationNodeSettings,
@@ -46,20 +46,7 @@ export default function AiStepFields({
   // Which providers have a key, so a step whose provider has none can say so
   // here instead of the flow failing quietly at run time. Advisory only — a
   // failed load just hides the note rather than blocking the panel.
-  const [keyStatuses, setKeyStatuses] = React.useState<AiKeyStatus[] | null>(
-    null
-  )
-  React.useEffect(() => {
-    let cancelled = false
-    loadAiKeyStatuses()
-      .then((statuses) => {
-        if (!cancelled) setKeyStatuses(statuses)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const keyStatuses = useLoad(loadAiKeyStatuses, () => "").data
   const keyStatus = keyStatuses?.find((status) => status.provider === provider)
   const keyMissing = keyStatuses !== null && !keyStatus?.configured
 

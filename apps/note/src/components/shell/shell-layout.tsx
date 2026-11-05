@@ -10,6 +10,7 @@ import { toast } from "sonner"
 
 import { AccountDialog, accountTabForHref } from "@/components/account/account-dialog"
 import { AnnouncementBanners } from "@/components/shell/announcement-banner"
+import { UploadLine } from "@/components/media/upload-line"
 import { DashboardContent } from "@/components/shell/dashboard-content"
 import { FeedbackModal } from "@/components/feedback/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -741,6 +742,9 @@ export function ShellLayout({
             </DashboardContent>
           </SidebarInset>
         </SidebarProvider>
+        {/* Outside the page, so an upload carries on and stays in view
+            while somebody moves around the app. */}
+        <UploadLine />
         {mayFeedback ? (
           <FeedbackModal
             open={feedbackOpen}

@@ -13,7 +13,8 @@ import {
 } from "drizzle-orm"
 
 import { isGeneratedFaviconStoragePath } from "@/lib/favicon"
-import { VIDEO_MAX_BYTES } from "@/lib/media/media-upload"
+import { formatFileSize } from "@/lib/format/format-bytes"
+import { videoMaxBytes } from "@/lib/media/media-upload"
 import {
   isResizedMediaStoragePath,
   MEDIA_IMAGE_WIDTHS,
@@ -32,6 +33,7 @@ import {
   type CustomShellMedia,
 } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
+import { appStorageUsed, type AppStorageUse } from "@/server/app-options"
 
 export const IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -122,9 +124,13 @@ export function validateMediaFile(mimeType: string, size: number) {
       ? IMAGE_MAX_BYTES
       : fileType === "audio"
         ? AUDIO_MAX_BYTES
-        : VIDEO_MAX_BYTES
+        : videoMaxBytes()
   const maxSizeLabel =
-    fileType === "image" ? "10MB" : fileType === "audio" ? "50MB" : "5GB"
+    fileType === "image"
+      ? "10MB"
+      : fileType === "audio"
+        ? "50MB"
+        : formatFileSize(maxSize)
   if (size > maxSize) {
     throw new Error(`File size too large. Maximum size is ${maxSizeLabel}.`)
   }
@@ -591,6 +597,33 @@ export type OrphanDashboard = {
  * it that an admin could not already reach, since an admin can enter every
  * workspace on the deployment.
  */
+export type MediaStorageUsed = {
+  /** The library's own files. */
+  libraryBytes: number
+  /** What the app keeps beside them, such as Video's smooth copies. */
+  extras: AppStorageUse[]
+}
+
+/**
+ * How much the library takes up in the bucket: everybody's files, or one
+ * person's, and whatever the app keeps beside them. The search and type
+ * filters do not narrow it; it is what the bucket is billed for.
+ */
+export async function mediaStorageUsed(
+  ownerId: string,
+  database: CustomShellDb = db
+): Promise<MediaStorageUsed> {
+  const owner = ownerId === "all" ? null : ownerId
+  const [row] = await database
+    .select({
+      bytes: sql<string>`coalesce(sum(${customShellMedia.fileSize}), 0)`,
+    })
+    .from(customShellMedia)
+    .where(owner ? eq(customShellMedia.userId, owner) : undefined)
+  const extras = (await appStorageUsed()?.(owner)) ?? []
+  return { libraryBytes: Number(row?.bytes ?? 0), extras: [...extras] }
+}
+
 export async function listAllMedia(
   query: AdminMediaListQuery,
   database: CustomShellDb = db

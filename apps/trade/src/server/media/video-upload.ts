@@ -1,7 +1,8 @@
 import {
-  VIDEO_UPLOAD_MAX_PARTS,
-  VIDEO_UPLOAD_PART_BYTES,
+  videoMaxBytes,
+  videoUploadPartBytes,
   videoUploadPartCount,
+  videoUploadPieceBytes,
 } from "@/lib/media/media-upload"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -21,6 +22,7 @@ import {
   describeR2Object,
   getFromR2,
   getPublicMediaUrl,
+  listUploadedParts,
   R2StorageNotConfiguredError,
   signUploadPart,
   startMultipartUpload,
@@ -36,8 +38,36 @@ import { now, uuid } from "@/server/auth/security"
 export type VideoUploadTicket = {
   storagePath: string
   uploadId: string
+  /** The size the browser said the file is, which every later step repeats. */
+  fileSize: number
   partBytes: number
   partCount: number
+}
+
+/** What the browser hears when an upload it remembers can no longer go on. */
+export const UPLOAD_GONE_MESSAGE =
+  "That upload can no longer carry on. It starts again from the beginning."
+
+function ticketFor(storagePath: string, uploadId: string, fileSize: number) {
+  return {
+    storagePath,
+    uploadId,
+    fileSize,
+    partBytes: videoUploadPartBytes(fileSize),
+    partCount: videoUploadPartCount(fileSize),
+  }
+}
+
+/**
+ * The file size every step after the start is told again. Nothing stores it
+ * between steps, so each step checks it against the app's ceiling: a size
+ * stated wrongly can only ever get pieces for a file up to the ceiling, which
+ * stating the ceiling honestly at the start would get anyway.
+ */
+function assertStatedSize(fileSize: number) {
+  if (!Number.isInteger(fileSize) || fileSize < 1 || fileSize > videoMaxBytes()) {
+    throw new Error("Upload piece out of range")
+  }
 }
 
 /**
@@ -87,41 +117,74 @@ export async function startVideoUpload({
     throw new Error("Upload failed")
   }
 
-  return {
-    storagePath,
-    uploadId,
-    partBytes: VIDEO_UPLOAD_PART_BYTES,
-    partCount: videoUploadPartCount(size),
-  }
+  return ticketFor(storagePath, uploadId, size)
 }
 
 /**
- * The address for one piece, good only for a piece of exactly `size` bytes.
- * Capping each piece at the piece size, and the count at the most pieces a
- * 5GB file needs, caps what one upload can put in the bucket at the ceiling,
- * even for somebody who never finishes it.
+ * Picks an unfinished upload back up after a closed tab, a refresh or a
+ * dropped connection. The browser remembers the key; the bucket says which
+ * pieces it already holds, so the browser's own memory of them counts for
+ * nothing. A piece of the wrong size is left out and sent again.
+ */
+export async function resumeVideoUpload({
+  userId,
+  storagePath,
+  uploadId,
+  fileSize,
+}: {
+  userId: string
+  storagePath: string
+  uploadId: string
+  fileSize: number
+}) {
+  assertOwnUploadKey(userId, storagePath)
+  assertStatedSize(fileSize)
+  const ticket = ticketFor(storagePath, uploadId, fileSize)
+  let held: Awaited<ReturnType<typeof listUploadedParts>>
+  try {
+    held = await listUploadedParts(storagePath, uploadId)
+  } catch (error) {
+    if (error instanceof R2StorageNotConfiguredError) throw error
+    throw new Error(UPLOAD_GONE_MESSAGE)
+  }
+  const parts = held
+    .filter(
+      (part) =>
+        part.partNumber <= ticket.partCount &&
+        part.size === videoUploadPieceBytes(fileSize, part.partNumber)
+    )
+    .map(({ partNumber, etag }) => ({ partNumber, etag }))
+  return { ticket, parts }
+}
+
+/**
+ * The address for one piece, good only for a piece of exactly the size that
+ * piece of the stated file holds. Signing only the pieces the stated size
+ * needs, each at its exact size, caps what one upload can put in the bucket
+ * at the app's ceiling, even for somebody who never finishes it.
  */
 export async function signVideoUploadPart({
   userId,
   storagePath,
   uploadId,
+  fileSize,
   partNumber,
   size,
 }: {
   userId: string
   storagePath: string
   uploadId: string
+  fileSize: number
   partNumber: number
   size: number
 }) {
   assertOwnUploadKey(userId, storagePath)
+  assertStatedSize(fileSize)
   if (
     !Number.isInteger(partNumber) ||
     partNumber < 1 ||
-    partNumber > VIDEO_UPLOAD_MAX_PARTS ||
-    !Number.isInteger(size) ||
-    size < 1 ||
-    size > VIDEO_UPLOAD_PART_BYTES
+    partNumber > videoUploadPartCount(fileSize) ||
+    size !== videoUploadPieceBytes(fileSize, partNumber)
   ) {
     throw new Error("Upload piece out of range")
   }
@@ -141,6 +204,7 @@ export async function finishVideoUpload(
     workspaceId,
     storagePath,
     uploadId,
+    fileSize,
     parts,
     originalName,
     altText,
@@ -149,6 +213,7 @@ export async function finishVideoUpload(
     workspaceId: string
     storagePath: string
     uploadId: string
+    fileSize: number
     parts: { partNumber: number; etag: string }[]
     originalName: string
     altText?: string
@@ -156,6 +221,7 @@ export async function finishVideoUpload(
   database: CustomShellDb = db
 ) {
   assertOwnUploadKey(userId, storagePath)
+  assertStatedSize(fileSize)
   await completeMultipartUpload(storagePath, uploadId, parts)
 
   try {
@@ -164,6 +230,9 @@ export async function finishVideoUpload(
       throw new Error("Only videos upload in pieces.")
     }
     validateMediaFile(contentType, size)
+    if (size !== fileSize) {
+      throw new Error("Upload failed. The file that arrived is not the size that was sent.")
+    }
 
     const head = await getFromR2(storagePath, "bytes=0-15")
     const firstBytes = await head.Body?.transformToByteArray()

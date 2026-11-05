@@ -3,18 +3,18 @@ import { BellIcon } from "lucide-react"
 
 import { ActivityFeed } from "@/components/shared/dashboard/activity-feed"
 import { dashboardCardTabClassName } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { CardHeaderRow, FeedCard } from "@/components/shared/feed-card"
 import {
   ACTIVITY_VIEWS,
   DEFAULT_ACTIVITY_VIEW,
   type ActivityView,
 } from "@/lib/dashboard/activity-filter"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { NotificationItem } from "@/lib/api/notification"
 
 /**
  * One feed for every notification the app has sent. The tabs decide which
- * notices to show.
+ * notices to show, drawn the way Settings → Styling → Dashboard tabs says.
  */
 
 export function ActivityCard({
@@ -29,7 +29,7 @@ export function ActivityCard({
   return (
     <FeedCard className={className}>
       <CardHeaderRow icon={BellIcon} title="Activity">
-        <Tabs
+        <DashboardTabs
           value={String(view)}
           onValueChange={(value) => {
             if (value === "today" || value === "unread") {
@@ -38,19 +38,12 @@ export function ActivityCard({
             }
             setView(Number(value) as ActivityView)
           }}
-        >
-          <TabsList>
-            {ACTIVITY_VIEWS.map((entry) => (
-              <TabsTrigger
-                key={entry.value}
-                value={String(entry.value)}
-                className={dashboardCardTabClassName}
-              >
-                {entry.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+          tabs={ACTIVITY_VIEWS.map((entry) => ({
+            value: String(entry.value),
+            label: entry.label,
+          }))}
+          tabClassName={dashboardCardTabClassName}
+        />
       </CardHeaderRow>
 
       <ActivityFeed items={activity} view={view} />

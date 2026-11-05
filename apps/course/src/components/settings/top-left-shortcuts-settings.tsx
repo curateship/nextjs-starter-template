@@ -2,7 +2,6 @@ import * as React from "react"
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core"
 import {
   SortableContext,
-  arrayMove,
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { PlusIcon } from "lucide-react"
@@ -10,6 +9,7 @@ import { PlusIcon } from "lucide-react"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import {
   createShellId,
+  reorderByDrag,
   useNavSensors,
 } from "@/components/settings/nav-editor-shared"
 import { SortableLinkChip } from "@/components/settings/top-right-settings"
@@ -45,12 +45,13 @@ export function TopLeftShortcutsSettings({
   )
   const sensors = useNavSensors()
 
-  const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    if (!over || active.id === over.id) return
-    const oldIndex = shortcuts.findIndex((item) => item.id === active.id)
-    const newIndex = shortcuts.findIndex((item) => item.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-    onShortcutsChange(arrayMove(shortcuts, oldIndex, newIndex))
+  const handleDragEnd = (event: DragEndEvent) => {
+    const moved = reorderByDrag(
+      shortcuts,
+      shortcuts.map((item) => item.id),
+      event
+    )
+    if (moved) onShortcutsChange(moved)
   }
 
   const handleAdd = () => {

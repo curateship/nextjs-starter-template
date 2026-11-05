@@ -16,3 +16,4 @@ repo's `docs/`.
 - [winning-ads.md](winning-ads.md): the Winning ads row and Settings → Meta.
 - [send-to-video.md](send-to-video.md): Send to Video and the messages between Viral and Video.
 - [promo-connection.md](promo-connection.md): reading X, LinkedIn and Reddit through Promo, Write a post for Promo, and Promo reporting your posts back.
+- [Shell merges](shell-integration.md): each shell merge into Viral, what arrived and what stays Viral's own.

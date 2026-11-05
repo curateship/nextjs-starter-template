@@ -1,12 +1,15 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
+  ActivityIcon,
+  CalendarClockIcon,
   CircleAlertIcon,
   GaugeIcon,
   MailWarningIcon,
   MegaphoneIcon,
   PencilLineIcon,
   UserCheckIcon,
+  UserRoundCogIcon,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -220,16 +223,44 @@ function toActivityEvent(item: NotificationItem): ActivityEvent {
         : null,
     }
   }
+  if (item.type === "changelog") {
+    return {
+      ...event,
+      who: "Changelog",
+      text: "was published",
+      detail: item.changelog_title,
+      icon: PencilLineIcon,
+      link: item.changelog_entry_id
+        ? { to: "/changelog", search: { open: item.changelog_entry_id } }
+        : null,
+    }
+  }
+  // An account change, an app's own notice, a follow-up reminder: each was
+  // written with its own words in `message` and `detail`, which is what the
+  // bell and the Notifications table show too. These used to fall through to
+  // the changelog wording and read "Changelog was published" with nothing
+  // under it. Anything newer that is not named above reads the same way, its
+  // own words rather than somebody else's.
   return {
     ...event,
-    who: "Changelog",
-    text: "was published",
-    detail: item.changelog_title,
-    icon: PencilLineIcon,
-    link: item.changelog_entry_id
-      ? { to: "/changelog", search: { open: item.changelog_entry_id } }
-      : null,
+    who: item.message ?? "The app needs attention",
+    text: "",
+    detail: item.detail,
+    icon: selfWordedIcon(item.type),
+    // The bell opens a follow-up's conversation in the CRM, so this does too.
+    // A lead added by hand has no conversation yet, and then nothing opens.
+    link:
+      item.type === "crm_follow_up" && item.crm_thread_id
+        ? { to: "/admin/crm", search: { open: item.crm_thread_id } }
+        : null,
   }
+}
+
+/** The same marks the bell gives these notices. */
+function selfWordedIcon(type: NotificationType) {
+  if (type === "account_update") return UserRoundCogIcon
+  if (type === "crm_follow_up") return CalendarClockIcon
+  return ActivityIcon
 }
 
 /** The face beside a line: a photo, initials, or the app's own mark. */
@@ -310,7 +341,7 @@ function ActivityEventRow({
       <div className="flex min-w-0 flex-1 flex-col items-start pt-1">
         <p
           className="w-full truncate text-sm"
-          title={`${event.who} ${event.text}`}
+          title={event.text ? `${event.who} ${event.text}` : event.who}
         >
           <span className="font-medium">{event.who}</span>
           {event.text ? ` ${event.text}` : null}

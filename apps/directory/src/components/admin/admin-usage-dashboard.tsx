@@ -16,7 +16,7 @@ import type { AdminUsageSummary } from "@/lib/api/billing/usage"
 import { describeCode } from "@/lib/format/code-label"
 import { formatDateTime } from "@/lib/format/format-time"
 import { pageGutter } from "@/lib/layout/shell-gutter"
-import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { sortRows, useTableSort, type SortKey } from "@/lib/hooks/use-table-sort"
 
 export function AdminUsageDashboard({ data }: { data: AdminUsageSummary }) {
   const needsReview = data.pendingStripeReports + data.failedStripeReports
@@ -69,25 +69,25 @@ const meterColumns: SortableColumn<MeterSort>[] = [
   { key: "stripe", label: "Stripe reports to review", column: "meta" },
 ]
 
+const meterSortKeys: Record<
+  MeterSort,
+  SortKey<AdminUsageSummary["byMeter"][number]>
+> = {
+  meter: (row) => row.meter,
+  quantity: (row) => row.quantity,
+  events: (row) => row.events,
+  stripe: (row) => row.pending + row.failed,
+}
+
 function MeterTable({ rows }: { rows: AdminUsageSummary["byMeter"] }) {
   const { sort, direction, toggleSort } = useTableSort<MeterSort>(
     "quantity",
     "desc"
   )
-  const sorted = React.useMemo(() => {
-    const factor = direction === "asc" ? 1 : -1
-    return [...rows].sort((a, b) => {
-      const compared =
-        sort === "meter"
-          ? a.meter.localeCompare(b.meter)
-          : sort === "quantity"
-            ? a.quantity - b.quantity
-            : sort === "events"
-              ? a.events - b.events
-              : a.pending + a.failed - (b.pending + b.failed)
-      return compared * factor
-    })
-  }, [direction, rows, sort])
+  const sorted = React.useMemo(
+    () => sortRows(rows, { sort, direction }, meterSortKeys),
+    [direction, rows, sort]
+  )
 
   return (
     <DashboardTable
@@ -136,25 +136,25 @@ const personColumns: SortableColumn<PersonSort>[] = [
   { key: "last", label: "Last used", column: "meta" },
 ]
 
+const personSortKeys: Record<
+  PersonSort,
+  SortKey<AdminUsageSummary["byPerson"][number]>
+> = {
+  person: (row) => row.name,
+  quantity: (row) => row.quantity,
+  events: (row) => row.events,
+  last: (row) => Date.parse(row.lastUsedAt),
+}
+
 function PersonTable({ rows }: { rows: AdminUsageSummary["byPerson"] }) {
   const { sort, direction, toggleSort } = useTableSort<PersonSort>(
     "quantity",
     "desc"
   )
-  const sorted = React.useMemo(() => {
-    const factor = direction === "asc" ? 1 : -1
-    return [...rows].sort((a, b) => {
-      const compared =
-        sort === "person"
-          ? a.name.localeCompare(b.name)
-          : sort === "quantity"
-            ? a.quantity - b.quantity
-            : sort === "events"
-              ? a.events - b.events
-              : Date.parse(a.lastUsedAt) - Date.parse(b.lastUsedAt)
-      return compared * factor
-    })
-  }, [direction, rows, sort])
+  const sorted = React.useMemo(
+    () => sortRows(rows, { sort, direction }, personSortKeys),
+    [direction, rows, sort]
+  )
 
   return (
     <DashboardTable

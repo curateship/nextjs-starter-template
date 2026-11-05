@@ -2,14 +2,14 @@ import * as React from "react"
 import { DndContext, closestCenter } from "@dnd-kit/core"
 import {
   SortableContext,
-  arrayMove,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { GripVertical, PlusIcon, Trash2Icon } from "lucide-react"
 
 import {
-  DRAG_HANDLE_CLASS,
   createShellId,
+  DRAG_HANDLE_CLASS,
+  reorderByDrag,
   useNavSensors,
   useSortableRow,
 } from "@/components/settings/nav-editor-shared"
@@ -35,14 +35,8 @@ import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
+import { SettingsSelectRow } from "@/components/settings/settings-select-row"
 import {
   MAX_PUBLIC_USER_PANEL_HREF_LENGTH,
   MAX_PUBLIC_USER_PANEL_LABEL_LENGTH,
@@ -54,7 +48,6 @@ import {
   type PublicUserPanel,
   type PublicUserPanelButton,
   type PublicUserPanelButtonKey,
-  type PublicUserPanelButtonStyle,
   type PublicUserPanelLink,
 } from "@/lib/pages/public-user-panel"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -189,18 +182,16 @@ export function PublicUserPanelDialog({
                     id="custom-shell-public-user-panel-links"
                     sensors={sensors}
                     collisionDetection={closestCenter}
-                    onDragEnd={(event) => {
-                      if (!event.over || event.active.id === event.over.id) {
-                        return
-                      }
-                      const oldIndex = linkIds.indexOf(String(event.active.id))
-                      const newIndex = linkIds.indexOf(String(event.over.id))
-                      if (oldIndex === -1 || newIndex === -1) return
-                      setDraft((current) => ({
-                        ...current,
-                        links: arrayMove(current.links, oldIndex, newIndex),
-                      }))
-                    }}
+                    onDragEnd={(event) =>
+                      setDraft((current) => {
+                        const links = reorderByDrag(
+                          current.links,
+                          linkIds,
+                          event
+                        )
+                        return links ? { ...current, links } : current
+                      })
+                    }
                   >
                     <SortableContext
                       items={linkIds}
@@ -332,26 +323,14 @@ function UserPanelButtonCard({
               }}
             />
           </div>
-          <div className="grid gap-2">
-            <FieldLabel htmlFor={`${id}-style`}>Style</FieldLabel>
-            <Select
-              value={button.style}
-              onValueChange={(style) =>
-                onChange({ style: style as PublicUserPanelButtonStyle })
-              }
-            >
-              <SelectTrigger id={`${id}-style`} className="w-full sm:w-fit">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PUBLIC_USER_PANEL_BUTTON_STYLES.map((style) => (
-                  <SelectItem key={style} value={style}>
-                    {PUBLIC_USER_PANEL_BUTTON_STYLE_LABELS[style]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <SettingsSelectRow
+            id={`${id}-style`}
+            label="Style"
+            value={button.style}
+            options={PUBLIC_USER_PANEL_BUTTON_STYLES}
+            optionLabel={(style) => PUBLIC_USER_PANEL_BUTTON_STYLE_LABELS[style]}
+            onValueChange={(style) => onChange({ style })}
+          />
         </div>
         <SettingsSwitchRow
           id={`${id}-phone`}

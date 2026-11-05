@@ -2,9 +2,11 @@
  * Sends a file to the bucket one piece at a time, straight from the browser.
  *
  * The file is cut with `File.slice`, which reads nothing until a piece is
- * sent, so a 5GB video never sits in memory on either side. Four pieces travel
- * at once. A piece that fails is sent again, up to three tries, before the
- * whole upload gives up.
+ * sent, so a 100GB video never sits in memory on either side. Four pieces
+ * travel at once. A piece that fails is sent again, up to three tries, before
+ * the whole upload gives up. Pieces the bucket already holds, from an upload
+ * picked back up, are skipped, and a pause lets the pieces in the air land
+ * before stopping.
  */
 
 export type SentPart = { partNumber: number; etag: string }
@@ -17,6 +19,39 @@ export type PutPart = (
 
 const PARALLEL_PARTS = 4
 const TRIES_PER_PART = 3
+
+/**
+ * What pauses an upload. While paused, no new piece starts; the ones already
+ * in the air finish. `wait` settles once the upload may go on.
+ */
+export type PauseGate = {
+  readonly paused: boolean
+  pause: () => void
+  resume: () => void
+  wait: () => Promise<void>
+}
+
+export function createPauseGate(): PauseGate {
+  let waiting: Promise<void> | null = null
+  let release: (() => void) | null = null
+  return {
+    get paused() {
+      return waiting !== null
+    },
+    pause() {
+      if (waiting) return
+      waiting = new Promise((resolve) => {
+        release = resolve
+      })
+    },
+    resume() {
+      release?.()
+      waiting = null
+      release = null
+    },
+    wait: () => waiting ?? Promise.resolve(),
+  }
+}
 
 /** What an upload throws when somebody cancelled it, so callers can stay quiet. */
 export function uploadCancelledError() {
@@ -33,6 +68,9 @@ export async function sendFileInParts({
   partCount,
   signPart,
   putPart = putPartWithXhr,
+  alreadySent = [],
+  gate,
+  retryDelayMs = 3000,
   onProgress,
   signal,
 }: {
@@ -41,6 +79,14 @@ export async function sendFileInParts({
   partCount: number
   signPart: (partNumber: number, size: number) => Promise<string>
   putPart?: PutPart
+  /** Pieces the bucket already holds, which are not sent again. */
+  alreadySent?: SentPart[]
+  gate?: PauseGate
+  /**
+   * How long to wait before the second try of a piece, doubled before the
+   * third, so a few seconds of dropped wifi do not end the whole upload.
+   */
+  retryDelayMs?: number
   onProgress?: (fraction: number) => void
   signal?: AbortSignal
 }): Promise<SentPart[]> {
@@ -51,17 +97,39 @@ export async function sendFileInParts({
   signal?.addEventListener("abort", abortFromCaller)
 
   const sentBytes = new Array<number>(partCount).fill(0)
+  // Kept as a running sum: a 100GB file has 10,000 pieces, and adding them
+  // all up on every progress event would be the slowest thing on the page.
+  let totalSent = 0
+  const held = new Set<number>()
   const sent: SentPart[] = []
+  for (const part of alreadySent) {
+    if (part.partNumber < 1 || part.partNumber > partCount) continue
+    if (held.has(part.partNumber)) continue
+    held.add(part.partNumber)
+    sent.push(part)
+    const index = part.partNumber - 1
+    sentBytes[index] = Math.min(partBytes, file.size - index * partBytes)
+    totalSent += sentBytes[index]
+  }
+  const waiting = Array.from({ length: partCount }, (_, index) => index).filter(
+    (index) => !held.has(index + 1)
+  )
   let nextIndex = 0
   // The piece that ran out of tries. The others then stop as cancelled, and
   // their errors would otherwise hide the real one.
   let failure: unknown
 
   function reportBytes(index: number, bytes: number) {
+    totalSent += bytes - sentBytes[index]
     sentBytes[index] = bytes
-    const total = sentBytes.reduce((sum, value) => sum + value, 0)
-    onProgress?.(Math.min(1, total / file.size))
+    onProgress?.(Math.min(1, totalSent / file.size))
   }
+
+  // A cancel while paused, or while waiting to try a piece again, has to end
+  // the wait too, or the upload would sit there instead of stopping.
+  const stopped = new Promise<void>((resolve) => {
+    stop.signal.addEventListener("abort", () => resolve(), { once: true })
+  })
 
   async function sendPiece(index: number) {
     const partNumber = index + 1
@@ -94,13 +162,22 @@ export async function sendFileInParts({
           stop.abort()
           throw error
         }
+        await Promise.race([
+          new Promise((resolve) =>
+            setTimeout(resolve, retryDelayMs * 2 ** (attempt - 1))
+          ),
+          stopped,
+        ])
       }
     }
   }
 
   async function worker() {
-    while (nextIndex < partCount) {
-      const index = nextIndex
+    while (nextIndex < waiting.length) {
+      if (gate?.paused) await Promise.race([gate.wait(), stopped])
+      if (stop.signal.aborted) throw uploadCancelledError()
+      if (nextIndex >= waiting.length) return
+      const index = waiting[nextIndex]
       nextIndex += 1
       await sendPiece(index)
     }
@@ -108,9 +185,9 @@ export async function sendFileInParts({
 
   try {
     if (signal?.aborted) throw uploadCancelledError()
-    onProgress?.(0)
+    onProgress?.(Math.min(1, totalSent / file.size))
     const workers = Array.from(
-      { length: Math.min(PARALLEL_PARTS, partCount) },
+      { length: Math.min(PARALLEL_PARTS, waiting.length) },
       worker
     )
     await Promise.allSettled(workers)

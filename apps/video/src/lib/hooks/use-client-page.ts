@@ -8,20 +8,28 @@ import * as React from "react"
  * lands on the new last page, not an empty one. A dashboard that wants a
  * search or sort change to jump back to page 1 passes those values joined as
  * `resetKey`; one that would rather keep your place passes nothing.
+ *
+ * A dashboard that keeps its page in the address passes `addressPage`: the page
+ * it read, and how to write a new one. The address then owns the page, so
+ * opening `?page=3` or pressing Back to it lands on page 3, and the dashboard's
+ * own address handling decides when a search goes back to page 1.
  */
 export function useClientPage<Row>(
   rows: Row[],
   defaultPageSize: number,
-  resetKey?: unknown
+  resetKey?: unknown,
+  addressPage?: { page: number; setPage: (page: number) => void }
 ) {
-  const [page, setPage] = React.useState(1)
+  const [ownPage, setOwnPage] = React.useState(1)
+  const page = addressPage ? addressPage.page : ownPage
+  const setPage = addressPage ? addressPage.setPage : setOwnPage
   const [pageSize, setPageSize] = React.useState(defaultPageSize)
 
   // State follows a prop, so it adjusts during render, not in an effect.
   const [lastResetKey, setLastResetKey] = React.useState(resetKey)
   if (lastResetKey !== resetKey) {
     setLastResetKey(resetKey)
-    setPage(1)
+    setOwnPage(1)
   }
 
   const totalPages = rows.length ? Math.ceil(rows.length / pageSize) : 0

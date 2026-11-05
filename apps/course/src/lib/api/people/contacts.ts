@@ -225,8 +225,16 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
     // Opening the list is what brings it up to date with who has signed up.
     // Before the reads, so somebody who joined a minute ago is on the page and
     // in the counts beside it.
-    await syncContactsFromUsers(workspaceId)
-    const pageSize = data.limit ?? (await readDashboardRowsPerPage())
+    //
+    // The rows-per-page setting and the plans read nothing the sync writes, so
+    // they run alongside it. Everything else below counts or lists contacts and
+    // waits. One `Promise.all`, so a failed sync leaves nothing running that
+    // nobody is listening to.
+    const [, pageSize, plans] = await Promise.all([
+      syncContactsFromUsers(workspaceId),
+      data.limit ?? readDashboardRowsPerPage(),
+      listPlans(),
+    ])
     // Started here and collected below with nothing else awaited in between,
     // so a failure is always caught by the request that started it.
     const segmentsRead = listWorkspaceSegments(workspaceId).then((rows) =>
@@ -240,7 +248,7 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
         : undefined
     const rules: SegmentRules | undefined =
       data.rules ?? (named ? rulesShowingSegment(named) : undefined)
-    const [{ contacts, total }, tags, sources, plans, shortcutTotals, segments, recent] =
+    const [{ contacts, total }, tags, sources, shortcutTotals, segments, recent] =
       await Promise.all([
         listWorkspaceContacts(workspaceId, {
           ...data,
@@ -250,7 +258,6 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
         }),
         listWorkspaceTags(workspaceId),
         listWorkspaceContactSources(workspaceId),
-        listPlans(),
         countContactsMatchingEach(
           workspaceId,
           CONTACT_SHORTCUTS.map((shortcut) => shortcut.rules)

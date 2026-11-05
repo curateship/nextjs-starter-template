@@ -173,3 +173,23 @@ Every shell change up to 30 Oct is in Course: 101 files replaced, 56 added and 6
 **Migrations owed:** `0094_custom_shell_app_roles.sql` (shell 0094), `0095_custom_shell_test_run_contact.sql` (shell 0095), `0096_custom_shell_contact_notes.sql` (shell 0096), `0097_custom_shell_saved_views.sql` (shell 0097). None is applied, locally or live.
 
 **Kept as Course's own.** `scripts/setup-database.mjs` stays Course's own, because the shell's copy names the shell's own database; `src/app/` stays Course's own.
+
+## Shell merge, 5 November 2026
+
+Every shell change up to 5 Nov is in Course: 85 files replaced and 25 added, with nothing deleted. Each replaced file was first matched against every version of that file in the shell's history, and each was an unedited older shell copy.
+
+**What arrived.**
+
+- **Big uploads pick up where they stopped.** An upload carries on after a closed tab and can be paused. A line at the edge of the screen shows it on every page. The Media library shows storage used and its monthly cost. One video is still capped at 5GB unless the app sets `media.videoMaxBytes`, as `docs/shell/big-uploads.md` explains.
+- **The Views button keeps the picked view picked.** It remembers the view last opened on each screen in this browser. It opens that view again on arrival, and has a "No view" row to leave it.
+- **The 3 Nov shell clean-up.** The Settings cards share one auto-save hook, one secret key box and one dropdown row. The email and automation editors share one frame. Menu upgrade steps 1 to 12 are gone from `src/lib/workspaces.ts`. On 3 Nov every live site counted (Trade, Fitness, Video, Project, Date, Note, Flowfly, Course and course-de) was on step 12 or later.
+- **One folding menu for every ⋮ and "+ Add" dropdown**, `src/components/shared/folding-menu.tsx`. See `docs/shell/folding-menu.md`.
+- **Pages that open with no signal**, through `useOfflinePages` and `public/offline-worker.js`. Nothing switches it on until the app calls the hook, as `docs/shell/offline-pages.md` explains.
+- **The Overview's widget tabs follow Settings → Styling → Dashboard tabs.**
+- **`homeScreen.shareTarget`**, which can put the app in an Android phone's share menu. It does nothing until the app sets it.
+- **The dev server leaves `playwright-core` out of its start-up scan**, in `vite.config.ts`. That package's Mac add-on stopped the dev server starting.
+- **The document editor takes an app's own `clean` rule**, so an app can add kinds of content to a document. Leaving it out keeps today's rules. See `docs/shell/document-editor.md`.
+
+**No migration was new.** The shell has added none since 0097, and Course already had every one.
+
+**Kept as Course's own.** `src/app/` stays Course's own, and so does `src/app/open-endpoints.ts`, which lists Course's own open endpoints.

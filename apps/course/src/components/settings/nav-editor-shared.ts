@@ -4,9 +4,11 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type DragEndEvent,
   type DraggableSyntheticListeners,
 } from "@dnd-kit/core"
 import {
+  arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
 } from "@dnd-kit/sortable"
@@ -37,6 +39,26 @@ export function useNavSensors() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
+}
+
+/**
+ * The list after a drag, or null when the drag moved nothing: dropped on
+ * itself, dropped outside the list, or on a row that is not in it. `ids` are
+ * the rows' drag ids in the list's order.
+ *
+ * Null is what lets a caller skip the write. A write here is a settings save,
+ * so a drop that changed nothing must not make one.
+ */
+export function reorderByDrag<T>(
+  items: T[],
+  ids: readonly string[],
+  { active, over }: DragEndEvent
+): T[] | null {
+  if (!over || active.id === over.id) return null
+  const from = ids.indexOf(String(active.id))
+  const to = ids.indexOf(String(over.id))
+  if (from === -1 || to === -1) return null
+  return arrayMove(items, from, to)
 }
 
 /**

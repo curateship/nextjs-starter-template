@@ -121,7 +121,12 @@ export function CardHeaderRow({
           {meta}
         </div>
       ) : null}
-      <div className="flex w-full shrink-0 items-center sm:ml-auto sm:w-auto">
+      {/* As tall as the header's row, so underlined tabs reach out to the
+          header's bottom edge and their line sits on the divider. Only as
+          tall as the words, the line floated above it. On a phone the tabs
+          wrap onto a row of their own, and the same reach up would pull
+          underlined tabs into the title, so that row gets the room back. */}
+      <div className="flex w-full shrink-0 items-center self-stretch max-sm:has-[[data-slot=dashboard-tab-line]]:pt-3 sm:ml-auto sm:w-auto">
         {children}
       </div>
     </DashboardCardHeader>

@@ -9,12 +9,14 @@ import {
   listAllMedia,
   listMediaOwners,
   loadOrphanDashboard,
+  mediaStorageUsed,
   type AdminMediaItem,
   type AdminMediaListResponse,
   type AdminMediaSort,
   type AdminMediaTypeFilter,
   type MediaOrphan,
   type MediaOwner,
+  type MediaStorageUsed,
   type OrphanDashboard,
 } from "@/server/media/library"
 import { R2StorageNotConfiguredError } from "@/server/media/storage"
@@ -22,6 +24,7 @@ import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 
 export type {
+  MediaStorageUsed,
   AdminMediaItem,
   AdminMediaListResponse,
   AdminMediaSort,
@@ -86,11 +89,12 @@ const loadAdminMediaPageFn = createServerFn({ method: "GET" })
   .inputValidator(listQuerySchema)
   .handler(async ({ data }) => {
     const pageSize = data.pageSize ?? (await readDashboardRowsPerPage())
-    const [media, owners] = await Promise.all([
+    const [media, owners, storage] = await Promise.all([
       listAllMedia({ ...data, pageSize }).catch(asStorageError),
       listMediaOwners(),
+      mediaStorageUsed(data.ownerId),
     ])
-    return { media, owners, pageSize }
+    return { media, owners, pageSize, storage }
   })
 
 const loadOrphanDashboardFn = createServerFn({ method: "GET" })

@@ -23,6 +23,7 @@ import {
   type DashboardBlock,
 } from "@/components/shared/dashboard/dashboard-panels"
 import { dashboardCardTabClassName } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { CardHeaderRow, CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
 import { ActivityCard } from "@/components/shared/dashboard/activity-card"
 import { SampleValue } from "@/components/shared/dashboard/sample-figure"
@@ -47,7 +48,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   AUTOMATION_RUNS_CAPTION,
@@ -283,38 +283,24 @@ function PeopleCard({
 
   return (
     <FeedCard className={className}>
-      <Tabs
-        className="flex min-h-0 flex-1 gap-0"
-        value={tab}
-        onValueChange={(value) => setTab(value as PeopleTab)}
-      >
-        <CardHeaderRow icon={current.icon} title={current.title}>
-          <TabsList>
-            {PEOPLE_TABS.map((entry) => (
-              <TabsTrigger
-                key={entry.value}
-                value={entry.value}
-                className={dashboardCardTabClassName}
-              >
-                {entry.tab}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </CardHeaderRow>
+      <CardHeaderRow icon={current.icon} title={current.title}>
+        <DashboardTabs
+          value={tab}
+          onValueChange={(value) => setTab(value as PeopleTab)}
+          tabs={PEOPLE_TABS.map((entry) => ({
+            value: entry.value,
+            label: entry.tab,
+          }))}
+          tabClassName={dashboardCardTabClassName}
+        />
+      </CardHeaderRow>
 
-        <TabsContent value="joining" className="flex min-h-0 flex-col">
-          <JoiningChart overview={overview} />
-        </TabsContent>
-        <TabsContent value="members" className="flex min-h-0 flex-col">
-          <NewestMembers overview={overview} />
-        </TabsContent>
-        <TabsContent value="plans" className="flex min-h-0 flex-col">
-          <PlanMembership overview={overview} />
-        </TabsContent>
-        <TabsContent value="leaving" className="flex min-h-0 flex-col">
-          <LeavingMembers overview={overview} />
-        </TabsContent>
-      </Tabs>
+      <div className="flex min-h-0 flex-1 flex-col">
+        {tab === "joining" ? <JoiningChart overview={overview} /> : null}
+        {tab === "members" ? <NewestMembers overview={overview} /> : null}
+        {tab === "plans" ? <PlanMembership overview={overview} /> : null}
+        {tab === "leaving" ? <LeavingMembers overview={overview} /> : null}
+      </div>
     </FeedCard>
   )
 }

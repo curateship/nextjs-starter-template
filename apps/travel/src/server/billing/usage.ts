@@ -34,6 +34,24 @@ const stripeUsageReporter: UsageReporter = async (event) => {
   )
 }
 
+/**
+ * The same reporter, for one run through a customer's pending rows. The Stripe
+ * client is built at the first send and reused for the rest, because building
+ * it reads the payments settings row each time and a run can be 500 rows.
+ * Built lazily rather than up front, so a missing key fails each send the way
+ * it always did instead of stopping the run before old rows are marked.
+ */
+function stripeUsageReporterForOneRun(): UsageReporter {
+  let client: ReturnType<typeof stripe> | null = null
+  return async (event) => {
+    requireBilling()
+    client ??= stripe()
+    await (await client).billing.meterEvents.create(
+      stripeMeterEventForUsage(event)
+    )
+  }
+}
+
 /** The exact Stripe request for one stored row, kept pure for verification. */
 export function stripeMeterEventForUsage(event: UsageReporterInput) {
   return {
@@ -132,7 +150,7 @@ export async function recordUsage(
 export async function reconcilePendingUsageForCustomer(
   customerId: string,
   database: CustomShellDb = db,
-  reporter: UsageReporter = stripeUsageReporter
+  reporter: UsageReporter = stripeUsageReporterForOneRun()
 ) {
   if (!customerId.trim()) return { reported: 0, failed: 0 }
 
@@ -150,21 +168,27 @@ export async function reconcilePendingUsageForCustomer(
   const pending = pendingRows.slice(0, RECONCILE_BATCH_SIZE)
   const hasMore = pendingRows.length > RECONCILE_BATCH_SIZE
 
+  // Rows past Stripe's reporting window are marked in one statement rather
+  // than one update each; nothing about them goes to Stripe.
+  const tooOldIds = pending
+    .filter((event) => eventTooOldForStripe(event.occurredAt))
+    .map((event) => event.id)
+  if (tooOldIds.length > 0) {
+    await database
+      .update(customShellUsageEvents)
+      .set({
+        stripeReportStatus: "failed",
+        stripeReportError: "EVENT_TOO_OLD",
+      })
+      .where(inArray(customShellUsageEvents.id, tooOldIds))
+  }
+  const tooOld = new Set(tooOldIds)
+
   let reported = 0
-  let failed = 0
+  let failed = tooOldIds.length
   let retryFailures = 0
   for (const event of pending) {
-    if (eventTooOldForStripe(event.occurredAt)) {
-      await database
-        .update(customShellUsageEvents)
-        .set({
-          stripeReportStatus: "failed",
-          stripeReportError: "EVENT_TOO_OLD",
-        })
-        .where(eq(customShellUsageEvents.id, event.id))
-      failed += 1
-      continue
-    }
+    if (tooOld.has(event.id)) continue
 
     if (await reportStoredUsage(event, database, reporter)) {
       reported += 1

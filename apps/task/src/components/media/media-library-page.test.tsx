@@ -34,18 +34,56 @@ vi.mock("@/lib/api/media/admin-media", () => ({
 }))
 
 import { MediaLibraryPage } from "@/components/media/media-library-page"
+import { UploadLine } from "@/components/media/upload-line"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import type { PauseGate } from "@/lib/media/upload-in-parts"
 
 const emptyPage = {
   media: { media: [], total: 0, page: 1, page_size: 20, total_pages: 0 },
   owners: [],
   pageSize: 20,
+  storage: { libraryBytes: 0, extras: [] },
 }
 
 type UploadOptions = {
   onProgress: (fraction: number) => void
   signal: AbortSignal
+  gate: PauseGate
 }
+
+/** The page, and the upload line the shell layout draws beside every page. */
+function renderPage(host: HTMLElement, { withPage = true } = {}) {
+  const root = createRoot(host)
+  const draw = (page: boolean) =>
+    root.render(
+      // The app shell provides this around every page.
+      <TooltipProvider>
+        {page ? (
+          <MediaLibraryPage
+            initialData={emptyPage}
+            initialOwnerId="all"
+            currentUserId="admin-1"
+          />
+        ) : null}
+        <UploadLine />
+      </TooltipProvider>
+    )
+  draw(withPage)
+  return { root, leavePage: () => draw(false) }
+}
+
+async function pickFiles(host: HTMLElement, files: File[]) {
+  const input = host.querySelector<HTMLInputElement>('input[type="file"]')
+  expect(input).not.toBeNull()
+  Object.defineProperty(input, "files", { value: files, configurable: true })
+  await act(async () => {
+    input?.dispatchEvent(new Event("change", { bubbles: true }))
+  })
+  await act(async () => await Promise.resolve())
+}
+
+const uploadLine = (host: HTMLElement) =>
+  host.querySelector('[aria-label="Uploads"]')?.textContent ?? null
 
 describe("MediaLibraryPage uploads", () => {
   beforeEach(() => {
@@ -62,7 +100,7 @@ describe("MediaLibraryPage uploads", () => {
     document.body.innerHTML = ""
   })
 
-  it("shows how far the video going up has got, and Cancel stops it and the rest", async () => {
+  it("counts the batch on the page, shows the file on the upload line, and Cancel stops the rest", async () => {
     let secondSignal: AbortSignal | undefined
     mediaApi.uploadMedia.mockImplementation(
       async (file: File, _altText: undefined, options: UploadOptions) => {
@@ -81,34 +119,22 @@ describe("MediaLibraryPage uploads", () => {
     )
     const host = document.createElement("div")
     document.body.appendChild(host)
-    const root = createRoot(host)
-
+    let page!: ReturnType<typeof renderPage>
     await act(async () => {
-      root.render(
-        // The app shell provides this around every page.
-        <TooltipProvider>
-          <MediaLibraryPage
-            initialData={emptyPage}
-            initialOwnerId="all"
-            currentUserId="admin-1"
-          />
-        </TooltipProvider>
+      page = renderPage(host)
+    })
+
+    await pickFiles(
+      host,
+      ["first.mp4", "second.mp4", "third.mp4"].map(
+        (name) => new File(["video"], name, { type: "video/mp4" })
       )
-    })
-
-    const input = host.querySelector<HTMLInputElement>('input[type="file"]')
-    expect(input).not.toBeNull()
-    const files = ["first.mp4", "second.mp4", "third.mp4"].map(
-      (name) => new File(["video"], name, { type: "video/mp4" })
     )
-    Object.defineProperty(input, "files", { value: files, configurable: true })
-    await act(async () => {
-      input?.dispatchEvent(new Event("change", { bubbles: true }))
-    })
-    await act(async () => await Promise.resolve())
 
-    const status = host.querySelector('[role="status"]')
-    expect(status?.textContent).toBe("1 of 3 uploaded, second.mp4 at 42%")
+    expect(host.querySelector('[role="status"]:not([aria-label])')?.textContent).toBe(
+      "1 of 3 uploaded"
+    )
+    expect(uploadLine(host)).toBe("Uploading second.mp4, 42%")
 
     const cancel = Array.from(host.querySelectorAll("button")).find(
       (button) => button.textContent?.trim() === "Cancel"
@@ -120,7 +146,7 @@ describe("MediaLibraryPage uploads", () => {
     expect(secondSignal?.aborted).toBe(true)
     // The third file is never started once Cancel is pressed.
     expect(mediaApi.uploadMedia).toHaveBeenCalledTimes(2)
-    expect(host.querySelector('[role="status"]')).toBeNull()
+    expect(uploadLine(host)).toBeNull()
     expect(toasts.toast).toHaveBeenCalledWith(
       "Upload cancelled. 1 file was uploaded before it stopped."
     )
@@ -128,45 +154,58 @@ describe("MediaLibraryPage uploads", () => {
     // The finished file is in the library, so the list reloads.
     expect(mediaApi.loadAdminMediaPage).toHaveBeenCalled()
 
-    await act(async () => root.unmount())
+    await act(async () => page.root.unmount())
   })
 
-  it("reads one file's progress on its own", async () => {
+  it("keeps uploading after the page is left, and pauses from the upload line", async () => {
+    let options!: UploadOptions
+    let finish!: () => void
     mediaApi.uploadMedia.mockImplementation(
-      (_file: File, _altText: undefined, options: UploadOptions) => {
-        options.onProgress(0.075)
-        return new Promise(() => undefined)
+      (_file: File, _altText: undefined, given: UploadOptions) => {
+        options = given
+        given.onProgress(0.075)
+        return new Promise((resolve) => {
+          finish = () => resolve({})
+        })
       }
     )
     const host = document.createElement("div")
     document.body.appendChild(host)
-    const root = createRoot(host)
-
+    let page!: ReturnType<typeof renderPage>
     await act(async () => {
-      root.render(
-        // The app shell provides this around every page.
-        <TooltipProvider>
-          <MediaLibraryPage
-            initialData={emptyPage}
-            initialOwnerId="all"
-            currentUserId="admin-1"
-          />
-        </TooltipProvider>
-      )
+      page = renderPage(host)
     })
-    const input = host.querySelector<HTMLInputElement>('input[type="file"]')
-    Object.defineProperty(input, "files", {
-      value: [new File(["video"], "beach.mov", { type: "video/quicktime" })],
-      configurable: true,
-    })
-    await act(async () => {
-      input?.dispatchEvent(new Event("change", { bubbles: true }))
-    })
+    await pickFiles(host, [
+      new File(["video"], "beach.mov", { type: "video/quicktime" }),
+    ])
 
-    expect(host.querySelector('[role="status"]')?.textContent).toBe(
-      "Uploading beach.mov, 7%"
+    // One file has no batch count on the page; the line says it all.
+    expect(host.querySelector('[role="status"]:not([aria-label])')).toBeNull()
+    expect(uploadLine(host)).toBe("Uploading beach.mov, 7%")
+
+    // Moving to another page leaves the upload going.
+    await act(async () => page.leavePage())
+    expect(host.querySelector('input[type="file"]')).toBeNull()
+    expect(options.signal.aborted).toBe(false)
+    expect(uploadLine(host)).toBe("Uploading beach.mov, 7%")
+
+    const pause = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Pause beach.mov"]'
     )
+    await act(async () => pause?.click())
+    expect(options.gate.paused).toBe(true)
+    expect(uploadLine(host)).toBe("Paused beach.mov at 7%")
 
-    await act(async () => root.unmount())
+    const resume = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Resume beach.mov"]'
+    )
+    await act(async () => resume?.click())
+    expect(options.gate.paused).toBe(false)
+
+    await act(async () => finish())
+    await act(async () => await Promise.resolve())
+    expect(uploadLine(host)).toBeNull()
+
+    await act(async () => page.root.unmount())
   })
 })

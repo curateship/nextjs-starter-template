@@ -64,6 +64,7 @@ export type AppOptions = {
   notifications?: NotificationOptions
   signIn?: SignInOptions
   homeScreen?: HomeScreenOptions
+  media?: MediaOptions
   /**
    * The app's own kinds of account, beside the shell's admin and member.
    *
@@ -681,6 +682,24 @@ type HomeScreenOptions = {
    * cut it after about 12 characters. Unset uses the app's name.
    */
   shortName?: string
+  /**
+   * Puts the app in a phone's share menu once it is on the home screen, so a
+   * link shared from another app opens this page with it. The phone opens
+   * `path` with `?url=`, `?text=` and `?title=`, whichever the sharing app
+   * filled in. Unset leaves the app out of the share menu. Only Android's
+   * Chrome offers this; an iPhone never lists a web app there.
+   */
+  shareTarget?: { path: `/${string}` }
+}
+
+type MediaOptions = {
+  /**
+   * The biggest video one upload may be, in bytes. Unset is 5GB. `"bucket"`
+   * lifts it to the most the R2 bucket holds in one file, just under 5TB,
+   * which is Video's answer. `videoMaxBytes()` in
+   * `src/lib/media/media-upload.ts` reads it for the browser and the server.
+   */
+  videoMaxBytes?: number | "bucket"
 }
 
 type SignInOptions = {
@@ -1265,5 +1284,11 @@ export function appHomeScreen(options: AppOptions = appOptions) {
   return {
     startPath: options.homeScreen?.startPath ?? "/",
     shortName: options.homeScreen?.shortName?.trim() || null,
+    sharePath: sameSitePath(options.homeScreen?.shareTarget?.path),
   }
+}
+
+/** A path on this site, or null: "//elsewhere" or "/\\elsewhere" would send a phone's share to another host. */
+function sameSitePath(path: string | undefined): string | null {
+  return path && path.startsWith("/") && !/^\/[\\/]/.test(path) ? path : null
 }

@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { NameDialog } from "@/components/shared/dashboard/name-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   SelectAllTableHead,
@@ -145,8 +146,6 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [renameTarget, setRenameTarget] =
     React.useState<AutomationListItem | null>(null)
   const [renameName, setRenameName] = React.useState("")
-  const [renameNameTouched, setRenameNameTouched] = React.useState(false)
-  const [renameAttempted, setRenameAttempted] = React.useState(false)
   const [runRename, renaming] = useAsyncAction(getAutomationErrorMessage)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [runningId, setRunningId] = React.useState<string | null>(null)
@@ -267,21 +266,16 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const openRename = (automation: AutomationListItem) => {
     setRenameTarget(automation)
     setRenameName(automation.name)
-    setRenameNameTouched(false)
-    setRenameAttempted(false)
   }
 
   const closeRename = () => {
     setRenameTarget(null)
     setRenameName("")
-    setRenameNameTouched(false)
-    setRenameAttempted(false)
   }
 
   const handleRename = async () => {
     const target = renameTarget
     if (!target || renaming) return
-    setRenameAttempted(true)
     if (!renameName.trim()) {
       showErrorToast("Automation name is required.")
       return
@@ -737,64 +731,22 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         )}
       </FormDialog>
 
-      <FormDialog
+      <NameDialog
         open={renameTarget !== null}
+        title="Rename automation"
+        description="Only the name changes. The steps and whether it is live stay exactly as they are."
+        cardTitle="Automation details"
+        inputId="rename-automation-name"
+        value={renameName}
+        onValueChange={setRenameName}
+        maxLength={80}
+        placeholder="Weekly changelog email"
         dirty={renameName.trim() !== (renameTarget?.name ?? "")}
         busy={renaming}
+        submitLabel="Save name"
+        onSubmit={() => void handleRename()}
         onClose={closeRename}
-      >
-        {(requestClose) => (
-          <DialogContent variant="admin">
-            <DialogHeader>
-              <DialogTitle>Rename automation</DialogTitle>
-              <DialogDescription>
-                Only the name changes. The steps and whether it is live stay
-                exactly as they are.
-              </DialogDescription>
-            </DialogHeader>
-            <form
-              className="flex min-h-0 flex-1 flex-col"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void handleRename()
-              }}
-            >
-              <DialogBody className="grid gap-2">
-                <Label htmlFor="rename-automation-name">Name</Label>
-                <Input
-                  id="rename-automation-name"
-                  value={renameName}
-                  maxLength={80}
-                  placeholder="Weekly changelog email"
-                  onChange={(event) => setRenameName(event.target.value)}
-                  onBlur={() => setRenameNameTouched(true)}
-                  aria-invalid={
-                    (!renameName.trim() &&
-                      (renameNameTouched || renameAttempted)) ||
-                    undefined
-                  }
-                />
-              </DialogBody>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={renaming}
-                  onClick={requestClose}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={renaming}>
-                  {renaming ? (
-                    <Loader2Icon className="size-4 animate-spin" />
-                  ) : null}
-                  Save name
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        )}
-      </FormDialog>
+      />
 
       <ConfirmDialog
         open={deleteTargets !== null}

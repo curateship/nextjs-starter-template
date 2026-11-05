@@ -20,11 +20,12 @@ export const Route = createFileRoute("/manifest.webmanifest")({
     handlers: {
       GET: async () => {
         const branding = await readBranding()
-        const { startPath, shortName } = appHomeScreen()
+        const { startPath, shortName, sharePath } = appHomeScreen()
         const manifest = webAppManifest({
           appName: resolveAppName(branding.appName),
           shortName,
           startPath,
+          sharePath,
           faviconSet: branding.faviconSet,
           faviconMode: branding.faviconMode,
         })

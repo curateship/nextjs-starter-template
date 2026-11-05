@@ -180,6 +180,62 @@ describe("with pacing off, nothing about sending has changed", () => {
     expect(sentTo).toHaveLength(10 + OWNER)
   })
 
+  it("mails the audience in the order they joined, fifty by fifty", async () => {
+    await insertContacts(120)
+    await insertBroadcast()
+
+    await tick(MORNING)
+    expect(sentTo).toEqual(
+      Array.from({ length: 50 }, (_, index) => `person${index}@example.test`)
+    )
+    await tick(MORNING)
+    expect(sentTo.slice(50)).toEqual(
+      Array.from({ length: 50 }, (_, index) => `person${index + 50}@example.test`)
+    )
+  })
+
+  it("finishes in one pass when exactly a batch is waiting", async () => {
+    await insertContacts(50 - OWNER)
+    await insertBroadcast()
+
+    await tick(MORNING)
+
+    expect(sentTo).toHaveLength(50)
+    const row = await readBroadcast()
+    expect(row.status).toBe("sent")
+    expect(row.totalRecipients).toBe(50)
+  })
+
+  it("comes back for the one left over when a batch and one are waiting", async () => {
+    await insertContacts(51 - OWNER)
+    await insertBroadcast()
+
+    await tick(MORNING)
+    expect(sentTo).toHaveLength(50)
+    expect((await readBroadcast()).status).toBe("sending")
+
+    await tick(MORNING)
+    expect(sentTo).toHaveLength(51)
+    expect((await readBroadcast()).status).toBe("sent")
+  })
+
+  it("keeps somebody already mailed in the total after they opt out", async () => {
+    await insertContacts(60)
+    await insertBroadcast()
+
+    await tick(MORNING)
+    await db
+      .update(customShellContacts)
+      .set({ status: "unsubscribed" })
+      .where(eq(customShellContacts.id, "contact-0000"))
+    await tick(MORNING)
+
+    const row = await readBroadcast()
+    expect(row.status).toBe("sent")
+    expect(row.totalRecipients).toBe(60 + OWNER)
+    expect(row.totalSent).toBe(60 + OWNER)
+  })
+
   it("never mails the same person twice across two passes", async () => {
     await insertContacts(60)
     await insertBroadcast()

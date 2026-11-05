@@ -44,7 +44,6 @@ import {
   saveContactTags,
   setContactsStatus,
   type ContactDelivery,
-  type ContactDetail,
   type ContactItem,
 } from "@/lib/api/people/contacts"
 import {
@@ -66,13 +65,9 @@ import {
 import { formatDate } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useLoad } from "@/lib/hooks/use-load"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
-
-type Loaded =
-  | { status: "loading" }
-  | { status: "failed"; message: string }
-  | { status: "ready"; detail: ContactDetail }
 
 /** How long the Notes box waits after the last key before it saves. */
 const NOTES_SAVE_DELAY_MS = 700
@@ -151,28 +146,17 @@ function OpenContact({
   onChanged: () => Promise<void>
   onSegment: (segmentId: string) => void
 }) {
-  const [loaded, setLoaded] = React.useState<Loaded>({ status: "loading" })
   const [historyPage, setHistoryPage] = React.useState(1)
-  const [attempt, setAttempt] = React.useState(0)
   const [runStatus, changingStatus] = useAsyncAction(getContactErrorMessage)
 
-  React.useEffect(() => {
-    let active = true
-    loadContactDetail(contactId, historyPage)
-      .then((detail) => {
-        if (active) setLoaded({ status: "ready", detail })
-      })
-      .catch((error) => {
-        if (active) setLoaded({ status: "failed", message: getContactErrorMessage(error) })
-      })
-    return () => {
-      active = false
-    }
-  }, [contactId, historyPage, attempt, refreshes])
-
-  const detail = loaded.status === "ready" ? loaded.detail : null
+  const load = useLoad(
+    () => loadContactDetail(contactId, historyPage),
+    getContactErrorMessage,
+    { keys: [contactId, historyPage, refreshes] }
+  )
+  // A failed load shows only the failure, never the contact from before it.
+  const detail = load.error ? null : load.data
   const contact = detail?.contact ?? null
-  const reload = () => setAttempt((count) => count + 1)
 
   /** Picked, saved: a status is a thing done to somebody, not an edit to cancel. */
   const pickStatus = (next: ContactSegmentStatus) => {
@@ -225,11 +209,18 @@ function OpenContact({
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <div className="grid gap-3 p-3">
-          {loaded.status === "loading" && !detail ? (
+          {load.error ? (
+            <ErrorRow
+              message={load.error}
+              onRetry={() => {
+                // Back to "Loading", not to whoever was open before.
+                load.setData(null)
+                load.retry()
+              }}
+            />
+          ) : !detail ? (
             <LoadingRow label="Loading this contact…" />
-          ) : loaded.status === "failed" ? (
-            <ErrorRow message={loaded.message} onRetry={reload} />
-          ) : contact && detail ? (
+          ) : contact ? (
             <>
               <WhoCard contact={contact} />
               <TagsCard

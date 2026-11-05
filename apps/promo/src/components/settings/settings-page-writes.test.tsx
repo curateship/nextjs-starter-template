@@ -19,12 +19,17 @@ vi.mock("@/components/shell/shell-layout", () => ({
  * made in one render and run after another is exactly what a save's answer and
  * a finished upload do.
  */
-const handlers: { copyright?: (value: string) => void } = {}
+const handlers: {
+  copyright?: (value: string) => void
+  alignment?: (value: string) => void
+} = {}
 vi.mock("@/components/settings/public-site-settings", () => ({
   PublicSiteSettings: (props: {
     onFooterCopyrightChange: (value: string) => void
+    onFooterAlignmentChange: (value: string) => void
   }) => {
     handlers.copyright = props.onFooterCopyrightChange
+    handlers.alignment = props.onFooterAlignmentChange
     return <div />
   },
 }))
@@ -54,7 +59,11 @@ describe("a settings handler kept from an earlier render", () => {
       sessionPolicyBusy: false,
     }
     const first = { ...createDefaultShellConfig(), appName: "Before" }
-    const second = { ...first, appName: "After" }
+    const second = {
+      ...first,
+      appName: "After",
+      publicTheme: { ...first.publicTheme, chromeFont: "baskerville" as const },
+    }
 
     const host = document.createElement("div")
     const root = createRoot(host)
@@ -66,7 +75,9 @@ describe("a settings handler kept from an earlier render", () => {
       )
     })
     const kept = handlers.copyright
+    const keptAlignment = handlers.alignment
     expect(kept).toBeDefined()
+    expect(keptAlignment).toBeDefined()
 
     // The app name changes somewhere else on the page, the way another edit
     // or a save's answer changes it.
@@ -83,6 +94,13 @@ describe("a settings handler kept from an earlier render", () => {
     const written = onConfigChange.mock.calls.at(-1)?.[0]
     expect(written.publicFooterCopyright).toBe("© New line")
     expect(written.appName).toBe("After")
+
+    // A public theme field writes on top of the newest theme too.
+    act(() => keptAlignment?.("center"))
+    const themed = onConfigChange.mock.calls.at(-1)?.[0]
+    expect(themed.publicTheme.footerAlignment).toBe("center")
+    expect(themed.publicTheme.chromeFont).toBe("baskerville")
+    expect(themed.appName).toBe("After")
 
     act(() => root.unmount())
   })

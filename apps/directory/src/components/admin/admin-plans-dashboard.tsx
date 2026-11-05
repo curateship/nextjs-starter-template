@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, Link, useNavigate } from "@tanstack/react-router"
+import { getRouteApi, Link } from "@tanstack/react-router"
 import {
   GaugeIcon,
   GiftIcon,
@@ -63,13 +63,16 @@ import { plural } from "@/lib/format/plural"
 import {
   useListSearchNavigate,
   useListSort,
+  useOpenRecord,
   useSearchBoxText,
 } from "@/lib/nav/list-search"
 import { AI_ALLOWANCE_FEATURE_KEY } from "@/lib/ai/ai-models"
 import { formatPlanPrice } from "@/lib/format/money"
 import type { PlanFeatures } from "@/lib/billing/plan-features"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useClientPage } from "@/lib/hooks/use-client-page"
 import { useSelection } from "@/lib/hooks/use-selection"
+import { sortRows, type SortKey } from "@/lib/hooks/use-table-sort"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 const plansRoute = getRouteApi("/_authenticated/admin/plans")
@@ -89,20 +92,13 @@ const PLAN_COLUMNS: SortableColumn<PlanSortColumn>[] = [
   { key: "visibility", label: "Visibility", column: "preview" },
 ]
 
-function comparePlans(a: AdminPlan, b: AdminPlan, column: PlanSortColumn) {
-  switch (column) {
-    case "monthly":
-      return a.priceMonthlyCents - b.priceMonthlyCents
-    case "yearly":
-      return a.priceYearlyCents - b.priceYearlyCents
-    case "stripe":
-      return Number(Boolean(a.stripePriceIdMonthly || a.stripePriceIdYearly)) -
-        Number(Boolean(b.stripePriceIdMonthly || b.stripePriceIdYearly))
-    case "visibility":
-      return Number(a.isPublic) - Number(b.isPublic)
-    default:
-      return a.name.localeCompare(b.name)
-  }
+const PLAN_SORT_KEYS: Record<PlanSortColumn, SortKey<AdminPlan>> = {
+  name: (plan) => plan.name,
+  monthly: (plan) => plan.priceMonthlyCents,
+  yearly: (plan) => plan.priceYearlyCents,
+  stripe: (plan) =>
+    Number(Boolean(plan.stripePriceIdMonthly || plan.stripePriceIdYearly)),
+  visibility: (plan) => Number(plan.isPublic),
 }
 
 function planArchiveReason(plan: AdminPlan) {
@@ -164,19 +160,12 @@ export function AdminPlansDashboard({
   // Search, sort and page live in the address, so Back returns this exact
   // list — see `lib/nav/list-search.ts`.
   const listSearch = plansRoute.useSearch()
-  const navigate = useNavigate()
   const setListSearch = useListSearchNavigate()
   const searchQuery = listSearch.q ?? ""
-  const currentPage = listSearch.page ?? 1
-  const setCurrentPage = React.useCallback(
-    (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
-    [setListSearch]
-  )
   const [searchText, setSearchText] = useSearchBoxText(searchQuery, (text) =>
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
   )
 
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const sort: PlanSortColumn = listSearch.sort ?? "name"
   const direction = listSearch.direction ?? "asc"
   const [creating, setCreating] = React.useState(false)
@@ -187,20 +176,7 @@ export function AdminPlansDashboard({
   const [run, massArchiving] = useAsyncAction(getPlanErrorMessage)
   const [massArchiveOpen, setMassArchiveOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const setOpenPlan = React.useCallback(
-    (id: string | undefined) => {
-      void navigate({
-        to: ".",
-        search: (previous: Record<string, unknown>) => {
-          const next = { ...previous }
-          if (id) next.open = id
-          else delete next.open
-          return next
-        },
-      })
-    },
-    [navigate]
-  )
+  const setOpenPlan = useOpenRecord()
   const openPlan = React.useCallback(
     (plan: AdminPlan) => {
       setOpenPlan(plan.id)
@@ -213,29 +189,28 @@ export function AdminPlansDashboard({
   )
 
   const sortedPlans = React.useMemo(() => {
-    const factor = direction === "asc" ? 1 : -1
     const query = searchQuery.trim().toLowerCase()
-    return plans
-      .filter(
+    return sortRows(
+      plans.filter(
         (plan) =>
           !query ||
           plan.name.toLowerCase().includes(query) ||
           plan.slug.toLowerCase().includes(query)
-      )
-      .sort((a, b) => factor * comparePlans(a, b, sort))
+      ),
+      { sort, direction },
+      PLAN_SORT_KEYS
+    )
   }, [direction, plans, searchQuery, sort])
 
-  const totalPages = Math.ceil(sortedPlans.length / pageSize)
-  const paginatedPlans = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize
-    return sortedPlans.slice(startIndex, startIndex + pageSize)
-  }, [currentPage, pageSize, sortedPlans])
-
-  // Changing how many rows fit can leave you past the end; the address already
-  // drops the page when the search, sort or filters change.
-  React.useEffect(() => {
-    setCurrentPage(1)
-  }, [pageSize, setCurrentPage])
+  const {
+    page: currentPage,
+    pageSize,
+    visible: paginatedPlans,
+    footer,
+  } = useClientPage(sortedPlans, config.dashboardRowsPerPage, undefined, {
+    page: listSearch.page ?? 1,
+    setPage: (next) => setListSearch({ page: next > 1 ? next : undefined }),
+  })
 
   useClearSelectionOnListChange(
     selection.setSelected,
@@ -356,19 +331,7 @@ export function AdminPlansDashboard({
             : "No plans found matching your search."
         }
         emptyColSpan={7}
-        footer={{
-          type: "pagination",
-          page: currentPage,
-          pageSize,
-          total: sortedPlans.length,
-          totalPages,
-          onPageChange: (page) =>
-            setCurrentPage(Math.max(1, Math.min(page, totalPages || 1))),
-          onPageSizeChange: (nextSize) => {
-            setCurrentPage(1)
-            setPageSize(nextSize)
-          },
-        }}
+        footer={footer}
       >
         {paginatedPlans.map((plan) => (
           <TableRow

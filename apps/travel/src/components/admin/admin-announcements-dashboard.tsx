@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
+import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { format } from "date-fns"
 import {
   EyeOffIcon,
@@ -77,11 +77,14 @@ import { formatUtcDate } from "@/lib/format/format-time"
 import {
   useListSearchNavigate,
   useListSort,
+  useOpenRecord,
   useSearchBoxText,
 } from "@/lib/nav/list-search"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useClientPage } from "@/lib/hooks/use-client-page"
 import { useSelection } from "@/lib/hooks/use-selection"
+import { sortRows, type SortKey } from "@/lib/hooks/use-table-sort"
 
 const announcementsRoute = getRouteApi("/_authenticated/admin/announcements")
 
@@ -146,24 +149,14 @@ function toDateField(value: string | null) {
   return value ? value.slice(0, 10) : ""
 }
 
-function compareAnnouncements(
-  a: Announcement,
-  b: Announcement,
-  column: AnnouncementSortColumn,
+function announcementSortKeys(
   nowMs: number
-) {
-  switch (column) {
-    case "where":
-      return channelLabels(a).join().localeCompare(channelLabels(b).join())
-    case "status":
-      return (
-        statusRank[announcementStatus(a, nowMs)] -
-        statusRank[announcementStatus(b, nowMs)]
-      )
-    case "shows":
-      return Date.parse(a.startsAt) - Date.parse(b.startsAt)
-    default:
-      return a.title.localeCompare(b.title)
+): Record<AnnouncementSortColumn, SortKey<Announcement>> {
+  return {
+    title: (announcement) => announcement.title,
+    where: (announcement) => channelLabels(announcement).join(),
+    status: (announcement) => statusRank[announcementStatus(announcement, nowMs)],
+    shows: (announcement) => Date.parse(announcement.startsAt),
   }
 }
 
@@ -183,22 +176,15 @@ export function AdminAnnouncementsDashboard({
 }) {
   const { config } = useShellRuntime()
   const router = useRouter()
-  const navigate = useNavigate()
   // Search, sort and page live in the address, so Back returns this exact
   // list — see `lib/nav/list-search.ts`.
   const listSearch = announcementsRoute.useSearch()
   const setListSearch = useListSearchNavigate()
   const searchQuery = listSearch.q ?? ""
-  const currentPage = listSearch.page ?? 1
-  const setCurrentPage = React.useCallback(
-    (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
-    [setListSearch]
-  )
   const [searchText, setSearchText] = useSearchBoxText(searchQuery, (text) =>
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
   )
 
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const sort: AnnouncementSortColumn = listSearch.sort ?? "shows"
   const direction = listSearch.direction ?? "desc"
   const toggleSort = useListSort<AnnouncementSortColumn>({ sort, direction })
@@ -210,20 +196,7 @@ export function AdminAnnouncementsDashboard({
   const selection = useSelection()
   const selectedIds = selection.selected
   const [error, setError] = React.useState<string | null>(null)
-  const setOpenAnnouncement = React.useCallback(
-    (id: string | undefined) => {
-      void navigate({
-        to: ".",
-        search: (previous: Record<string, unknown>) => {
-          const next = { ...previous }
-          if (id) next.open = id
-          else delete next.open
-          return next
-        },
-      })
-    },
-    [navigate]
-  )
+  const setOpenAnnouncement = useOpenRecord()
   const openAnnouncement = React.useCallback(
     (announcement: Announcement) => {
       setOpenAnnouncement(announcement.id)
@@ -242,29 +215,28 @@ export function AdminAnnouncementsDashboard({
   const [nowMs] = React.useState(() => Date.now())
 
   const sortedAnnouncements = React.useMemo(() => {
-    const factor = direction === "asc" ? 1 : -1
     const query = searchQuery.trim().toLowerCase()
-    return announcements
-      .filter(
+    return sortRows(
+      announcements.filter(
         (announcement) =>
           !query ||
           announcement.title.toLowerCase().includes(query) ||
           announcement.body.toLowerCase().includes(query)
-      )
-      .sort((a, b) => factor * compareAnnouncements(a, b, sort, nowMs))
+      ),
+      { sort, direction },
+      announcementSortKeys(nowMs)
+    )
   }, [announcements, direction, nowMs, searchQuery, sort])
 
-  const totalPages = Math.ceil(sortedAnnouncements.length / pageSize)
-  const paginatedAnnouncements = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize
-    return sortedAnnouncements.slice(startIndex, startIndex + pageSize)
-  }, [currentPage, pageSize, sortedAnnouncements])
-
-  // Changing how many rows fit can leave you past the end; the address already
-  // drops the page when the search or sort changes.
-  React.useEffect(() => {
-    setCurrentPage(1)
-  }, [pageSize, setCurrentPage])
+  const {
+    page: currentPage,
+    pageSize,
+    visible: paginatedAnnouncements,
+    footer,
+  } = useClientPage(sortedAnnouncements, config.dashboardRowsPerPage, undefined, {
+    page: listSearch.page ?? 1,
+    setPage: (next) => setListSearch({ page: next > 1 ? next : undefined }),
+  })
 
   useClearSelectionOnListChange(
     selection.setSelected,
@@ -362,19 +334,7 @@ export function AdminAnnouncementsDashboard({
             : "No announcements found matching your search."
         }
         emptyColSpan={6}
-        footer={{
-          type: "pagination",
-          page: currentPage,
-          pageSize,
-          total: sortedAnnouncements.length,
-          totalPages,
-          onPageChange: (page) =>
-            setCurrentPage(Math.max(1, Math.min(page, totalPages || 1))),
-          onPageSizeChange: (nextSize) => {
-            setCurrentPage(1)
-            setPageSize(nextSize)
-          },
-        }}
+        footer={footer}
       >
         {paginatedAnnouncements.map((announcement) => {
           const status = announcementStatus(announcement, nowMs)

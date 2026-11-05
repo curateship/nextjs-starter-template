@@ -38,6 +38,25 @@ export const SAVED_VIEW_ERRORS = {
  */
 const SCREEN_PATTERN = /^([a-z][a-z0-9-]{0,39}):([\w-]{0,36})$/
 
+/**
+ * Where this browser keeps the view last opened on a screen, which
+ * `SavedViewsControls` shows on its button and opens again on arrival.
+ */
+export function activeViewKey(screen: string) {
+  return `saved-view:${screen}`
+}
+
+/**
+ * The view last opened on a screen in this browser, read when it is needed,
+ * such as when narrowing on top of it is undone and the screen goes back to
+ * it. Null with none picked, one deleted since, or no browser storage.
+ */
+export function readActiveView(screen: string, views: readonly SavedView[]): SavedView | null {
+  if (typeof window === "undefined") return null
+  const id = window.localStorage.getItem(activeViewKey(screen))
+  return (id && views.find((view) => view.id === id)) || null
+}
+
 export function savedViewScreen(kind: string, recordId: string) {
   return `${kind}:${recordId}`
 }
