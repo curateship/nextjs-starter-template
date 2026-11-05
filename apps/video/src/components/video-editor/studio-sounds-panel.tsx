@@ -5,6 +5,8 @@ import {
   PlayIcon,
   PlusIcon,
   Trash2Icon,
+  UploadIcon,
+  WandSparklesIcon,
 } from "lucide-react"
 
 import { getMediaErrorMessage, uploadMedia } from "@/lib/api/media/media"
@@ -14,6 +16,14 @@ import {
   loadSoundEffects,
   removeSoundEffect,
 } from "@/lib/api/video/sound-effects"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { MakeSoundDialog } from "@/components/video-editor/make-sound-dialog"
+import { soundLaneAt } from "@/lib/video/sound-lanes"
 import type { MediaItem } from "@/server/media/library"
 import {
   STOCK_SOUNDS,
@@ -93,7 +103,8 @@ async function soundClip(item: SoundItem): Promise<EditorClip> {
 }
 
 export function SoundsPanel() {
-  const { dispatch, clock } = useEditorRuntime()
+  const { dispatch, clock, store } = useEditorRuntime()
+  const [making, setMaking] = React.useState(false)
   const [own, setOwn] = React.useState<MediaItem[] | null>(null)
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [refresh, setRefresh] = React.useState(0)
@@ -149,6 +160,21 @@ export function SoundsPanel() {
     onDrop: lay,
   })
 
+  // A sound made from words lands at the playhead on the first sound lane
+  // with room there, or a lane of its own (ai-sound-effects.md).
+  function madeSound(file: MediaItem) {
+    setRefresh((count) => count + 1)
+    const atMs = clock.getTime()
+    void addClip({ kind: "own", file }, (clip) => {
+      const trackId = soundLaneAt(store.getSnapshot().state.tracks, atMs, clip.durationMs)
+      dispatch(
+        trackId
+          ? { type: "ADD_CLIP", clip, atMs, trackId }
+          : { type: "ADD_CLIP_TO_NEW_TRACK", clip, atMs }
+      )
+    })
+  }
+
   async function handleUpload(list: FileList | null) {
     if (!list?.length) return
     setUploading(true)
@@ -189,18 +215,32 @@ export function SoundsPanel() {
       <SoundsTabsHeader
         action={
           <>
-            <Hint label="Upload a sound">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                disabled={uploading}
-                aria-label="Upload a sound"
-                onClick={() => fileRef.current?.click()}
-              >
-                {uploading ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
-              </Button>
-            </Hint>
+            <DropdownMenu>
+              <Hint label="Add a sound" disabled={uploading}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={uploading}
+                    aria-label="Add a sound"
+                  >
+                    {uploading ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
+                  </Button>
+                </DropdownMenuTrigger>
+              </Hint>
+              <DropdownMenuContent align="end" className="w-52">
+                {/* After the menu has closed, so it does not take the window's focus with it. */}
+                <DropdownMenuItem onSelect={() => window.setTimeout(() => setMaking(true), 0)}>
+                  <WandSparklesIcon />
+                  Make a sound with AI
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => fileRef.current?.click()}>
+                  <UploadIcon />
+                  Upload a sound
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <input
               ref={fileRef}
               type="file"
@@ -257,7 +297,7 @@ export function SoundsPanel() {
               </ul>
             ) : (
               <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                No sounds of your own yet. Upload one with the plus button.
+                No sounds of your own yet. Make one with AI or upload one from the plus button.
               </p>
             )}
           </section>
@@ -285,6 +325,7 @@ export function SoundsPanel() {
         </div>
       </ScrollArea>
       {ghost}
+      <MakeSoundDialog open={making} onOpenChange={setMaking} onMade={madeSound} />
     </div>
   )
 }

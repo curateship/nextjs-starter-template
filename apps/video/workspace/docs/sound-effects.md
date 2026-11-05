@@ -38,9 +38,10 @@ and alerts, Hits, and Funny (`src/lib/video/stock-sounds.ts`).
 
 ## Your own sounds
 
-Above the starter pack, **Your sounds** lists sound files you have uploaded
-with the panel's plus button. They follow you into every project, the same as
-the music shelf.
+Above the starter pack, **Your sounds** lists sound files you have added from
+the panel's plus menu: Upload a sound, or Make a sound with AI
+([ai-sound-effects.md](ai-sound-effects.md)). They follow you into every
+project, the same as the music shelf.
 
 - **The trash can on a row** takes it off your sounds. The file stays in the media
   library.

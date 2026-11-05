@@ -19,6 +19,8 @@ import { BIG_FILE_BYTES } from "@/server/video/sound-source"
 import { resolveProxyConcurrency } from "@/server/video/media-worker-config"
 import { projectThumbnailTick } from "@/server/video/project-thumbnails"
 import { BEAT_SAMPLE_RATE, findBeats } from "@/lib/video/beats"
+import { loudnormMeasureFilter, parseLoudnormMeasurement } from "@/lib/video/audio-loudness"
+import { videoMediaLoudness } from "@/server/video/schema"
 import { filmstripPlan, filmstripSheetPath } from "@/lib/video/filmstrip-sheets"
 import {
   isVoiceCleanStrength,
@@ -78,9 +80,9 @@ const FILMSTRIP_FFMPEG_TIMEOUT_MS = 15 * 60 * 1000
 const WAVEFORM_SAMPLE_RATE = 8000
 const WAVEFORM_FFMPEG_TIMEOUT_MS = 15 * 60 * 1000
 
-type JobKind = "proxy" | "filmstrip" | "waveform" | "clean" | "beats"
+type JobKind = "proxy" | "filmstrip" | "waveform" | "clean" | "beats" | "steady"
 
-const JOB_KINDS: JobKind[] = ["proxy", "filmstrip", "waveform", "clean", "beats"]
+const JOB_KINDS: JobKind[] = ["proxy", "filmstrip", "waveform", "clean", "beats", "steady"]
 
 const JOB_TABLES = {
   proxy: "video_media_proxies",
@@ -88,6 +90,7 @@ const JOB_TABLES = {
   waveform: "video_media_waveforms",
   clean: "video_media_clean_sounds",
   beats: "video_media_beats",
+  steady: "video_media_steady_copies",
 } as const satisfies Record<JobKind, string>
 
 // The column a row is claimed by. Every queue has one row per file except
@@ -98,6 +101,7 @@ const JOB_KEYS: Record<JobKind, "media_id" | "id"> = {
   waveform: "media_id",
   clean: "id",
   beats: "media_id",
+  steady: "media_id",
 }
 
 const JOB_LABELS: Record<JobKind, string> = {
@@ -106,6 +110,7 @@ const JOB_LABELS: Record<JobKind, string> = {
   waveform: "Waveform",
   clean: "Cleaned sound",
   beats: "Beats",
+  steady: "Steady copy",
 }
 
 const CLEAN_FFMPEG_TIMEOUT_MS = 15 * 60 * 1000
@@ -322,6 +327,9 @@ const WAITS_FOR_SMOOTH_COPY: Record<JobKind, boolean> = {
   waveform: true,
   clean: true,
   beats: true,
+  // A steady copy is drawn from the original, at the quality an export needs.
+  // The file cache keeps a big original on disk the way the smooth copy does.
+  steady: false,
 }
 
 /**
@@ -432,6 +440,8 @@ async function runJob(job: ClaimedJob) {
       await buildCleanSound(job, workDir)
     } else if (job.kind === "beats") {
       await buildBeats(job, workDir)
+    } else if (job.kind === "steady") {
+      await buildSteadyCopy(job, workDir)
     } else {
       await buildWaveform(job, workDir)
     }
@@ -630,6 +640,109 @@ async function buildProxy(job: ClaimedJob, workDir: string) {
   }
 }
 
+/**
+ * Whether this server's ffmpeg has the two-pass steadying filters. Homebrew's
+ * and some Alpine builds leave libvidstab out, and `deshake` is then used
+ * instead (steady-shaky-footage.md). Asked once per process.
+ */
+let vidstabAnswer: Promise<boolean> | null = null
+function hasVidstab() {
+  vidstabAnswer ??= runCommand("ffmpeg", ["-hide_banner", "-filters"], 30_000)
+    .then((filters) => /\bvidstabdetect\b/.test(filters))
+    .catch(() => false)
+  return vidstabAnswer
+}
+
+/**
+ * A steadied copy of one video (steady-shaky-footage.md), at most 1080 pixels
+ * on its shorter side, which is as big as an export draws, with a keyframe
+ * every second so the editor can scrub it. With libvidstab it is two passes:
+ * the first finds how the camera shook, the second takes that out and grows
+ * the picture just enough to hide the moving edges. Without it, `deshake`
+ * does both in one pass.
+ */
+async function buildSteadyCopy(job: ClaimedJob, workDir: string) {
+  const source = await fileCache().open(job.storagePath, job.fileSize)
+  try {
+    const durationSeconds = await probeDurationSeconds(source.path).catch(() => 0)
+    const timeoutMs = proxyTimeoutMs(durationSeconds) * 2
+    const transforms = join(workDir, "transforms.trf")
+    const vidstab = await hasVidstab()
+    if (vidstab) {
+      await runCommand(
+        "ffmpeg",
+        ["-y", "-i", source.path, "-map", "0:v:0", "-vf", `vidstabdetect=shakiness=6:accuracy=12:result=${transforms}`, "-f", "null", "-"],
+        timeoutMs
+      )
+    }
+    const steady = vidstab
+      ? `vidstabtransform=input=${transforms}:smoothing=15:optzoom=1,unsharp=5:5:0.8:3:3:0.4`
+      : "deshake"
+    const outputPath = join(workDir, "steady.mp4")
+    await runCommand(
+      "ffmpeg",
+      [
+        "-y",
+        "-i",
+        source.path,
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+        "-vf",
+        `${steady},scale=w=if(gte(iw\\,ih)\\,-2\\,min(iw\\,1080)):h=if(gte(iw\\,ih)\\,min(ih\\,1080)\\,-2)`,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
+        "-force_key_frames",
+        "expr:gte(t,n_forced*1)",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "160k",
+        "-movflags",
+        "+faststart",
+        "-sn",
+        "-dn",
+        outputPath,
+      ],
+      timeoutMs
+    )
+
+    const storagePath = `video/steady/${job.userId}/${job.mediaId}/${job.leaseToken}.mp4`
+    const fileSize = (await stat(outputPath)).size
+    await uploadFileToR2(storagePath, outputPath, "video/mp4")
+    const finished = await db.execute(sql`
+      update video_media_steady_copies set
+        status = 'ready',
+        storage_path = ${storagePath},
+        file_size = ${fileSize},
+        error = null,
+        lease_token = null,
+        lease_expires_at = null,
+        generated_at = now(),
+        updated_at = now()
+      where media_id = ${job.mediaId}
+        and lease_token = ${job.leaseToken}
+        and status = 'generating'
+      returning media_id
+    `)
+    if (!finished.rows.length) {
+      await deleteFromR2(storagePath).catch(() => undefined)
+      return
+    }
+    // An export reads it next, so it stays on this server's disk.
+    await fileCache().adopt(storagePath, outputPath, fileSize)
+  } finally {
+    await source.release()
+  }
+}
+
 /** Why a job that waited for a big video's smooth copy cannot go on. */
 export const NO_SMOOTH_COPY_MESSAGE =
   "This video is too big to read without its smooth copy, and the smooth copy could not be made. Try again from the Media panel."
@@ -771,6 +884,15 @@ async function drawWaveform(job: ClaimedJob, workDir: string, inputPath: string)
     }
   }
 
+  // The file's loudness, measured once here while its sound is at hand, so a
+  // clip dropped later arrives at the even loudness straight away
+  // (even-out-clip-volume.md). A failure only means the drop measures it.
+  if (durationMs !== null) {
+    await measureLoudnessOnce(job.mediaId, inputPath).catch((error) =>
+      console.error("Measuring a file's loudness failed", job.mediaId, error)
+    )
+  }
+
   await db.execute(sql`
     update video_media_waveforms set
       status = 'ready',
@@ -786,6 +908,19 @@ async function drawWaveform(job: ClaimedJob, workDir: string, inputPath: string)
       and lease_token = ${job.leaseToken}
       and status = 'generating'
   `)
+}
+
+async function measureLoudnessOnce(mediaId: string, inputPath: string) {
+  const stderr = await runCommand(
+    "ffmpeg",
+    ["-i", inputPath, "-map", "0:a:0", "-vn", "-af", loudnormMeasureFilter(), "-f", "null", "-"],
+    WAVEFORM_FFMPEG_TIMEOUT_MS,
+    "stderr"
+  )
+  await db
+    .insert(videoMediaLoudness)
+    .values({ mediaId, lufs: parseLoudnormMeasurement(stderr)?.inputI ?? null, measuredAt: now() })
+    .onConflictDoNothing()
 }
 
 export const NO_SOUND_TO_CLEAN_MESSAGE = "This file has no sound to clean"
@@ -938,7 +1073,17 @@ async function probeDimensions(inputPath: string) {
  * Runs a command, keeps only the tail of its noise, and turns a missing
  * binary into the one sentence a person can act on.
  */
-function runCommand(command: string, args: string[], timeoutMs: number) {
+/**
+ * Runs a command and resolves with what it printed. `stderr` gives the last
+ * 4000 characters of its error stream instead, which is where ffmpeg prints a
+ * measurement.
+ */
+function runCommand(
+  command: string,
+  args: string[],
+  timeoutMs: number,
+  output: "stdout" | "stderr" = "stdout"
+) {
   return new Promise<string>((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: ["ignore", "pipe", "pipe"],
@@ -961,7 +1106,7 @@ function runCommand(command: string, args: string[], timeoutMs: number) {
     })
     child.on("close", (code) => {
       if (code === 0) {
-        resolve(stdout)
+        resolve(output === "stderr" ? stderrTail : stdout)
       } else {
         reject(new Error(`${command} exited with ${code}: ${stderrTail}`))
       }

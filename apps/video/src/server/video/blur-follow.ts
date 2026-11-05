@@ -16,7 +16,8 @@ import {
   findFacesCostCents,
   PICTURE_READER_MODEL,
 } from "@/lib/video/ai-estimates"
-import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
+import { canFollow, FOLLOW_ITEM_NOT_FOUND_MESSAGE } from "@/lib/video/follow-track"
+import { requireCanonicalTimeline, type ProjectTimeline } from "@/lib/video/timeline-schema"
 import { runAiCall } from "@/server/ai/usage"
 import { generateJson, requireGeminiKey } from "@/server/video/gemini"
 import {
@@ -83,17 +84,45 @@ function jpegPart(bytes: Uint8Array) {
 }
 
 /**
- * The saved blur and the timeline of only the lanes under it. The editor
- * sends any waiting edit before asking, so the saved timeline is the one on
- * screen.
+ * What is followed: a blur (blur.md), or text, a shape, a sticker or a small
+ * video (stick-to-a-moving-thing.md). Each says which clips it takes and the
+ * sentence for one that is gone.
  */
-function blurAndLanesUnder(rawTimeline: unknown, clipId: string) {
+type Follower = {
+  accepts: (clip: TimelineClip) => boolean
+  notFound: string
+  feature: { faces: string; follow: string }
+  label: string
+}
+
+type TimelineClip = ProjectTimeline["tracks"][number]["clips"][number]
+
+const BLUR_FOLLOWER: Follower = {
+  accepts: isBlurClip,
+  notFound: BLUR_NOT_FOUND_MESSAGE,
+  feature: { faces: "blur_faces", follow: "blur_follow" },
+  label: "Following the blur",
+}
+
+const ITEM_FOLLOWER: Follower = {
+  accepts: canFollow,
+  notFound: FOLLOW_ITEM_NOT_FOUND_MESSAGE,
+  feature: { faces: "follow_faces", follow: "follow_thing" },
+  label: "Following a moving thing",
+}
+
+/**
+ * The saved blur or item and the timeline of only the lanes under it. The
+ * editor sends any waiting edit before asking, so the saved timeline is the
+ * one on screen.
+ */
+function followerAndLanesUnder(rawTimeline: unknown, clipId: string, follower: Follower) {
   const timeline = requireCanonicalTimeline(rawTimeline)
   const trackIndex = timeline.tracks.findIndex((track) =>
     track.clips.some((clip) => clip.id === clipId)
   )
   const clip = timeline.tracks[trackIndex]?.clips.find((one) => one.id === clipId)
-  if (!clip || !isBlurClip(clip)) throw new Error(BLUR_NOT_FOUND_MESSAGE)
+  if (!clip || !follower.accepts(clip)) throw new Error(follower.notFound)
   const under = { ...timeline, tracks: timeline.tracks.slice(trackIndex + 1) }
   return { clip, under }
 }
@@ -102,9 +131,10 @@ async function stillsUnder(
   userId: string,
   rawTimeline: unknown,
   clipId: string,
-  lastMs: number
+  lastMs: number,
+  follower: Follower
 ) {
-  const { clip, under } = blurAndLanesUnder(rawTimeline, clipId)
+  const { clip, under } = followerAndLanesUnder(rawTimeline, clipId, follower)
   try {
     const stills = await renderTimelineStills({
       userId,
@@ -127,24 +157,28 @@ async function stillsUnder(
  * The faces on the blur's first frame, biggest first, as boxes of the frame.
  * The editor numbers them on the preview and follows the one picked.
  */
-export async function findFacesUnderBlur({
-  userId,
-  videoId,
-  clipId,
-}: {
-  userId: string
-  videoId: string
-  clipId: string
-}): Promise<ShareBox[]> {
+export function findFacesUnderBlur(ids: { userId: string; videoId: string; clipId: string }) {
+  return findFacesUnder(ids, BLUR_FOLLOWER)
+}
+
+/** The faces on an item's first frame, for Stick to a moving thing. */
+export function findFacesUnderItem(ids: { userId: string; videoId: string; clipId: string }) {
+  return findFacesUnder(ids, ITEM_FOLLOWER)
+}
+
+async function findFacesUnder(
+  { userId, videoId, clipId }: { userId: string; videoId: string; clipId: string },
+  follower: Follower
+): Promise<ShareBox[]> {
   const video = await requireVideoBudget(userId, videoId, findFacesCostCents())
   const apiKey = await requireGeminiKey()
-  const { stills } = await stillsUnder(userId, video.timeline, clipId, 0)
+  const { stills } = await stillsUnder(userId, video.timeline, clipId, 0, follower)
   const answer = await runAiCall(
     {
       userId,
       provider: "gemini",
       model: PICTURE_READER_MODEL,
-      feature: "blur_faces",
+      feature: follower.feature.faces,
       metadata: videoSpendMetadata(video),
     },
     async () => {
@@ -177,20 +211,28 @@ export async function findFacesUnderBlur({
  * it, one every half second, as the places of the box's middle. A frame the
  * thing is missing from is left out, and the blur slides straight across it.
  */
-export async function followUnderBlur({
-  userId,
-  videoId,
-  clipId,
-  box,
-}: {
-  userId: string
-  videoId: string
-  clipId: string
-  box: ShareBox
-}): Promise<BlurTrackPoint[]> {
-  const saved = blurAndLanesUnder(
+export function followUnderBlur(ask: FollowAsk) {
+  return followUnder(ask, BLUR_FOLLOWER)
+}
+
+/**
+ * Where the thing in `box` on an item's first frame is in every frame after
+ * it, one every half second (stick-to-a-moving-thing.md).
+ */
+export function followUnderItem(ask: FollowAsk) {
+  return followUnder(ask, ITEM_FOLLOWER)
+}
+
+type FollowAsk = { userId: string; videoId: string; clipId: string; box: ShareBox }
+
+async function followUnder(
+  { userId, videoId, clipId, box }: FollowAsk,
+  follower: Follower
+): Promise<BlurTrackPoint[]> {
+  const saved = followerAndLanesUnder(
     (await getOwnedVideo(userId, videoId)).timeline,
-    clipId
+    clipId,
+    follower
   ).clip
   const moments = blurFollowMoments(saved.durationMs)
   const video = await requireVideoBudget(
@@ -203,7 +245,8 @@ export async function followUnderBlur({
     userId,
     video.timeline,
     clipId,
-    moments[moments.length - 1]
+    moments[moments.length - 1],
+    follower
   )
   const frames = stills.slice(0, moments.length)
   const start = { atMs: 0, x: box.left + box.width / 2, y: box.top + box.height / 2 }
@@ -216,14 +259,14 @@ export async function followUnderBlur({
         userId,
         provider: "gemini",
         model: PICTURE_READER_MODEL,
-        feature: "blur_follow",
+        feature: follower.feature.follow,
         metadata: videoSpendMetadata(video),
       },
       async () => {
         const reply = await generateJson({
           apiKey,
           model: PICTURE_READER_MODEL,
-          label: "Following the blur",
+          label: follower.label,
           schema: followSchema,
           parts: [
             {

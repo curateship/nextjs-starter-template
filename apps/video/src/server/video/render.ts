@@ -35,6 +35,15 @@ import {
   pictureScaleFilter,
 } from "@/lib/video/clip-size"
 import { clipMotion, motionFilter } from "@/lib/video/clip-motion"
+import { punchInFilter } from "@/lib/video/punch-ins"
+import { levelFilter } from "@/lib/video/clip-level"
+import { followOffsetExpressions, isFollowing } from "@/lib/video/follow-track"
+import {
+  STEADY_FAILED_MESSAGE,
+  STEADY_NOT_READY_MESSAGE,
+  steadyCopiesForRender,
+} from "@/server/video/steady-copies"
+
 import { clipColour, colourEqFilter } from "@/lib/video/clip-colour"
 import {
   NO_FADES,
@@ -139,6 +148,11 @@ import {
   measureAdvance,
 } from "@/server/video/text-measure"
 
+/** Where a video's steadied copy is kept among the opened files. */
+function steadySourceKey(mediaId: string) {
+  return `steady:${mediaId}`
+}
+
 /**
  * Turning a timeline into a finished MP4.
  *
@@ -185,6 +199,8 @@ export const SAFE_RENDER_ERRORS = new Set([
   FONT_MISSING_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
   STOCK_SOUND_MISSING_MESSAGE,
+  STEADY_NOT_READY_MESSAGE,
+  STEADY_FAILED_MESSAGE,
 ])
 
 function toEven(value: number) {
@@ -641,6 +657,18 @@ async function openOwnedSources(
       .filter((url): url is string => !!url)
   )
 
+  // Videos a clip plays steadied read their steadied copy for the picture
+  // (steady-shaky-footage.md), kept under `steadySourceKey`. A copy that is
+  // not ready stops the export with a sentence saying so.
+  const steadyIds = Array.from(
+    new Set(
+      clips
+        .filter(({ clip }) => clip.kind === "video" && clip.steady && clip.mediaId)
+        .map(({ clip }) => clip.mediaId!)
+    )
+  )
+  const steadyCopies = await steadyCopiesForRender(steadyIds)
+
   const sourceFiles = new Map<string, string>()
   const opened: RenderSource[] = []
   const release = async () => {
@@ -651,6 +679,15 @@ async function openOwnedSources(
       const source = await openRenderSource(media, { draft })
       opened.push(source)
       sourceFiles.set(media.id, source.input)
+      const steady = steadyCopies.get(media.id)
+      if (steady) {
+        const steadySource = await openRenderSource(
+          { ...media, ...steady },
+          { draft: false }
+        )
+        opened.push(steadySource)
+        sourceFiles.set(steadySourceKey(media.id), steadySource.input)
+      }
     }
   } catch (error) {
     await release()
@@ -879,6 +916,9 @@ async function buildFfmpegCommand(options: {
       ...(clip.voiceClean ? [voiceCleanFilter(clip.voiceClean)] : []),
       ...atempoFilters(speed),
     ]
+    // The even loudness the clip arrived with, then its own slider on top
+    // (clip-level.ts).
+    stages.push(...levelFilter(clip))
     if (volume !== DEFAULT_CLIP_VOLUME) {
       stages.push(`volume=${volume.toFixed(3)}`)
     }
@@ -907,7 +947,9 @@ async function buildFfmpegCommand(options: {
       run = null
       continue
     }
-    if (hasFades(entry)) {
+    // So is one that follows something: its layer moves on its own
+    // (follow-track.ts).
+    if (hasFades(entry) || isFollowing(entry.clip)) {
       captionRuns.set(entry, [entry])
       run = null
       continue
@@ -1016,9 +1058,12 @@ async function buildFfmpegCommand(options: {
         run.length === 1 && hasFades(run[0])
           ? [`fps=${fps}`, ...pictureFadeStages(run[0])]
           : []
+      // A run of one following caption moves its whole layer with the
+      // thing it follows (follow-track.ts); anything else stays at 0, 0.
+      const moved = followOffsetExpressions(run[0].clip, size, run[0].clip.startMs / 1000)
       filters.push(
         `[${inputIndex}:v]${["format=rgba", `setpts=PTS-STARTPTS+${firstFrame / fps}/TB`, ...textFades].join(",")}[l${visualStep}]`,
-        `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${(firstFrame - 0.5) / fps},${(endFrame - 0.5) / fps})'[v${visualStep + 1}]`
+        `[v${visualStep}][l${visualStep}]overlay=x='${moved.x}':y='${moved.y}':enable='between(t,${(firstFrame - 0.5) / fps},${(endFrame - 0.5) / fps})'[v${visualStep + 1}]`
       )
     } else if (isBlurClip(clip)) {
       // A blur crops its box out of everything drawn so far, blurs that
@@ -1077,12 +1122,16 @@ async function buildFfmpegCommand(options: {
       const shapeFades = hasFades(entry)
         ? [`fps=${fps}`, ...pictureFadeStages(entry)]
         : []
+      const moved = followOffsetExpressions(clip, size, startS)
       filters.push(
         `[${inputIndex}:v]${["format=rgba", `setpts=PTS-STARTPTS+${startS}/TB`, ...shapeFades].join(",")}[l${visualStep}]`,
-        `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
+        `[v${visualStep}][l${visualStep}]overlay=x='${moved.x}':y='${moved.y}':enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
       )
     } else {
-      const file = sourceFiles.get(clip.mediaId!)!
+      const file =
+        clip.kind === "video" && clip.steady
+          ? sourceFiles.get(steadySourceKey(clip.mediaId!))!
+          : sourceFiles.get(clip.mediaId!)!
       // A still has no speed: there is nothing moving to play faster. A video
       // reads however much recording its speed eats, and `setpts` below
       // squeezes or stretches that back into the room the clip has.
@@ -1123,9 +1172,24 @@ async function buildFfmpegCommand(options: {
         ...(motion
           ? [motionFilter(motion, box.width, box.height, durS * fps)]
           : []),
+        // Zooms in on moments of a video (punch-ins.ts), counted in the
+        // file's time from where this input opens.
+        ...punchInFilter(clip, {
+          width: box.width,
+          height: box.height,
+          sourceStartS: sourceMsAt(clip, Math.max(0, fromS - startS) * 1000) / 1000,
+          rate: fps * speed,
+        }),
         ...(scaleFilter ? [scaleFilter] : []),
       ].join(",")
-      const place = pictureOverlayPosition(clip)
+      // A small picture or video that follows something is moved from its
+      // place by the same expressions (follow-track.ts).
+      const placed = pictureOverlayPosition(clip)
+      const moved = followOffsetExpressions(clip, size, startS)
+      const place =
+        moved.x === "0" && moved.y === "0"
+          ? placed
+          : { x: `${placed.x}+(${moved.x})`, y: `${placed.y}+(${moved.y})` }
       // How much of a clip already under way when the film starts is skipped
       // rather than drawn. A moving still keeps all of it, because its move
       // is counted in its own frames from the first.
@@ -1230,17 +1294,17 @@ async function buildFfmpegCommand(options: {
         const xExpr =
           reach.kind === "slide"
             ? `'if(gte(t,${startS.toFixed(3)}),${place.x},${place.x}+(W-(${place.x}))*((${startS.toFixed(3)}-t)/${blend.toFixed(3)}))'`
-            : place.x
+            : `'${place.x}'`
         filters.push(
           `${chain.join(",")}[l${visualStep}]`,
-          `[v${visualStep}][l${visualStep}]overlay=x=${xExpr}:y=${place.y}:enable='between(t,${drawStartS.toFixed(3)},${endS.toFixed(3)})'[v${visualStep + 1}]`
+          `[v${visualStep}][l${visualStep}]overlay=x=${xExpr}:y='${place.y}':enable='between(t,${drawStartS.toFixed(3)},${endS.toFixed(3)})'[v${visualStep + 1}]`
         )
       } else {
         // The fades go on once the frames carry timeline time, so they start
         // where the clip does on the timeline.
         filters.push(
           `${head},${[`setpts=(PTS-STARTPTS)/${speed}+${startS + skipS}/TB`, ...pictureFadeStages(entry)].join(",")}[l${visualStep}]`,
-          `[v${visualStep}][l${visualStep}]overlay=x=${place.x}:y=${place.y}:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
+          `[v${visualStep}][l${visualStep}]overlay=x='${place.x}':y='${place.y}':enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
         )
       }
       if (clip.kind === "video" && !muted && audioPresence.get(clip.mediaId!)) {

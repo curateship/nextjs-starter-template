@@ -27,6 +27,7 @@ import type {
 import type { AiPart } from "@/lib/video/ai-parts"
 import type { CarouselLook } from "@/lib/video/carousel-look"
 import type { ExportScene } from "@/lib/video/export-scenes"
+import type { TimelineMarker } from "@/lib/video/timeline-markers"
 import type { ExportAd, TextAdLook } from "@/lib/video/ads"
 import type { ExtraPicks, SentExtra } from "@/lib/video/extras"
 import type { ClipOutcome } from "@/lib/video/moving-still"
@@ -308,6 +309,42 @@ export const videoMediaCleanSounds = pgTable(
 )
 
 /**
+ * A steadied copy of one video, made by the media worker for a clip whose
+ * Steady switch is on (`workspace/docs/steady-shaky-footage.md`, drizzle/0154).
+ * The preview plays it and the export reads it in place of the original.
+ */
+export const videoMediaSteadyCopies = pgTable(
+  "video_media_steady_copies",
+  {
+    mediaId: varchar("media_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 20 }).notNull(),
+    storagePath: text("storage_path"),
+    fileSize: bigint("file_size", { mode: "number" }),
+    error: text("error"),
+    attempts: integer("attempts").notNull().default(0),
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    generatedAt: timestamp("generated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_media_steady_copies_status_check",
+      sql`${table.status} in ('queued', 'generating', 'ready', 'error')`
+    ),
+    check(
+      "video_media_steady_copies_ready_check",
+      sql`${table.status} <> 'ready' or ${table.storagePath} is not null`
+    ),
+    check("video_media_steady_copies_attempts_check", sql`${table.attempts} >= 0`),
+    index("ix_video_media_steady_copies_status_created").on(table.status, table.createdAt),
+  ]
+)
+
+/**
  * Where the beats fall in each file marked as music, found by the media
  * worker so clip edges can snap to them (migration 0144). `beats` is a list
  * of milliseconds from the start of the file; empty means no steady beat.
@@ -424,6 +461,22 @@ export const videoMediaLoudness = pgTable("video_media_loudness", {
 })
 
 /**
+ * A copy of the voice in one recording, made by Fix a word the first time a
+ * word in it is fixed (`workspace/docs/fix-a-word.md`, drizzle/0154). The
+ * voice itself lives at ElevenLabs under `voice_id`.
+ */
+export const videoMediaVoiceCopies = pgTable("video_media_voice_copies", {
+  mediaId: varchar("media_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellMedia.id, { onDelete: "cascade" }),
+  userId: varchar("user_id", { length: 36 })
+    .notNull()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  voiceId: varchar("voice_id", { length: 64 }).notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+})
+
+/**
  * Voices people made from their own sample in the Voices panel (see
  * `src/server/video/cloned-voices.ts`). The voice itself lives at ElevenLabs
  * under `voice_id`; this row says whose it is, so only its owner sees it in a
@@ -535,6 +588,16 @@ export const videoProjects = pgTable(
     // to copy the look of. Deleting the picture blanks the column.
     style: varchar("style", { length: 500 }),
     styleMediaId: varchar("style_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    // Videos added before and after every export of the project's videos
+    // (intro-and-outro.md, drizzle/0154).
+    introMediaId: varchar("intro_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    outroMediaId: varchar("outro_media_id", { length: 36 }).references(
       () => customShellMedia.id,
       { onDelete: "set null" }
     ),
@@ -1580,6 +1643,8 @@ export const videoRenderJobs = pgTable(
     // project, so one project can be exported tall, square and wide at once.
     aspect: varchar("aspect", { length: 8 }).notNull(),
     normalizeLoudness: boolean("normalize_loudness").notNull().default(true),
+    // Off, this export leaves out the project's intro and outro (drizzle/0154).
+    withIntroOutro: boolean("with_intro_outro").notNull().default(true),
     // Frames a second in the file: 30 or 60. Thirty is what every export was
     // made at before there was a choice.
     frameRate: integer("frame_rate").notNull().default(30),
@@ -1609,6 +1674,10 @@ export const videoRenderJobs = pgTable(
     // Where the export's ads were, for marks on its viewer curve
     // (drizzle/0153). NULL on exports made before.
     ads: jsonb("ads").$type<ExportAd[]>(),
+    // The markers in the file, worked out by the render from the timeline it
+    // drew, for its Chapters card (youtube-chapters.md). NULL before
+    // drizzle/0154 and on carousel exports.
+    markers: jsonb("markers").$type<TimelineMarker[]>(),
     // The part of the project exported, in milliseconds into its timeline
     // (drizzle/0147). Both null is the whole project.
     rangeStartMs: integer("range_start_ms"),

@@ -4,6 +4,7 @@ import { CAROUSEL_NOT_FOUND_MESSAGE, requireCanonicalCarouselSlides } from "@/li
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
+import { forgetVoiceCopy } from "@/server/video/fix-a-word"
 import {
   deleteMediaAsAdmin,
   serializeMedia,
@@ -436,6 +437,8 @@ export async function deleteMediaFromScope(
     .limit(1)
   if (!media) throw new Error("Media not found")
 
+  // A copy of the voice made from this file by Fix a word goes with it.
+  await forgetVoiceCopy(mediaId, database)
   const result = await deleteMedia([mediaId], database)
   if (result.deletedCount !== 1) throw new Error("Media not found")
 }

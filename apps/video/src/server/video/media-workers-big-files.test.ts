@@ -119,6 +119,10 @@ describe.skipIf(!hasFfmpeg)("the media worker on a big video", () => {
   })
 
   afterAll(async () => {
+    // Jobs the tests don't wait for, such as a waveform and its loudness,
+    // may still be writing into the kept-copies folder. Deleting it under
+    // them fails with ENOTEMPTY, so the worker is let finish first.
+    await until(async () => ((globalThis.__videoMediaWorkerState?.active ?? 0) === 0 ? true : undefined))
     await close?.()
     delete process.env.VIDEO_FILE_CACHE_DIR
     globalThis.__videoFileCache = undefined

@@ -339,6 +339,20 @@ export function blurFollowCostCents(frames: number) {
 }
 
 /** Finding the faces on one frame: one picture in, a few boxes back. */
+/** The most frames sent in one ask when the teaser's moments are scored. */
+export const TEASER_FRAMES_PER_ASK = 30
+
+/**
+ * Scoring the teaser's moments (teaser.md): every still is sent once, in
+ * asks of up to 30, and about 25 tokens of score and reason come back for
+ * each.
+ */
+export function teaserCostCents(stills: number) {
+  if (stills <= 0) return 0
+  const asks = Math.ceil(stills / TEASER_FRAMES_PER_ASK)
+  return tokenCostCents(PICTURE_READER_MODEL, stills * GEMINI_PICTURE_TOKENS + asks * 300, stills * 25)
+}
+
 export function findFacesCostCents() {
   return tokenCostCents(PICTURE_READER_MODEL, GEMINI_PICTURE_TOKENS + 200, 400)
 }

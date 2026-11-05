@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, ScissorsIcon, TypeIcon } from "lucide-react"
+import { Loader2Icon, ScissorsIcon, TypeIcon, WandSparklesIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -27,6 +27,8 @@ import {
   useEditorSelector,
 } from "@/components/video-editor/editor-store"
 import { cn } from "@/lib/utils"
+import { FixWordsDialog, type WordsToFix } from "@/components/video-editor/fix-words-dialog"
+import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { useSavedTranscripts } from "@/components/video-editor/use-saved-transcripts"
 import type { TranscriberId } from "@/lib/video/ai-choices"
 import {
@@ -51,6 +53,8 @@ import { findSaidPlaces, SAID_PLACES_MAX } from "@/lib/video/transcript-search"
  */
 export function TranscriptPanel() {
   const { videoId, dispatch, saveNow, clock } = useEditorRuntime()
+  // Fix a word uses AI, which a guest sent from Project doesn't get.
+  const guest = useProjectGuest() !== null
   const selectedClipId = useEditorSelector((state) => state.selectedClipId)
   const tracks = useEditorSelector((state) => state.tracks)
   const [transcript, setTranscript] = React.useState<ClipTranscript | null>(
@@ -171,6 +175,29 @@ export function TranscriptPanel() {
   const from = anchor === null || head === null ? null : Math.min(anchor, head)
   const to = anchor === null || head === null ? null : Math.max(anchor, head)
   const picked = from === null || to === null ? 0 : to - from + 1
+
+  // The picked words as the piece of one clip to say again (fix-a-word.md),
+  // landing on the real edges of the speech the way a cut does.
+  const [fixing, setFixing] = React.useState<WordsToFix | null>(null)
+  function startFix() {
+    if (!forThisClip || from === null || to === null) return
+    const removal = mapTranscriptWordSpanToClipRemoval(forThisClip.words, from, to, forThisClip.source, tracks)
+    if (!removal) {
+      showErrorToast("Those words are no longer in one piece of the clip - pick a shorter run")
+      return
+    }
+    const [edges] = snapRangesToSilence(
+      removal.removals.map((one) => ({ startMs: one.clipStartMs, endMs: one.clipEndMs })),
+      forThisClip.silences,
+      forThisClip.source.durationMs
+    )
+    setFixing({
+      clipId: removal.clipId,
+      clipStartMs: edges.startMs,
+      clipEndMs: edges.endMs,
+      oldText: forThisClip.words.slice(from, to + 1).map((word) => word.text).join(" "),
+    })
+  }
 
   function cut() {
     if (!forThisClip || from === null || to === null) return
@@ -358,9 +385,29 @@ export function TranscriptPanel() {
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 {picked > 0 ? (
-                  <Button type="button" variant="outline" onClick={cut}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={cut}
+                    className="max-w-full min-w-0 shrink"
+                  >
                     <ScissorsIcon />
-                    Cut {picked} {plural(picked, "word", "words")}
+                    <span className="min-w-0 truncate">
+                      Cut {picked} {plural(picked, "word", "words")}
+                    </span>
+                  </Button>
+                ) : null}
+                {picked > 0 && !guest ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={startFix}
+                    className="max-w-full min-w-0 shrink"
+                  >
+                    <WandSparklesIcon />
+                    <span className="min-w-0 truncate">
+                      Fix {plural(picked, "this word", "these words")}…
+                    </span>
                   </Button>
                 ) : null}
                 <Button
@@ -378,6 +425,16 @@ export function TranscriptPanel() {
           )}
         </div>
       </ScrollArea>
+      <FixWordsDialog
+        open={fixing !== null}
+        onOpenChange={(open) => {
+          if (open) return
+          setFixing(null)
+          setAnchor(null)
+          setHead(null)
+        }}
+        words={fixing}
+      />
     </div>
   )
 }

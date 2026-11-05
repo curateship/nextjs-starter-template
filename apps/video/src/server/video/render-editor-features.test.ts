@@ -4,6 +4,9 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
+import { loudnormMeasureFilter, parseLoudnormMeasurement } from "@/lib/video/audio-loudness"
+import { levelDbFor } from "@/lib/video/clip-level"
+import { withIntroOutro } from "@/lib/video/intro-outro"
 import type { ProjectTimeline } from "@/lib/video/timeline-schema"
 
 /**
@@ -230,6 +233,108 @@ describe.skipIf(!hasFfmpeg)("exports of the editor features", () => {
     const bottom = brightness(frame, { left: 0, top: 0.52, right: 1, bottom: 0.98 })
     expect(bottom).toBeGreaterThan(40)
     expect(bottom).toBeLessThan(90)
+  }, 60_000)
+
+  it("zooms in for the stretch a punch-in names, and only then", async () => {
+    // The wide clip fitted in a tall frame is a band across the middle, from
+    // 0.342 to 0.658 of the height. Doubled about the middle, as the preview's
+    // scale(2) draws it, it runs from 0.183 to 0.817.
+    const out = await render(dir, "punch-in", {
+      aspect: "9:16",
+      tracks: [{
+        id: "a",
+        muted: false,
+        clips: [clip({
+          id: "w",
+          kind: "video",
+          mediaId: "wide",
+          punchIns: [{ sourceStartMs: 800, sourceEndMs: 1_600, scale: 2, ease: "jump" }],
+        })],
+      }],
+    })
+    const aboveTheBand = { left: 0.05, top: 0.22, right: 0.45, bottom: 0.3 }
+    expect(brightness(frameAt(out, 0.4), aboveTheBand)).toBeLessThan(25)
+    expect(brightness(frameAt(out, 1.2), aboveTheBand)).toBeGreaterThan(230)
+    expect(brightness(frameAt(out, 1.8), aboveTheBand)).toBeLessThan(25)
+  }, 60_000)
+
+  it("plays a quiet and a loud recording of one sound at the same loudness", async () => {
+    // The same tone recorded at two levels, 14 dB apart: -26 and -12 LUFS.
+    const lufsOf = (file: string) => {
+      const result = spawnSync("ffmpeg", ["-i", file, "-vn", "-af", loudnormMeasureFilter(), "-f", "null", "-"])
+      return parseLoudnormMeasurement(result.stderr.toString())!.inputI
+    }
+    const levels: number[] = []
+    for (const [name, amplitude] of [["quiet", 0.6], ["loud", 3]] as const) {
+      const file = path.join(dir, `${name}.wav`)
+      ffmpeg(["-f", "lavfi", "-i", `sine=f=440:d=2,volume=${amplitude}`, "-ar", "48000", file])
+      library.set(name, file)
+      const out = await render(dir, `level-${name}`, {
+        aspect: "9:16",
+        tracks: [{
+          id: "a",
+          muted: false,
+          clips: [clip({ id: name, kind: "audio", mediaId: name, levelDb: levelDbFor(lufsOf(file)) })],
+        }],
+      })
+      levels.push(lufsOf(out))
+    }
+    expect(Math.abs(levels[0] - levels[1])).toBeLessThan(1)
+  }, 60_000)
+
+  it("moves a small picture with the thing it follows", async () => {
+    // A white box a fifth of the frame wide over grey, following a thing that
+    // moves from the left third to the right third over the clip.
+    const out = await render(dir, "follow", {
+      aspect: "9:16",
+      tracks: [
+        {
+          id: "top",
+          muted: false,
+          clips: [clip({
+            id: "box",
+            kind: "video",
+            mediaId: "white",
+            scale: 0.2,
+            x: 0.25,
+            y: 0.5,
+            fit: "cover",
+            followTrack: [
+              { atMs: 0, x: 0.25, y: 0.5 },
+              { atMs: 2_000, x: 0.75, y: 0.5 },
+            ],
+          })],
+        },
+        { id: "under", muted: false, clips: [clip({ id: "screen", kind: "video", mediaId: "grey" })] },
+      ],
+    })
+    const leftThird = { left: 0.2, top: 0.48, right: 0.3, bottom: 0.52 }
+    const rightThird = { left: 0.7, top: 0.48, right: 0.8, bottom: 0.52 }
+    const start = frameAt(out, 0.05)
+    expect(brightness(start, leftThird)).toBeGreaterThan(230)
+    expect(brightness(start, rightThird)).toBeLessThan(90)
+    const end = frameAt(out, 1.95)
+    expect(brightness(end, leftThird)).toBeLessThan(90)
+    expect(brightness(end, rightThird)).toBeGreaterThan(230)
+  }, 60_000)
+
+  it("plays the project's intro first and the video after it", async () => {
+    const out = await render(
+      dir,
+      "intro",
+      withIntroOutro(
+        {
+          aspect: "9:16" as const,
+          tracks: [{ id: "a", muted: false, clips: [clip({ id: "screen", kind: "video", mediaId: "grey" })] }],
+        },
+        { intro: { mediaId: "white", durationMs: 2_000 } }
+      )
+    )
+    const whole = { left: 0.1, top: 0.1, right: 0.9, bottom: 0.9 }
+    expect(brightness(frameAt(out, 1), whole)).toBeGreaterThan(230)
+    const after = brightness(frameAt(out, 3), whole)
+    expect(after).toBeGreaterThan(40)
+    expect(after).toBeLessThan(90)
   }, 60_000)
 
   it("fills the progress bar halfway at the halfway point", async () => {

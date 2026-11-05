@@ -8,6 +8,7 @@ import {
   GripVertical,
   Loader2,
   Lock,
+  MapPin,
   LockOpen,
   Megaphone,
   Image as ImageIcon,
@@ -91,6 +92,9 @@ import {
 } from "@/components/video-editor/editor-store"
 import { StillMarker } from "@/components/video-editor/moving-stills"
 import { ClipContextMenu } from "@/components/video-editor/remake-clips"
+import { PunchInBands } from "@/components/video-editor/punch-in-bands"
+import { TimelineMarkerPins } from "@/components/video-editor/timeline-marker-pins"
+import { useDropMarker } from "@/components/video-editor/use-drop-marker"
 import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
 import { useRememberedTimelineView } from "@/components/video-editor/use-remembered-view"
 
@@ -420,6 +424,7 @@ export function StudioTimeline({ readOnly = false }: { readOnly?: boolean }) {
               style={{ position: "relative", flex: 1, cursor: "pointer" }}
             >
               <RulerTicks pps={pps} durationMs={durationMs} range={range} />
+              <TimelineMarkerPins pps={pps} readOnly={readOnly} />
             </div>
           </div>
 
@@ -1140,12 +1145,13 @@ const ClipChip = React.memo(function ClipChip({
       snap: buildSnapIndex({
         tracks: store.getSnapshot().state.tracks,
         excludeClipId: clip.id,
-        // The start of the project, the playhead and the music's beats are
-        // worth landing on too.
+        // The start of the project, the playhead, the music's beats and the
+        // markers on the ruler are worth landing on too.
         extraMs: [
           0,
           clock.getTime(),
           ...beatTimesOnTimeline(store.getSnapshot().state.tracks, clip.id),
+          ...store.getSnapshot().state.markers.map((marker) => marker.atMs),
         ],
       }),
     }
@@ -1483,6 +1489,9 @@ const ClipChip = React.memo(function ClipChip({
           />
         </svg>
       ) : null}
+      {kind === "video" ? (
+        <PunchInBands clip={clip} pps={pps} readOnly={readOnly || trackLocked} />
+      ) : null}
       {overlay ? <div style={overlay} /> : null}
       {showLabel ? (
         <span
@@ -1774,6 +1783,7 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
   const selectedClipId = useEditorSelector((state) => state.selectedClipId)
   const { dispatch } = useEditorRuntime()
   const { copy, paste } = useClipClipboard()
+  const dropMarker = useDropMarker()
 
   function setZoom(value: number) {
     dispatch({
@@ -1825,6 +1835,9 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
           </ToolbarButton>
           <ToolbarButton label="Paste clips at the playhead" onClick={paste}>
             <ClipboardPaste size={16} />
+          </ToolbarButton>
+          <ToolbarButton label="Add a marker at the playhead (M)" onClick={dropMarker}>
+            <MapPin size={16} />
           </ToolbarButton>
           <ToolbarButton
             label="Add a track"

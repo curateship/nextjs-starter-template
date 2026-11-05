@@ -6,6 +6,7 @@ import {
   PROJECT_NAME_MAX,
   PROJECT_NAME_REQUIRED_MESSAGE,
   PROJECT_NOT_FOUND_MESSAGE,
+  INTRO_OUTRO_NOT_A_VIDEO_MESSAGE,
 } from "@/lib/video/projects"
 import { FOLDER_NOT_FOUND_MESSAGE } from "@/lib/video/project-folders"
 import {
@@ -63,6 +64,7 @@ const KNOWN_MESSAGES = new Set([
   LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE,
   VIDEO_NOT_FOUND_MESSAGE,
   VIDEO_NAME_REQUIRED_MESSAGE,
+  INTRO_OUTRO_NOT_A_VIDEO_MESSAGE,
 ])
 
 export function getProjectErrorMessage(error: unknown) {
@@ -156,6 +158,8 @@ const projectSettingsSchema = projectIdSchema.extend({
   name: nameSchema.shape.name,
   style: z.string().max(MAX_STYLE_LENGTH).nullable(),
   lookPictureUrl: z.string().url().max(2048).nullable(),
+  introMediaId: z.string().min(1).max(36).nullable().optional(),
+  outroMediaId: z.string().min(1).max(36).nullable().optional(),
 })
 
 const saveProjectSettingsFn = createServerFn({ method: "POST" })

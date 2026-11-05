@@ -69,6 +69,8 @@ import { StudioInspector } from "@/components/video-editor/studio-inspector"
 import { StudioStage } from "@/components/video-editor/studio-stage"
 import { StudioTimeline } from "@/components/video-editor/studio-timeline"
 import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
+import { useDropMarker } from "@/components/video-editor/use-drop-marker"
+import { useProjectSettings } from "@/components/video-editor/project-settings-context"
 import { OpenElsewhereDialog } from "@/components/video-editor/open-elsewhere-dialog"
 import { BriefsProvider } from "@/components/video-editor/brief-to-video"
 import { MovingStillsProvider } from "@/components/video-editor/moving-stills"
@@ -210,6 +212,7 @@ export function StudioEditor({
   React.useEffect(() => () => reportSaveStatus(null), [reportSaveStatus])
 
   const { copy, paste } = useClipClipboard()
+  const dropMarker = useDropMarker()
 
   // Space plays and pauses, Delete removes the selected clip, Escape lets go of
   // it, Cmd+C and Cmd+V copy and paste clips. Typing anywhere is left alone, and
@@ -240,6 +243,16 @@ export function StudioEditor({
           event.preventDefault()
           dispatch({ type: "DELETE_CLIP", clipId: selectedClipId })
         }
+      } else if (
+        event.key.toLowerCase() === "m" &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey
+      ) {
+        // M drops a pin on the ruler at the playhead (timeline-markers.md).
+        if (designing) return
+        event.preventDefault()
+        dropMarker()
       } else if (event.key === "Escape") {
         dispatch({ type: "SELECT_CLIP", clipId: null })
         dispatch({ type: "SET_CUT_MODE", on: false })
@@ -260,7 +273,7 @@ export function StudioEditor({
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [clock, copy, designing, dispatch, paste, store])
+  }, [clock, copy, designing, dispatch, dropMarker, paste, store])
 
   const contextPanel = (
     <div data-screen-label="Panel" className="flex h-full min-h-0">
@@ -504,6 +517,10 @@ function StageHeader({ designing }: { designing: boolean }) {
   const [draft, setDraft] = React.useState(videoName)
   const [shared, setShared] = React.useState(false)
   const [exportOpen, setExportOpen] = React.useState(false)
+  // The Export window offers to leave out the intro and outro only when the
+  // project has one (intro-and-outro.md).
+  const { project } = useProjectSettings()
+  const hasIntroOutro = !!(project.intro_media_id || project.outro_media_id)
   const projectAspect = useEditorSelector((state) => state.aspect)
   const projectMs = useEditorSelector((state) =>
     timelineDurationMs(state.tracks)
@@ -632,6 +649,7 @@ function StageHeader({ designing }: { designing: boolean }) {
         projectMs={projectMs}
         jobs={jobs}
         onJobsChange={setJobs}
+        hasIntroOutro={hasIntroOutro}
       />
     </DashboardCardHeader>
   )

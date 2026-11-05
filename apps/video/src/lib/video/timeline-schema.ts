@@ -27,6 +27,10 @@ import { TRANSITION_KINDS } from "./clip-transitions"
 import { CAPTION_ANIMATION_IDS } from "./caption-animations"
 import { clipOriginSchema } from "./clip-origin"
 import { progressBarSchema } from "./progress-bar"
+import { MAX_TIMELINE_MARKERS, timelineMarkerSchema } from "./timeline-markers"
+import { MAX_PUNCH_INS, punchInSchema } from "./punch-ins"
+import { MAX_LEVEL_RAISE_DB, MIN_LEVEL_DB } from "./clip-level"
+import { followPointSchema, MAX_FOLLOW_POINTS } from "./follow-track"
 import { STOCK_SOUND_IDS } from "./stock-sounds"
 import { VOICE_CLEAN_STRENGTHS } from "./voice-clean"
 import {
@@ -274,6 +278,16 @@ export const clipSchema = z
       .max(MAX_BLUR_TRACK_POINTS)
       .optional(),
     ad: adMarkSchema.optional(),
+    // On a video or sound from the Media panel: the change that brings its
+    // file to the even loudness every clip gets (clip-level.ts).
+    levelDb: z.number().min(MIN_LEVEL_DB).max(MAX_LEVEL_RAISE_DB).optional(),
+    // On text, a shape, or a picture or video smaller than the frame: the
+    // place of the thing it moves with, every half second (follow-track.ts).
+    followTrack: z.array(followPointSchema).max(MAX_FOLLOW_POINTS).optional(),
+    // On a video: play its steadied copy (steady-shaky-footage.md).
+    steady: z.boolean().optional(),
+    // On a video: zooms in on moments of its file (punch-ins.ts).
+    punchIns: z.array(punchInSchema).max(MAX_PUNCH_INS).optional(),
   })
   .strict()
   .superRefine((clip, context) => {
@@ -326,6 +340,9 @@ export const timelineSchema = z
     // One per project, so it lives here rather than on a lane. Absent means
     // none, which is how every project before it reads.
     progressBar: progressBarSchema.optional(),
+    // Pins on the ruler (timeline-markers.ts). Absent means none, which is
+    // how every timeline before them reads.
+    markers: z.array(timelineMarkerSchema).max(MAX_TIMELINE_MARKERS).optional(),
   })
   .strict()
 
@@ -352,6 +369,7 @@ export function createTimelineSnapshot(
     tracks: timeline.tracks,
     aspect: timeline.aspect,
     ...(timeline.progressBar ? { progressBar: timeline.progressBar } : {}),
+    ...(timeline.markers?.length ? { markers: timeline.markers } : {}),
   })
 }
 

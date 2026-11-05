@@ -25,12 +25,22 @@ import {
 } from "@/lib/video/ads"
 import type { CaptionLook, CaptionPlacement } from "@/lib/video/caption-look"
 import type { ClipboardClip } from "@/lib/video/clip-clipboard"
+import { lookPatchFor, type CopiedLook } from "@/lib/video/copied-look"
+import { splitFollow } from "@/lib/video/follow-track"
+import { fixSpokenWords, type NewWords } from "@/lib/video/fix-a-word"
+import { layTeaser, type TeaserMoment } from "@/lib/video/teaser"
 import { LEFT_OF_CUT, RIGHT_OF_CUT } from "@/lib/video/clip-fades"
 import { landMovingShot, type MovingPiece } from "@/lib/video/moving-still"
 import { landVoiceLine, type SpokenLine } from "@/lib/video/remake-clip"
 import { layVoiceover, voiceoverRefusal } from "@/lib/video/saved-voiceovers"
 import { PlaybackClock } from "@/lib/video/playback-clock"
 import type { ProgressBar } from "@/lib/video/progress-bar"
+import {
+  addMarker,
+  changeMarker,
+  removeMarker,
+  type TimelineMarker,
+} from "@/lib/video/timeline-markers"
 import {
   MAX_TIMELINE_TRACKS,
   MAX_TRACK_CLIPS,
@@ -70,12 +80,24 @@ export type EditorState = {
   // The bar that fills along one edge as the video plays, or none. Like the
   // shape, it belongs to the project and is not part of undo.
   progressBar: ProgressBar | null
+  // Pins on the ruler, in time order (timeline-markers.ts). Undone with the
+  // lanes, because a teaser at the start moves both at once.
+  markers: TimelineMarker[]
+  // The look Copy look took from a clip, ready for Paste look
+  // (copied-look.ts). Not saved and not undone: it is a clipboard.
+  copiedLook: CopiedLook | null
   // The cut tool: clicking a clip splits it where the pointer is.
   cutMode: boolean
-  // Undo and redo hold whole copies of `tracks` — the only part that is
-  // undoable. Selection and zoom are where you are looking, not what you did.
-  past: EditorTrack[][]
-  future: EditorTrack[][]
+  // Undo and redo hold whole copies of `tracks` and `markers`, the only parts
+  // that are undoable. Selection and zoom are where you are looking, not what
+  // you did.
+  past: EditorHistoryEntry[]
+  future: EditorHistoryEntry[]
+}
+
+export type EditorHistoryEntry = {
+  tracks: EditorTrack[]
+  markers: TimelineMarker[]
 }
 
 export type EditorAction =
@@ -223,6 +245,34 @@ export type EditorAction =
   | { type: "SET_ZOOM"; pxPerSecond: number }
   | { type: "SET_ASPECT"; aspect: AspectRatio }
   | { type: "SET_PROGRESS_BAR"; progressBar: ProgressBar | null }
+  // Pins on the ruler. `transient` is a drag still under way, so one Undo
+  // puts a dragged pin back where it started rather than one pixel along.
+  | { type: "ADD_MARKER"; marker: TimelineMarker }
+  | {
+      type: "UPDATE_MARKER"
+      markerId: string
+      patch: Partial<Pick<TimelineMarker, "atMs" | "name">>
+      transient?: boolean
+    }
+  | { type: "REMOVE_MARKER"; markerId: string }
+  // Copy look and Paste look (copied-look.ts). A paste onto several clips,
+  // speed included, is one Undo step.
+  | { type: "COPY_LOOK"; look: CopiedLook }
+  // The teaser at the start (teaser.ts): everything moves along by its
+  // length and its moments go in front, as one Undo step.
+  | { type: "TEASER_AT_START"; moments: TeaserMoment[]; musicClipId: string | null }
+  // Fix a word you said wrong (fix-a-word.ts): the new words swapped into
+  // the sound, and everything after moved along, as one Undo step.
+  | {
+      type: "FIX_SPOKEN_WORDS"
+      clipId: string
+      clipStartMs: number
+      clipEndMs: number
+      oldText: string
+      newText: string
+      words: NewWords
+    }
+  | { type: "PASTE_LOOK"; clipIds: string[] }
   // An earlier version from History, put on screen as one edit. Undo takes
   // back the clips; the shape, like SET_ASPECT, is not part of undo.
   | { type: "RESTORE_TIMELINE"; timeline: ProjectTimeline }
@@ -250,6 +300,8 @@ export function createInitialEditorState(
     pxPerSecond: DEFAULT_PX_PER_SECOND,
     aspect: timeline?.aspect ?? "9:16",
     progressBar: timeline?.progressBar ?? null,
+    markers: timeline?.markers ?? [],
+    copiedLook: null,
     cutMode: false,
     past: [],
     future: [],
@@ -374,13 +426,66 @@ function normalizeJumpCutRemovals(
   return merged
 }
 
-function pushUndo(state: EditorState, tracks: EditorTrack[]): EditorState {
+function historyEntry(state: EditorState): EditorHistoryEntry {
+  return { tracks: state.tracks, markers: state.markers }
+}
+
+// Remember the lanes and pins as they were, so this edit can be undone.
+// `markers` is given only by an edit that moves pins too.
+function pushUndo(
+  state: EditorState,
+  tracks: EditorTrack[],
+  markers: TimelineMarker[] = state.markers
+): EditorState {
   return {
     ...state,
     tracks,
-    past: [...state.past.slice(-UNDO_LIMIT + 1), state.tracks],
+    markers,
+    past: [...state.past.slice(-UNDO_LIMIT + 1), historyEntry(state)],
     future: [],
   }
+}
+
+/**
+ * One clip played at a new speed. The clip keeps pointing at the same stretch
+ * of the recording; only the room it needs to play it changes. Slowing a clip
+ * down can run it into whatever is next on its lane, so it takes the space up
+ * to that clip and no more, which means a slowed clip may show less of the
+ * recording than it did. Speeding up always fits. The same tracks come back
+ * when nothing changes.
+ */
+function withClipSpeed(
+  tracks: EditorTrack[],
+  clipId: string,
+  wanted: number
+): EditorTrack[] {
+  const found = findClip(tracks, clipId)
+  if (!found) return tracks
+  const { clip } = found
+  const speed = Math.min(Math.max(wanted, MIN_CLIP_SPEED), MAX_CLIP_SPEED)
+  if (speed === clipSpeed(clip)) return tracks
+  const wantedMs = sourceSpanMs(clip) / speed
+  const nextOnLane = found.track.clips
+    .filter((other) => other.id !== clip.id && other.startMs >= clip.startMs)
+    .reduce<number | null>(
+      (closest, other) =>
+        closest === null ? other.startMs : Math.min(closest, other.startMs),
+      null
+    )
+  const roomMs = nextOnLane === null ? wantedMs : nextOnLane - clip.startMs
+  const durationMs = Math.max(MIN_CLIP_MS, Math.min(wantedMs, roomMs))
+  return withTrack(tracks, found.track.id, (track) => ({
+    ...track,
+    clips: track.clips.map((candidate) =>
+      candidate.id === clip.id
+        ? {
+            ...candidate,
+            speed: storedPlaybackValue(speed, DEFAULT_CLIP_SPEED),
+            durationMs,
+          }
+        : candidate
+    ),
+  }))
 }
 
 function placeClipInNewTrack(
@@ -908,6 +1013,10 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         motion: fileType === "image" ? found.clip.motion : undefined,
         // Another file was not made by the AI, so there is nothing to make again.
         origin: undefined,
+        // A zoom is kept in the old file's time, which means nothing in the new one.
+        punchIns: undefined,
+        // The levelling was worked out for the old file's loudness.
+        levelDb: undefined,
         // A starter sound swapped for a file is that file from now on.
         stockSound: undefined,
         // Only a picture can be smaller than the frame and placed on it, so a
@@ -1039,43 +1148,8 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
           )
         )
       }
-      const speed = Math.min(
-        Math.max(action.speed, MIN_CLIP_SPEED),
-        MAX_CLIP_SPEED
-      )
-      if (speed === clipSpeed(clip)) return state
-
-      // The clip keeps pointing at the same stretch of the recording; only the
-      // room it needs to play it changes. Slowing a clip down can run it into
-      // whatever is next on its lane, so it takes the space up to that clip and
-      // no more, which means a slowed clip may show less of the recording than
-      // it did. Speeding up always fits.
-      const wantedMs = sourceSpanMs(clip) / speed
-      const nextOnLane = found.track.clips
-        .filter(
-          (other) => other.id !== clip.id && other.startMs >= clip.startMs
-        )
-        .reduce<number | null>(
-          (closest, other) =>
-            closest === null ? other.startMs : Math.min(closest, other.startMs),
-          null
-        )
-      const roomMs =
-        nextOnLane === null ? wantedMs : nextOnLane - clip.startMs
-      const durationMs = Math.max(MIN_CLIP_MS, Math.min(wantedMs, roomMs))
-
-      const tracks = withTrack(state.tracks, found.track.id, (track) => ({
-        ...track,
-        clips: track.clips.map((candidate) =>
-          candidate.id === clip.id
-            ? {
-                ...candidate,
-                speed: storedPlaybackValue(speed, DEFAULT_CLIP_SPEED),
-                durationMs,
-              }
-            : candidate
-        ),
-      }))
+      const tracks = withClipSpeed(state.tracks, clip.id, action.speed)
+      if (tracks === state.tracks) return state
       return action.transient
         ? { ...state, tracks }
         : pushUndo(state, tracks)
@@ -1096,9 +1170,13 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       // middle of one piece of footage, so it must not carry that blend. The
       // fades split the same way: the left half keeps the fades in, the right
       // half the fades out, because a fade at the new edge would be a dip.
+      // A following item's places are shared out so neither piece jumps
+      // at the cut (follow-track.ts).
+      const followed = splitFollow(clip, offset)
       const left: EditorClip = {
         ...clip,
         ...LEFT_OF_CUT,
+        ...followed.left,
         durationMs: offset,
         origin: keptOrigin(clip),
       }
@@ -1113,6 +1191,7 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         origin: keptOrigin(clip),
         // Only the first piece stays a Subscribe sticker's click.
         pressFor: undefined,
+        ...followed.right,
       }
       const tracks = withTrack(state.tracks, found.track.id, (track) => ({
         ...track,
@@ -1240,9 +1319,69 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
     case "SET_PROGRESS_BAR":
       return { ...state, progressBar: action.progressBar }
 
+    case "ADD_MARKER": {
+      const markers = addMarker(state.markers, action.marker)
+      if (!markers || markers === state.markers) return state
+      return pushUndo(state, state.tracks, markers)
+    }
+
+    case "UPDATE_MARKER": {
+      const markers = changeMarker(state.markers, action.markerId, action.patch)
+      return action.transient
+        ? { ...state, markers }
+        : pushUndo(state, state.tracks, markers)
+    }
+
+    case "REMOVE_MARKER":
+      return pushUndo(
+        state,
+        state.tracks,
+        removeMarker(state.markers, action.markerId)
+      )
+
+    case "FIX_SPOKEN_WORDS": {
+      const fixed = fixSpokenWords(state.tracks, state.markers, { ...action, makeId: editorId })
+      if ("refusal" in fixed) return state
+      return { ...pushUndo(state, fixed.tracks, fixed.markers), selectedClipId: null, selectedClipIds: [] }
+    }
+
+    case "TEASER_AT_START": {
+      const laid = layTeaser(state.tracks, state.markers, action.moments, action.musicClipId, editorId)
+      if (laid.tracks === state.tracks) return state
+      return { ...pushUndo(state, laid.tracks, laid.markers), selectedClipId: null, selectedClipIds: [] }
+    }
+
+    case "COPY_LOOK":
+      return { ...state, copiedLook: action.look }
+
+    case "PASTE_LOOK": {
+      const look = state.copiedLook
+      if (!look) return state
+      let tracks = state.tracks
+      for (const clipId of action.clipIds) {
+        const found = findClip(tracks, clipId)
+        if (!found) continue
+        const change = lookPatchFor(found.clip, look)
+        if (!change) continue
+        tracks = withTrack(tracks, found.track.id, (track) => ({
+          ...track,
+          clips: track.clips.map((candidate) =>
+            candidate.id === clipId
+              ? ({ ...candidate, ...change.patch } as EditorClip)
+              : candidate
+          ),
+        }))
+        // An ad keeps its own speed: its length moves the video after it.
+        if (change.speed !== null && !isAd(found.clip)) {
+          tracks = withClipSpeed(tracks, clipId, change.speed)
+        }
+      }
+      return tracks === state.tracks ? state : pushUndo(state, tracks)
+    }
+
     case "RESTORE_TIMELINE":
       return {
-        ...pushUndo(state, action.timeline.tracks),
+        ...pushUndo(state, action.timeline.tracks, action.timeline.markers ?? []),
         aspect: action.timeline.aspect,
         progressBar: action.timeline.progressBar ?? null,
         selectedClipId: null,
@@ -1254,9 +1393,10 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       if (!previous) return state
       return {
         ...state,
-        tracks: previous,
+        tracks: previous.tracks,
+        markers: previous.markers,
         past: state.past.slice(0, -1),
-        future: [state.tracks, ...state.future],
+        future: [historyEntry(state), ...state.future],
         selectedClipId: null,
       }
     }
@@ -1266,8 +1406,9 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       if (!next) return state
       return {
         ...state,
-        tracks: next,
-        past: [...state.past, state.tracks],
+        tracks: next.tracks,
+        markers: next.markers,
+        past: [...state.past, historyEntry(state)],
         future: state.future.slice(1),
         selectedClipId: null,
       }
@@ -1350,7 +1491,8 @@ export function createEditorStore(
         snapshot.lock &&
         (nextState.tracks !== snapshot.state.tracks ||
           nextState.aspect !== snapshot.state.aspect ||
-          nextState.progressBar !== snapshot.state.progressBar)
+          nextState.progressBar !== snapshot.state.progressBar ||
+          nextState.markers !== snapshot.state.markers)
       ) {
         onLockedEdit()
         return

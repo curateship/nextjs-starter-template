@@ -43,6 +43,9 @@ import {
   motionPoseAt,
   motionTransformCss,
 } from "@/lib/video/clip-motion"
+import { punchScaleAt, punchTransformCss } from "@/lib/video/punch-ins"
+import { previewLevelGain } from "@/lib/video/clip-level"
+import { followTranslateCss, isFollowing } from "@/lib/video/follow-track"
 import {
   dipOpacityAt,
   resolveIncomingTransition,
@@ -103,6 +106,7 @@ import { DESIGN_HEIGHT } from "@/lib/video/timeline-utils"
 import { cn } from "@/lib/utils"
 import { cleanSoundKey } from "@/lib/video/voice-clean"
 import { useCleanSounds } from "@/components/video-editor/sound-tool-store"
+import { useSteadyCopies } from "@/components/video-editor/steady-copy-store"
 import { useCaptionSettings } from "@/components/video-editor/caption-settings-context"
 import {
   timelineDurationMs,
@@ -295,7 +299,13 @@ function holdsLastFrame(element: HTMLMediaElement, targetS: number) {
 // the worker has made it: a sound clip simply plays that file, and a video
 // is drawn as before with a sound clip of the copy laid alongside it, timed
 // and trimmed the same, so the picture and the cleaned sound stay together.
-function flattenTracks(tracks: EditorTrack[], cleanUrls: Map<string, string>) {
+// A video whose Steady switch is on plays its steadied copy once the worker
+// has made it (steady-shaky-footage.md), and its shaky original until then.
+function flattenTracks(
+  tracks: EditorTrack[],
+  cleanUrls: Map<string, string>,
+  steadyUrls: Map<string, string>
+) {
   const media: MediaEntry[] = []
   const images: VisualEntry[] = []
   const texts: VisualEntry[] = []
@@ -317,6 +327,11 @@ function flattenTracks(tracks: EditorTrack[], cleanUrls: Map<string, string>) {
       } else if (clip.kind === "image" && clip.url) {
         images.push({ clip, zIndex, transition, fades })
       } else if (clip.url) {
+        const steadyUrl =
+          clip.kind === "video" && clip.steady && clip.mediaId
+            ? steadyUrls.get(clip.mediaId)
+            : undefined
+        if (steadyUrl) clip = { ...clip, url: steadyUrl }
         const cleanUrl =
           clip.voiceClean && clip.mediaId
             ? cleanUrls.get(cleanSoundKey(clip.mediaId, clip.voiceClean))
@@ -542,9 +557,17 @@ export function EditorPreview() {
     }
     return urls
   }, [cleanSounds])
+  const steadyCopies = useSteadyCopies(allClips)
+  const steadyUrls = React.useMemo(() => {
+    const urls = new Map<string, string>()
+    for (const [mediaId, state] of steadyCopies) {
+      if (state.status === "ready") urls.set(mediaId, state.url)
+    }
+    return urls
+  }, [steadyCopies])
   const { media, images, texts, shapes, dips } = React.useMemo(
-    () => flattenTracks(tracks, cleanUrls),
-    [tracks, cleanUrls]
+    () => flattenTracks(tracks, cleanUrls, steadyUrls),
+    [tracks, cleanUrls, steadyUrls]
   )
   const projectDurationMs = React.useMemo(() => timelineDurationMs(tracks), [tracks])
   // Where the ad breaks start, marked on the progress bar (ads.ts).
@@ -943,6 +966,11 @@ export function EditorPreview() {
         const level = fadeLevelAt(entry.fades, entry.clip.durationMs, intoMs)
         const opacity = level === 1 ? "" : String(level)
         if (element.style.opacity !== opacity) element.style.opacity = opacity
+        // A shape drawn over the whole frame, moved with what it follows.
+        if (!isBlurClip(clip)) {
+          const moved = followTranslateCss(clip, intoMs, stageSizeRef.current)
+          if (element.style.transform !== moved) element.style.transform = moved
+        }
       }
 
       // The entrance. Every visible line is moved from the same numbers the
@@ -958,9 +986,16 @@ export function EditorPreview() {
               captionEntranceProgress(timeMs - entry.clip.startMs, 0)
             )
           : null
-        const transform = at
-          ? `translate(-50%, -50%) ${captionWordTransformCss(at)}`
-          : "translate(-50%, -50%)"
+        // Following something moves the words from where they were placed
+        // (follow-track.ts), from the same places the export moves them by.
+        const moved = followTranslateCss(
+          entry.clip,
+          timeMs - entry.clip.startMs,
+          stageSizeRef.current
+        )
+        const transform = `${moved} ${
+          at ? `translate(-50%, -50%) ${captionWordTransformCss(at)}` : "translate(-50%, -50%)"
+        }`.trim()
         if (element.style.transform !== transform) {
           element.style.transform = transform
         }
@@ -1039,7 +1074,18 @@ export function EditorPreview() {
           if (element.style.opacity !== opacity) element.style.opacity = opacity
           const zIndex = String(entry.zIndex)
           if (element.style.zIndex !== zIndex) element.style.zIndex = zIndex
-          if (element.style.transform) element.style.transform = ""
+          // A zoom in on this moment (punch-ins.ts), from the same sum the
+          // export draws with.
+          const transform = `${followTranslateCss(
+            clip,
+            timeMs - clip.startMs,
+            stageSizeRef.current
+          )} ${punchTransformCss(
+            punchScaleAt(clip, sourceMsAt(clip, timeMs - clip.startMs))
+          )}`.trim()
+          if (element.style.transform !== transform) {
+            element.style.transform = transform
+          }
         }
         // Fit or fill, the crop's spot and the clip's box. Written here
         // rather than on the element because clips of the same file share one
@@ -1080,6 +1126,7 @@ export function EditorPreview() {
         const muted = entry.track.muted || !!clip.muted || !!entry.soundElsewhere
         if (element.muted !== muted) element.muted = muted
         const volume =
+          previewLevelGain(clip) *
           clipVolume(clip) *
           soundFadeGain(clip, timeMs - clip.startMs) *
           (entry.track.duck ? sampleEnvelope(duckEnvelope, timeMs) : 1)
@@ -1121,6 +1168,7 @@ export function EditorPreview() {
         const muted = track.muted || !!clip.muted
         if (element.muted !== muted) element.muted = muted
         const volume =
+          previewLevelGain(clip) *
           clipVolume(clip) *
           soundFadeGain(clip, timeMs - clip.startMs) *
           (track.duck ? sampleEnvelope(duckEnvelope, timeMs) : 1)
@@ -1153,14 +1201,21 @@ export function EditorPreview() {
             : null
         const motion = clipMotion(clip)
         const fading = entry.fades.inMs > 0 || entry.fades.outMs > 0
-        if (!transition && !motion && !fading) continue
+        const following = isFollowing(clip)
         const element = imageRefs.current.get(clip.id)
         if (!element) continue
-        const moveCss = motion
-          ? motionTransformCss(
-              motionPoseAt(motion, timeMs - clip.startMs, clip.durationMs)
-            )
-          : ""
+        if (!transition && !motion && !fading && !following) {
+          // One that just stopped following is put back where it was placed.
+          if (element.style.transform) element.style.transform = ""
+          continue
+        }
+        const moveCss = `${followTranslateCss(clip, timeMs - clip.startMs, stageSizeRef.current)} ${
+          motion
+            ? motionTransformCss(
+                motionPoseAt(motion, timeMs - clip.startMs, clip.durationMs)
+              )
+            : ""
+        }`.trim()
         let transform = moveCss
         if (transition && timeMs < clip.startMs) {
           const state = transitionReachState(

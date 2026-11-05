@@ -37,8 +37,9 @@ never deletes an actor.
 
 ## Project settings
 
-The project's settings window holds Name and Look. Opened from the editor it
-also holds Spending, which is the open video's own limit. Each card folds
+The project's settings window holds Name, Look, and Intro and outro
+([intro-and-outro.md](intro-and-outro.md)). Opened from the editor it also
+holds Spending, which is the open video's own limit. Each card folds
 from its header, the arrow showing on hover, and this browser remembers
 which cards were left shut (Tyler, 20 Oct 2026). A shut card opens by itself
 while a field in it is refused, such as an empty name or a spend limit that is

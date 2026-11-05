@@ -127,6 +127,8 @@ const startSchema = videoIdSchema.extend({
       endMs: z.number().int().positive(),
     })
     .optional(),
+  // Absent adds the project's intro and outro when it has them.
+  withIntroOutro: z.boolean().optional(),
 })
 
 // A guest sent from Project may export any video in their project, watch it, stop,
@@ -146,6 +148,7 @@ const startExportFn = createServerFn({ method: "POST" })
       normalizeLoudness: data.normalizeLoudness,
       title: data.title,
       range: data.range,
+      withIntroOutro: data.withIntroOutro,
     })
   })
 
@@ -325,10 +328,11 @@ export function startExport(
   frameRate: RenderFrameRate,
   normalizeLoudness?: boolean,
   title?: string,
-  range?: { startMs: number; endMs: number }
+  range?: { startMs: number; endMs: number },
+  withIntroOutro?: boolean
 ) {
   return startExportFn({
-    data: { videoId, aspects, quality, frameRate, normalizeLoudness, title, range },
+    data: { videoId, aspects, quality, frameRate, normalizeLoudness, title, range, withIntroOutro },
   })
 }
 

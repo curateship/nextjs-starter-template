@@ -331,6 +331,39 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   six-hourly watch timer, pausing one creator, what Download and Break it down
   download, spend and write down, and what deleting a saved video removes.
 
+- [timeline-markers.md](timeline-markers.md) — pins on the ruler: M or the
+  pin button drops one at the playhead, a double-click names it, clip edges
+  snap to it, and it is undone with the clips.
+- [youtube-chapters.md](youtube-chapters.md) — the Chapters card in an export's
+  window: named markers as "0:00 Intro" lines, YouTube's three rules, and how
+  an intro or a part of a video moves them.
+- [zoom-in-on-a-moment.md](zoom-in-on-a-moment.md) — the one-press punch-in on
+  a video clip: the band and its handles, size and ease, why it is kept in the
+  file's time, and only on a full-frame video.
+- [copy-a-clips-look.md](copy-a-clips-look.md) — Copy look and Paste look on a
+  clip's right-click menu: what travels per kind, what never does, and how a
+  pasted speed resizes a clip.
+- [even-out-clip-volume.md](even-out-clip-volume.md) — every file dropped from
+  the Media panel arriving at -18 LUFS, raised at most 12 dB, and why the
+  preview can only turn loud clips down.
+- [steady-shaky-footage.md](steady-shaky-footage.md) — the Steady switch: the
+  steadied copy the worker makes, vidstab or deshake, and why an export waits
+  for it.
+- [stick-to-a-moving-thing.md](stick-to-a-moving-thing.md) — text, arrows and
+  circles, stickers and small videos following something, keeping their
+  distance from it, and how a split shares the places out.
+- [ai-sound-effects.md](ai-sound-effects.md) — Make a sound with AI in the
+  Sounds tab: the words, the 0.5 to 30 second length, where it lands, and the
+  price per length.
+- [intro-and-outro.md](intro-and-outro.md) — a project's intro and outro, set
+  in Project settings, added around every whole export, and the switch that
+  leaves them off one.
+- [fix-a-word.md](fix-a-word.md) — Fix these words in the Transcript panel: the
+  copy of the speaker's voice, the swap, the stretched picture, captions, and
+  what deleting the file removes.
+- [teaser.md](teaser.md) — the Teaser tile: stills scored by Gemini, cuts on
+  the music's beats, and the teaser laid at the start as one Undo step.
+
 The AI tools, the credit ledger and the rest of the export and render path were
 built before this folder existed, and none of them is written up.
 
