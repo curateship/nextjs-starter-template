@@ -363,7 +363,7 @@ export function VoiceDialog({
     >
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Read this aloud</DialogTitle>
+          <DialogTitle>Read a script with AI</DialogTitle>
           <DialogDescription>
             The voice goes on its own lane, with the words above it.
           </DialogDescription>
@@ -505,7 +505,7 @@ export function VoiceDialog({
                 </Select>
                 {available?.voice && voices && !voices.some((one) => one.yours) ? (
                   <p className="text-sm text-muted-foreground">
-                    Make a voice of your own in the Voices panel on the left.
+                    To read in your own voice, close this and pick Make a copy of my voice from the + in the Voices panel.
                   </p>
                 ) : null}
               </div>

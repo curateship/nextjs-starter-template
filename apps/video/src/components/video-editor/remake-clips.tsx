@@ -733,7 +733,7 @@ export function ClipContextMenu({
     )
   }
 
-  // The same blur the Graphics panel's Blur button lays down, at the playhead
+  // The same blur the Elements panel's Blur button lays down, at the playhead
   // when it is on this clip, and ending with the clip if that comes first.
   function blurSpot() {
     const { atMs, room } = blurOverClip(clip, clock.getTime())

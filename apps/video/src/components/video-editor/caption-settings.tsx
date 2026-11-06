@@ -325,7 +325,7 @@ function CaptionSettingsCards({ initial }: { initial: CaptionSettings }) {
       <CollapsibleSettingsCard
         storageId="video-caption-look"
         title="How captions look"
-        description="Every caption window in the editor starts from this look: Captions, Voice, Another language, the Voices panel and Brief to video. It only shapes captions as they are written; captions already on a project keep their own."
+        description="Every caption window in the editor starts from this look: Captions, Read a script with AI, Record a voiceover, Another language, the Voices panel and Brief to video. It only shapes captions as they are written; captions already on a project keep their own."
       >
         <CaptionLookFields
           idPrefix="settings-captions"

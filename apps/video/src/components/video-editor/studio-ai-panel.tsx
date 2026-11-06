@@ -1,37 +1,31 @@
 import * as React from "react"
 import {
-  CaptionsIcon,
-  FilmIcon,
   LanguagesIcon,
-  MicIcon,
-  ScissorsIcon,
   SparklesIcon,
-  SplitIcon,
   ClapperboardIcon,
   type LucideIcon,
 } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { BrollDialog } from "@/components/video-editor/b-roll-dialog"
-import { CaptionsDialog } from "@/components/video-editor/captions-dialog"
-import { HookDialog } from "@/components/video-editor/hook-dialog"
-import { JumpCutsDialog } from "@/components/video-editor/jump-cuts-dialog"
 import { TranslateDialog } from "@/components/video-editor/translate-dialog"
-import { VoiceDialog } from "@/components/video-editor/voice-dialog"
 import { TeaserDialog } from "@/components/video-editor/teaser-dialog"
+import { ToolTile } from "@/components/video-editor/tool-tile"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import {
   loadAiToolsAvailability,
   type AiToolsAvailability,
 } from "@/lib/api/video/ai-tools"
-import { focusRingInset } from "@/lib/layout/focus-ring"
-import { cn } from "@/lib/utils"
 
 /**
  * The AI panel: a tile for each thing the app can do to a project. Brief to
  * video and the Script tile moved to the Templates panel on 5 Nov 2026
- * (workspace/docs/templates.md).
+ * (workspace/docs/templates.md). Voice moved to the + in the Voices panel
+ * on the same day, beside recording your own (saved-voiceovers.md), B-roll
+ * was removed, and Captions and Tighten moved to the Transcript panel, which
+ * works from the same words (Tyler: "caption and transcript should be in the
+ * transcript panel"). Hook, which rewrote the opening line three ways, was
+ * removed that day too.
  *
  * One press each, laid out the way the old app laid them out, because that is
  * what these are — a button you press, not a form you fill in. Each one works
@@ -40,12 +34,7 @@ import { cn } from "@/lib/utils"
  */
 
 type ToolId =
-  | "captions"
-  | "jump-cut"
-  | "voice"
-  | "hook"
   | "translate"
-  | "b-roll"
   | "teaser"
 
 const TOOLS: {
@@ -55,40 +44,10 @@ const TOOLS: {
   Icon: LucideIcon
 }[] = [
   {
-    id: "captions",
-    label: "Captions",
-    description: "Write down the talking and lay it over the picture.",
-    Icon: CaptionsIcon,
-  },
-  {
-    id: "jump-cut",
-    label: "Tighten",
-    description: "Take out the dead air, and the \u201cum\u201ds if you want.",
-    Icon: ScissorsIcon,
-  },
-  {
-    id: "voice",
-    label: "Voice",
-    description: "Read a script aloud and drop it on the timeline.",
-    Icon: MicIcon,
-  },
-  {
-    id: "hook",
-    label: "Hook",
-    description: "Rewrite the opening line three ways.",
-    Icon: SplitIcon,
-  },
-  {
     id: "translate",
     label: "Another language",
     description: "Translate the talking, then caption it or have it read aloud.",
     Icon: LanguagesIcon,
-  },
-  {
-    id: "b-roll",
-    label: "B-roll",
-    description: "Free Pexels clips under each sentence of the voice line.",
-    Icon: FilmIcon,
   },
   {
     id: "teaser",
@@ -103,12 +62,7 @@ export function AiPanel() {
   const [available, setAvailable] = React.useState<AiToolsAvailability | null>(
     null
   )
-  const [captionsOpen, setCaptionsOpen] = React.useState(false)
-  const [cutsOpen, setCutsOpen] = React.useState(false)
-  const [voiceOpen, setVoiceOpen] = React.useState(false)
-  const [hookOpen, setHookOpen] = React.useState(false)
   const [translateOpen, setTranslateOpen] = React.useState(false)
-  const [brollOpen, setBrollOpen] = React.useState(false)
   const [teaserOpen, setTeaserOpen] = React.useState(false)
 
   React.useEffect(() => {
@@ -127,12 +81,7 @@ export function AiPanel() {
     // Every tool here ends by changing the timeline, and most cost credits on
     // the way, so a locked window stops them before they start.
     if (store.refuseIfLocked()) return
-    if (id === "captions") setCaptionsOpen(true)
-    if (id === "jump-cut") setCutsOpen(true)
-    if (id === "voice") setVoiceOpen(true)
-    if (id === "hook") setHookOpen(true)
     if (id === "translate") setTranslateOpen(true)
-    if (id === "b-roll") setBrollOpen(true)
     if (id === "teaser") setTeaserOpen(true)
   }
 
@@ -145,64 +94,22 @@ export function AiPanel() {
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">
           <div className="grid gap-3">
-            {TOOLS.map(({ id, label, description, Icon }) => {
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => press(id)}
-                  className={cn(
-                    "flex w-full items-start gap-2 overflow-hidden rounded-lg border border-foreground/5 bg-card p-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/30",
-                    focusRingInset
-                  )}
-                >
-                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    <Icon className="size-3.5" />
-                  </span>
-                  <span className="min-w-0 flex-1 overflow-hidden">
-                    <span className="block truncate text-xs font-medium">
-                      {label}
-                    </span>
-                    <span className="line-clamp-2 text-[10px] leading-4 text-muted-foreground">
-                      {description}
-                    </span>
-                  </span>
-                </button>
-              )
-            })}
+            {TOOLS.map(({ id, label, description, Icon }) => (
+              <ToolTile
+                key={id}
+                label={label}
+                description={description}
+                Icon={Icon}
+                onPress={() => press(id)}
+              />
+            ))}
           </div>
         </div>
       </ScrollArea>
 
-      <CaptionsDialog
-        open={captionsOpen}
-        onOpenChange={setCaptionsOpen}
-        available={available}
-      />
-      <JumpCutsDialog
-        open={cutsOpen}
-        onOpenChange={setCutsOpen}
-        canUseWords={available?.words || available?.openai || false}
-        available={available}
-      />
-      <VoiceDialog
-        open={voiceOpen}
-        onOpenChange={setVoiceOpen}
-        available={available}
-      />
-      <HookDialog
-        open={hookOpen}
-        onOpenChange={setHookOpen}
-        available={available}
-      />
       <TranslateDialog
         open={translateOpen}
         onOpenChange={setTranslateOpen}
-        available={available}
-      />
-      <BrollDialog
-        open={brollOpen}
-        onOpenChange={setBrollOpen}
         available={available}
       />
       <TeaserDialog open={teaserOpen} onOpenChange={setTeaserOpen} />

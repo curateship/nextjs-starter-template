@@ -6,7 +6,7 @@ something that moves.
 
 ## Adding one
 
-- **From the Graphics panel:** under Shapes, **Blur** sits beside Arrow and
+- **From the Elements panel:** under Shapes, **Blur** sits beside Arrow and
   Circle. It lands at the playhead on a lane above what it covers, for 3
   seconds.
 - **From a clip:** right-click a picture or video clip on the timeline and

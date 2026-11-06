@@ -7,7 +7,6 @@ import { captionClipWordTimes } from "@/lib/video/caption-words"
 import { captionClipName, type CaptionLine } from "@/lib/video/captions"
 import { clipSpeed } from "@/lib/video/clip-playback"
 import type { VoiceOrigin } from "@/lib/video/clip-origin"
-import { spreadHookAcross } from "@/lib/video/hooks"
 import { OPENAI_VOICES, type VoiceSettings } from "@/lib/video/voice"
 import {
   MAX_TIMELINE_TRACKS,
@@ -241,4 +240,28 @@ export function landVoiceLine(
     laid = { tracks: placed.tracks, newLane: laid.newLane || placed.newLane }
   }
   return laid.tracks.length > MAX_TIMELINE_TRACKS ? null : laid
+}
+
+/**
+ * A rewritten opening line, put back across the clips it came from. The Hook
+ * tool that made these lines was removed on 5 Nov 2026, but a line it made in
+ * an older project can still be made again.
+ *
+ * The line was read off several clips, so it goes back the same way: the words
+ * are shared out in the proportions the clips already had, which keeps each
+ * one on screen for about as long as it takes to read.
+ */
+export function spreadHookAcross(
+  clipIds: string[],
+  text: string
+): { clipId: string; text: string }[] {
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  if (!clipIds.length || !words.length) return []
+  if (clipIds.length === 1) return [{ clipId: clipIds[0], text: words.join(" ") }]
+
+  const perClip = Math.ceil(words.length / clipIds.length)
+  return clipIds.map((clipId, index) => ({
+    clipId,
+    text: words.slice(index * perClip, (index + 1) * perClip).join(" "),
+  }))
 }

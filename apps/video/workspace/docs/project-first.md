@@ -22,7 +22,12 @@ never deletes an actor.
 
 ## The left rail
 
-- **AI tools** holds Captions, Tighten, Voice, Hook and Another language.
+- **AI tools** holds Another language and Teaser. On 5 Nov 2026 reading a
+  script aloud moved to the + in Sounds → Voices (`saved-voiceovers.md`),
+  Captions and Tighten moved to the Transcript panel (`editor-chrome.md`), and
+  B-roll and Hook were removed. Tyler asked to remove Teaser too, then kept it
+  once he heard that templates make new scenes and cannot cut the footage
+  already in a video, which is what Teaser does.
 - **AI clip** sits under it (see `ai-clip.md`).
 - **Copy** and **Exports** are pinned to the foot of the rail (Tyler, 17 Oct
   2026), with **History** under them (`project-history.md`). The rail scrolls

@@ -221,7 +221,7 @@ export function VoiceCloneDialog({
       toast.success(
         needsVerifying
           ? `"${voice.name}" is made, but ElevenLabs wants to check it first. Finish that on elevenlabs.io before reading with it.`
-          : `"${voice.name}" is ready. Pick it in the Voice window, where it is marked (yours).`
+          : `"${voice.name}" is ready. Pick it in Read a script with AI, where it is marked (yours).`
       )
       onCreated(voice)
       onOpenChange(false)

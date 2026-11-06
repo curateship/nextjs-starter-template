@@ -5,6 +5,7 @@ import {
   type AiPart,
   type KnownAiMedia,
 } from "@/lib/video/ai-parts"
+import { isRecordedVoice } from "@/lib/video/recorded-voiceover"
 import type { ProjectTimeline } from "@/lib/video/timeline-schema"
 import { OPENAI_VOICES } from "@/lib/video/voice"
 import { db, type CustomShellDb } from "@/server/db"
@@ -61,8 +62,10 @@ export async function workOutAiParts(
         .where(inArray(videoAiGenerations.outputMediaId, mediaIds)),
     ])
     // A voiceover keeps its voice, not its company. OpenAI's voices are a
-    // fixed list of names; every other voice is ElevenLabs'.
+    // fixed list of names; every other voice is ElevenLabs', except a
+    // recording, which is the person's own voice and not the AI's.
     for (const row of voiceovers) {
+      if (isRecordedVoice(row.voiceId)) continue
       const openai = OPENAI_VOICES.some((voice) => voice.id === row.voiceId)
       known.set(row.mediaId, {
         kind: "voice",

@@ -1,5 +1,11 @@
 import * as React from "react"
-import { Loader2Icon, ScissorsIcon, TypeIcon, WandSparklesIcon } from "lucide-react"
+import {
+  CaptionsIcon,
+  Loader2Icon,
+  ScissorsIcon,
+  TypeIcon,
+  WandSparklesIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -7,6 +13,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { InspectorCard } from "@/components/shared/inspector-card"
+import { CaptionsDialog } from "@/components/video-editor/captions-dialog"
+import { JumpCutsDialog } from "@/components/video-editor/jump-cuts-dialog"
+import { ToolTile } from "@/components/video-editor/tool-tile"
 import {
   getAiToolErrorMessage,
   loadAiToolsAvailability,
@@ -50,9 +60,15 @@ import { findSaidPlaces, SAID_PLACES_MAX } from "@/lib/video/transcript-search"
  * never stop matching however the clip is cut; this panel holds the clip's
  * share of them while it is open. The first time a file is written down it
  * is paid for, after that it is free, and "Transcribe again" pays again.
+ *
+ * Captions and Tighten sit above the words, in their own card, because they
+ * read the same saved words for the whole video (Tyler, 5 Nov 2026: "caption
+ * and transcript should be in the transcript panel", and Tighten too).
  */
 export function TranscriptPanel() {
-  const { videoId, dispatch, saveNow, clock } = useEditorRuntime()
+  const { videoId, dispatch, saveNow, clock, store } = useEditorRuntime()
+  const [captionsOpen, setCaptionsOpen] = React.useState(false)
+  const [cutsOpen, setCutsOpen] = React.useState(false)
   // Fix a word uses AI, which a guest sent from Project doesn't get.
   const guest = useProjectGuest() !== null
   const selectedClipId = useEditorSelector((state) => state.selectedClipId)
@@ -249,7 +265,31 @@ export function TranscriptPanel() {
         title="Transcript"
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-1 gap-3 p-3">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <InspectorCard storageId="video-transcript-whole-video" title="Whole video">
+            <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+              <ToolTile
+                label="Captions"
+                description="Write down the talking and lay it over the picture."
+                Icon={CaptionsIcon}
+                onPress={() => {
+                  // Both end by changing the timeline, so a locked window
+                  // stops them before they start.
+                  if (!store.refuseIfLocked()) setCaptionsOpen(true)
+                }}
+              />
+              <ToolTile
+                label="Tighten"
+                description={"Take out the dead air, and the \u201cum\u201ds if you want."}
+                Icon={ScissorsIcon}
+                onPress={() => {
+                  if (!store.refuseIfLocked()) setCutsOpen(true)
+                }}
+              />
+            </div>
+          </InspectorCard>
+          <InspectorCard storageId="video-transcript-words" title="This clip's words">
+          <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
           {!selectedClipId ? (
             <p className="text-sm text-muted-foreground">
               Pick a clip with sound in it on the timeline, and its words appear
@@ -423,8 +463,21 @@ export function TranscriptPanel() {
               </div>
             </>
           )}
+          </div>
+          </InspectorCard>
         </div>
       </ScrollArea>
+      <CaptionsDialog
+        open={captionsOpen}
+        onOpenChange={setCaptionsOpen}
+        available={available}
+      />
+      <JumpCutsDialog
+        open={cutsOpen}
+        onOpenChange={setCutsOpen}
+        canUseWords={available?.words || available?.openai || false}
+        available={available}
+      />
       <FixWordsDialog
         open={fixing !== null}
         onOpenChange={(open) => {

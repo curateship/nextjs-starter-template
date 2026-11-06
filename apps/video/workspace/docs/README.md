@@ -38,7 +38,7 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [shapes.md](shapes.md) — arrows and circles over the video: adding and
   placing one, drawing itself on, and why a picked shape shows whole while
   paused.
-- [social-stickers.md](social-stickers.md) — the Graphics panel's comment
+- [social-stickers.md](social-stickers.md) — the Elements panel's comment
   reply, Subscribe button and Link in bio: the looks, the Subscribe film and
   choosing its click sound, the name and picture, and how the preview and the
   export draw the same thing.
@@ -89,7 +89,7 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [remembered-view.md](remembered-view.md) — how a project reopens with the
   left panel, playhead, zoom, scroll and selected clip you left it at, where
   that is kept, and what it does not survive.
-- [stickers.md](stickers.md) — the Graphics panel's stickers: each person's own
+- [stickers.md](stickers.md) — the Elements panel's stickers: each person's own
   emoji and pictures, where the list is stored, where a sticker lands, and
   what happens to a project whose picture sticker's file is deleted.
 - [text-fonts.md](text-fonts.md) — the five faces video text, captions and
@@ -111,7 +111,7 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   are kept apart, Transcribe again, the pieces a long recording is sent in,
   and what deleting removes.
 - [price-before-you-press.md](price-before-you-press.md) — the price on the
-  Captions, Hook, Another language and Transcript buttons: what each one
+  Captions, Another language and Transcript buttons: what each one
   counts, how it is worked out from the shell's price list, and how it
   compared with the meter.
 - [another-language.md](another-language.md) — translating what is said into
@@ -119,10 +119,14 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   export each, which AI does which half, why nothing lands until it is read
   and corrected, how the original is turned down under a new voice, how the
   Exports page groups the copies, and what it costs.
-- [saved-voiceovers.md](saved-voiceovers.md) — the Voiceovers panel: what is
-  kept beside every voiceover read aloud, how one is laid at the playhead with
+- [record-a-voiceover.md](record-a-voiceover.md) — recording a voiceover
+  yourself from the Voices tab's +: why the take is sent as WAV, how Whisper
+  writes its captions, what it costs, and why it is kept even when the
+  captions fail.
+- [saved-voiceovers.md](saved-voiceovers.md) — the Voices panel: its + menu,
+  what is kept beside every voiceover, how one is laid at the playhead with
   its captions, and what happens when its file is deleted.
-- [script-check.md](script-check.md) — the Voice window's run length as you
+- [script-check.md](script-check.md) — the Read a script with AI window's run length as you
   type and its "Check it" button: the five rules, where they came from, why it
   is a checklist and not a prediction, the banned words on Settings → Scripts,
   and what a check costs.
@@ -258,10 +262,6 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   channel, pasting a posted video's link on its export, the two figures
   YouTube measures, the scene columns saved with each export, the day or two
   of lag, and that it only ever reads the channel.
-- [b-roll.md](b-roll.md) — free Pexels clips under each sentence of the voice
-  line: where the key goes, how sentences are cut, the phrase rules and why,
-  the 200-an-hour request budget, where the credit is kept, and how a short
-  clip holds its last frame.
 - [ai-clip.md](ai-clip.md) — the editor's AI clip panel: an actor, a first
   frame, a shot, then dragging it onto the timeline; what each step costs,
   where frames and shots are kept, and a carousel from first frames.

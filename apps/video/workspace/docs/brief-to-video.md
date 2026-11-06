@@ -44,7 +44,7 @@ the Instructions card (`templates.md`) is what the writer reads now.
   project's 30-minute cap, `long-exports.md`) on YouTube. Switching to a short
   platform brings a longer length down to 180.
 - **Voice and voice quality:** the window opens on the voice and settings
-  saved with "Make this the usual voice" in the Voice window. Quality only
+  saved with "Make this the usual voice" in the Read a script with AI window. Quality only
   shows for an ElevenLabs voice.
 - **Picture model:** Nano Banana 2 at $0.07 a picture, or Nano Banana at
   $0.04. Nano Banana 2 is the default, as the task said unless Tyler chose

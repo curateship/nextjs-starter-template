@@ -21,7 +21,6 @@ import {
   pickWriter,
   type AiDefaults,
 } from "@/lib/video/ai-choices"
-import { SAFE_HOOK_ERRORS } from "@/lib/video/hooks"
 import {
   SAFE_SCRIPT_CHECK_ERRORS,
   type ScriptCheck,
@@ -88,7 +87,6 @@ import {
   saveAiDefaults,
   saveVoiceDefaults,
 } from "@/server/video/settings"
-import { rewriteHook, type HookVariants } from "@/server/video/hooks"
 import { checkScript } from "@/server/video/script-check"
 import { translateLines } from "@/server/video/translate"
 import { listSavedTranscripts } from "@/server/video/transcripts"
@@ -146,7 +144,6 @@ export function getAiToolErrorMessage(error: unknown) {
   if (SAFE_CAPTION_ERRORS.has(message)) return message
   if (SAFE_JUMP_CUT_ERRORS.has(message)) return message
   if (SAFE_VOICE_ERRORS.has(message)) return message
-  if (SAFE_HOOK_ERRORS.has(message)) return message
   if (SAFE_SCRIPT_CHECK_ERRORS.has(message)) return message
   if (SAFE_TRANSLATE_ERRORS.has(message)) return message
   if (LANGUAGE_COPY_EXPORT_REFUSALS.has(message)) return message
@@ -327,18 +324,6 @@ export function rememberAiChoice(choice: AiDefaults) {
   return saveAiDefaultsFn({ data: choice })
 }
 
-const hookFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ videoId: z.string().min(1).max(36) }))
-  .handler(async ({ data, context }): Promise<HookVariants> => {
-    await budget(context.user.id, data.videoId, 0)
-    return rewriteHook({ userId: context.user.id, videoId: data.videoId })
-  })
-
-export function rewriteOpeningLine(videoId: string) {
-  return hookFn({ data: { videoId } })
-}
-
 const checkScriptFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
@@ -361,42 +346,6 @@ const checkScriptFn = createServerFn({ method: "POST" })
 /** Check a script against the five rules before it is read aloud. */
 export function checkVoiceScript(script: string, speed: number, videoId?: string) {
   return checkScriptFn({ data: { script, speed, videoId } })
-}
-
-const speakHookFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(
-    z.object({
-      text: z.string().min(1).max(VOICE_TEXT_MAX),
-      voiceId: z.string().min(1).max(64),
-      voiceName: z.string().min(1).max(255),
-      videoId: optionalVideoId,
-    })
-  )
-  .handler(async ({ data, context }): Promise<SpokenLine> => {
-    const remembered = await getVoiceDefaults()
-    // Only meaningful for a voice that has models to choose between; the
-    // other provider works it out from the voice itself.
-    const modelId = remembered?.modelId ?? "eleven_multilingual_v2"
-    const settings = rememberedVoiceSettings(remembered)
-    const spend = await budget(context.user.id, data.videoId, aiUnitCostCents(modelId, data.text.length))
-    const said = await speak({
-      userId: context.user.id,
-      voiceId: data.voiceId,
-      voiceName: data.voiceName,
-      modelId,
-      text: data.text,
-      settings,
-      spend,
-    })
-    return { ...said, origin: voiceOrigin("hook", { ...data, modelId, settings }) }
-  })
-
-/** Say a rewritten opening line out loud, so the sound can replace the old one. */
-export function speakHook(text: string, voice: Voice, videoId?: string) {
-  return speakHookFn({
-    data: { text, voiceId: voice.id, voiceName: voice.name, videoId },
-  })
 }
 
 const translateFn = createServerFn({ method: "POST" })
@@ -712,7 +661,6 @@ export type {
   AiDefaults,
   SavedTranscriptSummary,
   ClipTranscript,
-  HookVariants,
   JumpCutAnalysis,
   ScriptCheck,
   SpokenLine,

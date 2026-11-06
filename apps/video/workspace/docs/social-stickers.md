@@ -1,6 +1,6 @@
 # Social stickers
 
-Three ready-made stickers sit under Social in the Graphics panel: a comment
+Three ready-made stickers sit under Social in the Elements panel: a comment
 reply, a Subscribe button and a "Link in bio" tag. A fourth, a question box,
 was built on 4 Nov 2026 and taken out the same day (Tyler: "Remove the
 question box"). Each one
@@ -75,7 +75,7 @@ has arrived, so the Subscribe button reads "Subscribe" and has no cursor.
 
 ## Where it lives
 
-- The Graphics panel's Social section: `TextPanel` in `studio-panels.tsx`.
+- The Elements panel's Social section: `TextPanel` in `studio-panels.tsx`.
 - The settings: `social-sticker-inspector.tsx`.
 - Tests: `social-stickers.test.ts`, `render-social.test.ts` (a real export:
   red before the press, grey after, the picture drawn, the name in white),

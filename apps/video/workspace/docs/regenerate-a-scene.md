@@ -51,7 +51,7 @@ copies it onto the clip it lays down. These tools write one:
 - The AI clip panel, when a first frame or a shot is dragged onto the
   timeline.
 - Make it move, on every piece it lands.
-- Voice (Read this aloud).
+- Read a script with AI, from the Voices panel's +.
 - Hook, when the new opening line is spoken.
 - Another language, when the translation is read aloud.
 - Brief to video, on every scene's picture and voice line

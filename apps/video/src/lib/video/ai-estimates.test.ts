@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest"
 import {
   captionsCostCents,
   formatAiEstimate,
-  hookCostCents,
   transcribeCostCents,
   translateCostCents,
   voiceCostCents,
@@ -48,42 +47,6 @@ describe("captionsCostCents", () => {
     expect(
       captionsCostCents({ transcriber: "openai", fileSoundMs: 5 * MINUTE, saved: true })
     ).toBe(0)
-  })
-})
-
-describe("hookCostCents", () => {
-  it("is the writer's tokens for a line on screen", () => {
-    // 800 + 60 characters is 215 tokens in, plus 900 out, with GPT-5 mini.
-    const expected = ((215 * 0.25 + 900 * 2) / 1_000_000) * 100
-    expect(hookCostCents({ writer: "openai", lineCharacters: 60 })).toBeCloseTo(
-      expected
-    )
-  })
-
-  it("adds the twelve seconds written down first when only speech opens", () => {
-    const writing = hookCostCents({ writer: "gemini", lineCharacters: 80 })
-    const listening = hookCostCents({
-      writer: "gemini",
-      lineCharacters: 80,
-      listen: { transcriber: "openai", soundMs: 12_000, saved: false },
-    })
-    expect(listening - writing).toBeCloseTo(0.12)
-    expect(
-      hookCostCents({
-        writer: "gemini",
-        lineCharacters: 80,
-        listen: { transcriber: "openai", soundMs: 12_000, saved: true },
-      })
-    ).toBeCloseTo(writing)
-  })
-
-  it("prices Claude above GPT-5 mini above Gemini Flash", () => {
-    const line = { lineCharacters: 60 }
-    const claude = hookCostCents({ writer: "anthropic", ...line })
-    const gpt = hookCostCents({ writer: "openai", ...line })
-    const gemini = hookCostCents({ writer: "gemini", ...line })
-    expect(claude).toBeGreaterThan(gpt)
-    expect(gpt).toBeGreaterThan(gemini)
   })
 })
 
@@ -145,13 +108,6 @@ describe("translateCostCents", () => {
     })
     expect(eightLines / 0.128).toBeGreaterThan(0.5)
     expect(eightLines / 0.128).toBeLessThan(2)
-  })
-
-  it("lands within a factor of two of the measured GPT-5 mini hook", () => {
-    // 19 Oct 2026: 186 tokens in and 863 out, about 0.18¢.
-    const cents = hookCostCents({ writer: "openai", lineCharacters: 3 })
-    expect(cents / 0.177).toBeGreaterThan(0.5)
-    expect(cents / 0.177).toBeLessThan(2)
   })
 })
 

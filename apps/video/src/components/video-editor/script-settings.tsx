@@ -101,7 +101,7 @@ export default function ScriptSettings() {
       <CollapsibleSettingsCard
         storageId="video-script-banned-words"
         title="Banned words"
-        description="The Voice window's Check it flags any of these in a script, in any form: plurals, past tense and capitals count too."
+        description="The Read a script with AI window's Check it flags any of these in a script, in any form: plurals, past tense and capitals count too."
       >
         {loadError ? (
           <ErrorRow

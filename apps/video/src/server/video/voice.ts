@@ -286,19 +286,27 @@ export async function speak({
   return { ...stored, durationMs, captions }
 }
 
+const SOUND_FILES = {
+  mp3: { suffix: "voiceover.mp3", extension: "mp3", mimeType: "audio/mpeg" },
+  wav: { suffix: "recording.wav", extension: "wav", mimeType: "audio/wav" },
+} as const
+
 /**
  * Sound goes into the library like anything else, and onto the voiceover
- * shelf with what it said, so it can be reused.
+ * shelf with what it said, so it can be reused. A reading is MP3; a voiceover
+ * somebody recorded is WAV (`recorded-voiceovers.ts`).
  */
-async function keepInLibrary(
+export async function keepInLibrary(
   userId: string,
   bytes: Uint8Array,
-  voiceover: Parameters<typeof storeVoiceover>[1]
+  voiceover: Parameters<typeof storeVoiceover>[1],
+  kind: keyof typeof SOUND_FILES = "mp3"
 ): Promise<{ mediaId: string; url: string; name: string }> {
+  const file = SOUND_FILES[kind]
   const name = voiceoverName(voiceover.script)
-  const filename = `${uuid()}-voiceover.mp3`
+  const filename = `${uuid()}-${file.suffix}`
   const storagePath = `${userId}/${filename}`
-  await uploadToR2(storagePath, bytes, "audio/mpeg")
+  await uploadToR2(storagePath, bytes, file.mimeType)
 
   const at = now()
   const row = {
@@ -307,10 +315,10 @@ async function keepInLibrary(
     workspaceId: await workspaceIdForRequest(userId),
     userId,
     filename,
-    originalName: `${name}.mp3`,
+    originalName: `${name}.${file.extension}`,
     altText: null,
     fileSize: bytes.byteLength,
-    mimeType: "audio/mpeg",
+    mimeType: file.mimeType,
     fileType: "audio",
     storagePath,
     createdAt: at,

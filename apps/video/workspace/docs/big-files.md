@@ -138,7 +138,7 @@ needs (`src/server/video/render-sources.ts`).
 - **No size limit.** The 100MB refusal is gone. The sound is read from the
   smooth copy once it is made (`src/server/video/sound-source.ts`).
 - **Before the smooth copy is made**, a stretch of a clip (Tighten's quiet
-  parts, Hook's opening) is read straight from storage. Writing down the
+  parts) is read straight from storage. Writing down the
   whole of a video over 1GB waits instead, saying "This video is too big to
   write down until its smooth copy is made." Streaming 20GB just to keep its
   sound would outlast the ten minutes one listen is allowed. A smaller video

@@ -34,7 +34,8 @@ The code is `src/lib/video/ai-parts.ts` (the walk and the words),
 One line per part, in this order:
 
 - **The script.** "Script written with AI" when a voice line came from Brief
-  to video. "Opening line written with AI" when a voice line came from Hook.
+  to video. "Opening line written with AI" when a voice line came from Hook,
+  which older projects still have (Hook was removed on 5 Nov 2026).
 - **The voice.** "Voice read by AI (ElevenLabs)". Lines read by both companies
   share one line: "(OpenAI and ElevenLabs)".
 - **Pictures**, one line per picture model, with the time each one starts:
@@ -74,8 +75,8 @@ Each clip is matched in one of two ways:
 
 - **By its recipe.** A clip the AI made remembers how
   (`regenerate-a-scene.md`): a first frame or a brief's picture, a shot or a
-  picture made to move, a voice line from Voice, Hook, Another language or a
-  brief.
+  picture made to move, a voice line read with AI, written by Hook in an older
+  project, or made by Another language or a brief.
 - **By its file, when it has no recipe.** A first frame or shot dragged in
   from Media, a voiceover laid again from the Voices panel, or anything laid
   down before 20 Oct 2026 carries no recipe. Its file is looked up in the

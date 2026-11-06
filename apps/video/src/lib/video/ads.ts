@@ -1,6 +1,5 @@
 import { z } from "zod"
 
-import { BROLL_SENTENCE_PAUSE_MS } from "./b-roll"
 import { LEFT_OF_CUT, RIGHT_OF_CUT } from "./clip-fades"
 import {
   DEFAULT_CLIP_SPEED,
@@ -645,12 +644,15 @@ export function speechSpans(tracks: Track[]): Span[] {
   return spans.sort((a, b) => a.startMs - b.startMs)
 }
 
+/** A gap in the speech this long is a pause between two sentences. */
+const SENTENCE_PAUSE_MS = 400
+
 /** The middle of every gap in the speech long enough to be a pause between sentences. */
 function speechPauses(spans: Span[]): number[] {
   const pauses: number[] = []
   let speakingUntil: number | null = null
   for (const span of spans) {
-    if (speakingUntil !== null && span.startMs - speakingUntil >= BROLL_SENTENCE_PAUSE_MS) {
+    if (speakingUntil !== null && span.startMs - speakingUntil >= SENTENCE_PAUSE_MS) {
       pauses.push(Math.round((speakingUntil + span.startMs) / 2))
     }
     speakingUntil = Math.max(speakingUntil ?? 0, span.endMs)

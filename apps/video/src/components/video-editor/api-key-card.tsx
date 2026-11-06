@@ -28,7 +28,7 @@ export type ApiKeyCardProps = {
   description: string
   /** The company's name in the card's messages, such as "Pexels". */
   company: string
-  /** What a missing key stops, such as "B-roll needs one." */
+  /** What a missing key stops, such as "Photo search needs one." */
   notSet: string
   /** What removing the key stops, in the confirm window. */
   removeWarning: string
@@ -53,7 +53,7 @@ const SAVED_SENTINEL = "••••••••••••"
 const held = new Map<string, KeyStatus>()
 
 /**
- * A company's API key on its own Settings tab, such as Pexels for B-roll or
+ * A company's API key on its own Settings tab, such as Pexels for carousel photos or
  * Sync Labs for lips. Pasting it saves it, scrambled, with no button. The
  * browser only ever sees its last four characters.
  */

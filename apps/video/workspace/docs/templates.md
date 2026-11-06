@@ -69,7 +69,7 @@ scenes on the timeline. The task is `workspace/tasks/templates/01-templates.md`.
   - **AI budget:** what is left this month, what was spent of the
     allowance, and the last five calls. It was the "$20 of AI left" button
     in the editor's header until then.
-  - **Progress bar:** only once the Graphics panel has put a bar on the
+  - **Progress bar:** only once the Elements panel has put a bar on the
     video. Tyler asked for it off by default; its settings live nowhere
     else, so it comes back when there is a bar to set. It showed the shape, size, length and the video's AI
   spend. The video's spend limit is still in Project settings, from the cog
@@ -115,8 +115,8 @@ should open a dropdown to edit template").
   minutes, at least one.
 - **Pace:** fast is 2 to 4 seconds a scene, normal is 3 to 8 on a short
   platform and 5 to 15 on YouTube, slow is 8 to 15.
-- **Voice:** a voice and its quality, or the usual voice saved in the Voice
-  window. With neither, Brief to video says so.
+- **Voice:** a voice and its quality, or the usual voice saved in the Read a
+  script with AI window. With neither, Brief to video says so.
 - **Pictures:** the picture model, and one actor (Tyler picked "One actor").
   The writer marks each scene that shows the person, and those pictures are
   sent the actor's main picture and up to two more from the character sheet.

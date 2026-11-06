@@ -1,6 +1,7 @@
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { RECORDED_VOICE_ID } from "@/lib/video/recorded-voiceover"
 import { RENDER_NOT_FOUND_MESSAGE } from "@/lib/video/render"
 import type { ProjectTimeline } from "@/lib/video/timeline-schema"
 import { now, uuid } from "@/server/auth/security"
@@ -54,7 +55,7 @@ async function insertMedia(fileType: "image" | "video" | "audio", id = uuid()) {
   return id
 }
 
-/** A project with a first frame, a shot from it, and two voiceovers kept on the shelf. */
+/** A project with a first frame, a shot from it, two voiceovers read by the AI and one recorded, all kept on the shelf. */
 async function seedMadeByAi() {
   const at = now()
   const made = await createOwnedProject(user.id, "Bread", database)
@@ -109,7 +110,7 @@ async function seedMadeByAi() {
     updatedAt: at,
   })
   const voiceIds: string[] = []
-  for (const voiceId of ["alloy", "rachel-voice-id"]) {
+  for (const voiceId of ["alloy", "rachel-voice-id", RECORDED_VOICE_ID]) {
     const mediaId = await insertMedia("audio")
     await database.insert(videoVoiceovers).values({
       mediaId,
@@ -153,6 +154,8 @@ describe("workOutAiParts", () => {
         laneOf([
           { kind: "audio", mediaId: voiceIds[0] },
           { kind: "audio", mediaId: voiceIds[1], startMs: 2000 },
+          // Recorded by the person, so not the AI's.
+          { kind: "audio", mediaId: voiceIds[2], startMs: 6000 },
         ]),
         laneOf([
           { mediaId: frameMediaId },

@@ -41,7 +41,7 @@ export const appOptions: AppOptions = {
         label: "YouTube",
         panel: () => import("@/components/video-retention/youtube-settings"),
       }),
-      /** The Pexels API key the editor's B-roll tool searches stock video with. */
+      /** The Pexels API key the carousel's photo search uses. */
       defineSettingsTab({
         id: "pexels",
         label: "Pexels",

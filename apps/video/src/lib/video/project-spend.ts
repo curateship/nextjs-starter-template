@@ -31,10 +31,13 @@ const TOOL_LABELS: Record<string, string> = {
   jump_cut_analysis: "Tighten",
   hook_variants: "Hook",
   voiceover: "Voice",
+  voiceover_recording: "Recording captions",
   translation: "Another language",
   translation_voice: "Another language voice",
   script_check: "Script check",
   brief_script: "Brief script",
+  // B-roll was removed on 5 Nov 2026. Its labels stay so older spend reads
+  // the same as it did.
   broll_phrases: "B-roll phrases",
   broll_transcript: "B-roll transcript",
   blur_follow: "Blur that follows",

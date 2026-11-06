@@ -99,53 +99,6 @@ export function captionsCostCents({
 }
 
 /**
- * The Hook prompt's own wording is about this long, before the line itself
- * goes in (`hookPrompt` in `src/server/video/hooks.ts`).
- */
-const HOOK_PROMPT_CHARACTERS = 800
-
-/**
- * What each writer answers a hook with, thinking included. Three lines are
- * about 60 tokens; the rest is the thinking GPT and Claude are billed for.
- *
- * GPT's figure is measured: a hook on 19 Oct 2026 came back at 863 tokens
- * out. Gemini's and Claude's are estimates until one is run.
- */
-const HOOK_ANSWER_TOKENS: Record<WriterId, number> = {
-  gemini: 150,
-  openai: 900,
-  anthropic: 700,
-}
-
-/**
- * Three other opening lines. When nothing is written on screen, the opening
- * seconds are written down first, unless the file's words are saved.
- */
-export function hookCostCents({
-  writer,
-  lineCharacters,
-  listen,
-}: {
-  writer: WriterId
-  lineCharacters: number
-  /** The spoken opening to write down first, when there is no text on screen. */
-  listen?: { transcriber: TranscriberId; soundMs: number; saved: boolean }
-}) {
-  const model = WRITERS.find((one) => one.id === writer)?.model
-  if (!model) return 0
-  const writing = tokenCostCents(
-    model,
-    (HOOK_PROMPT_CHARACTERS + lineCharacters) / CHARACTERS_PER_TOKEN,
-    HOOK_ANSWER_TOKENS[writer]
-  )
-  const listening =
-    listen && !listen.saved
-      ? transcribeCostCents(listen.transcriber, listen.soundMs)
-      : 0
-  return writing + listening
-}
-
-/**
  * Reading these many characters aloud with this voice model. An OpenAI voice
  * is then played to Whisper to time its words, guessed at 900 characters a
  * minute of talking.
@@ -252,47 +205,6 @@ export function briefScriptCostCents({
     answerCharacters / CHARACTERS_PER_TOKEN + BRIEF_THINKING_TOKENS[writer]
   )
   return writing + scriptCheckCostCents(scriptCharacters, writer)
-}
-
-/**
- * The B-roll phrase prompt's own wording, before the sentences go in
- * (`brollPhrasesPrompt` in `src/server/video/b-roll.ts`).
- */
-const BROLL_PROMPT_CHARACTERS = 1_600
-
-/** A sentence of narration runs about four seconds. */
-const BROLL_MS_PER_SENTENCE = 4_000
-
-/**
- * The thinking GPT and Claude are billed for on a list of short phrases.
- * Estimates until one is run.
- */
-const BROLL_THINKING_TOKENS: Record<WriterId, number> = {
-  gemini: 0,
-  openai: 1_200,
-  anthropic: 800,
-}
-
-/**
- * One search phrase per sentence of a voice line this long. The sentences go
- * in numbered, and each phrase comes back as about eight tokens.
- */
-export function brollPhrasesCostCents({
-  writer,
-  talkMs,
-}: {
-  writer: WriterId
-  talkMs: number
-}) {
-  const model = WRITERS.find((one) => one.id === writer)?.model
-  if (!model || !Number.isFinite(talkMs) || talkMs <= 0) return 0
-  const sentences = Math.max(1, Math.round(talkMs / BROLL_MS_PER_SENTENCE))
-  const said = (talkMs / 60_000) * CHARACTERS_PER_MINUTE_OF_TALK
-  return tokenCostCents(
-    model,
-    (BROLL_PROMPT_CHARACTERS + said + sentences * 6) / CHARACTERS_PER_TOKEN,
-    sentences * 8 + 30 + BROLL_THINKING_TOKENS[writer]
-  )
 }
 
 /**

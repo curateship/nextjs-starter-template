@@ -1,12 +1,12 @@
 # Voice direction and your own voice
 
-The Voice window can be told how to say things, it remembers how steady and how
+The Read a script with AI window can be told how to say things, it remembers how steady and how
 expressive the voice should be, and it can read in a voice made from your own
 recording. All three work through ElevenLabs.
 
 ## The models
 
-The Quality list in the Voice window has six ElevenLabs models. Only the last
+The Quality list in the Read a script with AI window has six ElevenLabs models. Only the last
 three follow directions.
 
 | Quality | Model | Price per 1,000 characters | Follows [tags] |
@@ -75,7 +75,7 @@ something.", "It changes" and "everything.".
 
 ## Steadiness and expressiveness
 
-Both sliders sit under Speed in the Voice window. OpenAI voices have neither,
+Both sliders sit under Speed in the Read a script with AI window. OpenAI voices have neither,
 so the sliders hide when one is picked.
 
 - **Steadiness:** ElevenLabs' stability, 0 to 1, starting at 0.5. Low is
@@ -91,7 +91,7 @@ so the sliders hide when one is picked.
   quality, the speed, the steadiness and the expressiveness together in
   `video_settings.voice_defaults`. A voice saved before 12 Oct 2026 has no
   steadiness or expressiveness and reads with 0.5 and 0.
-- **Hook and Another language:** both read with the saved steadiness and
+- **Another language** reads with the saved steadiness and
   expressiveness, through `rememberedVoiceSettings`. With nothing saved they
   send no settings, and ElevenLabs uses the voice's own.
 
@@ -99,11 +99,12 @@ so the sliders hide when one is picked.
 
 The Voices panel on the editor's left rail starts with "Your voices": the
 voices made from your recordings, a play button for each recording and a
-delete button. The **+** at the top of the panel opens "Make a voice of my
-own". The search icon beside it searches the saved voiceovers by their words.
-Tyler asked on 29 Oct 2026 for the two to sit in the header as the Media
-panel's do; before that they were a New voice button and a search box in the
-panel.
+delete button. The **+** at the top of the panel opens a menu, and its "Make a
+copy of my voice" opens "Make a voice of my own" (`saved-voiceovers.md` has
+the whole menu). The search icon beside it searches the saved voiceovers by
+their words. Tyler asked on 29 Oct 2026 for the two to sit in the header as
+the Media panel's do; before that they were a New voice button and a search
+box in the panel.
 
 - **The window:** record from the microphone, or upload an MP3, WAV, M4A, OGG
   or WebM file, then name the voice and press Create voice.
@@ -116,7 +117,7 @@ panel.
 - **Size:** 25 MB at most. A minute of studio-quality WAV is about 17 MB.
 - **What ElevenLabs does:** an instant clone, made in seconds, sent to
   `POST /v1/voices/add`.
-- **Where it shows:** first in the Voice window's list, marked "(yours)". It
+- **Where it shows:** first in the Read a script with AI window's list, marked "(yours)". It
   is used like any other voice, with any model.
 - **Who sees it:** only the person who made it. Every voice sits on the app's
   one ElevenLabs key, so the list hides voices made by other people, and a
