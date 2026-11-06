@@ -32,17 +32,22 @@ is `workspace/tasks/Projects/commenting-dashboard.md`.
 
 - **It is the UI standard's `PanelCard`** (Tyler, 5 Nov 2026: "cards should be
   collapsible", then "use ui standard card"): a grey box whose title folds it,
-  remembered open or shut in this browser for each network.
-- **The title** is the network's name, with Paused after it while the whole
-  network is paused. Its own buttons, Pause for the whole network on this
-  project and the X that takes it off, show while the card is pointed at.
-- **Posts** counts your posts on it that need you: failed ones and drafts not
-  sent yet.
-- **Commenting** counts what waits: strong posts and replies to answer. It has
-  a Pause of its own (below) and says Paused while it is.
-- **Picked, Commenting lists its keywords under it,** under a small Keywords
-  heading: All keywords, a row per keyword, and Add keyword (part 11; below).
+  remembered open or shut in this browser for each project and network. The
+  card holding the picked row opens by itself.
+- **The title** is the network's mark and name, then what waits on both rows
+  added together ("Reddit · 4"), with Paused after it while the whole network
+  is paused. Its ⋮, shown while the card is pointed at, holds Pause for the
+  whole network on this project and Take off.
+- **Posts** says how many of your posts on it need you, as "2 need you":
+  failed ones and drafts not sent yet.
+- **Commenting** says what waits, as "2 to answer": strong posts and replies
+  to answer. It has a Pause of its own (below), shown while the row is
+  pointed at, and says Paused while it is.
+- **Picked, Commenting lists its keywords under it,** under "Keywords · 3"
+  with a + to add one: All keywords, then a row per keyword (part 11; below).
 - **The picked row** is white on the grey card.
+- The rest of the left column is in
+  [The Projects dashboard](projects-dashboard.md#the-left-column).
 
 ## Commenting's middle and right columns
 
@@ -103,7 +108,7 @@ network, its warm-up and its readings carry on.
   `src/server/social/pause.ts`).
 - **Pressed before the pause,** it waits in the queue and goes once commenting
   is resumed, like a paused account's comment, and can still be cancelled.
-- **The Pause on the card's top line** is different: it stops the whole
+- **Pause in the card's ⋮** is different: it stops the whole
   network on that project, posts and comments alike.
 
 The column is `promo_projects.paused_commenting`, added by
@@ -159,10 +164,12 @@ keywords: "have to organize the keywords ui better". Of three drawings he
 picked one dropdown in the middle column's header, for every network. On 5 Nov
 2026 he picked the keywords as a list in the project's left column, under Commenting instead
 (part 11), so the list that dropdown held is drawn there, open, under
-**Keywords**. The same rows and buttons, and nothing else changed.
+**Keywords**. The same day the list took the left panel standard: the heading
+counts the keywords ("Keywords · 3"), a + beside it adds one, and a row's
+buttons show on hover (left-column-standards task, parts 16 to 19).
 
 - **The list** has All keywords first, grey when picked, then a row per
-  keyword, then **Add keyword**. Picking a row lists that keyword's posts
+  keyword. Picking a row lists that keyword's posts
   alone; All keywords goes back to every keyword's posts in one ranked list,
   which is what shows when the screen opens. The picked keyword is in the
   address as `?keyword=<id>`, so a reload keeps it. A post row then names the keyword that found it, once the project has
@@ -172,15 +179,19 @@ picked one dropdown in the middle column's header, for every network. On 5 Nov
   Reddit", or "Watching · Newest first" for a watch). A failed last search says
   "search failed" in red, with the reason on hover. No hover on the name:
   Tyler asked for those tooltips to go on 13 Oct 2026.
-- **Three buttons on the row's right:** the timer switches its timed searches
-  off and on (a timer while it searches by itself, a crossed-out timer and
-  "timer off" in its line while it only searches when pressed); the arrow
-  searches again; the "⋮" holds **Remove**, which removes the keyword and
-  everything it found, at once, with no question asked.
-- **Add keyword** turns the list into the words, subreddits, Reddit's order
-  and how far back, with **Add and search**, and a Keywords link back. It opens
-  on that box by itself while the project has no keywords. Pressing Add and
-  search with both boxes empty says what is missing and marks the box.
+- **Three buttons on the row's right,** shown while the row is pointed at or
+  holds the keyboard's focus, so a keyword's name has the column's width; on
+  a phone they always show. The timer switches its timed searches off and on
+  (a timer while it searches by itself, a crossed-out timer and "timer off"
+  in its line while it only searches when pressed); the arrow searches again;
+  the "⋮", in the shell's one dropdown look, holds **Remove**, which removes
+  the keyword and everything it found, at once, with no question asked. A
+  search running shows its spinner after the count whatever the pointer does.
+- **The + beside Keywords** opens the network's add form as a dropdown: the
+  words, subreddits, Reddit's order and how far back, with **Add and search**.
+  While the project has no keywords the form sits open under the heading
+  instead. Pressing Add and search with both boxes empty says what is missing
+  and marks the box.
 - **While a search waits or runs** its row says "searching" and its arrow
   spins. When the browser program is not running, the row says "waiting"
   instead and nothing spins, and a red line under the header says how many jobs
@@ -195,8 +206,8 @@ picked one dropdown in the middle column's header, for every network. On 5 Nov
   `src/components/social/keyword-picker.tsx`; each network passes its own rows,
   its own "⋮" items and its own add box from its header, and the picker draws
   them into the left column through `KeywordListSlotContext`
-  (`keyword-list-slot.ts`). With no left column to draw into, as on a phone
-  with a post open, the list waits until the column is back.
+  (`keyword-list-slot.ts`). On a phone the left column stays drawn behind its
+  name, so the list is always there.
 
 ### The posts
 

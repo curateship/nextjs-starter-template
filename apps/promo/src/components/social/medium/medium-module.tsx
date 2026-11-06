@@ -343,7 +343,9 @@ export function MediumModule({
 
   // Rows for another tab, keyword or search are on their way, not these.
   const listLoading = list.key !== listKey
-  const back = desktop ? undefined : () => openRecord(null)
+  // A phone's way back from a post picked by a press; one that opened by
+  // itself has nothing to close, so its column name is the way back.
+  const back = desktop || !open ? undefined : () => openRecord(null)
 
   let middleBody: React.ReactNode
   let right: React.ReactNode
@@ -505,6 +507,7 @@ export function MediumModule({
       middle={middle}
       right={guest ? <p className="p-4 text-sm text-muted-foreground">Nothing to show here.</p> : right}
       rightOpen={Boolean(open)}
+      onCloseRight={() => openRecord(null)}
       rightLabel="Show the right column"
     >
       {dialogs}

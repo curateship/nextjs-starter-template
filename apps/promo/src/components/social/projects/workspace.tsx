@@ -35,6 +35,7 @@ import { ArchiveItemsPanel } from "@/components/archive/archive-items-panel"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 
 import { ProjectColumns } from "./project-columns"
+import { ProjectColumnsPick } from "./project-columns-pick"
 import { ProjectDialogs, type ProjectDialog } from "./project-dialogs"
 import { ProjectPanel } from "./project-panel"
 
@@ -115,6 +116,17 @@ export function ProjectsWorkspace({
   const network = archive ? null : search.network && networks.includes(search.network) ? search.network : (networks[0] ?? null)
   const side: Side = archive ? "posts" : sideOf(network, search)
   const guest = usePromoGuest()
+  // What the left column picked, which a phone shows in the middle column.
+  const pick = React.useMemo(
+    () =>
+      archive
+        ? { key: "archive", label: "Archive" }
+        : network
+          ? { key: `${network}:${side}`, label: NETWORK_NAMES[network] }
+          : { key: "", label: "Networks" },
+    [archive, network, side]
+  )
+  const framed = (node: React.ReactNode) => <ProjectColumnsPick.Provider value={pick}>{node}</ProjectColumnsPick.Provider>
 
   const setSearch = React.useCallback(
     (patch: ProjectRouteSearch, options: { replace?: boolean } = {}) =>
@@ -221,7 +233,7 @@ export function ProjectsWorkspace({
   const dialogs = <ProjectDialogs dialog={dialog} onClose={() => setDialog(null)} />
 
   if (archive) {
-    return (
+    return framed(
       <ProjectArchive projectId={projectId} projectName={view.project.name} canManage={!guest} left={left} search={search} onSearch={setSearch}>
         {dialogs}
       </ProjectArchive>
@@ -229,7 +241,7 @@ export function ProjectsWorkspace({
   }
 
   if (network === "instagram" || network === "tiktok") {
-    return (
+    return framed(
       <AppModule
         // Keyed by the network, so moving between Instagram and TikTok starts
         // afresh rather than showing one's posts under the other.
@@ -306,6 +318,7 @@ export function ProjectsWorkspace({
           search={{ list: search.list === "failed" ? "failed" : undefined }}
           onSearch={(patch) => setSearch({ ...patch, view: undefined })}
           newPostRetryId={newPostRetryId}
+          onProjectChanged={refreshView}
         />
       )
   }
@@ -313,11 +326,11 @@ export function ProjectsWorkspace({
   if (module) {
     // On Commenting, each network's keyword header draws its keywords as a
     // list under the Commenting row of the left column (part 11).
-    return side === "commenting" ? <KeywordListSlotContext.Provider value={slot}>{module}</KeywordListSlotContext.Provider> : module
+    return framed(side === "commenting" ? <KeywordListSlotContext.Provider value={slot}>{module}</KeywordListSlotContext.Provider> : module)
   }
 
   // No network yet: the middle and right columns say where to start.
-  return (
+  return framed(
     <ProjectColumns
       left={left}
       middle={
@@ -366,10 +379,20 @@ function ProjectArchive({
 }) {
   const [listKey, setListKey] = React.useState(0)
   const openId = search.open
+  /** The item that opened by itself on arrival, which a phone leaves behind its name. */
+  const [quietId, setQuietId] = React.useState<string | null>(null)
+  /** An item pressed, which a phone shows even when it is the one already open. */
+  const pickItem = (itemId: string | undefined) => {
+    setQuietId(null)
+    onSearch({ open: itemId })
+  }
   const onShown = React.useCallback(
     (ids: string[]) => {
       // Opened by itself, so it replaces the address: Back still leaves the page.
-      if (!openId && ids[0]) onSearch({ open: ids[0] }, { replace: true })
+      if (!openId && ids[0]) {
+        setQuietId(ids[0])
+        onSearch({ open: ids[0] }, { replace: true })
+      }
     },
     [onSearch, openId]
   )
@@ -384,7 +407,7 @@ function ProjectArchive({
           search={search}
           onSearch={(patch) => onSearch(patch)}
           openId={openId}
-          onOpen={(itemId) => onSearch({ open: itemId })}
+          onOpen={pickItem}
           onShown={onShown}
           canManage={canManage}
         />
@@ -396,10 +419,11 @@ function ProjectArchive({
           canManage={canManage}
           projects={[]}
           onChanged={() => setListKey((count) => count + 1)}
-          onOpen={(itemId) => onSearch({ open: itemId })}
+          onOpen={pickItem}
         />
       }
-      rightOpen={Boolean(openId)}
+      rightOpen={Boolean(openId) && openId !== quietId}
+      onCloseRight={() => setQuietId(openId ?? null)}
       rightLabel="Show the item"
     >
       {children}

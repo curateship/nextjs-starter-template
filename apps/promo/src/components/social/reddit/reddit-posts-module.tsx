@@ -30,7 +30,9 @@ export type RedditPostsSearch = { list?: "failed" }
  * the ones that did not go out, each with Try again. The right column is
  * always New post, since a Reddit post is read on Reddit itself.
  * `newPostRetryId` is a failed post's job, or a Viral draft, whose words New
- * post opens with. Nothing is sent until Post is pressed.
+ * post opens with. Nothing is sent until Post is pressed. A post sent, or a
+ * failed one cleared, reads the project again, so Posts' count on Reddit's
+ * card changes at once.
  */
 export function RedditPostsModule({
   view,
@@ -39,6 +41,7 @@ export function RedditPostsModule({
   search,
   onSearch,
   newPostRetryId,
+  onProjectChanged,
 }: {
   view: ProjectView
   left: React.ReactNode
@@ -46,6 +49,8 @@ export function RedditPostsModule({
   search: RedditPostsSearch
   onSearch: (patch: RedditPostsSearch) => void
   newPostRetryId: string | null
+  /** Reads the project again, for the counts on its network cards. */
+  onProjectChanged: () => Promise<void>
 }) {
   const desktop = useWideScreen()
   const projectId = view.project.id
@@ -78,6 +83,11 @@ export function RedditPostsModule({
   React.useEffect(() => {
     void refresh()
   }, [refresh])
+
+  /** After a send or a failure cleared: the lists, and the card's count. */
+  const changed = React.useCallback(async () => {
+    await Promise.all([refresh(), onProjectChanged()])
+  }, [onProjectChanged, refresh])
 
   // A failed post's words, from Try again, or a post the Viral app wrote
   // (`workspace/docs/viral-link.md`): read once, then New post opens with
@@ -144,7 +154,7 @@ export function RedditPostsModule({
       tabs={tabs}
       failures={lists.failures}
       error={error}
-      onRefresh={refresh}
+      onRefresh={changed}
       // Only posts are listed here, and a post's Try again opens New post.
       onOpenReplies={() => undefined}
     />
@@ -186,11 +196,12 @@ export function RedditPostsModule({
             setStart(null)
             setFormKey((count) => count + 1)
             setComposing(false)
-            void refresh()
+            void changed()
           }}
         />
       }
       rightOpen={composing}
+      onCloseRight={() => setComposing(false)}
       rightLabel="Show New post"
     >
       {dialogs}

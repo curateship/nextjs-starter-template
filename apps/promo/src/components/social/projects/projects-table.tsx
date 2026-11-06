@@ -1,7 +1,7 @@
 import * as React from "react"
 import { ProjectBansLink } from "./project-bans-link"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { FolderOpenIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import { FolderOpenIcon, PinIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -110,7 +110,8 @@ export function ProjectsTable({ initial }: { initial: ProjectRow[] }) {
           project.name.toLowerCase().includes(query) ||
           project.description.toLowerCase().includes(query)
       )
-      .sort((a, b) => factor * compare(a, b, sort))
+      // Pinned projects come first whatever the sort, as in Project.
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || factor * compare(a, b, sort))
   }, [direction, projects, search, sort])
 
   const totalPages = Math.max(1, Math.ceil(shown.length / pageSize))
@@ -224,13 +225,16 @@ export function ProjectsTable({ initial }: { initial: ProjectRow[] }) {
               />
             </TableCell>
             <TableCell column="main" className="max-w-0">
-              <button
-                type="button"
-                className="block max-w-full truncate text-left text-sm font-medium group-hover:underline"
-                onClick={() => openProject(project.id)}
-              >
-                {project.name}
-              </button>
+              <span className="flex min-w-0 items-center gap-1.5">
+                {project.pinned ? <PinIcon className="size-3.5 shrink-0 fill-amber-400 text-amber-500" aria-label="Pinned" /> : null}
+                <button
+                  type="button"
+                  className="block min-w-0 truncate text-left text-sm font-medium group-hover:underline"
+                  onClick={() => openProject(project.id)}
+                >
+                  {project.name}
+                </button>
+              </span>
               <Hint label={project.description}>
                 <span className="block truncate text-xs text-muted-foreground">
                   {project.description || "No description yet"}

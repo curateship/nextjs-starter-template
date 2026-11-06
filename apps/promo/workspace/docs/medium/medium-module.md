@@ -73,13 +73,13 @@ Search words can be marked as **Names you** (the product's own name) or **Names 
 rival**. Stories found by a marked keyword carry a chip and score twice as high,
 since that conversation is already about you.
 
-The keywords are the same dropdown as Reddit's
+The keywords are the same list as Reddit's
 ([The keywords list](../commenting.md#the-keywords-list)). All
 keywords counts each story waiting once, though two keywords found it. A
 keyword's row says when it last searched and its kind ("2 hours ago · tag"),
 with the timer switch (searches by itself every few hours), search again now,
-and a "⋮" with the mark (search words only) and Remove. Add keyword turns the
-list into the kind and its box.
+and a "⋮" with the mark (search words only) and Remove. The + beside
+Keywords opens the kind and its box as a dropdown.
 Removing a keyword deletes the stories only it found. A response already sent
 keeps its own record of the story's title and address.
 

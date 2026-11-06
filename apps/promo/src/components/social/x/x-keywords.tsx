@@ -13,6 +13,7 @@ import {
   TrendingUpIcon,
   XIcon,
 } from "lucide-react"
+import { MenuAction, MenuLine } from "@/components/shared/folding-menu"
 import { toast } from "sonner"
 
 import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
@@ -24,7 +25,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -193,52 +193,60 @@ export function XKeywords({
           onSelect={onSelect}
           onRun={(id) => act(() => changeXKeyword({ change: "search", keywordId: id }))}
           onSwitch={(id, enabled) => act(() => changeXKeyword({ change: "enabled", keywordId: id, enabled }))}
-          menu={(item) => {
+          menu={(item, close) => {
             const keyword = keywords.find((row) => row.id === item.id)
             return (
               <>
                 {keyword?.kind === "search" ? (
                   <>
-                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">What these words are</DropdownMenuLabel>
+                    <p className="px-2.5 py-1.5 text-xs text-muted-foreground">What these words are</p>
                     {X_KEYWORD_MARKS.map((mark) => (
-                      <DropdownMenuItem key={mark || "plain"} onSelect={() => void act(() => changeXKeyword({ change: "mark", keywordId: item.id, mark }))}>
-                        <TagIcon className={mark ? undefined : "opacity-0"} />
+                      <MenuAction
+                        key={mark || "plain"}
+                        icon={<TagIcon className={cn("size-4", !mark && "opacity-0")} />}
+                        onClick={() => {
+                          close()
+                          void act(() => changeXKeyword({ change: "mark", keywordId: item.id, mark }))
+                        }}
+                      >
                         {mark ? X_MARK_WORDS[mark] : "Ordinary search words"}
-                        {keyword.mark === mark ? <span className="ml-auto text-xs text-muted-foreground">Picked</span> : null}
-                      </DropdownMenuItem>
+                        {keyword.mark === mark ? <span className="ml-auto pl-3 text-xs text-muted-foreground">Picked</span> : null}
+                      </MenuAction>
                     ))}
-                    <DropdownMenuSeparator />
+                    <MenuLine />
                   </>
                 ) : null}
                 {keyword?.kind === "account" ? (
                   <>
-                    <DropdownMenuItem
-                      onSelect={() =>
+                    <MenuAction
+                      icon={keyword.notify ? <BellOffIcon className="size-4" /> : <BellIcon className="size-4" />}
+                      onClick={() => {
+                        close()
                         void act(
                           () => changeXKeyword({ change: "notify", keywordId: item.id, notify: !keyword.notify }),
                           keyword.notify ? `The bell stays quiet for ${item.label}'s new posts.` : `The bell rings for each new post from ${item.label}.`
                         )
-                      }
+                      }}
                     >
-                      {keyword.notify ? <BellOffIcon /> : <BellIcon />}
                       {keyword.notify ? "Stop the bell for its new posts" : "Ring the bell for its new posts"}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
+                    </MenuAction>
+                    <MenuLine />
                   </>
                 ) : null}
-                <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={() =>
+                <MenuAction
+                  destructive
+                  icon={<XIcon className="size-4" />}
+                  onClick={() => {
+                    close()
                     void act(async () => {
                       await changeXKeyword({ change: "delete", keywordId: item.id })
                       // Its posts are gone, so listing them alone would show nothing.
                       if (item.id === selectedId) onSelect(null)
                     }, `${item.label} removed. Replies already sent keep their record.`)
-                  }
+                  }}
                 >
-                  <XIcon />
                   Remove {item.label} and the posts only it found
-                </DropdownMenuItem>
+                </MenuAction>
               </>
             )
           }}
@@ -294,7 +302,7 @@ export function XKeywords({
               <SparklesIcon />
               Search word and account ideas
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            <MenuLine />
             <DropdownMenuLabel className="flex items-center justify-between gap-2 text-xs font-normal text-muted-foreground">
               <span>X&apos;s AI this month</span>
               <span className="text-foreground tabular-nums">{view ? dollars(view.spend.totalCents) : "…"}</span>
@@ -322,7 +330,7 @@ export function XKeywords({
                 </dl>
               </>
             ) : null}
-            <DropdownMenuSeparator />
+            <MenuLine />
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Accounts you never see</DropdownMenuLabel>
             {view?.hidden.length ? (
               view.hidden.map((hidden) => (

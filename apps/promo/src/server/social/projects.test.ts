@@ -7,6 +7,8 @@ import { createProfile } from "@/server/browser/profiles"
 import { promoProfiles } from "@/server/browser/schema"
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
 import type { ProfileIdentity } from "@/lib/social/options"
+import type { WrittenPageNode } from "@/lib/pages/written-page-body"
+import { projectDescriptionText } from "@/lib/social/project-description"
 
 vi.mock("@/server/ai/keys", () => ({ getAiKey: vi.fn(async () => "test-key") }))
 vi.mock("@/server/ai/usage", () => ({
@@ -28,6 +30,8 @@ const {
   readProjectView,
   removeAccountFromProject,
   removeProjectNetwork,
+  setProjectDescriptionLocked,
+  setProjectPinned,
   updateProject,
 } = await import("./projects")
 const { promoAccounts, promoComments, promoFinds, promoJobs, promoKeywords, promoPosts, promoProjects } = await import("./schema")
@@ -36,6 +40,11 @@ const { readPostCounts } = await import("./post-counts")
 const { queueJob } = await import("./jobs")
 
 const DAY_MS = 86_400_000
+
+/** A description as the editor sends it: a paragraph per line. */
+function doc(...lines: string[]): WrittenPageNode {
+  return { type: "doc", content: lines.map((text) => ({ type: "paragraph", content: [{ type: "text", text }] })) }
+}
 const NOW = new Date()
 
 /**
@@ -93,16 +102,57 @@ describe("projects", () => {
   it("is made, named and described, and a second one sits beside the first", async () => {
     const first = await createProject(userId, "  First  ", db)
     const second = await createProject(userId, "Second", db)
-    await updateProject(userId, second, { name: "Renamed", description: "A tool for teams." }, db)
+    await updateProject(userId, second, { name: "Renamed", description: doc("A tool for teams.") }, db)
 
     const rows = await db.select().from(promoProjects).where(eq(promoProjects.userId, userId))
-    expect(rows.map((row) => [row.id, row.name, row.description]).sort()).toEqual(
+    expect(rows.map((row) => [row.id, row.name, projectDescriptionText(row.description)]).sort()).toEqual(
       [
         [first, "First", ""],
         [second, "Renamed", "A tool for teams."],
       ].sort()
     )
     await expect(createProject(userId, "   ", db)).rejects.toThrow("needs a name")
+  })
+
+  it("tells the AI the description as plain lines, and keeps an emptied one as none", async () => {
+    const id = await createProject(userId, "Written", db)
+    await updateProject(userId, id, { description: doc("We make invoices.", "For small teams.") }, db)
+    expect((await readProjectView(userId, id, db)).project.description).toEqual(doc("We make invoices.", "For small teams."))
+    const { projectDescription } = await import("./projects")
+    expect(await projectDescription(userId, id, db)).toBe("We make invoices.\nFor small teams.")
+
+    await updateProject(userId, id, { description: { type: "doc", content: [{ type: "paragraph" }] } }, db)
+    const [row] = await db.select().from(promoProjects).where(eq(promoProjects.id, id))
+    expect(row?.description).toBe("")
+  })
+
+  it("refuses a description past 4,000 letters rather than cutting it, and any change while it is locked", async () => {
+    const id = await createProject(userId, "Locked", db)
+    await updateProject(userId, id, { description: doc("Kept.") }, db)
+    await expect(updateProject(userId, id, { description: doc("x".repeat(4_001)) }, db)).rejects.toThrow("Keep it under 4,000")
+    // Empty paragraphs hold no letters, so the saved size has a limit of its own.
+    const padded: WrittenPageNode = { type: "doc", content: Array.from({ length: 5_000 }, () => ({ type: "paragraph" as const })) }
+    padded.content?.push({ type: "paragraph", content: [{ type: "text", text: "Hi." }] })
+    await expect(updateProject(userId, id, { description: padded }, db)).rejects.toThrow("Keep it under 4,000")
+
+    await setProjectDescriptionLocked(userId, id, true, db)
+    expect((await readProjectView(userId, id, db)).project.descriptionLocked).toBe(true)
+    await expect(updateProject(userId, id, { description: doc("Changed.") }, db)).rejects.toThrow("description is locked")
+    // The name is not the description, so it still changes.
+    await updateProject(userId, id, { name: "Still named" }, db)
+    await setProjectDescriptionLocked(userId, id, false, db)
+    await updateProject(userId, id, { description: doc("Changed.") }, db)
+    expect(projectDescriptionText((await db.select().from(promoProjects).where(eq(promoProjects.id, id)))[0].description)).toBe("Changed.")
+  })
+
+  it("pins a project for the table, and another person's id pins nothing", async () => {
+    const id = await createProject(userId, "Pinned", db)
+    await setProjectPinned(userId, id, true, db)
+    expect((await listProjectRows(userId, db)).find((row) => row.id === id)?.pinned).toBe(true)
+    const stranger = (await insertUser(db, { role: "admin" })).id
+    await expect(setProjectPinned(stranger, id, false, db)).rejects.toThrow("does not exist")
+    await setProjectPinned(userId, id, false, db)
+    expect((await listProjectRows(userId, db)).find((row) => row.id === id)?.pinned).toBe(false)
   })
 
   it("refuses a picture that is not the person's own upload, and takes one off with an empty address", async () => {
@@ -273,8 +323,8 @@ describe("projects", () => {
   it("tells a draft its own project's description and not another's", async () => {
     const a = await createProject(userId, "A", db)
     const b = await createProject(userId, "B", db)
-    await updateProject(userId, a, { description: "Project A makes invoices." }, db)
-    await updateProject(userId, b, { description: "Project B makes rockets." }, db)
+    await updateProject(userId, a, { description: doc("Project A makes invoices.") }, db)
+    await updateProject(userId, b, { description: doc("Project B makes rockets.") }, db)
     const inA = await account({ projectId: a })
     const findId = await find(a)
 
@@ -302,7 +352,7 @@ describe("projects", () => {
 
   it("tells a draft from an account in no project nothing about a product", async () => {
     const a = await createProject(userId, "A", db)
-    await updateProject(userId, a, { description: "Project A makes invoices." }, db)
+    await updateProject(userId, a, { description: doc("Project A makes invoices.") }, db)
     const loose = await account()
     const findId = await find(a)
     let prompt = ""

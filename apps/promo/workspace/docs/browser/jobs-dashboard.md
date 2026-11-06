@@ -49,7 +49,7 @@ slow database answer never reads as a stop.
   (`programRunning` on `JobCounts` in `src/server/social/jobs.ts`). While the
   program is stopped and jobs wait, it shows a red line under the column's
   header linking here (**See the jobs**), and a waiting keyword says "waiting"
-  in the keywords dropdown instead of spinning.
+  in the keywords list instead of spinning.
 
 ## The list
 

@@ -65,11 +65,15 @@ To look at, Comments sent and Last comment, which belong to each network's
 Commenting row. The figures are `readProjectPosts` in
 `src/server/social/post-counts.ts`.
 
+- **Pinned projects come first,** whatever the sort, with a yellow pin
+  before the name. A project is pinned from the pin in its own left column's
+  header, as in Project (Tyler, 5 Nov 2026). The pin is the project's, kept
+  in `promo_projects.pinned_at`.
 - **Lost accounts.** A project whose accounts a counted ban hit in the last 30
-  days says "2 accounts banned in the last 30 days" under its name, and at
-  the top of its own left column. Clicking it opens the Bans dashboard
-  filtered to that project and the last 30 days. Nothing shows when there
-  are none ([Bans](bans.md), part 18).
+  days says "2 accounts banned in the last 30 days" under its name, and shows
+  a small red mark with the number after its name in its own left column.
+  Clicking either opens the Bans dashboard filtered to that project and the
+  last 30 days. Nothing shows when there are none ([Bans](bans.md), part 18).
 - **A row opens the project's own dashboard,** a page of its own because that
   is where the work is done. The arrow at the top of the project's left column
   comes back here.
@@ -84,28 +88,68 @@ Commenting row. The figures are `readProjectPosts` in
 Tyler sent the design on 13 Oct 2026, and the dashboard was rebuilt to match
 it. On 14 Oct 2026 the accounts left the left column for a dropdown beside
 Post, and the left column lists the project's networks instead
-([Networks as modules](network-modules.md)).
+([Networks as modules](network-modules.md)). On 5 Nov 2026 the left column
+took the shape of Project's left panel ("Left panel needs to use left panel
+standards, look at project app";
+`workspace/tasks/Projects/left-column-standards.md`).
 
-- **Left: the project.** An arrow back to the Projects table, the project's
-  name, and a cog. Under them the project's picture, its name in large type
-  and its description, then **Networks** with **Add network**.
-- **The cog** opens a box with the name and the description, both saving as
-  they are typed with no Save button, then **New project**, **Pause this
-  project** (or Resume) and **Delete project**. Another project is picked from
-  the Projects table, which the arrow goes back to.
-- **Each network is a card** with two rows, Posts and Commenting, and
-  Instagram and TikTok Posts alone. The card is the UI standard's `PanelCard`
-  and folds from its title. **Posts** counts your posts on it that need you:
-  failed ones and drafts not sent yet ("2 of your posts need you: failed, or
-  drafts not sent yet" on hover, `readPostCounts` in
-  `src/server/social/post-counts.ts`, part 8 of the Commenting task).
-  **Commenting** counts the posts and replies waiting
-  ([Commenting inside a project](commenting.md)).
-- **The picture** is the shared image field: pressing it opens the media
-  library to upload or pick one, and the X on its corner removes it. It saves
-  the moment it changes. A project with none shows "Add a picture". The server
-  takes only an image you uploaded, the same check as the shell's profile
-  photo, and refuses any other address.
+### The left column
+
+- **The header** holds an arrow back to the Projects table, the project's
+  name once, then "Paused" while the project is paused and the red bans mark,
+  then the pin, the + that adds a network, and the ⋮ (Tyler, 5 Nov 2026:
+  "move the add network + here"). The three are the small button size, so
+  the name keeps the room. A name cut short with "…" shows all of it on hover.
+  Another project is picked from the Projects table.
+- **The picture** lies behind the header and the top of the column at 30 out
+  of 100 strength, fading into the column, and the header's line turns
+  see-through over it, as on Project's project page. No picture, no banner.
+- **The ⋮** is the shell's one dropdown look (`FoldingMenu`), opening over
+  the middle column. **Name** and **Picture** fold open and save themselves:
+  the name 700ms after the last letter, on Enter and when its box is left;
+  the picture the moment one is picked or removed, through the shared image
+  field, which takes only an image you uploaded. Under a line: **New
+  project**, **Pause this project** (or Resume), **Lock description** (or
+  Unlock), and **Delete project** in red.
+- **The description** is written in place at the top of the column, in the
+  editor Project's page notes use, with headings, lists, bold and links from
+  the bar over selected words. It saves 700ms after the last letter and when
+  it is left, with Saving… and Saved in the page header. Empty, it reads
+  "Describe what you make. The AI is told this." It holds up to 4,000
+  letters; a longer one is refused with its length, never cut short. The
+  saved document is capped at 64,000 characters too, so thousands of empty
+  lines can't get round the letters rule. The server also refuses a save
+  while the description is locked, checked in the same write.
+- **Lock description** makes it read only for everyone, its owner and a
+  guest included, until Unlock description. A locked, empty description
+  shows nothing. The server refuses any change while it is locked
+  (`promo_projects.description_locked`).
+- **The + in the header** lists the networks the project does not use yet,
+  in the shared dropdown look. **Networks**, the shared small heading, sits
+  over the cards. A project with none shows an icon, "Add a network to post
+  and comment from this project" and **Add network**.
+- **A row's count** reads "2 need you" or "2 to answer" when the row has room
+  for the words, and the number alone at the column's narrowest.
+- **Each network is a card,** the UI standard's `PanelCard`, with the
+  network's mark before its name and two rows, Posts and Commenting;
+  Instagram and TikTok have Posts alone. **Posts** says how many of your posts
+  on it need you, as "2 need you": failed ones and drafts not sent yet
+  (`readPostCounts` in `src/server/social/post-counts.ts`). **Commenting** says
+  "2 to answer" ([Commenting inside a project](commenting.md)). The two are
+  added together on the card's title, "Reddit · 4", which shows folded too.
+- **A card folds from its title,** and each project remembers its own cards
+  in this browser (`promo-network-<project id>-<network>`). The card holding
+  the picked row opens by itself, whatever was remembered, so a notice that
+  opens Reddit's Commenting never lands in a folded card; folding it again is
+  allowed. Its ⋮, shown while it is pointed at, holds **Pause** (or Resume)
+  for that network on this project, then a line, then **Take off** in red,
+  which the server refuses while the project still holds that network's
+  accounts or keywords.
+- **The counts change as soon as something is sent.** A post sent, a comment
+  queued, or a failed post cleared reads the project again.
+- **The Archive** is a card like the networks', its title counting the items
+  not in the Bin ("Archive · 12"), its one row opening the project's Archive
+  in the middle and right columns.
 - **Middle: the picked row.** On Posts, the network's own tabs: Reddit's Posts
   and Failed, Medium's Posts and Publications, X's Posts, Replies and
   Communities, LinkedIn's Posts, Instagram's and TikTok's Posts and Comments.
@@ -121,21 +165,27 @@ The side columns collapse to nothing and leave a tab to bring them back,
 double-clicking a side's empty space shuts it, the two dividers drag, and the
 widths are remembered in the browser (`promo-projects-workspace`). The project
 lives in the address, so a reload keeps it, and so do the picked network, the
-tab and the open post. Under 1280px the columns stack: the project, then your
-posts. A picked post or New post then takes the whole screen, with an arrow
-back to the list.
+tab and the open post.
+
+Under 1280px one column shows at a time, as on every three-column dashboard:
+a row of the three column names above them (the picked network or Archive,
+Project, Open), the hidden two kept drawn so each keeps its tab and scroll.
+Picking a row in the Project column shows the middle one. A post pressed, or
+New post, shows Open, and its back arrow or the middle column's name closes
+it. A post that opened by itself, such as Commenting's first post or the
+Archive's first item, waits behind Open while the list stays in front.
 
 ## Pausing a project
 
-**Pause this project**, under the cog at the top of the left column, pauses every account
+**Pause this project**, in the ⋮ at the top of the left column, pauses every account
 in it: none of them posts, warms up or takes a health reading until the
-project is resumed. A paused project says so at the top of the column, with
-**Resume** beside it. Searches still run, because searching is the reader's
-work, not an account's.
+project is resumed. A paused project says "Paused" after its name in the
+header, and **Resume this project** is in the same ⋮. Searches still run,
+because searching is the reader's work, not an account's.
 
 - **Post is off** for its accounts and says "This account's project is paused.
   Resume the project on its dashboard to post from it again."
-- **Pause on a network's card** pauses that network alone, its posts and its
+- **Pause in a network card's ⋮** pauses that network alone, its posts and its
   comments. **Pause commenting**, on the card's Commenting row, holds back only
   the comments ([Commenting inside a project](commenting.md#pause-commenting)).
 - **A comment pressed before the pause waits** and can still be cancelled. The
@@ -144,12 +194,14 @@ work, not an account's.
 - **One account alone** is paused from its row on the
   [Accounts dashboard](reddit/accounts-dashboard.md).
 
-It sits under the cog since the 13 Oct 2026 design. Unlike retiring, a pause is meant to end. The rules are
+It sat under a cog from the 13 Oct 2026 design until the ⋮ took its place on 5 Nov 2026. Unlike retiring, a pause is meant to end. The rules are
 `src/server/social/pause.ts`; the column is `promo_projects.paused_at`.
 
 ## What the AI is told about what you make
 
-The project's description, under "WHAT I MAKE, if it is genuinely relevant".
+The project's description as plain words, a line per paragraph, heading or
+list item, with no formatting, under "WHAT I MAKE, if it is genuinely
+relevant" (`projectDescriptionText` in `src/lib/social/project-description.ts`).
 
 - **The picked account's project is the one that counts.** Its voice and its
   sent comments are used too.
@@ -160,7 +212,7 @@ The project's description, under "WHAT I MAKE, if it is genuinely relevant".
 
 ## Making and deleting
 
-- **New project**, on the table or under a project's cog, asks for a name and
+- **New project**, on the table or in a project's ⋮, asks for a name and
   the networks it uses, and opens the new project.
 - **Deleting is refused** while the project holds accounts in use or keywords,
   and the message says how many of each, such as "Second product still holds 1
@@ -172,7 +224,11 @@ The project's description, under "WHAT I MAKE, if it is genuinely relevant".
 
 ## What holds it up
 
-- **Tables.** `promo_projects` holds the name, the description, the
+- **Tables.** `promo_projects` holds the name, the description (the
+  editor's document as JSON, or "" for none, since
+  `drizzle/0138_promo_project_column.sql`, which turned each older plain
+  description into a paragraph per line), Lock description
+  (`description_locked`), the pin (`pinned_at`), the
   picture (`image_url`, a media address or "", added by
   `drizzle/0111_promo_project_image.sql`) and the networks it uses
   (`networks`, added by `drizzle/0118_promo_project_networks.sql`).

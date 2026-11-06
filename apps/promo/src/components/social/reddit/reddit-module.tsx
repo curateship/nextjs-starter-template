@@ -669,7 +669,7 @@ export function RedditModule({
       accountPicker={accountPicker}
       // Only the narrow layout, where the post covers the list. Clears the
       // chosen post and nothing else, so the keyword and the tab stay put.
-      onBack={desktop ? undefined : () => setSelectedFind(null)}
+      onBack={desktop || !selectedFind ? undefined : () => setSelectedFind(null)}
       onRead={async (findId: string) => {
         try {
           await readThread(findId)
@@ -792,6 +792,7 @@ export function RedditModule({
       // Below 1280px the post takes the screen once one is open, and only on
       // a tab of posts: Today and Comments have nothing open beside them.
       rightOpen={Boolean(selectedFind) && isFindsTab(tab)}
+      onCloseRight={() => setSelectedFind(null)}
       rightLabel="Show the post and your comment"
     >
       {dialogs}

@@ -34,10 +34,19 @@ const FooterOpen = React.createContext<boolean | null>(null)
  * keyboard's visible focus (a click leaves none), folded or open. Tyler drew
  * the task panel's cards that way on 14 Oct 2026 and made it every card's
  * rule on 20 Oct 2026; a button whose dropdown or footer is open stays in
- * view. On a screen with no pointer to hover, they always show.
+ * view. On a screen with no pointer to hover, they always show. Hidden, they
+ * take no room, so the title has the card's whole width in a narrow side
+ * panel and is cut short only while the card is pointed at (Tyler, 5 Nov
+ * 2026, of Promo's network cards reading "Reddi...").
+ *
+ * `icon` is drawn before the title, such as a network's mark on Promo's
+ * network cards. `openWhen` opens a folded card each time it turns true,
+ * whatever was remembered, such as when a row inside it is picked from
+ * elsewhere; folding it again afterwards is still allowed.
  */
 export function PanelCard({
   storageId,
+  icon,
   title,
   meta,
   after,
@@ -45,11 +54,14 @@ export function PanelCard({
   action,
   actionOpen = false,
   settings = false,
+  openWhen = false,
   className,
   children,
 }: {
   /** Plain characters only; it names the card's remembered open or shut state. */
   storageId: string
+  /** Before the title, 16px, such as a network's mark. */
+  icon?: React.ReactNode
   title: string
   /** Muted, after a dot: "0 of 2 done", "4", "Oct 12 to 13". */
   meta?: React.ReactNode
@@ -63,25 +75,34 @@ export function PanelCard({
   actionOpen?: boolean
   /** A cog that opens the footer of buttons. */
   settings?: boolean
+  /** Opens the card each time this turns true, whatever was remembered. */
+  openWhen?: boolean
   className?: string
   children: React.ReactNode
 }) {
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(storageId))
   const [footerOpen, setFooterOpen] = React.useState(false)
-  const quietClass = "opacity-0 transition-opacity group-hover/card:opacity-100 group-has-[:focus-visible]/card:opacity-100 [@media(hover:none)]:opacity-100"
+  // After the remembered state is read, so on arrival the card opens over it.
+  React.useEffect(() => {
+    if (openWhen) setOpen(true)
+  }, [openWhen, setOpen])
+  // Taken out of the row while hidden rather than see-through, so they hold no room.
+  const quietClass = "hidden group-hover/card:flex group-has-[:focus-visible]/card:flex [@media(hover:none)]:flex"
   return (
     <Collapsible
       open={open}
       onOpenChange={setOpen}
       className={cn("group/card", panelBoxClassName, className)}
     >
-      <div className="flex items-center gap-2">
+      {/* The buttons' height whether they show or not, so pointing at the card never makes it taller. */}
+      <div className="flex min-h-7 items-center gap-2">
         <h2 className="min-w-0 flex-1 text-[15px] font-semibold">
           <CollapsibleTrigger asChild>
             <button
               type="button"
-              className={cn("flex w-full cursor-pointer items-center rounded-md text-left select-none", focusRingInset)}
+              className={cn("flex w-full cursor-pointer items-center gap-2 rounded-md text-left select-none", focusRingInset)}
             >
+              {icon ? <span className="flex shrink-0 text-muted-foreground [&_svg]:size-4">{icon}</span> : null}
               <span className="min-w-0 flex-1 truncate">
                 {title}
                 {meta ? <span className="font-normal text-muted-foreground"> · {meta}</span> : null}

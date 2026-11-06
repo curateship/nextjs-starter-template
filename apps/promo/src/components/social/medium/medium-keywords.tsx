@@ -1,5 +1,6 @@
 import * as React from "react"
 import { EllipsisVerticalIcon, EyeIcon, ListChecksIcon, Loader2Icon, PlusIcon, RotateCwIcon, SparklesIcon, TagIcon, XIcon } from "lucide-react"
+import { MenuAction, MenuLine } from "@/components/shared/folding-menu"
 import { toast } from "sonner"
 
 import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
@@ -11,7 +12,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -167,36 +167,43 @@ export function MediumKeywords({
           onSelect={onSelect}
           onRun={(id) => act(() => changeMediumKeyword({ change: "search", keywordId: id }))}
           onSwitch={(id, enabled) => act(() => changeMediumKeyword({ change: "enabled", keywordId: id, enabled }))}
-          menu={(item) => {
+          menu={(item, close) => {
             const keyword = keywords.find((row) => row.id === item.id)
             return (
               <>
                 {keyword?.kind === "search" ? (
                   <>
-                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">What these words are</DropdownMenuLabel>
+                    <p className="px-2.5 py-1.5 text-xs text-muted-foreground">What these words are</p>
                     {(["", "you", "rival"] as const).map((mark) => (
-                      <DropdownMenuItem key={mark || "plain"} onSelect={() => void act(() => changeMediumKeyword({ change: "mark", keywordId: item.id, mark }))}>
-                        <TagIcon className={mark ? undefined : "opacity-0"} />
+                      <MenuAction
+                        key={mark || "plain"}
+                        icon={<TagIcon className={cn("size-4", !mark && "opacity-0")} />}
+                        onClick={() => {
+                          close()
+                          void act(() => changeMediumKeyword({ change: "mark", keywordId: item.id, mark }))
+                        }}
+                      >
                         {mark ? MEDIUM_MARK_WORDS[mark] : "Ordinary search words"}
-                        {keyword.mark === mark ? <span className="ml-auto text-xs text-muted-foreground">Picked</span> : null}
-                      </DropdownMenuItem>
+                        {keyword.mark === mark ? <span className="ml-auto pl-3 text-xs text-muted-foreground">Picked</span> : null}
+                      </MenuAction>
                     ))}
-                    <DropdownMenuSeparator />
+                    <MenuLine />
                   </>
                 ) : null}
-                <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={() =>
+                <MenuAction
+                  destructive
+                  icon={<XIcon className="size-4" />}
+                  onClick={() => {
+                    close()
                     void act(async () => {
                       await changeMediumKeyword({ change: "delete", keywordId: item.id })
                       // Its stories are gone, so listing them alone would show nothing.
                       if (item.id === selectedId) onSelect(null)
                     }, `${item.label} removed. Responses already sent keep their record.`)
-                  }
+                  }}
                 >
-                  <XIcon />
                   Remove {item.label} and the stories only it found
-                </DropdownMenuItem>
+                </MenuAction>
               </>
             )
           }}
@@ -250,7 +257,7 @@ export function MediumKeywords({
               <SparklesIcon />
               Tag and publication ideas
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            <MenuLine />
             {/* Medium's AI this month (part 41). It sat in the header until
                 Tyler moved it here on 21 Oct 2026, so the keywords dropdown
                 could take its place. */}
@@ -268,7 +275,7 @@ export function MediumKeywords({
                 ))}
               </dl>
             ) : null}
-            <DropdownMenuSeparator />
+            <MenuLine />
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Writers and publications you never see</DropdownMenuLabel>
             {view?.hidden.length ? (
               view.hidden.map((hidden) => (

@@ -270,6 +270,10 @@ export function AppModule({
       middle={middle}
       right={right}
       rightOpen={Boolean(comment) || composing}
+      onCloseRight={() => {
+        setComposing(false)
+        onSearch({ comment: undefined })
+      }}
       rightLabel={comment ? "Show the comment and your answer" : "Show the new post"}
     >
       {dialogs}

@@ -82,7 +82,7 @@ refused by the server whatever the screen shows:
 | --- | --- |
 | Read and search the project's posts, skip them, read their replies and rules | See another project, or the owner's comments from other projects beside the box |
 | Add, switch, run and delete the project's keywords | Use Ideas, Write with AI, Check, the rewrite buttons, or Write again on an inbox answer |
-| Change the description in the cog | Rename the project, change its picture, pause, resume or delete it, or make a new one |
+| Write the description at the top of the left column, unless its owner locked it | Rename the project, change its picture, pin it, lock the description, pause, resume or delete it, or make a new one; a guest sees no pin and no ⋮ |
 | Send comments, replies and posts from the project's own accounts, and undo one in its 10 seconds | Add, move or take out an account, or open Manage accounts |
 | Edit a sent comment's words | Delete a sent comment from Reddit, or switch a comment's Voice example |
 | See Reddit's Sent tab and its Failed list on Commenting, and Posts and Failed on Posts, cut to the project, and Try again | Open the Jobs window, which lists every project's work, or pause commenting |
