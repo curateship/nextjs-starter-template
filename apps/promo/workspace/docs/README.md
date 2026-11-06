@@ -207,10 +207,13 @@ the repo's `docs/`, and is never copied here.
 
 ## Phones
 
-- [The Phones dashboard](phones/phones-dashboard.md): every phone on the
-  rack, Android or iPhone, as a record, its status (Connected, Offline, Busy, Held), the shelf
-  slot, the five tabs of its window, app versions on each row, the Mix window,
-  and an account that runs on a phone instead of a browser profile.
+- [The Racks dashboard and a rack's page](phones/racks-dashboard.md): every
+  rack as a row, New rack with its name and description and a code made for
+  it, Not on a rack, and each rack's three-panel page: the rack, its banner,
+  description, "/" notes, counts, program, shelf and log on the left, its
+  phones with Filter, saved views and New phone in the middle, and the open
+  phone's screen and tabs on the right. Also what a phone holds, its status,
+  the one address that opens a phone, and an account that runs on a phone.
 - [The rack program](phones/rack-program.md): the program at home that drives
   the phones, how it reaches Promo without opening a port, the named actions,
   pairing with a one-time code, signed messages, Disconnect, the one install
@@ -219,7 +222,8 @@ the repo's `docs/`, and is never copied here.
   same job list, one at a time per phone and side by side across phones, the
   phones' own limit, waking hours on the phone's clock, an offline phone
   refusing at once, pausing the rack, and Settings → Phones.
-- [A phone's screen window](phones/screen-window.md): the live picture, control
+- [A phone's screen](phones/screen-window.md): the live picture on the Screen
+  tab and the bigger window, asked for only while it is on screen, control
   and the hold while a person taps, authenticator codes and texted codes.
 - [A phone's health](phones/phone-health.md): what the rack reads once a
   minute, the bell for a phone offline, hot, with no signal or nearly full and
@@ -242,10 +246,10 @@ the repo's `docs/`, and is never copied here.
 - [iPhones on the rack](phones/iphones.md): a phone's kind, one test phone
   per kind, hourly inbox reads, the iCloud check before a wipe, the one-time
   media link, texted codes off the Messages app, and the WebDriverAgent bell.
-- [Seeing the rack](phones/seeing-the-rack.md): the wall of live pictures
-  every 5 seconds, a Jobs tab on each phone, filters and search kept in the
-  address, the rack map drawn by shelf slot, and the rack program's own log
-  inside Promo.
+- [Seeing the rack](phones/seeing-the-rack.md): a rack's Wall tab of live
+  pictures every 5 seconds, the Jobs tabs on a phone and on a rack, filters
+  and search kept in the address, the shelf map drawn by slot, and the rack
+  program's own log inside Promo.
 
 ## Bans
 

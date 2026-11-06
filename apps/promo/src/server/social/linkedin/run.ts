@@ -251,7 +251,7 @@ export async function saveLinkedinSignIn(
         `Promo stopped the account${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}.`,
         account.profileId
           ? "Sort it out in the browser window on the Browser profiles dashboard, then let it run again from the Accounts dashboard."
-          : "Sort it out through the phone's screen window on the Phones dashboard, then let it run again from the Accounts dashboard.",
+          : "Sort it out through the phone's screen on its rack's page, then let it run again from the Accounts dashboard.",
       ].join(" "),
       href: "/admin/accounts?platform=linkedin",
     },
@@ -294,7 +294,7 @@ async function ringForCode(account: { id: string; userId: string; handle: string
       targetId: target,
       message: `${NOTICE_HEADINGS.linkedin_code} ${handleWords("linkedin", account.handle) || "a LinkedIn account"}`,
       detail: account.onPhone
-        ? "LinkedIn emailed a code to the account's address. Type it into the LinkedIn app through the phone's screen window on the Phones dashboard."
+        ? "LinkedIn emailed a code to the account's address. Type it into the LinkedIn app through the phone's screen on its rack's page."
         : "LinkedIn emailed a code to the account's address. Paste it into the box in the account's settings on the Accounts dashboard within 15 minutes.",
       href: "/admin/accounts?platform=linkedin",
     },

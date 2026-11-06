@@ -86,7 +86,7 @@ When a phone account cannot take the comment now, Post is off and its tooltip
 says why, with what to do:
 
 - the phone is offline, with why ("Not plugged in");
-- it is held, or someone is using its screen window;
+- it is held, or someone is using its screen;
 - it was stopped for showing the wrong address
   ([a Wi-Fi phone's address](../phones/looking-like-a-real-person.md)).
 
@@ -106,8 +106,8 @@ account, signed in to the LinkedIn app ([LinkedIn accounts](../linkedin/accounts
    phone, and the account has to have been seen signed in, so the phone can
    tell it apart. The rules for an important account are asked now: its voice
    and project must not be shared with a throwaway.
-2. **Sign in by hand** on the phone through its screen window on the Phones
-   dashboard. The account keeps running on its browser profile meanwhile, and
+2. **Sign in by hand** on the phone through its screen on its rack's
+   page. The account keeps running on its browser profile meanwhile, and
    the Accounts dashboard shows "Moving to" the phone.
 3. **Check sign-in** asks the phone who the Reddit app is signed in as. The
    window says what the phone last read, such as "found u/other signed in, not

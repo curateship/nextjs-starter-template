@@ -80,7 +80,7 @@ export function postingBlockedReason(
   const device = status.profile
     ? { kind: "browser", where: `the profile ${status.profile.name} on the Browser profiles dashboard` }
     : status.phone
-      ? { kind: "phone", where: `the screen of ${status.phone.name} on the Phones dashboard` }
+      ? { kind: "phone", where: `the screen of ${status.phone.name} on its rack's page` }
       : null
   if (!device) return { text: NO_PROFILE_MESSAGE }
   // A phone that cannot take the comment now says why, with where to fix it.
@@ -89,13 +89,13 @@ export function postingBlockedReason(
     const named = `${phone.name}${phone.shelfSlot ? ` in ${slotWords(phone.shelfSlot)}` : ""}`
     if (phone.addressStop) return { text: `${named} was stopped for showing the wrong address: ${phone.addressStop}` }
     if (phone.status === "offline") {
-      return { text: `${named} is offline: ${phone.offlineReason || "not seen by the rack"}. Check it on the Phones dashboard.` }
+      return { text: `${named} is offline: ${phone.offlineReason || "not seen by the rack"}. Check it on its rack's page.` }
     }
     if (phone.status === "held") {
       return {
         text: phone.inUse
           ? `${named} is held while someone uses its screen window. Close the window, or wait for it to let go, then post.`
-          : `${named} is held. Release it on the Phones dashboard, then post.`,
+          : `${named} is held. Release it on its rack's page, then post.`,
       }
     }
   }

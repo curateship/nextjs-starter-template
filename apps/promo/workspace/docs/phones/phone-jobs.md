@@ -60,8 +60,8 @@ pressing Post, and a comment is never tried twice.
   Not plugged in. Nothing was sent." Nothing waits on a phone that is not
   there, and a comment is never tried again.
 - **A held phone's jobs wait,** untouched, until it is released. That includes
-  a phone a person controls from its screen window.
-- **A paused rack's jobs wait.** The switch on the Phones dashboard pauses every
+  a phone a person controls from its screen.
+- **A paused rack's jobs wait.** The switch on the Racks dashboard pauses every
   phone job; jobs already running finish. The bell says "The rack is paused"
   until it is resumed. Resuming lists the phone jobs that waited, oldest
   first, with a tick to drop each; only ticked ones are dropped.
@@ -106,7 +106,7 @@ Save button:
   A phone that runs an account is refused.
 
 A value outside those is refused saying what is allowed. The pause switch is on
-the Phones dashboard, where the phones are. Waking hours and the warm-up apply
+the rack's page, where the phones are. Waking hours and the warm-up apply
 to every account, so they stay in Settings → Behaviour.
 
 ## Where it is

@@ -59,7 +59,7 @@ function rolloutWords(rollout: Rollout | undefined, testVersion: string | undefi
 
 /**
  * The daily self-test and app updates, from the Self-test button on the
- * Phones dashboard (parts 20 and 21 of the phone farm), one side per kind of
+ * Racks dashboard (parts 20 and 21 of the phone farm), one side per kind of
  * phone (part 51): the Android test phone's answers and Play Store updates,
  * and the iPhone test phone's answers and App Store updates.
  *

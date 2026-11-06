@@ -13,7 +13,7 @@ import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test
 
 import { phoneProjects } from "./phone-projects"
 import { holdPhones } from "./phones"
-import { checkIn, createPairingCode, pairRack, type VerifiedRack } from "./rack"
+import { checkIn, createPairingCode, createRack, pairRack, type VerifiedRack } from "./rack"
 import {
   askForLog,
   forgetRackLogsForTests,
@@ -45,8 +45,8 @@ describe("seeing the rack", () => {
     db = made.db
     setDbForTests(db)
     userId = (await insertUser(db, { role: "admin" })).id
-    const { code } = await createPairingCode(userId, db)
-    const paired = await pairRack({ code, name: "Mac", platform: "", version: RACK_VERSION }, db)
+    const { code } = await createPairingCode(userId, await createRack(userId, { name: "Mac" }, db), db)
+    const paired = await pairRack({ code, platform: "", version: RACK_VERSION }, db)
     rack = { id: paired.rackId, userId, key: paired.key }
     await checkIn(
       rack,
@@ -74,14 +74,17 @@ describe("seeing the rack", () => {
     it("asks the rack for wall pictures of the connected phones only, while the wall is open", async () => {
       expect((await exchangeScreens(rack, nothing, db)).wall).toEqual([])
       await holdPhones(userId, [phones.B2], true, db)
-      wantWall(userId)
+      // Another rack's wall asks nothing of this one.
+      wantWall(userId, "another-rack")
+      expect((await exchangeScreens(rack, nothing, db)).wall).toEqual([])
+      wantWall(userId, rack.id)
       expect((await exchangeScreens(rack, nothing, db)).wall).toEqual(["A1"])
       // Ten seconds without an ask and the wall counts as closed.
       expect((await exchangeScreens(rack, nothing, db, new Date(Date.now() + 11_000))).wall).toEqual([])
     })
 
     it("keeps a wall picture apart from the window's, and lets it go stale after 30 seconds", async () => {
-      wantWall(userId)
+      wantWall(userId, rack.id)
       await exchangeScreens(
         rack,
         { frames: [{ serial: "A1", jpeg: "/9j/WALL", width: 270, height: 600, lane: "wall" }], texts: [] },
@@ -111,10 +114,10 @@ describe("seeing the rack", () => {
       await new Promise((resolve) => setTimeout(resolve, 5))
       const second = await queueJob(userId, "health", { accountId }, db)
 
-      const list = await listLaneJobs(userId, phoneLane(phones.A1), db)
+      const list = await listLaneJobs(userId, [phoneLane(phones.A1)], db)
       expect(list.jobs.map((job) => job.id)).toEqual([second, first])
       expect(list.jobs[0]).toMatchObject({ where: "u/quiet_builder · Phone A1", project: "Running shoes", status: "queued" })
-      expect((await listLaneJobs(userId, phoneLane(phones.B2), db)).jobs).toEqual([])
+      expect((await listLaneJobs(userId, [phoneLane(phones.B2)], db)).jobs).toEqual([])
 
       expect(await phoneProjects(userId, db)).toEqual([{ id: projectId, name: "Running shoes", phoneIds: [phones.A1] }])
     })

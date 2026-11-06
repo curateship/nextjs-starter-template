@@ -158,7 +158,7 @@ function RedditAccountSettings() {
                 >
                   Open {chosenPhone.name}
                 </Link>{" "}
-                on the Phones dashboard. Phones take Reddit&apos;s jobs from a later step, so
+                on its rack&apos;s page. Phones take Reddit&apos;s jobs from a later step, so
                 until then nothing is searched or posted from it.
               </>
             ) : chosen ? (

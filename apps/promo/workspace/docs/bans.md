@@ -74,7 +74,7 @@ Instagram twice".
 ## On the phone (parts 1 to 5)
 
 - **Banned on.** The phone's window, on the Settings tab under "On it", and
-  its row on the Phones dashboard say "Banned on: Instagram twice, TikTok
+  its row on its rack's page say "Banned on: Instagram twice, TikTok
   once". Nothing shows when there are none. A wipe never clears it, because
   a wipe doesn't clear the app's mark.
 - **A History line.** Each ban writes a Banned line in the phone's History.
@@ -97,7 +97,7 @@ Instagram twice".
 - **A banned SIM warns.** A SIM phone whose number was in a counted ban of an
   app says "This SIM was used by a banned Instagram account" when it takes a
   new one, and saving still goes through. An empty SIM number never matches.
-- **Finding usable phones.** The Phones dashboard's "Banned on" filter lives
+- **Finding usable phones.** The "Banned on" filter on a rack's page lives
   in the address as `?banned=instagram`, and the back button undoes it. The
   Map draws a ban mark on each slot with a ban, naming the apps on hover.
 - **The proxy row.** The Proxies dashboard says "Banned on: Instagram" under

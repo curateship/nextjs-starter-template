@@ -1,7 +1,7 @@
 import * as React from "react"
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -67,14 +67,11 @@ export function PhoneHealthPanel({ phone }: { phone: PhoneRecord }) {
   )
 
   return (
-    <div className="grid gap-6">
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Now</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
+    // Sized by the panel it sits in, not the window (Racks dashboard, part 113).
+    <div className="@container grid min-w-0 gap-3">
+      <PanelCard storageId="promo-phone-health-now" title="Now">
           {vitals.at ? (
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm @lg:grid-cols-4">
               <Figure label="Battery" value={vitals.batteryPercent === null ? "Not read" : `${vitals.batteryPercent} out of 100`} />
               <Figure
                 label="Heat"
@@ -100,14 +97,9 @@ export function PhoneHealthPanel({ phone }: { phone: PhoneRecord }) {
           {vitals.at ? (
             <p className="text-xs text-muted-foreground">Read {formatTimeAgo(vitals.at).toLowerCase()}.</p>
           ) : null}
-        </CardContent>
-      </Card>
+        </PanelCard>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Battery and heat, last four weeks</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
+      <PanelCard storageId="promo-phone-health-battery-and-heat-last-four-weeks" title="Battery and heat" meta="4 weeks">
           {error ? (
             <ErrorRow message={error} onRetry={() => setAttempt((count) => count + 1)} />
           ) : !readings ? (
@@ -132,7 +124,7 @@ export function PhoneHealthPanel({ phone }: { phone: PhoneRecord }) {
                   {HOT_C}°C, where the bell rings
                 </span>
               </div>
-              <div className="h-[240px] w-full min-w-0">
+              <div className="h-[200px] w-full min-w-0 @lg:h-[240px]">
                 <ChartContainer config={chartConfig} className="h-full w-full">
                   <LineChart data={data} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="0" vertical={false} />
@@ -145,6 +137,8 @@ export function PhoneHealthPanel({ phone }: { phone: PhoneRecord }) {
                       tickLine={false}
                       tick={{ fontSize: 10 }}
                       dy={6}
+                      // Few enough dates to read at a narrow panel's width.
+                      minTickGap={24}
                       tickFormatter={(value: number) => dayFormat.format(new Date(value))}
                     />
                     <YAxis
@@ -153,7 +147,7 @@ export function PhoneHealthPanel({ phone }: { phone: PhoneRecord }) {
                       axisLine={false}
                       tickLine={false}
                       tick={{ fontSize: 10, dx: -5 }}
-                      width={32}
+                      width={28}
                     />
                     <YAxis
                       yAxisId="heat"
@@ -162,7 +156,7 @@ export function PhoneHealthPanel({ phone }: { phone: PhoneRecord }) {
                       axisLine={false}
                       tickLine={false}
                       tick={{ fontSize: 10, dx: 5 }}
-                      width={32}
+                      width={28}
                       unit="°"
                     />
                     <ReferenceLine yAxisId="heat" y={HOT_C} stroke="var(--destructive)" strokeDasharray="4 4" />
@@ -201,25 +195,19 @@ export function PhoneHealthPanel({ phone }: { phone: PhoneRecord }) {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+        </PanelCard>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Apps</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+      <PanelCard storageId="promo-phone-health-apps" title="Apps">
+          <dl className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-3 text-sm">
             {TRACKED_APPS.map((app) => (
               <Figure key={app} label={APP_WORDS[app]} value={phone.apps[app] ?? "Not installed"} />
             ))}
           </dl>
           <p className="text-sm text-muted-foreground">
             Read every ten minutes. New versions go onto the self-test phone first, from Self-test on
-            the Phones dashboard.
+            the Racks dashboard.
           </p>
-        </CardContent>
-      </Card>
+        </PanelCard>
     </div>
   )
 }

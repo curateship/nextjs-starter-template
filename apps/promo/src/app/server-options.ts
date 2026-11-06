@@ -1,5 +1,6 @@
 import type { AppServerOptions } from "@/server/app-options"
 import { archiveSavedViewScreens } from "@/server/archive/saved-views"
+import { rackSavedViewScreens } from "@/server/phones/saved-views"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -22,8 +23,11 @@ import { archiveSavedViewScreens } from "@/server/archive/saved-views"
  * door nobody is told about.
  */
 export const appServerOptions: AppServerOptions = {
-  /** Views on a project's Archive (`workspace/docs/archive.md`). */
-  savedViews: { screens: archiveSavedViewScreens },
+  /**
+   * Views on a project's Archive (`workspace/docs/archive.md`) and on a
+   * rack's phones (`workspace/docs/phones/racks-dashboard.md`).
+   */
+  savedViews: { screens: { ...archiveSavedViewScreens, ...rackSavedViewScreens } },
   background: {
     /**
      * Only the quick jobs ride the shell's ticker. The Reddit browser is its

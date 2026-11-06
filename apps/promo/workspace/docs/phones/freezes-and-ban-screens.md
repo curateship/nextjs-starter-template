@@ -68,7 +68,7 @@ and a comment or post is never tried twice."
   weekly look at the banned app: it only rings "Looks back" when no ban
   screen shows.
 - **Letting it run again** is a person's call: sort it out on the phone
-  through its screen window, then press **Let it run again** on the ban card
+  through its screen on its rack's page, then press **Let it run again** on the ban card
   in the account's settings on the Accounts dashboard. That clears the block
   and the notices, and the account goes at half pace for 7 days. **Clean
   up** on the same card retires it as Banned and wipes its phone instead.

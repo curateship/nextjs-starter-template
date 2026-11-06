@@ -33,9 +33,13 @@ import { customShellUsers } from "@/server/schema"
  */
 
 /**
- * One rack program, paired once. Its key signs every message both ways and is
- * stored encrypted with the server's key. A disconnected rack keeps its row
- * and its key is refused from that moment.
+ * One rack: the computer the phones plug into, with the program on it. A
+ * person makes it on the Racks dashboard with a name and a description, and
+ * it has no key until the program spends a code made for it
+ * (`drizzle/0139_promo_racks_dashboard.sql`). Its key then signs every message
+ * both ways and is stored encrypted with the server's key. A disconnected
+ * rack keeps its row and its key is refused from that moment, until a new
+ * code pairs it again.
  */
 export const promoRacks = pgTable(
   "promo_racks",
@@ -45,13 +49,21 @@ export const promoRacks = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 120 }).notNull().default(""),
-    keyEncrypted: text("key_encrypted").notNull(),
+    /** The editor's document as JSON, or "" for none, written in place on the rack's left panel. */
+    description: text("description").notNull().default(""),
+    /** The cover behind the left panel's header, or "" for none. There is no avatar (Tyler, 5 Nov 2026). */
+    bannerUrl: text("banner_url").notNull().default(""),
+    /** The rack's "/" block notes, the editor's document as JSON, or "" for none. */
+    notes: text("notes").notNull().default(""),
+    /** Null until the rack program pairs. */
+    keyEncrypted: text("key_encrypted"),
     /** "macOS 15.5" or "Linux", as the program said when it checked in. */
     platform: varchar("platform", { length: 40 }).notNull().default(""),
     version: varchar("version", { length: 40 }).notNull().default(""),
     /** What the last update did, in words. Empty when there is nothing to say. */
     updateNote: text("update_note").notNull().default(""),
-    pairedAt: timestamp("paired_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When the program last spent a code for this rack, or null before it ever has. */
+    pairedAt: timestamp("paired_at", { withTimezone: true }),
     seenAt: timestamp("seen_at", { withTimezone: true }),
     disconnectedAt: timestamp("disconnected_at", { withTimezone: true }),
     /**
@@ -60,11 +72,12 @@ export const promoRacks = pgTable(
      * signs it for 7 days (Tyler, 18 Oct 2026). Added by `drizzle/0121_promo_iphones.sql`.
      */
     wdaExpiresAt: timestamp("wda_expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("ix_promo_racks_user").on(table.userId)]
 )
 
-/** A one-time pairing code, stored as a hash. Works once, for fifteen minutes. */
+/** A one-time pairing code, stored as a hash. Works once, for fifteen minutes, for one rack. */
 export const promoRackCodes = pgTable(
   "promo_rack_codes",
   {
@@ -72,6 +85,8 @@ export const promoRackCodes = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** The rack that spending it pairs. Null only on codes from before 0139, which ran out long ago. */
+    rackId: varchar("rack_id", { length: 36 }).references(() => promoRacks.id, { onDelete: "cascade" }),
     codeHash: varchar("code_hash", { length: 64 }).notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     usedAt: timestamp("used_at", { withTimezone: true }),
@@ -217,9 +232,8 @@ export const promoPhoneActions = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    rackId: varchar("rack_id", { length: 36 })
-      .notNull()
-      .references(() => promoRacks.id, { onDelete: "cascade" }),
+    /** Null once its rack was deleted; the action stays in the phone's history (0139). */
+    rackId: varchar("rack_id", { length: 36 }).references(() => promoRacks.id, { onDelete: "set null" }),
     phoneId: varchar("phone_id", { length: 36 })
       .notNull()
       .references(() => promoPhones.id, { onDelete: "cascade" }),

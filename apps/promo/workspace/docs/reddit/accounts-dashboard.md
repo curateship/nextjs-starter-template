@@ -64,7 +64,7 @@ did, and a page for each account are not built yet.
 **Add account** asks for the network (Reddit, Instagram or TikTok, starting
 on the one the Platform filter shows), where the account runs, and which voice
 it drafts with. "Runs on" is one list of browser profiles and phones from the
-[Phones dashboard](../phones/phones-dashboard.md); for Instagram and TikTok it
+[Racks dashboard](../phones/racks-dashboard.md); for Instagram and TikTok it
 lists phones only, since they never run on a browser profile. One account of a
 network per profile and per phone, so one already holding one, and the reader
 browser from Settings → Behaviour, are not offered. A phone may hold a Reddit,
@@ -130,7 +130,7 @@ set it by hand.
 
 Columns: the account (u/name, or "Not signed in"), its status, its project or
 "No project", where it runs (a browser profile linking to the Browser profiles
-dashboard, or "Phone:" and the phone's name linking to the Phones dashboard,
+dashboard, or "Phone:" and the phone's name linking to the phone on its rack's page,
 "Nowhere" in red when neither is set), the profile's proxy with its last test
 or the phone's SIM carrier or Wi-Fi, its voice with a menu to swap it, its age, its karma and its
 last comment. On an Instagram or TikTok row the age is its post count, Karma
@@ -158,7 +158,7 @@ its buttons went off the edge.
   button, and Retire. The settings button moves the account to another profile
   or phone, where sign-ins do not move with it, and saves its authenticator
   secret so its two-factor code shows there and beside its phone's screen
-  ([the screen window](../phones/screen-window.md)). The test phone of the
+  ([the screen](../phones/screen-window.md)). The test phone of the
   daily self-test is never on its list.
 - **Important** shows under an important account's status, and **Moving to**
   a phone's name while a move from its browser profile is waiting on the phone.

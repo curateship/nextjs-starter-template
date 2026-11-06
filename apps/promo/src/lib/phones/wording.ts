@@ -115,3 +115,29 @@ export function appVersionWords(phone: { apps: Partial<Record<TrackedApp, string
   if (versions.length) return versions.join(" · ")
   return phone.vitals.at ? "None of Reddit, Instagram or TikTok is on it" : "Apps not read yet"
 }
+
+/**
+ * The one thing about a phone's setup worth a line on its row, most urgent
+ * first: the wrong address showing, a wipe owed, a wiped phone not set up
+ * again, or a setup check with lines that do not pass. Its Setup tab has the
+ * rest. Empty when there is nothing to say. Racks dashboard rows count the
+ * phones this names (part 80).
+ */
+export function setupWarning(phone: {
+  addressStop: unknown
+  needsWipeAt: Date | null
+  wipedAt: Date | null
+  setupCheck: { passed: boolean; checkedAt: Date | string; lines: Array<{ verdict: string }> } | null
+}): string {
+  if (phone.addressStop) return "Stopped: the wrong address showed"
+  if (phone.needsWipeAt) return "Needs wiping before another account"
+  const check = phone.setupCheck
+  if (phone.wipedAt && !(check?.passed && new Date(check.checkedAt) > new Date(phone.wipedAt))) {
+    return "Wiped: set it up again and run its setup check"
+  }
+  if (check && !check.passed) {
+    const failing = check.lines.filter((line) => line.verdict === "fails").length
+    return failing ? `Setup check: ${failing} of ${check.lines.length} lines fail` : ""
+  }
+  return ""
+}

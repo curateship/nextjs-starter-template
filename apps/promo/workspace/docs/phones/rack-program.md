@@ -58,7 +58,7 @@ home and nothing changes on the Hetzner server.
   to 2000 characters, signed like every call, on a thread of its own so the
   action poll is not held up. Only the end of the file is ever read, one
   post runs at a time, and a rack with no log file (Linux keeps it in the
-  journal) sends an empty list. The Log tab in the Rack window shows them.
+  journal) sends an empty list. The Log card on the rack's page shows them.
 - **The answer** goes to `/api/rack/result`, with a picture of each step,
   shrunk to 540 pixels wide ([a picture of every step](step-pictures.md)),
   any ban screen found after an app action, and what was done about a freeze.
@@ -69,13 +69,13 @@ home and nothing changes on the Hetzner server.
   phone that stopped answering ([freezes and ban screens](freezes-and-ban-screens.md)),
   and never runs the action again. One the rack never answers is failed by
   Promo: "The rack did not answer in time."
-- **While a screen window is open,** a third thread sends that phone's screen
+- **While a phone's screen is open,** a third thread sends that phone's screen
   to `/api/rack/screen` about three times a second and carries back the taps.
   Each frame says `"lane": "window"`. An iPhone's picture comes through
   WebDriverAgent, and its taps, swipes, typing and the Back, Home, Recent
   apps, Enter and Delete keys go through the driver, which turns Back and
   Recent apps into the iPhone's own swipes.
-  [The screen window](screen-window.md) has the rest.
+  [The screen](screen-window.md) has the rest.
 - **While the wall is open,** the same thread sends a small picture of each
   phone Promo names in the reply's `wall` list: 270 pixels wide, at most one
   every 5 seconds per phone, marked `"lane": "wall"` in the same `frames`
@@ -226,9 +226,16 @@ button stops with a picture of the screen.
 
 Nobody but Tyler's Promo can drive the phones.
 
-- **A one-time code.** Rack, then Make a pairing code, on the Phones dashboard
-  shows a code such as `ABCD-EFGH` and the whole install command with it. The
-  code works once, for 15 minutes. Promo keeps only its hash.
+- **A rack first, then a code for it.** New rack on the Racks dashboard makes
+  the rack with its name and description, and shows a code such as
+  `ABCD-EFGH` and the whole install command with it; a rack's page makes one
+  too, from Make a code ([the Racks dashboard](racks-dashboard.md)). The code
+  works once, for 15 minutes, for that rack only. Promo keeps only its hash.
+  Only a rack that is not connected gets one, so a second computer can never
+  take a working rack's key.
+- **The rack keeps its name.** The name the program sends when it pairs is not
+  used; the rack keeps the one it was given. A rack made but never paired has
+  no key, so nothing can sign as it.
 - **Swapped for a key.** The program sends the code to `/api/rack/pair` once
   and gets back its own key. Promo keeps the key encrypted with the server's
   key (`CUSTOM_SHELL_SECRET_ENCRYPTION_KEY`), so pairing is refused on a server
@@ -241,10 +248,12 @@ Nobody but Tyler's Promo can drive the phones.
   or an answer without the right signature is refused. The rule is
   `src/server/phones/signing.ts` and the same lines in `rack/promo_rack.py`,
   and both are tested against one fixed example so the two cannot drift.
-- **Disconnect this rack**, in the Rack window, cancels the key at once. Every
-  message after that is refused, waiting checks are cancelled, the rack's
-  phones show offline, and nothing reaches them until it is installed again
-  with a new code. The phone records and the accounts on them stay.
+- **Disconnect this rack**, in the ⋮ on the rack's page, cancels the key at
+  once. Every message after that is refused, waiting checks are cancelled,
+  the rack's phones show offline, and nothing reaches them until it is
+  installed again with a new code made on its page. The phone records and the
+  accounts on them stay. A disconnected rack can then be deleted, and its
+  phones move to Not on a rack.
 
 ## Installing
 
@@ -289,7 +298,7 @@ The computer never needs a terminal after the first command.
 
 - **The version is one line**, `VERSION = "..."` at the top of
   `rack/promo_rack.py`. Promo builds that file into itself and serves it, so
-  a deploy with a raised version is a new release. The Rack window shows the
+  a deploy with a raised version is a new release. The Rack program card on the rack's page shows the
   version each rack runs.
 - **Every check-in's answer** names the version Promo serves. A rack on another
   one downloads it from `/api/rack/release`, an answer signed with its own key
@@ -305,7 +314,7 @@ The computer never needs a terminal after the first command.
   is stopped. The launcher goes back to the version before it and never tries
   that version again.
 - **The dashboard says so.** The old version reports the rollback on its next
-  check-in, and the Rack window shows it in red: "Went back to 2026.10.13.1 on
+  check-in, and the Rack program card shows it in red: "Went back to 2026.10.13.1 on
   2026-10-13 22:01 UTC, because 0.0.0-broken stopped with code 1 before it
   checked in." It stays until the next good update.
 - **To watch a rollback happen**, run this on the rack computer:

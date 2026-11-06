@@ -1,6 +1,6 @@
 #!/bin/bash
 # Installs Promo's rack program on the computer the phones plug into, pairs it
-# with one code from the Phones dashboard, and sets it up to start with the
+# with one code from its rack's page in Promo, and sets it up to start with the
 # computer. Promo serves this file at /api/rack/install.sh with its own
 # address written in below. Run it again with a new code to pair afresh.
 #
@@ -25,7 +25,7 @@ WDA_COMMIT="02cb92f0e93c8b021443bcbb8eeb80932c113220"
 WDA_REPO="https://github.com/appium/WebDriverAgent.git"
 
 if [ -z "$CODE" ]; then
-  echo "Give the code from the Phones dashboard: ... | bash -s -- ABCD-EFGH" >&2
+  echo "Give the code from the rack's page in Promo: ... | bash -s -- ABCD-EFGH" >&2
   exit 1
 fi
 
@@ -176,7 +176,7 @@ write_wda_script() {
 #!/bin/bash
 # Builds WebDriverAgent and signs it with the Apple ID set up in Xcode, so
 # the rack can read and tap the iPhones. A free Apple ID's signature lasts
-# 7 days; run this again when the Phones dashboard says it is running out:
+# 7 days; run this again when the rack's page in Promo says it is running out:
 #
 #   bash ~/Library/Application\ Support/PromoRack/wda.sh
 #
@@ -195,7 +195,7 @@ QUIET=0
 [ "${1:-}" = "--quiet" ] && QUIET=1
 
 if [ ! -d "$PROJECT" ]; then
-  echo "WebDriverAgent is not downloaded. Run the install command from the Phones dashboard again." >&2
+  echo "WebDriverAgent is not downloaded. Run the install command from the rack's page in Promo again." >&2
   exit 1
 fi
 if ! xcodebuild -version >/dev/null 2>&1; then
@@ -271,7 +271,7 @@ if ! ls "$WDA"/build/Build/Products/WebDriverAgentRunner_iphoneos*.xctestrun >/d
   exit 1
 fi
 printf '{"signedAt": "%s", "days": 7}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RACK_HOME/wda.json"
-echo "WebDriverAgent is signed. A free Apple ID's signature runs out in 7 days; the Phones dashboard will say when to run this again."
+echo "WebDriverAgent is signed. A free Apple ID's signature runs out in 7 days; the rack's page in Promo will say when to run this again."
 echo "An iPhone plugged in after this needs registering: run this script again with it plugged in."
 WDA
   chmod +x "$RACK_HOME/wda.sh"
@@ -305,4 +305,4 @@ elif [ "$(uname -s)" = "Darwin" ]; then
 else
   echo "iPhones: skipped. Driving an iPhone needs a Mac with Xcode to sign WebDriverAgent; this rack drives Androids only."
 fi
-echo "The rack shows on the Phones dashboard within a minute."
+echo "The rack shows as checking in on its page in Promo within a minute."

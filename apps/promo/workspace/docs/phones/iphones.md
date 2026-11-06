@@ -119,7 +119,7 @@ ID and useless to the rack.
   "Sign out of iCloud on its screen first (Settings, your name, Sign Out),
   then press Check iCloud. An iPhone erased while signed in is locked to that
   Apple ID."
-- **The sign-out is done by a person** through the screen window. The Apple
+- **The sign-out is done by a person** through its screen. The Apple
   ID password is typed by that person and never saved.
 - **Check iCloud,** on the iPhone's Setup tab, asks the rack to read whether
   an Apple ID is signed in. The last answer shows beside it in words, with
@@ -157,13 +157,13 @@ drop a file into an iPhone's Photos.
 ## Texted codes on an iPhone
 
 iOS gives a computer neither the SMS inbox nor the message's notification.
-While the screen window is open with control on, the rack opens Messages on
+While its screen is showing with control on, the rack opens Messages on
 the iPhone every few seconds and reads the newest code off the screen; it
 shows beside the window with who sent it, as on Android. Messages is never
 opened during a job, and never with control off. The window says so for an
 iPhone, and its Back and Recent apps keys read "Back (swipe)" and "App
 switcher (swipe)", since that is how an iPhone does them; the key names on
-the wire are unchanged ([the screen window](screen-window.md)).
+the wire are unchanged ([the screen](screen-window.md)).
 
 ## What only a real iPhone proves
 

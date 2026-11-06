@@ -1,29 +1,47 @@
-# A phone's screen window
+# A phone's screen
 
-Any phone's live screen, inside Promo, from anywhere: the screen button on its
-row on the Phones dashboard. It is for watching jobs and tapping through a
+Any phone's live screen, inside Promo: the **Screen** tab, first of the open
+phone's tabs on its rack's page ([the Racks dashboard](racks-dashboard.md)),
+and the bigger window that **Open the bigger screen** in the phone's ⋮ opens.
+Both draw the same screen. It is for watching jobs and tapping through a
 sign-in by hand, with the codes a sign-in asks for beside it.
+
+## Only while it is on screen
+
+Tyler, 5 Nov 2026 (Racks dashboard, part 108): the screen lives in the right
+panel now, and a rack's page keeps every panel drawn, hiding two below
+1280px.
+
+- **It asks for pictures only while it is on screen**: in the page, with some
+  size, and the browser tab in front. A hidden panel, a shut one, another tab
+  of the phone or another browser tab asks for nothing, so no upload is used.
+- **Leaving it closes the window on the server**, which switches control off.
+  Leaving is picking another tab, another phone or another pill, shutting the
+  panel, or closing the bigger window, so a phone is never left held behind
+  a panel nobody can see.
+- **An offline phone says so** in the picture's place, with why, rather than
+  waiting for a picture that cannot come.
 
 ## The picture
 
 Tyler's choice, 14 Oct 2026: pictures a few times a second rather than video.
 
-- **About three pictures a second** while the window is open, each shrunk to
+- **About three pictures a second** while the screen is open, each shrunk to
   540 pixels wide, about 1 Mbit/s of home upload per phone watched. The first
   arrives within a few seconds.
 - **Nothing at home is reachable.** The rack program sends the pictures to
   Promo over the connection it already opens (`/api/rack/screen`, signed like
-  every rack message), and the window asks Promo for the newest one. A
-  window not asked from for ten seconds counts as closed and the rack stops
+  every rack message), and the screen asks Promo for the newest one. A
+  screen not asked from for ten seconds counts as closed and the rack stops
   sending.
 - **Behind admin sign-in.** Every ask checks the phone is the person's own.
-  Signed out, the window gets nothing.
+  Signed out, the screen gets nothing.
 - **Kept in the web server's memory,** never in the database: a picture is
   stale in a second. A restart loses only the picture on screen.
 
 ## Control and the hold
 
-- **Control is off when the window opens,** so looking never touches the
+- **Control is off when the screen opens,** so looking never touches the
   phone. The keys and the typing box still answer a press, saying control is
   off.
 - **Switched on,** a tap or a swipe on the picture, the Back, Home, Recent
@@ -36,7 +54,7 @@ Tyler's choice, 14 Oct 2026: pictures a few times a second rather than video.
 - **While control is on the phone is held.** It shows Held, "In use on its
   screen", on the dashboard, and its jobs wait, so a person and a job never
   tap at once.
-- **It lets go** when control is switched off, the window is closed, or 15
+- **It lets go** when control is switched off, the screen is left, or 15
   minutes pass without a tap. Each tap moves that 15 minutes on. The server
   refuses a tap once control has gone, not only the page.
 - **Typing** is plain letters, numbers and punctuation; Android's own typing
@@ -51,24 +69,26 @@ Tyler's choice, 14 Oct 2026: pictures a few times a second rather than video.
   kept encrypted with the server's key, the same way a window password is. It
   is never shown again; only the code is. The code is RFC 6238's, the one an
   authenticator app shows.
-- **Texted codes.** While the window is open the rack reads the phone's new
+- **Texted codes.** While the screen is open the rack reads the phone's new
   texts every few seconds and the newest code from the last ten minutes shows
   with who sent it. No helper app (Tyler's choice, 14 Oct 2026): the rack asks
   Android for the inbox over USB, and if the phone refuses that, reads the
   message's notification instead. Texts are never written down: the code is
-  kept in memory for ten minutes, and closing the window stops the reading.
+  kept in memory for ten minutes, and leaving the screen stops the reading.
   Whether a given phone model allows either way has to be tried on that
   phone. On an iPhone, which gives a computer neither, the rack opens the
-  Messages app every few seconds while the window is open with control on
-  and reads the newest code off the screen; the window says so
+  Messages app every few seconds while the screen is open with control on
+  and reads the newest code off the phone; the screen says so
   ([iPhones on the rack](iphones.md)). Promo tells the rack which watched
   phones a person has control of in every screen reply (`control`), so
   looking at an iPhone never opens Messages.
 
 ## Where it is
 
-- The window: `src/components/phones/phone-screen-dialog.tsx`, its endpoints
-  `src/lib/api/phones/screen.ts`.
+- The screen: `PhoneScreen` in `src/components/phones/phone-screen-dialog.tsx`,
+  drawn under the open phone's header in `phone-panel.tsx` and by the bigger window in the
+  same file; whether it is on screen is `src/lib/phones/use-on-screen.ts`. Its
+  endpoints are `src/lib/api/phones/screen.ts`.
 - The server side: `src/server/phones/screens.ts` (pictures, taps, control,
   the hold) and the rack's address `src/routes/api/rack/screen.ts`.
 - The codes: `src/server/social/two-factor.ts`, the account's card

@@ -1,6 +1,6 @@
 /**
  * The values the folder, label and tag filters share, on the Browser profiles
- * and Phones dashboards, which sort with the same folders, labels and tags.
+ * dashboard and the racks' pages, which sort with the same folders, labels and tags.
  */
 
 /** The filter value for "any". */

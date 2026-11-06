@@ -112,7 +112,7 @@ export function LinkedinAccountCard({ account, onChanged }: { account: RedditAcc
 
         {account.linkedin.codeAsked && !account.profile ? (
           <p className="rounded-lg border p-3 text-sm">
-            LinkedIn emailed this account a code. It runs on a phone, so type the code into the LinkedIn app through the phone&apos;s screen window on the Phones dashboard.
+            LinkedIn emailed this account a code. It runs on a phone, so type the code into the LinkedIn app through the phone&apos;s screen on its rack&apos;s page.
           </p>
         ) : null}
         {account.linkedin.codeAsked && account.profile ? (

@@ -74,7 +74,7 @@ const afterWords = (row: BanRow) =>
 
 /**
  * Every ban in one list, to spot patterns (Bans task, part 12). Under Anti
- * Detect in the left menu, after Phones. Built like the Phones dashboard:
+ * Detect in the left menu, after Racks. Built like the old Phones dashboard:
  * the shell's table, the filters in the address, and each row opening its
  * ban in a window with the picture (part 10), the screen's words, the appeal
  * (part 25) and the phone's last 20 actions before it.

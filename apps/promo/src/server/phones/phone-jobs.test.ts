@@ -23,7 +23,7 @@ import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test
 import { clearBanScreen } from "./health"
 import { phoneHistory } from "./history"
 import { createPhone, listPhones } from "./phones"
-import { checkIn, createPairingCode, finishAction, nextAction, pairRack, type VerifiedRack } from "./rack"
+import { checkIn, createPairingCode, createRack, finishAction, nextAction, pairRack, type VerifiedRack } from "./rack"
 import { RACK_VERSION } from "./release"
 import { promoPhoneActionChecks, promoPhoneActions, promoPhones } from "./schema"
 import { exchangeScreens, sendScreenInput, setControl, watchScreen, closeScreen } from "./screens"
@@ -53,8 +53,8 @@ describe("jobs on phones", () => {
     userId = (await insertUser(db, { role: "admin" })).id
     // Awake all day, so no job waits for morning unless a test says so.
     await db.insert(promoBehaviourSettings).values({ userId, wakeFromMinute: 0, wakeUntilMinute: 0 })
-    const { code } = await createPairingCode(userId, db)
-    const paired = await pairRack({ code, name: "Mac", platform: "", version: RACK_VERSION }, db)
+    const { code } = await createPairingCode(userId, await createRack(userId, { name: "Mac" }, db), db)
+    const paired = await pairRack({ code, platform: "", version: RACK_VERSION }, db)
     rack = { id: paired.rackId, userId, key: paired.key }
   })
 
@@ -182,7 +182,7 @@ describe("jobs on phones", () => {
     const result = await runOneJob("phone-lane", db, "phone")
     expect(result).toMatchObject({
       ok: false,
-      error: "Phone A1 in slot 4 is offline: Not plugged in. Nothing was sent. Check it on the Phones dashboard.",
+      error: "Phone A1 in slot 4 is offline: Not plugged in. Nothing was sent. Check it on its rack's page.",
     })
     const [job] = await db.select().from(promoJobs).where(eq(promoJobs.id, jobId))
     expect(job.status).toBe("failed")
@@ -487,8 +487,8 @@ describe("a phone's screen window", () => {
     client = made.client
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
-    const { code } = await createPairingCode(userId, db)
-    const paired = await pairRack({ code, name: "Mac", platform: "", version: RACK_VERSION }, db)
+    const { code } = await createPairingCode(userId, await createRack(userId, { name: "Mac" }, db), db)
+    const paired = await pairRack({ code, platform: "", version: RACK_VERSION }, db)
     rack = { id: paired.rackId, userId, key: paired.key }
     await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [{ serial: "A1", state: "device", usb: "", model: "Pixel", android: "16", kind: "android" }], rolledBack: null }, db)
     phoneId = (await db.select().from(promoPhones))[0].id
@@ -539,7 +539,7 @@ describe("a phone's screen window", () => {
     const theirs = await createPhone(stranger, {
       name: "Theirs", kind: "android", model: "", androidVersion: "", serial: "", simCarrier: "", simNumber: "", connection: "sim",
       proxyId: null, notes: "", folderId: null, labelId: null, tags: [], shelfSlot: "",
-    }, db)
+    }, await createRack(stranger, { name: "Theirs" }, db), db)
     await expect(setControl(userId, theirs, true, db)).rejects.toThrow("does not exist")
     await expect(sendScreenInput(userId, theirs, { kind: "key", key: "home" }, db)).rejects.toThrow("Control is off")
   })

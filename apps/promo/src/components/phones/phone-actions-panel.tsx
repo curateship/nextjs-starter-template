@@ -3,7 +3,16 @@ import { HeartPulseIcon, ImagesIcon, Loader2Icon, SmartphoneIcon, Trash2Icon } f
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { PanelCard } from "@/components/shared/panel-card"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
@@ -101,12 +110,10 @@ export function PhoneActionsPanel({ phone, onChanged }: { phone: PhoneRecord; on
   }
 
   return (
-    <div className="grid gap-6">
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Ask the phone</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
+    <div className="grid min-w-0 gap-3">
+      <PanelCard storageId="promo-phone-actions-ask-the-phone" title="Ask the phone">
+        {/* One column the card's own width, so a long line wraps rather than widening the card. */}
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
           <p className="text-sm text-muted-foreground">
             The rack runs each check on the phone and sends back the answer. Reading the
             version opens Settings on the phone, reads the screen and goes back home.
@@ -119,21 +126,19 @@ export function PhoneActionsPanel({ phone, onChanged }: { phone: PhoneRecord; on
               onClick={() => void ask("phone/android-version")}
             >
               {asking === "phone/android-version" ? <Loader2Icon className="animate-spin" /> : <SmartphoneIcon />}
-              Read the system version from Settings
+              {/* Short, so it fits the phone's ⋮ (Tyler, 6 Nov 2026: "reduce text so it doesnt break width"). */}
+              Read the version
             </Button>
             <Button type="button" variant="outline" disabled={asking !== null} onClick={() => void ask("phone/health")}>
               {asking === "phone/health" ? <Loader2Icon className="animate-spin" /> : <HeartPulseIcon />}
               Health check
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </PanelCard>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Last actions</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+      <PanelCard storageId="promo-phone-actions-last-actions" title="Last actions">
+        <div className="-mx-4 -mb-4 border-t">
           {error ? (
             <ErrorRow message={error} onRetry={() => setAttempt((count) => count + 1)} />
           ) : !actions ? (
@@ -147,8 +152,8 @@ export function PhoneActionsPanel({ phone, onChanged }: { phone: PhoneRecord; on
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </PanelCard>
     </div>
   )
 }
@@ -158,6 +163,8 @@ function ActionRow({ action, onCleared }: { action: PhoneActionView; onCleared: 
   const [pictures, setPictures] = React.useState<StepPicture[] | null>(null)
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [clearing, setClearing] = React.useState(false)
+  // A step picture opened full size (Racks dashboard, part 114): the panel shows them small.
+  const [big, setBig] = React.useState<{ src: string; step: string; index: number } | null>(null)
   const failed = action.status === "failed"
   const stoppedAt = failed ? action.steps[action.steps.length - 1] : ""
 
@@ -226,17 +233,24 @@ function ActionRow({ action, onCleared }: { action: PhoneActionView; onCleared: 
         ) : !pictures ? (
           <LoadingRow label="Opening the pictures" className="min-h-24" />
         ) : (
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2">
             {pictures.map((picture, index) => (
-              <figure key={picture.id} className="grid w-40 gap-1">
+              <figure key={picture.id} className="grid w-24 gap-1">
                 {picture.src ? (
-                  <img
-                    src={picture.src}
-                    alt={`Step ${index + 1}: ${picture.step || "the screen"}`}
-                    className="h-72 w-40 rounded-md border object-cover object-top"
-                  />
+                  <button
+                    type="button"
+                    className="rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    aria-label={`Open step ${index + 1} full size`}
+                    onClick={() => setBig({ src: picture.src as string, step: picture.step, index })}
+                  >
+                    <img
+                      src={picture.src}
+                      alt={`Step ${index + 1}: ${picture.step || "the screen"}`}
+                      className="h-44 w-24 rounded-md border object-cover object-top"
+                    />
+                  </button>
                 ) : (
-                  <div className="flex h-72 w-40 items-center justify-center rounded-md border p-2 text-center text-xs text-muted-foreground">
+                  <div className="flex h-44 w-24 items-center justify-center rounded-md border p-2 text-center text-xs text-muted-foreground">
                     This picture could not be kept.
                   </div>
                 )}
@@ -248,6 +262,22 @@ function ActionRow({ action, onCleared }: { action: PhoneActionView; onCleared: 
           </div>
         )
       ) : null}
+      <Dialog open={big !== null} onOpenChange={(next) => (next ? undefined : setBig(null))}>
+        <DialogContent variant="admin" className="data-[variant=admin]:sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{big ? `Step ${big.index + 1}: ${big.step || "the screen"}` : "Step"}</DialogTitle>
+            <DialogDescription>{actionWords(action.action)}, {formatDateTime(action.createdAt)}</DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            {big ? <img src={big.src} alt={`Step ${big.index + 1}: ${big.step || "the screen"}`} className="mx-auto max-h-[70vh] w-auto rounded-md border" /> : null}
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" onClick={() => setBig(null)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

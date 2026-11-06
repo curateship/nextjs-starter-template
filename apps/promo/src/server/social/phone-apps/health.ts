@@ -71,7 +71,7 @@ export async function recordAppHealth(
       .set({ handle: "", signedInAt: null, stateReadAt: now, updatedAt: now })
       .where(and(eq(promoAccounts.id, account.id), eq(promoAccounts.userId, userId)))
     throw new Refusal(
-      `The ${NETWORK_NAMES[network]} app on the phone is not signed in, so there is no profile to read. Sign in through the phone's screen on the Phones dashboard.`
+      `The ${NETWORK_NAMES[network]} app on the phone is not signed in, so there is no profile to read. Sign in through the phone's screen on its rack's page.`
     )
   }
 

@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { getPhoneHealthErrorMessage, loadPhoneHistory, type PhoneEventView } from "@/lib/api/phones/health"
@@ -43,11 +43,11 @@ export function PhoneHistoryPanel({ phoneId }: { phoneId: string }) {
   if (!state.entries) return <LoadingRow label="Reading the history" className="min-h-48" />
 
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 gap-3">
       <PhoneAccountsCard phoneId={phoneId} />
       {state.entries.length ? (
-        <Card size="sm">
-          <CardContent className="grid gap-0 divide-y p-0">
+        <PanelCard storageId="promo-phone-history-what-happened" title="What happened">
+          <div className="-mx-4 -mb-4 grid divide-y border-t">
             {state.entries.map((entry) => (
               <div key={entry.id} className="grid gap-1 px-4 py-3 text-sm">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -57,8 +57,8 @@ export function PhoneHistoryPanel({ phoneId }: { phoneId: string }) {
                 {entry.detail ? <span className="text-xs text-muted-foreground">{entry.detail}</span> : null}
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </PanelCard>
       ) : (
         <p className="py-6 text-center text-sm text-muted-foreground">Nothing has happened to this phone yet.</p>
       )}
@@ -96,11 +96,8 @@ function PhoneAccountsCard({ phoneId }: { phoneId: string }) {
   }, [phoneId, attempt])
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Accounts</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-0 p-0">
+    <PanelCard storageId="promo-phone-history-accounts" title="Accounts">
+      <div className="-mx-4 -mb-4 border-t">
         {error ? (
           <ErrorRow message={error} onRetry={() => setAttempt((count) => count + 1)} />
         ) : !rows ? (
@@ -108,7 +105,7 @@ function PhoneAccountsCard({ phoneId }: { phoneId: string }) {
         ) : !rows.length ? (
           <p className="px-4 py-3 text-sm text-muted-foreground">No account has been on this phone since Promo started keeping this list.</p>
         ) : (
-          <div className="divide-y border-t">
+          <div className="divide-y">
             {rows.map((row) => {
               const name = handleWords(row.platform, row.handle) || `${appName(row.platform)} account, not signed in`
               const when = `${formatDateTime(row.arrivedAt)} to ${row.leftAt ? formatDateTime(row.leftAt) : "now"}`
@@ -132,7 +129,7 @@ function PhoneAccountsCard({ phoneId }: { phoneId: string }) {
             })}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </PanelCard>
   )
 }

@@ -19,13 +19,14 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { refuseSharedProxy } from "@/server/social/apart"
 import { promoAccounts } from "@/server/social/schema"
 
+import { recordPhoneEvent } from "./history"
 import { clearProblem } from "./notices"
 import { removePhonePictures } from "./trail"
 
 import { promoPhoneActions, promoPhones, promoPhoneSettings, promoRacks } from "./schema"
 
 /**
- * Phones as records: everything the Phones dashboard does with them except
+ * Phones as records: everything a rack's page does with them except
  * talking to the rack, which is `rack.ts`.
  *
  * Every query is scoped by the person's id, and that filter is the ownership
@@ -104,43 +105,109 @@ function serialTaken(error: unknown): Error {
   return error instanceof Error ? error : new Error(message)
 }
 
+/** Refuses a rack id that is not this person's. */
+async function assertOwnRack(userId: string, rackId: string, db: CustomShellDb): Promise<void> {
+  const [rack] = await db
+    .select({ id: promoRacks.id })
+    .from(promoRacks)
+    .where(and(eq(promoRacks.id, rackId), eq(promoRacks.userId, userId)))
+    .limit(1)
+  if (!rack) throw new Error("That rack does not exist.")
+}
+
+/**
+ * A phone added by hand, from New phone on a rack's page, so it sits on that
+ * rack before it is ever plugged in (Racks dashboard, part 102). Typing its
+ * serial ties it to the phone when the rack sees it.
+ */
 export async function createPhone(
   userId: string,
   input: PhoneInput,
+  rackId: string,
   db: CustomShellDb = defaultDb
 ): Promise<string> {
+  await assertOwnRack(userId, rackId, db)
   await assertOwned(userId, input, db)
   const clean = cleanInput(input)
   await refuseSharedProxy(userId, clean.proxyId, "phone", db)
   const id = uuid()
   try {
-    await db.insert(promoPhones).values({ id, userId, ...clean })
+    await db.insert(promoPhones).values({ id, userId, rackId, ...clean })
   } catch (error) {
     throw serialTaken(error)
   }
   return id
 }
 
-export async function updatePhone(
+/**
+ * Saves the fields a person changed on a phone's Settings tab, and only those
+ * (Racks dashboard, part 111). The rest are read from the phone as it is now,
+ * so a save never writes back an older copy of what the rack fills in, such
+ * as the model or the system version.
+ */
+export async function changePhone(
   userId: string,
   phoneId: string,
-  input: PhoneInput,
+  patch: Partial<PhoneInput>,
   db: CustomShellDb = defaultDb
 ): Promise<void> {
+  const [current] = await db
+    .select()
+    .from(promoPhones)
+    .where(and(eq(promoPhones.id, phoneId), eq(promoPhones.userId, userId)))
+    .limit(1)
+  if (!current) throw new Error("That phone does not exist.")
+  const input: PhoneInput = {
+    name: patch.name ?? current.name,
+    kind: patch.kind ?? current.kind,
+    model: patch.model ?? current.model,
+    androidVersion: patch.androidVersion ?? current.androidVersion,
+    serial: patch.serial ?? current.serial,
+    simCarrier: patch.simCarrier ?? current.simCarrier,
+    simNumber: patch.simNumber ?? current.simNumber,
+    connection: patch.connection ?? current.connection,
+    proxyId: patch.proxyId === undefined ? current.proxyId : patch.proxyId,
+    notes: patch.notes ?? current.notes,
+    folderId: patch.folderId === undefined ? current.folderId : patch.folderId,
+    labelId: patch.labelId === undefined ? current.labelId : patch.labelId,
+    tags: patch.tags ?? current.tags,
+    shelfSlot: patch.shelfSlot ?? current.shelfSlot,
+  }
   await assertOwned(userId, input, db)
   const clean = cleanInput(input)
-  await refuseSharedProxy(userId, clean.proxyId, "phone", db)
-  let updated: Array<{ id: string }>
+  if (patch.proxyId !== undefined || patch.connection !== undefined) await refuseSharedProxy(userId, clean.proxyId, "phone", db)
+  // Only what was sent goes in the statement, so the rack's own writes in
+  // between are never overwritten.
+  const sent = Object.fromEntries(
+    Object.entries(clean).filter(([key]) => key in patch || (key === "proxyId" && "connection" in patch))
+  ) as Partial<typeof clean>
   try {
-    updated = await db
+    await db
       .update(promoPhones)
-      .set({ ...clean, updatedAt: new Date() })
+      .set({ ...sent, updatedAt: new Date() })
       .where(and(eq(promoPhones.id, phoneId), eq(promoPhones.userId, userId)))
-      .returning({ id: promoPhones.id })
   } catch (error) {
     throw serialTaken(error)
   }
-  if (!updated.length) throw new Error("That phone does not exist.")
+}
+
+/**
+ * Whether another of this person's phones has this serial, for New phone's
+ * early check (part 103). Create refuses it too, whatever this said.
+ */
+export async function serialInUse(
+  userId: string,
+  serial: string,
+  db: CustomShellDb = defaultDb
+): Promise<boolean> {
+  const clean = serial.trim().slice(0, 120)
+  if (!clean) return false
+  const [row] = await db
+    .select({ id: promoPhones.id })
+    .from(promoPhones)
+    .where(and(eq(promoPhones.userId, userId), eq(promoPhones.serial, clean)))
+    .limit(1)
+  return Boolean(row)
 }
 
 export type BulkResult = { done: string[]; skipped: string[] }
@@ -244,11 +311,33 @@ export async function tagPhones(
   )
 }
 
+/**
+ * Puts phones on a rack by hand (part 83): a phone typed in before it was
+ * plugged in, or one left with no rack when its rack was deleted. Plugging
+ * one into a different rack still moves it there on that rack's check-in.
+ */
+export async function putPhonesOnRack(
+  userId: string,
+  ids: string[],
+  rackId: string,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<BulkResult> {
+  await assertOwnRack(userId, rackId, db)
+  const [rack] = await db.select({ name: promoRacks.name }).from(promoRacks).where(eq(promoRacks.id, rackId)).limit(1)
+  const result = await bulkUpdate(userId, ids, { rackId }, db)
+  for (const id of result.done) {
+    await recordPhoneEvent(userId, id, "put_on_rack", `Put on ${rack?.name || "a rack"} by hand.`, db, now)
+  }
+  return result
+}
+
 async function bulkUpdate(
   userId: string,
   ids: string[],
   set:
     | { held: boolean }
+    | { rackId: string }
     | Partial<Record<"folderId" | "labelId", string | null>>
     | { tags: ReturnType<typeof sql> },
   db: CustomShellDb
@@ -302,7 +391,7 @@ export function offlineReason(
     return phone.kind === "iphone" ? "Tap Trust this computer on its screen" : "Allow USB debugging on its screen"
   }
   if (phone.adbState === "too_old") return `Its iOS is too old for the rack; ${OLDEST_IOS} or newer`
-  if (phone.adbState === "no_driver") return "WebDriverAgent is not running on the rack; see the Rack window"
+  if (phone.adbState === "no_driver") return "WebDriverAgent is not running on the rack; see the rack's page"
   if (phone.adbState === "restarting") return "Restarting"
   if (phone.adbState === "gone") return "Not plugged in"
   return "Not seen for a minute"
@@ -327,6 +416,8 @@ export type PhoneRecord = {
   tags: string[]
   shelfSlot: string
   usbPort: string
+  /** The rack it was last seen on or was put on, or null for Not on a rack. */
+  rackId: string | null
   status: PhoneStatus
   /** Why it is offline, or empty when it is not. */
   offlineReason: string
@@ -432,6 +523,7 @@ export async function listPhones(
       tags: phone.tags,
       shelfSlot: phone.shelfSlot,
       usbPort: phone.usbPort,
+      rackId: phone.rackId,
       status,
       offlineReason: status === "offline" ? offlineReason(phone, rackLive) : "",
       inUse: inUse(phone, now),
@@ -596,7 +688,7 @@ export async function phoneForJob(
   if (phoneStatus(phone, rackLive, false, now) === "offline" || !phone.rackId) {
     const slot = slotWords(phone.shelfSlot)
     throw new Refusal(
-      `${phone.name}${slot ? ` in ${slot}` : ""} is offline: ${offlineReason(phone, rackLive)}. Nothing was sent. Check it on the Phones dashboard.`
+      `${phone.name}${slot ? ` in ${slot}` : ""} is offline: ${offlineReason(phone, rackLive)}. Nothing was sent. Check it on its rack's page.`
     )
   }
   return {

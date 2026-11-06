@@ -20,7 +20,7 @@ import { promoProxies } from "@/server/browser/schema"
 import { setDbForTests } from "@/server/db"
 import { clearBanScreen, stopForBanScreen } from "@/server/phones/health"
 import { phoneHistory } from "@/server/phones/history"
-import { checkIn, createPairingCode, finishAction, nextAction, pairRack, type VerifiedRack } from "@/server/phones/rack"
+import { checkIn, createPairingCode, createRack, finishAction, nextAction, pairRack, type VerifiedRack } from "@/server/phones/rack"
 import { queuePhoneAction } from "@/server/phones/queue"
 import { RACK_VERSION } from "@/server/phones/release"
 import { promoPhoneActions, promoPhones } from "@/server/phones/schema"
@@ -75,8 +75,8 @@ describe("bans", () => {
     userId = (await insertUser(db, { role: "admin" })).id
     // Always awake, so nothing waits for a morning.
     await db.insert(promoBehaviourSettings).values({ userId, wakeFromMinute: 0, wakeUntilMinute: 1439, appWarmUpDays: 0 })
-    const { code } = await createPairingCode(userId, db, T0)
-    const paired = await pairRack({ code, name: "Mac", platform: "", version: RACK_VERSION }, db, T0)
+    const { code } = await createPairingCode(userId, await createRack(userId, { name: "Mac" }, db), db, T0)
+    const paired = await pairRack({ code, platform: "", version: RACK_VERSION }, db, T0)
     rack = { id: paired.rackId, userId, key: paired.key }
   })
 

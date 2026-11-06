@@ -3,7 +3,7 @@ import { CheckIcon, CloudIcon, InfoIcon, Loader2Icon, RefreshCwIcon, Trash2Icon,
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { checkIcloud, getPhoneHealthErrorMessage, loadIcloudState, type IcloudState } from "@/lib/api/phones/health"
 import { getPhoneErrorMessage, runSetupCheck, wipePhone, type PhoneRecord } from "@/lib/api/phones/phones"
@@ -105,27 +105,20 @@ export function PhoneSetupPanel({
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 gap-3">
       {phone.addressStop ? (
-        <Card size="sm" className="border-destructive/50">
-          <CardHeader>
-            <CardTitle>Stopped for showing the wrong address</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2 text-sm">
+        <PanelCard storageId="promo-phone-setup-stopped-for-showing-the-wrong-address" title="Stopped for showing the wrong address" className="border-destructive/50">
+          <div className="grid gap-2 text-sm">
             <p>{phone.addressStop.words}</p>
             <p className="text-muted-foreground">
               Since {formatDateTime(phone.addressStop.at)}, every job on it is refused. Turn the proxy app
               on the phone back on, then check again: the stop lifts once the proxy&apos;s address shows.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </PanelCard>
       ) : null}
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Setup check</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
+      <PanelCard storageId="promo-phone-setup-setup-check" title="Setup check">
           {check ? (
             <>
               <ul className="grid gap-3">
@@ -157,14 +150,9 @@ export function PhoneSetupPanel({
               {checking ? "Checking" : "Check now"}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </PanelCard>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>What the platform sees</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <PanelCard storageId="promo-phone-setup-what-the-platform-sees" title="What the platform sees">
           {check ? (
             <ul className="grid gap-3">
               {check.seen.map((line) => (
@@ -181,14 +169,9 @@ export function PhoneSetupPanel({
           ) : (
             <p className="text-sm text-muted-foreground">Read with the setup check.</p>
           )}
-        </CardContent>
-      </Card>
+        </PanelCard>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Wiping</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
+      <PanelCard storageId="promo-phone-setup-wiping" title="Wiping">
           <p className="text-sm text-muted-foreground">{wipeWords(phone, setUpSinceWipe)}</p>
           {iphone ? (
             <p className="text-sm text-muted-foreground">
@@ -209,8 +192,7 @@ export function PhoneSetupPanel({
               Wipe the phone
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </PanelCard>
 
       <ConfirmDialog
         open={confirming}

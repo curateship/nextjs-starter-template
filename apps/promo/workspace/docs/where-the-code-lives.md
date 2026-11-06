@@ -150,8 +150,8 @@ on, belonging to no network.
 | --- | --- |
 | `src/server/phones/` | The phones as records, the rack's side (pairing, signed messages, check-ins, the action queue), sending a job's step to a phone (`dispatch.ts`), health and the bell, the self-test, step pictures, the setup check and the Wi-Fi address guard (`setup.ts`), and wiping (`wipe.ts`). |
 | `src/lib/phones/` | The phone farm's fixed lists and words, the setup check's lines (`setup-check.ts`) and the rack mix (`rack-mix.ts`). |
-| `src/lib/api/phones/` | The Phones dashboard's endpoints. None of them talks to a phone; each writes an action the rack picks up. |
-| `src/components/phones/` | The Phones dashboard, a phone's window and its tabs, the screen window, and the Rack, Self-test and Mix windows. |
+| `src/lib/api/phones/` | The Racks dashboard's and each rack's page's endpoints. None of them talks to a phone; each writes an action the rack picks up. |
+| `src/components/phones/` | The Racks dashboard, a rack's three-panel page with its panels, cards and "/" notes, a phone's tabs and screen, and the Self-test window. |
 | `rack/` | The program on the computer at home that drives the phones over adb: `promo_rack.py`, with every action, the Reddit app's steps, and the hands that tap, swipe and type like a person. The second file, beside `docker/browser/routines/reddit.py`, that knows how Reddit is put together: this one for the Reddit app. |
 
 What ties an account to a phone, and the rules for important and throwaway

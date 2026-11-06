@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, notInArray, or } from "drizzle-orm"
+import { and, desc, eq, gte, inArray, notInArray, or, sql } from "drizzle-orm"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoProfiles } from "@/server/browser/schema"
@@ -89,35 +89,47 @@ export async function listJobs(
 }
 
 /**
- * The jobs in one lane, newest first: a phone's lane for the Jobs tab on its
- * window (part 58 of the phone farm). Waiting, running and finished alike,
- * at most `limit`, with the same words, Cancel and Try again as the Jobs
- * window.
+ * The jobs in some lanes, newest first: one phone's lane for the Jobs tab on
+ * its panel (part 58 of the phone farm), or every phone's lane on a rack for
+ * the rack's Jobs tab (Racks dashboard, part 104). Waiting, running and
+ * finished alike, at most `limit` finished ones, with the same words, Cancel
+ * and Try again as the Jobs window.
  */
 export async function listLaneJobs(
   userId: string,
-  lane: string,
+  lanes: string[],
   db: CustomShellDb = defaultDb,
   now: Date = new Date(),
   limit = 100
 ): Promise<JobList> {
+  if (!lanes.length) return { program: await readBrowserProgram(db, now), jobs: [] }
   // Every job still waiting or running is listed whatever its age, so Cancel
   // can always reach it; only the finished ones are cut to the limit.
   const [active, finished, program] = await Promise.all([
     db
       .select()
       .from(promoJobs)
-      .where(and(eq(promoJobs.userId, userId), eq(promoJobs.lane, lane), inArray(promoJobs.status, ["queued", "running"])))
+      .where(and(eq(promoJobs.userId, userId), inArray(promoJobs.lane, lanes), inArray(promoJobs.status, ["queued", "running"])))
       .orderBy(desc(promoJobs.createdAt)),
     db
       .select()
       .from(promoJobs)
-      .where(and(eq(promoJobs.userId, userId), eq(promoJobs.lane, lane), notInArray(promoJobs.status, ["queued", "running"])))
+      .where(and(eq(promoJobs.userId, userId), inArray(promoJobs.lane, lanes), notInArray(promoJobs.status, ["queued", "running"])))
       .orderBy(desc(promoJobs.createdAt))
       .limit(limit),
     readBrowserProgram(db, now),
   ])
   return { program, jobs: await describeJobs(userId, [...active, ...finished], db) }
+}
+
+/** How many jobs are waiting in some lanes, such as every phone's on one rack (Racks dashboard, part 91). */
+export async function countWaitingJobs(userId: string, lanes: string[], db: CustomShellDb = defaultDb): Promise<number> {
+  if (!lanes.length) return 0
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(promoJobs)
+    .where(and(eq(promoJobs.userId, userId), inArray(promoJobs.lane, lanes), eq(promoJobs.status, "queued")))
+  return row?.count ?? 0
 }
 
 /** Puts names to the ids in each row's payload and lane, looked up once per table rather than per row. */

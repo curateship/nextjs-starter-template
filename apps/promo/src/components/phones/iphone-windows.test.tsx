@@ -72,6 +72,7 @@ function phone(patch: Partial<PhoneRecord>): PhoneRecord {
     tags: [],
     shelfSlot: "",
     usbPort: "usb:1-1",
+    rackId: "r1",
     status: "connected",
     offlineReason: "",
     inUse: false,
@@ -161,7 +162,7 @@ describe("iPhone windows", () => {
     expect(button("Back (swipe)")).toBeDefined()
     expect(button("App switcher (swipe)")).toBeDefined()
     expect(button("Recent apps")).toBeUndefined()
-    expect(text()).toContain("reads the newest code off the Messages app while this window is open with control on")
+    expect(text()).toContain("reads the newest code off the Messages app while the screen is open with control on")
 
     await render(<PhoneScreenDialog phone={phone({ id: "a1", kind: "android" })} onClose={() => {}} onChanged={async () => {}} />)
     expect(button("Back")).toBeDefined()

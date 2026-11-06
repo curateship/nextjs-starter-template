@@ -61,7 +61,7 @@ export const getRedditAccountsErrorMessage = passReaderWritten(createErrorMessag
     ENCRYPTION_NOT_CONFIGURED: "This server has no encryption key set, so a secret cannot be kept.",
     "not stopped by a ban screen": "That account is not stopped any more. Reload the page.",
     "is the self-test phone": "That phone is the self-test phone, which carries only its test account. Pick another phone, or change the self-test phone in Settings → Phones.",
-    "is held": "That phone is held. Release it on the Phones dashboard first.",
+    "is held": "That phone is held. Release it on its rack's page first.",
     "phone is offline": "That phone is offline. Plug it in and answer the question on its screen: Allow USB debugging on an Android, Trust this computer on an iPhone.",
     "has not checked in": "The rack has not checked in for a minute. Check the computer the phones are plugged into.",
     "not on a connected rack": "That phone is not on a connected rack.",

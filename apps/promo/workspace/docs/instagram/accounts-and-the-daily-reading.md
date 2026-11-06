@@ -16,7 +16,7 @@ that does not find its button stops with a picture of the screen.
 
 - **Adding one:** Add account on the Accounts dashboard has a Network pick.
   Instagram and TikTok offer phones only, never a browser profile. Sign in to
-  the app on the phone through its screen window on the Phones dashboard, then
+  the app on the phone through its screen on its rack's page, then
   press Check now on the account's row.
 - **A browser profile is refused,** when adding the account and when moving
   it: "An Instagram account runs on a phone only, in the Instagram app, never

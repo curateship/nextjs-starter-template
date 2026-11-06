@@ -9,6 +9,7 @@ import { listRedditAccounts } from "@/server/social/account-list"
 import { promoAccounts } from "@/server/social/schema"
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
 
+import { createRack } from "./rack"
 import { createPhone, deletePhones, holdPhones, listPhones, phonesFreeFor, phoneStatus, type PhoneInput } from "./phones"
 
 const PHONE: PhoneInput = {
@@ -42,11 +43,19 @@ describe("phones as records", () => {
     client = made.client
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
+    racks.clear()
   })
 
   afterEach(async () => {
     await client.close()
   })
+
+  /** A rack of this person's, made the first time it is asked for. */
+  const racks = new Map<string, string>()
+  async function rackOf(owner: string) {
+    if (!racks.has(owner)) racks.set(owner, await createRack(owner, { name: "Desk" }, db))
+    return racks.get(owner)!
+  }
 
   async function profile(name = "Main") {
     const id = uuid()
@@ -55,14 +64,14 @@ describe("phones as records", () => {
   }
 
   it("lists a phone added by hand, offline until the rack has seen it", async () => {
-    const id = await createPhone(userId, PHONE, db)
+    const id = await createPhone(userId, PHONE, await rackOf(userId), db)
     const [phone] = await listPhones(userId, db)
     expect(phone).toMatchObject({ id, name: "Pixel 8a", simCarrier: "Mint Mobile", shelfSlot: "4", status: "offline" })
     expect(phone.offlineReason).toBe("Never seen by the rack")
   })
 
   it("shows the account that runs on the phone, on the phone and on the account", async () => {
-    const phoneId = await createPhone(userId, PHONE, db)
+    const phoneId = await createPhone(userId, PHONE, await rackOf(userId), db)
     const accountId = await addAccount(userId, { profileId: null, phoneId, voiceId: null }, db)
     await db.update(promoAccounts).set({ handle: "quiet_builder" }).where(eq(promoAccounts.id, accountId))
 
@@ -74,7 +83,7 @@ describe("phones as records", () => {
   })
 
   it("refuses an account on a profile and a phone at once, in the code and in the database", async () => {
-    const phoneId = await createPhone(userId, PHONE, db)
+    const phoneId = await createPhone(userId, PHONE, await rackOf(userId), db)
     const profileId = await profile()
     await expect(addAccount(userId, { profileId, phoneId, voiceId: null }, db)).rejects.toThrow("never both")
 
@@ -83,7 +92,7 @@ describe("phones as records", () => {
   })
 
   it("refuses a second Reddit account on the same phone", async () => {
-    const phoneId = await createPhone(userId, PHONE, db)
+    const phoneId = await createPhone(userId, PHONE, await rackOf(userId), db)
     await addAccount(userId, { profileId: null, phoneId, voiceId: null }, db)
     await expect(addAccount(userId, { profileId: null, phoneId, voiceId: null }, db)).rejects.toThrow(
       "already has a Reddit account on it"
@@ -92,7 +101,7 @@ describe("phones as records", () => {
   })
 
   it("moves an account from its profile to a phone and back, clearing the other", async () => {
-    const phoneId = await createPhone(userId, PHONE, db)
+    const phoneId = await createPhone(userId, PHONE, await rackOf(userId), db)
     const profileId = await profile()
     const accountId = await addAccount(userId, { profileId, phoneId: null, voiceId: null }, db)
 
@@ -107,7 +116,7 @@ describe("phones as records", () => {
 
   it("refuses another person's phone", async () => {
     const stranger = (await insertUser(db, { role: "admin" })).id
-    const theirs = await createPhone(stranger, PHONE, db)
+    const theirs = await createPhone(stranger, PHONE, await rackOf(stranger), db)
     await expect(saveAccount(userId, { profileId: null, phoneId: theirs, voiceId: null }, db)).rejects.toThrow(
       "That phone does not exist."
     )
@@ -115,8 +124,8 @@ describe("phones as records", () => {
   })
 
   it("refuses two phones with one serial, and keeps the account when its phone is deleted", async () => {
-    const phoneId = await createPhone(userId, { ...PHONE, serial: "R58N" }, db)
-    await expect(createPhone(userId, { ...PHONE, serial: "R58N" }, db)).rejects.toThrow("serial number")
+    const phoneId = await createPhone(userId, { ...PHONE, serial: "R58N" }, await rackOf(userId), db)
+    await expect(createPhone(userId, { ...PHONE, serial: "R58N" }, await rackOf(userId), db)).rejects.toThrow("serial number")
     const accountId = await addAccount(userId, { profileId: null, phoneId, voiceId: null }, db)
 
     await deletePhones(userId, [phoneId], db)
@@ -125,7 +134,7 @@ describe("phones as records", () => {
   })
 
   it("keeps a proxy only for a phone on Wi-Fi", async () => {
-    const id = await createPhone(userId, { ...PHONE, connection: "sim", proxyId: null }, db)
+    const id = await createPhone(userId, { ...PHONE, connection: "sim", proxyId: null }, await rackOf(userId), db)
     const [phone] = await listPhones(userId, db)
     expect(phone.id).toBe(id)
     expect(phone.proxy).toBeNull()
@@ -144,7 +153,7 @@ describe("phones as records", () => {
   })
 
   it("holds and releases phones in one request", async () => {
-    const id = await createPhone(userId, PHONE, db)
+    const id = await createPhone(userId, PHONE, await rackOf(userId), db)
     expect(await holdPhones(userId, [id], true, db)).toEqual({ done: [id], skipped: [] })
     expect((await listPhones(userId, db))[0].status).toBe("held")
   })

@@ -10,7 +10,7 @@ import { promoNoticeLook } from "@/lib/social/notices"
  * id it already holds, so a row is right on its first paint.
  *
  * Two kinds: a proxy that stopped working, and the rack paused. The pause
- * opens the Phones dashboard, where it is resumed. A proxy notice's id is the
+ * opens the Racks dashboard, where it is resumed. A proxy notice's id is the
  * proxy's own id (`src/server/browser/notices.ts` explains why), so clicking
  * it opens that proxy with no lookup. A phone's health notices are Promo's
  * own kinds (`src/lib/social/notices.ts`), one per phone per problem.
@@ -20,7 +20,7 @@ export function describePromoNotice(notice: NoticeToLink): AppNoticeDetail | nul
   if (notice.type !== "app_activity") return null
   if (notice.message === RACK_PAUSED_NOTICE) {
     return {
-      href: "/admin/phones",
+      href: "/admin/racks",
       icon: PauseCircleIcon,
       toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     }

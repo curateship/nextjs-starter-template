@@ -1,6 +1,6 @@
 import { randomBytes, randomInt } from "node:crypto"
 import { banLookArgs, finishBanLook, isBanLookAction } from "@/server/bans/look"
-import { and, asc, desc, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm"
 
 import {
   OLDEST_IOS,
@@ -8,11 +8,21 @@ import {
   RACK_CHECK_IN_SECONDS,
   RACK_CLOCK_WINDOW_SECONDS,
   RACK_CODE_MINUTES,
+  RACK_DESCRIPTION_MAX,
+  RACK_NAME_MAX,
   actionWords,
   type PhoneKind,
 } from "@/lib/phones/options"
 import { resultWords } from "@/lib/phones/wording"
+import type { WrittenPageNode } from "@/lib/pages/written-page-body"
+import {
+  PROJECT_DESCRIPTION_STORED_MAX,
+  projectDescriptionText,
+  readProjectDescription,
+  storedProjectDescription,
+} from "@/lib/social/project-description"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
+import { isOwnedImageUrl } from "@/server/media/library"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { finishMoveFromPhone } from "@/server/social/move-to-phone"
@@ -57,31 +67,146 @@ function normaliseCode(code: string): string {
 }
 
 /**
- * A new one-time code for pairing a rack, shown once on the Phones dashboard.
- * Only its hash is kept. Eight letters from 32 is about a trillion codes, and
- * the pairing address allows ten tries in fifteen minutes from one address.
+ * A rack, made by a person on the Racks dashboard with a name and a
+ * description (Tyler, 5 Nov 2026: "Rack dashboard > create rack > enter name,
+ * discription"). It has no key until the rack program spends a code made for
+ * it, so nothing can sign as it yet.
+ */
+export async function createRack(
+  userId: string,
+  input: { name: string; description?: WrittenPageNode },
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<string> {
+  const name = input.name.trim().slice(0, RACK_NAME_MAX)
+  if (!name) throw new Error("A rack needs a name.")
+  const id = uuid()
+  await db.insert(promoRacks).values({
+    id,
+    userId,
+    name,
+    description: input.description ? checkedRackDescription(input.description) : "",
+    createdAt: now,
+  })
+  return id
+}
+
+/** The description as it is stored, refused when it holds too many letters. */
+function checkedRackDescription(body: WrittenPageNode): string {
+  const stored = storedProjectDescription(body)
+  if (projectDescriptionText(stored).length > RACK_DESCRIPTION_MAX) {
+    throw new Error(`The description is too long. Keep it under ${RACK_DESCRIPTION_MAX.toLocaleString("en")} letters.`)
+  }
+  if (stored.length > PROJECT_DESCRIPTION_STORED_MAX) throw new Error("The description is too long, with too many empty lines.")
+  return stored
+}
+
+/** One rack of this person's, or null. */
+async function ownRack(userId: string, rackId: string, db: CustomShellDb) {
+  const [rack] = await db
+    .select()
+    .from(promoRacks)
+    .where(and(eq(promoRacks.id, rackId), eq(promoRacks.userId, userId)))
+    .limit(1)
+  return rack ?? null
+}
+
+/**
+ * Saves one thing about a rack as it changes: its name, description, cover
+ * banner or notes. Each saves itself on the rack's page; there is no Save
+ * button.
+ */
+export async function updateRack(
+  userId: string,
+  rackId: string,
+  input: { name?: string; description?: WrittenPageNode; bannerUrl?: string; notes?: string },
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  const name = input.name === undefined ? undefined : input.name.trim().slice(0, RACK_NAME_MAX)
+  if (name === "") throw new Error("A rack needs a name.")
+  if (input.bannerUrl && !(await isOwnedImageUrl(userId, input.bannerUrl, db))) {
+    throw new Error("That picture is not one of your uploaded images.")
+  }
+  const [updated] = await db
+    .update(promoRacks)
+    .set({
+      ...(name === undefined ? {} : { name }),
+      ...(input.description === undefined ? {} : { description: checkedRackDescription(input.description) }),
+      ...(input.bannerUrl === undefined ? {} : { bannerUrl: input.bannerUrl }),
+      ...(input.notes === undefined ? {} : { notes: input.notes }),
+    })
+    .where(and(eq(promoRacks.id, rackId), eq(promoRacks.userId, userId)))
+    .returning({ id: promoRacks.id })
+  if (!updated) throw new Error("That rack does not exist.")
+}
+
+/**
+ * Deletes a rack that is not connected: one that never paired, or one that
+ * was disconnected. A connected rack is refused, so a working rack is never
+ * deleted by a slip. Its phones go to Not on a rack, and keep their history,
+ * readings and finished actions (`drizzle/0139`). Its bell notices go with it.
+ */
+export async function deleteRack(
+  userId: string,
+  rackId: string,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<void> {
+  const rack = await ownRack(userId, rackId, db)
+  if (!rack) throw new Error("That rack does not exist.")
+  if (rack.keyEncrypted && !rack.disconnectedAt) {
+    throw new Error("That rack is connected. Disconnect it first, then delete it.")
+  }
+  await clearProblem(userId, "rack_silent", rackId, null, db, now)
+  await clearProblem(userId, "rack_wda", `${rackId}:soon`, null, db, now)
+  await clearProblem(userId, "rack_wda", `${rackId}:out`, null, db, now)
+  await db
+    .update(promoPhoneActions)
+    .set({ status: "cancelled", error: "The rack was deleted.", finishedAt: now })
+    .where(and(eq(promoPhoneActions.rackId, rackId), inArray(promoPhoneActions.status, ["queued", "running"])))
+  await db.delete(promoRacks).where(and(eq(promoRacks.id, rackId), eq(promoRacks.userId, userId)))
+}
+
+/**
+ * A new one-time code that pairs the rack program with one rack, shown once
+ * on the rack's page. Only its hash is kept. Eight letters from 32 is about
+ * a trillion codes, and the pairing address allows ten tries in fifteen
+ * minutes from one address.
+ *
+ * Only a rack that is not connected gets one: a rack that never paired, or
+ * one that was disconnected. A code for a connected rack would let a second
+ * computer take its key and knock the first one off without a word.
  */
 export async function createPairingCode(
   userId: string,
+  rackId: string,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<{ code: string; expiresAt: Date }> {
+  const rack = await ownRack(userId, rackId, db)
+  if (!rack) throw new Error("That rack does not exist.")
+  if (rack.keyEncrypted && !rack.disconnectedAt) {
+    throw new Error("That rack is already paired. Disconnect it first to install it on another computer.")
+  }
   let raw = ""
   for (let index = 0; index < 8; index += 1) raw += CODE_LETTERS[randomInt(CODE_LETTERS.length)]
   const expiresAt = new Date(now.getTime() + RACK_CODE_MINUTES * 60_000)
   // Codes a day past their end are no use to anyone, so they go as new ones come.
   await db.delete(promoRackCodes).where(lt(promoRackCodes.expiresAt, new Date(now.getTime() - 86_400_000)))
-  await db.insert(promoRackCodes).values({ id: uuid(), userId, codeHash: sha256Hex(raw), expiresAt, createdAt: now })
+  await db.insert(promoRackCodes).values({ id: uuid(), userId, rackId, codeHash: sha256Hex(raw), expiresAt, createdAt: now })
   return { code: `${raw.slice(0, 4)}-${raw.slice(4)}`, expiresAt }
 }
 
 /**
- * Swaps a code for a rack and its key. The code is spent in the same
- * statement that checks it, so two programs racing with one code cannot both
- * win. The key goes back once, in this answer, and is kept encrypted.
+ * Swaps a code for the key of the rack it was made for. The code is spent in
+ * the same statement that checks it, so two programs racing with one code
+ * cannot both win. The key goes back once, in this answer, and is kept
+ * encrypted. The rack keeps the name and description a person gave it; a
+ * disconnected rack is connected again. A rack already connected is refused,
+ * and pairing spends every other code made for the rack.
  */
 export async function pairRack(
-  input: { code: string; name: string; platform: string; version: string },
+  input: { code: string; platform: string; version: string },
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<{ rackId: string; key: string }> {
@@ -96,25 +221,43 @@ export async function pairRack(
       and(
         eq(promoRackCodes.codeHash, sha256Hex(normaliseCode(input.code))),
         isNull(promoRackCodes.usedAt),
+        isNotNull(promoRackCodes.rackId),
         sql`${promoRackCodes.expiresAt} > ${now}`
       )
     )
-    .returning({ userId: promoRackCodes.userId })
-  if (!spent) {
-    throw new RackRefusal(401, "That code is not valid, already used or more than 15 minutes old. Make a new one on the Phones dashboard.")
+    .returning({ userId: promoRackCodes.userId, rackId: promoRackCodes.rackId })
+  if (!spent?.rackId) {
+    throw new RackRefusal(401, "That code is not valid, already used or more than 15 minutes old. Make a new one on the rack's page in Promo.")
   }
 
-  const rackId = uuid()
-  await db.insert(promoRacks).values({
-    id: rackId,
-    userId: spent.userId,
-    name: input.name.trim().slice(0, 120) || "Rack",
-    keyEncrypted,
-    platform: input.platform.trim().slice(0, 40),
-    version: input.version.trim().slice(0, 40),
-    pairedAt: now,
-  })
-  return { rackId, key }
+  const [rack] = await db
+    .update(promoRacks)
+    .set({
+      keyEncrypted,
+      platform: input.platform.trim().slice(0, 40),
+      version: input.version.trim().slice(0, 40),
+      pairedAt: now,
+      disconnectedAt: null,
+    })
+    .where(
+      and(
+        eq(promoRacks.id, spent.rackId),
+        eq(promoRacks.userId, spent.userId),
+        // Only a rack that is not connected, so a second code made while
+        // waiting can never take a working rack's key.
+        or(isNull(promoRacks.keyEncrypted), isNotNull(promoRacks.disconnectedAt))
+      )
+    )
+    .returning({ id: promoRacks.id })
+  if (!rack) {
+    throw new RackRefusal(401, "That code's rack is already paired or is not there any more. Make a new code on the rack's page in Promo.")
+  }
+  // Every other code made for the rack goes with this one.
+  await db
+    .update(promoRackCodes)
+    .set({ usedAt: now })
+    .where(and(eq(promoRackCodes.rackId, rack.id), isNull(promoRackCodes.usedAt)))
+  return { rackId: rack.id, key }
 }
 
 export type VerifiedRack = { id: string; userId: string; key: string }
@@ -142,9 +285,10 @@ export async function verifyRackRequest(
     .from(promoRacks)
     .where(eq(promoRacks.id, rackId))
     .limit(1)
-  if (!rack) throw new RackRefusal(401, "This rack is not paired with Promo.")
+  // A rack made on the Racks dashboard has no key until it pairs, so nothing can sign as it.
+  if (!rack || !rack.keyEncrypted) throw new RackRefusal(401, "This rack is not paired with Promo.")
   if (rack.disconnectedAt) {
-    throw new RackRefusal(401, "This rack was disconnected on the Phones dashboard. Install it again with a new code.")
+    throw new RackRefusal(401, "This rack was disconnected in Promo. Install it again with a new code from the rack's page.")
   }
   if (Math.abs(now.getTime() / 1000 - stamp) > RACK_CLOCK_WINDOW_SECONDS) {
     throw new RackRefusal(401, "This message's clock is more than five minutes from Promo's. Check the computer's time.")
@@ -244,6 +388,21 @@ export async function checkIn(
         .where(and(eq(promoPhones.userId, rack.userId), inArray(promoPhones.serial, serials)))
     : []
   const bySerial = new Map(known.map((phone) => [phone.serial, phone]))
+  // A known phone another rack had a moment ago moves to this one on this
+  // check-in, and its history says so with both racks' names (part 118).
+  const fromRackIds = Array.from(
+    new Set(known.flatMap((phone) => (phone.rackId && phone.rackId !== rack.id && reported.has(phone.serial) ? [phone.rackId] : [])))
+  )
+  const rackNames = new Map(
+    fromRackIds.length
+      ? (
+          await db
+            .select({ id: promoRacks.id, name: promoRacks.name })
+            .from(promoRacks)
+            .where(inArray(promoRacks.id, [...fromRackIds, rack.id]))
+        ).map((row) => [row.id, row.name || "a rack"])
+      : []
+  )
 
   for (const [serial, seen] of reported) {
     const state = seen.state.slice(0, 20)
@@ -297,6 +456,16 @@ export async function checkIn(
         ...(seen.timezone?.trim() ? { timeZone: seen.timezone.trim().slice(0, 64) } : {}),
       })
       .where(eq(promoPhones.id, phone.id))
+    if (phone.rackId && phone.rackId !== rack.id) {
+      await recordPhoneEvent(
+        rack.userId,
+        phone.id,
+        "moved_rack",
+        `Moved from ${rackNames.get(phone.rackId) ?? "a rack that is gone"} to ${rackNames.get(rack.id) ?? "this rack"}.`,
+        db,
+        now
+      )
+    }
     // Back from gone, or seen for the first time, is a plug-in. A phone the
     // rack restarted comes back from "restarting", which is not.
     if (!phone.adbState || phone.adbState === "gone") {
@@ -317,6 +486,8 @@ export async function checkIn(
       and(
         eq(promoPhones.rackId, rack.id),
         sql`${promoPhones.adbState} <> 'gone'`,
+        // A phone put on this rack by hand and never plugged in is not missing.
+        isNotNull(promoPhones.lastSeenAt),
         ...(serials.length ? [notInArray(promoPhones.serial, serials)] : [])
       )
     )
@@ -586,15 +757,33 @@ export async function phoneActions(
   }))
 }
 
+/**
+ * Where a rack stands: made but never paired, checking in, paired but quiet
+ * for 45 seconds, or disconnected on purpose.
+ */
+export type RackState = "unpaired" | "live" | "silent" | "disconnected"
+
 export type RackView = {
   id: string
   name: string
+  /** The description as the editor's document, written in place on the rack's left panel. */
+  description: WrittenPageNode
+  /** The same as plain words, for the Racks dashboard's row and search. */
+  descriptionText: string
+  /** The cover behind the left panel's header, or "" for none. */
+  bannerUrl: string
+  /** The "/" block notes as saved, the editor's document in JSON, or "" for none. */
+  notes: string
+  state: RackState
   platform: string
   version: string
   /** True when it checked in within the last 45 seconds. */
   live: boolean
   seenAt: Date | null
-  pairedAt: Date
+  /** When the program last paired, or null before it ever has. */
+  pairedAt: Date | null
+  disconnectedAt: Date | null
+  createdAt: Date
   updateNote: string
   /** False when the program is on an older version than Promo serves. */
   upToDate: boolean
@@ -602,7 +791,30 @@ export type RackView = {
   wdaExpiresAt: Date | null
 }
 
-/** The racks still paired, newest first. A disconnected rack is not listed. */
+function rackView(rack: typeof promoRacks.$inferSelect, now: Date): RackView {
+  const live = Boolean(rack.keyEncrypted && !rack.disconnectedAt && rack.seenAt && now.getTime() - rack.seenAt.getTime() < PHONE_STALE_MS)
+  return {
+    id: rack.id,
+    name: rack.name,
+    description: readProjectDescription(rack.description),
+    descriptionText: projectDescriptionText(rack.description),
+    bannerUrl: rack.bannerUrl,
+    notes: rack.notes,
+    state: !rack.keyEncrypted ? "unpaired" : rack.disconnectedAt ? "disconnected" : live ? "live" : "silent",
+    platform: rack.platform,
+    version: rack.version,
+    live,
+    seenAt: rack.seenAt,
+    pairedAt: rack.pairedAt,
+    disconnectedAt: rack.disconnectedAt,
+    createdAt: rack.createdAt,
+    updateNote: rack.updateNote,
+    upToDate: rack.version === RACK_VERSION,
+    wdaExpiresAt: rack.wdaExpiresAt,
+  }
+}
+
+/** Every rack of this person's, paired or not, oldest first. */
 export async function listRacks(
   userId: string,
   db: CustomShellDb = defaultDb,
@@ -611,20 +823,20 @@ export async function listRacks(
   const rows = await db
     .select()
     .from(promoRacks)
-    .where(and(eq(promoRacks.userId, userId), isNull(promoRacks.disconnectedAt)))
-    .orderBy(desc(promoRacks.pairedAt))
-  return rows.map((rack) => ({
-    id: rack.id,
-    name: rack.name,
-    platform: rack.platform,
-    version: rack.version,
-    live: Boolean(rack.seenAt && now.getTime() - rack.seenAt.getTime() < PHONE_STALE_MS),
-    seenAt: rack.seenAt,
-    pairedAt: rack.pairedAt,
-    updateNote: rack.updateNote,
-    upToDate: rack.version === RACK_VERSION,
-    wdaExpiresAt: rack.wdaExpiresAt,
-  }))
+    .where(eq(promoRacks.userId, userId))
+    .orderBy(asc(promoRacks.createdAt), asc(promoRacks.id))
+  return rows.map((rack) => rackView(rack, now))
+}
+
+/** One rack of this person's, or null when it is not theirs or is gone. */
+export async function readRack(
+  userId: string,
+  rackId: string,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<RackView | null> {
+  const rack = await ownRack(userId, rackId, db)
+  return rack ? rackView(rack, now) : null
 }
 
 /**
@@ -642,7 +854,14 @@ export async function disconnectRack(
   const [rack] = await db
     .update(promoRacks)
     .set({ disconnectedAt: now })
-    .where(and(eq(promoRacks.id, rackId), eq(promoRacks.userId, userId), isNull(promoRacks.disconnectedAt)))
+    .where(
+      and(
+        eq(promoRacks.id, rackId),
+        eq(promoRacks.userId, userId),
+        isNotNull(promoRacks.keyEncrypted),
+        isNull(promoRacks.disconnectedAt)
+      )
+    )
     .returning({ id: promoRacks.id })
   if (!rack) throw new Error("That rack is not connected.")
   // Disconnected on purpose, so it is not "not checking in" any more.

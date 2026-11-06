@@ -28,7 +28,7 @@ import { promoXSearchers } from "./x/schema"
  *
  * An account owns neither its browser nor its words. It runs on a browser
  * profile, managed on the Browser profiles dashboard, or on a phone, managed
- * on the Phones dashboard, never both. It points at a voice, managed on the
+ * on its rack's page, never both. It points at a voice, managed on the
  * Voices dashboard. There can be any number of accounts, one per
  * profile, listed on the Reddit accounts dashboard (`account-list.ts`) and
  * grouped into projects (`projects.ts`).

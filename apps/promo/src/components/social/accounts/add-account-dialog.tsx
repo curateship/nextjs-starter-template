@@ -195,12 +195,8 @@ export function AddAccountDialog({
                     {platformProfiles.length || platformPhones.length ? null : phoneOnly ? (
                       <p className="text-sm text-muted-foreground">
                         Every phone already holds {aNetwork(platform)} account. Add a phone on the{" "}
-                        <Link
-                          to="/admin/phones"
-                          search={{ open: undefined }}
-                          className="font-medium text-foreground underline underline-offset-2"
-                        >
-                          Phones dashboard
+                        <Link to="/admin/racks" className="font-medium text-foreground underline underline-offset-2">
+                          Racks dashboard
                         </Link>
                         .
                       </p>
@@ -216,12 +212,8 @@ export function AddAccountDialog({
                           Browser profiles dashboard
                         </Link>{" "}
                         or add a phone on the{" "}
-                        <Link
-                          to="/admin/phones"
-                          search={{ open: undefined }}
-                          className="font-medium text-foreground underline underline-offset-2"
-                        >
-                          Phones dashboard
+                        <Link to="/admin/racks" className="font-medium text-foreground underline underline-offset-2">
+                          Racks dashboard
                         </Link>
                         .
                       </p>

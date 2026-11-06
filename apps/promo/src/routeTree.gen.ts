@@ -62,6 +62,7 @@ import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminProfilesRouteImport } from './routes/_authenticated/admin/profiles'
 import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authenticated/admin/projects'
 import { Route as AuthenticatedAdminProxiesRouteImport } from './routes/_authenticated/admin/proxies'
+import { Route as AuthenticatedAdminRacksRouteImport } from './routes/_authenticated/admin/racks'
 import { Route as AuthenticatedAdminRedditRouteImport } from './routes/_authenticated/admin/reddit'
 import { Route as AuthenticatedAdminRedditAccountsRouteImport } from './routes/_authenticated/admin/reddit-accounts'
 import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
@@ -96,6 +97,7 @@ import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './ro
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
 import { Route as AuthenticatedAdminProjectsProjectIdRouteImport } from './routes/_authenticated/admin/projects_.$projectId'
+import { Route as AuthenticatedAdminRacksRackIdRouteImport } from './routes/_authenticated/admin/racks_.$rackId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
 import { Route as ApiArchiveZipProjectIdRouteImport } from './routes/api/archive/zip/$projectId'
@@ -398,6 +400,11 @@ const AuthenticatedAdminProxiesRoute =
     path: '/proxies',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminRacksRoute = AuthenticatedAdminRacksRouteImport.update({
+  id: '/racks',
+  path: '/racks',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminRedditRoute =
   AuthenticatedAdminRedditRouteImport.update({
     id: '/reddit',
@@ -584,6 +591,12 @@ const AuthenticatedAdminProjectsProjectIdRoute =
     path: '/projects/$projectId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminRacksRackIdRoute =
+  AuthenticatedAdminRacksRackIdRouteImport.update({
+    id: '/racks_/$rackId',
+    path: '/racks/$rackId',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminSettingsTabRoute =
   AuthenticatedAdminSettingsTabRouteImport.update({
     id: '/$tab',
@@ -739,6 +752,7 @@ export interface FileRoutesByFullPath {
   '/admin/profiles': typeof AuthenticatedAdminProfilesRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
+  '/admin/racks': typeof AuthenticatedAdminRacksRoute
   '/admin/reddit': typeof AuthenticatedAdminRedditRoute
   '/admin/reddit-accounts': typeof AuthenticatedAdminRedditAccountsRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
@@ -774,6 +788,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/projects/$projectId': typeof AuthenticatedAdminProjectsProjectIdRoute
+  '/admin/racks/$rackId': typeof AuthenticatedAdminRacksRackIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/archive/zip/$projectId': typeof ApiArchiveZipProjectIdRoute
@@ -844,6 +859,7 @@ export interface FileRoutesByTo {
   '/admin/profiles': typeof AuthenticatedAdminProfilesRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
+  '/admin/racks': typeof AuthenticatedAdminRacksRoute
   '/admin/reddit': typeof AuthenticatedAdminRedditRoute
   '/admin/reddit-accounts': typeof AuthenticatedAdminRedditAccountsRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
@@ -879,6 +895,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/projects/$projectId': typeof AuthenticatedAdminProjectsProjectIdRoute
+  '/admin/racks/$rackId': typeof AuthenticatedAdminRacksRackIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/archive/zip/$projectId': typeof ApiArchiveZipProjectIdRoute
@@ -953,6 +970,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/profiles': typeof AuthenticatedAdminProfilesRoute
   '/_authenticated/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/_authenticated/admin/proxies': typeof AuthenticatedAdminProxiesRoute
+  '/_authenticated/admin/racks': typeof AuthenticatedAdminRacksRoute
   '/_authenticated/admin/reddit': typeof AuthenticatedAdminRedditRoute
   '/_authenticated/admin/reddit-accounts': typeof AuthenticatedAdminRedditAccountsRoute
   '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
@@ -988,6 +1006,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
   '/_authenticated/admin/projects_/$projectId': typeof AuthenticatedAdminProjectsProjectIdRoute
+  '/_authenticated/admin/racks_/$rackId': typeof AuthenticatedAdminRacksRackIdRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/archive/zip/$projectId': typeof ApiArchiveZipProjectIdRoute
@@ -1062,6 +1081,7 @@ export interface FileRouteTypes {
     | '/admin/profiles'
     | '/admin/projects'
     | '/admin/proxies'
+    | '/admin/racks'
     | '/admin/reddit'
     | '/admin/reddit-accounts'
     | '/admin/referrals'
@@ -1097,6 +1117,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
     | '/admin/projects/$projectId'
+    | '/admin/racks/$rackId'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
     | '/api/archive/zip/$projectId'
@@ -1167,6 +1188,7 @@ export interface FileRouteTypes {
     | '/admin/profiles'
     | '/admin/projects'
     | '/admin/proxies'
+    | '/admin/racks'
     | '/admin/reddit'
     | '/admin/reddit-accounts'
     | '/admin/referrals'
@@ -1202,6 +1224,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
     | '/admin/projects/$projectId'
+    | '/admin/racks/$rackId'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
     | '/api/archive/zip/$projectId'
@@ -1275,6 +1298,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/profiles'
     | '/_authenticated/admin/projects'
     | '/_authenticated/admin/proxies'
+    | '/_authenticated/admin/racks'
     | '/_authenticated/admin/reddit'
     | '/_authenticated/admin/reddit-accounts'
     | '/_authenticated/admin/referrals'
@@ -1310,6 +1334,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/pages_/edit'
     | '/_authenticated/admin/projects_/$projectId'
+    | '/_authenticated/admin/racks_/$rackId'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
     | '/api/archive/zip/$projectId'
@@ -1761,6 +1786,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminProxiesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/racks': {
+      id: '/_authenticated/admin/racks'
+      path: '/racks'
+      fullPath: '/admin/racks'
+      preLoaderRoute: typeof AuthenticatedAdminRacksRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/reddit': {
       id: '/_authenticated/admin/reddit'
       path: '/reddit'
@@ -1999,6 +2031,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminProjectsProjectIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/racks_/$rackId': {
+      id: '/_authenticated/admin/racks_/$rackId'
+      path: '/racks/$rackId'
+      fullPath: '/admin/racks/$rackId'
+      preLoaderRoute: typeof AuthenticatedAdminRacksRackIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/settings/$tab': {
       id: '/_authenticated/admin/settings/$tab'
       path: '/$tab'
@@ -2187,6 +2226,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminProfilesRoute: typeof AuthenticatedAdminProfilesRoute
   AuthenticatedAdminProjectsRoute: typeof AuthenticatedAdminProjectsRoute
   AuthenticatedAdminProxiesRoute: typeof AuthenticatedAdminProxiesRoute
+  AuthenticatedAdminRacksRoute: typeof AuthenticatedAdminRacksRoute
   AuthenticatedAdminRedditRoute: typeof AuthenticatedAdminRedditRoute
   AuthenticatedAdminRedditAccountsRoute: typeof AuthenticatedAdminRedditAccountsRoute
   AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
@@ -2203,6 +2243,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminPagesEditRoute: typeof AuthenticatedAdminPagesEditRoute
   AuthenticatedAdminProjectsProjectIdRoute: typeof AuthenticatedAdminProjectsProjectIdRoute
+  AuthenticatedAdminRacksRackIdRoute: typeof AuthenticatedAdminRacksRackIdRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
   AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
 }
@@ -2233,6 +2274,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminProfilesRoute: AuthenticatedAdminProfilesRoute,
   AuthenticatedAdminProjectsRoute: AuthenticatedAdminProjectsRoute,
   AuthenticatedAdminProxiesRoute: AuthenticatedAdminProxiesRoute,
+  AuthenticatedAdminRacksRoute: AuthenticatedAdminRacksRoute,
   AuthenticatedAdminRedditRoute: AuthenticatedAdminRedditRoute,
   AuthenticatedAdminRedditAccountsRoute: AuthenticatedAdminRedditAccountsRoute,
   AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
@@ -2253,6 +2295,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminPagesEditRoute: AuthenticatedAdminPagesEditRoute,
   AuthenticatedAdminProjectsProjectIdRoute:
     AuthenticatedAdminProjectsProjectIdRoute,
+  AuthenticatedAdminRacksRackIdRoute: AuthenticatedAdminRacksRackIdRoute,
   AuthenticatedAdminSystemEmailsKindRoute:
     AuthenticatedAdminSystemEmailsKindRoute,
   AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute:

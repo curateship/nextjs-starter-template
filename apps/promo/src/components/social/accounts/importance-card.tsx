@@ -182,7 +182,7 @@ export function ImportanceCard({
                       showErrorToast(
                         phones.length
                           ? "Pick the phone it moves to first."
-                          : "There is no free phone. Add one on the Phones dashboard, or free one up."
+                          : "There is no free phone. Add one on a rack's page, or free one up."
                       )
                       return
                     }

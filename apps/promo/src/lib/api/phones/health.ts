@@ -23,9 +23,9 @@ import { createErrorMessage } from "../error-message"
 export type { IcloudState, PhoneEventView, PhoneReading, SelfTestKindPage, SelfTestPage, StepPicture }
 
 /**
- * A phone's health in its window (history, the battery and heat chart, each
- * action's step pictures, an iPhone's iCloud read) and the Self-test window
- * on the Phones dashboard. Admin-only, scoped to the signed-in person.
+ * A phone's health on its rack's page (history, the battery and heat chart,
+ * each action's step pictures, an iPhone's iCloud read) and the Self-test
+ * window on the Racks dashboard. Admin-only, scoped to the signed-in person.
  */
 
 export const getPhoneHealthErrorMessage = passReaderWritten(createErrorMessage(
@@ -143,7 +143,7 @@ const checkIcloudFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().min(1) }))
   .handler(async ({ context, data }): Promise<string> => queueIcloudCheck(context.user.id, data.id))
 
-/** Check iCloud on an iPhone's Setup tab: asks the rack to read whether an Apple ID is signed in. */
+/** Check iCloud from an iPhone's Setup section: asks the rack to read whether an Apple ID is signed in. */
 export function checkIcloud(id: string) {
   return checkIcloudFn({ data: { id } })
 }

@@ -8,7 +8,7 @@ picked when it is added. An important account runs on a phone only. A
 profile that is the reader, or that searches X or LinkedIn, is never offered.
 
 Sign it in once, in its browser window on the Browser profiles dashboard, or
-in the LinkedIn app through the phone's screen window. Check now on the
+in the LinkedIn app through the phone's screen on its rack's page. Check now on the
 Accounts dashboard reads who a browser account is signed in as, and takes the
 weekly comments look. An account is named by its own page's address,
 `in/sam-lee`. A look that sees nobody signed in, such as the code page or a
@@ -82,7 +82,7 @@ comment on one post at all.
 
 A LinkedIn account on a browser profile moves to a rack phone the way Reddit
 and X accounts do, from its settings under Throwaway. Sign in to the LinkedIn
-app on the phone through its screen window; the move finishes when the phone
+app on the phone through its screen; the move finishes when the phone
 reads the account's own page address. LinkedIn emails a code on the new
 device, which is typed on the phone by hand.
 

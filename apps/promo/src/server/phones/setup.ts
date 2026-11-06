@@ -177,7 +177,7 @@ async function judgeAddress(
       kind: "phone_address",
       targetId: phone.id,
       message: `Wrong address showing: ${phoneWords(phone)}`,
-      detail: `${verdict.words} Every job on it is refused until a check finds the proxy's address. Turn the proxy app on the phone back on, then run its setup check from its window on the Phones dashboard.`,
+      detail: `${verdict.words} Every job on it is refused until a check finds the proxy's address. Turn the proxy app on the phone back on, then run its setup check from the phone on its rack's page.`,
       href: phoneHref(phone.id),
     },
     { phoneId: phone.id, kind: "notice_raised", detail: `Wrong address: ${verdict.words}` },
@@ -215,14 +215,14 @@ export async function guardPhoneAddress(
   }
   if (phone.addressStopAt) {
     throw new Refusal(
-      `${phone.name} was stopped for showing the wrong address: ${phone.addressStopWords} Nothing was sent. Run its setup check from its window on the Phones dashboard once the proxy app is on.`
+      `${phone.name} was stopped for showing the wrong address: ${phone.addressStopWords} Nothing was sent. Run its setup check from the phone on its rack's page once the proxy app is on.`
     )
   }
   if (phone.connection !== "wifi") return
   const proxy = await proxyOf(phone, db)
   if (!proxy) {
     throw new Refusal(
-      `${phone.name} is on the house Wi-Fi with no proxy, so apps would see the house's address. Nothing was sent. Pick its proxy on the Phones dashboard.`
+      `${phone.name} is on the house Wi-Fi with no proxy, so apps would see the house's address. Nothing was sent. Pick its proxy on its rack's page.`
     )
   }
 

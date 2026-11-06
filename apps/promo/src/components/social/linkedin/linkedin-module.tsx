@@ -350,7 +350,7 @@ export function LinkedinModule({
             <span>
               LinkedIn emailed {row.handle ? linkedinAccountName(row.handle) : `the account in ${row.runsIn ?? "its browser"}`} a code and waits for it.{" "}
               {row.onPhone ? (
-                "Type it into the LinkedIn app through the phone's screen window on the Phones dashboard."
+                "Type it into the LinkedIn app through the phone's screen on its rack's page."
               ) : (
                 <>
                   Paste it in the account&apos;s settings on the{" "}

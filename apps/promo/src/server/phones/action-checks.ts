@@ -84,12 +84,12 @@ export async function refuseBrokenAction(
   const testPhone = `${PHONE_KIND_WORDS[kind]} test phone`
   if (!check && NEEDS_A_PASS.has(action)) {
     throw new Refusal(
-      `The daily self-test has not walked ${actionWords(action)} on the ${testPhone} yet, and it never goes out from a phone before it has. Pick a self-test ${PHONE_KIND_WORDS[kind]} in Settings → Phones and press Run it now in the Self-test window on the Phones dashboard. Nothing was sent.`
+      `The daily self-test has not walked ${actionWords(action)} on the ${testPhone} yet, and it never goes out from a phone before it has. Pick a self-test ${PHONE_KIND_WORDS[kind]} in Settings → Phones and press Run it now in the Self-test window on the Racks dashboard. Nothing was sent.`
     )
   }
   if (!check || check.passed) return
   const day = check.checkedAt.toISOString().slice(0, 10)
   throw new Refusal(
-    `The daily self-test found ${actionWords(action)} broken on ${day}, at "${check.step || "its first step"}", on the ${testPhone}. Promo refuses it on every ${PHONE_KIND_WORDS[kind]} until the self-test passes again; see the self-test on the Phones dashboard. Nothing was sent.`
+    `The daily self-test found ${actionWords(action)} broken on ${day}, at "${check.step || "its first step"}", on the ${testPhone}. Promo refuses it on every ${PHONE_KIND_WORDS[kind]} until the self-test passes again; see Self-test on the Racks dashboard. Nothing was sent.`
   )
 }

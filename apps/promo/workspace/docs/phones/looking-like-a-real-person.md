@@ -13,7 +13,7 @@ its button stops with a picture of the screen.
 
 ## The setup check
 
-The **Setup** tab in a phone's window on the Phones dashboard. **Check now**
+The **Setup** tab of the open phone on its rack's page. **Check now**
 asks the rack to read the phone; it takes a minute or two, and the tab shows
 each line passing or failing with why. A line that could not be read says so
 rather than guessing.
@@ -36,7 +36,7 @@ setting follow the kind ([iPhones on the rack](iphones.md)).
   such as a Play Store setting it did not find on one maker's screens, does
   not hold a phone back; the tab says how many could not be read.
 - **Each check goes in the phone's history**, with the lines that did not pass.
-- **The phone's row** on the Phones dashboard says "Setup check: 2 of 7 lines
+- **The phone's row** on its rack's page says "Setup check: 2 of 7 lines
   fail" until it passes.
 
 ## What the platform sees
@@ -60,7 +60,7 @@ A new account never inherits an old one's phone.
 
 - **When an account leaves a phone,** moved to another phone or to a browser
   profile, the phone needs wiping. Its history says so and its row on the
-  Phones dashboard says "Needs wiping before another account".
+  rack's page says "Needs wiping before another account".
 - **No account is set onto it** until it is wiped and set up again. The
   account pickers list it as "needs wiping" or "wiped, set it up again", and
   picking it is refused with what to do.
@@ -84,7 +84,7 @@ A new account never inherits an old one's phone.
 
 ## The rack mix
 
-**Mix** on the Phones dashboard's toolbar. It counts the phones on each model,
+**Mix**, a card on each rack's left panel. It counts the rack's phones on each model,
 carrier and Android version.
 
 - **It warns when more than half the phones share one,** once the rack has four

@@ -214,7 +214,7 @@ export async function sweepPhoneHealth(db: CustomShellDb = defaultDb, now: Date 
         message: `Rack not checking in: ${rack.name || "the rack"}`,
         detail:
           "It has not checked in for five minutes, so its phones are offline and their jobs fail. Check that the computer the phones are plugged into is on and online.",
-        href: "/admin/phones",
+        href: rackHref(rack.id),
       })
     } else if (!quiet) {
       await sweep.clear(rack.userId, "rack_silent", rack.id)
@@ -236,12 +236,17 @@ export async function sweepPhoneHealth(db: CustomShellDb = defaultDb, now: Date 
 
 const HEALTH_KINDS: PromoNoticeKind[] = ["phone_offline", "phone_hot", "phone_signal", "phone_storage", "rack_silent", "rack_wda"]
 
+/** A rack's own page, where a rack notice leads (Racks dashboard, part 87). */
+function rackHref(rackId: string): string {
+  return `/admin/racks/${encodeURIComponent(rackId)}`
+}
+
 /** The bell warns this long before the rack's WebDriverAgent signature runs out. */
 const WDA_WARN_MS = 24 * 60 * 60_000
 
 /** What to do on the rack Mac, in the notice. */
 const WDA_RESIGN_WORDS =
-  "On the rack Mac, run `bash ~/Library/Application Support/PromoRack/wda.sh` and follow its prompts; the Rack window on the Phones dashboard has the same steps."
+  "On the rack Mac, run `bash ~/Library/Application Support/PromoRack/wda.sh` and follow its prompts. The rack's page in Promo shows when the signature runs out."
 
 /**
  * WebDriverAgent, the tool the rack taps iPhones through, is signed with a
@@ -272,7 +277,7 @@ async function sweepWebDriverAgent(
       targetId: soonId,
       message: `WebDriverAgent on the rack runs out tomorrow; re-sign it in Xcode`,
       detail: `${name}'s WebDriverAgent signature runs out at ${rack.wdaExpiresAt!.toISOString().slice(0, 16).replace("T", " ")} UTC. After that its iPhones are offline until it is signed again. ${WDA_RESIGN_WORDS}`,
-      href: "/admin/phones",
+      href: rackHref(rack.id),
     })
     return
   }
@@ -282,7 +287,7 @@ async function sweepWebDriverAgent(
     targetId: outId,
     message: `WebDriverAgent on the rack has run out; its iPhones are offline until it is re-signed`,
     detail: `${name}'s WebDriverAgent signature ran out, so the rack cannot tap its iPhones and their jobs fail. ${WDA_RESIGN_WORDS}`,
-    href: "/admin/phones",
+    href: rackHref(rack.id),
   })
 }
 
@@ -331,7 +336,7 @@ async function sweepOffline(sweep: Sweep, phone: PhoneRow, rackConnected: boolea
         `${reason}.`,
         phone.adbState === "unauthorized" ? "" : "Its jobs fail until it is back.",
         phone.usbPort ? `It was on USB port ${phone.usbPort}.` : "",
-        phone.shelfSlot ? "" : "Type its shelf slot on the Phones dashboard so the notice can say where it is.",
+        phone.shelfSlot ? "" : "Type its shelf slot on its rack's page so the notice can say where it is.",
       ]
         .filter(Boolean)
         .join(" "),

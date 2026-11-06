@@ -152,7 +152,7 @@ function platformName(platform: string): string {
  * status is worked out by the app each time the list is read (Warming up,
  * Ready, Working, Banned) and a person can set another by hand, which the row
  * says. Rows group under their profile's or phone's folder, the folders the
- * Browser profiles and Phones dashboards share, and filter by its tags;
+ * Browser profiles dashboard and the racks' pages share, and filter by its tags;
  * nothing new is stored for either.
  *
  * Retiring takes an account out of every list and picker. It never posts and

@@ -4,10 +4,10 @@ import { toast } from "sonner"
 
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { getPhoneErrorMessage, loadPhoneJobs } from "@/lib/api/phones/phones"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSurface } from "@/components/ui/table"
+import { getPhoneErrorMessage, loadPhoneJobs, loadRackJobs } from "@/lib/api/phones/phones"
 import {
   cancelWaitingJobs,
   getJobsErrorMessage,
@@ -21,27 +21,36 @@ import { jobStatusText } from "@/lib/social/job-words"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-/** The tab reads the phone's jobs again this often while it is open. */
+/** The list reads the jobs again this often while it shows. */
 const PHONE_JOBS_REFRESH_MS = 10_000
 
 /**
- * The Jobs tab on a phone's window (part 58 of the phone farm): the jobs
- * waiting for, running on and finished on this phone, newest first, at most
- * 100, each naming the account and the project. Cancel and Try again are the
- * Jobs window's own, so cancelling here cancels the same job it shows.
+ * The Jobs section in a phone's ⋮ (part 58 of the phone farm), or the Jobs
+ * tab of a rack's middle panel for every phone on it (Racks dashboard, part 104): the jobs
+ * waiting for, running on and finished on them, newest first, each naming
+ * the account and the project, in the shell's table (Tyler, 6 Nov 2026:
+ * "jobs tab should have normal tables"). Cancel and Try again are the Jobs
+ * window's own, so cancelling here cancels the same job it shows.
  */
-export function PhoneJobsPanel({ phoneId }: { phoneId: string }) {
+export function PhoneJobsPanel({
+  phoneId,
+  rackId,
+  flush = false,
+}: ({ phoneId: string; rackId?: never } | { rackId: string; phoneId?: never }) & {
+  /** Edge to edge, as the rack's phone list is, for the middle panel's Jobs tab. */
+  flush?: boolean
+}) {
   const [state, setState] = React.useState<{ list: JobList | null; error: string | null }>({ list: null, error: null })
   const [attempt, setAttempt] = React.useState(0)
   const [busy, setBusy] = React.useState(false)
 
   const read = React.useCallback(
     () =>
-      loadPhoneJobs(phoneId).then(
+      (rackId ? loadRackJobs(rackId) : loadPhoneJobs(phoneId as string)).then(
         (list) => setState({ list, error: null }),
         (error: unknown) => setState((current) => ({ list: current.list, error: getPhoneErrorMessage(error) }))
       ),
-    [phoneId]
+    [phoneId, rackId]
   )
 
   React.useEffect(() => {
@@ -84,19 +93,26 @@ export function PhoneJobsPanel({ phoneId }: { phoneId: string }) {
     }
   }
 
-  if (state.error && !state.list) return <ErrorRow message={state.error} onRetry={() => setAttempt((count) => count + 1)} />
+  const pad = flush ? "p-4" : ""
+  if (state.error && !state.list) {
+    return (
+      <div className={pad}>
+        <ErrorRow message={state.error} onRetry={() => setAttempt((count) => count + 1)} />
+      </div>
+    )
+  }
   if (!state.list) return <LoadingRow label="Reading the jobs" className="min-h-48" />
   const { program, jobs } = state.list
   if (!jobs.length) {
     return (
-      <p className="py-6 text-center text-sm text-muted-foreground">
-        No job has waited for, run on or finished on this phone yet.
+      <p className={cn("text-sm text-muted-foreground", flush ? "p-4" : "py-6 text-center")}>
+        {rackId ? "No job has waited for, run on or finished on a phone on this rack yet." : "No job has waited for, run on or finished on this phone yet."}
       </p>
     )
   }
 
-  return (
-    <div className="grid gap-4">
+  const notices = (
+    <>
       {state.error ? (
         <p role="status" className="text-sm text-destructive">
           {state.error}
@@ -104,12 +120,40 @@ export function PhoneJobsPanel({ phoneId }: { phoneId: string }) {
       ) : null}
       {!program.running ? (
         <p className="text-sm text-destructive">
-          The browser program is not running, so nothing starts on this phone. Open a terminal in apps/promo
+          The browser program is not running, so nothing starts on {rackId ? "these phones" : "this phone"}. Open a terminal in apps/promo
           and run npm run social:browser.
         </p>
       ) : null}
-      <Card size="sm">
-        <CardContent className="grid gap-0 divide-y p-0">
+    </>
+  )
+  const showNotices = Boolean(state.error) || !program.running
+
+  // The shell's table, its columns folding by the room it has: the account
+  // and the time join the job's own cell below 32rem, the status below 28rem.
+  const table = (
+    <div className="@container min-w-0">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {/* The shell's main column keeps 320px, more than the phone's ⋮ has; the columns fold instead. */}
+            <TableHead column="main" className="min-w-0 @lg:min-w-48">
+              Job
+            </TableHead>
+            <TableHead column="meta" className="hidden @lg:table-cell">
+              Account
+            </TableHead>
+            <TableHead column="meta" className="hidden @md:table-cell">
+              Status
+            </TableHead>
+            <TableHead column="meta" className="hidden @lg:table-cell">
+              When
+            </TableHead>
+            <TableHead column="meta" className="w-12">
+              <span className="sr-only">Actions</span>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {jobs.map((job) => {
             const status = jobStatusText(
               {
@@ -120,56 +164,82 @@ export function PhoneJobsPanel({ phoneId }: { phoneId: string }) {
               },
               program.running
             )
-            const when = date(job.finishedAt) ?? new Date(job.addedAt)
+            const when = formatTimeAgo(date(job.finishedAt) ?? new Date(job.addedAt))
+            const where = [job.where, job.project ? `for ${job.project}` : ""].filter(Boolean).join(" · ") || "No account named"
             const failedLook = job.status === "failed" || (job.status === "queued" && !program.running)
+            const statusLine = (
+              <span className={cn("flex min-w-0 items-center gap-1.5", failedLook ? "text-destructive" : "text-muted-foreground")}>
+                {job.status === "running" ? <Loader2Icon className="size-3 shrink-0 animate-spin" aria-hidden="true" /> : null}
+                <span className="truncate">{status}</span>
+              </span>
+            )
             return (
-              <div key={job.id} className="flex items-start gap-3 px-4 py-3 text-sm">
-                <div className="grid min-w-0 flex-1 gap-0.5">
-                  <span className="truncate font-medium">{job.what}</span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {[job.where, job.project ? `for ${job.project}` : ""].filter(Boolean).join(" · ") ||
-                      "No account named"}
+              <TableRow key={job.id}>
+                <TableCell column="main" className="max-w-0 min-w-0 @lg:min-w-48">
+                  <span className="block truncate text-sm font-medium">{job.what}</span>
+                  <span className="block truncate text-xs text-muted-foreground @lg:hidden">
+                    {where} · {when}
                   </span>
-                  <span className={cn("flex items-center gap-1.5 text-xs", failedLook ? "text-destructive" : "text-muted-foreground")}>
-                    {job.status === "running" ? (
-                      <Loader2Icon className="size-3 shrink-0 animate-spin" aria-hidden="true" />
-                    ) : null}
-                    <span className="truncate">{status}</span>
-                    <span className="shrink-0">· {formatTimeAgo(when)}</span>
-                  </span>
-                </div>
-                {job.status === "queued" ? (
-                  <Hint label="Cancel: take it off the queue">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled={busy}
-                      onClick={() => void act(job)}
-                      aria-label={`Cancel ${job.what}`}
-                    >
-                      <XIcon className="size-4" />
-                    </Button>
-                  </Hint>
-                ) : job.canRetry ? (
-                  <Hint label="Try again: put it back on the queue">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled={busy}
-                      onClick={() => void act(job)}
-                      aria-label={`Try again: ${job.what}`}
-                    >
-                      <RotateCcwIcon className="size-4" />
-                    </Button>
-                  </Hint>
-                ) : null}
-              </div>
+                  <span className="block text-xs @md:hidden">{statusLine}</span>
+                </TableCell>
+                <TableCell column="meta" className="hidden max-w-56 text-sm whitespace-normal @lg:table-cell">
+                  <span className="line-clamp-2">{where}</span>
+                </TableCell>
+                <TableCell column="meta" className="hidden max-w-56 text-sm @md:table-cell">
+                  {statusLine}
+                </TableCell>
+                <TableCell column="meta" className="hidden text-sm whitespace-nowrap text-muted-foreground @lg:table-cell">
+                  {when}
+                </TableCell>
+                <TableCell column="actions" className="w-12">
+                  {job.status === "queued" ? (
+                    <Hint label="Cancel: take it off the queue">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={busy}
+                        onClick={() => void act(job)}
+                        aria-label={`Cancel ${job.what}`}
+                      >
+                        <XIcon className="size-4" />
+                      </Button>
+                    </Hint>
+                  ) : job.canRetry ? (
+                    <Hint label="Try again: put it back on the queue">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={busy}
+                        onClick={() => void act(job)}
+                        aria-label={`Try again: ${job.what}`}
+                      >
+                        <RotateCcwIcon className="size-4" />
+                      </Button>
+                    </Hint>
+                  ) : null}
+                </TableCell>
+              </TableRow>
             )
           })}
-        </CardContent>
-      </Card>
+        </TableBody>
+      </Table>
+    </div>
+  )
+
+  if (flush) {
+    return (
+      <>
+        {showNotices ? <div className="grid gap-2 border-b p-4">{notices}</div> : null}
+        {table}
+      </>
+    )
+  }
+  return (
+    <div className="grid min-w-0 gap-3">
+      {notices}
+      <TableSurface>{table}</TableSurface>
     </div>
   )
 }

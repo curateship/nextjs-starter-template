@@ -3,8 +3,9 @@ import { DashboardToolbarSelectTrigger } from "@/components/shared/dashboard-too
 import { ALL, NONE } from "@/lib/browser/sorting"
 
 /**
- * The folder, label and tag filters, shared by the Browser profiles and
- * Phones dashboards, which sort with the same folders, labels and tags.
+ * The folder, label and tag filters in a dashboard's toolbar, shared by the
+ * Browser profiles and Bans dashboards. A rack's page has the same filters
+ * as rows in the shell's Filter popover instead.
  */
 
 /** One of the list's filters: all, none, or one of the options. */

@@ -164,9 +164,9 @@ export async function recordAccountHealth(
     const onPhone = "phone" in target
     throw new Refusal(
       reading.blocked
-        ? `Reddit put something in front of the ${onPhone ? "phone" : "browser"} (${reading.reason}), so nothing could be read. Clear it ${onPhone ? "through the phone's screen on the Phones dashboard" : "on the Browser profiles dashboard"}.`
+        ? `Reddit put something in front of the ${onPhone ? "phone" : "browser"} (${reading.reason}), so nothing could be read. Clear it ${onPhone ? "through the phone's screen on its rack's page" : "on the Browser profiles dashboard"}.`
         : onPhone
-          ? "The Reddit app on the phone is not signed in, so there is no profile to look at. Sign in through the phone's screen on the Phones dashboard."
+          ? "The Reddit app on the phone is not signed in, so there is no profile to look at. Sign in through the phone's screen on its rack's page."
           : "The browser is not signed in to Reddit, so there is no profile to look at. Sign in on the Browser profiles dashboard."
     )
   }

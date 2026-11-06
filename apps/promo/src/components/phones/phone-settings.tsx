@@ -173,7 +173,7 @@ function PhoneSettingsPanel() {
       <CollapsibleSettingsCard
         storageId="promo-phones-shelf"
         title="The shelf"
-        description="How the phones sit on the shelf, for the rack map on the Phones dashboard."
+        description="How the phones sit on the shelf, for the shelf map on each rack's page."
         contentClassName="grid gap-4"
       >
         <div className="grid gap-4 sm:grid-cols-2">

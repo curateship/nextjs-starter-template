@@ -13,7 +13,7 @@ vi.mock("@/server/media/storage", () => ({
 
 import { phoneHistory } from "./history"
 import { MEDIA_LINK_MINUTES, makeMediaLink, mediaLinkResponse, spendMediaLink } from "./media-links"
-import { checkIn, createPairingCode, finishAction, nextAction, pairRack, type ReportedPhone, type VerifiedRack } from "./rack"
+import { checkIn, createPairingCode, createRack, finishAction, nextAction, pairRack, type ReportedPhone, type VerifiedRack } from "./rack"
 import { RACK_VERSION } from "./release"
 import { promoMediaLinks, promoPhoneActions, promoPhones } from "./schema"
 import { ICLOUD_SIGNED_IN_WORDS, icloudState, queueIcloudCheck, queueWipe } from "./wipe"
@@ -39,8 +39,8 @@ describe("iPhones on the rack", () => {
     client = made.client
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
-    const { code } = await createPairingCode(userId, db, T0)
-    const paired = await pairRack({ code, name: "Mac", platform: "", version: RACK_VERSION }, db, T0)
+    const { code } = await createPairingCode(userId, await createRack(userId, { name: "Mac" }, db), db, T0)
+    const paired = await pairRack({ code, platform: "", version: RACK_VERSION }, db, T0)
     rack = { id: paired.rackId, userId, key: paired.key }
   })
 

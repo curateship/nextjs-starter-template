@@ -443,8 +443,8 @@ export async function recordStoreCheck(
         kind: "app_update",
         targetId: updateTarget(userId, app, kind),
         message: `App update out: ${APP_WORDS[app]}${kind === "iphone" ? " on iPhone" : ""}`,
-        detail: `${storeWords(kind).replace(/^the/, "The")} has a newer ${APP_WORDS[app]} than ${String(seen.version ?? `the one on the ${PHONE_KIND_WORDS[kind]} test phone`)}. Put it on the ${PHONE_KIND_WORDS[kind]} test phone first from Self-test on the Phones dashboard; the other ${PHONE_KIND_WORDS[kind]}s can follow once it passes.`,
-        href: "/admin/phones",
+        detail: `${storeWords(kind).replace(/^the/, "The")} has a newer ${APP_WORDS[app]} than ${String(seen.version ?? `the one on the ${PHONE_KIND_WORDS[kind]} test phone`)}. Put it on the ${PHONE_KIND_WORDS[kind]} test phone first from Self-test on the Racks dashboard; the other ${PHONE_KIND_WORDS[kind]}s can follow once it passes.`,
+        href: "/admin/racks",
       },
       db,
       now
