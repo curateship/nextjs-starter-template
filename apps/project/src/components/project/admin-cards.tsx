@@ -1,12 +1,13 @@
 import * as React from "react"
 import { Link, useNavigate, useRouter } from "@tanstack/react-router"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, CircleAlertIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { FoldHeading } from "@/components/project/fold-heading"
 import { PanelCard } from "@/components/project/panel-card"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { ProjectDot } from "@/components/project/task-bits"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -18,8 +19,10 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { clockIn, dayLabel, localNow } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { PANEL_GAP } from "@/lib/project/panel-gutter"
+import { meetingsByNow } from "@/lib/project/meetings-today"
+import { PANEL_FOOTER_PADDING, PANEL_GAP } from "@/lib/project/panel-gutter"
 import { TEAM_RIGHT_TAB_KEY } from "@/lib/project/panel-keys"
+import { useNow } from "@/lib/project/use-now"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
@@ -55,14 +58,20 @@ type Cards = AdminDashboard["cards"]
 export function AdminCards({
   cards,
   zone,
-  projectsCard,
+  loadedAt,
+  openTaskId,
+  projectInfo,
   onOpenTask,
 }: {
   cards: Cards
   /** The site admin's own zone, for meeting times. */
   zone: string
-  /** The Projects card, first, above the red cards; null when there is none to draw. */
-  projectsCard: React.ReactNode
+  /** The page load's moment, so Meetings today knows which have finished from the first drawing. */
+  loadedAt: string
+  /** The task open in the right panel, whose row looks picked. */
+  openTaskId: string | undefined
+  /** Each project's colour, for the dot before a task's title. */
+  projectInfo: AdminDashboard["projectInfo"]
   onOpenTask: (taskId: string) => void
 }) {
   // How many cards show under the heading: an empty one is not drawn.
@@ -80,27 +89,28 @@ export function AdminCards({
   // The heading's fold, remembered in this browser.
   const [shown, setShown, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-admin-attention"))
   // Nothing to act on draws nothing, and the Inbox moves up (Tyler, 25 Oct 2026: "Just dont show anything").
-  if (!projectsCard && !cardsWithRows) return null
+  if (!cardsWithRows) return null
   return (
-    <>
-      {/* First, above the red cards (Tyler, 29 Oct 2026: "the project card should be above all the red cards"). */}
-      {projectsCard}
-      {/* A heading over the cards below, the size of Projects, with room above it to
-          part it from the projects, and none at all while no card below has
-          anything (Tyler, 30 Oct 2026: "Add a label that says "Need your attention"
-          here", then "add some padding above. also if there is nothing there (no
-          cards) hide the label"). */}
-      {/* Its arrow folds every card under it, and the heading stays (Tyler, 31 Oct 2026:
-          "add a toggle here to hide all the cards", then "its arrow toggle"). */}
-      {cardsWithRows ? (
-        <Collapsible open={shown} onOpenChange={setShown} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
-          <FoldHeading title="Need your attention" count={cardCount} className="mt-3" />
-          <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
-            <AttentionCards cards={cards} zone={zone} onOpenTask={onOpenTask} />
-          </CollapsibleContent>
-        </Collapsible>
-      ) : null}
-    </>
+    // A card in the left panel's footer since 6 Nov 2026 (Tyler: "the need my
+    // attention should be a card in the footer too"), folding like the Daily
+    // card. Its heading is the greeting's size, and there is none at all while
+    // no card has anything (Tyler, 30 Oct 2026: "Add a
+    // label that says "Need your attention" here", then "add some padding
+    // above. also if there is nothing there (no cards) hide the label"). Its
+    // arrow folds every card under it, and the heading stays (Tyler, 31 Oct
+    // 2026: "add a toggle here to hide all the cards", then "its arrow toggle").
+    <Collapsible open={shown} onOpenChange={setShown} className="grid grid-cols-[minmax(0,1fr)]">
+      <FoldHeading band icon={<CircleAlertIcon />} title="Need your attention" count={cardCount} open={shown} />
+      <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP, PANEL_FOOTER_PADDING)}>
+        <AttentionCards
+          cards={cards}
+          zone={zone}
+          loadedAt={loadedAt}
+          rows={{ openTaskId, projectInfo }}
+          onOpenTask={onOpenTask}
+        />
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -108,22 +118,27 @@ export function AdminCards({
 function AttentionCards({
   cards,
   zone,
+  loadedAt,
+  rows,
   onOpenTask,
 }: {
   cards: Cards
   zone: string
+  loadedAt: string
+  rows: RowLook
   onOpenTask: (taskId: string) => void
 }) {
   return (
     <>
       <WaitingCard asks={cards.waiting} onOpenTask={onOpenTask} />
       <AttentionCard teams={cards.attention} />
-      <UnassignedCard tasks={cards.unassigned} onOpenTask={onOpenTask} />
+      <UnassignedCard tasks={cards.unassigned} rows={rows} onOpenTask={onOpenTask} />
       <InvitesCard invites={cards.invites} />
       <TaskListCard
         storageId="project-admin-due-week"
         title="Due this week"
         tasks={cards.dueThisWeek}
+        rows={rows}
         line={(task) =>
           [task.projectName, task.dueDate ? dayLabel(task.dueDate) : null, task.assignee?.name ?? "Nobody on it"]
             .filter(Boolean)
@@ -131,9 +146,9 @@ function AttentionCards({
         }
         onOpenTask={onOpenTask}
       />
-      <MeetingsCard meetings={cards.meetings} zone={zone} />
+      <MeetingsCard meetings={cards.meetings} zone={zone} loadedAt={loadedAt} />
       <MilestonesCard milestones={cards.milestones} />
-      <DoneTodayCard people={cards.doneToday} onOpenTask={onOpenTask} />
+      <DoneTodayCard people={cards.doneToday} rows={rows} onOpenTask={onOpenTask} />
     </>
   )
 }
@@ -155,24 +170,80 @@ function Rows<T>({ items, children }: { items: T[]; children: (item: T) => React
 
 const ROW_CLASS = "grid w-full min-w-0 gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-background"
 
-/** A row's title and its muted line under it, as one button. */
-function RowButton({ title, line, onClick }: { title: React.ReactNode; line: React.ReactNode; onClick: () => void }) {
+/** What a task row needs from the screen: which task is open, and each project's colour. */
+type RowLook = { openTaskId: string | undefined; projectInfo: AdminDashboard["projectInfo"] }
+
+/**
+ * A task's row: its project's dot and title, its muted line under it, as one
+ * button. The task open on the right looks picked, the way My tasks marks its
+ * open row (polish, Tyler, 6 Nov 2026). The dot is the one Meetings rows have.
+ */
+function TaskRowButton({
+  taskId,
+  projectId,
+  title,
+  line,
+  rows,
+  onOpenTask,
+}: {
+  taskId: string
+  projectId: string
+  title: string
+  line: React.ReactNode
+  rows: RowLook
+  onOpenTask: (taskId: string) => void
+}) {
+  const open = rows.openTaskId === taskId
+  const color = rows.projectInfo[projectId]?.color
   return (
-    <button type="button" className={cn(ROW_CLASS, focusRingInset)} onClick={onClick}>
-      <span className="truncate text-sm">{title}</span>
+    <button
+      type="button"
+      aria-current={open ? "true" : undefined}
+      className={cn(ROW_CLASS, open && "bg-background shadow-[inset_2px_0_0_var(--foreground)]", focusRingInset)}
+      onClick={() => onOpenTask(taskId)}
+    >
+      <span className="flex min-w-0 items-center gap-2 text-sm">
+        {color ? <ProjectDot color={color} /> : null}
+        <span className="truncate">{title}</span>
+      </span>
       <span className="truncate text-xs text-muted-foreground">{line}</span>
     </button>
   )
 }
 
+/**
+ * Which rows are saving, so only those wait while the rest stay usable
+ * (polish, Tyler, 6 Nov 2026). Answering one ask no longer greys every ask.
+ */
+function useRowSave() {
+  const [run] = useAsyncAction(getProjectErrorMessage)
+  const [saving, setSaving] = React.useState<ReadonlySet<string>>(() => new Set())
+  const mark = (rowId: string, on: boolean) =>
+    setSaving((current) => {
+      const next = new Set(current)
+      if (on) next.add(rowId)
+      else next.delete(rowId)
+      return next
+    })
+  async function save(rowId: string, work: () => Promise<unknown>, done?: string) {
+    mark(rowId, true)
+    try {
+      return await run(work, done)
+    } finally {
+      mark(rowId, false)
+    }
+  }
+  return [save, (rowId: string) => saving.has(rowId)] as const
+}
+
 function WaitingCard({ asks, onOpenTask }: { asks: WaitingAsk[]; onOpenTask: (taskId: string) => void }) {
   const router = useRouter()
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  const [save, isSaving] = useRowSave()
   const [saying, setSaying] = React.useState<WaitingAsk | null>(null)
   if (asks.length === 0) return null
 
-  async function answer(work: () => Promise<unknown>, done: string) {
-    const ok = await run(work, done)
+  async function answer(taskId: string, work: () => Promise<unknown>, done: string) {
+    const ok = await save(taskId, work, done)
     if (ok) await router.invalidate()
     return ok
   }
@@ -199,17 +270,19 @@ function WaitingCard({ asks, onOpenTask }: { asks: WaitingAsk[]; onOpenTask: (ta
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={busy}
+                disabled={isSaving(ask.taskId)}
                 onClick={() =>
                   void answer(
+                    ask.taskId,
                     () => answerMoreTaskTime({ taskId: ask.taskId, answer: "yes" }),
                     `Yes. It's now due ${dayLabel(ask.day)}.`
                   )
                 }
               >
+                {isSaving(ask.taskId) ? <Loader2Icon className="size-4 animate-spin" /> : null}
                 Yes
               </Button>
-              <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setSaying(ask)}>
+              <Button type="button" variant="outline" size="sm" disabled={isSaving(ask.taskId)} onClick={() => setSaying(ask)}>
                 No
               </Button>
             </div>
@@ -223,11 +296,12 @@ function WaitingCard({ asks, onOpenTask }: { asks: WaitingAsk[]; onOpenTask: (ta
         label="Why not (optional)"
         confirmLabel="Say no"
         optional
-        busy={busy}
+        busy={saying ? isSaving(saying.taskId) : false}
         onClose={() => setSaying(null)}
         onConfirm={async (reason) => {
           if (!saying) return false
           const ok = await answer(
+            saying.taskId,
             () => answerMoreTaskTime({ taskId: saying.taskId, answer: "no", reason: reason.trim() || null }),
             "No. The date stays."
           )
@@ -280,27 +354,39 @@ function AttentionCard({ teams }: { teams: Cards["attention"] }) {
   )
 }
 
-function UnassignedCard({ tasks, onOpenTask }: { tasks: Cards["unassigned"]; onOpenTask: (taskId: string) => void }) {
+function UnassignedCard({
+  tasks,
+  rows,
+  onOpenTask,
+}: {
+  tasks: Cards["unassigned"]
+  rows: RowLook
+  onOpenTask: (taskId: string) => void
+}) {
   const router = useRouter()
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  const [save, isSaving] = useRowSave()
   if (tasks.length === 0) return null
   return (
     <PanelCard storageId="project-admin-unassigned" className={TONE.soon} title="No one on it" meta={tasks.length}>
       <Rows items={tasks}>
         {(task) => (
           <li key={task.taskId} className="grid gap-1.5">
-            <RowButton
+            <TaskRowButton
+              taskId={task.taskId}
+              projectId={task.projectId}
               title={task.title}
               line={[task.projectName, task.dueDate ? dayLabel(task.dueDate) : null].filter(Boolean).join(" · ")}
-              onClick={() => onOpenTask(task.taskId)}
+              rows={rows}
+              onOpenTask={onOpenTask}
             />
             <div className="px-2 pb-1">
               <Select
                 value=""
-                disabled={busy}
+                disabled={isSaving(task.taskId)}
                 onValueChange={(assigneeUserId) => {
                   const name = task.people.find((person) => person.userId === assigneeUserId)?.name ?? "them"
-                  void run(
+                  void save(
+                    task.taskId,
                     () => assignProjectTask({ taskId: task.taskId, assigneeUserId }),
                     `Handed to ${name}.`
                   ).then((ok) => (ok ? router.invalidate() : undefined))
@@ -326,13 +412,13 @@ function UnassignedCard({ tasks, onOpenTask }: { tasks: Cards["unassigned"]; onO
 }
 
 function InvitesCard({ invites }: { invites: Cards["invites"] }) {
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  const [save, isSaving] = useRowSave()
   if (invites.length === 0) return null
   return (
     <PanelCard storageId="project-admin-invites" className={TONE.soon} title="Invites not taken" meta={invites.length}>
       <Rows items={invites}>
         {(invite) => (
-          <li key={invite.userId} className="flex items-center gap-2 rounded-md px-2 py-1.5">
+          <li key={`${invite.teamId}:${invite.userId}`} className="flex items-center gap-2 rounded-md px-2 py-1.5">
             <span className="grid min-w-0 flex-1 gap-0.5">
               <span className="truncate text-sm">{invite.name}</span>
               <span className="truncate text-xs text-muted-foreground">
@@ -343,15 +429,16 @@ function InvitesCard({ invites }: { invites: Cards["invites"] }) {
               type="button"
               variant="outline"
               size="sm"
-              disabled={busy}
+              disabled={isSaving(`${invite.teamId}:${invite.userId}`)}
               onClick={() =>
-                void run(async () => {
+                void save(`${invite.teamId}:${invite.userId}`, async () => {
                   const sent = await resendTeamInvite(invite.userId, invite.teamId)
                   // With email off on this server, the link went to the server's log.
                   toast.success(sent.emailed ? `Sent again to ${invite.email}.` : "Made a new link. Email is off here, so it's in the server log.")
                 })
               }
             >
+              {isSaving(`${invite.teamId}:${invite.userId}`) ? <Loader2Icon className="size-4 animate-spin" /> : null}
               Resend
             </Button>
           </li>
@@ -361,12 +448,18 @@ function InvitesCard({ invites }: { invites: Cards["invites"] }) {
   )
 }
 
-function MeetingsCard({ meetings, zone }: { meetings: Cards["meetings"]; zone: string }) {
+/**
+ * Today's meetings, the one on now first with "Now" beside it, then the ones
+ * still to come, then the finished ones faded at the bottom. The card looks
+ * at the clock every 30 seconds, so a meeting moves down as it ends.
+ */
+function MeetingsCard({ meetings, zone, loadedAt }: { meetings: Cards["meetings"]; zone: string; loadedAt: string }) {
+  const nowMs = useNow(loadedAt)
   if (meetings.length === 0) return null
   return (
     <PanelCard storageId="project-admin-meetings" className={TONE.know} title="Meetings today" meta={meetings.length}>
-      <Rows items={meetings}>
-        {(meeting) => {
+      <Rows items={meetingsByNow(meetings, nowMs)}>
+        {({ meeting, when }) => {
           const day = localNow(new Date(meeting.startsAt), zone).day
           return (
             <li key={`${meeting.meetingId}-${meeting.startsAt}`}>
@@ -374,11 +467,12 @@ function MeetingsCard({ meetings, zone }: { meetings: Cards["meetings"]; zone: s
                 to="/teams/$teamId"
                 params={{ teamId: meeting.teamId }}
                 search={{ month: day.slice(0, 7), day }}
-                className={cn(ROW_CLASS, focusRingInset)}
+                className={cn(ROW_CLASS, when === "done" && "opacity-60", focusRingInset)}
               >
                 <span className="flex min-w-0 items-center gap-2 text-sm">
                   <ProjectDot color={meeting.color} />
                   <span className="truncate">{meeting.title}</span>
+                  {when === "now" ? <Badge variant="secondary">Now</Badge> : null}
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
                   {clockIn(meeting.startsAt, zone)} to {clockIn(meeting.endsAt, zone)} · {meeting.teamName}
@@ -396,12 +490,14 @@ function TaskListCard({
   storageId,
   title,
   tasks,
+  rows,
   line,
   onOpenTask,
 }: {
   storageId: string
   title: string
   tasks: TaskCard[]
+  rows: RowLook
   line: (task: TaskCard) => string
   onOpenTask: (taskId: string) => void
 }) {
@@ -411,7 +507,14 @@ function TaskListCard({
       <Rows items={tasks}>
         {(task) => (
           <li key={task.id}>
-            <RowButton title={task.title} line={line(task)} onClick={() => onOpenTask(task.id)} />
+            <TaskRowButton
+              taskId={task.id}
+              projectId={task.projectId}
+              title={task.title}
+              line={line(task)}
+              rows={rows}
+              onOpenTask={onOpenTask}
+            />
           </li>
         )}
       </Rows>
@@ -444,7 +547,15 @@ function MilestonesCard({ milestones }: { milestones: Cards["milestones"] }) {
   )
 }
 
-function DoneTodayCard({ people, onOpenTask }: { people: Cards["doneToday"]; onOpenTask: (taskId: string) => void }) {
+function DoneTodayCard({
+  people,
+  rows,
+  onOpenTask,
+}: {
+  people: Cards["doneToday"]
+  rows: RowLook
+  onOpenTask: (taskId: string) => void
+}) {
   if (people.length === 0) return null
   const total = people.reduce((sum, person) => sum + person.tasks.length, 0)
   return (
@@ -466,7 +577,14 @@ function DoneTodayCard({ people, onOpenTask }: { people: Cards["doneToday"]; onO
                 <ul className="grid gap-0.5 pl-3">
                   {person.tasks.map((task) => (
                     <li key={task.taskId}>
-                      <RowButton title={task.title} line={task.projectName} onClick={() => onOpenTask(task.taskId)} />
+                      <TaskRowButton
+                        taskId={task.taskId}
+                        projectId={task.projectId}
+                        title={task.title}
+                        line={task.projectName}
+                        rows={rows}
+                        onOpenTask={onOpenTask}
+                      />
                     </li>
                   ))}
                 </ul>

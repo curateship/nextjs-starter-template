@@ -46,7 +46,6 @@ export function DueDayPicker({
   "aria-invalid"?: boolean
 }) {
   const [open, setOpenState] = React.useState(defaultOpen)
-  const quick = useQuickDays(open)
   const setOpen = (next: boolean) => {
     setOpenState(next)
     onOpenChange?.(next)
@@ -107,32 +106,66 @@ export function DueDayPicker({
         trigger
       )}
       <PopoverContent className="w-auto p-0" align="start">
-        {quick ? (
-          <div className="grid grid-cols-2 gap-1 border-b p-2">
-            {quick.map((option) => (
-              <Button
-                key={option.key}
-                type="button"
-                variant={option.day === value ? "secondary" : "ghost"}
-                size="sm"
-                className="justify-between gap-2 font-normal"
-                aria-label={`${option.label}, ${longDayLabel(option.day)}`}
-                onClick={() => pick(option.day)}
-              >
-                {option.label}
-                <span className="text-xs text-muted-foreground">{dayLabel(option.day)}</span>
-              </Button>
-            ))}
-          </div>
-        ) : null}
-        <Calendar
-          mode="single"
-          autoFocus
-          selected={dateFromKey(value)}
-          defaultMonth={dateFromKey(value)}
-          onSelect={(date) => pick(keyFromDate(date))}
-        />
+        <DayChoices value={value} quickOn={open} onPick={pick} />
       </PopoverContent>
     </Popover>
+  )
+}
+
+/**
+ * The picker's insides: the quick days, then the month grid. A row that opens
+ * straight onto them uses it too, as the task ⋮'s Start day, Due date and
+ * Remind me do (Tyler, 6 Nov 2026: "It doesnt need 2 steps to select").
+ * `clearLabel` adds a button under the grid that empties the day.
+ */
+export function DayChoices({
+  value,
+  onPick,
+  quickOn = true,
+  clearLabel,
+}: {
+  value: string | null
+  onPick: (day: string | null) => void
+  /** Whether the quick days are worked out yet: only while the picker is open. */
+  quickOn?: boolean
+  clearLabel?: string
+}) {
+  const quick = useQuickDays(quickOn)
+  return (
+    <>
+      {quick ? (
+        <div className="grid grid-cols-2 gap-1 border-b p-2">
+          {quick.map((option) => (
+            <Button
+              key={option.key}
+              type="button"
+              variant={option.day === value ? "secondary" : "ghost"}
+              size="sm"
+              className="justify-between gap-2 font-normal"
+              aria-label={`${option.label}, ${longDayLabel(option.day)}`}
+              onClick={() => onPick(option.day)}
+            >
+              {option.label}
+              <span className="text-xs text-muted-foreground">{dayLabel(option.day)}</span>
+            </Button>
+          ))}
+        </div>
+      ) : null}
+      <Calendar
+        mode="single"
+        autoFocus
+        selected={dateFromKey(value)}
+        defaultMonth={dateFromKey(value)}
+        onSelect={(date) => onPick(keyFromDate(date))}
+      />
+      {clearLabel && value ? (
+        <div className="border-t p-2">
+          <Button type="button" variant="ghost" size="sm" className="w-full justify-start font-normal text-muted-foreground" onClick={() => onPick(null)}>
+            <XIcon className="size-4" />
+            {clearLabel}
+          </Button>
+        </div>
+      ) : null}
+    </>
   )
 }

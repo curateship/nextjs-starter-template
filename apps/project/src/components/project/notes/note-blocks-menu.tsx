@@ -59,10 +59,8 @@ export function NoteBlocksMenu({ blocks }: { blocks: NoteBlocks }) {
                     onClick={() => blocks.choose(item.key)}
                   >
                     <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <span className="grid">
-                      <span>{item.label}</span>
-                      <span className="text-xs text-muted-foreground">{item.hint}</span>
-                    </span>
+                    {/* The name alone, no line under it (Tyler, 6 Nov 2026: "remove all the sublabel"). */}
+                    <span>{item.label}</span>
                   </button>
                 )
               })}

@@ -551,6 +551,15 @@ const lateTasksSchema = z
   .min(1, "Type at least 1.")
   .max(LIMITS.lateTasks, `Type at most ${LIMITS.lateTasks}.`)
 
+/** A page of notes and "/" blocks, as kept: a project's left panel, or the site admin's My dashboard. */
+const pageNotesSchema = z
+  .unknown()
+  .transform((value) => storedTaskNotes(value))
+  .refine((notes) => notes.length <= LIMITS.taskNotes, "The page is too long. Split it up or attach a file to a task.")
+
+/** The site admin's own page at the top of My dashboard. */
+export const adminPageSchema = z.object({ notes: pageNotesSchema })
+
 export const updateProjectSchema = z.object({
   projectId: id,
   doingLimit: z
@@ -573,11 +582,7 @@ export const updateProjectSchema = z.object({
   /** A media library address, or "" to take the picture away. */
   bannerUrl: z.string().trim().max(2048).optional(),
   /** The left panel's page of notes and "/" blocks. */
-  notes: z
-    .unknown()
-    .transform((value) => storedTaskNotes(value))
-    .refine((notes) => notes.length <= LIMITS.taskNotes, "The page is too long. Split it up or attach a file to a task.")
-    .optional(),
+  notes: pageNotesSchema.optional(),
   /** Locks the page so it reads only, or unlocks it. */
   notesLocked: z.boolean().optional(),
   /** The category's name; empty takes it off. */

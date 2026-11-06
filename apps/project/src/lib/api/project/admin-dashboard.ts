@@ -1,10 +1,11 @@
 import { createServerFn } from "@tanstack/react-start"
 import type { z } from "zod"
 
-import { adminProjectListSchema, adminTimeZoneSchema, myStatusOrderSchema } from "@/lib/project/rules"
+import { adminPageSchema, adminProjectListSchema, adminTimeZoneSchema, myStatusOrderSchema } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
 import {
   loadAdminDashboard,
+  setAdminPage,
   setAdminProjectOrder,
   setAdminStatusOrder,
   setAdminTimeZone,
@@ -33,6 +34,11 @@ const setAdminTimeZoneFn = createServerFn({ method: "POST" })
   .inputValidator(adminTimeZoneSchema)
   .handler(async ({ data, context }) => setAdminTimeZone(context.user.id, data.timeZone))
 
+const setAdminPageFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(adminPageSchema)
+  .handler(async ({ data, context }) => setAdminPage(context.user.id, data.notes))
+
 const setAdminStatusOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(myStatusOrderSchema)
@@ -50,6 +56,10 @@ export function loadAdminDashboardPage() {
 /** The site admin's own time zone, from My settings. */
 export function saveAdminTimeZone(data: z.input<typeof adminTimeZoneSchema>) {
   return setAdminTimeZoneFn({ data })
+}
+/** The site admin's own page at the top of My dashboard. */
+export function saveAdminPage(notes: unknown) {
+  return setAdminPageFn({ data: { notes } })
 }
 /** The site admin's Board columns in their own order. */
 export function saveAdminStatusOrder(statusOrder: z.input<typeof myStatusOrderSchema>["statusOrder"]) {

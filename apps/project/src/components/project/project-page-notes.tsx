@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { NoteEditor, NoteView } from "@/components/project/notes/note-editor"
 import { useNotesBoxSetup } from "@/components/project/notes/note-setup"
+import { saveAdminPage } from "@/lib/api/project/admin-dashboard"
 import { saveProject } from "@/lib/api/project/projects"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import type { NoteNode } from "@/lib/project/note-blocks"
@@ -37,6 +38,27 @@ export function ProjectPageNotes({ projectId, notes, canWrite }: { projectId: st
 }
 
 /**
+ * The site admin's own page at the top of My dashboard's left panel, under
+ * the sky (Tyler, 6 Nov 2026: "add the tiptap editor with blocks ability under
+ * the banner"). One page that stays, like a project's, with the same "/"
+ * blocks, kept in their account. Only the site admin has it.
+ */
+export function AdminPageNotes({ page }: { page: string }) {
+  return (
+    <PageNoteEditor
+      stored={page}
+      canWrite
+      placeholder="Your page. Type / for links, a callout and more."
+      onSave={saveAdminPage}
+      // The panel's own 14px, so the hint and the writing match the cards around it
+      // (Tyler, 6 Nov 2026: "this label font is too big. should be the same size as
+      // the actual text"). A project's page keeps its 15px.
+      small
+    />
+  )
+}
+
+/**
  * A page of the project's own, written in place with the "/" blocks a project
  * may hold: the project's page above, and each of its notes
  * (`project-notes-panel.tsx`). It saves 700ms after the last letter and when
@@ -52,6 +74,7 @@ export function PageNoteEditor({
   onSave,
   onSaved,
   startFocused = false,
+  small = false,
 }: {
   stored: string
   canWrite: boolean
@@ -61,6 +84,8 @@ export function PageNoteEditor({
   onSaved?: (stored: string) => void
   /** Puts the cursor in it as it opens, for a note just made. */
   startFocused?: boolean
+  /** Writes at the panel's 14px instead of a page's 15px. */
+  small?: boolean
 }) {
   const setup = useNotesBoxSetup("project")
   const [start] = React.useState(() => notesForEditor(readTaskNotes(stored)))
@@ -125,7 +150,9 @@ export function PageNoteEditor({
         // A plain writing area, no box: the panel around it is the page.
         "[&_[data-note-box]>div:first-of-type]:rounded-none [&_[data-note-box]>div:first-of-type]:border-0 [&_[data-note-box]>div:first-of-type]:bg-transparent",
         "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-0 [&_.page-rte_.tiptap]:!pt-0 [&_.page-rte_.tiptap]:!pb-2",
-        "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]"
+        small
+          ? "[&_.page-rte_.tiptap]:!text-sm [&_.page-rte_.tiptap]:!leading-[1.6]"
+          : "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]"
       )}
       onBlur={(event) => {
         const next = event.relatedTarget

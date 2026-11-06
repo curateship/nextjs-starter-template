@@ -1,15 +1,18 @@
 import * as React from "react"
 import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
-import { BellIcon, CheckIcon, ClipboardCheckIcon, HeartIcon, PlusIcon, UndoIcon } from "lucide-react"
+import { BellIcon, BellRingIcon, CheckIcon, ClipboardCheckIcon, HeartIcon, PlusIcon, UndoIcon } from "lucide-react"
 
 import { ChatThread, TaskChatCard } from "@/components/project/task-chat"
 import { TaskFieldsCard, TaskTypeField } from "@/components/project/task-fields-card"
 import { TaskFileDrop, TaskFilesCard } from "@/components/project/task-files-card"
-import { TaskHistoryCard } from "@/components/project/task-history-card"
-import { LiveTaskNotes, type NotesHandle } from "@/components/project/task-notes"
+import { LiveTaskNotes, NoteVersionsList, type NotesHandle } from "@/components/project/task-notes"
 import { AskTimeCard, MoveTaskCard, ReminderCard, TaskMoreMenu } from "@/components/project/task-more-menu"
+import { TypeIconGlyph } from "@/components/project/task-type-icon"
+import { setReminder } from "@/lib/api/project/planning"
+import { saveTaskTypeOf } from "@/lib/api/project/task-types"
 import { PanelCardFooter } from "@/components/project/panel-card"
+import { PickDayRow, PickGroup, PickMenuRow, PickRow } from "@/components/project/pick-rows"
 import { StepListActions } from "@/components/project/step-list-actions"
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { TaskPlanCard } from "@/components/project/task-plan-card"
@@ -31,6 +34,7 @@ import {
   WaitingBadge,
 } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -72,7 +76,6 @@ import type { NoteNode } from "@/lib/project/note-blocks"
 import { plural } from "@/lib/format/plural"
 import { localTimeOf, momentOnDay } from "@/lib/project/dates"
 import { clockLabel, dayLabel, shortDayLabel } from "@/lib/project/days"
-import { OptionCard } from "@/components/project/option-card"
 import { setProjectTaskLink } from "@/lib/api/project/linked-records"
 import { LINKED_APP_INFO } from "@/lib/project/linked-records"
 import { dayOffNote } from "@/lib/project/days-off"
@@ -99,6 +102,14 @@ const authenticatedRoute = getRouteApi("/_authenticated")
 const NOBODY = "nobody"
 
 /** The one question before deleting a task, in the window and in the right panel alike. */
+
+/** Nothing to close: the Versions tab stays open after a Bring back. */
+const NOTHING = () => undefined
+
+
+/** The Template list's "No template", which the save sends as none. */
+const NO_TEMPLATE = "none"
+
 export const DELETE_TASK_QUESTION = "Delete this task?"
 export const DELETE_TASK_DETAIL = `It moves to the project's bin with its steps, chat and files, and can be brought back for ${BIN_DAYS} days.`
 
@@ -164,18 +175,14 @@ export type TaskSide = {
   notices: React.ReactNode
   /**
    * The notes, the panel's own body under the title, always open to type in
-   * (Misc 4, 28 Oct 2026). The header's ⋮ shows the text toolbar
-   * (`toolbar`), the toolbar's × hides it (`onToolbar`), and the ⋮ reaches
-   * Earlier versions and Delete through `handle`.
+   * (Misc 4, 28 Oct 2026). The header's ⋮ reaches Delete through `handle`.
    */
   notes: {
     empty: boolean
-    field: (options: {
-      toolbar: boolean
-      onToolbar: (shown: boolean) => void
-      handle: React.Ref<NotesHandle>
-    }) => React.ReactNode
+    field: (options: { handle: React.Ref<NotesHandle> }) => React.ReactNode
   }
+  /** The ⋮'s Versions tab: the notes' earlier versions, with Bring back. */
+  versions: React.ReactNode
   /**
    * `meta` is "0 of 2 done", or null with no steps. `content` is the steps
    * and their footer; `add` is the Add a step row and the step-list buttons,
@@ -198,16 +205,12 @@ export type TaskSide = {
    * there's nothing to tick or read.
    */
   review: React.ReactNode
-  /** The cog's History tab, as a card. */
-  history: React.ReactNode
-  detail: TaskDetail
+    detail: TaskDetail
   readOnly: boolean
   /** The ⋮'s Lock the notes row; null when the task can't change. */
   notesLock: { locked: boolean; toggle: () => void } | null
   /** Opens the Move to project card at the top of the panel. */
   move: () => void
-  /** Opens the Remind me card at the top of the panel. */
-  remind: () => void
   /** Opens the Ask for more time card at the top of the panel (Seven features, part 2). */
   askTime: () => void
 }
@@ -1032,7 +1035,6 @@ function TaskForm({
     />
   ) : null
   const planCard = <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} />
-  const historyCard = <TaskHistoryCard detail={detail} />
   const stepsTitle = `Steps${detail.steps.length ? ` · ${detail.steps.filter((step) => step.done).length} of ${detail.steps.length} done` : ""}`
   const steps = <StepsContent detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} busy={busy} />
 
@@ -1070,7 +1072,6 @@ function TaskForm({
       </Card>
       <TaskFilesCard detail={detail} readOnly={readOnly} refresh={refresh} change={change} />
       <TaskChatCard detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} room={room} />
-      {historyCard}
     </>
   )
 
@@ -1112,7 +1113,7 @@ function TaskForm({
     ),
     notes: {
       empty: taskNotesAreEmpty(readTaskNotes(task.notes)),
-      field: ({ toolbar, onToolbar, handle }) => (
+      field: ({ handle }) => (
         <LiveTaskNotes
           key={notesKey}
           notes={task.notes}
@@ -1120,12 +1121,11 @@ function TaskForm({
           onSave={saveNotes}
           task={noteLinks}
           panel
-          toolbar={toolbar}
-          onToolbar={onToolbar}
           handle={handle}
         />
       ),
     },
+    versions: <NoteVersionsList taskId={task.id} readOnly={notesReadOnly} change={change} onClose={NOTHING} bare />,
     steps: {
       count: detail.steps.length,
       meta: detail.steps.length
@@ -1198,87 +1198,204 @@ function TaskForm({
         Needs review: {task.review.reviewer.name} checks it once it's Done.
       </p>
     ) : null,
+    // Grouped lists, as Tyler drew the ⋮'s General tab (6 Nov 2026,
+    // `assets/pasted-image-1793985847218883000.png`): each row its name and value,
+    // opening its own field. Plan, not in the drawing, is the last row of Details.
     settings: (
-      <>
-        <OptionCard
-          id="task-settings-person"
+      <div className="grid gap-5">
+        {/* One press picks (Tyler, 6 Nov 2026: "It doesnt need 2 steps to select"): a
+            list or a calendar opens straight from the row. Only a typed address and the
+            Plan card open a box. */}
+        <PickGroup
           title="Person"
-          description="Who does it. Handing it to someone else waits for them to accept."
-          summary={task.assignee ? `${task.assignee.name}${task.waiting ? " · waiting" : ""}` : "Nobody"}
+          after={
+            <>
+              {handoverRow}
+              {handBackButton}
+              {!task.assignee && task.formerAssigneeName ? (
+                <p className="px-0.5 text-xs text-muted-foreground">
+                  Was assigned to {task.formerAssigneeName}, who is no longer on the project.
+                </p>
+              ) : null}
+            </>
+          }
         >
-          {assigneeField}
-          {handoverRow}
-          {handBackButton}
-        </OptionCard>
-        <OptionCard
-          id="task-settings-dates"
+          <PickMenuRow
+            label="Assigned to"
+            disabled={readOnly || busy}
+            empty={!task.assignee}
+            selected={handingTo?.id ?? task.assignee?.id ?? NOBODY}
+            onPick={pickAssignee}
+            options={[
+              { value: NOBODY, label: "Nobody" },
+              ...detail.assignable.map((person) => ({
+                value: person.id,
+                label: (
+                  <>
+                    <PersonAvatar name={person.name} avatarUrl={person.avatarUrl} size="sm" />
+                    {person.id === myUserId ? `${person.name} (you)` : person.name}
+                  </>
+                ),
+              })),
+            ]}
+            value={
+              task.assignee ? (
+                <>
+                  <PersonAvatar name={task.assignee.name} avatarUrl={task.assignee.avatarUrl} size="sm" />
+                  <span className="truncate">
+                    {task.assignee.name}
+                    {task.assignee.id === myUserId ? " (you)" : ""}
+                    {task.waiting ? " · waiting" : ""}
+                  </span>
+                </>
+              ) : (
+                "Nobody"
+              )
+            }
+          />
+        </PickGroup>
+        <PickGroup
           title="Dates"
-          description="When it starts and when it's due. A time makes it overdue from that minute."
-          summary={datesSummary(task)}
+          after={
+            <>
+              {task.dueMoves ? (
+                <div className="px-0.5">
+                  <DueMovesMark moves={task.dueMoves} status={task.status} />
+                </div>
+              ) : null}
+              {!isOpenStatus(task.status) ? null : <DayOffNote note={dayOffNote(daysOff, task.dueDate, task.assignee)} />}
+            </>
+          }
         >
-          {startField}
-          {dueField}
-          {dueByField}
-        </OptionCard>
-        <OptionCard
-          id="task-settings-sorting"
-          title="Priority and template"
-          description="How it's sorted and found: its priority and the kind of task. Its tags are under its title."
-          summary={[TASK_PRIORITY_LABEL[task.priority], task.type?.name]
-            .filter(Boolean)
-            .join(" · ")}
+          <PickDayRow
+            label="Start day"
+            disabled={readOnly || busy}
+            empty={!task.startDate}
+            value={task.startDate ? dayLabel(task.startDate) : "None"}
+            day={task.startDate}
+            clearLabel="Clear the start day"
+            onPick={(startDate) => void change(() => saveTask({ taskId: task.id, startDate }))}
+          />
+          <PickDayRow
+            label="Due date"
+            disabled={readOnly || busy}
+            empty={!task.dueDate}
+            value={task.dueDate ? dayLabel(task.dueDate) : "None"}
+            day={task.dueDate}
+            clearLabel="Clear the due date"
+            onPick={(dueDate) => void change(() => saveTask({ taskId: task.id, dueDate }))}
+          />
+          {/* A time on the due day, typed, so it keeps a box of its own. */}
+          {task.dueDate ? (
+            <PickRow
+              label="Due by"
+              disabled={readOnly || busy}
+              empty={!task.dueAt}
+              value={task.dueAt ? clockLabel(localTimeOf(task.dueAt)) : "None"}
+            >
+              {dueByField}
+            </PickRow>
+          ) : null}
+          {/* Under the dates (Tyler, 6 Nov 2026: "put reminds me under here"); it was a tab. */}
+          {readOnly ? null : (
+            <PickDayRow
+              label="Remind me"
+              disabled={busy}
+              empty={!detail.myReminder}
+              value={detail.myReminder ? dayLabel(detail.myReminder) : "None"}
+              day={detail.myReminder}
+              clearLabel="No reminder"
+              onPick={(day) =>
+                void change(
+                  () => setReminder(task.id, day),
+                  day ? `You'll get a reminder on ${shortDayLabel(day)}, at your check-in time.` : "No reminder."
+                )
+              }
+            />
+          )}
+        </PickGroup>
+        <PickGroup
+          title="Details"
+          after={
+            !readOnly && !detail.fields.canChangeType && detail.fields.typeChoices.length ? (
+              <p className="px-0.5 text-xs text-muted-foreground">{PROJECT_ERRORS.cantChangeType}</p>
+            ) : null
+          }
         >
-          {priorityField}
-          {typeField}
-        </OptionCard>
-        {detail.fields.type?.fields.length ? (
-          <OptionCard
-            id="task-settings-fields"
-            title={detail.fields.type.name}
-            description="What this kind of task asks for."
-            summary={`${detail.fields.type.fields.length} ${plural(detail.fields.type.fields.length, "field")}`}
-          >
-            <div className={INNER_CARD}>{fieldsCard}</div>
-          </OptionCard>
-        ) : null}
-        {linkField ? (
-          <OptionCard
-            id="task-settings-link"
-            title="Video or Promo"
-            description="The one record in Video or Promo this task opens, for the person assigned."
-            summary={detail.link ? LINKED_APP_INFO[detail.link.app].record : "None"}
-          >
-            {linkField}
-          </OptionCard>
-        ) : null}
-        <OptionCard
-          id="task-settings-plan"
-          title="Plan"
-          description="What happens next: its milestone, repeating, snoozing, what it waits on, and your own reminder."
-          summary={planSummary(detail)}
-        >
-          <div className={INNER_CARD}>{planCard}</div>
-        </OptionCard>
-      </>
+          <PickMenuRow
+            label="Priority"
+            disabled={readOnly || busy}
+            value={TASK_PRIORITY_LABEL[task.priority]}
+            selected={task.priority}
+            onPick={(value) => void change(() => saveTask({ taskId: task.id, priority: value as TaskPriority }))}
+            options={TASK_PRIORITIES.map((priority) => ({ value: priority, label: TASK_PRIORITY_LABEL[priority] }))}
+          />
+          {detail.fields.typeChoices.length || detail.fields.type ? (
+            <PickMenuRow
+              label="Template"
+              disabled={readOnly || busy || !detail.fields.canChangeType}
+              empty={!detail.fields.type}
+              value={detail.fields.type?.name ?? "No template"}
+              selected={detail.fields.type?.id ?? NO_TEMPLATE}
+              onPick={(value) => void change(() => saveTaskTypeOf(task.id, value === NO_TEMPLATE ? null : value))}
+              options={[
+                { value: NO_TEMPLATE, label: "No template" },
+                ...detail.fields.typeChoices.map((choice) => ({
+                  value: choice.id,
+                  label: (
+                    <>
+                      <TypeIconGlyph icon={choice.icon} color={choice.color} />
+                      {choice.name}
+                      {choice.archived ? <span className="text-muted-foreground"> (archived)</span> : null}
+                    </>
+                  ),
+                })),
+              ]}
+            />
+          ) : null}
+          {detail.fields.type?.fields.length ? (
+            <PickRow
+              label={detail.fields.type.name}
+              value={`${detail.fields.type.fields.length} ${plural(detail.fields.type.fields.length, "field")}`}
+            >
+              <div className={INNER_CARD}>{fieldsCard}</div>
+            </PickRow>
+          ) : null}
+          {linkField ? (
+            <PickRow label="Video or Promo" empty={!detail.link} value={detail.link ? LINKED_APP_INFO[detail.link.app].record : "None"}>
+              {linkField}
+            </PickRow>
+          ) : null}
+          <PickRow label="Plan" empty={planSummary(detail) === "Nothing set"} value={planSummary(detail)}>
+            <div className={INNER_CARD}>{planCard}</div>
+          </PickRow>
+        </PickGroup>
+      </div>
     ),
-    history: historyCard,
+    // A bell alone in the panel's header beside the ⋮ (Tyler, 6 Nov 2026: "move the
+    // bell follow here (just add the icon only)"): ringing while followed.
     followButton: (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        aria-pressed={detail.following}
-        disabled={busy}
-        onClick={() =>
-          void change(
-            () => followProjectTask(task.id, !detail.following),
-            detail.following ? "You stopped following this task." : "You're following this task."
-          )
-        }
-      >
-        {detail.following ? <CheckIcon className="size-4" /> : <BellIcon className="size-4" />}
-        {detail.following ? "Following" : "Follow"}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={detail.following ? "Following. Stop following" : "Follow this task"}
+            aria-pressed={detail.following}
+            disabled={busy}
+            onClick={() =>
+              void change(
+                () => followProjectTask(task.id, !detail.following),
+                detail.following ? "You stopped following this task." : "You're following this task."
+              )
+            }
+          >
+            {detail.following ? <BellRingIcon className="size-4" /> : <BellIcon className="size-4" />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{detail.following ? "Following. Press to stop" : "Follow this task"}</TooltipContent>
+      </Tooltip>
     ),
     detail,
     readOnly,
@@ -1293,7 +1410,6 @@ function TaskForm({
             ),
         },
     move: () => setMoving(true),
-    remind: () => setReminding(true),
     askTime: () => setAskingTime(true),
   }
 
@@ -1345,18 +1461,9 @@ function TaskForm({
   })
 }
 
-/** A card's own frame and heading, dropped inside an OptionCard that already names it. */
+/** A card's own frame and heading, dropped inside a row's box that already names it. */
 const INNER_CARD =
   "[&_[data-slot=card]]:rounded-none [&_[data-slot=card]]:bg-transparent [&_[data-slot=card]]:py-0 [&_[data-slot=card]]:ring-0 [&_[data-slot=card-content]]:!px-0 [&_[data-slot=card-header]]:hidden"
-
-/** "Oct 12 to Oct 19", "Due Oct 19 by 3:06 PM", or "No dates", for the Dates card. */
-function datesSummary(task: TaskDetail["task"]) {
-  const due = task.dueDate ? `${dayLabel(task.dueDate)}${task.dueAt ? ` by ${clockLabel(localTimeOf(task.dueAt))}` : ""}` : null
-  if (task.startDate && due) return `${dayLabel(task.startDate)} to ${due}`
-  if (due) return `Due ${due}`
-  if (task.startDate) return `Starts ${dayLabel(task.startDate)}`
-  return "No dates"
-}
 
 /** What the Plan holds, in a few words, or "Nothing set". */
 function planSummary(detail: TaskDetail) {

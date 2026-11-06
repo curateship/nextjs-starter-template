@@ -2,12 +2,13 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { PERSONAL_PROJECT_ID } from "@/lib/project/rules"
+import { adminPageSchema, PERSONAL_PROJECT_ID } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
 import { inTeam } from "@/server/project/access"
 import {
   FINISHED_DAYS,
   loadAdminDashboard,
+  setAdminPage,
   setAdminProjectOrder,
   setAdminStatusOrder,
   setAdminTimeZone,
@@ -154,6 +155,17 @@ describe("the middle", () => {
   it("is the site admin's alone", async () => {
     await expect(loadAdminDashboard(ben.id, database, NOON)).rejects.toThrow()
     await expect(setAdminTimeZone(ben.id, "UTC", database)).rejects.toThrow()
+    await expect(setAdminPage(ben.id, "", database)).rejects.toThrow()
+  })
+
+  it("keeps his own page under the sky, as the save sends it, and an emptied one as nothing", async () => {
+    expect((await loadAdminDashboard(tyler.id, database, NOON)).page).toBe("")
+    const body = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Ship the redesign" }] }] }
+    // Through the same check the save goes through, as the browser sends it.
+    await setAdminPage(tyler.id, adminPageSchema.parse({ notes: body }).notes, database)
+    expect((await loadAdminDashboard(tyler.id, database, NOON)).page).toContain("Ship the redesign")
+    await setAdminPage(tyler.id, adminPageSchema.parse({ notes: { type: "doc", content: [{ type: "paragraph" }] } }).notes, database)
+    expect((await loadAdminDashboard(tyler.id, database, NOON)).page).toBe("")
   })
 
   it("keeps views under his own id, which nobody else can use", async () => {

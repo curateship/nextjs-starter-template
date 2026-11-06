@@ -1156,6 +1156,11 @@ export const projectSiteAdminPrefs = pgTable("project_site_admin_prefs", {
    * empty is late first (`drizzle/0136_project_admin_project_cards.sql`).
    */
   projectOrder: text("project_order").array().notNull().default([]),
+  /**
+   * Their own page of notes and "/" blocks at the top of My dashboard's left
+   * panel, as saved, or "" (`drizzle/0149_project_admin_page.sql`).
+   */
+  notes: text("notes").notNull().default(""),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 

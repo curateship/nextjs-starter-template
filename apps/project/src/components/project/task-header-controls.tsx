@@ -19,8 +19,25 @@ import { cn } from "@/lib/utils"
  * The search as a magnifying glass that opens into the box. It stays open
  * while something is typed; Escape empties and closes it.
  */
-export function SearchToggle({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const [open, setOpen] = React.useState(false)
+export function SearchToggle({
+  value,
+  onChange,
+  open: openFromMenu,
+  onOpenChange,
+}: {
+  value: string
+  onChange: (value: string) => void
+  /**
+   * Opened from a menu instead of its own button, as in My tasks' ⋮ (Tyler,
+   * 6 Nov 2026): then only the box is drawn, while open or holding words.
+   */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
+  const [ownOpen, setOwnOpen] = React.useState(false)
+  const fromMenu = openFromMenu !== undefined
+  const open = fromMenu ? openFromMenu : ownOpen
+  const setOpen = (next: boolean) => (fromMenu ? onOpenChange?.(next) : setOwnOpen(next))
   if (open || value) {
     return (
       <DashboardToolbarSearch
@@ -40,6 +57,7 @@ export function SearchToggle({ value, onChange }: { value: string; onChange: (va
       />
     )
   }
+  if (fromMenu) return null
   return (
     <Tooltip>
       <TooltipTrigger asChild>

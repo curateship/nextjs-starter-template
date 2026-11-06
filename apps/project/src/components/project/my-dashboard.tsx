@@ -1,18 +1,18 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { SettingsIcon } from "lucide-react"
 
 import { CheckinDialog, StatusLine } from "@/components/project/checkin-dialog"
 import { CheckoutDialog } from "@/components/project/checkout-dialog"
-import { DailyCard, DailyEditButton, DailySkyBanner, useDailyNow } from "@/components/project/daily-card"
+import { DailyCard, DailySkyBanner, useDailyNow } from "@/components/project/daily-card"
 import { DailyCityField } from "@/components/project/daily-city-field"
+import { DailyHoursSetting } from "@/components/project/daily-settings"
 import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
+import { MySettingsMenu, SettingRow } from "@/components/project/my-settings-menu"
 import { MyTasksPanel } from "@/components/project/my-tasks-panel"
 import { MyWeekSection } from "@/components/project/my-week-card"
 import { MyCheckinTime } from "@/components/project/my-checkin-time"
 import { MyNoticeSwitches } from "@/components/project/my-notice-switches"
 import { SaveLine } from "@/components/project/save-line"
-import { OptionCard } from "@/components/project/option-card"
 import { PanelCard } from "@/components/project/panel-card"
 import { PersonPages } from "@/components/project/person-pages"
 import { PersonAvatar, TintChip } from "@/components/project/task-bits"
@@ -24,13 +24,10 @@ import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { orderMyPicks, saveMyStatusOrder, type MyDashboard as MyDashboardData } from "@/lib/api/project/checkins"
 import type { DailyCard as DailyCardData } from "@/lib/api/project/daily-card"
 import { saveMemberTitle } from "@/lib/api/project/team-running"
-import { formatDate } from "@/lib/format/format-time"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { MY_DASHBOARD_PANEL_LAYOUT_KEY, MY_OPEN_TASK_KEY } from "@/lib/project/panel-keys"
@@ -251,8 +248,7 @@ function MePanel({
             {[me.title, me.teamName].filter(Boolean).join(" · ")}
           </span>
         </div>
-        <DailyEditButton daily={daily} />
-        <MySettingsMenu dashboard={dashboard} city={daily.settings.city} />
+        <EmployeeSettingsMenu dashboard={dashboard} daily={daily} />
       </DashboardCardHeader>
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
         <div className={cn("grid", PANEL_GUTTER)}>
@@ -328,82 +324,46 @@ function MePanel({
 }
 
 /**
- * The cog beside my name: my email and the day I joined, my job title, my own
- * check-in time and zone, and which notices reach my bell. Each saves on its
- * own, as before, in a dropdown like a task's cog.
+ * My settings behind the ⋮ beside my name (Tyler, 6 Nov 2026, the same as the
+ * site admin's). General: my job title, my own
+ * check-in time and zone, my weather city and my hours, which the Daily card's
+ * pencil window held until that day. Notifications: which notices reach my
+ * bell. Each saves on its own.
  */
-function MySettingsMenu({ dashboard, city }: { dashboard: MyDashboardData; city: string | null }) {
+function EmployeeSettingsMenu({ dashboard, daily }: { dashboard: MyDashboardData; daily: DailyCardData }) {
   const { me, checkin } = dashboard
-  const [open, setOpen] = React.useState(false)
-  // Leaving a field saves it, so closing first leaves the field being typed in.
-  function change(next: boolean) {
-    if (!next && document.activeElement instanceof HTMLElement) document.activeElement.blur()
-    setOpen(next)
-  }
   return (
-    <Popover open={open} onOpenChange={change}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="My settings"
-              className={cn(open && "bg-muted")}
-            >
-              <SettingsIcon className="size-4" />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>My settings</TooltipContent>
-      </Tooltip>
-      <PopoverContent
-        align="start"
-        collisionPadding={16}
-        aria-label="My settings"
-        className="w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
-      >
-        <ScrollArea className="min-h-0" viewportClassName="max-h-[min(75vh,44rem)]">
-          {/* Each setting a flat row that folds open, its answer on the right (Tyler, 14 and 20 Oct 2026). */}
-          <div className="grid">
-            <p className="border-b px-4 py-3 text-sm text-muted-foreground">
-              {me.email} · joined {formatDate(me.joinedAt)}
-            </p>
-            <OptionCard
-              id="my-settings-title"
-              title="Job title"
-              description="Shown beside your name to the rest of the team."
-              summary={me.title || "None"}
-            >
-              <MyJobTitle title={me.title} />
-            </OptionCard>
-            <OptionCard
-              id="my-settings-checkin"
-              title="Check-in time"
-              summary={`${clockLabel(checkin.clock.time)}, ${checkin.clock.zone.replaceAll("_", " ")}`}
-            >
-              <MyCheckinTime clock={checkin.clock} />
-            </OptionCard>
-            <OptionCard
-              id="my-settings-city"
-              title="City for the weather"
-              description="The Daily card's sky shows the weather there."
-              summary={city ?? "None"}
-            >
-              <DailyCityField city={city} />
-            </OptionCard>
-            <OptionCard
-              id="my-settings-notices"
-              title="Bell notices"
-              summary={dashboard.noticesOff.length ? `${dashboard.noticesOff.length} off` : "All on"}
-            >
+    <MySettingsMenu
+      tabs={[
+        {
+          value: "general",
+          label: "General",
+          content: (
+            <>
+              <SettingRow title="Job title" description="Shown beside your name to the rest of the team.">
+                <MyJobTitle title={me.title} />
+              </SettingRow>
+              <SettingRow title="Check-in time">
+                <MyCheckinTime clock={checkin.clock} />
+              </SettingRow>
+              <SettingRow title="City for the weather" description="The Daily card's sky shows the weather there.">
+                <DailyCityField city={daily.settings.city} />
+              </SettingRow>
+              <DailyHoursSetting hours={daily.settings.hours} />
+            </>
+          ),
+        },
+        {
+          value: "notifications",
+          label: "Notifications",
+          content: (
+            <div className="px-4 py-3">
               <MyNoticeSwitches off={dashboard.noticesOff} />
-            </OptionCard>
-          </div>
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
+            </div>
+          ),
+        },
+      ]}
+    />
   )
 }
 

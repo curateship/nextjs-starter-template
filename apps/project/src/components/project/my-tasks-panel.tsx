@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { AlarmClockIcon, CheckCheckIcon, Loader2Icon, PlusIcon } from "lucide-react"
+import { AlarmClockIcon, CheckCheckIcon, EllipsisVerticalIcon, ListChecksIcon, Loader2Icon, PlusIcon, SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CatchUpDialog } from "@/components/project/catch-up-dialog"
@@ -19,6 +19,8 @@ import { TaskTimeline } from "@/components/project/task-timeline"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import type { SavedView } from "@/lib/api/project/finding"
 import type { Label } from "@/lib/api/project/sorting"
@@ -45,16 +47,20 @@ import {
   isTaskStatus,
   PERSONAL_PROJECT_ID,
   PERSONAL_PROJECT_NAME,
+  type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
+import { saveTaskLabels } from "@/lib/api/project/sorting"
+import { saveTaskTypeOf } from "@/lib/api/project/task-types"
 import { pickedWordsUnder, readRightClick } from "@/lib/project/right-click"
 import { viewHasFilters } from "@/lib/project/saved-views"
-import { MY_GROUPINGS, MY_GROUPING_LABEL, groupMyTasks, type MyGrouping } from "@/lib/project/task-groups"
+import { MY_GROUPINGS, MY_GROUPING_LABEL, canMoveInGroup, groupMyTasks, type MyGrouping, type TaskGrouping } from "@/lib/project/task-groups"
 import {
   DUE_GROUPS,
   dueGroupOf,
   filterTasks,
   hasTaskFilters,
+  NO_TASK_FILTERS,
   type TaskFilters,
 } from "@/lib/project/task-filters"
 import type { TaskType } from "@/lib/project/task-types"
@@ -146,6 +152,12 @@ export function MyTasksPanel({
   const snoozed = notDone.length - open.length
   const done = tasks.filter((task) => task.status === "done")
   const [view, setView] = useRememberedChoice<MyView>(MY_TASK_VIEW_KEY, "list", MY_VIEWS)
+  // Both opened from the header's ⋮.
+  const [searchOpen, setSearchOpen] = React.useState(false)
+  const searchFromMenu = React.useRef(false)
+  const [massSelectOn, setMassSelectOn] = React.useState(false)
+  // The row whose right-click turned Mass select on, ticked as it starts.
+  const [tickOnStart, setTickOnStart] = React.useState<string | null>(null)
   const [grouping, setGrouping] = useRememberedChoice<MyGrouping>(MY_TASK_GROUPING_KEY, "mine", MY_GROUPINGS)
   const [statusOrder, setStatusOrder] = useSyncedDraft(source.statusOrder)
   // The task waiting for its Stuck reason, from a Board drop.
@@ -231,6 +243,56 @@ export function MyTasksPanel({
       setMyOrder(beforeOrder)
     }
     await router.invalidate()
+  }
+
+  /**
+   * A row let go under another heading while the List is grouped by Status,
+   * Priority, Due date, Type or Tags (Tyler, 6 Nov 2026: "mass select does not
+   * have draggability", grouped by Priority). It takes that heading's value,
+   * as on a project's List: a status (Stuck asks why first), a priority, a due
+   * date, a type, or that tag in place of the one it left. These groupings
+   * keep no order of their own, so a drop inside its own heading does nothing.
+   * Shows at once and goes back if the server refuses.
+   */
+  async function dropGrouped(drop: ListDrop) {
+    const task = tasks.find((t) => t.id === drop.taskId)
+    if (!task || drop.from === drop.to) return
+    const none = drop.to === "none"
+    async function moveField(patch: Partial<TaskCard>, save: () => Promise<unknown>) {
+      const before = tasks
+      setTasks((current) => current.map((t) => (t.id === task!.id ? { ...t, ...patch } : t)))
+      const ok = await run(save)
+      if (!ok) setTasks(before)
+      await router.invalidate()
+    }
+    switch (grouping) {
+      case "status": {
+        const status = drop.to as TaskStatus
+        if (status === "stuck") return setStuck(task)
+        return void changeStatus(task, status, null)
+      }
+      case "priority": {
+        const priority = drop.to as TaskPriority
+        return moveField({ priority }, () => saveTask({ taskId: task.id, priority }))
+      }
+      case "due": {
+        const change = dropChange(drop.to, myDay)
+        if (!change || !("dueDate" in change)) return
+        return moveField({ dueDate: change.dueDate, dueAt: null }, () => saveTask({ taskId: task.id, dueDate: change.dueDate }))
+      }
+      case "type": {
+        const type = none ? null : source.taskTypes.find((t) => t.id === drop.to)
+        if (type === undefined) return
+        return moveField({ type }, () => saveTaskTypeOf(task.id, type?.id ?? null))
+      }
+      case "tags": {
+        const labels = [
+          ...task.labels.filter((label) => label.id !== drop.from),
+          ...source.labels.filter((label) => label.id === drop.to),
+        ]
+        return moveField({ labels }, () => saveTaskLabels(task.id, labels.map((label) => label.id)))
+      }
+    }
   }
 
   /** Each waiting task is accepted on its own; one that changed hands is refused alone. */
@@ -385,6 +447,16 @@ export function MyTasksPanel({
   }
 
   const filtered = hasTaskFilters(filters)
+  // A button in the message itself, so nobody has to hunt for Filter and the
+  // search to get every task back (polish, Tyler, 6 Nov 2026).
+  const noMatch = (
+    <span className="grid justify-items-start gap-2">
+      <span>No tasks match {filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}.</span>
+      <Button type="button" variant="outline" size="sm" onClick={() => onFilters(NO_TASK_FILTERS)}>
+        Clear filters
+      </Button>
+    </span>
+  )
   // The List: today's picks first, in my own order, then my open tasks under
   // when they are due, then Done. Under each heading the tasks I placed come
   // in my order and the rest after them by due date. A pick is listed once,
@@ -412,7 +484,18 @@ export function MyTasksPanel({
   const listGroups = regrouped?.groups
   const listGroupsOf = regrouped?.groupsOf
   // Dragging is off while a search or filter hides rows, and while a change saves.
-  const onDrop = filtered || busy || regrouped ? undefined : (drop: ListDrop) => void dropRow(drop)
+  // Grouped by Assignee or Project a drop would hand the task over or move it to
+  // another project, so those groupings don't drag.
+  const groupDrags = grouping === "status" || grouping === "priority" || grouping === "due" || grouping === "type" || grouping === "tags"
+  const onDrop =
+    filtered || busy || (regrouped && !groupDrags)
+      ? undefined
+      : regrouped
+        ? (drop: ListDrop) => void dropGrouped(drop)
+        : (drop: ListDrop) => void dropRow(drop)
+  const canMoveHere = regrouped
+    ? (from: string, to: string, task: TaskCard) => from !== to && canMoveInGroup(grouping as TaskGrouping, to, task)
+    : canMove
   const rowIds = listRows.map((task) => task.id).join(",")
   React.useEffect(() => {
     onRows(rowIds ? rowIds.split(",") : [])
@@ -431,7 +514,11 @@ export function MyTasksPanel({
       <DashboardCardHeader className="@container">
         <DashboardTabs
           value={view}
-          onValueChange={(value) => setView(value as MyView)}
+          onValueChange={(value) => {
+            setView(value as MyView)
+            // Mass select belongs to the List; leaving it turns it off.
+            setMassSelectOn(false)
+          }}
           tabs={[
             { value: "list", label: "List" },
             { value: "board", label: "Board" },
@@ -442,7 +529,12 @@ export function MyTasksPanel({
         <div className="flex shrink-0 items-center gap-1">
           {/* The site admin's List puts its "3 selected" button here, left of the search, as a project page does. */}
           {view === "list" && source.table ? <div ref={setSelectedSlot} className="contents" /> : null}
-          <SearchToggle value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
+          <SearchToggle
+            value={filters.q ?? ""}
+            onChange={(q) => onFilters({ q: q || undefined })}
+            open={searchOpen}
+            onOpenChange={setSearchOpen}
+          />
           <TaskFilterPopover
             filters={filters}
             onChange={onFilters}
@@ -489,6 +581,52 @@ export function MyTasksPanel({
               </Button>
             )}
           </NewTaskWithProjectPicker>
+          {/* Search and Mass select live behind a ⋮ after New task (Tyler, 6 Nov 2026: "Add
+              the 3 dot icon here and move mass select and search under its dropdown"). Mass
+              select is the site admin's table's own, so only their List offers it. */}
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" aria-label="More for My tasks" className="size-8">
+                    <EllipsisVerticalIcon className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Search and Mass select</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent
+              align="end"
+              // Picking Search opens its box once the menu has closed, so the cursor lands in
+              // the box rather than back on the ⋮ (the open menu keeps the focus to itself).
+              onCloseAutoFocus={(event) => {
+                if (!searchFromMenu.current) return
+                event.preventDefault()
+                searchFromMenu.current = false
+                setSearchOpen(true)
+              }}
+            >
+              <DropdownMenuItem
+                onSelect={() => {
+                  searchFromMenu.current = true
+                }}
+              >
+                <SearchIcon className="size-4" />
+                Search tasks
+              </DropdownMenuItem>
+              {view === "list" && source.table ? (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setTickOnStart(null)
+                    setMassSelectOn(!massSelectOn)
+                  }}
+                >
+                  <ListChecksIcon className="size-4" />
+                  {massSelectOn ? "Hide select" : "Mass select"}
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </DashboardCardHeader>
       {overdue && !filtered ? (
@@ -540,10 +678,7 @@ export function MyTasksPanel({
         onContextMenu={rightClick}
       >
         {view !== "list" && filtered && shown.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">
-            No tasks match {filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the filters to see
-            them all.
-          </p>
+          <p className="p-4 text-sm text-muted-foreground">{noMatch}</p>
         ) : view === "board" ? (
           <TaskBoard
             tasks={shown}
@@ -578,10 +713,18 @@ export function MyTasksPanel({
           <TaskList
             // The table's first sort keeps the List's own order, my order under each heading.
             tasks={listRows.map((task, position) => ({ ...task, position }))}
+            massSelect={{
+              on: massSelectOn,
+              onToggle: () => {
+                setTickOnStart(null)
+                setMassSelectOn(!massSelectOn)
+              },
+              tick: tickOnStart,
+            }}
             readOnly={busy}
             ordered
             onDrop={onDrop}
-            canMove={canMove}
+            canMove={canMoveHere}
             showsEmpty={takesDrops}
             foldsKey={regrouped ? `${MY_TASK_FOLDS_KEY}-${grouping}` : MY_TASK_FOLDS_KEY}
             orderLabel="my order"
@@ -597,11 +740,7 @@ export function MyTasksPanel({
             myUserId={source.myUserId}
             onDelete={(task) => setDeleting(task)}
             canDelete={source.canDelete}
-            emptyText={
-              filtered
-                ? `No tasks match ${filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the filters to see them all.`
-                : "Nothing assigned to you right now."
-            }
+            emptyText={filtered ? noMatch : "Nothing assigned to you right now."}
           />
         ) : (
           <MyTaskRows
@@ -614,11 +753,7 @@ export function MyTasksPanel({
             groupsOf={listGroupsOf ?? ((task) => [headingOf(task)])}
             foldsKey={regrouped ? `${MY_TASK_FOLDS_KEY}-${grouping}` : MY_TASK_FOLDS_KEY}
             addTask={addUnder}
-            emptyText={
-              filtered
-                ? `No tasks match ${filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the filters to see them all.`
-                : "Nothing assigned to you right now."
-            }
+            emptyText={filtered ? noMatch : "Nothing assigned to you right now."}
           />
         )}
       </div>
@@ -629,6 +764,18 @@ export function MyTasksPanel({
           canDelete={source.canDelete(taskMenu.task)}
           onDuplicate={() => void duplicate(taskMenu.task)}
           onDelete={() => setDeleting(taskMenu.task)}
+          // The site admin's List only, where Mass select is.
+          massSelect={
+            view === "list" && source.table
+              ? {
+                  on: massSelectOn,
+                  onToggle: () => {
+                    setTickOnStart(massSelectOn ? null : taskMenu.task.id)
+                    setMassSelectOn(!massSelectOn)
+                  },
+                }
+              : undefined
+          }
         />
       ) : null}
       {pointNew ? (

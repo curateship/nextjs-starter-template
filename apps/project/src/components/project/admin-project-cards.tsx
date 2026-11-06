@@ -16,7 +16,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { ArrowUpRightIcon, GripVerticalIcon, PlusIcon } from "lucide-react"
+import { ArrowUpRightIcon, GripVerticalIcon, PinIcon, PlusIcon } from "lucide-react"
 import { Area, AreaChart, YAxis } from "recharts"
 
 import { FoldHeading } from "@/components/project/fold-heading"
@@ -33,7 +33,7 @@ import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { projectCardList, projectDueLine, type PacedProject } from "@/lib/project/admin-project-cards"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { PANEL_GAP } from "@/lib/project/panel-gutter"
+import { PANEL_FOOTER_PADDING, PANEL_GAP } from "@/lib/project/panel-gutter"
 import { PROJECT_PACE_LABEL, type ProjectPace } from "@/lib/project/project-pace"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
@@ -98,8 +98,13 @@ const ROOM_FOR_BUTTONS =
  * lines. Only pinned projects show, and the pin in each block's buttons
  * unpins it (Misc 5, Tyler, 2 Nov 2026: "Remove the hidden feature and make
  * only pinned project shows up"); the blocks drag into the site admin's own
- * order. "All projects", left of the heading's fold arrow, opens the Projects page, where the
- * rest are pinned. Null when there are no open projects at all.
+ * order. "All projects" under the projects opens the Projects page, where the
+ * rest are pinned. Since 6 Nov 2026 it is a card in the left panel's footer
+ * that folds like the Daily card (Tyler: "The pinned project should have the
+ * same toggle card like the good morning card"). Like it, it starts open, and
+ * this browser remembers a fold; while My tasks is filtered to a project, the line
+ * under the heading names it, so the filter shows folded too. Null when there
+ * are no open projects at all.
  */
 export function ProjectsCard({
   projects,
@@ -127,13 +132,13 @@ export function ProjectsCard({
   )
   const dndId = React.useId()
   const headingId = React.useId()
-  // The heading's fold, remembered in this browser.
-  const [shown, setShown, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-admin-projects"))
+  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-admin-footer-pinned"))
 
   if (projects.length === 0) return null
   const list = projectCardList(projects, order)
   const blocks = all ? list.active : list.active.slice(0, BLOCKS)
   const pinned = list.active.length + list.idle.length
+  const pickedName = picked ? projects.find((project) => project.id === picked)?.name : undefined
 
   /** An unpinned project leaves the card, so My tasks stops being filtered to it. */
   function unpinned(projectId: string) {
@@ -162,84 +167,74 @@ export function ProjectsCard({
   }
 
   return (
-    // No box: the heading sits on the panel and each project is a card of its
-    // own (Tyler, 30 Oct 2026: "Put the label and toggle outside and have the
-    // project in its own card"). The arrow at the heading's right folds every
-    // project (Tyler, 31 Oct 2026: "This toggle should hide the projects").
-    <Collapsible open={shown} onOpenChange={setShown} asChild>
-      {/* Every grid here has one column that can shrink, so a narrow panel wraps a
-          card's rows, as the project page's left panel does, instead of pushing the
-          card past the panel's edge (Tyler, 31 Oct 2026: "The project dashboard
-          doesnt have this problem"). */}
-      <section aria-labelledby={headingId} className={cn("@container grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
-        {/* The same size as the Daily card's greeting above it (Tyler, 30 Oct 2026),
-            with the same room above it as Need your attention has, to part it from
-            the Daily card (Tyler, 31 Oct 2026: "needs more space"). */}
-        <FoldHeading id={headingId} title="Pinned projects" className="mt-3" count={pinned}>
-          {/* Left of the fold arrow, where "Hidden 2" was (Tyler, 2 Nov 2026: "move the view
-              all projects link here", then "rename to "All projects""), and shown folded
-              too, since it leads off the card. In a panel too narrow for the words beside
-              the heading, only its arrow shows, so the heading keeps one line. */}
-          {/* No hover hint (Tyler, 2 Nov 2026: "remove the tooltip for all projects hover"). */}
-          <Link
-            to="/projects"
-            className={cn(
-              // Shown while the heading is pointed at, like the arrow beside it (Tyler, 2 Nov
-              // 2026: "make it hover over only"), and always on a screen with no pointer.
-              "mr-1 flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-sm text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/fold:opacity-100 [@media(hover:none)]:opacity-100",
-              focusRingInset
-            )}
-          >
-            <span className="@max-[19rem]:sr-only">All projects</span>
-            <ArrowUpRightIcon className="size-3.5" aria-hidden />
-          </Link>
-        </FoldHeading>
-        <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
-          <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)}>
-            {pinned ? null : (
-              <p className="text-sm text-muted-foreground">Pin a project on the Projects page to see it here.</p>
-            )}
-            {list.active.length ? (
-              <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}>
-                <SortableContext items={blocks.map((row) => row.project.id)} strategy={verticalListSortingStrategy}>
-                  <ul className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)} aria-label="Projects with open tasks">
-                    {blocks.map((row) => (
-                      <ProjectBlock
-                        key={row.project.id}
-                        row={row}
-                        extras={extras}
-                        today={today}
-                        picked={picked === row.project.id}
-                        dragDisabled={busy || list.active.length < 2}
-                        onPick={() => onPick(picked === row.project.id ? undefined : row.project.id)}
-                        onUnpin={() => unpinned(row.project.id)}
-                      />
-                    ))}
-                  </ul>
-                </SortableContext>
-              </DndContext>
-            ) : null}
-            {list.active.length > BLOCKS ? (
-              <Button type="button" variant="ghost" size="sm" className="justify-self-start" onClick={() => setAll(!all)}>
-                {all ? "Show fewer" : `Show all ${list.active.length}`}
-              </Button>
-            ) : null}
-            {list.idle.length ? (
-              <ul className="grid gap-1" aria-label="Projects with nothing open">
-                {list.idle.map((row) => (
-                  <IdleLine
-                    key={row.project.id}
-                    row={row}
-                    extras={extras}
-                    today={today}
-                    picked={picked === row.project.id}
-                    onPick={() => onPick(picked === row.project.id ? undefined : row.project.id)}
-                    onUnpin={() => unpinned(row.project.id)}
-                  />
-                ))}
-              </ul>
-            ) : null}
-          </div>
+    // Each project is a card of its own (Tyler, 30 Oct 2026: "Put the label and
+    // toggle outside and have the project in its own card"). Every grid here has
+    // one column that can shrink, so a narrow panel wraps a card's rows instead of
+    // pushing the card past its edge (Tyler, 31 Oct 2026).
+    <Collapsible open={open} onOpenChange={setOpen} asChild>
+      <section aria-labelledby={headingId} className="@container grid grid-cols-[minmax(0,1fr)]">
+        <FoldHeading
+          id={headingId}
+          band
+          icon={<PinIcon />}
+          title="Pinned projects"
+          count={pinned}
+          line={pickedName ? `Showing only ${pickedName}` : undefined}
+          open={open}
+        />
+        <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP, PANEL_FOOTER_PADDING)}>
+          {pinned ? null : (
+            <p className="text-sm text-muted-foreground">Pin a project on the Projects page to see it here.</p>
+          )}
+          {list.active.length ? (
+            <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}>
+              <SortableContext items={blocks.map((row) => row.project.id)} strategy={verticalListSortingStrategy}>
+                <ul className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)} aria-label="Projects with open tasks">
+                  {blocks.map((row) => (
+                    <ProjectBlock
+                      key={row.project.id}
+                      row={row}
+                      extras={extras}
+                      today={today}
+                      picked={picked === row.project.id}
+                      dragDisabled={busy || list.active.length < 2}
+                      onPick={() => onPick(picked === row.project.id ? undefined : row.project.id)}
+                      onUnpin={() => unpinned(row.project.id)}
+                    />
+                  ))}
+                </ul>
+              </SortableContext>
+            </DndContext>
+          ) : null}
+          {list.active.length > BLOCKS ? (
+            <Button type="button" variant="ghost" size="sm" className="justify-self-start" onClick={() => setAll(!all)}>
+              {all ? "Show fewer" : `Show all ${list.active.length}`}
+            </Button>
+          ) : null}
+          {list.idle.length ? (
+            <ul className="grid gap-1" aria-label="Projects with nothing open">
+              {list.idle.map((row) => (
+                <IdleLine
+                  key={row.project.id}
+                  row={row}
+                  extras={extras}
+                  today={today}
+                  picked={picked === row.project.id}
+                  onPick={() => onPick(picked === row.project.id ? undefined : row.project.id)}
+                  onUnpin={() => unpinned(row.project.id)}
+                />
+              ))}
+            </ul>
+          ) : null}
+          {/* Under the projects, where the rest are pinned (Tyler, 6 Nov 2026: "move the
+              all projects link to the bottom"). No hover hint ("remove the tooltip for
+              all projects hover"). */}
+          <Button asChild variant="ghost" size="sm" className="justify-self-start text-muted-foreground">
+            <Link to="/projects">
+              All projects
+              <ArrowUpRightIcon className="size-3.5" aria-hidden />
+            </Link>
+          </Button>
         </CollapsibleContent>
       </section>
     </Collapsible>

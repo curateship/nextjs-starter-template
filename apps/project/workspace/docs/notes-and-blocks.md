@@ -44,6 +44,8 @@ only.
   notes (Tyler: "Remove the + hover over icon", "why is the + not removed",
   "still here in task"). "/" is the one way in, and the words line up with
   the panel as they did before.
+- **Names only:** each row is the block's icon and name, with no grey line
+  under it (Tyler, 6 Nov 2026: "remove all the sublabel").
 - **Narrowing it:** letters after the "/" keep only the blocks whose name
   starts with them, so "/che" leaves Checklist and "/task" leaves Task card.
 - **Keys:** the up and down arrows move through it, and Enter or Tab picks.
@@ -170,9 +172,9 @@ the refusals come first (`src/server/project/page-preview.ts`).
   5 Nov 2026: "add lock page for task too"). Anyone who can change the task
   can lock or unlock them. While they're locked they read only for everyone:
   links open and folds fold for each reader, but nothing can be typed or
-  ticked. The menu hides Show the text toolbar and Delete the notes, and
-  offers Unlock the notes. Earlier versions still open, but bringing one back
-  is refused while they're locked.
+  ticked. The menu hides Delete the notes and offers Unlock the notes. The
+  Versions tab still lists earlier versions, but bringing one back is refused
+  while they're locked.
 - **A project's page** locks from the project's ⋮ with Lock page, which only
   the site admin has (see "The project's page" in
   [projects-and-tasks.md](projects-and-tasks.md)).

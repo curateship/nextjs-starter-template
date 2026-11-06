@@ -196,6 +196,7 @@ export function TaskList({
   addTask,
   projectColumn,
   showSteps = true,
+  massSelect,
 }: {
   tasks: TaskCard[]
   readOnly: boolean
@@ -203,7 +204,7 @@ export function TaskList({
   busy?: boolean
   onOpenTask: (task: TaskCard) => void
   showProject?: boolean
-  emptyText?: string
+  emptyText?: React.ReactNode
   groups?: readonly TaskGroup[]
   groupsOf?: (task: TaskCard) => string[]
   /** The rows come in an order of their own, in `position`, which the first sort keeps. */
@@ -244,6 +245,12 @@ export function TaskList({
   projectColumn?: ProjectColumn
   /** Tyler took Steps off the site admin's My dashboard (23 Oct 2026). */
   showSteps?: boolean
+  /**
+   * Mass select switched from outside, as from My tasks' ⋮ (Tyler, 6 Nov 2026:
+   * "move mass select and search under its dropdown"). The header then shows
+   * no Mass select button of its own, only "N selected".
+   */
+  massSelect?: { on: boolean; onToggle: () => void; tick?: string | null }
 }) {
   const { sort, direction, toggleSort } = useTableSort<TaskColumn>(
     ordered ? "order" : showProject ? "due" : "status"
@@ -252,13 +259,23 @@ export function TaskList({
   useClearSelectionOnListChange(selection.setSelected, tasks.map((t) => t.id).join(","))
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   const dndId = React.useId()
-  const [editing, setEditing] = React.useState(false)
+  const [ownEditing, setOwnEditing] = React.useState(false)
+  const editing = massSelect ? massSelect.on : ownEditing
+  // Turned off from outside too, the ticks go, as they do from the button.
+  const [seenEditing, setSeenEditing] = React.useState(editing)
+  if (seenEditing !== editing) {
+    setSeenEditing(editing)
+    if (!editing) selection.clear()
+    // Turned on from a row's right-click, that row starts ticked.
+    else if (massSelect?.tick && !selection.selected.has(massSelect.tick)) selection.toggle(massSelect.tick)
+  }
   const canEdit = editing && !readOnly
   const canDrag = canEdit && Boolean(onDrop) && sort === "order"
 
   function toggleEditing() {
+    if (massSelect) return massSelect.onToggle()
     if (editing) selection.clear()
-    setEditing(!editing)
+    setOwnEditing(!editing)
   }
 
   const columns: TableHeaderColumn<TaskColumn>[] = [
@@ -331,7 +348,7 @@ export function TaskList({
   const headerControls = readOnly ? null : (
     <>
       {canEdit && selectedIds.length ? <TaskBulkMenu taskIds={selectedIds} targets={bulk} onDone={selection.clear} /> : null}
-      <MassSelectButton on={editing} onToggle={toggleEditing} />
+      {massSelect ? null : <MassSelectButton on={editing} onToggle={toggleEditing} />}
     </>
   )
 

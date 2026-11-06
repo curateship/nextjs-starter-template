@@ -8,7 +8,12 @@ described in [The morning check-in](morning-check-in.md).
 
 ## Task history
 
-A task ends with a History card, oldest first, wherever it opens.
+**A task shows no History card since 6 Nov 2026** (Tyler: "Remove the history
+feature, we dont need it since we already have versions"). The rows below are
+still written as things happen. The project's and the team's Activity, the
+"Date moved 3 times" count and Needs attention still read them. The task's
+notes keep their earlier versions under the ⋮'s Versions tab. What the card
+showed, for the record:
 
 - **Every day someone picked the task**, with who picked it, whether they
   carried it over, and its status when their day ended. A day still going on
@@ -113,8 +118,8 @@ calender and check in with its own dashboard". Past days are read on the
 
 ## Where it lives
 
-- **Task history:** `src/server/project/task-history.ts`, drawn by
-  `src/components/project/task-history-card.tsx`.
+- **Task history:** `src/server/project/task-history.ts`. Nothing draws it
+  on the task since 6 Nov 2026 (above).
 - **Team dashboard calendar and check-ins:** `src/server/project/team-days.ts`,
   drawn by `src/components/project/team-dashboard.tsx`. The address keeps the
   month, day and open task: `/team?month=2026-10&day=2026-10-08`.

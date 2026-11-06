@@ -54,21 +54,21 @@ export type BlockKey =
   | "webpage"
   | "links"
 
-export type BlockChoice = { key: BlockKey; label: string; hint: string; icon: LucideIcon }
+export type BlockChoice = { key: BlockKey; label: string; icon: LucideIcon }
 
 /** In the "/" list's order: Image first, as in Travel (Tyler, 5 Nov 2026: "FIrst block is an image block"). */
 const BLOCKS: BlockChoice[] = [
-  { key: "image", label: "Image", hint: "Upload, Unsplash or a web address", icon: ImageIcon },
-  { key: "video", label: "Video", hint: "YouTube, TikTok, Instagram or Loom", icon: PlayIcon },
-  { key: "task", label: "Task card", hint: "A task, with its status and who's on it", icon: ListTodoIcon },
-  { key: "file", label: "File", hint: "One of this task's files", icon: FileIcon },
-  { key: "checklist", label: "Checklist", hint: "Lines with tick boxes", icon: ListChecksIcon },
-  { key: "callout", label: "Callout", hint: "A Note, Warning or Decision box", icon: InfoIcon },
-  { key: "divider", label: "Divider", hint: "A line across the note", icon: MinusIcon },
-  { key: "fold", label: "Fold section", hint: "A heading that hides what's under it", icon: ChevronsDownUpIcon },
-  { key: "record", label: "Video or Promo", hint: "This task's Video or Promo project", icon: ClapperboardIcon },
-  { key: "webpage", label: "Web page", hint: "A card for a page's address", icon: GlobeIcon },
-  { key: "links", label: "Links", hint: "A list of web addresses", icon: LinkIcon },
+  { key: "image", label: "Image", icon: ImageIcon },
+  { key: "video", label: "Video", icon: PlayIcon },
+  { key: "task", label: "Task card", icon: ListTodoIcon },
+  { key: "file", label: "File", icon: FileIcon },
+  { key: "checklist", label: "Checklist", icon: ListChecksIcon },
+  { key: "callout", label: "Callout", icon: InfoIcon },
+  { key: "divider", label: "Divider", icon: MinusIcon },
+  { key: "fold", label: "Fold section", icon: ChevronsDownUpIcon },
+  { key: "record", label: "Video or Promo", icon: ClapperboardIcon },
+  { key: "webpage", label: "Web page", icon: GlobeIcon },
+  { key: "links", label: "Links", icon: LinkIcon },
 ]
 
 /**

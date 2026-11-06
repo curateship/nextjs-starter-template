@@ -1,34 +1,33 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { SettingsIcon } from "lucide-react"
 
 import { AdminCards } from "@/components/project/admin-cards"
-import { DailyCard, DailyEditButton, DailyLookBackButton, DailySkyBanner, useDailyNow } from "@/components/project/daily-card"
+import { DailyCard, DailyLookBackButton, DailySkyBanner, useDailyNow } from "@/components/project/daily-card"
 import { DailyLookBack } from "@/components/project/daily-look-back"
 import { DailyCityField } from "@/components/project/daily-city-field"
+import { DailyHabitsSetting, DailySectionsSetting, DailySkySetting } from "@/components/project/daily-settings"
 import { ProjectsCard } from "@/components/project/admin-project-cards"
 import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
 import { InboxMorphIcon } from "@/components/project/inbox-morph-icon"
 import { MyNoticeSwitches } from "@/components/project/my-notice-switches"
+import { RoutineReminderTimes } from "@/components/project/routine-reminder-times"
+import { MySettingsMenu, SettingRow } from "@/components/project/my-settings-menu"
 import { MyTasksPanel } from "@/components/project/my-tasks-panel"
-import { OptionCard } from "@/components/project/option-card"
 import { PersonPages } from "@/components/project/person-pages"
+import { AdminPageNotes } from "@/components/project/project-page-notes"
 import { SaveLine } from "@/components/project/save-line"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskSidePanel } from "@/components/project/task-side-panel"
 import { ThreePanels } from "@/components/project/three-panels"
 import { TimeZoneSelect } from "@/components/project/time-zone-select"
 import type { FilterProject } from "@/components/project/task-filter-popover"
-import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { saveAdminStatusOrder, saveAdminTimeZone, type AdminDashboard } from "@/lib/api/project/admin-dashboard"
 import type { DailyCard as DailyCardData } from "@/lib/api/project/daily-card"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
-import { useWideScreen } from "@/lib/layout/wide-screen"
 import { adminProjectColumn } from "@/lib/project/admin-projects"
 import { browserTimeZone } from "@/lib/project/days"
 import { ADMIN_DASHBOARD_PANEL_LAYOUT_KEY, ADMIN_OPEN_TASK_KEY } from "@/lib/project/panel-keys"
@@ -71,7 +70,6 @@ export function AdminDashboardScreen({
   const [rows, setRows] = React.useState<string[] | null>(null)
   const quietTask = useRememberedTask({ storageKey: ADMIN_OPEN_TASK_KEY, taskId: search.task, ids: rows })
   useFirstZone(dashboard.savedZone)
-  const wide = useWideScreen()
   // Any change in any team loads the page again, so the cards and the Projects
   // card never go stale (task "My dashboard/01 Project cards", Tyler's pick).
   useMyLive(
@@ -110,22 +108,13 @@ export function AdminDashboardScreen({
         return next
       },
     })
-  const projectsCard = dashboard.cards.projects.length ? (
-    <ProjectsCard
-      projects={dashboard.cards.projects}
-      extras={dashboard.cards.projectCards}
-      today={dashboard.today}
-      picked={search.project}
-      // Pressing the picked project again goes back to the view picked under it,
-      // its own project included (Tyler, 2 Nov 2026: "clicking on project again
-      // does not go back to my saved view").
-      onPick={(project) =>
-        setFilters({
-          project: project ?? viewProject(readActiveView(dashboard.viewScreen, dashboard.views)?.filters.project),
-        })
-      }
-    />
-  ) : null
+  // Pressing the picked project again goes back to the view picked under it,
+  // its own project included (Tyler, 2 Nov 2026: "clicking on project again
+  // does not go back to my saved view").
+  const pickProject = (project: string | undefined) =>
+    setFilters({
+      project: project ?? viewProject(readActiveView(dashboard.viewScreen, dashboard.views)?.filters.project),
+    })
   const taskLoaded = (taskId: string) => {
     if (dashboard.tasks.some((task) => task.id === taskId && task.unread > 0)) void router.invalidate()
   }
@@ -137,7 +126,7 @@ export function AdminDashboardScreen({
       narrowStart="left"
       // A task opened on arrival leaves a narrow screen on the list.
       showRightFor={search.task === quietTask ? undefined : search.task}
-      // Picking a project on a phone's Pinned tab shows its tasks at once.
+      // Picking a pinned project on a phone shows its tasks at once.
       showMiddleFor={search.project}
       left={{
         label: "Me",
@@ -147,27 +136,13 @@ export function AdminDashboardScreen({
             dashboard={dashboard}
             daily={daily}
             inbox={inbox}
-            projectsCard={wide ? projectsCard : null}
+            pickedProject={search.project}
+            onPickProject={pickProject}
+            openTaskId={search.task}
             onOpenTask={taskAddress.open}
           />
         ),
       }}
-      narrowTab={
-        !wide && projectsCard
-          ? {
-              // Short, as the phone's pill row holds four (Misc 5: "Pinned projects").
-              label: "Pinned",
-              content: (
-                <>
-                  <DashboardCardTitleHeader title="Pinned projects" />
-                  <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-                    <div className={cn("grid", PANEL_GUTTER)}>{projectsCard}</div>
-                  </ScrollArea>
-                </>
-              ),
-            }
-          : undefined
-      }
       middle={{
         label: "My tasks",
         content: (
@@ -266,24 +241,39 @@ function useFirstZone(savedZone: string | null) {
 }
 
 /**
- * The left panel: me with my inbox and My settings in the header, then the
- * cards. The inbox icon swaps the cards for the inbox, and again for the
- * cards (Tyler, 25 Oct 2026: "add an inbox icon here with red bubble
- * notification. the inbox open in that tab instead of card"). Both stay
- * mounted, so what was read here keeps the bubble right on the way back.
+ * The left panel: me with my inbox and My settings in the header, then my
+ * page, then the footer of cards. The inbox icon swaps the page for the
+ * inbox, and again for it (Tyler, 25 Oct 2026: "add an inbox
+ * icon here with red bubble notification. the inbox open in that tab instead
+ * of card"). Both stay mounted, so what was read here keeps the bubble right
+ * on the way back.
+ *
+ * The footer stays put while the page scrolls, with the inbox and Look back
+ * open too: Pinned projects, Need your attention, then the whole Daily card,
+ * greeting, Start day and all, each folding like the greeting (Tyler, 6 Nov
+ * 2026: "move the start your day button into the footer of the panel as well
+ * as the pinned projects", "the footer card now hold greetings and the habit
+ * section", "The pinned project should have the same toggle card like the
+ * good morning card", "the need my attention should be a card in the footer
+ * too"). My page takes the greeting's old place under the sky.
  */
 function AdminPanel({
   dashboard,
   daily,
   inbox,
-  projectsCard,
+  pickedProject,
+  onPickProject,
+  openTaskId,
   onOpenTask,
 }: {
   dashboard: AdminDashboard
   daily: DailyCardData
   inbox: InboxPage
-  /** The Pinned projects card, in the cards on a wide screen; on a phone it has a tab of its own. */
-  projectsCard: React.ReactNode
+  /** The project My tasks is filtered to. */
+  pickedProject: string | undefined
+  onPickProject: (projectId: string | undefined) => void
+  /** The task open in the right panel. */
+  openTaskId: string | undefined
   onOpenTask: (taskId: string) => void
 }) {
   const { me } = dashboard
@@ -307,30 +297,64 @@ function AdminPanel({
           <span className="truncate text-xs text-muted-foreground">Site admin</span>
         </div>
         <DailyLookBackButton open={view === "lookBack"} onToggle={() => showView("lookBack")} />
-        <DailyEditButton daily={daily} />
         <InboxButton unread={unread} open={inboxOpen} onToggle={() => showView("inbox")} />
-        <AdminSettingsMenu dashboard={dashboard} city={daily.settings.city} />
+        <AdminSettingsMenu dashboard={dashboard} daily={daily} />
       </DashboardCardHeader>
       {/* Look back and the inbox bring their own tab rows and scrolling. The inbox
-          and the cards stay mounted while hidden, so what was read keeps the bubble right. */}
-      {view === "lookBack" ? <DailyLookBack /> : null}
-      <div className={cn("relative flex min-h-0 flex-1 flex-col", !inboxOpen && "hidden")}>
-        <InboxCard inbox={inbox} bare onUnread={setUnread} />
-      </div>
-      <ScrollArea className={cn("relative min-h-0 flex-1", view !== "cards" && "hidden")} viewportClassName="h-full">
-        {/* One column that can shrink to the panel: left to grow, it took the
-            Daily card's widest row and pushed a counted habit's "+" past the
-            panel's edge (Tyler, 31 Oct 2026: "Add the + icon back"). */}
-        <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
-          <DailyCard daily={daily} now={now} checkin={null} />
-          <AdminCards
-            cards={dashboard.cards}
-            zone={dashboard.zone}
-            projectsCard={projectsCard}
-            onOpenTask={onOpenTask}
-          />
+          and the page stay mounted while hidden, so what was read keeps the bubble right.
+          The body and the footer share the panel's height: the footer takes what its
+          cards need and the body grows into the rest, keeping at least 6rem for the
+          page, or half the panel for the inbox or Look back. Only when both are full
+          does the footer scroll (Tyler, 6 Nov 2026: "why is there areascroll when
+          theres so much space here", of a footer capped at 60 out of 100 of the
+          screen's height). */}
+      <div className={cn("relative flex min-h-0 flex-col", view === "cards" ? "flex-[1_0_6rem]" : "flex-[1_0_50%]")}>
+        {view === "lookBack" ? <DailyLookBack /> : null}
+        <div className={cn("relative flex min-h-0 flex-1 flex-col", !inboxOpen && "hidden")}>
+          <InboxCard inbox={inbox} bare onUnread={setUnread} />
         </div>
-      </ScrollArea>
+        <ScrollArea className={cn("relative min-h-0 flex-1", view !== "cards" && "hidden")} viewportClassName="h-full">
+          {/* One column that can shrink to the panel: left to grow, it took the
+              Daily card's widest row and pushed a counted habit's "+" past the
+              panel's edge (Tyler, 31 Oct 2026: "Add the + icon back"). */}
+          <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
+            <AdminPageNotes page={dashboard.page} />
+          </div>
+        </ScrollArea>
+      </div>
+      {/* Three cards that fold the same way, top to bottom, each parted from the next by
+          a line running edge to edge (Tyler, 6 Nov 2026: "add divider for each card"), each
+          heading on a light band and each body padding itself (`band` on FoldHeading). A
+          card with nothing to show leaves no empty strip. Folding a card shrinks the
+          footer to its heading, and the page above grows into the room. */}
+      <footer className="relative flex min-h-0 flex-col border-t">
+        <ScrollArea className="min-h-0">
+          <div className="grid grid-cols-[minmax(0,1fr)] divide-y">
+            <div className="grid grid-cols-[minmax(0,1fr)] empty:hidden">
+              <ProjectsCard
+                projects={dashboard.cards.projects}
+                extras={dashboard.cards.projectCards}
+                today={dashboard.today}
+                picked={pickedProject}
+                onPick={onPickProject}
+              />
+            </div>
+            <div className="grid grid-cols-[minmax(0,1fr)] empty:hidden">
+              <AdminCards
+                cards={dashboard.cards}
+                zone={dashboard.zone}
+                loadedAt={daily.loadedAt}
+                openTaskId={openTaskId}
+                projectInfo={dashboard.projectInfo}
+                onOpenTask={onOpenTask}
+              />
+            </div>
+            <div className="grid grid-cols-[minmax(0,1fr)]">
+              <DailyCard daily={daily} now={now} checkin={null} inFooter />
+            </div>
+          </div>
+        </ScrollArea>
+      </footer>
     </div>
   )
 }
@@ -368,57 +392,62 @@ function InboxButton({ unread, open, onToggle }: { unread: number; open: boolean
   )
 }
 
-/** My settings for the site admin: their time zone and bell notices, as flat rows that fold open. */
-function AdminSettingsMenu({ dashboard, city }: { dashboard: AdminDashboard; city: string | null }) {
-  const [open, setOpen] = React.useState(false)
+/**
+ * My settings for the site admin, behind the ⋮: General (their time zone,
+ * weather city and the card's sky), Notifications (the bell notices, with the
+ * Daily card's reminder times) and Daily card (Card layout and Routine
+ * habits, which the pencil window held until 6 Nov 2026).
+ */
+function AdminSettingsMenu({ dashboard, daily }: { dashboard: AdminDashboard; daily: DailyCardData }) {
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" aria-label="My settings" className={cn(open && "bg-muted")}>
-              <SettingsIcon className="size-4" />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>My settings</TooltipContent>
-      </Tooltip>
-      <PopoverContent
-        align="start"
-        collisionPadding={16}
-        aria-label="My settings"
-        className="w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
-      >
-        <ScrollArea className="min-h-0" viewportClassName="max-h-[min(75vh,44rem)]">
-          <div className="grid">
-            <p className="border-b px-4 py-3 text-sm text-muted-foreground">{dashboard.me.email}</p>
-            <OptionCard
-              id="admin-settings-zone"
-              title="Time zone"
-              description="Today, Due this week, Meetings today and Done today follow it."
-              summary={dashboard.zone.replaceAll("_", " ")}
-            >
-              <AdminTimeZone zone={dashboard.zone} />
-            </OptionCard>
-            <OptionCard
-              id="admin-settings-city"
-              title="City for the weather"
-              description="The Daily card's sky shows the weather there."
-              summary={city ?? "None"}
-            >
-              <DailyCityField city={city} />
-            </OptionCard>
-            <OptionCard
-              id="admin-settings-notices"
-              title="Bell notices"
-              summary={dashboard.noticesOff.length ? `${dashboard.noticesOff.length} off` : "All on"}
-            >
-              <MyNoticeSwitches off={dashboard.noticesOff} siteAdmin />
-            </OptionCard>
-          </div>
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
+    <MySettingsMenu
+      tabs={[
+        {
+          value: "general",
+          label: "General",
+          content: (
+            <>
+              <SettingRow
+                title="Time zone"
+                htmlFor="admin-time-zone"
+                description="Today, Due this week, Meetings today and Done today follow it."
+              >
+                <AdminTimeZone zone={dashboard.zone} />
+              </SettingRow>
+              <SettingRow title="City for the weather" description="The Daily card's sky shows the weather there.">
+                <DailyCityField city={daily.settings.city} />
+              </SettingRow>
+              {/* Beside the weather it shows, since Daily card holds only the card's layout and
+                  habits (Tyler's drawing of that tab, 6 Nov 2026). */}
+              <DailySkySetting daily={daily} />
+            </>
+          ),
+        },
+        {
+          value: "notifications",
+          label: "Notifications",
+          content: (
+            <div className="px-4 py-3">
+              <MyNoticeSwitches
+                off={dashboard.noticesOff}
+                siteAdmin
+                routineTimes={<RoutineReminderTimes reminders={daily.settings.reminders} />}
+              />
+            </div>
+          ),
+        },
+        {
+          value: "daily",
+          label: "Daily card",
+          content: (
+            <>
+              <DailySectionsSetting daily={daily} />
+              <DailyHabitsSetting daily={daily} />
+            </>
+          ),
+        },
+      ]}
+    />
   )
 }
 
@@ -427,9 +456,7 @@ function AdminTimeZone({ zone }: { zone: string }) {
   const router = useRouter()
   const [saveState, track] = useSaveLine()
   return (
-    <section className="grid gap-2" aria-label="My time zone">
-      <SaveLine state={saveState} className="justify-self-end empty:hidden" />
-      <Label htmlFor="admin-time-zone">My time zone</Label>
+    <div className="grid gap-2">
       <TimeZoneSelect
         id="admin-time-zone"
         value={zone}
@@ -438,6 +465,7 @@ function AdminTimeZone({ zone }: { zone: string }) {
           void track(() => saveAdminTimeZone({ timeZone })).then((ok) => (ok ? router.invalidate() : undefined))
         }
       />
-    </section>
+      <SaveLine state={saveState} className="empty:hidden" />
+    </div>
   )
 }

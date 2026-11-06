@@ -20,7 +20,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
-import { DUE_FILTERS, type DueFilter, type TaskFilters } from "@/lib/project/task-filters"
+import { DUE_FILTERS, NO_TASK_FILTERS, type DueFilter, type TaskFilters } from "@/lib/project/task-filters"
 import { TASK_GROUPING_LABEL } from "@/lib/project/task-groups"
 import type { TaskType } from "@/lib/project/task-types"
 
@@ -28,18 +28,6 @@ import type { TaskType } from "@/lib/project/task-types"
 export type FilterProject = { id: string; name: string; color: ProjectColor }
 
 const ALL = "all"
-
-/** Every filter the popover sets, emptied: what Clear sends. */
-const NO_TASK_FILTERS: Partial<TaskFilters> = {
-  q: undefined,
-  status: undefined,
-  priority: undefined,
-  due: undefined,
-  label: undefined,
-  type: undefined,
-  client: undefined,
-  project: undefined,
-}
 
 /**
  * The project page's filters behind one Filter button, as Tyler drew them on

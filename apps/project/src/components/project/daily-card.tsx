@@ -1,16 +1,16 @@
 import * as React from "react"
-import { ChevronDown, PencilIcon } from "lucide-react"
+import { MoonIcon, SunIcon, SunriseIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { burstConfetti } from "@/components/project/confetti"
 import { DailyHabits } from "@/components/project/daily-habits"
 import { RateYourDayButton, StartDayButton, TomorrowAtAGlance } from "@/components/project/daily-journal"
 import { DailySection } from "@/components/project/daily-section"
-import { DailySettingsDialog } from "@/components/project/daily-settings-dialog"
 import { DailySky } from "@/components/project/daily-sky"
+import { FoldHeading } from "@/components/project/fold-heading"
 import { GraphMorphIcon } from "@/components/project/inbox-morph-icon"
 import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { loadMyWeather, milestoneShown, type DailyCard as DailyCardData, type DailyWeather } from "@/lib/api/project/daily-card"
 import {
@@ -24,13 +24,10 @@ import {
   type DayPart,
 } from "@/lib/project/daily-card"
 import { clockIn, fullDayLabel, localNow } from "@/lib/project/days"
-import { focusRingInset } from "@/lib/layout/focus-ring"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
+import { PANEL_FOOTER_PADDING } from "@/lib/project/panel-gutter"
+import { useNow } from "@/lib/project/use-now"
 import { cn } from "@/lib/utils"
-
-
-/** How often the card looks at the clock, so the sky and greeting turn over on time. */
-const TICK_MS = 30_000
 
 /** The clock, part of the day, sky and weather, worked out once for the sky behind the panel and the card in it. */
 export type DailyNow = {
@@ -100,28 +97,6 @@ export function DailyLookBackButton({ open, onToggle }: { open: boolean; onToggl
 }
 
 /**
- * The pencil in the left panel's header, before the inbox and the cog
- * (Tyler, 30 Oct 2026: "put pen icon here"). It opens the Daily card's
- * window: the hours, and the site admin's habits, reminders, sky and lines.
- */
-export function DailyEditButton({ daily }: { daily: DailyCardData }) {
-  const [open, setOpen] = React.useState(false)
-  return (
-    <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" aria-label="Edit the Daily card" onClick={() => setOpen(true)}>
-            <PencilIcon className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Edit the Daily card</TooltipContent>
-      </Tooltip>
-      <DailySettingsDialog daily={daily} open={open} onClose={() => setOpen(false)} />
-    </>
-  )
-}
-
-/**
  * The Daily card at the top of My dashboard (task "Daily card/01", Tyler,
  * 29 Oct 2026: "like a personal assistent"). Everyone has one: a greeting
  * that follows their own hours, today's deep work with Start and the next
@@ -137,6 +112,7 @@ export function DailyCard({
   checkin,
   onCheckIn,
   onCheckOut,
+  inFooter = false,
 }: {
   daily: DailyCardData
   now: DailyNow
@@ -144,6 +120,12 @@ export function DailyCard({
   checkin: { checkedIn: boolean; checkedOut: boolean } | null
   onCheckIn?: () => void
   onCheckOut?: () => void
+  /**
+   * In the site admin's left panel footer, off the sky (Tyler, 6 Nov 2026: "the
+   * footer card now hold greetings and the habit section"), so the greeting
+   * needs no room to sit low on it.
+   */
+  inFooter?: boolean
 }) {
   const { nowMs, local, part, weather } = now
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-daily-card"))
@@ -155,47 +137,28 @@ export function DailyCard({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} asChild>
-      <section ref={cardRef} aria-label="Daily card" className="relative grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3.75">
-        {/* Down in the sky's lower half, where the fade has made it quiet enough to read on. */}
-        <div className="group/greeting mt-6 flex items-start gap-2">
-          {/* The greeting is the button that folds and opens the card, like a
-              panel card's heading (Tyler, 30 Oct 2026: "clicking on the text
-              area should uncollpase it"); the arrow is the same press. */}
-          <h2 className="min-w-0 flex-1 text-base leading-tight font-semibold">
-            <CollapsibleTrigger asChild>
-              <button type="button" className={cn("grid w-full cursor-pointer gap-0.5 rounded-md text-left", focusRingInset)}>
-                <span>{greeting}</span>
-                <span className="text-sm font-normal text-muted-foreground">
-                  {fullDayLabel(local.day)}
-                  {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}
-                </span>
-              </button>
-            </CollapsibleTrigger>
-          </h2>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                tabIndex={-1}
-                aria-hidden
-                onClick={() => setOpen(!open)}
-                // Plain, open or folded, like a panel card's arrow. Shown only while
-                // the greeting is pointed at or has the keyboard's focus (Tyler, 30 Oct
-                // 2026); always on a screen with no pointer.
-                className="opacity-0 transition-opacity group-hover/greeting:opacity-100 group-has-[:focus-visible]/greeting:opacity-100 aria-expanded:bg-transparent aria-expanded:text-foreground dark:aria-expanded:bg-transparent [@media(hover:none)]:opacity-100"
-              >
-                <ChevronDown className={cn("size-4 transition-transform duration-200", !open && "-rotate-90")} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{open ? "Fold it to the greeting" : "Open it again"}</TooltipContent>
-          </Tooltip>
-        </div>
-        <CollapsibleContent data-collapse-key={noFlashKey}>
+      <section ref={cardRef} aria-label="Daily card" className="relative grid min-w-0 grid-cols-[minmax(0,1fr)]">
+        {/* On an employee's page, down in the sky's lower half, where the fade has made it
+            quiet enough to read on. */}
+        <FoldHeading
+          title={greeting}
+          icon={inFooter ? <PartIcon part={part} /> : undefined}
+          band={inFooter}
+          open={open}
+          foldHint="Fold it to the greeting"
+          className={inFooter ? undefined : "mt-6"}
+        />
+        <CollapsibleContent data-collapse-key={noFlashKey} className={cn(inFooter && PANEL_FOOTER_PADDING, inFooter && "pt-2")}>
+          {/* The date and weather fold away with the card, so a folded card is the
+              greeting alone (Tyler, 6 Nov 2026: "the date should be inside when
+              collapsed"). */}
+          <p className="pt-0.5 text-sm text-muted-foreground">
+            {fullDayLabel(local.day)}
+            {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}
+          </p>
           {/* minmax(0, 1fr): a long task title truncates instead of widening the panel.
               15px apart, the same gutter as the panel's cards below and its edges. */}
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-3.75">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3.75 pt-3.75 empty:hidden">
             {started ? (
               <>
                 {daily.admin?.lookBack ? <SundayLookBack daily={daily} /> : null}
@@ -235,18 +198,12 @@ export function DailyCard({
   )
 }
 
-/** The moment the card draws: the load's own moment first, then the browser's, every 30 seconds. */
-function useNow(loadedAt: string) {
-  const [now, setNow] = React.useState(() => Date.parse(loadedAt))
-  React.useEffect(() => {
-    const first = window.setTimeout(() => setNow(Date.now()), 0)
-    const timer = window.setInterval(() => setNow(Date.now()), TICK_MS)
-    return () => {
-      window.clearTimeout(first)
-      window.clearInterval(timer)
-    }
-  }, [])
-  return now
+
+/** The footer card's icon: the sun rising, the sun, or the moon, by the part of the day. */
+function PartIcon({ part }: { part: DayPart }) {
+  if (part === "morning") return <SunriseIcon />
+  if (part === "afternoon") return <SunIcon />
+  return <MoonIcon />
 }
 
 /** The weather in the person's city, loaded after the card so the page never waits for it. */

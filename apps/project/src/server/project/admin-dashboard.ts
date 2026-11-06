@@ -3,6 +3,7 @@ import { and, asc, count, eq, gte, inArray, isNull, lt, lte, ne, notInArray, or,
 import { addDays, daysBetween, localNow, momentOf } from "@/lib/project/days"
 import type { MyPlace } from "@/lib/project/my-task-order"
 import type { NoticeSwitchId } from "@/lib/project/notice-switches"
+import { storedNotesForCopy } from "@/lib/project/notes"
 import { CLOSED_TASK_STATUSES, boardStatusOrder, PERSONAL_PROJECT_NAME, priorityRank, type ProjectColor, type TaskStatus } from "@/lib/project/rules"
 import type { TaskType } from "@/lib/project/task-types"
 import { now } from "@/server/auth/security"
@@ -106,6 +107,8 @@ export type AdminProject = { name: string; color: ProjectColor; teamName: string
 
 export type AdminDashboard = {
   me: { id: string; name: string; email: string; avatarUrl: string }
+  /** Their own page of notes and "/" blocks at the top of the left panel, as saved, or "". */
+  page: string
   /** The zone saved in My settings; null until the dashboard first saves the browser's. */
   savedZone: string | null
   /** The zone every "today" here is counted in, and today in it. */
@@ -162,6 +165,7 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
       timeZone: projectSiteAdminPrefs.timeZone,
       statusOrder: projectSiteAdminPrefs.statusOrder,
       projectOrder: projectSiteAdminPrefs.projectOrder,
+      notes: projectSiteAdminPrefs.notes,
     })
     .from(projectSiteAdminPrefs)
     .where(eq(projectSiteAdminPrefs.userId, userId))
@@ -195,6 +199,7 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
 
   return {
     me: { id: userId, name: me.name, email: me.email, avatarUrl: me.avatarUrl ?? "" },
+    page: prefs?.notes ?? "",
     savedZone: prefs?.timeZone ?? null,
     zone,
     today,
@@ -582,6 +587,21 @@ export async function setAdminTimeZone(userId: string, timeZone: string, databas
     .update(projectTeams)
     .set({ timeZone, updatedAt: at })
     .where(eq(projectTeams.personalUserId, userId))
+}
+
+/**
+ * The site admin's own page at the top of My dashboard, already checked by
+ * `adminPageSchema`. Like a project's page it has no task, so no File block,
+ * uploaded picture or Video or Promo card.
+ */
+export async function setAdminPage(userId: string, notes: string, database = db) {
+  await requireSiteAdmin(userId, database)
+  const at = now()
+  const kept = storedNotesForCopy(notes, { forTemplate: true })
+  await database
+    .insert(projectSiteAdminPrefs)
+    .values({ userId, notes: kept, updatedAt: at })
+    .onConflictDoUpdate({ target: projectSiteAdminPrefs.userId, set: { notes: kept, updatedAt: at } })
 }
 
 /** The Pinned projects card's projects dragged into a new order: theirs alone. */

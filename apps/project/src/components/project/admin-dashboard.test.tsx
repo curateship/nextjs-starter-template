@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
 import { AdminDashboardScreen } from "@/components/project/admin-dashboard"
+import { ProjectsCard } from "@/components/project/admin-project-cards"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { InboxPage } from "@/components/project/inbox-card"
 import type { NotificationItem } from "@/lib/api/notification"
@@ -118,6 +119,7 @@ const FULL: AdminDashboard["cards"] = {
 function dashboard(cards: Partial<AdminDashboard["cards"]> = {}): AdminDashboard {
   return {
     me: { id: "tyler", name: "Tyler", email: "tyler@example.test", avatarUrl: "" },
+    page: "",
     savedZone: "UTC",
     zone: "UTC",
     today: "2099-03-02",
@@ -178,6 +180,15 @@ const DAILY: DailyCard = {
   },
 }
 
+/** The Pinned projects card as the footer's button opens it. */
+function cardOf(data: AdminDashboard, picked?: string) {
+  return renderToStaticMarkup(
+    <TooltipProvider>
+      <ProjectsCard projects={data.cards.projects} extras={data.cards.projectCards} today={data.today} picked={picked} onPick={() => undefined} />
+    </TooltipProvider>
+  )
+}
+
 function render(data: AdminDashboard, inbox: InboxPage = NO_INBOX) {
   return renderToStaticMarkup(
     <TooltipProvider>
@@ -227,6 +238,24 @@ describe("the site admin's My dashboard", () => {
     expect(html).toContain("Send the contract")
     expect(html).toContain("Review the logo")
     expect(html).toContain("New task")
+  })
+
+  it("opens My settings from a ⋮ in the header, with no cog and no Daily card pencil", () => {
+    const html = render(dashboard())
+    const header = html.slice(0, html.indexOf("data-notes-editor"))
+    // Tyler, 6 Nov 2026: "it needs to be replaced with a 3 vertical icon".
+    expect(header).toMatch(/aria-label="My settings"[^>]*>(?:(?!<\/button>).)*lucide-ellipsis-vertical/)
+    expect(header).not.toContain("lucide-settings")
+    expect(header).not.toContain("Edit the Daily card")
+  })
+
+  it("puts Search and Mass select behind a ⋮ after New task in My tasks' header", () => {
+    const html = render(dashboard())
+    const middle = html.slice(html.indexOf('id="middle"'), html.indexOf('id="right"'))
+    expect(middle.indexOf('aria-label="More for My tasks"')).toBeGreaterThan(middle.indexOf('aria-label="New task"'))
+    // Tyler, 6 Nov 2026: "move mass select and search under its dropdown".
+    expect(middle).not.toContain('aria-label="Mass select"')
+    expect(middle).not.toContain('aria-label="Search tasks"')
   })
 
   it("draws the List as the project page's table: Task, Project, Status, Priority, Due and Actions", () => {
@@ -299,7 +328,6 @@ describe("the site admin's My dashboard", () => {
   it("draws the cards in Tyler's order", () => {
     const html = render(dashboard(FULL))
     const order = [
-      "Pinned projects",
       "Waiting on you",
       "Urgent",
       "No one on it",
@@ -313,13 +341,102 @@ describe("the site admin's My dashboard", () => {
     expect(at.every((index) => index >= 0)).toBe(true)
     expect([...at].sort((a, b) => a - b)).toEqual(at)
     // Tinted by how much each matters: two red, three amber, two blue, Done today green.
-    // The Pinned projects card isn't tinted; its Slowing down project is, amber.
     const cards = (tint: string) => html.match(new RegExp(`group/card[^"]*${tint}`, "g")) ?? []
     expect(cards("bg-red-500/10")).toHaveLength(2)
     expect(cards("bg-amber-500/10")).toHaveLength(3)
     expect(cards("bg-blue-500/10")).toHaveLength(2)
     expect(cards("bg-emerald-500/10")).toHaveLength(1)
-    expect(html).toMatch(/group\/block[^"]*border-amber-500\/25/)
+  })
+
+  it("puts my page under the sky, then a footer of Pinned projects, Need your attention and the Daily card, each parted by a line", () => {
+    const html = render(dashboard(FULL))
+    const left = html.slice(0, html.indexOf('id="middle"'))
+    const footerAt = left.indexOf("<footer")
+    const footer = left.slice(footerAt, left.indexOf("</footer>"))
+    expect(left.indexOf("data-notes-editor")).toBeGreaterThan(-1)
+    expect(left.indexOf("data-notes-editor")).toBeLessThan(footerAt)
+    // Nothing but the page above the footer.
+    expect(left.slice(0, footerAt)).not.toContain("Need your attention")
+    const at = [footer.indexOf(">Pinned projects<"), footer.indexOf(">Need your attention<"), footer.indexOf('aria-label="Daily card"')]
+    expect(at.every((index) => index >= 0)).toBe(true)
+    expect([...at].sort((a, b) => a - b)).toEqual(at)
+    // A line between each card, edge to edge, with no colour of its own.
+    expect(footer).toMatch(/class="grid grid-cols-\[minmax\(0,1fr\)\] divide-y"/)
+    // The projects are in the footer, and no phone tab of their own any more.
+    expect(footer).toContain("group/block")
+    expect(html).not.toContain(">Pinned<")
+  })
+
+  it("puts Start day in the footer until the day starts, then the habits, and Rate your day under them at night", () => {
+    const footerOf = (daily: DailyCard) => {
+      const html = renderToStaticMarkup(
+        <TooltipProvider>
+          <AdminDashboardScreen daily={daily} dashboard={dashboard()} inbox={NO_INBOX} search={{}} />
+        </TooltipProvider>
+      )
+      return { html, footer: html.slice(html.indexOf("<footer"), html.indexOf("</footer>")) }
+    }
+    const morning = footerOf(DAILY)
+    expect(morning.footer).toContain("Good morning Tyler")
+    expect(morning.footer).toContain(">Start day<")
+    expect(morning.html.split(">Start day<")).toHaveLength(2)
+    // Off the sky, the greeting needs no room above it.
+    expect(morning.footer).not.toMatch(/group\/fold[^"]*mt-6/)
+    // The date is inside the card, so it folds away with it, leaving the greeting.
+    expect(morning.footer).toMatch(/<\/h2>(?:(?!<\/h2>).)*Mar 2, 2099/)
+
+    const started = { ...DAILY, admin: { ...DAILY.admin!, today: { ...DAILY.admin!.today, upAt: "2099-03-02T08:00:00.000Z" } } }
+    const day = footerOf(started)
+    expect(day.footer).not.toContain(">Start day<")
+    expect(day.footer).not.toContain("Rate your day")
+    const night = footerOf({ ...started, loadedAt: "2099-03-02T20:00:00.000Z" })
+    expect(night.footer).toContain("Rate your day")
+    expect(night.footer).toContain("No meetings, due dates or days off tomorrow.")
+  })
+
+  it("marks the open task's row in the cards, and puts its project's dot before every task row", () => {
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <AdminDashboardScreen daily={DAILY} dashboard={dashboard(FULL)} inbox={NO_INBOX} search={{ task: "d1" }} />
+      </TooltipProvider>
+    )
+    const left = html.slice(0, html.indexOf('id="middle"'))
+    expect(left).toMatch(/<button[^>]*aria-current="true"[^>]*>(?:(?!<\/button>).)*>Due task</)
+    expect(left).not.toMatch(/<button[^>]*aria-current="true"[^>]*>(?:(?!<\/button>).)*>Loose</)
+    // Website is blue: its dot sits before each task row's title, as on a meeting's row.
+    for (const title of ["Due task", "Loose"]) {
+      expect(left).toMatch(new RegExp(`bg-blue-500[^"]*"></span><span class="truncate">${title}<`))
+    }
+  })
+
+  it("puts the meeting on now first with Now beside it, and fades one that has finished", () => {
+    const meetings = [
+      { meetingId: "m1", title: "Standup", color: "blue" as const, teamId: "acme", teamName: "Acme", startsAt: "2099-03-02T08:00:00Z", endsAt: "2099-03-02T08:15:00Z" },
+      { meetingId: "m2", title: "Client call", color: "green" as const, teamId: "acme", teamName: "Acme", startsAt: "2099-03-02T09:00:00Z", endsAt: "2099-03-02T09:30:00Z" },
+    ]
+    // The Daily card loaded at 9 AM, so the client call is on and standup is over.
+    const html = render(dashboard({ meetings }))
+    expect(html.indexOf(">Client call<")).toBeLessThan(html.indexOf(">Standup<"))
+    expect(html).toMatch(/>Client call<\/span><span[^>]*data-slot="badge"[^>]*>Now</)
+    expect(html).toMatch(/opacity-60[^>]*>(?:(?!<\/a>).)*>Standup</)
+  })
+
+  it("offers Clear filters in the message when a search hides every task", () => {
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <AdminDashboardScreen daily={DAILY} dashboard={dashboard()} inbox={NO_INBOX} search={{ q: "zzz" }} />
+      </TooltipProvider>
+    )
+    expect(html).toContain("No tasks match &quot;zzz&quot;.")
+    expect(html).toMatch(/<button[^>]*>Clear filters<\/button>/)
+    expect(html).not.toContain("Clear the filters to see them all")
+  })
+
+  it("gives the site admin a page they can write in, empty or not", () => {
+    // The editor itself draws in the browser; here only its writing box is in the page.
+    const body = JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Ship the redesign" }] }] })
+    expect(render({ ...dashboard(), page: body })).toContain("data-notes-editor")
+    expect(render(dashboard())).toContain("data-notes-editor")
   })
 
   it("draws a Pinned projects card: only pinned ones, late first and tinted, stuck, due date, lead, faces, idle lines", () => {
@@ -338,8 +455,7 @@ describe("the site admin's My dashboard", () => {
         starred: true,
         ...extra,
       }) as unknown as AdminDashboard["cards"]["projects"][number]
-    const html = render(
-      dashboard({
+    const data = dashboard({
         projects: [
           row("p1", "Brochure", {
             dueDate: "2099-03-24",
@@ -358,7 +474,7 @@ describe("the site admin's My dashboard", () => {
           finished: { p1: [0, 1, 0, 2, 0, 0, 1, 0, 0, 3, 0, 0, 1, 2] },
         },
       })
-    )
+    const html = cardOf(data)
     expect(html).toContain("Pinned projects<")
     // Projects have no avatar (Tyler, 5 Nov 2026): each card shows its colour as a full 36px dot.
     expect(html).toMatch(/size-9"><\/span><span class="grid[^>]*><span class="truncate[^>]*>Brochure</)
@@ -378,23 +494,32 @@ describe("the site admin's My dashboard", () => {
     expect(html.indexOf(">Archive photos<")).toBeGreaterThan(html.indexOf(">Brochure<"))
     expect(html).not.toContain(">Old blog<")
     expect(html).not.toContain("Hidden<")
-    // Three pinned, counted beside the heading.
-    expect(html).toMatch(/Pinned projects<\/[^>]+>(?:(?!<\/h).)*>3</)
+    // Three pinned, counted beside the heading on a light grey patch.
+    expect(html).toMatch(/>Pinned projects<span class="[^"]*bg-muted[^"]*">3</)
     // Each has its own New task, the pin that unpins it, and Open.
     expect(html).toContain('aria-label="New task in Brochure"')
     expect(html).toContain('aria-label="Unpin Brochure"')
     expect(html).not.toContain("from this card")
     expect(html).toContain('aria-label="Open Brochure"')
     expect(html).toContain('aria-pressed="false"')
-    // Under them, the way to every project.
-    expect(html).toMatch(/<a [^>]*opacity-0[^>]*group-hover\/fold:opacity-100[^>]*><span[^>]*>All projects<\/span>/)
+    // Under the projects, the way to every project (Tyler, 6 Nov 2026: "move the all
+    // projects link to the bottom"), always shown.
+    expect(html).toMatch(/<a [^>]*>All projects<svg/)
+    expect(html.indexOf(">All projects<")).toBeGreaterThan(html.indexOf(">Archive photos<"))
   })
 
   it("says how to pin one, and still links to every project, when nothing is pinned", () => {
-    const html = render(dashboard({ projects: FULL.projects.map((project) => ({ ...project, starred: false })) }))
-    expect(html).toContain("Pinned projects<")
+    const data = dashboard({ projects: FULL.projects.map((project) => ({ ...project, starred: false })) })
+    const html = cardOf(data)
     expect(html).toContain("Pin a project on the Projects page to see it here.")
-    expect(html).toMatch(/<a [^>]*opacity-0[^>]*group-hover\/fold:opacity-100[^>]*><span[^>]*>All projects<\/span>/)
+    expect(html).toMatch(/<a [^>]*>All projects<svg/)
+    expect(html).toMatch(/>Pinned projects<span class="[^"]*bg-muted[^"]*">0</)
+  })
+
+  it("has no Pinned projects card, and no empty strip for it, when there are no open projects at all", () => {
+    const footer = render(dashboard()).split("<footer")[1]
+    expect(footer).not.toContain(">Pinned projects<")
+    expect(footer).toMatch(/divide-y"><div class="[^"]*empty:hidden[^"]*"><\/div>/)
   })
 
   it("leaves a section hidden with the eye off the Daily card", () => {
@@ -454,6 +579,8 @@ describe("the site admin's My dashboard", () => {
         <AdminDashboardScreen daily={DAILY} dashboard={dashboard(FULL)} inbox={NO_INBOX} search={{ project: "p1" }} />
       </TooltipProvider>
     )
+    // The line under the heading names the project, so the filter shows with the card folded too.
+    expect(html).toMatch(/>Pinned projects<(?:(?!<\/h2>).)*>Showing only Website</)
     expect(html).toContain("Showing only this project&#x27;s tasks. Press to show them all.")
     expect(html).toContain('aria-pressed="true"')
     // Both of the site admin's tasks are in other projects, so the List is empty.

@@ -570,17 +570,14 @@ older". Each line says how long ago, with the exact time on hover.
   handed back, commented on, put in the bin and brought back, a step made its
   own task, a task moved here, and the project's own status set or taken
   off (from 15 Oct 2026, read from `project_project_events` and merged in by
-  time). Each is a full sentence, worded the same
-  as on the task's History card ("put Logo in the bin", "put it in the bin").
+  time). Each is a full sentence ("put Logo in the bin", "put it in the bin").
   A status the app doesn't know reads "changed the status of Logo".
 - **"Show older" says when it fails**, with Try again in its place. Each line opens its task, unless the task is
   in the bin.
-- **Written as it happens.** It reads `project_task_events`, the same rows as
-  each task's History card, with three kinds added on 11 Oct 2026 (made,
+- **Written as it happens.** It reads `project_task_events`, with three kinds added on 11 Oct 2026 (made,
   status changed, commented). Changes from before then aren't in it.
 - **Who sees it:** the same people who can see the project.
-- **The History card stays the task's own story.** It shows the same moments
-  for one task, except comments, which are already in its chat.
+- **A task has no History card of its own** since 6 Nov 2026 ([History](history.md)).
 - **The Team dashboard has the same feed for every project** (see
   [Teams and invites](teams-and-invites.md#the-teams-activity)).
 
@@ -753,8 +750,16 @@ Neither puts a window over the page.
   [The task clock](task-clock.md)). Neither page has a cross: the task stays open until
   another is picked (the project page since 20 Oct 2026, My dashboard since
   23 Oct: "There is no 'x' icon to close the right panel to show an empty
-  panel"). Follow is in the ⋮ menu (Tyler, 14
-  Oct 2026). Down the panel: anything that needs an answer (a
+  panel"). Follow is a bell beside the ⋮ in the header, ringing while
+  followed (Tyler, 6 Nov 2026: "move the bell follow here (just add the icon
+  only)"; it was in the ⋮ menu from 14 Oct 2026).
+- **Add to task** sits just above the footer (Tyler, 6 Nov 2026: "Move tasks
+  action row down to the footer"): Tags, Comment (only while the chat has no
+  messages), Files, Steps and Time, each an icon with its word under it. In a
+  panel under 20rem wide only the icons show, each named on hover. The one
+  picked opens a titled box above the row with the same insides it had in
+  the menu. Someone who can't change the task sees only Files, and Time once
+  there is a time or a guess. Down the panel: anything that needs an answer (a
   hand-over to accept, a review, the Stuck reason row, the Move and Remind
   me cards), then Notes, always there to write in, Steps ("Steps · 0 of 2
   done") once it has a step, and Chat ("Chat · 4") once it has a message, each a card that folds shut and stays shut
@@ -798,14 +803,10 @@ Neither puts a window over the page.
   person saves, or Bring back, are drawn fresh unless you are writing in the
   box. In the box a click places the cursor, so a link opens with Cmd-click
   (Ctrl-click off a Mac).
-- **Show the text toolbar** is the first row under the ⋮ menu's fields, with a
-  pencil (Tyler, 2 Nov 2026: "move the pen to enable editor there too"; the
-  pencil was a header button until then). It shows the toolbar at the top of
-  the notes: bold, italic, strikethrough, two headings, bullet and numbered
-  lists, and quote. An × at the toolbar's right hides it again
-  (`assets/pasted-image-1793656552866103000.png`), and while it shows the ⋮
-  row reads "Hide the text toolbar". Selecting words still offers a link.
-- **Steps is in the ⋮ menu's Add to task row** (Tyler, 2 Nov 2026: "move the
+- **No text toolbar.** "Show the text toolbar" was a row in the ⋮ menu from
+  2 Nov 2026 until 6 Nov 2026 ("remove this"). Selecting words still offers a
+  link.
+- **Steps is in the Add to task row** (Tyler, 2 Nov 2026: "move the
   add steps here", `assets/pasted-image-1793657078076743000.png`; for a
   moment that day it was an icon in the header). It shows the Add a step box,
   the cursor already in it, and Add a step list and Save these steps as a
@@ -816,10 +817,11 @@ Neither puts a window over the page.
   added brings the card in. In the panel the Steps card has no Add a step
   box of its own; the Team dashboard's window still has one under its
   steps.
-- **The ⋮ menu** has "Earlier versions of the notes" and "Delete the notes"
-  under Show the text toolbar. They are not in Tyler's 2 Nov drawing; they
-  stay because nothing else reaches them. Delete asks first, then empties the notes for everyone; the
-  words are kept as an earlier version. Add note left it.
+- **The notes' earlier versions** are the ⋮ menu's Versions tab since 6 Nov
+  2026 ("The earlier version of the note moves to the tabs"): newest first,
+  the last 20, each with who saved it and when and Bring back. "Delete the
+  notes" stays a row in General. Delete asks first, then empties the notes for
+  everyone; the words are kept as an earlier version.
 - **Someone who can't change the task** reads the notes as before, and sees
   nothing there while there are none. The Team dashboard's window has the
   same box under a Notes label (`LiveTaskNotes` in
@@ -831,57 +833,49 @@ Neither puts a window over the page.
   Comment leaves the Add to task row. A deleted message doesn't count, so a chat
   holding only "Message deleted" still offers Comment, shows the deleted
   line, and counts 0.
-- **The ⋮ menu** is laid out as Tyler drew it on 2 Nov 2026
-  (`assets/pasted-image-1793657566602963000.png`), from the cog's dropdown
-  he drew on 13 Oct 2026 (`assets/pasted-image-1791937217887403000.png`).
-  Follow (or Following) sits at the right of its Details and History tabs
-  (Tyler, 14 Oct 2026, `assets/pasted-image-1791997051267604000.png`). The
-  tabs and Follow are both 32px tall, 12px from the menu's top, left and
-  right edges, the same gap New task has from the middle panel's top and
-  right edges (Tyler, 2 Nov 2026: "too much padding and its not even",
-  `assets/pasted-image-1793658113872391000.png`, then "use that spacing",
-  `assets/pasted-image-1793658181619840000.png`). The
-  Details tab starts with "Add to task", a row of icons with a word under
-  each: Tags, Comment (only while the chat has no messages), Files, Steps
-  and Time. The one picked takes the menu's place, with an arrow back.
-  Someone who can't change the task sees only Files, and Time once there is
-  a time or a guess. The menu's text is smaller than the rest of the panel
-  (Tyler, 2 Nov 2026: "reduce the text size",
-  `assets/pasted-image-1793657858998550000.png`, then "reduce all the text a
-  bit (10%)", then "increase by 5%"): 13px for the tabs, Follow, field
-  names, answers and rows, and 11.5px for "Add to task" and the words under
-  the icons. Each field row has 8px above and below it, 41px tall shut ("theres
-  too much spacing between the items here",
-  `assets/pasted-image-1793658079962448000.png`). The field names
-  are medium weight here, not the 15px bold they have elsewhere. Under that row the Details tab is a stack
-  of rows that fold open (Tyler, 14 Oct 2026, from Trade's order window and
-  the Broadcast dashboard's settings, `assets/pasted-image-1792015687885493000.png`
-  and `assets/pasted-image-1792016136552647000.png`). The rows are flat, with
-  no box, and a line between them runs to the dropdown's edges (Tyler, 20 Oct
-  2026, `assets/pasted-image-1792539542274887000.png`: "move all of these
-  outside the cards (flatten it)"). Shut, a row shows its
-  name and its answer on the right with an arrow; open, a line saying what
-  it is for and its fields one per row. Person ("Admin", or "· waiting")
-  holds Assigned to, the hand-over note and Hand back; Dates ("Oct 14 to Oct
-  23") holds Start day, Due date and Due by; Priority and template ("Normal ·
-  Video editing") holds Priority and Template, the tags being under the title; then the task template's own fields
-  ("3 fields"), and Plan ("Repeats · Reminder set", or "Nothing set") with
-  repeat, snooze, waiting on and my reminder. Each card starts shut and
-  remembers in this browser whether it was left open
-  (`src/components/project/option-card.tsx`). The menu is 363px wide, down
-  from 384px (Tyler, 2 Nov 2026: 10% narrower, then 5% wider). Then,
-  under a line: Needs review as a tick box, in line with the icons of the
-  rows under it (Tyler, 2 Nov 2026: "put need review checkbox here",
-  `assets/pasted-image-1793658281599591000.png`; it was a switch among the
-  fields), Show the text toolbar, the notes' two rows, Remind me, Ask
-  for more time (when it applies), Duplicate task, Move to project, Save as
-  task template (for whoever runs the team; see
-  [Task templates](task-types.md)), and Delete task in red under a line of
-  its own. The
-  History tab holds the task's history. Every field saves on its own, and
-  closing the menu saves the field being typed in. Move to project and
-  Remind me were not in the drawing; they are kept there because nothing
-  else on the page reaches them.
+- **The ⋮ menu** is drawn as My settings is since 6 Nov 2026 (Tyler: "It
+  needs to copy the Ui of the left panel tabs"), on the same frame
+  (`TabbedMenu` in `my-settings-menu.tsx`): 326px wide, 10% narrower than My
+  settings ("reduce the width of the dropdown by 10%"), underlined tabs from
+  the left, 32px apart, each tab scrolling inside it, and the text the
+  panel's own size. It opens on General every time. Tyler first drew it on 2
+  Nov 2026 (`assets/pasted-image-1793657566602963000.png`), from the cog's
+  dropdown of 13 Oct 2026.
+  - **General** (it was Details: "details should be renamed to "General""),
+    drawn from Tyler's picture of 6 Nov 2026
+    (`assets/pasted-image-1793985847218883000.png`): small muted headings
+    over bordered lists, each row its name on the left and its value on the
+    right with an arrow, with no folds ("All these settings dont need to be in
+    toggles"). An empty value is grey, "None". **One press picks** (Tyler, 6
+    Nov 2026: "It doesnt need 2 steps to select"): a row with choices opens
+    its list straight away, current one ticked, and a row with a day opens the
+    quick days and the month straight away, with a Clear button under them.
+    A pick saves and closes. Only a typed address, the Due by time, a
+    template's fields and the Plan open a small box. Escape closes what opened
+    and leaves the menu open (`PickMenuRow`, `PickDayRow`, `PickRow` in
+    `pick-rows.tsx`; the calendar's insides are `DayChoices` in
+    `due-day-picker.tsx`).
+    - **Person:** Assigned to, with their face and "(you)" for me. Handing it
+      to someone else shows the hand-over note under the list, with Hand over.
+    - **Dates:** Start day, Due date, Due by (only once there's a due date),
+      and Remind me, the day of my own reminder, or "None" ("put reminds me
+      under here"). "Date moved 3 times" and a day-off warning sit under the
+      list. Someone who can't change the task has no Remind me row.
+    - **Details:** Priority, Template, the template's own fields when it has
+      some, Video or Promo, and Plan (repeat, snooze, waiting on and my
+      reminder). Plan isn't in the drawing; it is kept as Details' last row.
+    - Under them: Needs review as a tick box, Delete the notes, Lock the notes,
+      Ask for more time (when it applies), Duplicate task, Move to project,
+      Save as task template (for whoever runs the team; see
+      [Task templates](task-types.md)), and Delete task in red under a line of
+      its own. The drawing ends at Details; these rows stay because nothing
+      else reaches them.
+  - **Versions:** the notes' earlier versions (above).
+  - Remind me was a tab for a few hours on 6 Nov 2026, then moved under
+    Dates.
+  - There is no History tab since 6 Nov 2026 ([History](history.md)).
+  Every field saves on its own, and closing the menu saves the field being
+  typed in.
 - **Opening another task** while one is open swaps it in place, with no new
   step in the browser's history.
 - **The browser's own back button** closes a task opened from the list,

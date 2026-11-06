@@ -52,6 +52,22 @@ export type TaskFilters = {
   project?: string
 }
 
+/**
+ * Every filter Filter sets, and the search, emptied: what Filter's Clear and
+ * the "No tasks match" message's Clear filters send. The person filter is a
+ * dropdown of its own, so neither touches it.
+ */
+export const NO_TASK_FILTERS: Partial<TaskFilters> = {
+  q: undefined,
+  status: undefined,
+  priority: undefined,
+  due: undefined,
+  label: undefined,
+  type: undefined,
+  client: undefined,
+  project: undefined,
+}
+
 type Filterable = {
   title: string
   notesText: string

@@ -1,6 +1,6 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { CopyIcon, Trash2Icon } from "lucide-react"
+import { CopyIcon, ListChecksIcon, Trash2Icon } from "lucide-react"
 
 import {
   DropdownMenu,
@@ -31,12 +31,18 @@ export function TaskRightClickMenu({
   canDelete,
   onDuplicate,
   onDelete,
+  massSelect,
 }: {
   at: { x: number; y: number }
   onClose: () => void
   canDelete: boolean
   onDuplicate: () => void
   onDelete: () => void
+  /**
+   * Mass select at the top, where the list has it (Tyler, 6 Nov 2026: "Add mass
+   * select here on right click on tasks"); "Hide select" while it is on.
+   */
+  massSelect?: { on: boolean; onToggle: () => void }
 }) {
   return (
     // Not modal, so a right-click on another task moves the menu there in one go.
@@ -46,6 +52,12 @@ export function TaskRightClickMenu({
         <PointAnchor x={at.x} y={at.y} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-44" onCloseAutoFocus={(event) => event.preventDefault()}>
+        {massSelect ? (
+          <DropdownMenuItem onSelect={massSelect.onToggle}>
+            <ListChecksIcon className="size-4" />
+            {massSelect.on ? "Hide select" : "Mass select"}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem onSelect={onDuplicate}>
           <CopyIcon className="size-4" />
           Duplicate

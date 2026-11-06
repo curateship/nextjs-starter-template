@@ -13,30 +13,42 @@ Daily card", and that file wins wherever the two disagree.
 - **Where it is.** It is part of the left panel of My dashboard, not a card
   inside it ("more of a permanent fixture like how we built project avatar
   and background"). The sky lies faintly behind the panel's header and fades
-  into the panel, the way a project's banner does, and the greeting sits
-  under the header with the day's parts below it, above the other cards. An
-  employee's is in `my-dashboard.tsx`, the site admin's in
-  `admin-dashboard.tsx`; both draw `DailySkyBanner` and `DailyCard` from
+  into the panel, the way a project's banner does. On an employee's page the
+  greeting sits under the header with the day's parts below it, above the
+  other cards (`my-dashboard.tsx`).
+- **The site admin's sits at the foot of the left panel's footer** since 6
+  Nov 2026, under Pinned projects and Need your attention, each parted by a
+  line (Tyler: "move the start your day button into the footer of the panel
+  as well as the pinned projects", then "the footer card now hold greetings
+  and the habit section"). The whole card moved: greeting, Start day, the
+  habits and the rest, and Rate your day at night. The sky stays behind the
+  header, and the site admin's own page takes the greeting's old place under
+  it (`admin-dashboard.tsx`, `inFooter` on `DailyCard`).
+- **The greeting folds the card**, and the date and weather line folds away
+  with it, so a folded card is the greeting alone (Tyler, 6 Nov 2026: "the
+  date should be inside when collapsed"). Pinned projects and Need your
+  attention fold the same way (`fold-heading.tsx`). Both pages draw
+  `DailySkyBanner` and `DailyCard` from
   `daily-card.tsx`. It loads with the page (`loadDailyCard`,
   `src/server/project/daily-card.ts`).
 - **Each section with a heading folds**: pressing the heading, or the arrow
   that shows while it is pointed at, folds it down to its heading, and this
   browser remembers it ("Add collapsible to the cards in my daily card").
-  The cards in the pencil window fold the same way ("add collasiple to cards
-  in modal too").
+  In My settings only Retired habits folds (Tyler, 6 Nov 2026: "we don't
+  need toggles if its not required").
 - **Each part sits on its own light gray box with a border**, drawn like the
   panel's other cards, such as the next meeting, the routine and
   tomorrow ("It looks too busy with all the sections, we need to clean it
   up. try putting them in light gray bg", then "the daily section cards is
   missing border"). The buttons sit on the panel itself
   (`daily-section.tsx`).
-- **The pencil** sits in the panel's header, before the inbox and the cog
-  ("put pen icon here"). **The fold arrow** sits beside the greeting and
+- **There is no pencil** since 6 Nov 2026. Everything it held is in My
+  settings, behind the ⋮ in the panel's header. **The fold arrow** sits beside the greeting and
   shows only while the greeting is pointed at ("the good morning toggle icon
   shoukld only appear on hover over"), or on a phone, always.
 - **The parts of the day follow each person's own hours.** Morning starts at
   5 AM, afternoon at 12 PM and night at 6 PM until the person changes them
-  behind the card's pencil. Night runs past midnight until morning starts,
+  in My settings. Night runs past midnight until morning starts,
   in the person's own zone. Morning has to start before afternoon, and
   afternoon before night.
 - **The card's day.** Before morning starts it is still last night on the
@@ -54,8 +66,8 @@ Daily card", and that file wins wherever the two disagree.
   stays while the site admin's inbox or Look back is open in the panel ("the
   panel background image should not disapeared when i click on the graph or
   the inbox tab").
-- **The weather.** A City field in My settings, behind the cog beside the
-  name. The card's sky then shows that city's weather, such as clouds, rain,
+- **The weather.** A City field in My settings → General, behind the ⋮
+  beside the name. The card's sky then shows that city's weather, such as clouds, rain,
   snow or fog, and "12°, rain in Toronto" under the greeting. The browser
   never asks where the person is. The weather comes from Open-Meteo, which
   is free and needs no key. Each place's weather is kept for 30 minutes. If
@@ -117,10 +129,10 @@ a team screen or sent to anyone.
   the time beside the labels", then "the your hour should replace the hour
   beside the labels"). Afternoon's and Night's labels have 20px above them and
   8px below, so each part reads as its own group (Tyler, 2 Nov 2026: "add
-  some spacing here"). The site admin sets those hours in the pencil window's
-  Habits card, in a time box beside each part's name ("put the hours
-  selection beside the label"), so their window has no Your hours card. An
-  employee, with no habits, keeps the Your hours card.
+  some spacing here"). The site admin sets those hours in Routine habits,
+  at the right of each part's name with a clock ("put the hours selection
+  beside the label"). An employee, with no habits, sets them under Your hours
+  in My settings → General.
 - **Habits you count.** A habit can have a number, such as 8 glasses of
   water. Plus counts up, and the habit is done at its number. It has a tick
   box too: ticking it fills the whole count, and unticking empties it, which
@@ -133,19 +145,12 @@ a team screen or sent to anyone.
 - **Only today can be ticked.** There is no going back to yesterday ("remove
   the going back to yesterday to check off habit feature"); the server
   refuses a tick for any other day.
-- **Setting them up** is behind the pencil in the panel's header. Each routine has "Add a
-  habit", and each habit has a cog to change it, a handle to drag it into
-  order, and Retire. A routine holds at most 12 habits. The cog's form has
-  Habit, Part of the day and At a time on its first row, then How many a day
-  and the days beside it; no day picked is every day ("put the optional time
-  to the top row"). Every field saves itself like the rest of the window, with
-  no Save or Cancel: a pick at once, the name and the count when their box is
-  left or Enter is pressed, the time when its box is left. The Habits card
-  shows Saving… and Saved, and the window ends with Done alone (Tyler, 31 Oct
-  2026: "the save changes and then done makes no sense. its not following
-  modal standard"). "Add a habit" asks for a name with an Add button, the one
-  button left, since a habit must exist before it can save itself; the new
-  habit's form then opens. One form is open at a time.
+- **Setting them up** is in My settings → Daily card → Routine habits (below).
+  A routine holds at most 12 habits. A habit's form has Habit on its own row,
+  then Part of the day and At a time, then How many a day and the days beside
+  it; no day picked is every day. Every field saves itself, with no Save or
+  Cancel: a pick at once, the name and the count when their box is left or
+  Enter is pressed, the time when its box is left.
 - **Ready-made routines.** With no habits yet, "Start from the samples" adds
   Drink water, Stretch and Plan the day in the morning, Walk, 8 glasses of
   water and Clear the inbox in the afternoon, and Tidy the desk, Read and
@@ -164,8 +169,11 @@ a team screen or sent to anyone.
   morning routine isn't done yet" with what's left. It sends once per
   routine per day. If the server was down at that time, it can still go out
   within the next hour, but never later. No reminder is sent on a day off.
-  Each time can be changed or switched off behind the pencil. The site
-  admin can also switch the whole kind off in My settings → Bell notices.
+  Each time is changed or switched off in My settings → Notifications, on
+  the Morning, Afternoon and Night pills under "A routine on your Daily card
+  isn't done". That switch turns the whole kind off, and the pills hide while
+  it is off (`routine-reminder-times.tsx`). Tyler moved them there from the
+  pencil on 6 Nov 2026.
   It runs on the shell's 15-second loop (`sendRoutineReminders`,
   `reminder-jobs.ts`).
 
@@ -223,7 +231,7 @@ a team screen or sent to anyone.
 - **Sunday** shows the week's ratings and wins above the usual card, all day.
 - **The first of the month** shows last month's best habit (done most often
   for the days it was set), the typical rating and the top wins.
-- **Look back** is the graph in the panel's header, before the pencil ("Add
+- **Look back** is the graph in the panel's header, before the inbox ("Add
   another icon here with the graph icon"); the card has no Look back button
   ("remove the look back button"). It swaps the panel's cards for Look back,
   and pressing it again, or the inbox, swaps them back, the way the inbox
@@ -252,24 +260,39 @@ a team screen or sent to anyone.
   months across in a narrow panel and more as it widens.
   Search finds a word in wins and notes.
 
-### Behind the pencil, for the site admin
+### In My settings, for the site admin
 
-Sections, Habits (with each part's starting hour beside its name),
-Reminders and Sky, in that order.
+The Daily card tab holds Card layout, then Routine habits, drawn from Tyler's
+picture of the tab (6 Nov 2026). Sky is in General, beside City for the
+weather. The reminder times are in Notifications. It all lived behind a pencil
+in a window until that day (`daily-settings.tsx`).
 
-- **Sections** lists the card's parts: Next meeting, Routine, and
-  Tomorrow at night. Dragging one sets the order the card shows them in, in
-  the panel, saved in the site admin's account so every computer and phone
-  shows the same order ("whats the point of dragging the cards in the modal
-  if its not reflected in the panel?"; he picked the account). The Sunday and
+- **Card layout** ("Drag to reorder. Turn off sections you don't need.")
+  lists Next meeting (Work days), Routine (All day) and Tomorrow, at night
+  (Night only) in one bordered list. Dragging a row by its handle sets the
+  order the card shows them in, saved in the site admin's account so every
+  computer and phone shows the same order ("whats the point of dragging the
+  cards in the modal if its not reflected in the panel?"). The Sunday and
   monthly look-backs stay on top, and Start day and Rate your day at the
-  foot. An employee's card keeps the card's own order.
-  The eye at the end of each row hides that section from the card, and
-  pressing it again brings it back ("Add an eye icon to the sections ... for
-  me to hide or unhide a section"). A hidden row stays in the list, crossed
-  out, so it can still be dragged. The choice is kept in the account too.
+  foot. An employee's card keeps the card's own order. The switch at the end
+  of a row hides that section from the card; it was an eye until 6 Nov 2026.
+  The choice is kept in the account too.
+- **Routine habits** ("Drag habits to reorder or move them to another part of
+  the day"): Morning, Afternoon and Night, each with its starting hour on
+  the right beside a clock, then its habits in one bordered list.
+  - Each habit is a handle, its icon on a grey tile (pressing it opens the
+    icon picker), its name with how many a day ("4× a day") and its time, and
+    a ⋯ with Change (opens its form under it) and "Retire, keeping its ticks".
+    Its days are not on the line ("Remove these dates").
+  - Dragging a habit into another part's list moves it to that part of the
+    day, at the place it was dropped. A part already holding 12 refuses it.
+  - The list's last line is "Add habit" ("Add afternoon habit" while the part
+    has none), which turns into a name box with Add. Escape puts the line back.
+  - With no habits at all, "Start from the samples" sits above the parts.
+  - **Retired habits 1** folds at the foot, closed until opened, with Bring
+    back on each.
 - **Everything saves itself**, habits included; only a new habit's name has
-  an Add button. An employee's pencil holds Your hours only.
+  an Add button. An employee's hours are in My settings → General.
 
 - **Sky** picks the drawn sky or one of four scenes along the bottom of it:
   beach, city, mountains or forest. The scenes are drawn too. "My own photos"

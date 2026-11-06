@@ -96,7 +96,7 @@ export function MyTaskRows({
   /** A row let go inside its heading or under another. Left out, rows don't drag. */
   onDrop?: (drop: ListDrop) => void
   bulk: BulkTargets
-  emptyText: string
+  emptyText: React.ReactNode
   /** A heading's "+": wraps `button` in a New task that lands under that heading, or null where none can. */
   addTask?: (groupKey: string, button: React.ReactNode) => React.ReactNode
 }) {

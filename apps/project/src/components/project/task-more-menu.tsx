@@ -163,13 +163,11 @@ function useDuplicateTask(detail: TaskDetail) {
 export function TaskMoreRows({
   detail,
   onMove,
-  onRemind,
   onAskTime,
   onPicked,
 }: {
   detail: TaskDetail
   onMove: () => void
-  onRemind: () => void
   onAskTime: () => void
   onPicked: () => void
 }) {
@@ -177,18 +175,7 @@ export function TaskMoreRows({
   const cantMove = detail.moveTargets.length === 0
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        className="justify-start"
-        onClick={() => {
-          onPicked()
-          onRemind()
-        }}
-      >
-        <BellRingIcon className="size-4" />
-        {detail.myReminder ? "Change my reminder" : "Remind me"}
-      </Button>
+      {/* Remind me is the ⋮'s own tab since 6 Nov 2026 ("Reminds me also moves to the tabs"). */}
       {detail.canAskForTime ? (
         <Button
           type="button"
@@ -425,44 +412,66 @@ export function ReminderCard({
     frame.current?.scrollIntoView({ block: "nearest" })
   }, [])
 
-  async function pick(day: string | null) {
-    if (!day) return
-    const ok = await change(
-      () => setReminder(detail.task.id, day),
-      `You'll get a reminder on ${shortDayLabel(day)}, at your check-in time.`
-    )
-    if (ok) onDone()
-  }
-
   return (
     <Card size="sm" ref={frame}>
       <CardHeader>
         <CardTitle>Remind me</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <p className="text-sm text-muted-foreground">
-          On the day you pick, at your check-in time, you get a notice in the bell. Only you see it.
-        </p>
-        <div className="grid gap-2">
-          <Label htmlFor="task-reminder-day">Day</Label>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <DueDayPicker
-              id="task-reminder-day"
-              value={detail.myReminder}
-              placeholder="Pick a day"
-              defaultOpen
-              className="sm:w-fit"
-              onChange={(day) => void pick(day)}
-            />
-            <div className="flex shrink-0 gap-2">
-              <Button type="button" variant="outline" onClick={onDone}>
-                Cancel
-              </Button>
-            </div>
+        <ReminderDay detail={detail} change={change} defaultOpen onPicked={onDone} after={
+          <div className="flex shrink-0 gap-2">
+            <Button type="button" variant="outline" onClick={onDone}>
+              Cancel
+            </Button>
           </div>
-        </div>
+        } />
       </CardContent>
     </Card>
+  )
+}
+
+/** What Remind me says, and its day: picking one sets the reminder at once. */
+function ReminderDay({
+  detail,
+  change,
+  defaultOpen = false,
+  onPicked,
+  after,
+}: {
+  detail: TaskDetail
+  change: Change
+  defaultOpen?: boolean
+  onPicked?: () => void
+  after?: React.ReactNode
+}) {
+  async function pick(day: string | null) {
+    if (!day) return
+    const ok = await change(
+      () => setReminder(detail.task.id, day),
+      `You'll get a reminder on ${shortDayLabel(day)}, at your check-in time.`
+    )
+    if (ok) onPicked?.()
+  }
+  return (
+    <>
+      <p className="text-sm text-muted-foreground">
+        On the day you pick, at your check-in time, you get a notice in the bell. Only you see it.
+      </p>
+      <div className="grid gap-2">
+        <Label htmlFor="task-reminder-day">Day</Label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <DueDayPicker
+            id="task-reminder-day"
+            value={detail.myReminder}
+            placeholder="Pick a day"
+            defaultOpen={defaultOpen}
+            className="sm:w-fit"
+            onChange={(day) => void pick(day)}
+          />
+          {after}
+        </div>
+      </div>
+    </>
   )
 }
 

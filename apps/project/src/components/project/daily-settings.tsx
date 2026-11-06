@@ -2,6 +2,7 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import {
   closestCenter,
+  useDroppable,
   DndContext,
   KeyboardSensor,
   PointerSensor,
@@ -16,28 +17,19 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { ArchiveIcon, ArchiveRestoreIcon, ChevronDown, EyeIcon, EyeOffIcon, GripVerticalIcon, PlusIcon, SettingsIcon } from "lucide-react"
+import { ArchiveIcon, ArchiveRestoreIcon, ChevronDownIcon, ClockIcon, EllipsisIcon, GripVerticalIcon, PencilIcon, PlusIcon } from "lucide-react"
 
+import { SettingRow } from "@/components/project/my-settings-menu"
 import { SaveLine } from "@/components/project/save-line"
 import { ShellIconPicker } from "@/components/settings/shell-icon-picker"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   addHabit,
   addSampleRoutines,
@@ -48,7 +40,6 @@ import {
   saveMyHiddenSections,
   saveMyHours,
   saveMySectionOrder,
-  saveMyReminders,
   saveMySky,
   type DailyCard,
   type DailyHabit,
@@ -83,112 +74,9 @@ const DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
 const HabitSave = React.createContext<(work: () => Promise<unknown>) => Promise<boolean>>(async () => false)
 const TIME = /^([01][0-9]|2[0-3]):[0-5][0-9]$/
 
-/**
- * The window behind the Daily card's pencil (Tyler, 29 Oct 2026: "A pencil
- * on the card"). Everyone sets their own hours here. The site admin also
- * sets the sky, their habits for each part of the day, the routine reminders
- * and the card's sections. Every field saves itself; a new habit
- * is made with its own button.
- */
-export function DailySettingsDialog({ daily, open, onClose }: { daily: DailyCard; open: boolean; onClose: () => void }) {
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) return
-        // Leaving a field saves it, so closing first leaves the field being typed in.
-        if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-        onClose()
-      }}
-    >
-      <DialogContent variant="admin" className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Daily card</DialogTitle>
-          <DialogDescription>
-            {daily.admin
-              ? "Your habits and hours, sky and reminders. Only you see your habits and journal."
-              : "When your morning, afternoon and night start."}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody className="grid gap-6">
-          {daily.admin ? <SectionsCard daily={daily} /> : null}
-          {/* The site admin sets these beside each part in Habits instead (Tyler, 31 Oct
-              2026: "put the hours selection beside the label"). */}
-          {daily.admin ? null : <HoursCard hours={daily.settings.hours} />}
-          {daily.admin ? (
-            <>
-              <HabitsCard daily={daily} />
-              <RemindersCard daily={daily} />
-              <SkyCard daily={daily} />
-            </>
-          ) : null}
-        </DialogBody>
-        <DialogFooter>
-          <Button type="button" size="lg" onClick={onClose}>
-            Done
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 function useReload() {
   const router = useRouter()
   return React.useCallback(() => router.invalidate({ filter: (match) => match.routeId === DASHBOARD_ROUTE_ID }), [router])
-}
-
-/**
- * One card in this window, folding to its title: press the title, or the
- * arrow that shows while it is pointed at, and this browser remembers it
- * (Tyler, 30 Oct 2026: "add collasiple to cards in modal too").
- */
-function FoldCard({
-  id,
-  title,
-  action,
-  contentClassName,
-  children,
-}: {
-  id: string
-  title: React.ReactNode
-  action?: React.ReactNode
-  contentClassName?: string
-  children: React.ReactNode
-}) {
-  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(`project-daily-window-${id}`))
-  return (
-    // Around the card, never merged onto it: merged, the folding part's own name
-    // replaced the card's, and the window's card border and colour stopped applying
-    // (Tyler, 30 Oct 2026: "why did you change the borders in modal cards").
-    <Collapsible open={open} onOpenChange={setOpen} className="group/fold">
-      <Card size="sm">
-        <CardHeader className="flex items-center gap-2">
-          <CardTitle className="min-w-0 flex-1">
-            <CollapsibleTrigger asChild>
-              <button type="button" className={cn("flex w-full cursor-pointer items-center rounded-md text-left select-none", focusRingInset)}>
-                {title}
-              </button>
-            </CollapsibleTrigger>
-          </CardTitle>
-          {action}
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-hidden
-              className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md opacity-0 transition-opacity group-hover/fold:opacity-100 group-has-[:focus-visible]/fold:opacity-100 [@media(hover:none)]:opacity-100"
-            >
-              <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/fold:-rotate-90" />
-            </button>
-          </CollapsibleTrigger>
-        </CardHeader>
-        <CollapsibleContent data-collapse-key={noFlashKey}>
-          <CardContent className={contentClassName}>{children}</CardContent>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
-  )
 }
 
 /**
@@ -200,7 +88,7 @@ function FoldCard({
  * (Tyler, 31 Oct 2026: "Add an eye icon to the sections ... for me to hide or
  * unhide a section"), also kept in the account.
  */
-function SectionsCard({ daily }: { daily: DailyCard }) {
+export function DailySectionsSetting({ daily }: { daily: DailyCard }) {
   const reload = useReload()
   const [order, setOrder] = useSyncedDraft(daily.settings.sections)
   const [hidden, setHidden] = useSyncedDraft(daily.settings.hidden)
@@ -227,53 +115,55 @@ function SectionsCard({ daily }: { daily: DailyCard }) {
     else setHidden(before)
   }
   return (
-    <FoldCard
-      id="sections"
-      title="Sections"
-      contentClassName="grid gap-2"
-      action={<SaveLine state={state} />}
-    >
-      <p className="text-sm text-muted-foreground">Drag to set the order they show in on the card, and use the eye to hide one. Some show only at one part of the day.</p>
+    <SettingRow title="Card layout" description="Drag to reorder. Turn off sections you don't need." action={<SaveLine state={state} />}>
       <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => void drop(event)}>
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
-          <ul className="grid gap-1.5" aria-label="Sections">
+          <ul className="divide-y overflow-hidden rounded-xl border" aria-label="Card layout">
             {order.map((name) => (
               <SectionRow key={name} name={name} hidden={hidden.includes(name)} onToggle={() => void toggle(name)} />
             ))}
           </ul>
         </SortableContext>
       </DndContext>
-    </FoldCard>
+    </SettingRow>
   )
 }
 
+/** When a section can show on the card: the next meeting stays away on a day off. */
+const SECTION_WHEN: Record<DailySection, string> = {
+  meeting: "Work days",
+  routine: "All day",
+  tomorrow: "Night only",
+}
+
+/**
+ * A section in Card layout: dragged by its handle, and a switch that shows or
+ * hides it on the card (Tyler, 6 Nov 2026, drawing it with a switch where the
+ * eye was). Hidden is still kept as the account's list of hidden sections.
+ */
 function SectionRow({ name, hidden, onToggle }: { name: DailySection; hidden: boolean; onToggle: () => void }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: name })
   const style: React.CSSProperties | undefined = transform
     ? { transform: `translate3d(0, ${transform.y}px, 0)`, transition }
     : undefined
+  const switchId = `daily-section-${name}`
   return (
-    <li ref={setNodeRef} style={style} className={cn("flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm", isDragging && "z-10 shadow-md")}>
+    <li ref={setNodeRef} style={style} className={cn("flex items-center gap-3 bg-background px-3 py-2.5", isDragging && "relative z-10 shadow-md")}>
       <button
         type="button"
         ref={setActivatorNodeRef}
         {...listeners}
         {...attributes}
         aria-label={`Drag ${DAILY_SECTION_LABEL[name]} to change the order`}
-        className={cn("flex size-6 cursor-grab items-center justify-center rounded text-muted-foreground hover:text-foreground", focusRingInset)}
+        className={cn("flex size-6 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/60 hover:text-foreground", focusRingInset)}
       >
         <GripVerticalIcon className="size-4" aria-hidden />
       </button>
-      <span className={cn("min-w-0 flex-1 truncate", hidden && "text-muted-foreground line-through")}>{DAILY_SECTION_LABEL[name]}</span>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-pressed={hidden}
-        aria-label={`${hidden ? "Show" : "Hide"} ${DAILY_SECTION_LABEL[name]} on the card`}
-        className={cn("flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground", focusRingInset)}
-      >
-        {hidden ? <EyeOffIcon className="size-4" aria-hidden /> : <EyeIcon className="size-4" aria-hidden />}
-      </button>
+      <label htmlFor={switchId} className="grid min-w-0 flex-1 gap-0.5">
+        <span className="truncate text-sm">{DAILY_SECTION_LABEL[name]}</span>
+        <span className="text-xs text-muted-foreground">{SECTION_WHEN[name]}</span>
+      </label>
+      <Switch id={switchId} checked={!hidden} onCheckedChange={onToggle} aria-label={`Show ${DAILY_SECTION_LABEL[name]} on the card`} />
     </li>
   )
 }
@@ -317,27 +207,28 @@ function useHours(hours: DayHours, track: (work: () => Promise<unknown>) => Prom
   }
 }
 
-function HoursCard({ hours }: { hours: DayHours }) {
+/** An employee's own hours, in General: when their morning, afternoon and night start. */
+export function DailyHoursSetting({ hours }: { hours: DayHours }) {
   const [state, track] = useSaveLine()
   const { inputProps } = useHours(hours, track)
   return (
-    <FoldCard
-      id="hours"
-      title="Your hours"
-      contentClassName="grid gap-4 sm:grid-cols-3"
-      action={<SaveLine state={state} />}
-    >
-      {DAY_PARTS.map((part) => (
-        <div key={part} className="grid gap-2">
-          <Label htmlFor={`daily-hours-${part}`}>{DAY_PART_LABEL[part]} starts</Label>
-          <Input id={`daily-hours-${part}`} {...inputProps(part)} />
+    <SettingRow title="Your hours" description="When your morning, afternoon and night start on the Daily card." action={<SaveLine state={state} />}>
+      {/* Three across while the box is wide enough, one under the other on a phone. */}
+      <div className="@container">
+        <div className="grid gap-3 @min-[22rem]:grid-cols-3">
+          {DAY_PARTS.map((part) => (
+            <div key={part} className="grid gap-2">
+              <Label htmlFor={`daily-hours-${part}`}>{DAY_PART_LABEL[part]} starts</Label>
+              <Input id={`daily-hours-${part}`} {...inputProps(part)} />
+            </div>
+          ))}
         </div>
-      ))}
-    </FoldCard>
+      </div>
+    </SettingRow>
   )
 }
 
-function SkyCard({ daily }: { daily: DailyCard }) {
+export function DailySkySetting({ daily }: { daily: DailyCard }) {
   const reload = useReload()
   const [state, track] = useSaveLine()
   const { sky, ownSkies } = daily.settings
@@ -345,16 +236,11 @@ function SkyCard({ daily }: { daily: DailyCard }) {
     if (await track(() => saveMySky(next))) await reload()
   }
   return (
-    <FoldCard
-      id="sky"
-      title="Sky"
-      contentClassName="grid gap-4"
-      action={<SaveLine state={state} />}
-    >
+    <SettingRow title="Sky" action={<SaveLine state={state} />}>
       <div className="grid gap-2">
         <Label htmlFor="daily-sky">Behind the greeting</Label>
         <Select value={sky} onValueChange={(value) => void save({ sky: value as SkyKind, own: ownSkies })}>
-          <SelectTrigger id="daily-sky" className="sm:w-56">
+          <SelectTrigger id="daily-sky" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -367,7 +253,7 @@ function SkyCard({ daily }: { daily: DailyCard }) {
         </Select>
       </div>
       {sky === "own" ? (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-3 gap-3">
           {DAY_PARTS.map((part) => (
             <ImageUpload
               key={part}
@@ -378,73 +264,33 @@ function SkyCard({ daily }: { daily: DailyCard }) {
           ))}
         </div>
       ) : null}
-    </FoldCard>
-  )
-}
-
-function RemindersCard({ daily }: { daily: DailyCard }) {
-  const reload = useReload()
-  const saved = daily.settings.reminders
-  const [draft, setDraft] = useSyncedDraft(saved)
-  const [state, track] = useSaveLine()
-  async function save(next: typeof saved) {
-    setDraft(next)
-    if (await track(() => saveMyReminders(next))) await reload()
-    else setDraft(saved)
-  }
-  return (
-    <FoldCard
-      id="reminders"
-      title="Reminders"
-      contentClassName="grid gap-4"
-      action={<SaveLine state={state} />}
-    >
-      <p className="text-sm text-muted-foreground">
-        A bell notice at this time if that routine still has habits not ticked.
-      </p>
-      {DAY_PARTS.map((part) => {
-        const time = draft[part]
-        return (
-          <div key={part} className="flex flex-wrap items-center gap-3">
-            <Switch
-              id={`daily-reminder-${part}`}
-              checked={time !== null}
-              onCheckedChange={(on) =>
-                void save({ ...draft, [part]: on ? (saved[part] ?? { morning: "10:00", afternoon: "15:00", night: "21:00" }[part]) : null })
-              }
-            />
-            <Label htmlFor={`daily-reminder-${part}`} className="w-24">
-              {DAY_PART_LABEL[part]}
-            </Label>
-            {time !== null ? (
-              <Input
-                type="time"
-                aria-label={`${DAY_PART_LABEL[part]} reminder time`}
-                className="w-36"
-                value={time}
-                onChange={(event) => setDraft({ ...draft, [part]: event.target.value })}
-                onBlur={() => {
-                  if (draft[part] === saved[part]) return
-                  if (!TIME.test(draft[part] ?? "")) {
-                    showErrorToast("Pick a time like 09:00.")
-                    return
-                  }
-                  void save(draft)
-                }}
-              />
-            ) : (
-              <span className="text-sm text-muted-foreground">Off</span>
-            )}
-          </div>
-        )
-      })}
-    </FoldCard>
+    </SettingRow>
   )
 }
 
 // --- Habits ---------------------------------------------------------------------
 
-function HabitsCard({ daily }: { daily: DailyCard }) {
+/** Each part's habit ids in their order, as one string, so a new load replaces a drag's draft. */
+function orderKeyOf(habits: DailyHabit[]) {
+  return DAY_PARTS.map((part) => habits.filter((habit) => habit.part === part).map((habit) => habit.id).join(",")).join("|")
+}
+
+function readOrderKey(key: string): Record<DayPart, string[]> {
+  const lists = key.split("|").map((ids) => (ids ? ids.split(",") : []))
+  return { morning: lists[0] ?? [], afternoon: lists[1] ?? [], night: lists[2] ?? [] }
+}
+
+/** A part's own list, so a habit can be dropped on a part with none yet. */
+const PART_DROP = "part:"
+
+/**
+ * Routine habits in My settings → Daily card (Tyler, 6 Nov 2026, from his
+ * drawing): each part of the day with its starting hour on the right, its
+ * habits in a bordered list, and "Add habit" as the list's last line. A habit
+ * drags to a new place in its part or into another part; its ⋯ changes or
+ * retires it. Retired habits fold at the foot.
+ */
+export function DailyHabitsSetting({ daily }: { daily: DailyCard }) {
   const reload = useReload()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const admin = daily.admin!
@@ -452,17 +298,70 @@ function HabitsCard({ daily }: { daily: DailyCard }) {
   const [editing, setEditing] = React.useState<string | null>(null)
   const [state, track] = useSaveLine()
   const { inputProps } = useHours(daily.settings.hours, track)
+  // The order shows at once on a drop and goes back if the save is refused.
+  const [orderKey, setOrderKey] = useSyncedDraft(orderKeyOf(admin.habits))
+  const order = readOrderKey(orderKey)
+  const byId = new Map(admin.habits.map((habit) => [habit.id, habit]))
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+  const dndId = React.useId()
 
   async function act(work: () => Promise<unknown>, done?: string) {
     if (await run(work, done)) await reload()
   }
 
+  function partOf(id: string): DayPart | null {
+    if (id.startsWith(PART_DROP)) return id.slice(PART_DROP.length) as DayPart
+    return DAY_PARTS.find((part) => order[part].includes(id)) ?? null
+  }
+
+  async function drop(event: DragEndEvent) {
+    const activeId = String(event.active.id)
+    const overId = event.over ? String(event.over.id) : null
+    if (!overId || overId === activeId) return
+    const from = partOf(activeId)
+    const to = partOf(overId)
+    const habit = byId.get(activeId)
+    if (!from || !to || !habit) return
+    const next = { ...order, [from]: order[from].filter((id) => id !== activeId) }
+    if (from === to) {
+      next[to] = arrayMove(order[to], order[to].indexOf(activeId), order[to].indexOf(overId))
+    } else {
+      if (order[to].length >= DAILY_LIMITS.habitsPerPart) {
+        showErrorToast(`${DAY_PART_LABEL[to]} already has ${DAILY_LIMITS.habitsPerPart} habits.`)
+        return
+      }
+      const at = overId.startsWith(PART_DROP) ? order[to].length : order[to].indexOf(overId)
+      next[to] = [...order[to].slice(0, at), activeId, ...order[to].slice(at)]
+    }
+    const before = orderKey
+    setOrderKey(DAY_PARTS.map((part) => next[part].join(",")).join("|"))
+    const ok = await track(async () => {
+      if (from !== to) {
+        await changeHabit({
+          habitId: habit.id,
+          name: habit.name,
+          part: to,
+          icon: habit.icon,
+          target: habit.target,
+          days: habit.days,
+          atTime: habit.atTime,
+        })
+      }
+      await saveHabitOrder({ part: to, habitIds: next[to] })
+    })
+    if (ok) await reload()
+    else setOrderKey(before)
+  }
+
   return (
-    <FoldCard
-      id="habits"
-      title="Habits"
-      contentClassName="grid gap-4"
+    <SettingRow
+      title="Routine habits"
+      description="Drag habits to reorder or move them to another part of the day."
       action={<SaveLine state={state} />}
+      className="gap-3"
     >
       <HabitSave.Provider value={track}>
         {admin.habits.length === 0 && admin.retired.length === 0 ? (
@@ -481,63 +380,93 @@ function HabitsCard({ daily }: { daily: DailyCard }) {
             </Button>
           </div>
         ) : null}
-        {DAY_PARTS.map((part) => (
-          <RoutineList
-            key={part}
-            part={part}
-            hours={inputProps(part)}
-            habits={admin.habits.filter((habit) => habit.part === part)}
-            editing={editing}
-            // One habit form open at a time.
-            onEdit={(id) => {
-              setEditing(id)
-              if (id) setAdding(null)
-            }}
-            adding={adding === part}
-            onAdd={(on) => {
-              setAdding(on ? part : null)
-              if (on) setEditing(null)
-            }}
-            // A new habit opens its form, so the rest of it can be set.
-            onAdded={(id) => {
-              setAdding(null)
-              setEditing(id)
-            }}
-          />
-        ))}
-        {admin.retired.length ? (
-          <div className="grid gap-2">
-            <span className="text-sm font-medium">Retired</span>
-            <ul className="grid gap-1">
-              {admin.retired.map((habit) => (
-                <li key={habit.id} className="flex items-center gap-2 text-sm">
-                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                    {habit.name} · {DAY_PART_LABEL[habit.part]}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => void act(() => bringBackHabit(habit.id), `"${habit.name}" is back.`)}
-                  >
-                    <ArchiveRestoreIcon className="size-4" />
-                    Bring back
-                  </Button>
-                </li>
-              ))}
-            </ul>
+        <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => void drop(event)}>
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
+            {DAY_PARTS.map((part) => (
+              <PartList
+                key={part}
+                part={part}
+                hours={inputProps(part)}
+                habits={order[part].flatMap((id) => byId.get(id) ?? [])}
+                dragDisabled={busy}
+                editing={editing}
+                // One habit form open at a time.
+                onEdit={(id) => {
+                  setEditing(id)
+                  if (id) setAdding(null)
+                }}
+                adding={adding === part}
+                onAdd={(on) => {
+                  setAdding(on ? part : null)
+                  if (on) setEditing(null)
+                }}
+                // A new habit opens its form, so the rest of it can be set.
+                onAdded={(id) => {
+                  setAdding(null)
+                  setEditing(id)
+                }}
+              />
+            ))}
           </div>
+        </DndContext>
+        {admin.retired.length ? (
+          <RetiredHabits retired={admin.retired} busy={busy} onBringBack={(habit) => void act(() => bringBackHabit(habit.id), `"${habit.name}" is back.`)} />
         ) : null}
       </HabitSave.Provider>
-    </FoldCard>
+    </SettingRow>
   )
 }
 
-function RoutineList({
+/** Retired habits at the foot of Routine habits, folded until opened; each can come back. */
+function RetiredHabits({
+  retired,
+  busy,
+  onBringBack,
+}: {
+  retired: NonNullable<DailyCard["admin"]>["retired"]
+  busy: boolean
+  onBringBack: (habit: { id: string; name: string }) => void
+}) {
+  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-my-settings-retired"), false)
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="mt-1">
+      <CollapsibleTrigger asChild>
+        <button type="button" className={cn("flex w-full items-center gap-2 rounded-md text-left text-sm font-medium", focusRingInset)}>
+          <span>Retired habits</span>
+          <span className="text-muted-foreground tabular-nums">{retired.length}</span>
+          <ChevronDownIcon className={cn("ml-auto size-4 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent data-collapse-key={noFlashKey}>
+        <ul className="grid gap-1 pt-2">
+          {retired.map((habit) => (
+            <li key={habit.id} className="flex items-center gap-2 text-sm">
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                {habit.name} · {DAY_PART_LABEL[habit.part]}
+              </span>
+              <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => onBringBack(habit)}>
+                <ArchiveRestoreIcon className="size-4" />
+                Bring back
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
+/**
+ * One part of the day: its name, and its starting hour on the right with a
+ * clock (Tyler, 31 Oct 2026: "put the hours selection beside the label"), then
+ * its habits in one bordered list ending in Add habit. An empty part's list is
+ * only "Add afternoon habit", and a habit dragged onto it lands there.
+ */
+function PartList({
   part,
   hours,
   habits,
+  dragDisabled,
   editing,
   onEdit,
   adding,
@@ -548,84 +477,80 @@ function RoutineList({
   /** The box for when this part starts, the same hour as Your hours. */
   hours: React.ComponentProps<typeof Input>
   habits: DailyHabit[]
+  dragDisabled: boolean
   editing: string | null
   onEdit: (habitId: string | null) => void
   adding: boolean
   onAdd: (on: boolean) => void
   onAdded: (habitId: string) => void
 }) {
-  const reload = useReload()
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  const ids = habits.map((habit) => habit.id)
-  const [order, setOrder] = useSyncedDraft(ids.join(","))
-  const shown = order
-    .split(",")
-    .flatMap((id) => habits.find((habit) => habit.id === id) ?? [])
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-  const dndId = React.useId()
-
-  function drop(event: DragEndEvent) {
-    const overId = event.over?.id
-    if (overId === undefined || overId === event.active.id) return
-    const current = shown.map((habit) => habit.id)
-    const next = arrayMove(current, current.indexOf(String(event.active.id)), current.indexOf(String(overId)))
-    const before = order
-    setOrder(next.join(","))
-    void run(() => saveHabitOrder({ part, habitIds: next })).then((ok) => (ok ? reload() : setOrder(before)))
-  }
-
+  const { setNodeRef, isOver } = useDroppable({ id: `${PART_DROP}${part}` })
   return (
-    <div className="grid gap-2">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">{DAY_PART_LABEL[part]}</span>
-        {/* When this part starts, shown beside its name on the card (Tyler, 31 Oct 2026:
-            "put the hours selection beside the label"). */}
-        <Input aria-label={`${DAY_PART_LABEL[part]} starts`} className="h-8 w-32" {...hours} />
-        <span className="flex-1" />
-        {habits.length < DAILY_LIMITS.habitsPerPart ? (
-          <Button type="button" variant="ghost" size="sm" onClick={() => onAdd(!adding)} aria-expanded={adding}>
-            <PlusIcon className="size-4" />
-            Add a habit
-          </Button>
-        ) : null}
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+      <div className="flex items-center gap-2 px-0.5">
+        <span className="min-w-0 flex-1 text-sm font-medium">{DAY_PART_LABEL[part]}</span>
+        <ClockIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <Input
+          aria-label={`${DAY_PART_LABEL[part]} starts`}
+          className="h-7 w-[6.5rem] border-0 bg-transparent px-0 text-right text-sm text-muted-foreground shadow-none focus-visible:ring-0 dark:bg-transparent [&::-webkit-calendar-picker-indicator]:hidden"
+          {...hours}
+        />
       </div>
-      {shown.length ? (
-        <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}>
-          <SortableContext items={shown.map((habit) => habit.id)} strategy={verticalListSortingStrategy}>
-            <ul className="grid gap-1" aria-label={`${DAY_PART_LABEL[part]} habits`}>
-              {shown.map((habit) => (
-                <HabitLine
-                  key={habit.id}
-                  habit={habit}
-                  dragDisabled={busy || shown.length < 2}
-                  editing={editing === habit.id}
-                  onEdit={(on) => onEdit(on ? habit.id : null)}
-                />
-              ))}
-            </ul>
-          </SortableContext>
-        </DndContext>
-      ) : (
-        <p className="text-sm text-muted-foreground">No {part} habits.</p>
-      )}
-      {adding ? <NewHabit part={part} onAdded={onAdded} /> : null}
+      <SortableContext items={habits.map((habit) => habit.id)} strategy={verticalListSortingStrategy}>
+        <ul
+          ref={setNodeRef}
+          aria-label={`${DAY_PART_LABEL[part]} habits`}
+          className={cn("divide-y overflow-hidden rounded-xl border", isOver && "ring-2 ring-ring/40")}
+        >
+          {habits.map((habit) => (
+            <HabitLine
+              key={habit.id}
+              habit={habit}
+              dragDisabled={dragDisabled}
+              editing={editing === habit.id}
+              onEdit={(on) => onEdit(on ? habit.id : null)}
+            />
+          ))}
+          {habits.length < DAILY_LIMITS.habitsPerPart ? (
+            <li>
+              {adding ? (
+                <NewHabit part={part} onAdded={onAdded} onCancel={() => onAdd(false)} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onAdd(true)}
+                  className={cn("flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground", focusRingInset)}
+                >
+                  {/* Under the icons above it, so the words line up with the names. */}
+                  <span className="flex w-[4.5rem] shrink-0 justify-end pr-2.5">
+                    <PlusIcon className="size-4" aria-hidden />
+                  </span>
+                  {habits.length ? "Add habit" : `Add ${part} habit`}
+                </button>
+              )}
+            </li>
+          ) : null}
+        </ul>
+      </SortableContext>
     </div>
   )
 }
 
-function habitSummary(habit: Pick<DailyHabit, "target" | "days" | "atTime">) {
-  return [
-    habit.target > 1 ? `${habit.target} a day` : null,
-    habit.days.length ? habit.days.map((day) => WEEKDAY_SHORT[day]).join(" ") : "Every day",
-    habit.atTime ? clockLabel(habit.atTime) : null,
-  ]
+/**
+ * How many a day and when, after a habit's name. Its days are left out, set in
+ * its own form (Tyler, 6 Nov 2026: "Remove these dates").
+ */
+function habitSummary(habit: Pick<DailyHabit, "target" | "atTime">) {
+  return [habit.target > 1 ? `${habit.target}× a day` : null, habit.atTime ? clockLabel(habit.atTime) : null]
     .filter(Boolean)
     .join(" · ")
 }
 
+/**
+ * A habit's line: its handle, its icon on a grey tile (pressing it opens the
+ * icon picker, Tyler, 31 Oct 2026), its name with how many a day, and a ⋯ to
+ * change or retire it. Its form opens under it.
+ */
 function HabitLine({
   habit,
   dragDisabled,
@@ -647,82 +572,76 @@ function HabitLine({
   const style: React.CSSProperties | undefined = transform
     ? { transform: `translate3d(0, ${transform.y}px, 0)`, transition }
     : undefined
+  const summary = habitSummary(habit)
   return (
-    <li ref={setNodeRef} style={style} className={cn("grid gap-2 rounded-md border bg-background px-2 py-1.5", isDragging && "z-10 shadow-md")}>
-      <div className="flex items-center gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              ref={setActivatorNodeRef}
-              {...listeners}
-              {...attributes}
-              disabled={dragDisabled || editing}
-              aria-label={`Drag ${habit.name} to change the order`}
-              className={cn(
-                "flex size-6 cursor-grab items-center justify-center rounded text-muted-foreground hover:text-foreground disabled:cursor-default disabled:opacity-50",
-                focusRingInset
-              )}
-            >
-              <GripVerticalIcon className="size-4" aria-hidden />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Drag to change the order</TooltipContent>
-        </Tooltip>
-        {/* Pressing the icon opens the shell's icon picker and saves the pick at once
-            (Tyler, 31 Oct 2026: "clicking the icon here should open up the icon picker"). */}
-        <ShellIconPicker
-          compact
-          ghost
-          allowEmpty
-          value={habit.icon ?? undefined}
-          onValueChange={(icon) =>
-            void track(() =>
-              changeHabit({
-                habitId: habit.id,
-                name: habit.name,
-                part: habit.part,
-                icon: icon ?? null,
-                target: habit.target,
-                days: habit.days,
-                atTime: habit.atTime,
+    <li ref={setNodeRef} style={style} className={cn("grid gap-3 bg-background px-3 py-2.5", isDragging && "relative z-10 shadow-md")}>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...listeners}
+          {...attributes}
+          disabled={dragDisabled || editing}
+          aria-label={`Drag ${habit.name} to change the order or part of the day`}
+          className={cn(
+            "flex size-6 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/60 hover:text-foreground disabled:cursor-default disabled:opacity-50",
+            focusRingInset
+          )}
+        >
+          <GripVerticalIcon className="size-4" aria-hidden />
+        </button>
+        {/* The shell's picker, drawn as a grey tile from here so its own file stays as it is. */}
+        <span className="shrink-0 [&>button]:size-9 [&>button]:rounded-lg [&>button]:bg-muted [&>button]:hover:bg-muted/70">
+          <ShellIconPicker
+            compact
+            ghost
+            allowEmpty
+            value={habit.icon ?? undefined}
+            onValueChange={(icon) =>
+              void track(() =>
+                changeHabit({
+                  habitId: habit.id,
+                  name: habit.name,
+                  part: habit.part,
+                  icon: icon ?? null,
+                  target: habit.target,
+                  days: habit.days,
+                  atTime: habit.atTime,
+                })
+              ).then((ok) => {
+                if (ok) void reload()
               })
-            ).then((ok) => {
-              if (ok) void reload()
-            })
-          }
-        />
+            }
+          />
+        </span>
         <span className="min-w-0 flex-1 truncate text-sm">
           {habit.name}
-          <span className="text-muted-foreground"> · {habitSummary(habit)}</span>
+          {summary ? <span className="ml-2 text-xs text-muted-foreground">{summary}</span> : null}
         </span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={`Change ${habit.name}`} aria-expanded={editing} onClick={() => onEdit(!editing)}>
-              <SettingsIcon className="size-4" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label={`${habit.name} options`} className="text-muted-foreground">
+              <EllipsisIcon className="size-4" />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>Change it</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Retire ${habit.name}`}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => onEdit(!editing)}>
+              <PencilIcon className="size-4" />
+              {editing ? "Close the form" : "Change"}
+            </DropdownMenuItem>
+            <DropdownMenuItem
               disabled={busy}
-              onClick={() =>
+              onSelect={() =>
                 void run(() => retireMyHabit(habit.id), `Retired "${habit.name}". Its ticks are kept.`).then((ok) => {
                   if (ok) void reload()
                 })
               }
             >
               <ArchiveIcon className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Retire it and keep its ticks</TooltipContent>
-        </Tooltip>
+              Retire, keeping its ticks
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       {editing ? <HabitEditor habit={habit} /> : null}
     </li>
@@ -730,14 +649,14 @@ function HabitLine({
 }
 
 /**
- * A new habit: its name and Add, the one button the window keeps, since a
- * habit has to exist before it can save itself. It is added with no icon,
- * once a day, every day, and its form opens for the rest.
+ * A new habit, typed in the list's last line: its name and Add, the one button
+ * here, since a habit has to exist before it can save itself. It is added with
+ * no icon, once a day, every day, and its form opens for the rest. Escape
+ * puts "Add habit" back.
  */
-function NewHabit({ part, onAdded }: { part: DayPart; onAdded: (habitId: string) => void }) {
+function NewHabit({ part, onAdded, onCancel }: { part: DayPart; onAdded: (habitId: string) => void; onCancel: () => void }) {
   const reload = useReload()
   const track = React.useContext(HabitSave)
-  const prefix = React.useId()
   const [name, setName] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
@@ -762,23 +681,25 @@ function NewHabit({ part, onAdded }: { part: DayPart; onAdded: (habitId: string)
   }
 
   return (
-    <form className="flex items-end gap-2 rounded-md border bg-muted/40 p-3" onSubmit={(event) => void add(event)}>
-      <div className="grid min-w-0 flex-1 gap-2">
-        <Label htmlFor={`${prefix}-name`}>New {part} habit</Label>
-        <Input
-          id={`${prefix}-name`}
-          value={name}
-          maxLength={DAILY_LIMITS.habitName}
-          aria-invalid={invalid || undefined}
-          autoFocus
-          onChange={(event) => {
-            setName(event.target.value)
-            setInvalid(false)
-          }}
-        />
-      </div>
-      <Button type="submit" disabled={busy}>
-        <PlusIcon className="size-4" />
+    // Escape here closes this box only, not My settings around it (`data-own-escape`).
+    <form data-own-escape="" className="flex items-center gap-2 px-3 py-2" onSubmit={(event) => void add(event)}>
+      <Input
+        aria-label={`New ${part} habit`}
+        placeholder={`New ${part} habit`}
+        value={name}
+        maxLength={DAILY_LIMITS.habitName}
+        aria-invalid={invalid || undefined}
+        autoFocus
+        className="h-8 min-w-0 flex-1"
+        onChange={(event) => {
+          setName(event.target.value)
+          setInvalid(false)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onCancel()
+        }}
+      />
+      <Button type="submit" size="sm" disabled={busy}>
         Add
       </Button>
     </form>
@@ -856,11 +777,12 @@ function HabitEditor({ habit }: { habit: DailyHabit }) {
 
   return (
     <div className="grid gap-4 rounded-md border bg-muted/40 p-3">
-      {/* The name, part of the day and time on top (Tyler, 31 Oct 2026: "put the
-          optional time to the top row"), then how many and the days side by side
-          ("move the days picker where it was"). */}
-      <div className="grid items-start gap-4 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-        <div className="grid gap-2">
+      {/* The name, then part of the day and time side by side (Tyler, 31 Oct 2026: "put
+          the optional time to the top row"), then how many and the days side by side
+          ("move the days picker where it was"). Since 6 Nov 2026 it sits in My settings,
+          too narrow for all three on one row, so the name has a row of its own. */}
+      <div className="grid grid-cols-2 items-start gap-4">
+        <div className="col-span-2 grid gap-2">
           <Label htmlFor={`${prefix}-name`}>Habit</Label>
           <Input
             id={`${prefix}-name`}
@@ -904,14 +826,13 @@ function HabitEditor({ habit }: { habit: DailyHabit }) {
           <Input
             id={`${prefix}-time`}
             type="time"
-            className="w-32"
             value={atTime}
             onChange={(event) => setAtTime(event.target.value)}
             onBlur={saveTime}
           />
         </div>
       </div>
-      <div className="grid items-start gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-4">
         <div className="grid gap-2">
           <Label htmlFor={`${prefix}-target`}>How many a day</Label>
           <Input

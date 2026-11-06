@@ -373,6 +373,12 @@ built. Each was the recommended option.
   Time), the fields, then Show the text toolbar, Remind me, Duplicate, Move,
   Save as task template and Delete task, drawn in
   `workspace/docs/assets/pasted-image-1793657566602963000.png`.
+- **The ⋮ menu as My settings is** (6 Nov 2026): "It needs to copy the Ui of
+  the left panel tabs", "details should be renamed to "General"", "Remove the
+  history feature", "put reminds me under here", "It doesnt need 2 steps to
+  select". Tabs General and Versions; General is grouped rows that pick in one
+  press, with Remind me under Dates. Add to task moved above the footer and
+  Follow became a bell beside the ⋮. See [Projects and tasks](projects-and-tasks.md).
 - **No cross on My dashboard either, and the right panel is never empty**
   (23 Oct 2026): "There is no 'x' icon to close the right panel to show an
   empty panel. The first load always show the first task and then it

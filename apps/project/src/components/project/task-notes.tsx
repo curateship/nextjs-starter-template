@@ -2,21 +2,12 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import type { Editor } from "@tiptap/react"
 import {
-  BoldIcon,
-  Heading2Icon,
-  Heading3Icon,
   HistoryIcon,
-  ItalicIcon,
-  ListIcon,
-  ListOrderedIcon,
   ListTodoIcon,
   Loader2Icon,
   NotebookPenIcon,
   PlusIcon,
   SettingsIcon,
-  StrikethroughIcon,
-  TextQuoteIcon,
-  XIcon,
 } from "lucide-react"
 
 import { NoteEditor, NoteView } from "@/components/project/notes/note-editor"
@@ -310,7 +301,7 @@ export function TaskNotesField({
 const LIVE_SAVE_DELAY_MS = 1000
 
 /** What the task panel's ⋮ asks of the notes under it. */
-export type NotesHandle = { showVersions: () => void; askDelete: () => void }
+export type NotesHandle = { askDelete: () => void }
 
 /**
  * A task's own notes, always open to write in, like a note in the Note app
@@ -321,9 +312,10 @@ export type NotesHandle = { showVersions: () => void; askDelete: () => void }
  *
  * In the task panel (`panel`) the notes are the panel's own body, straight
  * under the task's title as a note's words sit under its name, with no card or
- * label. The header's ⋮ shows the text toolbar (`toolbar`), and the
- * toolbar's × hides it through `onToolbar` (Tyler, 2 Nov 2026). The ⋮ also
- * reaches Earlier versions and Delete through `handle`. In the Team
+ * label. The header's ⋮ reaches Delete through `handle`, and its Versions
+ * tab lists the earlier versions (`NoteVersionsList`, Tyler, 6 Nov 2026). It
+ * had a text toolbar from the ⋮ until that day ("remove this").
+ * In the Team
  * dashboard's window they sit among the fields under a Notes label.
  *
  * Saved notes that change while nobody is writing here (another person's
@@ -338,8 +330,6 @@ export function LiveTaskNotes({
   onSave,
   task,
   panel = false,
-  toolbar = false,
-  onToolbar,
   handle,
 }: {
   notes: string
@@ -347,8 +337,6 @@ export function LiveTaskNotes({
   onSave: (notes: NoteNode, session: string) => Promise<boolean>
   task: NotesTask
   panel?: boolean
-  toolbar?: boolean
-  onToolbar?: (shown: boolean) => void
   handle?: React.Ref<NotesHandle>
 }) {
   const navigate = useNavigate()
@@ -386,7 +374,6 @@ export function LiveTaskNotes({
     save.current = onSave
   })
   React.useImperativeHandle(handle, () => ({
-    showVersions: () => setVersionsOpen(true),
     askDelete: () => setConfirmDelete(true),
   }))
 
@@ -501,23 +488,6 @@ export function LiveTaskNotes({
           </Button>
         </div>
       )}
-      {/* Opened from the ⋮; the toolbar's × closes it (Tyler, 2 Nov 2026,
-          `assets/pasted-image-1793656552866103000.png`). */}
-      {panel && toolbar ? (
-        <div className="flex items-start gap-1">
-          <NotesToolbar box={editorBox} />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Hide the text toolbar"
-            className="mt-0.5"
-            onClick={() => onToolbar?.(false)}
-          >
-            <XIcon className="size-4" />
-          </Button>
-        </div>
-      ) : null}
       <div
         ref={editorBox}
         data-notes-editor=""
@@ -600,103 +570,6 @@ export type NotesTask = {
  */
 function stillInNotes(box: Element, next: EventTarget | null) {
   return next instanceof Element && (box.contains(next) || Boolean(next.closest("[data-radix-popper-content-wrapper], [data-slot=popover-content]")))
-}
-
-type ToolbarAction = {
-  label: string
-  icon: React.ReactNode
-  active: (editor: Editor) => boolean
-  run: (editor: Editor) => void
-}
-
-const TOOLBAR_ACTIONS: ToolbarAction[] = [
-  { label: "Bold", icon: <BoldIcon />, active: (e) => e.isActive("bold"), run: (e) => e.chain().focus().toggleBold().run() },
-  { label: "Italic", icon: <ItalicIcon />, active: (e) => e.isActive("italic"), run: (e) => e.chain().focus().toggleItalic().run() },
-  {
-    label: "Strikethrough",
-    icon: <StrikethroughIcon />,
-    active: (e) => e.isActive("strike"),
-    run: (e) => e.chain().focus().toggleStrike().run(),
-  },
-  {
-    label: "Heading",
-    icon: <Heading2Icon />,
-    active: (e) => e.isActive("heading", { level: 2 }),
-    run: (e) => e.chain().focus().toggleHeading({ level: 2 }).run(),
-  },
-  {
-    label: "Subheading",
-    icon: <Heading3Icon />,
-    active: (e) => e.isActive("heading", { level: 3 }),
-    run: (e) => e.chain().focus().toggleHeading({ level: 3 }).run(),
-  },
-  {
-    label: "Bullet list",
-    icon: <ListIcon />,
-    active: (e) => e.isActive("bulletList"),
-    run: (e) => e.chain().focus().toggleBulletList().run(),
-  },
-  {
-    label: "Numbered list",
-    icon: <ListOrderedIcon />,
-    active: (e) => e.isActive("orderedList"),
-    run: (e) => e.chain().focus().toggleOrderedList().run(),
-  },
-  {
-    label: "Quote",
-    icon: <TextQuoteIcon />,
-    active: (e) => e.isActive("blockquote"),
-    run: (e) => e.chain().focus().toggleBlockquote().run(),
-  },
-]
-
-/**
- * The pencil's text toolbar, in the flow at the top of the notes so it never
- * covers a line (Tyler, 20 Oct 2026, for the Note app: "Just add an edit icon
- * here and if clicked the tool appears at the top"). Links are made by
- * selecting words, as before. A press keeps the cursor in the notes.
- */
-function NotesToolbar({ box }: { box: React.RefObject<HTMLDivElement | null> }) {
-  const [editor, setEditor] = React.useState<Editor | null>(null)
-  const [, redraw] = React.useReducer((n: number) => n + 1, 0)
-
-  // The editor draws itself a moment after it mounts, so it is looked for until it is there.
-  React.useEffect(() => {
-    let found: Editor | null = null
-    const timer = window.setInterval(() => {
-      const area = box.current?.querySelector<HTMLElement & { editor?: Editor }>(".tiptap")
-      if (!area?.editor) return
-      window.clearInterval(timer)
-      found = area.editor
-      found.on("transaction", redraw)
-      setEditor(found)
-    }, 25)
-    return () => {
-      window.clearInterval(timer)
-      found?.off("transaction", redraw)
-    }
-  }, [box])
-
-  return (
-    <div role="toolbar" aria-label="Text" className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5 rounded-md border px-1 py-0.5">
-      {TOOLBAR_ACTIONS.map((action) => (
-        <Button
-          key={action.label}
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={action.label}
-          aria-pressed={editor ? action.active(editor) : false}
-          disabled={!editor}
-          className="aria-pressed:bg-muted"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => editor && action.run(editor)}
-        >
-          {action.icon}
-        </Button>
-      ))}
-    </div>
-  )
 }
 
 /** How long typing after # pauses before the tasks and notes are looked up. */
@@ -900,16 +773,23 @@ function NoteVersionsDialog({
   )
 }
 
-function NoteVersionsList({
+/**
+ * The earlier versions themselves: in their window, or with `bare` straight in
+ * the task panel's ⋮ under Versions (Tyler, 6 Nov 2026: "The earlier version
+ * of the note moves to the tabs").
+ */
+export function NoteVersionsList({
   taskId,
   readOnly,
   change,
   onClose,
+  bare = false,
 }: {
   taskId: string
   readOnly: boolean
   change: Change
   onClose: () => void
+  bare?: boolean
 }) {
   const [state, setState] = React.useState<
     { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; versions: NoteVersion[] }
@@ -936,8 +816,10 @@ function NoteVersionsList({
     if (ok) onClose()
   }
 
+  const Frame = bare ? "div" : DialogBody
   return (
-    <DialogBody>
+    <Frame className={bare ? "grid gap-2" : undefined}>
+      {bare ? <p className="text-xs text-muted-foreground">The notes as they were before each edit, newest first. The last 20 are kept.</p> : null}
       {state.kind === "loading" ? (
         <LoadingRow label="Loading the earlier versions…" />
       ) : state.kind === "error" ? (
@@ -990,6 +872,6 @@ function NoteVersionsList({
           ))}
         </ol>
       )}
-    </DialogBody>
+    </Frame>
   )
 }
