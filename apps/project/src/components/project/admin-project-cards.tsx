@@ -33,7 +33,7 @@ import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { projectCardList, projectDueLine, type PacedProject } from "@/lib/project/admin-project-cards"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { PANEL_FOOTER_PADDING, PANEL_GAP } from "@/lib/project/panel-gutter"
+import { FOOTER_CARD_BODY, PANEL_GAP } from "@/lib/project/panel-gutter"
 import { PROJECT_PACE_LABEL, type ProjectPace } from "@/lib/project/project-pace"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
@@ -182,7 +182,7 @@ export function ProjectsCard({
           line={pickedName ? `Showing only ${pickedName}` : undefined}
           open={open}
         />
-        <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP, PANEL_FOOTER_PADDING)}>
+        <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP, FOOTER_CARD_BODY)}>
           {pinned ? null : (
             <p className="text-sm text-muted-foreground">Pin a project on the Projects page to see it here.</p>
           )}
@@ -212,7 +212,7 @@ export function ProjectsCard({
             </Button>
           ) : null}
           {list.idle.length ? (
-            <ul className="grid gap-1" aria-label="Projects with nothing open">
+            <ul className="grid grid-cols-[minmax(0,1fr)] gap-1" aria-label="Projects with nothing open">
               {list.idle.map((row) => (
                 <IdleLine
                   key={row.project.id}

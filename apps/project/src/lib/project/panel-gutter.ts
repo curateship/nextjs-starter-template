@@ -9,3 +9,8 @@ export const PANEL_GUTTER = "gap-3.75 p-3.75"
 /** The same gap for cards stacked inside a card, such as the project cards under Projects. */
 export const PANEL_GAP = "gap-3.75"
 export const PANEL_FOOTER_PADDING = "p-3.75"
+/**
+ * A footer card's body, under its heading: the heading's 16px at the sides and
+ * below, none above, since the heading brings its own (`band` on FoldHeading).
+ */
+export const FOOTER_CARD_BODY = "px-4 pb-4"

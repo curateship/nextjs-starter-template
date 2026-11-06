@@ -376,26 +376,25 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
     starts, then the habits, Next meeting, Tomorrow at night, the Sunday look
     back and the monthly review, with Rate your day under the habits at
     night. See [The Daily card](daily-card.md).
-- **Each card's heading has an icon and a light band** (Tyler, 6 Nov 2026:
-  "Add icon to each card", "Add a light bg to the header"): a pin, an alert
-  sign, and a sunrise, sun or moon by the part of the day. The band is
-  muted at 25 out of 100, light enough that the line between cards still
-  shows on it ("the divider is gone, is it because its the same color as the
-  bg? if so then make the bg lighter shade"). The heading sits in the middle
-  of its band, so a folded card is the band alone ("There is extra padding in
-  the bottom here").
+- **Each card is a rounded light grey box of its own** (Tyler, 6 Nov 2026,
+  drawing them so: `assets/pasted-image-1793988726894165000.png`). There are
+  10px between the boxes and from the panel's edges, the same all round ("the
+  gutter needs to be the same size", then "reduce the gutter a bit"). There
+  are no lines between them (they had lines, then light bands, earlier the
+  same day). The Daily card's sections inside are white ("bg white").
+- **Each heading has an icon** ("Add icon to each card"): a pin, an alert
+  sign, and a sunrise, sun or moon by the part of the day. Its count sits on a
+  white patch after the words, and its arrow always shows at the right.
+  The heading sits in the middle of its height, so a folded card is the
+  heading alone ("There is extra padding in the bottom here").
 - **The three fold the same way**, as the "Good morning" greeting always has
   (Tyler, 6 Nov 2026: "The pinned project should have the same toggle card
-  like the good morning card"). The heading is the button, at 16px, with its
-  count on a light grey patch after the words. The arrow at its right shows
-  while the heading is pointed at, and always on a phone. Each starts open,
-  and this browser remembers a fold (`fold-heading.tsx`). Folded, a card is
-  its heading alone: the Daily card's date and weather fold away with it
-  ("the date should be inside when collapsed").
-- **A line between each card**, running edge to edge, drawn in the Divider
-  lines colour (Tyler, 6 Nov 2026: "add divider for each card"). A card with
+  like the good morning card"). The heading is the button, at 16px. Each
+  starts open, and this browser remembers a fold (`fold-heading.tsx`, `band`).
+  Folded, a card is its heading alone: the Daily card's date and weather fold
+  away with it ("the date should be inside when collapsed"). A card with
   nothing to show, such as Need your attention with every card empty, leaves
-  no empty strip and no extra line.
+  no empty box.
 - **The footer takes what its cards need.** The page above keeps at least
   6rem, or half the panel while the Inbox or Look back is open, and grows into
   whatever the footer leaves. The footer only scrolls once the panel is full

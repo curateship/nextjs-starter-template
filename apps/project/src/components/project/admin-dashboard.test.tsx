@@ -348,7 +348,7 @@ describe("the site admin's My dashboard", () => {
     expect(cards("bg-emerald-500/10")).toHaveLength(1)
   })
 
-  it("puts my page under the sky, then a footer of Pinned projects, Need your attention and the Daily card, each parted by a line", () => {
+  it("puts my page under the sky, then a footer of Pinned projects, Need your attention and the Daily card, each its own rounded grey box", () => {
     const html = render(dashboard(FULL))
     const left = html.slice(0, html.indexOf('id="middle"'))
     const footerAt = left.indexOf("<footer")
@@ -360,8 +360,9 @@ describe("the site admin's My dashboard", () => {
     const at = [footer.indexOf(">Pinned projects<"), footer.indexOf(">Need your attention<"), footer.indexOf('aria-label="Daily card"')]
     expect(at.every((index) => index >= 0)).toBe(true)
     expect([...at].sort((a, b) => a - b)).toEqual(at)
-    // A line between each card, edge to edge, with no colour of its own.
-    expect(footer).toMatch(/class="grid grid-cols-\[minmax\(0,1fr\)\] divide-y"/)
+    // Three rounded light grey boxes, 10px apart and from the edges, with no lines between them.
+    expect(footer.match(/rounded-2xl bg-muted\/50/g)).toHaveLength(3)
+    expect(footer).not.toContain("divide-y")
     // The projects are in the footer, and no phone tab of their own any more.
     expect(footer).toContain("group/block")
     expect(html).not.toContain(">Pinned<")
@@ -495,7 +496,7 @@ describe("the site admin's My dashboard", () => {
     expect(html).not.toContain(">Old blog<")
     expect(html).not.toContain("Hidden<")
     // Three pinned, counted beside the heading on a light grey patch.
-    expect(html).toMatch(/>Pinned projects<span class="[^"]*bg-muted[^"]*">3</)
+    expect(html).toMatch(/>Pinned projects<span class="[^"]*bg-background[^"]*">3</)
     // Each has its own New task, the pin that unpins it, and Open.
     expect(html).toContain('aria-label="New task in Brochure"')
     expect(html).toContain('aria-label="Unpin Brochure"')
@@ -513,13 +514,13 @@ describe("the site admin's My dashboard", () => {
     const html = cardOf(data)
     expect(html).toContain("Pin a project on the Projects page to see it here.")
     expect(html).toMatch(/<a [^>]*>All projects<svg/)
-    expect(html).toMatch(/>Pinned projects<span class="[^"]*bg-muted[^"]*">0</)
+    expect(html).toMatch(/>Pinned projects<span class="[^"]*bg-background[^"]*">0</)
   })
 
   it("has no Pinned projects card, and no empty strip for it, when there are no open projects at all", () => {
     const footer = render(dashboard()).split("<footer")[1]
     expect(footer).not.toContain(">Pinned projects<")
-    expect(footer).toMatch(/divide-y"><div class="[^"]*empty:hidden[^"]*"><\/div>/)
+    expect(footer).toMatch(/<div class="[^"]*rounded-2xl[^"]*empty:hidden[^"]*"><\/div>/)
   })
 
   it("leaves a section hidden with the eye off the Daily card", () => {

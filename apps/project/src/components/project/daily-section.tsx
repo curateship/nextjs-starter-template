@@ -40,7 +40,7 @@ export function DailySection({
   className?: string
   children: React.ReactNode
 }) {
-  if (!title || !foldId) return <div className={cn(BOX, className)}>{children}</div>
+  if (!title || !foldId) return <div data-daily-section="" className={cn(BOX, className)}>{children}</div>
   return (
     <FoldingSection title={title} foldId={foldId} action={action} plainTitle={plainTitle} className={className}>
       {children}
@@ -65,7 +65,7 @@ function FoldingSection({
 }) {
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(`project-daily-${foldId}`))
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className={cn(BOX, "group/section", className)}>
+    <Collapsible data-daily-section="" open={open} onOpenChange={setOpen} className={cn(BOX, "group/section", className)}>
       <div className="flex min-h-5 items-center gap-2">
         <h3 className="min-w-0 flex-1">
           <CollapsibleTrigger asChild>

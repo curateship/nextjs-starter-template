@@ -45,9 +45,11 @@ export function FoldHeading({
   open: boolean
   foldHint?: string
   /**
-   * A card's heading on a light band running the card's width, with the
-   * card's padding (Tyler, 6 Nov 2026: "Add a light bg to the header"). The
-   * card's body then brings its own padding, so a folded card is the band alone.
+   * The heading of a card that is a box of its own, as the left panel's
+   * footer cards are (Tyler, 6 Nov 2026, drawing them as rounded light grey
+   * boxes): the card's padding, the count on a white patch, and the arrow
+   * always shown. The box brings the grey; the body brings its own padding
+   * (`FOOTER_CARD_BODY`), so a folded card is its heading alone.
    */
   band?: boolean
   className?: string
@@ -61,8 +63,14 @@ export function FoldHeading({
         size="icon-sm"
         tabIndex={-1}
         aria-hidden
-        // Plain, open or folded, like a panel card's arrow.
-        className="opacity-0 transition-opacity group-hover/fold:opacity-100 group-has-[:focus-visible]/fold:opacity-100 aria-expanded:bg-transparent aria-expanded:text-foreground dark:aria-expanded:bg-transparent [@media(hover:none)]:opacity-100"
+        // Plain, open or folded, like a panel card's arrow. A card that is its own box
+        // always shows it, muted, as Tyler drew the footer cards.
+        className={cn(
+          "aria-expanded:bg-transparent dark:aria-expanded:bg-transparent",
+          band
+            ? "text-muted-foreground hover:bg-transparent aria-expanded:text-muted-foreground"
+            : "opacity-0 transition-opacity group-hover/fold:opacity-100 group-has-[:focus-visible]/fold:opacity-100 aria-expanded:text-foreground [@media(hover:none)]:opacity-100"
+        )}
       >
         <ChevronDown className={cn("size-4 transition-transform duration-200", !open && "-rotate-90")} />
       </Button>
@@ -72,7 +80,7 @@ export function FoldHeading({
     // Centred on the arrow, which is taller than one line of words, so a one-line
     // heading has no extra room under it (Tyler, 6 Nov 2026: "There is extra padding
     // in the bottom here").
-    <div className={cn("group/fold flex items-center gap-2", band && "bg-muted/25 px-3.75 py-2.5", className)}>
+    <div className={cn("group/fold flex items-center gap-2", band && "py-2.5 pr-2.5 pl-4", className)}>
       {icon ? <span className="flex shrink-0 text-muted-foreground [&>svg]:size-4">{icon}</span> : null}
       <h2 id={id} className="min-w-0 flex-1 text-base leading-tight font-semibold">
         <CollapsibleTrigger asChild>
@@ -82,7 +90,12 @@ export function FoldHeading({
             <span className="min-w-0">
               {title}
               {count === undefined ? null : (
-                <span className="ml-2 inline-block rounded-md bg-muted px-1.5 py-0.5 align-middle text-xs font-medium text-muted-foreground tabular-nums">
+                <span
+                  className={cn(
+                    "ml-2 inline-block rounded-md px-1.5 py-0.5 align-middle text-xs font-medium text-muted-foreground tabular-nums",
+                    band ? "bg-background" : "bg-muted"
+                  )}
+                >
                   {count}
                 </span>
               )}

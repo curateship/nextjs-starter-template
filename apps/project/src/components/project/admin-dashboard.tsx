@@ -42,6 +42,14 @@ import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
 import { readActiveView } from "@/lib/saved-views"
 import { cn } from "@/lib/utils"
 
+/**
+ * One footer card's box: rounded, light grey, and gone when its card draws
+ * nothing. The Daily card's sections inside it are white, to stand off the
+ * grey (Tyler, 6 Nov 2026: "bg white").
+ */
+const FOOTER_CARD =
+  "grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-2xl bg-muted/50 empty:hidden [&_[data-daily-section]]:bg-background"
+
 /** The route whose data loads again on a live change. */
 const DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
 
@@ -324,15 +332,16 @@ function AdminPanel({
           </div>
         </ScrollArea>
       </div>
-      {/* Three cards that fold the same way, top to bottom, each parted from the next by
-          a line running edge to edge (Tyler, 6 Nov 2026: "add divider for each card"), each
-          heading on a light band and each body padding itself (`band` on FoldHeading). A
-          card with nothing to show leaves no empty strip. Folding a card shrinks the
-          footer to its heading, and the page above grows into the room. */}
-      <footer className="relative flex min-h-0 flex-col border-t">
+      {/* Three cards that fold the same way, top to bottom, each a rounded light grey box
+          of its own (Tyler, 6 Nov 2026, drawing them so; they had lines between them
+          before), 10px between them and at the edges, the same all round ("the gutter
+          needs to be the same size", then "reduce the gutter a bit"). A card with nothing to show leaves no empty box.
+          Folding a card shrinks the footer to its heading, and the page above grows into
+          the room. */}
+      <footer className="relative flex min-h-0 flex-col">
         <ScrollArea className="min-h-0">
-          <div className="grid grid-cols-[minmax(0,1fr)] divide-y">
-            <div className="grid grid-cols-[minmax(0,1fr)] empty:hidden">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2.5 p-2.5">
+            <div className={FOOTER_CARD}>
               <ProjectsCard
                 projects={dashboard.cards.projects}
                 extras={dashboard.cards.projectCards}
@@ -341,7 +350,7 @@ function AdminPanel({
                 onPick={onPickProject}
               />
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)] empty:hidden">
+            <div className={FOOTER_CARD}>
               <AdminCards
                 cards={dashboard.cards}
                 zone={dashboard.zone}
@@ -351,7 +360,7 @@ function AdminPanel({
                 onOpenTask={onOpenTask}
               />
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)]">
+            <div className={FOOTER_CARD}>
               <DailyCard daily={daily} now={now} checkin={null} inFooter />
             </div>
           </div>

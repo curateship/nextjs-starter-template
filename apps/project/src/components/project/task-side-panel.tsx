@@ -403,7 +403,13 @@ function TaskAddRow({ side }: { side: TaskSide }) {
         {picked ? (
           <>
             <h2 className="text-sm font-medium">{picked.title}</h2>
-            <ScrollArea className="min-h-0" viewportClassName="max-h-[min(60vh,32rem)]">
+            {/* 4px of room inside the scroll on every side, taken back outside, so a field's
+                border and focus ring aren't cut off at the edges (Tyler, 6 Nov 2026: "the
+                field is cut off"). */}
+            <ScrollArea className="-m-1 min-h-0" viewportClassName="max-h-[min(60vh,32rem)]">
+              {/* 12px between what is in it, such as the chat's empty line and its box
+                  (Tyler, 6 Nov 2026: "add some bottom padding"). */}
+              <div className="grid gap-3 p-1">
               {adding === "files" ? (
                 <div className="grid gap-3">
                   <p className="text-xs text-muted-foreground">
@@ -420,6 +426,7 @@ function TaskAddRow({ side }: { side: TaskSide }) {
               ) : (
                 side.chat.content
               )}
+              </div>
             </ScrollArea>
           </>
         ) : null}

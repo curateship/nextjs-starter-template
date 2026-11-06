@@ -107,21 +107,26 @@ Reference: `AdminPanel` in `apps/project/src/components/project/admin-dashboard.
     `relative flex min-h-0 flex-col border-t` holding one `ScrollArea`. So the
     footer takes what its cards need and only scrolls once the panel is full.
     Never cap the footer at a fixed share of the screen.
-  - **Strips:** the cards sit in `grid divide-y`, one strip each, with no
-    padding on the strip itself. A strip whose card draws nothing is
-    `empty:hidden`, so there is no empty band and no extra line.
+  - **Boxes:** each card is a rounded light grey box of its own
+    (`grid overflow-hidden rounded-2xl bg-muted/50 empty:hidden`, `FOOTER_CARD`
+    in `admin-dashboard.tsx`), 10px apart and 10px from the panel's edges
+    (`gap-2.5 p-2.5`), with no lines between them. A box whose card draws
+    nothing is `empty:hidden`. Light inner boxes, such as the Daily card's
+    sections, turn white inside it (`[&_[data-daily-section]]:bg-background`).
   - **Each card** is a `Collapsible` with `FoldHeading band icon={...}` as its
     heading (`apps/project/src/components/project/fold-heading.tsx`), and its
-    body (`CollapsibleContent`) brings its own `PANEL_FOOTER_PADDING`. So a
-    folded card is its band alone.
+    body (`CollapsibleContent`) brings `FOOTER_CARD_BODY` (`px-4 pb-4`, in
+    `panel-gutter.ts`). So a folded card is its heading alone.
   - **FoldHeading:** the heading is the button that folds. Icon (`size-4`,
-    muted) before the title, title `text-base font-semibold`, count after the
-    words on a `bg-muted` patch (`rounded-md px-1.5 py-0.5 text-xs`), optional
-    muted `line`, and the chevron as a ghost `icon-sm` button shown only on
-    hover or focus, and always on a phone. Items are centred, so a one-line
-    heading has no extra room under it. `band` gives a `bg-muted/25` band with
-    `px-3.75 py-2.5`. If a band ever hides the divider, lighten the band and
-    keep the line at the Divider lines strength.
+    muted) before the title, title `text-base font-semibold`, and the count
+    after the words on a patch (`rounded-md px-1.5 py-0.5 text-xs`: white with
+    `band`, `bg-muted` without), plus an optional muted `line`. With `band`
+    the heading has the card's padding (`py-2.5 pr-2.5 pl-4`) and the chevron
+    always shows, muted. Without it the chevron is a ghost `icon-sm` button
+    shown only on hover or focus, and always on a phone. Items are centred,
+    so a one-line heading has no extra room under it.
+  - **Inside a card,** every list grid is `grid-cols-[minmax(0,1fr)]`, so a
+    long name truncates instead of running past the box's edge.
   - **Each card starts open** and remembers a fold in this browser
     (`useRememberedCollapse(collapseStorageKey.settingsCard(...))`).
   - **Inside a card,** links that lead away (such as "All projects") sit at the
@@ -227,6 +232,10 @@ and the parts built in `task-body.tsx`.
     The app's `ui/popover` has no Anchor, and it is a shell file.
   - The strip is a `@container`. Under 20rem the words hide and the icons
     stay, each named by a shadcn tooltip.
+  - The box's `ScrollArea` is `-m-1` with a `grid gap-3 p-1` wrapper inside,
+    so a field at its edge keeps its whole border and focus ring, and a line
+    over a field (such as the chat's "No messages yet") keeps 12px under it. A scroll area clips
+    whatever touches its edges; do the same for any field inside one.
 - **Footer:** the record's state and its main actions, pinned to the bottom
   (here: status, Start, Completed).
 

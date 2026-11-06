@@ -758,7 +758,10 @@ Neither puts a window over the page.
   messages), Files, Steps and Time, each an icon with its word under it. In a
   panel under 20rem wide only the icons show, each named on hover. The one
   picked opens a titled box above the row with the same insides it had in
-  the menu. Someone who can't change the task sees only Files, and Time once
+  the menu. The box keeps 4px of room inside its scroll, so a field's border
+  and focus ring aren't cut off, and 12px between what is in it, such as the
+  chat's "No messages yet" and its field (Tyler, 6 Nov 2026: "the field is cut
+  off", then "add some bottom padding"). Someone who can't change the task sees only Files, and Time once
   there is a time or a guess. Down the panel: anything that needs an answer (a
   hand-over to accept, a review, the Stuck reason row, the Move and Remind
   me cards), then Notes, always there to write in, Steps ("Steps · 0 of 2

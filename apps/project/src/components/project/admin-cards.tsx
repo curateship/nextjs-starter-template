@@ -20,7 +20,7 @@ import { focusRingInset } from "@/lib/layout/focus-ring"
 import { clockIn, dayLabel, localNow } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { meetingsByNow } from "@/lib/project/meetings-today"
-import { PANEL_FOOTER_PADDING, PANEL_GAP } from "@/lib/project/panel-gutter"
+import { FOOTER_CARD_BODY, PANEL_GAP } from "@/lib/project/panel-gutter"
 import { TEAM_RIGHT_TAB_KEY } from "@/lib/project/panel-keys"
 import { useNow } from "@/lib/project/use-now"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
@@ -101,7 +101,7 @@ export function AdminCards({
     // 2026: "add a toggle here to hide all the cards", then "its arrow toggle").
     <Collapsible open={shown} onOpenChange={setShown} className="grid grid-cols-[minmax(0,1fr)]">
       <FoldHeading band icon={<CircleAlertIcon />} title="Need your attention" count={cardCount} open={shown} />
-      <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP, PANEL_FOOTER_PADDING)}>
+      <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP, FOOTER_CARD_BODY)}>
         <AttentionCards
           cards={cards}
           zone={zone}

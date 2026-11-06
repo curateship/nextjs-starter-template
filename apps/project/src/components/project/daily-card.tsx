@@ -25,7 +25,7 @@ import {
 } from "@/lib/project/daily-card"
 import { clockIn, fullDayLabel, localNow } from "@/lib/project/days"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
-import { PANEL_FOOTER_PADDING } from "@/lib/project/panel-gutter"
+import { FOOTER_CARD_BODY } from "@/lib/project/panel-gutter"
 import { useNow } from "@/lib/project/use-now"
 import { cn } from "@/lib/utils"
 
@@ -148,7 +148,7 @@ export function DailyCard({
           foldHint="Fold it to the greeting"
           className={inFooter ? undefined : "mt-6"}
         />
-        <CollapsibleContent data-collapse-key={noFlashKey} className={cn(inFooter && PANEL_FOOTER_PADDING, inFooter && "pt-2")}>
+        <CollapsibleContent data-collapse-key={noFlashKey} className={cn(inFooter && FOOTER_CARD_BODY)}>
           {/* The date and weather fold away with the card, so a folded card is the
               greeting alone (Tyler, 6 Nov 2026: "the date should be inside when
               collapsed"). */}
