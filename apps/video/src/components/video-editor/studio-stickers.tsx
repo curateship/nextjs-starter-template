@@ -53,7 +53,7 @@ import { Hint } from "@/components/video-assets/hint"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 
 /**
- * The stickers in the Graphics panel (Text in the carousel editor): the person's own list, one press from the
+ * The stickers in the Elements panel (Text in the carousel editor): the person's own list, one press from the
  * frame, with a field to add an emoji and a picker for a picture.
  *
  * An emoji lands exactly as the built-in ones always have, as a text clip in
@@ -109,7 +109,7 @@ type StickerAddingProps = {
 }
 
 /**
- * The + in the Graphics or Text panel's header, in both editors (Tyler, 2 Nov 2026: "Add
+ * The + in the Elements or Text panel's header, in both editors (Tyler, 2 Nov 2026: "Add
  * the + icon here that opens a dropdown to select emoji or image to add").
  * Built like the Media panel's + menu.
  */
@@ -204,7 +204,8 @@ export function StickerList({
               <button
                 type="button"
                 className="st-hovcard grid aspect-square w-full cursor-pointer place-items-center overflow-hidden rounded-xl border"
-                style={{ background: "var(--panel2)", fontSize: 22 }}
+                // White, like the Elements panel's add buttons (Tyler, 5 Nov 2026).
+                style={{ background: "var(--background)", fontSize: 22 }}
                 aria-label={`Add ${label}`}
                 onClick={() => onPlace(sticker)}
               >

@@ -1,13 +1,14 @@
 # Script check
 
-The Voice window shows how long a script will run as you type it, and its
+The Read a script with AI window shows how long a script will run as you type it, and its
 "Check it" button reads the script against five rules before you pay for it to
 be read aloud. It is a checklist, not a prediction. It never says a script will
 do well. It says which rules the script breaks, and you decide what to fix.
 
 ## Where it is
 
-Video editor → AI → Voice. Under the "What to say" box:
+Video editor → Sounds → Voices → + → Read a script with AI. Under the "What
+to say" box:
 
 - **The figures:** always there, no button, and they change as you type. "186
   words. At this speed that is about 170 words a minute, so about 66 seconds
@@ -107,8 +108,8 @@ check" (`script_check`) on `/admin/ai`.
   `scriptCheckCostCents` in `src/lib/video/script-check.ts`: the instructions
   (about 2,400 characters) plus the script, at four characters a token, plus
   the tokens each writer answers with.
-- **The other AI windows price the same way.** Captions, Hook, Another
-  language and the Transcript panel put their figure on the button, worked out
+- **The other AI windows price the same way.** Captions, Another language
+  and the Transcript panel put their figure on the button, worked out
   in `src/lib/video/ai-estimates.ts` and worded by the same `formatCheckCost`
   ([price-before-you-press.md](price-before-you-press.md)).
 - **Measured with GPT-5 mini on 12 Oct 2026:** a 1,007-character script used

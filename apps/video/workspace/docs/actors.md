@@ -84,16 +84,16 @@ replaces stays on the sheet, where it can be made main again or taken off.
 ## Its voice
 
 An actor can have a voice, picked in the actor window's Character card from
-the same list the Voice window offers, your own voices included. In the Voice
+the same list the Read a script with AI window offers, your own voices included. In the Read a script with AI
 window an Actor field sits above Voice. Picking an actor fills in its voice,
 and the voice can still be changed for that one voiceover. Tyler, 4 Nov 2026:
 used by voiceovers only, so AI clip shots and brief-to-video don't read it.
 
-- **No voice:** the Voice window says the actor has none yet and leaves the
+- **No voice:** the Read a script with AI window says the actor has none yet and leaves the
   voice as it was.
 - **A voice no longer listed** (its key was removed): the actor window shows it
   as "A voice no longer listed" so a save doesn't quietly change it, and the
-  Voice window says so instead of picking it.
+  Read a script with AI window says so instead of picking it.
 - **Deleting one of your own voices** takes it off every actor that spoke in
   it, so the actor has no voice rather than one nobody can use
   (`deleteClonedVoice` in `cloned-voices.ts`).

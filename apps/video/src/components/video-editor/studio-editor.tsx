@@ -119,9 +119,10 @@ const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
   // workspace/docs/ads.md). Not for a guest sent from Project.
   { id: "ads", label: "Ads", Icon: MegaphoneIcon },
   // Words, shapes, stickers and the social stickers. Called Text until
-  // 4 Nov 2026 (Tyler: "rename text panel to Graphics"); its id stays "text"
+  // 4 Nov 2026 (Tyler: "rename text panel to Graphics"), then Elements on
+  // 5 Nov 2026 (Tyler: 'Rename grahpics to "Elements"'); its id stays "text"
   // because saved editor views name it.
-  { id: "text", label: "Graphics", Icon: Shapes },
+  { id: "text", label: "Elements", Icon: Shapes },
   { id: "transcript", label: "Transcript", Icon: CaptionsIcon },
   { id: "ai", label: "AI tools", Icon: SparklesIcon },
   // A video's template and script, and Brief to video, which moved here from

@@ -73,8 +73,8 @@ back with all four fades.
 
 The same rule covers the other places a clip is cut into pieces. Tighten,
 which cuts the pauses out of a take, fades only the first piece in and the
-last piece out. The Hook window's "quieten" choice, which cuts the opening line
-off a talking clip, keeps the fades in on the opening and the fades out on the
+last piece out. The Hook window's "quieten" choice (Hook was removed on 5 Nov 2026), which
+cut the opening line off a talking clip, kept the fades in on the opening and the fades out on the
 rest.
 
 ## Projects saved before this

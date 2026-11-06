@@ -319,7 +319,7 @@ const RESOLUTION: Record<AspectRatio, string> = {
  * budget. Tyler, 5 Nov 2026: "This panel should now show all the video
  * stats. Move this Ai stats there", after taking off the "Select a clip"
  * line, the Project card and the Progress bar card shown by default. The
- * Progress bar card shows only once the Graphics panel has put a bar on the
+ * Progress bar card shows only once the Elements panel has put a bar on the
  * video, since its settings live nowhere else.
  */
 function ProjectProps() {
@@ -382,7 +382,7 @@ function VideoStatsCard() {
 
 /**
  * The bar along one edge that fills as the video plays. It belongs to the
- * project, so it is set here with no clip picked. The Graphics panel's Progress
+ * project, so it is set here with no clip picked. The Elements panel's Progress
  * bar button is the other way to switch it on.
  */
 function ProgressBarCard() {

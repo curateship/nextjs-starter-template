@@ -21,11 +21,33 @@ listens to straight after to time its words
 - **Written in one go:** the file's media row and the shelf row are written in
   one transaction in `src/server/video/voiceovers.ts`. There is never a
   voiceover file the shelf does not know about, or a shelf row with no file.
-- **Every way of reading aloud lands here:** the "Read this aloud" window, a
-  rewritten opening line, and a translation read aloud all go through
-  `speak()` in `src/server/video/voice.ts`.
+- **Every way of reading aloud lands here:** the "Read a script with AI"
+  window, a rewritten opening line, and a translation read aloud all go
+  through `speak()` in `src/server/video/voice.ts`.
+- **A voiceover you record lands here too**, under the voice "Your recording"
+  (`record-a-voiceover.md`).
 - **Who sees it:** the shelf belongs to one person and follows them into every
   project, like the music shelf and collections.
+
+## The + menu
+
+The **+** in the Voices tab's header opens a menu with three choices. Tyler
+asked for this on 5 Nov 2026, so everything that makes a voice starts in one
+place. Before that, the + only made a voice of your own, and the AI reading
+was the Voice tile in AI tools.
+
+- **Read a script with AI:** the window that reads a script aloud with an
+  ElevenLabs or OpenAI voice, with the Actor picker, the voice directions and
+  the script check (`voice-direction.md`, `script-check.md`). It was called
+  "Read this aloud" before.
+- **Record a voiceover:** talk into the microphone yourself
+  (`record-a-voiceover.md`).
+- **Make a copy of my voice:** opens "Make a voice of my own", which makes an
+  ElevenLabs voice from your recording (`voice-direction.md`).
+
+The first two change the timeline, so a read-only editor stops them before the
+window opens. Closing either window asks the list again, so a new voiceover
+shows straight away.
 
 ## The list
 
@@ -61,7 +83,7 @@ The + on a row is one edit, so one press of Undo takes it all back off.
   voiceover was first made. The look is not part of what is kept.
 - **No Make it again.** The shelf keeps the words and the voice but not the
   model or the settings, so a voiceover laid from here has no recipe to make
-  it again from. One read fresh in the Voice window has one
+  it again from. One read fresh in the Read a script with AI window has one
   (`regenerate-a-scene.md`).
 - **A full project says no.** A project holds 50 tracks at most, and a save
   refuses more. A voiceover needs two new tracks (one if it has no captions),

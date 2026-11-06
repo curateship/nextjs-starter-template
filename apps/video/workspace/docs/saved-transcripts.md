@@ -34,10 +34,6 @@ a clip that was already transcribed costs nothing."
   plays on the timeline.
 - **Another language:** through Captions, so a translation after captions
   pays for the translation only.
-- **Hook:** when nothing is written on screen, the first twelve seconds of the
-  talking clip come from the kept words if there are some. Without them only
-  those twelve seconds are sent, and they are not kept, because twelve seconds
-  is not the file.
 
 ## Whisper and Gemini
 
@@ -100,7 +96,7 @@ a clip that was already transcribed costs nothing."
 
 - **Files written down before this have nothing kept.** Their first run
   writes it.
-- **No size limit.** Tighten, the Transcript panel and Hook's spoken opening
+- **No size limit.** Tighten and the Transcript panel
   used to refuse a file over 100 MB. They now read the smooth copy's sound,
   so a 20GB file works once its smooth copy is made
   ([big-files.md](big-files.md)).

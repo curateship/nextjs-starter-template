@@ -282,8 +282,8 @@ const HOLD_LAST_FRAME_S = 0.05
 
 /**
  * Whether a clip that runs on past the end of its file has used the file up
- * at this point. It then holds the last frame (B-roll shorter than its
- * sentence does this, see b-roll.md), the way the export's overlay does.
+ * at this point. It then holds the last frame, the way the export's overlay
+ * does.
  */
 function holdsLastFrame(element: HTMLMediaElement, targetS: number) {
   return (

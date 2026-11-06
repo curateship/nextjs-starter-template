@@ -8,19 +8,21 @@ Opus 5. Each one needs its own provider's key in Settings → AI.
 
 | Tool | Where it is | Row on `/admin/ai` |
 | --- | --- | --- |
-| Rewrite the opening line | Video editor → AI → Hook | Hook variants (`hook_variants`) |
 | Translate captions | Video editor → AI → Translate | Translation (`translation`) |
 | Polish selected text | Carousel studio, the sparkle button | Carousel text help (`carousel_text_help`) |
-| Check a script | Video editor → AI → Voice → Check it | Script check (`script_check`) |
+| Check a script | Video editor → Sounds → Voices → + → Read a script with AI → Check it | Script check (`script_check`) |
 
-- **Where the choice is made:** the "Who rewrites it" dropdown in the Hook and
-  Translate windows. It is saved the moment it is picked, in
+- **Where the choice is made:** the "Who rewrites it" dropdown in the Another
+  language window. It is saved the moment it is picked, in
   `video_settings.ai_defaults.writer`, and every tool above uses it from then on.
 - **The carousel and the script check have no dropdown:** they use whatever
-  was last picked in Hook or Translate. Before Claude was added the carousel
-  always used Gemini. The Voice window names the writer in its price line.
+  was last picked in Another language. Before Claude was added the carousel
+  always used Gemini. The Read a script with AI window names the writer in its price line.
+- **Hook is gone:** the tool that rewrote the opening line three ways was
+  removed on 5 Nov 2026 (Tyler: "Remove the rewrite opening in 3 ways ai
+  tool"). Its old spend still shows as Hook (`hook_variants`).
 - **The one place that asks:** `askWriter` in `src/server/video/writer.ts`. The
-  four tools hand it their question and get back the answer, whoever wrote it.
+  tools hand it their question and get back the answer, whoever wrote it.
 - **The list itself:** `WRITERS` in `src/lib/video/ai-choices.ts`. A new writer
   is one entry there, plus a caller if its provider is new.
 
@@ -81,6 +83,6 @@ provider and model beside it. The prices come from `src/lib/ai/ai-models.ts`.
   writer. Usage rows from before that date still say 2.5 and are priced at its
   old rate.
 - **A refused request** costs nothing and is recorded as a failed row.
-- **Before the press:** the Hook and Another language buttons say what the
+- **Before the press:** the Another language button says what the
   chosen writer will cost, and change when another is picked
   ([price-before-you-press.md](price-before-you-press.md)).

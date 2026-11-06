@@ -68,9 +68,50 @@ here", pointing at the title.
   `src/lib/video/sounds-tabs.ts`), so a doc that says "the Music panel" or "the
   Voices panel" means that tab.
 
-The menu now reads Videos, Media, Sounds, Ads ([ads.md](ads.md)), Graphics,
+The menu now reads Videos, Media, Sounds, Ads ([ads.md](ads.md)), Elements,
 Transcript, AI tools, Templates ([templates.md](templates.md), since 5 Nov
 2026), AI clip, Thumbnail, then Copy, Exports and History at the foot.
+
+## The Transcript panel
+
+Two cards. Tyler, 5 Nov 2026: "caption and transcript should be in the
+transcript panel. Also "Tighten the clip" in ai tools should be moved into
+transript panel too."
+
+- **Whole video:** the Captions and Tighten tiles, which were in AI tools
+  until then. They open the same windows as before and work on the whole
+  video's voice line, not on the picked clip. A read-only editor stops them
+  before the window opens.
+- **This clip's words:** the picked clip's words, to search, cut or fix
+  (`saved-transcripts.md`, `fix-a-word.md`).
+- **Why together:** all three read the same words, written down once per
+  file and kept, so whichever runs first pays and the others are free.
+- **The tile** is `ToolTile` in `studio-ai-panel.tsx`, shared with AI tools so
+  a tool looks the same in either panel. The panel is
+  `src/components/video-editor/studio-transcript-panel.tsx`.
+
+## The Elements panel
+
+Words, shapes, the social stickers and your own stickers. It was called Text,
+then Graphics from 4 Nov 2026, then Elements from 5 Nov 2026 (Tyler: 'Rename
+grahpics to "Elements"'). Its id stays `text`, because saved editor views name
+it.
+
+- **Each section is its own card:** Styles, Shapes, Social and Stickers, each
+  in the same grey card the inspector on the right uses (`InspectorCard`).
+  Tyler, 5 Nov 2026: "All the sections should be in its own cards."
+- **A card can be shut** with the arrow beside its name, and it stays shut
+  after a reload.
+- **The add buttons and the sticker tiles are white** on the grey card, like
+  the inspector's fields (Tyler, 5 Nov 2026: "bg should be white"). The
+  carousel editor's Text panel draws the same sticker tiles, so they are white
+  there too.
+- **The add buttons are tighter than before the cards:** 10px by 12px of
+  padding, 8px apart, so "Big Title" still fits on one line when the panel is
+  at its narrowest.
+- **A guest sent from Project** has no Stickers card, because stickers are the
+  owner's own list.
+- **Where it lives:** `TextPanel` in `src/components/video-editor/studio-panels.tsx`.
 
 ## Shut or open every inspector card at once
 

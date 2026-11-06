@@ -9,7 +9,7 @@ import {
 } from "@/lib/video/caption-animations"
 
 /**
- * Ready-made social stickers in the Graphics panel: a reply to a comment, a
+ * Ready-made social stickers in the Elements panel: a reply to a comment, a
  * Subscribe or Follow button that a cursor presses, and a "Link in bio" tag
  * (workspace/docs/social-stickers.md).
  *

@@ -16,8 +16,8 @@ import { VoiceCloneDialog } from "@/components/video-editor/voice-clone-dialog"
 /**
  * "Your voices", at the top of the Voices panel: the voices made from your
  * own recordings, each with its recording to hear and a delete. The panel
- * header's + opens "Make a voice of my own" (`making`). They are picked in the
- * Voice window, where they are marked (yours).
+ * header's + menu opens "Make a voice of my own" (`making`). They are picked
+ * in the Read a script with AI window, where they are marked (yours).
  */
 export function OwnVoices({
   making,

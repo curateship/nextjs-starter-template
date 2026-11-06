@@ -134,13 +134,13 @@ copy whose original was deleted is listed on its own, without a heading.
 | Job | Who does it | Chosen where |
 | --- | --- | --- |
 | Writing down what is said | Whisper or Gemini | "Who writes it down", the same choice the Captions tool uses |
-| Translating | Gemini Flash, GPT-5 mini or Claude Opus 5 | "Who rewrites it", the same choice the Hook tool uses (see [writing-with-ai.md](writing-with-ai.md)) |
+| Translating | Gemini Flash, GPT-5 mini or Claude Opus 5 | "Who rewrites it", the choice every writing tool shares (see [writing-with-ai.md](writing-with-ai.md)) |
 | Reading it aloud | ElevenLabs, multilingual v2 only | The Voice list in the window |
 
 Only ElevenLabs voices are offered for reading aloud. The OpenAI voices are
 left out because the task asked for the multilingual model, and that model
 belongs to ElevenLabs. The voice's speed comes from the voice saved as the
-usual one in the Voice tool.
+usual one in the Read a script with AI window.
 
 ## Ads
 

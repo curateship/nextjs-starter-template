@@ -20,7 +20,7 @@ import { getPexelsApiKey } from "@/server/video/settings"
  * Free stock photos for carousel slides, from Pexels: a search, then one
  * picked photo saved into the library and onto the carousel's shelf with the
  * photographer's credit as its description (workspace/docs/carousel-pictures.md).
- * The same key and the same hourly count as B-roll.
+ * One Pexels key and one hourly count (`pexels.ts`).
  */
 
 // Pexels sorts by shape, so a tall slide asks for tall photos first.

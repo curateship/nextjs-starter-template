@@ -1,14 +1,21 @@
 import * as React from "react"
 import {
+  AudioLinesIcon,
   Loader2Icon,
+  MicIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
   SearchIcon,
+  SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
 
+import {
+  loadAiToolsAvailability,
+  type AiToolsAvailability,
+} from "@/lib/api/video/ai-tools"
 import {
   getVoiceoverErrorMessage,
   loadVoiceovers,
@@ -25,6 +32,12 @@ import {
 import { formatClock } from "@/lib/video/timeline-utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -33,15 +46,19 @@ import { SoundsTabsHeader } from "@/components/video-editor/sounds-tabs"
 import { useCaptionPlacement } from "@/components/video-editor/caption-settings-context"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import { OwnVoices } from "@/components/video-editor/studio-own-voices"
+import { RecordVoiceoverDialog } from "@/components/video-editor/record-voiceover-dialog"
+import { VoiceDialog } from "@/components/video-editor/voice-dialog"
 import { Hint } from "@/components/video-assets/hint"
 
 /**
- * The Voiceovers panel: every voiceover already read aloud, searchable by
- * what it says, each one press away from landing at the playhead with its
- * captions. Reusing one costs nothing; only reading new words does.
+ * The Voices panel: every voiceover already made, searchable by what it says,
+ * each one press away from landing at the playhead with its captions. Reusing
+ * one costs nothing; only reading new words does.
  *
- * Above them sit the voices made from your own recordings, because this is
- * the panel about voices and the Voice window cannot open another window.
+ * Everything that makes a new one starts at the header's +: a script read by
+ * the AI, a voiceover you record, or a copy of your own voice for the AI to
+ * read with (Tyler, 5 Nov 2026). Above the list sit the voices made from your
+ * own recordings.
  */
 export function VoiceoversPanel() {
   const { store, dispatch, clock } = useEditorRuntime()
@@ -56,7 +73,35 @@ export function VoiceoversPanel() {
   const [playingId, setPlayingId] = React.useState<string | null>(null)
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [makingVoice, setMakingVoice] = React.useState(false)
+  const [readingOpen, setReadingOpen] = React.useState(false)
+  const [recordingOpen, setRecordingOpen] = React.useState(false)
+  const [available, setAvailable] = React.useState<AiToolsAvailability | null>(
+    null
+  )
   const [busyId, setBusyId] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    let active = true
+    loadAiToolsAvailability()
+      .then((loaded) => {
+        if (active) setAvailable(loaded)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Both end by changing the timeline, so a locked window stops them first.
+  function openReading() {
+    if (store.refuseIfLocked()) return
+    setReadingOpen(true)
+  }
+
+  function openRecording() {
+    if (store.refuseIfLocked()) return
+    setRecordingOpen(true)
+  }
 
   React.useEffect(() => {
     const timer = setTimeout(() => setDebounced(search.trim()), 250)
@@ -98,7 +143,9 @@ export function VoiceoversPanel() {
     })
     const count = voiceover.captions.length
     toast.success(
-      `Added at ${formatClock(atMs)}, with ${count} ${plural(count, "caption", "captions")}. Undo removes it.`
+      count
+        ? `Added at ${formatClock(atMs)}, with ${count} ${plural(count, "caption", "captions")}. Undo removes it.`
+        : `Added at ${formatClock(atMs)}. Undo removes it.`
     )
   }
 
@@ -148,25 +195,57 @@ export function VoiceoversPanel() {
                 />
               </PopoverContent>
             </Popover>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="New voice"
-                  onClick={() => setMakingVoice(true)}
-                >
-                  <PlusIcon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>New voice</TooltipContent>
-            </Tooltip>
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="New voiceover"
+                    >
+                      <PlusIcon />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>New voiceover</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onSelect={openReading}>
+                  <SparklesIcon />
+                  Read a script with AI
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={openRecording}>
+                  <MicIcon />
+                  Record a voiceover
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setMakingVoice(true)}>
+                  <AudioLinesIcon />
+                  Make a copy of my voice
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         }
       />
 
       <OwnVoices making={makingVoice} onMakingChange={setMakingVoice} />
+      <VoiceDialog
+        open={readingOpen}
+        onOpenChange={(next) => {
+          setReadingOpen(next)
+          // A reading lands on the shelf, so the list asks again.
+          if (!next) setRefresh((count) => count + 1)
+        }}
+        available={available}
+      />
+      <RecordVoiceoverDialog
+        open={recordingOpen}
+        onOpenChange={setRecordingOpen}
+        available={available}
+        onKept={() => setRefresh((count) => count + 1)}
+      />
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">
@@ -185,7 +264,7 @@ export function VoiceoversPanel() {
             <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
               {debounced
                 ? `No voiceover says "${debounced}".`
-                : "No voiceovers yet. Anything you have read aloud from the AI panel shows up here, ready to use again."}
+                : "No voiceovers yet. Press + to have a script read by AI or to record your own. Each one shows up here, ready to use again."}
             </p>
           ) : (
             <>
@@ -280,7 +359,8 @@ function VoiceoverRow({
       </Button>
       <div className="grid min-w-0">
         <span className="line-clamp-3 text-xs font-medium [overflow-wrap:anywhere]">
-          {voiceover.script}
+          {/* A recording Whisper could not write down has no words. */}
+          {voiceover.script || voiceover.name}
         </span>
         <span className="truncate text-[0.625rem] text-muted-foreground tabular-nums">
           {voiceover.voiceName} · {formatClock(voiceover.durationMs)}

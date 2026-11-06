@@ -14,7 +14,7 @@ someone picks another. It is off unless someone switches it on.
   for that one run. The Karaoke preset switches it on
   ([caption-look.md](caption-look.md)). The small sample colours its middle
   word to show the look.
-- **The Voice window** has no switch of its own. Its captions light up when
+- **The Read a script with AI window** has no switch of its own. Its captions light up when
   the saved look says so.
 - **One caption in the inspector.** A caption that knows when its words are
   said shows a "Word by word" card with the switch and the colour. A caption
@@ -143,8 +143,9 @@ pause long enough to check that way.
 - **More or fewer words:** the times no longer fit, and the caption draws as a
   plain line. The inspector's Word by word card says so. Putting the same
   number of words back brings the lighting back.
-- **Rewriting the opening line with the Hook tool** usually changes the number
-  of words, so a rewritten caption usually draws plain.
+- **An opening line rewritten by the Hook tool**, before it was removed on
+  5 Nov 2026, usually changed the number of words, so such a caption usually
+  draws plain.
 
 ## How the preview draws it
 

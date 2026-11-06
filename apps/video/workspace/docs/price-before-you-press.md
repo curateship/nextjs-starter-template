@@ -8,8 +8,9 @@ and it reads "no charge" when nothing will be spent.
 Once one of these windows is working, it stays open until the answer lands.
 Cancel greys out, and Escape or a click outside does nothing. Closing it used
 to leave the request running, so the charge and the captions still arrived
-after the window was gone. This covers Captions, Hook, Voice (reading aloud
-and Check it) and Jump cuts.
+after the window was gone. This covers Captions, Read a script with AI
+(reading aloud and Check it) and Tighten. Hook did the same until it was removed on
+5 Nov 2026.
 
 ## What each button says
 
@@ -20,11 +21,6 @@ and Check it) and Jump cuts.
 - **Transcript panel:** "Write it down · about 2¢" the first time, "Show the
   words · no charge" once the recording is kept, and "Transcribe again · about
   2¢", which always pays.
-- **Hook, "Show me three":** the writer's share. When nothing is written on
-  screen it adds writing down the first twelve seconds, unless the recording
-  is kept. When the opening is spoken, each new line also says what reading it
-  aloud costs, for example "· read aloud about 1¢", because picking it is a
-  second press that pays the voice.
 - **Another language, "Translate":** writing down the talking, unless it is
   kept or already in the window, plus translating it. "Read it aloud" carries
   the voice's price, worked out from the real translation.
@@ -41,7 +37,7 @@ and Check it) and Jump cuts.
 
 The functions are in `src/lib/video/ai-estimates.ts`. The prices come from the
 shell's list in `src/lib/ai/ai-models.ts`, which Video reads and never edits.
-It is the same pattern as the Voice window's script check
+It is the same pattern as the Read a script with AI window's script check
 ([script-check.md](script-check.md)).
 
 - **Whisper:** the minutes it will listen to times $0.006, overlap included.
@@ -78,8 +74,8 @@ Run on this Mac on 19 Oct 2026, with the OpenAI key.
 | Another language, eight short lines, GPT-5 mini | about 0.7¢ | 210 tokens in, 615 out, about 0.13¢ |
 
 - **GPT-5 mini's thinking figures were set from those two runs:** 900 tokens
-  for a hook and 800 for a translation. The Hook button now says about 0.2¢
-  for the same run.
+  for a hook and 800 for a translation. The Hook button then said about 0.2¢
+  for the same run, until Hook was removed on 5 Nov 2026.
 - **The translation guess was off on that run** because the 4-minute test file
   has almost no speech in it. Whisper heard "You" eight times. The guess
   assumes four minutes of real talking. Once the lines are in the window the

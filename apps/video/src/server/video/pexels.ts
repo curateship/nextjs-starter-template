@@ -1,41 +1,23 @@
 import { z } from "zod"
 
 import {
-  BROLL_CANDIDATES,
-  BROLL_KEY_REFUSED_MESSAGE,
-  BROLL_PEXELS_DOWN_MESSAGE,
+  PEXELS_DOWN_MESSAGE,
   PEXELS_HOURLY_LIMIT,
-  isPexelsFileUrl,
-  pickPexelsFile,
-  pickPreviewFile,
-  type BrollCandidate,
-} from "@/lib/video/b-roll"
+  PEXELS_KEY_REFUSED_MESSAGE,
+} from "@/lib/video/pexels"
 
 /**
- * Pexels, the free stock video library behind B-roll.
+ * Pexels, the free stock library behind the carousel's photo search.
  *
  * One search is one request, whatever it finds. The free allowance is 200
  * requests an hour, so every request goes through one count kept for the
- * last hour, and a batch stops before it would go over rather than after
+ * last hour, and a search stops before it would go over rather than after
  * Pexels refuses. A refusal from Pexels (HTTP 429) stops it the same way.
- * Either way, what was found so far is kept and the rest waits.
  */
 
-const SEARCH_URL = "https://api.pexels.com/videos/search"
 const PHOTO_SEARCH_URL = "https://api.pexels.com/v1/search"
 const HOUR_MS = 60 * 60_000
 
-/**
- * Results asked for per search. More than the four shown, because a clip
- * with no 720p copy is left out. Still one request.
- */
-const SEARCH_PAGE_SIZE = 10
-
-/** Searches at once in a batch, so 14 rows come back in a few seconds. */
-const SEARCHES_AT_ONCE = 4
-
-/** The library's own limit on a video file (`validateMediaFile`). */
-const DOWNLOAD_MAX_BYTES = 100 * 1024 * 1024
 /** The library's own limit on a picture. */
 const PHOTO_MAX_BYTES = 10 * 1024 * 1024
 /** Photos shown for one carousel search. */
@@ -46,28 +28,6 @@ export const PEXELS_RATE_LIMITED_MESSAGE =
   "Pexels says too many searches were sent this hour."
 
 type Fetch = typeof fetch
-
-const fileSchema = z.object({
-  link: z.string(),
-  width: z.number().nullable(),
-  height: z.number().nullable(),
-  file_type: z.string().nullable().optional(),
-})
-
-const answerSchema = z.object({
-  videos: z.array(
-    z.object({
-      id: z.number(),
-      url: z.string(),
-      image: z.string(),
-      duration: z.number(),
-      width: z.number(),
-      height: z.number(),
-      user: z.object({ name: z.string(), url: z.string() }),
-      video_files: z.array(fileSchema),
-    })
-  ),
-})
 
 /** When each request of the last hour was sent, oldest first. */
 const sentAt: number[] = []
@@ -124,10 +84,10 @@ async function pexelsGet(
     })
   } catch (error) {
     console.error("Pexels search", error)
-    throw new PexelsStop(BROLL_PEXELS_DOWN_MESSAGE, null)
+    throw new PexelsStop(PEXELS_DOWN_MESSAGE, null)
   }
   if (response.status === 401 || response.status === 403) {
-    throw new PexelsStop(BROLL_KEY_REFUSED_MESSAGE, null)
+    throw new PexelsStop(PEXELS_KEY_REFUSED_MESSAGE, null)
   }
   if (response.status === 429) {
     const reset = Number(response.headers.get("X-Ratelimit-Reset"))
@@ -140,104 +100,9 @@ async function pexelsGet(
   }
   if (!response.ok) {
     console.error("Pexels search", response.status)
-    throw new PexelsStop(BROLL_PEXELS_DOWN_MESSAGE, null)
+    throw new PexelsStop(PEXELS_DOWN_MESSAGE, null)
   }
   return response.json().catch(() => null)
-}
-
-async function searchOnce({
-  apiKey,
-  query,
-  orientation,
-  perPage,
-  fetchImpl,
-}: {
-  apiKey: string
-  query: string
-  orientation: "portrait" | "landscape" | "square"
-  perPage: number
-  fetchImpl: Fetch
-}): Promise<BrollCandidate[]> {
-  const url = new URL(SEARCH_URL)
-  url.searchParams.set("query", query)
-  url.searchParams.set("orientation", orientation)
-  url.searchParams.set("per_page", String(perPage))
-  const parsed = answerSchema.safeParse(await pexelsGet(url, apiKey, fetchImpl))
-  if (!parsed.success) {
-    console.error("Pexels search came back in an unexpected shape")
-    throw new PexelsStop(BROLL_PEXELS_DOWN_MESSAGE, null)
-  }
-
-  const candidates: BrollCandidate[] = []
-  for (const video of parsed.data.videos) {
-    const file = pickPexelsFile(video.video_files)
-    const preview = pickPreviewFile(video.video_files)
-    if (!file || !preview) continue
-    candidates.push({
-      pexelsId: video.id,
-      pageUrl: video.url,
-      photographer: video.user.name,
-      photographerUrl: video.user.url,
-      pictureUrl: video.image,
-      previewUrl: preview.link,
-      fileUrl: file.link,
-      width: file.width ?? video.width,
-      height: file.height ?? video.height,
-      durationMs: Math.round(video.duration * 1000),
-    })
-    if (candidates.length === BROLL_CANDIDATES) break
-  }
-  return candidates
-}
-
-export type PexelsBatch = {
-  /** Each searched row's clips, by row id. A row left out was not searched. */
-  found: Record<string, BrollCandidate[]>
-  /** Why the batch stopped before the end, and when to try the rest. */
-  stopped: { message: string; retryAtMs: number | null } | null
-}
-
-/**
- * Searches each row's phrase once, a few at a time, in order. The first stop
- * (the hour used up, Pexels refusing, the key refused) ends the batch, and
- * every row not yet searched is left for "Search the rest".
- */
-export async function searchPexelsRows({
-  apiKey,
-  rows,
-  orientation,
-  fetchImpl = fetch,
-}: {
-  apiKey: string
-  rows: { id: string; phrase: string }[]
-  orientation: "portrait" | "landscape" | "square"
-  fetchImpl?: Fetch
-}): Promise<PexelsBatch> {
-  const found: Record<string, BrollCandidate[]> = {}
-  let stopped: PexelsBatch["stopped"] = null
-  let next = 0
-  async function worker() {
-    while (!stopped && next < rows.length) {
-      const row = rows[next]
-      next += 1
-      try {
-        found[row.id] = await searchOnce({
-          apiKey,
-          query: row.phrase,
-          orientation,
-          perPage: SEARCH_PAGE_SIZE,
-          fetchImpl,
-        })
-      } catch (error) {
-        if (!(error instanceof PexelsStop)) throw error
-        stopped ??= { message: error.message, retryAtMs: error.retryAtMs }
-      }
-    }
-  }
-  await Promise.all(
-    Array.from({ length: Math.min(SEARCHES_AT_ONCE, rows.length) }, worker)
-  )
-  return { found, stopped }
 }
 
 /** A Pexels photo as the carousel's photo search shows it. */
@@ -272,23 +137,25 @@ const photoAnswerSchema = z.object({
 
 /**
  * Photos for one search, from Pexels' photo library. One request, counted
- * against the same hour as B-roll's video searches.
+ * against the hour.
  */
 export async function searchPexelsPhotos({
   apiKey,
   query,
   orientation,
+  perPage = PHOTO_PAGE_SIZE,
   fetchImpl = fetch,
 }: {
   apiKey: string
   query: string
   orientation: "portrait" | "landscape" | "square"
+  perPage?: number
   fetchImpl?: Fetch
 }): Promise<PexelsPhoto[]> {
   const url = new URL(PHOTO_SEARCH_URL)
   url.searchParams.set("query", query)
   url.searchParams.set("orientation", orientation)
-  url.searchParams.set("per_page", String(PHOTO_PAGE_SIZE))
+  url.searchParams.set("per_page", String(perPage))
   let answer: unknown
   try {
     answer = await pexelsGet(url, apiKey, fetchImpl)
@@ -299,7 +166,7 @@ export async function searchPexelsPhotos({
   const parsed = photoAnswerSchema.safeParse(answer)
   if (!parsed.success) {
     console.error("Pexels photo search came back in an unexpected shape")
-    throw new Error(BROLL_PEXELS_DOWN_MESSAGE)
+    throw new Error(PEXELS_DOWN_MESSAGE)
   }
   return parsed.data.photos.flatMap((photo) =>
     isPexelsPhotoUrl(photo.src.large2x) && isPexelsPhotoUrl(photo.src.medium)
@@ -336,7 +203,7 @@ export async function testPexelsKey(
   fetchImpl: Fetch = fetch
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
-    await searchOnce({
+    await searchPexelsPhotos({
       apiKey,
       query: "nature",
       orientation: "landscape",
@@ -345,28 +212,19 @@ export async function testPexelsKey(
     })
     return { ok: true }
   } catch (error) {
-    if (error instanceof PexelsStop) return { ok: false, message: error.message }
+    // Every refusal from Pexels is a sentence that starts with its name.
+    if (error instanceof Error && error.message.startsWith("Pexels")) {
+      return { ok: false, message: error.message }
+    }
     throw error
   }
 }
 
 /**
- * One Pexels file, downloaded on the server. Only Pexels' video host is
- * fetched, and a redirect away from it is refused, so an address sent from
- * the browser can never make the server fetch anything else. Files over the
- * library's 100MB limit are refused before they are read whole.
- */
-export async function downloadPexelsFile(
-  address: string,
-  fetchImpl: Fetch = fetch
-): Promise<Uint8Array> {
-  if (!isPexelsFileUrl(address)) throw new Error("Not a Pexels file address")
-  return downloadCapped(address, DOWNLOAD_MAX_BYTES, fetchImpl)
-}
-
-/**
  * One Pexels photo, downloaded on the server. Only Pexels' picture host is
- * fetched and a redirect away from it is refused, the same guard as a clip.
+ * fetched and a redirect away from it is refused, so an address sent from the browser can never make the
+ * server fetch anything else. Files over the library's limit are refused
+ * before they are read whole.
  */
 export async function downloadPexelsPhoto(
   address: string,

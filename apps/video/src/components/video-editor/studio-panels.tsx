@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { InspectorCard } from "@/components/shared/inspector-card"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
@@ -154,7 +155,7 @@ const PANEL_TITLE: Record<StudioPanel, string> = {
   media: "Media",
   sounds: "Sounds",
   ads: "Ads",
-  text: "Graphics",
+  text: "Elements",
   ai: "AI tools",
   templates: "Templates",
   transcript: "Transcript",
@@ -1179,17 +1180,12 @@ function TextPanel({
     })
   }
 
+  // Each section is its own grey card, the same card the inspector on the
+  // right uses, so it can be shut and stays shut (Tyler, 5 Nov 2026).
   return (
-    <div>
-      <Label>Styles</Label>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr)",
-          gap: 12,
-          marginBottom: 20,
-        }}
-      >
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+      <InspectorCard storageId="video-elements-styles" title="Styles">
+      <div className="mt-3" style={ELEMENT_GRID}>
         {TEXT_PRESETS.map((preset) => (
           <button
             key={preset.label}
@@ -1198,32 +1194,17 @@ function TextPanel({
             onClick={() =>
               addText(preset.label, preset.fontId, preset.fontSize, preset.y)
             }
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "15px",
-              background: "var(--panel2)",
-              border: "1px solid var(--line)",
-              borderRadius: 12,
-              cursor: "pointer",
-            }}
+            style={ELEMENT_BUTTON}
           >
             <span style={preset.preview}>{preset.label}</span>
             <Plus size={14} style={{ color: "var(--mut)" }} />
           </button>
         ))}
       </div>
+      </InspectorCard>
 
-      <Label>Shapes</Label>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr)",
-          gap: 12,
-          marginBottom: 20,
-        }}
-      >
+      <InspectorCard storageId="video-elements-shapes" title="Shapes">
+      <div className="mt-3" style={ELEMENT_GRID}>
         {[
           ...SHAPE_KINDS.map((kind) => ({
             key: kind,
@@ -1238,16 +1219,7 @@ function TextPanel({
             type="button"
             className="st-hovcard"
             onClick={item.onClick}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "15px",
-              background: "var(--panel2)",
-              border: "1px solid var(--line)",
-              borderRadius: 12,
-              cursor: "pointer",
-            }}
+            style={ELEMENT_BUTTON}
           >
             <span style={{ fontWeight: 500, fontSize: 13, color: "var(--ink2)" }}>
               {item.label}
@@ -1256,32 +1228,17 @@ function TextPanel({
           </button>
         ))}
       </div>
+      </InspectorCard>
 
-      <Label>Social</Label>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr)",
-          gap: 12,
-          marginBottom: 20,
-        }}
-      >
+      <InspectorCard storageId="video-elements-social" title="Social">
+      <div className="mt-3" style={ELEMENT_GRID}>
         {SOCIAL_KINDS.map((kind) => (
           <button
             key={kind}
             type="button"
             className="st-hovcard"
             onClick={() => addSocial(kind)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "15px",
-              background: "var(--panel2)",
-              border: "1px solid var(--line)",
-              borderRadius: 12,
-              cursor: "pointer",
-            }}
+            style={ELEMENT_BUTTON}
           >
             <span style={{ fontWeight: 500, fontSize: 13, color: "var(--ink2)" }}>
               {SOCIAL_LABELS[kind]}
@@ -1290,9 +1247,40 @@ function TextPanel({
           </button>
         ))}
       </div>
+      </InspectorCard>
 
-      <Label>Stickers</Label>
-      {guest ? null : <StickerShelf adding={adding} onAddingChange={onAddingChange} />}
+      {/* Stickers are the owner's own shelf, so a guest gets no card. */}
+      {guest ? null : (
+        <InspectorCard storageId="video-elements-stickers" title="Stickers">
+          <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)]">
+            <StickerShelf adding={adding} onAddingChange={onAddingChange} />
+          </div>
+        </InspectorCard>
+      )}
     </div>
   )
+}
+
+/** One column of add buttons inside an Elements card. */
+const ELEMENT_GRID: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr)",
+  gap: 8,
+}
+
+/**
+ * One add button. Tighter than before the cards, because the card's own
+ * padding already takes room from a narrow panel.
+ */
+const ELEMENT_BUTTON: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+  padding: "10px 12px",
+  // White on the grey card, as the inspector's fields are (Tyler, 5 Nov 2026).
+  background: "var(--background)",
+  border: "1px solid var(--line)",
+  borderRadius: 10,
+  cursor: "pointer",
 }

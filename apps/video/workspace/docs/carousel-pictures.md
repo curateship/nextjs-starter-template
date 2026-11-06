@@ -102,11 +102,21 @@ to be named after Pexels and moved into the search menu.
   and on its carousel project's shelf, and places it on the slide.
 - **The credit:** the photo's description is "Photo by Jane Doe on Pexels"
   with the photo's and the photographer's pages. The grid links to Pexels.
-- **The key and the hour:** the same Pexels key as B-roll, set by an admin in
-  Settings → Pexels, and the same 200 searches an hour (see
-  [b-roll.md](b-roll.md)). A photo search counts as one.
+- **The key:** set by an admin in Settings → Pexels (`/admin/settings/pexels`).
+  A free key comes from pexels.com/api, and pasting it saves it by itself. It
+  is kept scrambled in `video_settings.pexels_api_key`, and the browser only
+  ever sees its last four characters. Test this key sends one search for one
+  photo, which counts against the hour.
+- **The hour:** Pexels allows 200 requests an hour and 20,000 a month. The app
+  counts every request of the last hour and refuses the 201st itself, rather
+  than waiting for Pexels to. The count lives in the web process, so a restart
+  forgets it, and Pexels' own refusal (HTTP 429) is the backstop. Either way
+  the window shows a sentence that starts with "Pexels".
 - **What is fetched:** only Pexels' picture host, `images.pexels.com`, and a
-  redirect away from it is refused, the same guard as a B-roll clip.
+  redirect away from it is refused.
+- **Photo search is the only thing that uses Pexels.** The editor's B-roll
+  tool, which searched Pexels for video clips, was removed on 5 Nov 2026
+  (Tyler: "remove the b-roll with pexels feature").
 
 The code is `searchPexelsPhotos` and `downloadPexelsPhoto` in
 `src/server/video/pexels.ts` and `src/server/video/carousel-stock.ts`.

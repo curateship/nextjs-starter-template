@@ -197,7 +197,7 @@ export async function saveSafeBoxes(
 
 /**
  * Keys kept one to a column on the settings row, scrambled the same way the
- * shell scrambles AI keys: Pexels for B-roll and carousel photos, Sync Labs
+ * shell scrambles AI keys: Pexels for carousel photos, Sync Labs
  * for lips (lip-sync.md). The browser only ever sees a key's last four
  * characters.
  */
@@ -258,7 +258,7 @@ async function removeSavedKey(column: SavedKeyColumn, database: CustomShellDb) {
     .where(eq(videoSettings.id, SETTINGS_ROW_ID))
 }
 
-/** The Pexels key B-roll and carousel photos search with. SERVER ONLY. */
+/** The Pexels key carousel photos search with. SERVER ONLY. */
 export function getPexelsApiKey(database: CustomShellDb = db) {
   return getSavedKey("pexelsApiKey", database)
 }
@@ -268,7 +268,7 @@ export function getPexelsKeyStatus(database: CustomShellDb = db) {
 export function savePexelsApiKey(apiKey: string, database: CustomShellDb = db) {
   return saveSavedKey("pexelsApiKey", apiKey, database)
 }
-/** Clears the saved key; B-roll then asks for one again. */
+/** Clears the saved key; photo search then asks for one again. */
 export function removePexelsApiKey(database: CustomShellDb = db) {
   return removeSavedKey("pexelsApiKey", database)
 }

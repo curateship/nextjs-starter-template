@@ -1236,8 +1236,8 @@ export const videoSettings = pgTable(
     // Which AI writes down speech, and which one rewrites words. Empty until
     // somebody chooses, at which point the choice sticks.
     aiDefaults: jsonb("ai_defaults").notNull().default({}),
-    // The Pexels API key the B-roll tool searches stock video with, scrambled
-    // the same way. NULL means no key, and B-roll asks for one.
+    // The Pexels API key the carousel's photo search uses, scrambled the
+    // same way. NULL means no key, and photo search asks for one.
     pexelsApiKey: text("pexels_api_key"),
     // The Sync Labs key that makes lips match a new voice (lip-sync.md),
     // scrambled the same way. NULL means no key, and Match the lips asks for

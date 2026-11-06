@@ -15,7 +15,6 @@ import {
   type BriefLanding,
   type SceneWithFiles,
 } from "@/lib/video/brief"
-import { landBroll, type BrollPlacement } from "@/lib/video/b-roll"
 import {
   changeAd,
   isAd,
@@ -104,7 +103,7 @@ export type EditorHistoryEntry = {
 export type EditorAction =
   | { type: "ADD_CLIP"; clip: EditorClip; atMs: number; trackId?: string }
   | { type: "ADD_CLIP_TO_NEW_TRACK"; clip: EditorClip; atMs: number }
-  // Words or a sticker from the Graphics panel. Unlike ADD_CLIP it never lands
+  // Words or a sticker from the Elements panel. Unlike ADD_CLIP it never lands
   // under a picture that would hide it.
   | { type: "ADD_OVERLAY"; clip: EditorClip; atMs: number }
   // A sticker and a sound that goes with it (the Subscribe button's click),
@@ -184,9 +183,6 @@ export type EditorAction =
       changes: Parameters<typeof relayBriefScene>[2][]
       captions: CaptionPlacement | null
     }
-  // Pexels clips picked in the B-roll window, on one new lane under their
-  // sentences (b-roll.ts). One action, one Undo.
-  | { type: "PLACE_BROLL"; placements: BrollPlacement[] }
   | { type: "ADD_TRACK" }
   // Cut several pieces out of one clip at once, closing the gaps. What comes
   // after on the same lane shuffles back by however much was taken out.
@@ -1066,12 +1062,6 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       const landed = landMovingShot(state.tracks, { ...action, newId: editorId })
       if (landed.outcome === "gone") return state
       return pushUndo(state, landed.tracks)
-    }
-
-    case "PLACE_BROLL": {
-      const tracks = landBroll(state.tracks, action.placements, editorId)
-      if (!tracks || tracks === state.tracks) return state
-      return pushUndo(state, tracks)
     }
 
     case "LAND_BRIEF_SCENES": {

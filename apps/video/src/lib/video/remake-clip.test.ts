@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import { DEFAULT_CAPTION_LOOK } from "@/lib/video/caption-look"
 
 import type { VoiceOrigin } from "@/lib/video/clip-origin"
-import { landVoiceLine, voiceOrigin, type SpokenLine } from "@/lib/video/remake-clip"
+import { landVoiceLine, voiceOrigin, type SpokenLine,
+  spreadHookAcross,
+} from "@/lib/video/remake-clip"
 import { MAX_TIMELINE_TRACKS, type ProjectTimeline } from "@/lib/video/timeline-schema"
 
 type Tracks = ProjectTimeline["tracks"]
@@ -252,5 +254,25 @@ describe("what a voice line remembers", () => {
         text: "Hola",
       }).voice.speaker
     ).toBe("elevenlabs")
+  })
+})
+
+describe("putting a rewritten line back", () => {
+  it("shares the words out across the clips it came from", () => {
+    expect(spreadHookAcross(["a", "b"], "Do not scroll past this")).toEqual([
+      { clipId: "a", text: "Do not scroll" },
+      { clipId: "b", text: "past this" },
+    ])
+  })
+
+  it("puts a whole line on a single clip", () => {
+    expect(spreadHookAcross(["only"], "  Stop scrolling  ")).toEqual([
+      { clipId: "only", text: "Stop scrolling" },
+    ])
+  })
+
+  it("changes nothing when there is nothing to say or nowhere to say it", () => {
+    expect(spreadHookAcross([], "words")).toEqual([])
+    expect(spreadHookAcross(["a"], "   ")).toEqual([])
   })
 })

@@ -519,7 +519,7 @@ export function TemplateEditor({
               </div>
             ) : null}
             <p className="text-muted-foreground">
-              The usual voice is the one saved with &quot;Make this the usual voice&quot; in the Voice window.
+              The usual voice is the one saved with &quot;Make this the usual voice&quot; in the Read a script with AI window.
             </p>
           </div>
         </Row>

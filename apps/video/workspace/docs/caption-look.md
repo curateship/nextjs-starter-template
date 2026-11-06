@@ -73,7 +73,7 @@ written out by hand.
 - **The Captions tool** in the AI tools panel. Its window opens on the saved
   look every time, with every setting there to change and a sample beside
   them. A change there is for that one run.
-- **The Voice tool.** Its captions take the saved look. The window offers the
+- **Read a script with AI.** Its captions take the saved look. The window offers the
   entrance only.
 - **A saved voiceover** laid from the Voices panel, **a translation** from the
   Another language tool, and **Brief to video's scenes** take the saved look as

@@ -1,7 +1,7 @@
 # Stickers
 
-The Stickers row in the studio's Graphics panel (called Text until 4 Nov
-2026) is each person's own list. It holds
+The Stickers row in the studio's Elements panel (called Text until 4 Nov
+2026, then Graphics until 5 Nov 2026) is each person's own list. It holds
 emoji and pictures from their media library. One press on a sticker puts it on
 the frame at the playhead. The carousel editor's Text panel shows the same
 list and places a sticker as a layer (see
@@ -12,7 +12,7 @@ list and places a sticker as a layer (see
 - **Somebody who has never changed it** sees the eight that have always been
   there: 🔥 ✨ 👀 ☕ 💯 ➡️ ❤️ ⭐. Nothing is stored for them until they add or
   remove one.
-- **The + in the panel's header** (Graphics in the studio, Text in the
+- **The + in the panel's header** (Elements in the studio, Text in the
   carousel editor) opens a menu with Emoji and Image, in both editors. Tyler, 2 Nov 2026: "Add the + icon here that opens a dropdown
   to select emoji or image to add". There are no add buttons under the list.
 - **Adding an emoji:** Emoji opens a window; type or paste one emoji and press
@@ -63,7 +63,7 @@ list and places a sticker as a layer (see
   [clip-frame-fit.md](clip-frame-fit.md)).
 - **Where on the timeline:** the top lane that has room at the playhead, as
   long as no video or picture on a lane above would cover it. When there is no
-  such lane, a new one is added at the top. The Graphics panel's Big Title, Bold
+  such lane, a new one is added at the top. The Elements panel's Big Title, Bold
   Caption and Subtitle land the same way. Before this, all of them could land
   on a new lane at the bottom, underneath the footage, and be hidden behind it.
 
