@@ -7,7 +7,7 @@ import type { CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import type { AskAi } from "@/server/travel/ai"
 import { fitIntoWindows, freeWindows } from "@/lib/travel/fill-day"
-import { createDraftActivities, draftTripPlan, fillTripDay, type FindPlace } from "@/server/travel/trip-draft"
+import { createDraftActivities, draftTripPlan, fillTripDay, fillTripGaps, type FindPlace } from "@/server/travel/trip-draft"
 import { createActivity, createTrip, loadTripPage, updateActivity } from "@/server/travel/trips"
 import { deleteType, listTypes } from "@/server/travel/types"
 
@@ -286,5 +286,61 @@ describe("fill this day (More Travel features part 6)", () => {
     expect(made).toMatchObject({ repeated: 2, placed: 0 })
     expect(made.created).toHaveLength(1)
     expect(fetched).toEqual([])
+  })
+})
+
+describe("Fill every gap (Travel features 4, part 10)", () => {
+  /** Day 1 holds a morning temple, Day 2 nothing, Day 3 a 14-hour tour that leaves no free time. */
+  async function partPlanned() {
+    const tripId = await kyoto(3)
+    const temple = await createActivity(anna.id, { tripId, day: 1, title: "Kiyomizu-dera", startTime: "09:00" }, database)
+    await updateActivity(anna.id, { activityId: temple.id, durationMinutes: 120 }, database)
+    const tour = await createActivity(anna.id, { tripId, day: 3, title: "All day tour", startTime: "08:00" }, database)
+    await updateActivity(anna.id, { activityId: tour.id, durationMinutes: 14 * 60 }, database)
+    return tripId
+  }
+
+  it("asks once for the days with plans and free time, and leaves empty and full days alone", async () => {
+    const tripId = await partPlanned()
+    const { ask, asked } = aiAnswering({
+      days: [
+        {
+          day: 1,
+          activities: [
+            { title: "Lunch at Okutan", kind: "food", startTime: "12:00", minutes: 60 },
+            // Over the temple, so it is dropped.
+            { title: "Clash", kind: "sight", startTime: "09:30", minutes: 60 },
+          ],
+        },
+        // Not asked for: empty and full days are never filled here.
+        { day: 2, activities: [{ title: "Not asked for", kind: "sight", startTime: "12:00", minutes: 60 }] },
+        { day: 3, activities: [{ title: "Not asked for", kind: "sight", startTime: "12:00", minutes: 60 }] },
+      ],
+    })
+    const draft = await fillTripGaps(anna.id, { tripId }, { database, ask })
+    expect(asked).toHaveLength(1)
+    expect(asked[0]).toContain("answer with each of them: 1.")
+    expect(asked[0]).toContain("Kiyomizu-dera at 9:00 AM for 120 minutes")
+    expect(asked[0]).not.toContain("All day tour at")
+    expect(draft.days).toEqual([1])
+    expect(draft.skipped).toEqual([3])
+    expect(draft.later).toBe(0)
+    expect(draft.items.map((item) => [item.day, item.title])).toEqual([[1, "Lunch at Okutan"]])
+  })
+
+  it("says so when no day with plans has free time, and asks nothing", async () => {
+    const tripId = await kyoto(2)
+    const tour = await createActivity(anna.id, { tripId, day: 1, title: "All day tour", startTime: "08:00" }, database)
+    await updateActivity(anna.id, { activityId: tour.id, durationMinutes: 14 * 60 }, database)
+    const { ask, asked } = aiAnswering({ days: [] })
+    await expect(fillTripGaps(anna.id, { tripId }, { database, ask })).rejects.toThrow(TRAVEL_ERRORS.fillNoGaps)
+    expect(asked).toEqual([])
+  })
+
+  it("says so when none of the ideas fit, and never fills someone else's trip", async () => {
+    const tripId = await partPlanned()
+    const { ask } = aiAnswering({ days: [{ day: 1, activities: [{ title: "Clash", kind: "sight", startTime: "09:30", minutes: 60 }] }] })
+    await expect(fillTripGaps(anna.id, { tripId }, { database, ask })).rejects.toThrow(TRAVEL_ERRORS.fillNothingFitsAnywhere)
+    await expect(fillTripGaps(ben.id, { tripId }, { database, ask })).rejects.toThrow(TRAVEL_ERRORS.tripNotFound)
   })
 })

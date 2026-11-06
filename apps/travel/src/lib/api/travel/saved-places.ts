@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { id } from "@/lib/travel/rules"
+import { id, photoCreditSchema } from "@/lib/travel/rules"
 import { userGet, userPost } from "@/server/guards"
 import {
   addGoAgainToTrip,
@@ -10,6 +10,8 @@ import {
   listGoAgain,
   listSavedPlaces,
   saveActivityAsPlace,
+  updateSavedPlace,
+  type SavedPlacePatch,
 } from "@/server/travel/saved-places"
 
 export type { GoAgainPlace, SavedPlace } from "@/server/travel/saved-places"
@@ -22,6 +24,20 @@ const saveFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ activityId: id }))
   .handler(async ({ data, context }) => saveActivityAsPlace(context.user.id, data.activityId))
+
+const updateFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      savedPlaceId: id,
+      title: z.string().trim().min(1, "Give the place a name.").max(200, "A place's name can be at most 200 characters.").optional(),
+      typeId: id.nullable().optional(),
+      notes: z.string().max(100_000, "Notes are too long to save.").optional(),
+      photoUrl: z.string().max(1000).nullable().optional(),
+      photoCredit: photoCreditSchema.nullable().optional(),
+    })
+  )
+  .handler(async ({ data, context }) => updateSavedPlace(context.user.id, data))
 
 const deleteFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -55,6 +71,10 @@ export function loadSavedPlaces() {
 }
 export function saveAsPlace(activityId: string) {
   return saveFn({ data: { activityId } })
+}
+/** Changes a saved place's name, type, notes or picture (Travel features 4, part 11). */
+export function editSavedPlace(patch: SavedPlacePatch) {
+  return updateFn({ data: patch })
 }
 export function forgetSavedPlace(savedPlaceId: string) {
   return deleteFn({ data: { savedPlaceId } })

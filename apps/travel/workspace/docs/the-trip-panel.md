@@ -36,17 +36,34 @@ should then turn into an x icon to close with the morph animation").
 - With no notes, the panel is one dashed area, Add a note, that makes the
   first one.
 - With notes, they're listed by first line and the day each last changed,
-  newest first, with a New note button under them.
-- Right-click a note in the list for Duplicate and Delete; Delete asks first
+  pinned notes first, then newest first, with a New note button under them.
+- Right-click a note in the list for Pin (or Unpin), Duplicate and Delete
   (Tyler, 3 Nov 2026: "add right click feature to delete and duplicate note
   in the notes list").
+- **Pinned notes** (Tyler, 6 Nov 2026: "Right-click, many pins") sit at the
+  top of the list with an amber pin before their first line (Tyler, 6 Nov
+  2026: "pinned icon should be ember", the rating stars' amber), newest change first
+  among them. Any number can be pinned. Pinning doesn't change the day a note
+  last changed. A duplicate starts unpinned; a note put back from the bin
+  keeps its pin. The pin is `pinned_at` on `travel_trip_notes`.
+- **Delete puts a note in the trip's bin** (Tyler, 6 Nov 2026: "Same Bin as
+  cards"), with Undo on the bar at the bottom for 6 seconds, so it no longer
+  asks first. The note waits 30 days in the same Bin as deleted cards (the
+  ⋮ after the board's tabs), listed as "Note", with Put back and Delete for
+  good (which asks on the row first), then goes for good the next time the
+  Bin opens after 30 days. A binned note isn't in
+  the list or the Photos tab, can't be written in, and doesn't count toward
+  the 200. Putting one back when the trip already holds 200 is refused. The
+  bin is `deleted_at` on `travel_trip_notes`
+  (`drizzle/0107_travel_trip_note_bin_and_pin.sql`).
 - A new note opens with the cursor in it. A note is written in the shell's
   editor and saves itself. Back to notes, right under the note, goes back to
   the list (Tyler, 3 Nov 2026).
 - The header keeps the trip's name and its back arrow to Trips while the
   notes are open (Tyler, 3 Nov 2026: "we dont need notes with back arrow").
-- At most 200 notes a trip. They live in `travel_trip_notes`, one row each,
-  the editor's document as JSON text.
+- At most 200 notes a trip, not counting the bin. They live in
+  `travel_trip_notes`, one row each, the editor's document as JSON text. The
+  server side is `src/server/travel/trip-notes.ts`.
 
 ## What went
 

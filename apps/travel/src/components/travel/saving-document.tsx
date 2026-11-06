@@ -24,6 +24,7 @@ export function SavingDocument({
   placeholder = "Write something",
   focus = false,
   readOnly = false,
+  cards = true,
   className,
 }: {
   /** The saved document as JSON text, or "". Read once, when it first shows. */
@@ -33,6 +34,8 @@ export function SavingDocument({
   focus?: boolean
   /** Shown, not written in: with no signal nothing could be saved. */
   readOnly?: boolean
+  /** Offer the Place and Map blocks, which point at the open trip's cards. Off for a note that belongs to no trip. */
+  cards?: boolean
   className?: string
 }) {
   const [start] = React.useState(() => readNotes(value))
@@ -40,7 +43,7 @@ export function SavingDocument({
   // locked and unlocked) sends nothing.
   const saved = React.useRef(JSON.stringify(start))
   const draft = React.useRef<NoteNode | null>(null)
-  const blocks = useNoteBlocks()
+  const blocks = useNoteBlocks({ cards })
   const timer = React.useRef(0)
   const box = React.useRef<HTMLDivElement>(null)
   const saveRef = React.useRef(onSave)

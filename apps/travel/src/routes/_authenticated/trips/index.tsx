@@ -7,12 +7,14 @@ import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { pageTitleHead } from "@/lib/travel/page-title"
 
 type TripsSearch = {
-  /** Past, Archived or Bin; Upcoming when absent (task part 36, Travel features part 8). */
+  /** Past, Archived, Bin or Year; Upcoming when absent (task part 36, Travel features part 8, Travel features 4 part 9). */
   show?: Exclude<TripsShow, "upcoming">
 }
 
 function readTripsSearch(search: Record<string, unknown>): TripsSearch {
-  return search.show === "past" || search.show === "archived" || search.show === "bin" ? { show: search.show } : {}
+  return search.show === "past" || search.show === "archived" || search.show === "bin" || search.show === "year"
+    ? { show: search.show }
+    : {}
 }
 
 /** The Trips table: every trip of the person signed in. */

@@ -280,7 +280,7 @@ describe("a card's photos (Travel features 3, parts 5 and 6)", () => {
       "https://r2.example/one.jpg",
       "https://r2.example/two.jpg",
     ])
-    expect(host.querySelector('[aria-label="Add photos"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="Add a photo"]')).not.toBeNull()
     press(thumbs[0])
     expect(document.body.textContent).toContain("Photo 1 of 2, the card's picture")
   })
@@ -290,7 +290,7 @@ describe("a card's photos (Travel features 3, parts 5 and 6)", () => {
     act(() => root.render(withTrip(tripPage([bare]), <ActivityPhotosRow activity={bare} />)))
     expect(host.innerHTML).toBe("")
     act(() => root.render(withTrip(tripPage([card], { photos }), <ActivityPhotosRow activity={card} />, { readOnly: true })))
-    expect(host.querySelector('[aria-label="Add photos"]')).toBeNull()
+    expect(host.querySelector('[aria-label="Add a photo"]')).toBeNull()
   })
 
   it("puts every photo on the Photos tab under its day, and says how to add one when there are none", () => {

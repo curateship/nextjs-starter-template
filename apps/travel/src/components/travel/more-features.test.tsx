@@ -168,7 +168,7 @@ describe("the card (More Travel features parts 1 and 4)", () => {
 describe("a day's heading (More Travel features parts 7 and 8)", () => {
   it("shows the holiday and what a far-off day is usually like, and the forecast when there is one", () => {
     const weather = {
-      forecast: [{ day: 1, high: 18, low: 9, kind: "clear" as const, rain: 70 }],
+      forecast: [{ day: 1, high: 18, low: 9, kind: "clear" as const, rain: 70, hourlyRain: [] }],
       typical: [
         { day: 1, high: 20, low: 10, rainDays: 3 },
         { day: 2, high: 24, low: 15, rainDays: 8 },

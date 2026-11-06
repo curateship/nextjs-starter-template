@@ -16,6 +16,9 @@ Both ways Tyler picked ("Both"):
 - **A day's menu → Fill this day** (Tyler, 4 Nov 2026: "Timed, in the gaps")
   opens the same window titled "Fill Day 2", for one day that already has
   cards. It fills only that day's free time; see "Filling one day" below.
+- **"+ Add" → Fill every gap** (Tyler, 6 Nov 2026: "+ Add, part-planned
+  days") opens the same window titled "Fill every gap", for every day that
+  already has cards at once; see "Filling every gap" below.
 - **"+ Add" → Suggest Ideas** fills the Ideas column instead of any day; see
   "Suggesting Ideas" below.
 
@@ -69,6 +72,34 @@ there.
 - **The code:** `fillTripDay` in `src/server/travel/trip-draft.ts`, with the
   free time and fitting in `src/lib/travel/fill-day.ts`. It shares Draft a
   plan's allowance of 20 in 10 minutes.
+
+## Filling every gap
+
+Fill every gap is Fill this day for every day that already has something on
+it, in one AI call (Travel features 4, part 10).
+
+- **Which days:** each day with a card on it and free time left, by the same
+  rule as Fill this day: gaps of 45 minutes or more between 8:00 AM and
+  10:00 PM. Empty days are left to Draft a plan. A day with plans but no free
+  time is left alone, and the window names it, such as "Day 3 has no free
+  time left, so it is left as it is."
+- **14 days at a time,** like drafting. Past that the window says how many
+  more days have free time, to fill again after adding these.
+- **What the AI is told:** for each day, what it already holds with its times,
+  its Must do cards, where the night is spent and its free time, plus every
+  place already on the trip. It is asked never to plan one place on two days.
+- **What is kept:** each day's ideas are checked against that day's own free
+  time, the same as Fill this day, at most 5 a day. A day the AI didn't answer
+  gets nothing.
+- **When nothing fits** anywhere, the window says "None of the AI's ideas fit
+  the free time on those days." With no day to fill, it says "No day with
+  plans has free time of 45 minutes or more between 8 AM and 10 PM. Draft a
+  plan fills the empty days."
+- **Undo:** Create adds the ticked ones with Undo on the bar at the bottom,
+  the same as Fill this day.
+- **The same allowance** and the same 20 plans in 10 minutes as drafting.
+- **The code:** `fillTripGaps` in `src/server/travel/trip-draft.ts`, sharing
+  `describeDay` and `fittedItems` with `fillTripDay`.
 
 ## Suggesting Ideas
 

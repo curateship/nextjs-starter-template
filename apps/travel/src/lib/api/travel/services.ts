@@ -11,6 +11,7 @@ import {
   placeDetails,
   routeMinutes,
 } from "@/server/travel/google"
+import { spendGoogleLookup } from "@/server/travel/google-usage"
 import { fillPickedPlacePhoto } from "@/server/travel/place-photo"
 import { searchPhotos, trackDownload, unsplashEnabled } from "@/server/travel/unsplash"
 import { id } from "@/lib/travel/rules"
@@ -58,7 +59,7 @@ const loadPlaceDetailsFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ placeId: z.string().trim().min(1).max(300), sessionToken }))
   .handler(async ({ data, context }) => {
     await limit("place-details", context.user.id, 120)
-    return placeDetails(data.placeId, data.sessionToken)
+    return placeDetails(data.placeId, data.sessionToken, () => spendGoogleLookup(context.user.id))
   })
 
 const fillPlacePhotoFn = createServerFn({ method: "POST" })
@@ -74,7 +75,7 @@ const findRouteMinutesFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ from: point, to: point, mode: z.enum(TRAVEL_MODES) }))
   .handler(async ({ data, context }) => {
     await limit("routes", context.user.id, 400)
-    return routeMinutes(data.from, data.to, data.mode)
+    return routeMinutes(data.from, data.to, data.mode, () => spendGoogleLookup(context.user.id))
   })
 
 const searchUnsplashFn = createServerFn({ method: "GET" })

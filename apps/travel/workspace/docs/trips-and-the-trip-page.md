@@ -44,8 +44,9 @@ They outrank the code.
     so a lot of them make a busy map. The pins are `loadVisitedPins` in
     `src/server/travel/trip-admin.ts`.
 - **Tabs:** Upcoming (every trip that hasn't ended, trips with no dates
-  included), Past, Archived and Bin, kept in the address as `?show=past`,
-  `?show=archived` or `?show=bin`.
+  included), Past, Archived, Bin and Year, kept in the address as
+  `?show=past`, `?show=archived`, `?show=bin` or `?show=year`. Year is
+  described under "The Year tab" below.
 - **Columns:** Trip (the cover photo, name, destination and tags), Dates with
   a countdown under them ("in 12 days", "tomorrow", "on now", "ended
   yesterday"), Days, Status, and Actions.
@@ -84,6 +85,66 @@ They outrank the code.
   type, times, place, links, notes, cost and picture, and both lists,
   unticked. It drops the dates, Done, ratings, documents and the phone
   calendar link.
+
+## The time zone of a new trip
+
+Tyler, 6 Nov 2026: "New trip + destination change".
+
+- **New trip fills it in** from the destination. Open-Meteo's free place
+  search, which the weather already uses, gives each place its time zone, so
+  "Tokyo" becomes Asia/Tokyo. It happens after the trip is saved, so a slow or
+  failed search never stops the trip being made.
+- **A new destination changes it too**, in Trip settings → Destination, but
+  only while the time zone is still the one Travel filled in, or is empty.
+- **A time zone picked in Trip settings → Time zone is never changed.**
+  `travel_trips.time_zone_guessed` remembers which kind it is
+  (`drizzle/0105_travel_time_zone_guessed.sql`). The sample trip's Asia/Tokyo
+  counts as filled in.
+- **A country with several time zones**, such as "USA", gets Open-Meteo's
+  first answer. A destination it can't place leaves the time zone as it was.
+- The time zone decides Today on the board, the phone calendar's times and
+  which hour the rain at a card's hour reads from.
+- The code is `guessTripTimeZone` in `src/server/travel/trip-time-zone.ts`,
+  called by the New trip and Trip settings endpoints in
+  `src/lib/api/travel/trips.ts`.
+
+## The Year tab
+
+Tyler, 6 Nov 2026: "Cover, name, dates".
+
+- **The year's months run across the top** and each dated trip is a bar
+  across its days, with its small cover, name and dates. A short trip's name
+  carries on past its bar, so bars take a new row whenever the next trip
+  starts within about six weeks of one already on that row.
+- **Clicking a bar opens the trip.** The arrows step a year back or forward.
+  It opens on the year of the next trip that hasn't ended, or this year.
+- **What it holds:** every trip that isn't in the Bin, archived ones too. A
+  trip over New Year shows in both years, cut at the edge. The search and the
+  tag filter work here as on the other tabs.
+- **Trips with no dates can't be placed**, so a line above the months says
+  how many there are, such as "1 trip has no dates, so it isn't shown."
+- **On a phone** the months keep a 720px width and scroll sideways.
+- The code is `TripsYearView` in `src/components/travel/trips-year-view.tsx`
+  and `yearBars` in `src/lib/travel/trip-year.ts`.
+
+## Opening on the trip that's on now
+
+Tyler, 6 Nov 2026: "On sign-in and Home", then "Travel-only address".
+
+- **`/trips/today`** opens the trip that's on today, which opens on today's
+  column, or the Trips table when no trip is on. A trip is on when today,
+  where the trip is, is one of its days. With two on at once, the one that
+  started last wins. Archived trips and trips in the Bin don't count.
+- **To make it where members land**, an admin types `/trips/today` in
+  Settings → General → member home route. Signing in and opening Home then
+  go there. With no trip on, members land on the Trips table, not Home's plan
+  and feedback page. Admins keep their own home route.
+- **Trips in the left menu still opens the table.**
+- It only forwards, replacing itself in the browser's history, so Back never
+  lands on it.
+- Nothing changed in the shell's Home: the address is Travel's own route,
+  `src/routes/_authenticated/trips/today.tsx`, and the lookup is
+  `findTripOnToday` in `src/server/travel/trip-today.ts`.
 
 ## The cover photo
 

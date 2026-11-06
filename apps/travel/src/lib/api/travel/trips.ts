@@ -14,6 +14,8 @@ import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { userGet, userPost } from "@/server/guards"
 import { giveSampleTrip } from "@/server/travel/sample"
 import { pickTripCover } from "@/server/travel/trip-cover"
+import { guessTripTimeZone } from "@/server/travel/trip-time-zone"
+import { findTripOnToday } from "@/server/travel/trip-today"
 import { markEndedTripsDone } from "@/server/travel/trip-admin"
 import {
   binActivities,
@@ -69,13 +71,17 @@ const createTripFn = createServerFn({ method: "POST" })
       .then(() => true)
       .catch(() => false)
     if (coverAllowed) await pickTripCover(made.id, data.destination)
+    await guessTripTimeZone(context.user.id, made.id)
     return made
   })
 
 const updateTripFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(updateTripSchema)
-  .handler(async ({ data, context }) => updateTrip(context.user.id, data))
+  .handler(async ({ data, context }) => {
+    await updateTrip(context.user.id, data)
+    if (data.destination !== undefined) await guessTripTimeZone(context.user.id, data.tripId)
+  })
 
 const binTripFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -122,6 +128,14 @@ const markDoneFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ activityIds: z.array(id).min(1).max(500), done: z.boolean() }))
   .handler(async ({ data, context }) => markActivitiesDone(context.user.id, data))
 
+const tripOnTodayFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) => findTripOnToday(context.user.id))
+
+/** The id of the person's trip that's on today, or null (Travel features 4, part 8). */
+export function loadTripOnToday() {
+  return tripOnTodayFn()
+}
 export function loadTrips() {
   return loadTripsPageFn()
 }

@@ -70,12 +70,15 @@ export function NoteBlocksMenu({ blocks }: { blocks: NoteBlocks }) {
           </PopoverContent>
         </Popover>
       ) : null}
-      <NoteCardPicker
-        open={blocks.picking !== null}
-        mode={blocks.picking?.mode ?? "place"}
-        onClose={blocks.cancelPicking}
-        onPick={blocks.placePicked}
-      />
+      {/* The picker reads the open trip's cards, so a note away from a trip has none. */}
+      {blocks.cards ? (
+        <NoteCardPicker
+          open={blocks.picking !== null}
+          mode={blocks.picking?.mode ?? "place"}
+          onClose={blocks.cancelPicking}
+          onPick={blocks.placePicked}
+        />
+      ) : null}
     </>
   )
 }

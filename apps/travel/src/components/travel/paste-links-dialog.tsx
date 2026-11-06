@@ -104,8 +104,9 @@ export function PasteLinksDialog({
       } catch (error) {
         if (!isCurrent()) break
         const reason = getTravelErrorMessage(error)
-        // The 60 fills in 10 minutes are used up: every link after this would fail the same way.
-        if (reason === TRAVEL_ERRORS.tooManySearches) {
+        // The 60 fills in 10 minutes, or the day's 100 Google lookups (Travel features 4, part 4), are used up:
+        // every link after this would fail the same way.
+        if (reason === TRAVEL_ERRORS.tooManySearches || reason === TRAVEL_ERRORS.googleLimit) {
           setStoppedFor(reason)
           break
         }

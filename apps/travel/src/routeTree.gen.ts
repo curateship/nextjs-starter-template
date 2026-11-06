@@ -60,6 +60,7 @@ import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
 import { Route as AuthenticatedTripsIndexRouteImport } from './routes/_authenticated/trips/index'
 import { Route as AuthenticatedTripsTripIdRouteImport } from './routes/_authenticated/trips/$tripId'
+import { Route as AuthenticatedTripsTodayRouteImport } from './routes/_authenticated/trips/today'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
@@ -350,6 +351,11 @@ const AuthenticatedTripsTripIdRoute =
     path: '/trips/$tripId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedTripsTodayRoute = AuthenticatedTripsTodayRouteImport.update({
+  id: '/trips/today',
+  path: '/trips/today',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   id: '/api/auth/google',
   path: '/api/auth/google',
@@ -493,6 +499,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/trips/$tripId': typeof AuthenticatedTripsTripIdRoute
+  '/trips/today': typeof AuthenticatedTripsTodayRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -560,6 +567,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/trips/$tripId': typeof AuthenticatedTripsTripIdRoute
+  '/trips/today': typeof AuthenticatedTripsTodayRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -631,6 +639,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/_authenticated/trips/$tripId': typeof AuthenticatedTripsTripIdRoute
+  '/_authenticated/trips/today': typeof AuthenticatedTripsTodayRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -702,6 +711,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/changelog/whats-new'
     | '/trips/$tripId'
+    | '/trips/today'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -769,6 +779,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/changelog/whats-new'
     | '/trips/$tripId'
+    | '/trips/today'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -839,6 +850,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/_authenticated/changelog/whats-new'
     | '/_authenticated/trips/$tripId'
+    | '/_authenticated/trips/today'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1252,6 +1264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTripsTripIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/trips/today': {
+      id: '/_authenticated/trips/today'
+      path: '/trips/today'
+      fullPath: '/trips/today'
+      preLoaderRoute: typeof AuthenticatedTripsTodayRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/auth/google': {
       id: '/api/auth/google'
       path: '/api/auth/google'
@@ -1493,6 +1512,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedTripsTripIdRoute: typeof AuthenticatedTripsTripIdRoute
+  AuthenticatedTripsTodayRoute: typeof AuthenticatedTripsTodayRoute
   AuthenticatedTripsIndexRoute: typeof AuthenticatedTripsIndexRoute
 }
 
@@ -1503,6 +1523,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedTripsTripIdRoute: AuthenticatedTripsTripIdRoute,
+  AuthenticatedTripsTodayRoute: AuthenticatedTripsTodayRoute,
   AuthenticatedTripsIndexRoute: AuthenticatedTripsIndexRoute,
 }
 

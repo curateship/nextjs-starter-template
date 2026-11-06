@@ -5,7 +5,15 @@ import { TRAVEL_ERRORS } from "@/lib/travel/errors"
 import { MAX_TRIP_DAYS, TIME_PATTERN, id } from "@/lib/travel/rules"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { userPost } from "@/server/guards"
-import { createDraftActivities, DRAFT_DAYS_MAX, draftTripPlan, fillTripDay, IDEAS_MAX, suggestTripIdeas } from "@/server/travel/trip-draft"
+import {
+  createDraftActivities,
+  DRAFT_DAYS_MAX,
+  draftTripPlan,
+  fillTripDay,
+  fillTripGaps,
+  IDEAS_MAX,
+  suggestTripIdeas,
+} from "@/server/travel/trip-draft"
 
 import type { DraftItem } from "@/server/travel/trip-draft"
 
@@ -37,6 +45,15 @@ const fillDayFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await limitPlans(context.user.id)
     return fillTripDay(context.user.id, data)
+  })
+
+// Fill every gap (Travel features 4, part 10): the same allowance, and nothing saved either.
+const fillGapsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ tripId: id }))
+  .handler(async ({ data, context }) => {
+    await limitPlans(context.user.id)
+    return fillTripGaps(context.user.id, data)
   })
 
 const createFn = createServerFn({ method: "POST" })
@@ -114,6 +131,10 @@ export function draftPlan(tripId: string) {
 /** Asks the AI for timed sights and meals in one day's free time (More Travel features part 6). Nothing is saved. */
 export function fillDay(tripId: string, day: number) {
   return fillDayFn({ data: { tripId, day } })
+}
+/** AI ideas for the free time on every day that already has plans (Travel features 4, part 10). */
+export function fillGaps(tripId: string) {
+  return fillGapsFn({ data: { tripId } })
 }
 
 /** Makes the ticked activities of a drafted plan. */

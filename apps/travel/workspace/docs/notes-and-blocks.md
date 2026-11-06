@@ -1,7 +1,8 @@
 # Notes and the "/" blocks
 
 Every note in Travel takes blocks as well as words: an activity's notes, the
-trip's description, and each trip note. Typing "/" opens a list of them.
+trip's description, each trip note, and a saved place's notes. Typing "/"
+opens a list of them.
 
 ## Tyler's rules, 5 Nov 2026
 
@@ -15,6 +16,8 @@ trip's description, and each trip note. Typing "/" opens a list of them.
 - Place is a "Small card with photo".
 - Video takes "YouTube, TikTok, Instagram".
 - Map is "Pick cards".
+- Link, added 6 Nov 2026 (Travel features 4, part 5), is "Title, picture,
+  site".
 
 ## The "/" list
 
@@ -61,6 +64,31 @@ trip's description, and each trip note. Typing "/" opens a list of them.
   the map. Its cog reopens the window to change the cards. Clicking a pin
   opens that card. With no browser map key the map says what's missing, as
   the Map tab does.
+- **Link.** An empty Link block asks for a web address. A bare one such as
+  `example.com` is fine (Tyler, 6 Nov 2026: "I shouldnt need to type
+  https:// to enter a link. just whatever.com is fine"): `https://` goes in
+  front of it, and an `http://` address is read as `https://`. A word with no
+  dot, such as "ramen", isn't taken as an address.
+  Add asks the server to read the page once: its title, picture and site
+  name, from the page's own `og:title`, `og:image` and `og:site_name`, or its
+  `<title>` and the site's address when it gives none. The block keeps what
+  was found, so opening the note never fetches the page again. It draws as a
+  small card, the picture on the left like a Place block, then the title and
+  the site, and opens the page in a new tab. A page that doesn't answer in 5
+  seconds, isn't a web page, or says nothing about itself still makes a card,
+  with the site's name and the address.
+  - **What it refuses:** an address that isn't a web page's (such as
+    `ftp://`), and one that
+    points inside a private network, such as `localhost` or `192.168.1.1`,
+    or a name that looks up to one. The server checks every address a name
+    looks up to, then connects to the one it checked, so a second lookup
+    can't send it elsewhere. Redirects are followed one at a time, each
+    checked again, at most 3; one into a private network leaves the card as
+    pasted. Only the first 256 KB of a page is read. These are the shell's
+    webhook checks (`src/server/automations/net-guard.ts`).
+  - **One person reads at most 60 pages in 10 minutes.**
+- **A note on no trip** (a saved place's) offers Image, Video and Link only,
+  since Place and Map point at a trip's cards.
 - **A selected block** (clicked once, ready for Backspace) gets a faint ring
   round its picture, player, card or map only, following its corners. There's
   no box round the whole block and its links: Tyler, 5 Nov 2026, "this ui
@@ -86,17 +114,19 @@ trip's description, and each trip note. Typing "/" opens a list of them.
 
 - **Words:** what a shell written page may: paragraphs, headings, lists,
   quotes, bold, italic, strikethrough and links. The shell's rule cleans these.
-- **Blocks:** only the four above, each with only its own few values. An
+- **Blocks:** only the five above, each with only its own few values. An
   Image keeps its address (`https://` only), its description and its
   Unsplash credit. A Place keeps one card id. A Video keeps its plain link,
   rewritten from what was pasted, and the player's address is always built
   from that link, so a note can only ever play those three sites. A Map keeps
-  up to 25 card ids. Anything else is dropped.
+  up to 25 card ids. A Link keeps its address and picture (`https://`
+  only), a title of up to 200 characters and a site name of up to 100.
+  Anything else is dropped.
 - **The same cleaning runs twice:** in the editor on every change, and on the
   server before every save, so a note sent by hand can't hold more.
 
 A pasted web address means the note loads a picture from that address when
-it opens. Only the note's own writer ever sees a trip's notes, so it's their
+it opens, and so does a Link block's picture. Only the note's own writer ever sees a trip's notes, so it's their
 own choice of address.
 
 ## Where it lives
@@ -108,7 +138,9 @@ own choice of address.
 - `src/components/travel/use-note-blocks.ts` and `note-blocks-menu.tsx`: the
   list, and the card window it opens.
 - `src/components/travel/note-block-nodes.ts` and `note-block-views.tsx`: the
-  four blocks.
+  five blocks.
+- `src/server/travel/link-preview.ts`: reading a Link block's page, behind
+  `src/lib/api/travel/link-preview.ts`.
 - `src/components/travel/note-card-picker.tsx`: the card window for Place and
   Map.
 - `src/components/travel/saving-document.tsx`: hands all of this to the shell's

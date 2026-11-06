@@ -19,6 +19,7 @@ import { toast } from "sonner"
 import { CopyTripDialog } from "@/components/travel/copy-trip-dialog"
 import { GoogleMap } from "@/components/travel/google-map"
 import { NewTripDialog } from "@/components/travel/new-trip-dialog"
+import { TripsYearView } from "@/components/travel/trips-year-view"
 import { SavedPlacesDialog } from "@/components/travel/saved-places-dialog"
 import { useTripBin } from "@/components/travel/use-trip-bin"
 import { NoSignalLine } from "@/components/travel/no-signal-line"
@@ -64,7 +65,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 type Column = "name" | "days" | "start" | "status"
-export type TripsShow = "upcoming" | "past" | "archived" | "bin"
+export type TripsShow = "upcoming" | "past" | "archived" | "bin" | "year"
 
 const COLUMNS: SortableColumn<Column>[] = [
   { key: "name", label: "Trip", column: "main", className: "min-w-0 md:min-w-72" },
@@ -93,7 +94,8 @@ function binLine(deletedAt: string) {
 
 /**
  * The Trips table: every trip of the person signed in (task parts 1 and 36
- * to 41). Upcoming, Past, Archived and Bin tabs, kept in the address; the search
+ * to 41). Upcoming, Past, Archived and Bin tabs, kept in the address, and Year,
+ * the dated trips as bars across a year (Travel features 4, part 9); the search
  * first, then the tag filter, Saved places and New trip. Each row has its
  * dates, a countdown and its status, and Copy, Archive and Delete. The map of
  * places visited sits above it and hides with its switch.
@@ -143,7 +145,8 @@ export function TripsDashboard({
     const sign = direction === "asc" ? 1 : -1
     const needle = query.trim().toLowerCase()
     return page.trips
-      .filter((trip) => showOf(trip) === show)
+      // The Year tab holds every trip not in the Bin, archived ones too.
+      .filter((trip) => (show === "year" ? showOf(trip) !== "bin" : showOf(trip) === show))
       .filter((trip) => !needle || `${trip.name} ${trip.destination ?? ""}`.toLowerCase().includes(needle))
       .filter((trip) => tags.size === 0 || trip.tags.some((tag) => tags.has(tag)))
       .sort((a, b) => {
@@ -222,6 +225,126 @@ export function TripsDashboard({
 
   const tagLabel = tags.size === 0 ? "All tags" : tags.size === 1 ? [...tags][0] : `${tags.size} tags`
 
+  // The rows of every tab but Year, which draws its own bars (Travel features 4, part 9).
+  const tableProps = {
+    header: (
+      <SortableTableHeader
+        columns={COLUMNS}
+        sort={sort}
+        direction={direction}
+        onSort={toggleSort}
+        leading={
+          <SelectAllTableHead
+            noun="trips"
+            disabled={visibleIds.length === 0}
+            checked={selection.selectAllState(visibleIds)}
+            onCheckedChange={() => selection.toggleVisible(visibleIds)}
+          />
+        }
+        trailing={<TableHead column="meta">Actions</TableHead>}
+      />
+    ),
+    isEmpty: rows.length === 0,
+    emptyText:
+      query || tags.size
+        ? "No trips match that search."
+        : show === "bin"
+          ? "The bin is empty. A deleted trip waits here for 30 days."
+          : show === "archived"
+          ? "No archived trips."
+          : show === "past"
+            ? "No past trips yet."
+            : "No trips yet. Make one with New trip.",
+    emptyColSpan: COLUMNS.length + 2,
+    children: (
+      visible.map((row) => {
+        // A trip in the bin doesn't open until it is put back.
+        const open = row.deletedAt ? undefined : () => void navigate({ to: "/trips/$tripId", params: { tripId: row.id } })
+        return (
+          <TableRow key={row.id} rowAction={open} data-trip-id={row.id}>
+            <TableCell column="select">
+              {readOnly ? null : (
+                <Checkbox
+                  checked={selection.selected.has(row.id)}
+                  onCheckedChange={() => selection.toggle(row.id)}
+                  aria-label={`Select ${row.name}`}
+                />
+              )}
+            </TableCell>
+            <TableCell column="main">
+              <span className="flex min-w-0 items-center gap-3">
+                {row.coverUrl ? (
+                  <img src={row.coverUrl} alt="" className="size-9 shrink-0 rounded-md object-cover" />
+                ) : (
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <PlaneTakeoffIcon className="size-4" aria-hidden />
+                  </span>
+                )}
+                <span className="grid min-w-0">
+                  <span className="truncate font-medium">{row.name}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                    {row.destination ? <span className="truncate">{row.destination}</span> : null}
+                    {row.tags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="shrink-0">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </span>
+                </span>
+              </span>
+            </TableCell>
+            <TableCell column="preview">
+              <span className="grid">
+                <span>{formatTripDates(row.startDate, row.days) ?? <span className="text-muted-foreground">No dates</span>}</span>
+                {row.deletedAt ? (
+                  <span className="text-xs text-muted-foreground">{binLine(row.deletedAt)}</span>
+                ) : row.startDate ? (
+                  <span className={cn("text-xs text-muted-foreground", countdown(row) === "on now" && "font-medium text-foreground")}>
+                    {countdown(row)}
+                  </span>
+                ) : null}
+              </span>
+            </TableCell>
+            <TableCell column="preview" className="tabular-nums">
+              {row.days}
+            </TableCell>
+            <TableCell column="preview">
+              {TRIP_STATUS_LABEL[row.status]}
+            </TableCell>
+            {readOnly ? (
+              <TableCell column="actions" />
+            ) : row.deletedAt ? (
+              <TableCell column="actions">
+                <RowButton label={`Put back ${row.name}`} disabled={busy} onClick={() => void restoreTrips([row])}>
+                  <Undo2Icon className="size-4" />
+                </RowButton>
+                <RowButton label={`Delete ${row.name} for good`} onClick={() => setDeleting([row])}>
+                  <Trash2Icon className="size-4" />
+                </RowButton>
+              </TableCell>
+            ) : (
+            <TableCell column="actions">
+              <RowButton label={`Copy ${row.name}`} onClick={() => setCopying(row)}>
+                <CopyIcon className="size-4" />
+              </RowButton>
+              <RowButton
+                label={row.archived ? `Bring back ${row.name}` : `Archive ${row.name}`}
+                disabled={busy}
+                onClick={() => void setArchived([row], !row.archived)}
+              >
+                {row.archived ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />}
+              </RowButton>
+              <RowButton label={`Delete ${row.name}`} disabled={busy} onClick={() => void binTrips([row])}>
+                <Trash2Icon className="size-4" />
+              </RowButton>
+            </TableCell>
+            )}
+          </TableRow>
+        )
+      })
+    ),
+  }
+
   return (
     <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
       {readOnly ? <NoSignalLine /> : null}
@@ -243,6 +366,7 @@ export function TripsDashboard({
               <TabsTrigger value="bin">
                 Bin <TabsCount>{counts.bin}</TabsCount>
               </TabsTrigger>
+              <TabsTrigger value="year">Year</TabsTrigger>
             </TabsList>
           </Tabs>
         }
@@ -339,124 +463,22 @@ export function TripsDashboard({
             )}
           </>
         }
-        header={
-          <SortableTableHeader
-            columns={COLUMNS}
-            sort={sort}
-            direction={direction}
-            onSort={toggleSort}
-            leading={
-              <SelectAllTableHead
-                noun="trips"
-                disabled={visibleIds.length === 0}
-                checked={selection.selectAllState(visibleIds)}
-                onCheckedChange={() => selection.toggleVisible(visibleIds)}
-              />
+        footer={
+          show === "year"
+            ? { type: "summary", count: rows.filter((trip) => trip.startDate).length, label: "dated trips" }
+            : footer
+        }
+        {...(show === "year"
+          ? {
+              content: (
+                <TripsYearView
+                  trips={rows}
+                  onOpen={(trip) => void navigate({ to: "/trips/$tripId", params: { tripId: trip.id } })}
+                />
+              ),
             }
-            trailing={<TableHead column="meta">Actions</TableHead>}
-          />
-        }
-        isEmpty={rows.length === 0}
-        emptyText={
-          query || tags.size
-            ? "No trips match that search."
-            : show === "bin"
-              ? "The bin is empty. A deleted trip waits here for 30 days."
-              : show === "archived"
-              ? "No archived trips."
-              : show === "past"
-                ? "No past trips yet."
-                : "No trips yet. Make one with New trip."
-        }
-        emptyColSpan={COLUMNS.length + 2}
-        footer={footer}
-      >
-        {visible.map((row) => {
-          // A trip in the bin doesn't open until it is put back.
-          const open = row.deletedAt ? undefined : () => void navigate({ to: "/trips/$tripId", params: { tripId: row.id } })
-          return (
-            <TableRow key={row.id} rowAction={open} data-trip-id={row.id}>
-              <TableCell column="select">
-                {readOnly ? null : (
-                  <Checkbox
-                    checked={selection.selected.has(row.id)}
-                    onCheckedChange={() => selection.toggle(row.id)}
-                    aria-label={`Select ${row.name}`}
-                  />
-                )}
-              </TableCell>
-              <TableCell column="main">
-                <span className="flex min-w-0 items-center gap-3">
-                  {row.coverUrl ? (
-                    <img src={row.coverUrl} alt="" className="size-9 shrink-0 rounded-md object-cover" />
-                  ) : (
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                      <PlaneTakeoffIcon className="size-4" aria-hidden />
-                    </span>
-                  )}
-                  <span className="grid min-w-0">
-                    <span className="truncate font-medium">{row.name}</span>
-                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                      {row.destination ? <span className="truncate">{row.destination}</span> : null}
-                      {row.tags.map((tag) => (
-                        <Badge key={tag} variant="outline" className="shrink-0">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </span>
-                  </span>
-                </span>
-              </TableCell>
-              <TableCell column="preview">
-                <span className="grid">
-                  <span>{formatTripDates(row.startDate, row.days) ?? <span className="text-muted-foreground">No dates</span>}</span>
-                  {row.deletedAt ? (
-                    <span className="text-xs text-muted-foreground">{binLine(row.deletedAt)}</span>
-                  ) : row.startDate ? (
-                    <span className={cn("text-xs text-muted-foreground", countdown(row) === "on now" && "font-medium text-foreground")}>
-                      {countdown(row)}
-                    </span>
-                  ) : null}
-                </span>
-              </TableCell>
-              <TableCell column="preview" className="tabular-nums">
-                {row.days}
-              </TableCell>
-              <TableCell column="preview">
-                {TRIP_STATUS_LABEL[row.status]}
-              </TableCell>
-              {readOnly ? (
-                <TableCell column="actions" />
-              ) : row.deletedAt ? (
-                <TableCell column="actions">
-                  <RowButton label={`Put back ${row.name}`} disabled={busy} onClick={() => void restoreTrips([row])}>
-                    <Undo2Icon className="size-4" />
-                  </RowButton>
-                  <RowButton label={`Delete ${row.name} for good`} onClick={() => setDeleting([row])}>
-                    <Trash2Icon className="size-4" />
-                  </RowButton>
-                </TableCell>
-              ) : (
-              <TableCell column="actions">
-                <RowButton label={`Copy ${row.name}`} onClick={() => setCopying(row)}>
-                  <CopyIcon className="size-4" />
-                </RowButton>
-                <RowButton
-                  label={row.archived ? `Bring back ${row.name}` : `Archive ${row.name}`}
-                  disabled={busy}
-                  onClick={() => void setArchived([row], !row.archived)}
-                >
-                  {row.archived ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />}
-                </RowButton>
-                <RowButton label={`Delete ${row.name}`} disabled={busy} onClick={() => void binTrips([row])}>
-                  <Trash2Icon className="size-4" />
-                </RowButton>
-              </TableCell>
-              )}
-            </TableRow>
-          )
-        })}
-      </DashboardTable>
+          : tableProps)}
+      />
       <NewTripDialog open={creating} onClose={() => setCreating(false)} />
       <CopyTripDialog trip={copying} onClose={() => setCopying(null)} />
       <SavedPlacesDialog open={savedOpen} onClose={() => setSavedOpen(false)} />

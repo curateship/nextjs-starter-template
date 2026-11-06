@@ -4,7 +4,7 @@ import { CopyIcon, Loader2Icon, SparklesIcon, Trash2Icon } from "lucide-react"
 import { canRate, ActivityRatingFields } from "@/components/travel/activity-rating-fields"
 import { ActivityPictureFields } from "@/components/travel/activity-picture-fields"
 import { ActivityPlaceFields } from "@/components/travel/activity-place-fields"
-import { DayOutlook } from "@/components/travel/day-weather"
+import { CardRainLine, DayOutlook } from "@/components/travel/day-weather"
 import { useBoardActions } from "@/components/travel/board-actions"
 import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
 import { dayLabel } from "@/components/travel/new-activity"
@@ -89,6 +89,7 @@ export function ActivityMenu({ activity, onNotesChanged }: { activity: Activity;
         <MenuSection label="Weather" value={outlook} open={shown.has("weather")} onToggle={() => toggle("weather")}>
           <div className="grid gap-1.5">
             <DayOutlook weather={weather} day={activity.day} />
+            <CardRainLine card={activity} forecast={weather.forecast} />
           </div>
         </MenuSection>
       ) : null}

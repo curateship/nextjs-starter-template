@@ -79,6 +79,16 @@ this browser.
   calls its place a park, garden, beach, hiking area, zoo, amusement park and
   the like (the list is `src/lib/travel/rainy-day.ts`), so only places picked
   or pasted since 4 Nov 2026 can warn. A shut-all-day warning wins over rain.
+- **Rain at the card's hour** (Tyler, 6 Nov 2026: "Card + panel"). An outdoor
+  card with a start time reads "40% rain at 2:30 PM" in its time row, from the
+  chance of rain in the hour it starts, at 30 out of 100 or more, the same
+  rule as the day's own rain line. The hour is the destination's own, read in
+  the trip's time zone. Untimed cards, indoor cards and days past the
+  14-day forecast show nothing. A card shut that day says that
+  instead, and compact cards stay one line. A card on a very rainy day can
+  carry both this line and the Move button above. The rule is `cardRainLine`
+  in `src/lib/travel/rainy-day.ts`, and Open-Meteo's hourly chances come with
+  the daily forecast in `src/server/travel/weather.ts`.
 - **Must do** cards carry a flag after the name, and one still in Ideas once
   a dated trip has started reads "Must do, not on a day yet" in red (see
   [Activities](activities.md)).
@@ -249,9 +259,14 @@ The last button in the header is "+ Add" (Tyler, 3 Nov 2026: "Rename the
 
 ## The bin
 
-Deleted cards stay in the trip's bin for 30 days, then go for good when the bin
-is next opened. Put back returns a card to the end of its old day, or to Ideas
-when that day no longer exists. Delete for good empties one now.
+Deleted cards and deleted trip notes (Travel features 4, part 6; see
+[The trip's left panel](the-trip-panel.md)) stay in the trip's bin for 30
+days, newest first, then go for good when the bin is next opened. Put back
+returns a card to the end of its old day, or to Ideas when that day no longer
+exists, and a note to the notes list. Delete for good asks on the row itself
+("Delete for good?" with Delete and Cancel), since it can't be undone, then
+empties one now (6 Nov 2026; before then it didn't ask). The count after Bin
+in the ⋮ holds both.
 
 ## On a phone
 

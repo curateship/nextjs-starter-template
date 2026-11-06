@@ -2,6 +2,7 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { ArrowUpRightIcon, Loader2Icon, MapPinIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
+import { SavedPlaceEditor } from "@/components/travel/saved-place-editor"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -24,6 +25,7 @@ import {
   type GoAgainPlace,
   type SavedPlace,
 } from "@/lib/api/travel/saved-places"
+import { getActivityTypes, type ActivityType } from "@/lib/api/travel/types"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -38,6 +40,9 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * places", "Ticked only") lists every place ticked "Would go again" on any
  * trip. From a trip it adds a copy to Ideas; from the Trips table it opens the
  * trip it was on.
+ *
+ * Clicking a saved place's name opens it here to change its name, type,
+ * picture and notes (Travel features 4, part 11: "Opens in the window").
  */
 export function SavedPlacesDialog({
   open,
@@ -56,6 +61,9 @@ export function SavedPlacesDialog({
   const [goAgainFailed, setGoAgainFailed] = React.useState<string | null>(null)
   const [goAgainAsk, setGoAgainAsk] = React.useState(0)
   const [tab, setTab] = React.useState<"saved" | "again">("saved")
+  const [editingId, setEditingId] = React.useState<string | null>(null)
+  const [types, setTypes] = React.useState<ActivityType[] | null>(null)
+  const editing = editingId ? places?.find((place) => place.id === editingId) : undefined
   const [run, busy] = useAsyncAction(getTravelErrorMessage)
   const [working, setWorking] = React.useState<string | null>(null)
 
@@ -67,6 +75,7 @@ export function SavedPlacesDialog({
       setTab("saved")
       setGoAgain(null)
       setGoAgainFailed(null)
+      setEditingId(null)
     }
   }
 
@@ -84,6 +93,20 @@ export function SavedPlacesDialog({
       alive = false
     }
   }, [open, tab, goAgainAsk])
+
+  // The person's types, for a saved place's Type, read the first time one is opened.
+  React.useEffect(() => {
+    if (!editingId || types) return
+    let alive = true
+    getActivityTypes()
+      .then((loaded) => {
+        if (alive) setTypes(loaded)
+      })
+      .catch((error: unknown) => showErrorToast(getTravelErrorMessage(error)))
+    return () => {
+      alive = false
+    }
+  }, [editingId, types])
 
   async function addAgain(place: GoAgainPlace) {
     if (!tripId) return
@@ -134,8 +157,8 @@ export function SavedPlacesDialog({
           <DialogTitle>Saved places</DialogTitle>
           <DialogDescription>
             {tripId
-              ? "Add one to this trip's Ideas column. The copy is its own from then on."
-              : "Save a place from an activity's How was it card, then add it to any trip."}
+              ? "Add one to this trip's Ideas column. The copy is its own from then on. Click a place's name to change it."
+              : "Save a place from an activity's How was it card, then add it to any trip. Click a place's name to change it."}
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -202,7 +225,18 @@ export function SavedPlacesDialog({
           ) : (
           <Card size="sm">
             <CardContent>
-              {places === null ? (
+              {editing ? (
+                types ? (
+                  <SavedPlaceEditor
+                    place={editing}
+                    types={types}
+                    onChange={(next) => setPlaces((was) => (was ?? []).map((item) => (item.id === next.id ? next : item)))}
+                    onBack={() => setEditingId(null)}
+                  />
+                ) : (
+                  <LoadingRow label="Loading the place" />
+                )
+              ) : places === null ? (
                 <LoadingRow label="Loading saved places" />
               ) : places.length === 0 ? (
                 <p className="py-2 text-sm text-muted-foreground">
@@ -213,12 +247,16 @@ export function SavedPlacesDialog({
                   {places.map((place) => (
                     <li key={place.id} className="flex min-w-0 items-center gap-3 py-2">
                       <PlacePicture url={place.photoUrl} />
-                      <span className="grid min-w-0 flex-1">
+                      <button
+                        type="button"
+                        className="grid min-w-0 flex-1 rounded-md text-left hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        onClick={() => setEditingId(place.id)}
+                      >
                         <span className="truncate text-sm font-medium">{place.title}</span>
                         {place.place?.address ? (
                           <span className="truncate text-xs text-muted-foreground">{place.place.address}</span>
                         ) : null}
-                      </span>
+                      </button>
                       {tripId ? (
                         <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void add(place)}>
                           {working === place.id ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}

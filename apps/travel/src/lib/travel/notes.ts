@@ -1,5 +1,5 @@
 import { emptyWrittenPageBody } from "@/lib/pages/written-page-body"
-import { cleanNoteBody, noteIsEmpty, swapNoteCards, type NoteNode } from "@/lib/travel/note-blocks"
+import { cleanNoteBody, noteIsEmpty, noteText, swapNoteCards, type NoteNode } from "@/lib/travel/note-blocks"
 
 /**
  * An activity's notes are the shell's editor document, kept as JSON text, the
@@ -37,4 +37,10 @@ export function storedNotes(text: string): string {
  */
 export function copiedNotes(stored: string, ids: ReadonlyMap<string, string> = new Map()): string {
   return stored ? storedNotes(JSON.stringify(swapNoteCards(readNotes(stored), ids))) : stored
+}
+
+/** A note's first line of words, as its name in the notes list and the bin, or "Empty note". */
+export function noteFirstLine(stored: string) {
+  const first = (readNotes(stored).content ?? []).find((block) => noteText(block).trim())
+  return first ? noteText(first).trim() : "Empty note"
 }

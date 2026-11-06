@@ -26,25 +26,28 @@ class SlashRelay implements SlashBridge {
  * The "/" blocks for one note (Travel features 3, part 1): the pieces to hand
  * the shell's editor, and the state `NoteBlocksMenu` draws the list and the
  * card picker from. The extensions are made once, since the shell's editor
- * asks for the same ones every render.
+ * asks for the same ones every render. With `cards` off, for a note that
+ * belongs to no trip (a saved place's, Travel features 4, part 11), Place and
+ * Map aren't offered and aren't known to the editor at all, so one pasted in
+ * from a trip's note is dropped rather than drawn without its trip.
  */
-export function useNoteBlocks() {
+export function useNoteBlocks({ cards = true }: { cards?: boolean } = {}) {
   const [relay] = React.useState(() => new SlashRelay())
-  const [extensions] = React.useState<Extensions>(() => [noteSlashExtension(relay), ...BLOCK_NODES])
+  const [extensions] = React.useState<Extensions>(() => [
+    noteSlashExtension(relay),
+    ...(cards ? BLOCK_NODES : BLOCK_NODES.filter((node) => node.name !== "notePlace" && node.name !== "noteMap")),
+  ])
   const [open, setOpen] = React.useState<OpenSlash | null>(null)
   const [active, setActive] = React.useState(0)
   const [picking, setPicking] = React.useState<PickingCards | null>(null)
-  const items = open ? matchingBlocks(open.match.query) : []
+  const items = open ? matchingBlocks(open.match.query).filter((block) => cards || (block.key !== "place" && block.key !== "map")) : []
 
   function choose(key: BlockKey) {
     if (!open) return
     const { editor, match } = open
-    if (key === "image" || key === "video") {
-      editor
-        .chain()
-        .focus()
-        .insertContentAt({ from: match.from, to: match.to }, { type: key === "image" ? "noteImage" : "noteVideo" })
-        .run()
+    if (key === "image" || key === "video" || key === "link") {
+      const type = key === "image" ? "noteImage" : key === "video" ? "noteVideo" : "noteLink"
+      editor.chain().focus().insertContentAt({ from: match.from, to: match.to }, { type }).run()
       return
     }
     // The "/" stays as typed if the window is closed without picking.
@@ -106,6 +109,7 @@ export function useNoteBlocks() {
   })
 
   return {
+    cards,
     extensions,
     open: items.length ? open : null,
     items,

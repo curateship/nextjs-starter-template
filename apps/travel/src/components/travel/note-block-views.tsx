@@ -1,6 +1,6 @@
 import * as React from "react"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { ExternalLinkIcon, PlayIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import { ExternalLinkIcon, LinkIcon, Loader2Icon, PlayIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 
 import { GoogleMap } from "@/components/travel/google-map"
 import { dayLabel } from "@/components/travel/new-activity"
@@ -15,7 +15,9 @@ import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatWhen } from "@/lib/travel/board"
 import { DAY_COLORS } from "@/lib/travel/day-colors"
-import type { NoteImageAttrs, NoteMapAttrs } from "@/lib/travel/note-blocks"
+import { readLink } from "@/lib/api/travel/link-preview"
+import { getTravelErrorMessage } from "@/lib/travel/errors"
+import type { NoteImageAttrs, NoteLinkAttrs, NoteMapAttrs } from "@/lib/travel/note-blocks"
 import type { PhotoCredit } from "@/lib/travel/rules"
 import { readVideoLink, VIDEO_SITE_LABEL, videoLinkProblem } from "@/lib/travel/video-links"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -366,6 +368,95 @@ export function MapBlockView({ node, editor, selected, updateAttributes, deleteN
           updateAttributes({ activityIds })
         }}
       />
+    </BlockFrame>
+  )
+}
+
+/**
+ * A web page as a small card (Travel features 4, part 5; Tyler, 6 Nov 2026:
+ * "Title, picture, site"). Pasting an address asks the server to read the
+ * page once; the card keeps what it found and opens the page in a new tab.
+ */
+export function LinkBlockView({ node, editor, selected, updateAttributes, deleteNode }: NodeViewProps) {
+  const editable = editor.isEditable
+  const attrs = node.attrs as Partial<NoteLinkAttrs>
+  const [link, setLink] = React.useState("")
+  const [invalid, setInvalid] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+  const [brokenImage, setBrokenImage] = React.useState(false)
+  const inputId = React.useId()
+
+  if (!attrs.url) {
+    if (!editable) return <NodeViewWrapper />
+    return (
+      <BlockFrame selected={selected}>
+        <form
+          className={cn("grid gap-2 rounded-md border bg-muted/40 p-3 pr-12", SELECTED)}
+          onSubmit={async (event) => {
+            event.preventDefault()
+            if (busy) return
+            setBusy(true)
+            try {
+              const card = await readLink(link)
+              if (!editor.isDestroyed) updateAttributes(card)
+            } catch (error) {
+              setInvalid(true)
+              showErrorToast(getTravelErrorMessage(error))
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          <Label htmlFor={inputId}>Web address</Label>
+          <div className="flex gap-2">
+            <Input
+              id={inputId}
+              value={link}
+              placeholder="example.com"
+              aria-invalid={invalid || undefined}
+              onChange={(event) => {
+                setLink(event.target.value)
+                setInvalid(false)
+              }}
+            />
+            <Button type="submit" variant="outline" disabled={busy}>
+              {busy ? <Loader2Icon className="size-4 animate-spin" aria-hidden /> : null}
+              Add
+            </Button>
+          </div>
+        </form>
+        <RemoveBlock label="Remove link" onRemove={deleteNode} />
+      </BlockFrame>
+    )
+  }
+
+  return (
+    <BlockFrame selected={selected}>
+      <a
+        href={attrs.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          "flex w-full min-w-0 items-center gap-3 rounded-md border bg-card p-2 pr-12 no-underline! hover:bg-accent focus-visible:bg-accent focus-visible:outline-none",
+          SELECTED
+        )}
+      >
+        {attrs.image && !brokenImage ? (
+          <img src={attrs.image} alt="" loading="lazy" className="size-12 shrink-0 rounded-md object-cover" onError={() => setBrokenImage(true)} />
+        ) : (
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-muted">
+            <LinkIcon className="size-4 text-muted-foreground" aria-hidden />
+          </span>
+        )}
+        <span className="grid min-w-0">
+          <span className="truncate text-sm font-medium">{attrs.title || attrs.site}</span>
+          <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+            <span className="truncate">{attrs.title ? attrs.site : attrs.url}</span>
+            <ExternalLinkIcon className="size-3 shrink-0" aria-hidden />
+          </span>
+        </span>
+      </a>
+      {editable ? <RemoveBlock label="Remove link" onRemove={deleteNode} /> : null}
     </BlockFrame>
   )
 }

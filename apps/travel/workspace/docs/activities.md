@@ -34,9 +34,11 @@ Tyler, 5 Nov 2026: "Row of small photos". A card holds up to 30 photos.
 - **The first photo is the card's picture,** the one on the board and behind
   the panel, and it has a ring round it. Dragging another photo to the front
   makes that one the card's picture.
-- **"+" at the end** adds more, uploaded or from Unsplash, the same two ways as
-  the picture. Each one is checked like the picture: one the person uploaded,
-  or Unsplash's with its credit.
+- **"+" at the end** opens the media library straight away, to upload a photo
+  or pick one already there (Tyler, 6 Nov 2026: "this didnt need to open a
+  dropdown. Just open it straight to the media picker"). With Unsplash set up,
+  an Unsplash button sits beside it. Each one is checked like the picture: one
+  the person uploaded, or Unsplash's with its credit.
 - **Clicking a photo** shows it large, with its credit, the arrows to the next
   and the one before, and Remove. Removing takes it off the card; the file
   stays in the media library.
@@ -89,8 +91,10 @@ folds open to change it. Every field saves itself.
   it in the 3 dot dropdown right panel"). The row's summary is the day's
   forecast, such as "18° / 9° · 70% rain", or "Usually 24° / 15°" past the
   14-day forecast, or the holiday's name; folded open it shows the holiday,
-  then the forecast or "Usually 24° / 15° · rain on 8 of 30 days". A card in
-  Ideas, or a day with none of these, has no Weather row. The weather is
+  then the forecast or "Usually 24° / 15° · rain on 8 of 30 days", then, for
+  an outdoor card with a start time, the chance of rain at its hour, such as
+  "40% rain at 2:30 PM" (Tyler, 6 Nov 2026: "Card + panel"; see The day
+  board). A card in Ideas, or a day with none of these, has no Weather row. The weather is
   loaded once per trip page and shared by both panels
   (`useTripWeather`, `src/components/travel/day-weather.tsx`).
 - **Place:** a Google Maps link first (see below), then a search for the
@@ -350,6 +354,17 @@ table, each has Open trip, which opens that trip on that card. The list is
 The Trips table's Saved places button lists them and removes one. The bookmark
 on a trip's Ideas column adds one to that trip's Ideas. The copy is its own
 from then on, so editing it never changes the saved place.
+
+**Editing a saved place** (Tyler, 6 Nov 2026: "Opens in the window"): clicking
+a saved place's name opens it inside the Saved places window, with Back to
+saved places above it. Its name saves 700ms after the last letter, when it's
+left or on Enter; an empty name is refused and stays as typed. Its type and
+picture (an upload or Unsplash, with the credit) save the moment they're
+picked, and its notes save themselves like any other note. The notes offer
+Image, Video and Link blocks but not Place or Map, because a saved place
+belongs to no trip; the server drops any that arrive. Copies already added to
+a trip don't change. The server side is `updateSavedPlace` in
+`saved-places.ts`, and the view is `saved-place-editor.tsx`.
 
 ## Where it lives
 

@@ -19,7 +19,7 @@ import {
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { undoActivities } from "@/lib/api/travel/days"
-import { createPlan, draftPlan, fillDay, type DraftItem, type MadePlan, type TripDraft } from "@/lib/api/travel/trip-draft"
+import { createPlan, draftPlan, fillDay, fillGaps, type DraftItem, type MadePlan, type TripDraft } from "@/lib/api/travel/trip-draft"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import type { ActivityType } from "@/lib/travel/activity-types"
 import { formatMinutes } from "@/lib/travel/board"
@@ -53,7 +53,9 @@ const activities = (count: number) => (count === 1 ? "1 activity" : `${count} ac
  *
  * With `day` set it is Fill this day (More Travel features part 6: "Timed, in
  * the gaps"): the AI fills that one day's free time around what it holds, and
- * what is added can be undone from the bar at the bottom.
+ * what is added can be undone from the bar at the bottom. With `gaps` it is
+ * Fill every gap (Travel features 4, part 10: "+ Add, part-planned days"): the
+ * same for every day that already has plans, with Undo too.
  */
 export function DraftPlanDialog({
   open,
@@ -61,6 +63,7 @@ export function DraftPlanDialog({
   startDate,
   types,
   day = null,
+  gaps = false,
   onClose,
   onMade,
 }: {
@@ -70,6 +73,8 @@ export function DraftPlanDialog({
   types: readonly ActivityType[]
   /** Fill this one day's free time, rather than drafting every empty day. */
   day?: number | null
+  /** Fill the free time on every day that already has plans. */
+  gaps?: boolean
   onClose: () => void
   /** The plan was made; the trip reloads, then the window closes. */
   onMade: () => Promise<void>
@@ -102,7 +107,13 @@ export function DraftPlanDialog({
     if (!open || ask === 0) return
     let alive = true
     const asking =
-      day !== null ? fillDay(tripId, day) : ask === 1 && wantsDraftOnArrival(tripId) ? arrivalPlan(tripId) : draftPlan(tripId)
+      day !== null
+        ? fillDay(tripId, day)
+        : gaps
+          ? fillGaps(tripId)
+          : ask === 1 && wantsDraftOnArrival(tripId)
+            ? arrivalPlan(tripId)
+            : draftPlan(tripId)
     asking
       .then((plan) => {
         if (!alive) return
@@ -115,7 +126,7 @@ export function DraftPlanDialog({
     return () => {
       alive = false
     }
-  }, [ask, day, open, tripId])
+  }, [ask, day, gaps, open, tripId])
 
   // Closing ends the arrival's plan too, so coming back to the trip doesn't open it again.
   const close = () => {
@@ -163,12 +174,12 @@ export function DraftPlanDialog({
     const left = result.repeated
       ? ` ${activities(result.repeated)} already on the trip ${result.repeated === 1 ? "was" : "were"} left out.`
       : ""
-    if (day === null) {
+    if (day === null && !gaps) {
       toast.success(`Added ${activities(result.created.length)} to the trip.${found}${left}`)
     } else {
-      // Fill this day can be undone, the way every other change to the board can.
+      // Filling free time can be undone, the way every other change to the board can.
       const created = result.created
-      toast.success(`Added ${activities(created.length)} to Day ${day}.${found}${left}`, {
+      toast.success(`Added ${activities(created.length)} to ${day !== null ? `Day ${day}` : "the trip"}.${found}${left}`, {
         duration: 6000,
         action: {
           label: "Undo",
@@ -190,18 +201,24 @@ export function DraftPlanDialog({
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>{day === null ? "Draft a plan" : `Fill Day ${day}`}</DialogTitle>
+            <DialogTitle>{day !== null ? `Fill Day ${day}` : gaps ? "Fill every gap" : "Draft a plan"}</DialogTitle>
             <DialogDescription>
-              {day === null
-                ? "AI suggests sights and meals for each day with nothing planned. Untick or change any before adding them."
-                : `AI suggests sights and meals for the free time on Day ${day}, around what's planned. Untick or change any before adding them.`}
+              {day !== null
+                ? `AI suggests sights and meals for the free time on Day ${day}, around what's planned. Untick or change any before adding them.`
+                : gaps
+                  ? "AI suggests sights and meals for the free time on each day that already has plans. Untick or change any before adding them."
+                  : "AI suggests sights and meals for each day with nothing planned. Untick or change any before adding them."}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
             {reading ? (
               <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground" aria-live="polite">
                 <Loader2Icon className="size-4 animate-spin" aria-hidden />
-                {day === null ? "Drafting the days. This takes up to a minute." : `Filling Day ${day}. This takes up to a minute.`}
+                {day !== null
+                  ? `Filling Day ${day}. This takes up to a minute.`
+                  : gaps
+                    ? "Filling the free time. This takes up to a minute."
+                    : "Drafting the days. This takes up to a minute."}
               </p>
             ) : reason ? (
               <div className="grid justify-items-start gap-3 py-2">
@@ -215,10 +232,14 @@ export function DraftPlanDialog({
                 {plan.skipped.length || plan.later ? (
                   <p className="text-sm text-muted-foreground">
                     {plan.skipped.length
-                      ? `${daysText(plan.skipped)} already ${plan.skipped.length === 1 ? "has" : "have"} plans, so ${plan.skipped.length === 1 ? "it is" : "they are"} left as ${plan.skipped.length === 1 ? "it is" : "they are"}. `
+                      ? gaps
+                        ? `${daysText(plan.skipped)} ${plan.skipped.length === 1 ? "has" : "have"} no free time left, so ${plan.skipped.length === 1 ? "it is" : "they are"} left as ${plan.skipped.length === 1 ? "it is" : "they are"}. `
+                        : `${daysText(plan.skipped)} already ${plan.skipped.length === 1 ? "has" : "have"} plans, so ${plan.skipped.length === 1 ? "it is" : "they are"} left as ${plan.skipped.length === 1 ? "it is" : "they are"}. `
                       : ""}
                     {plan.later
-                      ? `${plan.later} more empty ${plan.later === 1 ? "day is" : "days are"} left: draft again after adding these.`
+                      ? gaps
+                        ? `${plan.later} more ${plan.later === 1 ? "day has" : "days have"} free time: fill again after adding these.`
+                        : `${plan.later} more empty ${plan.later === 1 ? "day is" : "days are"} left: draft again after adding these.`
                       : ""}
                   </p>
                 ) : null}

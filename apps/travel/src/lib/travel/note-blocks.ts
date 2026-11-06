@@ -10,15 +10,16 @@ import { readVideoLink } from "@/lib/travel/video-links"
 
 /**
  * What a Travel note may hold: everything a shell written page may (words,
- * headings, lists, quotes, links), plus the four "/" blocks (Travel features
- * 3, part 1; Tyler, 5 Nov 2026: "I want to enter "/" and it list a list of
- * blocks. FIrst block is an image block to add images"). A block carries only
+ * headings, lists, quotes, links), plus the "/" blocks (Travel features 3,
+ * part 1; Tyler, 5 Nov 2026: "I want to enter "/" and it list a list of
+ * blocks. FIrst block is an image block to add images"; the Link block from
+ * Travel features 4, part 5). A block carries only
  * the few plain values below, each checked here; anything else is dropped,
  * the same way the shell's `cleanWrittenPageBody` drops what it doesn't know.
  * This runs in the editor on every change and on the server on every save.
  */
 
-export const NOTE_BLOCK_TYPES = ["noteImage", "notePlace", "noteVideo", "noteMap"] as const
+export const NOTE_BLOCK_TYPES = ["noteImage", "notePlace", "noteVideo", "noteMap", "noteLink"] as const
 export type NoteBlockType = (typeof NOTE_BLOCK_TYPES)[number]
 
 /** A picture: uploaded, from Unsplash with its credit, or a pasted web address. */
@@ -29,6 +30,8 @@ export type NotePlaceAttrs = { activityId: string }
 export type NoteVideoAttrs = { url: string }
 /** A small map of the cards ticked for it. */
 export type NoteMapAttrs = { activityIds: string[] }
+/** A web page as a small card: its address, the title and picture it gives, and its site's name. */
+export type NoteLinkAttrs = { url: string; title: string | null; image: string | null; site: string }
 
 export type NoteNode = {
   type: string
@@ -83,11 +86,35 @@ function cleanMap(attrs: Record<string, unknown>): NoteMapAttrs | null {
   return { activityIds: ids.slice(0, MAP_BLOCK_MAX_CARDS) }
 }
 
+const MAX_LINK_TITLE = 200
+const MAX_SITE = 100
+
+/** An https address, or null. */
+function httpsAddress(value: unknown) {
+  const checked = srcSchema.safeParse(value)
+  return checked.success ? checked.data : null
+}
+
+/** A Link block's values, checked: an https address, and a title, picture and site name that fit. */
+export function cleanLinkPreview(attrs: Record<string, unknown>): NoteLinkAttrs | null {
+  const url = httpsAddress(attrs.url)
+  if (!url) return null
+  const title = typeof attrs.title === "string" ? attrs.title.trim().slice(0, MAX_LINK_TITLE) : ""
+  const site = typeof attrs.site === "string" ? attrs.site.trim().slice(0, MAX_SITE) : ""
+  return {
+    url,
+    title: title || null,
+    image: httpsAddress(attrs.image),
+    site: site || new URL(url).hostname.replace(/^www\./, ""),
+  }
+}
+
 const BLOCK_CLEANERS: Record<NoteBlockType, (attrs: Record<string, unknown>) => Record<string, unknown> | null> = {
   noteImage: cleanImage,
   notePlace: cleanPlace,
   noteVideo: cleanVideo,
   noteMap: cleanMap,
+  noteLink: cleanLinkPreview,
 }
 
 function isBlock(type: unknown): type is NoteBlockType {

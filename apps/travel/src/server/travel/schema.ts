@@ -47,6 +47,8 @@ export const travelTrips = pgTable("travel_trips", {
   startDate: date("start_date", { mode: "string" }),
   currency: varchar("currency", { length: 3 }).notNull(),
   timeZone: text("time_zone"),
+  /** The time zone came from the destination, not from Trip settings, so a new destination may change it (`drizzle/0105_travel_time_zone_guessed.sql`). */
+  timeZoneGuessed: boolean("time_zone_guessed").notNull().default(false),
   budgetCents: cents("budget_cents"),
   status: varchar("status", { length: 16 }).$type<TripStatus>().notNull(),
   coverUrl: text("cover_url"),
@@ -137,6 +139,10 @@ export const travelTripNotes = pgTable("travel_trip_notes", {
     .references(() => travelTrips.id, { onDelete: "cascade" }),
   /** The editor's own document as JSON text, or "". */
   body: text("body").notNull(),
+  /** When the note went into the trip's bin, or null (Travel features 4, part 6; `drizzle/0107_travel_trip_note_bin_and_pin.sql`). */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  /** When the note was pinned to the top of the list, or null (Travel features 4, part 7). */
+  pinnedAt: timestamp("pinned_at", { withTimezone: true }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 })
@@ -183,3 +189,16 @@ export const travelNavigationAdded = pgTable("travel_navigation_added", {
   scope: varchar("scope", { length: 80 }).primaryKey(),
   addedAt: timestamp("added_at", { withTimezone: true }).notNull(),
 })
+
+/** How many Google lookups each person used each day, in UTC (Travel features 4, part 4; `drizzle/0106_travel_google_lookups.sql`). */
+export const travelGoogleLookups = pgTable(
+  "travel_google_lookups",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    lookups: integer("lookups").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.day] })]
+)

@@ -6,9 +6,10 @@ import { TRAVEL_ERRORS } from "@/lib/travel/errors"
 import { copiedNotes } from "@/lib/travel/notes"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { requireActivity, requireTrip } from "@/server/travel/access"
+import { checkPicture, requireActivity, requireTrip } from "@/server/travel/access"
 import { travelActivities, travelSavedPlaces, travelTrips } from "@/server/travel/schema"
 import { blankActivity, MAX_ACTIVITIES, refuseSamePlace } from "@/server/travel/trips"
+import { checkTypeId } from "@/server/travel/types"
 
 /**
  * Saved places (task part 41): a person's favourite restaurants, hotels and
@@ -56,6 +57,39 @@ export async function saveActivityAsPlace(userId: string, activityId: string, da
     createdAt: now(),
   })
   return { id }
+}
+
+export type SavedPlacePatch = {
+  savedPlaceId: string
+  title?: string
+  typeId?: string | null
+  /** The editor's own document as JSON text; the server cleans it. */
+  notes?: string
+  photoUrl?: string | null
+  photoCredit?: SavedPlace["photoCredit"]
+}
+
+/**
+ * Changes a saved place's name, type, notes or picture (Travel features 4,
+ * part 11; Tyler, 6 Nov 2026: "Opens in the window"). Copies already added to
+ * a trip are their own and don't change. A saved place belongs to no trip, so
+ * its notes keep no Place or Map block.
+ */
+export async function updateSavedPlace(userId: string, input: SavedPlacePatch, database: CustomShellDb = db) {
+  const [saved] = await database
+    .select({ id: travelSavedPlaces.id })
+    .from(travelSavedPlaces)
+    .where(and(eq(travelSavedPlaces.id, input.savedPlaceId), eq(travelSavedPlaces.ownerUserId, userId)))
+    .limit(1)
+  if (!saved) throw new Error(TRAVEL_ERRORS.savedPlaceNotFound)
+  if (input.typeId !== undefined) await checkTypeId(userId, input.typeId, database)
+  if (input.photoUrl !== undefined) await checkPicture(userId, input.photoUrl, input.photoCredit, database)
+  const { savedPlaceId, ...patch } = input
+  const values: Partial<typeof travelSavedPlaces.$inferInsert> = { ...patch }
+  if (patch.notes !== undefined) values.notes = copiedNotes(patch.notes)
+  if (patch.photoUrl !== undefined) values.photoCredit = patch.photoUrl ? (patch.photoCredit ?? null) : null
+  if (Object.keys(values).length === 0) return
+  await database.update(travelSavedPlaces).set(values).where(eq(travelSavedPlaces.id, savedPlaceId))
 }
 
 export async function deleteSavedPlace(userId: string, savedPlaceId: string, database: CustomShellDb = db) {

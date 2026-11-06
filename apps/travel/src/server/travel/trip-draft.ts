@@ -14,6 +14,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { requireTrip } from "@/server/travel/access"
 import { meteredAi, type AskAi } from "@/server/travel/ai"
 import { autocompletePlaces, googleEnabled, placeDetails, type PlaceDetails } from "@/server/travel/google"
+import { spendGoogleLookup } from "@/server/travel/google-usage"
 import { travelActivities } from "@/server/travel/schema"
 import { blankActivity, MAX_ACTIVITIES } from "@/server/travel/trips"
 import { savedGooglePhoto } from "@/server/travel/place-photo"
@@ -221,32 +222,13 @@ export async function fillTripDay(
   const destination = trip.destination?.trim()
   if (!destination) throw new Error(TRAVEL_ERRORS.draftNeedsDestination)
   if (input.day < 1 || input.day > trip.days) throw new Error(TRAVEL_ERRORS.dayOutOfRange)
-  const live = await database
-    .select()
-    .from(travelActivities)
-    .where(and(eq(travelActivities.tripId, trip.id), isNull(travelActivities.deletedAt)))
-  const cards = live.filter((card) => card.day === input.day)
-  const windows = freeWindows(cards)
-  if (windows.length === 0) throw new Error(TRAVEL_ERRORS.fillNoFreeTime)
-
-  const date = dateOfDay(trip.startDate, input.day)
-  const planned = cards.map((card) => {
-    const when = card.startTime
-      ? `at ${formatTime(card.startTime)}${card.durationMinutes ? ` for ${card.durationMinutes} minutes` : ""}`
-      : card.dayPart
-        ? `some time in the ${card.dayPart}`
-        : "at no set time"
-    return `${card.title.replace(/\s+/g, " ").slice(0, 80)} ${when}${card.mustDo ? " (a must do: keep it)" : ""}`
-  })
-  const night = staysForDay(live.filter((card) => card.nights !== null), input.day).end
+  const live = await liveCards(trip.id, database)
+  const day = describeDay(trip, live, input.day)
+  if (day.windows.length === 0) throw new Error(TRAVEL_ERRORS.fillNoFreeTime)
   const prompt = [
     `The trip is ${trip.days} days in ${destination}.`,
-    `Plan Day ${input.day} only${date ? `, ${formatDayDate(date)}` : ""}, and answer with that one day.`,
-    planned.length ? `Day ${input.day} already has: ${planned.join("; ")}. Keep all of it as it is.` : "",
-    planned.some((line) => line.endsWith("at no set time") || line.includes("some time in")) ?
-      "Its cards with no set time still take part of the day, so leave room for them." : "",
-    night ? `The night is spent at ${night.title}.` : "",
-    `Add sights and meals only in the free time: ${windows.map(windowText).join(", ")}.`,
+    `Plan Day ${input.day} only${day.date ? `, ${formatDayDate(day.date)}` : ""}, and answer with that one day.`,
+    ...day.lines,
     "Every activity needs a startTime and minutes that end inside one of those free times.",
     "Add 1 to 4 activities, fewer when the free time is short, with a meal at lunch or dinner time when that time is free.",
     await alreadyOnTrip(trip.id, database),
@@ -256,23 +238,114 @@ export async function fillTripDay(
   const answer = readAnswer(await ask(SYSTEM_PROMPT, prompt), answerSchema, TRAVEL_ERRORS.draftFailed)
   // One day was asked for, so a single day sent back is that day, whatever number the AI put on it.
   const asked = answer.days.find((planned) => planned.day === input.day) ?? (answer.days.length === 1 ? answer.days[0] : undefined)
-  const ideas = (asked?.activities ?? [])
+  const items = await fittedItems(userId, input.day, asked?.activities ?? [], day.windows, database)
+  if (items.length === 0) throw new Error(TRAVEL_ERRORS.fillNothingFits)
+  return { items, days: [input.day], skipped: [], later: 0 }
+}
+
+/**
+ * Fill every gap (Travel features 4, part 10; Tyler, 6 Nov 2026: "+ Add,
+ * part-planned days"): Fill this day's rules for every day that already has
+ * something on it, in one AI call. Empty days are left to Draft a plan. A day
+ * with no free time is left alone and named in `skipped`. At most 14 days go
+ * at once; `later` counts the days with free time past them. Each day's ideas
+ * are checked against that day's own free time, the same as Fill this day.
+ */
+export async function fillTripGaps(
+  userId: string,
+  input: { tripId: string },
+  { database = db, ask = draftAi(userId) }: { database?: CustomShellDb; ask?: AskAi } = {}
+): Promise<TripDraft> {
+  const trip = await requireTrip(userId, input.tripId, database)
+  const destination = trip.destination?.trim()
+  if (!destination) throw new Error(TRAVEL_ERRORS.draftNeedsDestination)
+  const live = await liveCards(trip.id, database)
+  const planned = [...new Set(live.map((card) => card.day).filter((day): day is number => day !== null && day <= trip.days))].sort(
+    (a, b) => a - b
+  )
+  const described = planned.map((day) => describeDay(trip, live, day))
+  const open = described.filter((day) => day.windows.length > 0)
+  if (open.length === 0) throw new Error(TRAVEL_ERRORS.fillNoGaps)
+  const asked = open.slice(0, DRAFT_DAYS_MAX)
+  const prompt = [
+    `The trip is ${trip.days} days in ${destination}.`,
+    `Plan these days only, and answer with each of them: ${asked.map((day) => day.day).join(", ")}.`,
+    ...asked.map((day) => [`Day ${day.day}${day.date ? `, ${formatDayDate(day.date)}` : ""}:`, ...day.lines].filter(Boolean).join(" ")),
+    "Every activity needs a startTime and minutes that end inside its own day's free times.",
+    "Add 1 to 4 activities a day, fewer when the free time is short, with a meal at lunch or dinner time when that time is free.",
+    "Never plan the same place on two days.",
+    await alreadyOnTrip(trip.id, database),
+  ]
+    .filter(Boolean)
+    .join(" ")
+  const answer = readAnswer(await ask(SYSTEM_PROMPT, prompt), answerSchema, TRAVEL_ERRORS.draftFailed)
+  const items: DraftItem[] = []
+  for (const day of asked) {
+    const reply = answer.days.find((each) => each.day === day.day)
+    items.push(...(await fittedItems(userId, day.day, reply?.activities ?? [], day.windows, database)))
+  }
+  if (items.length === 0) throw new Error(TRAVEL_ERRORS.fillNothingFitsAnywhere)
+  return {
+    items,
+    days: asked.map((day) => day.day),
+    skipped: described.filter((day) => day.windows.length === 0).map((day) => day.day),
+    later: open.length - asked.length,
+  }
+}
+
+async function liveCards(tripId: string, database: CustomShellDb) {
+  return database
+    .select()
+    .from(travelActivities)
+    .where(and(eq(travelActivities.tripId, tripId), isNull(travelActivities.deletedAt)))
+}
+
+/** What the AI is told about one day for filling it: what it holds, where the night is, and its free time. */
+function describeDay(trip: { startDate: string | null }, live: Awaited<ReturnType<typeof liveCards>>, day: number) {
+  const cards = live.filter((card) => card.day === day)
+  const windows = freeWindows(cards)
+  const planned = cards.map((card) => {
+    const when = card.startTime
+      ? `at ${formatTime(card.startTime)}${card.durationMinutes ? ` for ${card.durationMinutes} minutes` : ""}`
+      : card.dayPart
+        ? `some time in the ${card.dayPart}`
+        : "at no set time"
+    return `${card.title.replace(/\s+/g, " ").slice(0, 80)} ${when}${card.mustDo ? " (a must do: keep it)" : ""}`
+  })
+  const night = staysForDay(live.filter((card) => card.nights !== null), day).end
+  const lines = [
+    planned.length ? `Day ${day} already has: ${planned.join("; ")}. Keep all of it as it is.` : "",
+    planned.some((line) => line.endsWith("at no set time") || line.includes("some time in")) ?
+      "Its cards with no set time still take part of the day, so leave room for them." : "",
+    night ? `The night is spent at ${night.title}.` : "",
+    windows.length ? `Add sights and meals only in the free time: ${windows.map(windowText).join(", ")}.` : "",
+  ]
+  return { day, date: dateOfDay(trip.startDate, day), windows, lines }
+}
+
+/** The AI's ideas for a day that fit its free time whole or cut to fit, with no overlaps, at most 5. */
+async function fittedItems(
+  userId: string,
+  day: number,
+  activities: unknown[],
+  windows: ReturnType<typeof freeWindows>,
+  database: CustomShellDb
+) {
+  const ideas = activities
     .map((activity) => activitySchema.safeParse(activity))
     .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
     .map((activity) => ({ ...activity, startTime: activity.startTime, durationMinutes: activity.minutes }))
-  const fitted = fitIntoWindows(ideas, windows).slice(0, PER_DAY_MAX)
-  if (fitted.length === 0) throw new Error(TRAVEL_ERRORS.fillNothingFits)
   const items: DraftItem[] = []
-  for (const idea of fitted) {
+  for (const idea of fitIntoWindows(ideas, windows).slice(0, PER_DAY_MAX)) {
     items.push({
-      day: input.day,
+      day,
       title: idea.title,
       typeId: await builtinTypeId(userId, idea.kind, database),
       startTime: idea.startTime,
       durationMinutes: idea.durationMinutes,
     })
   }
-  return { items, days: [input.day], skipped: [], later: 0 }
+  return items
 }
 
 /** Finds a drafted place on Google, near the trip's destination. Swapped out in tests. */
@@ -281,11 +354,18 @@ export type FindPlace = (name: string, destination: string) => Promise<PlaceDeta
 /** Saves a found place's Google photo into the media library, returning its address. Swapped out in tests. */
 export type FetchPhoto = (photoName: string, title: string) => Promise<string | null>
 
-/** The first real place Google suggests for "name, destination", with its details, one billed session each. */
-export const googlePlace: FindPlace = async (name, destination) => {
-  const session = uuid()
-  const [first] = await autocompletePlaces(`${name}, ${destination}`, session)
-  return first ? placeDetails(first.placeId, session) : null
+/**
+ * The first real place Google suggests for "name, destination", with its
+ * details, one billed session each. A place found counts as one of the
+ * person's Google lookups (Travel features 4, part 4); past the day's limit it
+ * is made with its name alone, like one Google can't find.
+ */
+export function googlePlaceFor(spend: () => Promise<void>): FindPlace {
+  return async (name, destination) => {
+    const session = uuid()
+    const [first] = await autocompletePlaces(`${name}, ${destination}`, session)
+    return first ? placeDetails(first.placeId, session, spend) : null
+  }
 }
 
 /** What a plan made: the new cards, how many Google found, and how many were left out as already on the trip. */
@@ -303,7 +383,7 @@ export async function createDraftActivities(
   input: { tripId: string; items: PlannedItem[] },
   {
     database = db,
-    findPlace = googleEnabled() ? googlePlace : null,
+    findPlace = googleEnabled() ? googlePlaceFor(() => spendGoogleLookup(userId, database)) : null,
     fetchPhoto = googleEnabled() ? (photoName, title) => savedGooglePhoto(userId, photoName, title, database) : null,
   }: { database?: CustomShellDb; findPlace?: FindPlace | null; fetchPhoto?: FetchPhoto | null } = {}
 ): Promise<MadePlan> {

@@ -14,6 +14,7 @@ import {
   MapPinPlusIcon,
   PlusIcon,
   SparklesIcon,
+  WandSparklesIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -96,7 +97,7 @@ export function SchedulePanel({
   const newActivity = useNewActivity()
   const layout = useBoardLayout(trip.id, trip.days)
   // A trip just made with "Fill it with a first plan" opens on its drafted plan (Travel features part 7).
-  const [windowOpen, setWindowOpen] = React.useState<"bin" | "saved" | "paste" | "links" | "draft" | "ideas" | "calendar" | null>(
+  const [windowOpen, setWindowOpen] = React.useState<"bin" | "saved" | "paste" | "links" | "draft" | "gaps" | "ideas" | "calendar" | null>(
     () => (wantsDraftOnArrival(trip.id) ? "draft" : null)
   )
   const actions = useBoardActions()
@@ -368,6 +369,7 @@ export function SchedulePanel({
             newActivity={newActivity}
             onLinks={() => setWindowOpen("links")}
             onDraft={() => setWindowOpen("draft")}
+            onGaps={() => setWindowOpen("gaps")}
             onIdeas={() => setWindowOpen("ideas")}
             onPaste={() => setWindowOpen("paste")}
             onCalendar={() => setWindowOpen("calendar")}
@@ -467,6 +469,15 @@ export function SchedulePanel({
         tripId={trip.id}
         startDate={trip.startDate}
         types={page.types}
+        onClose={() => setWindowOpen(null)}
+        onMade={refresh}
+      />
+      <DraftPlanDialog
+        open={windowOpen === "gaps"}
+        tripId={trip.id}
+        startDate={trip.startDate}
+        types={page.types}
+        gaps
         onClose={() => setWindowOpen(null)}
         onMade={refresh}
       />
@@ -588,14 +599,16 @@ function BoardCorner({
  * activity" button to "+ Add" clicking on this opens a dropdown to give me 3
  * options: New activity, Paste a booking, Add to calender"). New activity
  * opens the New activity dropdown in the same place; the others open their
- * windows. Paste Maps links, Draft a plan and Suggest Ideas (Travel features
- * parts 6 and 7, Travel features 3 part 9) sit after New activity, as the
- * other ways to add places. In a narrow panel the button is the + alone.
+ * windows. Paste Maps links, Draft a plan, Fill every gap and Suggest Ideas
+ * (Travel features parts 6 and 7, Travel features 4 part 10, Travel features
+ * 3 part 9) sit after New activity, as the other ways to add places. In a
+ * narrow panel the button is the + alone.
  */
 function AddMenu({
   newActivity,
   onLinks,
   onDraft,
+  onGaps,
   onIdeas,
   onPaste,
   onCalendar,
@@ -603,6 +616,7 @@ function AddMenu({
   newActivity: ReturnType<typeof useNewActivity>
   onLinks: () => void
   onDraft: () => void
+  onGaps: () => void
   onIdeas: () => void
   onPaste: () => void
   onCalendar: () => void
@@ -655,6 +669,15 @@ function AddMenu({
           }}
         >
           Draft a plan
+        </MenuAction>
+        <MenuAction
+          icon={<WandSparklesIcon className="size-4" />}
+          onClick={() => {
+            setOpen(false)
+            onGaps()
+          }}
+        >
+          Fill every gap
         </MenuAction>
         <MenuAction
           icon={<LightbulbIcon className="size-4" />}

@@ -40,7 +40,7 @@ import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { MAX_TRIP_DAYS } from "@/lib/travel/rules"
 import { hoursWarning, nearestOpenDay } from "@/lib/travel/hours"
 import { mustDoWarning } from "@/lib/travel/must-do"
-import { rainyDayMove } from "@/lib/travel/rainy-day"
+import { cardRainLine, rainyDayMove } from "@/lib/travel/rainy-day"
 import { HOLIDAY_WARNING } from "@/lib/travel/weather"
 import { readDayInfo } from "@/lib/travel/trip-days"
 import { usePhone } from "@/lib/travel/use-phone"
@@ -98,7 +98,7 @@ export function DayBoard({
   /** Whether a day is a public holiday at the destination (More Travel features part 8). */
   holidayOn?: (day: number) => boolean
   /** Each day's chance of rain, for moving outdoor cards off a rainy day (More Travel features part 9). */
-  forecast?: readonly { day: number; rain: number | null }[]
+  forecast?: readonly { day: number; rain: number | null; hourlyRain?: readonly (number | null)[] }[]
 }) {
   const { page, typesById, refresh, openActivity, openActivityId, readOnly } = useTrip()
   const { trip } = page
@@ -384,6 +384,8 @@ export function DayBoard({
                                     compact={compact}
                                     roomForMenu
                                     warning={openDay !== null ? null : (warning ?? (rainy && !rainy.toDay ? rainy.warning : null))}
+                                    // Rain at the card's own hour (Travel features 4, part 3); a place shut that day says that instead.
+                                    rain={openDay !== null || held ? null : cardRainLine(card, forecast)}
                                     beenHere={beenHereById.get(card.id) ?? null}
                                   />
                                 </BoardCard>

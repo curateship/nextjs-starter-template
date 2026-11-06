@@ -1,11 +1,11 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { ArrowLeftIcon, CopyIcon, Loader2Icon, NotebookPenIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { ArrowLeftIcon, CopyIcon, Loader2Icon, NotebookPenIcon, PinIcon, PinOffIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { toast } from "sonner"
 
 import { SavingDocument } from "@/components/travel/saving-document"
 import { useTrip } from "@/components/travel/trip-context"
 import { Button } from "@/components/ui/button"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,19 +14,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { copyNote, newTripNote, removeNote, saveNote } from "@/lib/api/travel/trip-notes"
+import { copyNote, newTripNote, pinNote, removeNote, restoreNote, saveNote } from "@/lib/api/travel/trip-notes"
 import type { TripNote } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { formatLongDate } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
-import { noteText } from "@/lib/travel/note-blocks"
-import { readNotes } from "@/lib/travel/notes"
+import { noteFirstLine as firstLine } from "@/lib/travel/notes"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
-/** A note's first line, as its name in the list. */
-function firstLine(body: string) {
-  const first = (readNotes(body).content ?? []).find((block) => noteText(block).trim())
-  return first ? noteText(first).trim() : "Empty note"
-}
+/** How long the Undo bar stays, the same as the board's (task part 16: "for 6 seconds"). */
+const UNDO_MS = 6000
+
 
 /** A point on the page for a menu to open from, in the page's body so no scroller shifts it off the mouse. */
 const PointAnchor = React.forwardRef<HTMLSpanElement, { x: number; y: number }>(function PointAnchor(
@@ -43,16 +41,18 @@ const PointAnchor = React.forwardRef<HTMLSpanElement, { x: number; y: number }>(
  * The trip's notes, filling the left panel under the trip's header while its
  * note icon is an × (Tyler, 2 and 3 Nov 2026). With none yet, the panel is one
  * place to press that makes the first note. With some, they're listed by first
- * line and the day they last changed, newest first, with New note under them.
- * Right-click a note for Duplicate and Delete (Tyler, 3 Nov 2026: "add right
- * click feature to delete and duplicate note in the notes list"). An open note
- * is the shell's editor, saving itself, with Back to notes right under it.
+ * line and the day they last changed, pinned ones first (Travel features 4,
+ * part 7), then newest first, with New note under them. Right-click a note
+ * for Pin, Duplicate and Delete (Tyler, 3 Nov 2026: "add right click feature
+ * to delete and duplicate note in the notes list"). Delete puts the note in
+ * the trip's bin with Undo, so it doesn't ask first (part 6: "Same Bin as
+ * cards"). An open note is the shell's editor, saving itself, with Back to
+ * notes right under it.
  */
 export function TripNotes({ startOpen = null }: { startOpen?: string | null }) {
   const { page, refresh, readOnly } = useTrip()
   const [openId, setOpenId] = React.useState<string | null>(startOpen)
   const [justMade, setJustMade] = React.useState<string | null>(null)
-  const [deleting, setDeleting] = React.useState<TripNote | null>(null)
   const [menu, setMenu] = React.useState<{ note: TripNote; at: { x: number; y: number } } | null>(null)
   const [run, busy] = useAsyncAction(getTravelErrorMessage)
   // Saving as it's written has its own, so typing never spins New note.
@@ -77,12 +77,29 @@ export function TripNotes({ startOpen = null }: { startOpen?: string | null }) {
     }, "Note duplicated.")
   }
 
+  async function pin(note: TripNote) {
+    await run(async () => {
+      await pinNote(note.id, !note.pinned)
+      await refresh()
+    }, note.pinned ? "Note unpinned." : "Note pinned to the top.")
+  }
+
   async function remove(note: TripNote) {
     const ok = await run(async () => {
       await removeNote(note.id)
       await refresh()
-    }, "Note deleted.")
-    if (ok) setDeleting(null)
+    })
+    if (!ok) return
+    toast.success("Note moved to the bin.", {
+      duration: UNDO_MS,
+      action: {
+        label: "Undo",
+        onClick: () =>
+          void restoreNote(note.id)
+            .then(() => refresh())
+            .catch((error: unknown) => showErrorToast(getTravelErrorMessage(error))),
+      },
+    })
   }
 
   let body: React.ReactNode
@@ -141,7 +158,12 @@ export function TripNotes({ startOpen = null }: { startOpen?: string | null }) {
                 }}
                 className="grid w-full min-w-0 gap-0.5 rounded-md px-2 py-2 text-left hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               >
-                <span className="truncate text-sm font-medium">{firstLine(note.body)}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  {note.pinned ? (
+                    <PinIcon className="size-3.5 shrink-0 fill-amber-400 text-amber-500" aria-label="Pinned" role="img" />
+                  ) : null}
+                  <span className="truncate text-sm font-medium">{firstLine(note.body)}</span>
+                </span>
                 <span className="text-xs text-muted-foreground">{formatLongDate(note.updatedAt.slice(0, 10))}</span>
               </button>
             </li>
@@ -169,28 +191,22 @@ export function TripNotes({ startOpen = null }: { startOpen?: string | null }) {
             <PointAnchor x={menu.at.x} y={menu.at.y} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-44" onCloseAutoFocus={(event) => event.preventDefault()}>
+            <DropdownMenuItem onSelect={() => void pin(menu.note)}>
+              {menu.note.pinned ? <PinOffIcon className="size-4" /> : <PinIcon className="size-4" />}
+              {menu.note.pinned ? "Unpin" : "Pin"}
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => void duplicate(menu.note)}>
               <CopyIcon className="size-4" />
               Duplicate
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={() => setDeleting(menu.note)}>
+            <DropdownMenuItem variant="destructive" onSelect={() => void remove(menu.note)}>
               <Trash2Icon className="size-4" />
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
-      <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(next) => (next ? undefined : setDeleting(null))}
-        title={`Delete "${deleting ? firstLine(deleting.body) : "this note"}"?`}
-        description="The note goes for good."
-        confirmLabel="Delete note"
-        destructive
-        loading={busy}
-        onConfirm={() => (deleting ? void remove(deleting) : undefined)}
-      />
     </>
   )
 }

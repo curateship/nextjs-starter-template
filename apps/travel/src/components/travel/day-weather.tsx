@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 
 import { loadWeather } from "@/lib/api/travel/weather"
+import { cardRainLine } from "@/lib/travel/rainy-day"
 import {
   rainLine,
   typicalLine,
@@ -114,5 +115,17 @@ export function DayOutlook({ weather, day }: { weather: TripWeather; day: number
       {holiday ? <HolidayLine holiday={holiday} /> : null}
       {forecast ? <DayWeatherLine weather={forecast} /> : typical ? <TypicalWeatherLine typical={typical} /> : null}
     </>
+  )
+}
+
+/** "40% rain at 2:30 PM" in an outdoor card's Weather row (Travel features 4, part 3), or nothing. */
+export function CardRainLine({ card, forecast }: { card: Parameters<typeof cardRainLine>[0]; forecast: readonly DayWeather[] }) {
+  const line = cardRainLine(card, forecast)
+  if (!line) return null
+  return (
+    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+      <CloudRainIcon className="size-3.5 shrink-0" aria-hidden />
+      <span className="tabular-nums">{line}</span>
+    </span>
   )
 }
