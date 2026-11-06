@@ -16,7 +16,7 @@ import {
   touchSession,
 } from "@/server/browser/session"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { LINKEDIN_SEARCHER_JOB_KINDS, NO_PROFILE_MESSAGE, READER_JOB_KINDS, WRITE_JOB_KINDS, X_SEARCHER_JOB_KINDS, type JobKind } from "@/lib/social/options"
+import { COMMENTING_JOB_KINDS, LINKEDIN_SEARCHER_JOB_KINDS, NO_PROFILE_MESSAGE, READER_JOB_KINDS, WRITE_JOB_KINDS, X_SEARCHER_JOB_KINDS, type JobKind } from "@/lib/social/options"
 import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
 import { aNetwork, handleWords, isNetwork, isPhoneAppNetwork, NETWORK_NAMES } from "@/lib/social/networks"
 import { nextWorkdayAt } from "@/lib/social/linkedin/workday"
@@ -28,7 +28,7 @@ import { guardPhoneAddress } from "@/server/phones/setup"
 
 import { accountTimeZone, readBehaviour, readerProfile } from "./behaviour"
 import { ringForFailure } from "./failures"
-import { pausedBy } from "./pause"
+import { commentingPaused, pausedBy } from "./pause"
 import { accountFigures, recordAccountHealth, recordStrangerCheck } from "./health"
 import { deleteSentComment, editSentComment } from "./reddit/change-comment"
 import { recordCommentCheck } from "./reddit/comment-check"
@@ -309,6 +309,12 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   // The app-wide brake (Bans task, part 11): every job waits, like a held
   // phone's, and none is failed. Nothing restarts until a person releases it.
   if (paused === "brake" || (paused && WRITE_JOB_KINDS.includes(job.kind))) {
+    throw new PutBack({ runAfter: new Date(Date.now() + PAUSED_RECHECK_MS) })
+  }
+  // Commenting paused on the account's network (Commenting,
+  // part 20): a comment pressed before the pause waits, like a paused
+  // account's, and can still be cancelled. Its own posts carry on.
+  if (COMMENTING_JOB_KINDS.includes(job.kind) && (await commentingPaused(job.userId, account, db))) {
     throw new PutBack({ runAfter: new Date(Date.now() + PAUSED_RECHECK_MS) })
   }
   if (paused) {

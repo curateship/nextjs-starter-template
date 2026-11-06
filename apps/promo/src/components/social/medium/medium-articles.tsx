@@ -85,7 +85,7 @@ function figure(value: number | null): string {
 
 /**
  * The Articles tab's list (parts 26, 31, 34 and 40): every article of the
- * project with its numbers, New article, the AI's article ideas from what
+ * project with its numbers, New post, the AI's article ideas from what
  * people keep asking, and under them the stories on the accounts' public
  * Medium lists, with how many of each list are the account's own.
  */
@@ -242,7 +242,7 @@ export function MediumArticlesList({
               </div>
             ) : (
               <p className="px-4 pt-3 text-sm text-muted-foreground">
-                No articles yet. Press New article, or Article ideas for topics people keep asking about.
+                No posts of your own yet. Press New post to write one.
               </p>
             )}
             <div className="grid gap-2 border-t px-3 pt-3">
@@ -313,7 +313,7 @@ export function MediumArticlesList({
 }
 
 /**
- * New article as a dropdown, the way every dashboard's New button works
+ * New post as a dropdown, the way every dashboard's New button works
  * (Ui-standards): what it is about first, then who publishes it, then
  * whether it grows from a Reddit comment that did well (part 30), and
  * Create article at the bottom right.
@@ -373,7 +373,7 @@ function NewArticleButton({
       <PopoverTrigger asChild>
         <DashboardToolbarButton type="button">
           <PlusIcon className="size-4" />
-          New article
+          New post
         </DashboardToolbarButton>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-3">
@@ -383,7 +383,7 @@ function NewArticleButton({
             <Input id="medium-new-about" autoFocus value={about} placeholder="How small teams pick a task tool" onChange={(event) => setAbout(event.target.value)} />
           </div>
           <div className="grid gap-2">
-            <FieldLabel htmlFor="medium-new-account">Publish as</FieldLabel>
+            <FieldLabel htmlFor="medium-new-account">Post as</FieldLabel>
             <Select value={accountId} onValueChange={setAccountId}>
               <SelectTrigger id="medium-new-account">
                 <SelectValue />
@@ -464,7 +464,7 @@ export function MediumArticlePanel({
           ) : null}
           <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">An article</span>
         </DashboardCardHeader>
-        <p className="p-4 text-sm text-muted-foreground">Click an article to write it or to see how it is doing, or press New article.</p>
+        <p className="p-4 text-sm text-muted-foreground">Click a post to write it or to see how it is doing, or press New post.</p>
       </div>
     )
   }
@@ -721,7 +721,7 @@ function ArticleDraft({
 
           <section className="grid gap-4" aria-label="The article">
             <div className="grid gap-2">
-              <FieldLabel htmlFor="medium-article-account">Publish as</FieldLabel>
+              <FieldLabel htmlFor="medium-article-account">Post as</FieldLabel>
               <Select value={fields.accountId ?? "none"} disabled={waiting} onValueChange={(value) => change({ accountId: value === "none" ? null : value }, true)}>
                 <SelectTrigger id="medium-article-account">
                   <SelectValue />

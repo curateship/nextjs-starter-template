@@ -3,6 +3,10 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
 import { NETWORK_NAMES, type Network } from "@/lib/social/networks"
+import { LINKEDIN_COMMENT_VIEWS } from "@/lib/social/linkedin/options"
+import { MEDIUM_COMMENT_VIEWS } from "@/lib/social/medium/options"
+import { commentingHref, type CommentingParams } from "@/lib/social/project-address"
+import { X_COMMENT_VIEWS } from "@/lib/social/x/options"
 
 import { ringBell } from "./notices"
 import { promoAccounts, promoComments, promoFinds, promoJobs, promoKeywords } from "./schema"
@@ -210,9 +214,10 @@ export async function ringForFailure(
   }
   if (!(WRITE_KINDS as readonly string[]).includes(job.kind)) return
   const what = job.kind === "submit" ? "a post of yours" : job.kind === "reply" ? "an answer to a reply" : "a comment"
-  // It opens on the Comments tab of the project the account is in, under
-  // Failed. An account in no project has no Comments tab, so that one opens
-  // the Projects table.
+  // A comment or an answer opens Reddit's Sent tab on its project's
+  // Commenting, under Failed; a post of yours opens the Failed list beside
+  // your Reddit posts (Commenting task, part 9). An account in no project
+  // opens the Projects table.
   const [owner] = await db
     .select({ projectId: promoAccounts.projectId })
     .from(promoJobs)
@@ -226,10 +231,20 @@ export async function ringForFailure(
       kind: "failed",
       targetId: job.id,
       message: `${NOTICE_HEADINGS.failed} ${what}`,
-      detail: reason.includes(MAY_HAVE_LANDED)
-        ? `${reason} It is on the project's Comments tab, under Failed.`
-        : `${reason} It is on the project's Comments tab, under Failed, with Try again.`,
-      href: projectId ? `/admin/projects/${encodeURIComponent(projectId)}?view=comments&list=failed` : "/admin/projects",
+      detail:
+        job.kind === "submit"
+          ? reason.includes(MAY_HAVE_LANDED)
+            ? `${reason} It is beside your Reddit posts, under Failed.`
+            : `${reason} It is beside your Reddit posts, under Failed, with Try again.`
+          : reason.includes(MAY_HAVE_LANDED)
+            ? `${reason} It is on Reddit's Commenting, under Sent, in Failed.`
+            : `${reason} It is on Reddit's Commenting, under Sent, in Failed, with Try again.`,
+      href:
+        job.kind === "submit"
+          ? projectId
+            ? `/admin/projects/${encodeURIComponent(projectId)}?network=reddit&list=failed`
+            : "/admin/projects"
+          : commentingHref(projectId, { network: "reddit", view: "comments", list: "failed" }),
     },
     db
   )
@@ -305,7 +320,18 @@ const NETWORK_WRITE_WORDS: Record<string, { network: "medium" | "x" | "linkedin"
   linkedin_code: { network: "linkedin", what: "LinkedIn's emailed code", view: "" },
 }
 
-/** Rings the bell for a Medium, X or LinkedIn write that did not go out, opening where it was pressed. */
+/** Each network's tabs that sit on a network's Commenting. */
+const COMMENT_TABS: Record<"medium" | "x" | "linkedin", readonly string[]> = {
+  medium: MEDIUM_COMMENT_VIEWS,
+  x: X_COMMENT_VIEWS,
+  linkedin: LINKEDIN_COMMENT_VIEWS,
+}
+
+/**
+ * Rings the bell for a Medium, X or LinkedIn write that did not go out,
+ * opening where it was pressed: a comment's on the network's Commenting, a
+ * post of your own's on its Posts.
+ */
 async function ringForNetworkFailure(
   job: { id: string; userId: string; kind: string },
   reason: string,
@@ -318,8 +344,17 @@ async function ringForNetworkFailure(
     .innerJoin(promoAccounts, eq(promoAccounts.id, sql`${promoJobs.payload}->>'accountId'`))
     .where(and(eq(promoJobs.id, job.id), eq(promoJobs.userId, job.userId)))
     .limit(1)
-  const href = row?.projectId
-    ? `/admin/projects/${encodeURIComponent(row.projectId)}?network=${words.network}${words.view}`
-    : "/admin/projects"
+  const view = new URLSearchParams(words.view.replace(/^&/, ""))
+  const tab = view.get("tab") ?? ""
+  const onCommenting = !tab || COMMENT_TABS[words.network].includes(tab)
+  const href = onCommenting
+    ? commentingHref(row?.projectId ?? null, {
+        network: words.network,
+        tab: (tab || undefined) as CommentingParams["tab"],
+        list: view.get("list") === "failed" ? "failed" : undefined,
+      })
+    : row?.projectId
+      ? `/admin/projects/${encodeURIComponent(row.projectId)}?network=${words.network}${words.view}`
+      : "/admin/projects"
   await ringBell(job.userId, { kind: "failed", targetId: job.id, message: `${NOTICE_HEADINGS.failed} ${words.what}`, detail: reason, href }, db)
 }

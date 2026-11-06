@@ -18,7 +18,7 @@ Medium signs people in with a link it emails, not a password. Pressing that link
 in an everyday browser signs that browser in, which is the wrong one (part 2).
 
 The key button, on the account's row on the Accounts dashboard and beside
-Respond as in the Medium module, takes the pasted link and opens it inside the
+Comment as on the network's Commenting row, takes the pasted link and opens it inside the
 account's own browser profile. Who is signed in is read straight after. The
 link signs in whoever opens it, so it is wiped from the job as soon as the
 browser has taken it, and a link that will not open fails with a message that

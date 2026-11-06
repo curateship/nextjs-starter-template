@@ -12,6 +12,7 @@ import { postingRefusalText } from "@/lib/social/wording"
 
 import { refuseInteraction } from "./apart"
 import { queueJob } from "./jobs"
+import { refuseWhileCommentingPaused } from "./pause"
 import { readPostingState } from "./posting"
 import {
   promoAccounts,
@@ -179,6 +180,7 @@ export async function queueReply(
   if (!account.profileId && !account.phoneId) throw new Refusal(NO_PROFILE_MESSAGE)
   const onPhone = account.phoneId ? phoneStepRefusal("reddit/reply", account.handle ? `u/${account.handle}'s phone` : "This account's phone") : null
   if (onPhone) throw new Refusal(onPhone)
+  await refuseWhileCommentingPaused(userId, account, db)
 
   const state = await readPostingState(userId, account, db, now)
   const refusal = postingRefusalText(state, now, state.timeZone)

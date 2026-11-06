@@ -13,7 +13,7 @@ import { handleWords } from "@/lib/social/networks"
 
 import { accountTimeZone, isYoung, readBehaviour, warmUpEndsAt } from "../behaviour"
 import { queueJob } from "../jobs"
-import { pausedBy } from "../pause"
+import { pausedBy, refuseWhileCommentingPaused } from "../pause"
 import { promoAccounts, promoJobs } from "../schema"
 import { ownedMediumFind } from "./finds"
 import { promoMediumArticles, promoMediumDrafts, promoMediumResponses } from "./schema"
@@ -303,6 +303,7 @@ export async function queueMediumResponse(
   const find = await ownedMediumFind(userId, input.findId, db)
   if (!find) throw new Error("That Medium story is no longer saved.")
   const account = await writingAccount(userId, input.accountId, db)
+  await refuseWhileCommentingPaused(userId, account, db)
   if (account.projectId !== find.projectId) {
     throw new Refusal("That account is not in this story's project, so it does not respond here.")
   }

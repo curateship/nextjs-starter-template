@@ -15,6 +15,7 @@ import { ownedProject } from "../projects"
 import { promoAccounts, promoJobs } from "../schema"
 import { linkedinAccept, linkedinConnect, linkedinInvites, linkedinViewers } from "./calls"
 import { readBuyerTitles } from "./keywords"
+import { refuseWhileCommentingPaused } from "../pause"
 import { linkedinWritingAccount, readLinkedinPostingState } from "./posting"
 import { promoLinkedinComments, promoLinkedinConnects, promoLinkedinFinds, promoLinkedinInvites, promoLinkedinViewers } from "./schema"
 import { readLinkedinSettings } from "./searchers"
@@ -94,6 +95,7 @@ export async function queueLinkedinConnect(
   now: Date = new Date()
 ): Promise<QueuedConnect> {
   const account = await linkedinWritingAccount(userId, input.accountId, db)
+  await refuseWhileCommentingPaused(userId, account, db)
   let person: { slug: string; name: string; headline: string; source: "post" | "viewer"; commentRowId: string | null }
   if ("commentRowId" in input) {
     const [row] = await db

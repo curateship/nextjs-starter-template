@@ -118,7 +118,7 @@ Once Medium has it, nothing after can mark it failed. A phone's response, whose
 address the app does not show, stays posted even when no reader is picked to
 look the address up.
 
-## The Responses tab
+## The Sent tab
 
 Every response this project's accounts sent, newest first, with its claps, the
 responses under it and whether it is still up. A figure never read shows "?",

@@ -2,7 +2,9 @@ import * as React from "react"
 import { ProjectBansLink } from "./project-bans-link"
 import {
   ArchiveIcon,
+  FileTextIcon,
   FolderOpenIcon,
+  MessagesSquareIcon,
   Loader2Icon,
   PauseIcon,
   PlayIcon,
@@ -14,6 +16,7 @@ import {
 
 import { usePromoGuest, usePromoSaveStatus } from "@/components/social/guest/guest-mode"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { PanelCard } from "@/components/shared/panel-card"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import {
@@ -32,11 +35,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { getProjectErrorMessage, saveProject, type ProjectView } from "@/lib/api/social/projects"
 import { NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
+import { isCommentingNetwork, type Side } from "@/lib/social/sides"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 import { Hint } from "../hint"
-import { NetworkIcon } from "../network-icon"
 
 /** How long typing has to stop before the name or description saves. */
 const SAVE_AFTER_MS = 700
@@ -55,10 +58,13 @@ const SAVE_AFTER_MS = 700
 export function ProjectPanel({
   view,
   selectedNetwork,
-  onSelectNetwork,
+  selectedSide,
+  keywordSlot,
+  onSelect,
   onAddNetwork,
   onRemoveNetwork,
   onToggleNetworkPause,
+  onToggleCommentingPause,
   onNewProject,
   onDeleteProject,
   onTogglePause,
@@ -69,11 +75,17 @@ export function ProjectPanel({
   view: ProjectView
   /** The network whose panels fill the middle and right columns. */
   selectedNetwork: Network | null
-  onSelectNetwork: (network: Network) => void
+  /** Which of its two rows: your own posts, or commenting on other people's. */
+  selectedSide: Side
+  /** Where the picked network's keywords are drawn, under its Commenting row. */
+  keywordSlot: (element: HTMLDivElement | null) => void
+  onSelect: (network: Network, side: Side) => void
   onAddNetwork: (network: Network) => Promise<void>
   onRemoveNetwork: (network: Network) => Promise<void>
   /** Pauses one network of the project, or resumes it, while the rest runs. */
   onToggleNetworkPause: (network: Network, paused: boolean) => Promise<void>
+  /** Pauses commenting alone on one network, or resumes it; its own posts carry on. */
+  onToggleCommentingPause: (network: Network, paused: boolean) => Promise<void>
   onNewProject: () => void
   onDeleteProject: () => void
   /** Pauses the project, or resumes it when it is paused. */
@@ -169,12 +181,17 @@ export function ProjectPanel({
           <ProjectNetworks
             networks={project.networks}
             paused={project.pausedNetworks}
-            counts={view.networkCounts ?? {}}
-            selected={selectedNetwork}
-            onSelect={onSelectNetwork}
+            pausedCommenting={project.pausedCommenting}
+            postCounts={view.postCounts ?? {}}
+            commentCounts={view.networkCounts ?? {}}
+            selected={archiveSelected ? null : selectedNetwork}
+            selectedSide={selectedSide}
+            keywordSlot={keywordSlot}
+            onSelect={onSelect}
             onAdd={guest ? null : onAddNetwork}
             onRemove={guest ? null : onRemoveNetwork}
             onTogglePause={guest ? null : onToggleNetworkPause}
+            onToggleCommentingPause={guest ? null : onToggleCommentingPause}
           />
 
           <div className="grid gap-2">
@@ -415,42 +432,62 @@ function ProjectMenu({
 }
 
 /**
- * The networks the project uses, one row each, and "+ Add network" offering
- * the ones Promo has built that it does not use yet. Picking a row fills the
- * middle and right columns with that network's panels. Tyler, 14 Oct 2026:
- * "If I click on reddit then the middle and right panel will show reddit
- * panels". The X takes a network off, which the server refuses while the
- * project still holds that network's accounts or keywords.
+ * The networks the project uses, one card each, and "+ Add network" offering
+ * the built ones it does not use yet. Tyler, 5 Nov 2026: "I think its better
+ * that commenting lives within its project. Make each network have its own
+ * card and inside that cade have 2 rows, one for posts and one for
+ * commenting" (`workspace/tasks/Projects/commenting-dashboard.md`).
+ *
+ * - **The card's top line** is the network's name, Pause for the whole
+ *   network on this project, and the X that takes it off, which the server
+ *   refuses while the project still holds that network's accounts or keywords.
+ * - **Posts** opens your own posts on it, with how many need you: failed ones
+ *   and drafts not sent yet (part 8).
+ * - **Commenting** opens the posts its keywords found and what you sent under
+ *   them, with how many wait: strong posts and replies to answer (part 16),
+ *   and a Pause of its own that holds back only the comments (part 20).
+ *   Picked, its keywords are listed under it (part 11). Instagram and TikTok
+ *   answer comments under your own posts, so they have no Commenting row.
  */
 function ProjectNetworks({
   networks,
   paused,
-  counts,
+  pausedCommenting,
+  postCounts,
+  commentCounts,
   selected,
+  selectedSide,
+  keywordSlot,
   onSelect,
   onAdd,
   onRemove,
   onTogglePause,
+  onToggleCommentingPause,
 }: {
   networks: Network[]
   /** The networks paused on their own (Medium task, part 5). */
   paused: Network[]
-  /** What waits on a network's row: strong stories and unanswered responses (part 16). */
-  counts: Partial<Record<Network, number>>
+  /** The networks whose commenting alone is paused. */
+  pausedCommenting: Network[]
+  postCounts: Partial<Record<Network, number>>
+  commentCounts: Partial<Record<Network, number>>
   selected: Network | null
-  onSelect: (network: Network) => void
+  selectedSide: Side
+  keywordSlot: (element: HTMLDivElement | null) => void
+  onSelect: (network: Network, side: Side) => void
   /** Null for a guest, who uses the networks the project has. */
   onAdd: ((network: Network) => Promise<void>) | null
   onRemove: ((network: Network) => Promise<void>) | null
   onTogglePause: ((network: Network, paused: boolean) => Promise<void>) | null
+  onToggleCommentingPause: ((network: Network, paused: boolean) => Promise<void>) | null
 }) {
-  const [busy, setBusy] = React.useState<Network | null>(null)
+  const [busy, setBusy] = React.useState<string | null>(null)
   const addable = NETWORKS.filter((network) => !networks.includes(network))
 
-  async function run(network: Network, action: (network: Network) => Promise<void>) {
-    setBusy(network)
+  async function run(key: string, action: () => Promise<void>) {
+    setBusy(key)
     try {
-      await action(network)
+      await action()
     } finally {
       setBusy(null)
     }
@@ -471,7 +508,7 @@ function ProjectNetworks({
             <DropdownMenuContent align="end" className="w-64">
               {addable.length ? (
                 addable.map((network) => (
-                  <DropdownMenuItem key={network} onSelect={() => void run(network, onAdd)}>
+                  <DropdownMenuItem key={network} onSelect={() => void run(network, () => onAdd(network))}>
                     {NETWORK_NAMES[network]}
                   </DropdownMenuItem>
                 ))
@@ -486,73 +523,186 @@ function ProjectNetworks({
       </div>
 
       {networks.length ? (
-        <div className="grid gap-1">
+        <div className="grid gap-2">
           {networks.map((network) => {
             const name = NETWORK_NAMES[network]
-            const picked = network === selected
+            const isPaused = paused.includes(network)
+            const commentingPaused = pausedCommenting.includes(network)
+            const comments = isCommentingNetwork(network)
+            const pickedCommenting = network === selected && selectedSide === "commenting"
             return (
-              <div
+              <NetworkCard
                 key={network}
-                className={cn(
-                  "flex min-w-0 items-center gap-1 rounded-lg border pr-1",
-                  picked && "bg-muted"
-                )}
+                network={network}
+                name={name}
+                paused={isPaused}
+                actions={
+                  <>
+                    {onTogglePause ? (
+                      <Hint label={isPaused ? `Resume ${name} on this project` : `Pause ${name} alone: its accounts stop posting, commenting and warming up, and the rest of the project runs`}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={isPaused ? `Resume ${name} on this project` : `Pause ${name} on this project`}
+                          disabled={busy !== null}
+                          onClick={() => void run(`pause:${network}`, () => onTogglePause(network, !isPaused))}
+                        >
+                          {busy === `pause:${network}` ? <Loader2Icon className="animate-spin" /> : isPaused ? <PlayIcon /> : <PauseIcon />}
+                        </Button>
+                      </Hint>
+                    ) : null}
+                    {onRemove ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Take ${name} off this project`}
+                            disabled={busy !== null}
+                            onClick={() => void run(`remove:${network}`, () => onRemove(network))}
+                          >
+                            {busy === `remove:${network}` ? <Loader2Icon className="animate-spin" /> : <XIcon />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Take {name} off this project. Refused while it holds accounts or keywords.</TooltipContent>
+                      </Tooltip>
+                    ) : null}
+                  </>
+                }
               >
-                <button
-                  type="button"
-                  aria-pressed={picked}
-                  onClick={() => onSelect(network)}
-                  className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-left text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  <NetworkIcon network={network} />
-                  <span className="truncate">{name}</span>
-                  {paused.includes(network) ? <span className="shrink-0 text-xs font-normal text-muted-foreground">Paused</span> : null}
-                  {counts[network] ? (
-                    <Hint label={`${counts[network]} waiting: strong stories and responses to answer`}>
-                      <span className="ml-auto shrink-0 text-xs font-normal text-muted-foreground tabular-nums">{counts[network]}</span>
-                    </Hint>
+                  <SideRow
+                    icon={<FileTextIcon className="size-4" />}
+                    label="Posts"
+                    picked={network === selected && selectedSide === "posts"}
+                    count={postCounts[network]}
+                    countHint="of your posts need you: failed, or drafts not sent yet"
+                    onClick={() => onSelect(network, "posts")}
+                  />
+                  {comments ? (
+                    <SideRow
+                      icon={<MessagesSquareIcon className="size-4" />}
+                      label="Commenting"
+                      picked={pickedCommenting}
+                      count={commentCounts[network]}
+                      countHint="waiting: strong posts and replies to answer"
+                      note={commentingPaused ? "Paused" : null}
+                      onClick={() => onSelect(network, "commenting")}
+                      action={
+                        onToggleCommentingPause ? (
+                          <Hint
+                            label={
+                              commentingPaused
+                                ? `Resume commenting on ${name}`
+                                : `Pause commenting on ${name} alone. Comments wait; your own posts still go out.`
+                            }
+                          >
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={commentingPaused ? `Resume commenting on ${name}` : `Pause commenting on ${name}`}
+                              disabled={busy !== null}
+                              onClick={() => void run(`comments:${network}`, () => onToggleCommentingPause(network, !commentingPaused))}
+                            >
+                              {busy === `comments:${network}` ? <Loader2Icon className="animate-spin" /> : commentingPaused ? <PlayIcon /> : <PauseIcon />}
+                            </Button>
+                          </Hint>
+                        ) : null
+                      }
+                    />
                   ) : null}
-                </button>
-                {onTogglePause ? (
-                  <Hint label={paused.includes(network) ? `Resume ${name} on this project` : `Pause ${name} alone: its accounts stop posting and warming up, and the rest of the project runs`}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={paused.includes(network) ? `Resume ${name} on this project` : `Pause ${name} on this project`}
-                      disabled={busy !== null}
-                      onClick={() => void run(network, (item) => onTogglePause(item, !paused.includes(item)))}
-                    >
-                      {paused.includes(network) ? <PlayIcon /> : <PauseIcon />}
-                    </Button>
-                  </Hint>
-                ) : null}
-                {onRemove ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Take ${name} off this project`}
-                        disabled={busy !== null}
-                        onClick={() => void run(network, onRemove)}
-                      >
-                        {busy === network ? <Loader2Icon className="animate-spin" /> : <XIcon />}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Take {name} off this project. Refused while it holds accounts or keywords.</TooltipContent>
-                  </Tooltip>
-                ) : null}
-              </div>
+                  {pickedCommenting ? (
+                    <div className="grid gap-1.5 px-2 pt-2 pb-1">
+                      <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Keywords</p>
+                      <div ref={keywordSlot} />
+                    </div>
+                  ) : null}
+              </NetworkCard>
             )
           })}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          This project uses no network yet. Add one and its posts and comment box open beside this column.
+          This project uses no network yet. Add one and its posts open beside this column.
         </p>
       )}
+    </div>
+  )
+}
+
+/**
+ * A network's card: the UI standard's `PanelCard`, which folds to its title
+ * and remembers open or shut in this browser for each network. Tyler,
+ * 5 Nov 2026: "cards should be collapsible", then "use ui standard card".
+ * Pause and the X are the card's own buttons, showing while it is pointed at,
+ * as on every `PanelCard`; Paused shows after the title whatever.
+ */
+function NetworkCard({
+  network,
+  name,
+  paused,
+  actions,
+  children,
+}: {
+  network: Network
+  name: string
+  paused: boolean
+  actions: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <PanelCard
+      storageId={`promo-network-${network}`}
+      title={name}
+      after={paused ? <span className="text-xs font-normal text-muted-foreground">Paused</span> : null}
+      action={<span className="flex items-center">{actions}</span>}
+    >
+      <div className="-mx-2 -mb-2 grid gap-0.5">{children}</div>
+    </PanelCard>
+  )
+}
+
+/** One row of a network's card: Posts or Commenting, with its count and its own button. */
+function SideRow({
+  icon,
+  label,
+  picked,
+  count,
+  countHint,
+  note = null,
+  action = null,
+  onClick,
+}: {
+  icon: React.ReactNode
+  label: string
+  picked: boolean
+  count: number | undefined
+  /** Said after the count on hover, as "2 waiting: strong posts and replies to answer". */
+  countHint: string
+  note?: string | null
+  action?: React.ReactNode
+  onClick: () => void
+}) {
+  return (
+    <div className={cn("flex min-w-0 items-center gap-1 rounded-md pr-1", picked ? "bg-background shadow-xs" : "hover:bg-background/60")}>
+      <button
+        type="button"
+        aria-pressed={picked}
+        onClick={onClick}
+        className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <span className="text-muted-foreground">{icon}</span>
+        <span className={cn("truncate", picked && "font-medium")}>{label}</span>
+        {note ? <span className="shrink-0 text-xs text-muted-foreground">{note}</span> : null}
+        {count ? (
+          <Hint label={`${count} ${countHint}`}>
+            <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{count}</span>
+          </Hint>
+        ) : null}
+      </button>
+      {action}
     </div>
   )
 }

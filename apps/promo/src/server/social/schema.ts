@@ -136,6 +136,13 @@ export const promoProjects = pgTable(
      * `drizzle/0124_promo_medium.sql`.
      */
     pausedNetworks: jsonb("paused_networks").$type<Network[]>().notNull().default([]),
+    /**
+     * The networks whose commenting is paused on this project, from the
+     * Commenting (part 20 of
+     * `workspace/tasks/Projects/commenting-dashboard.md`). Comments wait; the
+     * project's own posts keep going out.
+     */
+    pausedCommenting: jsonb("paused_commenting").$type<Network[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

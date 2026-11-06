@@ -55,7 +55,9 @@ export function usePromoShell(): {
   const guest = usePromoGuest()
   const shell = useOptionalShellRuntime()
   if (guest) return { rowsPerPage: GUEST_ROWS_PER_PAGE, reportSaveStatus: guest.reportSaveStatus }
-  if (!shell) throw new Error("Shell runtime is missing")
+  // An admin opening a guest page sees it as an admin, in the guest frame,
+  // which has no shell layout: the guest's page size, and no Saving… sign.
+  if (!shell) return { rowsPerPage: GUEST_ROWS_PER_PAGE, reportSaveStatus: () => undefined }
   return { rowsPerPage: shell.config.dashboardRowsPerPage, reportSaveStatus: shell.reportSaveStatus }
 }
 

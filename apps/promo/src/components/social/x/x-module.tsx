@@ -28,7 +28,8 @@ import {
 } from "@/lib/api/social/x"
 import { getProjectErrorMessage, putAccountInProject, takeAccountOutOfProject } from "@/lib/api/social/projects"
 import { useWideScreen } from "@/lib/layout/wide-screen"
-import { X_VIEW_WORDS, X_VIEWS, type XView } from "@/lib/social/x/options"
+import type { Side } from "@/lib/social/sides"
+import { X_COMMENT_VIEWS, X_POST_VIEWS, X_VIEW_WORDS, type XView } from "@/lib/social/x/options"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -38,7 +39,7 @@ import { XFindPanel } from "./x-find-panel"
 import { XFinds, XFindSearch } from "./x-finds"
 import { XKeywords } from "./x-keywords"
 import { XPostPanel, XPostsList } from "./x-posts"
-import { XMentionPanel, XRepliesList, XReplyPanel } from "./x-replies"
+import { XMentionPanel, XMentionsList, XRepliesList, XReplyPanel } from "./x-replies"
 import { XTodayList } from "./x-today"
 
 /** How often to ask what the queue is doing, while it is doing something. */
@@ -51,15 +52,17 @@ const IDLE_POLL_MS = 10_000
 const SEARCH_WAIT_MS = 300
 
 /**
- * What the X module keeps in the address: its tab (`?tab=`, none is To look
- * at), the record open in the right column (`?open=<id>`), the Replies tab's
- * Failed list (`?list=failed`), and the Jobs window.
+ * What the X module keeps in the address: its tab (`?tab=`, none is the
+ * side's first tab), the record open in the right column (`?open=<id>`), the
+ * Sent tab's Failed list (`?list=failed`), the Jobs window, and on the
+ * Commenting the picked keyword (`?keyword=<id>`).
  */
 export type XSearch = {
-  tab?: Exclude<XView, "new">
+  tab?: XView
   open?: string
   list?: "failed"
   window?: "jobs"
+  keyword?: string
 }
 
 type FindTab = "new" | "replied" | "skipped"
@@ -69,24 +72,31 @@ function isFindTab(tab: XView): tab is FindTab {
 }
 
 /**
- * X as a module on a project's dashboard (`workspace/tasks/X/01-x-features.md`),
- * what fills the middle and right columns when X is picked in the project's
- * left column. Built as Medium's module is.
+ * X as a module (`workspace/tasks/X/01-x-features.md`): what fills the middle
+ * and right columns when X is picked in a left column. Built as Medium's
+ * module is. It draws one of two sides
+ * (`workspace/tasks/Projects/commenting-dashboard.md`):
  *
- * The middle column is the keyword row (parts 9 to 16), the notices about
- * the search accounts that do all of X's reading (parts 3 to 5), and seven
- * tabs: To look at, Replied and Skipped are the posts the keywords found;
- * Today is what is worth doing now (part 20); Replies is what went out, what
- * failed and the posts naming the accounts (parts 37 to 40); Posts is the
- * accounts' own posts, threads, quotes and lists (parts 29 to 36); and
- * Communities is the X Communities that suit the project (part 35). The
- * right column is whatever is open.
+ * - **posts**, on a project's dashboard: Posts, the accounts' own posts,
+ *   threads, quotes and lists (parts 29 to 36); Replies, the posts naming the
+ *   accounts, which is where people answer them (part 39); and Communities
+ *   (part 35).
+ * - **commenting**, on a network's Commenting: the keyword row (parts 9 to
+ *   16), the notices about the search accounts that do all of X's reading
+ *   (parts 3 to 5), then To look at, Replied and Skipped, the posts the
+ *   keywords found; Today (part 20); and Sent, what went out and what failed
+ *   (parts 37, 38 and 40). With no post picked, the first one opens.
+ *
+ * A link from one side to a tab of the other goes through `onSearch`, which
+ * switches to the other row. The right column is whatever is
+ * open.
  *
  * Every reply, quote, post, edit and delete is a job a person pressed for,
  * run once in the account's own browser or on its phone. A guest sent from
  * Project does not work X.
  */
 export function XModule({
+  side,
   projectId,
   left,
   dialogs,
@@ -94,6 +104,7 @@ export function XModule({
   onSearch,
   onProjectChanged,
 }: {
+  side: Side
   projectId: string
   left: React.ReactNode
   dialogs: React.ReactNode
@@ -104,13 +115,19 @@ export function XModule({
 }) {
   const desktop = useWideScreen()
   const guest = usePromoGuest()
-  const tab: XView = search.tab && (X_VIEWS as readonly string[]).includes(search.tab) ? search.tab : "new"
+  const views: readonly XView[] = side === "commenting" ? X_COMMENT_VIEWS : X_POST_VIEWS
+  const firstTab = views[0]
+  const tab: XView = search.tab && views.includes(search.tab) ? search.tab : firstTab
+  // Commenting leaves To look at out of the address. Your posts always name
+  // their tab, so an old address with an open record and no tab can only be
+  // a post found by search, and the project's page sends it to Commenting.
+  const dropTab = (item: string) => side === "commenting" && item === firstTab
   const open = search.open ?? null
   const repliesList = search.list === "failed" ? "failed" : "sent"
 
   const [view, setView] = React.useState<XModuleView | null>(null)
   const [viewError, setViewError] = React.useState<string | null>(null)
-  const [keywordId, setKeywordId] = React.useState<string | null>(null)
+  const keywordId = search.keyword ?? null
   const [accountId, setAccountId] = React.useState<string | null>(null)
   const [typed, setTyped] = React.useState("")
   const [words, setWords] = React.useState("")
@@ -166,8 +183,11 @@ export function XModule({
       } else if (tab === "today") {
         keep({ error: null, today: await loadXToday(projectId) })
       } else if (tab === "replies") {
-        const { replies, mentions } = await loadXReplies(projectId, repliesList)
-        keep({ error: null, replies, mentions })
+        const { replies } = await loadXReplies(projectId, repliesList)
+        keep({ error: null, replies })
+      } else if (tab === "mentions") {
+        const { mentions } = await loadXReplies(projectId, "sent")
+        keep({ error: null, mentions })
       } else if (tab === "posts") {
         keep({ error: null, posts: await loadXPosts(projectId) })
       } else {
@@ -178,7 +198,11 @@ export function XModule({
     }
   }, [guest, keywordId, listKey, projectId, repliesList, tab, words])
 
-  const findOpen = isFindTab(tab) || tab === "today" ? open : null
+  // With no post picked, the first one in the list opens, so the right column
+  // is never empty (part 14). Worked out here rather than written to the
+  // address, so a narrow screen stays on the list nobody pressed.
+  const firstFind = isFindTab(tab) && list.key === listKey ? (list.finds[0]?.id ?? null) : null
+  const findOpen = isFindTab(tab) ? (open ?? firstFind) : tab === "today" ? open : null
   // The post whose read last failed, so the poll says so once, not every two seconds.
   const failedDetail = React.useRef<string | null>(null)
   const refreshDetail = React.useCallback(
@@ -231,7 +255,7 @@ export function XModule({
   const counts = view?.counts
 
   function openRecord(id: string | null, nextTab: XView = tab) {
-    onSearch({ tab: nextTab === "new" ? undefined : nextTab, open: id ?? undefined })
+    onSearch({ tab: dropTab(nextTab) ? undefined : nextTab, open: id ?? undefined })
   }
 
   async function skip(findIds: string[]) {
@@ -250,7 +274,7 @@ export function XModule({
       accounts={view.accounts}
       freeAccounts={view.freeAccounts}
       selectedId={account?.id ?? null}
-      label="Reply as"
+      label="Comment as"
       onSelect={setAccountId}
       onAdd={async (added) => {
         try {
@@ -274,7 +298,7 @@ export function XModule({
 
   const tabs = (
     <div role="tablist" aria-label="Which list" className="flex shrink-0 flex-wrap items-end gap-x-4 border-b px-3">
-      {X_VIEWS.map((item) => {
+      {views.map((item) => {
         const count =
           item === "new"
             ? counts?.toLook
@@ -293,7 +317,7 @@ export function XModule({
             type="button"
             role="tab"
             aria-selected={tab === item}
-            onClick={() => onSearch({ tab: item === "new" ? undefined : item, open: undefined, list: undefined })}
+            onClick={() => onSearch({ tab: dropTab(item) ? undefined : item, open: undefined, list: undefined })}
             className={cn(
               "-mb-px flex h-11 items-center gap-1.5 border-b-2 text-sm whitespace-nowrap focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
               tab === item ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
@@ -372,7 +396,7 @@ export function XModule({
         finds={list.key.startsWith(`${tab}|`) ? list.finds : []}
         loading={listLoading}
         error={list.error}
-        selectedId={open}
+        selectedId={findOpen}
         everything={keywordId === null}
         hasKeywords={Boolean(view?.keywords.length)}
         hasSearcher={view ? view.searchers.length > 0 : true}
@@ -402,7 +426,9 @@ export function XModule({
         onOpenAnswer={(under) =>
           "postRowId" in under
             ? onSearch({ tab: "posts", open: under.postRowId, list: undefined })
-            : onSearch({ tab: "replies", open: "replyId" in under ? under.replyId : under.mentionId, list: undefined })
+            : "replyId" in under
+              ? onSearch({ tab: "replies", open: under.replyId, list: undefined })
+              : onSearch({ tab: "mentions", open: under.mentionId, list: undefined })
         }
         onRetry={() => void refreshList()}
       />
@@ -412,7 +438,6 @@ export function XModule({
       <XRepliesList
         list={repliesList}
         rows={listLoading ? [] : list.replies}
-        mentions={listLoading ? [] : list.mentions}
         loading={listLoading}
         error={list.error}
         selectedId={open}
@@ -422,12 +447,24 @@ export function XModule({
         onChanged={refreshAll}
       />
     )
-    const mention = list.mentions.find((item) => item.id === open) ?? null
     const row = list.replies.find((item) => item.id === open) ?? null
+    right = <XReplyPanel key={row?.id ?? "none"} projectId={projectId} row={row} onBack={back} onClose={() => openRecord(null)} onChanged={refreshAll} />
+  } else if (tab === "mentions") {
+    middleBody = (
+      <XMentionsList
+        mentions={listLoading ? [] : list.mentions}
+        loading={listLoading}
+        error={list.error}
+        selectedId={open}
+        onSelect={(id) => openRecord(id)}
+        onRetry={() => void refreshList()}
+      />
+    )
+    const mention = list.mentions.find((item) => item.id === open) ?? null
     right = mention ? (
       <XMentionPanel key={mention.id} projectId={projectId} mention={mention} onBack={back} onChanged={refreshAll} />
     ) : (
-      <XReplyPanel key={row?.id ?? "none"} projectId={projectId} row={row} onBack={back} onClose={() => openRecord(null)} onChanged={refreshAll} />
+      <p className="p-4 text-sm text-muted-foreground">Click a reply to read it and answer it here.</p>
     )
   } else if (tab === "posts") {
     middleBody = (
@@ -493,6 +530,18 @@ export function XModule({
 
   const middle = guest ? (
     <p className="p-4 text-sm text-muted-foreground">X is worked by the project&apos;s owner. Open Reddit, Instagram or TikTok in the left column.</p>
+  ) : side === "posts" ? (
+    <>
+      {viewError ? <p className="border-b px-3 py-2 text-sm text-destructive">{viewError}</p> : null}
+      {view?.paused ? (
+        <p className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-sm">
+          <PauseIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          X is paused on this project. Nothing is sent or warmed up until it is resumed in the left column.
+        </p>
+      ) : null}
+      {tabs}
+      <div className="flex min-h-0 flex-1 flex-col">{middleBody}</div>
+    </>
   ) : (
     <>
       <XKeywords
@@ -502,8 +551,7 @@ export function XModule({
         selectedId={keywordId}
         search={isFindTab(tab) ? <XFindSearch value={typed} onChange={setTyped} /> : null}
         onSelect={(next) => {
-          setKeywordId(next)
-          if (!isFindTab(tab)) onSearch({ tab: undefined, open: undefined, list: undefined })
+          onSearch({ keyword: next ?? undefined, open: undefined, ...(isFindTab(tab) ? {} : { tab: undefined, list: undefined }) })
         }}
         onChanged={refreshAll}
         onOpenJobs={() => onSearch({ window: "jobs" })}
@@ -524,13 +572,15 @@ export function XModule({
       rightLabel="Show the right column"
     >
       {dialogs}
-      <JobsWindow
-        open={search.window === "jobs" && !guest}
-        onClose={() => {
-          onSearch({ window: undefined })
-          void refreshAll()
-        }}
-      />
+      {side === "commenting" ? (
+        <JobsWindow
+          open={search.window === "jobs" && !guest}
+          onClose={() => {
+            onSearch({ window: undefined })
+            void refreshAll()
+          }}
+        />
+      ) : null}
     </ProjectColumns>
   )
 }

@@ -260,6 +260,22 @@ export const WRITE_JOB_KINDS: readonly JobKind[] = [
 ]
 
 /**
+ * The kinds that comment on somebody else's post, or reach out to a person
+ * found while commenting: what Pause commenting holds back on the Commenting
+ * dashboard (part 20 of `workspace/tasks/Projects/commenting-dashboard.md`).
+ * A post of your own, its edits and the answers in your own inbox are not
+ * among them, so they keep going out.
+ */
+export const COMMENTING_JOB_KINDS: readonly JobKind[] = [
+  "comment",
+  "reply",
+  "medium_respond",
+  "x_reply",
+  "linkedin_comment",
+  "linkedin_connect",
+]
+
+/**
  * The account's profile, asked for once signed in and once signed out, as it
  * is stored. Only what was seen: each answer's status, whether it carried a
  * profile, and whether Reddit marked it suspended. The words are worked out

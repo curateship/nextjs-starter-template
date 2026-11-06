@@ -37,20 +37,23 @@ an app wide feature, not just a reddit feature."
 | `src/lib/api/social/voices.ts` | The Voices dashboard's endpoints. |
 | `src/components/social/account-settings.tsx` | The Reddit account tab in Settings: which profile and which voice the account uses. |
 | `src/components/social/voices/` | The Voices dashboard and its window, with Try it. |
-| `src/server/social/pause.ts` | Pausing an account or a whole project. |
+| `src/server/social/pause.ts` | Pausing an account, a whole project, one network of it, or only its commenting on one network. |
+| `src/lib/social/sides.ts`, `src/lib/social/project-address.ts` | The two rows of each network's card, Posts and Commenting: which networks comment, the project's address, which row it opens, and where an old address goes. |
+| `src/components/social/keyword-picker.tsx`, `keyword-list-slot.ts` | Every network's keywords, drawn as a list in the project's left column, under Commenting. |
+| `src/server/social/post-counts.ts` | The posts of yours that need you on each network's row, and each project's Posts and Last post on the Projects table. |
 | `src/server/social/notices.ts`, `src/lib/social/notice-words.ts`, `src/lib/social/notices.ts`, `src/lib/api/social/notices.ts` | Promo's bell notices: writing them, their headings, their icons, and where each opens. |
-| `src/server/social/failures.ts` | What did not reach Reddit, read off its job: the Comments tab's Failed list, and the notice each failure rings. |
+| `src/server/social/failures.ts` | What did not reach Reddit, read off its job: the Failed lists beside Sent and beside your Reddit posts, and the notice each failure rings, with the address it opens. |
 | `src/server/social/ai-tasks.ts` | The smaller things asked of the AI: the rules check, rewrites, keyword ideas, a post of your own, and trying a voice. All through `askModel` in `drafts.ts`. |
-| `src/server/social/today.ts`, `src/lib/api/social/today.ts`, `src/components/social/today/` | The Today tab. |
+| `src/server/social/today.ts`, `src/lib/api/social/today.ts`, `src/components/social/today/` | Reddit's Today tab on Commenting, and the count on Reddit's Commenting row. |
 
 ## What belongs to Reddit alone
 
 | Folder | What is in it |
 | --- | --- |
 | `src/server/social/reddit/` | Searching Reddit, reading a thread, posting a comment, and the ranking that decides which posts are worth answering. Also searching again by itself (`timed-searches.ts`), posts of your own (`own-posts.ts`), help-only posts (`help-posts.ts`), self-promotion threads (`promo-threads.ts`), what you said before (`past-answers.ts`), and deleting and editing a sent comment (`change-comment.ts`). |
-| `src/lib/social/reddit/options.ts` | Reddit's own sort orders and time windows, the tabs across its middle column, and the keys the Projects dashboard remembers its columns under. |
+| `src/lib/social/reddit/options.ts` | Reddit's own sort orders and time windows, the tabs across its Commenting column, and the key a project's dashboard remembers its columns under. |
 | `src/lib/api/social/reddit/` | The keyword, post, draft and Post endpoints the Projects dashboard calls. |
-| `src/components/social/reddit/` | Reddit's module (`reddit-module.tsx`): the keywords panel, the tabs and the posts list, the post-and-comment panel with the accounts dropdown (`account-picker.tsx`), and the Jobs window (`jobs-window.tsx`), which a project's dashboard shows when Reddit is picked. |
+| `src/components/social/reddit/` | Reddit on Commenting (`reddit-module.tsx`): the keywords header, the tabs and the posts list, the post-and-comment panel with the accounts dropdown (`account-picker.tsx`), and the Jobs window (`jobs-window.tsx`). Reddit on a project's dashboard (`reddit-posts-module.tsx`): your posts, the Failed list and New post (`reddit-new-post.tsx`). |
 | `docker/browser/routines/reddit.py` | The only file that knows how a Reddit page is put together. Its Reddit app twin is `rack/promo_rack.py`. |
 
 ## What belongs to the networks that run on phones
@@ -84,7 +87,7 @@ widening those would change Reddit's code for no gain to Reddit.
 | `src/server/social/medium/` | The tables (`schema.ts`), the calls to the browser (`calls.ts`), keywords, search, the ranking (`rank.ts`), the stories (`finds.ts`), the checks on Post and the queue (`posting.ts`), the too-similar check (`similar.ts`), the prompts (`drafts.ts`), responses, articles, the cover, publications, lists, the spend, the warm-up, the upkeep, the module's one read (`module.ts`), the job handlers (`run.ts`) and a failed job's row (`settle.ts`). |
 | `src/lib/social/medium/` | The limits, kinds and words both halves read (`options.ts`) and the posting words (`wording.ts`). |
 | `src/lib/api/social/medium.ts` | Every Medium endpoint, admin only. |
-| `src/components/social/medium/` | The module (`medium-module.tsx`) and its keyword row, story list, story panel, Responses, Articles, Publications and Today, the Respond as dropdown and the sign-in link button. |
+| `src/components/social/medium/` | The module (`medium-module.tsx`) and its keyword row, story list, story panel, Responses (Sent), Articles (Posts), Publications and Today, the Comment as dropdown and the sign-in link button. |
 | `docker/browser/routines/medium.py` | The only file that knows how a Medium page is put together. Its phone twin is the Medium part of `rack/promo_rack.py`. |
 
 The runner hands Medium's jobs to `medium/run.ts` and learns nothing else about
@@ -104,7 +107,7 @@ Reddit's and Medium's, for the reason Medium does.
 | `src/server/social/x/` | The tables (`schema.ts`), the calls to the browser and the phone (`calls.ts`), the search accounts and their views (`searchers.ts`), keywords, search, the ranking (`rank.ts`), the posts (`finds.ts`), the checks on Post and the queue (`posting.ts`), the too-similar warning (`similar.ts`), the prompts (`drafts.ts`), replies, posts of your own, communities, lists, follows, the daily look (`reach.ts`), the spend, the warm-up, the upkeep, the module's one read (`module.ts`), the job handlers and who is signed in (`run.ts`) and a failed job's row (`settle.ts`). |
 | `src/lib/social/x/` | The limits, kinds and words both halves read (`options.ts`) and the posting words (`wording.ts`). |
 | `src/lib/api/social/x.ts` | Every X endpoint, admin only, X's part of Settings → Behaviour included. |
-| `src/components/social/x/` | The module (`x-module.tsx`) and its keyword row, post list, post panel, Today, Replies, Posts and Communities, and the Reply as dropdown. |
+| `src/components/social/x/` | The module (`x-module.tsx`) and its keyword row, post list, post panel, Today, Sent, Posts, Replies (mentions) and Communities, and the Comment as dropdown. The module takes a `side`: your posts or Commenting. |
 | `docker/browser/routines/x.py` | The only file that knows how an X page is put together. Its phone twin is the X part of `rack/promo_rack.py`. |
 
 The runner hands X's reads to `runXRead` (a search account's browser, looked
@@ -129,7 +132,7 @@ other networks', for the reason Medium does.
 | `src/server/social/linkedin/` | The tables (`schema.ts`), the calls to the browser and the phone (`calls.ts`), the search accounts and LinkedIn's numbers in Settings → Behaviour (`searchers.ts`), keywords and the project's buyer titles (`keywords.ts`), search, read and an account's own feed (`search.ts`), the ranking (`rank.ts`), the posts (`finds.ts`), the checks on Post and the queue (`posting.ts`), the too-similar warning (`similar.ts`), the prompts (`drafts.ts`), comments and what happened to them (`comments.ts`), posts, reposts and newsletter issues (`posts.ts`), groups and their rules (`groups.ts`), connection requests, requests waiting and viewers (`people.ts`), the weekly numbers and comments look (`reach.ts`), the spend, the warm-up, the upkeep, the module's one read (`module.ts`), the job handlers, the emailed code and who is signed in (`run.ts`) and a failed job's row (`settle.ts`). |
 | `src/lib/social/linkedin/` | The limits, kinds and words both halves read (`options.ts`), the posting words (`wording.ts`) and the workday hours (`workday.ts`). |
 | `src/lib/api/social/linkedin.ts` | Every LinkedIn endpoint, admin only, LinkedIn's part of Settings → Behaviour included. |
-| `src/components/social/linkedin/` | The module (`linkedin-module.tsx`) and its keyword row, post list, post panel, Today, Comments, Posts and People, the Comment as dropdown, and LinkedIn's card in Settings → Behaviour. The account's card is `src/components/social/accounts/linkedin-account-card.tsx`. The right column frame and a few words are X's, imported from `src/components/social/x/`. |
+| `src/components/social/linkedin/` | The module (`linkedin-module.tsx`) and its keyword row, post list, post panel, Today, Sent, Posts and People, the Comment as dropdown, a `side` for your posts or Commenting, and LinkedIn's card in Settings → Behaviour. The account's card is `src/components/social/accounts/linkedin-account-card.tsx`. The right column frame and a few words are X's, imported from `src/components/social/x/`. |
 | `docker/browser/routines/linkedin.py` | The only file that knows how a LinkedIn page is put together, its page details in one `SELECTORS` block. Its phone twin is the LinkedIn part of `rack/promo_rack.py` (`linkedin_screens`). |
 
 The runner hands LinkedIn's reads to `runLinkedinRead` (a search account's

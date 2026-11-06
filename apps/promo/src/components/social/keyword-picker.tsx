@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -18,6 +19,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/compon
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+
+import { KeywordListSlotContext } from "./keyword-list-slot"
 
 /**
  * A project's keywords as one dropdown among the middle column's header
@@ -111,6 +114,71 @@ export function KeywordPicker({
 
   const name = selected ? selected.label : empty ? "Add keyword" : "All keywords"
   const count = selected ? selected.count : allCount
+  const slot = React.useContext(KeywordListSlotContext)
+
+  if (slot) {
+    if (!slot.element) return null
+    return createPortal(
+      adding || empty ? (
+        <div className="grid gap-3">
+          {items.length ? (
+            <button
+              type="button"
+              className="flex w-fit items-center gap-1.5 rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              onClick={() => setAdding(false)}
+            >
+              <ArrowLeftIcon className="size-4" aria-hidden="true" />
+              Keywords
+            </button>
+          ) : null}
+          {loading && !items.length ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+              Reading your keywords
+            </p>
+          ) : (
+            addForm(() => setAdding(false))
+          )}
+        </div>
+      ) : (
+        <div className="grid gap-0.5">
+          <button
+            type="button"
+            aria-pressed={!selected}
+            className={cn(
+              "flex h-9 items-center gap-2 rounded-sm px-2 text-left text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+              !selected && "bg-muted"
+            )}
+            onClick={() => onSelect(null)}
+          >
+            <span className="flex-1 truncate font-medium">All keywords</span>
+            {allCount !== undefined ? <span className="text-muted-foreground tabular-nums">{allCount}</span> : null}
+            {anyRunning ? <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" aria-label="Searching" /> : null}
+          </button>
+          {items.map((item) => (
+            <KeywordRow
+              key={item.id}
+              item={item}
+              picked={item.id === selectedId}
+              onPick={() => onSelect(item.id)}
+              onRun={onRun}
+              onSwitch={onSwitch}
+              menu={menu}
+            />
+          ))}
+          <button
+            type="button"
+            className="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            onClick={() => setAdding(true)}
+          >
+            <PlusIcon className="size-4" aria-hidden="true" />
+            Add keyword
+          </button>
+        </div>
+      ),
+      slot.element
+    )
+  }
 
   return (
     <Popover open={open} onOpenChange={openChange}>

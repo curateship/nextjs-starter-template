@@ -10,13 +10,20 @@ the repo's `docs/`, and is never copied here.
 
 ## Projects
 
-- [The Projects dashboard](projects-dashboard.md): the table of every project,
-  and one project's description, networks, keywords and posts on one screen,
-  the accounts dropdown and which account comments, what the AI is told about
-  what you make, the order accounts are listed in, pausing a project, and the
-  Today tab of the project's best posts and waiting replies.
+- [The Projects dashboard](projects-dashboard.md): the table of every project
+  with its Posts and Last post, and one project's description, networks and
+  its own posts on one screen, the count of posts that need you on each
+  network's row, what the AI is told about what you make, and pausing a
+  project.
+- [Commenting inside a project](commenting.md): Tyler's answers of 5 Nov 2026,
+  each network a folding card with a Posts row and a Commenting row, the
+  keywords listed under Commenting, what sits on each row, the counts, Pause
+  commenting, the first post opening by itself, the address and old
+  addresses, guests, and Reddit's keywords, posts, comment box, Today and
+  accounts dropdown.
 - [Networks as modules](network-modules.md): a project picks the networks it
-  uses, each a row in its left column that fills the middle and right columns,
+  uses, each a row in its left column that fills the middle and right columns
+  with your own posts on it, the two sides of each network,
   Reddit's screens folded into its module as tabs and windows, the tables that
   fold by the column's width, and where the old addresses lead.
 - [The Archive](archive.md): each project's videos, carousels and pictures, sent
@@ -105,7 +112,7 @@ the repo's `docs/`, and is never copied here.
   stops, and several taking turns.
 - [Comments on LinkedIn](linkedin/comments.md): drafts, Help only, answering
   a top comment, the best comments as examples, every check on Post, reacting
-  first, the Comments tab, answers, edit, delete, Try again, and the weekly
+  first, the Sent tab on Commenting, answers, edit, delete, Try again, and the weekly
   look at whether the comments still show.
 - [Posts of your own on LinkedIn](linkedin/posts.md): posts with a picture, a
   video or a poll, the link in the first comment, tags, reposts, starting from
@@ -148,14 +155,15 @@ the repo's `docs/`, and is never copied here.
   subreddit's own rules, the sent comments it copies the voice of, what comes
   back, why Post is sometimes off, checking a comment against the rules,
   rewriting it, what you said before, and ten seconds to undo.
-- [What happened to your comments](reddit/sent-comments.md) — the Comments
-  screen: every sent comment with its upvotes, its replies and whether it is
+- [What happened to your comments](reddit/sent-comments.md) — Reddit's Sent
+  tab on Commenting: every sent comment with its upvotes, its replies and whether it is
   still there, the switch that keeps it out of the AI's examples, removals per
   subreddit, deleting and editing a comment, and the Failed tab.
-- [Posts of your own](reddit/your-own-posts.md): New post on a project, the
-  subreddit's rules first, the same rules as Post, and the Posts tab.
+- [Posts of your own](reddit/your-own-posts.md): New post in the right
+  column of a project's Reddit, the subreddit's rules first, the same rules as
+  Post, and the Posts and Failed lists.
 - [Answering replies](reddit/answering-replies.md) — the Replies window on the
-  Comments tab: the replies under a sent comment, drafting and sending an
+  Sent tab: the replies under a sent comment, drafting and sending an
   answer from the same account under Post's rules, and how an answer is stored.
 - [How Reddit sees the account](reddit/account-health.md) — karma, account age,
   and whether a stranger can see the profile, read once a day and on request.

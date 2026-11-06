@@ -3,9 +3,11 @@ import { useNavigate } from "@tanstack/react-router"
 import { LayersIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { MediumModule, type MediumSearch } from "@/components/social/medium/medium-module"
+import { KeywordListSlotContext } from "@/components/social/keyword-list-slot"
+import { MediumModule } from "@/components/social/medium/medium-module"
 import { AppModule } from "@/components/social/phone-apps/app-module"
-import { RedditModule, type RedditSearch } from "@/components/social/reddit/reddit-module"
+import { RedditModule } from "@/components/social/reddit/reddit-module"
+import { RedditPostsModule } from "@/components/social/reddit/reddit-posts-module"
 import { LinkedinModule } from "@/components/social/linkedin/linkedin-module"
 import { XModule } from "@/components/social/x/x-module"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -14,42 +16,49 @@ import {
   getProjectErrorMessage,
   loadProject,
   pauseProject,
+  pauseProjectCommenting,
   pauseProjectNetwork,
   setProjectNetwork,
   type ProjectView,
 } from "@/lib/api/social/projects"
-import { MEDIUM_VIEWS, type MediumView } from "@/lib/social/medium/options"
+import { MEDIUM_COMMENT_VIEWS, MEDIUM_POST_VIEWS } from "@/lib/social/medium/options"
 import { NETWORK_NAMES, type Network } from "@/lib/social/networks"
-import { LINKEDIN_VIEWS, type LinkedinView } from "@/lib/social/linkedin/options"
-import { X_VIEWS, type XView } from "@/lib/social/x/options"
+import { LINKEDIN_COMMENT_VIEWS, LINKEDIN_POST_VIEWS } from "@/lib/social/linkedin/options"
+import { COMMENT_TABS, sideOf, type ProjectRouteSearch, type ProjectSearch } from "@/lib/social/project-address"
+import type { Side } from "@/lib/social/sides"
+import { X_COMMENT_VIEWS, X_POST_VIEWS } from "@/lib/social/x/options"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { KeywordRow } from "@/server/social/keywords"
 
 import { ArchiveItemPanel } from "@/components/archive/archive-item-panel"
 import { ArchiveItemsPanel } from "@/components/archive/archive-items-panel"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
-import type { ArchiveSearch } from "@/lib/archive/search"
 
 import { ProjectColumns } from "./project-columns"
 import { ProjectDialogs, type ProjectDialog } from "./project-dialogs"
 import { ProjectPanel } from "./project-panel"
 
-/**
- * What a project's page keeps in its address: the picked network and that
- * network's own, or `?archive=1` with the Archive's own tab and filters
- * (part 21).
- */
-export type ProjectSearch = RedditSearch &
-  Omit<MediumSearch, "list" | "window" | "tab"> &
-  Omit<ArchiveSearch, "project" | "open"> & {
-    network?: Network
-    tab?: Exclude<MediumView | XView | LinkedinView, "new">
-    archive?: "1"
-  }
+export type { ProjectSearch }
 
-/** The address's tab when it is one of this module's, else none. */
-function tabOf<T extends string>(tab: string | undefined, views: readonly T[]): Exclude<T, "new"> | undefined {
-  return tab && tab !== "new" && (views as readonly string[]).includes(tab) ? (tab as Exclude<T, "new">) : undefined
+/** The address's tab when it is one of this side's, else none. */
+function tabOf<T extends string>(tab: string | undefined, views: readonly T[]): T | undefined {
+  return tab && (views as readonly string[]).includes(tab) ? (tab as T) : undefined
+}
+
+/** Everything one network's side keeps in the address, cleared when another row is picked. */
+const LEAVE_SIDE: ProjectRouteSearch = {
+  side: undefined,
+  view: undefined,
+  comment: undefined,
+  replies: undefined,
+  window: undefined,
+  list: undefined,
+  tab: undefined,
+  open: undefined,
+  keyword: undefined,
+  post: undefined,
+  retry: undefined,
+  newPost: undefined,
 }
 
 /**
@@ -63,9 +72,18 @@ function tabOf<T extends string>(tab: string | undefined, views: readonly T[]): 
  * section on the left panel. If I click on reddit then the middle and right
  * panel will show reddit panels."
  *
- * The picked network is in the address (`?network=`), so a reload keeps it.
- * With none named, the project's first network is the one shown. Reddit's
- * module is `RedditModule`; Instagram and TikTok share `AppModule`.
+ * Tyler, 5 Nov 2026: "I think its better that commenting lives within its
+ * project. Make each network have its own card and inside that cade have 2
+ * rows, one for posts and one for commenting"
+ * (`workspace/tasks/Projects/commenting-dashboard.md`). So the left column
+ * holds a card per network, Posts opens your own posts on it and Commenting
+ * opens the posts its keywords found, with the keywords listed under that
+ * row. Instagram and TikTok have Posts alone. A link from one row's panels to
+ * a tab of the other row, such as a quote post's reply, switches the row.
+ *
+ * The picked network and row are in the address (`?network=`,
+ * `?side=commenting`), so a reload keeps them; `sideOf` reads the row. With
+ * no network named, the project's first network's Posts are shown.
  */
 export function ProjectsWorkspace({
   initialView,
@@ -77,29 +95,29 @@ export function ProjectsWorkspace({
 }: {
   initialView: ProjectView
   initialKeywords: KeywordRow[]
-  search: ProjectSearch
-  /** A post to open as the page opens, from a link. */
+  search: ProjectRouteSearch
+  /** A Reddit post to open on Commenting as the page opens, from a link. */
   openPostId: string | null
-  /**
-   * A failed comment's words, put back in the box for its post, with the
-   * account that tried, from Try again on the Comments tab. Never sent.
-   */
+  /** A failed comment's words, put back in the box for its post, with the account that tried. Never sent. */
   retry: { findId: string; text: string; accountId: string | null } | null
-  /** A failed post of your own, whose words New post opens with. */
+  /** A failed post of your own, or a Viral draft, whose words New post opens with. */
   newPostRetryId: string | null
 }) {
   const navigate = useNavigate()
   const projectId = initialView.project.id
   const [view, setView] = React.useState(initialView)
   const [dialog, setDialog] = React.useState<ProjectDialog>(null)
+  const [keywordSlot, setKeywordSlot] = React.useState<HTMLDivElement | null>(null)
+  const slot = React.useMemo(() => ({ element: keywordSlot }), [keywordSlot])
 
   const networks = view.project.networks
   const archive = search.archive === "1"
   const network = archive ? null : search.network && networks.includes(search.network) ? search.network : (networks[0] ?? null)
+  const side: Side = archive ? "posts" : sideOf(network, search)
   const guest = usePromoGuest()
 
   const setSearch = React.useCallback(
-    (patch: ProjectSearch, options: { replace?: boolean } = {}) =>
+    (patch: ProjectRouteSearch, options: { replace?: boolean } = {}) =>
       void navigate({
         to: ".",
         replace: options.replace,
@@ -126,10 +144,10 @@ export function ProjectsWorkspace({
       await refreshView()
       if (use) {
         // The network just added is the one wanted next.
-        setSearch({ network: changed, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined, tab: undefined, open: undefined })
+        setSearch({ ...LEAVE_SIDE, network: changed })
         toast.success(`${NETWORK_NAMES[changed]} added.`)
       } else {
-        if (changed === network) setSearch({ network: undefined, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined, tab: undefined, open: undefined })
+        if (changed === network) setSearch({ ...LEAVE_SIDE, network: undefined })
         toast.success(`${NETWORK_NAMES[changed]} taken off ${view.project.name}.`)
       }
     } catch (error) {
@@ -141,14 +159,16 @@ export function ProjectsWorkspace({
     <ProjectPanel
       view={view}
       selectedNetwork={network}
-      onSelectNetwork={(picked) => {
-        if (picked !== network) {
-          setSearch({ ...LEAVE_ARCHIVE, network: picked, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined, tab: undefined, open: undefined })
+      selectedSide={side}
+      keywordSlot={setKeywordSlot}
+      onSelect={(picked, pickedSide) => {
+        if (picked !== network || pickedSide !== side || archive) {
+          setSearch({ ...LEAVE_ARCHIVE, ...LEAVE_SIDE, network: picked, side: pickedSide === "commenting" ? "commenting" : undefined })
         }
       }}
       archiveSelected={archive}
       onSelectArchive={() => {
-        if (!archive) setSearch({ archive: "1", network: undefined, view: undefined, list: undefined, replies: undefined, comment: undefined, window: undefined, tab: undefined, open: undefined })
+        if (!archive) setSearch({ ...LEAVE_SIDE, archive: "1", network: undefined })
       }}
       onAddNetwork={(added) => changeNetwork(added, true)}
       onRemoveNetwork={(removed) => changeNetwork(removed, false)}
@@ -160,6 +180,19 @@ export function ProjectsWorkspace({
             paused
               ? `${NETWORK_NAMES[changed]} paused on ${view.project.name}. Its accounts do not post or warm up; the rest of the project runs.`
               : `${NETWORK_NAMES[changed]} resumed on ${view.project.name}.`
+          )
+        } catch (error) {
+          showErrorToast(getNetworkErrorMessage(error))
+        }
+      }}
+      onToggleCommentingPause={async (changed, paused) => {
+        try {
+          await pauseProjectCommenting(projectId, changed, paused)
+          await refreshView()
+          toast.success(
+            paused
+              ? `Commenting on ${NETWORK_NAMES[changed]} paused for ${view.project.name}. Comments wait; your own posts still go out.`
+              : `Commenting on ${NETWORK_NAMES[changed]} resumed for ${view.project.name}.`
           )
         } catch (error) {
           showErrorToast(getNetworkErrorMessage(error))
@@ -205,66 +238,82 @@ export function ProjectsWorkspace({
         projectId={projectId}
         left={left}
         dialogs={dialogs}
-        search={search}
+        search={{ view: search.view === "comments" ? "comments" : undefined, comment: search.comment, window: search.window }}
         onSearch={setSearch}
       />
     )
   }
 
-  if (network === "medium") {
-    return (
-      <MediumModule
-        projectId={projectId}
-        left={left}
-        dialogs={dialogs}
-        search={{ tab: tabOf(search.tab, MEDIUM_VIEWS), open: search.open, list: search.list === "failed" ? "failed" : undefined, window: search.window }}
-        onSearch={setSearch}
-        onProjectChanged={refreshView}
-      />
-    )
+  /**
+   * A module's address change, keeping the row it is on: a tab of the other
+   * row switches to that row, as a quote post's reply does from X's Posts.
+   */
+  function moduleSearch(on: "medium" | "x" | "linkedin") {
+    return (patch: { tab?: ProjectSearch["tab"]; open?: string; list?: "failed"; window?: "jobs"; keyword?: string }) => {
+      const toSide: Side = patch.tab ? (COMMENT_TABS[on].includes(patch.tab) ? "commenting" : "posts") : side
+      setSearch({
+        ...patch,
+        ...(toSide === side ? {} : { keyword: undefined, window: undefined }),
+        tab: patch.tab === "new" ? undefined : patch.tab,
+        side: toSide === "commenting" ? "commenting" : undefined,
+      })
+    }
   }
 
-  if (network === "x") {
-    return (
-      <XModule
-        projectId={projectId}
-        left={left}
-        dialogs={dialogs}
-        search={{ tab: tabOf(search.tab, X_VIEWS), open: search.open, list: search.list === "failed" ? "failed" : undefined, window: search.window }}
-        onSearch={setSearch}
-        onProjectChanged={refreshView}
-      />
-    )
+  let module: React.ReactNode = null
+  if (network === "medium" || network === "x" || network === "linkedin") {
+    const shared = {
+      side,
+      projectId,
+      left,
+      dialogs,
+      onSearch: moduleSearch(network),
+      onProjectChanged: refreshView,
+    }
+    const commenting = side === "commenting"
+    const own = { open: search.open, list: commenting ? (search.list === "failed" ? "failed" : undefined) : undefined, window: commenting ? search.window : undefined, keyword: commenting ? search.keyword : undefined } as const
+    module =
+      network === "medium" ? (
+        <MediumModule {...shared} search={{ ...own, tab: tabOf(search.tab, commenting ? MEDIUM_COMMENT_VIEWS : MEDIUM_POST_VIEWS) }} />
+      ) : network === "x" ? (
+        <XModule {...shared} search={{ ...own, tab: tabOf(search.tab, commenting ? X_COMMENT_VIEWS : X_POST_VIEWS) }} />
+      ) : (
+        <LinkedinModule {...shared} search={{ ...own, tab: tabOf(search.tab, commenting ? LINKEDIN_COMMENT_VIEWS : LINKEDIN_POST_VIEWS) }} />
+      )
+  } else if (network === "reddit") {
+    module =
+      side === "commenting" ? (
+        <RedditModule
+          view={view}
+          onView={setView}
+          initialKeywords={initialKeywords}
+          left={left}
+          dialogs={dialogs}
+          search={{ view: search.view, list: search.list === "failed" ? "failed" : undefined, replies: search.replies, comment: search.comment, window: search.window, keyword: search.keyword }}
+          onSearch={(patch) => {
+            // Sent's own list is "sent" or "failed"; only Failed is written down.
+            const { list, ...rest } = patch
+            setSearch({ ...rest, ...("list" in patch ? { list: list === "failed" ? "failed" : undefined } : {}), side: "commenting" })
+          }}
+          openPostId={openPostId}
+          retry={retry}
+        />
+      ) : (
+        <RedditPostsModule
+          view={view}
+          left={left}
+          dialogs={dialogs}
+          search={{ list: search.list === "failed" ? "failed" : undefined }}
+          onSearch={(patch) => setSearch({ ...patch, view: undefined })}
+          newPostRetryId={newPostRetryId}
+        />
+      )
   }
 
-  if (network === "linkedin") {
-    return (
-      <LinkedinModule
-        projectId={projectId}
-        left={left}
-        dialogs={dialogs}
-        search={{ tab: tabOf(search.tab, LINKEDIN_VIEWS), open: search.open, list: search.list === "failed" ? "failed" : undefined, window: search.window }}
-        onSearch={setSearch}
-        onProjectChanged={refreshView}
-      />
-    )
-  }
-
-  if (network === "reddit") {
-    return (
-      <RedditModule
-        view={view}
-        onView={setView}
-        initialKeywords={initialKeywords}
-        left={left}
-        dialogs={dialogs}
-        search={search}
-        onSearch={setSearch}
-        openPostId={openPostId}
-        retry={retry}
-        newPostRetryId={newPostRetryId}
-      />
-    )
+  if (module) {
+    // On Commenting, each network's keyword header draws its keywords as a
+    // list under the Commenting row of the left column (part 11).
+    return side === "commenting" ? <KeywordListSlotContext.Provider value={slot}>{module}</KeywordListSlotContext.Provider> : module
   }
 
   // No network yet: the middle and right columns say where to start.
@@ -275,12 +324,12 @@ export function ProjectsWorkspace({
         <>
           <DashboardCardTitleHeader icon={<LayersIcon className="size-4" />} title="No network yet" />
           <p className="p-4 text-sm text-muted-foreground">
-            This project uses no network yet. Press Add network in the left column, and that
-            network&apos;s keywords and posts open here.
+            This project uses no network yet. Press Add network in the left column, and your
+            posts on that network open here.
           </p>
         </>
       }
-      right={<p className="p-4 text-sm text-muted-foreground">A post and its comment box open here once a network is added.</p>}
+      right={<p className="p-4 text-sm text-muted-foreground">A post of your own opens here once a network is added.</p>}
       rightOpen={false}
       rightLabel="Show the right column"
     >

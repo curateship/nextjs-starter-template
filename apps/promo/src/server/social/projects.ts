@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNull, max, notInArray } from "drizzle-orm"
+import { and, asc, count, eq, isNull } from "drizzle-orm"
 
 import { projectBanCounts } from "@/server/bans/dashboard"
 import { uuid } from "@/server/auth/security"
@@ -14,7 +14,7 @@ import { isNetwork, NETWORK_NAMES, type Network } from "@/lib/social/networks"
 import { accountStatuses } from "./account-list"
 import { refuseMixedProject } from "./apart"
 import { jobCounts, type JobCounts } from "./jobs"
-import { shownFind } from "./keywords"
+import { readProjectPosts } from "./post-counts"
 import { readPostingState, type PostingState } from "./posting"
 import { promoMediumKeywords } from "./medium/schema"
 import { promoLinkedinKeywords } from "./linkedin/schema"
@@ -52,12 +52,13 @@ export type ProjectRow = {
   description: string
   /** Accounts in use; a retired account is not counted. */
   accountCount: number
-  keywordCount: number
-  /** Posts under its keywords neither skipped nor replied to: the To look at tab's count. */
-  waitingCount: number
-  /** Comments sent from its accounts that reached Reddit. */
-  commentCount: number
-  lastCommentAt: Date | null
+  /**
+   * Its own posts that went out, on every network. Tyler, 5 Nov 2026: Posts
+   * and Last post replace Keywords, To look at, Comments sent and Last
+   * comment, which belong to a network's Commenting now.
+   */
+  postCount: number
+  lastPostAt: Date | null
   /** Its accounts a counted ban hit in the last 30 days (Bans task, part 18). */
   bannedRecently: number
   updatedAt: Date
@@ -83,38 +84,11 @@ export async function listProjectRows(
     .from(promoAccounts)
     .where(and(eq(promoAccounts.userId, userId), isNull(promoAccounts.retiredAt)))
     .groupBy(promoAccounts.projectId)
-  const keywords = await db
-    .select({ projectId: promoKeywords.projectId, n: count() })
-    .from(promoKeywords)
-    .where(eq(promoKeywords.userId, userId))
-    .groupBy(promoKeywords.projectId)
-  const waiting = await db
-    .select({ projectId: promoKeywords.projectId, n: count() })
-    .from(promoFinds)
-    .innerJoin(promoKeywords, eq(promoKeywords.id, promoFinds.keywordId))
-    .where(
-      and(
-        eq(promoFinds.userId, userId),
-        notInArray(promoFinds.status, ["commented", "skipped"]),
-        shownFind(userId)
-      )
-    )
-    .groupBy(promoKeywords.projectId)
-  // Counted by the account that sent each comment, so a comment stays with
-  // the project its account is in now.
-  const comments = await db
-    .select({ projectId: promoAccounts.projectId, n: count(), last: max(promoComments.postedAt) })
-    .from(promoComments)
-    .innerJoin(promoAccounts, eq(promoAccounts.id, promoComments.accountId))
-    .where(and(eq(promoComments.userId, userId), eq(promoComments.status, "posted")))
-    .groupBy(promoAccounts.projectId)
+  const posts = await readProjectPosts(userId, db)
 
   const byProject = <T extends { projectId: string | null }>(rows: T[]) =>
     new Map(rows.filter((row) => row.projectId).map((row) => [row.projectId as string, row]))
   const accountsBy = byProject(accounts)
-  const keywordsBy = byProject(keywords)
-  const waitingBy = byProject(waiting)
-  const commentsBy = byProject(comments)
   const banned = await projectBanCounts(userId, db)
 
   return projects.map((project) => ({
@@ -122,10 +96,8 @@ export async function listProjectRows(
     name: project.name,
     description: project.description,
     accountCount: accountsBy.get(project.id)?.n ?? 0,
-    keywordCount: keywordsBy.get(project.id)?.n ?? 0,
-    waitingCount: waitingBy.get(project.id)?.n ?? 0,
-    commentCount: commentsBy.get(project.id)?.n ?? 0,
-    lastCommentAt: commentsBy.get(project.id)?.last ?? null,
+    postCount: posts.get(project.id)?.posts ?? 0,
+    lastPostAt: posts.get(project.id)?.lastPostAt ?? null,
     bannedRecently: banned.get(project.id) ?? 0,
     updatedAt: project.updatedAt,
   }))
@@ -395,15 +367,23 @@ export type ProjectView = {
     networks: Network[]
     /** The networks paused on their own while the rest of the project runs. */
     pausedNetworks: Network[]
+    /** The networks whose commenting is paused, from a network's Commenting row; their own posts still go out. */
+    pausedCommenting: Network[]
     /** Its accounts a counted ban hit in the last 30 days (Bans task, part 18). */
     bannedRecently: number
   }
   /**
-   * What waits on each network's row in the left column: strong stories and
-   * unanswered responses. Only Medium has one so far; the endpoint fills it
+   * What waits on each network's row of a network's Commenting: strong posts
+   * and unanswered replies. The endpoint fills it
    * (`src/lib/api/social/projects.ts`), so this file needs no network's own code.
    */
   networkCounts?: Partial<Record<Network, number>>
+  /**
+   * What needs you on each network's row of the project's own dashboard:
+   * failed posts and drafts not sent yet (`readPostCounts`). The endpoint
+   * fills it too.
+   */
+  postCounts?: Partial<Record<Network, number>>
   /**
    * The project's accounts, best to comment from first: awake with room left
    * in today's pace, then awake with none, then asleep, then warming up, then
@@ -478,6 +458,7 @@ export async function readProjectView(
       pausedAt: project.pausedAt,
       networks: usedNetworks(project),
       pausedNetworks: project.pausedNetworks.filter(isNetwork),
+      pausedCommenting: project.pausedCommenting.filter(isNetwork),
       bannedRecently: (await projectBanCounts(userId, db)).get(project.id) ?? 0,
     },
     accounts: accounts.map(({ rank: _rank, ...account }) => account),

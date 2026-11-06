@@ -1,6 +1,6 @@
 # The Jobs window
 
-**Jobs**, a button in the middle column's header on a project's Reddit module,
+**Jobs**, a button in the middle column's header on the network's Commenting row,
 opens a window that shows whether the browser program is running, and lists
 every job it is doing, waiting to do, or did lately, for every project. The
 button shows how many are running or waiting. **See the jobs**, in the red line
@@ -80,7 +80,7 @@ deleted post does the same.
 - **Try again** puts a failed job back on the queue for a fresh three goes. It
   is offered only for jobs that read. A comment, an answer, a post of your own,
   a delete or an edit may have reached Reddit before it failed, so those are
-  tried again from the Comments tab's Failed list, where the words go back in
+  tried again from the Sent tab's Failed list on Commenting, where the words go back in
   the box and Post still needs a press.
 
 ## Where the code is

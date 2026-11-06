@@ -27,7 +27,8 @@ import {
 } from "@/lib/api/social/linkedin"
 import { getProjectErrorMessage, putAccountInProject, takeAccountOutOfProject } from "@/lib/api/social/projects"
 import { useWideScreen } from "@/lib/layout/wide-screen"
-import { LINKEDIN_VIEW_WORDS, LINKEDIN_VIEWS, type LinkedinView } from "@/lib/social/linkedin/options"
+import { LINKEDIN_COMMENT_VIEWS, LINKEDIN_POST_VIEWS, LINKEDIN_VIEW_WORDS, type LinkedinView } from "@/lib/social/linkedin/options"
+import type { Side } from "@/lib/social/sides"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -53,14 +54,16 @@ const SEARCH_WAIT_MS = 300
 
 /**
  * What the LinkedIn module keeps in the address: its tab (`?tab=`, none is
- * To look at), the record open in the right column (`?open=<id>`), the
- * Comments tab's Failed list (`?list=failed`), and the Jobs window.
+ * the side's first tab), the record open in the right column (`?open=<id>`),
+ * the Sent tab's Failed list (`?list=failed`), the Jobs window, and on the
+ * Commenting the picked keyword (`?keyword=<id>`).
  */
 export type LinkedinSearch = {
-  tab?: Exclude<LinkedinView, "new">
+  tab?: LinkedinView
   open?: string
   list?: "failed"
   window?: "jobs"
+  keyword?: string
 }
 
 type FindTab = "new" | "commented" | "skipped"
@@ -70,25 +73,30 @@ function isFindTab(tab: LinkedinView): tab is FindTab {
 }
 
 /**
- * LinkedIn as a module on a project's dashboard
- * (`workspace/tasks/LinkedIn/01-linkedin-features.md`), what fills the
- * middle and right columns when LinkedIn is picked in the project's left
- * column. Built as X's module is.
+ * LinkedIn as a module (`workspace/tasks/LinkedIn/01-linkedin-features.md`):
+ * what fills the middle and right columns when LinkedIn is picked in a left
+ * column. Built as X's module is. It draws one of two sides
+ * (`workspace/tasks/Projects/commenting-dashboard.md`):
  *
- * The middle column is the keyword row (parts 10 to 17), the notices about
- * the search accounts that do LinkedIn's reading (part 3) and the accounts
- * LinkedIn is asking for a code (part 4), and seven tabs: To look at,
- * Commented and Skipped are the posts the keywords and feeds found; Today is
- * what is worth doing now (part 21); Comments is what went out and what
- * failed (parts 43 to 45); Posts is the accounts' own posts, reposts and
- * newsletter issues (parts 28 to 38); and People is connection requests and
- * profile viewers (parts 39 to 41). The right column is whatever is open.
+ * - **posts**, on a project's dashboard: Posts, the accounts' own posts,
+ *   reposts and newsletter issues (parts 28 to 38).
+ * - **commenting**, on a network's Commenting: the keyword row (parts 10 to
+ *   17), the notices about the search accounts that do LinkedIn's reading
+ *   (part 3) and the accounts LinkedIn is asking for a code (part 4), then
+ *   To look at, Replied (`commented`) and Skipped, the posts the keywords and
+ *   feeds found; Today (part 21); Sent (`comments`), what went out and what
+ *   failed (parts 43 to 45); and People, connection requests and profile
+ *   viewers (parts 39 to 41), since Connect is pressed on a sent comment.
+ *   With no post picked, the first one opens.
+ *
+ * The right column is whatever is open.
  *
  * Every comment, post, edit, delete, connection and accept is a job a person
  * pressed for, run once in the account's own browser or on its phone, in its
  * workday. A guest sent from Project does not work LinkedIn.
  */
 export function LinkedinModule({
+  side,
   projectId,
   left,
   dialogs,
@@ -96,6 +104,7 @@ export function LinkedinModule({
   onSearch,
   onProjectChanged,
 }: {
+  side: Side
   projectId: string
   left: React.ReactNode
   dialogs: React.ReactNode
@@ -106,13 +115,19 @@ export function LinkedinModule({
 }) {
   const desktop = useWideScreen()
   const guest = usePromoGuest()
-  const tab: LinkedinView = search.tab && (LINKEDIN_VIEWS as readonly string[]).includes(search.tab) ? search.tab : "new"
+  const views: readonly LinkedinView[] = side === "commenting" ? LINKEDIN_COMMENT_VIEWS : LINKEDIN_POST_VIEWS
+  const firstTab = views[0]
+  const tab: LinkedinView = search.tab && views.includes(search.tab) ? search.tab : firstTab
+  // Commenting leaves To look at out of the address. Your posts always name
+  // their tab, so an old address with an open record and no tab can only be
+  // a post found by search, and the project's page sends it to Commenting.
+  const dropTab = (item: string) => side === "commenting" && item === firstTab
   const open = search.open ?? null
   const commentsList = search.list === "failed" ? "failed" : "sent"
 
   const [view, setView] = React.useState<LinkedinModuleView | null>(null)
   const [viewError, setViewError] = React.useState<string | null>(null)
-  const [keywordId, setKeywordId] = React.useState<string | null>(null)
+  const keywordId = search.keyword ?? null
   const [speaker, setSpeaker] = React.useState<LinkedinSpeaker | null>(null)
   const [typed, setTyped] = React.useState("")
   const [words, setWords] = React.useState("")
@@ -177,7 +192,11 @@ export function LinkedinModule({
     }
   }, [guest, keywordId, listKey, projectId, commentsList, tab, words])
 
-  const findOpen = isFindTab(tab) || tab === "today" ? open : null
+  // With no post picked, the first one in the list opens, so the right column
+  // is never empty (part 14). Worked out here rather than written to the
+  // address, so a narrow screen stays on the list nobody pressed.
+  const firstFind = isFindTab(tab) && list.key === listKey ? (list.finds[0]?.id ?? null) : null
+  const findOpen = isFindTab(tab) ? (open ?? firstFind) : tab === "today" ? open : null
   const speakerId = speaker?.accountId ?? null
   // What you said before is the picked account's, so the post is read again for it.
   const detailKey = `${findOpen ?? ""}|${speakerId ?? ""}`
@@ -235,7 +254,7 @@ export function LinkedinModule({
   const counts = view?.counts
 
   function openRecord(id: string | null, nextTab: LinkedinView = tab) {
-    onSearch({ tab: nextTab === "new" ? undefined : nextTab, open: id ?? undefined })
+    onSearch({ tab: dropTab(nextTab) ? undefined : nextTab, open: id ?? undefined })
   }
 
   async function skip(findIds: string[]) {
@@ -278,7 +297,7 @@ export function LinkedinModule({
 
   const tabs = (
     <div role="tablist" aria-label="Which list" className="flex shrink-0 flex-wrap items-end gap-x-4 border-b px-3">
-      {LINKEDIN_VIEWS.map((item) => {
+      {views.map((item) => {
         const count =
           item === "new"
             ? counts?.toLook
@@ -299,7 +318,7 @@ export function LinkedinModule({
             type="button"
             role="tab"
             aria-selected={tab === item}
-            onClick={() => onSearch({ tab: item === "new" ? undefined : item, open: undefined, list: undefined })}
+            onClick={() => onSearch({ tab: dropTab(item) ? undefined : item, open: undefined, list: undefined })}
             className={cn(
               "-mb-px flex h-11 items-center gap-1.5 border-b-2 text-sm whitespace-nowrap focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
               tab === item ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
@@ -401,7 +420,7 @@ export function LinkedinModule({
         finds={list.key.startsWith(`${tab}|`) ? list.finds : []}
         loading={listLoading}
         error={list.error}
-        selectedId={open}
+        selectedId={findOpen}
         everything={keywordId === null}
         hasKeywords={Boolean(view?.keywords.length)}
         hasSearcher={view ? view.searchers.length > 0 : true}
@@ -522,6 +541,18 @@ export function LinkedinModule({
 
   const middle = guest ? (
     <p className="p-4 text-sm text-muted-foreground">LinkedIn is worked by the project&apos;s owner. Open Reddit, Instagram or TikTok in the left column.</p>
+  ) : side === "posts" ? (
+    <>
+      {viewError ? <p className="border-b px-3 py-2 text-sm text-destructive">{viewError}</p> : null}
+      {view?.paused ? (
+        <p className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-sm">
+          <PauseIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          LinkedIn is paused on this project. Nothing is sent or warmed up until it is resumed in the left column.
+        </p>
+      ) : null}
+      {tabs}
+      <div className="flex min-h-0 flex-1 flex-col">{middleBody}</div>
+    </>
   ) : (
     <>
       <LinkedinKeywords
@@ -531,8 +562,7 @@ export function LinkedinModule({
         selectedId={keywordId}
         search={isFindTab(tab) ? <LinkedinFindSearch value={typed} onChange={setTyped} /> : null}
         onSelect={(next) => {
-          setKeywordId(next)
-          if (!isFindTab(tab)) onSearch({ tab: undefined, open: undefined, list: undefined })
+          onSearch({ keyword: next ?? undefined, open: undefined, ...(isFindTab(tab) ? {} : { tab: undefined, list: undefined }) })
         }}
         onChanged={refreshAll}
         onOpenJobs={() => onSearch({ window: "jobs" })}
@@ -553,13 +583,15 @@ export function LinkedinModule({
       rightLabel="Show the right column"
     >
       {dialogs}
-      <JobsWindow
-        open={search.window === "jobs" && !guest}
-        onClose={() => {
-          onSearch({ window: undefined })
-          void refreshAll()
-        }}
-      />
+      {side === "commenting" ? (
+        <JobsWindow
+          open={search.window === "jobs" && !guest}
+          onClose={() => {
+            onSearch({ window: undefined })
+            void refreshAll()
+          }}
+        />
+      ) : null}
     </ProjectColumns>
   )
 }

@@ -9,7 +9,8 @@ import { createProject } from "@/server/social/projects"
 import { localMinutes } from "@/lib/social/waking"
 
 import { readBehaviour, saveBehaviour, type BehaviourSettings } from "./behaviour"
-import { setAccountsPaused, setProjectPaused } from "./pause"
+import { setAccountsPaused, setProjectCommentingPaused, setProjectPaused } from "./pause"
+import { queueOwnPost } from "./reddit/own-posts"
 import { cancelWaitingComment, queueComment, readPostingState } from "./posting"
 import { promoAccounts, promoComments, promoFinds, promoJobs, promoKeywords } from "./schema"
 
@@ -231,6 +232,19 @@ describe("pressing Post", () => {
 
     await setProjectPaused(userId, projectId, false, db, now)
     await expect(postAs(0)).resolves.toMatchObject({ runAfter: null })
+  })
+
+  it("refuses a comment while commenting on Reddit is paused on the project, and a post of your own still goes", async () => {
+    const projectId = await createProject(userId, "Quiet one", db, ["reddit"])
+    await db.update(promoAccounts).set({ projectId }).where(eq(promoAccounts.id, accountId))
+    await setProjectCommentingPaused(userId, projectId, "reddit", true, db, now)
+    await expect(postAs(0)).rejects.toThrow("Commenting on Reddit is paused on this project")
+    await expect(
+      queueOwnPost(userId, projectId, { accountId, subreddit: "SaaS", title: "Mine", body: "" }, db, now)
+    ).resolves.toMatchObject({ runAfter: null })
+
+    await setProjectCommentingPaused(userId, projectId, "reddit", false, db, now)
+    await expect(postAs(1)).resolves.toMatchObject({ runAfter: null })
   })
 
   it("never pauses a retired account, and says it skipped it", async () => {

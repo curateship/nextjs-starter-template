@@ -20,7 +20,7 @@ connection request from the same account.
   important and a throwaway account in either direction, and to someone an
   account of the other group already asked.
 
-The Comments tab shows each comment's request: waiting, sent or failed.
+The Sent tab on Commenting shows each comment's request: waiting, sent or failed.
 
 ## Requests waiting on the accounts
 

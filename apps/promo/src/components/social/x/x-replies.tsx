@@ -36,17 +36,17 @@ const rowClass = (selected: boolean) =>
   )
 
 /**
- * The Replies tab's list (parts 37 to 40): every reply, quote and answer this
- * project's accounts sent, newest first, with its views, likes and replies
- * and whether it is still up, or under Failed the ones that did not go out.
- * The numbers are null until a check reads them, and say so rather than 0.
- * Under the sent ones are the posts that named the project's accounts
- * (part 39), each with Answer.
+ * The Sent tab's list on a network's Commenting (parts 37, 38 and 40):
+ * every reply, quote and answer this project's accounts sent, newest first,
+ * with its views, likes and replies and whether it is still up, or under
+ * Failed the ones that did not go out. The numbers are null until a check
+ * reads them, and say so rather than 0. The posts naming the accounts are on
+ * the project's own dashboard (`XMentionsList`), since that is where people
+ * answer your posts.
  */
 export function XRepliesList({
   list,
   rows,
-  mentions,
   loading,
   error,
   selectedId,
@@ -57,7 +57,6 @@ export function XRepliesList({
 }: {
   list: "sent" | "failed"
   rows: XReplyView[]
-  mentions: XMentionView[]
   loading: boolean
   error: string | null
   selectedId: string | null
@@ -158,48 +157,75 @@ export function XRepliesList({
                   : "Nothing sent from this project on X yet. Reply to a post and it shows here."}
               </p>
             )}
-            {list === "sent" ? (
-              <section aria-label="Posts naming your accounts" className="grid gap-1 border-t pt-3">
-                <h3 className="flex items-center gap-2 px-3 text-xs font-medium">
-                  <AtSignIcon className="size-3.5" aria-hidden="true" />
-                  Posts naming your accounts
-                  <span className="font-normal text-muted-foreground tabular-nums">{mentions.length}</span>
-                </h3>
-                {mentions.length ? (
-                  mentions.map((mention) => (
-                    <button
-                      key={mention.id}
-                      type="button"
-                      onClick={() => onSelect(mention.id)}
-                      aria-current={mention.id === selectedId || undefined}
-                      className={rowClass(mention.id === selectedId)}
-                    >
-                      <span className="grid min-w-0 flex-1 gap-0.5">
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          <span className="shrink-0 rounded-md bg-muted px-1.5 text-xs text-muted-foreground">Mention</span>
-                          <span className="truncate text-sm">{mention.text}</span>
-                        </span>
-                        <span className="truncate text-xs text-muted-foreground">
-                          {[
-                            `@${mention.handle} named @${mention.account.handle}`,
-                            mention.postedAt ? postedDateText(new Date(mention.postedAt)) : null,
-                            mention.answered ? "Answered" : "Not answered",
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </span>
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <p className="px-3 text-sm text-muted-foreground">No post has named your accounts yet. They are read with the daily check.</p>
-                )}
-              </section>
-            ) : null}
           </div>
         )}
       </ScrollArea>
     </div>
+  )
+}
+
+/**
+ * The Replies tab on the project's dashboard (part 39, and part 6 of
+ * `workspace/tasks/Projects/commenting-dashboard.md`): the posts that named
+ * the project's accounts, which is where people answer your own posts, each
+ * opening on the right with Answer.
+ */
+export function XMentionsList({
+  mentions,
+  loading,
+  error,
+  selectedId,
+  onSelect,
+  onRetry,
+}: {
+  mentions: XMentionView[]
+  loading: boolean
+  error: string | null
+  selectedId: string | null
+  onSelect: (id: string) => void
+  onRetry: () => void
+}) {
+  return (
+    <ScrollArea className="min-h-0 flex-1">
+      {error ? (
+        <XListError what="replies" error={error} onRetry={onRetry} />
+      ) : loading && !mentions.length ? (
+        <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+          <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+          Reading the posts naming your accounts
+        </p>
+      ) : mentions.length ? (
+        <div className="py-1.5">
+          {mentions.map((mention) => (
+            <button
+              key={mention.id}
+              type="button"
+              onClick={() => onSelect(mention.id)}
+              aria-current={mention.id === selectedId || undefined}
+              className={rowClass(mention.id === selectedId)}
+            >
+              <AtSignIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="grid min-w-0 flex-1 gap-0.5">
+                <span className="truncate text-sm">{mention.text}</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  {[
+                    `@${mention.handle} named @${mention.account.handle}`,
+                    mention.postedAt ? postedDateText(new Date(mention.postedAt)) : null,
+                    mention.answered ? "Answered" : "Not answered",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="p-4 text-sm text-muted-foreground">
+          Nobody has replied to your accounts or named them yet. Replies are read with the daily check.
+        </p>
+      )}
+    </ScrollArea>
   )
 }
 

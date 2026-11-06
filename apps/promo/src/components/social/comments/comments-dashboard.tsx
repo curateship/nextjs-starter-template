@@ -39,7 +39,6 @@ import {
   type CommentRow,
   type FailureRow,
 } from "@/lib/api/social/comments"
-import { loadOwnPosts, type OwnPostRow } from "@/lib/api/social/reddit/own-posts"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
@@ -58,14 +57,13 @@ import { IN_COLUMN_TABLE } from "../projects/project-columns"
 import { CommentRepliesDialog } from "./comment-replies-dialog"
 import { EditCommentDialog } from "./edit-comment-dialog"
 import { FailedTable } from "./failed-table"
-import { PostsTable } from "./posts-table"
 
 /** How often to ask again while a check, a delete or an edit is waiting or running. */
 const POLL_MS = 2_000
 
-export type CommentsTab = "sent" | "failed" | "posts"
+export type CommentsTab = "sent" | "failed"
 
-type CommentsPage = { comments: CommentRow[]; failures: FailureRow[]; posts: OwnPostRow[] }
+type CommentsPage = { comments: CommentRow[]; failures: FailureRow[] }
 
 type SortColumn = "post" | "account" | "subreddit" | "sent" | "upvotes" | "replies" | "state"
 
@@ -149,11 +147,13 @@ function removalsBySubreddit(rows: CommentRow[]): Map<string, { removed: number;
 }
 
 /**
- * The Comments tab in a project's Reddit module: every comment the project's
- * accounts sent, and what became of it, with posts of your own and what did
- * not go out on tabs of their own. Tyler, 14 Oct 2026: "Today and comments can
- * be part of the views tabs". A comment counts toward the project its account
- * is in now, the same rule the Projects table counts by.
+ * The Sent tab of Reddit on a network's Commenting: every comment the
+ * project's accounts sent, and what became of it, with what did not go out on
+ * a list of its own. Tyler, 14 Oct 2026: "Today and comments can be part of
+ * the views tabs". Your own posts, and the posts that did not go out, are on
+ * the project's dashboard since 5 Nov 2026 (part 9 of
+ * `workspace/tasks/Projects/commenting-dashboard.md`). A comment counts toward
+ * the project its account is in now.
  *
  * Sent: upvotes, how many replies sit under it, whether it is still there and
  * who sent it. A reading needs the browser, so Check writes a job and the
@@ -161,12 +161,12 @@ function removalsBySubreddit(rows: CommentRow[]): Map<string, { removed: number;
  * checked says so rather than showing 0 replies. Edit and Delete change it on
  * Reddit from the account that sent it.
  *
- * Failed: comments, answers and posts that never reached Reddit, read off
- * their jobs, with Try again, which puts the words back in the box and never
- * sends them by itself.
+ * Failed: comments and answers that never reached Reddit, read off their
+ * jobs, with Try again, which puts the words back in the box and never sends
+ * them by itself.
  *
- * The lists are read when the tab opens. In the address, `?list=` picks Posts
- * or Failed, `?replies=<id>` opens a comment's Replies window and
+ * The lists are read when the tab opens. In the address, `?list=failed` picks
+ * Failed, `?replies=<id>` opens a comment's Replies window and
  * `?comment=<id>` shows that one comment, which is where the bell's reply and
  * removal notices lead.
  */
@@ -203,14 +203,14 @@ export function CommentsDashboard({
 
   const refresh = React.useCallback(
     (): Promise<void> =>
-      Promise.all([loadComments(projectId), loadFailures(projectId), loadOwnPosts(projectId)]).then(
-        ([comments, failures, posts]) => {
+      Promise.all([loadComments(projectId), loadFailures(projectId)]).then(
+        ([comments, failures]) => {
           // Every list is read whole and narrowed to this project here: the
           // lists are one person's, and each row already says its project.
+          // A failed post of your own is listed beside your posts instead.
           setLists({
             comments: comments.filter((row) => row.project?.id === projectId),
-            failures: failures.filter((row) => row.projectId === projectId),
-            posts: posts.filter((row) => row.project?.id === projectId),
+            failures: failures.filter((row) => row.projectId === projectId && row.kind !== "submit"),
           })
           setError(null)
         },
@@ -249,10 +249,6 @@ export function CommentsDashboard({
           Sent
           <TabsCount>{lists.comments.length}</TabsCount>
         </TabsTrigger>
-        <TabsTrigger value="posts" aria-label={`Posts of your own, ${lists.posts.length}`}>
-          Posts
-          <TabsCount>{lists.posts.length}</TabsCount>
-        </TabsTrigger>
         <TabsTrigger value="failed" aria-label={`Failed, ${lists.failures.length}`}>
           Failed
           <TabsCount>{lists.failures.length}</TabsCount>
@@ -260,8 +256,6 @@ export function CommentsDashboard({
       </TabsList>
     </Tabs>
   )
-
-  if (list === "posts") return <PostsTable tabs={tabs} rows={lists.posts} />
 
   if (list === "failed") {
     return (

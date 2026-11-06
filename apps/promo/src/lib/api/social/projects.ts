@@ -21,7 +21,9 @@ import {
   type ProjectRow,
   type ProjectView,
 } from "@/server/social/projects"
-import { setProjectNetworkPaused, setProjectPaused } from "@/server/social/pause"
+import { setProjectCommentingPaused, setProjectNetworkPaused, setProjectPaused } from "@/server/social/pause"
+import { readPostCounts } from "@/server/social/post-counts"
+import { readToday } from "@/server/social/today"
 import { readMediumCounts } from "@/server/social/medium/module"
 import { readLinkedinCounts } from "@/server/social/linkedin/module"
 import { readXCounts } from "@/server/social/x/module"
@@ -104,7 +106,12 @@ const viewFn = createServerFn({ method: "GET" })
     const actor = await actorFor(context.caller, data.projectId)
     const view = await readProjectView(actor.userId, data.projectId)
     if (actor.guest) return guestProjectView(view, data.projectId)
+    // What waits on Commenting's rows: strong posts and replies to answer.
     const networkCounts: ProjectView["networkCounts"] = {}
+    if (view.project.networks.includes("reddit")) {
+      const today = await readToday(actor.userId, data.projectId)
+      networkCounts.reddit = today.posts.length + today.replies.reduce((sum, reply) => sum + reply.toAnswer, 0)
+    }
     if (view.project.networks.includes("medium")) {
       const counts = await readMediumCounts(actor.userId, data.projectId)
       networkCounts.medium = counts.strong + counts.toAnswer
@@ -117,7 +124,9 @@ const viewFn = createServerFn({ method: "GET" })
       const counts = await readLinkedinCounts(actor.userId, data.projectId)
       networkCounts.linkedin = counts.strong + counts.toAnswer + counts.invites
     }
-    return Object.keys(networkCounts).length ? { ...view, networkCounts } : view
+    // What needs you on the project's own rows: failed posts and drafts.
+    const postCounts = await readPostCounts(actor.userId, data.projectId, view.project.networks)
+    return { ...view, networkCounts, postCounts }
   })
 
 /** One project with its accounts, best to comment from first, and what the queue is doing. */
@@ -212,6 +221,22 @@ const pauseNetworkFn = createServerFn({ method: "POST" })
  */
 export function pauseProjectNetwork(projectId: string, network: Network, paused: boolean) {
   return pauseNetworkFn({ data: { projectId, network, paused } })
+}
+
+const pauseCommentingFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: z.string().min(1), network: z.enum(NETWORKS), paused: z.boolean() }))
+  .handler(async ({ context, data }): Promise<void> => {
+    await setProjectCommentingPaused(context.user.id, data.projectId, data.network, data.paused)
+  })
+
+/**
+ * Pauses commenting on one network of a project, or with `paused` false
+ * resumes it, from a network's Commenting row. Comments, answers and
+ * connection requests wait; the project's own posts keep going out.
+ */
+export function pauseProjectCommenting(projectId: string, network: Network, paused: boolean) {
+  return pauseCommentingFn({ data: { projectId, network, paused } })
 }
 
 const threadsFn = createServerFn({ method: "GET" })

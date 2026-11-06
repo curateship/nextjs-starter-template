@@ -43,13 +43,13 @@ import { FIT_BAND_LABELS, FIT_BANDS, type FitBand } from "@/server/social/reddit
  * the same day, so posts under To look at can still be skipped several at once.
  */
 
-/** The tabs across the top: which stored status each of posts means, then Today and Comments. */
+/** The tabs across the top: which stored status each of posts means, then Today and Sent, the comments that went out. */
 const TABS: Array<{ id: RedditView; label: string }> = [
   { id: "new", label: "To look at" },
   { id: "commented", label: "Replied" },
   { id: "skipped", label: "Skipped" },
   { id: "today", label: "Today" },
-  { id: "comments", label: "Comments" },
+  { id: "comments", label: "Sent" },
 ]
 
 /** Each band's dot. The band's name is always written beside it. */

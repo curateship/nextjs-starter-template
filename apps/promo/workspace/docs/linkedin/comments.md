@@ -29,7 +29,7 @@ comments through a search account.
 ## The AI copies the best comments
 
 The account's comments that got the most reactions are given to the AI as
-examples of its voice. Each sent comment has a switch on the Comments tab,
+examples of its voice. Each sent comment has a switch on the Sent tab,
 "Keep out of the AI's examples". Help-only comments, answers and deleted
 comments are never examples.
 
@@ -69,7 +69,7 @@ the post for the same words from an earlier try, back to when it was first
 pressed, and reports that one as sent instead of typing again. After the
 press, every failure says "may already be on LinkedIn".
 
-## The Comments tab
+## The Sent tab
 
 Every comment, reply and answer the project's accounts sent, newest first,
 and a Failed list. Each sent one is read again once a day by a search

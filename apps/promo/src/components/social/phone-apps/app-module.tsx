@@ -18,7 +18,6 @@ import {
 } from "@/lib/api/social/phone-apps"
 import { getProjectErrorMessage, putAccountInProject, takeAccountOutOfProject } from "@/lib/api/social/projects"
 import { useWideScreen } from "@/lib/layout/wide-screen"
-import type { RedditView } from "@/lib/social/reddit/options"
 import { handleWords, NETWORK_NAMES, type PhoneAppNetwork } from "@/lib/social/networks"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -32,8 +31,8 @@ const POLL_MS = 2_000
 
 /** What the module keeps in the address: its tab, an open comment, and the Jobs window. */
 export type AppSearch = {
-  /** "comments" is the Comments tab; anything else, Reddit's tabs included, is Posts. */
-  view?: RedditView
+  /** "comments" is the Comments tab, the comments under your own posts; none is Posts. */
+  view?: "comments"
   comment?: string
   window?: "jobs"
 }

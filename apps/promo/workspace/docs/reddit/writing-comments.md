@@ -118,7 +118,7 @@ their substance, because they answered other posts.
   words change. Those come before ones the AI wrote and you sent as they were,
   then the newest.
 - **A weak one can be left out.** Each row of the
-  [Comments tab](sent-comments.md) has a Voice example switch. Switch one
+  [Sent tab](sent-comments.md) has a Voice example switch. Switch one
   off and the next draft stops using it. The comment itself is kept. "Next
   draft" beside the switch marks the ones the next draft will carry.
 - **The voice still counts.** Before anything has been sent there are no
@@ -126,7 +126,7 @@ their substance, because they answered other posts.
   examples sit beside the voice's words rather than replacing them.
 
 The switch used to be a tick on Settings → Reddit account, because there was no
-screen of sent comments. It moved to the Comments tab when that was built,
+screen of sent comments. It moved to the Comments tab when that was built, now the Sent tab on Commenting,
 and the settings card was deleted, so there is one place to change it.
 
 ### The subreddit's own rules

@@ -39,15 +39,18 @@ picked on 22 Oct 2026.
 
 ## The layout
 
-- **The middle column** is the keyword row, the notices, then seven tabs: To
-  look at, Commented, Skipped, Today, Comments, Posts and People. The tab is
-  in the address as `?tab=` (none is To look at), the Comments tab's Failed
-  list as `?list=failed`, and whatever is open in the right column as
-  `?open=<id>`.
+- **Two rows of LinkedIn's card since 5 Nov 2026**
+  ([Commenting inside a project](../commenting.md)). The
+  Posts row has Posts. The Commenting row has the keywords under it in the left
+  column, then in the middle the keyword row's header, the notices and six
+  tabs: To look at, Replied (`commented`), Skipped, Today, Sent (`comments`)
+  and People. The tab is in the address as `?tab=` (none is To look at on
+  Commenting, Posts on Posts), Sent's Failed list as `?list=failed`,
+  and whatever is open in the right column as `?open=<id>`.
 - **The right column** shows what is open: a post and the comment being
   written on it, a sent comment, or a post of your own being written. On the
   People tab it says that everything there happens in the middle column.
-- **The LinkedIn row in the left column** carries a count: the strong posts
+- **The LinkedIn row in the project's left column, under Commenting** carries a count: the strong posts
   waiting, the replies nobody has answered, and the connection requests
   waiting. It has its own pause button, as every network's row does.
 - **The notices** say when LinkedIn is paused on the project, when there is

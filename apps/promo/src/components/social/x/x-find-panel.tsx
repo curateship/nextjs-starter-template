@@ -161,7 +161,7 @@ export function XFindPanel({
       return
     }
     if (!account) {
-      showErrorToast(`Pick an account beside ${kind === "reply" ? "Reply as" : "Quote as"}.`)
+      showErrorToast(`Pick an account beside ${kind === "reply" ? "Comment as" : "Quote as"}.`)
       return
     }
     if (length > limit) {
@@ -491,7 +491,7 @@ export function XFindPanel({
 
         <div className="flex min-w-0 items-center gap-2">
           <Hint label={account ? xPaceLine(account.posting) : null}>
-            <span className="shrink-0 text-xs text-muted-foreground">{kind === "reply" ? "Reply as" : "Quote as"}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">{kind === "reply" ? "Comment as" : "Quote as"}</span>
           </Hint>
           {accountPicker}
         </div>

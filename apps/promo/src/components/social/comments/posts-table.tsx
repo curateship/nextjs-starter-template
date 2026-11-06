@@ -43,11 +43,13 @@ function openOnReddit(url: string) {
 }
 
 /**
- * Every post of your own that landed, newest first. A post is read on Reddit
- * itself, so a row opens it there. There is nothing to do to several at once,
- * so the table has no ticks.
+ * Every post of your own that landed, newest first, on Reddit's Posts list of
+ * the project's dashboard. A post is read on Reddit itself, so a row opens it
+ * there. There is nothing to do to several at once, so the table has no
+ * ticks. `controls` holds New post, which puts the cursor in the right
+ * column's New post.
  */
-export function PostsTable({ tabs, rows }: { tabs: React.ReactNode; rows: OwnPostRow[] }) {
+export function PostsTable({ tabs, rows, controls }: { tabs: React.ReactNode; rows: OwnPostRow[]; controls?: React.ReactNode }) {
   const { rowsPerPage } = usePromoShell()
   const { sort, direction, toggleSort } = useTableSort<SortColumn>("sent", "desc")
   const [page, setPage] = React.useState(1)
@@ -67,6 +69,7 @@ export function PostsTable({ tabs, rows }: { tabs: React.ReactNode; rows: OwnPos
       fillHeight
       className={IN_COLUMN_TABLE}
       tabs={tabs}
+      controls={controls}
       count={rows.length}
       header={
         <SortableTableHeader
@@ -78,7 +81,7 @@ export function PostsTable({ tabs, rows }: { tabs: React.ReactNode; rows: OwnPos
         />
       }
       isEmpty={rows.length === 0}
-      emptyText="No posts of your own from this project yet."
+      emptyText="No posts of your own yet. Press New post to write one."
       emptyColSpan={COLUMNS.length + 1}
       footer={{
         type: "pagination",

@@ -67,10 +67,16 @@ again.
 
 ## What a guest can and can't do
 
-The guest page is the admin's project dashboard in a frame of its own: the
-project's name, "Working as Sam via Project", and a Saving… sign. There is no
-left menu and no way to another project. Hidden for a guest, and refused by
-the server whatever the screen shows:
+The guest page, `/guest/promo/<project id>`, is the admin's project
+dashboard in a frame of its own: the project's name, "Working as Sam via
+Project", and a Saving… sign. Each network's card has its Posts and
+Commenting rows, as for the owner
+([Commenting inside a project](commenting.md), part 23 of its task). Reddit
+is worked on both rows; Medium, X and LinkedIn say they are worked by the
+project's owner. A guest has no Pause and no Jobs.
+
+There is no left menu and no way to another project. Hidden for a guest, and
+refused by the server whatever the screen shows:
 
 | A guest can | A guest can't |
 | --- | --- |
@@ -79,14 +85,20 @@ the server whatever the screen shows:
 | Change the description in the cog | Rename the project, change its picture, pause, resume or delete it, or make a new one |
 | Send comments, replies and posts from the project's own accounts, and undo one in its 10 seconds | Add, move or take out an account, or open Manage accounts |
 | Edit a sent comment's words | Delete a sent comment from Reddit, or switch a comment's Voice example |
-| See the Comments, Failed and Posts tabs, cut to the project, and Try again | Open the Jobs window, which lists every project's work |
+| See Reddit's Sent tab and its Failed list on Commenting, and Posts and Failed on Posts, cut to the project, and Try again | Open the Jobs window, which lists every project's work, or pause commenting |
 | Answer and skip Instagram and TikTok comments | Post from the owner's media library, or call a post off |
 | Open the project's Archive, play its items, edit their captions and Write captions, and post them from the project's Instagram and TikTok accounts ([archive.md](archive.md)) | Download an archive file, open the Bin, upload, copy, move, pin or delete one |
 | Look for self-promotion threads | Block a subreddit, which hides it from every project |
 
 **Who sent it.** A comment, reply or post a guest sends carries "Sam via
 Project" in `sent_by` on its row, carried there through the job's payload. The
-owner sees it under the account on the Comments and Posts tabs.
+owner sees it under the account on Sent and on Reddit's Posts.
+
+**An admin opening a guest address** sees it as an admin, with nothing
+hidden, in the guest frame. Until 5 Nov 2026 that address showed "You are not
+signed in to this project", because the dashboard asked for the shell's layout
+and the guest frame has none; `usePromoShell` now answers with the guest's
+page size and no Saving… sign there.
 
 ## How the server keeps a guest inside one project
 
@@ -158,7 +170,8 @@ server settings only, never in the database or the page.
 - `src/routes/handoff/project.ts`: the handoff address.
 - `src/routes/guest/promo.$projectId.tsx` and `src/routes/guest/refused.tsx`:
   the guest page and the refusal page.
-- `src/components/social/guest/`: guest mode (`usePromoGuest`), and the rows
-  per page and Saving… sign the dashboard reads outside the shell's layout.
+- `src/components/social/guest/`: guest mode (`usePromoGuest`), the frame
+  (`guest-frame.tsx`), and the rows per page and Saving… sign
+  the dashboard reads outside the shell's layout.
 - `drizzle/0123_promo_project_guests.sql`: the two tables and the `sent_by`
   columns.

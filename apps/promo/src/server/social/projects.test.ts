@@ -30,7 +30,10 @@ const {
   removeProjectNetwork,
   updateProject,
 } = await import("./projects")
-const { promoAccounts, promoComments, promoFinds, promoJobs, promoKeywords, promoProjects } = await import("./schema")
+const { promoAccounts, promoComments, promoFinds, promoJobs, promoKeywords, promoPosts, promoProjects } = await import("./schema")
+const { promoXPosts } = await import("./x/schema")
+const { readPostCounts } = await import("./post-counts")
+const { queueJob } = await import("./jobs")
 
 const DAY_MS = 86_400_000
 const NOW = new Date()
@@ -132,24 +135,50 @@ describe("projects", () => {
     expect(await db.select().from(promoProjects)).toHaveLength(0)
   })
 
-  it("counts each project's accounts, keywords, waiting posts and sent comments for the table", async () => {
+  it("counts each project's accounts and its own posts on every network for the table, leaving out failed and deleted ones", async () => {
     const a = await createProject(userId, "A", db)
     const b = await createProject(userId, "B", db)
     const { id: accountId } = await account({ projectId: a })
     await account({ projectId: a, retiredAt: NOW })
-    const findId = await find(a)
-    await find(a)
-    await db.update(promoFinds).set({ status: "skipped" }).where(eq(promoFinds.id, findId))
-    await db.insert(promoComments).values({ id: uuid(), userId, findId, accountId, text: "Sent." })
+    const older = new Date("2099-01-01T00:00:00Z")
+    const newer = new Date("2099-01-02T00:00:00Z")
+    await db.insert(promoPosts).values([
+      { id: uuid(), userId, accountId, projectId: a, subreddit: "SaaS", title: "Mine", postedAt: older },
+      { id: uuid(), userId, accountId, projectId: a, subreddit: "SaaS", title: "Did not go", status: "failed", postedAt: newer },
+    ])
+    await db.insert(promoXPosts).values([
+      { id: uuid(), userId, projectId: a, status: "posted", postedAt: newer },
+      { id: uuid(), userId, projectId: a, status: "posted", postedAt: newer, deletedAt: newer },
+      { id: uuid(), userId, projectId: a, status: "draft" },
+    ])
 
     // Made in the same millisecond, so their stored order is not the test's business.
     const rows = (await listProjectRows(userId, db)).sort((x, y) => x.name.localeCompare(y.name))
-    expect(rows.map((row) => [row.name, row.accountCount, row.keywordCount, row.waitingCount, row.commentCount])).toEqual([
-      ["A", 1, 2, 1, 1],
-      ["B", 0, 0, 0, 0],
+    expect(rows.map((row) => [row.name, row.accountCount, row.postCount, row.lastPostAt?.toISOString() ?? null])).toEqual([
+      ["A", 1, 2, newer.toISOString()],
+      ["B", 0, 0, null],
     ])
-    expect(rows[0].lastCommentAt).not.toBeNull()
     expect(rows[1].id).toBe(b)
+  })
+
+  it("counts a project's failed Reddit posts and its X drafts and failures on the network rows, leaving out dismissed ones and other projects", async () => {
+    const a = await createProject(userId, "A", db, ["reddit", "x"])
+    const b = await createProject(userId, "B", db, ["reddit"])
+    const failedPost = async (projectId: string, dismissed = false) => {
+      const id = await queueJob(userId, "submit", { projectId, accountId: "acc", subreddit: "SaaS", title: "Mine" }, db)
+      await db.update(promoJobs).set({ status: "failed", dismissedAt: dismissed ? NOW : null }).where(eq(promoJobs.id, id))
+    }
+    await failedPost(a)
+    await failedPost(a, true)
+    await failedPost(b)
+    await db.insert(promoXPosts).values([
+      { id: uuid(), userId, projectId: a, status: "draft" },
+      { id: uuid(), userId, projectId: a, status: "failed" },
+      { id: uuid(), userId, projectId: a, status: "posted" },
+    ])
+
+    expect(await readPostCounts(userId, a, ["reddit", "x"], db)).toEqual({ reddit: 1, x: 2 })
+    expect(await readPostCounts(userId, b, ["reddit"], db)).toEqual({ reddit: 1 })
   })
 
   it("deletes the empty projects of a ticked few and keeps the rest with why", async () => {
