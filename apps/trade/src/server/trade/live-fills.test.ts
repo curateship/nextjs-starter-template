@@ -447,7 +447,7 @@ describe("live fill storage", () => {
     expect(writeTradeNotice).toHaveBeenCalledTimes(1)
     expect(writeTradeNotice).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Entered a trade: $46.28 of JASMYUSDTM at $0.004861 (Ku1)",
+        title: "Entered a trade: $46.28 of JASMY at $0.004861 (Ku1)",
         body: "The order filled on the exchange.",
         soundKind: "fill",
       })
@@ -460,7 +460,7 @@ describe("live fill storage", () => {
   })
 
   it.each([1, 14])(
-    "adds KuCoin close money once across %i pieces without another notice",
+    "adds KuCoin close money once across %i pieces to the same notice",
     async (pieces) => {
       const user = await insertUser(database)
       const wallet: TradeWallet = {
@@ -529,7 +529,13 @@ describe("live fill storage", () => {
       ).toBeCloseTo(-2.98367808, 10)
       expect(afterRecovery).not.toBe(beforeRecovery)
       expect(await liveHistoryStamp(user.id, [wallet.id])).toBe(afterRecovery)
-      expect(writeTradeNotice).toHaveBeenCalledOnce()
+      // The money rewrites the one notice in place, under the same key, so
+      // the bell still holds one row for the close and now says what it lost.
+      const notices = vi.mocked(writeTradeNotice).mock.calls.map(([n]) => n)
+      expect(notices).toHaveLength(2)
+      expect(notices[1].noticeKey).toBe(notices[0].noticeKey)
+      expect(notices[0].meta?.at(-1)).toBe("filled")
+      expect(notices[1].meta?.at(-1)).toBe("lost $2.75")
     }
   )
 
@@ -1428,6 +1434,65 @@ describe("live fill storage", () => {
 
     await hideLiveTrade(user.id, wallet.id, [fill.fillId])
     expect(await liveHistoryStamp(user.id, [wallet.id])).not.toBe(afterInsert)
+  })
+
+  it("rewrites a close's notice when its money arrives after it", async () => {
+    // KuCoin's sale carries no profit; its closed position does, a sweep
+    // later. The Ku1 XRP close of 6 Nov 2026 rang as "filled" and never said
+    // it lost $38.02, though the Journal had the money two minutes on.
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Ku1",
+      kind: "live",
+      status: "active",
+      protocol: "kucoin",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "kucoin-account",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const close = {
+      fillId: "xrp-close",
+      orderId: "483699423193497600",
+      marketId: "XRPUSDTM",
+      side: "sell" as const,
+      px: 1.1895,
+      sz: 210,
+      at: Date.now(),
+      closedPnl: 0,
+      fee: 0.149877,
+      dir: "Close Long",
+      liquidation: false,
+    }
+
+    await recordLiveFills(user.id, wallet, [close])
+    await recordLiveFills(user.id, wallet, [
+      { ...close, closedPnl: -38.02433252 },
+    ])
+    // The same priced fill again changes nothing and says nothing.
+    await recordLiveFills(user.id, wallet, [
+      { ...close, closedPnl: -38.02433252 },
+    ])
+
+    const notices = vi.mocked(writeTradeNotice).mock.calls.map(([n]) => n)
+    expect(notices).toHaveLength(2)
+    expect(notices[0].meta).toEqual(["@ $1.1895", "Ku1", "filled"])
+    expect(notices[1].noticeKey).toBe(notices[0].noticeKey)
+    expect(notices[1].meta).toEqual(["@ $1.1895", "Ku1", "lost $38.02"])
+    expect(notices[1].level).toBe("warning")
   })
 
   it("reads only the markets requested for a run list", async () => {
