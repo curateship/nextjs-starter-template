@@ -543,6 +543,26 @@ export const projectProjectStars = pgTable(
   (table) => [primaryKey({ columns: [table.projectId, table.userId] })]
 )
 
+/**
+ * A project's notes, behind the note icon in the left panel's header
+ * (`drizzle/0148_project_notes.sql`). `position` orders them for everyone,
+ * pinned ones first; a deleted one waits in the bin like a task.
+ */
+export const projectNotes = pgTable("project_notes", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  projectId: varchar("project_id", { length: 36 })
+    .notNull()
+    .references(() => projectProjects.id, { onDelete: "cascade" }),
+  writerUserId: varchar("writer_user_id", { length: 36 }).references(userRef, { onDelete: "set null" }),
+  body: text("body").notNull().default(""),
+  pinned: boolean("pinned").notNull().default(false),
+  position: integer("position").notNull(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedByUserId: varchar("deleted_by_user_id", { length: 36 }).references(userRef, { onDelete: "set null" }),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
 export const projectTaskSteps = pgTable("project_task_steps", {
   id: varchar("id", { length: 36 }).primaryKey(),
   taskId: varchar("task_id", { length: 36 })

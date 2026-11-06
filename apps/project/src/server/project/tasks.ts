@@ -33,9 +33,9 @@ import { loadTaskMessages, type ChatMessage } from "@/server/project/task-chat"
 import { keepNotesVersion } from "@/server/project/task-note-versions"
 import {
   notesForReader,
-  notesLinkedTaskIds,
+  notesLinkIds,
   openableLinks,
-  resolveTaskLinks,
+  resolveLinks,
 } from "@/server/project/task-links"
 import { listTaskFiles, type TaskFile } from "@/server/project/task-files"
 import { clocksFor, pauseTaskClock } from "@/server/project/task-clock-runs"
@@ -506,7 +506,7 @@ export async function loadTaskDetail(
     .where(eq(projectProjectMembers.projectId, project.id))
     .orderBy(asc(customShellUsers.name))
 
-  const noteTargets = await resolveTaskLinks(membership, notesLinkedTaskIds(task.notes), database)
+  const noteTargets = await resolveLinks(membership, notesLinkIds(task.notes), database)
 
   return {
     task: { ...card, notes: notesForReader(task.notes, noteTargets), notesLocked: task.notesLocked },

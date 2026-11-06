@@ -24,7 +24,7 @@ import { db } from "@/server/db"
 import { requireMembership, type Membership, type ProjectDb } from "@/server/project/access"
 import { clockOf, loadClock, personDay } from "@/server/project/checkins"
 import { writeAppNotices } from "@/server/project/notices"
-import { notesLinkedTaskIds, openableLinks, resolveTaskLinks } from "@/server/project/task-links"
+import { notesLinkIds, openableLinks, resolveLinks, resolveTaskLinks } from "@/server/project/task-links"
 import {
   projectMeetingAnswers,
   projectMeetingNotes,
@@ -499,7 +499,7 @@ export async function loadMeetingNotes(
     .leftJoin(customShellUsers, eq(customShellUsers.id, projectMeetingNotes.updatedByUserId))
     .where(and(eq(projectMeetingNotes.meetingId, meeting.id), eq(projectMeetingNotes.day, input.day)))
   const notes = row?.notes ?? ""
-  const targets = await resolveTaskLinks(membership, notesLinkedTaskIds(notes), database)
+  const targets = await resolveLinks(membership, notesLinkIds(notes), database)
   return {
     day: input.day,
     notes,

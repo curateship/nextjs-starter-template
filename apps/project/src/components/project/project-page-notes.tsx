@@ -20,46 +20,105 @@ const TYPING_SAVE_MS = 700
  * Video or Promo card, which belong to a task. It has no + beside its lines
  * (Tyler, 5 Nov 2026: "Remove the + hover over icon"); "/" opens the list.
  *
- * The site admin writes in it, as they change every other part of a project;
- * it saves 700ms after the last letter and when it's left. Everyone else, and
- * an archived project, reads it, and an empty page shows nothing to them.
- * While it's open it is never drawn again from what was saved, so a late
- * save can't take back what was just written.
+ * The site admin writes in it, as they change every other part of a project.
+ * Everyone else, and an archived project, reads it, and an empty page shows
+ * nothing to them.
  */
 export function ProjectPageNotes({ projectId, notes, canWrite }: { projectId: string; notes: string; canWrite: boolean }) {
+  const save = React.useCallback((next: NoteNode) => saveProject({ projectId, notes: next }), [projectId])
+  return (
+    <PageNoteEditor
+      stored={notes}
+      canWrite={canWrite}
+      placeholder="About this project. Type / for links, a callout and more."
+      onSave={save}
+    />
+  )
+}
+
+/**
+ * A page of the project's own, written in place with the "/" blocks a project
+ * may hold: the project's page above, and each of its notes
+ * (`project-notes-panel.tsx`). It saves 700ms after the last letter and when
+ * it's left. While it's open it is never drawn again from what was saved, so a
+ * late save can't take back what was just written. A save that fails says why
+ * and is tried again with the next letter or when the page is left.
+ * Read-only, an empty page shows nothing.
+ */
+export function PageNoteEditor({
+  stored,
+  canWrite,
+  placeholder,
+  onSave,
+  onSaved,
+  startFocused = false,
+}: {
+  stored: string
+  canWrite: boolean
+  placeholder: string
+  onSave: (body: NoteNode) => Promise<unknown>
+  /** Told what was saved, as it is kept, once the server took it. */
+  onSaved?: (stored: string) => void
+  /** Puts the cursor in it as it opens, for a note just made. */
+  startFocused?: boolean
+}) {
   const setup = useNotesBoxSetup("project")
-  const [start] = React.useState(() => notesForEditor(readTaskNotes(notes)))
+  const [start] = React.useState(() => notesForEditor(readTaskNotes(stored)))
   const saved = React.useRef(storedTaskNotes(start))
   const draft = React.useRef<NoteNode | null>(null)
   const timer = React.useRef(0)
+  const box = React.useRef<HTMLDivElement>(null)
+  // The latest handlers, so a save started by a timer uses them as they are now.
+  const handlers = React.useRef({ onSave, onSaved })
+  React.useEffect(() => {
+    handlers.current = { onSave, onSaved }
+  })
 
   const flush = React.useCallback(() => {
     window.clearTimeout(timer.current)
     const next = draft.current
     if (!next) return
     draft.current = null
-    const stored = storedTaskNotes(next)
-    if (stored === saved.current) return
-    saved.current = stored
-    saveProject({ projectId, notes: next }).catch((error: unknown) => {
-      // Kept to try again with the next letter or when the page is left.
-      saved.current = ""
-      draft.current = next
-      showErrorToast(getProjectErrorMessage(error))
-    })
-  }, [projectId])
+    const kept = storedTaskNotes(next)
+    if (kept === saved.current) return
+    saved.current = kept
+    handlers.current.onSave(next).then(
+      () => handlers.current.onSaved?.(kept),
+      (error: unknown) => {
+        // Kept to try again with the next letter or when the page is left.
+        saved.current = ""
+        draft.current = next
+        showErrorToast(getProjectErrorMessage(error))
+      }
+    )
+  }, [])
 
-  // Leaving the project saves what was typed.
+  // Leaving the page saves what was typed.
   React.useEffect(() => flush, [flush])
 
+  // The shell's editor appears a moment after the box, so the cursor waits for it.
+  React.useEffect(() => {
+    if (!startFocused || !canWrite) return
+    let frame = 0
+    let tries = 0
+    const place = () => {
+      const editable = box.current?.querySelector<HTMLElement>("[contenteditable=true]")
+      if (editable) editable.focus()
+      else if (tries++ < 30) frame = requestAnimationFrame(place)
+    }
+    frame = requestAnimationFrame(place)
+    return () => cancelAnimationFrame(frame)
+  }, [startFocused, canWrite])
+
   if (!canWrite) {
-    const read = readTaskNotes(notes)
+    const read = readTaskNotes(stored)
     if (taskNotesAreEmpty(read)) return null
     return <NoteView setup={setup} body={notesForEditor(read)} />
   }
 
   return (
     <div
+      ref={box}
       data-notes-editor=""
       className={cn(
         "relative",
@@ -80,7 +139,7 @@ export function ProjectPageNotes({ projectId, notes, canWrite }: { projectId: st
       <NoteEditor
         setup={setup}
         value={start}
-        placeholder="About this project. Type / for links, a callout and more."
+        placeholder={placeholder}
         onChange={(body) => {
           draft.current = body
           window.clearTimeout(timer.current)

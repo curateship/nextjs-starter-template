@@ -13,6 +13,7 @@ import {
   whoCanStillSee,
   type ProjectDb,
 } from "@/server/project/access"
+import { binnedProjectNotes, purgeBinnedNotes } from "@/server/project/project-notes"
 import { taskRef, writeTaskNotices, type TaskNotice } from "@/server/project/notices"
 import {
   projectProjects,
@@ -244,6 +245,8 @@ export async function tellWaitingTasks(actor: Actor, doneTaskId: string, tx: Pro
 }
 
 export type BinEntry = {
+  /** A deleted task, or a deleted note from the project's notes. */
+  kind: "task" | "note"
   id: string
   title: string
   deletedAt: string
@@ -278,14 +281,22 @@ export async function loadProjectBin(
     .where(and(eq(projectTasks.projectId, projectId), isNotNull(projectTasks.deletedAt)))
     .orderBy(desc(projectTasks.deletedAt))
   const runs = runsTheTeam(membership.role)
+  const tasks: BinEntry[] = rows.map((row) => ({
+    kind: "task",
+    id: row.id,
+    title: row.title,
+    deletedAt: row.deletedAt!.toISOString(),
+    deletedByName: row.deletedByName,
+    canRestore: runs || row.createdBy === userId,
+  }))
+  // Anyone who sees the project's bin may bring a note back.
+  const notes: BinEntry[] = (await binnedProjectNotes(projectId, database)).map((note) => ({
+    kind: "note",
+    ...note,
+    canRestore: true,
+  }))
   return {
-    entries: rows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      deletedAt: row.deletedAt!.toISOString(),
-      deletedByName: row.deletedByName,
-      canRestore: runs || row.createdBy === userId,
-    })),
+    entries: [...tasks, ...notes].sort((a, b) => b.deletedAt.localeCompare(a.deletedAt)),
     canEmpty: runs,
   }
 }
@@ -334,6 +345,7 @@ export async function emptyProjectBin(
     .from(projectTasks)
     .where(and(eq(projectTasks.projectId, projectId), isNotNull(projectTasks.deletedAt)))
   for (const { id } of binned) await purgeTask(id, database, storage)
+  await purgeBinnedNotes(projectId, database)
 }
 
 /** The tasks waiting on this one, for its "Holding up" line. */

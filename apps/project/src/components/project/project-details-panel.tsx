@@ -1,14 +1,18 @@
 import * as React from "react"
 import { FolderKanbanIcon } from "lucide-react"
 
+import { NotesMorphIcon } from "@/components/project/inbox-morph-icon"
 import { ProjectMilestones } from "@/components/project/project-milestones"
+import { ProjectNotes } from "@/components/project/project-notes-panel"
 import { ProjectPageNotes } from "@/components/project/project-page-notes"
 import { ProjectPaceDot } from "@/components/project/project-pace"
 import { ProjectMenu } from "@/components/project/project-menu"
 import { PinButton } from "@/components/project/pin-button"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ProjectPage } from "@/lib/api/project/projects"
 import { clockTotal, timeOnTasks } from "@/lib/project/clock"
 import { countLate, projectPace } from "@/lib/project/project-pace"
@@ -38,9 +42,40 @@ import { cn } from "@/lib/utils"
  * header and the top of the panel, so the header still reads over it (Tyler,
  * 19 Oct 2026). Over a banner the header has no line under it, so the
  * picture runs on unbroken (Tyler, 20 Oct 2026).
+ *
+ * The note icon between the pin and the ⋮ shows the project's notes in the
+ * panel's place and turns into an × that closes them, as a trip's notes do in
+ * Travel (task "Project notes"; Tyler, 6 Nov 2026: "Add a note feature here
+ * ... like in travel app"). A "Just me" list has the note icon alone. A # link
+ * to a note (`openNoteId`) opens the notes with it.
  */
-export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
+export function ProjectDetailsPanel({
+  page,
+  openNoteId,
+  onNoteOpened,
+}: {
+  page: ProjectPage
+  /** A note to open, from a # link's `?note=`. */
+  openNoteId?: string
+  /** Told once that note is open, so the address can let it go. */
+  onNoteOpened?: () => void
+}) {
   const { project } = page
+  const [notesOpen, setNotesOpen] = React.useState(Boolean(openNoteId))
+  // Each # link opens its note afresh, even with the notes already showing.
+  const [request, setRequest] = React.useState(openNoteId ? { noteId: openNoteId, at: 0 } : null)
+  const [seenNoteId, setSeenNoteId] = React.useState(openNoteId)
+  if (openNoteId !== seenNoteId) {
+    setSeenNoteId(openNoteId)
+    if (openNoteId) {
+      setRequest({ noteId: openNoteId, at: (request?.at ?? 0) + 1 })
+      setNotesOpen(true)
+    }
+  }
+  React.useEffect(() => {
+    if (openNoteId) onNoteOpened?.()
+  }, [openNoteId, onNoteOpened])
+  const notesLabel = notesOpen ? "Close the notes" : "Notes"
   const lead = page.members.find((member) => member.userId === project.leadUserId) ?? null
   const shared = !project.personal
   const siteAdmin = runsTheTeam(page.myRole)
@@ -72,73 +107,97 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
           </span>
         }
         action={
-          shared ? (
-            <div className="flex items-center gap-1">
-              <PinButton project={project} />
-              {siteAdmin ? <ProjectMenu page={page} /> : null}
-            </div>
-          ) : null
+          <div className="flex items-center gap-1">
+            {shared ? <PinButton project={project} /> : null}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={notesLabel}
+                  aria-pressed={notesOpen}
+                  onClick={() => {
+                    setNotesOpen((was) => !was)
+                    setRequest(null)
+                  }}
+                >
+                  <NotesMorphIcon open={notesOpen} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{notesLabel}</TooltipContent>
+            </Tooltip>
+            {shared && siteAdmin ? <ProjectMenu page={page} /> : null}
+          </div>
         }
       />
-      <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-        <div className={cn("grid gap-5 p-4", banner && "pt-6")}>
-          {/* Where the avatar was: the project's own page of notes and blocks (Tyler, 5 Nov 2026).
-              Locking or unlocking it draws it again from what was saved. */}
-          {shared ? (
-            <ProjectPageNotes
-              key={`${project.id}:${project.notesLocked}`}
-              projectId={project.id}
-              notes={project.notes}
-              canWrite={siteAdmin && !project.archived && !project.notesLocked}
-            />
-          ) : null}
-          {project.archived ? (
-            <p className="text-sm text-muted-foreground">
-              {siteAdmin
-                ? "This project is archived, so nothing in it can change. Bring it back from Project settings to work on it."
-                : "This project is archived, so nothing in it can change. The site admin can bring it back."}
-            </p>
-          ) : null}
-          {project.personal ? (
-            <p className="text-sm text-muted-foreground">
-              {siteAdmin
-                ? "Their own tasks, which only they and you see. They show on their My dashboard and in their check-in."
-                : "Your own tasks, which only you and the site admin see. They show on My dashboard and in your check-in."}
-            </p>
-          ) : null}
-          {shared ? (
-            <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
-              <div className="grid content-start gap-2">
-                <Heading>Lead</Heading>
-                {lead ? (
-                  <span className="flex min-w-0 items-center gap-2 text-sm">
-                    <PersonAvatar name={lead.name} avatarUrl={lead.avatarUrl} />
-                    <span className="truncate">{lead.name}</span>
-                  </span>
-                ) : (
-                  <span className="text-sm text-muted-foreground">Nobody yet</span>
-                )}
-              </div>
-              {/* Beside the lead, avatar or not (Tyler, 19 Oct 2026). */}
-              {project.client ? (
+      {notesOpen ? (
+        <ProjectNotes
+          key={`${project.id}:${request?.at ?? "notes"}`}
+          projectId={project.id}
+          startOpen={request?.noteId ?? null}
+        />
+      ) : (
+        <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
+          <div className={cn("grid gap-5 p-4", banner && "pt-6")}>
+            {/* Where the avatar was: the project's own page of notes and blocks (Tyler, 5 Nov 2026).
+                Locking or unlocking it draws it again from what was saved. */}
+            {shared ? (
+              <ProjectPageNotes
+                key={`${project.id}:${project.notesLocked}`}
+                projectId={project.id}
+                notes={project.notes}
+                canWrite={siteAdmin && !project.archived && !project.notesLocked}
+              />
+            ) : null}
+            {project.archived ? (
+              <p className="text-sm text-muted-foreground">
+                {siteAdmin
+                  ? "This project is archived, so nothing in it can change. Bring it back from Project settings to work on it."
+                  : "This project is archived, so nothing in it can change. The site admin can bring it back."}
+              </p>
+            ) : null}
+            {project.personal ? (
+              <p className="text-sm text-muted-foreground">
+                {siteAdmin
+                  ? "Their own tasks, which only they and you see. They show on their My dashboard and in their check-in."
+                  : "Your own tasks, which only you and the site admin see. They show on My dashboard and in your check-in."}
+              </p>
+            ) : null}
+            {shared ? (
+              <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
                 <div className="grid content-start gap-2">
-                  <Heading>Client</Heading>
-                  <span className="truncate text-sm">{project.client}</span>
+                  <Heading>Lead</Heading>
+                  {lead ? (
+                    <span className="flex min-w-0 items-center gap-2 text-sm">
+                      <PersonAvatar name={lead.name} avatarUrl={lead.avatarUrl} />
+                      <span className="truncate">{lead.name}</span>
+                    </span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Nobody yet</span>
+                  )}
                 </div>
-              ) : null}
-              <ProjectTime tasks={page.tasks} />
-            </div>
-          ) : null}
-          {shared ? (
-            <ProjectMilestones
-              projectId={project.id}
-              milestones={page.milestones}
-              tasks={page.tasks}
-              readOnly={project.archived}
-            />
-          ) : null}
-        </div>
-      </ScrollArea>
+                {/* Beside the lead, avatar or not (Tyler, 19 Oct 2026). */}
+                {project.client ? (
+                  <div className="grid content-start gap-2">
+                    <Heading>Client</Heading>
+                    <span className="truncate text-sm">{project.client}</span>
+                  </div>
+                ) : null}
+                <ProjectTime tasks={page.tasks} />
+              </div>
+            ) : null}
+            {shared ? (
+              <ProjectMilestones
+                projectId={project.id}
+                milestones={page.milestones}
+                tasks={page.tasks}
+                readOnly={project.archived}
+              />
+            ) : null}
+          </div>
+        </ScrollArea>
+      )}
     </div>
   )
 }

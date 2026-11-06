@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { emptyBin, loadBin, restoreProjectTask, type ProjectBin } from "@/lib/api/project/tasks"
+import { restoreNote } from "@/lib/api/project/project-notes"
+import { emptyBin, loadBin, restoreProjectTask, type BinEntry, type ProjectBin } from "@/lib/api/project/tasks"
 import { formatDateTime } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -25,8 +26,8 @@ import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 type Loaded = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; bin: ProjectBin }
 
 /**
- * The project's bin: tasks deleted in the last 30 days, who deleted them and
- * when, with Bring back. The owner and admins can empty it early.
+ * The project's bin: tasks and notes deleted in the last 30 days, who deleted
+ * them and when, with Bring back. The site admin can empty it early.
  */
 export function BinDialog({
   projectId,
@@ -69,9 +70,12 @@ function BinContents({ projectId, onClose }: { projectId: string; onClose: () =>
     }
   }, [projectId, reloads])
 
-  async function restore(taskId: string, title: string) {
-    setRestoring(taskId)
-    const ok = await run(() => restoreProjectTask(taskId), `"${title}" is back.`)
+  async function restore(entry: BinEntry) {
+    setRestoring(entry.id)
+    const ok = await run(
+      () => (entry.kind === "note" ? restoreNote(entry.id) : restoreProjectTask(entry.id)),
+      `"${entry.title}" is back.`
+    )
     setRestoring(null)
     if (ok) {
       setReloads((n) => n + 1)
@@ -92,13 +96,13 @@ function BinContents({ projectId, onClose }: { projectId: string; onClose: () =>
       <DialogHeader>
         <DialogTitle>Bin</DialogTitle>
         <DialogDescription>
-          Deleted tasks wait here for {BIN_DAYS} days, then they're gone for good with their files.
+          Deleted tasks and notes wait here for {BIN_DAYS} days, then they're gone for good, a task's files with it.
         </DialogDescription>
       </DialogHeader>
       <DialogBody>
         <Card size="sm">
           <CardHeader>
-            <CardTitle>Deleted tasks</CardTitle>
+            <CardTitle>Deleted tasks and notes</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             {loaded.state === "loading" ? (
@@ -114,7 +118,7 @@ function BinContents({ projectId, onClose }: { projectId: string; onClose: () =>
                     <div className="grid min-w-0 flex-1">
                       <span className="truncate font-medium">{entry.title}</span>
                       <span className="truncate text-xs text-muted-foreground">
-                        Deleted {entry.deletedByName ? `by ${entry.deletedByName}, ` : ""}
+                        {entry.kind === "note" ? "Note, deleted" : "Deleted"} {entry.deletedByName ? `by ${entry.deletedByName}, ` : ""}
                         {formatDateTime(entry.deletedAt)}
                       </span>
                     </div>
@@ -124,7 +128,7 @@ function BinContents({ projectId, onClose }: { projectId: string; onClose: () =>
                         variant="outline"
                         size="sm"
                         disabled={busy}
-                        onClick={() => void restore(entry.id, entry.title)}
+                        onClick={() => void restore(entry)}
                       >
                         {restoring === entry.id ? (
                           <Loader2Icon className="size-4 animate-spin" />

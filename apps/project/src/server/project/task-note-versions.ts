@@ -7,7 +7,7 @@ import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { requireTaskAccess, type ProjectDb, type TaskRow } from "@/server/project/access"
 import { projectTaskNoteVersions, projectTasks } from "@/server/project/schema"
-import { notesForReader, notesLinkedTaskIds, resolveTaskLinks } from "@/server/project/task-links"
+import { notesForReader, notesLinkIds, resolveLinks } from "@/server/project/task-links"
 import type { Actor } from "@/server/project/tasks"
 import { customShellUsers } from "@/server/schema"
 
@@ -122,9 +122,9 @@ export async function listNoteVersions(
     .where(eq(projectTaskNoteVersions.taskId, task.id))
     .orderBy(desc(projectTaskNoteVersions.savedAt), asc(projectTaskNoteVersions.id))
   const earlier = rows[0]?.notes === task.notes ? rows.slice(1) : rows
-  const targets = await resolveTaskLinks(
+  const targets = await resolveLinks(
     membership,
-    earlier.flatMap((row) => notesLinkedTaskIds(row.notes)),
+    earlier.flatMap((row) => notesLinkIds(row.notes)),
     database
   )
   return earlier.map((row) => {

@@ -35,12 +35,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import {
   deleteChatMessage,
   editChatMessage,
-  findLinkableTasks,
   reactToChatMessage,
   sendChatMessage,
   type ChatMessage,
   type LinkChoice,
 } from "@/lib/api/project/chat"
+import { findLinkTargets } from "@/lib/api/project/project-notes"
 import type { TaskDetail, TaskFile } from "@/lib/api/project/tasks"
 import type { PersonRoom } from "@/lib/api/project/team-running"
 import { formatFileSize } from "@/lib/format/format-bytes"
@@ -56,6 +56,7 @@ import {
   tagPeople,
   tokenizeMessage,
 } from "@/lib/project/mentions"
+import { NOTE_LINK, isNoteLink } from "@/lib/project/notes"
 import { namesLine } from "@/lib/project/names-line"
 import { useOpenPerson } from "@/lib/project/person-pages"
 import { LIMITS, REACTIONS, REACTION_LOOK, type ChatPlace, type Reaction } from "@/lib/project/rules"
@@ -188,9 +189,14 @@ export function ChatThread({
     height.current = area.scrollHeight
   }, [firstId])
 
+  // A # link opens its task, or the project page with its note open.
   const openTask = React.useCallback(
-    (projectId: string, taskId: string) =>
-      void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: taskId } }),
+    (projectId: string, linkId: string) =>
+      void navigate({
+        to: "/projects/$projectId",
+        params: { projectId },
+        search: isNoteLink(linkId) ? { note: linkId.slice(NOTE_LINK.length) } : { task: linkId },
+      }),
     [navigate]
   )
 
@@ -280,7 +286,7 @@ function useTaskLinking(onPick: (task: LinkChoice) => void): TaskLinking {
     latest.current = onPick
   })
   return React.useMemo(
-    () => ({ find: (q: string) => findLinkableTasks(q, teamId), onPick: (task) => latest.current(task) }),
+    () => ({ find: (q: string) => findLinkTargets(q, teamId), onPick: (task) => latest.current(task) }),
     [teamId]
   )
 }
@@ -543,7 +549,7 @@ function MessageBox({
           wholeProject
           maxLength={LIMITS.comment}
           autoFocus={autoFocus}
-          placeholder="Write a message. Type @ to tag someone, # to link a task."
+          placeholder="Write a message. Type @ to tag someone, # to link a task or note."
           aria-describedby={away.length ? `${id}-away` : undefined}
           className="max-h-48 min-h-16 resize-none border-0 !bg-transparent shadow-none focus-visible:ring-0"
           onKeyDown={(event) => {
@@ -627,8 +633,8 @@ function MessageRow({
     setDraft(messageText(message.body))
     setEditLinks(
       messageParts(message.body).flatMap((part) =>
-        part.kind === "link" && message.links[part.taskId]
-          ? [{ id: part.taskId, title: part.name, projectId: message.links[part.taskId], projectName: "" }]
+        part.kind === "link" && message.links[part.linkId]
+          ? [{ id: part.linkId, title: part.name, projectId: message.links[part.linkId], projectName: "" }]
           : []
       )
     )
