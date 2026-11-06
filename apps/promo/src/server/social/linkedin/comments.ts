@@ -6,6 +6,7 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
 import { LINKEDIN_POST_CHARS, linkedinPostUrl, type LinkedinCommentKind, type LinkedinIncoming } from "@/lib/social/linkedin/options"
 import { linkedinMayHaveLanded, linkedinPostingRefusal } from "@/lib/social/linkedin/wording"
+import { commentingHref } from "@/lib/social/project-address"
 
 import { refuseLinkedinInteraction } from "../apart"
 import { queueJob, TryAgainLater } from "../jobs"
@@ -404,9 +405,14 @@ export async function queueLinkedinChecks(
   return queued
 }
 
-/** The address a comment's notices open: the Comments tab of its project with it open. */
+/**
+ * The address a comment's notices open: a sent comment on the Commenting
+ * dashboard's Sent tab, a post of your own on the project's own dashboard,
+ * each with it open.
+ */
 export function linkedinRowHref(projectId: string | null, rowId: string, tab: "comments" | "posts" = "comments"): string {
-  return projectId ? `/admin/projects/${encodeURIComponent(projectId)}?network=linkedin&tab=${tab}&open=${encodeURIComponent(rowId)}` : "/admin/projects"
+  if (tab === "comments") return commentingHref(projectId, { network: "linkedin", tab: "comments", open: rowId })
+  return projectId ? `/admin/projects/${encodeURIComponent(projectId)}?network=linkedin&tab=posts&open=${encodeURIComponent(rowId)}` : "/admin/projects"
 }
 
 /** Rings the bell once per new reply under one of ours (part 43). */

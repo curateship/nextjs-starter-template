@@ -6,9 +6,14 @@ post, often on set days, and comments cannot reach those.
 
 ## Writing one
 
-**Create post**, at the top of a project's posts column, opens New post.
+**New post** is the right column of Reddit on the project's dashboard, always,
+because a Reddit post is read on Reddit itself and there is nothing else to
+open there. Tyler, 5 Nov 2026: New post writes in the right column on every
+network, and the window it used to open is gone. **New post** above the Posts
+list puts the cursor in its Subreddit box, and on a phone brings the column
+over the list.
 
-- **Posts as** one of the project's accounts, best to post from first.
+- **Post as** one of the project's accounts, best to post from first.
 - **Subreddit.** Leaving the box shows that subreddit's rules, read once and
   kept, with Read them when they never were. They show first because
   moderators remove self-promotion posts faster than comments.
@@ -40,15 +45,20 @@ twice.
 
 ## Where it shows
 
-- **Landed:** the Comments tab's **Posts** tab, with its account, project,
-  subreddit and when. A row opens it on Reddit.
-- **Did not land:** the Comments tab's **Failed** tab, with the reason, and
-  Try again, which opens New post on its project with the words filled in. The
-  bell rings for it too.
+- **Landed:** **Posts**, the first list of Reddit on the project's dashboard,
+  with its account, project, subreddit and when. A row opens it on Reddit.
+  Until 5 Nov 2026 this list sat inside the Comments tab, and its old address
+  (`?view=comments&list=posts`) opens it.
+- **Did not land:** **Failed**, beside Posts (`?list=failed`), with the reason,
+  and Try again, which fills New post with the words. The bell rings for it
+  too, and opens this list.
+- **Empty:** "No posts of your own yet. Press New post to write one." with New
+  post beside it, the same words as every network.
 
 ## Where it is
 
-- The window: `src/components/social/projects/new-post-dialog.tsx`.
+- New post: `src/components/social/reddit/reddit-new-post.tsx`, in the right
+  column drawn by `reddit-posts-module.tsx`.
 - The rules and the sending: `src/server/social/reddit/own-posts.ts`.
 - The drafting: `draftOwnPost` in `src/server/social/ai-tasks.ts`.
 - The browser: `reddit_submit` in `docker/browser/routines/reddit.py`, given 900

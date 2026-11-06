@@ -17,7 +17,7 @@ Beside the box:
 - **What you said before** (part 23): up to three of your replies that landed,
   under the same keyword first, then by the words they share with this post.
 - **What was already sent here** by any of your accounts.
-- **Reply as**: the project's X accounts, with a Paid badge, followers, and
+- **Comment as**: the project's X accounts, with a Paid badge, followers, and
   whether the daily look found the account hidden.
 
 ## Drafting
@@ -81,7 +81,7 @@ It never likes, reposts or follows inside the visit.
 
 ## After sending
 
-- **The Replies tab** (part 37) lists every reply, quote and answer the
+- **The Sent tab** on Commenting (part 37), `?tab=replies`, lists every reply, quote and answer the
   project's accounts sent, with views, likes and replies. A number not read
   yet says so and is never shown as 0.
 - **Read again once a day** through a search account. A new reply under ours
@@ -93,8 +93,9 @@ It never likes, reposts or follows inside the visit.
   same ten seconds to take it back, or a line saying it waits for the
   account's morning. A reply already answered says so and has no box.
 - **Mentions** (part 39): posts naming one of your accounts as @name, read once
-  a day per account, are listed on the Replies tab and can be answered the same
-  way. The bell rings once for each.
+  a day per account, are listed on the project's own dashboard, on X's Replies
+  tab (`?tab=mentions`), since that is where people answer your posts, and can
+  be answered the same way. The bell rings once for each and opens that tab.
 - **Edit and delete** (part 40). Any reply can be deleted, and only a pause
   refuses a delete: the warm-up and the pace are about putting things up,
   and must never trap a bad reply. Only an account marked paid can edit, and
@@ -121,7 +122,7 @@ It never likes, reposts or follows inside the visit.
 ## Where it is
 
 - `src/server/social/x/posting.ts`: the checks and the queue.
-- `src/server/social/x/replies.ts`: sending, the Replies tab, checks, mentions,
+- `src/server/social/x/replies.ts`: sending, the Sent tab, checks, mentions,
   edits, deletes, Try again.
 - `src/server/social/x/drafts.ts`: every prompt, and X's rules as handed to the
   AI.

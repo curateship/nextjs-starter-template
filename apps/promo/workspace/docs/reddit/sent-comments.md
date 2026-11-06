@@ -1,28 +1,30 @@
 # What happened to your comments
 
-The Comments tab, in the middle column of a project's Reddit module, lists
-every comment the project's accounts have sent, with its upvotes, how
+The Sent tab, in the middle column of Reddit on the
+[Commenting](../commenting.md), lists every comment the project's accounts have sent, with its upvotes, how
 many replies sit under it, and whether it is still there. Before it existed the
 app sent a comment and forgot it, so nothing showed whether a comment was read,
 upvoted, replied to, or removed by a moderator twenty minutes later. Without
 that, neither the ranking nor the drafts can be judged.
 
-Three tabs since 12 Oct 2026: **Sent**, every comment that landed; **Posts**,
-every post of your own that landed ([Posts of your own](your-own-posts.md));
-and **Failed**, every comment, answer and post that did not reach Reddit (below).
-`?list=posts` and `?list=failed` open the other two.
+Two lists: **Sent**, every comment that landed, and **Failed**, every comment
+and answer that did not reach Reddit (below), which `?list=failed` opens. Until
+5 Nov 2026 a third list, Posts, held your own posts, and Failed held failed
+posts too; both are beside your posts on the project's dashboard now
+([Posts of your own](your-own-posts.md)).
 
 Each comment is counted against the account that sent it: the account picked
-on the [Projects dashboard](../projects-dashboard.md) when Post was pressed,
+on the network's Commenting row when Post was pressed,
 stored on the comment as `promo_comments.account_id`. That is what makes an
 account Working on the [Accounts dashboard](accounts-dashboard.md). A
 retired account's comments stay on this tab.
 
 ## Where it is
 
-A tab in each project's Reddit module, beside To look at, Replied, Skipped and
-Today, since 14 Oct 2026. Tyler: "Why would reddit comments be on the
-sidebar?" ([Networks as modules](../network-modules.md)). A comment is listed in
+A tab of Reddit on the network's Commenting row, beside To look at, Replied,
+Skipped and Today, since 5 Nov 2026, when it was renamed Sent from Comments,
+the same word on every network. From 14 Oct 2026 it was a tab in each
+project's Reddit module ([Networks as modules](../network-modules.md)). A comment is listed in
 the project its account is in now, the rule the Projects table counts by, so a
 comment from an account taken out of every project shows in no tab until the
 account is put back in one.
@@ -33,8 +35,9 @@ account is put back in one.
   is still there, its upvotes and its replies fold into a second line, so
   nothing goes past the middle column's edge.
 - **The old address** `/admin/comments` still answers: with `?replies=<id>` or
-  `?comment=<id>` it opens the Comments tab of the comment's project, and
-  without one the only project's, or the Projects table.
+  `?comment=<id>` it opens the Sent tab of the comment's project on
+  Commenting, and without one the only project's, or the one Commenting last
+  had.
 
 It was a page at `/admin/comments` under Projects in the left menu from 12 Oct
 2026, and under Reddit before that. `drizzle/0118_promo_project_networks.sql`
@@ -138,10 +141,10 @@ and then shown nowhere.
   The title, or anywhere on the row, opens the post on Reddit, the same as a
   row on the Sent tab, so it can be checked by eye before trying again.
 - **Try again** puts the words back where they were written and sends
-  nothing: a comment opens its post on its project's dashboard with the words
-  in the box and its account picked (`?post=&retry=`), an answer opens its
-  comment's Replies window, and a post of your own opens New post with its
-  words (`?newPost=`).
+  nothing: a comment opens its post on the network's Commenting row with the words
+  in the box and its account picked (`?post=&retry=`), and an answer opens its
+  comment's Replies window. A failed post of your own is on the project's
+  dashboard, where Try again opens New post with its words (`?newPost=`).
 - **Dismiss**, on a row or for ticked rows, takes it off the tab. The job stays,
   marked with `promo_jobs.dismissed_at`.
 

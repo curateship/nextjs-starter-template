@@ -1,10 +1,9 @@
 import * as React from "react"
-import { AlertTriangleIcon, ListChecksIcon, PlusIcon } from "lucide-react"
+import { AlertTriangleIcon, ListChecksIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CommentsDashboard, type CommentsTab } from "@/components/social/comments/comments-dashboard"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
-import { NewPostDialog, type NewPostStart } from "@/components/social/projects/new-post-dialog"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
 import { PromoThreadsDialog } from "@/components/social/projects/promo-threads"
 import { TodayDashboard } from "@/components/social/today/today-dashboard"
@@ -43,8 +42,6 @@ import {
   setFindsStatus,
   switchKeyword,
 } from "@/lib/api/social/reddit/keywords"
-import { loadFailedPost } from "@/lib/api/social/reddit/own-posts"
-import { loadViralRedditDraft } from "@/lib/api/social/viral-link"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { EVERYTHING, isFindsTab, type RedditView } from "@/lib/social/reddit/options"
 import {
@@ -59,23 +56,28 @@ import type { FindRow, KeywordRow } from "@/server/social/keywords"
 
 import { AccountPicker } from "./account-picker"
 import { AnswerPanel, type DraftView, type FindDetail } from "./answer-panel"
+import { firstFindInTab } from "@/lib/social/reddit/first-find"
 import { FindsPanel, FindsSearch } from "./finds-panel"
 import { KeywordsBar } from "./keywords-panel"
 import { JobsWindow } from "./jobs-window"
 
 /**
- * Reddit as a module on a project's dashboard: what fills the middle and right
- * columns when Reddit is picked in the project's left column. Tyler, 14 Oct
- * 2026: "all of reddit's subnav (all belongs to reddit) right now can be
- * collapse into reddit's module. Today and comments can be part of the views
- * tabs. Accounts can be a dropdown in the right panel to select accounts to
- * use. Jobs can be a button in middle header panel that opens up a modal".
+ * Reddit on a network's Commenting: what fills the middle and right columns
+ * when Reddit is picked in its left column. Tyler, 14 Oct 2026: "all of
+ * reddit's subnav (all belongs to reddit) right now can be collapse into
+ * reddit's module. Today and comments can be part of the views tabs. Accounts
+ * can be a dropdown in the right panel to select accounts to use. Jobs can be
+ * a button in middle header panel that opens up a modal". On 5 Nov 2026 the
+ * commenting moved off the project's dashboard to its own
+ * (`workspace/tasks/Projects/commenting-dashboard.md`); your own Reddit posts
+ * stay on the project's, in `RedditPostsModule`.
  *
- * The middle column's header is Reddit's name, then the search box, the
- * keywords dropdown and the column's buttons, Jobs among them, then the tabs: To look at, Replied and Skipped
- * list the posts, Today and Comments their own lists. The right column is the
- * post and the comment box, with the account it goes out as picked beside
- * Post.
+ * The middle column's header is Reddit's name, then the search box and the
+ * column's buttons, Jobs among them; the keywords are a list in the left
+ * column. Then the tabs: To look at, Replied and Skipped list the posts,
+ * Today and Sent their own lists. The right column is the post and the
+ * comment box, with the account it goes out as picked beside Post. With no
+ * post picked, the first one in the list opens.
  *
  * Keywords belong to the project, so the posts are the same whichever account
  * is picked. The account only changes who comments: Post sends from it, every
@@ -97,7 +99,7 @@ const POLL_MS = 2_000
  */
 const FINDS_LIMIT = 500
 
-/** What the module keeps in the address, so a reload or a link lands on the same tab and window. */
+/** What the module keeps in the address, so a reload or a link lands on the same tab, keyword and window. */
 export type RedditSearch = {
   view?: RedditView
   list?: CommentsTab
@@ -105,6 +107,8 @@ export type RedditSearch = {
   comment?: string
   /** The Jobs window, open. */
   window?: "jobs"
+  /** The keyword whose posts are listed; none is every keyword's. */
+  keyword?: string
 }
 
 export function RedditModule({
@@ -117,7 +121,6 @@ export function RedditModule({
   onSearch,
   openPostId,
   retry,
-  newPostRetryId,
 }: {
   /** The project, its accounts and the queue, which the page holds and this reads again. */
   view: ProjectView
@@ -125,7 +128,7 @@ export function RedditModule({
   initialKeywords: KeywordRow[]
   /** The project's own column, drawn on the left. */
   left: React.ReactNode
-  /** The page's own windows: New project and Delete. */
+  /** The page's own windows. */
   dialogs: React.ReactNode
   search: RedditSearch
   /** Changes the address, keeping whatever the patch leaves out. */
@@ -137,8 +140,6 @@ export function RedditModule({
    * account that tried, from Try again on the Comments tab. Never sent.
    */
   retry: { findId: string; text: string; accountId: string | null } | null
-  /** A failed post of your own, whose words New post opens with. */
-  newPostRetryId: string | null
 }) {
   const desktop = useWideScreen()
   const projectId = view.project.id
@@ -149,35 +150,6 @@ export function RedditModule({
 
   const [keywords, setKeywords] = React.useState(initialKeywords)
   const [keywordsLoading, setKeywordsLoading] = React.useState(false)
-  /** The New post window: shut, or open with what it starts with. */
-  const [newPost, setNewPost] = React.useState<{ start: NewPostStart | null } | null>(null)
-
-  // A failed post's words, for Try again from the Comments tab's Failed list,
-  // or a post the Viral app wrote (`workspace/docs/viral-link.md`): read once,
-  // then New post opens with them. Nothing is sent.
-  React.useEffect(() => {
-    if (!newPostRetryId) return
-    let live = true
-    loadFailedPost(newPostRetryId)
-      .then(async (failed) => failed ?? (await loadViralRedditDraft(newPostRetryId)))
-      .then(
-        (start) => {
-          if (!live) return
-          if (!start) {
-            showErrorToast("That post is not a failed one any more, so there is nothing to try again.")
-            return
-          }
-          setNewPost({ start })
-        },
-        () => {
-          if (live) showErrorToast("That post's words could not be read. Please try again.")
-        }
-      )
-    return () => {
-      live = false
-    }
-  }, [newPostRetryId])
-
   /**
    * The account picked beside Post, whose comment Post sends. Nothing is
    * picked to begin with, because picking one for the person is the one thing
@@ -191,7 +163,8 @@ export function RedditModule({
    * order. Everything is chosen whenever nothing else is, because the morning
    * question is what to answer, not what one saved search found.
    */
-  const [selectedKeyword, setSelectedKeyword] = React.useState<string>(EVERYTHING)
+  const selectedKeyword = search.keyword ?? EVERYTHING
+  const setSelectedKeyword = (id: string) => onSearch({ keyword: id === EVERYTHING ? undefined : id })
 
   /**
    * The posts, and which keyword they belong to.
@@ -229,8 +202,16 @@ export function RedditModule({
   const finds = findsReady ? findsState.rows : []
   const findsError = findsReady ? findsState.error : null
 
-  const detailReady = Boolean(selectedFind && detailState.findId === selectedFind)
-  const detailLoading = Boolean(selectedFind) && !detailReady
+  /**
+   * The post the right column shows: the one picked, or with none picked the
+   * first in the list, so the column is never empty (part 14). Worked out
+   * rather than picked, so a narrow screen stays on the list nobody pressed.
+   */
+  const shownFind =
+    selectedFind ?? (isFindsTab(tab) && findsReady ? firstFindInTab(finds, tab, findSearch) : null)
+
+  const detailReady = Boolean(shownFind && detailState.findId === shownFind)
+  const detailLoading = Boolean(shownFind) && !detailReady
   const detail = detailReady ? detailState.detail : null
   const drafts = detailReady ? detailState.drafts : []
 
@@ -335,9 +316,9 @@ export function RedditModule({
   }, [refreshFinds, selectedKeyword])
 
   React.useEffect(() => {
-    if (!selectedFind) return
-    void refreshDetail(selectedFind)
-  }, [refreshDetail, selectedFind])
+    if (!shownFind) return
+    void refreshDetail(shownFind)
+  }, [refreshDetail, shownFind])
 
   /**
    * Asks what the queue is doing, only while it has something in it.
@@ -366,7 +347,7 @@ export function RedditModule({
         if (finished) {
           await refreshKeywords()
           await refreshFinds(selectedKeyword)
-          if (selectedFind) await refreshDetail(selectedFind)
+          if (shownFind) await refreshDetail(shownFind)
         }
       } catch {
         // A failed ask is not worth a toast: the next one is two seconds away
@@ -386,7 +367,7 @@ export function RedditModule({
     refreshFinds,
     refreshDetail,
     selectedKeyword,
-    selectedFind,
+    shownFind,
   ])
 
   async function afterQueueing() {
@@ -431,10 +412,6 @@ export function RedditModule({
               {jobsWaiting ? <span className="text-muted-foreground tabular-nums">{jobsWaiting}</span> : null}
             </Button>
           )}
-          <Button type="button" onClick={() => setNewPost({ start: null })}>
-            <PlusIcon />
-            Create post
-          </Button>
         </>
       }
       onThreads={() => setThreadsOpen(true)}
@@ -627,7 +604,7 @@ export function RedditModule({
       finds={finds}
       loading={findsLoading}
       error={findsError}
-      selectedId={selectedFind}
+      selectedId={shownFind}
       onSelect={setSelectedFind}
       onRetry={() => void refreshFinds(selectedKeyword)}
       onBlock={blockSubreddit}
@@ -692,7 +669,7 @@ export function RedditModule({
       accountPicker={accountPicker}
       // Only the narrow layout, where the post covers the list. Clears the
       // chosen post and nothing else, so the keyword and the tab stay put.
-      onBack={desktop ? undefined : () => setSelectedFind(null)}
+      onBack={desktop || !selectedFind ? undefined : () => setSelectedFind(null)}
       onRead={async (findId: string) => {
         try {
           await readThread(findId)
@@ -815,6 +792,7 @@ export function RedditModule({
       // Below 1280px the post takes the screen once one is open, and only on
       // a tab of posts: Today and Comments have nothing open beside them.
       rightOpen={Boolean(selectedFind) && isFindsTab(tab)}
+      onCloseRight={() => setSelectedFind(null)}
       rightLabel="Show the post and your comment"
     >
       {dialogs}
@@ -829,16 +807,6 @@ export function RedditModule({
           // to To look at, the list it is on.
           if (!isFindsTab(tab)) onSearch({ view: undefined, list: undefined, replies: undefined, comment: undefined })
           setSelectedFind(findId)
-        }}
-      />
-      <NewPostDialog
-        open={newPost !== null}
-        projectId={projectId}
-        accounts={view.accounts}
-        start={newPost?.start ?? null}
-        onClose={() => {
-          setNewPost(null)
-          void refreshView()
         }}
       />
       <JobsWindow

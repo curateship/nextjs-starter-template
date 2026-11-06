@@ -37,11 +37,16 @@ column fills the middle and right columns with X's panels. It came from
 
 ## The layout
 
-- **The middle column** is the keyword row, the notices, then seven tabs: To
-  look at, Replied, Skipped, Today, Replies, Posts and Communities. The tab is
-  in the address as `?tab=` (none is To look at), the Replies tab's Failed
-  list as `?list=failed`, and whatever is open in the right column as
-  `?open=<id>`.
+- **Two rows of X's card since 5 Nov 2026**
+  ([Commenting inside a project](../commenting.md)). The Posts row has
+  Posts, Replies (`mentions`, the posts naming the accounts, which is where
+  people answer your posts) and Communities. The Commenting row has the
+  keywords under it in the left column, then in the middle the
+  keyword row's header, the notices and five tabs: To look at, Replied,
+  Skipped, Today and Sent (`replies`, the replies the accounts sent). The tab
+  is in the address as `?tab=` (none is To look at on Commenting, Posts on
+  Posts), Sent's Failed list as `?list=failed`, and whatever is open in
+  the right column as `?open=<id>`.
 - **The right column** shows what is open: a post and the reply to it, a sent
   reply or a mention, a post of your own being written, or a community.
 - **The X row in the left column** carries a count: the strong posts waiting

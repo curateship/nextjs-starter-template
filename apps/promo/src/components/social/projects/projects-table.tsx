@@ -1,7 +1,7 @@
 import * as React from "react"
 import { ProjectBansLink } from "./project-bans-link"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { FolderOpenIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import { FolderOpenIcon, PinIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -33,31 +33,30 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { Hint } from "../hint"
 import { NewProjectDialog } from "./project-dialogs"
 
-type SortColumn = "name" | "accounts" | "keywords" | "waiting" | "comments" | "last"
+type SortColumn = "name" | "accounts" | "posts" | "last"
 
+/**
+ * Tyler, 5 Nov 2026: Posts and Last post replace Keywords, To look at,
+ * Comments sent and Last comment, which belong to a network's Commenting
+ * (part 25 of `workspace/tasks/Projects/commenting-dashboard.md`).
+ */
 const COLUMNS: SortableColumn<SortColumn>[] = [
   { key: "name", label: "Project", column: "main" },
   { key: "accounts", label: "Accounts", column: "meta", className: "text-right" },
-  { key: "keywords", label: "Keywords", column: "meta", className: "hidden text-right sm:table-cell" },
-  { key: "waiting", label: "To look at", column: "meta", className: "hidden text-right md:table-cell" },
-  { key: "comments", label: "Comments sent", column: "meta", className: "hidden text-right md:table-cell" },
-  { key: "last", label: "Last comment", column: "meta", className: "hidden lg:table-cell" },
+  { key: "posts", label: "Posts", column: "meta", className: "hidden text-right sm:table-cell" },
+  { key: "last", label: "Last post", column: "meta", className: "hidden md:table-cell" },
 ]
 
 function compare(a: ProjectRow, b: ProjectRow, column: SortColumn): number {
   switch (column) {
     case "accounts":
       return a.accountCount - b.accountCount
-    case "keywords":
-      return a.keywordCount - b.keywordCount
-    case "waiting":
-      return a.waitingCount - b.waitingCount
-    case "comments":
-      return a.commentCount - b.commentCount
+    case "posts":
+      return a.postCount - b.postCount
     case "last":
       return (
-        (a.lastCommentAt ? new Date(a.lastCommentAt).getTime() : 0) -
-        (b.lastCommentAt ? new Date(b.lastCommentAt).getTime() : 0)
+        (a.lastPostAt ? new Date(a.lastPostAt).getTime() : 0) -
+        (b.lastPostAt ? new Date(b.lastPostAt).getTime() : 0)
       )
     default:
       return a.name.localeCompare(b.name)
@@ -65,7 +64,7 @@ function compare(a: ProjectRow, b: ProjectRow, column: SortColumn): number {
 }
 
 /**
- * Every project as a table: what it holds and how its comments are going.
+ * Every project as a table: its accounts and how its own posts are going.
  * Tyler, 12 Oct 2026: "project needs a table dashboard".
  *
  * Built like the Voices dashboard. A row opens that project's own
@@ -111,7 +110,8 @@ export function ProjectsTable({ initial }: { initial: ProjectRow[] }) {
           project.name.toLowerCase().includes(query) ||
           project.description.toLowerCase().includes(query)
       )
-      .sort((a, b) => factor * compare(a, b, sort))
+      // Pinned projects come first whatever the sort, as in Project.
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || factor * compare(a, b, sort))
   }, [direction, projects, search, sort])
 
   const totalPages = Math.max(1, Math.ceil(shown.length / pageSize))
@@ -225,13 +225,16 @@ export function ProjectsTable({ initial }: { initial: ProjectRow[] }) {
               />
             </TableCell>
             <TableCell column="main" className="max-w-0">
-              <button
-                type="button"
-                className="block max-w-full truncate text-left text-sm font-medium group-hover:underline"
-                onClick={() => openProject(project.id)}
-              >
-                {project.name}
-              </button>
+              <span className="flex min-w-0 items-center gap-1.5">
+                {project.pinned ? <PinIcon className="size-3.5 shrink-0 fill-amber-400 text-amber-500" aria-label="Pinned" /> : null}
+                <button
+                  type="button"
+                  className="block min-w-0 truncate text-left text-sm font-medium group-hover:underline"
+                  onClick={() => openProject(project.id)}
+                >
+                  {project.name}
+                </button>
+              </span>
               <Hint label={project.description}>
                 <span className="block truncate text-xs text-muted-foreground">
                   {project.description || "No description yet"}
@@ -243,16 +246,10 @@ export function ProjectsTable({ initial }: { initial: ProjectRow[] }) {
               {project.accountCount}
             </TableCell>
             <TableCell column="meta" className="hidden text-right tabular-nums sm:table-cell">
-              {project.keywordCount}
+              {project.postCount}
             </TableCell>
-            <TableCell column="meta" className="hidden text-right tabular-nums md:table-cell">
-              {project.waitingCount}
-            </TableCell>
-            <TableCell column="meta" className="hidden text-right tabular-nums md:table-cell">
-              {project.commentCount}
-            </TableCell>
-            <TableCell column="meta" className="hidden text-muted-foreground lg:table-cell">
-              {project.lastCommentAt ? postedDateText(new Date(project.lastCommentAt)) : "Never"}
+            <TableCell column="meta" className="hidden text-muted-foreground md:table-cell">
+              {project.lastPostAt ? postedDateText(new Date(project.lastPostAt)) : "Never"}
             </TableCell>
             <TableCell column="actions">
               <Button

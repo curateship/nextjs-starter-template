@@ -1,8 +1,9 @@
 import { and, eq, isNull } from "drizzle-orm"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { isNetwork, type Network } from "@/lib/social/networks"
+import { NETWORK_NAMES, isNetwork, type Network } from "@/lib/social/networks"
 import { isBraked } from "@/server/bans/rules"
+import { Refusal } from "@/server/browser/refusal"
 
 import { promoAccounts, promoProjects } from "./schema"
 
@@ -123,6 +124,66 @@ export async function setProjectNetworkPaused(
   await db
     .update(promoProjects)
     .set({ pausedNetworks: next, updatedAt: now })
+    .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
+  return next
+}
+
+/**
+ * Whether commenting on the account's network is paused on its project
+ * (part 20 of `workspace/tasks/Projects/commenting-dashboard.md`). Only the
+ * kinds in `COMMENTING_JOB_KINDS` wait for it; the account still posts its
+ * own posts, warms up and takes readings.
+ */
+export async function commentingPaused(
+  userId: string,
+  account: { projectId: string | null; platform: string },
+  db: CustomShellDb = defaultDb
+): Promise<boolean> {
+  if (!account.projectId || !isNetwork(account.platform)) return false
+  const [project] = await db
+    .select({ pausedCommenting: promoProjects.pausedCommenting })
+    .from(promoProjects)
+    .where(and(eq(promoProjects.id, account.projectId), eq(promoProjects.userId, userId)))
+    .limit(1)
+  return Boolean(project?.pausedCommenting.includes(account.platform))
+}
+
+/** Refuses a comment pressed while its network's commenting is paused, saying where to resume it. */
+export async function refuseWhileCommentingPaused(
+  userId: string,
+  account: { projectId: string | null; platform: string },
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  if (!(await commentingPaused(userId, account, db))) return
+  const name = isNetwork(account.platform) ? NETWORK_NAMES[account.platform] : "This network"
+  throw new Refusal(`Commenting on ${name} is paused on this project. Resume it on the network's Commenting row in the project's left column first.`)
+}
+
+/**
+ * Pauses or resumes commenting on one network of a project. Comments,
+ * answers and connection requests wait; the project's own posts keep going.
+ */
+export async function setProjectCommentingPaused(
+  userId: string,
+  projectId: string,
+  network: Network,
+  paused: boolean,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<Network[]> {
+  if (!isNetwork(network)) throw new Error("Promo cannot use that network yet.")
+  const [project] = await db
+    .select({ networks: promoProjects.networks, pausedCommenting: promoProjects.pausedCommenting })
+    .from(promoProjects)
+    .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
+    .limit(1)
+  if (!project) throw new Error("That project does not exist.")
+  if (!project.networks.includes(network)) throw new Error("This project does not use that network.")
+  const rest = project.pausedCommenting.filter((item) => item !== network && isNetwork(item))
+  const next = paused ? [...rest, network] : rest
+  await db
+    .update(promoProjects)
+    .set({ pausedCommenting: next, updatedAt: now })
     .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
   return next
 }

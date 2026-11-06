@@ -106,10 +106,19 @@ export const MEDIUM_ARTICLE_STATUS_WORDS: Record<MediumArticleStatus, string> = 
 export type MediumListItemStatus = "waiting" | "added" | "failed"
 
 /**
- * The tabs across the Medium module's middle column, in the address as
- * `?view=`. None is To look at. Responses holds its Failed list as `?list=failed`.
+ * The tabs of Medium's middle column, in the address as `?tab=`. Responses
+ * holds its Failed list as `?list=failed`.
+ *
+ * The first five are on a network's Commenting, where none in the address
+ * is To look at; the last two on the project's dashboard, where none is
+ * Articles (`workspace/tasks/Projects/commenting-dashboard.md`). The values
+ * stay as they were so old addresses keep working; only the words changed:
+ * Articles reads Posts and Responses reads Sent, the same words on every
+ * network (Tyler, 5 Nov 2026).
  */
-export const MEDIUM_VIEWS = ["new", "replied", "skipped", "today", "responses", "articles", "publications"] as const
+export const MEDIUM_COMMENT_VIEWS = ["new", "replied", "skipped", "today", "responses"] as const
+export const MEDIUM_POST_VIEWS = ["articles", "publications"] as const
+export const MEDIUM_VIEWS = [...MEDIUM_COMMENT_VIEWS, ...MEDIUM_POST_VIEWS] as const
 export type MediumView = (typeof MEDIUM_VIEWS)[number]
 
 export const MEDIUM_VIEW_WORDS: Record<MediumView, string> = {
@@ -117,8 +126,8 @@ export const MEDIUM_VIEW_WORDS: Record<MediumView, string> = {
   replied: "Replied",
   skipped: "Skipped",
   today: "Today",
-  responses: "Responses",
-  articles: "Articles",
+  responses: "Sent",
+  articles: "Posts",
   publications: "Publications",
 }
 

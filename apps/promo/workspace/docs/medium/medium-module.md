@@ -36,13 +36,18 @@ the middle and right columns with Medium's panels. It came from
 
 ## The layout
 
-- **The header** of the middle column: "Medium" on the left, and on the right
-  the search box on the story tabs, the keywords dropdown, Jobs, and More. More
-  holds Search every keyword now, Tag and publication ideas, Medium's AI this
+- **Two rows of Medium's card since 5 Nov 2026**
+  ([Commenting inside a project](../commenting.md)). The
+  Posts row has Posts (`articles`) and Publications; its Commenting row has
+  the keywords under it in the left column and the rest below.
+- **The header** of Commenting's middle column: "Medium" on the left, and on
+  the right the search box on the story tabs, Jobs, and More. More holds
+  Search every keyword now, Tag and publication ideas, Medium's AI this
   month, and the writers and publications you hid.
-- **Seven tabs** sit under it: To look at, Replied, Skipped, Today, Responses,
-  Articles and Publications. The tab is in the address as `?tab=` (none is To
-  look at), and whatever is open in the right column as `?open=<id>`.
+- **Five tabs** sit under it: To look at, Replied, Skipped, Today and Sent
+  (`responses`). The tab is in the address as `?tab=` (none is To look at on
+  Commenting, Posts on Posts), and whatever is open in the right
+  column as `?open=<id>`.
 - **The right column** shows what is open: a story and the response to it, a
   sent response, an article, or a publication.
 - **The Medium row in the left column** carries a count: the strong stories
@@ -68,13 +73,13 @@ Search words can be marked as **Names you** (the product's own name) or **Names 
 rival**. Stories found by a marked keyword carry a chip and score twice as high,
 since that conversation is already about you.
 
-The keywords are the same dropdown as Reddit's
-([The keywords dropdown](../projects-dashboard.md#the-keywords-dropdown)). All
+The keywords are the same list as Reddit's
+([The keywords list](../commenting.md#the-keywords-list)). All
 keywords counts each story waiting once, though two keywords found it. A
 keyword's row says when it last searched and its kind ("2 hours ago · tag"),
 with the timer switch (searches by itself every few hours), search again now,
-and a "⋮" with the mark (search words only) and Remove. Add keyword turns the
-list into the kind and its box.
+and a "⋮" with the mark (search words only) and Remove. The + beside
+Keywords opens the kind and its box as a dropdown.
 Removing a keyword deletes the stories only it found. A response already sent
 keeps its own record of the story's title and address.
 

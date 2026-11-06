@@ -18,7 +18,7 @@ import {
 } from "./behaviour"
 import { refuseInteraction } from "./apart"
 import { queueJob } from "./jobs"
-import { pausedBy, type PausedBy } from "./pause"
+import { pausedBy, refuseWhileCommentingPaused, type PausedBy } from "./pause"
 import { promoAccounts, promoFinds, promoJobs } from "./schema"
 
 /**
@@ -176,6 +176,7 @@ export async function queueComment(
     throw new Refusal("A comment on this post is already on its way. Cancel it first to send a different one.")
   }
 
+  await refuseWhileCommentingPaused(userId, account, db)
   const state = await readPostingState(userId, account, db, now)
   const refusal = postingRefusalText(state, now, state.timeZone)
   if (refusal) throw new Refusal(refusal)

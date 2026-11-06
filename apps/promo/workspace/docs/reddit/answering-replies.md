@@ -1,13 +1,13 @@
 # Answering the people who reply to you
 
 When somebody replies to a comment the app sent, you can answer them from the
-Comments tab: draft with AI, read it, press Reply. One comment becomes a
+Sent tab on the network's Commenting row: draft with AI, read it, press Reply. One comment becomes a
 short back and forth, which is what people read and what keeps a comment near
 the top of a thread instead of folded away.
 
 ## Where it is
 
-The reply arrow on each row of the [Comments tab](sent-comments.md) opens
+The reply arrow on each row of the [Sent tab](sent-comments.md) opens
 the comment's Replies window. Under the row's reply count, "2 to answer" says
 how many replies directly under it have no answer from the app yet.
 
@@ -109,7 +109,7 @@ table's comments sent, toward the account's pace, and toward the account
 showing as Working on the
 [Accounts dashboard](accounts-dashboard.md).
 
-Answers are not rows of their own on the Comments tab. They show under the
+Answers are not rows of their own on the Sent tab. They show under the
 reply they answer, in the Replies window. For the same reason they are never
 used as voice examples: there would be no switch to turn one off.
 

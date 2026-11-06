@@ -27,7 +27,8 @@ import {
 } from "@/lib/api/social/medium"
 import { getProjectErrorMessage, putAccountInProject, takeAccountOutOfProject } from "@/lib/api/social/projects"
 import { useWideScreen } from "@/lib/layout/wide-screen"
-import { MEDIUM_VIEW_WORDS, MEDIUM_VIEWS, type MediumView } from "@/lib/social/medium/options"
+import { MEDIUM_COMMENT_VIEWS, MEDIUM_POST_VIEWS, MEDIUM_VIEW_WORDS, type MediumView } from "@/lib/social/medium/options"
+import type { Side } from "@/lib/social/sides"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -47,15 +48,17 @@ const POLL_MS = 2_000
 const SEARCH_WAIT_MS = 300
 
 /**
- * What the Medium module keeps in the address: its tab (`?tab=`, none is To
- * look at), the record open in the right column (`?open=<id>`), the
- * Responses tab's Failed list (`?list=failed`), and the Jobs window.
+ * What the Medium module keeps in the address: its tab (`?tab=`, none is the
+ * side's first tab), the record open in the right column (`?open=<id>`), the
+ * Sent tab's Failed list (`?list=failed`), the Jobs window, and on the
+ * Commenting the picked keyword (`?keyword=<id>`).
  */
 export type MediumSearch = {
-  tab?: Exclude<MediumView, "new">
+  tab?: MediumView
   open?: string
-  list?: "failed" | "posts"
+  list?: "failed"
   window?: "jobs"
+  keyword?: string
 }
 
 type StoryTab = "new" | "replied" | "skipped"
@@ -65,24 +68,29 @@ function isStoryTab(tab: MediumView): tab is StoryTab {
 }
 
 /**
- * Medium as a module on a project's dashboard
- * (`workspace/tasks/Medium/01-medium-features.md`), what fills the middle and
- * right columns when Medium is picked in the project's left column.
+ * Medium as a module (`workspace/tasks/Medium/01-medium-features.md`): what
+ * fills the middle and right columns when Medium is picked in a left column.
+ * It draws one of two sides
+ * (`workspace/tasks/Projects/commenting-dashboard.md`):
  *
- * The middle column is the keyword row (part 6) and seven tabs: To look at,
- * Replied and Skipped are the stories the keywords found; Today is what is
- * worth doing now (part 15); Responses is what went out and what failed
- * (parts 35 to 38); Articles is the account's own writing and its Medium
- * lists (parts 26 to 34 and 40); Publications is the group blogs that suit
- * the project (parts 32 and 33). The right column is whatever is open: a
- * story and the response to it, a sent response, an article, or a
- * publication.
+ * - **posts**, on a project's dashboard: Posts (`articles`), the account's
+ *   own writing and its Medium lists (parts 26 to 34 and 40), and
+ *   Publications, the group blogs that suit the project (parts 32 and 33).
+ * - **commenting**, on a network's Commenting: the keyword row (part 6),
+ *   then To look at, Replied and Skipped, the stories the keywords found;
+ *   Today, what is worth doing now (part 15); and Sent (`responses`), what
+ *   went out and what failed (parts 35 to 38). With no story picked, the
+ *   first one opens.
+ *
+ * The right column is whatever is open: a story and the response to it, a
+ * sent response, an article, or a publication.
  *
  * Every response, article, edit and delete is a job a person pressed for,
  * run once in the account's own browser. A guest sent from Project does not
  * work Medium (feature 50 was not picked).
  */
 export function MediumModule({
+  side,
   projectId,
   left,
   dialogs,
@@ -90,6 +98,7 @@ export function MediumModule({
   onSearch,
   onProjectChanged,
 }: {
+  side: Side
   projectId: string
   left: React.ReactNode
   dialogs: React.ReactNode
@@ -100,13 +109,19 @@ export function MediumModule({
 }) {
   const desktop = useWideScreen()
   const guest = usePromoGuest()
-  const tab: MediumView = search.tab && (MEDIUM_VIEWS as readonly string[]).includes(search.tab) ? search.tab : "new"
+  const views: readonly MediumView[] = side === "commenting" ? MEDIUM_COMMENT_VIEWS : MEDIUM_POST_VIEWS
+  const firstTab = views[0]
+  const tab: MediumView = search.tab && views.includes(search.tab) ? search.tab : firstTab
+  // Commenting leaves To look at out of the address. Your posts always name
+  // their tab, so an old address with an open record and no tab can only be
+  // a post found by search, and the project's page sends it to Commenting.
+  const dropTab = (item: string) => side === "commenting" && item === firstTab
   const open = search.open ?? null
   const responsesList = search.list === "failed" ? "failed" : "sent"
 
   const [view, setView] = React.useState<MediumModuleView | null>(null)
   const [viewError, setViewError] = React.useState<string | null>(null)
-  const [keywordId, setKeywordId] = React.useState<string | null>(null)
+  const keywordId = search.keyword ?? null
   const [accountId, setAccountId] = React.useState<string | null>(null)
   const [typed, setTyped] = React.useState("")
   const [words, setWords] = React.useState("")
@@ -177,7 +192,11 @@ export function MediumModule({
     }
   }, [guest, keywordId, listKey, projectId, responsesList, tab, words])
 
-  const storyOpen = isStoryTab(tab) || tab === "today" ? open : null
+  // With no story picked, the first one in the list opens, so the right
+  // column is never empty (part 14). Worked out here rather than written to
+  // the address, so a narrow screen stays on the list nobody pressed.
+  const firstStory = isStoryTab(tab) && list.key === listKey ? (list.finds[0]?.id ?? null) : null
+  const storyOpen = isStoryTab(tab) ? (open ?? firstStory) : tab === "today" ? open : null
   // The story whose read last failed, so the poll says so once, not every two seconds.
   const failedDetail = React.useRef<string | null>(null)
   const refreshDetail = React.useCallback(
@@ -225,7 +244,7 @@ export function MediumModule({
   const counts = view?.counts
 
   function openRecord(id: string | null, nextTab: MediumView = tab) {
-    onSearch({ tab: nextTab === "new" ? undefined : nextTab, open: id ?? undefined })
+    onSearch({ tab: dropTab(nextTab) ? undefined : nextTab, open: id ?? undefined })
   }
 
   async function skip(findIds: string[]) {
@@ -244,7 +263,7 @@ export function MediumModule({
       accounts={view.accounts}
       freeAccounts={view.freeAccounts}
       selectedId={account?.id ?? null}
-      label="Respond as"
+      label="Comment as"
       onSelect={setAccountId}
       onAdd={async (added) => {
         try {
@@ -269,7 +288,7 @@ export function MediumModule({
 
   const tabs = (
     <div role="tablist" aria-label="Which list" className="flex shrink-0 flex-wrap items-end gap-x-4 border-b px-3">
-      {MEDIUM_VIEWS.map((item) => {
+      {views.map((item) => {
         const count =
           item === "new" ? counts?.toLook : item === "replied" ? counts?.replied : item === "skipped" ? counts?.skipped : item === "responses" ? (counts?.failed ? counts.failed : counts?.toAnswer) : null
         return (
@@ -279,7 +298,7 @@ export function MediumModule({
             role="tab"
             aria-selected={tab === item}
             onClick={() => {
-              onSearch({ tab: item === "new" ? undefined : item, open: undefined, list: undefined })
+              onSearch({ tab: dropTab(item) ? undefined : item, open: undefined, list: undefined })
             }}
             className={cn(
               "-mb-px flex h-11 items-center gap-1.5 border-b-2 text-sm whitespace-nowrap focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
@@ -324,7 +343,9 @@ export function MediumModule({
 
   // Rows for another tab, keyword or search are on their way, not these.
   const listLoading = list.key !== listKey
-  const back = desktop ? undefined : () => openRecord(null)
+  // A phone's way back from a post picked by a press; one that opened by
+  // itself has nothing to close, so its column name is the way back.
+  const back = desktop || !open ? undefined : () => openRecord(null)
 
   let middleBody: React.ReactNode
   let right: React.ReactNode
@@ -335,7 +356,7 @@ export function MediumModule({
         finds={list.key.startsWith(`${tab}|`) ? list.finds : []}
         loading={listLoading}
         error={list.error}
-        selectedId={open}
+        selectedId={storyOpen}
         everything={keywordId === null}
         hasKeywords={Boolean(view?.keywords.length)}
         readerPicked={view?.readerPicked ?? true}
@@ -447,6 +468,18 @@ export function MediumModule({
 
   const middle = guest ? (
     <p className="p-4 text-sm text-muted-foreground">Medium is worked by the project&apos;s owner. Open Reddit, Instagram or TikTok in the left column.</p>
+  ) : side === "posts" ? (
+    <>
+      {viewError ? <p className="border-b px-3 py-2 text-sm text-destructive">{viewError}</p> : null}
+      {view?.paused ? (
+        <p className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-sm">
+          <PauseIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          Medium is paused on this project. Nothing is sent or warmed up until it is resumed in the left column.
+        </p>
+      ) : null}
+      {tabs}
+      <div className="flex min-h-0 flex-1 flex-col">{middleBody}</div>
+    </>
   ) : (
     <>
       <MediumKeywords
@@ -456,8 +489,7 @@ export function MediumModule({
         selectedId={keywordId}
         search={isStoryTab(tab) ? <MediumStorySearch value={typed} onChange={setTyped} /> : null}
         onSelect={(next) => {
-          setKeywordId(next)
-          if (!isStoryTab(tab)) onSearch({ tab: undefined, open: undefined, list: undefined })
+          onSearch({ keyword: next ?? undefined, open: undefined, ...(isStoryTab(tab) ? {} : { tab: undefined, list: undefined }) })
         }}
         onChanged={refreshAll}
         onOpenJobs={() => onSearch({ window: "jobs" })}
@@ -475,16 +507,19 @@ export function MediumModule({
       middle={middle}
       right={guest ? <p className="p-4 text-sm text-muted-foreground">Nothing to show here.</p> : right}
       rightOpen={Boolean(open)}
+      onCloseRight={() => openRecord(null)}
       rightLabel="Show the right column"
     >
       {dialogs}
-      <JobsWindow
-        open={search.window === "jobs" && !guest}
-        onClose={() => {
-          onSearch({ window: undefined })
-          void refreshAll()
-        }}
-      />
+      {side === "commenting" ? (
+        <JobsWindow
+          open={search.window === "jobs" && !guest}
+          onClose={() => {
+            onSearch({ window: undefined })
+            void refreshAll()
+          }}
+        />
+      ) : null}
     </ProjectColumns>
   )
 }

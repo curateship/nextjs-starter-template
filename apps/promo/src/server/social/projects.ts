@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNull, max, notInArray } from "drizzle-orm"
+import { and, asc, count, eq, isNull } from "drizzle-orm"
 
 import { projectBanCounts } from "@/server/bans/dashboard"
 import { uuid } from "@/server/auth/security"
@@ -10,11 +10,19 @@ import { promoProfiles } from "@/server/browser/schema"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { commentReadiness, type AccountStatusView } from "@/lib/social/account-status"
 import { isNetwork, NETWORK_NAMES, type Network } from "@/lib/social/networks"
+import type { WrittenPageNode } from "@/lib/pages/written-page-body"
+import {
+  PROJECT_DESCRIPTION_MAX,
+  PROJECT_DESCRIPTION_STORED_MAX,
+  projectDescriptionText,
+  readProjectDescription,
+  storedProjectDescription,
+} from "@/lib/social/project-description"
 
 import { accountStatuses } from "./account-list"
 import { refuseMixedProject } from "./apart"
 import { jobCounts, type JobCounts } from "./jobs"
-import { shownFind } from "./keywords"
+import { readProjectPosts } from "./post-counts"
 import { readPostingState, type PostingState } from "./posting"
 import { promoMediumKeywords } from "./medium/schema"
 import { promoLinkedinKeywords } from "./linkedin/schema"
@@ -43,21 +51,24 @@ import {
  */
 
 const NAME_MAX = 120
-const DESCRIPTION_MAX = 4_000
 
 /** One project as a row on the Projects table dashboard. */
 export type ProjectRow = {
   id: string
   name: string
+  /** As plain words, for the table's search and hover. */
   description: string
+  /** Pinned from the project's header, which puts it first in the table. */
+  pinned: boolean
   /** Accounts in use; a retired account is not counted. */
   accountCount: number
-  keywordCount: number
-  /** Posts under its keywords neither skipped nor replied to: the To look at tab's count. */
-  waitingCount: number
-  /** Comments sent from its accounts that reached Reddit. */
-  commentCount: number
-  lastCommentAt: Date | null
+  /**
+   * Its own posts that went out, on every network. Tyler, 5 Nov 2026: Posts
+   * and Last post replace Keywords, To look at, Comments sent and Last
+   * comment, which belong to a network's Commenting now.
+   */
+  postCount: number
+  lastPostAt: Date | null
   /** Its accounts a counted ban hit in the last 30 days (Bans task, part 18). */
   bannedRecently: number
   updatedAt: Date
@@ -83,49 +94,21 @@ export async function listProjectRows(
     .from(promoAccounts)
     .where(and(eq(promoAccounts.userId, userId), isNull(promoAccounts.retiredAt)))
     .groupBy(promoAccounts.projectId)
-  const keywords = await db
-    .select({ projectId: promoKeywords.projectId, n: count() })
-    .from(promoKeywords)
-    .where(eq(promoKeywords.userId, userId))
-    .groupBy(promoKeywords.projectId)
-  const waiting = await db
-    .select({ projectId: promoKeywords.projectId, n: count() })
-    .from(promoFinds)
-    .innerJoin(promoKeywords, eq(promoKeywords.id, promoFinds.keywordId))
-    .where(
-      and(
-        eq(promoFinds.userId, userId),
-        notInArray(promoFinds.status, ["commented", "skipped"]),
-        shownFind(userId)
-      )
-    )
-    .groupBy(promoKeywords.projectId)
-  // Counted by the account that sent each comment, so a comment stays with
-  // the project its account is in now.
-  const comments = await db
-    .select({ projectId: promoAccounts.projectId, n: count(), last: max(promoComments.postedAt) })
-    .from(promoComments)
-    .innerJoin(promoAccounts, eq(promoAccounts.id, promoComments.accountId))
-    .where(and(eq(promoComments.userId, userId), eq(promoComments.status, "posted")))
-    .groupBy(promoAccounts.projectId)
+  const posts = await readProjectPosts(userId, db)
 
   const byProject = <T extends { projectId: string | null }>(rows: T[]) =>
     new Map(rows.filter((row) => row.projectId).map((row) => [row.projectId as string, row]))
   const accountsBy = byProject(accounts)
-  const keywordsBy = byProject(keywords)
-  const waitingBy = byProject(waiting)
-  const commentsBy = byProject(comments)
   const banned = await projectBanCounts(userId, db)
 
   return projects.map((project) => ({
     id: project.id,
     name: project.name,
-    description: project.description,
+    description: projectDescriptionText(project.description),
+    pinned: project.pinnedAt !== null,
     accountCount: accountsBy.get(project.id)?.n ?? 0,
-    keywordCount: keywordsBy.get(project.id)?.n ?? 0,
-    waitingCount: waitingBy.get(project.id)?.n ?? 0,
-    commentCount: commentsBy.get(project.id)?.n ?? 0,
-    lastCommentAt: commentsBy.get(project.id)?.last ?? null,
+    postCount: posts.get(project.id)?.posts ?? 0,
+    lastPostAt: posts.get(project.id)?.lastPostAt ?? null,
     bannedRecently: banned.get(project.id) ?? 0,
     updatedAt: project.updatedAt,
   }))
@@ -234,26 +217,90 @@ export async function removeProjectNetwork(
  * The picture is drawn back on the dashboard, so like the shell's own profile
  * photo it has to be an image this person uploaded, never any address the
  * browser sent. "" takes it off.
+ *
+ * The description is the editor's document, already cleaned to what it may
+ * hold. It is refused, never cut short, when its words run past 4,000
+ * letters, and refused for everyone while Lock description is on.
  */
 export async function updateProject(
   userId: string,
   projectId: string,
-  input: { name?: string; description?: string; imageUrl?: string },
+  input: { name?: string; description?: WrittenPageNode; imageUrl?: string },
   db: CustomShellDb = defaultDb
 ): Promise<void> {
   if (input.imageUrl && !(await isOwnedImageUrl(userId, input.imageUrl, db))) {
     throw new Error("That picture is not one of your uploaded images.")
   }
+  let description: string | undefined
+  if (input.description !== undefined) {
+    const project = await ownedProject(userId, projectId, db)
+    if (project.descriptionLocked) {
+      throw new Error("The description is locked. Unlock it from the project's ⋮ menu first.")
+    }
+    description = storedProjectDescription(input.description)
+    const letters = projectDescriptionText(description).length
+    if (letters > PROJECT_DESCRIPTION_MAX) {
+      throw new Error(
+        `The description is ${letters.toLocaleString("en")} letters long. Keep it under ${PROJECT_DESCRIPTION_MAX.toLocaleString("en")}.`
+      )
+    }
+    if (description.length > PROJECT_DESCRIPTION_STORED_MAX) {
+      throw new Error("The description is too long. Keep it under 4,000 letters, with fewer empty lines.")
+    }
+  }
   const updated = await db
     .update(promoProjects)
     .set({
       ...(input.name === undefined ? {} : { name: cleanName(input.name) }),
-      ...(input.description === undefined
-        ? {}
-        : { description: input.description.slice(0, DESCRIPTION_MAX) }),
+      ...(description === undefined ? {} : { description }),
       ...(input.imageUrl === undefined ? {} : { imageUrl: input.imageUrl }),
       updatedAt: new Date(),
     })
+    .where(
+      and(
+        eq(promoProjects.id, projectId),
+        eq(promoProjects.userId, userId),
+        // Checked in the write too, so a lock pressed a moment earlier still holds.
+        description === undefined ? undefined : eq(promoProjects.descriptionLocked, false)
+      )
+    )
+    .returning({ id: promoProjects.id })
+  if (!updated.length) {
+    throw new Error(
+      description === undefined ? "That project does not exist." : "The description is locked. Unlock it from the project's ⋮ menu first."
+    )
+  }
+}
+
+/** Pins a project, which puts it first in the Projects table, or with `pinned` false unpins it. */
+export async function setProjectPinned(
+  userId: string,
+  projectId: string,
+  pinned: boolean,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<void> {
+  const updated = await db
+    .update(promoProjects)
+    .set({ pinnedAt: pinned ? now : null })
+    .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
+    .returning({ id: promoProjects.id })
+  if (!updated.length) throw new Error("That project does not exist.")
+}
+
+/**
+ * Locks the description so nobody can change it, its owner included, or with
+ * `locked` false unlocks it. Lock description in the project's ⋮ menu.
+ */
+export async function setProjectDescriptionLocked(
+  userId: string,
+  projectId: string,
+  locked: boolean,
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  const updated = await db
+    .update(promoProjects)
+    .set({ descriptionLocked: locked, updatedAt: new Date() })
     .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
     .returning({ id: promoProjects.id })
   if (!updated.length) throw new Error("That project does not exist.")
@@ -388,22 +435,37 @@ export type ProjectView = {
   project: {
     id: string
     name: string
-    description: string
+    /** The editor's document, written in place at the top of the left column. */
+    description: WrittenPageNode
+    /** Lock description is on: nobody can change it until it is unlocked. */
+    descriptionLocked: boolean
+    /** Pinned from the header, which puts it first in the Projects table. */
+    pinned: boolean
     imageUrl: string
     pausedAt: Date | null
     /** The networks it uses, each a row in its left column, in the order they were added. */
     networks: Network[]
     /** The networks paused on their own while the rest of the project runs. */
     pausedNetworks: Network[]
+    /** The networks whose commenting is paused, from a network's Commenting row; their own posts still go out. */
+    pausedCommenting: Network[]
     /** Its accounts a counted ban hit in the last 30 days (Bans task, part 18). */
     bannedRecently: number
+    /** Items in its Archive, not counting the Bin, on the Archive card's title. */
+    archiveCount: number
   }
   /**
-   * What waits on each network's row in the left column: strong stories and
-   * unanswered responses. Only Medium has one so far; the endpoint fills it
+   * What waits on each network's row of a network's Commenting: strong posts
+   * and unanswered replies. The endpoint fills it
    * (`src/lib/api/social/projects.ts`), so this file needs no network's own code.
    */
   networkCounts?: Partial<Record<Network, number>>
+  /**
+   * What needs you on each network's row of the project's own dashboard:
+   * failed posts and drafts not sent yet (`readPostCounts`). The endpoint
+   * fills it too.
+   */
+  postCounts?: Partial<Record<Network, number>>
   /**
    * The project's accounts, best to comment from first: awake with room left
    * in today's pace, then awake with none, then asleep, then warming up, then
@@ -473,12 +535,16 @@ export async function readProjectView(
     project: {
       id: project.id,
       name: project.name,
-      description: project.description,
+      description: readProjectDescription(project.description),
+      descriptionLocked: project.descriptionLocked,
+      pinned: project.pinnedAt !== null,
       imageUrl: project.imageUrl,
       pausedAt: project.pausedAt,
       networks: usedNetworks(project),
       pausedNetworks: project.pausedNetworks.filter(isNetwork),
+      pausedCommenting: project.pausedCommenting.filter(isNetwork),
       bannedRecently: (await projectBanCounts(userId, db)).get(project.id) ?? 0,
+      archiveCount: await archiveCount(userId, project.id, db),
     },
     accounts: accounts.map(({ rank: _rank, ...account }) => account),
     freeAccounts: rows
@@ -601,7 +667,22 @@ export async function accountForFind(
   return account
 }
 
-/** What the AI is told about what you make: the project's description, or nothing. */
+/** Items in a project's Archive that are not in its Bin. */
+async function archiveCount(userId: string, projectId: string, db: CustomShellDb): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(promoArchiveItems)
+    .where(
+      and(
+        eq(promoArchiveItems.userId, userId),
+        eq(promoArchiveItems.projectId, projectId),
+        isNull(promoArchiveItems.deletedAt)
+      )
+    )
+  return row?.n ?? 0
+}
+
+/** What the AI is told about what you make: the project's description as plain words, or nothing. */
 export async function projectDescription(
   userId: string,
   projectId: string | null,
@@ -613,7 +694,7 @@ export async function projectDescription(
     .from(promoProjects)
     .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
     .limit(1)
-  return row?.description.trim() ?? ""
+  return row ? projectDescriptionText(row.description) : ""
 }
 
 /** The screens that were in the left menu before Reddit moved inside the project. */

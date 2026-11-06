@@ -140,4 +140,40 @@ describe("the projects migration", () => {
     expect(children(saved.rows[1])).toEqual(["/admin/other", "/admin/accounts"])
     expect(saved.rows[0].settings.sections[0].entries.map((entry) => entry.href)).toEqual(["/admin/projects", "/admin/phones"])
   }, 30_000)
+
+  it("turns each older plain description into the editor's document, a paragraph per line", async () => {
+    client = new PGlite()
+    const folder = new URL("../../../drizzle/", import.meta.url)
+    const files = (await readdir(folder)).filter((file) => file.endsWith(".sql")).sort()
+    const target = "0138_promo_project_column.sql"
+    for (const file of files.filter((name) => name < target)) {
+      await client.exec(await readFile(new URL(file, folder), "utf8"))
+    }
+    await insertUser(drizzle(client, { schema }) as unknown as CustomShellDb, { id: "u1", role: "admin" })
+    await client.exec(`
+      INSERT INTO promo_projects (id, user_id, name, description) VALUES
+        ('p1', 'u1', 'Two lines', E'We make invoices.\r\n\nFor small teams.'),
+        ('p2', 'u1', 'Blank', '   '),
+        ('p3', 'u1', 'None', '');
+    `)
+    await client.exec(await readFile(new URL(target, folder), "utf8"))
+
+    const rows = await client.query<{ id: string; description: string; description_locked: boolean; pinned_at: Date | null }>(
+      "SELECT id, description, description_locked, pinned_at FROM promo_projects ORDER BY id"
+    )
+    expect(JSON.parse(rows.rows[0].description)).toEqual({
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "We make invoices." }] },
+        { type: "paragraph" },
+        { type: "paragraph", content: [{ type: "text", text: "For small teams." }] },
+      ],
+    })
+    expect(rows.rows.slice(1).map((row) => row.description)).toEqual(["", ""])
+    expect(rows.rows.map((row) => [row.description_locked, row.pinned_at])).toEqual([
+      [false, null],
+      [false, null],
+      [false, null],
+    ])
+  }, 30_000)
 })

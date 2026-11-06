@@ -147,11 +147,20 @@ export const X_REACH_WORDS: Record<XReach, string> = {
 }
 
 /**
- * The tabs across the X module's middle column, in the address as
- * `?view=`. None is To look at. Replies holds its Failed list as
- * `?list=failed`.
+ * The tabs of X's middle column, in the address as `?tab=`. Sent (`replies`)
+ * holds its Failed list as `?list=failed`.
+ *
+ * The first five are on a network's Commenting, where none in the address
+ * is To look at; the last three on the project's dashboard, where none is
+ * Posts (`workspace/tasks/Projects/commenting-dashboard.md`). `replies` is
+ * what the accounts sent under other people's posts and keeps its value so
+ * old addresses work, reading Sent as on every network. `mentions` is the
+ * project dashboard's Replies tab: posts naming the accounts, which is where
+ * people answer your own posts (Tyler, 5 Nov 2026).
  */
-export const X_VIEWS = ["new", "replied", "skipped", "today", "replies", "posts", "communities"] as const
+export const X_COMMENT_VIEWS = ["new", "replied", "skipped", "today", "replies"] as const
+export const X_POST_VIEWS = ["posts", "mentions", "communities"] as const
+export const X_VIEWS = [...X_COMMENT_VIEWS, ...X_POST_VIEWS] as const
 export type XView = (typeof X_VIEWS)[number]
 
 export const X_VIEW_WORDS: Record<XView, string> = {
@@ -159,8 +168,9 @@ export const X_VIEW_WORDS: Record<XView, string> = {
   replied: "Replied",
   skipped: "Skipped",
   today: "Today",
-  replies: "Replies",
+  replies: "Sent",
   posts: "Posts",
+  mentions: "Replies",
   communities: "Communities",
 }
 

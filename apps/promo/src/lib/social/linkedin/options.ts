@@ -176,19 +176,27 @@ export const LINKEDIN_SEEN_WORDS: Record<LinkedinSeen, string> = {
 }
 
 /**
- * The tabs across the LinkedIn module's middle column, in the address as
- * `?tab=`. None is To look at. Comments holds its Failed list as
- * `?list=failed`.
+ * The tabs of LinkedIn's middle column, in the address as `?tab=`. Sent
+ * (`comments`) holds its Failed list as `?list=failed`.
+ *
+ * The first six are on a network's Commenting, where none in the address is
+ * To look at; Posts is on the project's dashboard, where none is Posts
+ * (`workspace/tasks/Projects/commenting-dashboard.md`). People goes with
+ * commenting because Connect is pressed on a sent comment. The values stay as
+ * they were so old addresses keep working; Commented reads Replied and
+ * Comments reads Sent, the same words on every network (Tyler, 5 Nov 2026).
  */
-export const LINKEDIN_VIEWS = ["new", "commented", "skipped", "today", "comments", "posts", "people"] as const
+export const LINKEDIN_COMMENT_VIEWS = ["new", "commented", "skipped", "today", "comments", "people"] as const
+export const LINKEDIN_POST_VIEWS = ["posts"] as const
+export const LINKEDIN_VIEWS = [...LINKEDIN_COMMENT_VIEWS, ...LINKEDIN_POST_VIEWS] as const
 export type LinkedinView = (typeof LINKEDIN_VIEWS)[number]
 
 export const LINKEDIN_VIEW_WORDS: Record<LinkedinView, string> = {
   new: "To look at",
-  commented: "Commented",
+  commented: "Replied",
   skipped: "Skipped",
   today: "Today",
-  comments: "Comments",
+  comments: "Sent",
   posts: "Posts",
   people: "People",
 }

@@ -14,7 +14,7 @@ import { xPostingRefusal, type XPostingState } from "@/lib/social/x/wording"
 import { refuseXInteraction } from "../apart"
 import { accountTimeZone, isYoung, readBehaviour, warmUpEndsAt } from "../behaviour"
 import { queueJob } from "../jobs"
-import { pausedBy } from "../pause"
+import { pausedBy, refuseWhileCommentingPaused } from "../pause"
 import { promoAccounts, promoJobs } from "../schema"
 import { ownedXFind } from "./finds"
 import { promoXDrafts, promoXFinds, promoXMentions, promoXPosts, promoXReplies } from "./schema"
@@ -368,6 +368,7 @@ export async function queueXReply(
   const find = await ownedXFind(userId, input.findId, db)
   if (!find) throw new Error("That X post is no longer saved.")
   const account = await xWritingAccount(userId, input.accountId, db)
+  await refuseWhileCommentingPaused(userId, account, db)
   if (account.projectId !== find.projectId) {
     throw new Refusal("That account is not in this post's project, so it does not reply here.")
   }
@@ -475,6 +476,9 @@ export async function queueXAnswer(
     .limit(1)
   if (answered) throw new Refusal("That one has an answer already, or one on its way.")
   const account = await xWritingAccount(userId, accountId, db)
+  // An answer goes out as an x_reply job, which Pause commenting holds back,
+  // so it is refused when pressed rather than waiting without a word.
+  await refuseWhileCommentingPaused(userId, account, db)
   return queueXWriting(
     userId,
     account,

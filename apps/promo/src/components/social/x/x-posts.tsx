@@ -170,7 +170,7 @@ export function XPostsList({
                 ))}
               </div>
             ) : (
-              <p className="px-4 pt-3 text-sm text-muted-foreground">No posts of your own yet. Press New post to write one, or a thread of several.</p>
+              <p className="px-4 pt-3 text-sm text-muted-foreground">No posts of your own yet. Press New post to write one.</p>
             )}
 
             <section aria-label="Quote posts" className="grid gap-1 border-t pt-3">

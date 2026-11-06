@@ -7,6 +7,7 @@ import { uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import type { ProjectDb } from "@/server/project/access"
 import { purgeTask } from "@/server/project/planning"
+import { purgeOldBinnedNotes } from "@/server/project/project-notes"
 import {
   projectMilestones,
   projectProjectMembers,
@@ -224,9 +225,9 @@ async function milestoneStillAhead(tx: ProjectDb, milestoneId: string | null, da
 }
 
 /**
- * Deletes for good every task that has sat in a bin for more than 30 days,
- * files first. A task whose files storage won't remove stays and is tried on
- * the next pass.
+ * Deletes for good every task and note that has sat in a bin for more than
+ * 30 days, a task's files first. A task whose files storage won't remove
+ * stays and is tried on the next pass.
  */
 export async function emptyOldBins(
   database: CustomShellDb = db,
@@ -246,4 +247,5 @@ export async function emptyOldBins(
       // Storage refused; the task waits for the next pass rather than stopping the rest.
     }
   }
+  await purgeOldBinnedNotes(cutoff, database)
 }

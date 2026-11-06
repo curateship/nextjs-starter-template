@@ -16,7 +16,7 @@ Publish. Parts 26 to 34 and 40 of `workspace/tasks/Medium/01-medium-features.md`
 
 ## Writing one
 
-**New article** opens as a dropdown: what it is about, who publishes it (or
+**New post** opens as a dropdown: what it is about, who publishes it (or
 pick later), and whether it grows from a Reddit comment of yours that did well
 (part 30), then Create article. It is a draft in Promo, saved 700ms after the
 last change and at once when a field is left, with Saving…, Saved or Not saved
@@ -85,7 +85,7 @@ The bookmark on a story or on a published article puts it on the account's
 public Medium list, named after the project (part 34). A list is writing on
 Medium, so it waits out the warm-up and the pace like a response. The browser
 finds the list by its whole name and leaves a story already on it alone, since
-pressing a ticked list takes the story off. The Articles tab lists
+pressing a ticked list takes the story off. The Posts tab on the project's dashboard lists
 what is on the lists and says how many of each list are the account's own,
 with a line when more than half are: a list made mostly of your own articles
 reads as an advert.

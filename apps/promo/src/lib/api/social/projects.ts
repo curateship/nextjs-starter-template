@@ -15,16 +15,21 @@ import {
   readProjectView,
   removeAccountFromProject,
   removeProjectNetwork,
+  setProjectDescriptionLocked,
+  setProjectPinned,
   updateProject,
   type OldScreen,
   type ProjectAccount,
   type ProjectRow,
   type ProjectView,
 } from "@/server/social/projects"
-import { setProjectNetworkPaused, setProjectPaused } from "@/server/social/pause"
+import { setProjectCommentingPaused, setProjectNetworkPaused, setProjectPaused } from "@/server/social/pause"
+import { readPostCounts } from "@/server/social/post-counts"
+import { readToday } from "@/server/social/today"
 import { readMediumCounts } from "@/server/social/medium/module"
 import { readLinkedinCounts } from "@/server/social/linkedin/module"
 import { readXCounts } from "@/server/social/x/module"
+import { cleanWrittenPageBody, type WrittenPageNode } from "@/lib/pages/written-page-body"
 import {
   listPromoThreads,
   queuePromoThreadReads,
@@ -55,6 +60,8 @@ export const getProjectErrorMessage = passReaderWritten(createErrorMessage(
     "There is no reader browser": "Pick a reader browser in Settings → Behaviour first. The look runs in it.",
     "cannot use that network": "Promo cannot use that network yet.",
     "description only": "You can change the description only.",
+    "description is locked": "The description is locked. Unlock it from the project's ⋮ menu first.",
+    "Keep it under": "The description is too long. Keep it under 4,000 letters.",
   },
   "That did not work. Please try again."
 ))
@@ -103,8 +110,13 @@ const viewFn = createServerFn({ method: "GET" })
   .handler(async ({ context, data }): Promise<ProjectView> => {
     const actor = await actorFor(context.caller, data.projectId)
     const view = await readProjectView(actor.userId, data.projectId)
-    if (actor.guest) return guestProjectView(view, data.projectId)
+    // What waits on Commenting's rows: strong posts and replies to answer.
+    // Every count is this project's alone, so a guest sees them too.
     const networkCounts: ProjectView["networkCounts"] = {}
+    if (view.project.networks.includes("reddit")) {
+      const today = await readToday(actor.userId, data.projectId)
+      networkCounts.reddit = today.posts.length + today.replies.reduce((sum, reply) => sum + reply.toAnswer, 0)
+    }
     if (view.project.networks.includes("medium")) {
       const counts = await readMediumCounts(actor.userId, data.projectId)
       networkCounts.medium = counts.strong + counts.toAnswer
@@ -117,7 +129,10 @@ const viewFn = createServerFn({ method: "GET" })
       const counts = await readLinkedinCounts(actor.userId, data.projectId)
       networkCounts.linkedin = counts.strong + counts.toAnswer + counts.invites
     }
-    return Object.keys(networkCounts).length ? { ...view, networkCounts } : view
+    // What needs you on the project's own rows: failed posts and drafts.
+    const postCounts = await readPostCounts(actor.userId, data.projectId, view.project.networks)
+    const counted = { ...view, networkCounts, postCounts }
+    return actor.guest ? guestProjectView(counted, data.projectId) : counted
   })
 
 /** One project with its accounts, best to comment from first, and what the queue is doing. */
@@ -157,7 +172,9 @@ const updateFn = createServerFn({ method: "POST" })
     z.object({
       projectId: z.string().min(1),
       name: z.string().max(120).optional(),
-      description: z.string().max(4_000).optional(),
+      // The editor's document, cleaned here to what a description may hold
+      // whatever the browser sent; its length is checked as it saves.
+      description: z.unknown().transform(cleanWrittenPageBody).optional(),
       // A media address from the shared image field, or "" for none. The
       // server refuses any address that is not this person's own upload.
       imageUrl: z.string().trim().max(2_048).optional(),
@@ -171,8 +188,30 @@ const updateFn = createServerFn({ method: "POST" })
   })
 
 /** Saves the name or the description as it is typed, or the picture when it is picked. */
-export function saveProject(data: { projectId: string; name?: string; description?: string; imageUrl?: string }) {
+export function saveProject(data: { projectId: string; name?: string; description?: WrittenPageNode; imageUrl?: string }) {
   return updateFn({ data })
+}
+
+const pinFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: z.string().min(1), pinned: z.boolean() }))
+  .handler(async ({ context, data }): Promise<void> => setProjectPinned(context.user.id, data.projectId, data.pinned))
+
+/** Pins a project, which puts it first in the Projects table, or with `pinned` false unpins it. */
+export function pinProject(projectId: string, pinned: boolean) {
+  return pinFn({ data: { projectId, pinned } })
+}
+
+const lockFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: z.string().min(1), locked: z.boolean() }))
+  .handler(async ({ context, data }): Promise<void> =>
+    setProjectDescriptionLocked(context.user.id, data.projectId, data.locked)
+  )
+
+/** Lock description, or with `locked` false Unlock description. The owner's alone. */
+export function lockProjectDescription(projectId: string, locked: boolean) {
+  return lockFn({ data: { projectId, locked } })
 }
 
 const deleteFn = createServerFn({ method: "POST" })
@@ -212,6 +251,22 @@ const pauseNetworkFn = createServerFn({ method: "POST" })
  */
 export function pauseProjectNetwork(projectId: string, network: Network, paused: boolean) {
   return pauseNetworkFn({ data: { projectId, network, paused } })
+}
+
+const pauseCommentingFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: z.string().min(1), network: z.enum(NETWORKS), paused: z.boolean() }))
+  .handler(async ({ context, data }): Promise<void> => {
+    await setProjectCommentingPaused(context.user.id, data.projectId, data.network, data.paused)
+  })
+
+/**
+ * Pauses commenting on one network of a project, or with `paused` false
+ * resumes it, from a network's Commenting row. Comments, answers and
+ * connection requests wait; the project's own posts keep going out.
+ */
+export function pauseProjectCommenting(projectId: string, network: Network, paused: boolean) {
+  return pauseCommentingFn({ data: { projectId, network, paused } })
 }
 
 const threadsFn = createServerFn({ method: "GET" })

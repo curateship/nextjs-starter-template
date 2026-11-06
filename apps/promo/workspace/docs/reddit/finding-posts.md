@@ -221,21 +221,22 @@ says how many posts it is hiding and comes back off with Unblock.
 
 ## The screen
 
-The keywords and the posts are the middle column of a project's Reddit module
-on the [Projects dashboard](../projects-dashboard.md), keywords above posts,
-with the project and its networks on the left
-([Networks as modules](../network-modules.md)). They were the Reddit
-dashboard's left and middle columns until 12 Oct 2026. Every list below is one
+The keywords and the posts are Reddit on the
+[Commenting](../commenting.md): the keywords in its left
+column under the project and its networks, the posts in its middle column.
+They were the Reddit dashboard's left and middle columns until 12 Oct 2026,
+and a project's Reddit module until 5 Nov 2026. Every list below is one
 project's.
 
-- **Keywords**, as one dropdown after the search box in the middle column's
-  header since 21 Oct 2026 (chips from Tyler's design of 13 Oct 2026 until then).
+- **Keywords**, as a list in the project's left column, under Commenting since 5 Nov 2026 (a
+  dropdown in the middle column's header from 21 Oct, chips from Tyler's
+  design of 13 Oct 2026 before that).
   Each keyword's row is its name, its post count, when it last searched and
   what it searches ("Past week · All of Reddit", or "Watching · Newest first"),
   a timer switch, an arrow to search again and a "⋮" with Remove. **Add
   keyword**, last in the list, opens the box that adds one
-  ([The keywords dropdown](../projects-dashboard.md#the-keywords-dropdown)).
-- **Every keyword's posts together** is All keywords, first in the dropdown and
+  ([The keywords list](../commenting.md#the-keywords-list)).
+- **Every keyword's posts together** is All keywords, first in the list and
   what shows when the screen opens. Picking a keyword lists its posts alone. See
   "Every keyword together" below.
 - **The posts**, under the header. Three tabs across the top say where the work

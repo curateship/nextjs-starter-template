@@ -13,6 +13,7 @@ import { promoAccounts, promoJobs } from "../schema"
 import { mediumCheck, mediumDelete, mediumEdit, mediumFindResponse, mediumRespond, type MediumIncomingRead } from "./calls"
 import { markStoryReplied } from "./finds"
 import { mediumPostingRefusal } from "@/lib/social/medium/wording"
+import { commentingHref } from "@/lib/social/project-address"
 import { queueMediumAnswer, queueMediumResponse, readMediumPostingState, refuseOnPhone, writingAccount, type QueuedResponse } from "./posting"
 import { refuseTooSimilar } from "./similar"
 import { promoMediumArticles, promoMediumFinds, promoMediumKeywords, promoMediumResponses } from "./schema"
@@ -363,9 +364,7 @@ export async function recordResponseCheck(
     })
     .where(eq(promoMediumResponses.id, row.id))
 
-  const href = row.projectId
-    ? `/admin/projects/${encodeURIComponent(row.projectId)}?network=medium&tab=responses&open=${encodeURIComponent(row.id)}`
-    : "/admin/projects"
+  const href = commentingHref(row.projectId, { network: "medium", tab: "responses", open: row.id })
   if (row.stillVisible !== false && !read.visible && !row.deletedAt) {
     await ringBell(
       userId,

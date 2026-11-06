@@ -38,7 +38,16 @@ All of them are in `src/components/shared/`.
   of a side panel, which remembers being open or shut, with a muted note after
   its title, a badge, a button of its own and a footer of buttons. Its cog, its own buttons and its fold arrow show only while the card is
   pointed at or focused (Tyler, 20 Oct 2026: "all these should be hover to
-  show only"); always on a phone.
+  show only"); always on a phone. Hidden, they take no room, so a title has
+  the card's whole width in a narrow side panel and is cut short only while
+  the card is pointed at (Tyler, 5 Nov 2026, of Promo's network cards
+  reading "Reddi..."); before that they were see-through and still held
+  their place.
+  `icon` draws a 16px mark before the title, such as a network's on Promo's
+  network cards. `openWhen` opens a folded card each time it turns true,
+  whatever was remembered, so a row picked from elsewhere (a notice's link)
+  is never hidden inside a shut card; folding it again is still allowed.
+  Both came from Promo's project column, 5 Nov 2026.
   `PanelHeading` is the one small-caps heading over a group inside a panel.
   `PanelBox` is the same grey box with no heading and no fold, for a record's
   opening card whose first line is the record's own name, as the open

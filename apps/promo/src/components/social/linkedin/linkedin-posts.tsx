@@ -246,7 +246,7 @@ export function LinkedinPostsList({
           </div>
         ) : (
           <p className="px-4 pt-3 text-sm text-muted-foreground">
-            No posts of your own yet. Press New post to write one, or Post ideas to start from the questions people ask.
+            No posts of your own yet. Press New post to write one.
           </p>
         )}
       </ScrollArea>

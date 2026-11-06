@@ -5,6 +5,7 @@ import type { CommandTarget } from "@/server/browser/command"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
 import { X_TOP_REPLIES, xPostUrl } from "@/lib/social/x/options"
+import { commentingHref } from "@/lib/social/project-address"
 
 import { noticeRung, ringBell } from "../notices"
 import { xReadPost, xSearch, xTrends, type XPost } from "./calls"
@@ -174,7 +175,7 @@ async function ringWatched(
       targetId: target,
       message: `${NOTICE_HEADINGS.x_watched} @${post.authorHandle}`,
       detail: post.text.slice(0, 300),
-      href: `/admin/projects/${encodeURIComponent(projectId)}?network=x&open=${encodeURIComponent(findId)}`,
+      href: commentingHref(projectId, { network: "x", open: findId }),
     },
     db,
     now

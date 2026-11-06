@@ -5,6 +5,7 @@ import type { CommandTarget } from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
+import { commentingHref } from "@/lib/social/project-address"
 import {
   LINKEDIN_TOP_COMMENTS,
   isWatchKind,
@@ -193,7 +194,7 @@ async function ringWatched(
       targetId: target,
       message: `${NOTICE_HEADINGS.linkedin_watched} ${post.authorName || post.authorSlug}`,
       detail: post.text.slice(0, 300),
-      href: `/admin/projects/${encodeURIComponent(projectId)}?network=linkedin&open=${encodeURIComponent(findId)}`,
+      href: commentingHref(projectId, { network: "linkedin", open: findId }),
     },
     db,
     now

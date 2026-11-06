@@ -15,7 +15,7 @@ import { holdsLink } from "@/lib/social/x/options"
 import { refuseLinkedinInteraction } from "../apart"
 import { accountTimeZone, isYoung, readBehaviour, warmUpEndsAt } from "../behaviour"
 import { queueJob } from "../jobs"
-import { pausedBy } from "../pause"
+import { pausedBy, refuseWhileCommentingPaused } from "../pause"
 import { promoAccounts, promoJobs } from "../schema"
 import { similarWarning } from "../x/similar"
 import { ownedLinkedinFind } from "./finds"
@@ -360,6 +360,7 @@ export async function queueLinkedinComment(
   const find = await ownedLinkedinFind(userId, input.findId, db)
   if (!find) throw new Error("That LinkedIn post is no longer saved.")
   const account = await linkedinWritingAccount(userId, input.accountId, db)
+  await refuseWhileCommentingPaused(userId, account, db)
   if (account.projectId !== find.projectId) throw new Refusal("That account is not in this post's project, so it does not comment here.")
   if (find.feedAccountId && find.feedAccountId !== account.id) {
     throw new Refusal("This post came from another account's own feed, so only that account comments on it.")
@@ -458,6 +459,9 @@ export async function queueLinkedinAnswer(
     .limit(1)
   if (answered) throw new Refusal("That one has an answer already, or one on its way.")
   const account = await linkedinWritingAccount(userId, accountId, db)
+  // An answer goes out as a linkedin_comment job, which Pause commenting
+  // holds back, so it is refused when pressed rather than waiting unsaid.
+  await refuseWhileCommentingPaused(userId, account, db)
   return queueLinkedinWriting(
     userId,
     account,

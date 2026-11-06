@@ -1,6 +1,7 @@
 import * as React from "react"
 import { EllipsisVerticalIcon, Loader2Icon, MegaphoneIcon, SparklesIcon, XIcon } from "lucide-react"
 
+import { MenuAction } from "@/components/shared/folding-menu"
 import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
@@ -163,11 +164,17 @@ export function KeywordsBar({
           onSelect={onSelect}
           onRun={onRun}
           onSwitch={onSwitch}
-          menu={(item) => (
-            <DropdownMenuItem variant="destructive" onSelect={() => void onDelete(item.id)}>
-              <XIcon />
+          menu={(item, close) => (
+            <MenuAction
+              destructive
+              icon={<XIcon className="size-4" />}
+              onClick={() => {
+                close()
+                void onDelete(item.id)
+              }}
+            >
               Remove {item.label} and everything it found
-            </DropdownMenuItem>
+            </MenuAction>
           )}
           addForm={(close) => (
             <AddKeywordForm

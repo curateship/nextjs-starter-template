@@ -32,12 +32,15 @@ export function ProjectWorkspace({
   openTaskId,
   filters,
   openChat = false,
+  openNoteId,
 }: {
   page: ProjectPage
   openTaskId: string | undefined
   filters: TaskFilters
   /** A chat notice's link: open the Chat tab. */
   openChat?: boolean
+  /** A # link to one of the project's notes: open it in the left panel. */
+  openNoteId?: string
 }) {
   const taskAddress = useTaskAddress()
   const navigate = useNavigate()
@@ -72,6 +75,16 @@ export function ProjectWorkspace({
       }),
     [navigate]
   )
+  // The note opens once; the address then lets go of it, so the same link works again.
+  const noteOpened = React.useCallback(
+    () =>
+      void navigate({
+        to: ".",
+        replace: true,
+        search: (previous: Record<string, unknown>) => ({ ...previous, note: undefined }),
+      }),
+    [navigate]
+  )
   const setFilters = React.useCallback(
     (patch: Partial<TaskFilters>) =>
       void navigate({
@@ -94,7 +107,7 @@ export function ProjectWorkspace({
         left={{
           label: "Details",
           showLabel: "Show the project details",
-          content: <ProjectDetailsPanel page={page} />,
+          content: <ProjectDetailsPanel page={page} openNoteId={openNoteId} onNoteOpened={noteOpened} />,
         }}
         middle={{
           label: "Tasks",

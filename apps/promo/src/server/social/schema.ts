@@ -111,7 +111,19 @@ export const promoProjects = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 120 }).notNull(),
+    /**
+     * The editor's document as JSON, or "" for none, written in place at the
+     * top of the project's left column (`src/lib/social/project-description.ts`).
+     * Plain text until `drizzle/0138_promo_project_column.sql`.
+     */
     description: text("description").notNull().default(""),
+    /**
+     * Lock description in the project's ⋮ menu: the description reads only,
+     * for everyone, until unlocked. Added by `drizzle/0138`.
+     */
+    descriptionLocked: boolean("description_locked").notNull().default(false),
+    /** When it was pinned, which puts it first in the Projects table; null is not pinned. Added by `drizzle/0138`. */
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     /**
      * The project's picture, a media address, or "" for none. Added by
      * `drizzle/0111_promo_project_image.sql`.
@@ -136,6 +148,13 @@ export const promoProjects = pgTable(
      * `drizzle/0124_promo_medium.sql`.
      */
     pausedNetworks: jsonb("paused_networks").$type<Network[]>().notNull().default([]),
+    /**
+     * The networks whose commenting is paused on this project, from the
+     * Commenting (part 20 of
+     * `workspace/tasks/Projects/commenting-dashboard.md`). Comments wait; the
+     * project's own posts keep going out.
+     */
+    pausedCommenting: jsonb("paused_commenting").$type<Network[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

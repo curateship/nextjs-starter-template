@@ -1,39 +1,30 @@
 import * as React from "react"
-import {
-  ArrowLeftIcon,
-  CheckIcon,
-  ChevronDownIcon,
-  EllipsisVerticalIcon,
-  Loader2Icon,
-  PlusIcon,
-  RotateCwIcon,
-  TimerIcon,
-  TimerOffIcon,
-} from "lucide-react"
+import { createPortal } from "react-dom"
+import { EllipsisVerticalIcon, Loader2Icon, PlusIcon, RotateCwIcon, TimerIcon, TimerOffIcon } from "lucide-react"
 
+import { FoldingMenu } from "@/components/shared/folding-menu"
+import { PanelHeading } from "@/components/shared/panel-card"
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-/**
- * A project's keywords as one dropdown among the middle column's header
- * buttons, after the search box, for Reddit and Medium alike. Tyler, 21 Oct 2026, from a picture of
- * the old row of chips taking two lines: "have to organize the keywords ui
- * better", and of three drawings he picked this one for both networks. The
- * same day he moved it from the header's start to the buttons on its right,
- * and the network's name took its place.
- *
- * The button names the keyword whose posts are listed, or All keywords. Its
- * list has All keywords first, then a row per keyword with its count, when it
- * last searched, the timer, search again and its own menu, and Add keyword
- * last, which turns the list into the network's add box. With nothing saved
- * the button reads Add keyword and opens on the box.
- */
+import { KeywordListSlotContext } from "./keyword-list-slot"
 
+/**
+ * A network's keywords on its Commenting row, in the project's left column
+ * (`KeywordListSlotContext`; Tyler, 5 Nov 2026: "I think its better that
+ * commenting lives within its project"). Each network's Commenting header
+ * owns its keywords, their actions and their add form, and draws them here.
+ *
+ * - **"Keywords · 3"**, the shared small heading with the count, and a + that
+ *   opens the network's add form as a dropdown. With nothing saved the form
+ *   sits open under the heading instead.
+ * - **All keywords**, then a row per keyword with its count and when it last
+ *   searched. Its timer, search again and ⋮ show while the row is pointed at
+ *   or focused, so the name has the column's width; always on a phone.
+ */
 export type KeywordPickerItem = {
   id: string
   /** How the keyword reads: "#food", "best restaurants", "r/startups". */
@@ -76,122 +67,99 @@ export function KeywordPicker({
   onSelect: (id: string | null) => void
   onRun: (id: string) => Promise<void>
   onSwitch: (id: string, enabled: boolean) => Promise<void>
-  /** The items of one keyword's own menu: its mark, Remove. */
-  menu: (item: KeywordPickerItem) => React.ReactNode
-  /** The network's add box. `close` goes back to the list once saved, or on Cancel. */
+  /**
+   * The rows of one keyword's ⋮, in the shared dropdown look (`MenuAction`,
+   * `MenuLine`): its mark, Remove. `close` shuts the menu.
+   */
+  menu: (item: KeywordPickerItem, close: () => void) => React.ReactNode
+  /** The network's add form. `close` is called once it saved, or on Cancel. */
   addForm: (close: () => void) => React.ReactNode
 }) {
-  const empty = !items.length && !loading
-  // Open on the box only when nothing is saved, worked out when the keywords
-  // first arrive (at once for Reddit, after the module's first read for
-  // Medium) and never again, so the box never shuts itself while somebody is
-  // still typing in it.
-  const [open, setOpen] = React.useState(empty)
-  const [adding, setAdding] = React.useState(empty)
-  const [settled, setSettled] = React.useState(!loading)
-  if (!settled && !loading) {
-    setSettled(true)
-    if (!items.length) {
-      setOpen(true)
-      setAdding(true)
-    }
-  }
+  const [adding, setAdding] = React.useState(false)
+  const slot = React.useContext(KeywordListSlotContext)
+  if (!slot?.element) return null
+
   const selected = items.find((item) => item.id === selectedId) ?? null
   const anyRunning = items.some((item) => item.running && !item.stalled)
+  const reading = loading && !items.length
 
-  function openChange(next: boolean) {
-    setOpen(next)
-    if (next) setAdding(!items.length)
-  }
-
-  function pick(id: string | null) {
-    onSelect(id)
-    setOpen(false)
-  }
-
-  const name = selected ? selected.label : empty ? "Add keyword" : "All keywords"
-  const count = selected ? selected.count : allCount
-
-  return (
-    <Popover open={open} onOpenChange={openChange}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className="max-w-60 min-w-0 shrink justify-between font-normal"
-          aria-label={selected ? `Keyword ${selected.label}, ${selected.count}. Pick another keyword` : `${name}. Pick a keyword`}
-        >
-          {loading && !items.length ? (
-            <Loader2Icon className="animate-spin" aria-label="Reading your keywords" />
-          ) : empty ? (
-            <PlusIcon />
-          ) : null}
-          {selected?.badge}
-          <span className="min-w-0 truncate font-medium">{name}</span>
-          {count !== undefined && !empty ? <span className="text-muted-foreground tabular-nums">{count}</span> : null}
-          {anyRunning ? <Loader2Icon className="text-muted-foreground animate-spin" aria-label="Searching" /> : null}
-          <ChevronDownIcon className="shrink-0 text-muted-foreground" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-[min(26rem,calc(100vw-2rem))] p-0">
-        {adding ? (
-          <div className="grid gap-3 p-3">
-            {items.length ? (
-              <button
-                type="button"
-                className="flex w-fit items-center gap-1.5 rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                onClick={() => setAdding(false)}
-              >
-                <ArrowLeftIcon className="size-4" aria-hidden="true" />
-                Keywords
-              </button>
-            ) : null}
-            {addForm(() => (items.length ? setAdding(false) : setOpen(false)))}
-          </div>
-        ) : (
-          <>
-            <ScrollArea className="max-h-[min(24rem,60vh)]">
-              <div className="grid p-1">
-                <button
-                  type="button"
-                  className="flex h-9 items-center gap-2 rounded-sm px-2 text-left text-sm hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
-                  onClick={() => pick(null)}
+  return createPortal(
+    <div className="grid gap-1.5">
+      <div className="flex h-7 items-center justify-between gap-2">
+        <PanelHeading>{items.length ? `Keywords · ${items.length}` : "Keywords"}</PanelHeading>
+        {items.length ? (
+          // Its tooltip stays mounted, shut while the form is open, so opening it never draws the button again.
+          <Tooltip open={adding ? false : undefined}>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <FoldingMenu
+                  label="Add a keyword"
+                  align="start"
+                  open={adding}
+                  onOpenChange={setAdding}
+                  trigger={
+                    <Button type="button" variant="ghost" size="icon-sm" aria-label="Add a keyword">
+                      <PlusIcon />
+                    </Button>
+                  }
                 >
-                  <span className="flex-1 truncate font-medium">All keywords</span>
-                  {allCount !== undefined ? <span className="text-muted-foreground tabular-nums">{allCount}</span> : null}
-                  <CheckIcon className={cn("size-4 shrink-0", selected && "opacity-0")} aria-label={selected ? undefined : "Picked"} />
-                </button>
-                {items.map((item) => (
-                  <KeywordRow
-                    key={item.id}
-                    item={item}
-                    picked={item.id === selectedId}
-                    onPick={() => pick(item.id)}
-                    onRun={onRun}
-                    onSwitch={onSwitch}
-                    menu={menu}
-                  />
-                ))}
-              </div>
-            </ScrollArea>
-            <div className="border-t p-1">
-              <button
-                type="button"
-                className="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:outline-none"
-                onClick={() => setAdding(true)}
-              >
-                <PlusIcon className="size-4" aria-hidden="true" />
-                Add keyword
-              </button>
-            </div>
-          </>
-        )}
-      </PopoverContent>
-    </Popover>
+                  <div className="p-2 text-sm">{addForm(() => setAdding(false))}</div>
+                </FoldingMenu>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Add a keyword</TooltipContent>
+          </Tooltip>
+        ) : null}
+      </div>
+      {reading ? (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+          Reading your keywords
+        </p>
+      ) : !items.length ? (
+        // Nothing saved yet: the form sits open, and stays open after a save
+        // only until the list it made draws in its place.
+        addForm(() => undefined)
+      ) : (
+        <div className="grid gap-0.5">
+          <button
+            type="button"
+            aria-pressed={!selected}
+            className={cn(
+              "flex h-9 items-center gap-2 rounded-sm px-2 text-left text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+              !selected && "bg-muted"
+            )}
+            onClick={() => onSelect(null)}
+          >
+            <span className="flex-1 truncate font-medium">All keywords</span>
+            {allCount !== undefined ? <span className="text-muted-foreground tabular-nums">{allCount}</span> : null}
+            {anyRunning ? <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" aria-label="Searching" /> : null}
+          </button>
+          {items.map((item) => (
+            <KeywordRow
+              key={item.id}
+              item={item}
+              picked={item.id === selectedId}
+              onPick={() => onSelect(item.id)}
+              onRun={onRun}
+              onSwitch={onSwitch}
+              menu={menu}
+            />
+          ))}
+        </div>
+      )}
+    </div>,
+    slot.element
   )
 }
 
-/** One keyword in the list: its name picks it, then the timer, search again and its menu. */
+/**
+ * One keyword in the list: its name picks it, then the timer, search again
+ * and its ⋮. The three buttons lie over the row's right end while it is
+ * pointed at or holds the keyboard's focus, and while its ⋮ is open or a
+ * press of theirs is working; on a phone, with no pointer, they always show
+ * beside the name. A search running shows its spinner after the count.
+ */
 function KeywordRow({
   item,
   picked,
@@ -205,9 +173,10 @@ function KeywordRow({
   onPick: () => void
   onRun: (id: string) => Promise<void>
   onSwitch: (id: string, enabled: boolean) => Promise<void>
-  menu: (item: KeywordPickerItem) => React.ReactNode
+  menu: (item: KeywordPickerItem, close: () => void) => React.ReactNode
 }) {
   const [busy, setBusy] = React.useState(false)
+  const [menuOpen, setMenuOpen] = React.useState(false)
 
   async function act(work: () => Promise<void>) {
     setBusy(true)
@@ -220,21 +189,23 @@ function KeywordRow({
 
   const iconButton =
     "flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+  const searching = item.running && !item.stalled
 
   return (
-    <div className={cn("flex min-w-0 items-center gap-1 rounded-sm pr-1 hover:bg-muted", picked && "bg-muted")}>
+    <div className={cn("group/keyword relative flex min-w-0 items-center gap-1 rounded-sm hover:bg-muted [@media(hover:none)]:pr-1", picked && "bg-muted")}>
       <button
         type="button"
         aria-pressed={picked}
         aria-label={`${item.label}, ${item.count}, ${item.status}`}
         onClick={onPick}
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-sm py-1.5 pl-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <span className="grid min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1.5 text-sm">
             {item.badge}
             <span className="truncate font-medium">{item.label}</span>
             <span className="shrink-0 text-muted-foreground tabular-nums">{item.count}</span>
+            {searching ? <Loader2Icon className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-hidden="true" /> : null}
           </span>
           <Hint label={item.failed && !item.running ? item.failed : null}>
             <span
@@ -248,52 +219,65 @@ function KeywordRow({
           </Hint>
         </span>
       </button>
-      <Hint
-        label={
-          item.enabled
-            ? "Searches by itself every few hours. Press to stop that."
-            : "Only searches when you press it. Press to search by itself every few hours."
-        }
+      <div
+        className={cn(
+          // Over the row's end, on the row's own grey, so the name keeps the width.
+          "absolute inset-y-0 right-0 items-center gap-1 rounded-r-sm bg-muted pr-1 pl-1",
+          menuOpen || busy ? "flex" : "hidden group-hover/keyword:flex group-has-[:focus-visible]/keyword:flex",
+          "[@media(hover:none)]:static [@media(hover:none)]:flex [@media(hover:none)]:bg-transparent [@media(hover:none)]:p-0"
+        )}
       >
-        <button
-          type="button"
-          className={iconButton}
-          aria-pressed={item.enabled}
-          aria-label={item.enabled ? `Stop ${item.label} searching by itself` : `Search ${item.label} by itself every few hours`}
-          disabled={busy}
-          onClick={() => void act(() => onSwitch(item.id, !item.enabled))}
+        <Hint
+          label={
+            item.enabled
+              ? "Searches by itself every few hours. Press to stop that."
+              : "Only searches when you press it. Press to search by itself every few hours."
+          }
         >
-          {item.enabled ? <TimerIcon className="size-4" aria-hidden="true" /> : <TimerOffIcon className="size-4" aria-hidden="true" />}
-        </button>
-      </Hint>
-      {/* Off while its search waits or runs, and the reason says which. */}
-      <DisabledReason disabled={item.running} reason={item.runningReason} className="rounded-sm">
-        <Hint label={item.running ? null : item.runHint}>
           <button
             type="button"
             className={iconButton}
-            aria-label={`${item.runHint}: ${item.label}`}
-            disabled={busy || item.running}
-            onClick={() => void act(() => onRun(item.id))}
+            aria-pressed={item.enabled}
+            aria-label={item.enabled ? `Stop ${item.label} searching by itself` : `Search ${item.label} by itself every few hours`}
+            disabled={busy}
+            onClick={() => void act(() => onSwitch(item.id, !item.enabled))}
           >
-            {busy || (item.running && !item.stalled) ? (
-              <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <RotateCwIcon className="size-4" aria-hidden="true" />
-            )}
+            {item.enabled ? <TimerIcon className="size-4" aria-hidden="true" /> : <TimerOffIcon className="size-4" aria-hidden="true" />}
           </button>
         </Hint>
-      </DisabledReason>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button type="button" className={iconButton} aria-label={`More for ${item.label}`} disabled={busy}>
-            <EllipsisVerticalIcon className="size-4" aria-hidden="true" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-60">
-          {menu(item)}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        {/* Off while its search waits or runs, and the reason says which. */}
+        <DisabledReason disabled={item.running} reason={item.runningReason} className="rounded-sm">
+          <Hint label={item.running ? null : item.runHint}>
+            <button
+              type="button"
+              className={iconButton}
+              aria-label={`${item.runHint}: ${item.label}`}
+              disabled={busy || item.running}
+              onClick={() => void act(() => onRun(item.id))}
+            >
+              {busy || searching ? (
+                <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <RotateCwIcon className="size-4" aria-hidden="true" />
+              )}
+            </button>
+          </Hint>
+        </DisabledReason>
+        <FoldingMenu
+          label={`More for ${item.label}`}
+          align="start"
+          fit
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          trigger={
+            <button type="button" className={iconButton} aria-label={`More for ${item.label}`} disabled={busy}>
+              <EllipsisVerticalIcon className="size-4" aria-hidden="true" />
+            </button>
+          }
+        >
+          {menu(item, () => setMenuOpen(false))}
+        </FoldingMenu>
+      </div>
     </div>
   )
 }

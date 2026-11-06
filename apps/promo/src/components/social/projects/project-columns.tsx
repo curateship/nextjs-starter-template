@@ -8,10 +8,13 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useBlankSpaceDoubleClick, usePanelToggle } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { PROJECTS_PANEL_LAYOUT_KEY } from "@/lib/social/reddit/options"
+
+import { ProjectColumnsPick } from "./project-columns-pick"
 
 /**
  * A table drawn inside a column, rather than as a card of its own on the page:
@@ -28,10 +31,15 @@ export const IN_COLUMN_TABLE = "rounded-none bg-transparent ring-0"
  *
  * The sides collapse all the way to nothing and leave a tab on the middle
  * column's edge to bring them back, double-clicking a side's blank space shuts
- * it, the dividers drag, and the arrangement is remembered. Below 1280px the
- * columns stack, because three columns on a phone is three unreadable columns:
- * the left column and the middle one, one above the other, until the right one
- * has something open (`rightOpen`), which then takes the screen.
+ * it, the dividers drag, and the arrangement is remembered.
+ *
+ * Below 1280px one column shows at a time, as on every three-column dashboard
+ * (UI standard, "Under 1280px, one panel at a time"): a row of the three
+ * column names above them, the hidden two kept drawn and `inert`, so each
+ * keeps its tab, scroll and loaded list. A row picked in the left column
+ * shows the middle one; something opened by a press (`rightOpen`) shows the
+ * right one, and closing it goes back to the middle. A post that opened by
+ * itself waits behind its name.
  */
 export function ProjectColumns({
   left,
@@ -39,19 +47,41 @@ export function ProjectColumns({
   right,
   rightOpen,
   rightLabel,
+  onCloseRight,
   children,
 }: {
   left: React.ReactNode
   middle: React.ReactNode
   right: React.ReactNode
-  /** Whether the right column has something open, which takes the screen below 1280px. */
+  /**
+   * Whether something was opened in the right column by a press, which shows
+   * it below 1280px. Leave out anything that opened by itself.
+   */
   rightOpen: boolean
   /** The tab that brings the right column back once it is shut. */
   rightLabel: string
+  /**
+   * Below 1280px, called when the right column is left by its name in the
+   * row above, so pressing the same post again shows it again.
+   */
+  onCloseRight?: () => void
   /** Windows, drawn beside the columns. */
   children?: React.ReactNode
 }) {
   const desktop = useWideScreen()
+  const pick = React.useContext(ProjectColumnsPick)
+  const [narrowView, setNarrowView] = React.useState<"left" | "middle" | "right">(rightOpen ? "right" : "middle")
+  const [pickShown, setPickShown] = React.useState(pick.key)
+  if (pick.key !== pickShown) {
+    setPickShown(pick.key)
+    setNarrowView("middle")
+  }
+  const [wasOpen, setWasOpen] = React.useState(rightOpen)
+  if (rightOpen !== wasOpen) {
+    setWasOpen(rightOpen)
+    if (rightOpen) setNarrowView("right")
+    else if (narrowView === "right") setNarrowView("middle")
+  }
   const [leftCollapsed, setLeftCollapsed] = React.useState(false)
   const [rightCollapsed, setRightCollapsed] = React.useState(false)
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)
@@ -65,15 +95,29 @@ export function ProjectColumns({
 
   if (!desktop) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        {rightOpen ? (
-          <WorkspacePanel className="flex min-w-0 flex-1 flex-col">{right}</WorkspacePanel>
-        ) : (
-          <>
-            <WorkspacePanel className="flex min-w-0 flex-1 flex-col">{left}</WorkspacePanel>
-            <WorkspacePanel className="flex min-w-0 flex-[2] flex-col">{middle}</WorkspacePanel>
-          </>
-        )}
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <Tabs
+          value={narrowView}
+          onValueChange={(value) => {
+            if (narrowView === "right" && value !== "right" && rightOpen) onCloseRight?.()
+            setNarrowView(value as typeof narrowView)
+          }}
+        >
+          <TabsList>
+            <TabsTrigger value="middle">{pick.label}</TabsTrigger>
+            <TabsTrigger value="left">Project</TabsTrigger>
+            <TabsTrigger value="right">Open</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {(["middle", "left", "right"] as const).map((column) => (
+          <WorkspacePanel
+            key={column}
+            className={narrowView === column ? "flex min-w-0 flex-1 flex-col" : "hidden"}
+            inert={narrowView !== column}
+          >
+            {column === "middle" ? middle : column === "left" ? left : right}
+          </WorkspacePanel>
+        ))}
         {children}
       </div>
     )

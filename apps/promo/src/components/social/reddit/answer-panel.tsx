@@ -314,7 +314,10 @@ export function AnswerPanel({
       </DashboardCardHeader>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-4 p-4">
+        {/* One column no wider than the panel, and long words broken, so a
+            post holding a long address or a run of symbols wraps inside the
+            column instead of pushing every line past its edge. */}
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4 [overflow-wrap:anywhere]">
           {loading ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2Icon className="size-4 animate-spin" />

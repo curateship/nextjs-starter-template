@@ -10,11 +10,13 @@ function id(value: unknown): string | undefined {
 }
 
 /**
- * The Comments screen's old address, which the bell's reply, removal and
- * failure notices lead to. Comments became a tab in each project's Reddit
- * module on 14 Oct 2026, so this sends to the Comments tab of the project the
- * comment's account is in, with the same comment, Replies window or list
- * open. With no comment named it is the only project, or the Projects table.
+ * The Comments screen's old address, which the bell's reply and removal
+ * notices lead to. Comments became a tab in each project's Reddit module on
+ * 14 Oct 2026, and Reddit's Sent tab on its Commenting row on 5 Nov 2026
+ * (`workspace/tasks/Projects/commenting-dashboard.md`). So this sends there,
+ * for the project the comment's account is in, with the same comment,
+ * Replies window or Failed list open. Its old Posts list is Reddit's Posts
+ * row. With no comment named it is the only project, or the Projects table.
  */
 export const Route = createFileRoute("/_authenticated/admin/comments")({
   validateSearch: (search: Record<string, unknown>): CommentsSearch => ({
@@ -24,11 +26,15 @@ export const Route = createFileRoute("/_authenticated/admin/comments")({
   }),
   beforeLoad: async ({ search }) => {
     const { projectId } = await findProjectForOldScreen("comments", search.replies ?? search.comment ?? null)
+    if (search.tab === "posts") {
+      if (!projectId) throw redirect({ to: "/admin/projects", replace: true })
+      throw redirect({ to: "/admin/projects/$projectId", params: { projectId }, search: { network: "reddit" }, replace: true })
+    }
     if (!projectId) throw redirect({ to: "/admin/projects", replace: true })
     throw redirect({
       to: "/admin/projects/$projectId",
       params: { projectId },
-      search: { view: "comments", list: search.tab, replies: search.replies, comment: search.comment },
+      search: { network: "reddit", side: "commenting", view: "comments", list: search.tab === "failed" ? "failed" : undefined, replies: search.replies, comment: search.comment },
       replace: true,
     })
   },

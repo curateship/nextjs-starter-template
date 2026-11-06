@@ -81,12 +81,15 @@ const KIND_WORDS: Record<FailureRow["kind"], string> = {
  * off this tab once it has been dealt with; the record stays.
  */
 export function FailedTable({
+  title = "Comments that did not go out",
   tabs,
   failures,
   error,
   onRefresh,
   onOpenReplies,
 }: {
+  /** "Comments that did not go out" on Commenting, "Posts that did not go out" beside your posts. */
+  title?: string
   tabs: React.ReactNode
   failures: FailureRow[]
   error: string | null
@@ -135,7 +138,7 @@ export function FailedTable({
 
   return (
     <DashboardTable
-      title="Comments that did not go out"
+      title={title}
       icon={<MessagesSquareIcon />}
       fillHeight
       className={IN_COLUMN_TABLE}
@@ -274,9 +277,10 @@ export function FailedTable({
 }
 
 /**
- * Where the words go back to: a comment to its post's project dashboard with
- * the box filled in, an answer to its comment's Replies window, and a post of
- * your own to its project's New post window. None of them sends anything.
+ * Where the words go back to: a comment to its post on Reddit's Commenting
+ * in its project, with the box filled in, an answer to its comment's Replies
+ * window, and a post of your own to New post on its project's dashboard.
+ * None of them sends anything.
  */
 function TryAgain({ row, onOpenReplies }: { row: FailureRow; onOpenReplies: (commentId: string) => void }) {
   // Try again opens the project's page, which for a guest sent from Project is their own one.
@@ -293,17 +297,25 @@ function TryAgain({ row, onOpenReplies }: { row: FailureRow; onOpenReplies: (com
     )
   }
   if (!row.projectId || (row.kind === "comment" && !row.post)) return null
+  const projectId = row.projectId
+  const link = (
+    <Link
+      to={guest ? "/guest/promo/$projectId" : "/admin/projects/$projectId"}
+      params={{ projectId }}
+      search={
+        row.kind === "comment"
+          ? { network: "reddit", side: "commenting", post: row.post?.findId, retry: row.id }
+          : { network: "reddit", newPost: row.id }
+      }
+      aria-label="Try again"
+    >
+      <RotateCcwIcon className="size-4" />
+    </Link>
+  )
   return (
     <Hint label={label}>
       <Button type="button" variant="ghost" size="icon" asChild>
-        <Link
-          to={guest ? "/guest/promo/$projectId" : "/admin/projects/$projectId"}
-          params={{ projectId: row.projectId }}
-          search={row.kind === "comment" ? { post: row.post?.findId, retry: row.id } : { newPost: row.id }}
-          aria-label="Try again"
-        >
-          <RotateCcwIcon className="size-4" />
-        </Link>
+        {link}
       </Button>
     </Hint>
   )

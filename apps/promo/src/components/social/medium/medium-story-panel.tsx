@@ -114,7 +114,7 @@ export function MediumStoryPanel({
 
   const refusal = account ? mediumPostingRefusal(account.posting, new Date(), account.posting.timeZone) : null
   const postReason = !account
-    ? "Pick an account beside Respond as."
+    ? "Pick an account beside Comment as."
     : !account.handle
       ? "This account is not signed in to Medium yet."
       : refusal
@@ -412,7 +412,7 @@ export function MediumStoryPanel({
 
         <div className="flex min-w-0 items-center gap-2">
           <Hint label={account ? mediumPaceLine(account.posting) : null}>
-            <span className="shrink-0 text-xs text-muted-foreground">Respond as</span>
+            <span className="shrink-0 text-xs text-muted-foreground">Comment as</span>
           </Hint>
           {accountPicker}
         </div>

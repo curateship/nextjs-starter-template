@@ -13,14 +13,17 @@ acts on a bad reading". Tyler picked this the same day.
   wrote it and what they said. Opens the comment's Replies window.
 - **A comment going from there to gone**, as a stranger sees it: "Your comment
   was removed on ...". Rings once, when it goes, not on every reading after.
-  Opens that one comment on the Comments tab of its account's project.
+  Opens that one comment on Reddit's Sent tab on the network's Commenting row, for
+  its account's project.
 - **Reddit marking an account suspended**, from the daily health reading:
   "Reddit suspended u/name". Rings once, when it stops the account. Opens the
   Bans dashboard.
 - **A comment, an answer or a post of your own that did not go out**: "Did not
   go out: a comment", with Reddit's reason, and "may already be on Reddit" when
-  the browser stopped part-way. Opens the Failed list on the Comments tab of
-  the project its account is in, or the Projects table for an account in none.
+  the browser stopped part-way. A comment's or an answer's opens the Failed
+  list of Reddit's Sent tab on the network's Commenting row; a post's opens the
+  Failed list beside your Reddit posts on the project's dashboard, or the
+  Projects table for an account in no project.
 - **A proxy renewing in the next three days**: "Renews soon: US residential 3",
   with the day and the cost. Once per renewal date. Opens the proxy.
 - **A phone or the rack in trouble**: "Phone offline:", "Phone running hot:",
@@ -62,7 +65,8 @@ acts on a bad reading". Tyler picked this the same day.
   responses or articles no longer shows; "Pulled from a publication:" when an
   article no longer shows in its publication; and "Did not go out: a Medium
   response", "... a Medium article", "... a change on Medium". Each opens the
-  Medium module's Responses or Articles tab with it open.
+  Sent tab on Commenting, or the Posts tab on the project's dashboard, with it
+  open.
 - **X** ([Replies on X](x/replies.md), [Search accounts](x/search-accounts.md),
   [X accounts](x/accounts.md)): "New post from a watched account: @name", once
   per new post from an account a project watches with its bell on; "New reply
@@ -72,8 +76,11 @@ acts on a bad reading". Tyler picked this the same day.
   signed out, locked or held up, once a day; "X may be hiding @name" when the
   daily look first finds an account hidden from search or its replies folded;
   "Ban screen: @name in its browser" for a lock screen; and "Did not go out: an
-  X reply", "... an X post", "... a change on X", "... a follow on X". Each
-  opens the X module's tab, the Accounts dashboard, or Settings → Behaviour.
+  X reply", "... an X post", "... a change on X", "... a follow on X". A
+  found post, a sent reply or a failed reply opens its tab on the Commenting
+  dashboard; a mention or a post of your own opens X on the project's
+  dashboard; an account's notice opens the Accounts dashboard or Settings →
+  Behaviour.
 - **LinkedIn** ([Comments on LinkedIn](linkedin/comments.md),
   [Search accounts](linkedin/search-accounts.md), [LinkedIn accounts](linkedin/accounts.md)):
   "New LinkedIn post from someone you watch: Name", once per new post from a
@@ -87,8 +94,10 @@ acts on a bad reading". Tyler picked this the same day.
   LinkedIn asks for the code at sign-in; "Ban screen: in/name in its browser"
   for a restriction screen; and "Did not go out: a LinkedIn comment", "... a
   LinkedIn post", "... a change on LinkedIn", "... a LinkedIn connection
-  request", "... accepting a LinkedIn request". Each opens the LinkedIn
-  module's tab, the Accounts dashboard, or Settings → Behaviour.
+  request", "... accepting a LinkedIn request". A found post, a sent or failed
+  comment, or a connection opens its tab on the network's Commenting row; a post
+  of your own opens LinkedIn on the project's dashboard; an account's notice
+  opens the Accounts dashboard or Settings → Behaviour.
 - **A Wi-Fi phone showing the wrong address**: "Wrong address showing: Pixel
   8a in slot 4", with the address apps saw. Every job on it is refused until
   a check finds its proxy's address, and the notice goes then. Opens the phone.
@@ -97,7 +106,7 @@ acts on a bad reading". Tyler picked this the same day.
 ## The limit to know
 
 Replies and removals are only found by a check of the comment, and checks run
-only when Check is pressed on the Comments tab, because the automatic
+only when Check is pressed on the Sent tab, because the automatic
 re-check was not picked. So those two notices come after a Check. Failures,
 suspensions and renewals ring by themselves.
 

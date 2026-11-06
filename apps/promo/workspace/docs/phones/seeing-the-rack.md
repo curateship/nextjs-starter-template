@@ -45,7 +45,7 @@ doing" without finding the project first.
   cancels the same job the Jobs window shows
   ([the Jobs window](../browser/jobs-dashboard.md)). Try again is offered
   only for jobs that read; a comment that failed is tried again from the
-  Comments tab.
+  Sent tab on the network's Commenting row.
 - **It reads again every 10 seconds** while the tab is open, so a job queued
   for the phone's account shows within ten seconds.
 - **A stopped browser program is said in red** on the tab, because phone jobs

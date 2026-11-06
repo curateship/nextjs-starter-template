@@ -8,6 +8,7 @@ import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
 import { xPostUrl, type XIncoming, type XReplyKind } from "@/lib/social/x/options"
 import { zoneClockText } from "@/lib/social/waking"
 import { xMayHaveLanded, xPostingRefusal } from "@/lib/social/x/wording"
+import { commentingHref } from "@/lib/social/project-address"
 
 import { queueJob, TryAgainLater } from "../jobs"
 import { noticeRung, ringBell } from "../notices"
@@ -393,10 +394,15 @@ export async function queueXChecks(
   return queued
 }
 
-/** The address a reply's notices open: the Replies tab of its project with it open. */
+/**
+ * The address a reply's notices open: a sent reply on the Commenting
+ * dashboard's Sent tab, a post of your own on the project's own dashboard,
+ * each with it open.
+ */
 function replyHref(projectId: string | null, rowId: string, tab: "replies" | "posts" = "replies"): string {
+  if (tab === "replies") return commentingHref(projectId, { network: "x", tab: "replies", open: rowId })
   return projectId
-    ? `/admin/projects/${encodeURIComponent(projectId)}?network=x&tab=${tab}&open=${encodeURIComponent(rowId)}`
+    ? `/admin/projects/${encodeURIComponent(projectId)}?network=x&tab=posts&open=${encodeURIComponent(rowId)}`
     : "/admin/projects"
 }
 
@@ -667,7 +673,7 @@ export async function recordXMentions(
         message: `${NOTICE_HEADINGS.x_reply} from @${item.handle || "someone"}, naming @${account.handle}`,
         detail: item.text.slice(0, 300),
         href: account.projectId
-          ? `/admin/projects/${encodeURIComponent(account.projectId)}?network=x&tab=replies&open=${encodeURIComponent(row.id)}`
+          ? `/admin/projects/${encodeURIComponent(account.projectId)}?network=x&tab=mentions&open=${encodeURIComponent(row.id)}`
           : "/admin/projects",
       },
       db,
