@@ -35,6 +35,7 @@ import {
   useSelectedLayer,
   useThumbnails,
 } from "@/components/video-thumbnails/thumbnail-store"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import { changePicture } from "@/lib/api/video/thumbnail-ai"
 import {
@@ -155,6 +156,7 @@ function TextCards({
           // Words typed afresh drop marks that no longer line up with them.
           onChange={(event) => patch({ text: event.target.value, marks: undefined })}
         />
+        <LengthCounter length={layer.text.length} max={2_000} />
         <div className="grid gap-2">
           <Label htmlFor="thumbnail-font">Font</Label>
           <Select value={layer.fontId} onValueChange={(fontId) => patch({ fontId: fontId as TextFontId })}>

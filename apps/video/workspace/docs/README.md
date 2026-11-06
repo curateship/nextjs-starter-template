@@ -354,6 +354,16 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   what deleting the file removes.
 - [teaser.md](teaser.md) — the Teaser tile: stills scored by Gemini, cuts on
   the music's beats, and the teaser laid at the start as one Undo step.
+- [clip-menu.md](clip-menu.md) — the right-click menu every timeline clip
+  has, with Copy, Paste, Duplicate and Delete first, and Delete taking away
+  every picked clip as one Undo step.
+- [windows-and-typing.md](windows-and-typing.md) — how Video's windows treat
+  typing: red only after Save, the reason under a refused box, the count near
+  a box's limit, Enter saving, why a greyed control is greyed, busy buttons
+  that keep their width, and the "so far" count on long AI jobs.
+- [times-and-lengths.md](times-and-lengths.md) — the one rule every length and
+  time on screen is written by, rounded to the nearest second, and why 0:60
+  no longer shows.
 
 The AI tools, the credit ledger and the rest of the export and render path were
 built before this folder existed, and none of them is written up.

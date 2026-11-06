@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import {
   createActor,
   DEFAULT_IMAGE_MODEL,
@@ -125,6 +126,7 @@ export function AiClipNewActor({
               aria-invalid={(tried && !draft.prompt.trim()) || undefined}
               onChange={(event) => setDraft({ ...draft, prompt: event.target.value })}
             />
+            <LengthCounter length={draft.prompt.length} max={5000} />
           </div>
           <div className="flex items-start gap-3">
             <ImageUpload

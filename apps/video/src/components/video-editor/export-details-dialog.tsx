@@ -146,7 +146,7 @@ export function ExportDetailsDialog({
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Export</DialogTitle>
+            <DialogTitle>Export details</DialogTitle>
             <DialogDescription>
               {carousel
                 ? "What this one is called, and the picture that stands in for it."

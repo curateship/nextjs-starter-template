@@ -70,6 +70,7 @@ import {
 } from "@/components/video-editor/project-folders"
 import type { ProjectFolderSummary } from "@/lib/api/video/project-folders"
 import { ARCHIVED_PROJECTS, NO_FOLDER } from "@/lib/video/project-folders"
+import { PINNED_ROW_CLASS } from "@/lib/video/pinned-look"
 
 const projectsRoute = getRouteApi("/_authenticated/admin/video-editor/")
 
@@ -550,9 +551,8 @@ export function ProjectsPage({
             className={cn(
               "group",
               // A pinned project reads as pinned from across the list (Tyler,
-              // 17 Oct 2026), in the amber the app already uses for notices.
-              project.pinned &&
-                "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-400/10 dark:hover:bg-amber-400/15"
+              // 17 Oct 2026).
+              project.pinned && PINNED_ROW_CLASS
             )}
             rowAction={() => openEditor(project)}
           >

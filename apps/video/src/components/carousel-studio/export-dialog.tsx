@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { LengthCounter } from "@/components/video-assets/length-counter"
+import { SteadyLabel } from "@/components/video-assets/steady-label"
 import { loadMusicShelf } from "@/lib/api/video/music"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
@@ -253,6 +255,7 @@ export function CarouselExportDialog({
                   disabled={working || writingCaption}
                   onChange={(event) => onUpdateCaption(event.target.value)}
                 />
+                <LengthCounter length={caption.length} max={2_200} />
               </div>
               <div>
                 <Button
@@ -266,7 +269,7 @@ export function CarouselExportDialog({
                   ) : (
                     <SparklesIcon />
                   )}
-                  {writingCaption ? "Writing" : "Write it with AI"}
+                  <SteadyLabel busy={writingCaption} idle="Write it with AI" working="Writing…" />
                 </Button>
               </div>
             </CardContent>
@@ -289,7 +292,11 @@ export function CarouselExportDialog({
           </Button>
           <Button type="button" disabled={working} onClick={() => void handleExport()}>
             {working ? <Loader2Icon className="size-4 animate-spin" /> : <Icon className="size-4" />}
-            {working ? (kind === "video" ? "Making" : "Exporting") : label}
+            <SteadyLabel
+              busy={working}
+              idle={label}
+              working={kind === "video" ? "Making…" : "Exporting…"}
+            />
           </Button>
         </DialogFooter>
       </DialogContent>

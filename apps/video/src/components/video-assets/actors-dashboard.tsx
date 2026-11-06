@@ -31,6 +31,7 @@ import {
   EXTRA_KINDS,
   type ExtraKind,
 } from "@/lib/video/extras"
+import { ACTOR_STATUS_LABELS } from "@/lib/video/asset-factories"
 
 export type ActorsTab = "actors" | ExtraKind
 
@@ -254,7 +255,7 @@ export function ActorsDashboard({
                   <CardHeader>
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle>{actor.name}</CardTitle>
-                      <Badge variant="secondary">{actor.status}</Badge>
+                      <Badge variant="secondary">{ACTOR_STATUS_LABELS[actor.status]}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="grid gap-3">

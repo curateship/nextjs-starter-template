@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { InspectorCard } from "@/components/broadcasts/inspector-fields"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DialogBody,
   DialogContent,
@@ -38,6 +39,7 @@ import {
 import { ShotModelFields } from "@/components/video-editor/ai-shot-model-fields"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { useProjectSettings } from "@/components/video-editor/project-settings-context"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import {
   createStillShot,
   deleteGenerations,
@@ -121,6 +123,9 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
   // Which companies have a key and what each starts on, for the window.
   const [choices, setChoices] = React.useState<VideoChoices | null>(null)
   const [editing, setEditing] = React.useState<Editing | null>(null)
+  // The failed try waiting on "are you sure", from the clip's menu or its card.
+  const [clearing, setClearing] = React.useState<GenerationItem | null>(null)
+  const [clearBusy, setClearBusy] = React.useState(false)
   // Shots this window has started landing, so a later answer that still
   // lists one never lands it twice.
   const landing = React.useRef(new Set<string>())
@@ -256,13 +261,7 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
           )
           .catch((error: unknown) => reportError(getGenerationErrorMessage(error)))
       },
-      clear: (shot) => {
-        deleteGenerations([shot.id])
-          .then(() =>
-            setShots((current) => current.filter((item) => item.id !== shot.id))
-          )
-          .catch((error: unknown) => reportError(getGenerationErrorMessage(error)))
-      },
+      clear: (shot) => setClearing(shot),
     }
   }, [shots, store, reportError, choices])
 
@@ -319,6 +318,28 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
           onError={(error) => reportError(getGenerationErrorMessage(error))}
         />
       ) : null}
+      <ConfirmDialog
+        open={clearing !== null}
+        onOpenChange={(next) => {
+          if (!next) setClearing(null)
+        }}
+        title="Clear the failed try?"
+        description="The clip stays on the timeline as it is. The failed try and its reason go, and this can't be undone."
+        confirmLabel="Clear"
+        loading={clearBusy}
+        onConfirm={() => {
+          const shot = clearing
+          if (!shot) return
+          setClearBusy(true)
+          deleteGenerations([shot.id])
+            .then(() => {
+              setShots((current) => current.filter((item) => item.id !== shot.id))
+              setClearing(null)
+            })
+            .catch((error: unknown) => reportError(getGenerationErrorMessage(error)))
+            .finally(() => setClearBusy(false))
+        }}
+      />
     </MovingStillsContext.Provider>
   )
 }
@@ -483,6 +504,7 @@ function AnimateStillDialog({
                           setInvalid(false)
                         }}
                       />
+                      <LengthCounter length={(directions[index] ?? "").length} max={5000} />
                     </div>
                   ))}
                   <div className="flex flex-wrap gap-4">

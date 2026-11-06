@@ -53,7 +53,9 @@ export function ColourLookField({ clip }: { clip: EditorClip }) {
     let live = true
     loadColourLooks()
       .then((looks) => live && setSaved(looks))
-      .catch(() => undefined)
+      .catch(() => {
+        if (live) showErrorToast("Your saved looks could not be loaded. The film looks still work.")
+      })
     return () => {
       live = false
     }

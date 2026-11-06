@@ -5,6 +5,8 @@ import { toast } from "sonner"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { SettingsFoldCard } from "@/components/video-assets/settings-fold-card"
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
+import { FieldError } from "@/components/video-assets/field-error"
 import {
   Card,
   CardContent,
@@ -31,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import type { ProjectFolderSummary } from "@/lib/api/video/project-folders"
 import { NO_FOLDER } from "@/lib/video/project-folders"
 import {
@@ -111,11 +114,19 @@ export function ProjectFormDialog({
 }) {
   const [draft, setDraft] = React.useState(() => draftOf(project, video))
   const [saving, setSaving] = React.useState(false)
-  const [limitInvalid, setLimitInvalid] = React.useState(false)
+  // Why the spend limit was refused, shown under the box until it is edited.
+  const [limitError, setLimitError] = React.useState<string | null>(null)
+  const limitInvalid = limitError !== null
+  // The name box turns red only after a save with it empty, never on opening.
+  const [nameTried, setNameTried] = React.useState(false)
   // A new project's folder, picked in the window. Starts on the open folder.
   const [newFolderId, setNewFolderId] = React.useState(folderId)
   const inputRef = React.useRef<HTMLInputElement>(null)
-  const projectVideos = useProjectVideoFiles(open && project ? project.id : null)
+  const {
+    items: projectVideos,
+    failed: projectVideosFailed,
+    retry: retryProjectVideos,
+  } = useProjectVideoFiles(open && project ? project.id : null)
 
   // Start from what is stored every time the window opens.
   const [wasOpen, setWasOpen] = React.useState(open)
@@ -123,7 +134,8 @@ export function ProjectFormDialog({
     setWasOpen(open)
     if (open) {
       setDraft(draftOf(project, video))
-      setLimitInvalid(false)
+      setLimitError(null)
+      setNameTried(false)
       setNewFolderId(folderId)
     }
   }
@@ -134,6 +146,7 @@ export function ProjectFormDialog({
 
   async function handleSave() {
     if (!draft.name.trim()) {
+      setNameTried(true)
       showErrorToast("A project needs a name.")
       inputRef.current?.focus()
       return
@@ -156,8 +169,9 @@ export function ProjectFormDialog({
         try {
           spendLimitCents = parseSpendLimit(draft.spendLimit)
         } catch (error) {
-          setLimitInvalid(true)
-          showErrorToast(error instanceof Error ? error.message : "Check the limit.")
+          const message = error instanceof Error ? error.message : "Check the limit."
+          setLimitError(message)
+          showErrorToast(message)
           return
         }
       }
@@ -238,7 +252,7 @@ export function ProjectFormDialog({
                     ref={inputRef}
                     value={draft.name}
                     maxLength={200}
-                    aria-invalid={!draft.name.trim() || undefined}
+                    aria-invalid={(nameTried && !draft.name.trim()) || undefined}
                     placeholder="Gym hook reel"
                     onChange={(event) =>
                       setDraft({ ...draft, name: event.target.value })
@@ -302,9 +316,7 @@ export function ProjectFormDialog({
                         setDraft({ ...draft, style: event.target.value })
                       }
                     />
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {draft.style.length} / {MAX_STYLE_LENGTH}
-                    </span>
+                    <LengthCounter length={draft.style.length} max={MAX_STYLE_LENGTH} />
                   </div>
                   <ImageUpload
                     label="Look picture"
@@ -374,7 +386,13 @@ export function ProjectFormDialog({
                       </div>
                     )
                   })}
-                  {projectVideos?.length === 0 ? (
+                  {projectVideosFailed ? (
+                    <ErrorRow
+                      message="This project's videos could not be loaded."
+                      onRetry={retryProjectVideos}
+                      className="justify-items-start px-0 py-2 text-left"
+                    />
+                  ) : projectVideos?.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       No videos in this project&apos;s Media yet. Upload the intro there first.
                     </p>
@@ -404,11 +422,13 @@ export function ProjectFormDialog({
                       value={draft.spendLimit}
                       placeholder="No limit"
                       aria-invalid={limitInvalid || undefined}
+                      aria-describedby={limitInvalid ? "project-spend-limit-error" : undefined}
                       onChange={(event) => {
                         setDraft({ ...draft, spendLimit: event.target.value })
-                        setLimitInvalid(false)
+                        setLimitError(null)
                       }}
                     />
+                    <FieldError id="project-spend-limit-error" message={limitError} />
                   </div>
                 </SettingsFoldCard>
               ) : null}
@@ -435,25 +455,34 @@ export function ProjectFormDialog({
 }
 
 /**
- * The videos in this project's Media, for the intro and outro choices. Null
- * while they load, or when there is no project open in the window.
+ * The videos in this project's Media, for the intro and outro choices.
+ * `items` is null while they load, when the read failed, or when there is no
+ * project open in the window. A failed read says so, so it never passes for
+ * a project with no videos.
  */
 function useProjectVideoFiles(projectId: string | null) {
-  const [files, setFiles] = React.useState<{ projectId: string; items: VideoMediaItem[] } | null>(null)
+  const [files, setFiles] = React.useState<
+    { projectId: string; items: VideoMediaItem[] | null; failed: boolean } | null
+  >(null)
+  const [reads, setReads] = React.useState(0)
   React.useEffect(() => {
     if (!projectId) return
     let active = true
     listVideoMedia({ scope: { type: "project", id: projectId }, fileType: "video", pageSize: 100 })
       .then((page) => {
-        if (active) setFiles({ projectId, items: page.media })
+        if (active) setFiles({ projectId, items: page.media, failed: false })
       })
-      .catch((error) => {
-        console.error("Reading the project's videos failed", error)
-        if (active) setFiles({ projectId, items: [] })
+      .catch(() => {
+        if (active) setFiles({ projectId, items: null, failed: true })
       })
     return () => {
       active = false
     }
-  }, [projectId])
-  return files && files.projectId === projectId ? files.items : null
+  }, [projectId, reads])
+  const current = files && files.projectId === projectId ? files : null
+  return {
+    items: current?.items ?? null,
+    failed: current?.failed ?? false,
+    retry: () => setReads((count) => count + 1),
+  }
 }

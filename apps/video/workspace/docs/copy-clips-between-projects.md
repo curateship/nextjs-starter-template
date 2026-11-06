@@ -6,7 +6,8 @@ paste it in.
 
 ## How to use it
 
-- **Pick the clips.** Click one clip on the timeline. Hold Shift (or Cmd) and
+- **Pick the clips.** The same pick is what Delete removes, see
+  [clip-menu.md](clip-menu.md). Click one clip on the timeline. Hold Shift (or Cmd) and
   click more to add them to the group. Shift-clicking a picked clip takes it
   back out. The inspector shows the clip clicked last.
 - **Copy.** Cmd+C, or the copy button on the timeline's toolbar.

@@ -40,6 +40,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   normalizeAssetTags,
   type ImageModelId,
+  ACTOR_STATUS_LABELS
 } from "@/lib/video/asset-factories"
 
 type FormState = {
@@ -111,6 +112,8 @@ export function ActorFormDialog({
   )
   const [busy, setBusy] = React.useState(false)
   const [regenerate, setRegenerate] = React.useState(false)
+  // The boxes turn red only after a save with one empty, never on opening.
+  const [invalid, setInvalid] = React.useState(false)
 
   // A fresh form every time the window opens, on whichever actor it opens on.
   const [wasOpen, setWasOpen] = React.useState(open)
@@ -119,6 +122,7 @@ export function ActorFormDialog({
     if (open) {
       setForm(startingForm(actor))
       setRegenerate(false)
+      setInvalid(false)
     }
   }
 
@@ -127,6 +131,7 @@ export function ActorFormDialog({
 
   async function submit(shouldRegenerate: boolean) {
     if (!form.name.trim() || !form.prompt.trim()) {
+      setInvalid(true)
       showErrorToast("Name and description are required.")
       return
     }
@@ -157,90 +162,102 @@ export function ActorFormDialog({
           <DialogHeader>
             <DialogTitle>{actor ? "Edit actor" : "Create actor"}</DialogTitle>
           </DialogHeader>
-          <DialogBody>
-            <Card size="sm">
-              <CardHeader><CardTitle>Character</CardTitle></CardHeader>
-              <CardContent className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="actor-name">Name</Label>
-                  <Input id="actor-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} aria-invalid={!form.name.trim() || undefined} />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="actor-description">Description or new pose</Label>
-                  <Textarea id="actor-description" value={form.prompt} onChange={(event) => setForm({ ...form, prompt: event.target.value })} aria-invalid={!form.prompt.trim() || undefined} />
-                </div>
-                <ActorVoiceSelect
-                  id="actor-voice"
-                  value={form.voiceId}
-                  onChange={(voiceId) => setForm({ ...form, voiceId })}
-                  disabled={busy}
-                />
-                <ImageUpload
-                  label="Reference photo"
-                  value={form.referenceMediaUrl}
-                  onChange={(value) => setForm({ ...form, referenceMediaUrl: value })}
-                  aspect="square"
-                  fit="cover"
-                  disabled={busy}
-                  className="max-w-32"
-                  hint="Optional. Use a clear portrait to preserve a real person's appearance."
-                />
-              </CardContent>
-            </Card>
-            {actor && onSheetChanged ? (
-              <ActorSheetCard actor={actor} onChange={onSheetChanged} />
-            ) : null}
-            <Card size="sm">
-              <CardHeader><CardTitle>Generation</CardTitle></CardHeader>
-              <CardContent className="grid gap-4">
-                <div className="flex flex-wrap gap-4">
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submit(false)
+            }}
+          >
+            <DialogBody>
+              <Card size="sm">
+                <CardHeader><CardTitle>Character</CardTitle></CardHeader>
+                <CardContent className="grid gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="actor-model">Model</Label>
-                    <Select value={form.model} onValueChange={(model) => setForm({ ...form, model: model as ImageModelId })}>
-                      <SelectTrigger id="actor-model"><SelectValue /></SelectTrigger>
-                      <SelectContent>{IMAGE_MODELS.map((model) => <SelectItem key={model.id} value={model.id}>{model.label}</SelectItem>)}</SelectContent>
-                    </Select>
+                    <Label htmlFor="actor-name">Name</Label>
+                    <Input id="actor-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} aria-invalid={(invalid && !form.name.trim()) || undefined} />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="actor-status">Status</Label>
-                    <Select value={form.status} onValueChange={(status) => setForm({ ...form, status: status as FormState["status"] })}>
-                      <SelectTrigger id="actor-status"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
-                    </Select>
+                    <Label htmlFor="actor-description">Description or new pose</Label>
+                    <Textarea id="actor-description" value={form.prompt} onChange={(event) => setForm({ ...form, prompt: event.target.value })} aria-invalid={(invalid && !form.prompt.trim()) || undefined} />
                   </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="actor-tags">Tags</Label>
-                  <TagInput
-                    id="actor-tags"
-                    value={normalizeAssetTags(form.tags)}
-                    onChange={(tags) => setForm({ ...form, tags: tags.join(", ") })}
-                    placeholder="Type a tag and press Enter"
+                  <ActorVoiceSelect
+                    id="actor-voice"
+                    value={form.voiceId}
+                    onChange={(voiceId) => setForm({ ...form, voiceId })}
                     disabled={busy}
                   />
-                </div>
-                <ProjectLookSelect
-                  id="actor-look"
-                  projects={projects}
-                  value={form.lookProjectId}
-                  onChange={(lookProjectId) => setForm({ ...form, lookProjectId })}
-                  disabled={busy}
-                />
-              </CardContent>
-            </Card>
-          </DialogBody>
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={busy} onClick={requestClose}>Cancel</Button>
-            {actor ? (
-              <Button type="button" variant="outline" disabled={busy} onClick={() => void submit(true)}>
-                {busy && regenerate ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />} Re-pose
+                  <ImageUpload
+                    label="Reference photo"
+                    value={form.referenceMediaUrl}
+                    onChange={(value) => setForm({ ...form, referenceMediaUrl: value })}
+                    aspect="square"
+                    fit="cover"
+                    disabled={busy}
+                    className="max-w-32"
+                    hint="Optional. Use a clear portrait to preserve a real person's appearance."
+                  />
+                </CardContent>
+              </Card>
+              {actor && onSheetChanged ? (
+                <ActorSheetCard actor={actor} onChange={onSheetChanged} />
+              ) : null}
+              <Card size="sm">
+                <CardHeader><CardTitle>Generation</CardTitle></CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="flex flex-wrap gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="actor-model">Model</Label>
+                      <Select value={form.model} onValueChange={(model) => setForm({ ...form, model: model as ImageModelId })}>
+                        <SelectTrigger id="actor-model"><SelectValue /></SelectTrigger>
+                        <SelectContent>{IMAGE_MODELS.map((model) => <SelectItem key={model.id} value={model.id}>{model.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="actor-status">Status</Label>
+                      <Select value={form.status} onValueChange={(status) => setForm({ ...form, status: status as FormState["status"] })}>
+                        <SelectTrigger id="actor-status"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {(["active", "inactive"] as const).map((status) => (
+                            <SelectItem key={status} value={status}>{ACTOR_STATUS_LABELS[status]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="actor-tags">Tags</Label>
+                    <TagInput
+                      id="actor-tags"
+                      value={normalizeAssetTags(form.tags)}
+                      onChange={(tags) => setForm({ ...form, tags: tags.join(", ") })}
+                      placeholder="Type a tag and press Enter"
+                      disabled={busy}
+                    />
+                  </div>
+                  <ProjectLookSelect
+                    id="actor-look"
+                    projects={projects}
+                    value={form.lookProjectId}
+                    onChange={(lookProjectId) => setForm({ ...form, lookProjectId })}
+                    disabled={busy}
+                  />
+                </CardContent>
+              </Card>
+            </DialogBody>
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={busy} onClick={requestClose}>Cancel</Button>
+              {actor ? (
+                <Button type="button" variant="outline" disabled={busy} onClick={() => void submit(true)}>
+                  {busy && regenerate ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />} Re-pose
+                </Button>
+              ) : null}
+              <Button type="submit" disabled={busy}>
+                {busy && !regenerate ? <Loader2Icon className="animate-spin" /> : null}
+                {actor ? "Save changes" : "Create actor"}
               </Button>
-            ) : null}
-            <Button type="button" disabled={busy} onClick={() => void submit(false)}>
-              {busy && !regenerate ? <Loader2Icon className="animate-spin" /> : null}
-              {actor ? "Save changes" : "Create actor"}
-            </Button>
-          </DialogFooter>
+            </DialogFooter>
+          </form>
         </DialogContent>
       )}
     </FormDialog>

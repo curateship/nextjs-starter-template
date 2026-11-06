@@ -1,10 +1,12 @@
 # Stopping an export
 
-The export window has a **Stop it** button for as long as an export is waiting
-or being made. Pressing it ends the export within about a second, and nothing
-is kept. When several shapes of the project are on their way, the button reads
-**Stop all 3** (or however many there are) and stops every one of them. See
-[export-shapes.md](export-shapes.md).
+The export window has a **Stop export** button for as long as an export is
+waiting or being made. Pressing it ends the export within about a second, and
+nothing is kept. When several shapes of the project are on their way, the
+button reads **Stop all 3 exports** (or however many there are) and stops every
+one of them. See [export-shapes.md](export-shapes.md). The window and the
+Exports page use the same words for the button and for the line that says how
+an export is getting on, both from `src/lib/video/export-status.ts`.
 
 ## Stopping one export
 

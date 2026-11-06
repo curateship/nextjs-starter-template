@@ -130,13 +130,34 @@ A rail tab's panel stays blank under its header until its list arrives, then
 draws it. It never shows a spinning circle. Tyler, 2 Nov 2026: "remove the
 circle loading screen in the left panels because the content is not slow
 enough so the loading circle just causes a flicker instead." That covers the
-video editor's Videos, Music, Sounds, Voiceovers (and Your voices),
+video editor's Videos, Music, Sounds, Voiceovers (and Your voices), Ads,
 AI clip (and its Carousels card), Copy, Exports and History panels, the
 carousel editor's Carousels and Media panels, and the sticker list in both.
+The rule is Tyler's own words, so it wins over any later task that offers
+loading rows for these panels unless he changes it.
 
-A failed load still says so, with a Try again button. The spinners left are on
-buttons while they work, on a file still being got ready, and inside windows
-such as Move to project, which are not side panels.
+A failed load still says so, with a Try again button. Every one of these
+panels draws it with the shell's `ErrorRow`, showing the server's own reason
+when there is one (a signed-out session says so, rather than a general
+"could not be loaded"). The row also raises one error message, so a failure
+is never said twice. The spinners left are on buttons while they work, on a
+file still being got ready, and inside windows such as Move to project, which
+are not side panels.
+
+## The timeline's zoom
+
+Zoom out and Zoom in are the magnifier pair, so neither looks like Add a
+track's plus. The slider between them is the shell's `Slider`, the one used
+everywhere else in Video, so tabbing to it shows the focus ring and the arrow
+keys zoom. The thumbnail board's before and after slider is the same one.
+Raw sliders still drawn by `studio.css` show a focus outline too.
+
+## The left rail's labels
+
+The words under the rail's icons stay at 10px, the one place in Video's own
+screens smaller than the normal small text (12px). The rail is 64px wide, and
+"Transcript" needs that size to fit on one line. Everywhere else, small text
+under a panel's rows, cards and tiles is 12px.
 
 ## The Videos and Carousels tabs keep their list when you switch
 

@@ -33,7 +33,11 @@ more to hold the face steady.
 - **Each change saves at once.** Adding, labelling, making main and removing
   do not wait for Save changes, which still saves the name, description,
   model, status and tags.
-- **The card on the dashboard** says how many pictures the sheet holds.
+- **The card on the dashboard** says how many pictures the sheet holds, and
+  its badge reads Active or Inactive. The stored words stay `active` and
+  `inactive`; the labels come from `ACTOR_STATUS_LABELS` in
+  `src/lib/video/asset-factories.ts`, which the actor window's Status choice
+  reads too.
 - **Tags** in the actor window are pills. Enter or a comma turns what was
   typed into one, the x on a pill removes it, and Backspace in an empty box
   removes the last one. Tags are lowercased and kept once each, up to 30

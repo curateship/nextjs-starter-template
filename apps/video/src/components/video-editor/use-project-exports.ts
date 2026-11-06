@@ -10,6 +10,9 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 /** How often the editor asks how the renders are getting on. */
 const POLL_MS = 2000
 
+const LOAD_FAILED_MESSAGE =
+  "Your exports could not be checked, so the Export button may not show one that is running."
+
 export function isExportActive(job: RenderJobSummary) {
   return job.status === "queued" || job.status === "running"
 }
@@ -21,23 +24,35 @@ export function isExportActive(job: RenderJobSummary) {
  */
 export function useProjectExports(videoId: string) {
   const [jobs, setJobs] = React.useState<RenderJobSummary[]>([])
+  const [loads, setLoads] = React.useState(0)
   const previousStatus = React.useRef(new Map<string, string>())
+  // Said once when asking starts failing, and again only after an answer came
+  // back in between, so a poll every two seconds never stacks up notices.
+  const failing = React.useRef(false)
 
   React.useEffect(() => {
     let active = true
     loadVideoExports(videoId)
       .then((loaded) => {
         if (!active) return
+        failing.current = false
         previousStatus.current = new Map(
           loaded.map((job) => [job.id, job.status])
         )
         setJobs(loaded)
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (!active || failing.current) return
+        failing.current = true
+        showErrorToast(LOAD_FAILED_MESSAGE, {
+          label: "Try again",
+          onClick: () => setLoads((count) => count + 1),
+        })
+      })
     return () => {
       active = false
     }
-  }, [videoId])
+  }, [videoId, loads])
 
   const running = jobs.some(isExportActive)
   React.useEffect(() => {
@@ -46,9 +61,15 @@ export function useProjectExports(videoId: string) {
     const timer = setInterval(() => {
       loadVideoExports(videoId)
         .then((loaded) => {
-          if (active) setJobs(loaded)
+          if (!active) return
+          failing.current = false
+          setJobs(loaded)
         })
-        .catch(() => undefined)
+        .catch(() => {
+          if (!active || failing.current) return
+          failing.current = true
+          showErrorToast(LOAD_FAILED_MESSAGE)
+        })
     }, POLL_MS)
     return () => {
       active = false

@@ -28,6 +28,7 @@ import {
 } from "@/components/shared/folding-menu"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -47,6 +48,7 @@ import {
   useEditorSelector,
 } from "@/components/video-editor/editor-store"
 import { useDragToTimeline } from "@/components/video-editor/use-drag-to-timeline"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { getMediaErrorMessage, uploadMedia } from "@/lib/api/media/media"
 import {
   addClipToShelf,
@@ -547,6 +549,7 @@ export function AdsPanel() {
                       placeholder="Try Brightly free for 30 days, code TYLER"
                       onChange={(event) => setWords(event.target.value)}
                     />
+                    <LengthCounter length={words.length} max={Math.max(TEXT_AD_MAX, AD_ABOUT_MAX)} />
                     <p className="text-xs text-muted-foreground">
                       Along the bottom for 8 seconds. Or type a few words about the product and
                       press Write with AI.
@@ -739,14 +742,13 @@ export function AdsPanel() {
             <h3 className="text-xs font-medium text-muted-foreground">
               Your ads{shelf ? ` · ${ads.length}` : ""}
             </h3>
-            {shelf === null && !loadFailed ? null : loadFailed ? (
-              <div className="grid justify-items-center gap-2 py-4 text-center text-sm text-muted-foreground">
-                Your ads could not be loaded.
-                <Button type="button" variant="outline" onClick={() => setRefresh((n) => n + 1)}>
-                  Try again
-                </Button>
-              </div>
-            ) : ads.length ? (
+            {loadFailed ? (
+              <ErrorRow
+                message="Your ads could not be loaded."
+                onRetry={() => setRefresh((n) => n + 1)}
+                className="py-4"
+              />
+            ) : shelf === null ? null : ads.length ? (
               <ul className="grid gap-2">
                 {ads.map((ad) => (
                   <AdRow
@@ -835,7 +837,7 @@ function AdRow({
         <Icon className="size-4 shrink-0 text-muted-foreground" />
         <span className="grid min-w-0">
           <span className="truncate text-xs font-medium">{ad.name}</span>
-          <span className="truncate text-[0.625rem] text-muted-foreground">{label}</span>
+          <span className="truncate text-xs text-muted-foreground">{label}</span>
         </span>
       </button>
       <Hint label="Add at playhead">

@@ -126,8 +126,9 @@ Who does the swap depends on whether the project is open:
   worker lands it if no editor is open when it arrives.
 - **When it fails:** the picture stays as it is. The marker says "Couldn't
   make it move", the reason shows on hover, and Try again sits beside it. The
-  right-click menu has Try again and Clear the failed try too. Pressing Make
-  it move again replaces the failed try.
+  right-click menu has Try again and Clear the failed try too. Clear the
+  failed try asks first, from the menu and from the card alike, since the
+  reason goes with it. Pressing Make it move again replaces the failed try.
 
 ## When the picture is gone
 

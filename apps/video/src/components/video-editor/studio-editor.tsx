@@ -223,8 +223,8 @@ export function StudioEditor({
   const { copy, paste } = useClipClipboard()
   const dropMarker = useDropMarker()
 
-  // Space plays and pauses, Delete removes the selected clip, Escape lets go of
-  // it, Cmd+C and Cmd+V copy and paste clips. Typing anywhere is left alone, and
+  // Space plays and pauses, Delete removes every selected clip, Escape lets go
+  // of them, Cmd+C and Cmd+V copy and paste clips. Typing anywhere is left alone, and
   // so is copying words highlighted on the page. So is anything pressed inside
   // an open window: the History preview has a player of its own, and a Delete
   // there once removed a clip from the project behind it.
@@ -247,10 +247,10 @@ export function StudioEditor({
         // While a thumbnail is designed, these keys belong to the board's
         // layers (thumbnail-board.tsx), never to a clip on the timeline.
         if (designing) return
-        const selectedClipId = store.getSnapshot().state.selectedClipId
-        if (selectedClipId) {
+        const { selectedClipIds } = store.getSnapshot().state
+        if (selectedClipIds.length > 0) {
           event.preventDefault()
-          dispatch({ type: "DELETE_CLIP", clipId: selectedClipId })
+          dispatch({ type: "DELETE_CLIPS", clipIds: selectedClipIds })
         }
       } else if (
         event.key.toLowerCase() === "m" &&
@@ -458,6 +458,7 @@ function RailButton({
       )}
     >
       <Icon className="size-5" />
+      {/* 10px on purpose: the rail is 64px wide and "Transcript" needs it. */}
       <span className="text-[0.625rem] font-medium">{label}</span>
     </button>
   )

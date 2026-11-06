@@ -32,6 +32,7 @@ import {
 import { formatClock } from "@/lib/video/timeline-utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,7 +69,7 @@ export function VoiceoversPanel() {
   const [voiceovers, setVoiceovers] = React.useState<SavedVoiceover[] | null>(
     null
   )
-  const [loadFailed, setLoadFailed] = React.useState(false)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [refresh, setRefresh] = React.useState(0)
   const [playingId, setPlayingId] = React.useState<string | null>(null)
   const [searchOpen, setSearchOpen] = React.useState(false)
@@ -114,12 +115,11 @@ export function VoiceoversPanel() {
       .then((loaded) => {
         if (!active) return
         setVoiceovers(loaded)
-        setLoadFailed(false)
+        setLoadError(null)
       })
       .catch((error) => {
         if (!active) return
-        setLoadFailed(true)
-        showErrorToast(getVoiceoverErrorMessage(error))
+        setLoadError(getVoiceoverErrorMessage(error))
       })
     return () => {
       active = false
@@ -249,18 +249,12 @@ export function VoiceoversPanel() {
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">
-          {voiceovers === null && !loadFailed ? null : loadFailed ? (
-            <div className="grid justify-items-center gap-2 py-8 text-center text-sm text-muted-foreground">
-              Your voiceovers could not be loaded.
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setRefresh((count) => count + 1)}
-              >
-                Try again
-              </Button>
-            </div>
-          ) : !voiceovers?.length ? (
+          {loadError ? (
+            <ErrorRow
+              message={loadError}
+              onRetry={() => setRefresh((count) => count + 1)}
+            />
+          ) : voiceovers === null ? null : !voiceovers?.length ? (
             <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
               {debounced
                 ? `No voiceover says "${debounced}".`
@@ -362,7 +356,7 @@ function VoiceoverRow({
           {/* A recording Whisper could not write down has no words. */}
           {voiceover.script || voiceover.name}
         </span>
-        <span className="truncate text-[0.625rem] text-muted-foreground tabular-nums">
+        <span className="truncate text-xs text-muted-foreground tabular-nums">
           {voiceover.voiceName} · {formatClock(voiceover.durationMs)}
         </span>
       </div>

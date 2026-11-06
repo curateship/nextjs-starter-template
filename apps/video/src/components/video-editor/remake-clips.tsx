@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   ClipboardPasteIcon,
   CopyIcon,
+  CopyPlusIcon,
   DropletIcon,
   EraserIcon,
   FilmIcon,
@@ -9,6 +10,7 @@ import {
   MicIcon,
   RotateCwIcon,
   SparklesIcon,
+  Trash2Icon,
   XIcon,
 } from "lucide-react"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
@@ -18,6 +20,7 @@ import { InspectorCard } from "@/components/broadcasts/inspector-fields"
 import { copyLook, takesLook } from "@/lib/video/copied-look"
 import {
   CONTEXT_MENU_CONTENT_CLASS,
+  CONTEXT_MENU_DESTRUCTIVE_ITEM_CLASS,
   CONTEXT_MENU_ITEM_CLASS,
 } from "@/components/shared/editor-media-context-menu"
 import { Button } from "@/components/ui/button"
@@ -56,11 +59,13 @@ import {
 import { useMovingStills } from "@/components/video-editor/moving-stills-context"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { useProjectSettings } from "@/components/video-editor/project-settings-context"
+import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
 import {
   RemakeClipsContext,
   useRemakeClips,
   type RemakeClipsValue,
 } from "@/components/video-editor/remake-clips-context"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import {
   getAiToolErrorMessage,
@@ -377,6 +382,7 @@ function RemakePictureDialog({
                         setInvalid(false)
                       }}
                     />
+                    <LengthCounter length={prompt.length} max={5000} />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="remake-picture-model">Model</Label>
@@ -591,6 +597,7 @@ function RemakeVoiceDialog({
                       setInvalid(false)
                     }}
                   />
+                  <LengthCounter length={script.length} max={VOICE_TEXT_MAX} />
                   <p className="text-sm text-muted-foreground">
                     {origin.tool === "hook"
                       ? "The opening words on screen change to the new line."
@@ -691,11 +698,13 @@ function RemakeVoiceDialog({
 }
 
 /**
- * The right-click menu on a timeline clip: Blur a spot on a picture or video,
- * Make it move on a picture, Make it again on anything the AI made, and Try
- * again or Clear after a failed shot. A clip with none of those gets no menu.
- * Outside the editor itself, such as the History preview (`readOnly`), every
- * clip is drawn without one.
+ * The right-click menu on a timeline clip. Every clip gets Copy, Paste,
+ * Duplicate and Delete first, so no clip ever falls through to the browser's
+ * own menu. Then Blur a spot on a picture or video, Make it move on a
+ * picture, Make it again on anything the AI made, and Try again or Clear
+ * after a failed shot. Outside the editor itself, such as the History
+ * preview (`readOnly`), a clip gets no menu unless one of those last ones
+ * applies.
  */
 export function ClipContextMenu({
   clip,
@@ -707,6 +716,7 @@ export function ClipContextMenu({
   children: React.ReactElement
 }) {
   const { dispatch, clock, store } = useEditorRuntime()
+  const { copy, paste } = useClipClipboard()
   const stills = useMovingStills()
   const remake = useRemakeClips()
   const copiedLook = useEditorSelector((state) => state.copiedLook)
@@ -718,8 +728,15 @@ export function ClipContextMenu({
   const canClean = !readOnly && !!remake && clip.kind === "image" && !!clip.mediaId
   const canMatchLips = !readOnly && !!remake && clip.kind === "video" && !!clip.mediaId
   const canLook = !readOnly && takesLook(clip.kind)
-  if (!canLook && !canBlur && !canClean && !canMove && !canRemake && !canMatchLips && !failed) {
-    return children
+  if (readOnly && !canMove && !canRemake && !failed) return children
+
+  // Every picked clip when this one is among them, otherwise this one alone,
+  // which becomes the selection so the inspector and the timeline agree.
+  function pickedClipIds() {
+    const { selectedClipIds } = store.getSnapshot().state
+    if (selectedClipIds.includes(clip.id)) return selectedClipIds
+    dispatch({ type: "SELECT_CLIP", clipId: clip.id })
+    return [clip.id]
   }
 
   // Onto every picked clip when this one is among them, otherwise onto this
@@ -750,6 +767,44 @@ export function ClipContextMenu({
           // leave the item never chosen.
           onPointerDown={(event) => event.stopPropagation()}
         >
+          {readOnly ? null : (
+            <>
+              <ContextMenuPrimitive.Item
+                className={CONTEXT_MENU_ITEM_CLASS}
+                onSelect={() => {
+                  pickedClipIds()
+                  copy()
+                }}
+              >
+                <CopyIcon />
+                Copy
+              </ContextMenuPrimitive.Item>
+              <ContextMenuPrimitive.Item
+                className={CONTEXT_MENU_ITEM_CLASS}
+                onSelect={() => void paste()}
+              >
+                <ClipboardPasteIcon />
+                Paste at the playhead
+              </ContextMenuPrimitive.Item>
+              <ContextMenuPrimitive.Item
+                className={CONTEXT_MENU_ITEM_CLASS}
+                onSelect={() => dispatch({ type: "DUPLICATE_CLIP", clipId: clip.id })}
+              >
+                <CopyPlusIcon />
+                Duplicate
+              </ContextMenuPrimitive.Item>
+              <ContextMenuPrimitive.Item
+                className={CONTEXT_MENU_DESTRUCTIVE_ITEM_CLASS}
+                onSelect={() => dispatch({ type: "DELETE_CLIPS", clipIds: pickedClipIds() })}
+              >
+                <Trash2Icon />
+                Delete
+              </ContextMenuPrimitive.Item>
+              {canLook || canBlur || canClean || canMatchLips || canMove || canRemake || failed ? (
+                <ContextMenuPrimitive.Separator className="-mx-1 my-1 h-px bg-border" />
+              ) : null}
+            </>
+          )}
           {canLook ? (
             <>
               <ContextMenuPrimitive.Item

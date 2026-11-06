@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
@@ -65,7 +66,7 @@ export function HistoryPanel() {
   const [versions, setVersions] = React.useState<ProjectVersionItem[] | null>(
     null
   )
-  const [loadFailed, setLoadFailed] = React.useState(false)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [reads, setReads] = React.useState(0)
   const [open, setOpen] = React.useState<ProjectVersionItem | null>(null)
   const [restoring, setRestoring] = React.useState(false)
@@ -77,12 +78,11 @@ export function HistoryPanel() {
       .then((loaded) => {
         if (!active) return
         setVersions(loaded)
-        setLoadFailed(false)
+        setLoadError(null)
       })
       .catch((error) => {
         if (!active) return
-        setLoadFailed(true)
-        showErrorToast(getProjectVersionErrorMessage(error))
+        setLoadError(getProjectVersionErrorMessage(error))
       })
     return () => {
       active = false
@@ -127,14 +127,12 @@ export function HistoryPanel() {
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          {versions === null && !loadFailed ? null : loadFailed ? (
-            <div className="grid justify-items-center gap-2 py-8 text-center text-sm text-muted-foreground">
-              The history could not be loaded.
-              <Button type="button" variant="outline" onClick={reload}>
-                Try again
-              </Button>
-            </div>
-          ) : !versions?.length ? (
+          {loadError ? (
+            <ErrorRow
+              message={loadError}
+              onRetry={reload}
+            />
+          ) : versions === null ? null : !versions?.length ? (
             <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
               No earlier versions yet. One is kept at your first change after
               a {BREAK_MS / 60_000} minute break, and once an hour while you
@@ -158,18 +156,18 @@ export function HistoryPanel() {
                       </span>
                       {/* Who saved it, when it was a guest sent from Project. */}
                       {item.edited_by ? (
-                        <span className="truncate text-[0.625rem] text-muted-foreground">
+                        <span className="truncate text-xs text-muted-foreground">
                           Saved by {item.edited_by}
                         </span>
                       ) : null}
-                      <span className="truncate text-[0.625rem] text-muted-foreground tabular-nums">
+                      <span className="truncate text-xs text-muted-foreground tabular-nums">
                         {versionFacts(item)}
                       </span>
                     </button>
                   </li>
                 ))}
               </ul>
-              <p className="text-[0.625rem] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 The newest {KEEP_VERSIONS} are kept.
               </p>
             </>

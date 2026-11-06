@@ -31,6 +31,9 @@ asks first. Clips that used a deleted look keep their colour.
 A guest sent from Project sees the film looks only, because saved looks are
 the owner's.
 
+When your saved looks can't be read, an error message says so, and the film
+looks still work.
+
 ## How the preview and the export match
 
 Each film look is one colour file, a LUT: for every colour in, the colour out.

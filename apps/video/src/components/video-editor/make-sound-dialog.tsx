@@ -2,6 +2,7 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { FieldError } from "@/components/video-assets/field-error"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
@@ -16,6 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { getMakeSoundErrorMessage, makeSoundEffect } from "@/lib/api/video/sound-effects"
 import type { MediaItem } from "@/server/media/library"
 import { withEstimate } from "@/lib/video/ai-estimates"
@@ -56,6 +58,9 @@ export function MakeSoundDialog({
   const [busy, setBusy] = React.useState(false)
   const seconds = typedSeconds(lengthText)
   const lengthOk = seconds === null || aiSoundLengthOk(seconds)
+  // The reason shows once Make was pressed with a wrong length, not while typing.
+  const [lengthTried, setLengthTried] = React.useState(false)
+  const lengthRefused = lengthTried && !lengthOk
 
   async function make() {
     if (!words.trim()) {
@@ -63,6 +68,7 @@ export function MakeSoundDialog({
       return
     }
     if (!lengthOk) {
+      setLengthTried(true)
       showErrorToast(AI_SOUND_LENGTH_MESSAGE)
       return
     }
@@ -113,6 +119,7 @@ export function MakeSoundDialog({
                     disabled={busy}
                     onChange={(event) => setWords(event.target.value)}
                   />
+                  <LengthCounter length={words.length} max={AI_SOUND_WORDS_MAX} />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="ai-sound-seconds">Length in seconds</Label>
@@ -122,8 +129,13 @@ export function MakeSoundDialog({
                     placeholder={`Empty lets the AI choose, ${AI_SOUND_MIN_SECONDS} to ${AI_SOUND_MAX_SECONDS}`}
                     value={lengthText}
                     disabled={busy}
-                    aria-invalid={!lengthOk || undefined}
+                    aria-invalid={lengthRefused || undefined}
+                    aria-describedby={lengthRefused ? "ai-sound-seconds-error" : undefined}
                     onChange={(event) => setLengthText(event.target.value)}
+                  />
+                  <FieldError
+                    id="ai-sound-seconds-error"
+                    message={lengthRefused ? AI_SOUND_LENGTH_MESSAGE : null}
                   />
                 </div>
               </CardContent>

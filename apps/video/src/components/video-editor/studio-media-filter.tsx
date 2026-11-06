@@ -128,11 +128,18 @@ function useMediaViews(screen: string, enabled: boolean) {
       .then((loaded) => {
         if (active) setViews(loaded)
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        if (!active) return
+        const message = error instanceof Error ? error.message : ""
+        showErrorToast(
+          describeAuthError(message) ?? "Your saved views could not be loaded.",
+          { label: "Try again", onClick: reload }
+        )
+      })
     return () => {
       active = false
     }
-  }, [enabled, screen, version])
+  }, [enabled, reload, screen, version])
   return { views, reload }
 }
 

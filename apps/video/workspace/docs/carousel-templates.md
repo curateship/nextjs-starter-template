@@ -7,7 +7,10 @@ makes a copy. Tyler asked for "Blank or a template?" in this window.
 - **Marking one:** "Offer as template" in a carousel's menu in the Carousels
   tab of the carousel editor. Picked again, "Stop offering as template".
 - **Where templates are offered:** only in New carousel, under "A template",
-  which appears once you have one. Tyler, 20 Oct 2026: no Templates tab.
+  which shows once you have one. Tyler, 20 Oct 2026: no Templates tab. While
+  your templates load, the tab is there but greyed, with "Your templates are
+  still loading." on hover, so the tabs never jump when the list arrives. It
+  goes only once the list comes back empty.
 - **Templates stay in their carousel project**, so one can be opened, edited
   and unmarked like any carousel.
 - **This project's first.** New carousel lists the open carousel project's

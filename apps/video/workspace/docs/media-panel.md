@@ -44,7 +44,9 @@ Image panel uses the same menu (see
 
 Save view at the foot of the menu names the pick and keeps it. Tyler chose on
 29 Oct 2026 that a view is yours alone, shows in every project, and keeps the
-types and the collection but not the search words.
+types and the collection but not the search words. When the views can't be
+read, an error message says "Your saved views could not be loaded." with Try
+again.
 
 - **Where they are kept:** the shell's `saved_views` table, the same one
   Viral's views use, under the screen key `editor-media:library`. The rules

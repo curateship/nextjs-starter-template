@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  clockText,
   parseClockText,
   STRETCH_ORDER_MESSAGE,
   STRETCH_PAST_END_MESSAGE,
@@ -9,6 +8,7 @@ import {
   stretchRefusal,
   timelineStretch,
 } from "@/lib/video/export-stretch"
+import { formatClock } from "@/lib/video/timeline-utils"
 
 const MINUTE = 60_000
 
@@ -28,9 +28,9 @@ describe("reading a time typed in the Export window", () => {
   })
 
   it("writes times back the same way", () => {
-    expect(clockText(0)).toBe("0:00")
-    expect(clockText(12 * MINUTE)).toBe("12:00")
-    expect(clockText(65 * MINUTE + 4_000)).toBe("1:05:04")
+    expect(formatClock(0)).toBe("0:00")
+    expect(formatClock(12 * MINUTE)).toBe("12:00")
+    expect(formatClock(65 * MINUTE + 4_000)).toBe("1:05:04")
   })
 })
 

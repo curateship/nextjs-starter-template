@@ -64,17 +64,20 @@ export function pxToMs(px: number, pxPerSecond: number) {
   return (px / pxPerSecond) * 1000
 }
 
-// "m:ss.cc" — the precise form the whole-second one below is cut down from.
-function formatTimecode(ms: number) {
-  const totalSeconds = Math.max(0, ms) / 1000
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds - minutes * 60
-  return `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
-}
-
-// Whole-second "m:ss" form for chips and status readouts (33_700 -> "0:33").
+/**
+ * Every length and time Video shows: "0:34", "12:00", or "1:05:04" once
+ * there are hours, rounded to the nearest second. One rule, so a project
+ * reads the same length on the list, the Exports page and the Export window
+ * (33.7 seconds is 0:34 everywhere), and 59.996 seconds is 1:00, never 0:60.
+ */
 export function formatClock(ms: number) {
-  return formatTimecode(ms).replace(/\.\d+$/, "")
+  const total = Math.max(0, Math.round(ms / 1000))
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = String(total % 60).padStart(2, "0")
+  return hours
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}`
+    : `${minutes}:${seconds}`
 }
 
 // A decorative audio waveform as a CSS background data-URL. `color` is a raw

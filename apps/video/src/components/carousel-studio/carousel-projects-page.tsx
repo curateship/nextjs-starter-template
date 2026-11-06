@@ -52,6 +52,7 @@ import { useListSearchNavigate, useListSort, useSearchBoxText } from "@/lib/nav/
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { ARCHIVED_PROJECTS, NO_FOLDER } from "@/lib/video/project-folders"
+import { PINNED_ROW_CLASS } from "@/lib/video/pinned-look"
 
 const route = getRouteApi("/_authenticated/admin/video-carousels/")
 
@@ -364,8 +365,7 @@ export function CarouselProjectsPage({
             className={cn(
               "group",
               // Pinned reads as pinned from across the list, as on the video projects table.
-              project.pinned &&
-                "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-400/10 dark:hover:bg-amber-400/15"
+              project.pinned && PINNED_ROW_CLASS
             )}
             rowAction={() => openEditor(project)}
           >
