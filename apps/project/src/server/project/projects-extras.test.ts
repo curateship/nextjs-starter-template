@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { storedTaskNotes } from "@/lib/project/notes"
 import type { CustomShellDb } from "@/server/db"
-import { createLabel, setTaskLabels } from "@/server/project/labels"
 import { restoreTask } from "@/server/project/planning"
 import { loadProjectActivity } from "@/server/project/project-activity"
 import {
@@ -17,12 +16,10 @@ import {
 import { sendMessage } from "@/server/project/task-chat"
 import {
   acceptTask,
-  addStep,
   createTask,
   deleteTask,
   loadTaskDetail,
   setTaskStatus,
-  updateStep,
 } from "@/server/project/tasks"
 import { projectFor, startTeam } from "@/server/project/test-people"
 import type { CustomShellUser } from "@/server/schema"
@@ -61,19 +58,15 @@ async function task(title: string, assignee: CustomShellUser | null = ben, dueDa
   return (
     await createTask(
       actor(anna),
-      { projectId: website, title, notes: "", assigneeUserId: assignee?.id ?? null, dueDate, steps: [] },
+      { projectId: website, title, notes: "", assigneeUserId: assignee?.id ?? null, dueDate },
       database
     )
   ).id
 }
 
 describe("copying a project", () => {
-  it("copies tasks, steps and tags, with no people, dates, chat or history", async () => {
+  it("copies tasks, with no people, dates, chat or history", async () => {
     const brief = await task("Write the brief", ben, "2099-03-04")
-    const step = await addStep(actor(anna), { taskId: brief, text: "Call the client" }, database)
-    await updateStep(actor(anna), { stepId: step.id, done: true }, database)
-    const label = await createLabel(anna.id, { name: "Client", color: "pink" }, database)
-    await setTaskLabels(anna.id, { taskId: brief, labelIds: [label.id] }, database)
     await sendMessage(actor(ben), { chat: { taskId: brief }, body: "Started", replyToId: null }, database)
     await setTaskStatus(actor(ben), { taskId: brief, status: "done", stuckReason: null }, database)
     const binned = await task("Old idea")
@@ -93,9 +86,7 @@ describe("copying a project", () => {
     expect(copy.tasks.map((t) => t.title)).toEqual(["Write the brief", "Launch"])
     const first = copy.tasks[0]
     expect(first).toMatchObject({ status: "todo", assignee: null, dueDate: null, commentCount: 0 })
-    expect(first.labels.map((l) => l.name)).toEqual(["Client"])
     const detail = await loadTaskDetail(ben.id, first.id, database)
-    expect(detail.steps.map((s) => [s.text, s.done])).toEqual([["Call the client", false]])
     expect(detail.history).toEqual([])
 
     const original = await loadProjectPage(anna.id, website, database)

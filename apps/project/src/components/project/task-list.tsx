@@ -16,7 +16,6 @@ import {
   DueChip,
   DueMovesMark,
   HeldTaskGhost,
-  LabelChip,
   PersonChip,
   PickedDaysBadge,
   PriorityChip,
@@ -25,8 +24,6 @@ import {
   SnoozedBadge,
   StatusBadge,
   StatusDot,
-  StepsChip,
-  TypeChip,
   UnreadBadge,
   WaitingBadge,
   WaitingOnBadge,
@@ -34,7 +31,6 @@ import {
 import { HeadingAddButton, HeadingFoldButton } from "@/components/project/task-list-heading"
 import { FOLDING_HEADING_CLASS, foldOnHeadingClick } from "@/lib/project/heading-fold"
 import { TaskBulkMenu, type BulkTargets } from "@/components/project/task-bulk-bar"
-import { ClockReadout, ClockRunningChip } from "@/components/project/task-clock"
 import {
   AssigneeCellMenu,
   DueCellMenu,
@@ -66,20 +62,15 @@ import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { todayKey } from "@/lib/project/dates"
-import { clockSeconds } from "@/lib/project/clock"
 import { HEADING_DROP, type ListDrop } from "@/lib/project/list-drop"
 import { TASK_STATUSES, priorityRank, type ProjectColor } from "@/lib/project/rules"
-import { fieldSortValue, fieldValueText, type FieldRule } from "@/lib/project/task-fields"
 import type { TaskGroup } from "@/lib/project/task-groups"
 import { byPosition } from "@/lib/project/task-order"
 import { useFoldedHeadings } from "@/lib/project/use-folded-headings"
 import { useListDrop } from "@/lib/project/use-list-drop"
 import { cn } from "@/lib/utils"
 
-/**
- * "order" is the project's own order, set by dragging; the rest are columns.
- * A task type's field shows as a column named `field:<its id>`.
- */
+/** "order" is the project's own order, set by dragging; the rest are columns. */
 export type TaskColumn =
   | "order"
   | "title"
@@ -88,9 +79,6 @@ export type TaskColumn =
   | "priority"
   | "assignee"
   | "due"
-  | "steps"
-  | "time"
-  | `field:${string}`
 
 /** The Project column's chip for a task, and the projects it can move to. */
 export type ProjectColumn = {
@@ -98,34 +86,15 @@ export type ProjectColumn = {
   choices?: (task: TaskCard) => ProjectChoice[]
 }
 
-/** A task type's field drawn as a column, with the words for each task's value. */
-export type FieldColumn = {
-  field: Pick<FieldRule, "id" | "name" | "kind" | "settings">
-  people: ReadonlyMap<string, string>
-}
-
 const STATUS_ORDER = Object.fromEntries(TASK_STATUSES.map((s, i) => [s, i]))
-const NO_FIELD_COLUMNS: readonly FieldColumn[] = []
-const NO_TARGETS: BulkTargets = { people: [], projects: [], tags: [], types: [] }
+const NO_TARGETS: BulkTargets = { people: [], projects: [] }
 
 function compare(
   a: TaskCard,
   b: TaskCard,
   column: TaskColumn,
-  fieldColumns: readonly FieldColumn[],
   projectOf: (task: TaskCard) => string
 ) {
-  if (column.startsWith("field:")) {
-    const spec = fieldColumns.find((c) => `field:${c.field.id}` === column)
-    if (!spec) return 0
-    const left = fieldSortValue(spec.field, a.fieldValues[spec.field.id], spec.people)
-    const right = fieldSortValue(spec.field, b.fieldValues[spec.field.id], spec.people)
-    // A blank goes last whichever way the column is sorted, like a missing due date.
-    if (left === null || right === null) return left === right ? 0 : left === null ? 1 : -1
-    return typeof left === "number" && typeof right === "number"
-      ? left - right
-      : String(left).localeCompare(String(right))
-  }
   switch (column) {
     case "project":
       return projectOf(a).localeCompare(projectOf(b))
@@ -139,12 +108,6 @@ function compare(
     case "due":
       // Tasks with no due date go last whichever way the column is sorted.
       return (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999")
-    case "steps":
-      return a.steps.total - b.steps.total
-    case "time": {
-      const now = Date.now()
-      return clockSeconds(a.clock, now) - clockSeconds(b.clock, now)
-    }
     case "order":
       return byPosition(a, b)
     default:
@@ -157,8 +120,7 @@ function compare(
  * column, and ticked rows can be marked Done together.
  *
  * `groupsOf` puts the rows under headings, in `groups` order, from Filter's
- * Group row (`lib/project/task-groups.ts`); a task with several tags is under
- * each. With `onDrop` rows drag up or down inside their heading to change the
+ * Group row (`lib/project/task-groups.ts`). With `onDrop` rows drag up or down inside their heading to change the
  * order, or under another heading that `canMove` allows: on a project page
  * that changes what the row is grouped by, on My dashboard its date.
  *
@@ -180,6 +142,7 @@ export function TaskList({
   emptyText = "No tasks yet.",
   groups,
   groupsOf,
+  onRows,
   ordered = false,
   onDrop,
   canMove = sameHeading,
@@ -187,15 +150,12 @@ export function TaskList({
   foldsKey,
   orderLabel = "the project's order",
   bulk = NO_TARGETS,
-  fieldColumns = NO_FIELD_COLUMNS,
-  showTime = false,
   selectedSlot,
   onDelete,
   canDelete,
   myUserId,
   addTask,
   projectColumn,
-  showSteps = true,
   massSelect,
 }: {
   tasks: TaskCard[]
@@ -207,6 +167,11 @@ export function TaskList({
   emptyText?: React.ReactNode
   groups?: readonly TaskGroup[]
   groupsOf?: (task: TaskCard) => string[]
+  /**
+   * Told the tasks' ids in the order the rows show, headings and sort
+   * included, each once, so a page can open the first row on arrival.
+   */
+  onRows?: (ids: string[]) => void
   /** The rows come in an order of their own, in `position`, which the first sort keeps. */
   ordered?: boolean
   /** A row let go inside its heading or under another (`lib/project/list-drop.ts`). Left out, rows don't drag. */
@@ -221,10 +186,6 @@ export function TaskList({
   orderLabel?: string
   /** The people and projects that Hand to and Move to project offer for ticked rows. */
   bulk?: BulkTargets
-  /** Up to 3 of a task type's fields, when the List is filtered to that type. */
-  fieldColumns?: readonly FieldColumn[]
-  /** Each task's time on the clock as a column, picked in the Columns menu. */
-  showTime?: boolean
   /** Where the "3 selected" button goes, such as the project header; above the table without one. */
   selectedSlot?: HTMLElement | null
   /** A bin in each row's Actions, on the tasks `canDelete` allows; the caller asks first. */
@@ -243,8 +204,6 @@ export function TaskList({
    * moves the task when picked; without it, the project's name in a plain chip.
    */
   projectColumn?: ProjectColumn
-  /** Tyler took Steps off the site admin's My dashboard (23 Oct 2026). */
-  showSteps?: boolean
   /**
    * Mass select switched from outside, as from My tasks' ⋮ (Tyler, 6 Nov 2026:
    * "move mass select and search under its dropdown"). The header then shows
@@ -296,25 +255,17 @@ export function TaskList({
     { key: "priority", label: "Priority", column: "preview" },
     ...(showProject ? [] : [{ key: "assignee" as const, label: "Assigned to", column: "preview" as const }]),
     { key: "due", label: "Due", column: "preview" },
-    ...(showSteps ? [{ key: "steps" as const, label: "Steps", column: "preview" as const }] : []),
-    ...(showTime ? [{ key: "time" as const, label: "Time", column: "preview" as const }] : []),
-    ...fieldColumns.map((spec) => ({
-      key: `field:${spec.field.id}` as const,
-      label: spec.field.name,
-      column: "preview" as const,
-    })),
   ]
 
   const rows = React.useMemo(() => {
     const sign = direction === "asc" ? 1 : -1
     return [...tasks].sort(
       (a, b) =>
-        compare(a, b, sort, fieldColumns, (task) => projectColumn?.of(task).name ?? task.projectName) * sign ||
+        compare(a, b, sort, (task) => projectColumn?.of(task).name ?? task.projectName) * sign ||
         a.title.localeCompare(b.title)
     )
-  }, [direction, fieldColumns, projectColumn, sort, tasks])
-  // A task with several tags is under each of their headings, so each row
-  // drags by its heading and task together.
+  }, [direction, projectColumn, sort, tasks])
+  // Each row drags by its heading and task together.
   const grouped = React.useMemo(() => {
     const under = (key: string, tasks: TaskCard[]) => tasks.map((task) => ({ id: `${key}|${task.id}`, task }))
     if (!groups || !groupsOf) return [{ key: "all", label: null, rows: under("all", rows) }]
@@ -342,6 +293,10 @@ export function TaskList({
   const shownIds = [
     ...new Set(sections.flatMap((group) => (folds.folded(group.key) ? [] : group.rows.map((row) => row.task.id)))),
   ]
+  const rowOrder = shownIds.join(",")
+  React.useEffect(() => {
+    onRows?.(rowOrder ? rowOrder.split(",") : [])
+  }, [rowOrder, onRows])
   const selectedIds = ids.filter((id) => selection.selected.has(id))
   const colSpan = columns.length + (canEdit ? 2 : 1)
   // The "N selected" button, then Mass select, left of the header's search.
@@ -440,7 +395,6 @@ export function TaskList({
                           task={task}
                           project={showProject ? (projectColumn?.of(task) ?? { name: task.projectName, color: "slate" }) : null}
                           projectChoices={projectColumn?.choices?.(task) ?? null}
-                          showSteps={showSteps}
                           editable={!readOnly}
                           people={bulk.people}
                           myUserId={myUserId}
@@ -453,8 +407,6 @@ export function TaskList({
                           onDelete={
                             onDelete && !readOnly && (canDelete?.(task) ?? true) ? () => onDelete(task) : undefined
                           }
-                          fieldColumns={fieldColumns}
-                          showTime={showTime}
                         />
                       ))}
                     </SortableContext>
@@ -478,7 +430,6 @@ function TaskRow({
   task,
   project,
   projectChoices,
-  showSteps,
   editable,
   people,
   myUserId,
@@ -489,17 +440,14 @@ function TaskRow({
   onToggle,
   onOpen,
   onDelete,
-  fieldColumns,
-  showTime,
 }: {
-  /** The row's heading and task together, since a task can sit under several tags. */
+  /** The row's heading and task together. */
   dragId: string
   task: TaskCard
   /** The Project column's chip, or null without the column. */
   project: { name: string; color: ProjectColor } | null
   /** Where the chip can move the task; null keeps it a plain chip. */
   projectChoices: ProjectChoice[] | null
-  showSteps: boolean
   /** Each cell opens a dropdown to change it. */
   editable: boolean
   people: BulkTargets["people"]
@@ -511,8 +459,6 @@ function TaskRow({
   onToggle: () => void
   onOpen: () => void
   onDelete?: () => void
-  fieldColumns: readonly FieldColumn[]
-  showTime: boolean
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: dragId, disabled: !canDrag || dragLocked })
@@ -556,9 +502,7 @@ function TaskRow({
           <span className={cn("truncate font-medium", task.priority === "low" && "text-muted-foreground")}>
             {task.title}
           </span>
-          <ClockRunningChip task={task} />
           <UnreadBadge count={task.unread} />
-          <TypeChip type={task.type} />
           {task.waiting ? <WaitingBadge /> : null}
           <ReviewBadge review={task.review} />
           <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
@@ -566,9 +510,6 @@ function TaskRow({
           <DueMovesMark moves={task.dueMoves} status={task.status} />
           <WaitingOnBadge waitingOn={task.waitingOn} />
           <SnoozedBadge until={task.snoozedUntil} today={todayKey()} />
-          {task.labels.map((label) => (
-            <LabelChip key={label.id} label={label} />
-          ))}
         </span>
       </TableCell>
       {project !== null ? (
@@ -607,23 +548,6 @@ function TaskRow({
           <DueChip dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} />
         )}
       </TableCell>
-      {showSteps ? (
-        <TableCell column="preview">
-          <StepsChip steps={task.steps} />
-        </TableCell>
-      ) : null}
-      {showTime ? (
-        // Blank for a task whose clock never ran; ticking while it runs.
-        <TableCell column="preview">
-          <ClockReadout clock={task.clock} className="text-foreground" />
-        </TableCell>
-      ) : null}
-      {fieldColumns.map((spec) => (
-        // A blank cell for a task that left the field empty.
-        <TableCell key={spec.field.id} column="preview" className="max-w-48 truncate">
-          {fieldValueText(spec.field, task.fieldValues[spec.field.id], spec.people)}
-        </TableCell>
-      ))}
       <TableCell column="actions">
         <Button
           type="button"

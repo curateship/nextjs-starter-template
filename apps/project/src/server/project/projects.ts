@@ -27,21 +27,16 @@ import {
 } from "@/server/project/access"
 import { unreadInProjectChat } from "@/server/project/chat-reads"
 import { siteCategories, visibleClients } from "@/server/project/clients"
-import { listTeamLabels, type Label } from "@/server/project/labels"
 import { listMilestones, type Milestone } from "@/server/project/milestones"
 import { readProjectPlan, writeProjectPlan } from "@/server/project/project-plans"
-import { listTeamTypes } from "@/server/project/task-types"
-import type { TaskType } from "@/lib/project/task-types"
 import { requireSharedProject } from "@/server/project/personal"
 import { listSavedViews, projectViewScreen, type SavedView } from "@/server/project/saved-views"
 import { listTaskCards, siteAdminPerson, withUnread, type TaskCard } from "@/server/project/tasks"
-import { pauseTaskClock, projectClockSeconds } from "@/server/project/task-clock-runs"
 import { clearAssignee, listTeamMembers } from "@/server/project/teams"
 import {
   projectProjectMembers,
   projectProjectStars,
   projectProjects,
-  projectTaskClockRuns,
   projectTasks,
   projectTeamMembers,
   projectTeams,
@@ -74,8 +69,6 @@ export type ProjectListRow = {
   dueDate: string | null
   /** The project's team, shown in the site admin's Team column. */
   team: { id: string; name: string }
-  /** Seconds on the clock across its tasks, for the Time column (Seven features, part 4). */
-  clockSeconds: number
 }
 
 /**
@@ -185,7 +178,6 @@ export async function loadProjectsPage(
         )
     : []
   const starred = await starredProjectIds(userId, ids, database)
-  const clocked = await projectClockSeconds(ids, database)
 
   return {
     team: team && membership ? { ...team, myRole: membership.role } : null,
@@ -218,7 +210,6 @@ export async function loadProjectsPage(
         category: project.category,
         dueDate: project.dueDate,
         team: { id: project.teamId, name: project.teamName },
-        clockSeconds: clocked.get(project.id) ?? 0,
       }
     }),
   }
@@ -287,9 +278,6 @@ export type ProjectPage = {
     personal: boolean
     /** "Doing per person": the Board warns past it. Null warns never. */
     doingLimit: number | null
-    /** The team's types this project leaves out, and the one New task starts on. */
-    hiddenTypeIds: string[]
-    defaultTypeId: string | null
     /** The Board's columns, in the order the project's people dragged them into. */
     statusOrder: TaskStatus[]
     /** The status rule: Slowing down from this many late tasks, Behind from `behindAt`. */
@@ -312,10 +300,6 @@ export type ProjectPage = {
    * field. Only the site admin, who alone changes it, is sent them.
    */
   siteCategories: string[]
-  /** The team's task types, archived ones included, for New task, the Type filter and field columns. */
-  taskTypes: TaskType[]
-  /** The team's labels, for the Label filter and a task's labels. */
-  labels: Label[]
   myUserId: string
   myRole: TeamRole
   members: ProjectMemberRow[]
@@ -391,8 +375,6 @@ export async function loadProjectPage(
       starred: (await starredProjectIds(userId, [project.id], database)).has(project.id),
       personal: Boolean(project.personalUserId),
       doingLimit: project.doingLimit,
-      hiddenTypeIds: project.hiddenTypeIds,
-      defaultTypeId: project.defaultTypeId,
       statusOrder: boardStatusOrder(project.statusOrder),
       slowingAt: project.slowingAt,
       behindAt: project.behindAt,
@@ -405,8 +387,6 @@ export async function loadProjectPage(
     milestones: await listMilestones(project.id, database),
     teamClients: await visibleClients(membership, database),
     siteCategories: membership.siteAdmin ? await siteCategories(database) : [],
-    taskTypes: await listTeamTypes(membership.teamId, database),
-    labels: await listTeamLabels(membership.teamId, database),
     views: await listSavedViews(userId, membership.teamId, project.id, database),
     viewScreen: projectViewScreen(membership.teamId, project.id),
     myUserId: userId,
@@ -474,7 +454,7 @@ export async function updateProject(
 ) {
   const { projectId, bannerUrl, notes, ...rest } = patch
   // A project page has no task, so no File block, uploaded picture or Video or Promo card.
-  const fields = notes === undefined ? rest : { ...rest, notes: storedNotesForCopy(notes, { forTemplate: true }) }
+  const fields = notes === undefined ? rest : { ...rest, notes: storedNotesForCopy(notes, { noTask: true }) }
   const { project } = await requireProjectSettings(userId, projectId, database)
   requireSharedProject(project)
   // A locked page takes no writing until it's unlocked; the lock itself may change in the same save.
@@ -600,21 +580,10 @@ export async function setProjectArchived(
 ) {
   const { project } = await requireProjectSettings(userId, projectId, database, { allowArchived: true })
   requireSharedProject(project)
-  await database.transaction(async (tx) => {
-    await tx
-      .update(projectProjects)
-      .set({ archivedAt: archived ? now() : null, updatedAt: now() })
-      .where(eq(projectProjects.id, projectId))
-    // Nothing in an archived project can change, its clocks included, so they stop now.
-    if (archived) {
-      const running = await tx
-        .select({ taskId: projectTaskClockRuns.taskId })
-        .from(projectTaskClockRuns)
-        .innerJoin(projectTasks, eq(projectTasks.id, projectTaskClockRuns.taskId))
-        .where(and(eq(projectTasks.projectId, projectId), isNull(projectTaskClockRuns.stoppedAt)))
-      for (const run of running) await pauseTaskClock(tx, run.taskId, userId)
-    }
-  })
+  await database
+    .update(projectProjects)
+    .set({ archivedAt: archived ? now() : null, updatedAt: now() })
+    .where(eq(projectProjects.id, projectId))
 }
 
 /**
@@ -726,9 +695,8 @@ export async function removeProjectMember(
  * A new project made from an old one, for teams that do the same kind of job
  * again and again: its description, colour, milestones (without
  * their dates) and every task not in the bin, in the same order, with their
- * labels, steps (unticked), types, field values and priority, and the
- * project's own pick of types. The rules are in `project-plans.ts`. The
- * person copying is the new project's only member.
+ * notes and priority. The rules are in `project-plans.ts`. The person copying
+ * is the new project's only member.
  */
 export async function copyProject(
   userId: string,
@@ -749,16 +717,14 @@ export async function copyProject(
       teamId: membership.teamId,
       name: input.name,
       color: plan.color,
-      notes: storedNotesForCopy(source.notes, { forTemplate: true }),
+      notes: storedNotesForCopy(source.notes, { noTask: true }),
       notesLocked: source.notesLocked,
       createdByUserId: userId,
       createdAt: at,
       updatedAt: at,
-      hiddenTypeIds: plan.hiddenTypeIds,
-      defaultTypeId: plan.defaultTypeId,
       category: source.category,
     })
-    await writeProjectPlan(tx, { id, teamId: membership.teamId }, plan, userId)
+    await writeProjectPlan(tx, { id }, plan, userId)
     return { id }
   })
 }

@@ -261,7 +261,7 @@ describe("the team figures", () => {
     ] as const) {
       const task = await createTask(
         actor(ben),
-        { projectId: project.id, title, notes: "", assigneeUserId: ben.id, dueDate, steps: [] },
+        { projectId: project.id, title, notes: "", assigneeUserId: ben.id, dueDate },
         database
       )
       ids.push(task.id)
@@ -277,7 +277,7 @@ describe("the team figures", () => {
       // Ben's "Just me" task never counts.
       await createTask(
         actor(ben),
-        { projectId: "personal", title: "Dentist", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+        { projectId: "personal", title: "Dentist", notes: "", assigneeUserId: ben.id, dueDate: null },
         database
       )
       await deleteTask(actor(ben), ids[2], database)
@@ -347,7 +347,7 @@ describe("check-in notes", () => {
     await addProjectMember(admin.id, project.id, ben.id, database)
     const task = await createTask(
       actor(ben),
-      { projectId: project.id, title: "Members table", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+      { projectId: project.id, title: "Members table", notes: "", assigneeUserId: ben.id, dueDate: null },
       database
     )
     const morning = at(`${MONDAY}T09:10:00Z`)

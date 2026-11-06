@@ -7,8 +7,8 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 const REFUSALS_NAMED = 3
 
 /**
- * "5 tasks marked Done, 1 refused. "Edit the trailer": Fill in Final cut
- * first." Each refused task is named with its reason, up to three. Used by
+ * "5 tasks deleted, 1 refused. "Edit the trailer": Only the person who made
+ * the task or the site admin can delete it." Each refused task is named with its reason, up to three. Used by
  * the ticked rows' Mark Done and the bulk bar.
  */
 export function reportBulkOutcome(

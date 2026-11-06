@@ -3,6 +3,7 @@ import * as React from "react"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import {
   CalloutFrame,
+  CommentsDrawing,
   FileDrawing,
   FoldHeading,
   ImageDrawing,
@@ -57,6 +58,8 @@ function Block({ node }: { node: NoteNode }) {
       return <TaskCardDrawing taskId={text(attrs.taskId)} editing={READING} onPick={none} />
     case "noteFile":
       return <FileDrawing fileId={text(attrs.fileId)} editing={READING} onPick={none} />
+    case "noteComments":
+      return <CommentsDrawing editing={READING} />
     case "noteRecord":
       return <RecordDrawing editing={READING} />
     case "noteWebPage":

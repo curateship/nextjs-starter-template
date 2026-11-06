@@ -30,15 +30,31 @@ const ATOMS: Partial<Record<BlockKey, string>> = {
   video: "noteVideo",
   task: "noteTask",
   file: "noteFile",
+  comments: "noteComments",
   record: "noteRecord",
   webpage: "noteWebPage",
   links: "noteLinks",
   divider: "horizontalRule",
 }
 
+function hasNode(editor: Editor, type: string) {
+  let found = false
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === type) found = true
+    return !found
+  })
+  return found
+}
+
 /** Puts the picked block where the "/" was typed. Blocks of words take over the line, keeping the cursor in it. */
 function place(editor: Editor, match: SlashMatch, key: BlockKey) {
   const range = { from: match.from, to: match.to }
+  // One Comments block per task: picking it again takes away the "/" and shows the one already there.
+  if (key === "comments" && hasNode(editor, "noteComments")) {
+    editor.chain().focus().deleteRange(range).run()
+    editor.view.dom.querySelector('[data-note-block="noteComments"]')?.scrollIntoView({ block: "nearest" })
+    return
+  }
   const atom = ATOMS[key]
   if (atom) {
     editor.chain().focus().insertContentAt(range, { type: atom }).run()

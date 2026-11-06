@@ -73,7 +73,7 @@ beforeEach(async () => {
   taskId = (
     await createTask(
       anna,
-      { projectId, title: "Fix the checkout", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+      { projectId, title: "Fix the checkout", notes: "", assigneeUserId: ben.id, dueDate: null },
       database
     )
   ).id

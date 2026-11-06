@@ -13,6 +13,7 @@ import {
   InfoIcon,
   ListChecksIcon,
   ListTodoIcon,
+  MessagesSquareIcon,
   MinusIcon,
   PlayIcon,
   type LucideIcon,
@@ -20,6 +21,7 @@ import {
 
 import {
   CalloutBlockView,
+  CommentsBlockView,
   FileBlockView,
   FoldBlockView,
   ImageBlockView,
@@ -46,6 +48,7 @@ export type BlockKey =
   | "video"
   | "task"
   | "file"
+  | "comments"
   | "checklist"
   | "callout"
   | "divider"
@@ -62,6 +65,7 @@ const BLOCKS: BlockChoice[] = [
   { key: "video", label: "Video", icon: PlayIcon },
   { key: "task", label: "Task card", icon: ListTodoIcon },
   { key: "file", label: "File", icon: FileIcon },
+  { key: "comments", label: "Comments", icon: MessagesSquareIcon },
   { key: "checklist", label: "Checklist", icon: ListChecksIcon },
   { key: "callout", label: "Callout", icon: InfoIcon },
   { key: "divider", label: "Divider", icon: MinusIcon },
@@ -73,13 +77,13 @@ const BLOCKS: BlockChoice[] = [
 
 /**
  * The blocks a notes box offers. A File block and the Video or Promo card
- * belong to a task, so New task, quick new task and a template leave them out
+ * belong to a task, so New task and quick new task leave them out
  * (Tyler, 5 Nov 2026: "Leave File out there"); the Video or Promo card shows
  * only on a task that points at a record.
  */
 export function blocksFor(where: NoteWhere, hasRecord: boolean): BlockChoice[] {
   return BLOCKS.filter((block) => {
-    if (block.key === "file") return where === "task"
+    if (block.key === "file" || block.key === "comments") return where === "task"
     if (block.key === "record") return where === "task" && hasRecord
     return true
   })
@@ -209,6 +213,7 @@ export const BLOCK_NODES: Extensions = [
   atomNode("noteVideo", { url: null }, VideoBlockView),
   atomNode("noteTask", { taskId: null }, TaskBlockView),
   atomNode("noteFile", { fileId: null }, FileBlockView),
+  atomNode("noteComments", {}, CommentsBlockView),
   atomNode("noteRecord", {}, RecordBlockView),
   atomNode("noteWebPage", { url: null }, WebPageBlockView),
   atomNode("noteLinks", { links: [] }, LinksBlockView),

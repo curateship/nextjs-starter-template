@@ -6,8 +6,6 @@ import { toast } from "sonner"
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { NOBODY, type NewTaskStart } from "@/components/project/new-task-dialog"
 import { DayOffNote, PersonAvatar, ProjectDot, StatusDot } from "@/components/project/task-bits"
-import { TagsBox, tagIdsFor, type TagPill } from "@/components/project/task-tags-field"
-import { TypeIconGlyph } from "@/components/project/task-type-icon"
 import { NoteEditor } from "@/components/project/notes/note-editor"
 import { useNotesBoxSetup } from "@/components/project/notes/note-setup"
 import { Button } from "@/components/ui/button"
@@ -21,11 +19,9 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { dayOffNote } from "@/lib/project/days-off"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { moveNewTasks } from "@/lib/project/new-task-status"
-import { notesForEditor, readTaskNotes } from "@/lib/project/notes"
 import { linesToTitles } from "@/lib/project/paste-lines"
 import { emptyWrittenPageBody } from "@/lib/pages/written-page-body"
 import type { NoteNode } from "@/lib/project/note-blocks"
-import type { Label as TaskTag } from "@/lib/api/project/sorting"
 import {
   LIMITS,
   TASK_PRIORITIES,
@@ -35,41 +31,33 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
-import { useTeamId } from "@/lib/project/team-scope"
 import { useDaysOff } from "@/lib/project/use-days-off"
-import type { TaskType } from "@/lib/project/task-types"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
-const NO_TAG_IDS: readonly string[] = []
 const NO_MILESTONE = "none"
-const NO_TYPE = "none"
+/** The Description before anything is typed. */
+const NO_DESCRIPTION = emptyWrittenPageBody()
 
 /**
  * New task as a dropdown under its button, as Tyler asked on 14 Oct 2026:
- * a title, who it is for and a due date, then its status, priority and tags
- * (Tyler, 19 Oct 2026: "there should be a way to add tags here as well as
- * priority and status"), and no "More options". Enter in the title makes it; Enter in Tags places a
- * tag. The full New task window opens with what was typed only for a type that
- * needs fields filled in when it is made, or pasting several lines.
+ * a title, who it is for and a due date, then its status and priority
+ * (Tyler, 19 Oct 2026), and no "More options". Enter in the title makes it.
+ * The full New task window opens with what was typed only when several lines
+ * are pasted.
  *
- * It starts on the project's own type, with that type's steps and notes, as
- * the window does. From a Board column's "+" the task goes into that column
+ * From a Board column's "+" the task goes into that column
  * (Stuck asks why) and, on a person's row, to that person; from a List
  * heading's "+" it starts in that heading's group. Clicking away keeps the
  * title typed for the next opening; the rest starts again from the opener.
  */
 export function QuickNewTask({
   projects,
-  types,
   initialProjectId,
   status = "todo",
   assignee: startingAssignee,
   priority: startingPriority = "normal",
-  tagIds = NO_TAG_IDS,
   due: startingDue = null,
-  typeId: startingTypeId,
-  tags,
   milestones,
   open,
   onOpenChange,
@@ -80,18 +68,11 @@ export function QuickNewTask({
   children,
 }: {
   projects: NewTaskProject[]
-  types: TaskType[]
   initialProjectId: string
   /** The Board column or List heading it was opened from; the Status field starts on it. */
   status?: TaskStatus
   priority?: TaskPriority
-  /** Tags it starts with, from a List heading grouped by tags. */
-  tagIds?: readonly string[]
   due?: string | null
-  /** A type to start on instead of the project's default; null is a plain task. */
-  typeId?: string | null
-  /** The team's tags; left out, there is no Tags field. */
-  tags?: TaskTag[]
   /** The project's milestones (Tyler, 19 Oct 2026); left out or none, there is no Milestone field. */
   milestones?: { id: string; name: string }[]
   /** The person's row it was opened from: a member's id or `NOBODY`. Left out, it is me when I'm on the project. */
@@ -123,19 +104,11 @@ export function QuickNewTask({
   const daysOff = useDaysOff(open)
   const assigneeName = project?.members.find((member) => member.userId === person)?.name
   const dueNote = dayOffNote(daysOff, due, assigneeName ? { id: person, name: assigneeName } : null)
-  const teamId = useTeamId()
-  const startingPills = React.useCallback(
-    (): TagPill[] => (tags ?? []).filter((tag) => tagIds.includes(tag.id)),
-    [tags, tagIds]
-  )
   const [chosenStatus, setChosenStatus] = React.useState<TaskStatus>(status)
   const [priority, setPriority] = React.useState<TaskPriority>(startingPriority)
-  const [pills, setPills] = React.useState<TagPill[]>(startingPills)
   const [milestoneId, setMilestoneId] = React.useState<string | null>(null)
-  // A type picked here; left unpicked, the task starts on the opener's or the project's own.
-  const [pickedTypeId, setPickedTypeId] = React.useState<string | null | undefined>(undefined)
-  // What was typed in Description, and the type showing when typing began; null shows the type's notes.
-  const [written, setWritten] = React.useState<{ body: NoteNode; typeKey: string } | null>(null)
+  // What was typed in Description; null while nothing is.
+  const [written, setWritten] = React.useState<NoteNode | null>(null)
   const [stuckReason, setStuckReason] = React.useState("")
   const [invalid, setInvalid] = React.useState<"title" | "reason" | null>(null)
   const [run, saving] = useAsyncAction(getProjectErrorMessage)
@@ -147,7 +120,6 @@ export function QuickNewTask({
     if (open) {
       setChosenStatus(status)
       setPriority(startingPriority)
-      setPills(startingPills())
       setDue(startingDue)
     }
     if (open && initialProjectId !== projectId && projects.some((p) => p.id === initialProjectId)) {
@@ -156,33 +128,12 @@ export function QuickNewTask({
     }
   }
 
-  const offeredTypes = types.filter((t) => project?.typeIds.includes(t.id))
-  const startTypeId = pickedTypeId !== undefined ? pickedTypeId : startingTypeId
-  const typeId =
-    startTypeId !== undefined
-      ? startTypeId && project?.typeIds.includes(startTypeId)
-        ? startTypeId
-        : null
-      : project?.defaultTypeId && project.typeIds.includes(project.defaultTypeId)
-        ? project.defaultTypeId
-        : null
-  const type = types.find((t) => t.id === typeId)
-  // The Description starts on the type's notes and follows the type until something is typed.
-  const typeNotes = React.useMemo(
-    () => (type ? notesForEditor(readTaskNotes(type.notes)) : emptyWrittenPageBody()),
-    [type]
-  )
-  const description = written?.body ?? typeNotes
+  const description = written ?? NO_DESCRIPTION
   // No task yet, so no File block or Video or Promo card (Tyler, 5 Nov 2026: "Leave File out there").
   const noteSetup = useNotesBoxSetup("new")
-  // A new type reloads the box only while nothing is typed in it.
-  const descriptionKey = written?.typeKey ?? typeId ?? NO_TYPE
-  // A type that asks for fields when the task is made needs the full window.
-  const needsWindow = Boolean(type?.fields.some((field) => field.neededWhenMade && field.kind !== "file"))
 
   function pickProject(id: string) {
     setProjectId(id)
-    setPickedTypeId(undefined)
     const next = projects.find((p) => p.id === id)
     if (person !== NOBODY && !next?.members.some((m) => m.userId === person)) setPerson(personFor(next))
   }
@@ -193,28 +144,24 @@ export function QuickNewTask({
     setDue(startingDue)
     setChosenStatus(status)
     setPriority(startingPriority)
-    setPills(startingPills())
     setMilestoneId(null)
-    setPickedTypeId(undefined)
     setStuckReason("")
     setInvalid(null)
     setPerson(personFor(project))
   }
 
-  function moreOptions(lines: string[] | null = null) {
+  function moreOptions(lines: string[]) {
     if (!project) return
     onMoreOptions(project.id, {
       title,
       lines,
-      notes: written?.body,
+      notes: written ?? undefined,
       assignee: person,
       due,
       status: chosenStatus,
       stuckReason,
       priority,
-      tags: pills,
       milestoneId,
-      typeId,
     })
     reset()
     onOpenChange(false)
@@ -244,16 +191,10 @@ export function QuickNewTask({
       document.getElementById("quick-task-stuck-reason")?.focus()
       return
     }
-    if (needsWindow) {
-      moreOptions()
-      return
-    }
     const assigneeUserId = person === NOBODY ? null : person
     const name = project.members.find((m) => m.userId === assigneeUserId)?.name
     let madeId = ""
     const ok = await run(async () => {
-      // Typed tags the team doesn't have yet are made first.
-      const labelIds = await tagIdsFor(pills, teamId)
       madeId = (
         await createProjectTask({
           projectId: project.id,
@@ -261,12 +202,8 @@ export function QuickNewTask({
           notes: description,
           assigneeUserId,
           dueDate: due,
-          steps: type?.steps ?? [],
           handoverNote: null,
-          typeId,
-          fieldValues: {},
           priority,
-          labelIds,
           milestoneId,
         })
       ).id
@@ -345,17 +282,10 @@ export function QuickNewTask({
             {/* "!" because the editor's own style tag (260px tall, large text) beats plain utilities. */}
             <div className="[&_.page-rte_.tiptap]:min-h-16! [&_.page-rte_.tiptap]:px-3! [&_.page-rte_.tiptap]:py-2! [&_.page-rte_.tiptap]:text-sm!">
               <NoteEditor
-                key={descriptionKey}
                 setup={noteSetup}
                 value={description}
                 disabled={saving}
-                onChange={(body) =>
-                  setWritten(
-                    JSON.stringify(body) === JSON.stringify(typeNotes)
-                      ? null
-                      : { body, typeKey: descriptionKey }
-                  )
-                }
+                onChange={(body) => setWritten(JSON.stringify(body) === JSON.stringify(NO_DESCRIPTION) ? null : body)}
                 placeholder="What it's about. Type / for a picture, a checklist and more."
               />
             </div>
@@ -421,29 +351,6 @@ export function QuickNewTask({
               </Select>
             </div>
           </div>
-          {/* The type brings its starting steps and notes (Tyler, 20 Oct 2026). */}
-          {offeredTypes.length ? (
-            <div className="grid gap-2">
-              <Label htmlFor="quick-task-type">Template</Label>
-              <Select
-                value={typeId ?? NO_TYPE}
-                onValueChange={(value) => setPickedTypeId(value === NO_TYPE ? null : value)}
-              >
-                <SelectTrigger id="quick-task-type" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_TYPE}>No template</SelectItem>
-                  {offeredTypes.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      <TypeIconGlyph icon={option.icon} color={option.color} />
-                      {option.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
           {milestones?.length ? (
             <div className="grid gap-2">
               <Label htmlFor="quick-task-milestone">Milestone</Label>
@@ -462,22 +369,6 @@ export function QuickNewTask({
               </Select>
             </div>
           ) : null}
-          {tags ? (
-            <div className="grid gap-2">
-              <Label htmlFor="quick-task-tags">Tags</Label>
-              <TagsBox
-                id="quick-task-tags"
-                tags={pills}
-                teamTags={tags}
-                disabled={saving}
-                onRemove={(tag) => setPills((current) => current.filter((pill) => pill.name !== tag.name))}
-                onAdd={async ({ name, known }) => {
-                  setPills((current) => [...current, known ?? { id: null, name, color: "slate" }])
-                  return true
-                }}
-              />
-            </div>
-          ) : null}
           {chosenStatus === "stuck" ? (
             <div className="grid gap-2">
               <Label htmlFor="quick-task-stuck-reason">Why is it stuck?</Label>
@@ -493,18 +384,12 @@ export function QuickNewTask({
               />
             </div>
           ) : null}
-          {needsWindow && type ? (
-            <p className="text-xs text-muted-foreground">
-              {type.name} asks for more when it's made, so the full window opens next.
-            </p>
-          ) : null}
           {/* No "More options": everything is here (Tyler, 19 Oct 2026: "we dont need the 'more
-              option' to open up a modal"). The window still opens on its own for a pasted list or a
-              type that asks for its fields when the task is made. */}
+              option' to open up a modal"). The window still opens on its own for a pasted list. */}
           <div className="flex items-center justify-end gap-2">
             <Button type="submit" disabled={saving}>
               {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              {needsWindow ? "Continue" : "Create task"}
+              Create task
             </Button>
           </div>
         </form>

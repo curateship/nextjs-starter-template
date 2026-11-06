@@ -30,11 +30,8 @@ export const PROJECT_ERRORS = {
   notProjectMember: "Tasks can only be handed to members of the project.",
   stuckNeedsReason: "Say in a line why the task is stuck.",
   notAssignee: "Only the person the task is assigned to can do that.",
-  clockNotYours: "Only the person the task is assigned to, or the site admin, can run its clock.",
   nothingToHandBack: "This task wasn't handed to you by anyone.",
   cantDeleteTask: "Only the person who made the task or the site admin can delete it.",
-  tooManySteps: "A task can have at most 50 steps.",
-  stepNotFound: "That step no longer exists.",
   alreadyCheckedIn: "You've already checked in today. Change today's picks below.",
   notCheckedIn: "Check in first, then change today's picks.",
   answerEveryLeftover:
@@ -61,18 +58,11 @@ export const PROJECT_ERRORS = {
   fileNotSaved: "The file couldn't be saved. Try again.",
   tooManyUploads: "That's a lot of files in a short while. Wait a few minutes, then add the rest.",
   fileNotRemoved: "The file couldn't be removed from storage, so nothing was deleted. Try again.",
-  labelNotFound: "That tag no longer exists.",
-  labelNameTaken: "Your team already has a tag with that name.",
-  tooManyLabels: "A team can have at most 100 tags. Delete one in Team settings to make another.",
   personalProject: "That's a Just me list, which only its person and the site admin see, so it can't be shared or changed.",
   cantWaitOnItself: "A task can't wait on itself.",
   waitingLoop: "That task is already waiting on this one, so this one can't wait on it.",
   tooManyWaits: "A task can wait on at most 10 tasks. Take one off to add another.",
   reminderInThePast: "Pick today or a later day for the reminder.",
-  stepListNotFound: "That step list no longer exists.",
-  stepListNameTaken: "Your team already has a step list with that name.",
-  tooManyStepLists: "A team can have at most 100 step lists. Delete one to save another.",
-  noStepsToSave: "Add some steps first, then save them as a list.",
   behindBeforeSlowing: "Behind has to start at the same number of late tasks as Slowing down, or more.",
   leadNotMember: "Only someone on the project can lead it.",
   milestoneNotFound: "That milestone no longer exists.",
@@ -124,30 +114,6 @@ export const PROJECT_ERRORS = {
   askOnDoneTask: "This task is Done, so it needs no more time.",
   noTimeAsked: "Nobody is waiting for an answer about more time on this task.",
   cantAnswerTime: "Only the person who handed this task out or the site admin can answer.",
-  typeNotFound: "That task template no longer exists.",
-  typeNameTaken: "Your team already has a task template with that name.",
-  tooManyTypes: "A team can have at most 50 task templates.",
-  typeArchived: "That task template is archived. Bring it back in Team settings to use it.",
-  typeNotOffered: "This project doesn't offer that task template. Tick it in Project settings first.",
-  fieldNotFound: "That field no longer exists.",
-  fieldNameTaken: "This template already has a field with that name.",
-  tooManyFields: "A task template can have at most 30 fields.",
-  tooManyChoices: "A dropdown can have at most 50 choices.",
-  choiceNameTaken: "Two choices can't have the same name.",
-  choiceNotFound: "Pick one of the field's choices.",
-  fieldKindLocked: "Tasks already have a value in this field, so its kind can't change.",
-  showWhenWrong: "A field can only depend on a Dropdown field of the same type, and one of its choices.",
-  showWhenLoop: "That dropdown already depends on this field, so this field can't depend on it.",
-  fieldNotOnType: "That field isn't on this task's template.",
-  fileFieldWhenMade: "A File field can't be needed when the task is made, because files are added after.",
-  notAFileField: "That field doesn't take files.",
-  fieldTooLong: "That's too long for this field.",
-  fieldNumber: "Type a number.",
-  fieldLink: "A link must start with https://.",
-  fieldDate: "Pick a date from the calendar.",
-  fieldValueWrong: "That value doesn't fit this field.",
-  fieldPersonNotOnProject: "Pick someone who is on this project.",
-  cantChangeType: "Only whoever handed the task out or the site admin can change its template.",
   messageEmpty: "Write the message or add a file first.",
   tooManyMessageFiles: "A message can carry at most 5 files. Send the rest in another message.",
   replyNotInChat: "The message you're replying to isn't in this chat any more.",
@@ -187,16 +153,6 @@ export const PROJECT_ERRORS = {
   notAPicture: "Pick a PNG, JPEG, GIF or WebP picture.",
 } as const
 
-/**
- * Refusals that carry a field's own name, such as "Fill in Final cut first."
- * (`src/lib/project/task-fields.ts` writes them).
- */
-const NAMED_REFUSALS = [
-  /^Fill in .{1,80} first\.$/,
-  /^That list has \d+ steps? and this task has room for \d+ more, since a task can have at most 50\.$/,
-  /^Only (the person assigned|whoever handed the task out) or the site admin can change .{1,80}\.$/,
-]
-
 /** The shell's rate limiter refuses with this code rather than a sentence. */
 const RATE_LIMITED =
   "Too many invites sent for now. Wait an hour, or ask them to check their spam folder."
@@ -207,7 +163,6 @@ const KNOWN_MESSAGES = new Set<string>(Object.values(PROJECT_ERRORS))
 export function getProjectErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ""
   if (KNOWN_MESSAGES.has(message)) return message
-  if (NAMED_REFUSALS.some((pattern) => pattern.test(message))) return message
   if (message.includes("RATE_LIMITED")) return RATE_LIMITED
   return (
     describeAuthError(message) ??

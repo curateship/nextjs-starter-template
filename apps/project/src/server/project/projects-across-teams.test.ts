@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { CustomShellDb } from "@/server/db"
 import { inTeam } from "@/server/project/access"
-import { createLabel, updateLabel } from "@/server/project/labels"
 import {
   addProjectMember,
   createProject,
@@ -12,7 +11,6 @@ import {
   loadProjectsPage,
 } from "@/server/project/projects"
 import { searchTasks } from "@/server/project/search"
-import { createTaskType, updateTaskType } from "@/server/project/task-types"
 import { createTask } from "@/server/project/tasks"
 import { insertSiteAdmin, startTeam } from "@/server/project/test-people"
 import type { CustomShellUser } from "@/server/schema"
@@ -21,9 +19,8 @@ import { createTestDatabase, insertUser } from "@/server/test-support"
 /*
  * The Teams dashboard, part 1 and 4 (workspace/tasks/Admin/02-teams-dashboard.md).
  * Tyler, 19 Oct 2026: no team dropdown, and "Admin sees all project". The site
- * admin is on no team, so each page names its team: a project its own, the
- * Task types page its filter's. The Projects dashboard and the header search
- * cover every team.
+ * admin is on no team, so each page names its team: a project its own. The
+ * Projects dashboard and the header search cover every team.
  */
 
 let client: PGlite
@@ -56,22 +53,11 @@ afterEach(async () => {
 })
 
 describe("a project page names its own team", () => {
-  it("loads each project's own team's labels and task types, one after the other", async () => {
-    await inTeam(acme, () => createLabel(tyler.id, { name: "Client", color: "pink" }, database))
-    await inTeam(beta, () => createLabel(tyler.id, { name: "Bug", color: "red" }, database))
-    await inTeam(acme, () => createTaskType(tyler.id, { name: "Video", icon: "video", color: "red" }, database))
-    await inTeam(beta, () => createTaskType(tyler.id, { name: "Research", icon: "search", color: "blue" }, database))
-
-    const first = await loadProjectPage(tyler.id, site, database)
-    expect(first.labels.map((label) => label.name)).toEqual(["Client"])
-    expect(first.taskTypes.map((type) => type.name)).toEqual(["Video"])
-    const second = await loadProjectPage(tyler.id, shop, database)
-    expect(second.labels.map((label) => label.name)).toEqual(["Bug"])
-    expect(second.taskTypes.map((type) => type.name)).toEqual(["Research"])
+  it("loads each project in its own team, one after the other", async () => {
+    expect((await loadProjectPage(tyler.id, site, database)).project.teamId).toBe(acme)
+    expect((await loadProjectPage(tyler.id, shop, database)).project.teamId).toBe(beta)
     // A page naming another team changes nothing: the project decides.
-    expect((await inTeam(acme, () => loadProjectPage(tyler.id, shop, database))).labels.map((l) => l.name)).toEqual([
-      "Bug",
-    ])
+    expect((await inTeam(acme, () => loadProjectPage(tyler.id, shop, database))).project.teamId).toBe(beta)
   })
 
   it("keeps an employee out of another team's project whatever a request names", async () => {
@@ -80,24 +66,8 @@ describe("a project page names its own team", () => {
     )
   })
 
-  it("changes a label or type in its own team without the page naming it", async () => {
-    const label = await inTeam(beta, () => createLabel(tyler.id, { name: "Bug", color: "red" }, database))
-    await updateLabel(tyler.id, { labelId: label.id, name: "Defect" }, database)
-    const type = await inTeam(beta, () =>
-      createTaskType(tyler.id, { name: "Research", icon: "search", color: "blue" }, database)
-    )
-    await updateTaskType(tyler.id, { typeId: type.id, name: "Study" }, database)
-
-    const page = await loadProjectPage(tyler.id, shop, database)
-    expect(page.labels.map((l) => l.name)).toEqual(["Defect"])
-    expect(page.taskTypes.map((t) => t.name)).toEqual(["Study"])
-  })
-
   it("refuses a team-wide change from the site admin when no team is named", async () => {
     await expect(createProject(tyler.id, project("Nowhere"), database)).rejects.toThrow(PROJECT_ERRORS.noTeamNamed)
-    await expect(createLabel(tyler.id, { name: "Loose", color: "red" }, database)).rejects.toThrow(
-      PROJECT_ERRORS.noTeamNamed
-    )
   })
 })
 
@@ -149,7 +119,6 @@ describe("the header search", () => {
       notes: "",
       assigneeUserId: null,
       dueDate: null,
-      steps: [],
     })
     await createTask(actor(tyler), task(site, "Logo for Acme"), database)
     await createTask(actor(tyler), task(shop, "Logo for Beta"), database)

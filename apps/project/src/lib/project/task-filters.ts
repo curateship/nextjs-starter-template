@@ -11,8 +11,8 @@ import {
 
 /**
  * Narrowing a list of tasks: a search over title and notes, and Status,
- * Priority, Person, Label, Type, due-date, Client and Project filters. They live in the page's address, so a
- * pasted link keeps them. The search doesn't look inside a type's fields.
+ * Priority, Person, due-date, Client and Project filters. They live in the page's address, so a
+ * pasted link keeps them.
  */
 
 /** A task with nobody assigned, for the Person filter. */
@@ -42,9 +42,6 @@ export type TaskFilters = {
   priority?: TaskPriority
   /** A person's id, or `NOBODY_FILTER`. */
   person?: string
-  label?: string
-  /** A task type's id. */
-  type?: string
   due?: DueFilter
   /** A client's name, or `NO_CLIENT_FILTER`. My dashboard only: a project has one client. */
   client?: string
@@ -62,8 +59,6 @@ export const NO_TASK_FILTERS: Partial<TaskFilters> = {
   status: undefined,
   priority: undefined,
   due: undefined,
-  label: undefined,
-  type: undefined,
   client: undefined,
   project: undefined,
 }
@@ -74,8 +69,6 @@ type Filterable = {
   status: TaskStatus
   priority: TaskPriority
   assignee: { id: string } | null
-  labels: { id: string }[]
-  type: { id: string } | null
   dueDate?: string | null
   dueAt?: string | null
   projectClient?: string | null
@@ -91,8 +84,6 @@ export function readTaskFilters(search: Record<string, unknown>): TaskFilters {
   if (isTaskStatus(search.status)) result.status = search.status
   if (isTaskPriority(search.priority)) result.priority = search.priority
   if (typeof search.person === "string" && ID.test(search.person)) result.person = search.person
-  if (typeof search.label === "string" && ID.test(search.label)) result.label = search.label
-  if (typeof search.type === "string" && ID.test(search.type)) result.type = search.type
   if (isDueFilter(search.due)) result.due = search.due
   const client = readClientFilter(search.client)
   if (client) result.client = client
@@ -106,8 +97,6 @@ export function hasTaskFilters(filters: TaskFilters) {
       filters.status ||
       filters.priority ||
       filters.person ||
-      filters.label ||
-      filters.type ||
       filters.due ||
       filters.client ||
       filters.project
@@ -124,8 +113,6 @@ export function filterTasks<T extends Filterable>(tasks: T[], filters: TaskFilte
       const id = task.assignee?.id ?? NOBODY_FILTER
       if (id !== filters.person) return false
     }
-    if (filters.label && !task.labels.some((label) => label.id === filters.label)) return false
-    if (filters.type && task.type?.id !== filters.type) return false
     if (filters.due && !matchesDue(task, filters.due, today, now)) return false
     if (filters.client && !matchesClient(task.projectClient, filters.client)) return false
     if (filters.project && task.projectId !== filters.project) return false

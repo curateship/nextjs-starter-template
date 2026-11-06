@@ -14,3 +14,10 @@ export const PANEL_FOOTER_PADDING = "p-3.75"
  * below, none above, since the heading brings its own (`band` on FoldHeading).
  */
 export const FOOTER_CARD_BODY = "px-4 pb-4"
+/**
+ * A side panel's body above `PanelFooter`: it keeps at least 6rem and grows
+ * into whatever the footer leaves; with `wide` (an inbox or a notes list in
+ * its place) it keeps half the panel instead.
+ */
+export const PANEL_BODY_ABOVE_FOOTER = "flex-[1_0_6rem]"
+export const PANEL_BODY_ABOVE_FOOTER_WIDE = "flex-[1_0_50%]"

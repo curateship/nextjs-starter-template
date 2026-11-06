@@ -10,18 +10,14 @@ function task(overrides: Partial<GroupableTask> & { title: string }) {
     priority: "normal" as const,
     dueDate: null,
     dueAt: null,
-    labels: [],
     assignee: null,
-    type: null,
     ...overrides,
   }
 }
 
-const bug = { id: "bug", name: "Bug" }
-const client = { id: "client", name: "Client" }
 const tasks = [
-  task({ title: "Fix login", labels: [bug, client], dueDate: "2026-10-17", priority: "high" }),
-  task({ title: "Call Sam", labels: [client], dueDate: "2026-10-19", assignee: { id: "sam", name: "Sam" } }),
+  task({ title: "Fix login", dueDate: "2026-10-17", priority: "high" }),
+  task({ title: "Call Sam", dueDate: "2026-10-19", assignee: { id: "sam", name: "Sam" } }),
   task({ title: "Plan", dueDate: "2026-10-23" }),
   task({ title: "Book room", dueDate: "2026-10-20" }),
   task({ title: "Someday", dueDate: "2026-12-01", status: "doing" }),
@@ -37,14 +33,6 @@ function grouped(grouping: Parameters<typeof groupTasks>[1]) {
 }
 
 describe("grouping tasks, as Filter's Group row does", () => {
-  it("puts a task with two tags under both, and untagged ones last", () => {
-    expect(grouped("tags")).toEqual([
-      ["Bug", ["Fix login"]],
-      ["Client", ["Fix login", "Call Sam"]],
-      ["No tags", ["Plan", "Book room", "Someday", "Shipped"]],
-    ])
-  })
-
   it("groups by when it's due, on the reader's clock, leaving out empty groups", () => {
     expect(grouped("due")).toEqual([
       ["Overdue", ["Fix login"]],
@@ -71,18 +59,15 @@ describe("grouping tasks, as Filter's Group row does", () => {
 })
 
 describe("dragging a row under another heading (Tyler, 24 Oct 2026)", () => {
-  const [fixLogin, callSam, plan] = tasks
-
-  it("takes any status, priority, person or type", () => {
-    expect(canMoveInGroup("status", "stuck", plan)).toBe(true)
-    expect(canMoveInGroup("priority", "low", plan)).toBe(true)
-    expect(canMoveInGroup("assignee", "none", callSam)).toBe(true)
-    expect(canMoveInGroup("type", "none", plan)).toBe(true)
+  it("takes any status, priority or person", () => {
+    expect(canMoveInGroup("status", "stuck")).toBe(true)
+    expect(canMoveInGroup("priority", "low")).toBe(true)
+    expect(canMoveInGroup("assignee", "none")).toBe(true)
   })
 
   it("takes Today, Tomorrow, This week, Later and No due date, never Overdue or Earlier", () => {
     expect(
-      ["overdue", "today", "tomorrow", "week", "later", "earlier", "none"].filter((key) => canMoveInGroup("due", key, plan))
+      ["overdue", "today", "tomorrow", "week", "later", "earlier", "none"].filter((key) => canMoveInGroup("due", key))
     ).toEqual([
       "today",
       "tomorrow",
@@ -92,16 +77,8 @@ describe("dragging a row under another heading (Tyler, 24 Oct 2026)", () => {
     ])
   })
 
-  it("swaps a tag: never onto a tag it has, and to No tags only from its one tag", () => {
-    expect(canMoveInGroup("tags", "client", fixLogin)).toBe(false)
-    expect(canMoveInGroup("tags", "bug", callSam)).toBe(true)
-    expect(canMoveInGroup("tags", "none", fixLogin)).toBe(false)
-    expect(canMoveInGroup("tags", "none", callSam)).toBe(true)
-    expect(canMoveInGroup("tags", "bug", plan)).toBe(true)
-  })
-
   it("has nowhere else to go with no grouping", () => {
-    expect(canMoveInGroup("none", "all", plan)).toBe(false)
+    expect(canMoveInGroup("none", "all")).toBe(false)
   })
 })
 

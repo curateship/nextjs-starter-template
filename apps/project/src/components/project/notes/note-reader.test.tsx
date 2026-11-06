@@ -19,11 +19,11 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cleanNoteBody } from "@/lib/project/note-blocks"
 
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] })
-const file = { id: "file-1", name: "brief.pdf", sizeBytes: 2048, createdAt: "", uploadedBy: null, picture: false, canDelete: false, fieldId: null, commentId: null }
+const file = { id: "file-1", name: "brief.pdf", sizeBytes: 2048, createdAt: "", uploadedBy: null, picture: false, canDelete: false, commentId: null }
 const openTask = vi.fn()
 
 function setup(): NoteSetup {
-  return { where: "task", teamId: undefined, openTask, hold: () => undefined, task: { id: "task-1", files: [file], link: null, refresh: async () => undefined } }
+  return { where: "task", teamId: undefined, openTask, hold: () => undefined, task: { id: "task-1", files: [file], link: null, refresh: async () => undefined, comments: null } }
 }
 
 let container: HTMLDivElement

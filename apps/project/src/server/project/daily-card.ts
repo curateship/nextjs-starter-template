@@ -28,7 +28,7 @@ import {
 } from "@/lib/project/daily-card"
 import type { ShellIcon } from "@/lib/custom-shell"
 import { READY_ROUTINES } from "@/lib/project/daily-words"
-import { addDays, localNow, momentOf, weekdayOf } from "@/lib/project/days"
+import { addDays, localNow, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { CLOSED_TASK_STATUSES } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
@@ -49,7 +49,6 @@ import {
   projectMeetings,
   projectProjects,
   projectSiteAdminPrefs,
-  projectTaskClockRuns,
   projectTasks,
   projectTeamHolidays,
   projectTeams,
@@ -155,8 +154,6 @@ export type DailyCard = {
   cardDay: string
   settings: DailySettings
   meetings: DailyMeeting[]
-  /** Time on the task clock today, counted to the moment the card loaded, and the clock still going. */
-  clock: { seconds: number; running: { taskId: string; projectId: string; title: string; since: string } | null }
   /** "Enjoy your day off", or the holiday's name, on a day off. */
   dayOff: string | null
   admin: SiteAdminDaily | null
@@ -240,7 +237,6 @@ export async function loadDailyCard(userId: string, database: ProjectDb = db, at
           database
         ).then(asDailyMeetings)
       : await invitedMeetingsOn(userId, teamId!, today, zone, database),
-    clock: await clockToday(userId, today, zone, database, at),
     dayOff: siteAdmin
       ? daysOff!.has(today)
         ? "Enjoy your day off"
@@ -319,44 +315,6 @@ async function invitedMeetingsOn(userId: string, teamId: string, day: string, zo
     }))
   )
   return (await withoutNotGoing(userId, meetings, database)).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-}
-
-/**
- * Seconds on the task clock today in the person's zone: every stretch since
- * midnight, one begun before it counting from midnight, and fixes made today.
- */
-async function clockToday(userId: string, today: string, zone: string, database: ProjectDb, at: Date) {
-  const start = momentOf(today, "00:00", zone)
-  const rows = await database
-    .select({
-      taskId: projectTaskClockRuns.taskId,
-      kind: projectTaskClockRuns.kind,
-      startedAt: projectTaskClockRuns.startedAt,
-      stoppedAt: projectTaskClockRuns.stoppedAt,
-      seconds: projectTaskClockRuns.seconds,
-      title: projectTasks.title,
-      projectId: projectTasks.projectId,
-    })
-    .from(projectTaskClockRuns)
-    .innerJoin(projectTasks, eq(projectTasks.id, projectTaskClockRuns.taskId))
-    .where(
-      and(
-        eq(projectTaskClockRuns.userId, userId),
-        isNull(projectTasks.deletedAt),
-        or(isNull(projectTaskClockRuns.stoppedAt), gte(projectTaskClockRuns.stoppedAt, start))
-      )
-    )
-  let seconds = 0
-  let running: DailyCard["clock"]["running"] = null
-  for (const row of rows) {
-    if (row.kind === "fix") {
-      if (row.startedAt >= start) seconds += row.seconds ?? 0
-      continue
-    }
-    seconds += Math.max(0, Math.floor(((row.stoppedAt ?? at).getTime() - Math.max(row.startedAt.getTime(), start.getTime())) / 1000))
-    if (!row.stoppedAt) running = { taskId: row.taskId, projectId: row.projectId, title: row.title, since: row.startedAt.toISOString() }
-  }
-  return { seconds: Math.max(0, seconds), running }
 }
 
 // --- The site admin's habits and journal ------------------------------------------

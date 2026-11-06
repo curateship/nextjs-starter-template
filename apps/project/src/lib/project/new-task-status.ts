@@ -6,7 +6,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 /**
  * A task made from a Board column's "+" goes into that column. Every task is
  * made in To do, so this moves it with the same status change a drag makes,
- * which keeps Done's "needed before Done" fields and Stuck's notice. A move
+ * which keeps Done's review and Stuck's notice. A move
  * that is refused leaves the task in To do and says why, and the task is not
  * made again.
  */

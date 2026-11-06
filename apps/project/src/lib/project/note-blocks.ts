@@ -24,6 +24,7 @@ export const NOTE_ATOM_TYPES = [
   "noteVideo",
   "noteTask",
   "noteFile",
+  "noteComments",
   "noteRecord",
   "noteWebPage",
   "noteLinks",
@@ -157,6 +158,8 @@ const ATOM_CLEANERS: Record<NoteAtomType, (attrs: Record<string, unknown>) => Re
   noteVideo: cleanVideo,
   noteTask: cleanTask,
   noteFile: cleanFile,
+  // The task's own comments, read when it is drawn, so it holds nothing.
+  noteComments: () => ({}),
   // The card is the task's own Video or Promo record, read when it is drawn, so it holds nothing.
   noteRecord: () => ({}),
   noteWebPage: cleanWebPage,
@@ -289,14 +292,14 @@ export function keepTaskFiles(body: NoteNode, taskFileIds: ReadonlySet<string>):
 
 /**
  * The note as copied onto another task: Duplicate, a repeating task's next
- * copy, Copy project and Save as task template. Files stay with the old task,
- * so File blocks and uploaded pictures go. A template has no task, so its
- * notes lose the Video or Promo card too (`forTemplate`). With `taskIds`
+ * copy and Copy project. Files stay with the old task, so File blocks and
+ * uploaded pictures go. A page with no task, such as a project's, loses the
+ * Video or Promo card and the Comments block too (`noTask`). With `taskIds`
  * (Copy project), each Task card pointing at a copied task points at the copy.
  */
 export function noteForCopy(
   body: NoteNode,
-  { taskIds, forTemplate = false }: { taskIds?: ReadonlyMap<string, string>; forTemplate?: boolean } = {}
+  { taskIds, noTask = false }: { taskIds?: ReadonlyMap<string, string>; noTask?: boolean } = {}
 ): NoteNode {
   const swap = (node: NoteNode): NoteNode => {
     if (node.type === "noteTask" && taskIds) {
@@ -305,5 +308,5 @@ export function noteForCopy(
     }
     return node.content ? { ...node, content: node.content.map(swap) } : node
   }
-  return swap(without(body, (node) => pointsAtTaskFile(node) || (forTemplate && node.type === "noteRecord")))
+  return swap(without(body, (node) => pointsAtTaskFile(node) || (noTask && (node.type === "noteRecord" || node.type === "noteComments"))))
 }

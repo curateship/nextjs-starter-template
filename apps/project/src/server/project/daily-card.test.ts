@@ -40,7 +40,6 @@ import {
   projectTimeOff,
 } from "@/server/project/schema"
 import { createTask } from "@/server/project/tasks"
-import { startClock } from "@/server/project/task-clock"
 import { insertSiteAdmin, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -143,7 +142,7 @@ describe("the rules", () => {
 })
 
 describe("everyone's card", () => {
-  it("gives an employee their own hours, meetings and finished work, and none of the site admin's parts", async () => {
+  it("gives an employee their own hours and meetings, and none of the site admin's parts", async () => {
     const meeting = "meeting-1"
     await database.insert(projectMeetings).values({
       id: meeting,
@@ -170,8 +169,6 @@ describe("everyone's card", () => {
       createdAt: NINE,
       updatedAt: NINE,
     })
-    const { id: taskId } = await createTask(actor(ben), { projectId: website, title: "Homepage", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] }, database)
-    await startClock(actor(ben), taskId, database, at(MONDAY, "08:00"))
 
     const card = await loadDailyCard(ben.id, database, NINE)
     expect(card.firstName).toBe("Ben")
@@ -179,8 +176,6 @@ describe("everyone's card", () => {
     expect(card.admin).toBeNull()
     expect(card.settings.hours).toEqual(DEFAULT_HOURS)
     expect(card.meetings.map((m) => m.title)).toEqual(["Standup"])
-    expect(card.clock.seconds).toBe(3600)
-    expect(card.clock.running?.title).toBe("Homepage")
     expect(card.dayOff).toBeNull()
   })
 
@@ -341,8 +336,8 @@ describe("the site admin's journal", () => {
       createdAt: NINE,
       updatedAt: NINE,
     })
-    await createTask(actor(ben), { projectId: website, title: "Launch", notes: "", assigneeUserId: ben.id, dueDate: "2099-03-03", steps: [] }, database)
-    await createTask(actor(tyler), { projectId: PERSONAL_PROJECT_ID, title: "Send the contract", notes: "", assigneeUserId: tyler.id, dueDate: "2099-03-03", steps: [] }, database)
+    await createTask(actor(ben), { projectId: website, title: "Launch", notes: "", assigneeUserId: ben.id, dueDate: "2099-03-03" }, database)
+    await createTask(actor(tyler), { projectId: PERSONAL_PROJECT_ID, title: "Send the contract", notes: "", assigneeUserId: tyler.id, dueDate: "2099-03-03" }, database)
     await database.insert(projectTimeOff).values({ id: "o", teamId, userId: ben.id, firstDay: "2099-03-03", lastDay: "2099-03-04", createdAt: NINE })
     const tomorrow = (await loadDailyCard(tyler.id, database, at(MONDAY, "20:00"))).admin!.tomorrow
     expect(tomorrow.meetings.map((m) => m.title)).toEqual(["Planning"])

@@ -128,10 +128,10 @@ tasks leave My dashboard with it and come back if it is brought back (Tyler,
 14 Oct 2026), as they already left the check-in: nothing in an archived
 project can change, so they could only be refused. On the List a task is
 one row (`src/components/project/my-task-rows.tsx`): a round tick box, the
-title with the project and its chips under it (High, the type, labels, "Date
+title with the project and its chips under it (High, "Date
 moved 5 times", "Waiting on 1 task", "3 new"), then the due date ("Overdue ·
-Oct 12" in red), the steps ("0/2"), the status with its dot, and an arrow.
-On a phone the date and steps give way. Group headings are small capitals
+Oct 12" in red), the status with its dot, and an arrow.
+On a phone the date gives way. Group headings are small capitals
 with a dot: OVERDUE red, TODAY orange, TOMORROW teal, THIS WEEK blue, LATER
 purple, NO DATE grey, and WAITING FOR MY ANSWER yellow. Under each group the rows come in
 my own order (below), then any I haven't placed, soonest first.
@@ -181,14 +181,15 @@ my own order (below), then any I haven't placed, soonest first.
 - **Filter's Group row** (Tyler, 31 Oct 2026: "my dashboard is missing
   "Group" function in filter"), on the List tab, for employees and the site
   admin alike. It starts on **My headings**, the groups above. The other
-  choices are the project List's (Status, Priority, Tags, Due date, Assigned
-  to, Template) plus **Project**, since these tasks come from many projects.
+  choices are the project List's (Status, Priority, Due date, Assigned
+  to) plus **Project**, since these tasks come from many projects. Group by
+  Template went when task templates and their fields were removed on 6 Nov
+  2026 (Tyler: "We need to remove the tasks templates feature too").
   Tyler picked keeping My headings as the start. Under any other choice the
-  same rows sit under that choice's headings, and a task with two tags shows
-  under both. With Mass select on, a row dragged under another heading takes
+  same rows sit under that choice's headings. With Mass select on, a row dragged under another heading takes
   that heading's value, as on a project's List (Tyler, 6 Nov 2026: "mass
   select does not have draggability"): a status (Stuck asks why first), a
-  priority, a due date, a type, or that tag in place of the one it left.
+  priority or a due date.
   These groupings keep no order of their own, so a drop inside its own
   heading does nothing. Under Assigned to and Project rows don't drag, since a
   drop would hand the task over or move it to another project.
@@ -214,7 +215,7 @@ my own order (below), then any I haven't placed, soonest first.
     eight days from today, No date clears the date,
     and Done marks it Done. It is the same save as the Due cell or the Done
     tick, so it loses any "Due by" time, counts toward "Date moved 3 times",
-    and a Done a required field refuses is put back with the reason.
+    and a Done the server refuses is put back with the reason.
   - **Overdue and Waiting for my answer take no drops**, and rows under
     Waiting, Done and Picked for today stay in their group, since their date
     would not move them.
@@ -256,8 +257,8 @@ A task whose chat has messages I haven't read says "3 new" beside its title,
 and opening it reads them (see [Task chat](task-chat.md#new-messages)).
 
 Search tasks in the ⋮ opens the search box in the header, with the cursor in
-it. The box stays open while it holds words; Escape empties and closes it. Filter holds Status, Priority, Due,
-Tags, Type and Client, then Clear and Save as view. Due is the project
+it. The box stays open while it holds words; Escape empties and closes it. Filter holds Status, Priority, Due
+and Client, then Clear and Save as view. Due is the project
 page's: Any time, Overdue, Today, This week, Next week, No date. It was a
 dropdown of its own in the header until Tyler moved it into Filter on
 19 Oct 2026. All of
@@ -273,9 +274,8 @@ Live updates in [Task chat](task-chat.md#my-dashboard-and-the-team-dashboard)).
 
 A tick in a round box selects the task without opening it. Ticked rows can be marked Done together, or changed with the same bar as a
 project's List tab: Status, Hand to (with one optional note for them all),
-Due date, Priority, Add tag, Remove tag and Type. There is no Move to project
-here, and every live type is offered, so a project that doesn't offer one
-refuses it for its own tasks. Each task is changed on its own,
+Due date and Priority. There is no Move to project
+here. Each task is changed on its own,
 so each writes its history and sends its notices, and the result says "5
 tasks changed, 1 refused." naming the refused ones with their reasons. My
 tasks span projects, so Hand to refuses anyone who isn't on a task's project.
@@ -294,10 +294,6 @@ its left edge. Opening another task swaps it in place. On a narrow screen
 opening one switches to the Task tab. The address is `?task=<id>`. How a task opens is in
 [Projects and tasks](projects-and-tasks.md#opening-a-task).
 
-A task whose clock is running shows the ticking time and a Pause button at
-the end of its row, so it pauses without being opened (Tyler, 20 Oct 2026;
-see [The task clock](task-clock.md)).
-
 ## Right: the open task
 
 The right panel always holds a task. Tyler, 23 Oct 2026: "There is no 'x'
@@ -313,7 +309,7 @@ show the first task and then it remembers what task I'm on afterwards."
 - **After deleting the open task**, or Close on "That task is gone", the
   List's first row opens, so the panel is not left empty.
 - **Only with no tasks at all** does the panel show "Click a task to see its
-  steps and chat here."
+  notes and chat here."
 
 ## Inbox
 
@@ -458,15 +454,14 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   col and the text there to be in a chip form"). Every task's dropdown is the
   same ("all should be this"): **Just me** ("its missing a 'just me'
   option"), then every team's open projects under the team's name, with the
-  task's own project ticked. It is the task's own Move to project, so steps,
+  task's own project ticked. It is the task's own Move to project, so its
   chat and files go with it, and it shows no message ("It doesnt need a toast
-  confirmation"). A task moved to another team loses its tags, type and type
-  fields, which belong to its old team. Only a task the site admin is doing
+  confirmation"). Only a task the site admin is doing
   can go into their list; one someone else is doing stays shared. The Board, Calendar and Timeline still name the team with the
   project ("Acme · Website").
   There are no picks for today; rows drag as on an employee's List, once
   Mass select is on (Dragging rows, above). Filter offers
-  every team's tags and types, and a **Project** row: every open project,
+  a **Project** row: every open project,
   pinned or not, and every one holding a task of theirs, named with its team
   ("Sample team · Spring launch"). Pressing a project on the Pinned projects card
   sets the same row, so the two always agree, and a saved view keeps it.
@@ -487,7 +482,7 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   it like any other task, and it stays theirs.
 - **The right panel** is the employee page's: on arrival the task last open
   here, or the List's first row, and no cross. A task opened here asks its own
-  team's questions (its tags, its people), as on its project page.
+  team's questions (its people), as on its project page.
 - **Live across every team.** A change to any task, project or team's
   own things, by anyone, loads the page again a moment later, so the cards and
   the Pinned projects card never go stale (Tyler, 29 Oct 2026, picking "Live across

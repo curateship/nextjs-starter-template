@@ -9,10 +9,6 @@ import { isOwnedImageUrl } from "@/server/media/library"
 import { loadAnnouncement, type Announcement } from "@/server/project/announcements"
 import { requireKnownZone } from "@/server/project/checkins"
 import { holidayOn, listHolidays, type Holiday } from "@/server/project/holidays"
-import { listTeamLabels, type Label } from "@/server/project/labels"
-import { listStepLists, type StepList } from "@/server/project/step-lists"
-import { clearPersonValues } from "@/server/project/task-types"
-import { pauseClocksOf } from "@/server/project/task-clock-runs"
 import { projectViewScreen } from "@/server/project/saved-views"
 import { countTeamToday } from "@/server/project/team-days"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
@@ -27,7 +23,6 @@ import {
   projectProjectMembers,
   projectProjectStars,
   projectTaskReminders,
-  projectTaskSteps,
   projectProjects,
   projectTasks,
   projectTeamMembers,
@@ -71,9 +66,6 @@ export type TeamDashboard = {
   myRole: TeamRole
   myUserId: string
   members: TeamMemberRow[]
-  labels: Label[]
-  /** The team's saved step lists, renamed and deleted in Team settings. */
-  stepLists: StepList[]
   /** The join link's state, for the site admin; null for everyone else. */
   joinLink: JoinLinkState | null
   /** The team's holidays from today on. */
@@ -225,9 +217,9 @@ export async function listTeams(userId: string, database = db, at = new Date()):
  * refused while anyone is on the team or a shared project is still open, so a
  * slip can't take live work with it. What is left goes with the team row: its
  * archived projects and their tasks, "Just me" lists, check-ins, meetings,
- * labels, task types, step lists, days off and saved views, every
- * one of the 15 tables holding a team's rows deleting with it (`onDelete:
- * "cascade"` in `src/server/project/schema.ts`).
+ * days off and saved views, every one of the 12 tables
+ * holding a team's rows deleting with it (`onDelete: "cascade"` in
+ * `src/server/project/schema.ts`).
  */
 export async function deleteTeam(userId: string, teamId: string, database = db) {
   await database.transaction(async (tx) => {
@@ -277,8 +269,6 @@ export async function loadTeamDashboard(
     myRole: membership.role,
     myUserId: userId,
     members,
-    labels: await listTeamLabels(membership.teamId, database),
-    stepLists: await listStepLists(membership.teamId, database),
     joinLink: runsTheTeam(membership.role) ? await joinLinkState(membership.teamId, database) : null,
     holidays: await listHolidays(
       membership.teamId,
@@ -453,8 +443,8 @@ async function takePersonOffTeam(teamId: string, userId: string, tx: ProjectDb) 
 }
 
 /**
- * Takes someone off the tasks matched by `where`, and off those tasks'
- * steps, keeping their name on each task so it still says whose it was. Shared with removing someone from one
+ * Takes someone off the tasks matched by `where`, keeping their name on each
+ * task so it still says whose it was. Shared with removing someone from one
  * project.
  */
 export async function clearAssignee(
@@ -467,8 +457,6 @@ export async function clearAssignee(
     .from(customShellUsers)
     .where(eq(customShellUsers.id, userId))
     .limit(1)
-  // Their clock on those tasks stops with them.
-  await pauseClocksOf(tx, userId, null, where)
   await tx
     .update(projectTasks)
     .set({
@@ -478,22 +466,6 @@ export async function clearAssignee(
       updatedAt: now(),
     })
     .where(and(eq(projectTasks.assigneeUserId, userId), where))
-  // A Person field in those tasks loses them too, the same as the task.
-  await clearPersonValues(userId, where, tx)
-  // Their steps in those tasks lose their name too: a step's person must be
-  // on the project.
-  await tx
-    .update(projectTaskSteps)
-    .set({ assigneeUserId: null })
-    .where(
-      and(
-        eq(projectTaskSteps.assigneeUserId, userId),
-        inArray(
-          projectTaskSteps.taskId,
-          tx.select({ id: projectTasks.id }).from(projectTasks).where(where)
-        )
-      )
-    )
 }
 
 async function requireTeammate(teamId: string, userId: string, database: ProjectDb) {

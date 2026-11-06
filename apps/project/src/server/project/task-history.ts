@@ -31,7 +31,6 @@ export async function recordTaskEvent(
     actorUserId: string
     targetUserId?: string | null
     reason?: string | null
-    relatedTaskId?: string | null
   }
 ) {
   await database.insert(projectTaskEvents).values({
@@ -41,7 +40,6 @@ export async function recordTaskEvent(
     actorUserId: event.actorUserId,
     targetUserId: event.targetUserId ?? null,
     reason: event.reason ?? null,
-    relatedTaskId: event.relatedTaskId ?? null,
     createdAt: new Date(),
   })
 }
@@ -65,8 +63,6 @@ export type TaskHistoryEntry =
       actorName: string
       targetName: string | null
       reason: string | null
-      /** The task a step became or came from, when the reader can see it. */
-      relatedTask: { id: string; projectId: string; title: string } | null
     }
   | {
       kind: "moved"
@@ -85,7 +81,7 @@ const FORMER_MEMBER = "A former member"
 export async function loadTaskHistory(
   taskId: string,
   database: ProjectDb = db,
-  /** Projects the reader can see; a linked task elsewhere loses its link. */
+  /** Projects the reader can see; a move from one elsewhere loses its name. */
   visibleProjects: ReadonlySet<string> = new Set()
 ): Promise<TaskHistoryEntry[]> {
   const days = await database
@@ -108,7 +104,6 @@ export async function loadTaskHistory(
 
   const actor = alias(customShellUsers, "actor")
   const target = alias(customShellUsers, "target")
-  const related = alias(projectTasks, "related")
   const movedFrom = alias(projectProjects, "moved_from")
   const events = await database
     .select({
@@ -117,16 +112,12 @@ export async function loadTaskHistory(
       reason: projectTaskEvents.reason,
       actorName: actor.name,
       targetName: target.name,
-      relatedId: related.id,
-      relatedProjectId: related.projectId,
-      relatedTitle: related.title,
       movedFromId: movedFrom.id,
       movedFromName: movedFrom.name,
     })
     .from(projectTaskEvents)
     .leftJoin(actor, eq(actor.id, projectTaskEvents.actorUserId))
     .leftJoin(target, eq(target.id, projectTaskEvents.targetUserId))
-    .leftJoin(related, eq(related.id, projectTaskEvents.relatedTaskId))
     // A move keeps the old project's id in its reason.
     .leftJoin(
       movedFrom,
@@ -170,10 +161,6 @@ export async function loadTaskHistory(
             actorName: row.actorName ?? FORMER_MEMBER,
             targetName: row.targetName,
             reason: row.reason,
-            relatedTask:
-              row.relatedId && row.relatedProjectId && visibleProjects.has(row.relatedProjectId)
-                ? { id: row.relatedId, projectId: row.relatedProjectId, title: row.relatedTitle ?? "" }
-                : null,
           }
     ),
   ]

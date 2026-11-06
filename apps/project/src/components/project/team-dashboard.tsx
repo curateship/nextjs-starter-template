@@ -86,7 +86,6 @@ import {
   type DayMeeting,
 } from "@/lib/project/meetings"
 import { lastProject, rememberProject } from "@/lib/project/new-task-project"
-import type { TaskType } from "@/lib/project/task-types"
 import {
   TEAM_CALENDAR_VIEW_KEY,
   TEAM_MIDDLE_TAB_KEY,
@@ -346,7 +345,6 @@ function useMeetingWindows({ meetings, data, day }: { meetings: TeamMeetings; da
         {opened.making ? (
           <NewTaskDialog
             projects={opened.making.projects}
-            types={opened.making.types}
             initialProjectId={opened.making.initialProjectId}
             initialTitle={opened.making.line.text}
             open={opened.making.open}
@@ -448,8 +446,6 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
       <HandOverDialog from={handingOver} members={data.members} onClose={() => setHandingOver(null)} />
       <TeamSettingsDialog
         team={team}
-        labels={data.labels}
-        stepLists={data.stepLists}
         joinLink={data.joinLink}
         holidays={data.holidays}
         canEdit={canRun}
@@ -891,7 +887,6 @@ function CalendarViewMenu({
 type Making = {
   line: NoteLineToMake
   projects: NewTaskProject[]
-  types: TaskType[]
   initialProjectId: string
   open: boolean
 }
@@ -926,7 +921,7 @@ function useOpenedMeeting(meetings: TeamMeetings) {
       showErrorToast(getProjectErrorMessage(error))
       return
     }
-    const { projects, types } = loaded
+    const { projects } = loaded
     if (projects.length === 0) {
       showErrorToast("There's no open project to put a task in yet. Make a project first.")
       return
@@ -936,7 +931,6 @@ function useOpenedMeeting(meetings: TeamMeetings) {
     setMaking({
       line,
       projects,
-      types,
       initialProjectId: projects.find((p) => p.id === remembered)?.id ?? projects[0].id,
       open: true,
     })

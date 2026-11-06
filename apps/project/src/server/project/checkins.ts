@@ -1,6 +1,5 @@
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, max, notInArray, or, sql } from "drizzle-orm"
 
-import { clockTotal } from "@/lib/project/clock"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { suggestPicks } from "@/lib/project/suggested-picks"
 import { localNow, momentOf } from "@/lib/project/days"
@@ -36,7 +35,6 @@ import {
   projectTeams,
 } from "@/server/project/schema"
 import { listTaskCards, setTaskStatus, type Actor, type TaskCard } from "@/server/project/tasks"
-import { clocksFor, pauseClocksOf } from "@/server/project/task-clock-runs"
 import { awayOn } from "@/server/project/time-off"
 import { customShellUsers } from "@/server/schema"
 
@@ -439,9 +437,8 @@ export const YESTERDAY_TITLES = 10
 
 /**
  * With no check-out note, the Yesterday box starts from the tasks assigned to
- * this person that became Done since their last check-in, one title per line,
- * each with its time on the task clock when it has a minute or more: "Fix the
- * login page, 1h 20m". A first check-in has no "since", so it starts empty,
+ * this person that became Done since their last check-in, one title per line.
+ * A first check-in has no "since", so it starts empty,
  * and so does a check-in after nothing was finished.
  */
 async function finishedSinceLastCheckin(
@@ -464,7 +461,7 @@ async function finishedSinceLastCheckin(
     .limit(1)
   if (!last?.checkedInAt || visible.size === 0) return null
   const rows = await database
-    .select({ id: projectTasks.id, title: projectTasks.title })
+    .select({ title: projectTasks.title })
     .from(projectTasks)
     .where(
       and(
@@ -476,13 +473,7 @@ async function finishedSinceLastCheckin(
       )
     )
     .orderBy(asc(projectTasks.completedAt))
-  const clocks = await clocksFor(rows.map((row) => row.id), database)
-  return finishedNote(
-    rows.map((row) => {
-      const seconds = clocks.get(row.id)?.seconds ?? 0
-      return seconds >= 60 ? `${row.title}, ${clockTotal(seconds)}` : row.title
-    })
-  )
+  return finishedNote(rows.map((row) => row.title))
 }
 
 /**
@@ -892,8 +883,6 @@ export async function checkOut(
       if (statusOf.get(taskId) === "done") continue
       await setTaskStatus(actor, { taskId, status: "done", stuckReason: null }, tx)
     }
-    // Checking out ends the day's work, so any clock still running pauses.
-    await pauseClocksOf(tx, actor.id, actor.id)
     await tx
       .update(projectCheckins)
       .set({

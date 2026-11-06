@@ -1,28 +1,21 @@
 import * as React from "react"
 import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
-import { BellIcon, BellRingIcon, CheckIcon, ClipboardCheckIcon, HeartIcon, PlusIcon, UndoIcon } from "lucide-react"
+import { BellIcon, BellRingIcon, CheckIcon, ClipboardCheckIcon, HeartIcon, UndoIcon } from "lucide-react"
 
-import { ChatThread, TaskChatCard } from "@/components/project/task-chat"
-import { TaskFieldsCard, TaskTypeField } from "@/components/project/task-fields-card"
-import { TaskFileDrop, TaskFilesCard } from "@/components/project/task-files-card"
+import { ChatThread } from "@/components/project/task-chat"
+import { CommentsBox } from "@/components/project/notes/note-block-drawings"
+import type { NoteComments } from "@/components/project/notes/note-setup"
+import { TaskFilesCard } from "@/components/project/task-files-card"
 import { LiveTaskNotes, NoteVersionsList, type NotesHandle } from "@/components/project/task-notes"
 import { AskTimeCard, MoveTaskCard, ReminderCard, TaskMoreMenu } from "@/components/project/task-more-menu"
-import { TypeIconGlyph } from "@/components/project/task-type-icon"
 import { setReminder } from "@/lib/api/project/planning"
-import { saveTaskTypeOf } from "@/lib/api/project/task-types"
-import { PanelCardFooter } from "@/components/project/panel-card"
 import { PickDayRow, PickGroup, PickMenuRow, PickRow } from "@/components/project/pick-rows"
-import { StepListActions } from "@/components/project/step-list-actions"
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { TaskPlanCard } from "@/components/project/task-plan-card"
-import { StepFields } from "@/components/project/step-fields"
-import { StepMenu } from "@/components/project/step-menu"
-import { TaskTagList, TaskTagsField } from "@/components/project/task-tags-field"
 import { TaskLinkButton, TaskLinkField } from "@/components/project/task-link"
-import { TaskClockFooter, TaskTimeFields } from "@/components/project/task-clock"
+import { TaskFooter } from "@/components/project/task-footer"
 import {
-  DueDate,
   DayOffNote,
   DueMovesMark,
   PersonAvatar,
@@ -52,7 +45,6 @@ import {
 import { Switch } from "@/components/ui/switch"
 import {
   acceptProjectTask,
-  addTaskStep,
   answerMoreTaskTime,
   assignProjectTask,
   deleteProjectTask,
@@ -65,10 +57,8 @@ import {
   setStatus,
   setTaskNeedsReview,
   thankForProjectTask,
-  updateTaskStep,
   type TaskCard,
   type TaskDetail,
-  type TaskStep,
 } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
@@ -107,11 +97,8 @@ const NOBODY = "nobody"
 const NOTHING = () => undefined
 
 
-/** The Template list's "No template", which the save sends as none. */
-const NO_TEMPLATE = "none"
-
 export const DELETE_TASK_QUESTION = "Delete this task?"
-export const DELETE_TASK_DETAIL = `It moves to the project's bin with its steps, chat and files, and can be brought back for ${BIN_DAYS} days.`
+export const DELETE_TASK_DETAIL = `It moves to the project's bin with its chat and files, and can be brought back for ${BIN_DAYS} days.`
 
 /** "Task moved to the bin." with Undo, after a task is deleted from its panel or its Board card. */
 export function showBinnedToast(taskId: string, router: { invalidate: () => Promise<unknown> }) {
@@ -151,24 +138,15 @@ export type TaskParts = {
 }
 
 /**
- * The project page's task panel: the status in its header, notices, Notes,
- * Steps and Chat down the panel, the files behind the paperclip and the rest
+ * The project page's task panel: the status in its header, notices, Notes
+ * and Chat down the panel, the files behind the paperclip and the rest
  * of the fields in the cog's dropdown.
  */
 export type TaskSide = {
   /** The title in the panel's header, edited where it is written (Tyler, 20 Oct 2026). */
   title: React.ReactNode
-  /** The footer pinned to the panel's bottom: the status, Start and Completed. */
+  /** The footer pinned to the panel's bottom: the status and Completed. */
   footer: React.ReactNode
-  /**
-   * The Time spent and Guess boxes, behind the ⋮ menu's Time icon (Tyler,
-   * 2 Nov 2026). Null when there is nothing to show or change.
-   */
-  time: { content: React.ReactNode } | null
-  /** The tags under the title, to read; nothing while there are none. */
-  tagList: React.ReactNode
-  /** The tags box, in the three-dot button's Add tags (Tyler, 20 Oct 2026). */
-  tags: React.ReactNode
   /** The button that opens the task's Video or Promo record, or who may open it. */
   link: React.ReactNode
   /** A hand-over to accept, a review, the Stuck reason row, and the Move and Remind me cards. */
@@ -183,20 +161,13 @@ export type TaskSide = {
   }
   /** The ⋮'s Versions tab: the notes' earlier versions, with Bring back. */
   versions: React.ReactNode
-  /**
-   * `meta` is "0 of 2 done", or null with no steps. `content` is the steps
-   * and their footer; `add` is the Add a step row and the step-list buttons,
-   * in the ⋮'s Add steps (Tyler, 2 Nov 2026).
-   */
-  steps: { count: number; meta: string | null; content: React.ReactNode; add: React.ReactNode }
-  /** The chat; with no messages yet it is written in a dropdown from the header, as notes are. */
-  chat: { count: number; content: React.ReactNode }
+  /** The comments' box under the notes while no Comments block shows them; null otherwise. */
+  commentsBelow: React.ReactNode
   /** Follow or stop following, at the right of the cog dropdown's tabs. */
   followButton: React.ReactNode
-  files: { count: number; content: React.ReactNode }
   /**
-   * The cog's Details tab as cards that fold open: Person, Dates, Priority and
-   * type, the type's own fields, and the Plan.
+   * The cog's Details tab as cards that fold open: Person, Dates, Priority,
+   * the Video or Promo link and the Plan.
    */
   settings: React.ReactNode
   /**
@@ -964,8 +935,6 @@ function TaskForm({
     </div>
   )
 
-  const typeField = <TaskTypeField detail={detail} readOnly={readOnly} busy={busy} change={change} />
-  const tagsField = <TaskTagsField detail={detail} readOnly={readOnly} busy={busy} change={change} />
   const reviewField = detail.canAskForReview ? (
     <div className="flex items-center justify-between gap-4">
       <FieldLabel
@@ -992,24 +961,48 @@ function TaskForm({
     </p>
   ) : null
 
-  const sortingFields = (
-    <>
-      {typeField}
-      <div className="grid gap-2">
-        <Label htmlFor="task-tags">Tags</Label>
-        <TaskTagsField id="task-tags" detail={detail} readOnly={readOnly} busy={busy} change={change} />
-      </div>
-      {reviewField}
-    </>
-  )
-
   const saveNotes = (notes: NoteNode, notesSession: string) =>
     change(() => saveTask({ taskId: task.id, notes, notesSession }))
   // Locked notes read only, for everyone, until they're unlocked from the ⋮ (Tyler, 5 Nov 2026:
   // "add lock page for task too"). Locking or unlocking draws them again from what was saved.
   const notesReadOnly = readOnly || task.notesLocked
   const notesKey = `${task.id}:${task.notesLocked}`
-  const noteLinks = { id: task.id, links: detail.noteLinks, change, files: detail.files, link: detail.link, refresh }
+  // The comments are a "/" block in the notes (Tyler, 6 Nov 2026: "Make comments a block"). A
+  // drawn block says so through `placed`; with none showing, they show under the notes instead,
+  // once there are any (or the notes aren't there to place a block in).
+  const [commentBlocks, setCommentBlocks] = React.useState(0)
+  const placeComments = React.useCallback(() => {
+    setCommentBlocks((count) => count + 1)
+    return () => setCommentBlocks((count) => count - 1)
+  }, [])
+  // A deleted message isn't one to count, so a chat holding only those is still empty.
+  const commentCount = detail.comments.filter((message) => !message.deleted).length
+  const comments: NoteComments = {
+    count: commentCount,
+    placed: placeComments,
+    thread: (
+      <ChatThread
+        chat={{ taskId: task.id }}
+        messages={detail.comments}
+        people={detail.assignable}
+        myUserId={myUserId}
+        readOnly={readOnly}
+        change={change}
+        room={room}
+        fileRoom={LIMITS.filesPerTask - detail.files.length}
+        emptyText={`No comments yet.${readOnly ? "" : " Type @ to ask someone on the project about this task."}`}
+        listClassName="max-h-96"
+      />
+    ),
+  }
+  // Not while a saved block is on its way to being drawn, so the box doesn't flash under the notes.
+  const blockSaved = task.notes.includes('"noteComments"')
+  // Locked notes take no new block, so there the box to write in shows under them from the start.
+  const commentsBelow =
+    commentBlocks === 0 && !blockSaved && (commentCount > 0 || (notesReadOnly && !readOnly)) ? (
+      <CommentsBox count={commentCount}>{comments.thread}</CommentsBox>
+    ) : null
+  const noteLinks = { id: task.id, links: detail.noteLinks, change, files: detail.files, link: detail.link, refresh, comments }
 
   const handBackButton =
     canHandBack && !task.waiting && !handingBack && !readOnly ? (
@@ -1021,7 +1014,6 @@ function TaskForm({
       </div>
     ) : null
 
-  const fieldsCard = <TaskFieldsCard detail={detail} readOnly={readOnly} change={change} refresh={refresh} />
   const linkButton = <TaskLinkButton taskId={detail.task.id} link={detail.link} />
   const linkField = detail.canSetLink ? (
     <TaskLinkField
@@ -1035,8 +1027,6 @@ function TaskForm({
     />
   ) : null
   const planCard = <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} />
-  const stepsTitle = `Steps${detail.steps.length ? ` · ${detail.steps.filter((step) => step.done).length} of ${detail.steps.length} done` : ""}`
-  const steps = <StepsContent detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} busy={busy} />
 
   const body = (
     <>
@@ -1055,23 +1045,16 @@ function TaskForm({
           {handoverRow}
           {stuckRow}
           {datesAndPriority}
-          {sortingFields}
+          {reviewField}
           {linkField}
           <LiveTaskNotes key={notesKey} notes={task.notes} readOnly={notesReadOnly} onSave={saveNotes} task={noteLinks} />
           {handBackButton}
         </CardContent>
       </Card>
 
-      {fieldsCard}
       {planCard}
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>{stepsTitle}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">{steps}</CardContent>
-      </Card>
       <TaskFilesCard detail={detail} readOnly={readOnly} refresh={refresh} change={change} />
-      <TaskChatCard detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} room={room} />
+      {commentsBelow}
     </>
   )
 
@@ -1098,12 +1081,7 @@ function TaskForm({
         className="min-h-8 resize-none border-transparent px-2 py-1 text-sm font-semibold shadow-none hover:border-input dark:bg-transparent"
       />
     ),
-    footer: <TaskClockFooter detail={detail} status={statusPill} change={change} busy={busy} readOnly={readOnly} />,
-    time: hasTimeRow(detail, readOnly)
-      ? { content: <TaskTimeFields detail={detail} change={change} busy={busy} readOnly={readOnly} /> }
-      : null,
-    tagList: <TaskTagList tags={task.labels} />,
-    tags: tagsField,
+    footer: <TaskFooter detail={detail} status={statusPill} change={change} busy={busy} readOnly={readOnly} />,
     link: linkButton,
     notices: (
       <>
@@ -1126,51 +1104,7 @@ function TaskForm({
       ),
     },
     versions: <NoteVersionsList taskId={task.id} readOnly={notesReadOnly} change={change} onClose={NOTHING} bare />,
-    steps: {
-      count: detail.steps.length,
-      meta: detail.steps.length
-        ? `${detail.steps.filter((step) => step.done).length} of ${detail.steps.length} done`
-        : null,
-      content: <StepsContent detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} busy={busy} addRow={false} />,
-      add: readOnly ? null : (
-        <>
-          <StepAddRow taskId={task.id} change={change} busy={busy} autoFocus />
-          <StepListActions detail={detail} change={change} busy={busy} />
-        </>
-      ),
-    },
-    chat: {
-      // A deleted message isn't one to count, so a chat holding only those is still empty.
-      count: detail.comments.filter((message) => !message.deleted).length,
-      content: (
-        <ChatThread
-          chat={{ taskId: task.id }}
-          messages={detail.comments}
-          people={detail.assignable}
-          myUserId={myUserId}
-          readOnly={readOnly}
-          change={change}
-          room={room}
-          fileRoom={LIMITS.filesPerTask - detail.fields.fileCount}
-          emptyText={`No messages yet.${readOnly ? "" : " Type @ to ask someone on the project about this task."}`}
-          listClassName="max-h-96"
-        />
-      ),
-    },
-    files: {
-      count: detail.files.length,
-      content: (
-        <TaskFileDrop
-          taskId={task.id}
-          files={detail.files}
-          taskFileCount={detail.fields.fileCount}
-          readOnly={readOnly}
-          refresh={refresh}
-          change={change}
-          emptyText="No files yet."
-        />
-      ),
-    },
+    commentsBelow,
     // Each group a card that folds open, with its answer on the right (Tyler, 14 Oct 2026).
     review: detail.canAskForReview ? (
       <div className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 hover:bg-muted [&_label]:font-normal">
@@ -1314,14 +1248,7 @@ function TaskForm({
             />
           )}
         </PickGroup>
-        <PickGroup
-          title="Details"
-          after={
-            !readOnly && !detail.fields.canChangeType && detail.fields.typeChoices.length ? (
-              <p className="px-0.5 text-xs text-muted-foreground">{PROJECT_ERRORS.cantChangeType}</p>
-            ) : null
-          }
-        >
+        <PickGroup title="Details">
           <PickMenuRow
             label="Priority"
             disabled={readOnly || busy}
@@ -1330,37 +1257,6 @@ function TaskForm({
             onPick={(value) => void change(() => saveTask({ taskId: task.id, priority: value as TaskPriority }))}
             options={TASK_PRIORITIES.map((priority) => ({ value: priority, label: TASK_PRIORITY_LABEL[priority] }))}
           />
-          {detail.fields.typeChoices.length || detail.fields.type ? (
-            <PickMenuRow
-              label="Template"
-              disabled={readOnly || busy || !detail.fields.canChangeType}
-              empty={!detail.fields.type}
-              value={detail.fields.type?.name ?? "No template"}
-              selected={detail.fields.type?.id ?? NO_TEMPLATE}
-              onPick={(value) => void change(() => saveTaskTypeOf(task.id, value === NO_TEMPLATE ? null : value))}
-              options={[
-                { value: NO_TEMPLATE, label: "No template" },
-                ...detail.fields.typeChoices.map((choice) => ({
-                  value: choice.id,
-                  label: (
-                    <>
-                      <TypeIconGlyph icon={choice.icon} color={choice.color} />
-                      {choice.name}
-                      {choice.archived ? <span className="text-muted-foreground"> (archived)</span> : null}
-                    </>
-                  ),
-                })),
-              ]}
-            />
-          ) : null}
-          {detail.fields.type?.fields.length ? (
-            <PickRow
-              label={detail.fields.type.name}
-              value={`${detail.fields.type.fields.length} ${plural(detail.fields.type.fields.length, "field")}`}
-            >
-              <div className={INNER_CARD}>{fieldsCard}</div>
-            </PickRow>
-          ) : null}
           {linkField ? (
             <PickRow label="Video or Promo" empty={!detail.link} value={detail.link ? LINKED_APP_INFO[detail.link.app].record : "None"}>
               {linkField}
@@ -1538,181 +1434,6 @@ function ReasonRow({
         </div>
       </div>
     </div>
-  )
-}
-
-/** Whether the ⋮ lists Time spent: always for someone who can change the task, otherwise once there is a time or a guess. */
-function hasTimeRow(detail: TaskDetail, readOnly: boolean) {
-  const { clock, guessMinutes } = detail.task
-  return !readOnly || Boolean(clock.runningSince) || clock.seconds > 0 || Boolean(guessMinutes)
-}
-
-function StepsContent({
-  detail,
-  myUserId,
-  readOnly,
-  change,
-  busy,
-  addRow = true,
-}: {
-  detail: TaskDetail
-  myUserId: string
-  readOnly: boolean
-  change: Change
-  busy: boolean
-  /** Off in the project page's panel, where the header's steps dropdown adds them. */
-  addRow?: boolean
-}) {
-  const steps = detail.steps
-
-  return (
-    <>
-      {steps.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No steps. Add some to show progress as "3 of 5 steps done".
-        </p>
-      ) : (
-        <ul className="grid gap-2">
-          {steps.map((step) => (
-            <StepRow
-              key={step.id}
-              step={step}
-              people={detail.assignable}
-              myUserId={myUserId}
-              readOnly={readOnly}
-              change={change}
-              busy={busy}
-            />
-          ))}
-        </ul>
-      )}
-      {readOnly || !addRow ? null : <StepAddRow taskId={detail.task.id} change={change} busy={busy} />}
-      {/* The Steps card's footer on the project page, behind its cog; a plain row in the window. */}
-      {readOnly ? null : (
-        <PanelCardFooter>
-          <StepListActions detail={detail} change={change} busy={busy} />
-        </PanelCardFooter>
-      )}
-    </>
-  )
-}
-
-/** The Add a step box and its Add button. Enter adds too, and the box empties for the next one. */
-function StepAddRow({
-  taskId,
-  change,
-  busy,
-  autoFocus = false,
-}: {
-  taskId: string
-  change: Change
-  busy: boolean
-  autoFocus?: boolean
-}) {
-  const [text, setText] = React.useState("")
-
-  async function add() {
-    const next = text.trim()
-    if (!next) {
-      showErrorToast("Type the step first.")
-      return
-    }
-    if (await change(() => addTaskStep(taskId, next))) setText("")
-  }
-
-  return (
-    <form
-      className="flex gap-2"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void add()
-      }}
-    >
-      <Input
-        aria-label="New step"
-        placeholder="Add a step"
-        value={text}
-        maxLength={LIMITS.stepText}
-        autoFocus={autoFocus}
-        onChange={(event) => setText(event.target.value)}
-      />
-      <Button type="submit" variant="outline" disabled={busy}>
-        <PlusIcon className="size-4" />
-        Add
-      </Button>
-    </form>
-  )
-}
-
-function StepRow({
-  step,
-  people,
-  myUserId,
-  readOnly,
-  change,
-  busy,
-}: {
-  step: TaskStep
-  people: TaskDetail["assignable"]
-  myUserId: string
-  readOnly: boolean
-  change: Change
-  busy: boolean
-}) {
-  const [text, setText] = useSyncedDraft(step.text)
-  const checkboxId = `step-${step.id}`
-  // Each step is its own card on the grey Steps card (Tyler, 28 Oct 2026, Misc 4).
-  return (
-    <li className="grid gap-1 rounded-md border bg-background px-2 py-1.5">
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id={checkboxId}
-          checked={step.done}
-          disabled={readOnly}
-          aria-label={`${step.text}, ${step.done ? "done" : "not done"}`}
-          onCheckedChange={(checked) =>
-            void change(() => updateTaskStep({ stepId: step.id, done: checked === true }))
-          }
-        />
-        <Input
-          aria-label="Step"
-          value={text}
-          maxLength={LIMITS.stepText}
-          disabled={readOnly}
-          className={step.done ? "text-muted-foreground line-through" : undefined}
-          onChange={(event) => setText(event.target.value)}
-          onBlur={() => {
-            const next = text.trim()
-            if (next === step.text) return
-            if (!next) {
-              setText(step.text)
-              return
-            }
-            void change(() => updateTaskStep({ stepId: step.id, text: next }))
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") event.currentTarget.blur()
-          }}
-        />
-        {readOnly ? null : (
-          <StepMenu step={step} people={people} myUserId={myUserId} change={change} saving={busy} />
-        )}
-      </div>
-      {step.assignee || step.dueDate ? (
-        <p className="flex flex-wrap items-center gap-2 pl-6 text-xs text-muted-foreground">
-          {step.assignee ? (
-            <span className="flex items-center gap-1">
-              <PersonAvatar name={step.assignee.name} avatarUrl={step.assignee.avatarUrl} />
-              {step.assignee.id === myUserId ? "You" : step.assignee.name}
-            </span>
-          ) : null}
-          {step.dueDate ? <DueDate dueDate={step.dueDate} status={step.done ? "done" : "todo"} /> : null}
-        </p>
-      ) : null}
-      <div className="pl-6">
-        <StepFields stepId={step.id} fields={step.fields} readOnly={readOnly} change={change} />
-      </div>
-    </li>
   )
 }
 

@@ -20,7 +20,6 @@ import { SmallPicture } from "@/components/project/task-files-card"
 import { TagTextarea, TaggedWords, type TaskLinking } from "@/components/project/tag-textarea"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -41,7 +40,7 @@ import {
   type LinkChoice,
 } from "@/lib/api/project/chat"
 import { findLinkTargets } from "@/lib/api/project/project-notes"
-import type { TaskDetail, TaskFile } from "@/lib/api/project/tasks"
+import type { TaskFile } from "@/lib/api/project/tasks"
 import type { PersonRoom } from "@/lib/api/project/team-running"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { plural } from "@/lib/format/plural"
@@ -65,47 +64,6 @@ import { cn } from "@/lib/utils"
 import { useTeamId } from "@/lib/project/team-scope"
 
 export type ChatPerson = { id: string; name: string; avatarUrl: string }
-
-/**
- * A task's chat: messages oldest at the top and newest at the bottom, with
- * the box to write in under them. The rules are in `workspace/docs/task-chat.md`.
- */
-export function TaskChatCard({
-  detail,
-  myUserId,
-  readOnly,
-  change,
-  room,
-}: {
-  detail: TaskDetail
-  myUserId: string
-  readOnly: boolean
-  change: Change
-  /** Who is away, so a tag of someone on time off says so before sending. */
-  room: Record<string, PersonRoom>
-}) {
-  return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Chat</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <ChatThread
-          chat={{ taskId: detail.task.id }}
-          messages={detail.comments}
-          people={detail.assignable}
-          myUserId={myUserId}
-          readOnly={readOnly}
-          change={change}
-          room={room}
-          fileRoom={LIMITS.filesPerTask - detail.fields.fileCount}
-          emptyText={`No messages yet.${readOnly ? "" : " Type @ to ask someone on the project about this task."}`}
-          listClassName="max-h-96"
-        />
-      </CardContent>
-    </Card>
-  )
-}
 
 /**
  * One chat: a task's, or a project's own. Enter sends and Shift+Enter starts
