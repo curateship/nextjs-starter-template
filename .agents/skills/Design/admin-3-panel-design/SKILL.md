@@ -91,6 +91,11 @@ Reference: `AdminPanel` in `apps/project/src/components/project/admin-dashboard.
   own prefs row, cleaned by the same rule as a project's page
   (`pageNotesSchema` in `src/lib/project/rules.ts`), and only its owner can
   save it.
+- **Right-click opens the blocks** in the page, and in the record's notes on
+  the right: the same "/" list, at the pointer, putting the block where the
+  click was (`openAt` in `notes/use-note-blocks.ts`, the handler on
+  `data-note-box` in `notes/note-editor.tsx`). With words selected, the
+  browser's own menu stays, for Copy.
 - **The Inbox and Look back** replace the page in place, and the footer stays.
   The page and the inbox stay mounted while hidden, so counts stay right.
 - **Footer of folding cards:** fixed at the bottom of the panel, holding the
@@ -206,9 +211,9 @@ and the parts built in `task-body.tsx`.
       (20rem). Escape closes what opened and leaves the menu open.
     - **Notes a field needs** (a hand-over's note, "Date moved 3 times", a
       day-off warning) sit under the group's list (`after`).
-    - **Groups here:** Person (Assigned to), Dates (Start day, Due date, Remind
-      me), Details (Priority, Template, the template's fields, Video or Promo,
-      Plan).
+    - **Groups here:** Person (Assigned to), Dates (Start day, Due date, Due
+      by once there is a due date, Remind me), Details (Priority, Template, the
+      template's fields, Video or Promo, Plan).
     - **Under the groups,** the action rows as ghost buttons with icons: a
       review tick box, lock, duplicate, move, save as template, then Delete in
       red under a line of its own.
@@ -244,26 +249,35 @@ Reference: `TabbedMenu` and `MySettingsMenu` in
 - **Escape:** a box inside that uses Escape itself carries `data-own-escape`,
   and the menu's `onEscapeKeyDown` checks the key's own `event.target`, not
   the focused element.
-- **Settings rows** (`SettingRow`): always open, never a fold arrow unless the
-  setting is long. A name (`text-base font-semibold`), a short muted line only
-  when the name doesn't say enough, then the field. `px-4 py-3`, with no lines
-  between rows and no email line at the top.
-- **My settings tabs here:** General (time zone, weather city, sky; for
-  employees job title, check-in time, city, their hours), Notifications, and a
-  tab per card the person sets up (Daily card).
+- **General is grouped rows**, the same `PickGroup` and rows the record ⋮
+  uses: a grey heading over a bordered list. A value with a short list of
+  choices opens it straight away (`PickMenuRow`). A long list opens with a
+  search box over it (`PickChoicesRow` with `ZoneChoices`), and the list
+  scrolls inside its box (the height limit goes on the `ScrollArea`'s
+  viewport, never its root). A typed value opens a small box with its field
+  (`PickRow`). No email line at the top.
+- **My settings tabs here:** General (Location: time zone, weather city; Daily
+  card: sky. For employees You: job title, check-in time; Daily card: city,
+  their hours), Notifications, and a tab per card the person sets up (Daily
+  card).
 - **Notifications tab:** a small muted heading per group, and each group's
   switches in one bordered list, a row being the name and a `Switch` on the
   right (`my-notice-switches.tsx`). Times that belong to a switch sit under it
   as pills (`h-8 rounded-full border px-3 text-sm`). An off pill is dashed.
+  Switch names are short ("Daily routine"), with no explaining line under them.
   Pressing one opens its own switch and time in a small box
   (`routine-reminder-times.tsx`).
 - **A card's own settings tab** (`daily-settings.tsx`):
+  - **Every list's heading is the grey group heading**
+    (`text-sm font-medium text-muted-foreground`), with no title or
+    explaining line above the lists.
   - **Card layout:** the card's sections in one bordered list. Each row has a
     grip, the name, a muted line saying when it shows, and a `Switch` to show
     or hide it.
   - **Lists of items by group** (here, habits by part of the day): the group's
-    name, and its setting on the right (an hour with a `ClockIcon` in a
-    borderless time box). Then the items in one bordered list. Each row has a
+    grey heading with its setting right beside it (an hour after a small
+    `ClockIcon`, in a borderless time box). Then the items in one bordered
+    list. Each row has a
     grip (`GripVertical`, `text-muted-foreground/60`), its icon on a grey tile
     (`size-9 rounded-lg bg-muted`), the name with a small muted detail ("4× a
     day"), and a `⋯` (`EllipsisIcon`) with Change and Retire.

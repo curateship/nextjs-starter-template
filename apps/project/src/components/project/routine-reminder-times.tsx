@@ -38,10 +38,7 @@ export function RoutineReminderTimes({ reminders: saved }: { reminders: DailyCar
 
   return (
     <div className="grid gap-2" role="group" aria-label="Routine reminder times">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">Sent at each part's time if that routine still has habits not ticked.</p>
-        <SaveLine state={state} className="empty:hidden" />
-      </div>
+      <SaveLine state={state} className="empty:hidden" />
       <div className="flex flex-wrap gap-2">
         {DAY_PARTS.map((part) => {
           const time = draft[part]

@@ -90,7 +90,8 @@ export const NOTICE_SWITCHES: NoticeSwitch[] = [
   { id: "team_morning", label: "Who checked in this morning", group: "team", runsTheTeam: true },
   { id: "team_joined", label: "Joined the team through the link", group: "team", runsTheTeam: true },
   // The Daily card's habits are the site admin's alone (Tyler, 29 Oct 2026).
-  { id: "routine_reminder", label: "A routine on your Daily card isn't done", group: "daily", runsTheTeam: true },
+  // Short (Tyler, 6 Nov 2026: "dont need these lenghty text. Just put "Daily routine"").
+  { id: "routine_reminder", label: "Daily routine", group: "daily", runsTheTeam: true },
 ]
 
 /** "Gave you 3 tasks" is the same notice as "Gave you a task", so one switch covers both. */

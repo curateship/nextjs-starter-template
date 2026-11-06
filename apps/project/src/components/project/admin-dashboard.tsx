@@ -4,22 +4,22 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 import { AdminCards } from "@/components/project/admin-cards"
 import { DailyCard, DailyLookBackButton, DailySkyBanner, useDailyNow } from "@/components/project/daily-card"
 import { DailyLookBack } from "@/components/project/daily-look-back"
-import { DailyCityField } from "@/components/project/daily-city-field"
-import { DailyHabitsSetting, DailySectionsSetting, DailySkySetting } from "@/components/project/daily-settings"
+import { CityRow } from "@/components/project/daily-city-field"
+import { DailyHabitsSetting, DailySectionsSetting, DailySkyRows } from "@/components/project/daily-settings"
 import { ProjectsCard } from "@/components/project/admin-project-cards"
 import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
 import { InboxMorphIcon } from "@/components/project/inbox-morph-icon"
 import { MyNoticeSwitches } from "@/components/project/my-notice-switches"
 import { RoutineReminderTimes } from "@/components/project/routine-reminder-times"
-import { MySettingsMenu, SettingRow } from "@/components/project/my-settings-menu"
+import { MySettingsMenu } from "@/components/project/my-settings-menu"
+import { PickChoicesRow, PickGroup } from "@/components/project/pick-rows"
 import { MyTasksPanel } from "@/components/project/my-tasks-panel"
 import { PersonPages } from "@/components/project/person-pages"
 import { AdminPageNotes } from "@/components/project/project-page-notes"
-import { SaveLine } from "@/components/project/save-line"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskSidePanel } from "@/components/project/task-side-panel"
 import { ThreePanels } from "@/components/project/three-panels"
-import { TimeZoneSelect } from "@/components/project/time-zone-select"
+import { ZoneChoices } from "@/components/project/time-zone-select"
 import type { FilterProject } from "@/components/project/task-filter-popover"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
@@ -35,7 +35,9 @@ import type { TaskFilters } from "@/lib/project/task-filters"
 import { TeamScope } from "@/lib/project/team-scope"
 import { useMyLive } from "@/lib/project/use-my-live"
 import { useRememberedTask } from "@/lib/project/use-remembered-task"
-import { useSaveLine } from "@/lib/project/use-save-line"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { getProjectErrorMessage } from "@/lib/project/errors"
+import { useZoneRows } from "@/lib/project/zone-rows"
 import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
 import { readActiveView } from "@/lib/saved-views"
 import { cn } from "@/lib/utils"
@@ -405,22 +407,19 @@ function AdminSettingsMenu({ dashboard, daily }: { dashboard: AdminDashboard; da
         {
           value: "general",
           label: "General",
+          // Grouped rows, as the task's ⋮ General is (Tyler, 6 Nov 2026: "general should
+          // have the same grouping ui design too"). Sky sits with the Daily card, since
+          // that tab holds only the card's layout and habits.
           content: (
-            <>
-              <SettingRow
-                title="Time zone"
-                htmlFor="admin-time-zone"
-                description="Today, Due this week, Meetings today and Done today follow it."
-              >
-                <AdminTimeZone zone={dashboard.zone} />
-              </SettingRow>
-              <SettingRow title="City for the weather" description="The Daily card's sky shows the weather there.">
-                <DailyCityField city={daily.settings.city} />
-              </SettingRow>
-              {/* Beside the weather it shows, since Daily card holds only the card's layout and
-                  habits (Tyler's drawing of that tab, 6 Nov 2026). */}
-              <DailySkySetting daily={daily} />
-            </>
+            <div className="grid gap-5 px-4 py-3">
+              <PickGroup title="Location">
+                <AdminZoneRow zone={dashboard.zone} />
+                <CityRow city={daily.settings.city} />
+              </PickGroup>
+              <PickGroup title="Daily card">
+                <DailySkyRows daily={daily} />
+              </PickGroup>
+            </div>
           ),
         },
         {
@@ -451,21 +450,27 @@ function AdminSettingsMenu({ dashboard, daily }: { dashboard: AdminDashboard; da
   )
 }
 
-/** The site admin's own zone, saved the moment it is picked. */
-function AdminTimeZone({ zone }: { zone: string }) {
+/**
+ * The site admin's own zone, a row that opens straight onto the zones with a
+ * search box over them; a pick saves at once. Today, Due this week, Meetings
+ * today and Done today follow it.
+ */
+function AdminZoneRow({ zone }: { zone: string }) {
   const router = useRouter()
-  const [saveState, track] = useSaveLine()
+  const [run] = useAsyncAction(getProjectErrorMessage)
+  const rows = useZoneRows(zone)
   return (
-    <div className="grid gap-2">
-      <TimeZoneSelect
-        id="admin-time-zone"
-        value={zone}
-        disabled={saveState === "saving"}
-        onChange={(timeZone) =>
-          void track(() => saveAdminTimeZone({ timeZone })).then((ok) => (ok ? router.invalidate() : undefined))
-        }
-      />
-      <SaveLine state={saveState} className="empty:hidden" />
-    </div>
+    <PickChoicesRow label="Time zone" value={zone.replaceAll("_", " ")} contentClassName="w-72">
+      {(close) => (
+        <ZoneChoices
+          rows={rows}
+          value={zone}
+          onPick={(next) => {
+            close()
+            if (next !== zone) void run(() => saveAdminTimeZone({ timeZone: next })).then((ok) => (ok ? router.invalidate() : undefined))
+          }}
+        />
+      )}
+    </PickChoicesRow>
   )
 }

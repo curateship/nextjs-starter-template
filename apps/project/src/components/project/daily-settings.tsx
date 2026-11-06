@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable"
 import { ArchiveIcon, ArchiveRestoreIcon, ChevronDownIcon, ClockIcon, EllipsisIcon, GripVerticalIcon, PencilIcon, PlusIcon } from "lucide-react"
 
-import { SettingRow } from "@/components/project/my-settings-menu"
+import { PickMenuRow, PickRow } from "@/components/project/pick-rows"
 import { SaveLine } from "@/components/project/save-line"
 import { ShellIconPicker } from "@/components/settings/shell-icon-picker"
 import { ImageUpload } from "@/components/shared/image-upload"
@@ -115,7 +115,12 @@ export function DailySectionsSetting({ daily }: { daily: DailyCard }) {
     else setHidden(before)
   }
   return (
-    <SettingRow title="Card layout" description="Drag to reorder. Turn off sections you don't need." action={<SaveLine state={state} />}>
+    // The grey group heading, as every list in these menus has (Tyler, 6 Nov 2026).
+    <section aria-label="Card layout" className="grid grid-cols-[minmax(0,1fr)] gap-2 px-4 py-3">
+      <div className="flex items-center gap-2 px-0.5">
+        <h3 className="min-w-0 flex-1 text-sm font-medium text-muted-foreground">Card layout</h3>
+        <SaveLine state={state} className="empty:hidden" />
+      </div>
       <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => void drop(event)}>
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
           <ul className="divide-y overflow-hidden rounded-xl border" aria-label="Card layout">
@@ -125,7 +130,7 @@ export function DailySectionsSetting({ daily }: { daily: DailyCard }) {
           </ul>
         </SortableContext>
       </DndContext>
-    </SettingRow>
+    </section>
   )
 }
 
@@ -207,53 +212,53 @@ function useHours(hours: DayHours, track: (work: () => Promise<unknown>) => Prom
   }
 }
 
-/** An employee's own hours, in General: when their morning, afternoon and night start. */
-export function DailyHoursSetting({ hours }: { hours: DayHours }) {
+/**
+ * An employee's own hours, a row in My settings → General: when their
+ * morning, afternoon and night start. Three times, so the row opens a box.
+ */
+export function DailyHoursRow({ hours }: { hours: DayHours }) {
   const [state, track] = useSaveLine()
   const { inputProps } = useHours(hours, track)
   return (
-    <SettingRow title="Your hours" description="When your morning, afternoon and night start on the Daily card." action={<SaveLine state={state} />}>
-      {/* Three across while the box is wide enough, one under the other on a phone. */}
-      <div className="@container">
-        <div className="grid gap-3 @min-[22rem]:grid-cols-3">
-          {DAY_PARTS.map((part) => (
-            <div key={part} className="grid gap-2">
-              <Label htmlFor={`daily-hours-${part}`}>{DAY_PART_LABEL[part]} starts</Label>
-              <Input id={`daily-hours-${part}`} {...inputProps(part)} />
-            </div>
-          ))}
-        </div>
+    <PickRow label="Your hours" value={DAY_PARTS.map((part) => clockLabel(hours[part])).join(" · ")}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">When your morning, afternoon and night start.</p>
+        <SaveLine state={state} className="empty:hidden" />
       </div>
-    </SettingRow>
+      {DAY_PARTS.map((part) => (
+        <div key={part} className="grid gap-2">
+          <Label htmlFor={`daily-hours-${part}`}>{DAY_PART_LABEL[part]} starts</Label>
+          <Input id={`daily-hours-${part}`} {...inputProps(part)} />
+        </div>
+      ))}
+    </PickRow>
   )
 }
 
-export function DailySkySetting({ daily }: { daily: DailyCard }) {
+/**
+ * The sky behind the greeting, rows in My settings → General (Tyler, 6 Nov
+ * 2026: "general should have the same grouping ui design too"): its kinds in
+ * one press, and with "My own photos" a row for a photo per part of the day.
+ */
+export function DailySkyRows({ daily }: { daily: DailyCard }) {
   const reload = useReload()
-  const [state, track] = useSaveLine()
+  const [run] = useAsyncAction(getProjectErrorMessage)
   const { sky, ownSkies } = daily.settings
   async function save(next: { sky: SkyKind; own: Record<DayPart, string> }) {
-    if (await track(() => saveMySky(next))) await reload()
+    if (await run(() => saveMySky(next))) await reload()
   }
+  const photos = DAY_PARTS.filter((part) => ownSkies[part]).length
   return (
-    <SettingRow title="Sky" action={<SaveLine state={state} />}>
-      <div className="grid gap-2">
-        <Label htmlFor="daily-sky">Behind the greeting</Label>
-        <Select value={sky} onValueChange={(value) => void save({ sky: value as SkyKind, own: ownSkies })}>
-          <SelectTrigger id="daily-sky" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SKY_KINDS.map((kind) => (
-              <SelectItem key={kind} value={kind}>
-                {SKY_LABEL[kind]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+    <>
+      <PickMenuRow
+        label="Sky"
+        value={SKY_LABEL[sky]}
+        selected={sky}
+        onPick={(value) => void save({ sky: value as SkyKind, own: ownSkies })}
+        options={SKY_KINDS.map((kind) => ({ value: kind, label: SKY_LABEL[kind] }))}
+      />
       {sky === "own" ? (
-        <div className="grid grid-cols-3 gap-3">
+        <PickRow label="Photos" empty={photos === 0} value={photos ? `${photos} of 3` : "None"}>
           {DAY_PARTS.map((part) => (
             <ImageUpload
               key={part}
@@ -262,9 +267,9 @@ export function DailySkySetting({ daily }: { daily: DailyCard }) {
               onChange={(value) => void save({ sky, own: { ...ownSkies, [part]: value } })}
             />
           ))}
-        </div>
+        </PickRow>
       ) : null}
-    </SettingRow>
+    </>
   )
 }
 
@@ -357,12 +362,10 @@ export function DailyHabitsSetting({ daily }: { daily: DailyCard }) {
   }
 
   return (
-    <SettingRow
-      title="Routine habits"
-      description="Drag habits to reorder or move them to another part of the day."
-      action={<SaveLine state={state} />}
-      className="gap-3"
-    >
+    // No title or line of its own (Tyler, 6 Nov 2026: ""Routine habits / Drag habits to
+    // reorder ..." remove this"): the parts' own headings say what it is.
+    <section aria-label="Routine habits" className="grid grid-cols-[minmax(0,1fr)] gap-3 px-4 py-3">
+      <SaveLine state={state} className="-mb-2 justify-self-end empty:hidden" />
       <HabitSave.Provider value={track}>
         {admin.habits.length === 0 && admin.retired.length === 0 ? (
           <div className="grid gap-2">
@@ -413,7 +416,7 @@ export function DailyHabitsSetting({ daily }: { daily: DailyCard }) {
           <RetiredHabits retired={admin.retired} busy={busy} onBringBack={(habit) => void act(() => bringBackHabit(habit.id), `"${habit.name}" is back.`)} />
         ) : null}
       </HabitSave.Provider>
-    </SettingRow>
+    </section>
   )
 }
 
@@ -487,12 +490,15 @@ function PartList({
   const { setNodeRef, isOver } = useDroppable({ id: `${PART_DROP}${part}` })
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-      <div className="flex items-center gap-2 px-0.5">
-        <span className="min-w-0 flex-1 text-sm font-medium">{DAY_PART_LABEL[part]}</span>
-        <ClockIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      {/* The grey group heading every list uses, and its hour right beside it (Tyler, 6 Nov
+          2026: "the label is not following standard of gray shade", then "Move the time
+          beside the label"). */}
+      <div className="flex items-center gap-1.5 px-0.5 text-sm font-medium text-muted-foreground">
+        <span>{DAY_PART_LABEL[part]}</span>
+        <ClockIcon className="ml-1 size-3.5 shrink-0" aria-hidden />
         <Input
           aria-label={`${DAY_PART_LABEL[part]} starts`}
-          className="h-7 w-[6.5rem] border-0 bg-transparent px-0 text-right text-sm text-muted-foreground shadow-none focus-visible:ring-0 dark:bg-transparent [&::-webkit-calendar-picker-indicator]:hidden"
+          className="h-7 w-[5.5rem] rounded-md border-0 bg-transparent px-1 text-sm font-normal text-muted-foreground shadow-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-0 dark:bg-transparent [&::-webkit-calendar-picker-indicator]:hidden"
           {...hours}
         />
       </div>

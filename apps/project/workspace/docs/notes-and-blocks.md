@@ -44,6 +44,14 @@ only.
   notes (Tyler: "Remove the + hover over icon", "why is the + not removed",
   "still here in task"). "/" is the one way in, and the words line up with
   the panel as they did before.
+- **Right-click opens it too** (Tyler, 6 Nov 2026: "enable right click on
+  left and right panel to open the blocks"): anywhere in a notes box that can
+  be written in, such as the site admin's page on My dashboard and a task's
+  notes in the right panel. The cursor goes where the click was (or to the
+  end, past the last words), the list hangs from the pointer, and the picked
+  block goes there. A pick, Escape or a click elsewhere closes it. With words
+  selected, the browser's own menu shows instead, for Copy (`openAt` in
+  `use-note-blocks.ts`, the handler in `note-editor.tsx`).
 - **Names only:** each row is the block's icon and name, with no grey line
   under it (Tyler, 6 Nov 2026: "remove all the sublabel").
 - **Narrowing it:** letters after the "/" keep only the blocks whose name

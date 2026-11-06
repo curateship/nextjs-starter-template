@@ -3,7 +3,6 @@ import { EllipsisVerticalIcon } from "lucide-react"
 
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -103,46 +102,5 @@ export function TabbedMenu({
         </ScrollArea>
       </PopoverContent>
     </Popover>
-  )
-}
-
-/**
- * One setting in My settings, always open: its name, a short line when the
- * name alone doesn't say enough, then the field. Folds are only for a long
- * setting, such as the Daily card's Habits (Tyler, 6 Nov 2026: "we don't need
- * toggles if its not required"). No lines part the rows. `htmlFor` makes the
- * name the field's label.
- * `action` sits at the right of the name, such as a save sign.
- */
-export function SettingRow({
-  title,
-  description,
-  htmlFor,
-  action,
-  className,
-  children,
-}: {
-  title: string
-  description?: React.ReactNode
-  htmlFor?: string
-  action?: React.ReactNode
-  className?: string
-  children?: React.ReactNode
-}) {
-  return (
-    <section aria-label={htmlFor ? undefined : title} className={cn("grid grid-cols-[minmax(0,1fr)] gap-2 px-4 py-3", className)}>
-      <div className="flex min-h-6 items-center gap-2">
-        {htmlFor ? (
-          <Label htmlFor={htmlFor} className="min-w-0 flex-1 text-base leading-tight font-semibold">
-            {title}
-          </Label>
-        ) : (
-          <h3 className="min-w-0 flex-1 text-base leading-tight font-semibold">{title}</h3>
-        )}
-        {action}
-      </div>
-      {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
-      {children}
-    </section>
   )
 }

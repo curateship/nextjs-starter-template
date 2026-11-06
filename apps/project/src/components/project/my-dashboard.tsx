@@ -4,10 +4,11 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 import { CheckinDialog, StatusLine } from "@/components/project/checkin-dialog"
 import { CheckoutDialog } from "@/components/project/checkout-dialog"
 import { DailyCard, DailySkyBanner, useDailyNow } from "@/components/project/daily-card"
-import { DailyCityField } from "@/components/project/daily-city-field"
-import { DailyHoursSetting } from "@/components/project/daily-settings"
+import { CityRow } from "@/components/project/daily-city-field"
+import { DailyHoursRow } from "@/components/project/daily-settings"
 import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
-import { MySettingsMenu, SettingRow } from "@/components/project/my-settings-menu"
+import { MySettingsMenu } from "@/components/project/my-settings-menu"
+import { PickGroup, PickRow } from "@/components/project/pick-rows"
 import { MyTasksPanel } from "@/components/project/my-tasks-panel"
 import { MyWeekSection } from "@/components/project/my-week-card"
 import { MyCheckinTime } from "@/components/project/my-checkin-time"
@@ -338,19 +339,26 @@ function EmployeeSettingsMenu({ dashboard, daily }: { dashboard: MyDashboardData
         {
           value: "general",
           label: "General",
+          // Grouped rows, as the site admin's General is (Tyler, 6 Nov 2026).
           content: (
-            <>
-              <SettingRow title="Job title" description="Shown beside your name to the rest of the team.">
-                <MyJobTitle title={me.title} />
-              </SettingRow>
-              <SettingRow title="Check-in time">
-                <MyCheckinTime clock={checkin.clock} />
-              </SettingRow>
-              <SettingRow title="City for the weather" description="The Daily card's sky shows the weather there.">
-                <DailyCityField city={daily.settings.city} />
-              </SettingRow>
-              <DailyHoursSetting hours={daily.settings.hours} />
-            </>
+            <div className="grid gap-5 px-4 py-3">
+              <PickGroup title="You">
+                <PickRow label="Job title" empty={!me.title} value={me.title || "None"}>
+                  <p className="text-xs text-muted-foreground">Shown beside your name to the rest of the team.</p>
+                  <MyJobTitle title={me.title} />
+                </PickRow>
+                <PickRow
+                  label="Check-in time"
+                  value={`${clockLabel(checkin.clock.time)}, ${checkin.clock.zone.split("/").pop()!.replaceAll("_", " ")}`}
+                >
+                  <MyCheckinTime clock={checkin.clock} />
+                </PickRow>
+              </PickGroup>
+              <PickGroup title="Daily card">
+                <CityRow city={daily.settings.city} />
+                <DailyHoursRow hours={daily.settings.hours} />
+              </PickGroup>
+            </div>
           ),
         },
         {

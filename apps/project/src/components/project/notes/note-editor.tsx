@@ -1,5 +1,6 @@
 import * as React from "react"
-import type { Extensions } from "@tiptap/core"
+import type { Editor, Extensions } from "@tiptap/core"
+import { TextSelection } from "@tiptap/pm/state"
 
 import { blocksFor } from "@/components/project/notes/note-block-nodes"
 import { NoteBlocksMenu } from "@/components/project/notes/note-blocks-menu"
@@ -69,7 +70,26 @@ export function NoteEditor({
   const [all] = React.useState<Extensions>(() => [...(extensions ?? []), ...blocks.extensions])
   return (
     <NoteFrame setup={setup}>
-      <div data-note-box="">
+      <div
+        data-note-box=""
+        // A right-click in the note opens the "/" list there (Tyler, 6 Nov 2026). Words
+        // already selected keep the browser's own menu, for Copy.
+        onContextMenu={(event) => {
+          if (disabled) return
+          const selected = window.getSelection()
+          if (selected && !selected.isCollapsed) return
+          const area = event.currentTarget.querySelector<HTMLElement & { editor?: Editor }>(".tiptap")
+          const editor = area?.editor
+          if (!editor || editor.isDestroyed || !editor.isEditable) return
+          event.preventDefault()
+          // The cursor goes where the click was, or to the end when it was past the words.
+          const hit = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })
+          const doc = editor.state.doc
+          const pos = hit ? hit.pos : doc.content.size
+          editor.chain().focus().setTextSelection(TextSelection.near(doc.resolve(Math.min(pos, doc.content.size))).from).run()
+          blocks.openAt(editor, event.clientX, event.clientY)
+        }}
+      >
         <DocumentEditor<NoteNode>
           value={value}
           onChange={onChange}

@@ -92,6 +92,29 @@ export function PickMenuRow({
 }
 
 /**
+ * A row that opens straight onto its choices drawn by `children`, such as a
+ * calendar or a searchable list of time zones. `children` gets `close`, to
+ * call as a pick is made.
+ */
+export function PickChoicesRow({
+  contentClassName,
+  children,
+  ...look
+}: RowLook & { contentClassName?: string; children: (close: () => void, open: boolean) => React.ReactNode }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild disabled={look.disabled}>
+        <RowButton {...look} open={open} />
+      </PopoverTrigger>
+      <PopoverContent align="end" collisionPadding={16} className={cn("w-auto gap-0 p-0", contentClassName)}>
+        {children(() => setOpen(false), open)}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
  * A row whose calendar opens at once: the quick days, the month, and with
  * `clearLabel` a button that empties the day. A pick saves and closes.
  */
@@ -101,24 +124,20 @@ export function PickDayRow({
   clearLabel,
   ...look
 }: RowLook & { day: string | null; onPick: (day: string | null) => void; clearLabel?: string }) {
-  const [open, setOpen] = React.useState(false)
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild disabled={look.disabled}>
-        <RowButton {...look} open={open} />
-      </PopoverTrigger>
-      <PopoverContent align="end" collisionPadding={16} className="w-auto gap-0 p-0">
+    <PickChoicesRow {...look}>
+      {(close, open) => (
         <DayChoices
           value={day}
           quickOn={open}
           clearLabel={clearLabel}
           onPick={(next) => {
-            setOpen(false)
+            close()
             if (next !== day) onPick(next)
           }}
         />
-      </PopoverContent>
-    </Popover>
+      )}
+    </PickChoicesRow>
   )
 }
 

@@ -6,8 +6,12 @@ import { BLOCK_NODES, matchingBlocks, type BlockChoice, type BlockKey } from "@/
 import { dismissSlash, noteSlashExtension, type SlashBridge, type SlashMatch } from "@/components/project/notes/note-slash"
 import { newFoldId } from "@/lib/project/note-blocks"
 
-/** The "/" list while it's open: what was typed, the note's editor, and where on the page the "/" is. */
-export type OpenSlash = { match: SlashMatch; editor: Editor; x: number; y: number }
+/**
+ * The "/" list while it's open: what was typed, the note's editor, and where
+ * on the page the "/" is. Opened by a right-click instead (`byPointer`), the
+ * match is the empty spot clicked and the list hangs from the pointer.
+ */
+export type OpenSlash = { match: SlashMatch; editor: Editor; x: number; y: number; byPointer?: boolean }
 
 type Listener = { onChange: SlashBridge["onChange"]; onKey: SlashBridge["onKey"] }
 
@@ -88,13 +92,17 @@ export function useNoteBlocks(choices: BlockChoice[]) {
   function choose(key: BlockKey) {
     if (!open) return
     place(open.editor, open.match, key)
+    if (open.byPointer) setOpen(null)
   }
 
   React.useEffect(() => {
     relay.listen({
       onChange(match, editor) {
         if (!match || !editor || editor.isDestroyed) {
-          setOpen(null)
+          // A list opened by a right-click has no "/" to lose, so the editor's own
+          // updates (the cursor placed, the focus) leave it open; a pick, Escape or a
+          // click elsewhere closes it.
+          setOpen((was) => (was?.byPointer && editor && !editor.isDestroyed ? was : null))
           return
         }
         let at: { left: number; bottom: number }
@@ -136,6 +144,18 @@ export function useNoteBlocks(choices: BlockChoice[]) {
     })
   })
 
+  /**
+   * A right-click in the note opens the same list at the pointer, with no "/"
+   * typed (Tyler, 6 Nov 2026: "enable right click on left and right panel to
+   * open the blocks"). The cursor is already where it was clicked, and the
+   * picked block goes there.
+   */
+  function openAt(editor: Editor, x: number, y: number) {
+    const at = editor.state.selection.from
+    setActive(0)
+    setOpen({ match: { from: at, to: at, query: "" }, editor, x, y, byPointer: true })
+  }
+
   return {
     extensions,
     open: items.length ? open : null,
@@ -143,7 +163,12 @@ export function useNoteBlocks(choices: BlockChoice[]) {
     active,
     setActive,
     choose,
-    close: () => (open ? dismissSlash(open.editor) : undefined),
+    openAt,
+    close: () => {
+      if (!open) return
+      if (open.byPointer) setOpen(null)
+      else dismissSlash(open.editor)
+    },
   }
 }
 

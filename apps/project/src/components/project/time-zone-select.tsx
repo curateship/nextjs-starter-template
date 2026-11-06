@@ -4,12 +4,9 @@ import { CheckIcon, ChevronDownIcon, SearchIcon } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { focusRing, focusRingInset } from "@/lib/layout/focus-ring"
-import { browserTimeZone } from "@/lib/project/days"
+import { useZoneRows, zoneLabel, type ZoneRow } from "@/lib/project/zone-rows"
 import { cn } from "@/lib/utils"
 
-type ZoneRow = { value: string; label: string }
-
-const zoneLabel = (zone: string) => zone.replaceAll("_", " ")
 
 /**
  * One time zone, picked from a list you can type into: "tor" finds
@@ -46,35 +43,16 @@ export function TimeZoneSelect({
   className?: string
 }) {
   const [open, setOpen] = React.useState(false)
-  const [search, setSearch] = React.useState("")
-
-  const rows = React.useMemo(() => {
-    const all = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : ["UTC"]
-    const first = [browserTimeZone(), teamZone].filter((zone): zone is string => Boolean(zone))
-    const pinnedValues = new Set(pinned.map((row) => row.value))
-    const saved = pinnedValues.has(value) || all.includes(value) ? [] : [value]
-    const zones = [...new Set([...saved, ...first, ...all])]
-    return [...pinned, ...zones.map((zone) => ({ value: zone, label: zoneLabel(zone) }))]
-  }, [pinned, teamZone, value])
-
-  const needle = search.trim().toLowerCase().replaceAll("_", " ")
-  const shown = needle ? rows.filter((row) => row.label.toLowerCase().includes(needle)) : rows
+  const rows = useZoneRows(value, pinned, teamZone)
   const current = rows.find((row) => row.value === value)
 
   function pick(next: string) {
     setOpen(false)
-    setSearch("")
     if (next !== value) onChange(next)
   }
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (!next) setSearch("")
-      }}
-    >
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           id={id}
@@ -96,51 +74,69 @@ export function TimeZoneSelect({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-(--radix-popover-trigger-width) min-w-64 p-0">
-        <div className="flex items-center gap-2 border-b px-3">
-          <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            onKeyDown={(event) => {
-              // Enter takes the first match, so "tor" then Enter is Toronto.
-              if (event.key === "Enter" && shown[0]) {
-                event.preventDefault()
-                pick(shown[0].value)
-              }
-            }}
-            placeholder="Search time zones"
-            aria-label="Search time zones"
-            className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-          />
-        </div>
-        {shown.length === 0 ? (
-          <p className="px-3 py-6 text-center text-sm text-muted-foreground">No time zone matches.</p>
-        ) : (
-          <ScrollArea className="max-h-60">
-            <div role="listbox" aria-label="Time zones" className="grid gap-0.5 p-1">
-              {shown.map((row) => {
-                const on = row.value === value
-                return (
-                  <button
-                    key={row.value}
-                    type="button"
-                    role="option"
-                    aria-selected={on}
-                    onClick={() => pick(row.value)}
-                    className={cn(
-                      "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground",
-                      focusRingInset
-                    )}
-                  >
-                    <span className="truncate">{row.label}</span>
-                    {on ? <CheckIcon className="size-4 shrink-0 text-muted-foreground" /> : null}
-                  </button>
-                )
-              })}
-            </div>
-          </ScrollArea>
-        )}
+        <ZoneChoices rows={rows} value={value} onPick={pick} />
       </PopoverContent>
     </Popover>
+  )
+}
+
+/**
+ * The picker's insides: a search box over the zones, the current one ticked.
+ * Enter takes the first match, so "tor" then Enter is Toronto. My settings'
+ * Time zone row opens straight onto it (Tyler, 6 Nov 2026: "general should
+ * have the same grouping ui design too").
+ */
+export function ZoneChoices({ rows, value, onPick }: { rows: ZoneRow[]; value: string; onPick: (zone: string) => void }) {
+  const [search, setSearch] = React.useState("")
+  const needle = search.trim().toLowerCase().replaceAll("_", " ")
+  const shown = needle ? rows.filter((row) => row.label.toLowerCase().includes(needle)) : rows
+  return (
+    <>
+      <div className="flex items-center gap-2 border-b px-3">
+        <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
+        <input
+          value={search}
+          autoFocus
+          onChange={(event) => setSearch(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && shown[0]) {
+              event.preventDefault()
+              onPick(shown[0].value)
+            }
+          }}
+          placeholder="Search time zones"
+          aria-label="Search time zones"
+          className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        />
+      </div>
+      {shown.length === 0 ? (
+        <p className="px-3 py-6 text-center text-sm text-muted-foreground">No time zone matches.</p>
+      ) : (
+        // The limit is on the part that scrolls, so the list stays inside its box.
+        <ScrollArea className="min-h-0" viewportClassName="max-h-60">
+          <div role="listbox" aria-label="Time zones" className="grid gap-0.5 p-1">
+            {shown.map((row) => {
+              const on = row.value === value
+              return (
+                <button
+                  key={row.value}
+                  type="button"
+                  role="option"
+                  aria-selected={on}
+                  onClick={() => onPick(row.value)}
+                  className={cn(
+                    "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground",
+                    focusRingInset
+                  )}
+                >
+                  <span className="truncate">{row.label}</span>
+                  {on ? <CheckIcon className="size-4 shrink-0 text-muted-foreground" /> : null}
+                </button>
+              )
+            })}
+          </div>
+        </ScrollArea>
+      )}
+    </>
   )
 }

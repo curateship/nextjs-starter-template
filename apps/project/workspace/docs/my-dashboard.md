@@ -69,13 +69,16 @@ check-in. It is described in
 - **My settings** opens from the ⋮ in the header (Tyler, 6 Nov 2026: "it needs
   to be replaced with a 3 vertical icon ... It uses tabs"). It is a dropdown
   22.7rem wide at most, with underlined tabs from the left, 32px apart, and
-  each tab scrolling inside it. It opens on General every time. Every setting
-  shows open, with no fold arrows and no lines between them ("we don't need
-  toggles if its not required", "Remove email and dividers"). The frame is
+  each tab scrolling inside it. It opens on General every time. There is no
+  email line ("Remove email and dividers"). The frame is
   `my-settings-menu.tsx`, shared with the site admin's.
-  - **General:** Job title, Check-in time, City for the weather and Your hours
-    (when morning, afternoon and night start), which the Daily card's pencil
-    window held until that day. The pencil is gone.
+  - **General** is grouped rows, as the task's ⋮ is (Tyler, 6 Nov 2026:
+    "general should have the same grouping ui design too"): a grey heading
+    over a bordered list, each row its name and value. **You:** Job title and
+    Check-in time. **Daily card:** City for the weather and Your hours (when
+    morning, afternoon and night start), which the Daily card's pencil window
+    held until that day. Each opens a small box with its field, since each is
+    typed. The pencil is gone.
   - **Notifications:** the bell notices (below).
 - **My check-in time** (in My settings → General): my own time and time zone, saved on change.
 - **My notices** (in My settings → Notifications): a switch for each kind of
@@ -419,11 +422,15 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
 - **The header** shows their photo, name and "Site admin", then Look back,
   the inbox and the ⋮ for My settings. There is no cog and no pencil since 6
   Nov 2026. My settings is the employee's frame with three tabs:
-  - **General:** Time zone, City for the weather and Sky.
+  - **General:** grouped rows. **Location:** Time zone, which opens
+    straight onto the zones with a search box over them, and City for the
+    weather. **Daily card:** Sky, whose kinds open straight away, and with My
+    own photos a Photos row for a photo per part of the day.
   - **Notifications:** the bell notice groups, plus the two only the site
     admin gets (who checked in this morning, joins through a team's link) and
-    a Daily card group: "A routine on your Daily card isn't done". Under that
-    switch, a pill for Morning, Afternoon and Night. A pill that is on is solid,
+    a Daily card group: "Daily routine" ("dont need these lenghty text. Just
+    put "Daily routine""). Under that switch, a pill for Morning, Afternoon
+    and Night. A pill that is on is solid,
     an off one dashed, and pressing one opens its own switch and time.
   - **Daily card:** Card layout and Routine habits, drawn from Tyler's picture
     of the tab. See [The Daily card](daily-card.md#in-my-settings-for-the-site-admin).

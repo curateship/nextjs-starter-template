@@ -170,8 +170,7 @@ a team screen or sent to anyone.
   routine per day. If the server was down at that time, it can still go out
   within the next hour, but never later. No reminder is sent on a day off.
   Each time is changed or switched off in My settings → Notifications, on
-  the Morning, Afternoon and Night pills under "A routine on your Daily card
-  isn't done". That switch turns the whole kind off, and the pills hide while
+  the Morning, Afternoon and Night pills under "Daily routine". That switch turns the whole kind off, and the pills hide while
   it is off (`routine-reminder-times.tsx`). Tyler moved them there from the
   pencil on 6 Nov 2026.
   It runs on the shell's 15-second loop (`sendRoutineReminders`,
@@ -267,8 +266,7 @@ picture of the tab (6 Nov 2026). Sky is in General, beside City for the
 weather. The reminder times are in Notifications. It all lived behind a pencil
 in a window until that day (`daily-settings.tsx`).
 
-- **Card layout** ("Drag to reorder. Turn off sections you don't need.")
-  lists Next meeting (Work days), Routine (All day) and Tomorrow, at night
+- **Card layout**, a grey heading as every list in these menus has, lists Next meeting (Work days), Routine (All day) and Tomorrow, at night
   (Night only) in one bordered list. Dragging a row by its handle sets the
   order the card shows them in, saved in the site admin's account so every
   computer and phone shows the same order ("whats the point of dragging the
@@ -277,9 +275,10 @@ in a window until that day (`daily-settings.tsx`).
   foot. An employee's card keeps the card's own order. The switch at the end
   of a row hides that section from the card; it was an eye until 6 Nov 2026.
   The choice is kept in the account too.
-- **Routine habits** ("Drag habits to reorder or move them to another part of
-  the day"): Morning, Afternoon and Night, each with its starting hour on
-  the right beside a clock, then its habits in one bordered list.
+- **The habits**, with no title or line of their own (Tyler, 6 Nov 2026:
+  "remove this"): Morning, Afternoon and Night as grey headings, each with
+  its starting hour right beside it after a clock ("Move the time beside the
+  label"), then its habits in one bordered list.
   - Each habit is a handle, its icon on a grey tile (pressing it opens the
     icon picker), its name with how many a day ("4× a day") and its time, and
     a ⋯ with Change (opens its form under it) and "Retire, keeping its ticks".
