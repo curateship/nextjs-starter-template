@@ -36,7 +36,7 @@ let beta: string
 let site: string
 let shop: string
 
-const project = (name: string) => ({ name, color: "blue" as const, description: "" })
+const project = (name: string) => ({ name, color: "blue" as const })
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()

@@ -18,7 +18,8 @@ import {
   XIcon,
 } from "lucide-react"
 
-import { WrittenPageBody } from "@/components/pages/written-page-body"
+import { NoteEditor, NoteView } from "@/components/project/notes/note-editor"
+import { useNotesBoxSetup } from "@/components/project/notes/note-setup"
 import { PanelCardFooter } from "@/components/project/panel-card"
 import {
   notesTaskLinks,
@@ -40,15 +41,20 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { findLinkableTasks, type LinkChoice } from "@/lib/api/project/chat"
+import type { TaskLink } from "@/lib/api/project/linked-records"
+import type { TaskFile } from "@/lib/api/project/tasks"
 import { bringBackNoteVersion, loadNoteVersions, type NoteVersion } from "@/lib/api/project/tasks"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { emptyWrittenPageBody, type WrittenPageNode } from "@/lib/pages/written-page-body"
+import type { NoteNode } from "@/lib/project/note-blocks"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import {
   linkedTaskOf,
   notesForDisplay,
   notesForEditor,
+  readPlainNotes,
   readTaskNotes,
+  storedTaskNotes,
   taskNotesAreEmpty,
 } from "@/lib/project/notes"
 import { taskHref } from "@/lib/project/notices"
@@ -69,7 +75,8 @@ import { useTeamId } from "@/lib/project/team-scope"
  * `LiveTaskNotes` below; this field draws them for someone who can only read.
  *
  * A meeting's notes use the same field, drawn line by line (`reading`) so
- * each line can become a task.
+ * each line can become a task. They take words only. Every other notes box
+ * takes the "/" blocks (`notes/note-editor.tsx`, Project note blocks task).
  */
 export function TaskNotesField({
   notes,
@@ -86,30 +93,32 @@ export function TaskNotesField({
   notes: string
   readOnly: boolean
   /** `session` is this editing session, which keeps one earlier version however often it saves. */
-  onSave: (notes: WrittenPageNode, session: string) => Promise<boolean>
+  onSave: (notes: NoteNode, session: string) => Promise<boolean>
   /** A task type's notes outline uses the same field under its own name. */
   label?: string
   labelId?: string
   /** A task's own notes, rather than a type's starting notes. */
-  task?: { id: string; links: Record<string, string>; change: Change }
+  task?: NotesTask
   /** Tasks the notes link to that the reader can open, when they aren't a task's notes. */
   links?: Record<string, string>
   placeholder?: string
-  /** Draws formatted notes for reading, in place of the plain drawing. */
+  /** A meeting's notes: drawn line by line, and words only, never a "/" block. */
   reading?: (body: WrittenPageNode) => React.ReactNode
   /** The label stays for screen readers only, under a card already called Notes. */
   hideLabel?: boolean
 }) {
   const navigate = useNavigate()
-  const saved = readTaskNotes(notes)
+  const plain = Boolean(reading)
+  const saved = plain ? readPlainNotes(notes) : readTaskNotes(notes)
   const [editing, setEditing] = React.useState(false)
   const [session, setSession] = React.useState("")
   const [versionsOpen, setVersionsOpen] = React.useState(false)
   // Null until something is typed, so leaving an untouched editor saves nothing.
-  const [draft, setDraft] = React.useState<WrittenPageNode | null>(null)
+  const [draft, setDraft] = React.useState<NoteNode | null>(null)
   const editorBox = React.useRef<HTMLDivElement>(null)
   const linking = useNotesLinking(Boolean(task))
   const openable = task?.links ?? links ?? {}
+  const setup = useNotesBoxSetup(task ? "task" : "template", task)
 
   // The editor draws itself a moment after it mounts, so the cursor goes in
   // once its writing area exists. Focus alone leaves everything in it
@@ -210,25 +219,32 @@ export function TaskNotesField({
           data-notes-editor=""
           className="relative [&_.page-rte_.tiptap]:min-h-28 [&_.page-rte_.tiptap]:px-3 [&_.page-rte_.tiptap]:py-2 [&_.page-rte_.tiptap]:text-sm"
           onBlur={(event) => {
-            const next = event.relatedTarget
-            // The link box opens outside this box, so moving into it isn't leaving.
-            if (next instanceof Element && (event.currentTarget.contains(next) || next.closest("[data-slot=popover-content]"))) {
-              return
-            }
+            // The link box and a block's menu open outside this box, so moving into them isn't leaving.
+            if (stillInNotes(event.currentTarget, event.relatedTarget)) return
             void save()
           }}
         >
-          <DocumentEditor
-            value={notesForEditor(saved)}
-            onChange={setDraft}
-            extensions={linking.extensions}
-            placeholder={
-              placeholder ??
-              (task
-                ? "Anything the person doing it should know. Select words for bold, a list or a link. Type # to link a task."
-                : "Anything the person doing it should know. Select words to make them bold, a list or a link.")
-            }
-          />
+          {plain ? (
+            <DocumentEditor
+              value={(saved.kind === "doc" ? saved.body : notesForEditor(saved)) as WrittenPageNode}
+              onChange={setDraft}
+              extensions={linking.extensions}
+              placeholder={placeholder ?? "Anything the person doing it should know. Select words to make them bold, a list or a link."}
+            />
+          ) : (
+            <NoteEditor
+              setup={setup}
+              value={saved.kind === "doc" ? saved.body : notesForEditor(saved)}
+              onChange={setDraft}
+              extensions={linking.extensions}
+              placeholder={
+                placeholder ??
+                (task
+                  ? "Anything the person doing it should know. Type / for a block, or # to link a task."
+                  : "Anything the person doing it should know. Type / for a picture, a checklist and more.")
+              }
+            />
+          )}
           {linking.list}
         </div>
       ) : (
@@ -245,7 +261,8 @@ export function TaskNotesField({
               // link to a task opens that task here instead.
               onClickCapture={(event) => {
                 const link = (event.target as Element).closest("a")
-                if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return
+                // A block's own links (a web page, a download) do what they say.
+                if (!link || link.closest("[data-note-block]") || event.metaKey || event.ctrlKey || event.shiftKey) return
                 event.preventDefault()
                 const taskId = linkedTaskOf(link.getAttribute("href") ?? "")
                 const projectId = taskId ? openable[taskId] : undefined
@@ -257,9 +274,9 @@ export function TaskNotesField({
               }}
             >
               {reading ? (
-                reading(notesForDisplay(saved.body, openable))
+                reading(notesForDisplay(saved.body as WrittenPageNode, openable))
               ) : (
-                <WrittenPageBody body={notesForDisplay(saved.body, openable)} />
+                <NoteView setup={setup} body={notesForDisplay(saved.body, openable)} />
               )}
             </div>
           )}
@@ -328,8 +345,8 @@ export function LiveTaskNotes({
 }: {
   notes: string
   readOnly: boolean
-  onSave: (notes: WrittenPageNode, session: string) => Promise<boolean>
-  task: { id: string; links: Record<string, string>; change: Change }
+  onSave: (notes: NoteNode, session: string) => Promise<boolean>
+  task: NotesTask
   panel?: boolean
   toolbar?: boolean
   onToolbar?: (shown: boolean) => void
@@ -337,16 +354,30 @@ export function LiveTaskNotes({
 }) {
   const navigate = useNavigate()
   const linking = useNotesLinking(true)
+  // While a block is busy (a file going up), the saved notes wait to be drawn, as they do while writing.
+  const [busyBlocks, setBusyBlocks] = React.useState(0)
+  const hold = React.useCallback((busy: boolean) => setBusyBlocks((count) => Math.max(0, count + (busy ? 1 : -1))), [])
+  const setup = useNotesBoxSetup("task", task, hold)
   const [versionsOpen, setVersionsOpen] = React.useState(false)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   // Drawn again from the saved notes whenever this changes.
   const [drawn, setDrawn] = React.useState({ notes, version: 0 })
+  // What the editor shows, as it would be saved. The editor reports the notes again when it is
+  // drawn; that isn't an edit, and saving it could put an older copy back over a newer one.
+  const [shown, setShown] = React.useState(() => notesKey(notes))
+  const shownRef = React.useRef(shown)
+  React.useLayoutEffect(() => {
+    shownRef.current = shown
+  }, [shown])
+  // This session's saves: the latest, and the older ones whose copies may still arrive late.
+  const [saves, setSaves] = React.useState(() => ({ latest: notesKey(notes), older: [] as string[] }))
+  const [seen, setSeen] = React.useState(notes)
   const editorBox = React.useRef<HTMLDivElement>(null)
   // In the box, or typed words not yet saved: the saved notes wait to be drawn.
   const [writing, setWriting] = React.useState(false)
   const [unsaved, setUnsaved] = React.useState(false)
-  const draft = React.useRef<WrittenPageNode | null>(null)
+  const draft = React.useRef<NoteNode | null>(null)
   const session = React.useRef("")
   const timer = React.useRef(0)
   // One save at a time, in the order typed.
@@ -360,15 +391,30 @@ export function LiveTaskNotes({
     askDelete: () => setConfirmDelete(true),
   }))
 
-  if (notes !== drawn.notes && !writing && !unsaved) {
-    setDrawn({ notes, version: drawn.version + 1 })
+  // Saved notes that arrive while nobody is writing here are drawn: someone else's edit, Bring back,
+  // Delete. A late copy of one of this session's own earlier saves is not: drawing it would take
+  // away what was added since (5 Nov 2026, Tyler: "Clicking away and it just disapeared").
+  if (notes !== seen && !writing && !unsaved && busyBlocks === 0) {
+    setSeen(notes)
+    const key = notesKey(notes)
+    const lateCopy = key !== saves.latest && saves.older.includes(key)
+    if (key === saves.latest && saves.older.length) setSaves({ latest: key, older: [] })
+    if (!lateCopy && key !== shown) {
+      setShown(key)
+      setDrawn({ notes, version: drawn.version + 1 })
+    }
   }
+
+  const sent = React.useCallback((key: string) => {
+    setSaves((was) => (was.latest === key ? was : { latest: key, older: [...was.older, was.latest].slice(-20) }))
+  }, [])
 
   const flush = React.useCallback(() => {
     window.clearTimeout(timer.current)
     const next = draft.current
     if (!next) return
     const spell = session.current || crypto.randomUUID()
+    sent(storedTaskNotes(next))
     saving.current = saving.current.then(async () => {
       const ok = await save.current(next, spell)
       // A newer draft typed while this one saved stays to be saved itself.
@@ -377,12 +423,28 @@ export function LiveTaskNotes({
         setUnsaved(false)
       }
     })
-  }, [])
+  }, [sent])
 
   // Moving to another task, or away from the page, saves what was typed.
   React.useEffect(() => flush, [flush])
 
-  function changed(body: WrittenPageNode) {
+  // A tick saves at once, not a second later as typing does. The tick box is the editor's own, not
+  // React's, so a plain listener hears it; the editor takes the tick first.
+  React.useEffect(() => {
+    const box = editorBox.current
+    if (!box) return
+    const ticked = (event: Event) => {
+      if (event.target instanceof HTMLInputElement && event.target.type === "checkbox") window.setTimeout(flush, 0)
+    }
+    box.addEventListener("change", ticked)
+    return () => box.removeEventListener("change", ticked)
+  }, [flush, readOnly])
+
+  function changed(body: NoteNode) {
+    const key = storedTaskNotes(body)
+    if (key === shownRef.current) return
+    shownRef.current = key
+    setShown(key)
     draft.current = body
     setUnsaved(true)
     window.clearTimeout(timer.current)
@@ -395,6 +457,7 @@ export function LiveTaskNotes({
     window.clearTimeout(timer.current)
     draft.current = null
     setUnsaved(false)
+    sent("")
     const emptied = saving.current.then(() => save.current(emptyWrittenPageBody(), crypto.randomUUID()))
     saving.current = emptied
     const ok = await emptied
@@ -462,7 +525,7 @@ export function LiveTaskNotes({
         className={cn(
           "relative",
           // A plain writing area, no box: the panel around it is the note.
-          "[&>div:first-of-type]:rounded-none [&>div:first-of-type]:border-0 [&>div:first-of-type]:bg-transparent",
+          "[&_[data-note-box]>div:first-of-type]:rounded-none [&_[data-note-box]>div:first-of-type]:border-0 [&_[data-note-box]>div:first-of-type]:bg-transparent",
           // The Note app's writing: 15px with room to breathe.
           "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]",
           // Two lines tall when empty (Tyler, 28 Oct 2026: "make the default row for the note 2 row").
@@ -476,13 +539,13 @@ export function LiveTaskNotes({
           session.current = crypto.randomUUID()
         }}
         onBlur={(event) => {
-          const next = event.relatedTarget
-          // The link box and the # list sit outside the writing area, so moving into them isn't leaving.
-          if (next instanceof Element && (event.currentTarget.contains(next) || next.closest("[data-slot=popover-content]"))) {
-            return
-          }
-          setWriting(false)
+          // The link box, the # list and a block's menu sit outside the writing area, so moving into them isn't leaving.
+          if (stillInNotes(event.currentTarget, event.relatedTarget)) return
           flush()
+          // The whole page losing focus (the computer's file picker, another app) isn't leaving the notes:
+          // focus comes back to the same place, and a redraw now would drop a block being filled in.
+          if (!document.hasFocus()) return
+          setWriting(false)
         }}
         onClickCapture={(event) => {
           const link = (event.target as Element).closest("a")
@@ -497,12 +560,13 @@ export function LiveTaskNotes({
           }
         }}
       >
-        <DocumentEditor
+        <NoteEditor
           key={drawn.version}
+          setup={setup}
           value={notesForEditor(readTaskNotes(drawn.notes))}
           onChange={changed}
           extensions={linking.extensions}
-          placeholder="Write, or type # to link a task"
+          placeholder="Write, type / for a block, or # to link a task"
         />
         {linking.list}
       </div>
@@ -518,6 +582,31 @@ export function LiveTaskNotes({
       {versions}
     </div>
   )
+}
+
+/** Notes as they would be saved, so two copies of the same words compare equal. */
+function notesKey(stored: string) {
+  return storedTaskNotes(notesForEditor(readTaskNotes(stored)))
+}
+
+/** A task's own notes: its links, its files and its Video or Promo record, for the # links and "/" blocks. */
+export type NotesTask = {
+  id: string
+  links: Record<string, string>
+  change: Change
+  files?: TaskFile[]
+  link?: TaskLink | null
+  /** Reads the task again, after a block added a file to it. */
+  refresh?: () => Promise<void>
+}
+
+/**
+ * Whether focus moved somewhere that still belongs to the notes: inside the
+ * box, or into a box that opens beside it (the link box, the # and "/" lists,
+ * a block's menu). Leaving for anywhere else saves.
+ */
+function stillInNotes(box: Element, next: EventTarget | null) {
+  return next instanceof Element && (box.contains(next) || Boolean(next.closest("[data-radix-popper-content-wrapper], [data-slot=popover-content]")))
 }
 
 type ToolbarAction = {

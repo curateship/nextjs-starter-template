@@ -31,7 +31,7 @@ let container: HTMLDivElement
 let root: Root
 
 function render(detail: TaskDetail) {
-  act(() => root.render(<TaskLinkButton detail={detail} />))
+  act(() => root.render(<TaskLinkButton taskId={detail.task.id} link={detail.link} />))
 }
 
 function button() {

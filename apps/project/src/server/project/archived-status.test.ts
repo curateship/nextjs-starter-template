@@ -31,7 +31,7 @@ beforeEach(async () => {
   anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
   ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
   const { admin } = await startTeam(database, [anna, ben])
-  const project = await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)
+  const project = await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)
   projectId = project.id
   await addProjectMember(admin.id, projectId, ben.id, database)
 })

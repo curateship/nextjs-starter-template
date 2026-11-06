@@ -51,6 +51,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { MassSelectButton } from "@/components/shared/mass-select"
 import {
   Table,
   TableBody,
@@ -161,9 +162,10 @@ function compare(
  * order, or under another heading that `canMove` allows: on a project page
  * that changes what the row is grouped by, on My dashboard its date.
  *
- * The tick boxes and drag handles stay hidden until the "Mass select" chip,
- * shown when the pointer is over the Task heading, turns them on (Tyler,
- * 19 Oct 2026, and again 24 Oct 2026).
+ * The tick boxes and drag handles stay hidden until "Mass select" turns them
+ * on (Tyler, 19 Oct 2026, and again 24 Oct 2026). It sits in the header left
+ * of the search, in `selectedSlot` beside the "N selected" button (Tyler,
+ * 5 Nov 2026: "Move the mass select button to here").
  *
  * Unless `readOnly`, a status dot before each title and the Status, Priority,
  * Assigned to and Due cells each open a dropdown that changes that one thing
@@ -260,37 +262,16 @@ export function TaskList({
   }
 
   const columns: TableHeaderColumn<TaskColumn>[] = [
-    // Drawn here rather than by the shared header, so the Mass select chip can
-    // sit beside the sort button. The preset 320px minimum is for a full page;
-    // this table also sits in a panel.
+    // The preset 320px minimum is for a full page; this table also sits in a panel.
     {
       key: "title",
       sortable: false,
       column: "main",
-      className: "group/title min-w-32",
+      className: "min-w-32",
       label: (
-        <span className="flex items-center gap-2">
-          <TableSortButton active={sort === "title"} direction={direction} onClick={() => toggleSort("title")}>
-            Task
-          </TableSortButton>
-          {readOnly ? null : (
-            <Button
-              type="button"
-              variant={editing ? "secondary" : "outline"}
-              size="xs"
-              aria-pressed={editing}
-              onClick={toggleEditing}
-              className={cn(
-                "rounded-full",
-                // A phone has no hover, so there it always shows.
-                !editing &&
-                  "opacity-0 group-hover/title:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-              )}
-            >
-              {editing ? "Hide select" : "Mass select"}
-            </Button>
-          )}
-        </span>
+        <TableSortButton active={sort === "title"} direction={direction} onClick={() => toggleSort("title")}>
+          Task
+        </TableSortButton>
       ),
     },
     ...(showProject ? [{ key: "project" as const, label: "Project", column: "preview" as const }] : []),
@@ -346,16 +327,20 @@ export function TaskList({
   ]
   const selectedIds = ids.filter((id) => selection.selected.has(id))
   const colSpan = columns.length + (canEdit ? 2 : 1)
-  const selectedMenu =
-    canEdit && selectedIds.length ? (
-      <TaskBulkMenu taskIds={selectedIds} targets={bulk} onDone={selection.clear} />
-    ) : null
+  // The "N selected" button, then Mass select, left of the header's search.
+  const headerControls = readOnly ? null : (
+    <>
+      {canEdit && selectedIds.length ? <TaskBulkMenu taskIds={selectedIds} targets={bulk} onDone={selection.clear} /> : null}
+      <MassSelectButton on={editing} onToggle={toggleEditing} />
+    </>
+  )
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {selectedMenu && selectedSlot ? createPortal(selectedMenu, selectedSlot) : null}
-      {selectedMenu && !selectedSlot ? (
-        <div className="flex items-center justify-end border-b px-3 py-2">{selectedMenu}</div>
+      {headerControls && selectedSlot ? createPortal(headerControls, selectedSlot) : null}
+      {/* Only a list with no header slot at all; a slot not drawn yet (null) waits a moment instead. */}
+      {headerControls && selectedSlot === undefined ? (
+        <div className="flex items-center justify-end gap-1 border-b px-3 py-2">{headerControls}</div>
       ) : canEdit && onDrop && sort !== "order" ? (
         <div className="flex items-center gap-2 border-b px-3 py-2 text-sm text-muted-foreground">
           Sorted by a column, so rows can't be dragged.

@@ -1,4 +1,4 @@
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ListChecksIcon } from "lucide-react"
 import * as React from "react"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -11,11 +11,26 @@ import { cn } from "@/lib/utils"
  * "Three-column dashboards"; Tyler, 19 Oct 2026: "the mass select function as
  * well"). Project's `TaskList` and `TaskBulkMenu` are where these started.
  *
- * `MassSelectChip` sits beside the first column's heading and shows while
- * that heading is pointed at (`group/title` on the heading cell); on a phone
- * it always shows. Pressed, the tick boxes appear and it reads "Hide select",
- * which hides them again. The caller clears the ticks when it turns off.
+ * `MassSelectButton` sits in the dashboard's header, left of the search
+ * (Tyler, 5 Nov 2026: "Move the mass select button to here"). Pressed, the
+ * tick boxes appear and it reads "Hide select", which hides them again. The
+ * caller clears the ticks when it turns off.
+ *
+ * `MassSelectChip` is the older place, beside the first column's heading,
+ * shown while that heading is pointed at (`group/title` on the heading
+ * cell). Lists an app drew for itself still use it until they move.
  */
+export function MassSelectButton({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  const label = on ? "Hide select" : "Mass select"
+  return (
+    <DashboardToolbarButton type="button" variant={on ? "secondary" : "ghost"} aria-pressed={on} aria-label={label} onClick={onToggle}>
+      <ListChecksIcon className="size-4" />
+      {/* The header is the container, as for Filter: on a narrow one the icon stays and the words go. */}
+      <span className="@max-4xl:sr-only">{label}</span>
+    </DashboardToolbarButton>
+  )
+}
+
 export function MassSelectChip({
   on,
   onToggle,

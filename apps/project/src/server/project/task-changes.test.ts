@@ -54,8 +54,8 @@ beforeEach(async () => {
   ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
   admin = (await startTeam(database, [anna, ben, carla])).admin
-  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
-  brand = (await projectFor(admin, anna.id, { name: "Brand", color: "pink", description: "" }, database)).id
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)).id
+  brand = (await projectFor(admin, anna.id, { name: "Brand", color: "pink" }, database)).id
   // A project's members are the site admin's to change.
   await addProjectMember(admin.id, website, ben.id, database)
   await addProjectMember(admin.id, website, carla.id, database)
@@ -166,7 +166,7 @@ describe("moving to another project", () => {
   })
 
   it("refuses a project the person can't see, and never names it to them later", async () => {
-    const hidden = (await projectFor(admin, anna.id, { name: "Hidden", color: "red", description: "" }, database)).id
+    const hidden = (await projectFor(admin, anna.id, { name: "Hidden", color: "red" }, database)).id
     const id = await task("Mine", ben)
     await expect(moveTask(actor(ben), { taskId: id, projectId: hidden }, database)).rejects.toThrow(
       PROJECT_ERRORS.projectNotFound

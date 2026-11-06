@@ -74,7 +74,7 @@ beforeEach(async () => {
   const started = await startTeam(database, [anna, ben, leo, carla])
   admin = started.admin
   teamId = started.team.id
-  projectId = (await projectFor(admin, anna.id, { name: "Site", color: "blue", description: "" }, database)).id
+  projectId = (await projectFor(admin, anna.id, { name: "Site", color: "blue" }, database)).id
   await addProjectMember(admin.id, projectId, ben.id, database)
   await addProjectMember(admin.id, projectId, leo.id, database)
   taskId = (
@@ -331,9 +331,9 @@ describe("due dates on the Team calendar", () => {
     await setTaskStatus(anna, { taskId: done, status: "done", stuckReason: null }, database)
     const binned = await make(anna, projectId, "Binned", "2099-03-12")
     await deleteTask(anna, binned, database)
-    const secret = (await projectFor(admin, anna.id, { name: "Secret", color: "red", description: "" }, database)).id
+    const secret = (await projectFor(admin, anna.id, { name: "Secret", color: "red" }, database)).id
     await make(anna, secret, "Secret plan", "2099-03-13")
-    const old = (await projectFor(admin, anna.id, { name: "Old", color: "red", description: "" }, database)).id
+    const old = (await projectFor(admin, anna.id, { name: "Old", color: "red" }, database)).id
     await addProjectMember(admin.id, old, ben.id, database)
     await make(anna, old, "Old work", "2099-03-14")
     await setProjectArchived(admin.id, old, true, database)
@@ -353,7 +353,7 @@ describe("a teammate's page", () => {
     await make("Soon work", projectId, "2099-04-01")
     const finished = await make("Finished work", projectId, null)
     await setTaskStatus(anna, { taskId: finished.id, status: "done", stuckReason: null }, database)
-    const secret = (await projectFor(admin, anna.id, { name: "Secret", color: "red", description: "" }, database)).id
+    const secret = (await projectFor(admin, anna.id, { name: "Secret", color: "red" }, database)).id
     await addProjectMember(admin.id, secret, ben.id, database)
     await make("Secret work", secret, null)
     await addTimeOff(ben.id, { firstDay: "2099-06-01", lastDay: "2099-06-03" }, database)

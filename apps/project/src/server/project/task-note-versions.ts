@@ -154,6 +154,7 @@ export async function restoreNoteVersion(actor: Actor, versionId: string, databa
       }
       throw error
     })
+    if (task.notesLocked) throw new Error(PROJECT_ERRORS.notesLocked)
     if (version.notes === task.notes) return
     await tx
       .update(projectTasks)

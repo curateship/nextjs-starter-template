@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { noteLines } from "@/lib/project/meeting-notes"
-import { readTaskNotes } from "@/lib/project/notes"
+import { readPlainNotes } from "@/lib/project/notes"
 import { taskHref } from "@/lib/project/notices"
 import { meetingNotesSchema } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
@@ -190,7 +190,7 @@ describe("meeting notes", () => {
       { meetingId: id, day: MONDAY, notes: doc("Talked about the launch", "Send the new price list") },
       database
     )
-    const { id: projectId } = await projectFor(admin, anna.id, { name: "Sales", color: "green", description: "" }, database)
+    const { id: projectId } = await projectFor(admin, anna.id, { name: "Sales", color: "green" }, database)
     await addProjectMember(admin.id, projectId, ben.id, database)
     const { id: taskId } = await createTask(
       anna,
@@ -202,7 +202,7 @@ describe("meeting notes", () => {
     await linkMeetingNoteLine(anna, line, database)
 
     const annaReads = await loadMeetingNotes(anna.id, { meetingId: id, day: MONDAY }, database)
-    const notes = readTaskNotes(annaReads.notes)
+    const notes = readPlainNotes(annaReads.notes)
     if (notes.kind !== "doc") throw new Error("The notes should be a document.")
     expect(noteLines(notes.body).map((l) => [l.text, l.taskId])).toEqual([
       ["Talked about the launch", null],
@@ -217,7 +217,7 @@ describe("meeting notes", () => {
   it("never links a line that changed meanwhile", async () => {
     const { id } = await createMeeting(anna, meeting(), database)
     await saveMeetingNotes(anna, { meetingId: id, day: MONDAY, notes: doc("Send the new price list") }, database)
-    const { id: projectId } = await projectFor(admin, anna.id, { name: "Sales", color: "green", description: "" }, database)
+    const { id: projectId } = await projectFor(admin, anna.id, { name: "Sales", color: "green" }, database)
     const { id: taskId } = await createTask(
       anna,
       { projectId, title: "Send prices", notes: "", assigneeUserId: null, dueDate: null, steps: [] },
@@ -241,7 +241,7 @@ describe("meeting notes", () => {
 
 describe("choosing my bell notices", () => {
   async function project() {
-    const { id: projectId } = await projectFor(admin, anna.id, { name: "Site", color: "blue", description: "" }, database)
+    const { id: projectId } = await projectFor(admin, anna.id, { name: "Site", color: "blue" }, database)
     await addProjectMember(admin.id, projectId, ben.id, database)
     await addProjectMember(admin.id, projectId, carla.id, database)
     return projectId

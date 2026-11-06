@@ -41,7 +41,7 @@ beforeEach(async () => {
   const started = await startTeam(database, [anna])
   admin = started.admin
   teamId = started.team.id
-  website = (await projectFor(admin, anna.id, { name: "Website", color: "pink", description: "" }, database)).id
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "pink" }, database)).id
 })
 
 afterEach(async () => {

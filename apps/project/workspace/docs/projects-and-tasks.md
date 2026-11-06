@@ -21,7 +21,7 @@
   Archive for ticked rows, the team filter, the client menu and New project.
 - **A project's settings are the site admin's alone** (Tyler, 16 Oct 2026:
   "Employees dont even see the settings cog or page. Only admin see it"):
-  the name, colour, description, due date, Doing limit, client, members,
+  the name, colour, due date, Doing limit, client, members,
   lead, "Everyone on the team", status rule, task templates and Archive.
   Employees see no cog, and the server refuses each
   one: "Only the site admin changes a project's settings."
@@ -34,7 +34,7 @@
 - **A project you can't see answers like one that doesn't exist.** Guessing a
   project's or task's id from another team gets "doesn't exist or you can't
   see it", never the record.
-- **Archived projects are read-only.** Archive from Project settings (the cog
+- **Archived projects are read-only.** Archive from Project settings (the ⋮
   on the project page) or from the Projects table. Bring back undoes it. The
   details panel tells the site admin "Bring it back from Project settings to
   work on it." and an employee "The site admin can bring it back."
@@ -76,15 +76,15 @@
   page has none, Tyler's choice, 11 Oct 2026), asks for a new name, starting as "Copy of Website launch", selected,
   so typing replaces it and Copy project works at once. It makes a project
   from the old one: its
-  description, colour, milestones (with no dates) and every task
+  page, colour, milestones (with no dates) and every task
   not in the bin, in the same order, with their labels, milestone, steps
   (unticked), types and field values, and the project's own pick of task
-  types, category and links. The status, lead and client stay behind. Every task starts To do with
+  types and category. The status, lead and client stay behind. Every task starts To do with
   nobody assigned and no due date (Tyler's choice, 10 Oct 2026). People,
   chat, files and history stay behind, and Person fields start empty. Only
   the site admin copies, and the copy starts with nobody on it, like a new
   project. The page opens on the copy.
-- **A project's due date** sits in Project settings (the cog) and saves the
+- **A project's due date** sits in Project settings (the ⋮) and saves the
   moment one is picked (Tyler, 11 Oct 2026: "the due date should be in the
   settings cog"). Clear takes it off.
 - **Progress** reads "14 of 20 done" with a bar, in the Projects table's
@@ -114,9 +114,11 @@ like behind, on track or slowing down."
   is left. Behind can't start below Slowing down ("Behind has to start at the
   same number of late tasks as Slowing down, or more."); the two may match,
   and then Slowing down never shows.
-- **Where it shows:** under the project's name beside its avatar on the left
-  panel, or as a "Status" line beside the lead when there is no avatar, and
-  in the Projects table's Status column: "● Behind · 3 late". The count is
+- **Where it shows:** as its dot alone, right after the project's name in the
+  left panel's header (Tyler, 5 Nov 2026: "Remove the status and just place
+  the dot indicator here"). Pointing at the dot says "Behind · 3 late", and
+  that is also its name for a screen reader. In the Projects table's Status
+  column it is "● Behind · 3 late". The count is
   left off while nothing is late. Sorting by Status puts Behind first, then
   the most late tasks. A "Just me" list has no status.
 - **Counted on the reader's own clock**, in the browser, the same way as the
@@ -263,36 +265,40 @@ the whole site and the filter on the Projects page.
 - **Saved** in `project_projects.category`
   (`drizzle/0142_project_category_links_pins.sql`).
 
-## Links
+## The project's page
 
-Tyler, 2 Nov 2026 (Misc 5): "Add url fields for projects with custom label
-and put it under the discription field. Also add a section divider label.
-Add draggable ability to arrange the url fields and divider".
+Tyler, 5 Nov 2026: "Remove the discription. Remove this discription and links
+feature", then "Where the avatar used to be. Add the tiptap editor with a
+couple of blocks like a links block and call out block".
 
-- **In Project settings**, a Links field sits right under Description. Each
-  link is a label and an address on one row; a divider is one label on a row
-  of its own. "Add link" and "Add divider" put a new row at the bottom, a bin
-  takes one away, and the handle at a row's left drags it into a new place.
-  A row saves when it is left or Enter is pressed, a drag or a bin at once.
-- **Addresses are web addresses only.** "acme.com" is saved as
-  "https://acme.com". Anything else, "javascript:" included, stays in its box
-  marked red with an error, and is never sent; the server refuses it too
-  (`projectLinksSchema` in `src/lib/project/project-links.ts`). A row with no
-  address yet, or a divider with no label, waits on screen and is saved once
-  it is whole. At most 50 rows, labels up to 60 characters.
-- **On the project page**, the links show under the description in the
-  dragged order, each opening in a new tab. A link with no label shows its
-  address without "https://". A divider is a small capital heading over the
-  links after it. Everyone on the project sees them; only the site admin
-  changes them. A "Just me" list has none.
-- **Saved** as one list in `project_projects.links`, written whole on each
-  change. The editor is `src/components/project/project-links-editor.tsx`.
+- **The description and the links are gone**, from the left panel, New
+  project and Project settings, and their columns with them
+  (`drizzle/0144_project_no_description_or_links.sql`). Project held only
+  test data, so nothing was kept.
+- **In their place** the top of the left panel is the project's page: the
+  notes editor with its "/" blocks, the new Links block and Callout among
+  them, less File and the Video or Promo card, which belong to a task. How
+  the blocks work is in [Notes and the "/" blocks](notes-and-blocks.md).
+- **The site admin writes in it**; it saves 700ms after the last letter and
+  when it's left. Everyone else, and an archived project, reads it, and an
+  empty page shows nothing to them. A "Just me" list has no page. "/" opens
+  the list of blocks.
+- **Lock page.** The ⋮ menu's Lock page, under its line and above Archive,
+  makes the page read only for everyone, the site admin included, until
+  Unlock page (Tyler, 5 Nov 2026: "add a function here to lock the tip
+  tap"). Links still open, folds still fold for each reader, and ticks can't
+  change. The server refuses a save to a locked page with "This page is
+  locked. Unlock it from the ⋮ at the top of the panel to change it." An
+  archived project can't be locked or unlocked.
+- **Copy project** copies the page and whether it is locked.
+- **Saved** in `project_projects.notes` and `notes_locked`
+  (`drizzle/0146_project_page_lock.sql`, `src/components/project/project-page-notes.tsx`).
 
 ## Project templates are gone
 
 Tyler, 28 Oct 2026 (Misc 4): "We need to remove the project templates feature
 too, its redeundent". Copy project starts a project from another one, with
-the same plan: colour, description, milestones, and tasks with their steps,
+the same plan: colour, page, milestones, and tasks with their steps,
 step fields, tags, template, field values and priority. Save as template left
 Project settings, "Start from" left New project, and the Project templates
 card left Team settings. Migration `drizzle/0134_project_drop_templates.sql`
@@ -314,44 +320,56 @@ members moved to the left. On 14 Oct 2026 he redrew the tasks panel's header
 (`assets/pasted-image-1792006703561170000.png`) and moved picking whose tasks
 show out of the left panel and into that header.
 
-- **Left: details.** From the top: the project's avatar, if it has one, with
-  the name, client and status beside it, then
-  "Description" as a small capital heading, then the project's links (see
-  Links below), then
-  the status (when there is no avatar), the lead and the client, then the
+- **Left: details.** The header holds the back arrow, the name with its status
+  dot right after it, the pin and the ⋮. The colour dot before the name, the
+  avatar with the name beside it, the description and the links left the
+  panel on 5 Nov 2026 (Tyler), and projects have no avatar at all since then
+  (migration 0145; the Dashboard's Projects card shows the colour dot). From the top: the project's page (see The
+  project's page), then the lead, the client and the time, then the
   Milestones card at the bottom, which folds and remembers in this browser
   whether it was left open. The Status card that was here went with the
   manual status on 19 Oct 2026 (see Project status). The pin in the header pins the project for me
-  (see Pins below). The cog opens Project settings, a window with the name,
-  colour, description, links, client, category, due date, Doing limit, Everyone on the team,
-  Archive, its status rule, its pictures, its members and its task types. Tyler, 10 Oct 2026: "add a
-  cog icon here and put all the project settings there". Each field saves when
-  it is left, and the colour, due date and pictures the moment they are picked, so the window ends with
-  Done. Each card in the window (Project, Status, Pictures, Members, Task types) folds shut from its heading, with an arrow that shows on hover, and
-  stays as it was left in this browser (Tyler, 19 Oct 2026). Members' "+ Invite"
-  sits under the list rather than in the heading, since the heading folds the card. Closing it with Escape or a click outside saves the field being typed
-  in too. The Members card lists each member with their job title and how
-  many open tasks they have, with leave or remove at the row's end. "+ Invite"
-  lists teammates not yet on the project, and for the site admin ends
-  with "Invite someone new to the team", the team's invite window.
-- **The project's pictures.** Project settings' Pictures card holds a Banner
-  and an Avatar, each picked from the media library and taken away with its ×
-  (Tyler, 19 Oct 2026). The two boxes sit side by side at the shell's own
-  sizes for a picture field: the banner 192px wide like Share image, the
-  avatar an 80px square like the account Photo. The banner lies behind the top of the left panel, its
+  (see Pins below). The ⋮ opens Project settings as the shell's one ⋮ menu
+  (`FoldingMenu`, the UI standard's "The one dropdown look"), opening to the
+  right of the ⋮ over the board (Tyler, 5 Nov 2026: "Replace the project
+  settings cog with a 3 dot vertical and convert the modal into a dropdown
+  instead", then "dropdown align on right and card needs to follow ui
+  standard"; it was a cog and a window since 10 Oct 2026). It is 294px wide,
+  with a folding row per setting showing what it holds now: Name, Colour,
+  Client, Category, Due date, Doing per person, Everyone on the team, Status,
+  Banner, Members and Task templates. Then a line, then Archive project (or
+  Bring back). The row names the field, so the field inside has no second
+  label. Members are plain rows there, with the crown and the bin at the
+  row's end and "+ Invite" under them. Each field saves when it is left, and
+  the colour, due date and banner the moment they are picked, so there is no
+  Done; closing the menu with Escape or a click outside saves the field
+  being typed in too. A confirm, such as Everyone on the team's, opens over
+  the menu, and the colour list, Invite and the date picker open from it
+  without closing it.
+- **Project settings from the Projects table.** A row's cog opens the same
+  fields as cards in a window (`ProjectSettingsDialog`): Project, Status,
+  Banner, Members and Task templates. Each card folds shut from its heading,
+  with an arrow that shows on hover, and stays as it was left in this browser
+  (Tyler, 19 Oct 2026). Members' "+ Invite" sits under the list rather than
+  in the heading, since the heading folds the card. The Members card lists
+  each member with their job title and how many open tasks they have, with
+  leave or remove at the row's end. "+ Invite" lists teammates not yet on the
+  project, and for the site admin ends with "Invite someone new to the
+  team", the team's invite window.
+- **The project's banner.** Project settings' Banner is picked from the
+  media library and taken away with its × (Tyler, 19 Oct 2026), 192px wide
+  like Share image in the window. The banner lies behind the top of the left panel, its
   header included, drawn at 30 out of 100 strength and fading into the panel at
   its foot, so the header's name, star and cog still read over it. Over a
   banner the header has no line under it, so the picture runs on unbroken
-  (Tyler, 20 Oct 2026). The avatar
-  is a circle with a 2px white edge at the banner's foot with the project's
-  name and status beside it. The client is always under its own CLIENT
-  heading beside Lead (Tyler, 19 Oct 2026: "the client name should be here"). With neither
-  picture the panel looks as it did before. Like the team's pictures, each
+  (Tyler, 20 Oct 2026). The client is always under its own CLIENT
+  heading beside Lead (Tyler, 19 Oct 2026: "the client name should be here"). Without a
+  banner the panel looks as it did before. Like the team's pictures, it
   must be one the site admin uploaded to the media library, or it is refused
   with "Pick a photo you uploaded yourself.", so a project can't point at an
   outside address. A picture whose address stops loading is left out rather
-  than drawn broken. A "Just me" list has no pictures. Saved in
-  `project_projects.banner_url` and `avatar_url` (migration 0121).
+  than drawn broken. A "Just me" list has no banner. Saved in
+  `project_projects.banner_url` (migration 0121).
 - **Middle: tasks.** List, Board, Calendar and Timeline tabs, then More, which
   holds Activity, Files, Chat and the Bin. While Activity, Files or Chat
   shows, More wears its name. The tabs are words with a line under the one
@@ -362,11 +380,12 @@ show out of the left panel and into that header.
   red), as tall as its cards. The List has the same tasks in rows, under
   the headings picked in Filter's Group row, or none (see
   [Tags and groups](tags-and-groups.md#group)). Its tick boxes and drag
-  handles stay hidden until a small "Mass select" chip is pressed. The chip
-  appears beside the Task heading's sort arrow when the pointer is over that
-  heading, and always on a phone, which has no pointer to hover. While it is on it stays shown and reads "Hide select", which
+  handles stay hidden until "Mass select" is pressed. It sits in the header,
+  left of the search, beside the "N selected" button (Tyler, 5 Nov 2026:
+  "Move the mass select button to here"), and on a narrow header shows its
+  icon alone, as Filter does. While it is on it reads "Hide select", which
   hides the tick boxes and handles again and clears the ticks (Tyler, 19 Oct 2026). Each visit starts with them hidden, and someone who
-  can only read the project never sees the chip. The table's first column
+  can only read the project never sees it. The table's first column
   starts 16px in, under the List tab's word, and its last column ends 12px
   in, level with New task, so it lines up with the header (Tyler, 19 Oct
   2026). On each row, a status dot
@@ -762,9 +781,13 @@ Neither puts a window over the page.
   showed you"). The panel is the card: the task's title in the header with a
   ⋮, and the writing area straight under it, with no
   box or label of its own, before Steps and Chat. It is there on every task,
-  empty ones included, with "Write, or type # to link a task" in grey, in
+  empty ones included, with "Write, type / for a block, or # to link a task" in grey, in
   15px writing. Empty, it is two lines tall, and it grows as you write
   (Tyler, 28 Oct 2026: "make the default row for the note 2 row").
+- **Typing "/" adds a block**: a picture, a video, a Task card, one of the
+  task's files, a checklist, a callout, a divider, a fold section, the task's
+  Video or Promo card or a web page card. How each works is in
+  [Notes and the "/" blocks](notes-and-blocks.md).
 - **Click and type.** The notes save a second after the typing stops and
   again when the box is left, with no Edit or Done. Each spell of writing,
   from clicking in to clicking away, keeps one earlier version. Notes another
@@ -980,7 +1003,9 @@ Neither puts a window over the page.
   until another is picked, or No template) and that type's steps, and with
   its priority and tags in the same save.
 - **Description** is the same writing box as the task's notes: select words
-  to make them bold, a list or a link. It saves as the task's notes. It
+  to make them bold, a list or a link, or type "/" for a block, File and the
+  Video or Promo card aside ([Notes and the "/" blocks](notes-and-blocks.md)).
+  It saves as the task's notes. It
   starts on the picked type's notes and follows the type while nothing is
   typed in it; once something is typed, a new type leaves it alone. Enter
   makes a new line there, not the task. When the full window opens instead

@@ -68,7 +68,7 @@ import {
 } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import type { WrittenPageNode } from "@/lib/pages/written-page-body"
+import type { NoteNode } from "@/lib/project/note-blocks"
 import { plural } from "@/lib/format/plural"
 import { localTimeOf, momentOnDay } from "@/lib/project/dates"
 import { clockLabel, dayLabel, shortDayLabel } from "@/lib/project/days"
@@ -202,6 +202,8 @@ export type TaskSide = {
   history: React.ReactNode
   detail: TaskDetail
   readOnly: boolean
+  /** The ⋮'s Lock the notes row; null when the task can't change. */
+  notesLock: { locked: boolean; toggle: () => void } | null
   /** Opens the Move to project card at the top of the panel. */
   move: () => void
   /** Opens the Remind me card at the top of the panel. */
@@ -998,9 +1000,13 @@ function TaskForm({
     </>
   )
 
-  const saveNotes = (notes: WrittenPageNode, notesSession: string) =>
+  const saveNotes = (notes: NoteNode, notesSession: string) =>
     change(() => saveTask({ taskId: task.id, notes, notesSession }))
-  const noteLinks = { id: task.id, links: detail.noteLinks, change }
+  // Locked notes read only, for everyone, until they're unlocked from the ⋮ (Tyler, 5 Nov 2026:
+  // "add lock page for task too"). Locking or unlocking draws them again from what was saved.
+  const notesReadOnly = readOnly || task.notesLocked
+  const notesKey = `${task.id}:${task.notesLocked}`
+  const noteLinks = { id: task.id, links: detail.noteLinks, change, files: detail.files, link: detail.link, refresh }
 
   const handBackButton =
     canHandBack && !task.waiting && !handingBack && !readOnly ? (
@@ -1013,7 +1019,7 @@ function TaskForm({
     ) : null
 
   const fieldsCard = <TaskFieldsCard detail={detail} readOnly={readOnly} change={change} refresh={refresh} />
-  const linkButton = <TaskLinkButton detail={detail} />
+  const linkButton = <TaskLinkButton taskId={detail.task.id} link={detail.link} />
   const linkField = detail.canSetLink ? (
     <TaskLinkField
       detail={detail}
@@ -1049,7 +1055,7 @@ function TaskForm({
           {datesAndPriority}
           {sortingFields}
           {linkField}
-          <LiveTaskNotes key={task.id} notes={task.notes} readOnly={readOnly} onSave={saveNotes} task={noteLinks} />
+          <LiveTaskNotes key={notesKey} notes={task.notes} readOnly={notesReadOnly} onSave={saveNotes} task={noteLinks} />
           {handBackButton}
         </CardContent>
       </Card>
@@ -1108,9 +1114,9 @@ function TaskForm({
       empty: taskNotesAreEmpty(readTaskNotes(task.notes)),
       field: ({ toolbar, onToolbar, handle }) => (
         <LiveTaskNotes
-          key={task.id}
+          key={notesKey}
           notes={task.notes}
-          readOnly={readOnly}
+          readOnly={notesReadOnly}
           onSave={saveNotes}
           task={noteLinks}
           panel
@@ -1276,6 +1282,16 @@ function TaskForm({
     ),
     detail,
     readOnly,
+    notesLock: readOnly
+      ? null
+      : {
+          locked: task.notesLocked,
+          toggle: () =>
+            void change(
+              () => saveTask({ taskId: task.id, notesLocked: !task.notesLocked }),
+              task.notesLocked ? "Notes unlocked." : "Notes locked. Nobody can change them until they're unlocked."
+            ),
+        },
     move: () => setMoving(true),
     remind: () => setReminding(true),
     askTime: () => setAskingTime(true),

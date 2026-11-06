@@ -20,7 +20,9 @@ import { projectTasks } from "@/server/project/schema"
  * - Pressing the button checks the person (the assignee or the site admin),
  *   then stamps a note with the key Project shares with that app. The note
  *   lasts 60 seconds and works once; the other app checks it.
- * - Project never calls the other app. The browser carries the note there.
+ * - Pressing the button calls nothing in the other app. The browser carries
+ *   the note there. The only call Project's server makes is for the card in
+ *   a task's notes (`note-blocks.ts`, `loadNoteRecordCard`).
  */
 
 /** How long a note works for, in seconds. */

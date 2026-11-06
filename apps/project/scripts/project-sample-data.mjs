@@ -93,8 +93,8 @@ try {
   const [me, maya, leo, priya] = people
 
   const projects = [
-    { name: "Website redesign", color: "blue", description: "New marketing site before the spring launch.", members: [me, maya, leo] },
-    { name: "Spring launch", color: "green", description: "Everything that has to be ready on launch day.", members: [me, maya, leo, priya] },
+    { name: "Website redesign", color: "blue", members: [me, maya, leo] },
+    { name: "Spring launch", color: "green", members: [me, maya, leo, priya] },
   ]
   // [title, status, assignee, handed out by, waiting, due in days, steps done/total, stuck reason]
   const tasksByProject = [
@@ -128,9 +128,9 @@ try {
   for (const [index, project] of projects.entries()) {
     const projectId = randomUUID()
     await client.query(
-      `INSERT INTO project_projects (id, team_id, name, color, description, created_by_user_id, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
-      [projectId, teamId, project.name, project.color, project.description, me.id, now]
+      `INSERT INTO project_projects (id, team_id, name, color, created_by_user_id, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+      [projectId, teamId, project.name, project.color, me.id, now]
     )
     for (const member of project.members) {
       await client.query(

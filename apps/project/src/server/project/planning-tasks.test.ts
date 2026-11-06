@@ -70,7 +70,7 @@ beforeEach(async () => {
   const started = await startTeam(database, [anna, ben])
   admin = started.admin
   adminTeamId = started.team.id
-  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)).id
   await addProjectMember(admin.id, website, ben.id, database)
 })
 

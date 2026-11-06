@@ -1,46 +1,46 @@
 import * as React from "react"
-import { FolderKanbanIcon, LinkIcon, SettingsIcon } from "lucide-react"
+import { FolderKanbanIcon } from "lucide-react"
 
 import { ProjectMilestones } from "@/components/project/project-milestones"
-import { ProjectPaceMark } from "@/components/project/project-pace"
-import { ProjectSettingsDialog } from "@/components/project/project-settings-dialog"
+import { ProjectPageNotes } from "@/components/project/project-page-notes"
+import { ProjectPaceDot } from "@/components/project/project-pace"
+import { ProjectMenu } from "@/components/project/project-menu"
 import { PinButton } from "@/components/project/pin-button"
-import { PersonAvatar, ProjectDot } from "@/components/project/task-bits"
+import { PersonAvatar } from "@/components/project/task-bits"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ProjectPage } from "@/lib/api/project/projects"
 import { clockTotal, timeOnTasks } from "@/lib/project/clock"
-import { linkText, type ProjectLink } from "@/lib/project/project-links"
 import { countLate, projectPace } from "@/lib/project/project-pace"
 import { runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
 
 /**
- * The project's description and links, lead, client and status, then its milestones
- * as a folding card at the bottom (Tyler, 15 Oct 2026). The status is worked
- * out from the late tasks by the rule in Project settings (Tyler, 19 Oct
- * 2026); it sits under the name beside the avatar, or with the lead without one. The cog in
- * the header opens Project settings, which holds the name, colour,
- * description, due date, client, members and Archive (Tyler, 10 Oct 2026: "add
+ * The project's lead, client and time, then its milestones as a folding card
+ * at the bottom (Tyler, 15 Oct 2026). The status is worked out from the late
+ * tasks by the rule in Project settings (Tyler, 19 Oct 2026), and shows as its
+ * dot alone, right after the name in the header (Tyler, 5 Nov 2026: "Remove
+ * the status and just place the dot indicator here"). The same day the colour
+ * dot before the name, the avatar with the name beside it, the description and
+ * the links left the panel, and the project's own page of notes and "/" blocks
+ * took the avatar's place at the top (`project-page-notes.tsx`). The ⋮ in
+ * the header opens Project settings as a dropdown (Tyler, 5 Nov 2026), which holds the name, colour,
+ * due date, client, members and Archive (Tyler, 10 Oct 2026: "add
  * a cog icon here and put all the project settings there"). The members list
  * left this panel on 14 Oct 2026: whose tasks show is a dropdown in the tasks
  * panel's header, and adding or removing someone, or naming the lead, is in
  * Project settings. The bin is in the tasks panel's More menu.
  *
- * Only the site admin sees the cog and Project settings (Tyler, 16 Oct 2026:
+ * Only the site admin sees the ⋮ and Project settings (Tyler, 16 Oct 2026:
  * "Employees dont even see the settings cog or page. Only admin see it").
  *
  * The project's banner, set in Project settings, lies faintly behind the
- * header and the top of the panel, so the header still reads over it, and its
- * round avatar sits at the banner's foot with the name and status beside it
- * (Tyler, 19 Oct 2026). Over a banner the header has no line under it, so the
- * picture runs on unbroken (Tyler, 20 Oct 2026). With neither, the panel is
- * as it was.
+ * header and the top of the panel, so the header still reads over it (Tyler,
+ * 19 Oct 2026). Over a banner the header has no line under it, so the
+ * picture runs on unbroken (Tyler, 20 Oct 2026).
  */
 export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
   const { project } = page
-  const [settingsOpen, setSettingsOpen] = React.useState(false)
   const lead = page.members.find((member) => member.userId === project.leadUserId) ?? null
   const shared = !project.personal
   const siteAdmin = runsTheTeam(page.myRole)
@@ -48,9 +48,7 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
   const [broken, setBroken] = React.useState<string[]>([])
   const lose = (url: string) => setBroken((was) => [...was, url])
   const banner = shared && project.bannerUrl && !broken.includes(project.bannerUrl) ? project.bannerUrl : null
-  const avatar = shared && project.avatarUrl && !broken.includes(project.avatarUrl) ? project.avatarUrl : null
   const late = countLate(page.tasks)
-  const pace = <ProjectPaceMark pace={projectPace(late, project)} late={late} className="text-sm" />
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -67,43 +65,32 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
         icon={<FolderKanbanIcon className="size-4" />}
         back={{ label: "Back to projects", to: "/projects" }}
         title={
-          <span className="flex min-w-0 items-center gap-2">
-            <ProjectDot color={project.color} />
+          <span className="flex min-w-0 items-center gap-1.5">
             <span className="truncate">{project.name}</span>
+            {/* A "Just me" list has no late-task rule, so no status. */}
+            {shared ? <ProjectPaceDot pace={projectPace(late, project)} late={late} /> : null}
           </span>
         }
         action={
           shared ? (
             <div className="flex items-center gap-1">
               <PinButton project={project} />
-              {siteAdmin ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Project settings"
-                  onClick={() => setSettingsOpen(true)}
-                >
-                  <SettingsIcon className="size-4" />
-                </Button>
-              ) : null}
+              {siteAdmin ? <ProjectMenu page={page} /> : null}
             </div>
           ) : null
         }
       />
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-        <div className="grid gap-5 p-4">
-          {avatar ? (
-            // Its middle level with the banner's foot.
-            <div className={cn("flex min-w-0 items-center gap-3", banner && "mt-6")}>
-              <span className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-card bg-muted text-2xl font-medium text-muted-foreground shadow-sm">
-                <img src={avatar} alt="" className="size-full object-cover" onError={() => lose(avatar)} />
-              </span>
-              <div className="grid min-w-0 gap-0.5">
-                <p className="text-lg leading-tight font-semibold break-words">{project.name}</p>
-                {pace}
-              </div>
-            </div>
+        <div className={cn("grid gap-5 p-4", banner && "pt-6")}>
+          {/* Where the avatar was: the project's own page of notes and blocks (Tyler, 5 Nov 2026).
+              Locking or unlocking it draws it again from what was saved. */}
+          {shared ? (
+            <ProjectPageNotes
+              key={`${project.id}:${project.notesLocked}`}
+              projectId={project.id}
+              notes={project.notes}
+              canWrite={siteAdmin && !project.archived && !project.notesLocked}
+            />
           ) : null}
           {project.archived ? (
             <p className="text-sm text-muted-foreground">
@@ -112,25 +99,15 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
                 : "This project is archived, so nothing in it can change. The site admin can bring it back."}
             </p>
           ) : null}
-          <div className="grid gap-2">
-            <Heading>Description</Heading>
-            <p className="text-sm break-words whitespace-pre-wrap">
-              {project.personal
-                ? siteAdmin
-                  ? "Their own tasks, which only they and you see. They show on their My dashboard and in their check-in."
-                  : "Your own tasks, which only you and the site admin see. They show on My dashboard and in your check-in."
-                : project.description || <span className="text-muted-foreground">No description yet.</span>}
+          {project.personal ? (
+            <p className="text-sm text-muted-foreground">
+              {siteAdmin
+                ? "Their own tasks, which only they and you see. They show on their My dashboard and in their check-in."
+                : "Your own tasks, which only you and the site admin see. They show on My dashboard and in your check-in."}
             </p>
-          </div>
-          {shared && project.links.length ? <ProjectLinks links={project.links} /> : null}
+          ) : null}
           {shared ? (
             <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
-              {avatar ? null : (
-                <div className="grid content-start gap-2">
-                  <Heading>Status</Heading>
-                  {pace}
-                </div>
-              )}
               <div className="grid content-start gap-2">
                 <Heading>Lead</Heading>
                 {lead ? (
@@ -162,43 +139,10 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
           ) : null}
         </div>
       </ScrollArea>
-      {siteAdmin ? (
-        <ProjectSettingsDialog page={page} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      ) : null}
     </div>
   )
 }
 
-/**
- * The project's links under its description, in the order dragged into in
- * Project settings, each opening in a new tab; a divider is a small heading
- * over the links after it (Misc 5, Tyler, 2 Nov 2026).
- */
-function ProjectLinks({ links }: { links: ProjectLink[] }) {
-  return (
-    <ul className="grid gap-1.5" aria-label="Links">
-      {links.map((link, index) =>
-        link.kind === "divider" ? (
-          <li key={link.id} className={cn(index > 0 && "pt-2")}>
-            <Heading>{link.label}</Heading>
-          </li>
-        ) : (
-          <li key={link.id} className="min-w-0">
-            <a
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex max-w-full items-center gap-2 text-sm text-primary hover:underline"
-            >
-              <LinkIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-              <span className="truncate">{linkText(link)}</span>
-            </a>
-          </li>
-        )
-      )}
-    </ul>
-  )
-}
 
 /**
  * The project's time on the clock (Seven features, part 4). Nothing shows

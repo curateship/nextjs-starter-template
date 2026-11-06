@@ -27,6 +27,16 @@ const NO_DEFAULT = "none"
  * Unticking a type changes nothing on tasks that already have it.
  */
 export function ProjectTaskTypesCard({ page }: { page: ProjectPage }) {
+  if (!page.taskTypes.some((type) => !type.archived)) return null
+  return (
+    <CollapsibleSettingsCard storageId="project-settings-task-types" title="Task templates" size="sm" contentClassName="grid gap-4">
+      <ProjectTaskTypesFields page={page} />
+    </CollapsibleSettingsCard>
+  )
+}
+
+/** The ticks and the default: the card's body, and the ⋮ menu's Task templates row. */
+export function ProjectTaskTypesFields({ page }: { page: ProjectPage }) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const { project } = page
@@ -49,7 +59,7 @@ export function ProjectTaskTypesCard({ page }: { page: ProjectPage }) {
   }
 
   return (
-    <CollapsibleSettingsCard storageId="project-settings-task-types" title="Task templates" size="sm" contentClassName="grid gap-4">
+    <>
       <fieldset className="grid gap-2">
         <legend className="mb-2 text-sm text-muted-foreground">
           The templates New task offers here. Tasks that already have one keep it.
@@ -99,6 +109,6 @@ export function ProjectTaskTypesCard({ page }: { page: ProjectPage }) {
           </SelectContent>
         </Select>
       </div>
-    </CollapsibleSettingsCard>
+    </>
   )
 }

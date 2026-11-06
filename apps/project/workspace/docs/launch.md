@@ -77,6 +77,7 @@ missing.
 | `CUSTOM_SHELL_TURNSTILE_SITE_KEY`, `CUSTOM_SHELL_TURNSTILE_SECRET_KEY` | The "Project" widget |
 | `CUSTOM_SHELL_R2_ACCOUNT_ID`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY`, `_BUCKET_NAME`, `_PUBLIC_URL` | The `project` bucket and its own key |
 | `CUSTOM_SHELL_BILLING_ENABLED` | `false` |
+| `UNSPLASH_ACCESS_KEY` | Not set yet. The Unsplash search in a note's Image block shows only once Tyler adds Project's own key, made at unsplash.com/developers with the application name "project". Without it the block offers upload and a web address. |
 | `APP` | `project`, build time, both |
 
 `CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN` is not set, because Project has no

@@ -255,7 +255,7 @@ describe("teams and invites", () => {
 describe("who sees a project", () => {
   it("shows a project only to its members and the site admin", async () => {
     const { admin } = await teamOfThree()
-    const { id } = await projectFor(admin, ben.id, { name: "Site", color: "blue", description: "" }, database)
+    const { id } = await projectFor(admin, ben.id, { name: "Site", color: "blue" }, database)
 
     expect((await loadProjectsPage(ben.id, database)).projects.map((p) => p.id)).toEqual([id])
     expect((await loadProjectsPage(carla.id, database)).projects).toEqual([])
@@ -271,7 +271,7 @@ describe("who sees a project", () => {
     const { admin } = await teamOfThree()
     const outsider = await insertUser(database, { name: "Olga", email: "olga@example.test" })
     await startTeam(database, [outsider], { name: "Rival" })
-    const { id } = await projectFor(admin, anna.id, { name: "Site", color: "blue", description: "" }, database)
+    const { id } = await projectFor(admin, anna.id, { name: "Site", color: "blue" }, database)
     const task = await createTask(anna, newTask(id, { assigneeUserId: anna.id }), database)
 
     await expect(loadProjectPage(outsider.id, id, database)).rejects.toThrow(
@@ -287,7 +287,7 @@ describe("who sees a project", () => {
 
   it("only hands tasks to the project's members", async () => {
     const { admin } = await teamOfThree()
-    const { id } = await projectFor(admin, anna.id, { name: "Site", color: "blue", description: "" }, database)
+    const { id } = await projectFor(admin, anna.id, { name: "Site", color: "blue" }, database)
     await expect(
       createTask(anna, newTask(id, { assigneeUserId: carla.id }), database)
     ).rejects.toThrow(PROJECT_ERRORS.notProjectMember)
@@ -301,7 +301,7 @@ describe("handing tasks over", () => {
   /** Anna makes Site and is on it; the site admin adds Ben. */
   async function projectWithBen() {
     ;({ team, admin } = await teamOfThree())
-    const { id } = await projectFor(admin, anna.id, { name: "Site", color: "blue", description: "" }, database)
+    const { id } = await projectFor(admin, anna.id, { name: "Site", color: "blue" }, database)
     await addProjectMember(admin.id, id, ben.id, database)
     return id
   }
@@ -407,7 +407,7 @@ describe("notices after someone leaves", () => {
   it("never sends a task's title to someone no longer on the project", async () => {
     const { team, admin } = await teamOfThree()
     await inTeam(team.id, async () => {
-      const { id: projectId } = await projectFor(admin, ben.id, { name: "Site", color: "blue", description: "" }, database)
+      const { id: projectId } = await projectFor(admin, ben.id, { name: "Site", color: "blue" }, database)
       await addProjectMember(admin.id, projectId, carla.id, database)
       // Ben hands Carla a task, then the site admin takes Ben off the team.
       const { id } = await createTask(ben, newTask(projectId, { assigneeUserId: carla.id }), database)
@@ -597,8 +597,8 @@ describe("running the team", () => {
    */
   beforeEach(async () => {
     ;({ team, admin } = await teamOfThree())
-    website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
-    brand = (await projectFor(admin, anna.id, { name: "Brand", color: "pink", description: "" }, database)).id
+    website = (await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)).id
+    brand = (await projectFor(admin, anna.id, { name: "Brand", color: "pink" }, database)).id
     await addProjectMember(admin.id, website, ben.id, database)
     await addProjectMember(admin.id, website, carla.id, database)
     await addProjectMember(admin.id, brand, ben.id, database)

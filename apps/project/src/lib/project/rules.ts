@@ -1,8 +1,7 @@
 import { z } from "zod"
 
 import { isRealDay } from "@/lib/project/days"
-import { storedTaskNotes } from "@/lib/project/notes"
-import { projectLinksSchema } from "@/lib/project/project-links"
+import { storedPlainNotes, storedTaskNotes } from "@/lib/project/notes"
 import { STEP_FIELD_KINDS } from "@/lib/project/step-fields"
 
 /**
@@ -266,7 +265,6 @@ export const DUE_MOVED_MANY = 3
 export const LIMITS = {
   teamName: 80,
   projectName: 80,
-  projectDescription: 2000,
   taskTitle: 200,
   /** The notes as saved: the editor's document, which is longer than its words. */
   taskNotes: 50_000,
@@ -526,7 +524,6 @@ const projectColorSchema = z.enum(PROJECT_COLORS)
 export const createProjectSchema = z.object({
   name: trimmed(LIMITS.projectName, "The project name"),
   color: projectColorSchema,
-  description: z.string().trim().max(LIMITS.projectDescription).default(""),
 })
 
 /** Every Board column once, in a new order. */
@@ -570,13 +567,19 @@ export const updateProjectSchema = z.object({
     .optional(),
   name: trimmed(LIMITS.projectName, "The project name").optional(),
   color: projectColorSchema.optional(),
-  description: z.string().trim().max(LIMITS.projectDescription).optional(),
   /** Late tasks from which the project shows Slowing down, and Behind. */
   slowingAt: lateTasksSchema.optional(),
   behindAt: lateTasksSchema.optional(),
   /** A media library address, or "" to take the picture away. */
   bannerUrl: z.string().trim().max(2048).optional(),
-  avatarUrl: z.string().trim().max(2048).optional(),
+  /** The left panel's page of notes and "/" blocks. */
+  notes: z
+    .unknown()
+    .transform((value) => storedTaskNotes(value))
+    .refine((notes) => notes.length <= LIMITS.taskNotes, "The page is too long. Split it up or attach a file to a task.")
+    .optional(),
+  /** Locks the page so it reads only, or unlocks it. */
+  notesLocked: z.boolean().optional(),
   /** The category's name; empty takes it off. */
   category: z
     .string()
@@ -585,8 +588,6 @@ export const updateProjectSchema = z.object({
     .transform((value) => value || null)
     .nullable()
     .optional(),
-  /** The whole list of links and dividers, in order. */
-  links: projectLinksSchema.optional(),
 })
 
 /** The client's name; empty takes it off. */
@@ -630,6 +631,12 @@ export const reasonSchema = trimmed(LIMITS.reason, "The reason")
 const notesSchema = z
   .unknown()
   .transform(storedTaskNotes)
+  .refine((notes) => notes.length <= LIMITS.taskNotes, "The notes are too long. Split them up or attach a file.")
+
+/** A meeting's notes take no "/" blocks (`notes.ts`), so they keep a written page's rules. */
+const plainNotesSchema = z
+  .unknown()
+  .transform(storedPlainNotes)
   .refine((notes) => notes.length <= LIMITS.taskNotes, "The notes are too long. Split them up or attach a file.")
 
 const dayKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date from the calendar.")
@@ -690,6 +697,8 @@ export const updateTaskSchema = z.object({
   notes: notesSchema.optional(),
   /** One editing session of the notes, so it keeps one earlier version however often it saves. */
   notesSession: z.string().uuid().optional(),
+  /** Locks the notes so they read only, or unlocks them. */
+  notesLocked: z.boolean().optional(),
   dueDate: dueDateSchema.optional(),
   /**
    * The moment it is due by, from the task's "Due by" time. Null clears the
@@ -1016,7 +1025,7 @@ export const meetingAnswerSchema = z.object({ meetingId: id, answer: z.enum(MEET
 /** One date a meeting falls on, in the meeting's own calendar. */
 export const meetingDaySchema = z.object({ meetingId: id, day: z.string().refine(isRealDay, "Pick the meeting's day.") })
 
-export const meetingNotesSchema = meetingDaySchema.extend({ notes: notesSchema })
+export const meetingNotesSchema = meetingDaySchema.extend({ notes: plainNotesSchema })
 
 /** A line of a date's notes, where it sits and its words, and the task made from it. */
 export const meetingNoteLineSchema = meetingDaySchema.extend({

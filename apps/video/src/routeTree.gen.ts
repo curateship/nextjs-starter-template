@@ -83,6 +83,7 @@ import { Route as AuthenticatedAdminVideoEditorIndexRouteImport } from './routes
 import { Route as AuthenticatedAdminVideoEditorActorsRouteImport } from './routes/_authenticated/admin/video-editor.actors'
 import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './routes/_authenticated/admin/video-editor_.$projectId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
+import { Route as ApiConnectProjectRecordCardRouteImport } from './routes/api/connect/project/record-card'
 import { Route as ApiConnectPromoEventsRouteImport } from './routes/api/connect/promo/events'
 import { Route as ApiConnectPromoProjectsRouteImport } from './routes/api/connect/promo/projects'
 import { Route as ApiConnectPromoRequestsRouteImport } from './routes/api/connect/promo/requests'
@@ -508,6 +509,12 @@ const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   path: '/api/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiConnectProjectRecordCardRoute =
+  ApiConnectProjectRecordCardRouteImport.update({
+    id: '/api/connect/project/record-card',
+    path: '/api/connect/project/record-card',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiConnectPromoEventsRoute = ApiConnectPromoEventsRouteImport.update({
   id: '/api/connect/promo/events',
   path: '/api/connect/promo/events',
@@ -698,6 +705,7 @@ export interface FileRoutesByFullPath {
   '/admin/video-editor/actors': typeof AuthenticatedAdminVideoEditorActorsRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/connect/project/record-card': typeof ApiConnectProjectRecordCardRoute
   '/api/connect/promo/events': typeof ApiConnectPromoEventsRoute
   '/api/connect/promo/projects': typeof ApiConnectPromoProjectsRoute
   '/api/connect/promo/requests': typeof ApiConnectPromoRequestsRoute
@@ -790,6 +798,7 @@ export interface FileRoutesByTo {
   '/admin/video-editor/actors': typeof AuthenticatedAdminVideoEditorActorsRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/connect/project/record-card': typeof ApiConnectProjectRecordCardRoute
   '/api/connect/promo/events': typeof ApiConnectPromoEventsRoute
   '/api/connect/promo/projects': typeof ApiConnectPromoProjectsRoute
   '/api/connect/promo/requests': typeof ApiConnectPromoRequestsRoute
@@ -888,6 +897,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/video-editor/actors': typeof AuthenticatedAdminVideoEditorActorsRoute
   '/_authenticated/admin/video-editor_/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/connect/project/record-card': typeof ApiConnectProjectRecordCardRoute
   '/api/connect/promo/events': typeof ApiConnectPromoEventsRoute
   '/api/connect/promo/projects': typeof ApiConnectPromoProjectsRoute
   '/api/connect/promo/requests': typeof ApiConnectPromoRequestsRoute
@@ -986,6 +996,7 @@ export interface FileRouteTypes {
     | '/admin/video-editor/actors'
     | '/admin/video-editor/$projectId'
     | '/api/auth/google/callback'
+    | '/api/connect/project/record-card'
     | '/api/connect/promo/events'
     | '/api/connect/promo/projects'
     | '/api/connect/promo/requests'
@@ -1078,6 +1089,7 @@ export interface FileRouteTypes {
     | '/admin/video-editor/actors'
     | '/admin/video-editor/$projectId'
     | '/api/auth/google/callback'
+    | '/api/connect/project/record-card'
     | '/api/connect/promo/events'
     | '/api/connect/promo/projects'
     | '/api/connect/promo/requests'
@@ -1175,6 +1187,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/video-editor/actors'
     | '/_authenticated/admin/video-editor_/$projectId'
     | '/api/auth/google_/callback'
+    | '/api/connect/project/record-card'
     | '/api/connect/promo/events'
     | '/api/connect/promo/projects'
     | '/api/connect/promo/requests'
@@ -1230,6 +1243,7 @@ export interface RootRouteChildren {
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   GuestVideoEditorProjectIdRoute: typeof GuestVideoEditorProjectIdRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+  ApiConnectProjectRecordCardRoute: typeof ApiConnectProjectRecordCardRoute
   ApiConnectPromoEventsRoute: typeof ApiConnectPromoEventsRoute
   ApiConnectPromoProjectsRoute: typeof ApiConnectPromoProjectsRoute
   ApiConnectPromoRequestsRoute: typeof ApiConnectPromoRequestsRoute
@@ -1772,6 +1786,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/connect/project/record-card': {
+      id: '/api/connect/project/record-card'
+      path: '/api/connect/project/record-card'
+      fullPath: '/api/connect/project/record-card'
+      preLoaderRoute: typeof ApiConnectProjectRecordCardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/connect/promo/events': {
       id: '/api/connect/promo/events'
       path: '/api/connect/promo/events'
@@ -2134,6 +2155,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   GuestVideoEditorProjectIdRoute: GuestVideoEditorProjectIdRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+  ApiConnectProjectRecordCardRoute: ApiConnectProjectRecordCardRoute,
   ApiConnectPromoEventsRoute: ApiConnectPromoEventsRoute,
   ApiConnectPromoProjectsRoute: ApiConnectPromoProjectsRoute,
   ApiConnectPromoRequestsRoute: ApiConnectPromoRequestsRoute,

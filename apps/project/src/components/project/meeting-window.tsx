@@ -38,12 +38,13 @@ import {
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import type { WrittenPageNode } from "@/lib/pages/written-page-body"
+import type { NoteNode } from "@/lib/project/note-blocks"
 import { localNow, shortDayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { calendarFileName, meetingCalendarFile } from "@/lib/project/meeting-calendar-file"
 import { lineKey, noteLines, type NoteLine } from "@/lib/project/meeting-notes"
 import { repeatWords, timeRangeLabel } from "@/lib/project/meetings"
-import { readTaskNotes } from "@/lib/project/notes"
+import { readPlainNotes } from "@/lib/project/notes"
 import type { MeetingAnswer } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -293,7 +294,7 @@ function NotesCard({
     }
   }, [meeting.id, day, tries, teamId])
 
-  async function save(notes: WrittenPageNode) {
+  async function save(notes: NoteNode) {
     try {
       await saveNotesOfMeeting({ meetingId: meeting.id, day, notes }, teamId)
     } catch (error) {
@@ -370,7 +371,7 @@ function NotesCard({
  * task again.
  */
 function storedLines(stored: string) {
-  const notes = readTaskNotes(stored)
+  const notes = readPlainNotes(stored)
   return notes.kind === "doc" ? noteLines(notes.body) : []
 }
 

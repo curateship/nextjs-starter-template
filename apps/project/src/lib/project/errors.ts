@@ -93,6 +93,8 @@ export const PROJECT_ERRORS = {
     "Only the person who made the meeting or the site admin can change or delete it.",
   tooManyMeetings: "A team can have at most 200 meetings. Delete old ones to make another.",
   photoNotYours: "Pick a photo you uploaded yourself.",
+  notesLocked: "These notes are locked. Unlock them from the task's ⋮ to change them.",
+  pageLocked: "This page is locked. Unlock it from the ⋮ at the top of the panel to change it.",
   tooManyMeetingSaves: "That's a lot of meeting changes in an hour. Wait a while, then try again.",
   notInvitedToMeeting: "Only people invited to the meeting can answer it.",
   meetingNotOnDay: "The meeting doesn't fall on that day. Pick it again on the calendar.",
@@ -173,6 +175,12 @@ export const PROJECT_ERRORS = {
   habitDayGone: "Only today can be ticked.",
   journalDayGone: "That day has passed, so it can't be changed now. Reload the page to see today.",
   rateFirst: "Pick how your day went, from 1 to 10, first.",
+  unsplashOff: "Unsplash isn't connected on this server yet. Its key goes in Project's server settings.",
+  unsplashFailed: "Unsplash didn't answer. Try again in a minute.",
+  unsplashBadLink: "That isn't an Unsplash photo.",
+  tooManySearches: "That's a lot of searches in a few minutes. Wait a little, then try again.",
+  pageAddressRefused: "That address can't be shown as a card. Paste a public page that starts with https://",
+  notAPicture: "Pick a PNG, JPEG, GIF or WebP picture.",
 } as const
 
 /**

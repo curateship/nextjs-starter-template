@@ -62,9 +62,9 @@ beforeEach(async () => {
   teamId = started.team.id
   admin = started.admin
   // A project's members are the site admin's to change.
-  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)).id
   await addProjectMember(admin.id, website, ben.id, database)
-  shop = (await projectFor(admin, anna.id, { name: "Shop", color: "green", description: "" }, database)).id
+  shop = (await projectFor(admin, anna.id, { name: "Shop", color: "green" }, database)).id
   await addProjectMember(admin.id, shop, carla.id, database)
 })
 

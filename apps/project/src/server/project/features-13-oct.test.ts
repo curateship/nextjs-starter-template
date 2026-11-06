@@ -55,7 +55,7 @@ afterEach(async () => {
 
 /** Anna's project with Ben in it, and one task each for Ben. */
 async function benWithTasks(titles: string[]) {
-  const project = await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)
+  const project = await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)
   await addProjectMember(admin.id, project.id, ben.id, database)
   const ids: string[] = []
   for (const title of titles) {

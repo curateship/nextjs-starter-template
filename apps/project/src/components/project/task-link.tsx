@@ -4,7 +4,7 @@ import { ExternalLinkIcon, Loader2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { openProjectTaskLink } from "@/lib/api/project/linked-records"
+import { openProjectTaskLink, type TaskLink } from "@/lib/api/project/linked-records"
 import type { TaskDetail } from "@/lib/api/project/tasks"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -17,9 +17,8 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * a note that works once within 60 seconds, and opens the record with it in
  * a new tab. Everyone else on the task reads who can open it.
  */
-export function TaskLinkButton({ detail }: { detail: TaskDetail }) {
+export function TaskLinkButton({ taskId, link }: { taskId: string; link: TaskLink | null }) {
   const [opening, setOpening] = React.useState(false)
-  const { link } = detail
   if (!link) return null
   const info = LINKED_APP_INFO[link.app]
 
@@ -40,7 +39,7 @@ export function TaskLinkButton({ detail }: { detail: TaskDetail }) {
     if (tab) tab.opener = null
     setOpening(true)
     try {
-      const { url } = await openProjectTaskLink(detail.task.id)
+      const { url } = await openProjectTaskLink(taskId)
       if (tab) tab.location.href = url
       else window.location.assign(url)
     } catch (error) {

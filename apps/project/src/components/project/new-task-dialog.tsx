@@ -27,17 +27,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { DocumentEditor } from "@/components/shared/rich-text-editor"
+import { NoteEditor } from "@/components/project/notes/note-editor"
+import { useNotesBoxSetup } from "@/components/project/notes/note-setup"
 import {
   createProjectTask,
   createTasksFromLines,
   type NewTaskProject,
 } from "@/lib/api/project/tasks"
-import {
-  emptyWrittenPageBody,
-  writtenPageBodyIsEmpty,
-  type WrittenPageNode,
-} from "@/lib/pages/written-page-body"
+import { emptyWrittenPageBody } from "@/lib/pages/written-page-body"
+import { noteIsEmpty, type NoteNode } from "@/lib/project/note-blocks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { dayOffNote } from "@/lib/project/days-off"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -104,7 +102,7 @@ export type NewTaskStart = {
   title: string
   lines: string[] | null
   /** The Description written in the dropdown; left out, the type's own notes. */
-  notes?: WrittenPageNode
+  notes?: NoteNode
   /** A member's id, or `NOBODY`. */
   assignee: string
   due: string | null
@@ -174,7 +172,7 @@ export function NewTaskDialog({
 
   const [title, setTitle] = React.useState("")
   const [pasted, setPasted] = React.useState<string[] | null>(null)
-  const [notes, setNotes] = React.useState<WrittenPageNode>(emptyWrittenPageBody)
+  const [notes, setNotes] = React.useState<NoteNode>(emptyWrittenPageBody)
   const [assignee, setAssignee] = React.useState(() => startingAssignee(project))
   const [handoverNote, setHandoverNote] = React.useState("")
   const room = usePeopleRoom(open)
@@ -202,12 +200,14 @@ export function NewTaskDialog({
   // What the type put in, so changing the type swaps it out and keeps what was typed.
   const [template, setTemplate] = React.useState(() => templateOf(undefined))
   const [notesKey, setNotesKey] = React.useState(0)
+  // No task yet, so no File block or Video or Promo card (Tyler, 5 Nov 2026: "Leave File out there").
+  const noteSetup = useNotesBoxSetup("new")
   const [drafts, setDrafts] = React.useState<Record<string, FieldDraft>>({})
   const [invalidField, setInvalidField] = React.useState<string | null>(null)
   const [run, saving] = useAsyncAction(getProjectErrorMessage)
   // What the type filled in isn't anyone's typing, so it doesn't ask before closing.
   const notesTyped =
-    !writtenPageBodyIsEmpty(notes) && JSON.stringify(notes) !== JSON.stringify(template.notes)
+    !noteIsEmpty(notes) && JSON.stringify(notes) !== JSON.stringify(template.notes)
   const stepsTyped = steps.join("\n") !== template.steps.join("\n")
   const dirty = Boolean(
     title.trim() ||
@@ -225,7 +225,7 @@ export function NewTaskDialog({
   function applyType(nextId: string, current = { steps, notes }) {
     const next = templateOf(types.find((t) => t.id === nextId))
     const untouchedNotes =
-      writtenPageBodyIsEmpty(current.notes) || JSON.stringify(current.notes) === JSON.stringify(template.notes)
+      noteIsEmpty(current.notes) || JSON.stringify(current.notes) === JSON.stringify(template.notes)
     setTypeId(nextId)
     setSteps([
       ...next.steps,
@@ -665,11 +665,12 @@ export function NewTaskDialog({
                         <span>Notes</span>
                       </Label>
                       <div className="[&_.page-rte_.tiptap]:min-h-20 [&_.page-rte_.tiptap]:px-3 [&_.page-rte_.tiptap]:py-2 [&_.page-rte_.tiptap]:text-sm">
-                        <DocumentEditor
+                        <NoteEditor
                           key={notesKey}
+                          setup={noteSetup}
                           value={notes}
                           onChange={setNotes}
-                          placeholder="Anything the person doing it should know. Select words to make them bold, a list or a link."
+                          placeholder="Anything the person doing it should know. Type / for a picture, a checklist and more."
                         />
                       </div>
                     </div>

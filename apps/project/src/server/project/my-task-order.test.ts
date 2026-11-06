@@ -41,7 +41,7 @@ beforeEach(async () => {
   tyler = await insertSiteAdmin(database)
   ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
   acme = (await startTeam(database, [ben], { name: "Acme", admin: tyler })).team.id
-  website = (await inTeam(acme, () => createProject(tyler.id, { name: "Website", color: "blue", description: "" }, database))).id
+  website = (await inTeam(acme, () => createProject(tyler.id, { name: "Website", color: "blue" }, database))).id
   await addProjectMember(tyler.id, website, ben.id, database)
 })
 

@@ -107,6 +107,25 @@ A guest's saves mark the project with "Sam via Project" (`last_edited_by`),
 and a version kept from that timeline carries it (`edited_by`). The History
 panel shows it on the row. See [Project history](project-history.md).
 
+## The card in Project's notes
+
+Project's task notes can hold a card for the task's video project, with its name
+and picture beside the Edit video button (Project's note blocks task, 5 Nov
+2026; Tyler: "Task's record, with name + picture").
+
+- **Project asks** `/api/connect/project/record-card?record=…&exp=…&sig=…`.
+  The stamp is an HMAC of `record-card.v1.<record>.<exp>` with
+  `PROJECT_HANDOFF_KEY`. A request works for at most two minutes.
+- **The words in front** keep a card request from ever passing as a sign-in
+  note, and a sign-in note from passing as a card request.
+- **The answer** is the project's name and the main thumbnail, or first frame, of the project's last edited video, only when it is an
+  `https://` address. It signs nobody in and changes nothing.
+- **A refused request** gets 401 and nothing about the project. A project
+  that is gone gets 404.
+- **Project asks** only for the person assigned to the task or the site
+  admin, the people who may press the button. It keeps no copy.
+- **Code:** `src/server/video/project-record-card.ts`, and `src/routes/api/connect/project/record-card.ts`.
+
 ## Server settings
 
 `PROJECT_HANDOFF_KEY` holds the key Project calls `CONNECTED_VIDEO_KEY`. Both

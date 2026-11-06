@@ -38,7 +38,7 @@ describe("moving Project's saved views into the shell", () => {
     const anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
     const ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
     const { admin, team } = await startTeam(database, [anna, ben])
-    const website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+    const website = (await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)).id
     await addProjectMember(admin.id, website, ben.id, database)
     const created = new Date("2099-03-02T09:00:00.000Z")
     await database.insert(projectSavedViews).values([

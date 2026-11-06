@@ -83,7 +83,7 @@ beforeEach(async () => {
   ;({ admin, team } = await startTeam(database, [anna, ben, carla]))
   // Anna makes Website and is on it; the site admin adds Ben. Carla is on the
   // team but not on Website.
-  projectId = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  projectId = (await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)).id
   await addProjectMember(admin.id, projectId, ben.id, database)
 })
 

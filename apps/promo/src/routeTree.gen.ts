@@ -100,6 +100,7 @@ import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
 import { Route as ApiArchiveZipProjectIdRouteImport } from './routes/api/archive/zip/$projectId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
+import { Route as ApiConnectProjectRecordCardRouteImport } from './routes/api/connect/project/record-card'
 import { Route as ApiConnectVideoHelloRouteImport } from './routes/api/connect/video/hello'
 import { Route as ApiConnectVideoItemsRouteImport } from './routes/api/connect/video/items'
 import { Route as ApiConnectVideoProjectsRouteImport } from './routes/api/connect/video/projects'
@@ -605,6 +606,12 @@ const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   path: '/api/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiConnectProjectRecordCardRoute =
+  ApiConnectProjectRecordCardRouteImport.update({
+    id: '/api/connect/project/record-card',
+    path: '/api/connect/project/record-card',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiConnectVideoHelloRoute = ApiConnectVideoHelloRouteImport.update({
   id: '/api/connect/video/hello',
   path: '/api/connect/video/hello',
@@ -771,6 +778,7 @@ export interface FileRoutesByFullPath {
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/archive/zip/$projectId': typeof ApiArchiveZipProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/connect/project/record-card': typeof ApiConnectProjectRecordCardRoute
   '/api/connect/video/hello': typeof ApiConnectVideoHelloRoute
   '/api/connect/video/items': typeof ApiConnectVideoItemsRoute
   '/api/connect/video/projects': typeof ApiConnectVideoProjectsRoute
@@ -875,6 +883,7 @@ export interface FileRoutesByTo {
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/archive/zip/$projectId': typeof ApiArchiveZipProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/connect/project/record-card': typeof ApiConnectProjectRecordCardRoute
   '/api/connect/video/hello': typeof ApiConnectVideoHelloRoute
   '/api/connect/video/items': typeof ApiConnectVideoItemsRoute
   '/api/connect/video/projects': typeof ApiConnectVideoProjectsRoute
@@ -983,6 +992,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/archive/zip/$projectId': typeof ApiArchiveZipProjectIdRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/connect/project/record-card': typeof ApiConnectProjectRecordCardRoute
   '/api/connect/video/hello': typeof ApiConnectVideoHelloRoute
   '/api/connect/video/items': typeof ApiConnectVideoItemsRoute
   '/api/connect/video/projects': typeof ApiConnectVideoProjectsRoute
@@ -1091,6 +1101,7 @@ export interface FileRouteTypes {
     | '/admin/system-emails/$kind'
     | '/api/archive/zip/$projectId'
     | '/api/auth/google/callback'
+    | '/api/connect/project/record-card'
     | '/api/connect/video/hello'
     | '/api/connect/video/items'
     | '/api/connect/video/projects'
@@ -1195,6 +1206,7 @@ export interface FileRouteTypes {
     | '/admin/system-emails/$kind'
     | '/api/archive/zip/$projectId'
     | '/api/auth/google/callback'
+    | '/api/connect/project/record-card'
     | '/api/connect/video/hello'
     | '/api/connect/video/items'
     | '/api/connect/video/projects'
@@ -1302,6 +1314,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/system-emails_/$kind'
     | '/api/archive/zip/$projectId'
     | '/api/auth/google_/callback'
+    | '/api/connect/project/record-card'
     | '/api/connect/video/hello'
     | '/api/connect/video/items'
     | '/api/connect/video/projects'
@@ -1359,6 +1372,7 @@ export interface RootRouteChildren {
   GuestPromoProjectIdRoute: typeof GuestPromoProjectIdRoute
   ApiArchiveZipProjectIdRoute: typeof ApiArchiveZipProjectIdRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+  ApiConnectProjectRecordCardRoute: typeof ApiConnectProjectRecordCardRoute
   ApiConnectVideoHelloRoute: typeof ApiConnectVideoHelloRoute
   ApiConnectVideoItemsRoute: typeof ApiConnectVideoItemsRoute
   ApiConnectVideoProjectsRoute: typeof ApiConnectVideoProjectsRoute
@@ -2013,6 +2027,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/connect/project/record-card': {
+      id: '/api/connect/project/record-card'
+      path: '/api/connect/project/record-card'
+      fullPath: '/api/connect/project/record-card'
+      preLoaderRoute: typeof ApiConnectProjectRecordCardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/connect/video/hello': {
       id: '/api/connect/video/hello'
       path: '/api/connect/video/hello'
@@ -2318,6 +2339,7 @@ const rootRouteChildren: RootRouteChildren = {
   GuestPromoProjectIdRoute: GuestPromoProjectIdRoute,
   ApiArchiveZipProjectIdRoute: ApiArchiveZipProjectIdRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+  ApiConnectProjectRecordCardRoute: ApiConnectProjectRecordCardRoute,
   ApiConnectVideoHelloRoute: ApiConnectVideoHelloRoute,
   ApiConnectVideoItemsRoute: ApiConnectVideoItemsRoute,
   ApiConnectVideoProjectsRoute: ApiConnectVideoProjectsRoute,

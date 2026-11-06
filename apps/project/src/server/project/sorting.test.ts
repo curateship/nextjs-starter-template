@@ -39,7 +39,7 @@ beforeEach(async () => {
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
   ;({ admin } = await startTeam(database, [anna, ben, carla]))
   // Anna makes Website and is on it; the site admin adds Ben.
-  projectId = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  projectId = (await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)).id
   await addProjectMember(admin.id, projectId, ben.id, database)
 })
 
@@ -140,7 +140,7 @@ describe("the project's order", () => {
 
   it("refuses tasks from another project, and anyone not on the project", async () => {
     const a = await newTask("Mine")
-    const other = await projectFor(admin, anna.id, { name: "Other", color: "red", description: "" }, database)
+    const other = await projectFor(admin, anna.id, { name: "Other", color: "red" }, database)
     const theirs = (
       await createTask(
         actor(anna),
@@ -174,7 +174,7 @@ describe("when a task became Done", () => {
 
 describe("stars", () => {
   it("are each person's own, put starred projects first, and go when the person leaves the project", async () => {
-    await projectFor(admin, anna.id, { name: "Another", color: "red", description: "" }, database)
+    await projectFor(admin, anna.id, { name: "Another", color: "red" }, database)
     await setProjectStar(ben.id, { projectId, starred: true }, database)
     const starred = async (user: CustomShellUser) =>
       (await loadProjectsPage(user.id, database)).projects.filter((p) => p.starred).map((p) => p.name)

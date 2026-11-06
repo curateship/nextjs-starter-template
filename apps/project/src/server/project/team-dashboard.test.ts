@@ -251,7 +251,7 @@ describe("meetings", () => {
 
 describe("the team figures", () => {
   async function projectWithTasks() {
-    const project = await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)
+    const project = await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)
     await addProjectMember(admin.id, project.id, ben.id, database)
     const ids: string[] = []
     for (const [title, dueDate] of [
@@ -343,7 +343,7 @@ describe("the team figures", () => {
 
 describe("check-in notes", () => {
   it("shows the notes to everyone on the team, and a Blocker note marks the person blocked", async () => {
-    const project = await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)
+    const project = await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)
     await addProjectMember(admin.id, project.id, ben.id, database)
     const task = await createTask(
       actor(ben),

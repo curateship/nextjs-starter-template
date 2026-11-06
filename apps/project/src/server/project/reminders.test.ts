@@ -57,7 +57,7 @@ beforeEach(async () => {
   const project = await projectFor(
     admin,
     anna.id,
-    { name: "Website", color: "blue", description: "" },
+    { name: "Website", color: "blue" },
     database
   )
   projectId = project.id
@@ -163,7 +163,7 @@ describe("due tomorrow and overdue", () => {
       { projectId, title: "Nobody's", notes: "", assigneeUserId: null, dueDate: TUESDAY, steps: [] },
       database
     )
-    const other = await projectFor(admin, anna.id, { name: "Old", color: "red", description: "" }, database)
+    const other = await projectFor(admin, anna.id, { name: "Old", color: "red" }, database)
     await addProjectMember(admin.id, other.id, ben.id, database)
     await createTask(
       actor(anna),

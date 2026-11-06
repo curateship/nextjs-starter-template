@@ -43,7 +43,8 @@ and never hand off to each other. CMS is left out for now.
    HMAC signature: change one character of the note and the stamp no longer
    matches).
 3. The browser opens a new tab at the app's handoff address,
-   `/handoff/project?note=…`. Project makes no call to the other app.
+   `/handoff/project?note=…`. Pressing the button makes no call from Project
+   to the other app; only the card in the notes does (below).
 4. The other app checks the stamp, the 60 seconds and the one-time id, then
    signs in a guest for that one record for 12 hours. After 12 hours the
    person presses the button again.
@@ -53,6 +54,30 @@ other app answers "This link has already been used. Open the task in Project
 again." What a link can't stop is an employee handing over their Project
 password. Taking them off the task, or out of Project, stops their next
 press.
+
+## The card in the task's notes
+
+Typing "/" in the notes of a task that points at a record offers a **Video
+or Promo** card (Project note blocks task, 5 Nov 2026; Tyler: "Task's
+record, with name + picture"). The rest of the notes' blocks are in
+[Notes and the "/" blocks](notes-and-blocks.md).
+
+- **Who sees what:** the person assigned and the site admin see the
+  record's name and picture beside the same button. Everyone else on the
+  task reads the line above. The card shows nothing the button wouldn't.
+- **Pressing the button** works exactly as above.
+- **The name and picture come live from the other app.** This is the one
+  call Project's server makes to Video or Promo. It asks
+  `/api/connect/project/record-card?record=…&exp=…&sig=…`, stamped with the
+  same shared key over the words `record-card.v1.<record>.<exp>`, good for
+  60 seconds. The words in front mean a card request can never pass as a
+  sign-in note. The answer is the name and an `https://` picture address,
+  and signs nobody in.
+- **Project keeps no copy.** It asks each time the card opens. An app that
+  is down, or doesn't answer within 3 seconds, leaves the card with the
+  app's name and no picture, and the button still works.
+- **Video's picture** is the main thumbnail or first frame of the project's
+  last edited video. **Promo's** is the project's own picture.
 
 ## Server settings
 
@@ -75,5 +100,8 @@ the database or the page.
   and the stamped note.
 - `src/lib/api/project/linked-records.ts`: the two server functions.
 - `src/components/project/task-link.tsx`: the button and the paste box.
+- `src/server/project/note-blocks.ts` (`loadNoteRecordCard`): the card's
+  request. Video's `src/server/video/project-record-card.ts` and Promo's
+  `src/server/social/project-record-card.ts` answer it.
 - `drizzle/0124_project_task_linked_record.sql`: the task's three columns
   (`linked_app`, `linked_record_id`, `linked_address`).

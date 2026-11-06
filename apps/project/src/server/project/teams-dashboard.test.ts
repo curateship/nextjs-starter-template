@@ -65,7 +65,7 @@ async function rowsLeft(teamId: string) {
 }
 
 function project(name: string) {
-  return { name, color: "blue" as const, description: "" }
+  return { name, color: "blue" as const }
 }
 
 describe("the Teams dashboard", () => {

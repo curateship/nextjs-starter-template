@@ -344,7 +344,6 @@ describe("the site admin's My dashboard", () => {
           row("p1", "Brochure", {
             dueDate: "2099-03-24",
             lead: { id: "pri", name: "Priya", avatarUrl: "" },
-            avatarUrl: "https://example.test/brochure.png",
           }),
           row("p2", "Rebrand", {
             counts: { todo: 3, doing: 0, done: 0, stuck: 2, archived: 0 },
@@ -361,8 +360,8 @@ describe("the site admin's My dashboard", () => {
       })
     )
     expect(html).toContain("Pinned projects<")
-    // The project's own picture, or its colour as a dot the same 24px size.
-    expect(html).toMatch(/<img src="https:\/\/example.test\/brochure.png" alt="" class="size-9 /)
+    // Projects have no avatar (Tyler, 5 Nov 2026): each card shows its colour as a full 36px dot.
+    expect(html).toMatch(/size-9"><\/span><span class="grid[^>]*><span class="truncate[^>]*>Brochure</)
     expect(html).toMatch(/rounded-full bg-blue-500 size-9"><\/span><span class="grid[^>]*><span class="truncate[^>]*>Rebrand</)
     // Behind first, in red, with its stuck count; On track after it, untinted.
     expect(html.indexOf(">Rebrand<")).toBeLessThan(html.indexOf(">Brochure<"))

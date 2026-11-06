@@ -57,6 +57,7 @@ import {
 } from "@/server/project/tasks"
 import { clearAssignee } from "@/server/project/teams"
 import { customShellUsers } from "@/server/schema"
+import { storedNotesForCopy } from "@/lib/project/notes"
 
 /**
  * Faster ways to make and change tasks: many from a pasted list, a copy, a
@@ -118,7 +119,7 @@ export async function duplicateTask(actor: Actor, taskId: string, database = db)
       id,
       projectId: task.projectId,
       title: `${task.title.slice(0, LIMITS.taskTitle - suffix.length)}${suffix}`,
-      notes: task.notes,
+      notes: storedNotesForCopy(task.notes),
       status: "todo",
       dueDate: task.dueDate,
       dueAt: task.dueAt,

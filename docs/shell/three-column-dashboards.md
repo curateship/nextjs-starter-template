@@ -56,9 +56,11 @@ All of them are in `src/components/shared/`.
   "New …" dropdown: the screen's fields, then "Create …" at the bottom right,
   and Enter makes it. The screen holds the typed values, so clicking away
   keeps them for the next opening.
-- **`mass-select.tsx`.** `MassSelectChip`, the "Mass select" / "Hide select"
-  chip beside the first column's heading, shown while that heading is pointed
-  at (put `group/title` on the heading). `SelectedMenu`, the "N selected"
+- **`mass-select.tsx`.** `MassSelectButton`, the "Mass select" / "Hide select"
+  button in the header, left of the search (Tyler, 5 Nov 2026), which Contacts
+  uses. `MassSelectChip` is the older chip beside the first column's heading,
+  shown while that heading is pointed at (put `group/title` on the heading);
+  lists an app drew for itself still use it until they move. `SelectedMenu`, the "N selected"
   button with its moving rainbow edge and a menu that steps into pages with a
   back arrow; Escape on a page goes back. `SelectedMenuRow` and
   `SelectedMenuSeparator` are its lines.

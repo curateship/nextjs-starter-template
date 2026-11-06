@@ -7,6 +7,8 @@ import type { StepField } from "@/lib/project/step-fields"
  * its place in that list.
  */
 export type PlanTask = {
+  /** The task it was read from, so a copied note's Task cards can point at its copy. */
+  sourceId: string
   title: string
   notes: string
   milestone: number | null
@@ -19,7 +21,6 @@ export type PlanTask = {
 
 export type ProjectPlan = {
   color: ProjectColor
-  description: string
   hiddenTypeIds: string[]
   defaultTypeId: string | null
   milestones: string[]

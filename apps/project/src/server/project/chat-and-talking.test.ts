@@ -60,7 +60,7 @@ async function setUp() {
   const started = await startTeam(database, [anna, ben, leo, carla])
   admin = started.admin
   teamId = started.team.id
-  const { id: projectId } = await projectFor(admin, anna.id, { name: "Site", color: "blue", description: "" }, database)
+  const { id: projectId } = await projectFor(admin, anna.id, { name: "Site", color: "blue" }, database)
   // A project's members are the site admin's to change.
   await addProjectMember(admin.id, projectId, ben.id, database)
   await addProjectMember(admin.id, projectId, leo.id, database)
@@ -71,7 +71,7 @@ async function setUp() {
       database
     ).then((made) => made.id)
   const taskId = await task("Fix the checkout bug")
-  const { id: secretId } = await projectFor(admin, anna.id, { name: "Secret", color: "red", description: "" }, database)
+  const { id: secretId } = await projectFor(admin, anna.id, { name: "Secret", color: "red" }, database)
   const secretTaskId = await task("Plan the surprise party", secretId)
   await database.delete(customShellNotifications)
   return { projectId, taskId, secretId, secretTaskId, task }
@@ -501,6 +501,24 @@ describe("earlier versions of notes", () => {
     expect(versions).toHaveLength(LIMITS.noteVersions)
     expect(versions[0].preview).toBe("v24")
     expect(versions.at(-1)?.preview).toBe("v5")
+  })
+
+  it("takes no writing or restoring while locked, from anyone, until they're unlocked", async () => {
+    const { taskId } = await setUp()
+    await updateTask(ben, { taskId, notes: doc("Signed off"), notesSession: session(1) }, database)
+    await updateTask(ben, { taskId, notes: doc("Final"), notesSession: session(2) }, database)
+    await updateTask(anna, { taskId, notesLocked: true }, database)
+    expect((await loadTaskDetail(leo.id, taskId, database)).task.notesLocked).toBe(true)
+    await expect(updateTask(leo, { taskId, notes: doc("Changed") }, database)).rejects.toThrow(
+      PROJECT_ERRORS.notesLocked
+    )
+    const [earlier] = await listNoteVersions(anna.id, taskId, database)
+    await expect(restoreNoteVersion(anna, earlier.id, database)).rejects.toThrow(PROJECT_ERRORS.notesLocked)
+    expect((await loadTaskDetail(anna.id, taskId, database)).task.notes).toBe(doc("Final"))
+
+    await updateTask(leo, { taskId, notesLocked: false }, database)
+    await updateTask(leo, { taskId, notes: doc("Changed") }, database)
+    expect((await loadTaskDetail(anna.id, taskId, database)).task.notes).toBe(doc("Changed"))
   })
 })
 

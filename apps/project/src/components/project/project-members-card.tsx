@@ -39,6 +39,24 @@ import { cn } from "@/lib/utils"
  * Done on the project.
  */
 export function ProjectMembersCard({ page }: { page: ProjectPage }) {
+  return (
+    <CollapsibleSettingsCard
+      storageId="project-settings-members"
+      title={`Members · ${page.members.length}`}
+      size="sm"
+      contentClassName="grid gap-4"
+    >
+      <ProjectMembersList page={page} />
+    </CollapsibleSettingsCard>
+  )
+}
+
+/**
+ * The members, their crowns and bins, and Invite: the card's body, and the ⋮
+ * menu's Members row. `bare` is the menu's drawing: plain rows, as the menu
+ * has no boxes and no lines between its rows.
+ */
+export function ProjectMembersList({ page, bare = false }: { page: ProjectPage; bare?: boolean }) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [removing, setRemoving] = React.useState<ProjectMemberRow | null>(null)
@@ -80,132 +98,128 @@ export function ProjectMembersCard({ page }: { page: ProjectPage }) {
 
   return (
     <>
-      <CollapsibleSettingsCard
-        storageId="project-settings-members"
-        title={`Members · ${page.members.length}`}
-        size="sm"
-        contentClassName="grid gap-4"
-      >
-        {wholeTeam ? (
-          <p className="text-sm text-muted-foreground">
-            Everyone on the team is on this project, including people who join later. Turn off
-            "Everyone on the team" above to add or take people off by hand.
-          </p>
-        ) : null}
-        {page.members.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {canAdd
-              ? "Nobody is on this project. Invite a teammate so tasks can be handed to them."
-              : "Nobody is on this project."}
-          </p>
-        ) : (
-          <ul className="grid gap-2">
-            {page.members.map((member) => (
-              <li key={member.userId} className="flex items-center gap-1 rounded-lg border bg-muted/40 pr-2">
-                <span className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5">
-                  <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} size="default" />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-                      <span className="truncate">
-                        {member.name}
-                        {member.userId === page.myUserId ? " (you)" : ""}
-                      </span>
-                      {member.userId === page.project.leadUserId ? <Badge variant="secondary">Lead</Badge> : null}
+      {wholeTeam ? (
+        <p className="text-sm text-muted-foreground">
+          Everyone on the team is on this project, including people who join later. Turn off
+          "Everyone on the team" above to add or take people off by hand.
+        </p>
+      ) : null}
+      {page.members.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {canAdd
+            ? "Nobody is on this project. Invite a teammate so tasks can be handed to them."
+            : "Nobody is on this project."}
+        </p>
+      ) : (
+        <ul className={cn("grid", bare ? "-mx-2" : "gap-2")}>
+          {page.members.map((member) => (
+            <li
+              key={member.userId}
+              className={cn("flex items-center gap-1 pr-2", bare ? "rounded-md hover:bg-accent" : "rounded-lg border bg-muted/40")}
+            >
+              <span className={cn("flex min-w-0 flex-1 items-center gap-3", bare ? "px-2 py-1.5" : "px-3 py-2.5")}>
+                <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} size="default" />
+                <span className="min-w-0 flex-1">
+                  <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                    <span className="truncate">
+                      {member.name}
+                      {member.userId === page.myUserId ? " (you)" : ""}
                     </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {member.title ? `${member.title} · ` : ""}
-                      {member.openTasks} open{" "}
-                      {member.openTasks === 1 ? "task" : "tasks"}
-                    </span>
+                    {member.userId === page.project.leadUserId ? <Badge variant="secondary">Lead</Badge> : null}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {member.title ? `${member.title} · ` : ""}
+                    {member.openTasks} open{" "}
+                    {member.openTasks === 1 ? "task" : "tasks"}
                   </span>
                 </span>
-                {readOnly ? null : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        disabled={busy}
-                        aria-pressed={member.userId === page.project.leadUserId}
-                        aria-label={
-                          member.userId === page.project.leadUserId
-                            ? `Stop ${member.name} leading the project`
-                            : `Make ${member.name} the lead`
-                        }
-                        onClick={() => void setLead(member)}
-                      >
-                        <CrownIcon
-                          className={cn(
-                            "size-4",
-                            member.userId === page.project.leadUserId && "fill-current text-amber-500"
-                          )}
-                        />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {member.userId === page.project.leadUserId ? "Stop leading" : "Make lead"}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-                {readOnly || wholeTeam ? null : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Remove ${member.name} from the project`}
-                        onClick={() => setRemoving(member)}
-                      >
-                        <Trash2Icon className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Remove from the project</TooltipContent>
-                  </Tooltip>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        {/* Under the list rather than in the heading, which folds the card. */}
-        {canAdd ? (
-          <div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" disabled={busy}>
-                  <PlusIcon className="size-4" />
-                  Invite
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64">
-                <DropdownMenuLabel>Add a teammate to this project</DropdownMenuLabel>
-                {page.addable.length === 0 ? (
-                  <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                    Everyone on the team is on this project.
-                  </p>
-                ) : (
-                  page.addable.map((person) => (
-                    <DropdownMenuItem key={person.userId} onSelect={() => void add(person.userId)}>
-                      <PersonAvatar name={person.name} avatarUrl={person.avatarUrl} />
-                      <span className="truncate">{person.name}</span>
-                    </DropdownMenuItem>
-                  ))
-                )}
-                {canInviteToTeam ? (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => setInviting(true)}>
-                      <MailIcon className="size-4" />
-                      Invite someone new to the team
-                    </DropdownMenuItem>
-                  </>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        ) : null}
-      </CollapsibleSettingsCard>
+              </span>
+              {readOnly ? null : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={busy}
+                      aria-pressed={member.userId === page.project.leadUserId}
+                      aria-label={
+                        member.userId === page.project.leadUserId
+                          ? `Stop ${member.name} leading the project`
+                          : `Make ${member.name} the lead`
+                      }
+                      onClick={() => void setLead(member)}
+                    >
+                      <CrownIcon
+                        className={cn(
+                          "size-4",
+                          member.userId === page.project.leadUserId && "fill-current text-amber-500"
+                        )}
+                      />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {member.userId === page.project.leadUserId ? "Stop leading" : "Make lead"}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {readOnly || wholeTeam ? null : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Remove ${member.name} from the project`}
+                      onClick={() => setRemoving(member)}
+                    >
+                      <Trash2Icon className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Remove from the project</TooltipContent>
+                </Tooltip>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {/* Under the list rather than in the heading, which folds the card. */}
+      {canAdd ? (
+        <div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" disabled={busy}>
+                <PlusIcon className="size-4" />
+                Invite
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64">
+              <DropdownMenuLabel>Add a teammate to this project</DropdownMenuLabel>
+              {page.addable.length === 0 ? (
+                <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                  Everyone on the team is on this project.
+                </p>
+              ) : (
+                page.addable.map((person) => (
+                  <DropdownMenuItem key={person.userId} onSelect={() => void add(person.userId)}>
+                    <PersonAvatar name={person.name} avatarUrl={person.avatarUrl} />
+                    <span className="truncate">{person.name}</span>
+                  </DropdownMenuItem>
+                ))
+              )}
+              {canInviteToTeam ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => setInviting(true)}>
+                    <MailIcon className="size-4" />
+                    Invite someone new to the team
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : null}
       <ConfirmDialog
         open={Boolean(removing)}
         onOpenChange={(open) => {

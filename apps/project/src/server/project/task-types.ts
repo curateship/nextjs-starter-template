@@ -52,6 +52,7 @@ import {
   type FileStorage,
   type TaskFile,
 } from "@/server/project/task-files"
+import { storedNotesForCopy } from "@/lib/project/notes"
 
 /**
  * Task types: a team's own kinds of task, each with its own fields. Only the
@@ -284,7 +285,7 @@ export async function saveTaskAsType(
       position: (last ?? 0) + 1,
       steps: steps.map((step) => step.text),
       stepFields,
-      notes: task.notes,
+      notes: storedNotesForCopy(task.notes, { forTemplate: true }),
       createdByUserId: userId,
       createdAt: at,
     })
@@ -334,7 +335,9 @@ export async function updateTaskType(
   await database.transaction(async (tx) => {
     const membership = await requireTeamRunner(userId, tx, await typeTeam(userId, input.typeId, tx))
     await requireTeamType(membership.teamId, input.typeId, tx)
-    const { typeId, ...fields } = input
+    const { typeId, ...rest } = input
+    // A template has no task, so its notes take no File block, uploaded picture or Video or Promo card.
+    const fields = rest.notes === undefined ? rest : { ...rest, notes: storedNotesForCopy(rest.notes, { forTemplate: true }) }
     if (fields.name) await requireTypeNameFree(membership.teamId, fields.name, tx, typeId)
     if (Object.values(fields).every((value) => value === undefined)) return
     // A starting step taken off the list takes its fields with it.

@@ -311,11 +311,13 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
 - **A middle list whose rows can change together has mass select** (Tyler,
   19 Oct 2026: "the mass select function as well"). It replaces the Tables
   rule's always-shown tick box column on these screens.
-  - The tick boxes, and drag handles where rows reorder, stay hidden until a
-    "Mass select" chip is pressed. The chip sits beside the first column's
-    heading and shows while that heading is pointed at; on a phone it always
-    shows. Pressed, it reads "Hide select", which hides them again and clears
-    the ticks.
+  - The tick boxes, and drag handles where rows reorder, stay hidden until
+    "Mass select" is pressed. It sits in the header, left of the search
+    (Tyler, 5 Nov 2026: "Move the mass select button to here"), drawn with
+    `MassSelectButton`, and on a narrow header shows its icon alone, as Filter
+    does. Pressed, it reads "Hide select", which hides them again and clears
+    the ticks. A list still showing the older chip beside its first heading
+    moves when it is next worked on.
   - Ticked rows gather in one "N selected" button in the header, left of the
     search, with a 1px moving rainbow edge that holds still for anyone whose
     device asks for less motion.

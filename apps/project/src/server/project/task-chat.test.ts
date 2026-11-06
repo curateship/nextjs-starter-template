@@ -62,7 +62,7 @@ async function setUp() {
   const { id: projectId } = await projectFor(
     admin,
     anna.id,
-    { name: "Site", color: "blue", description: "" },
+    { name: "Site", color: "blue" },
     database
   )
   // A project's members are the site admin's to change.

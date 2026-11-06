@@ -144,6 +144,10 @@ Each field's cog holds four settings:
 - **A type can hold up to 50 steps and a notes outline.** Picking the type in
   New task fills the Steps card and the notes, and both can still be changed
   before the task is made.
+- **The notes outline takes "/" blocks**, except File and the Video or Promo
+  card, because a template has no task to hold them. Save as task template
+  drops those two from the task's notes
+  ([Notes and the "/" blocks](notes-and-blocks.md)).
 - **Changing the type in New task swaps them.** The old type's steps go and
   the new one's come in; steps typed by hand stay. The notes change only if
   nobody has typed in them.

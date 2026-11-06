@@ -9,7 +9,7 @@ import {
   videoServiceName,
 } from "@/lib/project/meetings"
 import { lineKey, linkLine, noteLines } from "@/lib/project/meeting-notes"
-import { readTaskNotes, storedTaskNotes } from "@/lib/project/notes"
+import { readPlainNotes, storedPlainNotes } from "@/lib/project/notes"
 import { meetingInviteHeading, taskHref } from "@/lib/project/notices"
 import {
   LIMITS,
@@ -563,7 +563,7 @@ export async function linkMeetingNoteLine(
       .from(projectMeetingNotes)
       .where(and(eq(projectMeetingNotes.meetingId, meeting.id), eq(projectMeetingNotes.day, input.day)))
       .for("update")
-    const notes = readTaskNotes(row?.notes ?? "")
+    const notes = readPlainNotes(row?.notes ?? "")
     const line =
       notes.kind === "doc"
         ? noteLines(notes.body).find((candidate) => lineKey(candidate.path) === lineKey(input.path))
@@ -572,6 +572,6 @@ export async function linkMeetingNoteLine(
       throw new Error(PROJECT_ERRORS.meetingNotesChanged)
     }
     const linked = linkLine(notes.body, input.path, taskHref(target.projectId, input.taskId))
-    await writeNotes(tx, meeting.id, input.day, storedTaskNotes(linked), actor.id)
+    await writeNotes(tx, meeting.id, input.day, storedPlainNotes(linked), actor.id)
   })
 }

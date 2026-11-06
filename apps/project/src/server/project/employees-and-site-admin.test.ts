@@ -147,10 +147,10 @@ describe("an invite makes an employee", () => {
 
 describe("the site admin", () => {
   it("alone makes and copies projects", async () => {
-    await expect(createProject(ben.id, { name: "Mine", color: "blue", description: "" }, database)).rejects.toThrow(
+    await expect(createProject(ben.id, { name: "Mine", color: "blue" }, database)).rejects.toThrow(
       PROJECT_ERRORS.notRunningTeam
     )
-    const made = await inTeam(teamId, () => createProject(tyler.id, { name: "Launch", color: "blue", description: "" }, database))
+    const made = await inTeam(teamId, () => createProject(tyler.id, { name: "Launch", color: "blue" }, database))
     await addProjectMember(tyler.id, made.id, ben.id, database)
     await expect(copyProject(ben.id, { projectId: made.id, name: "Launch 2" }, database)).rejects.toThrow(
       PROJECT_ERRORS.onlySiteAdminSettings
@@ -160,7 +160,7 @@ describe("the site admin", () => {
 
   it("is on no team, in no member list, and isn't made a member of the projects they create", async () => {
     expect(await listTeamMembers(teamId, database)).toHaveLength(2)
-    const made = await inTeam(teamId, () => createProject(tyler.id, { name: "Launch", color: "blue", description: "" }, database))
+    const made = await inTeam(teamId, () => createProject(tyler.id, { name: "Launch", color: "blue" }, database))
     const members = await database
       .select({ userId: projectProjectMembers.userId })
       .from(projectProjectMembers)
@@ -194,8 +194,8 @@ describe("the site admin", () => {
   it("can take a task on any project without joining it, and nobody else can give them one", () =>
     // Tyler, 19 Oct 2026: "I should be able to assign myself (admin)".
     inTeam(teamId, async () => {
-      const launch = (await createProject(tyler.id, { name: "Launch", color: "blue", description: "" }, database)).id
-      const later = (await createProject(tyler.id, { name: "Later", color: "red", description: "" }, database)).id
+      const launch = (await createProject(tyler.id, { name: "Launch", color: "blue" }, database)).id
+      const later = (await createProject(tyler.id, { name: "Later", color: "red" }, database)).id
       await addProjectMember(tyler.id, launch, ben.id, database)
       const mine = (await createTask(actor(tyler), task(launch, "Mine", tyler.id), database)).id
       const bens = (await createTask(actor(ben), task(launch, "Ben's", null), database)).id
@@ -269,7 +269,7 @@ describe("team roles give no powers", () => {
     await expect(updateTeam(ben.id, { name: "Ben's team" }, database)).rejects.toThrow(
       PROJECT_ERRORS.notRunningTeam
     )
-    const made = await inTeam(teamId, () => createProject(tyler.id, { name: "Site", color: "blue", description: "" }, database))
+    const made = await inTeam(teamId, () => createProject(tyler.id, { name: "Site", color: "blue" }, database))
     await addProjectMember(tyler.id, made.id, ben.id, database)
     await expect(updateProject(ben.id, { projectId: made.id, name: "Renamed" }, database)).rejects.toThrow(
       PROJECT_ERRORS.onlySiteAdminSettings

@@ -8,7 +8,8 @@ import { NOBODY, type NewTaskStart } from "@/components/project/new-task-dialog"
 import { DayOffNote, PersonAvatar, ProjectDot, StatusDot } from "@/components/project/task-bits"
 import { TagsBox, tagIdsFor, type TagPill } from "@/components/project/task-tags-field"
 import { TypeIconGlyph } from "@/components/project/task-type-icon"
-import { DocumentEditor } from "@/components/shared/rich-text-editor"
+import { NoteEditor } from "@/components/project/notes/note-editor"
+import { useNotesBoxSetup } from "@/components/project/notes/note-setup"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,7 +23,8 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { moveNewTasks } from "@/lib/project/new-task-status"
 import { notesForEditor, readTaskNotes } from "@/lib/project/notes"
 import { linesToTitles } from "@/lib/project/paste-lines"
-import { emptyWrittenPageBody, type WrittenPageNode } from "@/lib/pages/written-page-body"
+import { emptyWrittenPageBody } from "@/lib/pages/written-page-body"
+import type { NoteNode } from "@/lib/project/note-blocks"
 import type { Label as TaskTag } from "@/lib/api/project/sorting"
 import {
   LIMITS,
@@ -133,7 +135,7 @@ export function QuickNewTask({
   // A type picked here; left unpicked, the task starts on the opener's or the project's own.
   const [pickedTypeId, setPickedTypeId] = React.useState<string | null | undefined>(undefined)
   // What was typed in Description, and the type showing when typing began; null shows the type's notes.
-  const [written, setWritten] = React.useState<{ body: WrittenPageNode; typeKey: string } | null>(null)
+  const [written, setWritten] = React.useState<{ body: NoteNode; typeKey: string } | null>(null)
   const [stuckReason, setStuckReason] = React.useState("")
   const [invalid, setInvalid] = React.useState<"title" | "reason" | null>(null)
   const [run, saving] = useAsyncAction(getProjectErrorMessage)
@@ -171,6 +173,8 @@ export function QuickNewTask({
     [type]
   )
   const description = written?.body ?? typeNotes
+  // No task yet, so no File block or Video or Promo card (Tyler, 5 Nov 2026: "Leave File out there").
+  const noteSetup = useNotesBoxSetup("new")
   // A new type reloads the box only while nothing is typed in it.
   const descriptionKey = written?.typeKey ?? typeId ?? NO_TYPE
   // A type that asks for fields when the task is made needs the full window.
@@ -340,8 +344,9 @@ export function QuickNewTask({
             </Label>
             {/* "!" because the editor's own style tag (260px tall, large text) beats plain utilities. */}
             <div className="[&_.page-rte_.tiptap]:min-h-16! [&_.page-rte_.tiptap]:px-3! [&_.page-rte_.tiptap]:py-2! [&_.page-rte_.tiptap]:text-sm!">
-              <DocumentEditor
+              <NoteEditor
                 key={descriptionKey}
+                setup={noteSetup}
                 value={description}
                 disabled={saving}
                 onChange={(body) =>
@@ -351,7 +356,7 @@ export function QuickNewTask({
                       : { body, typeKey: descriptionKey }
                   )
                 }
-                placeholder="What it's about. Select words to make them bold, a list or a link."
+                placeholder="What it's about. Type / for a picture, a checklist and more."
               />
             </div>
           </div>

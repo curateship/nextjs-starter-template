@@ -40,3 +40,7 @@ Every shell change up to 5 Nov is in Project: 83 files replaced and 25 added, wi
 **No migration was new.** The shell has added none since 0097, and Project already had every one.
 
 **Kept as Project's own.** `src/app/` stays Project's own, and so does `src/app/open-endpoints.ts`, which lists Project's own open endpoints.
+
+## 5 Nov 2026: Mass select in the header
+
+Made in `apps/shell` and copied here unchanged, so neither forks: `src/components/shared/mass-select.tsx` gained `MassSelectButton`, and Contacts (`src/components/broadcasts/contacts-list-panel.tsx`) uses it, left of the search (Tyler, 5 Nov 2026: "Move the mass select button to here"). The other 12 apps get it at their next shell merge. Project's own task list uses the same button.

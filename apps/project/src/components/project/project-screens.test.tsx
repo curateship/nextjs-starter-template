@@ -412,7 +412,6 @@ describe("the Projects dashboard", () => {
               category: "Marketing",
               team: { id: "team", name: "Acme" },
               dueDate: null,
-              avatarUrl: null,
               clockSeconds: 0,
             },
             {
@@ -431,7 +430,6 @@ describe("the Projects dashboard", () => {
               category: null,
               team: { id: "team2", name: "Beta" },
               dueDate: null,
-              avatarUrl: null,
               clockSeconds: 0,
             },
           ],
@@ -469,7 +467,7 @@ describe("the project page", () => {
       teamId: "team",
       name: "Website",
       color: "blue",
-      description: "New site",
+      notes: "",
       archived: false,
       starred: true,
       dueDate: null,
@@ -483,10 +481,9 @@ describe("the project page", () => {
       leadUserId: null,
       client: null,
       category: null,
-      links: [],
       wholeTeam: false,
       bannerUrl: null,
-      avatarUrl: null,
+      notesLocked: false,
     },
     milestones: [{ id: "m1", name: "Design signed off", dueDate: "2020-01-01", done: 3, total: 5 }],
     teamClients: ["Hart Dental"],
@@ -518,10 +515,9 @@ describe("the project page", () => {
     expect(html).toContain(`aria-label="Unpin Website"`)
     expect(html).toContain(">Filter</span>")
     expect(html).toContain("Click a task to see its steps and chat here.")
-    expect(html).toContain("New site")
     // One late task ("Late thing"), and the rule starts Slowing down at 1.
-    expect(html).toContain(">Slowing down<")
-    expect(html).toContain("· 1 late")
+    // The status is a dot after the name, its words its name (Tyler, 5 Nov 2026).
+    expect(html).toContain(`aria-label="Status: Slowing down · 1 late"`)
     expect(html).not.toContain("Set by")
     expect(html).toContain("Board")
     expect(html).toContain("New task")
@@ -533,12 +529,13 @@ describe("the project page", () => {
     expect(html).not.toContain("All time")
     // A new browser opens on the List, the first tab, where each cell changes its task.
     expect(html.indexOf(">List<")).toBeLessThan(html.indexOf(">Board<"))
-    expect(html).toContain(">Mass select<")
+    // Mass select joins the header, left of the search, once the page has drawn (Tyler, 5 Nov 2026),
+    // so the server's first drawing doesn't hold it.
     expect(html).toContain(`aria-label="Status: To do. Change it"`)
     expect(html).toContain(`aria-label="Priority: Normal. Change it"`)
   })
 
-  it("draws the project's banner faintly behind the left panel's top, and its round avatar beside the name", () => {
+  it("draws the project's banner faintly behind the left panel's top, and no avatar there", () => {
     const plain = renderToStaticMarkup(
       <TooltipProvider>
         <ProjectDetailsPanel page={page} />
@@ -552,7 +549,7 @@ describe("the project page", () => {
         <ProjectDetailsPanel
           page={{
             ...page,
-            project: { ...page.project, client: "Hart Dental", bannerUrl: "/b.jpg", avatarUrl: "/a.jpg" },
+            project: { ...page.project, client: "Hart Dental", bannerUrl: "/b.jpg" },
           }}
         />
       </TooltipProvider>
@@ -560,37 +557,31 @@ describe("the project page", () => {
     expect(html).toMatch(/src="\/b\.jpg" alt="" class="[^"]*opacity-30/)
     // No line under the header across the banner (Tyler, 20 Oct 2026).
     expect(html).toContain("border-b-transparent")
-    expect(html).toMatch(/rounded-full[^>]*><img src="\/a\.jpg"/)
     // The client is listed once, beside the lead, not under the name (Tyler, 19 Oct 2026).
     expect(html.match(/Hart Dental/g)).toHaveLength(1)
     expect(html).toMatch(/>Client<\/h3><span[^>]*>Hart Dental</)
   })
 
-  it("lists the project's links and divider labels under its description, in their order", () => {
+  it("shows the project's page, links and callout blocks, where the avatar was, with the status as a dot by the name", () => {
+    const notes = JSON.stringify({
+      type: "doc",
+      content: [
+        { type: "noteCallout", attrs: { kind: "decision" }, content: [{ type: "paragraph", content: [{ type: "text", text: "Launch on the 14th" }] }] },
+        { type: "noteLinks", attrs: { links: [{ label: "Figma", url: "https://figma.com/file/1" }, { label: "", url: "https://docs.example.test/brief" }] } },
+      ],
+    })
     const html = renderToStaticMarkup(
       <TooltipProvider>
-        <ProjectDetailsPanel
-          page={{
-            ...page,
-            project: {
-              ...page.project,
-              description: "Spring site",
-              links: [
-                { id: "a", kind: "link", label: "Figma", url: "https://figma.com/file/1" },
-                { id: "b", kind: "divider", label: "Docs" },
-                { id: "c", kind: "link", label: "", url: "https://docs.example.test/brief" },
-              ],
-            },
-          }}
-        />
+        <ProjectDetailsPanel page={{ ...page, myRole: "member", project: { ...page.project, notes } }} />
       </TooltipProvider>
     )
+    expect(html).toContain("Launch on the 14th")
     expect(html).toMatch(/href="https:\/\/figma\.com\/file\/1" target="_blank" rel="noopener noreferrer"/)
-    // A link with no label shows its address without https://.
+    // A link with no words shows its address without https://.
     expect(html).toContain(">docs.example.test/brief<")
-    const at = ["Spring site", ">Figma<", ">Docs<", ">docs.example.test/brief<"].map((text) => html.indexOf(text))
-    expect(at.every((index) => index >= 0)).toBe(true)
-    expect([...at].sort((a, b) => a - b)).toEqual(at)
+    expect(html).toContain(`aria-label="Status: Slowing down · 1 late"`)
+    expect(html).not.toContain("Description")
+    expect(html.indexOf("Launch on the 14th")).toBeLessThan(html.indexOf(">Lead<"))
   })
 
   it("gives an employee no settings cog", () => {

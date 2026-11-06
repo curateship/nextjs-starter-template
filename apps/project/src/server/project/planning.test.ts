@@ -63,7 +63,7 @@ beforeEach(async () => {
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
   ;({ admin } = await startTeam(database, [anna, ben, carla]))
   // Anna makes Website and is on it; the site admin adds Ben.
-  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)).id
   await addProjectMember(admin.id, website, ben.id, database)
 })
 
@@ -190,7 +190,7 @@ describe("waiting on another task", () => {
   })
 
   it("never names a task in a project the reader isn't on", async () => {
-    const other = (await projectFor(admin, anna.id, { name: "Secret", color: "red", description: "" }, database)).id
+    const other = (await projectFor(admin, anna.id, { name: "Secret", color: "red" }, database)).id
     const hidden = await task("Hidden contract", anna, other)
     const launch = await task("Launch the site")
     await addWait(actor(anna), { taskId: launch, waitingOnTaskId: hidden }, database)

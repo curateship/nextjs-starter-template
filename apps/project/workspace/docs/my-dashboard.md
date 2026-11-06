@@ -526,11 +526,11 @@ does not need to be toggled").
   the faces on the left, and on the right "5 late" and "1 stuck" in red and
   "5/13 done" (or "No tasks yet"). Where the panel is too narrow for the
   faces and the counts, the counts drop to a line of their own.
-- **The picture** is the round avatar set in the project's settings, 36px
-  across, the height of the name and chip together (Tyler, 29 Oct 2026:
-  "increase the avatar a bit"). With none, or one that no longer loads, the
-  project's colour fills a dot the same size ("make it full size dot that
-  matches the size of the avatar"). The thin lines keep the small dot.
+- **The picture** is the project's colour as a full dot, 36px across, the
+  height of the name and chip together (Tyler, 29 Oct 2026: "make it full
+  size dot that matches the size of the avatar"). Projects have no avatar
+  since 5 Nov 2026 (Tyler: "why is avatar is not removed"), so the dot is all
+  there is. The thin lines keep the small dot.
 - **The due date is the chip's hover hint** (Tyler, 29 Oct 2026: "The due
   tomorrow can just be a tooltip when hover over the behind chip"): "Due Nov
   20 · 22 days left", "Due tomorrow", "Due today" or "Overdue · Nov 20",

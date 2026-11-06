@@ -19,6 +19,7 @@ import { nextTaskPosition } from "@/server/project/task-order"
 import { pauseClocksAtMidnight } from "@/server/project/task-clock"
 import { copyFieldValues } from "@/server/project/task-types"
 import type { FileStorage } from "@/server/project/task-files"
+import { storedNotesForCopy } from "@/lib/project/notes"
 
 /**
  * Planning's background jobs, on the shell's fifteen-second loop
@@ -137,7 +138,7 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
         id,
         projectId: holder.projectId,
         title: holder.title,
-        notes: holder.notes,
+        notes: storedNotesForCopy(holder.notes),
         status: "todo",
         assigneeUserId: holder.assigneeUserId,
         assignedByUserId: holder.assignedByUserId,

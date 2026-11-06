@@ -29,7 +29,6 @@ import type {
   TeamRole,
 } from "@/lib/project/rules"
 import type { DailySection, DayPart, SkyKind } from "@/lib/project/daily-card"
-import type { ProjectLink } from "@/lib/project/project-links"
 import type { SavedViewFilters, SavedViewNames } from "@/lib/project/saved-views"
 import type { StartingStepFields, StepField } from "@/lib/project/step-fields"
 import type { FieldKind, FieldSettings, WhoCanChange } from "@/lib/project/task-fields"
@@ -137,7 +136,10 @@ export const projectProjects = pgTable("project_projects", {
     .references(() => projectTeams.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   color: varchar("color", { length: 16 }).$type<ProjectColor>().notNull(),
-  description: text("description").notNull(),
+  /** The left panel's page: the notes editor's document with its "/" blocks, or "" (drizzle/0144). */
+  notes: text("notes").notNull().default(""),
+  /** The page is locked: it reads only, even for the site admin, until it's unlocked (drizzle/0146). */
+  notesLocked: boolean("notes_locked").notNull().default(false),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdByUserId: varchar("created_by_user_id", { length: 36 }).references(
     userRef,
@@ -181,12 +183,11 @@ export const projectProjects = pgTable("project_projects", {
   /** Everyone on the team is a member, people who join later included. */
   wholeTeam: boolean("whole_team").notNull().default(false),
   /**
-   * The banner behind the top of the project page's left panel and the round
-   * avatar at its foot (`drizzle/0121_project_pictures.sql`). Media library
-   * addresses, or null for none.
+   * The banner behind the top of the project page's left panel
+   * (`drizzle/0121_project_pictures.sql`). A media library address, or null
+   * for none. Projects have no avatar (`drizzle/0145_project_no_avatar.sql`).
    */
   bannerUrl: text("banner_url"),
-  avatarUrl: text("avatar_url"),
   /**
    * The status from late tasks: Slowing down from this many, Behind from
    * `behindAt` (`drizzle/0122_project_pace_rule.sql`, `lib/project/project-pace.ts`).
@@ -198,8 +199,6 @@ export const projectProjects = pgTable("project_projects", {
    * (`drizzle/0142_project_category_links_pins.sql`).
    */
   category: varchar("category", { length: 60 }),
-  /** Its links and divider labels under the description, in their dragged order. */
-  links: jsonb("links").$type<ProjectLink[]>().notNull().default([]),
 })
 
 /** A project's milestones: when a set of its tasks must be finished. */
@@ -248,6 +247,8 @@ export const projectTasks = pgTable("project_tasks", {
     .references(() => projectProjects.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   notes: text("notes").notNull(),
+  /** The notes are locked: they read only, for everyone, until they're unlocked (drizzle/0147). */
+  notesLocked: boolean("notes_locked").notNull().default(false),
   status: varchar("status", { length: 16 }).$type<TaskStatus>().notNull(),
   stuckReason: text("stuck_reason"),
   assigneeUserId: varchar("assignee_user_id", { length: 36 }).references(

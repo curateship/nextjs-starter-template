@@ -393,7 +393,8 @@ function ProjectSummary({
       className={cn("grid w-full min-w-0 gap-2.5 rounded-xl p-3.5 text-left", focusRingInset)}
     >
       <span className="mb-0.5 flex min-w-0 items-center gap-2.5">
-        <ProjectPicture project={project} />
+        {/* The project's colour as a full dot; projects have no avatar (Tyler, 5 Nov 2026). */}
+        <ProjectDot color={project.color} className="size-9" />
         <span className="grid min-w-0 flex-1">
           <span className={cn("truncate text-[15px] leading-5 font-semibold", ROOM_FOR_BUTTONS)}>{project.name}</span>
           <span className="flex min-w-0 items-center gap-2 text-xs">
@@ -450,26 +451,6 @@ function PaceChip({ pace, due }: { pace: ProjectPace; due: ReturnType<typeof pro
       <TooltipTrigger asChild>{chip}</TooltipTrigger>
       <TooltipContent>{due.text}</TooltipContent>
     </Tooltip>
-  )
-}
-
-/**
- * The project's own round picture, or its colour as a full dot the same size
- * when it has none or the picture no longer loads (Tyler, 29 Oct 2026:
- * "replace this with the project avatar or if theres no avatar then use the
- * dot but make it full size dot that matches the size of the avatar").
- */
-function ProjectPicture({ project }: { project: Project }) {
-  const [broken, setBroken] = React.useState<string | null>(null)
-  const url = project.avatarUrl && project.avatarUrl !== broken ? project.avatarUrl : null
-  if (!url) return <ProjectDot color={project.color} className="size-9" />
-  return (
-    <img
-      src={url}
-      alt=""
-      className="size-9 shrink-0 rounded-full border object-cover"
-      onError={() => setBroken(url)}
-    />
   )
 }
 

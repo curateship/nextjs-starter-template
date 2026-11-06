@@ -89,7 +89,6 @@ async function ensurePersonalProject(userId: string, database: ProjectDb): Promi
       teamId,
       name: PERSONAL_PROJECT_NAME,
       color: "slate",
-      description: "",
       createdByUserId: userId,
       createdAt: at,
       updatedAt: at,

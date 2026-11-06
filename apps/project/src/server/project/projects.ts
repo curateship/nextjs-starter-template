@@ -2,7 +2,6 @@ import { and, asc, count, eq, inArray, isNull, lte, notInArray } from "drizzle-o
 import { alias } from "drizzle-orm/pg-core"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
-import type { ProjectLink } from "@/lib/project/project-links"
 import {
   CLOSED_TASK_STATUSES,
   PERSONAL_PROJECT_NAME,
@@ -50,6 +49,7 @@ import {
 import { listTeamNames } from "@/server/project/record-team"
 import { deleteSavedViewsFor } from "@/server/saved-views"
 import { customShellUsers } from "@/server/schema"
+import { storedNotesForCopy } from "@/lib/project/notes"
 
 export type ProjectListRow = {
   id: string
@@ -72,8 +72,6 @@ export type ProjectListRow = {
   category: string | null
   /** The project's own due date, shown on the site admin's Projects card. */
   dueDate: string | null
-  /** The project's round picture from its settings, shown on the site admin's Projects card. */
-  avatarUrl: string | null
   /** The project's team, shown in the site admin's Team column. */
   team: { id: string; name: string }
   /** Seconds on the clock across its tasks, for the Time column (Seven features, part 4). */
@@ -219,7 +217,6 @@ export async function loadProjectsPage(
         client: project.client,
         category: project.category,
         dueDate: project.dueDate,
-        avatarUrl: project.avatarUrl,
         team: { id: project.teamId, name: project.teamName },
         clockSeconds: clocked.get(project.id) ?? 0,
       }
@@ -241,7 +238,7 @@ function justMeName(personName: string | null) {
  */
 export async function createProject(
   userId: string,
-  input: { name: string; color: ProjectColor; description: string },
+  input: { name: string; color: ProjectColor },
   database = db
 ): Promise<{ id: string }> {
   return database.transaction(async (tx) => {
@@ -253,7 +250,6 @@ export async function createProject(
       teamId: membership.teamId,
       name: input.name,
       color: input.color,
-      description: input.description,
       createdByUserId: userId,
       createdAt: at,
       updatedAt: at,
@@ -280,7 +276,10 @@ export type ProjectPage = {
     teamId: string
     name: string
     color: ProjectColor
-    description: string
+    /** The left panel's page of notes and blocks, as saved, or "". */
+    notes: string
+    /** The page reads only, for everyone, until the site admin unlocks it from the ⋮. */
+    notesLocked: boolean
     archived: boolean
     starred: boolean
     dueDate: string | null
@@ -299,13 +298,10 @@ export type ProjectPage = {
     leadUserId: string | null
     client: string | null
     category: string | null
-    /** Its links and divider labels under the description, in order. */
-    links: ProjectLink[]
     /** Everyone on the team is a member, people who join later included. */
     wholeTeam: boolean
-    /** The faint banner behind the top of the left panel, and the round avatar at its foot. */
+    /** The faint banner behind the top of the left panel. */
     bannerUrl: string | null
-    avatarUrl: string | null
   }
   /** The project's milestones, soonest first, each with its task counts. */
   milestones: Milestone[]
@@ -388,7 +384,8 @@ export async function loadProjectPage(
           ? justMeName(await nameOf(project.personalUserId, database))
           : project.name,
       color: project.color,
-      description: project.description,
+      notes: project.notes,
+      notesLocked: project.notesLocked,
       archived: Boolean(project.archivedAt),
       dueDate: project.dueDate,
       starred: (await starredProjectIds(userId, [project.id], database)).has(project.id),
@@ -402,10 +399,8 @@ export async function loadProjectPage(
       leadUserId: project.leadUserId,
       client: project.client,
       category: project.category,
-      links: project.links,
       wholeTeam: project.wholeTeam,
       bannerUrl: project.bannerUrl,
-      avatarUrl: project.avatarUrl,
     },
     milestones: await listMilestones(project.id, database),
     teamClients: await visibleClients(membership, database),
@@ -465,42 +460,42 @@ export async function updateProject(
     projectId: string
     name?: string
     color?: ProjectColor
-    description?: string
     dueDate?: string | null
     doingLimit?: number | null
     bannerUrl?: string
-    avatarUrl?: string
     slowingAt?: number
     behindAt?: number
     category?: string | null
-    links?: ProjectLink[]
+    /** The left panel's page, already cleaned to what a note may hold. */
+    notes?: string
+    notesLocked?: boolean
   },
   database = db
 ) {
-  const { projectId, bannerUrl, avatarUrl, ...fields } = patch
+  const { projectId, bannerUrl, notes, ...rest } = patch
+  // A project page has no task, so no File block, uploaded picture or Video or Promo card.
+  const fields = notes === undefined ? rest : { ...rest, notes: storedNotesForCopy(notes, { forTemplate: true }) }
   const { project } = await requireProjectSettings(userId, projectId, database)
   requireSharedProject(project)
+  // A locked page takes no writing until it's unlocked; the lock itself may change in the same save.
+  if (notes !== undefined && (patch.notesLocked ?? project.notesLocked)) {
+    throw new Error(PROJECT_ERRORS.pageLocked)
+  }
   // Behind can't start before Slowing down; the two may match, and then Slowing down never shows.
   if ((fields.behindAt ?? project.behindAt) < (fields.slowingAt ?? project.slowingAt)) {
     throw new Error(PROJECT_ERRORS.behindBeforeSlowing)
   }
-  // A new picture must be one the site admin uploaded to the media library,
+  // A new banner must be one the site admin uploaded to the media library,
   // as with the team's, so nobody can point a project at an outside address.
   // "" takes it away.
-  for (const [url, was] of [
-    [bannerUrl, project.bannerUrl],
-    [avatarUrl, project.avatarUrl],
-  ] as const) {
-    if (url && url !== was && !(await isOwnedImageUrl(userId, url, database))) {
-      throw new Error(PROJECT_ERRORS.photoNotYours)
-    }
+  if (bannerUrl && bannerUrl !== project.bannerUrl && !(await isOwnedImageUrl(userId, bannerUrl, database))) {
+    throw new Error(PROJECT_ERRORS.photoNotYours)
   }
   await database
     .update(projectProjects)
     .set({
       ...fields,
       ...(bannerUrl === undefined ? null : { bannerUrl: bannerUrl || null }),
-      ...(avatarUrl === undefined ? null : { avatarUrl: avatarUrl || null }),
       updatedAt: now(),
     })
     .where(eq(projectProjects.id, projectId))
@@ -754,14 +749,14 @@ export async function copyProject(
       teamId: membership.teamId,
       name: input.name,
       color: plan.color,
-      description: plan.description,
+      notes: storedNotesForCopy(source.notes, { forTemplate: true }),
+      notesLocked: source.notesLocked,
       createdByUserId: userId,
       createdAt: at,
       updatedAt: at,
       hiddenTypeIds: plan.hiddenTypeIds,
       defaultTypeId: plan.defaultTypeId,
       category: source.category,
-      links: source.links,
     })
     await writeProjectPlan(tx, { id, teamId: membership.teamId }, plan, userId)
     return { id }

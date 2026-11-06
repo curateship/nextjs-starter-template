@@ -4,7 +4,7 @@ import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { linkedTaskIds } from "@/lib/project/mentions"
 import { linkedTaskOf, readTaskNotes } from "@/lib/project/notes"
 import { taskHref } from "@/lib/project/notices"
-import type { WrittenPageNode } from "@/lib/pages/written-page-body"
+import type { NoteNode } from "@/lib/project/note-blocks"
 import { db } from "@/server/db"
 import {
   requireMembership,
@@ -90,7 +90,7 @@ export function notesLinkedTaskIds(stored: string): string[] {
   const notes = readTaskNotes(stored)
   if (notes.kind === "text") return []
   const ids: string[] = []
-  const walk = (node: WrittenPageNode) => {
+  const walk = (node: NoteNode) => {
     for (const mark of node.marks ?? []) {
       const taskId = mark.type === "link" && mark.attrs ? linkedTaskOf(mark.attrs.href) : null
       if (taskId) ids.push(taskId)
@@ -111,9 +111,9 @@ export function notesLinkedTaskIds(stored: string): string[] {
 export function notesForReader(stored: string, targets: Map<string, LinkTarget>): string {
   const notes = readTaskNotes(stored)
   if (notes.kind === "text") return stored
-  const rename = (node: WrittenPageNode): WrittenPageNode => {
+  const rename = (node: NoteNode): NoteNode => {
     if (!node.content) return node
-    const content: WrittenPageNode[] = []
+    const content: NoteNode[] = []
     let lastTaskId: string | null = null
     for (const child of node.content) {
       const link = child.marks?.find((mark) => mark.type === "link")

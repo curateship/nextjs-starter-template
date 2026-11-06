@@ -44,7 +44,7 @@ beforeEach(async () => {
   sam = await insertUser(database, { name: "Sam", email: "sam@example.test" })
   ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
   ;({ admin, team } = await startTeam(database, [sam, ben]))
-  const project = await projectFor(admin, sam.id, { name: "Launch", color: "blue", description: "" }, database)
+  const project = await projectFor(admin, sam.id, { name: "Launch", color: "blue" }, database)
   await addProjectMember(admin.id, project.id, ben.id, database)
   const task = await createTask(
     { id: admin.id, name: admin.name },

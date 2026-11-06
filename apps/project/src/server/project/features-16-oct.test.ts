@@ -79,7 +79,7 @@ beforeEach(async () => {
   const started = await startTeam(database, [anna, ben, carla])
   admin = started.admin
   teamId = started.team.id
-  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)).id
   await addProjectMember(admin.id, website, ben.id, database)
   await addProjectMember(admin.id, website, carla.id, database)
 })
@@ -126,7 +126,7 @@ describe("part 2: milestones and project due dates", () => {
     const logo = await task("Logo")
     await setTaskMilestone(anna.id, { taskId: logo, milestoneId: design }, database)
     await setTaskStatus(actor(ben), { taskId: logo, status: "done", stuckReason: null }, database)
-    const archived = (await projectFor(admin, anna.id, { name: "Old", color: "red", description: "" }, database)).id
+    const archived = (await projectFor(admin, anna.id, { name: "Old", color: "red" }, database)).id
     await createMilestone(anna.id, { projectId: archived, name: "Gone", dueDate: WEDNESDAY }, database)
     await setProjectArchived(admin.id, archived, true, database)
 
@@ -395,7 +395,7 @@ describe("part 9: filtering by client", () => {
   })
 
   it("counts only the picked client's work on Workload, and lists only clients the person can see", async () => {
-    const shop = (await projectFor(admin, anna.id, { name: "Shop", color: "green", description: "" }, database)).id
+    const shop = (await projectFor(admin, anna.id, { name: "Shop", color: "green" }, database)).id
     await setProjectClient(admin.id, { projectId: website, client: "Hart Dental" }, database)
     await setProjectClient(admin.id, { projectId: shop, client: "Secret Client" }, database)
     await task("Website task")

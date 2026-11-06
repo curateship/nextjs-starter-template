@@ -280,13 +280,16 @@ the launch?" is settled without twelve messages.
   (`DocumentEditor`). Typing # links a task (above). The # list rides on an
   optional `extensions` slot Tyler allowed adding to the shell's editor on
   12 Oct 2026.
+- **Typing "/" adds a block** to a task's notes. The blocks, and what a
+  saved note may hold with them, are in [Notes and the "/" blocks](notes-and-blocks.md).
+  A meeting's notes take words only.
 - **Edits save when the editor is left and when Done is pressed.**
 - **Links open in a new tab**, so the task stays where it is. A link to a
   task opens that task instead.
 - **Notes written before 10 Oct 2026 are plain text** and show exactly as they
   were typed, line breaks and spaces included, until someone edits them.
 - **What is saved** is the editor's document as JSON, cleaned on the server to
-  the shapes a note may hold. It is drawn by turning each piece into a screen
+  the shapes a note may hold (`src/lib/project/note-blocks.ts`). It is drawn by turning each piece into a screen
   element, never as HTML, so nothing typed can run. A link to anything but a
   web, email or phone address loses its link and keeps its words.
 

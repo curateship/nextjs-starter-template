@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
+import { storedTaskNotes } from "@/lib/project/notes"
 import type { CustomShellDb } from "@/server/db"
 import { createLabel, setTaskLabels } from "@/server/project/labels"
 import { restoreTask } from "@/server/project/planning"
@@ -48,7 +49,7 @@ beforeEach(async () => {
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
   ;({ admin } = await startTeam(database, [anna, ben, carla]))
   // Anna makes the project and is on it; the site admin adds Ben.
-  website = (await projectFor(admin, anna.id, { name: "Bloom Bakery", color: "pink", description: "Site for Bloom" }, database)).id
+  website = (await projectFor(admin, anna.id, { name: "Bloom Bakery", color: "pink" }, database)).id
   await addProjectMember(admin.id, website, ben.id, database)
 })
 
@@ -87,7 +88,7 @@ describe("copying a project", () => {
     expect((await loadProjectPage(admin.id, id, database)).members).toEqual([])
     await addProjectMember(admin.id, id, ben.id, database)
     const copy = await loadProjectPage(ben.id, id, database)
-    expect(copy.project).toMatchObject({ name: "Hart Dental", color: "pink", description: "Site for Bloom" })
+    expect(copy.project).toMatchObject({ name: "Hart Dental", color: "pink" })
     expect(copy.members.map((m) => m.name)).toEqual(["Ben"])
     expect(copy.tasks.map((t) => t.title)).toEqual(["Write the brief", "Launch"])
     const first = copy.tasks[0]
@@ -180,19 +181,39 @@ describe("the Activity tab", () => {
   })
 })
 
-describe("the project's pictures", () => {
-  it("are the site admin's to set, only to their own uploads, and \"\" takes one away", async () => {
+describe("the project's banner", () => {
+  it("is the site admin's to set, only to their own uploads, and \"\" takes it away", async () => {
     await expect(updateProject(anna.id, { projectId: website, bannerUrl: "" }, database)).rejects.toThrow(
       PROJECT_ERRORS.onlySiteAdminSettings
     )
-    for (const field of ["bannerUrl", "avatarUrl"] as const) {
-      await expect(
-        updateProject(admin.id, { projectId: website, [field]: "https://example.com/cat.png" }, database)
-      ).rejects.toThrow(PROJECT_ERRORS.photoNotYours)
-    }
-    await updateProject(admin.id, { projectId: website, bannerUrl: "", avatarUrl: "" }, database)
+    await expect(
+      updateProject(admin.id, { projectId: website, bannerUrl: "https://example.com/cat.png" }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.photoNotYours)
+    await updateProject(admin.id, { projectId: website, bannerUrl: "" }, database)
     const { project } = await loadProjectPage(anna.id, website, database)
     expect(project.bannerUrl).toBeNull()
-    expect(project.avatarUrl).toBeNull()
+  })
+})
+
+describe("the project's page lock", () => {
+  it("stops writing on the page, even the site admin's, until it's unlocked", async () => {
+    const page = (words: string) => ({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: words }] }],
+    })
+    await expect(updateProject(anna.id, { projectId: website, notesLocked: true }, database)).rejects.toThrow(
+      PROJECT_ERRORS.onlySiteAdminSettings
+    )
+    await updateProject(admin.id, { projectId: website, notes: storedTaskNotes(page("Before")) }, database)
+    await updateProject(admin.id, { projectId: website, notesLocked: true }, database)
+    await expect(
+      updateProject(admin.id, { projectId: website, notes: storedTaskNotes(page("After")) }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.pageLocked)
+    const locked = (await loadProjectPage(anna.id, website, database)).project
+    expect(locked.notesLocked).toBe(true)
+    expect(locked.notes).toContain("Before")
+    await updateProject(admin.id, { projectId: website, notesLocked: false }, database)
+    await updateProject(admin.id, { projectId: website, notes: storedTaskNotes(page("After")) }, database)
+    expect((await loadProjectPage(anna.id, website, database)).project.notes).toContain("After")
   })
 })

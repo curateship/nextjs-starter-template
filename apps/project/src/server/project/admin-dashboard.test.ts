@@ -66,8 +66,8 @@ beforeEach(async () => {
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
   acme = (await startTeam(database, [ben], { name: "Acme", admin: tyler })).team.id
   brand = (await startTeam(database, [carla], { name: "Brand", admin: tyler })).team.id
-  website = (await inTeam(acme, () => createProject(tyler.id, { name: "Website", color: "blue", description: "" }, database))).id
-  logo = (await inTeam(brand, () => createProject(tyler.id, { name: "Logo", color: "red", description: "" }, database))).id
+  website = (await inTeam(acme, () => createProject(tyler.id, { name: "Website", color: "blue" }, database))).id
+  logo = (await inTeam(brand, () => createProject(tyler.id, { name: "Logo", color: "red" }, database))).id
   await addProjectMember(tyler.id, website, ben.id, database)
   await addProjectMember(tyler.id, logo, carla.id, database)
   await setAdminTimeZone(tyler.id, "UTC", database)

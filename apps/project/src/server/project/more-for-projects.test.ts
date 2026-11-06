@@ -57,7 +57,7 @@ beforeEach(async () => {
   const started = await startTeam(database, [anna, ben, carla])
   admin = started.admin
   teamId = started.team.id
-  website = (await projectFor(admin, anna.id, { name: "Website", color: "pink", description: "Hart Dental's site" }, database)).id
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "pink" }, database)).id
   await addProjectMember(admin.id, website, ben.id, database)
   await addProjectMember(admin.id, website, carla.id, database)
 })
@@ -127,7 +127,7 @@ describe("project status", () => {
 
 describe("project lead", () => {
   it("must be on the project, and shows on the Projects table", async () => {
-    const other = (await projectFor(admin, anna.id, { name: "Office", color: "blue", description: "" }, database)).id
+    const other = (await projectFor(admin, anna.id, { name: "Office", color: "blue" }, database)).id
     await expect(setProjectLead(admin.id, { projectId: other, userId: ben.id }, database)).rejects.toThrow(
       PROJECT_ERRORS.leadNotMember
     )
@@ -191,7 +191,7 @@ describe("milestones", () => {
   })
 
   it("refuses another project's milestone, and moving a task frees it", async () => {
-    const office = (await projectFor(admin, anna.id, { name: "Office", color: "blue", description: "" }, database)).id
+    const office = (await projectFor(admin, anna.id, { name: "Office", color: "blue" }, database)).id
     const elsewhere = await createMilestone(anna.id, { projectId: office, name: "Move in", dueDate: null }, database)
     const logo = await task("Logo")
     await expect(
@@ -205,7 +205,7 @@ describe("milestones", () => {
 
   it("can be picked in New task, only the task's own project's", async () => {
     // Tyler, 19 Oct 2026: "Add the milestone selection here", in New task's dropdown.
-    const office = (await projectFor(admin, anna.id, { name: "Office", color: "blue", description: "" }, database)).id
+    const office = (await projectFor(admin, anna.id, { name: "Office", color: "blue" }, database)).id
     const elsewhere = await createMilestone(anna.id, { projectId: office, name: "Move in", dueDate: null }, database)
     const here = await createMilestone(anna.id, { projectId: website, name: "Design", dueDate: null }, database)
     const base = { projectId: website, notes: "", assigneeUserId: null, dueDate: null, steps: [] }
@@ -217,7 +217,7 @@ describe("milestones", () => {
   })
 
   it("can't be reached from outside the project", async () => {
-    const office = (await projectFor(admin, anna.id, { name: "Office", color: "blue", description: "" }, database)).id
+    const office = (await projectFor(admin, anna.id, { name: "Office", color: "blue" }, database)).id
     const moveIn = await createMilestone(anna.id, { projectId: office, name: "Move in", dueDate: null }, database)
     await expect(
       updateMilestone(ben.id, { milestoneId: moveIn.id, name: "Mine now", dueDate: null }, database)
@@ -247,7 +247,7 @@ describe("clients", () => {
     await inTeam(teamId, async () => {
       // The site admin makes Secret and is on no project, so only they see it.
       const secret = (
-        await inTeam(teamId, () => createProject(admin.id, { name: "Secret", color: "red", description: "" }, database))
+        await inTeam(teamId, () => createProject(admin.id, { name: "Secret", color: "red" }, database))
       ).id
       await setProjectClient(admin.id, { projectId: secret, client: "Hidden Co" }, database)
       await setProjectClient(admin.id, { projectId: website, client: "Hart Dental" }, database)
@@ -265,7 +265,7 @@ describe("clients", () => {
 
 describe("whole-team projects", () => {
   it("puts everyone on, newcomers included, and nobody can leave while it's on", async () => {
-    const office = (await projectFor(admin, ben.id, { name: "Office", color: "blue", description: "" }, database)).id
+    const office = (await projectFor(admin, ben.id, { name: "Office", color: "blue" }, database)).id
     await expect(setWholeTeam(ben.id, { projectId: office, wholeTeam: true }, database)).rejects.toThrow(
       PROJECT_ERRORS.onlySiteAdminSettings
     )
@@ -282,7 +282,7 @@ describe("whole-team projects", () => {
 
   it("keeps everyone as ordinary members once off, and leaving the team still takes them off", async () => {
     await inTeam(teamId, async () => {
-      const office = (await projectFor(admin, ben.id, { name: "Office", color: "blue", description: "" }, database)).id
+      const office = (await projectFor(admin, ben.id, { name: "Office", color: "blue" }, database)).id
       await setWholeTeam(admin.id, { projectId: office, wholeTeam: true }, database)
       await setWholeTeam(admin.id, { projectId: office, wholeTeam: false }, database)
       expect((await loadProjectPage(ben.id, office, database)).members).toHaveLength(3)

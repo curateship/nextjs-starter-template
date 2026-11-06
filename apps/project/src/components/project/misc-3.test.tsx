@@ -16,6 +16,7 @@ const made = vi.hoisted(() => ({ calls: [] as Record<string, unknown>[] }))
 
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({ invalidate: async () => undefined }),
+  useNavigate: () => async () => undefined,
   getRouteApi: () => ({ useLoaderData: () => ({ user: { id: "me", name: "Tyler" } }) }),
 }))
 vi.mock("@/lib/api/project/tasks", () => ({

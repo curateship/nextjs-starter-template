@@ -14,6 +14,7 @@ import {
   projectTaskTypes,
   projectTasks,
 } from "@/server/project/schema"
+import { storedNotesForCopy } from "@/lib/project/notes"
 
 /**
  * A project's plan, read out of one project and written into another by
@@ -72,12 +73,12 @@ export async function readProjectPlan(tx: ProjectDb, source: ProjectRow): Promis
   const milestonePlace = new Map(milestones.map((milestone, index) => [milestone.id, index]))
   return {
     color: source.color,
-    description: source.description,
     hiddenTypeIds: source.hiddenTypeIds,
     defaultTypeId: source.defaultTypeId,
     milestones: milestones.map((milestone) => milestone.name),
     tasks: tasks.map(
       (task): PlanTask => ({
+        sourceId: task.id,
         title: task.title,
         notes: task.notes,
         milestone: task.milestoneId ? (milestonePlace.get(task.milestoneId) ?? null) : null,
@@ -155,12 +156,14 @@ export async function writeProjectPlan(
     typeId: task.typeId && typeIds.has(task.typeId) ? task.typeId : null,
     position: index + 1,
   }))
+  const copyIds = new Map(tasks.map(({ id, task }) => [task.sourceId, id]))
   await tx.insert(projectTasks).values(
     tasks.map(({ id, task, typeId, position }) => ({
       id,
       projectId: project.id,
       title: task.title,
-      notes: task.notes,
+      // Task cards point at the copies; files stay behind, so File blocks and uploaded pictures go.
+      notes: storedNotesForCopy(task.notes, { taskIds: copyIds }),
       status: "todo" as const,
       milestoneId: task.milestone === null ? null : (milestoneIds[task.milestone] ?? null),
       position,

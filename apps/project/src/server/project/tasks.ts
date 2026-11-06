@@ -87,6 +87,7 @@ import {
 } from "@/server/project/schema"
 import { customShellUsers } from "@/server/schema"
 import { listMilestones, type Milestone } from "@/server/project/milestones"
+import { withOwnFiles } from "@/server/project/note-blocks"
 
 /**
  * Tasks. The rules Tyler set, in `workspace/docs/what-this-app-is.md`:
@@ -370,7 +371,8 @@ export type TaskStep = {
 }
 
 export type TaskDetail = {
-  task: TaskCard & { notes: string }
+  /** `notesLocked`: the notes read only, for everyone, until someone who can write them unlocks them. */
+  task: TaskCard & { notes: string; notesLocked: boolean }
   steps: TaskStep[]
   comments: ChatMessage[]
   /** Tasks the notes link to that I can open: task id to project id. */
@@ -507,7 +509,7 @@ export async function loadTaskDetail(
   const noteTargets = await resolveTaskLinks(membership, notesLinkedTaskIds(task.notes), database)
 
   return {
-    task: { ...card, notes: notesForReader(task.notes, noteTargets) },
+    task: { ...card, notes: notesForReader(task.notes, noteTargets), notesLocked: task.notesLocked },
     noteLinks: openableLinks(noteTargets),
     steps,
     comments: await loadTaskMessages(membership, taskId, archived, database),
@@ -618,7 +620,8 @@ export async function createTask(
 ): Promise<{ id: string }> {
   return database.transaction(async (tx) => {
     const projectId = await resolveProjectId(actor.id, input.projectId, tx)
-    input = { ...input, projectId }
+    // No task yet, so no file of its own: a File block or uploaded picture can't come in this way.
+    input = { ...input, projectId, notes: await withOwnFiles(input.notes, null, tx) }
     const { membership, project } = await requireOpenProject(actor.id, input.projectId, tx)
     if (input.assigneeUserId) await requireAssignable(input.projectId, input.assigneeUserId, tx, actor.id)
     const at = now()
@@ -720,6 +723,8 @@ export async function updateTask(
     notes?: string
     /** The notes editor's session, which keeps one earlier version however often it saves. */
     notesSession?: string
+    /** Locks the notes so they read only, or unlocks them. */
+    notesLocked?: boolean
     dueDate?: string | null
     /** An ISO moment on the due date; null clears the time. */
     dueAt?: string | null
@@ -734,6 +739,10 @@ export async function updateTask(
   const { taskId, notesSession, dueAt: dueAtText, ...fields } = patch
   await database.transaction(async (tx) => {
     const { task } = await requireTaskAccess(actor.id, taskId, tx)
+    // Locked notes take no writing until they're unlocked; the lock itself may change in the same save.
+    if (fields.notes !== undefined && (fields.notesLocked ?? task.notesLocked)) {
+      throw new Error(PROJECT_ERRORS.notesLocked)
+    }
     // Either end may move, from the task, the Calendar, the Timeline or a bulk
     // change, and none may leave the start after the due day.
     const start = fields.startDate !== undefined ? fields.startDate : task.startDate
@@ -743,6 +752,8 @@ export async function updateTask(
     // day or the Calendar alike, so an old time never lands on a new day.
     const dueAt =
       dueAtText !== undefined ? dueMoment(due, dueAtText) : fields.dueDate !== undefined ? null : undefined
+    // A File block or uploaded picture stays only when its file is on this task.
+    if (fields.notes !== undefined) fields.notes = await withOwnFiles(fields.notes, taskId, tx)
     await tx
       .update(projectTasks)
       .set({ ...fields, ...(dueAt !== undefined ? { dueAt } : {}), updatedAt: now() })

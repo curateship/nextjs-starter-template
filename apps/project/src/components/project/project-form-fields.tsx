@@ -15,11 +15,13 @@ import {
 /** The colour picker used when a project is made and on its details panel. */
 export function ProjectColorSelect({
   id,
+  className = "w-full sm:w-fit",
   value,
   onChange,
   disabled,
 }: {
   id: string
+  className?: string
   value: ProjectColor
   onChange: (color: ProjectColor) => void
   disabled?: boolean
@@ -30,7 +32,7 @@ export function ProjectColorSelect({
       onValueChange={(next) => onChange(next as ProjectColor)}
       disabled={disabled}
     >
-      <SelectTrigger id={id} className="w-full sm:w-fit">
+      <SelectTrigger id={id} className={className}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

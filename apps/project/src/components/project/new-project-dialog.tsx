@@ -17,7 +17,6 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { createNewProject } from "@/lib/api/project/projects"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -43,7 +42,6 @@ export function NewProjectDialog({
   const navigate = useNavigate()
   const [name, setName] = React.useState("")
   const [color, setColor] = React.useState<ProjectColor>("blue")
-  const [description, setDescription] = React.useState("")
   const firstTeam = startTeamId ?? (teams.length === 1 ? teams[0].id : "")
   const [teamId, setTeamId] = React.useState(firstTeam)
   // Each opening starts on the filter's team, which may have changed since.
@@ -56,12 +54,11 @@ export function NewProjectDialog({
   const [teamInvalid, setTeamInvalid] = React.useState(false)
   const [run, saving] = useAsyncAction(getProjectErrorMessage)
   const needsTeam = teams.length > 0
-  const dirty = Boolean(name.trim() || description.trim())
+  const dirty = Boolean(name.trim())
 
   function close() {
     setName("")
     setColor("blue")
-    setDescription("")
     setTeamId(firstTeam)
     setInvalid(false)
     setTeamInvalid(false)
@@ -83,7 +80,7 @@ export function NewProjectDialog({
     const ok = await run(async () => {
       projectId = (
         await createNewProject(
-          { name, color, description },
+          { name, color },
           teamId || undefined
         )
       ).id
@@ -160,15 +157,6 @@ export function NewProjectDialog({
                   <div className="grid gap-2">
                     <Label htmlFor="new-project-color">Colour</Label>
                     <ProjectColorSelect id="new-project-color" value={color} onChange={setColor} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="new-project-description">Description</Label>
-                    <Textarea
-                      id="new-project-description"
-                      value={description}
-                      maxLength={LIMITS.projectDescription}
-                      onChange={(event) => setDescription(event.target.value)}
-                    />
                   </div>
                 </CardContent>
               </Card>

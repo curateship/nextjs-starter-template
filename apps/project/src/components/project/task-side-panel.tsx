@@ -5,6 +5,8 @@ import {
   EllipsisVerticalIcon,
   HistoryIcon,
   ListTodoIcon,
+  LockIcon,
+  LockOpenIcon,
   PencilLineIcon,
   TimerIcon,
   MessageSquarePlusIcon,
@@ -256,7 +258,7 @@ type Adding = "tags" | "chat" | "files" | "steps" | "time"
  * - **The fields**, flat rows with lines between them: Person, Dates,
  *   Priority and template, the template's own fields, Plan.
  * - **The rows that do something**: the Needs review tick box, Show the text toolbar, the notes'
- *   Earlier versions and Delete, Remind me, Ask for more time, Duplicate,
+ *   Earlier versions, Delete and Lock (the last two hidden and Unlock shown while they're locked), Remind me, Ask for more time, Duplicate,
  *   Move to project, Save as task template, then Delete task under a line.
  * Each field saves on its own, so there is no Save button.
  */
@@ -422,7 +424,7 @@ function TaskMenu({
                   </div>
                   <div className="grid gap-1 border-t p-2 empty:hidden [&_[data-slot=button]]:font-normal">
                     {side.review}
-                    {side.readOnly ? null : (
+                    {side.readOnly || side.notesLock?.locked ? null : (
                       <Button
                         type="button"
                         variant="ghost"
@@ -448,7 +450,7 @@ function TaskMenu({
                       <HistoryIcon className="size-4" />
                       Earlier versions of the notes
                     </Button>
-                    {side.readOnly || side.notes.empty ? null : (
+                    {side.readOnly || side.notes.empty || side.notesLock?.locked ? null : (
                       <Button
                         type="button"
                         variant="ghost"
@@ -462,6 +464,12 @@ function TaskMenu({
                         Delete the notes
                       </Button>
                     )}
+                    {side.notesLock ? (
+                      <Button type="button" variant="ghost" className={row} onClick={side.notesLock.toggle}>
+                        {side.notesLock.locked ? <LockOpenIcon className="size-4" /> : <LockIcon className="size-4" />}
+                        {side.notesLock.locked ? "Unlock the notes" : "Lock the notes"}
+                      </Button>
+                    ) : null}
                     {side.readOnly ? null : (
                       <TaskMoreRows
                         detail={side.detail}
