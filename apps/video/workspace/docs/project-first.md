@@ -120,6 +120,11 @@ rules are in `project-videos.md`, "AI spend".
 - **Where it shows:** as "AI spend" in the inspector's Project card, beside
   the shape and length. Hovering lists it by tool and gives the whole
   project's total; clicking opens the settings, where the video's limit is.
+  When the figure can't be read, an error message says so with Try again,
+  and the inspector leaves the AI rows out rather than showing $0.00.
+- **A limit that isn't a dollar figure** is refused on Save changes, and the
+  reason sits under the box ("Type the limit in dollars, more than $0 and at
+  most …") as well as in the error message. Editing the box clears it.
 - **What is not counted:** pictures, AI clips and voices made before 17 Oct
   2026 named no project. Captions, Tighten and Hook already did.
 - **The limit:** a dollar figure, empty for no limit. Before an AI call,
@@ -148,7 +153,11 @@ rules are in `project-videos.md`, "AI spend".
   kept in the address as `?actor=<id>`.
 - **Pin** keeps a project at the top whatever the sort. The earliest pin
   comes first. A pinned row has a light yellow background (Tyler, 17 Oct
-  2026), in the amber the app already uses for notices, fainter in dark mode.
+  2026), fainter in dark mode. It is the one pinned colour in Video, kept in
+  `src/lib/video/pinned-look.ts` and shared with the carousel projects list
+  and a pinned template's pin: the amber the shell uses for a favourite. The
+  theme has no colour of its own for a pin; one would go in the shell's
+  `theme.css`, for every app.
 - **Archive** takes a project off the list without deleting anything. Archived
   in the folder dropdown lists them, and Bring back returns one. Archiving
   takes the pin off. Several ticked projects archive in one press.

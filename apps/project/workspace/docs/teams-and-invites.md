@@ -16,7 +16,7 @@ two kinds of people, both ordinary shell accounts signing in on the one
   features: no Billing, plan or Upgrade, no AI usage, Feedback, Changelog or
   workspaces. Their Account window holds their name, photo and password, and
   Security has the password and "sign out other devices" only. Their left menu
-  is Project's: My dashboard, Projects, Team and Task templates.
+  is Project's: My dashboard, Projects and Team.
 - **The site admin** runs every team without being on any. It is the shell's
   `admin` role. Tyler: "Im admin, I should be able to see everything" and
   "What tasks? if i only overseeas the team, why would I get tasks?" The site
@@ -71,9 +71,8 @@ two kinds of people, both ordinary shell accounts signing in on the one
   Employees have one team and send nothing.
 - **Deleting a team.** The bin asks "Delete Beta?" and the team goes for good
   with everything left in it: archived projects and their tasks, "Just me"
-  lists, check-ins, meetings, labels, task templates, step lists, days
-  off and saved views. It is refused while anyone is on the team or a shared
-  project is still open: the window says "Sample team can't be deleted yet",
+  lists, check-ins, meetings, days off and saved views. It is refused while
+  anyone is on the team or a shared project is still open: the window says "Sample team can't be deleted yet",
   names what is left, and links to Members and to Projects filtered to that
   team (Tyler chose this over a delete that takes live work, 19 Oct 2026).
   Uploaded files such as the team photo stay in storage.
@@ -91,7 +90,7 @@ two kinds of people, both ordinary shell accounts signing in on the one
   America/Toronto. The browser's zone and the team's sit at the top, and a
   saved zone the browser doesn't know is kept (`time-zone-select.tsx`).
 - **A wrong value stays in its box, marked red,** until it's fixed: a check-in
-  time that isn't a time, an empty tag name. The
+  time that isn't a time, an empty team name. The
   error says why, and a refused save keeps what was typed too.
 
 ## Team roles give no powers
@@ -442,9 +441,8 @@ So a blocker gets help where it was written, not in a side chat.
 
 The cog in the left panel's header opens the Team settings window: name,
 daily check-in time, time zone and work days, the check-in boxes' names, team
-holidays, starter tasks and the join link, the team's tags (see
-[Tags and groups](tags-and-groups.md)), and its saved step lists
-(see [Projects and tasks](projects-and-tasks.md#tasks)). Only the site admin
+holidays, starter tasks and the join link. The Tags card went with tags on
+6 Nov 2026 (Tyler: "remove the steps, timer and tags feature"). Only the site admin
 sees the cog: Team settings are theirs alone.
 
 - **Check-in boxes**: rename the three notes, such as "Wins" and "Focus".

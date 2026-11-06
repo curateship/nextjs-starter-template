@@ -4,6 +4,7 @@ import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from "@tiptap/re
 import {
   BLOCK_FRAME,
   CalloutFrame,
+  CommentsDrawing,
   FileDrawing,
   FoldHeading,
   ImageDrawing,
@@ -99,6 +100,14 @@ export function FileBlockView(props: NodeViewProps) {
   return (
     <Frame selected={props.selected}>
       <FileDrawing fileId={fileId} editing={editingOf(props)} onPick={(next) => fill(props, { fileId: next })} />
+    </Frame>
+  )
+}
+
+export function CommentsBlockView(props: NodeViewProps) {
+  return (
+    <Frame selected={props.selected}>
+      <CommentsDrawing editing={editingOf(props)} />
     </Frame>
   )
 }

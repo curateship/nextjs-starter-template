@@ -8,9 +8,10 @@ import { TaskSidePanel } from "@/components/project/task-side-panel"
 import { ThreePanels } from "@/components/project/three-panels"
 import type { ProjectPage } from "@/lib/api/project/projects"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
-import { PROJECT_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
+import { PROJECT_PANEL_LAYOUT_KEY, projectOpenTaskKey } from "@/lib/project/panel-keys"
 import type { TaskFilters } from "@/lib/project/task-filters"
 import { useProjectLive } from "@/lib/project/use-project-live"
+import { useRememberedTask } from "@/lib/project/use-remembered-task"
 
 const PROJECT_ROUTE_ID = "/_authenticated/projects/$projectId"
 
@@ -45,6 +46,12 @@ export function ProjectWorkspace({
   const taskAddress = useTaskAddress()
   const navigate = useNavigate()
   const router = useRouter()
+  // The right panel always holds a task: the one last open on this project in
+  // this browser, or the list's first row on a first visit or once that task is
+  // gone (Tyler, 6 Nov 2026: "it should always land on the first task on the
+  // list"), the same rule as My dashboard.
+  const [rows, setRows] = React.useState<string[] | null>(null)
+  const quietTask = useRememberedTask({ storageKey: projectOpenTaskKey(page.project.id), taskId: openTaskId, ids: rows })
 
   // A task changed by someone else moves on the Board and List as it happens.
   // Only this page's own data reloads.
@@ -103,7 +110,8 @@ export function ProjectWorkspace({
     <PersonPages>
       <ThreePanels
         layoutKey={PROJECT_PANEL_LAYOUT_KEY}
-        showRightFor={openTaskId}
+        // A task opened on arrival leaves a narrow screen on the list.
+        showRightFor={openTaskId === quietTask ? undefined : openTaskId}
         left={{
           label: "Details",
           showLabel: "Show the project details",
@@ -120,6 +128,7 @@ export function ProjectWorkspace({
               openTaskId={openTaskId}
               openChat={openChat}
               onChatOpened={chatOpened}
+              onRows={setRows}
             />
           ),
         }}

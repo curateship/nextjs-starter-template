@@ -34,7 +34,8 @@ task and his answers are in
 - **Wide:** 1280 × 720, for YouTube.
 - **Tall:** 1080 × 1920, for a Shorts, TikTok or Reels cover.
 - **The + in the panel's header** makes a new one: from the frame under the
-  playhead in either shape, blank in either shape, or from a template.
+  playhead in either shape, blank in either shape, or from a template. With
+  none yet, both the board and the panel point at that +.
 
 ## Versions and the main one
 
@@ -180,7 +181,9 @@ have not been measured on youtube.com yet.**
 - **Save as a template:** Templates in the ⋮ menu names it. Everyone on the site
   can start from it (Tyler, 3 Nov 2026). Picture layers become empty spots, so
   nobody's picture travels with a template.
-- **Deleting:** whoever saved a template, or a site admin, can delete it.
+- **Deleting:** whoever saved a template, or a site admin, can delete it. The
+  trash can asks first, because everyone on the site loses it as a starting
+  point. Thumbnails already made from it stay as they are.
 - **Copy a style**, in the ⋮ menu, takes a pasted YouTube link or a picture
   from the media library.
   Gemini describes the layout (where the pictures and words are, their

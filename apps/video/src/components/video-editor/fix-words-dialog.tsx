@@ -16,6 +16,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { getFixWordErrorMessage, sayWordsInTheirVoice } from "@/lib/api/video/fix-a-word"
 import { withEstimate } from "@/lib/video/ai-estimates"
 import {
@@ -144,6 +145,7 @@ export function FixWordsDialog({
                     setMade(null)
                   }}
                 />
+                <LengthCounter length={text.length} max={FIX_WORD_TEXT_MAX} />
               </div>
               {made ? (
                 <div className="flex items-center gap-2">

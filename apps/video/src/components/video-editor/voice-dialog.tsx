@@ -3,6 +3,7 @@ import { ListChecksIcon, Loader2Icon, MicIcon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
@@ -75,6 +76,7 @@ import {
   ScriptCheckList,
   ScriptFigures,
 } from "@/components/video-editor/script-check-results"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 
 /**
  * Having something read aloud.
@@ -385,6 +387,7 @@ export function VoiceDialog({
                 placeholder="Type or paste the script…"
                 onChange={(event) => setScript(event.target.value)}
               />
+              <LengthCounter length={script.length} max={VOICE_TEXT_MAX} />
               <div className="flex flex-wrap items-center gap-2">
                 <Select value={pauseLength} onValueChange={setPauseLength}>
                   <SelectTrigger
@@ -481,28 +484,40 @@ export function VoiceDialog({
 
               <div className="grid gap-2">
                 <Label htmlFor="voice-who">Voice</Label>
-                <Select
-                  value={voiceId}
-                  onValueChange={setVoiceId}
+                <DisabledReason
                   disabled={!voices?.length}
+                  className="flex w-full"
+                  reason={
+                    loadingVoices
+                      ? "The voices are still on their way."
+                      : voicesRefused
+                        ? "The voices could not be loaded. Close this window and open it again to try again."
+                        : "No voices came back. Check the ElevenLabs key on Settings, AI."
+                  }
                 >
-                  <SelectTrigger id="voice-who" className="w-full">
-                    <SelectValue
-                      placeholder={
-                        loadingVoices ? "Fetching voices…" : "No voices"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(voices ?? []).map((voice) => (
-                      <SelectItem key={voice.id} value={voice.id}>
-                        {voice.name}
-                        {voice.yours ? " (yours)" : ""}
-                        {voice.description ? ` - ${voice.description}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <Select
+                    value={voiceId}
+                    onValueChange={setVoiceId}
+                    disabled={!voices?.length}
+                  >
+                    <SelectTrigger id="voice-who" className="w-full">
+                      <SelectValue
+                        placeholder={
+                          loadingVoices ? "Fetching voices…" : "No voices"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(voices ?? []).map((voice) => (
+                        <SelectItem key={voice.id} value={voice.id}>
+                          {voice.name}
+                          {voice.yours ? " (yours)" : ""}
+                          {voice.description ? ` - ${voice.description}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </DisabledReason>
                 {available?.voice && voices && !voices.some((one) => one.yours) ? (
                   <p className="text-sm text-muted-foreground">
                     To read in your own voice, close this and pick Make a copy of my voice from the + in the Voices panel.

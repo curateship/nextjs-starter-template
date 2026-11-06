@@ -2,7 +2,6 @@ import { z } from "zod"
 
 import { isRealDay } from "@/lib/project/days"
 import { storedPlainNotes, storedTaskNotes } from "@/lib/project/notes"
-import { STEP_FIELD_KINDS } from "@/lib/project/step-fields"
 
 /**
  * Project's fixed lists and the limits on what people type, shared by the
@@ -25,8 +24,7 @@ export function runsTheTeam(role: TeamRole | null | undefined) {
 }
 
 /**
- * Five statuses, in board order. Tyler chose status plus optional steps over a
- * percentage, because "60% done" is a guess and "3 of 5 steps done" is a count.
+ * Five statuses, in board order.
  * Archived came last (Tyler, 25 Oct 2026: "add another status called
  * 'Archived'"): its own Board column on a project, and out of everything else.
  */
@@ -204,10 +202,6 @@ export type TaskEventKind =
   | "handed_over"
   | "accepted"
   | "handed_back"
-  /** On the task a step came from: the step became its own task. */
-  | "became_task"
-  /** On the new task: it was a step in another task. */
-  | "from_step"
   /** Moved here from another project; the reason holds that project's name. */
   | "moved"
   /** Put in the bin, and brought back out of it. */
@@ -222,16 +216,6 @@ export type TaskEventKind =
   | "sent_back"
   /** The due date moved from one day to another; the reason holds both, "2026-11-03 2026-11-10". */
   | "due_moved"
-  /** Start on a task nobody had made it theirs (`workspace/docs/task-clock.md`). */
-  | "took"
-  /**
-   * The task clock. A pause's reason holds that stretch's seconds, with
-   * " midnight" after them when it paused itself at midnight; a fix's holds
-   * the old and new totals in seconds, "10800 4200".
-   */
-  | "clock_started"
-  | "clock_paused"
-  | "clock_fixed"
   /**
    * Ask for more time (`workspace/docs/projects-and-tasks.md`). An ask's
    * reason is the day asked for and why, "2026-12-05 Waiting on the photos";
@@ -249,7 +233,7 @@ export type TaskEventKind =
 export const PICKED_MANY_DAYS = 3
 
 /**
- * An open task with no change, message, step or clock time for this many
+ * An open task with no change or message for this many
  * days shows in Needs attention as Untouched. Fixed for every team (Tyler,
  * 20 Oct 2026).
  */
@@ -268,12 +252,6 @@ export const LIMITS = {
   taskTitle: 200,
   /** The notes as saved: the editor's document, which is longer than its words. */
   taskNotes: 50_000,
-  stepText: 200,
-  stepsPerTask: 50,
-  /** A step's own name-and-value fields (Misc 4, 28 Oct 2026). */
-  fieldsPerStep: 10,
-  stepFieldName: 40,
-  stepFieldValue: 500,
   comment: 4000,
   reason: 200,
   /** Tasks one check-in can pick. A small team's day is never near this. */
@@ -282,8 +260,6 @@ export const LIMITS = {
   filesPerTask: 10,
   fileBytes: 10 * 1024 * 1024,
   teamFileBytes: 5 * 1024 * 1024 * 1024,
-  labelName: 40,
-  labelsPerTeam: 100,
   /** Tasks one pasted list can make. */
   tasksPerPaste: 50,
   memberTitle: 40,
@@ -304,22 +280,6 @@ export const LIMITS = {
   starterTasks: 10,
   /** The biggest "Doing per person" a project can set. */
   doingLimit: 99,
-  /** Task types: Tyler's task file, 11 Oct 2026. Archived types count too. */
-  typesPerTeam: 50,
-  typeName: 40,
-  fieldsPerType: 30,
-  fieldName: 40,
-  choicesPerField: 50,
-  choiceName: 60,
-  fieldText: 500,
-  fieldLongText: 5000,
-  fieldLink: 2048,
-  /** Field columns a project's List can add when filtered to one type. */
-  fieldColumns: 3,
-  /** A task's guess, in minutes: up to 999 hours. */
-  guessMinutes: 999 * 60,
-  /** A task's time set by hand, in seconds: up to 999 hours. */
-  clockSeconds: 999 * 60 * 60,
   /** Files sent with one chat message, so one send stays one upload of at most 50 MB. */
   filesPerMessage: 5,
   /** The team's pinned announcement: one message, never a chat. */
@@ -339,8 +299,6 @@ export const LIMITS = {
   searchResults: 20,
   /** Tasks one task can wait on. */
   waitsPerTask: 10,
-  stepListName: 60,
-  stepListsPerTeam: 100,
   /** A project status's one line of why. */
   /** The most late tasks a project status rule can name. */
   lateTasks: 99,
@@ -684,14 +642,9 @@ export const createTaskSchema = z.object({
   notes: notesSchema.default(""),
   assigneeUserId: id.nullable(),
   dueDate: dueDateSchema.default(null),
-  steps: z
-    .array(trimmed(LIMITS.stepText, "A step"))
-    .max(LIMITS.stepsPerTask)
-    .default([]),
   handoverNote: handoverNoteSchema,
-  /** Set from New task's dropdown (Tyler, 19 Oct 2026); tags are the team's labels by id. */
+  /** Set from New task's dropdown (Tyler, 19 Oct 2026). */
   priority: z.enum(TASK_PRIORITIES).default("normal"),
-  labelIds: z.array(id).max(LIMITS.labelsPerTeam).default([]),
   /** One of the project's milestones, from New task (Tyler, 19 Oct 2026). */
   milestoneId: id.nullable().default(null),
 })
@@ -714,17 +667,6 @@ export const updateTaskSchema = z.object({
   startDate: dueDateSchema.optional(),
   snoozedUntil: dueDateSchema.optional(),
   priority: z.enum(TASK_PRIORITIES).optional(),
-  /** How long it is guessed to take, in minutes; null takes the guess off. */
-  guessMinutes: z.number().int().min(1).max(LIMITS.guessMinutes).nullable().optional(),
-})
-
-/** Start and Pause, from the task panel's footer. */
-export const clockSchema = z.object({ taskId: id })
-
-/** A task's time set by hand, for a clock left running by mistake. */
-export const setClockSchema = z.object({
-  taskId: id,
-  seconds: z.number().int().min(0).max(LIMITS.clockSeconds),
 })
 
 const weekDaysSchema = z
@@ -753,45 +695,12 @@ export const waitSchema = z.object({ taskId: id, waitingOnTaskId: id })
 /** "Remind me" on a day, or null to take the reminder off. */
 export const reminderSchema = z.object({ taskId: id, day: dueDateSchema })
 
-export const stepListNameSchema = trimmed(LIMITS.stepListName, "The list's name")
-
 export const createTasksFromLinesSchema = z.object({
   projectId: id,
   titles: z.array(trimmed(LIMITS.taskTitle, "The task title")).min(1).max(LIMITS.tasksPerPaste),
   assigneeUserId: id.nullable(),
   dueDate: dueDateSchema.default(null),
   handoverNote: handoverNoteSchema,
-})
-
-/** A step's fields, saved whole each time one changes. */
-export const stepFieldsSchema = z
-  .array(
-    z.object({
-      id,
-      name: trimmed(LIMITS.stepFieldName, "A field's name"),
-      value: z.string().trim().max(LIMITS.stepFieldValue, `A field's value can be at most ${LIMITS.stepFieldValue} characters.`),
-      kind: z.enum(STEP_FIELD_KINDS),
-    })
-    // A number, a date or a tick box holds only what its kind can.
-    .refine((field) => field.kind !== "number" || field.value === "" || Number.isFinite(Number(field.value)), {
-      message: "A Number field holds a number.",
-    })
-    .refine((field) => field.kind !== "date" || field.value === "" || isRealDay(field.value), {
-      message: "Pick a date from the calendar.",
-    })
-    .refine((field) => field.kind !== "tick" || field.value === "" || field.value === "yes", {
-      message: "A Tick box is ticked or not.",
-    })
-  )
-  .max(LIMITS.fieldsPerStep, `A step can have at most ${LIMITS.fieldsPerStep} fields.`)
-
-export const updateStepSchema = z.object({
-  stepId: id,
-  text: trimmed(LIMITS.stepText, "A step").optional(),
-  done: z.boolean().optional(),
-  assigneeUserId: id.nullable().optional(),
-  dueDate: dueDateSchema.optional(),
-  fields: stepFieldsSchema.optional(),
 })
 
 export const bulkChangeSchema = z.object({
@@ -806,24 +715,9 @@ export const bulkChangeSchema = z.object({
     z.object({ kind: z.literal("due"), dueDate: dueDateSchema }),
     z.object({ kind: z.literal("move"), projectId: id }),
     z.object({ kind: z.literal("priority"), priority: z.enum(TASK_PRIORITIES) }),
-    z.object({ kind: z.literal("tag"), labelId: id, on: z.boolean() }),
-    z.object({ kind: z.literal("type"), typeId: id.nullable() }),
     z.object({ kind: z.literal("delete") }),
   ]),
 })
-
-export const labelSchema = z.object({
-  name: trimmed(LIMITS.labelName, "The tag name"),
-  color: projectColorSchema,
-})
-
-export const updateLabelSchema = labelSchema.partial().extend({ labelId: id })
-
-export const setTaskLabelsSchema = z.object({
-  taskId: id,
-  labelIds: z.array(id).max(LIMITS.labelsPerTeam),
-})
-
 
 export const reorderTasksSchema = z.object({
   projectId: id,

@@ -26,7 +26,6 @@ import {
   CopyIcon,
   EllipsisIcon,
   HourglassIcon,
-  ListChecksIcon,
   MessageSquareIcon,
   PlayIcon,
   PlusIcon,
@@ -37,7 +36,6 @@ import {
 
 import {
   DueDate,
-  LabelChip,
   PersonAvatar,
   PickedDaysBadge,
   PriorityMark,
@@ -49,7 +47,6 @@ import {
   WaitingBadge,
   UnreadBadge,
 } from "@/components/project/task-bits"
-import type { FieldColumn } from "@/components/project/task-list"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -71,7 +68,6 @@ import {
 } from "@/lib/project/rules"
 import { dueDayOf, todayKey } from "@/lib/project/dates"
 import type { DoingWarning } from "@/lib/project/doing-limit"
-import { fieldValueText, visibleFieldIds, type FieldRule } from "@/lib/project/task-fields"
 import { splitRecentDone } from "@/lib/project/task-filters"
 import { byPosition } from "@/lib/project/task-order"
 import { cn } from "@/lib/utils"
@@ -146,7 +142,6 @@ export function TaskBoard({
   onStatusOrder,
   cardOrder = "project",
   showProject = false,
-  cardFields,
 }: {
   tasks: TaskCard[]
   /** The task open in the panel beside the Board, whose card is outlined. */
@@ -177,12 +172,6 @@ export function TaskBoard({
   cardOrder?: "project" | "due"
   /** Names each card's project, for a Board of several projects. */
   showProject?: boolean
-  /**
-   * While the Board is filtered to one task type: the fields picked for the
-   * List, drawn as lines on each card (Features 16 Oct, part 8), and the
-   * type's fields, so one hidden by "shown only when" stays hidden.
-   */
-  cardFields?: CardFields
 }) {
   // A short drag threshold, so a click on a card still opens it.
   // No keyboard dragging: Enter on a card opens it, as a button should.
@@ -369,47 +358,45 @@ export function TaskBoard({
   )
 
   return (
-    <CardFieldsContext.Provider value={cardFields ?? null}>
-      <DndContext
-        id={dndId}
-        sensors={sensors}
-        collisionDetection={collisionDetection}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        onDragCancel={() => setHeld(null)}
-      >
-        <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-          {grouped ? (
-            // As wide as a row's four columns, so each row's frame runs past the panel's edge with them.
-            <div className="grid w-max min-w-full gap-3 p-3">
-              {rows.map((lane) => (
-                <LaneRow
-                  key={lane.id}
-                  lane={lane}
-                  counts={laneCounts(tasks.filter((task) => laneOf(task) === lane.id))}
-                  warning={doingWarnings.find((warning) => warning.personId === lane.id)?.text}
-                  open={!folded.has(lane.id)}
-                  onToggle={() => toggleFold(lane.id)}
-                >
-                  {columnsOf(lane.id)}
-                </LaneRow>
-              ))}
-            </div>
-          ) : (
-            <div className="flex min-h-0 items-start gap-3 p-3">{columnsOf(ALL_LANE)}</div>
-          )}
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-        <DragOverlay>
-          {heldTask ? (
-            <div aria-hidden className={cn(CARD_CLASS, "cursor-grabbing shadow-lg")}>
-              <CardContent task={heldTask} showProject={showProject} />
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-    </CardFieldsContext.Provider>
+    <DndContext
+      id={dndId}
+      sensors={sensors}
+      collisionDetection={collisionDetection}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setHeld(null)}
+    >
+      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
+        {grouped ? (
+          // As wide as a row's four columns, so each row's frame runs past the panel's edge with them.
+          <div className="grid w-max min-w-full gap-3 p-3">
+            {rows.map((lane) => (
+              <LaneRow
+                key={lane.id}
+                lane={lane}
+                counts={laneCounts(tasks.filter((task) => laneOf(task) === lane.id))}
+                warning={doingWarnings.find((warning) => warning.personId === lane.id)?.text}
+                open={!folded.has(lane.id)}
+                onToggle={() => toggleFold(lane.id)}
+              >
+                {columnsOf(lane.id)}
+              </LaneRow>
+            ))}
+          </div>
+        ) : (
+          <div className="flex min-h-0 items-start gap-3 p-3">{columnsOf(ALL_LANE)}</div>
+        )}
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
+      <DragOverlay>
+        {heldTask ? (
+          <div aria-hidden className={cn(CARD_CLASS, "cursor-grabbing shadow-lg")}>
+            <CardContent task={heldTask} showProject={showProject} />
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   )
 }
 
@@ -711,9 +698,9 @@ function BoardCard({
 }
 
 /**
- * A card as Tyler drew it on 13 Oct 2026: the title; the type and tags as
- * small tinted chips; any warning; then one line with the due
- * date, steps, messages and what it waits on, and the person at its end.
+ * A card as Tyler drew it on 13 Oct 2026: the title; a High priority mark;
+ * any warning; then one line with the due
+ * date, messages and what it waits on, and the person at its end.
  */
 function CardContent({
   task,
@@ -724,7 +711,7 @@ function CardContent({
   roomForMenu?: boolean
   showProject?: boolean
 }) {
-  const chips = task.type || task.priority === "high" || task.labels.length
+  const chips = task.priority === "high"
   const slipping = task.dueMoves >= DUE_MOVED_MANY && isOpenStatus(task.status)
   return (
     <>
@@ -742,10 +729,6 @@ function CardContent({
       {chips ? (
         <span className="flex flex-wrap items-center gap-1">
           <PriorityMark priority={task.priority} />
-          {task.type ? <TintChip color={task.type.color}>{task.type.name}</TintChip> : null}
-          {task.labels.map((label) => (
-            <LabelChip key={label.id} label={label} />
-          ))}
         </span>
       ) : null}
       {slipping ? (
@@ -753,7 +736,6 @@ function CardContent({
           <TintChip color="amber">Date moved {task.dueMoves} times</TintChip>
         </span>
       ) : null}
-      <FieldLines task={task} />
       {task.status === "stuck" && task.stuckReason ? (
         <span className="text-xs text-destructive">Stuck: {task.stuckReason}</span>
       ) : null}
@@ -774,13 +756,6 @@ function CardContent({
       <span className="flex items-center gap-2 text-xs text-muted-foreground">
         <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
           {task.dueDate ? <DueDate dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} /> : null}
-          {task.steps.total ? (
-            <span className="flex items-center gap-1">
-              <ListChecksIcon className="size-3" aria-hidden />
-              {task.steps.done}/{task.steps.total}
-              <span className="sr-only"> steps done</span>
-            </span>
-          ) : null}
           {task.commentCount ? (
             <span className="flex items-center gap-1">
               <MessageSquareIcon className="size-3" aria-hidden />
@@ -806,37 +781,6 @@ function CardContent({
         </span>
       </span>
     </>
-  )
-}
-
-type CardFields = { columns: readonly FieldColumn[]; fields: readonly FieldRule[] }
-
-const CardFieldsContext = React.createContext<CardFields | null>(null)
-
-/**
- * "Platform: YouTube" under the chips, one line for each field picked for
- * the List, on cards of the type the Board is filtered to. An empty field,
- * and one hidden by "shown only when", draws nothing. A File field shows its
- * count, never the names. Phones leave the lines off, for room.
- */
-function FieldLines({ task }: { task: TaskCard }) {
-  const shown = React.useContext(CardFieldsContext)
-  if (!shown?.columns.length || task.type?.id === undefined) return null
-  const visible = visibleFieldIds(shown.fields, task.fieldValues)
-  const lines = shown.columns.flatMap((spec) => {
-    if (!visible.has(spec.field.id)) return []
-    const text = fieldValueText(spec.field, task.fieldValues[spec.field.id], spec.people)
-    return text ? [{ id: spec.field.id, name: spec.field.name, text }] : []
-  })
-  if (lines.length === 0) return null
-  return (
-    <span className="grid gap-0.5 text-xs max-sm:hidden">
-      {lines.map((line) => (
-        <span key={line.id} className="truncate">
-          <span className="text-muted-foreground">{line.name}:</span> {line.text}
-        </span>
-      ))}
-    </span>
   )
 }
 

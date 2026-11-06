@@ -1,7 +1,6 @@
 import { and, asc, eq, inArray, isNull, notInArray } from "drizzle-orm"
 
 import { getProjectErrorMessage, PROJECT_ERRORS } from "@/lib/project/errors"
-import { copyStepFields, stepFieldText } from "@/lib/project/step-fields"
 import {
   CLOSED_TASK_STATUSES,
   LIMITS,
@@ -26,22 +25,11 @@ import {
 import {
   projectProjectMembers,
   projectProjects,
-  projectTaskFieldValues,
-  projectTaskLabels,
-  projectTaskSteps,
   projectTasks,
   projectTeams,
 } from "@/server/project/schema"
 import { holidayOn } from "@/server/project/holidays"
-import { setOneTaskLabel } from "@/server/project/labels"
 import { isAdminSpace, requireSharedProject, resolveProjectId } from "@/server/project/personal"
-import {
-  clearPersonValuesOffProject,
-  copyFieldValues,
-  listTeamTypes,
-  projectOffersType,
-  setTaskType,
-} from "@/server/project/task-types"
 import { nextTaskPosition } from "@/server/project/task-order"
 import { recordTaskEvent } from "@/server/project/task-history"
 import { awayOn } from "@/server/project/time-off"
@@ -49,9 +37,7 @@ import {
   assignTask,
   createTask,
   deleteTask,
-  requireStep,
   setTaskStatus,
-  touchTask,
   updateTask,
   type Actor,
 } from "@/server/project/tasks"
@@ -61,10 +47,9 @@ import { storedNotesForCopy } from "@/lib/project/notes"
 
 /**
  * Faster ways to make and change tasks: many from a pasted list, a copy, a
- * move to another project, a step grown into its own task, and one change
- * over many rows. Every hand-over still goes through `assignTask` or
- * `createTask`, so it writes its history row and sends "gave you a task" as a
- * single one does.
+ * move to another project, and one change over many rows. Every hand-over
+ * still goes through `assignTask` or `createTask`, so it writes its history
+ * row and sends "gave you a task" as a single one does.
  */
 
 /** Pasted meeting notes become tasks: one per line, at most 50 at once. */
@@ -91,7 +76,6 @@ export async function createTasksFromLines(
           notes: "",
           assigneeUserId: input.assigneeUserId,
           dueDate: input.dueDate,
-          steps: [],
           handoverNote: input.handoverNote,
         },
         tx
@@ -103,11 +87,8 @@ export async function createTasksFromLines(
 }
 
 /**
- * "<title> (copy)" in the same project, with the notes, labels,
- * steps (unticked), type and field values and priority, To do and nobody
- * assigned.
- * Comments, history and files stay with the original, so a File field starts
- * empty.
+ * "<title> (copy)" in the same project, with the notes and priority, To do
+ * and nobody assigned. Comments, history and files stay with the original.
  */
 export async function duplicateTask(actor: Actor, taskId: string, database = db) {
   return database.transaction(async (tx) => {
@@ -129,35 +110,8 @@ export async function duplicateTask(actor: Actor, taskId: string, database = db)
       createdByUserId: actor.id,
       createdAt: at,
       updatedAt: at,
-      typeId: task.typeId,
       priority: task.priority,
     })
-    await copyFieldValues(tx, [{ from: task.id, to: id }], actor.id)
-    const steps = await tx
-      .select({ text: projectTaskSteps.text, position: projectTaskSteps.position, fields: projectTaskSteps.fields })
-      .from(projectTaskSteps)
-      .where(eq(projectTaskSteps.taskId, task.id))
-      .orderBy(asc(projectTaskSteps.position))
-    if (steps.length) {
-      await tx.insert(projectTaskSteps).values(
-        steps.map((step) => ({
-          id: uuid(),
-          taskId: id,
-          text: step.text,
-          done: false,
-          position: step.position,
-          createdAt: at,
-          fields: copyStepFields(step.fields),
-        }))
-      )
-    }
-    const labels = await tx
-      .select({ labelId: projectTaskLabels.labelId })
-      .from(projectTaskLabels)
-      .where(eq(projectTaskLabels.taskId, task.id))
-    if (labels.length) {
-      await tx.insert(projectTaskLabels).values(labels.map(({ labelId }) => ({ taskId: id, labelId })))
-    }
     await recordTaskEvent(tx, { taskId: id, kind: "created", actorUserId: actor.id })
     return { id }
   })
@@ -169,8 +123,6 @@ export type MoveTarget = {
   color: ProjectColor
   /** Whether the person assigned is on that project; if not, the task moves with nobody assigned. */
   keepsAssignee: boolean
-  /** Whether that project offers the task's type. It keeps its type either way. */
-  offersType: boolean
 }
 
 /**
@@ -180,7 +132,7 @@ export type MoveTarget = {
  */
 export async function listMoveTargets(
   membership: Membership,
-  task: Pick<TaskRow, "projectId" | "assigneeUserId" | "typeId">,
+  task: Pick<TaskRow, "projectId" | "assigneeUserId">,
   database: ProjectDb
 ): Promise<MoveTarget[]> {
   const fromOwnList = membership.siteAdmin && (await isAdminSpace(membership.teamId, database))
@@ -189,7 +141,6 @@ export async function listMoveTargets(
       id: projectProjects.id,
       name: projectProjects.name,
       color: projectProjects.color,
-      hiddenTypeIds: projectProjects.hiddenTypeIds,
       teamName: projectTeams.name,
     })
     .from(projectProjects)
@@ -204,10 +155,9 @@ export async function listMoveTargets(
     .orderBy(...(fromOwnList ? [asc(projectTeams.name)] : []), asc(projectProjects.name))
   const others = rows
     .filter((project) => project.id !== task.projectId)
-    .map(({ hiddenTypeIds, teamName, ...project }) => ({
+    .map(({ teamName, ...project }) => ({
       ...project,
       name: fromOwnList ? `${teamName} · ${project.name}` : project.name,
-      offersType: projectOffersType({ hiddenTypeIds }, task.typeId),
     }))
   if (!task.assigneeUserId || others.length === 0) {
     return others.map((project) => ({ ...project, keepsAssignee: true }))
@@ -229,15 +179,12 @@ export async function listMoveTargets(
 }
 
 /**
- * Moves a task to another open project in the team. Its steps, chat, files,
- * labels, type, field values and history go with it, even when the new
- * project doesn't offer its type. The site admin may also move one to another
- * team's project, from their My dashboard's Project chip (Tyler, 23 Oct
- * 2026); its tags, type and field values belong to the old team, so they come
- * off. If the person assigned isn't on the new project,
- * the task moves with nobody assigned and their name kept, and a Person
- * field naming someone who isn't on it is emptied. Past check-in lines keep
- * the old project: that's where the task was that day.
+ * Moves a task to another open project in the team. Its chat, files and
+ * history go with it. The site admin may also move one to another team's
+ * project, from their My dashboard's Project chip (Tyler, 23 Oct 2026). If
+ * the person assigned isn't on the new project, the task moves with nobody
+ * assigned and their name kept. Past check-in lines keep the old project:
+ * that's where the task was that day.
  */
 export async function moveTask(
   actor: Actor,
@@ -265,35 +212,15 @@ export async function moveTask(
       (await isProjectMember(to.id, task.assigneeUserId, tx)) ||
       (await isSiteAdmin(task.assigneeUserId, tx))
     if (!keptAssignee) await clearAssignee(task.assigneeUserId!, eq(projectTasks.id, task.id), tx)
-    const otherTeam = to.teamId !== from.teamId
     await tx
       .update(projectTasks)
       .set({
         projectId: to.id,
         milestoneId: null,
         position: await nextTaskPosition(to.id, tx),
-        ...(otherTeam ? { typeId: null } : null),
         updatedAt: now(),
       })
       .where(eq(projectTasks.id, task.id))
-    if (otherTeam) {
-      await tx.delete(projectTaskLabels).where(eq(projectTaskLabels.taskId, task.id))
-      await tx.delete(projectTaskFieldValues).where(eq(projectTaskFieldValues.taskId, task.id))
-    }
-    // People on steps who aren't on the new project come off their steps.
-    const steps = await tx
-      .select({ id: projectTaskSteps.id, userId: projectTaskSteps.assigneeUserId })
-      .from(projectTaskSteps)
-      .where(eq(projectTaskSteps.taskId, task.id))
-    for (const step of steps) {
-      if (step.userId && !(await isProjectMember(to.id, step.userId, tx))) {
-        await tx
-          .update(projectTaskSteps)
-          .set({ assigneeUserId: null })
-          .where(eq(projectTaskSteps.id, step.id))
-      }
-    }
-    await clearPersonValuesOffProject(task.id, to.id, tx)
     // The old project's id, not its name: the name is shown only to people
     // who can see that project.
     await recordTaskEvent(tx, {
@@ -306,61 +233,12 @@ export async function moveTask(
   })
 }
 
-/**
- * A step that grew too big becomes its own task in the same project, with
- * the step's text, person and due date. The step's fields become the new
- * task's notes, one "Name: value" line each, since a task has no fields of
- * that kind. The step leaves the old task, and both tasks' histories say so
- * with a link to the other.
- */
-export async function promoteStep(actor: Actor, stepId: string, database = db) {
-  return database.transaction(async (tx) => {
-    const step = await requireStep(actor.id, stepId, tx)
-    const { task: parent } = await requireTaskAccess(actor.id, step.taskId, tx)
-    const [full] = await tx
-      .select({ dueDate: projectTaskSteps.dueDate, fields: projectTaskSteps.fields })
-      .from(projectTaskSteps)
-      .where(eq(projectTaskSteps.id, step.id))
-    const { id } = await createTask(
-      actor,
-      {
-        projectId: parent.projectId,
-        title: step.text,
-        notes: (full?.fields ?? []).map((field) => `${field.name}: ${stepFieldText(field)}`).join("\n"),
-        assigneeUserId: step.assigneeUserId,
-        dueDate: full?.dueDate ?? null,
-        steps: [],
-      },
-      tx
-    )
-    await tx.delete(projectTaskSteps).where(eq(projectTaskSteps.id, step.id))
-    await touchTask(parent.id, tx)
-    await recordTaskEvent(tx, {
-      taskId: parent.id,
-      kind: "became_task",
-      actorUserId: actor.id,
-      reason: step.text,
-      relatedTaskId: id,
-    })
-    await recordTaskEvent(tx, {
-      taskId: id,
-      kind: "from_step",
-      actorUserId: actor.id,
-      reason: step.text,
-      relatedTaskId: parent.id,
-    })
-    return { id }
-  })
-}
-
 export type BulkChange =
   | { kind: "status"; status: TaskStatus; stuckReason: string | null }
   | { kind: "assign"; assigneeUserId: string | null; note?: string | null }
   | { kind: "due"; dueDate: string | null }
   | { kind: "move"; projectId: string }
   | { kind: "priority"; priority: TaskPriority }
-  | { kind: "tag"; labelId: string; on: boolean }
-  | { kind: "type"; typeId: string | null }
   | { kind: "delete" }
 
 export type BulkOutcome = {
@@ -413,12 +291,6 @@ export async function changeManyTasks(
         await updateTask(actor, { taskId, dueDate: change.dueDate }, database)
       } else if (change.kind === "priority") {
         await updateTask(actor, { taskId, priority: change.priority }, database)
-      } else if (change.kind === "tag") {
-        await setOneTaskLabel(actor.id, { taskId, labelId: change.labelId, on: change.on }, database)
-      } else if (change.kind === "type") {
-        // The same rule as one task: only whoever first handed it out and the
-        // site admin change a type, so the rest are refused with the reason.
-        await setTaskType(actor, { taskId, typeId: change.typeId }, database)
       } else if (change.kind === "delete") {
         // Into the project's bin, on the same rule as one task: its maker or the site admin.
         await deleteTask(actor, taskId, database)
@@ -470,21 +342,15 @@ export type NewTaskProject = {
   name: string
   color: ProjectColor
   members: { userId: string; name: string; avatarUrl: string }[]
-  /** The team's types this project offers, in the team's order. "Just me" offers every live type. */
-  typeIds: string[]
-  /** The type New task starts on here, when it is still offered. */
-  defaultTypeId: string | null
 }
 
 /** "Just me" in New task's project picker, by its stand-in id, so opening the window makes nothing. */
-export function justMeChoice(me: { id: string; name: string; avatarUrl: string }, typeIds: string[]): NewTaskProject {
+export function justMeChoice(me: { id: string; name: string; avatarUrl: string }): NewTaskProject {
   return {
     id: PERSONAL_PROJECT_ID,
     name: PERSONAL_PROJECT_NAME,
     color: "slate",
     members: [{ userId: me.id, name: me.name, avatarUrl: me.avatarUrl }],
-    typeIds,
-    defaultTypeId: null,
   }
 }
 
@@ -493,18 +359,13 @@ export async function listNewTaskProjects(
   me: { id: string; name: string; avatarUrl: string },
   database: ProjectDb = db
 ): Promise<NewTaskProject[]> {
-  const types = (await listTeamTypes(membership.teamId, database)).filter((type) => !type.archived)
-  const offered = (hidden: readonly string[]) =>
-    types.filter((type) => !hidden.includes(type.id)).map((type) => type.id)
   // "Just me" goes last, by its stand-in id, so opening the window makes nothing.
-  const justMe = justMeChoice(me, offered([]))
+  const justMe = justMeChoice(me)
   const projects = await database
     .select({
       id: projectProjects.id,
       name: projectProjects.name,
       color: projectProjects.color,
-      hiddenTypeIds: projectProjects.hiddenTypeIds,
-      defaultTypeId: projectProjects.defaultTypeId,
     })
     .from(projectProjects)
     .where(
@@ -537,11 +398,8 @@ export async function listNewTaskProjects(
   // The site admin can give a new task to themselves on any project.
   const self = membership.siteAdmin ? [{ userId: me.id, name: me.name, avatarUrl: me.avatarUrl }] : []
   return [
-    ...projects.map(({ hiddenTypeIds, defaultTypeId, ...project }) => ({
+    ...projects.map((project) => ({
       ...project,
-      typeIds: offered(hiddenTypeIds),
-      defaultTypeId:
-        defaultTypeId && offered(hiddenTypeIds).includes(defaultTypeId) ? defaultTypeId : null,
       members: [
         ...members
           .filter((member) => member.projectId === project.id)

@@ -115,6 +115,7 @@ import {
 import {
   cn,
 } from "@/lib/utils"
+import { formatFileSize } from "@/lib/format/format-bytes"
 
 /**
  * The Thumbnail section in the editor's rail (thumbnails.md): the open
@@ -220,7 +221,7 @@ function Versions() {
   if (!list.length) {
     return (
       <p className="text-sm text-muted-foreground">
-        No thumbnail yet. The + above makes one from the frame under the playhead.
+        No thumbnail yet. The + at the top of this panel makes one from the frame under the playhead.
       </p>
     )
   }
@@ -503,7 +504,7 @@ function DownloadCard() {
           link.href = file.data_url
           link.download = file.file_name
           link.click()
-          toast.success(`Downloaded, ${(file.bytes / 1024).toFixed(0)} KB.`)
+          toast.success(`Downloaded, ${formatFileSize(file.bytes)}.`)
         })
       }
     >

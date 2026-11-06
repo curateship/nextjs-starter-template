@@ -63,8 +63,10 @@ import {
 } from "@/lib/video/templates"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useSaveAfterTyping } from "@/components/video-editor/use-save-after-typing"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
+import { PINNED_ICON_CLASS } from "@/lib/video/pinned-look"
 
 /**
  * The Templates panel on the editor's left menu (`workspace/docs/templates.md`).
@@ -283,6 +285,7 @@ export function VideoTemplateFields({
             placeholder="Paste your script. A blank line or --- starts a new scene, and [show: me at my desk] picks a scene's picture."
             onChange={(event) => typeScript(event.target.value)}
           />
+          <LengthCounter length={script.length} max={TEMPLATE_SCRIPT_MAX} />
           {words ? (
             <p className="text-xs text-muted-foreground tabular-nums">
               {countWords(words)} words, about {seconds} seconds read aloud.{" "}
@@ -522,12 +525,12 @@ function TemplateList({
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1 text-xs font-medium">
                       <span className="truncate">{template.name}</span>
-                      {/* Yellow, the shell's favourite colour (automation-inspector.tsx); Tyler, 5 Nov 2026: "make this yellow". */}
+                      {/* Yellow, the shell's favourite colour; Tyler, 5 Nov 2026: "make this yellow". */}
                       {template.pinned ? (
-                        <PinIcon aria-label="Pinned" className="size-3 shrink-0 text-amber-500 dark:text-amber-400" />
+                        <PinIcon aria-label="Pinned" className={cn("size-3 shrink-0", PINNED_ICON_CLASS)} />
                       ) : null}
                     </span>
-                    <span className="block truncate text-[10px] leading-4 text-muted-foreground">
+                    <span className="block truncate text-xs leading-4 text-muted-foreground">
                       {formatAiEstimate(template.typical_cents)} a video
                       {template.tags.length ? ` · ${template.tags.join(", ")}` : ""}
                     </span>
@@ -702,6 +705,7 @@ function NewTemplateForm({
             placeholder="Me working at a café, calm, 45 seconds"
             onChange={(event) => setDescribe(event.target.value)}
           />
+          <LengthCounter length={describe.length} max={TEMPLATE_DESCRIBE_MAX} />
         </div>
       ) : null}
       {start === "video" ? (

@@ -3,14 +3,12 @@ import { BookmarkIcon, ListFilterIcon } from "lucide-react"
 
 import { ClientFilterSelect } from "@/components/project/client-filter-select"
 import { ProjectDot } from "@/components/project/task-bits"
-import { TypeIconGlyph } from "@/components/project/task-type-icon"
 import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import type { Label as TaskLabel } from "@/lib/api/project/sorting"
 import {
   TASK_PRIORITIES,
   TASK_PRIORITY_LABEL,
@@ -22,7 +20,6 @@ import {
 } from "@/lib/project/rules"
 import { DUE_FILTERS, NO_TASK_FILTERS, type DueFilter, type TaskFilters } from "@/lib/project/task-filters"
 import { TASK_GROUPING_LABEL } from "@/lib/project/task-groups"
-import type { TaskType } from "@/lib/project/task-types"
 
 /** A project the Project row offers. */
 export type FilterProject = { id: string; name: string; color: ProjectColor }
@@ -31,7 +28,7 @@ const ALL = "all"
 
 /**
  * The project page's filters behind one Filter button, as Tyler drew them on
- * 13 Oct 2026: a row each for Status, Priority, Due, Tags and Type, then
+ * 13 Oct 2026: a row each for Status, Priority and Due, then
  * Group (Tyler, 19 Oct 2026: "add a new row called 'Group' like notion"),
  * which took the Board's "Group by person" switch in, then Clear and Save as
  * view. Clear leaves Group alone, since it arranges the tasks rather than
@@ -48,11 +45,8 @@ const ALL = "all"
 export function TaskFilterPopover({
   filters,
   onChange,
-  labels,
-  types,
   search,
   group,
-  extra,
   onSaveView,
   clients,
   projects,
@@ -60,9 +54,6 @@ export function TaskFilterPopover({
 }: {
   filters: TaskFilters
   onChange: (patch: Partial<TaskFilters>) => void
-  labels: TaskLabel[]
-  /** The team's task types; archived ones still find the tasks that have them. */
-  types: TaskType[]
   /** Draw the search box inside, where the header has no room for its own. */
   search?: boolean
   /** What the tab groups by and its choices; left out where a tab has no groups. */
@@ -73,8 +64,6 @@ export function TaskFilterPopover({
     labels?: Record<string, string>
     onChange: (next: string) => void
   }
-  /** More controls under the switch, such as the List's Columns menu. */
-  extra?: React.ReactNode
   onSaveView: () => void
   /** The clients of the projects shown, for a Client row. Left out, there is no row. */
   clients?: string[]
@@ -87,8 +76,6 @@ export function TaskFilterPopover({
     filters.status,
     filters.priority,
     filters.due,
-    filters.label,
-    filters.type,
     clients && filters.client,
     projects && filters.project,
   ].filter(Boolean).length
@@ -119,33 +106,28 @@ export function TaskFilterPopover({
           idPrefix="filter"
           filters={filters}
           onChange={onChange}
-          labels={labels}
-          types={types}
           clients={clients}
           projects={projects}
         />
-        {group || extra ? (
+        {group ? (
           <>
             <Separator className="-mx-3 w-auto" />
-            {group ? (
-              <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3">
-                <FilterRow id="filter-group" label="Group">
-                  <Select value={group.value} onValueChange={group.onChange}>
-                    <SelectTrigger id="filter-group" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {group.options.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {(group.labels ?? (TASK_GROUPING_LABEL as Record<string, string>))[option]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FilterRow>
-              </div>
-            ) : null}
-            {extra}
+            <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3">
+              <FilterRow id="filter-group" label="Group">
+                <Select value={group.value} onValueChange={group.onChange}>
+                  <SelectTrigger id="filter-group" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {group.options.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {(group.labels ?? (TASK_GROUPING_LABEL as Record<string, string>))[option]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterRow>
+            </div>
           </>
         ) : null}
         <div className="grid grid-cols-2 gap-2">
@@ -163,7 +145,7 @@ export function TaskFilterPopover({
 }
 
 /**
- * The filter rows, label beside choice: Status, Priority, Due, Tags and Type,
+ * The filter rows, label beside choice: Status, Priority and Due,
  * Client where `clients` is given, and Project where `projects` is. The Filter popover and the Edit view
  * window both draw these, so a view is edited with the same choices it was
  * made with.
@@ -172,8 +154,6 @@ export function TaskFilterFields({
   idPrefix,
   filters,
   onChange,
-  labels,
-  types,
   clients,
   projects,
   children,
@@ -182,11 +162,9 @@ export function TaskFilterFields({
   idPrefix: string
   filters: TaskFilters
   onChange: (patch: Partial<TaskFilters>) => void
-  labels: TaskLabel[]
-  types: TaskType[]
   clients?: readonly string[]
   projects?: readonly FilterProject[]
-  /** More rows after Type and Client, such as the Edit view window's Assigned to. */
+  /** More rows after Client and Project, such as the Edit view window's Assigned to. */
   children?: React.ReactNode
 }) {
   return (
@@ -242,45 +220,6 @@ export function TaskFilterFields({
             {DUE_FILTERS.map((option) => (
               <SelectItem key={option.key} value={option.key}>
                 {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FilterRow>
-      <FilterRow id={`${idPrefix}-label`} label="Tags">
-        <Select
-          value={filters.label ?? ALL}
-          onValueChange={(value) => onChange({ label: value === ALL ? undefined : value })}
-        >
-          <SelectTrigger id={`${idPrefix}-label`} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Any tag</SelectItem>
-            {labels.map((label) => (
-              <SelectItem key={label.id} value={label.id}>
-                <ProjectDot color={label.color} />
-                {label.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FilterRow>
-      <FilterRow id={`${idPrefix}-type`} label="Template">
-        <Select
-          value={filters.type ?? ALL}
-          onValueChange={(value) => onChange({ type: value === ALL ? undefined : value })}
-        >
-          <SelectTrigger id={`${idPrefix}-type`} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Any template</SelectItem>
-            {types.map((type) => (
-              <SelectItem key={type.id} value={type.id}>
-                <TypeIconGlyph icon={type.icon} color={type.color} />
-                {type.name}
-                {type.archived ? <span className="text-muted-foreground"> (archived)</span> : null}
               </SelectItem>
             ))}
           </SelectContent>

@@ -109,6 +109,11 @@ A window with the brief, the script check, then every scene:
 - **Each scene:** its words, its picture direction and its seconds, all
   editable, a remove button, and its price: "Picture $0.07 · Voice $0.01".
 - **Add a scene** puts an empty one at the end. A brief holds 1 to 120 scenes.
+- **Closing loses nothing typed into the storyboard**, because it saves
+  itself a moment after typing stops. Once every scene is on the timeline,
+  words changed on a scene are only kept until "Make N changed scenes again"
+  is pressed, so closing the window then, by Cancel, Escape or a click
+  outside, asks first.
 - **The total** is on the Make it button and under the scenes, and changes
   with every edit. A voice is charged by the character, so a few words more
   can move the total by less than a cent, which the dollars round away.

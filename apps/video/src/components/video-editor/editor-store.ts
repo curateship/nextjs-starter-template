@@ -231,6 +231,8 @@ export type EditorAction =
   // with ducking on (see background-music.ts). One action, one undo.
   | { type: "ADD_MUSIC_TRACK"; clips: EditorClip[] }
   | { type: "DELETE_CLIP"; clipId: string }
+  // Every clip picked with Shift or Cmd at once, as one undo step.
+  | { type: "DELETE_CLIPS"; clipIds: string[] }
   | { type: "DELETE_TRACK"; trackId: string }
   | { type: "MOVE_TRACK"; trackId: string; toIndex: number }
   | { type: "TOGGLE_TRACK_MUTE"; trackId: string }
@@ -1213,20 +1215,28 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       return { ...pushUndo(state, tracks), selectedClipId: right.id }
     }
 
-    case "DELETE_CLIP": {
-      const found = findClip(state.tracks, action.clipId)
-      if (!found) return state
-      // Taking an ad off closes the gap a pause ad made.
-      const tracks = isAd(found.clip)
-        ? removeAd(state.tracks, action.clipId)
-        : withTrack(state.tracks, found.track.id, (track) => ({
-            ...track,
-            clips: track.clips.filter((clip) => clip.id !== action.clipId),
-          }))
+    case "DELETE_CLIP":
+    case "DELETE_CLIPS": {
+      const ids = action.type === "DELETE_CLIP" ? [action.clipId] : action.clipIds
+      let tracks = state.tracks
+      for (const clipId of ids) {
+        const found = findClip(tracks, clipId)
+        if (!found) continue
+        // Taking an ad off closes the gap a pause ad made.
+        tracks = isAd(found.clip)
+          ? removeAd(tracks, clipId)
+          : withTrack(tracks, found.track.id, (track) => ({
+              ...track,
+              clips: track.clips.filter((clip) => clip.id !== clipId),
+            }))
+      }
+      if (tracks === state.tracks) return state
       return {
         ...pushUndo(state, tracks),
         selectedClipId:
-          state.selectedClipId === action.clipId ? null : state.selectedClipId,
+          state.selectedClipId && ids.includes(state.selectedClipId)
+            ? null
+            : state.selectedClipId,
       }
     }
 

@@ -1,10 +1,12 @@
 # Notes and the "/" blocks
 
 A task's notes take blocks as well as words. So do New task's and quick new
-task's Description, a task template's starting notes, a project's page in
-its left panel, and each of a project's notes ([Project notes](project-notes.md)).
+task's Description, a project's page in its left panel, and each of a
+project's notes ([Project notes](project-notes.md)).
 Typing "/" opens a list of them. Meeting notes take words
-only.
+only. A task template's starting notes took them too, until task templates
+and their fields were removed on 6 Nov 2026 (Tyler: "We need to remove the
+tasks templates feature too").
 
 ## Tyler's rules, 5 Nov 2026
 
@@ -59,8 +61,8 @@ only.
 - **Keys:** the up and down arrows move through it, and Enter or Tab picks.
   Esc closes it and leaves the "/" as typed. So does a click anywhere else.
 - **What each box offers:** every block in a task's own notes, with Video or
-  Promo only when the task points at a record. New task, quick new task and
-  a template, a project's page and a project's notes leave out File and Video
+  Promo only when the task points at a record. New task, quick new task,
+  a project's page and a project's notes leave out File and Video
   or Promo, because there is no task to hold a file or a record.
 - **Words already on the line** stay where they are. Checklist, Callout and
   Fold section start on the next line.
@@ -71,9 +73,9 @@ only.
 
 - **Image.** An empty Image block offers Upload a picture, Unsplash, and a
   "Web address" field.
-  - An upload becomes one of the task's files. It shows in the Files card,
+  - An upload becomes one of the task's files. It shows in the Files tab,
     counts toward the task's 10, and only people who can see the task can
-    open it. New task, quick new task and a template have no task, so they
+    open it. New task and quick new task have no task yet, so they
     offer Unsplash and the web address only.
   - A web address has to start with `https://`.
   - The Unsplash search opens inside the block, not in a window, because a
@@ -97,10 +99,25 @@ only.
   can't see shows "A task you can't see." with nothing to click. A deleted
   one shows "Removed: this task was deleted."
 - **File.** An empty File block lists the task's files to pick from, with
-  Upload a file under them. A new upload joins the Files card too. The block
+  Upload a file under them. It is the one way to add a file to a task from
+  its panel; the project's Files tab lists every one. The block
   shows the file's name, its size and a download button. Downloading follows
-  the Files card's rule: only people who can see the task. A file deleted
-  from the Files card shows "Removed: this file was deleted."
+  the task's rule: only people who can see the task. Its corner holds
+  Remove block, which takes the block out and keeps the file, and, for
+  whoever may delete the file, Delete file, which asks "Delete brief.pdf?"
+  and then deletes the file from the task (Tyler, 6 Nov 2026, once the task
+  panel's Files box went). The block goes with it; any other block still
+  showing that file reads "Removed: this file was deleted."
+- **Comments.** The task's comments, with the box to write in, wherever the
+  block is placed (Tyler, 6 Nov 2026: "Make comments a block"). It holds
+  nothing of its own: it draws the task's stored chat, so the messages,
+  @-tags, files, reactions, live updates, "3 new" and bell notices work as
+  they always have (see [Task chat](task-chat.md)). One per task: picking
+  Comments again only takes away the "/". Removing the block deletes no
+  comment; a task with comments and no block shows them under its notes.
+  Typing in its box never writes in the notes. Task notes only: New task
+  and quick new task don't offer it, and copying notes onto a page with no
+  task, such as a project's, leaves it out.
 - **Checklist.** Lines with tick boxes. A ticked line is crossed out. A line
   is never a task or a step. Ticking saves at once, not a second later as
   typing does. Someone who can only read the task sees the ticks but can't
@@ -190,16 +207,17 @@ the refusals come first (`src/server/project/page-preview.ts`).
   refused with a message saying where to unlock it, so an editor left open
   in another tab can't write over it. Saved in `project_tasks.notes_locked`
   (`drizzle/0147`) and `project_projects.notes_locked` (`drizzle/0146`). A
-  copied project keeps its page's lock; a copied, repeated or templated task
+  copied project keeps its page's lock; a copied or repeated task
   starts with its notes unlocked.
 
 ## Copying notes
 
 - **Copy project** points each Task card at the copied task. Files stay
   behind, so File blocks and uploaded pictures go.
-- **Duplicate, a repeating task's next copy and Save as task template** drop
-  File blocks and uploaded pictures too, because the files stay on the old
-  task. A template also drops the Video or Promo card.
+- **Duplicate and a repeating task's next copy** drop File blocks and
+  uploaded pictures too, because the files stay on the old task. A page with
+  no task, such as a project's, also drops the Video or Promo card and the
+  Comments block (`noTask` in `src/lib/project/note-blocks.ts`).
 
 ## What a saved note may hold
 

@@ -1,8 +1,7 @@
-import { and, asc, eq, isNotNull, lt, sql } from "drizzle-orm"
+import { and, eq, isNotNull, lt, sql } from "drizzle-orm"
 
 import { addDays, daysBetween, localNow, momentOf } from "@/lib/project/days"
 import { BIN_DAYS } from "@/lib/project/rules"
-import { copyStepFields } from "@/lib/project/step-fields"
 import { uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import type { ProjectDb } from "@/server/project/access"
@@ -10,23 +9,17 @@ import { purgeTask } from "@/server/project/planning"
 import { purgeOldBinnedNotes } from "@/server/project/project-notes"
 import {
   projectMilestones,
-  projectProjectMembers,
   projectRepeatRuns,
-  projectTaskLabels,
-  projectTaskSteps,
   projectTasks,
 } from "@/server/project/schema"
 import { nextTaskPosition } from "@/server/project/task-order"
-import { pauseClocksAtMidnight } from "@/server/project/task-clock"
-import { copyFieldValues } from "@/server/project/task-types"
 import type { FileStorage } from "@/server/project/task-files"
 import { storedNotesForCopy } from "@/lib/project/notes"
 
 /**
  * Planning's background jobs, on the shell's fifteen-second loop
  * (`src/app/server-options.ts`): making each day's copy of a repeating task,
- * emptying bins of anything deleted more than 30 days ago, and pausing task
- * clocks left running past midnight (`task-clock.ts`).
+ * and emptying bins of anything deleted more than 30 days ago.
  */
 
 const BATCH = 200
@@ -34,24 +27,21 @@ const BATCH = 200
 export async function runPlanningJobs(database: CustomShellDb = db, at = new Date()) {
   await makeRepeatCopies(database, at)
   await emptyOldBins(database, at)
-  await pauseClocksAtMidnight(database, at)
 }
 
 type DueCopy = { taskId: string; seriesId: string; day: string; zone: string }
 
 /**
  * Once a new day starts in the team's time zone, a fresh copy of each
- * repeating task whose rule falls on that day: title, notes, labels,
- * type and field values (files stay behind), priority, the same person, To
+ * repeating task whose rule falls on that day: title, notes (files stay
+ * behind), priority, the same person, To
  * do. The rule moves to the copy, so deleting the newest copy stops the
  * repeat.
  *
  * The copy keeps its whole setup (Tyler, 16 Oct 2026). Its due date is the
- * day it is made for, and every other date moves by the same number of days:
- * each step's date, and the start day. A due time keeps its clock time in the
- * team's zone. Steps come unticked with their own person, unless that person
- * has left the project. The milestone stays, unless its date has already
- * passed. With no due date to move from, step dates are dropped and a start
+ * day it is made for, and the start day moves by the same number of days. A
+ * due time keeps its clock time in the team's zone. The milestone stays,
+ * unless its date has already passed. With no due date to move from, a start
  * day becomes the day the copy is made for.
  *
  * Tyler's rule: when the newest copy isn't Done, no new one appears. The next
@@ -143,7 +133,6 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
         status: "todo",
         assigneeUserId: holder.assigneeUserId,
         assignedByUserId: holder.assignedByUserId,
-        firstHandedOutByUserId: holder.firstHandedOutByUserId,
         // Routine work the person already took on: no Waiting, no new notice.
         acceptedAt: holder.assigneeUserId ? at : null,
         // A copy with a date is due on the day it is made for.
@@ -160,55 +149,12 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
         repeatMonthDay: holder.repeatMonthDay,
         repeatFrom: holder.repeatFrom,
         repeatSeriesId: copy.seriesId,
-        typeId: holder.typeId,
         priority: holder.priority,
       })
-      await copyFieldValues(tx, [{ from: holder.id, to: id }], null)
       await tx
         .update(projectTasks)
         .set({ repeatEvery: null, repeatWeekDays: null, repeatMonthDay: null, repeatFrom: null })
         .where(eq(projectTasks.id, holder.id))
-      const steps = await tx
-        .select({
-          text: projectTaskSteps.text,
-          position: projectTaskSteps.position,
-          assigneeUserId: projectTaskSteps.assigneeUserId,
-          dueDate: projectTaskSteps.dueDate,
-          fields: projectTaskSteps.fields,
-        })
-        .from(projectTaskSteps)
-        .where(eq(projectTaskSteps.taskId, holder.id))
-        .orderBy(asc(projectTaskSteps.position))
-      if (steps.length) {
-        const members = new Set(
-          (
-            await tx
-              .select({ userId: projectProjectMembers.userId })
-              .from(projectProjectMembers)
-              .where(eq(projectProjectMembers.projectId, holder.projectId))
-          ).map((row) => row.userId)
-        )
-        await tx.insert(projectTaskSteps).values(
-          steps.map((step) => ({
-            id: uuid(),
-            taskId: id,
-            text: step.text,
-            done: false,
-            position: step.position,
-            createdAt: at,
-            assigneeUserId: step.assigneeUserId && members.has(step.assigneeUserId) ? step.assigneeUserId : null,
-            dueDate: step.dueDate && shift !== null ? addDays(step.dueDate, shift) : null,
-            fields: copyStepFields(step.fields),
-          }))
-        )
-      }
-      const labels = await tx
-        .select({ labelId: projectTaskLabels.labelId })
-        .from(projectTaskLabels)
-        .where(eq(projectTaskLabels.taskId, holder.id))
-      if (labels.length) {
-        await tx.insert(projectTaskLabels).values(labels.map(({ labelId }) => ({ taskId: id, labelId })))
-      }
     })
   }
 }

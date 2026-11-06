@@ -93,18 +93,16 @@ function ActivityFeed({
   }
   if (state === "loading" && entries.length === 0) return <LoadingRow label="Loading the activity…" />
 
-  // A task made from a step already shows as "made", beside the step's line.
-  const shown = entries.filter((entry) => entry.kind !== "from_step")
   return (
     <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-      {shown.length === 0 ? (
+      {entries.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">
           Nothing yet. Tasks made, moved between statuses, handed over, commented on, put in the bin
           or brought back, and the project's status changing, show here as they happen.
         </p>
       ) : (
         <ol className="grid gap-1 p-3">
-          {shown.map((entry) => (
+          {entries.map((entry) => (
             <li key={entry.id} className="grid gap-0.5 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50 sm:grid-cols-[1fr_auto] sm:gap-3">
               <span className="min-w-0 break-words">
                 <Line entry={entry} onOpenTask={onOpenTask} showProject={showProject} />
@@ -221,8 +219,6 @@ function Line({
       return <>{who} put {task} in the bin</>
     case "restored":
       return <>{who} brought {task} back from the bin</>
-    case "became_task":
-      return <>{who} made the step "{entry.reason}" in {task} its own task</>
     case "moved":
       // Across projects "here" would be unclear; the line names its project already.
       return (
@@ -232,8 +228,6 @@ function Line({
       )
     case "review_confirmed":
       return <>{who} confirmed the review of {task}</>
-    case "took":
-      return <>{who} took {task}</>
     case "due_moved": {
       const move = readDueMove(entry.reason)
       return (

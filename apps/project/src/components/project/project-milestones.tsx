@@ -1,13 +1,14 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { Link } from "@tanstack/react-router"
-import { ListChecksIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react"
+import { FlagIcon, ListChecksIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react"
 
 import { CardDropdown, CardDropdownTitle } from "@/components/project/card-dropdown"
 import { DueDayPicker } from "@/components/project/due-day-picker"
-import { PanelCard } from "@/components/project/panel-card"
+import { FoldHeading } from "@/components/project/fold-heading"
 import { StatusDot } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,13 +22,14 @@ import {
 } from "@/lib/api/project/projects"
 import type { TaskCard } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { clockTotal, timeOnTasks } from "@/lib/project/clock"
 import { todayKey } from "@/lib/project/dates"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { milestoneLine, milestoneOverdue } from "@/lib/project/milestones"
 import { LIMITS, TASK_STATUS_LABEL } from "@/lib/project/rules"
 import { byPosition } from "@/lib/project/task-order"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { FOOTER_CARD_BODY } from "@/lib/project/panel-gutter"
+import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
 /**
@@ -52,14 +54,14 @@ export function ProjectMilestones({
 }) {
   const [adding, setAdding] = React.useState(false)
   const today = todayKey()
+  // The same remembered fold the card had as a panel card.
+  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-details-milestones"))
   return (
-    <PanelCard
-      storageId="project-details-milestones"
-      title="Milestones"
-      after={milestones.length ? <span className="font-normal text-muted-foreground">{milestones.length}</span> : null}
-      actionOpen={adding}
-      action={
-        readOnly ? null : (
+    // A footer card on the project page's left panel, folding like Good morning
+    // (Tyler, 6 Nov 2026, the Admin 3 panel design). Its + adds a milestone.
+    <Collapsible open={open} onOpenChange={setOpen} className="grid grid-cols-[minmax(0,1fr)]">
+      <FoldHeading band icon={<FlagIcon />} title="Milestones" count={milestones.length || undefined} open={open}>
+        {readOnly ? null : (
           <CardDropdown
             label="Add a milestone"
             icon={<PlusIcon className="size-4" />}
@@ -68,9 +70,9 @@ export function ProjectMilestones({
           >
             <MilestoneForm projectId={projectId} milestone={null} onDone={() => setAdding(false)} />
           </CardDropdown>
-        )
-      }
-    >
+        )}
+      </FoldHeading>
+      <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)] gap-2", FOOTER_CARD_BODY)}>
       {milestones.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No milestones. Add one for each date a set of tasks must be finished by.
@@ -89,7 +91,8 @@ export function ProjectMilestones({
           ))}
         </ul>
       )}
-    </PanelCard>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -115,9 +118,6 @@ function MilestoneRow({
   const [editing, setEditing] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  // Its tasks' time on the clock, counted as the row draws (Seven features, part 4).
-  const [nowMs] = React.useState(() => Date.now())
-  const clocked = timeOnTasks(tasks, nowMs)
   return (
     <li className="group/row flex items-center gap-1 rounded-lg border bg-background py-2 pr-1 pl-3">
       <span className="grid min-w-0 flex-1 gap-1">
@@ -133,7 +133,6 @@ function MilestoneRow({
         <span className={cn("text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>
           {overdue ? "Overdue · " : ""}
           {milestoneLine(milestone)}
-          {clocked >= 60 ? `, ${clockTotal(clocked)} clocked` : ""}
         </span>
       </span>
       <CardDropdown

@@ -20,9 +20,9 @@ import { cn } from "@/lib/utils"
  * small and open full size in a new tab; anything else is a name to download.
  * Up to 10 files of 10 MB each, and 5 GB for the whole team, which the server
  * checks too. A full task locks the drop area before anything is picked, and
- * a drop while files are still going up is ignored. Files in a task type's
- * File fields show in their field instead (`task-fields-card.tsx`) and still
- * count toward the 10.
+ * a drop while files are still going up is ignored. Files sent in the
+ * task's chat are the task's files too, so they show here and count toward
+ * the 10.
  *
  * This is a file field, not an image field, so it doesn't use the shared
  * `ImageUpload`: that puts pictures in the public media library, and a task's
@@ -49,7 +49,6 @@ export function TaskFilesCard({
         <TaskFileDrop
           taskId={detail.task.id}
           files={files}
-          taskFileCount={detail.fields.fileCount}
           readOnly={readOnly}
           refresh={refresh}
           change={change}
@@ -60,39 +59,28 @@ export function TaskFilesCard({
   )
 }
 
-/**
- * A list of a task's files and a place to drop more: the Files card, or one
- * File field (`fieldId`). Every file counts toward the task's 10, wherever
- * it sits, so `taskFileCount` is the whole task's.
- */
-export function TaskFileDrop({
+/** The Files card's list of a task's files and its place to drop more. */
+function TaskFileDrop({
   taskId,
-  fieldId,
   files,
-  taskFileCount,
   readOnly,
   refresh,
   change,
   emptyText,
-  labelledBy,
 }: {
   taskId: string
-  fieldId?: string
   files: TaskFile[]
-  taskFileCount: number
   readOnly: boolean
   refresh: () => Promise<void>
   change: Change
   emptyText: string
-  /** The field's label, which names the drop area for a screen reader. */
-  labelledBy?: string
 }) {
   const input = React.useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = React.useState<string[]>([])
   const [dragging, setDragging] = React.useState(false)
   // A ref as well as the list: a second drop can land before the list redraws.
   const inFlight = React.useRef(false)
-  const room = LIMITS.filesPerTask - taskFileCount
+  const room = LIMITS.filesPerTask - files.length
   const full = room <= 0
   const busy = uploading.length > 0
   const maxSize = formatFileSize(LIMITS.fileBytes)
@@ -116,7 +104,7 @@ export function TaskFileDrop({
     let added = 0
     for (const file of sending) {
       try {
-        await addFileToTask(taskId, file, fieldId)
+        await addFileToTask(taskId, file)
         added += 1
       } catch (error) {
         showErrorToast(`"${file.name}" wasn't added. ${getProjectErrorMessage(error)}`)
@@ -133,7 +121,7 @@ export function TaskFileDrop({
   return (
     <>
       {files.length === 0 && uploading.length === 0 ? (
-        readOnly || !fieldId ? <p className="text-sm text-muted-foreground">{emptyText}</p> : null
+        <p className="text-sm text-muted-foreground">{emptyText}</p>
       ) : (
         <ul className="grid gap-2">
           {files.map((file) => (
@@ -151,8 +139,6 @@ export function TaskFileDrop({
       )}
       {readOnly ? null : (
         <div
-          role="group"
-          aria-labelledby={labelledBy}
           className={cn(
             "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed bg-muted/50 px-3 py-4 text-center transition-colors",
             dragging && "border-ring bg-muted"
@@ -187,7 +173,7 @@ export function TaskFileDrop({
             type="file"
             multiple
             hidden
-            aria-label={fieldId ? "Add files to this field" : "Add files to the task"}
+            aria-label="Add files to the task"
             onChange={(event) => {
               const picked = [...(event.target.files ?? [])]
               event.target.value = ""

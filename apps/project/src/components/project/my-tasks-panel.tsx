@@ -23,7 +23,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import type { SavedView } from "@/lib/api/project/finding"
-import type { Label } from "@/lib/api/project/sorting"
 import {
   acceptTasks,
   deleteProjectTask,
@@ -50,8 +49,6 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
-import { saveTaskLabels } from "@/lib/api/project/sorting"
-import { saveTaskTypeOf } from "@/lib/api/project/task-types"
 import { pickedWordsUnder, readRightClick } from "@/lib/project/right-click"
 import { viewHasFilters } from "@/lib/project/saved-views"
 import { MY_GROUPINGS, MY_GROUPING_LABEL, canMoveInGroup, groupMyTasks, type MyGrouping, type TaskGrouping } from "@/lib/project/task-groups"
@@ -63,7 +60,6 @@ import {
   NO_TASK_FILTERS,
   type TaskFilters,
 } from "@/lib/project/task-filters"
-import type { TaskType } from "@/lib/project/task-types"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -85,8 +81,6 @@ export type MyTasksSource = {
   today: string
   /** Who the bulk menu's Hand to offers. */
   people: { id: string; name: string; avatarUrl?: string }[]
-  labels: Label[]
-  taskTypes: TaskType[]
   views: SavedView[]
   /** The shell's key those views are kept under. */
   viewScreen: string
@@ -98,7 +92,7 @@ export type MyTasksSource = {
   /**
    * The site admin's List is the project page's table (Tyler, 23 Oct 2026:
    * "The tasks table have to look like the project's tasks table"), with a
-   * Project column whose chip moves the task, and no Assigned to or Steps
+   * Project column whose chip moves the task, and no Assigned to
    * ("remove the assigned to, steps and my team col").
    */
   table?: { project: ProjectColumn }
@@ -176,19 +170,10 @@ export function MyTasksPanel({
   const overdue = overdueTasks.length
   const [catchingUp, setCatchingUp] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
-  // Tasks here come from many projects, so every live type is offered and a
-  // project that doesn't offer one refuses it for its own tasks.
-  const bulk = {
-    people: source.people,
-    projects: [],
-    tags: source.labels,
-    types: source.taskTypes.filter((type) => !type.archived),
-  }
+  const bulk = { people: source.people, projects: [] }
   const clients = clientChoices([...open, ...done].map((task) => task.projectClient))
   const here = {
     screen: source.viewScreen,
-    labels: source.labels,
-    types: source.taskTypes,
     clients,
     projects: source.projects,
   }
@@ -247,17 +232,16 @@ export function MyTasksPanel({
 
   /**
    * A row let go under another heading while the List is grouped by Status,
-   * Priority, Due date, Type or Tags (Tyler, 6 Nov 2026: "mass select does not
-   * have draggability", grouped by Priority). It takes that heading's value,
-   * as on a project's List: a status (Stuck asks why first), a priority, a due
-   * date, a type, or that tag in place of the one it left. These groupings
+   * Priority or Due date (Tyler, 6 Nov 2026: "mass select does not have
+   * draggability", grouped by Priority). It takes that heading's value, as on
+   * a project's List: a status (Stuck asks why first), a priority or a due
+   * date. These groupings
    * keep no order of their own, so a drop inside its own heading does nothing.
    * Shows at once and goes back if the server refuses.
    */
   async function dropGrouped(drop: ListDrop) {
     const task = tasks.find((t) => t.id === drop.taskId)
     if (!task || drop.from === drop.to) return
-    const none = drop.to === "none"
     async function moveField(patch: Partial<TaskCard>, save: () => Promise<unknown>) {
       const before = tasks
       setTasks((current) => current.map((t) => (t.id === task!.id ? { ...t, ...patch } : t)))
@@ -279,18 +263,6 @@ export function MyTasksPanel({
         const change = dropChange(drop.to, myDay)
         if (!change || !("dueDate" in change)) return
         return moveField({ dueDate: change.dueDate, dueAt: null }, () => saveTask({ taskId: task.id, dueDate: change.dueDate }))
-      }
-      case "type": {
-        const type = none ? null : source.taskTypes.find((t) => t.id === drop.to)
-        if (type === undefined) return
-        return moveField({ type }, () => saveTaskTypeOf(task.id, type?.id ?? null))
-      }
-      case "tags": {
-        const labels = [
-          ...task.labels.filter((label) => label.id !== drop.from),
-          ...source.labels.filter((label) => label.id === drop.to),
-        ]
-        return moveField({ labels }, () => saveTaskLabels(task.id, labels.map((label) => label.id)))
       }
     }
   }
@@ -486,7 +458,7 @@ export function MyTasksPanel({
   // Dragging is off while a search or filter hides rows, and while a change saves.
   // Grouped by Assignee or Project a drop would hand the task over or move it to
   // another project, so those groupings don't drag.
-  const groupDrags = grouping === "status" || grouping === "priority" || grouping === "due" || grouping === "type" || grouping === "tags"
+  const groupDrags = grouping === "status" || grouping === "priority" || grouping === "due"
   const onDrop =
     filtered || busy || (regrouped && !groupDrags)
       ? undefined
@@ -494,7 +466,7 @@ export function MyTasksPanel({
         ? (drop: ListDrop) => void dropGrouped(drop)
         : (drop: ListDrop) => void dropRow(drop)
   const canMoveHere = regrouped
-    ? (from: string, to: string, task: TaskCard) => from !== to && canMoveInGroup(grouping as TaskGrouping, to, task)
+    ? (from: string, to: string) => from !== to && canMoveInGroup(grouping as TaskGrouping, to)
     : canMove
   const rowIds = listRows.map((task) => task.id).join(",")
   React.useEffect(() => {
@@ -538,8 +510,6 @@ export function MyTasksPanel({
           <TaskFilterPopover
             filters={filters}
             onChange={onFilters}
-            labels={source.labels}
-            types={source.taskTypes}
             buttonVariant="ghost"
             group={
               view === "list"
@@ -735,7 +705,6 @@ export function MyTasksPanel({
             bulk={bulk}
             showProject
             projectColumn={source.table.project}
-            showSteps={false}
             addTask={addUnder}
             myUserId={source.myUserId}
             onDelete={(task) => setDeleting(task)}

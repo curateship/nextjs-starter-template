@@ -13,7 +13,7 @@ import { cleanNoteBody, type NoteNode } from "@/lib/project/note-blocks"
 /**
  * The shell's editor with Project's "/" blocks (Project note blocks task):
  * used by a task's notes, New task's and quick new task's description, and a
- * template's starting notes. Typing "/" opens the list; what this box offers
+ * project's page. Typing "/" opens the list; what this box offers
  * depends on `setup.where` (`blocksFor`). What is saved is cleaned to what a
  * Project note may hold (`cleanNoteBody`).
  */

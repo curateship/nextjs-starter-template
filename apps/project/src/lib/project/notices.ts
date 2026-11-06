@@ -11,15 +11,12 @@ import {
   FlagIcon,
   GaugeIcon,
   HeartIcon,
-  ListChecksIcon,
   MegaphoneIcon,
   MessageSquareIcon,
   MessageSquareReplyIcon,
   PlayIcon,
   SunriseIcon,
-  TimerOffIcon,
   UndoIcon,
-  UserCheckIcon,
   UserPlusIcon,
   UsersIcon,
   VideoIcon,
@@ -42,13 +39,11 @@ const TASK_NOTICE_KINDS = [
   "task_comment",
   "task_mention",
   "task_unblocked",
-  "task_step",
   "task_ready",
   "tasks_handed",
   "task_review",
   "task_sent_back",
   "task_thanks",
-  "task_field_person",
   "task_time_asked",
   "task_time_answered",
 ] as const
@@ -70,7 +65,6 @@ const APP_NOTICE_KINDS = [
   "task_reminder",
   "project_health",
   "milestone_due",
-  "clock_paused",
   "routine_reminder",
 ] as const
 
@@ -93,12 +87,10 @@ const HEADING_ENDING: Record<Exclude<TaskNoticeKind, "tasks_handed">, string> = 
   task_comment: " commented on a task",
   task_mention: " asked you about a task",
   task_unblocked: " unblocked a task",
-  task_step: " gave you a step",
   task_ready: " finished what your task was waiting on",
   task_review: " finished a task for your review",
   task_sent_back: " sent a task back to you",
   task_thanks: " thanked you for a task",
-  task_field_person: " named you on a task",
   task_time_asked: " asked you for more time on a task",
   task_time_answered: " answered your ask for more time",
 }
@@ -169,13 +161,6 @@ export function taskReminderHeading(title: string) {
   return `${TASK_REMINDER_START}${title}`
 }
 
-const CLOCK_PAUSED_START = "Clock paused at midnight: "
-
-/** "Clock paused at midnight: Fix the login page", for a clock left running (`task-clock.ts`). */
-export function clockPausedHeading(title: string) {
-  return `${CLOCK_PAUSED_START}${title}`
-}
-
 const ROUTINE_REMINDER_WORDS = /^Your (morning|afternoon|night) routine isn't done yet$/
 
 /** "Your morning routine isn't done yet", the site admin's own routine on the Daily card. */
@@ -240,7 +225,6 @@ export function noticeKindFromWords(
   if (notice.message === CHECKIN_REMINDER_HEADING) return "checkin_reminder"
   // First, because a task's own title could end like another notice.
   if (notice.message.startsWith(TASK_REMINDER_START)) return "task_reminder"
-  if (notice.message.startsWith(CLOCK_PAUSED_START)) return "clock_paused"
   if (ROUTINE_REMINDER_WORDS.test(notice.message)) return "routine_reminder"
   if (DUE_SOON_WORDS.test(notice.message)) return "due_soon"
   if (OVERDUE_WORDS.test(notice.message)) return "overdue"
@@ -316,11 +300,6 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
   task_ready: {
     icon: PlayIcon,
     toneClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    categoryId: "tasks",
-  },
-  task_step: {
-    icon: ListChecksIcon,
-    toneClassName: "bg-primary/10 text-primary",
     categoryId: "tasks",
   },
   task_unblocked: {
@@ -410,11 +389,6 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
     toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     categoryId: "tasks",
   },
-  task_field_person: {
-    icon: UserCheckIcon,
-    toneClassName: "bg-primary/10 text-primary",
-    categoryId: "tasks",
-  },
   project_health: {
     icon: GaugeIcon,
     toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
@@ -422,11 +396,6 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
   },
   milestone_due: {
     icon: FlagIcon,
-    toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    categoryId: "tasks",
-  },
-  clock_paused: {
-    icon: TimerOffIcon,
     toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     categoryId: "tasks",
   },

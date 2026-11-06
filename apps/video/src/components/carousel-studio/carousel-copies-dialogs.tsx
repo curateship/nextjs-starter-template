@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { SteadyLabel } from "@/components/video-assets/steady-label"
 import {
   getCarouselErrorMessage,
   listCarouselVersions,
@@ -25,7 +26,7 @@ import {
   type CarouselItem,
   type CarouselVersionItem,
 } from "@/lib/api/video/carousels"
-import { formatDate } from "@/lib/format/format-time"
+import { formatDateTime } from "@/lib/format/format-time"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { VERSION_REASON_LABEL } from "@/lib/video/project-versions"
 import {
@@ -194,11 +195,15 @@ export function TranslateCopiesDialog({
               </Button>
               <Button type="button" disabled={busy} onClick={() => void translate()}>
                 {busy ? <Loader2Icon className="animate-spin" /> : <LanguagesIcon />}
-                {busy
-                  ? "Translating"
-                  : picked.size
-                    ? `Make ${picked.size} ${picked.size === 1 ? "copy" : "copies"}`
-                    : "Make copies"}
+                <SteadyLabel
+                  busy={busy}
+                  idle={
+                    picked.size
+                      ? `Make ${picked.size} ${picked.size === 1 ? "copy" : "copies"}`
+                      : "Make copies"
+                  }
+                  working="Translating…"
+                />
               </Button>
             </>
           )}
@@ -305,7 +310,7 @@ export function CarouselVersionsDialog({
                         )}
                       >
                         <span className="font-medium">
-                          {formatDate(version.saved_at)}
+                          {formatDateTime(version.saved_at)}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {VERSION_REASON_LABEL[version.reason]} ·{" "}

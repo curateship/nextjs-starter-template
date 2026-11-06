@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import {
   createCarouselProject,
   getCarouselProjectErrorMessage,
@@ -139,6 +140,8 @@ export function CarouselProjectFormDialog({
   const [draft, setDraft] = React.useState(() => draftOf(project))
   const [saving, setSaving] = React.useState(false)
   const [newFolderId, setNewFolderId] = React.useState(folderId)
+  // The name box turns red only after a save with it empty, never on opening.
+  const [nameTried, setNameTried] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   const [wasOpen, setWasOpen] = React.useState(open)
@@ -147,6 +150,7 @@ export function CarouselProjectFormDialog({
     if (open) {
       setDraft(draftOf(project))
       setNewFolderId(folderId)
+      setNameTried(false)
     }
   }
 
@@ -156,6 +160,7 @@ export function CarouselProjectFormDialog({
 
   async function handleSave() {
     if (!draft.name.trim()) {
+      setNameTried(true)
       showErrorToast("A project needs a name.")
       inputRef.current?.focus()
       return
@@ -235,7 +240,7 @@ export function CarouselProjectFormDialog({
                     ref={inputRef}
                     value={draft.name}
                     maxLength={200}
-                    aria-invalid={!draft.name.trim() || undefined}
+                    aria-invalid={(nameTried && !draft.name.trim()) || undefined}
                     placeholder="Weekly tips"
                     onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                   />
@@ -355,6 +360,7 @@ export function CarouselProjectFormDialog({
                       placeholder="#fitness #tips"
                       onChange={(event) => setDraft({ ...draft, footer: event.target.value })}
                     />
+                    <LengthCounter length={draft.footer.length} max={CAROUSEL_FOOTER_MAX} />
                   </div>
                 </SettingsFoldCard>
               ) : null}

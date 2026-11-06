@@ -3,6 +3,7 @@ import { Loader2Icon, ScissorsIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -189,9 +190,14 @@ export function JumpCutsDialog({
               >
                 <TabsList>
                   <TabsTrigger value="dead-air">Dead air</TabsTrigger>
-                  <TabsTrigger value="filler" disabled={!canUseWords}>
-                    Filler words
-                  </TabsTrigger>
+                  <DisabledReason
+                    disabled={!canUseWords}
+                    reason="Finding filler words needs a Gemini or OpenAI key. Add one on Settings, AI."
+                  >
+                    <TabsTrigger value="filler" disabled={!canUseWords}>
+                      Filler words
+                    </TabsTrigger>
+                  </DisabledReason>
                 </TabsList>
               </Tabs>
 

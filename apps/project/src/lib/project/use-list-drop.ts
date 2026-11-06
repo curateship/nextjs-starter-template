@@ -18,7 +18,7 @@ type ListDropOptions<T> = {
   canMove: (from: string, to: string, row: T) => boolean
   /** Headings that show even with no rows, so a row can be dropped there. */
   showsEmpty?: (key: string) => boolean
-  /** The task a row is, when a row's drag id is not its task's id (a task under several tags). */
+  /** The task a row is, when a row's drag id is not its task's id. */
   taskIdOf?: (row: T) => string
 }
 

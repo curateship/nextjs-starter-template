@@ -859,7 +859,7 @@ function PreparationNote({
     return (
       <p
         role="status"
-        className="mt-1.5 px-0.5 text-[10.5px] leading-tight text-muted-foreground"
+        className="mt-1.5 px-0.5 text-xs leading-tight text-muted-foreground"
       >
         <Loader2
           aria-hidden
@@ -871,7 +871,7 @@ function PreparationNote({
   }
   return (
     <div role="status" className="mt-1.5 grid gap-1 px-0.5">
-      <p className="text-[10.5px] leading-tight font-medium text-foreground">
+      <p className="text-xs leading-tight font-medium text-foreground">
         Couldn't get it ready to scrub
       </p>
       <Button
@@ -1004,7 +1004,7 @@ function AudioMediaCard({
           >
             {item.original_name}
           </span>
-          <span className="mt-0.5 block text-[10px] text-muted-foreground">
+          <span className="mt-0.5 block text-xs text-muted-foreground">
             {durationMs ? formatClock(durationMs) : "-"} ·{" "}
             {formatFileSize(item.file_size)}
           </span>

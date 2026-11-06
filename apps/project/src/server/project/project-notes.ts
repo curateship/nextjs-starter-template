@@ -161,7 +161,7 @@ export async function saveProjectNote(
   const { note } = await requireNote(userId, input.noteId, database, { write: true })
   await database
     .update(projectNotes)
-    .set({ body: storedNotesForCopy(input.body, { forTemplate: true }), updatedAt: now() })
+    .set({ body: storedNotesForCopy(input.body, { noTask: true }), updatedAt: now() })
     .where(eq(projectNotes.id, note.id))
 }
 

@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { isExportActive } from "@/components/video-editor/use-project-exports"
+import { useNow } from "@/components/video-assets/use-time-so-far"
 import {
   cancelExports,
   getExportErrorMessage,
@@ -46,13 +47,14 @@ import {
   type RenderQuality,
 } from "@/lib/video/render"
 import {
-  clockText,
   parseClockText,
   STRETCH_INVALID_MESSAGE,
   stretchRefusal,
 } from "@/lib/video/export-stretch"
 import type { AspectRatio } from "@/lib/video/timeline-schema"
 import { cn } from "@/lib/utils"
+import { formatClock } from "@/lib/video/timeline-utils"
+import { exportProgressText, stopExportsLabel } from "@/lib/video/export-status"
 
 /**
  * Making the file.
@@ -105,7 +107,7 @@ export function ExportDialog({
   // The part to export, as typed. The end starts at the project's end,
   // rounded up to the whole second the box shows, so it never cuts the last
   // fraction of a second off.
-  const wholeEndText = clockText(Math.ceil(projectMs / 1000) * 1000)
+  const wholeEndText = formatClock(Math.ceil(projectMs / 1000) * 1000)
   const [startText, setStartText] = React.useState("0:00")
   const [endText, setEndText] = React.useState(wholeEndText)
   const [partInvalid, setPartInvalid] = React.useState(false)
@@ -410,7 +412,7 @@ export function ExportDialog({
                       {job.range ? (
                         <span className="font-normal text-muted-foreground">
                           {" "}
-                          · {clockText(job.range.start_ms)} to {clockText(job.range.end_ms)}
+                          · {formatClock(job.range.start_ms)} to {formatClock(job.range.end_ms)}
                         </span>
                       ) : null}
                     </span>
@@ -441,7 +443,7 @@ export function ExportDialog({
               disabled={busy}
               onClick={() => void handleCancel()}
             >
-              {activeCount > 1 ? `Stop all ${activeCount}` : "Stop it"}
+              {stopExportsLabel(activeCount)}
             </Button>
           ) : null}
           <Button
@@ -510,6 +512,7 @@ function ChoiceRows<Id extends string | number>({
 }
 
 function ExportProgress({ job }: { job: RenderJobSummary }) {
+  const now = useNow(job.status === "running")
   if (job.status === "ready") {
     return (
       <p className="flex items-center gap-2 text-sm">
@@ -545,14 +548,7 @@ function ExportProgress({ job }: { job: RenderJobSummary }) {
   return (
     <p className="flex items-center gap-2 text-sm text-muted-foreground">
       <Loader2Icon className="size-4 animate-spin" />
-      {job.status === "queued" && job.error_message
-        ? // Waiting for room on the server's disk, in its own words.
-          job.error_message
-        : job.status === "running"
-        ? "Making it now…"
-        : job.queue_position && job.queue_position > 1
-          ? `Waiting - ${job.queue_position - 1} ahead of it`
-          : "Waiting to start…"}
+      {exportProgressText(job, now)}
     </p>
   )
 }

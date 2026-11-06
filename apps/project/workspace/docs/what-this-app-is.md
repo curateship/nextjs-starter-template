@@ -26,9 +26,11 @@ the code. If the code disagrees with a line here, the code is wrong.
   no email, browser pop-up or Slack reminder.
 - **Handing out tasks.** Anyone on the team can hand a task to anyone else. The
   task always records who handed it out.
-- **Progress.** A task's status is To do, Doing, Done, Stuck or Archived. A task can also
-  carry an optional checklist of steps, so progress reads as "3 of 5 steps
-  done". There is no percentage slider.
+- **Progress.** A task's status is To do, Doing, Done, Stuck or Archived.
+  There is no percentage slider. A task also carried an optional checklist
+  of steps until 6 Nov 2026, when Tyler removed it: "remove the steps, timer
+  and tags feature". Tags went the same day, and task templates too, so a
+  task is sorted by its status, priority and milestone.
 - **Check-out.** The evening check-out is optional. It was left out of the
   first version and added on 11 Oct 2026.
 - **There is no workspace.** Tyler: "There is no workspace." The team is the
@@ -37,9 +39,9 @@ the code. If the code disagrees with a line here, the code is wrong.
   we just have projects and team dashboard".
 - **Three dashboards: My dashboard, Projects and Team.** Tyler, 10 Oct 2026:
   "we dont need calender and check in with its own dashboard". There is no
-  separate check-in page, Today board or person calendar. Task types got a
-  dashboard of its own on 12 Oct 2026, at Tyler's request (see "Choices for
-  task types" below).
+  separate check-in page, Today board or person calendar. Task types had a
+  dashboard of their own from 12 Oct 2026 until they were removed (see
+  "Choices for task types" below).
 - **My dashboard.** Tyler, 10 Oct 2026: "There should be "My dashboard" and
   put check in there instead and my tasks there as well. This should be a 3
   col dashboard with left panel shows my avatar and my informations like
@@ -119,7 +121,7 @@ in [Teams and invites](teams-and-invites.md#who-is-who).
   Projects running late, Milestones this month, Done today, then the Inbox.
 - **The site admin runs every team.** Tyler: "Im admin, I should be able to
   see everything." Only the site admin creates teams, changes their
-  settings, invites people and makes task types.
+  settings and invites people.
 - **Team roles stop giving powers:** "Only me, the site admin."
 - **Only the site admin makes projects:** "only I create projects". That
   covers New project and Copy project.
@@ -152,6 +154,7 @@ were built.
   everyone on it sees.
 - **A step given to someone** shows only inside its task, never in their My
   tasks or check-in. Work they should pick at check-in becomes its own task.
+  Steps were removed on 6 Nov 2026.
 - **A repeating task** whose last copy isn't Done skips its turn, so copies
   never pile up.
 - **A "Just me" task** can later be moved into a project.
@@ -203,6 +206,10 @@ were built. Each was the recommended option.
   with a "Waiting for review" mark beside it.
 
 ## Choices for task types
+
+Task templates and their fields were removed on 6 Nov 2026 (Tyler: "We
+need to remove the tasks templates feature too"). The choices below are kept
+as the record of what was decided.
 
 Tyler answered these on 12 Oct 2026, before Task types task 01 was built.
 Each was the recommended option.
@@ -261,7 +268,7 @@ Each was the recommended option.
 
 - **Saved step lists** belong to the team. Anyone makes or uses one; the
   site admin renames and deletes them in Team settings, the same as
-  labels.
+  labels. They went with steps on 6 Nov 2026.
 - **Every 3 months** counts from a first date the person picks, so the task
   can say which months it comes back in.
 - **Remind me** keeps one reminder per person per task. Picking a new day
@@ -330,7 +337,10 @@ built. Each was the recommended option.
   project, not its chat.
 - **A saved template keeps what Copy project keeps**: description, colour,
   milestones without dates, tasks with steps, tags, type, field values and
-  priority. (Sections went on 19 Oct 2026 and became tags.)
+  priority. (Sections went on 19 Oct 2026 and became tags. Tags were
+  removed on 6 Nov 2026, Tyler: "remove the steps, timer and tags feature".
+  Task templates and their fields were removed on 6 Nov 2026 (Tyler: "We
+  need to remove the tasks templates feature too").)
 - **A project with "Everyone on the team" on** can't be left, and nobody
   can be taken off it, until the switch is off. Tyler didn't know the
   feature and asked me to decide, so this is my call, open to change.
@@ -353,10 +363,10 @@ built. Each was the recommended option.
   table doesn't; a reload is fine there.
 - **Time off is always shown on the Team calendar**, to everyone on the
   team, with no switch.
-- **Someone named in a Person field follows the task**, so its chat and its
-  Done reach them too.
-- **Board cards show the fields picked for the List**, with no separate
-  choice.
+- **Someone named in a Person field followed the task**, and **Board cards
+  showed the fields picked for the List**. Task templates and their fields
+  were removed on 6 Nov 2026 (Tyler: "We need to remove the tasks templates
+  feature too").
 - **A saved view on My dashboard keeps its client.**
 - **A saved view keeps its group, and a group alone is a view** (20 Oct
   2026): "sorting is also a filter".
@@ -366,12 +376,13 @@ built. Each was the recommended option.
   the right**, with Add tags, Add note, Add comment and Add files in the three
   dots and no cross on the project page (20 Oct 2026). The status went to a
   footer pinned to the panel's bottom later the same day (see "Choices for
-  the task clock" below).
+  the task panel's footer" below).
 - **One ⋮ menu, no cog** (2 Nov 2026): "the 3 dot and the cog dropdowns are
   too redundent, combine them into one". The menu has the Details and History
   tabs with Follow, an Add to task row of icons (Tags, Comment, Files, Steps,
   Time), the fields, then Show the text toolbar, Remind me, Duplicate, Move,
-  Save as task template and Delete task, drawn in
+  Save as task template (removed on 6 Nov 2026 with task templates) and
+  Delete task, drawn in
   `workspace/docs/assets/pasted-image-1793657566602963000.png`.
 - **The ⋮ menu as My settings is** (6 Nov 2026): "It needs to copy the Ui of
   the left panel tabs", "details should be renamed to "General"", "Remove the
@@ -379,6 +390,12 @@ built. Each was the recommended option.
   select". Tabs General and Versions; General is grouped rows that pick in one
   press, with Remind me under Dates. Add to task moved above the footer and
   Follow became a bell beside the ⋮. See [Projects and tasks](projects-and-tasks.md).
+- **Comments are a "/" block, and the Add to task row is gone** (6 Nov 2026):
+  "Make comments a block". Tyler picked a Comments block placed in the notes,
+  shown under the notes while none is placed, and dropping the Files icon:
+  files come in, and are deleted, through the File block, and the project's
+  Files tab lists them. With Tags, Steps and Time removed the same day, the
+  row had nothing left. See [Notes and blocks](notes-and-blocks.md).
 - **No cross on My dashboard either, and the right panel is never empty**
   (23 Oct 2026): "There is no 'x' icon to close the right panel to show an
   empty panel. The first load always show the first task and then it
@@ -404,46 +421,20 @@ order they get built.
 - Guests who see only some projects.
 - Online status, screenshots and activity timers that run without being
   asked. The check-in is the only thing the app tracks about a person on its
-  own. The task clock (below) is different: it runs only after the person
-  presses Start, and they pause it themselves.
+  own.
 
-## Choices for the task clock
+## Choices for the task panel's footer
 
 Tyler asked on 20 Oct 2026: "Put the status to the bottom of the panel and
-make it sticky. Replace where the status is with the task name. In the bottom
-footer (beside status) add a button that says "Start task" when task starts,
-the countdown timer appears to record how long a task takes. I can also pause
-the timer. Beside it there will be another button that says "Task completed"
-to finish a task." He picked the recommended option on every question that
-day. How it works is in [The task clock](task-clock.md).
+make it sticky. Replace where the status is with the task name." The footer
+holds the status and Completed ("rename button to "Start" and "Completed"").
+It also held a task clock, with Start and Pause, until 6 Nov 2026, when
+Tyler removed it: "remove the steps, timer and tags feature". Its times,
+guesses, Time columns and hours this week went with it.
 
-- **The clock counts up** from 0:00 to record how long the task took. It
-  never counts down.
-- **Start moves the task to Doing, and Completed moves it to
-  Done**, through Done's usual checks.
-- **Only the person assigned and the site admin run the clock.** Everyone on
-  the project sees the total, and anyone on the project can press
-  Completed.
-- **Start on a task nobody has makes it theirs.**
-- **A Done task shows its total and Start again.**
-- **The footer is for the side panel only**, not the Team dashboard's
-  window.
-- **A clock left running pauses at midnight** in the person's own zone, with
-  a bell notice in the morning.
-- **Times in Yesterday show to everyone on the team.**
-- **The ten ideas around it were all ticked**: one clock at a time, pausing
-  by itself, fixing a wrong time, clock lines in History, the clock on My
-  dashboard rows, times in Yesterday, the unfinished steps question, a Time
-  column on the List, hours this week in Workload, and a guess to compare
-  against.
-- **The buttons say "Start" and "Completed"** (Tyler, 20 Oct 2026: "rename
-  button to "Start" and "Completed""). A Done task's button still says Start
-  again.
-- **A task whose clock is running carries a rainbow "Doing" chip** after its
-  title on the List, the rainbow going round it (Tyler, 20 Oct 2026,
-  `assets/pasted-image-1792518621244475000.png`).
-- **New task gets its Type choice back** in the dropdown, after "More
-  options" took the window's Type picker out of reach on 19 Oct 2026.
+- **New task had its Type choice back** in the dropdown, after "More
+  options" took the window's Type picker out of reach on 19 Oct 2026, until
+  task templates were removed on 6 Nov 2026.
 
 ## Choices for the 19 Oct status
 
@@ -494,13 +485,10 @@ the recommended answer on every question.
 - **Every team's morning** is three columns on the Teams dashboard, not a
   page of its own.
 - **Untouched** means 14 days, the same for every team, with no setting.
-- **The Projects table gets a Time column**, off until picked.
-- **No guesses in the totals.** Tyler, the same day, after seeing them:
-  "remove the guesses time. dont need it." The project's left panel shows
-  only the clocked time, and Workload has no "guessed this week". A task's
-  own guess, "20m over" or "10m left" in its footer, stays.
+- **Time on the clock** came with the task clock, which was removed on
+  6 Nov 2026 (Tyler: "remove the steps, timer and tags feature").
 - **A cog's settings are flat rows, not cards.** Tyler, 20 Oct 2026, of the
-  task cog's Person, Dates, Priority and type, Needs review, Video or Promo
+  task cog's Person, Dates, Priority, Needs review, Video or Promo
   and Plan: "move all of these outside the cards (flatten it)". Each is a row
   with a line under it running edge to edge, in the task's cog and in My
   settings alike.

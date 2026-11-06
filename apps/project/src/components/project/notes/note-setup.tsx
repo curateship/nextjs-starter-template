@@ -15,10 +15,10 @@ import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * Which notes box: a task's own notes, New task's or quick new task's
- * description (no task yet), a task template's starting notes, or a
- * project's page in its left panel.
+ * description (no task yet), a meeting's notes, or a project's page in its
+ * left panel.
  */
-export type NoteWhere = "task" | "new" | "template" | "project"
+export type NoteWhere = "task" | "new" | "meeting" | "project"
 
 export type NoteTask = {
   id: string
@@ -27,6 +27,20 @@ export type NoteTask = {
   link: TaskLink | null
   /** Reads the task again, after a file was added. */
   refresh: () => Promise<void>
+  /** Its comments, for a Comments block; left out where the task has none to show. */
+  comments: NoteComments | null
+}
+
+/**
+ * A task's comments as a Comments block draws them: the thread with its box
+ * to write in, how many there are, and `placed`, which a drawn block calls as
+ * it appears and whose return it calls as it goes. So the panel knows while
+ * a block shows the comments, and draws them under the notes otherwise.
+ */
+export type NoteComments = {
+  count: number
+  thread: React.ReactNode
+  placed: () => () => void
 }
 
 export type NoteSetup = {
@@ -54,7 +68,7 @@ const NO_HOLD = () => undefined
 
 export function useNotesBoxSetup(
   where: NoteWhere,
-  task?: { id: string; files?: TaskFile[]; link?: TaskLink | null; refresh?: () => Promise<void> },
+  task?: { id: string; files?: TaskFile[]; link?: TaskLink | null; refresh?: () => Promise<void>; comments?: NoteComments | null },
   hold: (busy: boolean) => void = NO_HOLD
 ): NoteSetup {
   const navigate = useNavigate()
@@ -63,16 +77,19 @@ export function useNotesBoxSetup(
   const files = task?.files
   const link = task?.link
   const refresh = task?.refresh
+  const comments = task?.comments
   return React.useMemo(
     () => ({
       where,
       teamId,
-      task: taskId ? { id: taskId, files: files ?? [], link: link ?? null, refresh: refresh ?? NO_REFRESH } : null,
+      task: taskId
+        ? { id: taskId, files: files ?? [], link: link ?? null, refresh: refresh ?? NO_REFRESH, comments: comments ?? null }
+        : null,
       openTask: (openId: string, projectId: string) =>
         void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: openId } }),
       hold,
     }),
-    [where, teamId, taskId, files, link, refresh, navigate, hold]
+    [where, teamId, taskId, files, link, refresh, comments, navigate, hold]
   )
 }
 

@@ -39,18 +39,6 @@ export function parseClockText(text: string): number | null {
   return seconds * 1000
 }
 
-/** "1:05:00" or "10:00": hours only once there are any. */
-export function clockText(ms: number) {
-  const total = Math.max(0, Math.round(ms / 1000))
-  const hours = Math.floor(total / 3600)
-  const minutes = Math.floor((total % 3600) / 60)
-  const seconds = total % 60
-  const ss = String(seconds).padStart(2, "0")
-  return hours
-    ? `${hours}:${String(minutes).padStart(2, "0")}:${ss}`
-    : `${minutes}:${ss}`
-}
-
 /**
  * Why this part cannot be exported, or null when it can. The end may be the
  * project's own end to the millisecond, which a whole-second box rounds up

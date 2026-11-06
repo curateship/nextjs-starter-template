@@ -4,6 +4,7 @@ import { ImageIcon, Loader2Icon, RotateCwIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Slider } from "@/components/ui/slider"
 import {
   ShapesLayer,
   ThumbnailLayerView,
@@ -53,8 +54,8 @@ export function ThumbnailBoard() {
       <BoardMessage>
         <ImageIcon className="size-6 text-muted-foreground" />
         <p className="max-w-sm text-center text-sm text-muted-foreground">
-          No thumbnail yet. Press New thumbnail on the left to start from the
-          frame under the playhead.
+          No thumbnail yet. The + at the top of the Thumbnail panel makes one
+          from the frame under the playhead.
         </p>
       </BoardMessage>
     )
@@ -333,14 +334,13 @@ function BoardCompare({
         className="absolute inset-0 h-full w-full"
         style={{ objectFit: fit === "contain" ? "contain" : "cover", clipPath: `inset(0 ${100 - at}% 0 0)` }}
       />
-      <input
-        type="range"
+      <Slider
         min={0}
         max={100}
-        value={at}
+        value={[at]}
         aria-label="Before and after"
-        onChange={(event) => setAt(Number(event.target.value))}
-        className="absolute inset-x-2 bottom-10"
+        onValueChange={([value]) => setAt(value)}
+        className="absolute inset-x-2 bottom-10 w-auto"
       />
       <span className="absolute top-0 bottom-0 w-0.5 bg-white" style={{ left: `${at}%` }} />
       <Button type="button" size="sm" variant="secondary" className="absolute right-2 bottom-2" onClick={onDone}>

@@ -7,7 +7,6 @@ import { QuickNewTask } from "@/components/project/quick-new-task"
 import { Button } from "@/components/ui/button"
 import type { AppHeaderActionProps } from "@/lib/app-options"
 import { loadNewTaskProjects, type NewTaskProject } from "@/lib/api/project/tasks"
-import type { TaskType } from "@/lib/project/task-types"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import type { TaskPriority, TaskStatus } from "@/lib/project/rules"
@@ -60,7 +59,6 @@ export function NewTaskWithProjectPicker({
 }) {
   const here = useParams({ strict: false }).projectId
   const [projects, setProjects] = React.useState<NewTaskProject[] | null>(null)
-  const [types, setTypes] = React.useState<TaskType[]>([])
   const [open, setOpen] = React.useState(false)
   const [full, setFull] = React.useState<{ projectId: string; start: NewTaskStart } | null>(null)
   const [run, loading] = useAsyncAction(getProjectErrorMessage)
@@ -68,9 +66,7 @@ export function NewTaskWithProjectPicker({
   async function start() {
     let found: NewTaskProject[] = []
     const ok = await run(async () => {
-      const loaded = await loadNewTaskProjects()
-      found = loaded.projects
-      setTypes(loaded.types)
+      found = (await loadNewTaskProjects()).projects
     })
     if (!ok) {
       onClosed?.()
@@ -110,7 +106,6 @@ export function NewTaskWithProjectPicker({
     <>
       <QuickNewTask
         projects={projects ?? []}
-        types={types}
         initialProjectId={initial}
         status={startsAs?.status}
         due={startsAs?.due}
@@ -132,8 +127,7 @@ export function NewTaskWithProjectPicker({
       {projects ? (
         <NewTaskDialog
           projects={projects}
-          types={types}
-          initialProjectId={full?.projectId ?? initial}
+            initialProjectId={full?.projectId ?? initial}
           start={full?.start}
           open={Boolean(full)}
           onClose={() => setFull(null)}

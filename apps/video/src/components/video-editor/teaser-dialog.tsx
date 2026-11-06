@@ -20,6 +20,7 @@ import {
   useEditorSelector,
 } from "@/components/video-editor/editor-store"
 import { useMusicBeats } from "@/components/video-editor/sound-tool-store"
+import { TimeSoFar } from "@/components/video-assets/time-so-far"
 import { getTeaserErrorMessage, scoreTeaser } from "@/lib/api/video/teaser"
 import { teaserCostCents, withEstimate } from "@/lib/video/ai-estimates"
 import {
@@ -218,6 +219,7 @@ export function TeaserDialog({
             </Card>
           </DialogBody>
           <DialogFooter>
+            <TimeSoFar running={busy} />
             <Button type="button" variant="outline" onClick={() => (busy ? cancel() : onOpenChange(false))}>
               Cancel
             </Button>

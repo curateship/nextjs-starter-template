@@ -1,4 +1,5 @@
 import * as React from "react"
+import { toast } from "sonner"
 import {
   ChevronRightIcon,
   CircleCheckIcon,
@@ -6,10 +7,12 @@ import {
   DownloadIcon,
   ExternalLinkIcon,
   FileIcon,
+  FileXIcon,
   GlobeIcon,
   InfoIcon,
   LinkIcon,
   ListTodoIcon,
+  MessagesSquareIcon,
   SettingsIcon,
   XIcon,
   Loader2Icon,
@@ -26,6 +29,7 @@ import { PhotoCreditLine, UnsplashPicker } from "@/components/project/notes/unsp
 import { DueDate, StatusBadge } from "@/components/project/task-bits"
 import { TaskLinkButton } from "@/components/project/task-link"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -37,7 +41,8 @@ import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { findLinkableTasks, type LinkChoice } from "@/lib/api/project/chat"
 import { loadRecordCard, previewNotePage } from "@/lib/api/project/note-blocks"
-import { addFileToTask } from "@/lib/api/project/task-files"
+import { addFileToTask, deleteFileFromTask } from "@/lib/api/project/task-files"
+import type { TaskFile } from "@/lib/api/project/tasks"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { getProjectErrorMessage, PROJECT_ERRORS } from "@/lib/project/errors"
 import { isShownPicture, taskFileHref } from "@/lib/project/files"
@@ -609,7 +614,7 @@ export function FileDrawing({ fileId, editing, onPick }: { fileId: string | null
           )}
           <UploadButton label="Upload a file" picture={false} onAdded={(file) => onPick(file.id)} />
         </div>
-        <BlockTools editing={editing} label="Remove file" />
+        <BlockTools editing={editing} label="Remove block" />
       </>
     )
   }
@@ -637,8 +642,94 @@ export function FileDrawing({ fileId, editing, onPick }: { fileId: string | null
           <TooltipContent>Download</TooltipContent>
         </Tooltip>
       </div>
-      <BlockTools editing={editing} label="Remove file" />
+      <BlockTools editing={editing} label="Remove block">
+        {file.canDelete ? <DeleteFileButton file={file} editing={editing} /> : null}
+      </BlockTools>
     </>
+  )
+}
+
+/**
+ * Deletes the file itself from the task, after asking (Tyler, 6 Nov 2026,
+ * once the task panel's Files box went: the block is where a file is
+ * deleted). Only for whoever may delete it. The block goes with it where the
+ * notes can be written in; elsewhere it reads "Removed: this file was
+ * deleted.", as every other block showing the file does.
+ */
+function DeleteFileButton({ file, editing }: { file: TaskFile; editing: BlockEditing }) {
+  const { task } = useNoteSetup()
+  const [asking, setAsking] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+  async function remove() {
+    setBusy(true)
+    try {
+      await deleteFileFromTask(file.id)
+      setAsking(false)
+      if (editing.editable) editing.remove()
+      toast.success("File deleted.")
+      await task?.refresh()
+    } catch (error) {
+      showErrorToast(getProjectErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      <ToolButton label="Delete file" icon={FileXIcon} onClick={() => setAsking(true)} />
+      <ConfirmDialog
+        open={asking}
+        onOpenChange={setAsking}
+        title={`Delete ${file.name}?`}
+        description="It goes from the task for everyone, and from every note that shows it."
+        confirmLabel="Delete file"
+        destructive
+        loading={busy}
+        onConfirm={() => void remove()}
+      />
+    </>
+  )
+}
+
+/**
+ * Comments: the task's comments, with the box to write in, wherever the block
+ * is placed in its notes (Tyler, 6 Nov 2026: "Make comments a block"). It
+ * holds nothing of its own; the comments are the task's stored chat, so they
+ * read the same everywhere. While it shows, the panel doesn't draw them again
+ * under the notes. The thread takes its own clicks and keys, so writing in it
+ * never writes in the notes.
+ */
+export function CommentsDrawing({ editing }: { editing: BlockEditing }) {
+  const comments = useNoteSetup().task?.comments ?? null
+  const placed = comments?.placed
+  React.useEffect(() => placed?.(), [placed])
+  if (!comments) return <BlockLine editing={editing} label="Remove comments">This task's comments show in its panel.</BlockLine>
+  return (
+    <>
+      <CommentsBox count={comments.count} className={SELECTED}>
+        {comments.thread}
+      </CommentsBox>
+      <BlockTools editing={editing} label="Remove comments" />
+    </>
+  )
+}
+
+/** The Comments block's box: its heading with the count, then the thread. Also drawn under the notes when no block is placed. */
+export function CommentsBox({ count, className, children }: { count: number; className?: string; children: React.ReactNode }) {
+  return (
+    <section
+      aria-label="Comments"
+      contentEditable={false}
+      className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 rounded-md border bg-card p-3", className)}
+    >
+      {/* Not a heading tag: the note's own heading look would take it over. */}
+      <div className="flex min-w-0 items-center gap-2 pr-10 text-sm font-medium">
+        <MessagesSquareIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        Comments
+        {count ? <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground tabular-nums">{count}</span> : null}
+      </div>
+      {children}
+    </section>
   )
 }
 

@@ -17,6 +17,7 @@ import {
   useEditorSelector,
   type EditorClip,
 } from "@/components/video-editor/editor-store"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { loadSoundEffects } from "@/lib/api/video/sound-effects"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { findStockSound, STOCK_SOUNDS, stockSoundUrl } from "@/lib/video/stock-sounds"
@@ -111,6 +112,7 @@ export function SocialStickerCards({ clip }: { clip: EditorClip }) {
               value={clip.text ?? ""}
               onChange={(event) => patchWords({ text: event.target.value })}
             />
+            <LengthCounter length={(clip.text ?? "").length} max={SOCIAL_TEXT_MAX} />
           </div>
         ) : null}
 

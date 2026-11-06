@@ -20,6 +20,7 @@ import {
 } from "@/components/video-editor/ai-shot-model-fields"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -54,6 +55,7 @@ import {
 import { buildMediaClip } from "@/components/video-editor/media-clip"
 import { useProjectSettings } from "@/components/video-editor/project-settings-context"
 import { useDragToTimeline } from "@/components/video-editor/use-drag-to-timeline"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import { listActors, type ActorItem } from "@/lib/api/video/actors"
 import {
@@ -157,7 +159,7 @@ export function AiClipPanel() {
   const [extraPicks, setExtraPicks] = React.useState<ExtraPicks>({})
   const [frames, setFrames] = React.useState<FirstFrameItem[] | null>(null)
   const [shots, setShots] = React.useState<GenerationItem[] | null>(null)
-  const [loadFailed, setLoadFailed] = React.useState(false)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [reloads, setReloads] = React.useState(0)
 
   const [pickedActorId, setPickedActorId] = React.useState<string | null>(null)
@@ -216,12 +218,11 @@ export function AiClipPanel() {
             Array.from({ length: shotPieces(startLength).count }, (_, index) => current[index] ?? "")
           )
         }
-        setLoadFailed(false)
+        setLoadError(null)
       })
       .catch((error) => {
         if (!active) return
-        setLoadFailed(true)
-        showErrorToast(getFirstFrameErrorMessage(error))
+        setLoadError(getFirstFrameErrorMessage(error))
       })
     return () => {
       active = false
@@ -568,7 +569,7 @@ export function AiClipPanel() {
 
   const loading =
     (actors === null || frames === null || shots === null || extras === null) &&
-    !loadFailed
+    !loadError
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -577,17 +578,11 @@ export function AiClipPanel() {
         title="AI clip"
       />
       <ScrollArea className="min-h-0 flex-1">
-        {loading ? null : loadFailed ? (
-          <div className="grid justify-items-center gap-2 p-8 text-center text-sm text-muted-foreground">
-            The actors and clips could not be loaded.
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setReloads((count) => count + 1)}
-            >
-              Try again
-            </Button>
-          </div>
+        {loading ? null : loadError ? (
+          <ErrorRow
+            message={loadError}
+            onRetry={() => setReloads((count) => count + 1)}
+          />
         ) : (
           <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
             <Step number={1} title="Pick an actor">
@@ -664,6 +659,7 @@ export function AiClipPanel() {
                     setSceneInvalid(false)
                   }}
                 />
+                <LengthCounter length={scene.length} max={5000} />
               </div>
               {actor && actor.sheet.length > 1 ? (
                 <div className="grid min-w-0 gap-2">
@@ -683,7 +679,7 @@ export function AiClipPanel() {
                         disabled={framesBusy}
                         onClick={() => togglePicture(picture.id)}
                         className={cn(
-                          "grid min-w-0 gap-1 rounded-lg border bg-background p-1 text-left text-[0.625rem]",
+                          "grid min-w-0 gap-1 rounded-lg border bg-background p-1 text-left text-xs",
                           pictureIds.includes(picture.id) &&
                             "border-primary ring-2 ring-primary/30"
                         )}
@@ -872,6 +868,7 @@ export function AiClipPanel() {
                       setDirectionsInvalid(false)
                     }}
                   />
+                  <LengthCounter length={line.length} max={5000} />
                 </div>
               ))}
               {pick ? (
@@ -1113,16 +1110,16 @@ function FrameRow({
           <span className="line-clamp-2 text-xs font-medium [overflow-wrap:anywhere]">
             {frame.name}
           </span>
-          <span className="truncate text-[0.625rem] text-muted-foreground">
+          <span className="truncate text-xs text-muted-foreground">
             {frame.actor.name} · {frame.aspect_ratio}
           </span>
           {frame.made_from.length ? (
-            <span className="line-clamp-2 text-[0.625rem] text-muted-foreground">
+            <span className="line-clamp-2 text-xs text-muted-foreground">
               From {frame.made_from.join(", ")}
             </span>
           ) : null}
           {frame.made_with.length ? (
-            <span className="line-clamp-2 text-[0.625rem] text-muted-foreground">
+            <span className="line-clamp-2 text-xs text-muted-foreground">
               With {frame.made_with.join(", ")}
             </span>
           ) : null}
@@ -1235,11 +1232,11 @@ function ShotRow({
       <p className="col-span-2 line-clamp-2 text-xs [overflow-wrap:anywhere]">
         {shot.pieces.map((piece) => piece.prompt).join(" / ")}
       </p>
-      <p className="col-span-2 line-clamp-2 text-[0.625rem] text-muted-foreground">
+      <p className="col-span-2 line-clamp-2 text-xs text-muted-foreground">
         {shotMadeWith(shot)}
       </p>
       {shot.actor_name ? (
-        <p className="col-span-2 line-clamp-2 text-[0.625rem] text-muted-foreground">
+        <p className="col-span-2 line-clamp-2 text-xs text-muted-foreground">
           {shotSent(shot)}
         </p>
       ) : null}
@@ -1257,7 +1254,7 @@ function ShotRow({
             preload="metadata"
             className="block max-h-40 w-full object-contain"
           />
-          <span className="absolute top-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[0.625rem] text-white tabular-nums">
+          <span className="absolute top-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white tabular-nums">
             {shot.duration_seconds}s · drag
           </span>
         </button>

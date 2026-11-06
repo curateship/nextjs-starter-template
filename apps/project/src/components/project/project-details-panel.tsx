@@ -1,7 +1,9 @@
 import * as React from "react"
-import { FolderKanbanIcon } from "lucide-react"
+import { FolderKanbanIcon, InfoIcon } from "lucide-react"
 
+import { FoldHeading } from "@/components/project/fold-heading"
 import { NotesMorphIcon } from "@/components/project/inbox-morph-icon"
+import { PanelFooter } from "@/components/project/panel-footer"
 import { ProjectMilestones } from "@/components/project/project-milestones"
 import { ProjectNotes } from "@/components/project/project-notes-panel"
 import { ProjectPageNotes } from "@/components/project/project-page-notes"
@@ -11,12 +13,14 @@ import { PinButton } from "@/components/project/pin-button"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ProjectPage } from "@/lib/api/project/projects"
-import { clockTotal, timeOnTasks } from "@/lib/project/clock"
 import { countLate, projectPace } from "@/lib/project/project-pace"
 import { runsTheTeam } from "@/lib/project/rules"
+import { FOOTER_CARD_BODY, PANEL_BODY_ABOVE_FOOTER, PANEL_BODY_ABOVE_FOOTER_WIDE } from "@/lib/project/panel-gutter"
+import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
 /**
@@ -131,97 +135,101 @@ export function ProjectDetailsPanel({
           </div>
         }
       />
-      {notesOpen ? (
-        <ProjectNotes
-          key={`${project.id}:${request?.at ?? "notes"}`}
-          projectId={project.id}
-          startOpen={request?.noteId ?? null}
-        />
-      ) : (
-        <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-          <div className={cn("grid gap-5 p-4", banner && "pt-6")}>
-            {/* Where the avatar was: the project's own page of notes and blocks (Tyler, 5 Nov 2026).
-                Locking or unlocking it draws it again from what was saved. */}
-            {shared ? (
-              <ProjectPageNotes
-                key={`${project.id}:${project.notesLocked}`}
-                projectId={project.id}
-                notes={project.notes}
-                canWrite={siteAdmin && !project.archived && !project.notesLocked}
-              />
-            ) : null}
-            {project.archived ? (
-              <p className="text-sm text-muted-foreground">
-                {siteAdmin
-                  ? "This project is archived, so nothing in it can change. Bring it back from Project settings to work on it."
-                  : "This project is archived, so nothing in it can change. The site admin can bring it back."}
-              </p>
-            ) : null}
-            {project.personal ? (
-              <p className="text-sm text-muted-foreground">
-                {siteAdmin
-                  ? "Their own tasks, which only they and you see. They show on their My dashboard and in their check-in."
-                  : "Your own tasks, which only you and the site admin see. They show on My dashboard and in your check-in."}
-              </p>
-            ) : null}
-            {shared ? (
-              <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
-                <div className="grid content-start gap-2">
-                  <Heading>Lead</Heading>
-                  {lead ? (
-                    <span className="flex min-w-0 items-center gap-2 text-sm">
-                      <PersonAvatar name={lead.name} avatarUrl={lead.avatarUrl} />
-                      <span className="truncate">{lead.name}</span>
-                    </span>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">Nobody yet</span>
-                  )}
-                </div>
-                {/* Beside the lead, avatar or not (Tyler, 19 Oct 2026). */}
-                {project.client ? (
-                  <div className="grid content-start gap-2">
-                    <Heading>Client</Heading>
-                    <span className="truncate text-sm">{project.client}</span>
-                  </div>
-                ) : null}
-                <ProjectTime tasks={page.tasks} />
-              </div>
-            ) : null}
-            {shared ? (
-              <ProjectMilestones
-                projectId={project.id}
-                milestones={page.milestones}
-                tasks={page.tasks}
-                readOnly={project.archived}
-              />
-            ) : null}
-          </div>
-        </ScrollArea>
-      )}
+      {/* The page and its notes above, the footer of folding cards below (Tyler, 6 Nov
+          2026, the Admin 3 panel design): the footer takes what its cards need, and the
+          body keeps at least 6rem, or half the panel with the notes open. */}
+      <div className={cn("relative flex min-h-0 flex-col", notesOpen ? PANEL_BODY_ABOVE_FOOTER_WIDE : PANEL_BODY_ABOVE_FOOTER)}>
+        {notesOpen ? (
+          <ProjectNotes
+            key={`${project.id}:${request?.at ?? "notes"}`}
+            projectId={project.id}
+            startOpen={request?.noteId ?? null}
+          />
+        ) : (
+          <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
+            <div className={cn("grid gap-5 p-4", banner && "pt-6")}>
+              {/* Where the avatar was: the project's own page of notes and blocks (Tyler, 5 Nov 2026).
+                  Locking or unlocking it draws it again from what was saved. */}
+              {shared ? (
+                <ProjectPageNotes
+                  key={`${project.id}:${project.notesLocked}`}
+                  projectId={project.id}
+                  notes={project.notes}
+                  canWrite={siteAdmin && !project.archived && !project.notesLocked}
+                />
+              ) : null}
+              {project.archived ? (
+                <p className="text-sm text-muted-foreground">
+                  {siteAdmin
+                    ? "This project is archived, so nothing in it can change. Bring it back from Project settings to work on it."
+                    : "This project is archived, so nothing in it can change. The site admin can bring it back."}
+                </p>
+              ) : null}
+              {project.personal ? (
+                <p className="text-sm text-muted-foreground">
+                  {siteAdmin
+                    ? "Their own tasks, which only they and you see. They show on their My dashboard and in their check-in."
+                    : "Your own tasks, which only you and the site admin see. They show on My dashboard and in your check-in."}
+                </p>
+              ) : null}
+            </div>
+          </ScrollArea>
+        )}
+      </div>
+      {shared ? (
+        <PanelFooter>
+          <ProjectDetailsCard lead={lead} client={project.client} />
+          <ProjectMilestones
+            projectId={project.id}
+            milestones={page.milestones}
+            tasks={page.tasks}
+            readOnly={project.archived}
+          />
+        </PanelFooter>
+      ) : null}
     </div>
   )
 }
 
 
 /**
- * The project's time on the clock (Seven features, part 4). Nothing shows
- * until someone has clocked a minute.
+ * The Details footer card: the lead and the client, each a name on the left
+ * and its value on the right. It folds like the other footer cards and
+ * remembers it in this browser.
  */
-function ProjectTime({ tasks }: { tasks: ProjectPage["tasks"] }) {
-  // Read once as the panel draws; a running clock is counted up to then.
-  const [nowMs] = React.useState(() => Date.now())
-  const seconds = timeOnTasks(tasks, nowMs)
-  if (seconds < 60) return null
+function ProjectDetailsCard({
+  lead,
+  client,
+}: {
+  lead: ProjectPage["members"][number] | null
+  client: string | null
+}) {
+  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-footer-details"))
   return (
-    <div className="grid content-start gap-2">
-      <Heading>Time</Heading>
-      <span className="text-sm">
-        <span className="font-medium tabular-nums">{clockTotal(seconds)}</span> clocked
-      </span>
-    </div>
+    <Collapsible open={open} onOpenChange={setOpen} className="grid grid-cols-[minmax(0,1fr)]">
+      <FoldHeading band icon={<InfoIcon />} title="Details" open={open} />
+      <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)] gap-2.5 text-sm", FOOTER_CARD_BODY)}>
+        <DetailRow label="Lead">
+          {lead ? (
+            <>
+              <PersonAvatar name={lead.name} avatarUrl={lead.avatarUrl} size="sm" />
+              <span className="truncate">{lead.name}</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">Nobody yet</span>
+          )}
+        </DetailRow>
+        <DetailRow label="Client">{client ? <span className="truncate">{client}</span> : <span className="text-muted-foreground">None</span>}</DetailRow>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
-function Heading({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{children}</h3>
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <span className="flex min-w-0 flex-1 items-center justify-end gap-2">{children}</span>
+    </div>
+  )
 }

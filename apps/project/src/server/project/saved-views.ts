@@ -11,11 +11,7 @@ import { savedViewScreen, type SavedViewValues } from "@/lib/saved-views"
 import type { SavedViewScreen } from "@/server/app-options"
 import { db } from "@/server/db"
 import { requireMembership, requireProjectAccess, requireSiteAdmin, type ProjectDb } from "@/server/project/access"
-import {
-  projectLabels,
-  projectTaskTypes,
-  projectTeamMembers,
-} from "@/server/project/schema"
+import { projectTeamMembers } from "@/server/project/schema"
 import { listSavedViews as listShellSavedViews } from "@/server/saved-views"
 import { customShellUsers } from "@/server/schema"
 
@@ -105,7 +101,7 @@ export const projectSavedViewScreens: Record<string, SavedViewScreen> = {
 }
 
 /**
- * The person's, label's and type's names as they are now, from this team
+ * The person's name as it is now, from this team
  * only, so a view can later say "Leo isn't on this project any more". The
  * site admin's My dashboard spans every team, so it passes no team.
  */
@@ -122,20 +118,6 @@ async function namesOf(
       .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
       .where(and(teamId ? eq(projectTeamMembers.teamId, teamId) : undefined, eq(projectTeamMembers.userId, filters.person)))
     if (person) names.person = person.name
-  }
-  if (filters.label) {
-    const [label] = await database
-      .select({ name: projectLabels.name })
-      .from(projectLabels)
-      .where(and(teamId ? eq(projectLabels.teamId, teamId) : undefined, eq(projectLabels.id, filters.label)))
-    if (label) names.label = label.name
-  }
-  if (filters.type) {
-    const [type] = await database
-      .select({ name: projectTaskTypes.name })
-      .from(projectTaskTypes)
-      .where(and(teamId ? eq(projectTaskTypes.teamId, teamId) : undefined, eq(projectTaskTypes.id, filters.type)))
-    if (type) names.type = type.name
   }
   return names
 }

@@ -5,11 +5,9 @@ import type { MyPlace } from "@/lib/project/my-task-order"
 import type { NoticeSwitchId } from "@/lib/project/notice-switches"
 import { storedNotesForCopy } from "@/lib/project/notes"
 import { CLOSED_TASK_STATUSES, boardStatusOrder, PERSONAL_PROJECT_NAME, priorityRank, type ProjectColor, type TaskStatus } from "@/lib/project/rules"
-import type { TaskType } from "@/lib/project/task-types"
 import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { inTeam, requireSiteAdmin, whoCanStillSee, type ProjectDb } from "@/server/project/access"
-import { listTeamLabels, type Label } from "@/server/project/labels"
 import { occurrencesBetween } from "@/server/project/meetings"
 import { handedOutBy, openAsk } from "@/server/project/more-time"
 import { loadMyTaskOrder } from "@/server/project/my-task-order"
@@ -28,7 +26,6 @@ import {
   projectTeams,
 } from "@/server/project/schema"
 import { listTaskCards, type TaskCard } from "@/server/project/tasks"
-import { listTeamTypes } from "@/server/project/task-types"
 import { loadNeedsAttention } from "@/server/project/team-running"
 import { listSavedViews } from "@/server/saved-views"
 import { customShellUsers } from "@/server/schema"
@@ -117,9 +114,6 @@ export type AdminDashboard = {
   tasks: TaskCard[]
   /** My own order on the List, per heading. */
   myOrder: MyPlace[]
-  /** Every team's labels and types, for Filter. */
-  labels: Label[]
-  taskTypes: TaskType[]
   views: SavedView[]
   viewScreen: string
   noticesOff: NoticeSwitchId[]
@@ -206,8 +200,6 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
     // Waiting first, as on an employee's My dashboard: those need an answer first.
     tasks: label([...mine.filter((card) => card.waiting), ...mine.filter((card) => !card.waiting)]),
     myOrder: await loadMyTaskOrder(userId, database),
-    labels: (await Promise.all(teamIds.map((id) => listTeamLabels(id, database)))).flat(),
-    taskTypes: (await Promise.all(teamIds.map((id) => listTeamTypes(id, database)))).flat(),
     views: (await listSavedViews(userId, adminViewScreen(userId), database)) as SavedView[],
     viewScreen: adminViewScreen(userId),
     noticesOff: await loadNoticesOff(userId, database),
@@ -597,7 +589,7 @@ export async function setAdminTimeZone(userId: string, timeZone: string, databas
 export async function setAdminPage(userId: string, notes: string, database = db) {
   await requireSiteAdmin(userId, database)
   const at = now()
-  const kept = storedNotesForCopy(notes, { forTemplate: true })
+  const kept = storedNotesForCopy(notes, { noTask: true })
   await database
     .insert(projectSiteAdminPrefs)
     .values({ userId, notes: kept, updatedAt: at })

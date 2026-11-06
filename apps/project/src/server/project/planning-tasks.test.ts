@@ -22,17 +22,9 @@ import {
 } from "@/server/project/projects"
 import { sendTaskReminders } from "@/server/project/reminder-jobs"
 import { projectNoticeLinks, projectTaskReminders, projectTasks } from "@/server/project/schema"
-import {
-  addStepListToTask,
-  deleteStepList,
-  listStepLists,
-  renameStepList,
-  saveStepList,
-} from "@/server/project/step-lists"
 import { changeManyTasks, duplicateTask } from "@/server/project/task-changes"
 import { loadMyDays, myReminderOn, setTaskReminder } from "@/server/project/task-reminders"
 import {
-  addStep,
   createTask,
   deleteTask,
   loadTaskDetail,
@@ -82,7 +74,7 @@ async function task(title: string, assignee: CustomShellUser | null = ben, proje
   return (
     await createTask(
       actor(anna),
-      { projectId, title, notes: "", assigneeUserId: assignee?.id ?? null, dueDate: null, steps: [] },
+      { projectId, title, notes: "", assigneeUserId: assignee?.id ?? null, dueDate: null },
       database
     )
   ).id
@@ -402,64 +394,3 @@ describe("remind me", () => {
     )
   })
 })
-
-describe("saved step lists", () => {
-  it("saves a task's steps under a name and drops them into another task with no person or date", async () => {
-    const payroll = await task("Pay the freelancers")
-    for (const text of ["Collect invoices", "Check hours", "Send payments", "File receipts"]) {
-      await addStep(actor(anna), { taskId: payroll, text }, database)
-    }
-    const list = await saveStepList(actor(ben), { taskId: payroll, name: "Payroll" }, database)
-    expect(await listStepLists(await teamId(), database)).toEqual([{ id: list.id, name: "Payroll", stepCount: 4 }])
-    await expect(saveStepList(actor(anna), { taskId: payroll, name: "payroll" }, database)).rejects.toThrow(
-      PROJECT_ERRORS.stepListNameTaken
-    )
-    const next = await task("Pay the freelancers again")
-    await addStep(actor(anna), { taskId: next, text: "Ask Leo first" }, database)
-    await addStepListToTask(actor(ben), { taskId: next, listId: list.id }, database)
-    const steps = (await loadTaskDetail(ben.id, next, database)).steps
-    expect(steps.map((s) => s.text)).toEqual([
-      "Ask Leo first",
-      "Collect invoices",
-      "Check hours",
-      "Send payments",
-      "File receipts",
-    ])
-    expect(steps.every((s) => !s.done && !s.assignee && !s.dueDate)).toBe(true)
-  })
-
-  it("never goes past 50 steps on a task, and says how much room is left", async () => {
-    const source = await task("Source")
-    for (let n = 1; n <= 4; n++) await addStep(actor(anna), { taskId: source, text: `Step ${n}` }, database)
-    const list = await saveStepList(actor(anna), { taskId: source, name: "Four" }, database)
-    const full = await task("Nearly full")
-    for (let n = 1; n <= 48; n++) await addStep(actor(anna), { taskId: full, text: `Step ${n}` }, database)
-    await expect(addStepListToTask(actor(anna), { taskId: full, listId: list.id }, database)).rejects.toThrow(
-      "That list has 4 steps and this task has room for 2 more, since a task can have at most 50."
-    )
-    expect((await loadTaskDetail(anna.id, full, database)).steps).toHaveLength(48)
-  })
-
-  it("lets only the site admin rename or delete a list", async () => {
-    const source = await task("Source")
-    await addStep(actor(anna), { taskId: source, text: "One" }, database)
-    const list = await saveStepList(actor(ben), { taskId: source, name: "Mine" }, database)
-    await expect(renameStepList(ben.id, { listId: list.id, name: "Ours" }, database)).rejects.toThrow(
-      PROJECT_ERRORS.notRunningTeam
-    )
-    await expect(deleteStepList(ben.id, list.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-    // Anna works on the team like Ben, so she can't either.
-    await expect(renameStepList(anna.id, { listId: list.id, name: "Ours" }, database)).rejects.toThrow(
-      PROJECT_ERRORS.notRunningTeam
-    )
-    await renameStepList(admin.id, { listId: list.id, name: "Ours" }, database)
-    expect((await listStepLists(await teamId(), database)).map((l) => l.name)).toEqual(["Ours"])
-    await deleteStepList(admin.id, list.id, database)
-    expect(await listStepLists(await teamId(), database)).toEqual([])
-  })
-})
-
-async function teamId() {
-  const rows = await database.execute(sql`SELECT team_id FROM project_projects WHERE id = ${website}`)
-  return (rows.rows[0] as { team_id: string }).team_id
-}

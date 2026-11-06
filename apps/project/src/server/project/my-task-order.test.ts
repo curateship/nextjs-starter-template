@@ -30,7 +30,7 @@ const actor = (user: CustomShellUser) => ({ id: user.id, name: user.name, curren
 /** A task the site admin makes and gives to `assignee`; his own list is on no team. */
 async function newTask(title: string, assignee: CustomShellUser, projectId = website) {
   const make = () =>
-    createTask(actor(tyler), { projectId, title, notes: "", assigneeUserId: assignee.id, dueDate: null, steps: [] }, database)
+    createTask(actor(tyler), { projectId, title, notes: "", assigneeUserId: assignee.id, dueDate: null }, database)
   return (await (projectId === PERSONAL_PROJECT_ID ? make() : inTeam(acme, make))).id
 }
 

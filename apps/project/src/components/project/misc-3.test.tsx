@@ -8,7 +8,6 @@ import { TaskRightClickMenu } from "@/components/project/task-right-click"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { NewTaskProject } from "@/lib/api/project/tasks"
 import { storedTaskNotes } from "@/lib/project/notes"
-import type { TaskType } from "@/lib/project/task-types"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -43,24 +42,7 @@ const project: NewTaskProject = {
   name: "Website",
   color: "blue",
   members: [{ userId: "me", name: "Tyler", avatarUrl: "" }],
-  typeIds: ["bug"],
-  defaultTypeId: "bug",
 }
-const bugNotes = JSON.stringify({
-  type: "doc",
-  content: [{ type: "paragraph", content: [{ type: "text", text: "Steps to reproduce" }] }],
-})
-const bug: TaskType = {
-  id: "bug",
-  name: "Bug",
-  icon: "bug",
-  color: "red",
-  archived: false,
-  steps: [],
-  stepFields: {},
-  notes: bugNotes,
-  fields: [],
-} as unknown as TaskType
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -136,7 +118,6 @@ describe("New task's Description", () => {
     mount(
       <QuickNewTask
         projects={[project]}
-        types={[bug]}
         initialProjectId="p1"
         open
         onOpenChange={() => undefined}
@@ -147,16 +128,16 @@ describe("New task's Description", () => {
     )
   }
 
-  it("sits under the title as a writing box that starts on the type's notes", async () => {
+  it("sits under the title as an empty writing box", async () => {
     openNewTask()
     await act(async () => undefined)
     const labels = [...document.querySelectorAll("form label, form [data-slot=label]")].map((l) => l.textContent)
     expect(labels.slice(0, 2)).toEqual(["Title", "Description"])
     const box = document.querySelector("[aria-labelledby=quick-task-description-label] [contenteditable=true]")
-    expect(box?.textContent).toBe("Steps to reproduce")
+    expect(box?.textContent).toBe("")
   })
 
-  it("saves the type's notes with the task when nothing else is written", async () => {
+  it("makes the task from its title, with nothing written in its notes", async () => {
     openNewTask()
     await act(async () => undefined)
     const title = document.querySelector<HTMLInputElement>("#quick-task-title")!
@@ -169,7 +150,6 @@ describe("New task's Description", () => {
     })
     expect(made.calls).toHaveLength(1)
     expect(made.calls[0].title).toBe("Login breaks")
-    // Read the way the server saves it: a document keeps its words, plain text would be dropped.
-    expect(storedTaskNotes(made.calls[0].notes)).toContain("Steps to reproduce")
+    expect(storedTaskNotes(made.calls[0].notes)).toBe("")
   })
 })

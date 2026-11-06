@@ -6,8 +6,7 @@ import {
   MARKERS_FULL_MESSAGE,
   MAX_TIMELINE_MARKERS,
 } from "@/lib/video/timeline-markers"
-import { clockText } from "@/lib/video/export-stretch"
-import { editorId } from "@/lib/video/timeline-utils"
+import { editorId, formatClock } from "@/lib/video/timeline-utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -30,7 +29,7 @@ export function useDropMarker() {
     }
     dispatch({ type: "ADD_MARKER", marker: { id: editorId(), atMs, name: "" } })
     if (!markers.length) {
-      toast(`Marker added at ${clockText(atMs)}`, {
+      toast(`Marker added at ${formatClock(atMs)}`, {
         description:
           "It's the pin on the ruler. Double-click it to name it, drag it to move it, or right-click to delete it. Clip edges snap to it, and named markers become YouTube chapters on the export.",
       })

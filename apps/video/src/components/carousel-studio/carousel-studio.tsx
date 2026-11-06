@@ -188,6 +188,8 @@ import {
   SlideLayerContent,
   StaticSlidePreview,
 } from "@/components/carousel-studio/slide-layer"
+import { LengthCounter } from "@/components/video-assets/length-counter"
+import { SteadyLabel } from "@/components/video-assets/steady-label"
 import {
   RESIZE_HANDLES,
   boundingBox,
@@ -238,6 +240,7 @@ import {
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
+import { plural } from "@/lib/format/plural"
 import "@/components/video-editor/studio.css"
 import "@/components/video-editor/text-fonts.css"
 
@@ -1580,7 +1583,7 @@ function CarouselContextPanel({
       <DashboardCardTitleHeader
         icon={<PanelIcon className="size-4" />}
         title={currentPanel.label}
-        meta={panel === "slides" ? `${slides.length} slides` : undefined}
+        meta={panel === "slides" ? `${slides.length} ${plural(slides.length, "slide")}` : undefined}
         action={
           panel === "slides" ? (
             <SlidesViewToggle view={slidesView} onChange={setSlidesView} />
@@ -4283,6 +4286,7 @@ function TextInspector({
               })
             }}
           />
+          <LengthCounter length={item.text.length} max={2_000} />
         </div>
 
         <div className="grid gap-2">
@@ -4328,7 +4332,11 @@ function TextInspector({
               onClick={() => void suggest()}
             >
               {suggesting ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-              {suggesting ? "Writing" : lines ? "Three more" : "Suggest three lines"}
+              <SteadyLabel
+                busy={suggesting}
+                idle={lines ? "Three more" : "Suggest three lines"}
+                working="Writing…"
+              />
             </Button>
             {lines ? (
               lines.length ? (

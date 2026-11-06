@@ -28,18 +28,14 @@ showed, for the record:
   `project_task_events` (`drizzle/0096_project_task_events.sql`), because a
   task only holds who has it now. Hand-overs from before 10 Oct 2026 weren't
   written down and don't show.
-- **A step that became its own task**: "Anna made the step "Spam protection"
-  its own task" on the task it came from, and "Anna made this from a step in
-  Build the contact form" on the new one, each linking to the other. A link
-  to a task the reader can't see is left off.
+- **No step lines.** Steps were removed on 6 Nov 2026 (Tyler: "remove the
+  steps, timer and tags feature"). Their lines ("made the step ... its own
+  task") were deleted with them.
 - **A move**: "Anna moved it here from Website", from 10 Oct 2026.
 - **Made, marked and binned**: "Anna made it", "Ben marked it Done", "Anna put
   it in the bin", "Anna brought it back from the bin", from 11 Oct 2026.
-- **The task clock**, from 20 Oct 2026: "Ben started the clock", "Ben paused
-  the clock after 45m", "The clock paused itself at midnight after 3h", "Anna
-  changed the time from 3h to 1h 10m" and "Ben took it" for Start on a
-  task nobody had. The Activity tab shows "took" and leaves the clock's own
-  lines out (see [The task clock](task-clock.md)).
+- **No clock lines.** The task clock was removed on 6 Nov 2026 (Tyler: "remove the steps, timer and tags feature"). Its lines ("started the clock", "took it")
+  were deleted with it.
 - **Due date moves**: "Anna moved the due date from Nov 3 to Nov 10", from
   12 Oct 2026, in the History card and the Activity tabs. Only a move from
   one day to another is written; setting a first date or clearing one isn't.

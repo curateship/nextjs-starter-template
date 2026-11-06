@@ -44,6 +44,9 @@ import {
 } from "@/lib/video/carousel-writing"
 import { plural } from "@/lib/format/plural"
 import { Label } from "@/components/ui/label"
+import { DisabledReason } from "@/components/ui/disabled-reason"
+import { LengthCounter } from "@/components/video-assets/length-counter"
+import { SteadyLabel } from "@/components/video-assets/steady-label"
 import { listVideos } from "@/lib/api/video/project-videos"
 import { cn } from "@/lib/utils"
 
@@ -248,7 +251,15 @@ function NewCarouselForm({
                   <Tabs value={start} onValueChange={(value) => setStart(value as Start)}>
                     <TabsList>
                       <TabsTrigger value="blank">Blank</TabsTrigger>
-                      {hasTemplates ? (
+                      {/* There from the start, greyed while the templates load, so
+                          the tabs never jump; gone only once there are none. */}
+                      {templates === null ? (
+                        <DisabledReason disabled reason="Your templates are still loading.">
+                          <TabsTrigger value="template" disabled>
+                            A template
+                          </TabsTrigger>
+                        </DisabledReason>
+                      ) : hasTemplates ? (
                         <TabsTrigger value="template">A template</TabsTrigger>
                       ) : null}
                       <TabsTrigger value="ai">Write it with AI</TabsTrigger>
@@ -383,6 +394,7 @@ function NewCarouselForm({
                           placeholder="Paste a paragraph or your notes"
                           onChange={(event) => setWords(event.target.value)}
                         />
+                        <LengthCounter length={words.length} max={20_000} />
                       </div>
                     ) : source === "video" ? (
                       <>
@@ -390,6 +402,10 @@ function NewCarouselForm({
                           <Label htmlFor="new-carousel-project">Project</Label>
                           {projects === null ? (
                             <LoadingRow label="Loading projects" />
+                          ) : !projects.length ? (
+                            <p className="text-sm text-muted-foreground">
+                              No video projects yet. Make one on the Video projects page first.
+                            </p>
                           ) : (
                             <Select
                               value={projectId ?? undefined}
@@ -422,6 +438,10 @@ function NewCarouselForm({
                             </FieldLabel>
                             {videos === null ? (
                               <LoadingRow label="Loading videos" />
+                            ) : !videos.length ? (
+                              <p className="text-sm text-muted-foreground">
+                                No videos in this project yet.
+                              </p>
                             ) : (
                               <Select value={videoId ?? undefined} onValueChange={setVideoId}>
                                 <SelectTrigger id="new-carousel-video">
@@ -509,11 +529,11 @@ function NewCarouselForm({
                 ) : start === "ai" ? (
                   <SparklesIcon />
                 ) : null}
-                {start === "ai"
-                  ? saving
-                    ? "Writing"
-                    : "Write carousel"
-                  : "Create carousel"}
+                {start === "ai" ? (
+                  <SteadyLabel busy={saving} idle="Write carousel" working="Writing…" />
+                ) : (
+                  "Create carousel"
+                )}
               </Button>
             </DialogFooter>
           </form>

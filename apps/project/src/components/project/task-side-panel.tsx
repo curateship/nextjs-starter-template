@@ -1,14 +1,9 @@
 import * as React from "react"
 import {
   EraserIcon,
-  ListTodoIcon,
   LockIcon,
   LockOpenIcon,
-  TimerIcon,
-  MessageSquarePlusIcon,
-  PaperclipIcon,
   SquareMousePointerIcon,
-  TagIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -19,35 +14,29 @@ import {
   type TaskParts,
   type TaskSide,
 } from "@/components/project/task-body"
-import { PanelCard } from "@/components/project/panel-card"
 import type { NotesHandle } from "@/components/project/task-notes"
 import { ASK_TIME_DAY_ID, MOVE_PICKER_ID, TaskMoreRows } from "@/components/project/task-more-menu"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { Popover, PopoverContent } from "@/components/ui/popover"
-import { Popover as PopoverPrimitive } from "radix-ui"
 import { TabbedMenu } from "@/components/project/my-settings-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { plural } from "@/lib/format/plural"
-import { LIMITS } from "@/lib/project/rules"
 import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
 import { cn } from "@/lib/utils"
 
 /**
  * The project page's right panel: the open task. Tyler drew it on 13 Oct
  * 2026 (`workspace/docs/assets/pasted-image-1791936316739365000.png`): the
- * status and a cog along the top, then Steps and Chat. On 20 Oct he put Add
+ * status and a cog along the top, then Chat. On 20 Oct he put Add
  * note, Add comment and Add files behind a three-dot button and took the
  * cross away (`pasted-image-1792504237260017000.png`). On 23 Oct he took it off
  * My dashboard too: "There is no 'x' icon to close the right panel to show an
- * empty panel." Notes show above Steps once a task has some. On 14
+ * empty panel." Notes show above Chat once a task has some. On 14
  * Oct he moved Follow into the cog and gave the chat the notes' pattern: an
  * icon that opens a dropdown while it's empty.
  * Later on 20 Oct the task's name took the status's place in the header, and
- * the status moved to a footer pinned to the panel's bottom with the clock,
- * Start and Completed (`task-clock.tsx`).
+ * the status moved to a footer pinned to the panel's bottom with Completed
+ * (`task-footer.tsx`).
  * The cog opens a dropdown with every other field (Tyler's second drawing,
  * `pasted-image-1791937217887403000.png`), and the paperclip opens the
  * task's files. The Board stays in view beside it, with
@@ -73,7 +62,7 @@ export function TaskSidePanel({
         <div className="grid flex-1 content-center justify-items-center gap-2 p-6 text-center">
           <SquareMousePointerIcon className="size-5 text-muted-foreground" aria-hidden />
           <p className="max-w-56 text-sm text-muted-foreground">
-            Click a task to see its steps and chat here.
+            Click a task to see its notes and chat here.
           </p>
         </div>
       </>
@@ -169,7 +158,6 @@ function SidePanel({
       </ScrollArea>
       {/* Stays at the bottom while the rest scrolls (Tyler, 20 Oct 2026), with Add to
           task just above it since 6 Nov 2026. */}
-      {side ? <TaskAddRow side={side} /> : null}
       {side?.footer}
       {remove ? (
         <ConfirmDialog
@@ -196,40 +184,16 @@ function SidePanel({
 function SideBody({ side, notes }: { side: TaskSide; notes: React.Ref<NotesHandle> }) {
   return (
     <>
-      {side.tagList}
       {side.link}
       {side.notices}
       {/* The panel's own body under the title, always there to write in, as a
           note's words sit under its name in the Note app (Tyler, 28 Oct 2026). */}
       {side.notes.empty && side.readOnly ? null : side.notes.field({ handle: notes })}
-      {/* No steps, no Steps card: the ⋮'s Add steps adds the first (Tyler, 2 Nov 2026). */}
-      {side.steps.count === 0 ? null : (
-        <PanelCard storageId="project-task-steps" title="Steps" meta={side.steps.meta} settings={!side.readOnly}>
-          <StepsBox>{side.steps.content}</StepsBox>
-        </PanelCard>
-      )}
-      {side.chat.count === 0 && !side.readOnly ? null : (
-        <PanelCard storageId="project-task-chat" title="Chat" meta={side.chat.count || null}>
-          {side.chat.content}
-        </PanelCard>
-      )}
+      {/* Comments are a "/" block in the notes; with none placed they show here (Tyler, 6 Nov 2026). */}
+      {side.commentsBelow}
     </>
   )
 }
-
-/**
- * Steps read as a plain checklist on the grey card: a step's text has no box
- * around it until it is pointed at or typed in.
- */
-function StepsBox({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid gap-4 [&_[aria-label=Step]]:border-transparent [&_[aria-label=Step]]:!bg-transparent [&_[aria-label=Step]]:shadow-none [&_[aria-label=Step]:focus-visible]:border-input [&_[aria-label=Step]:hover]:border-input">
-      {children}
-    </div>
-  )
-}
-
-type Adding = "tags" | "chat" | "files" | "steps" | "time"
 
 /**
  * The task's one ⋮ menu (Tyler, 2 Nov 2026: "the 3 dot and the cog dropdowns
@@ -239,8 +203,8 @@ type Adding = "tags" | "chat" | "files" | "steps" | "time"
  * - **General** (was Details): Person, Dates and Details as grouped lists,
  *   each row its value and an arrow that opens its field (Tyler's drawing,
  *   `pick-rows.tsx`), then Needs review, Delete and Lock
- *   the notes, Ask for more time, Duplicate, Move to project, Save as task
- *   template, and Delete task under a line.
+ *   the notes, Ask for more time, Duplicate, Move to project, and Delete task
+ *   under a line.
  * - **Versions**: the notes' earlier versions, with Bring back.
  * Remind me is a row under Dates since 6 Nov 2026 ("put reminds me under
  * here"); it was a tab for a few hours.
@@ -327,110 +291,5 @@ function TaskMenu({
         { value: "versions", label: "Versions", content: <div className="px-4 py-3">{side.versions}</div> },
       ]}
     />
-  )
-}
-
-/**
- * Add to task, a row of icons just above the panel's footer (Tyler, 6 Nov
- * 2026: "Move tasks action row down to the footer"; it was the top of the ⋮
- * menu): Tags, Comment (only while the chat is empty), Files, Steps and Time.
- * The one picked opens above the row in a box of its own, titled, with the
- * same insides it had in the menu.
- */
-function TaskAddRow({ side }: { side: TaskSide }) {
-  const [adding, setAdding] = React.useState<Adding | null>(null)
-  const canChat = side.chat.count === 0 && !side.readOnly
-  const filesCount = side.files.count
-  // The first message sent: the Chat card takes over in the panel, so the box closes.
-  if (adding === "chat" && !canChat) setAdding(null)
-  const tiles: { key: Adding; label: string; title: string; icon: React.ReactNode }[] = [
-    ...(side.readOnly ? [] : [{ key: "tags" as const, label: "Tags", title: "Add tags", icon: <TagIcon /> }]),
-    ...(canChat ? [{ key: "chat" as const, label: "Comment", title: "Add comment", icon: <MessageSquarePlusIcon /> }] : []),
-    {
-      key: "files",
-      label: "Files",
-      title: filesCount ? `${filesCount} ${plural(filesCount, "file")}` : "Files",
-      icon: <PaperclipIcon />,
-    },
-    ...(side.readOnly ? [] : [{ key: "steps" as const, label: "Steps", title: "Add steps", icon: <ListTodoIcon /> }]),
-    ...(side.time ? [{ key: "time" as const, label: "Time", title: "Time spent", icon: <TimerIcon /> }] : []),
-  ]
-  const picked = tiles.find((tile) => tile.key === adding)
-
-  return (
-    <Popover
-      open={Boolean(picked)}
-      onOpenChange={(open) => {
-        if (open) return
-        // Leaving a field saves it, so closing first leaves the field being typed in.
-        if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-        setAdding(null)
-      }}
-    >
-      <PopoverPrimitive.Anchor asChild>
-        {/* In a panel too narrow for five words, the icons stay and the words go, each
-            named on hover instead. */}
-        <div className="@container shrink-0 border-t px-2 py-1.5" role="group" aria-label="Add to task">
-          <div className="grid auto-cols-fr grid-flow-col">
-            {tiles.map((tile) => (
-              <Tooltip key={tile.key}>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-label={tile.label}
-                    aria-pressed={adding === tile.key}
-                    className="h-auto min-w-0 flex-col gap-1 px-1 py-1.5 text-xs font-normal [&_svg:not([class*='size-'])]:size-5"
-                    onClick={() => setAdding(adding === tile.key ? null : tile.key)}
-                  >
-                    {tile.icon}
-                    <span className="@max-[20rem]:hidden">{tile.label}</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{tile.title}</TooltipContent>
-              </Tooltip>
-            ))}
-          </div>
-        </div>
-      </PopoverPrimitive.Anchor>
-      <PopoverContent
-        side="top"
-        align="center"
-        collisionPadding={16}
-        aria-label={picked?.title}
-        className="grid w-[min(22.7rem,calc(100vw-2rem))] gap-3 p-3 [&_.text-sm]:!text-[13px] [&_.text-xs]:!text-[11.5px] [&_[data-slot=button]]:text-[13px]"
-      >
-        {picked ? (
-          <>
-            <h2 className="text-sm font-medium">{picked.title}</h2>
-            {/* 4px of room inside the scroll on every side, taken back outside, so a field's
-                border and focus ring aren't cut off at the edges (Tyler, 6 Nov 2026: "the
-                field is cut off"). */}
-            <ScrollArea className="-m-1 min-h-0" viewportClassName="max-h-[min(60vh,32rem)]">
-              {/* 12px between what is in it, such as the chat's empty line and its box
-                  (Tyler, 6 Nov 2026: "add some bottom padding"). */}
-              <div className="grid gap-3 p-1">
-              {adding === "files" ? (
-                <div className="grid gap-3">
-                  <p className="text-xs text-muted-foreground">
-                    Up to {LIMITS.filesPerTask} files on a task. Only people who can see the task can download them.
-                  </p>
-                  {side.files.content}
-                </div>
-              ) : adding === "tags" ? (
-                side.tags
-              ) : adding === "steps" ? (
-                side.steps.add
-              ) : adding === "time" ? (
-                side.time?.content
-              ) : (
-                side.chat.content
-              )}
-              </div>
-            </ScrollArea>
-          </>
-        ) : null}
-      </PopoverContent>
-    </Popover>
   )
 }

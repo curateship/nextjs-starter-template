@@ -1,6 +1,6 @@
 ---
 name: admin-3-panel-design
-description: "Admin - 3 panel design. Turns a chosen dashboard into the three-panel design Tyler built on Project's site admin My dashboard (6 Nov 2026): a left panel with a page under the header and a footer of folding cards, a middle list with a ⋮ toolbar menu, a right record panel with a bell, a tabbed ⋮ menu of grouped rows and an Add row above its footer, and My settings as a tabbed ⋮ dropdown. Use when Tyler asks to apply, copy or transform a dashboard into this 3 panel design, or names this skill."
+description: "Admin - 3 panel design. Turns a chosen dashboard into the three-panel design Tyler built on Project's site admin My dashboard (6 Nov 2026): a left panel with a page under the header and a footer of folding cards, a middle list with a ⋮ toolbar menu, a right record panel with a bell, a tabbed ⋮ menu of grouped rows and Comments as a "/" block in its notes, and My settings as a tabbed ⋮ dropdown. Use when Tyler asks to apply, copy or transform a dashboard into this 3 panel design, or names this skill."
 ---
 
 # Admin - 3 panel design
@@ -23,7 +23,7 @@ pick one quietly.
    its docs in the app's `workspace/docs/`.
 2. **Map it.** Write a short table: each thing the dashboard has today, and the
    slot it takes below (left page, left footer card, middle toolbar ⋮, record
-   ⋮ tab, Add row, My settings tab, and so on). Anything that fits no slot is
+   ⋮ tab, a "/" block in the record's notes, My settings tab, and so on). Anything that fits no slot is
    listed as a question, never dropped.
 3. **Ask.** One round of at most four questions through the option tool. Each
    question names the screen and offers a recommended first option with an
@@ -76,6 +76,10 @@ pick one quietly.
 ## Left panel
 
 Reference: `AdminPanel` in `apps/project/src/components/project/admin-dashboard.tsx`.
+Second example: `ProjectDetailsPanel` in
+`apps/project/src/components/project/project-details-panel.tsx` (the project
+page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
+`TabbedMenu` with General and Members in `project-menu.tsx`).
 
 - **Header:** the record or person's avatar, name and one muted line, then
   icon buttons. Here that is Look back (graph), the inbox (tray that morphs
@@ -101,18 +105,31 @@ Reference: `AdminPanel` in `apps/project/src/components/project/admin-dashboard.
 - **Footer of folding cards:** fixed at the bottom of the panel, holding the
   dashboard's cards one under another (here: Pinned projects, Need your
   attention, Daily card).
+  - **Use `PanelFooter`** (`apps/project/src/components/project/panel-footer.tsx`)
+    and pass each card as a child. Don't redraw the footer by hand. My
+    dashboard and the project page both use it.
   - **Layout:** the panel is a flex column. The body above takes
-    `flex-[1_0_6rem]` (keeps at least 6rem for the page), or `flex-[1_0_50%]`
-    while the Inbox or Look back is open. The footer is
-    `relative flex min-h-0 flex-col border-t` holding one `ScrollArea`. So the
-    footer takes what its cards need and only scrolls once the panel is full.
-    Never cap the footer at a fixed share of the screen.
-  - **Boxes:** each card is a rounded light grey box of its own
-    (`grid overflow-hidden rounded-2xl bg-muted/50 empty:hidden`, `FOOTER_CARD`
-    in `admin-dashboard.tsx`), 10px apart and 10px from the panel's edges
-    (`gap-2.5 p-2.5`), with no lines between them. A box whose card draws
+    `PANEL_BODY_ABOVE_FOOTER` (`flex-[1_0_6rem]`, keeps at least 6rem for the
+    page), or `PANEL_BODY_ABOVE_FOOTER_WIDE` (`flex-[1_0_50%]`) while the
+    Inbox, Look back or a notes list is in its place, both in
+    `panel-gutter.ts`. `PanelFooter` is `relative flex min-h-0 flex-col`
+    holding one `ScrollArea`. So the footer takes what its cards need and
+    only scrolls once the panel is full. Never cap the footer at a fixed
+    share of the screen.
+  - **Boxes:** `PanelFooter` puts each child in a rounded light grey box of
+    its own (`grid overflow-hidden rounded-2xl bg-muted/50 empty:hidden`),
+    10px apart and 10px from the panel's edges (`gap-2.5 p-2.5`), with no
+    lines between them. A null child draws no box, and a box whose card draws
     nothing is `empty:hidden`. Light inner boxes, such as the Daily card's
     sections, turn white inside it (`[&_[data-daily-section]]:bg-background`).
+  - **A card that was a `PanelCard`** (such as the project's Milestones)
+    becomes a `Collapsible` with `FoldHeading band`, keeping its old
+    `storageId` as the `collapseStorageKey.settingsCard(...)` key so a fold
+    already remembered stays. Its heading button (the "+") goes in as
+    `FoldHeading`'s children, before the arrow.
+  - **Name and value facts** (the project's Lead and Client) become a
+    Details card: rows with the name muted on the left and the value on the
+    right (`ProjectDetailsCard` in `project-details-panel.tsx`).
   - **Each card** is a `Collapsible` with `FoldHeading band icon={...}` as its
     heading (`apps/project/src/components/project/fold-heading.tsx`), and its
     body (`CollapsibleContent`) brings `FOOTER_CARD_BODY` (`px-4 pb-4`, in
@@ -174,7 +191,7 @@ Reference: `MyTasksPanel` in `apps/project/src/components/project/my-tasks-panel
   nothing is ticked. Offer it only where the list has Mass select.
 - **Mass select shows tick boxes and drag handles.** With it on, rows drag:
   - under the list's own headings, to reorder or move to another heading;
-  - under a grouping (status, priority, due date, type, tags), a drop under
+  - under a grouping (status, priority, due date, type), a drop under
     another heading takes that heading's value, as on a project's List. A drop
     inside its own heading does nothing for groupings with no order of their
     own.
@@ -193,6 +210,27 @@ and the parts built in `task-body.tsx`.
 - **No ×, never emptied by hand.** On arrival it shows the record last open, or
   the list's first. Only a list with no records leaves it empty, with a
   centred icon and one line.
+- **It remembers the record, and a first visit lands on the first row**
+  (Tyler, 6 Nov 2026, on the project page: "it should always land on the
+  first task on the list"). Every page in this design wires it the same way:
+  - `useRememberedTask({ storageKey, taskId, ids })` in
+    `apps/project/src/lib/project/use-remembered-task.ts`. `taskId` is the
+    address's record id; `ids` is the list's ids in the order shown, `null`
+    until the list has drawn. It reopens the record last open here, or the
+    first row when there is none or it is gone, by replacing the address.
+  - `storageKey` names the page, and per record holder when the page shows
+    one holder's list (the project page uses `projectOpenTaskKey(projectId)`
+    in `panel-keys.ts`, so each project remembers its own). The hook adds the
+    person's id.
+  - The middle reports its rows: `TaskList`'s `onRows` gives the rows in view
+    (headings, sort and filters applied, folded headings left out). Tabs
+    without rows (Board, Calendar, Timeline) report the list's own order.
+  - Pass the returned id to `ThreePanels` as
+    `showRightFor={taskId === quietTask ? undefined : taskId}`, so a phone
+    stays on the list instead of jumping to a record nobody pressed.
+  - Key the page component by its holder's id (the route does
+    `key={page.project.id}`), so moving to another project starts fresh and
+    never opens the last project's first row.
 - **Header:** the record's title on the left, then a **bell** and the **⋮**.
   - The bell is a ghost icon button for Follow: `BellIcon`, or `BellRingIcon`
     while followed, with `aria-pressed` and a tooltip ("Follow this task",
@@ -217,27 +255,32 @@ and the parts built in `task-body.tsx`.
     - **Notes a field needs** (a hand-over's note, "Date moved 3 times", a
       day-off warning) sit under the group's list (`after`).
     - **Groups here:** Person (Assigned to), Dates (Start day, Due date, Due
-      by once there is a due date, Remind me), Details (Priority, Template, the
-      template's fields, Video or Promo, Plan).
+      by once there is a due date, Remind me), Details (Priority, Video or
+      Promo, Plan).
     - **Under the groups,** the action rows as ghost buttons with icons: a
-      review tick box, lock, duplicate, move, save as template, then Delete in
+      review tick box, lock, duplicate, move, then Delete in
       red under a line of its own.
   - **Versions:** the notes' earlier versions listed in the tab, with Bring
     back (`NoteVersionsList bare`).
   - There is **no History tab**, and no text toolbar row.
-- **Add row above the footer:** a strip just above the footer with icons and a
-  word under each (here: Tags, Comment, Files, Steps, Time), `TaskAddRow`.
-  - The picked one opens a titled box above the strip: a `Popover` anchored to
-    the strip through `PopoverPrimitive.Anchor` from `radix-ui`, `side="top"`.
-    The app's `ui/popover` has no Anchor, and it is a shell file.
-  - The strip is a `@container`. Under 20rem the words hide and the icons
-    stay, each named by a shadcn tooltip.
-  - The box's `ScrollArea` is `-m-1` with a `grid gap-3 p-1` wrapper inside,
-    so a field at its edge keeps its whole border and focus ring, and a line
-    over a field (such as the chat's "No messages yet") keeps 12px under it. A scroll area clips
-    whatever touches its edges; do the same for any field inside one.
+- **No Add row.** Nothing sits between the body and the footer. Adding to a
+  record happens in its notes, through "/" blocks (Tyler, 6 Nov 2026: "Make
+  comments a block"; the Add to task row went the same day).
+- **Comments are a "/" block** (`noteComments`, `CommentsDrawing` in
+  `apps/project/src/components/project/notes/note-block-drawings.tsx`):
+  - The block holds nothing; it draws the record's stored chat with its write
+    box from the note setup (`NoteTask.comments`: `count`, `thread`,
+    `placed`). One per record: picking it again only takes away the "/".
+  - A drawn block calls `placed()` and its cleanup on unmount, so the panel
+    knows one shows. With none showing, the panel draws the same
+    `CommentsBox` under the notes once there are comments, or from the start
+    when the notes are locked and take no block.
+  - Files come in through the File block, which uploads, and are deleted from
+    it too: its corner has Remove block and, for whoever may, Delete file
+    (asks first). The project's Files tab lists every file; there is no
+    separate Files box on the record.
 - **Footer:** the record's state and its main actions, pinned to the bottom
-  (here: status, Start, Completed).
+  (here: status and Completed, `TaskFooter` in `task-footer.tsx`).
 
 ## Tabbed ⋮ menu (My settings and the record menu)
 

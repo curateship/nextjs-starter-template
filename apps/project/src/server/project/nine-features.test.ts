@@ -80,7 +80,7 @@ beforeEach(async () => {
   taskId = (
     await createTask(
       anna,
-      { projectId, title: "Fix the checkout bug", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+      { projectId, title: "Fix the checkout bug", notes: "", assigneeUserId: ben.id, dueDate: null },
       database
     )
   ).id
@@ -312,7 +312,7 @@ describe("due dates on the Team calendar", () => {
     (
       await createTask(
         who,
-        { projectId: inProject, title, notes: "", assigneeUserId: null, dueDate, steps: [] },
+        { projectId: inProject, title, notes: "", assigneeUserId: null, dueDate },
         database
       )
     ).id
@@ -348,7 +348,7 @@ describe("due dates on the Team calendar", () => {
 describe("a teammate's page", () => {
   it("lists their open shared tasks I can see, soonest due first, and their time off", async () => {
     const make = (title: string, inProject: string, dueDate: string | null) =>
-      createTask(anna, { projectId: inProject, title, notes: "", assigneeUserId: ben.id, dueDate, steps: [] }, database)
+      createTask(anna, { projectId: inProject, title, notes: "", assigneeUserId: ben.id, dueDate }, database)
     await make("Later work", projectId, "2099-05-01")
     await make("Soon work", projectId, "2099-04-01")
     const finished = await make("Finished work", projectId, null)
@@ -383,7 +383,7 @@ describe("plan tomorrow at check-out", () => {
     (
       await createTask(
         ben,
-        { projectId, title, notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+        { projectId, title, notes: "", assigneeUserId: ben.id, dueDate: null },
         database
       )
     ).id
@@ -423,7 +423,7 @@ describe("plan tomorrow at check-out", () => {
     const annas = (
       await createTask(
         anna,
-        { projectId, title: "Anna's own", notes: "", assigneeUserId: anna.id, dueDate: null, steps: [] },
+        { projectId, title: "Anna's own", notes: "", assigneeUserId: anna.id, dueDate: null },
         database
       )
     ).id
@@ -455,7 +455,7 @@ describe("the project's Files tab", () => {
     )
     await deleteComment(ben, { commentId: gone.id, keepFiles: true }, database, storage)
     const binnedTask = (
-      await createTask(anna, { projectId, title: "Old", notes: "", assigneeUserId: null, dueDate: null, steps: [] }, database)
+      await createTask(anna, { projectId, title: "Old", notes: "", assigneeUserId: null, dueDate: null }, database)
     ).id
     await addTaskFile(anna, { taskId: binnedTask, ...png("old.png") }, database, storage)
     await deleteTask(anna, binnedTask, database)
@@ -499,7 +499,7 @@ describe("start dates", () => {
   it("refuses a bulk due date before a task's start, one task at a time", async () => {
     await updateTask(anna, { taskId, startDate: "2099-04-10" }, database)
     const other = (
-      await createTask(anna, { projectId, title: "Other", notes: "", assigneeUserId: null, dueDate: null, steps: [] }, database)
+      await createTask(anna, { projectId, title: "Other", notes: "", assigneeUserId: null, dueDate: null }, database)
     ).id
     const outcome = await changeManyTasks(anna, { taskIds: [taskId, other], change: { kind: "due", dueDate: "2099-04-01" } }, database)
     expect(outcome.changed).toEqual([other])

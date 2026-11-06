@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import { MediaPicker } from "@/components/media/media-picker"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -190,6 +191,7 @@ function TemplatesField() {
   const { videoId } = useEditorRuntime()
   const { open, run, busy, templates, setTemplates } = useThumbnails()
   const [name, setName] = React.useState("")
+  const [deleting, setDeleting] = React.useState<{ id: string; name: string } | null>(null)
   const mine = templates.filter((template) => template.mine)
   return (
     <div className="grid gap-2">
@@ -229,18 +231,31 @@ function TemplatesField() {
               size="icon-xs"
               variant="ghost"
               aria-label={`Delete the template ${template.name}`}
-              onClick={() =>
-                void run("Deleting the template…", async () => {
-                  await removeTemplate(videoId, template.id)
-                  setTemplates(templates.filter((one) => one.id !== template.id))
-                })
-              }
+              onClick={() => setDeleting({ id: template.id, name: template.name })}
             >
               <Trash2Icon />
             </Button>
           </Hint>
         </div>
       ))}
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(next) => {
+          if (!next) setDeleting(null)
+        }}
+        title={`Delete ${deleting?.name ?? "the template"}?`}
+        description="Everyone on the site loses it as a starting point. Thumbnails already made from it stay as they are. This can't be undone."
+        confirmLabel="Delete"
+        loading={busy !== null}
+        onConfirm={() => {
+          const target = deleting
+          if (!target) return
+          void run("Deleting the template…", async () => {
+            await removeTemplate(videoId, target.id)
+            setTemplates(templates.filter((one) => one.id !== target.id))
+          }).finally(() => setDeleting(null))
+        }}
+      />
     </div>
   )
 }
