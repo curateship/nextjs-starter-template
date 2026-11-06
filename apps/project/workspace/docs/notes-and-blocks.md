@@ -1,8 +1,9 @@
 # Notes and the "/" blocks
 
 A task's notes take blocks as well as words. So do New task's and quick new
-task's Description, a task template's starting notes, and a project's page in
-its left panel. Typing "/" opens a list of them. Meeting notes take words
+task's Description, a task template's starting notes, a project's page in
+its left panel, and each of a project's notes ([Project notes](project-notes.md)).
+Typing "/" opens a list of them. Meeting notes take words
 only.
 
 ## Tyler's rules, 5 Nov 2026
@@ -49,8 +50,8 @@ only.
   Esc closes it and leaves the "/" as typed. So does a click anywhere else.
 - **What each box offers:** every block in a task's own notes, with Video or
   Promo only when the task points at a record. New task, quick new task and
-  a template, and a project's page, leave out File and Video or Promo, because
-  there is no task to hold a file or a record.
+  a template, a project's page and a project's notes leave out File and Video
+  or Promo, because there is no task to hold a file or a record.
 - **Words already on the line** stay where they are. Checklist, Callout and
   Fold section start on the next line.
 - **After a block with no writing in it** (a picture, a divider, a card),

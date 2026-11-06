@@ -272,6 +272,10 @@ the launch?" is settled without twelve messages.
 - **How a link is saved.** In a message, as `#[Fix the contact
   form](<task id>)`, beside the `@[Name](<user id>)` tags. In notes, as an
   ordinary link to the task's address, `/projects/<project>?task=<task>`.
+- **# links a project's note too,** listed after the tasks with a notebook
+  icon. It reads the same way: the note's first line, "a note you can't see"
+  or "deleted note". See "Linking a note with #" in
+  [Project notes](project-notes.md).
 
 ## Notes
 

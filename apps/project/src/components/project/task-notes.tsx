@@ -11,6 +11,7 @@ import {
   ListOrderedIcon,
   ListTodoIcon,
   Loader2Icon,
+  NotebookPenIcon,
   PlusIcon,
   SettingsIcon,
   StrikethroughIcon,
@@ -40,7 +41,8 @@ import {
 import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { findLinkableTasks, type LinkChoice } from "@/lib/api/project/chat"
+import type { LinkChoice } from "@/lib/api/project/chat"
+import { findLinkTargets } from "@/lib/api/project/project-notes"
 import type { TaskLink } from "@/lib/api/project/linked-records"
 import type { TaskFile } from "@/lib/api/project/tasks"
 import { bringBackNoteVersion, loadNoteVersions, type NoteVersion } from "@/lib/api/project/tasks"
@@ -49,7 +51,10 @@ import { emptyWrittenPageBody, type WrittenPageNode } from "@/lib/pages/written-
 import type { NoteNode } from "@/lib/project/note-blocks"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import {
-  linkedTaskOf,
+  NOTE_LINK,
+  isNoteLink,
+  linkIdOf,
+  noteHref,
   notesForDisplay,
   notesForEditor,
   readPlainNotes,
@@ -240,7 +245,7 @@ export function TaskNotesField({
               placeholder={
                 placeholder ??
                 (task
-                  ? "Anything the person doing it should know. Type / for a block, or # to link a task."
+                  ? "Anything the person doing it should know. Type / for a block, or # to link a task or note."
                   : "Anything the person doing it should know. Type / for a picture, a checklist and more.")
               }
             />
@@ -264,13 +269,7 @@ export function TaskNotesField({
                 // A block's own links (a web page, a download) do what they say.
                 if (!link || link.closest("[data-note-block]") || event.metaKey || event.ctrlKey || event.shiftKey) return
                 event.preventDefault()
-                const taskId = linkedTaskOf(link.getAttribute("href") ?? "")
-                const projectId = taskId ? openable[taskId] : undefined
-                if (taskId && projectId) {
-                  void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: taskId } })
-                } else if (!taskId) {
-                  window.open(link.href, "_blank", "noopener,noreferrer")
-                }
+                followNotesLink(link, openable, navigate)
               }}
             >
               {reading ? (
@@ -551,13 +550,7 @@ export function LiveTaskNotes({
           const link = (event.target as Element).closest("a")
           if (!link || !(event.metaKey || event.ctrlKey)) return
           event.preventDefault()
-          const taskId = linkedTaskOf(link.getAttribute("href") ?? "")
-          const projectId = taskId ? task.links[taskId] : undefined
-          if (taskId && projectId) {
-            void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: taskId } })
-          } else if (!taskId) {
-            window.open(link.href, "_blank", "noopener,noreferrer")
-          }
+          followNotesLink(link, task.links, navigate)
         }}
       >
         <NoteEditor
@@ -566,7 +559,7 @@ export function LiveTaskNotes({
           value={notesForEditor(readTaskNotes(drawn.notes))}
           onChange={changed}
           extensions={linking.extensions}
-          placeholder="Write, type / for a block, or # to link a task"
+          placeholder="Write, type / for a block, or # to link a task or note"
         />
         {linking.list}
       </div>
@@ -706,15 +699,47 @@ function NotesToolbar({ box }: { box: React.RefObject<HTMLDivElement | null> }) 
   )
 }
 
-/** How long typing after # pauses before the tasks are looked up. */
+/** How long typing after # pauses before the tasks and notes are looked up. */
 const FIND_DELAY_MS = 200
+
+/** Where a pick from the # list points: the task, or the project page with the note open. */
+function choiceHref(choice: LinkChoice) {
+  return isNoteLink(choice.id)
+    ? noteHref(choice.projectId, choice.id.slice(NOTE_LINK.length))
+    : taskHref(choice.projectId, choice.id)
+}
+
+/**
+ * A click on a link in the notes. A # link to a task or note this reader can
+ * open (`openable`, link id to project id) opens it here; one they can't
+ * does nothing. Any other link opens in a new tab.
+ */
+function followNotesLink(
+  link: HTMLAnchorElement,
+  openable: Record<string, string>,
+  navigate: ReturnType<typeof useNavigate>
+) {
+  const linkId = linkIdOf(link.getAttribute("href") ?? "")
+  if (!linkId) {
+    window.open(link.href, "_blank", "noopener,noreferrer")
+    return
+  }
+  const projectId = openable[linkId]
+  if (!projectId) return
+  if (isNoteLink(linkId)) {
+    void navigate({ to: "/projects/$projectId", params: { projectId }, search: { note: linkId.slice(NOTE_LINK.length) } })
+  } else {
+    void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: linkId } })
+  }
+}
 /** The list's width, w-72, so it never hangs past the editor's right edge. */
 const LIST_WIDTH = 288
 
 /**
  * The # list inside the notes editor: the editor reports what is typed after
- * a #, this looks the tasks up and draws them under it, and a pick puts the
- * task's title in the notes as a link to the task.
+ * a #, this looks the tasks and project notes up and draws them under it, and
+ * a pick puts the task's title or the note's first line in the notes as a
+ * link to it.
  */
 function useNotesLinking(on: boolean) {
   const teamId = useTeamId()
@@ -731,7 +756,7 @@ function useNotesLinking(on: boolean) {
       .chain()
       .focus()
       .insertContentAt({ from: typing.from, to: typing.to }, [
-        { type: "text", text: task.title, marks: [{ type: "link", attrs: { href: taskHref(task.projectId, task.id) } }] },
+        { type: "text", text: task.title, marks: [{ type: "link", attrs: { href: choiceHref(task) } }] },
         { type: "text", text: " " },
       ])
       .run()
@@ -785,7 +810,7 @@ function useNotesLinking(on: boolean) {
     if (query === null) return
     let live = true
     const timer = window.setTimeout(() => {
-      findLinkableTasks(query, teamId).then(
+      findLinkTargets(query, teamId).then(
         (tasks) => live && setFound({ typed: query, tasks }),
         () => live && setFound({ typed: query, tasks: [] })
       )
@@ -800,7 +825,7 @@ function useNotesLinking(on: boolean) {
     typing && shown.length ? (
       <ul
         role="listbox"
-        aria-label="Tasks to link"
+        aria-label="Tasks and notes to link"
         className="absolute z-10 mt-1 grid w-72 max-w-full gap-0.5 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
         style={place}
       >
@@ -819,7 +844,11 @@ function useNotesLinking(on: boolean) {
               pick(task)
             }}
           >
-            <ListTodoIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            {isNoteLink(task.id) ? (
+              <NotebookPenIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            ) : (
+              <ListTodoIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            )}
             <span className="grid min-w-0">
               <span className="truncate">{task.title}</span>
               <span className="truncate text-xs text-muted-foreground">{task.projectName}</span>

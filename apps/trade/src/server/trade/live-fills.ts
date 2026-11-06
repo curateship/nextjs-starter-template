@@ -368,7 +368,7 @@ export async function recordLiveFills(
         // one whose insert went in tells the person.
         .returning({ fillId: tradeLiveFills.fillId })
       const insertedIds = new Set(rows.map((row) => row.fillId))
-      let enriched = false
+      const enriched: WalletOrderFill[] = []
       // KuCoin can publish the execution before its closed-position history
       // has the final money. Find only the earlier rows that still say $0, so
       // a recovery batch does not issue one update for every old close it
@@ -404,8 +404,10 @@ export async function recordLiveFills(
       for (const fillId of zeroIds) {
         const fill = enrichable.get(fillId)
         if (!fill) continue
-        // The first row already sent the immediate notice. Recovery updates
-        // only the money, so an ordinary duplicate remains unchanged.
+        // The first row already sent the immediate notice, saying "filled"
+        // because it had no money yet. The money is written here, and the
+        // notice is rewritten from it once this commits. An ordinary
+        // duplicate finds no $0 row here and changes nothing.
         const changed = await tx
           .update(tradeLiveFills)
           .set({ closedPnl: fill.closedPnl })
@@ -418,16 +420,22 @@ export async function recordLiveFills(
             )
           )
           .returning({ fillId: tradeLiveFills.fillId })
-        if (changed.length > 0) enriched = true
+        if (changed.length > 0) enriched.push(fill)
       }
-      if (rows.length > 0 || enriched) {
+      if (rows.length > 0 || enriched.length > 0) {
         await bumpTradeHistory(tx, userId, [wallet.id])
       }
-      return rows
+      return { rows, enriched }
     })
-    const insertedIds = new Set(inserted.map((row) => row.fillId))
+    const insertedIds = new Set(inserted.rows.map((row) => row.fillId))
     const fresh = fills.filter((fill) => insertedIds.has(fill.fillId))
-    await announceFills(userId, wallet, fresh)
+    // A close whose money arrived after its notice is announced again. The
+    // notice key is the order's, so this rewrites the row already in the bell
+    // in place: same time, same read dot, no second sound, and "filled"
+    // becomes "lost $38.02". A stop or target behind it gets its own notice now,
+    // because that notice waits for the money too. KuCoin is the venue that
+    // does this: its sales carry no profit, only its closed positions do.
+    await announceFills(userId, wallet, [...fresh, ...inserted.enriched])
     // Copying hears the same fresh fills: a copier's fill gets its fee row,
     // and a trader's fill is copied and told to followers. Only the process
     // whose insert went in gets here, so a fill pushed to both the website

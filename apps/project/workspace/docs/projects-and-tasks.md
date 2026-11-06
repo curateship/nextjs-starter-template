@@ -293,6 +293,10 @@ couple of blocks like a links block and call out block".
 - **Copy project** copies the page and whether it is locked.
 - **Saved** in `project_projects.notes` and `notes_locked`
   (`drizzle/0146_project_page_lock.sql`, `src/components/project/project-page-notes.tsx`).
+- **The project's notes are separate.** The note icon between the pin and
+  the ⋮ swaps the page and the rest of the panel for the project's list of
+  notes, which everyone on the project writes. See
+  [Project notes](project-notes.md).
 
 ## Project templates are gone
 
@@ -1188,6 +1192,9 @@ Each task has a Plan card with three fields that save the moment they change.
 
 ### The bin
 
+- **Deleted project notes wait in the same bin**, marked "Note", for the
+  same 30 days. Delete doesn't ask for a note, and Bring back is for
+  everyone who can see the project. See [Project notes](project-notes.md).
 - **Delete moves a task to its project's bin** for 30 days, with "Undo" on
   the message. Both ways a task opens ask the same question first: "Delete
   this task? It moves to the project's bin with its steps, chat and files,

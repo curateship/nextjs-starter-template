@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, gt, gte, inArray, lt, or } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
-import { linkedTaskIds, messageText, renameLinks, taggedUserIds, tagsWholeProject } from "@/lib/project/mentions"
+import { linkedIds, messageText, renameLinks, taggedUserIds, tagsWholeProject } from "@/lib/project/mentions"
+import { isNoteLink } from "@/lib/project/notes"
 import {
   chatMentionHeading,
   chatReplyHeading,
@@ -53,7 +54,7 @@ import {
 import { markProjectChatRead, unreadInProjectChat } from "@/server/project/chat-reads"
 import { followerIds } from "@/server/project/task-followers"
 import { recordTaskEvent } from "@/server/project/task-history"
-import { linkName, openableLinks, requireLinkable, resolveTaskLinks } from "@/server/project/task-links"
+import { linkName, openableLinks, requireLinkable, resolveLinks } from "@/server/project/task-links"
 import type { Actor, Person } from "@/server/project/tasks"
 import { customShellUsers } from "@/server/schema"
 
@@ -307,12 +308,12 @@ async function toMessages(
   const files = await listFiles(viewer, inArray(projectTaskFiles.commentId, ids), archived, database)
   const polls = await pollsFor(viewer.userId, ids, database)
 
-  const links = await resolveTaskLinks(
+  const links = await resolveLinks(
     viewer,
-    [...loaded.values()].flatMap((row) => (row.comment.deletedAt ? [] : linkedTaskIds(row.comment.body))),
+    [...loaded.values()].flatMap((row) => (row.comment.deletedAt ? [] : linkedIds(row.comment.body))),
     database
   )
-  const forReader = (body: string) => renameLinks(body, (taskId) => linkName(links.get(taskId)))
+  const forReader = (body: string) => renameLinks(body, (linkId) => linkName(links.get(linkId), linkId))
 
   return rows.map(({ comment, authorName, authorAvatar }) => {
     const live = !comment.deletedAt && !archived
@@ -352,7 +353,7 @@ async function toMessages(
           : []
       }),
       files: messageFiles,
-      links: body ? openableLinks(new Map(linkedTaskIds(body).map((id) => [id, links.get(id)!]))) : {},
+      links: body ? openableLinks(new Map(linkedIds(body).map((id) => [id, links.get(id)!]))) : {},
       poll: comment.deletedAt ? null : (polls.get(comment.id) ?? null),
     }
   })
@@ -750,11 +751,12 @@ const NOTICE_LENGTH = 80
  */
 async function noticeLine(access: ChatAccess, body: string, fileCount: number, database: ProjectDb) {
   if (!body) return `Sent ${fileCount === 1 ? "a file" : `${fileCount} ${plural(fileCount, "file")}`}`
-  const links = await resolveTaskLinks(access.membership, linkedTaskIds(body), database)
+  const links = await resolveLinks(access.membership, linkedIds(body), database)
   const words = messageText(
-    renameLinks(body, (taskId) => {
-      const target = links.get(taskId)
-      return target?.state === "open" && target.projectId === access.project.id ? target.title : "a task"
+    renameLinks(body, (linkId) => {
+      const target = links.get(linkId)
+      if (target?.state === "open" && target.projectId === access.project.id) return target.title
+      return isNoteLink(linkId) ? "a note" : "a task"
     })
   )
   return words.length > NOTICE_LENGTH ? `${words.slice(0, NOTICE_LENGTH - 1)}…` : words

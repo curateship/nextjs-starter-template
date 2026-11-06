@@ -139,7 +139,8 @@ can still fill would sell too much.
 KuCoin reports profit or loss for a closed position, while one order can fill
 in many pieces. Trade records each pushed execution and its fee immediately.
 Only the complete history sweep assigns the position's result to one fill.
-The saved zero receives the settled amount without another fill notice.
+The saved zero receives the settled amount, and the close's existing notice
+is rewritten with it rather than a second one sent (see `screens/notices.md`).
 Repeated recovery and late pushed copies do not change the settled total.
 
 Before this fix, each pushed closing piece could receive the whole position's

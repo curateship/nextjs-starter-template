@@ -91,6 +91,7 @@ export function storedPlainNotes(value: unknown): string {
 }
 
 const TASK_ADDRESS = /^\/projects\/[\w-]{1,36}\?task=([\w-]{1,36})$/
+const NOTE_ADDRESS = /^\/projects\/[\w-]{1,36}\?note=([\w-]{1,36})$/
 
 /** The task a notes link points at, when the link is a task's address (a # link). */
 export function linkedTaskOf(href: string): string | null {
@@ -98,9 +99,39 @@ export function linkedTaskOf(href: string): string | null {
 }
 
 /**
- * The notes' words alone, for searching. A # task link's words are left out,
- * because they are the title as it was written, which not every reader may
- * see. `withTaskLinks` keeps them, for notes already named for one reader.
+ * A # link to a project's note is kept under its id with this in front, in
+ * chat (`#[Title](note:<id>)`) and in every map of links, so it is never
+ * mistaken for a task's.
+ */
+export const NOTE_LINK = "note:"
+
+export function isNoteLink(linkId: string) {
+  return linkId.startsWith(NOTE_LINK)
+}
+
+/** A project note's address: the project page with that note open in its left panel. */
+export function noteHref(projectId: string, noteId: string) {
+  return `/projects/${encodeURIComponent(projectId)}?note=${encodeURIComponent(noteId)}`
+}
+
+/** The note a notes link points at, when the link is a note's address (a # link). */
+function linkedNoteOf(href: string): string | null {
+  return NOTE_ADDRESS.exec(href)?.[1] ?? null
+}
+
+/** What a # link in the notes is kept under: the task's id, or `note:` and the note's. */
+export function linkIdOf(href: string): string | null {
+  const taskId = linkedTaskOf(href)
+  if (taskId) return taskId
+  const noteId = linkedNoteOf(href)
+  return noteId ? NOTE_LINK + noteId : null
+}
+
+/**
+ * The notes' words alone, for searching. A # link's words are left out,
+ * because they are the task's title or the note's first line as it was
+ * written, which not every reader may see. `withTaskLinks` keeps them, for
+ * notes already named for one reader.
  */
 export function taskNotesText(stored: string, { withTaskLinks = false } = {}): string {
   const notes = readTaskNotes(stored)
@@ -109,7 +140,7 @@ export function taskNotesText(stored: string, { withTaskLinks = false } = {}): s
   const walk = (node: NoteNode) => {
     const taskLink =
       !withTaskLinks &&
-      node.marks?.some((mark) => mark.type === "link" && mark.attrs && linkedTaskOf(mark.attrs.href))
+      node.marks?.some((mark) => mark.type === "link" && mark.attrs && linkIdOf(mark.attrs.href))
     if (node.text && !taskLink) words.push(node.text)
     node.content?.forEach(walk)
     // Blocks end a line, so words from two paragraphs don't run together. A
@@ -121,13 +152,14 @@ export function taskNotesText(stored: string, { withTaskLinks = false } = {}): s
 }
 
 /**
- * The notes as drawn for reading: a # link to a task this reader can't open
- * ("a task you can't see", "deleted task") loses its link and keeps its words.
+ * The notes as drawn for reading: a # link to a task or note this reader
+ * can't open ("a task you can't see", "deleted note") loses its link and
+ * keeps its words.
  */
 export function notesForDisplay<Body extends NoteNode>(body: Body, openable: Record<string, string>): Body {
   const marks = body.marks?.filter((mark) => {
-    const taskId = mark.type === "link" && mark.attrs ? linkedTaskOf(mark.attrs.href) : null
-    return !taskId || Boolean(openable[taskId])
+    const linkId = mark.type === "link" && mark.attrs ? linkIdOf(mark.attrs.href) : null
+    return !linkId || Boolean(openable[linkId])
   })
   return {
     ...body,

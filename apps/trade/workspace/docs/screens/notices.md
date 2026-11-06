@@ -272,8 +272,14 @@ writes the fill. All three paths call the same `recordLiveFills` function as the
 REST recovery sweep. The `trade_live_fills` primary key decides which process
 inserted the fill, and only that process creates or updates its order notice.
 If KuCoin publishes a close before its final profit or loss is ready, the later
-recovery fills in that money on the existing row without sending another
-notice.
+recovery fills in that money on the existing row and rewrites the close's
+notice from it. KuCoin's sale carries no profit at all, only its closed
+position does, so the first notice can only say "filled". The rewrite uses the
+same notice key, so it is the same row in the bell: its time, its read dot and
+its sound stay as they were, and "filled" becomes "lost $38.02". A stop or
+target behind the close gets its own notice at that moment, because that
+notice waits for the money too. A close older than the bell's fifteen-minute
+news window keeps its first words.
 
 Polling remains the safety net. Hyperliquid asks for history at startup and
 after a reconnect. Phemex and KuCoin also reconcile against REST every two
