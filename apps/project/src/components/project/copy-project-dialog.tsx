@@ -25,7 +25,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 const startingName = (name: string) => `Copy of ${name}`.slice(0, LIMITS.projectName)
 
 /**
- * Copy project: a new project with the old one's tasks and steps, ready for
+ * Copy project: a new project with the old one's tasks, ready for
  * the next job of the same kind. It asks only for the new name, which starts
  * as "Copy of …", selected, so typing replaces it and Copy works at once.
  */
@@ -86,8 +86,8 @@ export function CopyProjectDialog({
           <DialogHeader>
             <DialogTitle>Copy {project.name}</DialogTitle>
             <DialogDescription>
-              The copy gets the same tasks, steps and tags, all To do, with nobody
-              assigned and no dates. You'll be its only member.
+              The copy gets the same tasks, all To do, with nobody assigned
+              and no dates. You'll be its only member.
             </DialogDescription>
           </DialogHeader>
           <form

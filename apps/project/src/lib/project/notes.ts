@@ -16,8 +16,8 @@ import { cleanNoteBody, noteForCopy, noteIsEmpty, type NoteNode } from "@/lib/pr
  * elements (`lib/pages/written-page-body.ts`, and `note-reader.tsx` for the
  * "/" blocks), so nothing typed can run.
  *
- * Since 5 Nov 2026 a task's notes, New task's description and a template's
- * starting notes may hold the "/" blocks (`note-blocks.ts`). A meeting's notes
+ * Since 5 Nov 2026 a task's notes, New task's description and a project's
+ * page may hold the "/" blocks (`note-blocks.ts`). A meeting's notes
  * never do: each of their lines can become a task, and a picture can't, so
  * they keep a written page's rules (`readPlainNotes`, `storedPlainNotes`).
  */
@@ -74,9 +74,9 @@ export function storedTaskNotes(value: unknown): string {
 }
 
 /**
- * A task's saved notes as copied onto another task or a template
- * (`noteForCopy`): Duplicate, a repeating task's next copy, Copy project and
- * Save as task template. Plain-text notes copy as they are.
+ * A task's saved notes as copied onto another task or a page with no task
+ * (`noteForCopy`): Duplicate, a repeating task's next copy and Copy project.
+ * Plain-text notes copy as they are.
  */
 export function storedNotesForCopy(stored: string, options: Parameters<typeof noteForCopy>[1] = {}): string {
   const notes = readTaskNotes(stored)

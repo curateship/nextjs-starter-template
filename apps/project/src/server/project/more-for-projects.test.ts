@@ -70,7 +70,7 @@ async function task(title: string, by: CustomShellUser = anna, projectId = websi
   return (
     await createTask(
       actor(by),
-      { projectId, title, notes: "", assigneeUserId: null, dueDate: null, steps: [] },
+      { projectId, title, notes: "", assigneeUserId: null, dueDate: null },
       database
     )
   ).id
@@ -96,7 +96,7 @@ describe("project status", () => {
       (
         await createTask(
           actor(anna),
-          { projectId: website, title, notes: "", assigneeUserId: null, dueDate, steps: [] },
+          { projectId: website, title, notes: "", assigneeUserId: null, dueDate },
           database
         )
       ).id
@@ -208,7 +208,7 @@ describe("milestones", () => {
     const office = (await projectFor(admin, anna.id, { name: "Office", color: "blue" }, database)).id
     const elsewhere = await createMilestone(anna.id, { projectId: office, name: "Move in", dueDate: null }, database)
     const here = await createMilestone(anna.id, { projectId: website, name: "Design", dueDate: null }, database)
-    const base = { projectId: website, notes: "", assigneeUserId: null, dueDate: null, steps: [] }
+    const base = { projectId: website, notes: "", assigneeUserId: null, dueDate: null }
     await expect(
       createTask(actor(anna), { ...base, title: "Wrong one", milestoneId: elsewhere.id }, database)
     ).rejects.toThrow(PROJECT_ERRORS.milestoneNotFound)

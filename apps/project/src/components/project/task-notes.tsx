@@ -11,7 +11,7 @@ import {
 } from "lucide-react"
 
 import { NoteEditor, NoteView } from "@/components/project/notes/note-editor"
-import { useNotesBoxSetup } from "@/components/project/notes/note-setup"
+import { useNotesBoxSetup, type NoteComments } from "@/components/project/notes/note-setup"
 import { PanelCardFooter } from "@/components/project/panel-card"
 import {
   notesTaskLinks,
@@ -90,10 +90,10 @@ export function TaskNotesField({
   readOnly: boolean
   /** `session` is this editing session, which keeps one earlier version however often it saves. */
   onSave: (notes: NoteNode, session: string) => Promise<boolean>
-  /** A task type's notes outline uses the same field under its own name. */
+  /** A meeting's notes use the same field under their own name. */
   label?: string
   labelId?: string
-  /** A task's own notes, rather than a type's starting notes. */
+  /** A task's own notes, rather than a meeting's. */
   task?: NotesTask
   /** Tasks the notes link to that the reader can open, when they aren't a task's notes. */
   links?: Record<string, string>
@@ -114,7 +114,7 @@ export function TaskNotesField({
   const editorBox = React.useRef<HTMLDivElement>(null)
   const linking = useNotesLinking(Boolean(task))
   const openable = task?.links ?? links ?? {}
-  const setup = useNotesBoxSetup(task ? "task" : "template", task)
+  const setup = useNotesBoxSetup(task ? "task" : "meeting", task)
 
   // The editor draws itself a moment after it mounts, so the cursor goes in
   // once its writing area exists. Focus alone leaves everything in it
@@ -272,14 +272,13 @@ export function TaskNotesField({
           )}
         </div>
       )}
-      {/* Under a Notes card the buttons are the card's footer, behind its cog
-          (Tyler, 14 Oct 2026): Edit notes at the left, Earlier versions at the
-          right, and Done while writing whatever the cog says. Below the notes,
-          so the formatting bar over the first line never sits on Done. */}
+      {/* Edit notes at the left, Earlier versions at the right, and Done
+          while writing (Tyler, 14 Oct 2026). Below the notes, so the
+          formatting bar over the first line never sits on Done. */}
       {hideLabel ? (
         // Each button stretches, so together they fill the footer with no gap
         // between them, wrapping onto a second row in a narrow panel (Tyler, 20 Oct 2026).
-        <PanelCardFooter always={editing} className={editing ? "justify-end" : "[&>button]:flex-1"}>
+        <PanelCardFooter className={editing ? "justify-end" : "[&>button]:flex-1"}>
           {doneOrEdit}
           {task && !editing ? versionsButton : null}
         </PanelCardFooter>
@@ -561,6 +560,8 @@ export type NotesTask = {
   link?: TaskLink | null
   /** Reads the task again, after a block added a file to it. */
   refresh?: () => Promise<void>
+  /** Its comments, which a Comments block draws (`CommentsDrawing`). */
+  comments?: NoteComments
 }
 
 /**

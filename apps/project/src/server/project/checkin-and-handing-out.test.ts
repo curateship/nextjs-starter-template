@@ -94,7 +94,7 @@ afterEach(async () => {
 async function task(title: string, assigneeUserId: string | null, by = anna, note: string | null = null) {
   const { id } = await createTask(
     actor(by),
-    { projectId, title, notes: "", assigneeUserId, dueDate: null, steps: [], handoverNote: note },
+    { projectId, title, notes: "", assigneeUserId, dueDate: null, handoverNote: note },
     database
   )
   return id

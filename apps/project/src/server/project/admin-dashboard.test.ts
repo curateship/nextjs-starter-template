@@ -14,7 +14,6 @@ import {
   setAdminTimeZone,
 } from "@/server/project/admin-dashboard"
 import { createInvite } from "@/server/project/invites"
-import { createLabel } from "@/server/project/labels"
 import { createMeeting } from "@/server/project/meetings"
 import { createMilestone } from "@/server/project/milestones"
 import { askForMoreTime } from "@/server/project/more-time"
@@ -55,7 +54,7 @@ let logo: string
 const actor = (user: CustomShellUser) => ({ id: user.id, name: user.name, currentWorkspaceId: user.currentWorkspaceId })
 
 function task(projectId: string, title: string, assigneeUserId: string | null, dueDate: string | null = null) {
-  return { projectId, title, notes: "", assigneeUserId, dueDate, steps: [] }
+  return { projectId, title, notes: "", assigneeUserId, dueDate }
 }
 
 beforeEach(async () => {
@@ -313,13 +312,10 @@ describe("Just me from the Project chip", () => {
 })
 
 describe("moving to another team from the Project chip", () => {
-  it("takes the old team's tags off, since they belong to that team", async () => {
-    const tag = await inTeam(acme, () => createLabel(tyler.id, { name: "Urgent", color: "red" }, database))
-    const { id } = await inTeam(acme, () =>
-      createTask(actor(tyler), { ...task(website, "Cross over", tyler.id), labelIds: [tag.id] }, database)
-    )
+  it("puts the task in the other team's project", async () => {
+    const { id } = await inTeam(acme, () => createTask(actor(tyler), task(website, "Cross over", tyler.id), database))
     await moveTask(actor(tyler), { taskId: id, projectId: logo }, database)
     const [card] = (await loadAdminDashboard(tyler.id, database, NOON)).tasks
-    expect([card.title, card.projectName, card.labels, card.type]).toEqual(["Cross over", "Brand · Logo", [], null])
+    expect([card.title, card.projectName]).toEqual(["Cross over", "Brand · Logo"])
   })
 })

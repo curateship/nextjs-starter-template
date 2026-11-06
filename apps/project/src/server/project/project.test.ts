@@ -453,7 +453,7 @@ describe("left menu", () => {
     expect(await sectionsOf()).toEqual(["section-account"])
   })
 
-  it("adds Task types after Team to a menu that already had the section, once", async () => {
+  it("takes the Task templates link out of a menu that still has it", async () => {
     const workEntries = async () => {
       const [settings] = await database.select().from(customShellSettings)
       const sections = (settings.settings as { memberSections: { id: string; entries: { id: string }[] }[] })
@@ -462,71 +462,22 @@ describe("left menu", () => {
     }
     await addProjectNavigation(database)
     const fresh = await workEntries()
-    expect(fresh.slice(fresh.indexOf("item-project-team"))).toEqual([
-      "item-project-team",
-      "item-project-task-types",
-    ])
+    expect(fresh).toEqual(["item-project-dashboard", "item-project-projects", "item-project-team"])
 
-    // A menu from before Task types existed: the section without the link, and no marker for it.
+    // A menu saved while task templates were there: the link after Team, and no marker for its removal.
     const [settings] = await database.select().from(customShellSettings)
     const old = settings.settings as { memberSections: { id: string; entries: { id: string }[] }[] }
+    const link = { type: "item", id: "item-project-task-types", label: "Task templates", href: "/task-types", visible: true }
     const before = old.memberSections.map((section) =>
-      section.id === PROJECT_NAV_SECTION_ID
-        ? { ...section, entries: section.entries.filter((e) => e.id !== "item-project-task-types") }
-        : section
+      section.id === PROJECT_NAV_SECTION_ID ? { ...section, entries: [...section.entries, link] } : section
     )
     await database
       .update(customShellSettings)
       .set({ settings: { ...old, memberSections: before } })
       .where(eq(customShellSettings.key, "default"))
-    await database.delete(projectNavigationAdded).where(eq(projectNavigationAdded.scope, "members:task-types"))
+    await database.delete(projectNavigationAdded).where(eq(projectNavigationAdded.scope, "members:no-task-templates"))
     await addProjectNavigation(database)
     expect(await workEntries()).toEqual(fresh)
-
-    // Removed again by an admin, it stays removed.
-    await database
-      .update(customShellSettings)
-      .set({ settings: { ...old, memberSections: before } })
-      .where(eq(customShellSettings.key, "default"))
-    await addProjectNavigation(database)
-    expect(await workEntries()).not.toContain("item-project-task-types")
-  })
-
-  it("renames a saved Task types link to Task templates, but not one an admin renamed", async () => {
-    const workspace = await insertWorkspace(database, { settings: { sections: [] } })
-    await addProjectNavigation(database)
-    const linkLabel = async () => {
-      const [row] = await database.select().from(customShellWorkspaces).where(eq(customShellWorkspaces.id, workspace.id))
-      const sections = (row.settings as { sections: { id: string; entries: { id: string; label: string }[] }[] }).sections
-      return sections
-        .find((section) => section.id === PROJECT_NAV_SECTION_ID)!
-        .entries.find((entry) => entry.id === "item-project-task-types")?.label
-    }
-    expect(await linkLabel()).toBe("Task templates")
-
-    // A menu saved before the rename: the old label, and no marker for the pass.
-    const relabel = async (label: string) => {
-      const [row] = await database.select().from(customShellWorkspaces).where(eq(customShellWorkspaces.id, workspace.id))
-      const settings = row.settings as { sections: { id: string; entries: { id: string; label: string }[] }[] }
-      const sections = settings.sections.map((section) => ({
-        ...section,
-        entries: section.entries.map((entry) => (entry.id === "item-project-task-types" ? { ...entry, label } : entry)),
-      }))
-      await database
-        .update(customShellWorkspaces)
-        .set({ settings: { ...settings, sections } })
-        .where(eq(customShellWorkspaces.id, workspace.id))
-      await database
-        .delete(projectNavigationAdded)
-        .where(eq(projectNavigationAdded.scope, `workspace:${workspace.id}:task-templates-name`))
-    }
-    await relabel("Task types")
-    await addProjectNavigation(database)
-    expect(await linkLabel()).toBe("Task templates")
-
-    await relabel("Kinds of work")
-    await addProjectNavigation(database)
-    expect(await linkLabel()).toBe("Kinds of work")
   })
 
   it("puts My dashboard first in the admins' menus, back where an older pass took it out", async () => {
@@ -537,7 +488,7 @@ describe("left menu", () => {
       const admins = (row.settings as { sections: { id: string; entries: { id: string }[] }[] }).sections
       return admins.find((section) => section.id === PROJECT_NAV_SECTION_ID)!.entries.map((e) => e.id)
     }
-    const fresh = ["item-project-dashboard", "item-project-projects", "item-project-team", "item-project-task-types"]
+    const fresh = ["item-project-dashboard", "item-project-projects", "item-project-team"]
     expect(await adminEntries()).toEqual(fresh)
 
     // A menu from 16 Oct 2026, when My dashboard left the admins' menus.
@@ -580,7 +531,6 @@ function newTask(
     notes: "",
     assigneeUserId: null,
     dueDate: null,
-    steps: [],
     ...overrides,
   }
 }
@@ -613,7 +563,7 @@ describe("running the team", () => {
     return (
       await createTask(
         actor(anna),
-        { projectId, title, notes: "", assigneeUserId: person?.id ?? null, dueDate, steps: [] },
+        { projectId, title, notes: "", assigneeUserId: person?.id ?? null, dueDate },
         database
       )
     ).id

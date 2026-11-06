@@ -1,4 +1,4 @@
-import { and, asc, count, countDistinct, eq, inArray, isNull, max, ne, type SQL } from "drizzle-orm"
+import { and, asc, count, countDistinct, eq, inArray, isNull, ne, type SQL } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import { addDays } from "@/lib/project/days"
@@ -6,11 +6,7 @@ import { dueMoveReason } from "@/lib/project/due-moves"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import type { TaskNoticeKind } from "@/lib/project/notices"
 import { taskNotesText } from "@/lib/project/notes"
-import { LIMITS, runsTheTeam, type TaskPriority, type TaskStatus, isOpenStatus } from "@/lib/project/rules"
-import { copyStepFields, type StartingStepFields, type StepField } from "@/lib/project/step-fields"
-import type { FieldValues } from "@/lib/project/task-fields"
-import type { TaskTypeChip } from "@/lib/project/task-types"
-import type { TaskClock } from "@/lib/project/clock"
+import { runsTheTeam, type TaskPriority, type TaskStatus, isOpenStatus } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
@@ -27,7 +23,6 @@ import {
 } from "@/server/project/access"
 import { markTaskRead, unreadByTask } from "@/server/project/chat-reads"
 import { taskRef, writeTaskNotices, type TaskNotice } from "@/server/project/notices"
-import { labelsForTasks, listTeamLabels, type Label } from "@/server/project/labels"
 import { nextTaskPosition } from "@/server/project/task-order"
 import { loadTaskMessages, type ChatMessage } from "@/server/project/task-chat"
 import { keepNotesVersion } from "@/server/project/task-note-versions"
@@ -38,7 +33,6 @@ import {
   resolveLinks,
 } from "@/server/project/task-links"
 import { listTaskFiles, type TaskFile } from "@/server/project/task-files"
-import { clocksFor, pauseTaskClock } from "@/server/project/task-clock-runs"
 import { resolveProjectId } from "@/server/project/personal"
 import {
   repeatRuleOf,
@@ -49,21 +43,12 @@ import {
   type WaitRow,
 } from "@/server/project/planning"
 import { myReminderOn } from "@/server/project/task-reminders"
-import { listStepLists, type StepList } from "@/server/project/step-lists"
 import { taskLinkFor, type TaskLink } from "@/server/project/linked-records"
 import { canAskForTime, loadMoreTimeAsk, type MoreTimeAsk } from "@/server/project/more-time"
 import { canAskForReview, canReview, reviewerFor } from "@/server/project/task-review"
 import { hasThanked } from "@/server/project/task-thanks"
 import { listMoveTargets, type MoveTarget } from "@/server/project/task-changes"
 import { followerIds } from "@/server/project/task-followers"
-import {
-  loadTaskFields,
-  requireDoneFields,
-  typeChipsFor,
-  valuesForTasks,
-  writeNewTaskFields,
-  type TaskFields,
-} from "@/server/project/task-types"
 import {
   loadTaskHistory,
   recordTaskEvent,
@@ -72,16 +57,12 @@ import {
 import {
   projectCheckinItems,
   projectCheckins,
-  projectLabels,
   projectMilestones,
   projectProjectMembers,
   projectProjects,
   projectTaskComments,
   projectTaskEvents,
   projectTaskFollowers,
-  projectTaskLabels,
-  projectTaskSteps,
-  projectTaskTypes,
   projectTasks,
   projectTeamMembers,
 } from "@/server/project/schema"
@@ -138,7 +119,6 @@ export type TaskCard = {
   review: { needed: boolean; waiting: boolean; reviewer: { id: string; name: string } | null }
   formerAssigneeName: string | null
   handedBack: { byName: string; reason: string } | null
-  steps: { done: number; total: number }
   commentCount: number
   /**
    * Messages in its chat that are new to the person looking, filled in by the
@@ -147,7 +127,6 @@ export type TaskCard = {
   unread: number
   /** How many days anyone picked this task on a check-in. */
   pickedDays: number
-  labels: Label[]
   /** The milestone it counts toward, for the details panel's list of a milestone's tasks. */
   milestoneId: string | null
   /** The task's place in its project's own order. */
@@ -168,14 +147,6 @@ export type TaskCard = {
   /** How many times its due date moved from one day to another. */
   dueMoves: number
   repeat: RepeatRule | null
-  /** The kind of task, drawn as its icon and name. Null is a plain task. */
-  type: TaskTypeChip | null
-  /** What it holds in its type's fields, for the List's field columns. A File field holds its file count. */
-  fieldValues: FieldValues
-  /** Its time on the task clock (`workspace/docs/task-clock.md`). */
-  clock: TaskClock
-  /** How long it is guessed to take, in minutes; null with no guess. */
-  guessMinutes: number | null
 }
 
 const assignee = alias(customShellUsers, "assignee")
@@ -210,17 +181,6 @@ export async function listTaskCards(
     .orderBy(asc(projectTasks.position), asc(projectTasks.createdAt))
 
   const ids = rows.map((row) => row.task.id)
-  const stepRows = ids.length
-    ? await database
-        .select({
-          taskId: projectTaskSteps.taskId,
-          done: projectTaskSteps.done,
-          total: count(),
-        })
-        .from(projectTaskSteps)
-        .where(inArray(projectTaskSteps.taskId, ids))
-        .groupBy(projectTaskSteps.taskId, projectTaskSteps.done)
-    : []
   const commentRows = ids.length
     ? await database
         .select({ taskId: projectTaskComments.taskId, total: count() })
@@ -231,17 +191,8 @@ export async function listTaskCards(
   const pickedRows = ids.length ? await pickedDaysFor(ids, database) : []
   const moveRows = ids.length ? await dueMovesFor(ids, database) : []
   const waits = await waitsFor(ids, database)
-  const labels = await labelsForTasks(ids, database)
-  const tasks = rows.map((row) => row.task)
-  const types = await typeChipsFor(
-    tasks.flatMap((task) => (task.typeId ? [task.typeId] : [])),
-    database
-  )
-  const fieldValues = await valuesForTasks(tasks, database)
-  const clocks = await clocksFor(ids, database)
 
   return rows.map(({ task, ...row }) => {
-    const steps = stepRows.filter((step) => step.taskId === task.id)
     return {
       id: task.id,
       projectId: task.projectId,
@@ -281,14 +232,9 @@ export async function listTaskCards(
         task.handedBackReason && row.returnerName !== null
           ? { byName: row.returnerName, reason: task.handedBackReason }
           : null,
-      steps: {
-        done: steps.find((step) => step.done)?.total ?? 0,
-        total: steps.reduce((sum, step) => sum + step.total, 0),
-      },
       commentCount: commentRows.find((c) => c.taskId === task.id)?.total ?? 0,
       unread: 0,
       pickedDays: pickedRows.find((p) => p.taskId === task.id)?.days ?? 0,
-      labels: labels.get(task.id) ?? [],
       milestoneId: task.milestoneId,
       position: task.position,
       completedAt: task.completedAt?.toISOString() ?? null,
@@ -298,10 +244,6 @@ export async function listTaskCards(
       priority: task.priority,
       dueMoves: moveRows.find((m) => m.taskId === task.id)?.moves ?? 0,
       repeat: repeatRuleOf(task),
-      type: task.typeId ? (types.get(task.typeId) ?? null) : null,
-      fieldValues: fieldValues.get(task.id) ?? {},
-      clock: clocks.get(task.id) ?? { seconds: 0, runningSince: null },
-      guessMinutes: task.guessMinutes,
     }
   })
 }
@@ -359,21 +301,9 @@ function isWaiting(task: Pick<TaskRow, "assigneeUserId" | "acceptedAt">) {
   return Boolean(task.assigneeUserId) && !task.acceptedAt
 }
 
-export type TaskStep = {
-  id: string
-  text: string
-  done: boolean
-  /** Someone on the project doing this step. It shows only inside the task. */
-  assignee: Person | null
-  dueDate: string | null
-  /** The step's own name-and-value fields, on its card. */
-  fields: StepField[]
-}
-
 export type TaskDetail = {
   /** `notesLocked`: the notes read only, for everyone, until someone who can write them unlocks them. */
   task: TaskCard & { notes: string; notesLocked: boolean }
-  steps: TaskStep[]
   comments: ChatMessage[]
   /** Tasks the notes link to that I can open: task id to project id. */
   noteLinks: Record<string, string>
@@ -386,16 +316,12 @@ export type TaskDetail = {
   canDelete: boolean
   /** Every day it was picked or dropped, and every hand-over, oldest first. */
   history: TaskHistoryEntry[]
-  /** The team's labels, for the task's Labels field. */
-  labels: Label[]
   /** Other open projects this person can move the task to. */
   moveTargets: MoveTarget[]
   /** The tasks this one waits on, each named when this person can see its project. */
   waitingOn: { id: string; title: string | null; projectId: string | null; done: boolean }[]
   /** The day I asked to be reminded about it, if I did. Each person's own. */
   myReminder: string | null
-  /** The team's saved step lists, for "Add a step list". */
-  stepLists: StepList[]
   /** Tasks waiting on this one: those this person can see, and how many elsewhere. */
   holdingUp: { tasks: { id: string; title: string; projectId: string }[]; elsewhere: number }
   /** I handed it out or made it, so I can turn "Needs review" on or off. */
@@ -404,8 +330,6 @@ export type TaskDetail = {
   canReview: boolean
   /** I've thanked whoever did it. */
   thanked: boolean
-  /** Its type, the fields as I may use them, their values and files, and the types it could have. */
-  fields: TaskFields
   /** The milestone it counts toward, and the project's milestones to pick from on the Plan card. */
   milestoneId: string | null
   milestones: Milestone[]
@@ -413,15 +337,6 @@ export type TaskDetail = {
   link: TaskLink | null
   /** I may point it at a record: the site admin, on an open project. */
   canSetLink: boolean
-  /** "Save as task template" in the cog, for whoever runs the team, as they make every template. */
-  canSaveTemplate: boolean
-  /**
-   * I may start and pause its clock: the person assigned and the site admin.
-   * Anyone on the project may start a task nobody has, which makes it theirs.
-   */
-  canRunClock: boolean
-  /** I may set its time by hand: the person assigned and the site admin only. */
-  canFixClock: boolean
   /** The open ask for a later due date, and whether I may answer it (Seven features, part 2). */
   moreTime: MoreTimeAsk | null
   /** I may ask for more time: the person assigned, on a task not Done with a due date. */
@@ -451,32 +366,6 @@ export async function loadTaskDetail(
     throw error
   })
   const [card] = await listTaskCards(eq(projectTasks.id, taskId), database)
-  const stepRows = await database
-    .select({
-      id: projectTaskSteps.id,
-      text: projectTaskSteps.text,
-      done: projectTaskSteps.done,
-      dueDate: projectTaskSteps.dueDate,
-      assigneeId: projectTaskSteps.assigneeUserId,
-      assigneeName: assignee.name,
-      assigneeAvatar: assignee.avatarUrl,
-      fields: projectTaskSteps.fields,
-    })
-    .from(projectTaskSteps)
-    .leftJoin(assignee, eq(assignee.id, projectTaskSteps.assigneeUserId))
-    .where(eq(projectTaskSteps.taskId, taskId))
-    .orderBy(asc(projectTaskSteps.position))
-  const steps: TaskStep[] = stepRows.map((row) => ({
-    id: row.id,
-    text: row.text,
-    done: row.done,
-    dueDate: row.dueDate,
-    fields: row.fields,
-    assignee:
-      row.assigneeId && row.assigneeName !== null
-        ? { id: row.assigneeId, name: row.assigneeName, avatarUrl: row.assigneeAvatar ?? "" }
-        : null,
-  }))
   const archived = Boolean(project.archivedAt)
   const viewer = { userId, role: membership.role }
   // Loading the task is reading its chat, so its "new" mark clears.
@@ -511,7 +400,6 @@ export async function loadTaskDetail(
   return {
     task: { ...card, notes: notesForReader(task.notes, noteTargets), notesLocked: task.notesLocked },
     noteLinks: openableLinks(noteTargets),
-    steps,
     comments: await loadTaskMessages(membership, taskId, archived, database),
     files: await listTaskFiles(viewer, taskId, archived, database),
     assignable: [
@@ -526,7 +414,6 @@ export async function loadTaskDetail(
     archived,
     canDelete: task.createdByUserId === userId || runsTheTeam(membership.role),
     history: await loadTaskHistory(taskId, database, visible),
-    labels: await listTeamLabels(membership.teamId, database),
     moveTargets: await listMoveTargets(membership, task, database),
     waitingOn: ((await waitsFor([taskId], database)).get(taskId) ?? []).map((wait) => ({
       id: wait.id,
@@ -535,19 +422,14 @@ export async function loadTaskDetail(
       done: wait.status === "done",
     })),
     myReminder: await myReminderOn(userId, taskId, database),
-    stepLists: await listStepLists(membership.teamId, database),
     holdingUp: await waitingOnThis(taskId, visible, database),
     canAskForReview: canAskForReview(task, userId),
     canReview: canReview(task, membership.role, userId),
     thanked: await hasThanked(userId, taskId, database),
-    fields: await loadTaskFields(viewer, task, project, archived, database),
     milestoneId: task.milestoneId,
     milestones: await listMilestones(project.id, database),
     link: taskLinkFor(task, { userId, siteAdmin: membership.siteAdmin }),
     canSetLink: membership.siteAdmin && !archived,
-    canSaveTemplate: runsTheTeam(membership.role) && !project.personalUserId,
-    canRunClock: !archived && (!task.assigneeUserId || task.assigneeUserId === userId || membership.siteAdmin),
-    canFixClock: !archived && (task.assigneeUserId === userId || membership.siteAdmin),
     moreTime: archived ? null : await loadMoreTimeAsk(task, viewer, database),
     canAskForTime: !archived && canAskForTime(task, userId),
   }
@@ -604,15 +486,9 @@ export async function createTask(
     notes: string
     assigneeUserId: string | null
     dueDate: string | null
-    steps: string[]
     /** An optional line for the person it's handed to. */
     handoverNote?: string | null
-    /** Its type, and the values New task filled in for that type's fields. */
-    typeId?: string | null
-    fieldValues?: Record<string, unknown>
     priority?: TaskPriority
-    /** The team's tags (labels) it starts with. */
-    labelIds?: string[]
     /** One of this project's milestones. */
     milestoneId?: string | null
   },
@@ -622,7 +498,7 @@ export async function createTask(
     const projectId = await resolveProjectId(actor.id, input.projectId, tx)
     // No task yet, so no file of its own: a File block or uploaded picture can't come in this way.
     input = { ...input, projectId, notes: await withOwnFiles(input.notes, null, tx) }
-    const { membership, project } = await requireOpenProject(actor.id, input.projectId, tx)
+    await requireOpenProject(actor.id, input.projectId, tx)
     if (input.assigneeUserId) await requireAssignable(input.projectId, input.assigneeUserId, tx, actor.id)
     const at = now()
     const handedToSomeoneElse =
@@ -644,8 +520,6 @@ export async function createTask(
       updatedAt: at,
       position,
       handoverNote: handedToSomeoneElse ? (input.handoverNote ?? null) : null,
-      firstHandedOutByUserId: handedToSomeoneElse ? actor.id : null,
-      typeId: input.typeId ?? null,
       priority: input.priority ?? "normal",
       milestoneId: input.milestoneId ?? null,
     }
@@ -658,41 +532,7 @@ export async function createTask(
       if (!milestone) throw new Error(PROJECT_ERRORS.milestoneNotFound)
     }
     await tx.insert(projectTasks).values(task)
-    const labelIds = [...new Set(input.labelIds ?? [])]
-    if (labelIds.length) {
-      const found = await tx
-        .select({ id: projectLabels.id })
-        .from(projectLabels)
-        .where(and(inArray(projectLabels.id, labelIds), eq(projectLabels.teamId, project.teamId)))
-      if (found.length !== labelIds.length) throw new Error(PROJECT_ERRORS.labelNotFound)
-      await tx.insert(projectTaskLabels).values(labelIds.map((labelId) => ({ taskId: task.id, labelId })))
-    }
-    if (input.typeId) {
-      await writeNewTaskFields(tx, {
-        membership,
-        project,
-        task,
-        typeId: input.typeId,
-        values: input.fieldValues ?? {},
-        actor,
-      })
-    }
     await recordTaskEvent(tx, { taskId: task.id, kind: "created", actorUserId: actor.id })
-    if (input.steps.length) {
-      // A step that came from the task's template brings that step's fields.
-      const startingFields = input.typeId ? await startingStepFields(input.typeId, tx) : {}
-      await tx.insert(projectTaskSteps).values(
-        input.steps.map((text, position) => ({
-          id: uuid(),
-          taskId: task.id,
-          text,
-          done: false,
-          position,
-          createdAt: at,
-          fields: copyStepFields(startingFields[text] ?? []),
-        }))
-      )
-    }
     if (handedToSomeoneElse && input.assigneeUserId) {
       await recordTaskEvent(tx, {
         taskId: task.id,
@@ -731,8 +571,6 @@ export async function updateTask(
     startDate?: string | null
     snoozedUntil?: string | null
     priority?: TaskPriority
-    /** How long it is guessed to take, in minutes; null takes the guess off. */
-    guessMinutes?: number | null
   },
   database: ProjectDb = db
 ) {
@@ -799,9 +637,6 @@ export async function setTaskStatus(
       throw new Error(PROJECT_ERRORS.stuckNeedsReason)
     }
     const becameDone = input.status === "done" && task.status !== "done"
-    // Only a fresh move to Done is checked, so a task already Done stays Done
-    // when a field is later switched to "Needed before Done".
-    if (becameDone) await requireDoneFields(task, tx)
     // A task that needs review waits for its reviewer once it becomes Done,
     // unless nobody else is left to review it, when it confirms itself.
     const reviewer = becameDone ? await reviewerFor(project, task, actor.id, tx) : null
@@ -828,8 +663,6 @@ export async function setTaskStatus(
         reason: input.status,
       })
     }
-    // The clock runs only while the task is Doing: Stuck pauses it and Done stops it.
-    if (input.status !== "doing") await pauseTaskClock(tx, task.id, actor.id)
 
     // Stuck, Done and leaving Stuck each tell whoever handed the task out (or
     // made it, when nobody did), its followers and the project's lead, once
@@ -890,8 +723,6 @@ export async function assignTask(
     const at = now()
     const handedToSomeoneElse = Boolean(input.assigneeUserId) && input.assigneeUserId !== actor.id
     const note = handedToSomeoneElse ? (input.note ?? null) : null
-    // The clock counts for the person assigned, so a new person pauses it.
-    await pauseTaskClock(tx, task.id, actor.id)
     await tx
       .update(projectTasks)
       .set({
@@ -904,9 +735,6 @@ export async function assignTask(
         handoverNote: note,
         // An ask for more time belongs to the person who asked, so it ends here.
         ...NO_TIME_ASK,
-        // The first hand-out stays: later hand-overs never take over the brief.
-        firstHandedOutByUserId:
-          task.firstHandedOutByUserId ?? (handedToSomeoneElse ? actor.id : null),
         updatedAt: at,
       })
       .where(eq(projectTasks.id, task.id))
@@ -964,7 +792,6 @@ export async function handBackTask(
     if (!giver || giver === actor.id) throw new Error(PROJECT_ERRORS.nothingToHandBack)
     const giverStillHere = await isProjectMember(task.projectId, giver, tx)
     const at = now()
-    await pauseTaskClock(tx, task.id, actor.id)
     await tx
       .update(projectTasks)
       .set({
@@ -1014,110 +841,8 @@ export async function deleteTask(actor: Actor, taskId: string, database = db) {
       .update(projectTasks)
       .set({ deletedAt: now(), deletedByUserId: actor.id })
       .where(eq(projectTasks.id, task.id))
-    await pauseTaskClock(tx, task.id, actor.id)
     await recordTaskEvent(tx, { taskId: task.id, kind: "deleted", actorUserId: actor.id })
   })
-}
-
-export async function addStep(
-  actor: Actor,
-  input: { taskId: string; text: string },
-  database = db
-): Promise<TaskStep> {
-  return database.transaction(async (tx) => {
-    const { task } = await requireTaskAccess(actor.id, input.taskId, tx)
-    const [{ total, last }] = await tx
-      .select({ total: count(), last: max(projectTaskSteps.position) })
-      .from(projectTaskSteps)
-      .where(eq(projectTaskSteps.taskId, task.id))
-    if (total >= LIMITS.stepsPerTask) throw new Error(PROJECT_ERRORS.tooManySteps)
-    const step = {
-      id: uuid(),
-      taskId: task.id,
-      text: input.text,
-      done: false,
-      position: (last ?? -1) + 1,
-      createdAt: now(),
-    }
-    await tx.insert(projectTaskSteps).values(step)
-    await touchTask(task.id, tx)
-    return { id: step.id, text: step.text, done: step.done, assignee: null, dueDate: null, fields: [] }
-  })
-}
-
-export async function updateStep(
-  actor: Actor,
-  input: {
-    stepId: string
-    text?: string
-    done?: boolean
-    assigneeUserId?: string | null
-    dueDate?: string | null
-    /** The step's own fields, saved whole. */
-    fields?: StepField[]
-  },
-  database = db
-) {
-  await database.transaction(async (tx) => {
-    const { stepId, ...fields } = input
-    const step = await requireStep(actor.id, stepId, tx)
-    const { task } = await requireTaskAccess(actor.id, step.taskId, tx)
-    if (fields.assigneeUserId) await requireAssignable(task.projectId, fields.assigneeUserId, tx)
-    await tx.update(projectTaskSteps).set(fields).where(eq(projectTaskSteps.id, step.id))
-    await touchTask(step.taskId, tx)
-    // A step given to someone else tells them, once, when it is given.
-    const given = fields.assigneeUserId
-    if (given && given !== step.assigneeUserId) {
-      await writeTaskNotices(tx, [
-        {
-          kind: "task_step",
-          recipientUserId: given,
-          actor,
-          task: taskRef(task),
-          extra: fields.text ?? step.text,
-        },
-      ])
-    }
-  })
-}
-
-export async function deleteStep(actor: Actor, stepId: string, database = db) {
-  const step = await requireStep(actor.id, stepId, database)
-  await database.delete(projectTaskSteps).where(eq(projectTaskSteps.id, step.id))
-  await touchTask(step.taskId, database)
-}
-
-export async function requireStep(userId: string, stepId: string, database: ProjectDb) {
-  const [step] = await database
-    .select({
-      id: projectTaskSteps.id,
-      taskId: projectTaskSteps.taskId,
-      text: projectTaskSteps.text,
-      assigneeUserId: projectTaskSteps.assigneeUserId,
-    })
-    .from(projectTaskSteps)
-    .where(eq(projectTaskSteps.id, stepId))
-    .limit(1)
-  if (!step) throw new Error(PROJECT_ERRORS.stepNotFound)
-  await requireTaskAccess(userId, step.taskId, database)
-  return step
-}
-
-/** A task template's fields for its starting steps, by the step's words. */
-async function startingStepFields(typeId: string, database: ProjectDb): Promise<StartingStepFields> {
-  const [type] = await database
-    .select({ stepFields: projectTaskTypes.stepFields })
-    .from(projectTaskTypes)
-    .where(eq(projectTaskTypes.id, typeId))
-    .limit(1)
-  return type?.stepFields ?? {}
-}
-
-export async function touchTask(taskId: string, database: ProjectDb) {
-  await database
-    .update(projectTasks)
-    .set({ updatedAt: now() })
-    .where(eq(projectTasks.id, taskId))
 }
 
 export type AcceptOutcome = {

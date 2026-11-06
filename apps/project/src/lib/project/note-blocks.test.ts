@@ -188,8 +188,8 @@ describe("blocks that point at a task's files", () => {
       { type: "noteTask", attrs: { taskId: "new-1" } },
       { type: "noteRecord" },
     ])
-    // A template has no task, so no Video or Promo card either.
-    expect(noteForCopy(note, { forTemplate: true }).content?.map((node) => node.type)).toEqual(["noteCallout", "noteTask"])
+    // A page with no task gets no Video or Promo card either.
+    expect(noteForCopy(note, { noTask: true }).content?.map((node) => node.type)).toEqual(["noteCallout", "noteTask"])
     expect(storedNotesForCopy(JSON.stringify(doc({ type: "noteFile", attrs: { fileId: "mine" } })))).toBe("")
     expect(storedNotesForCopy("Plain words")).toBe("Plain words")
   })

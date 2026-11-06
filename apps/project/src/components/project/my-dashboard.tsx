@@ -153,8 +153,6 @@ function Dashboard({
                 myOrder: dashboard.myOrder,
                 today: dashboard.checkin.today.day,
                 people: dashboard.checkin.people,
-                labels: dashboard.labels,
-                taskTypes: dashboard.taskTypes,
                 views: dashboard.views,
                 viewScreen: dashboard.viewScreen,
                 statusOrder: dashboard.statusOrder,
@@ -168,8 +166,6 @@ function Dashboard({
                 q: search.q,
                 status: search.status,
                 priority: search.priority,
-                label: search.label,
-                type: search.type,
                 due: search.due,
                 client: search.client,
               }}

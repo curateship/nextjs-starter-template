@@ -19,7 +19,7 @@ import { projectMilestones, projectTasks } from "@/server/project/schema"
 export type Milestone = {
   id: string
   name: string
-  /** Null after Copy project or a template, until someone picks one. */
+  /** Null after Copy project, until someone picks one. */
   dueDate: string | null
   done: number
   total: number

@@ -14,7 +14,6 @@ import {
   type WorkloadRow,
 } from "@/lib/api/project/team-running"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { clockTotal } from "@/lib/project/clock"
 import { cn } from "@/lib/utils"
 import { useTeamId } from "@/lib/project/team-scope"
 
@@ -305,13 +304,6 @@ function WorkloadLine({
             <span className="truncate text-xs text-muted-foreground">{row.person.title}</span>
           ) : null}
         </div>
-        {/* Their time on the task clock since Monday (Task panel task 01, part 10). */}
-        <span className="shrink-0 text-xs text-muted-foreground">
-          <span className={cn("font-medium tabular-nums", row.weekSeconds && "text-foreground")}>
-            {clockTotal(row.weekSeconds)}
-          </span>{" "}
-          this week
-        </span>
       </div>
       {/* Five figures in one white strip; pressing one lists those tasks under it. */}
       <div className="grid grid-cols-5 overflow-hidden rounded-lg border bg-background">

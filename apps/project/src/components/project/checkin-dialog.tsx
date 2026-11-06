@@ -9,7 +9,6 @@ import {
   PickedDaysBadge,
   ProjectDot,
   StatusBadge,
-  StepsCount,
   WaitingBadge,
 } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
@@ -639,7 +638,6 @@ function TaskMeta({ task, showProject = false }: { task: TaskCard; showProject?:
       {task.waiting ? <WaitingBadge /> : null}
       <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
       <DueDate dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} />
-      <StepsCount steps={task.steps} />
     </span>
   )
 }

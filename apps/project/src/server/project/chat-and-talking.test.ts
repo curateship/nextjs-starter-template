@@ -67,7 +67,7 @@ async function setUp() {
   const task = (title: string, inProject = projectId) =>
     createTask(
       anna,
-      { projectId: inProject, title, notes: "", assigneeUserId: inProject === projectId ? ben.id : null, dueDate: null, steps: [] },
+      { projectId: inProject, title, notes: "", assigneeUserId: inProject === projectId ? ben.id : null, dueDate: null },
       database
     ).then((made) => made.id)
   const taskId = await task("Fix the checkout bug")

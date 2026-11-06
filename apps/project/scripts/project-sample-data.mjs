@@ -96,31 +96,31 @@ try {
     { name: "Website redesign", color: "blue", members: [me, maya, leo] },
     { name: "Spring launch", color: "green", members: [me, maya, leo, priya] },
   ]
-  // [title, status, assignee, handed out by, waiting, due in days, steps done/total, stuck reason]
+  // [title, status, assignee, handed out by, waiting, due in days, stuck reason]
   const tasksByProject = [
     [
-      ["Write the homepage copy", "doing", leo, me, false, 3, [2, 4], null],
-      ["Pick the photo set", "todo", maya, me, true, 5, [0, 0], null],
-      ["Draw the pricing page", "todo", leo, maya, true, 9, [0, 3], null],
-      ["Set up redirects from the old site", "stuck", maya, me, false, 1, [1, 2], "Waiting on the old site's page list"],
-      ["Choose the fonts", "done", leo, leo, false, -4, [3, 3], null],
-      ["Accessibility pass", "todo", null, null, false, 14, [0, 0], null],
-      ["Contact form", "doing", me, me, false, -1, [1, 3], null],
-      ["Cookie banner", "done", maya, me, false, -7, [0, 0], null],
-      ["Load speed check", "todo", leo, me, false, null, [0, 0], null],
-      ["Footer links", "done", me, me, false, -2, [0, 0], null],
+      ["Write the homepage copy", "doing", leo, me, false, 3, null],
+      ["Pick the photo set", "todo", maya, me, true, 5, null],
+      ["Draw the pricing page", "todo", leo, maya, true, 9, null],
+      ["Set up redirects from the old site", "stuck", maya, me, false, 1, "Waiting on the old site's page list"],
+      ["Choose the fonts", "done", leo, leo, false, -4, null],
+      ["Accessibility pass", "todo", null, null, false, 14, null],
+      ["Contact form", "doing", me, me, false, -1, null],
+      ["Cookie banner", "done", maya, me, false, -7, null],
+      ["Load speed check", "todo", leo, me, false, null, null],
+      ["Footer links", "done", me, me, false, -2, null],
     ],
     [
-      ["Launch email", "doing", priya, me, false, 6, [1, 2], null],
-      ["Press list", "todo", priya, maya, true, 8, [0, 0], null],
-      ["Launch day checklist", "todo", me, maya, true, 10, [0, 5], null],
-      ["Book the photographer", "stuck", leo, me, false, 2, [0, 0], "Both studios are booked that week"],
-      ["Order the stickers", "done", maya, maya, false, -3, [0, 0], null],
-      ["Update the help pages", "todo", null, null, false, 12, [0, 0], null],
-      ["Social posts for the week", "doing", priya, me, false, 4, [3, 7], null],
-      ["Partner announcement", "todo", me, priya, false, 7, [0, 0], null],
-      ["Support rota", "done", leo, me, false, -1, [0, 0], null],
-      ["Thank-you notes", "todo", maya, me, false, 20, [0, 0], null],
+      ["Launch email", "doing", priya, me, false, 6, null],
+      ["Press list", "todo", priya, maya, true, 8, null],
+      ["Launch day checklist", "todo", me, maya, true, 10, null],
+      ["Book the photographer", "stuck", leo, me, false, 2, "Both studios are booked that week"],
+      ["Order the stickers", "done", maya, maya, false, -3, null],
+      ["Update the help pages", "todo", null, null, false, 12, null],
+      ["Social posts for the week", "doing", priya, me, false, 4, null],
+      ["Partner announcement", "todo", me, priya, false, 7, null],
+      ["Support rota", "done", leo, me, false, -1, null],
+      ["Thank-you notes", "todo", maya, me, false, 20, null],
     ],
   ]
 
@@ -139,7 +139,7 @@ try {
       )
     }
     let position = 0
-    for (const [title, status, assignee, giver, waiting, due, [done, total], stuck] of tasksByProject[index]) {
+    for (const [title, status, assignee, giver, waiting, due, stuck] of tasksByProject[index]) {
       const taskId = randomUUID()
       position += 1
       // A Done task finished three times as many days ago as its due date
@@ -184,13 +184,6 @@ try {
             [randomUUID(), taskId, assignee.id, new Date(handedAt.getTime() + 3600 * 1000)]
           )
         }
-      }
-      for (let step = 0; step < total; step++) {
-        await client.query(
-          `INSERT INTO project_task_steps (id, task_id, text, done, position, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [randomUUID(), taskId, `Step ${step + 1}`, step < done, step, now]
-        )
       }
       if (stuck && giver) {
         await client.query(

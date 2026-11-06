@@ -23,8 +23,8 @@ middle panel instead (Tyler, 12 Oct 2026; see
   - **Picked on 3 days or more** and still not Done (the same mark as
     "Picked on 4 days" on the task).
   - **Overdue**: past its due date and not Done.
-  - **Untouched**: open and not touched for 14 days, with no change, message,
-    step or clock time in that time, so a task everyone forgot comes back
+  - **Untouched**: open and not touched for 14 days, with no change or
+    message in that time, so a task everyone forgot comes back
     into view (Tyler, 20 Oct 2026, 14 days for every team, with no setting).
     A task snoozed until a later day stays off until that day. "Touched" is
     the task's own change time or its newest History row, whichever is later
@@ -65,10 +65,7 @@ For everyone, to see who has room before handing out more work.
   project, as everywhere else; a member sees counts and tasks from their own
   projects only. "Just me" tasks never count.
 - **Busiest first**, by open tasks.
-- **Clocked time this week**, "6h 20m this week" beside each name: their
-  time on the task clock from Monday's midnight in their own zone until now,
-  on projects the viewer can see and the picked client's only (Tyler, 20 Oct
-  2026; see [The task clock](task-clock.md)).
+- **No hours.** The task clock was removed on 6 Nov 2026 (Tyler: "remove the steps, timer and tags feature").
 - **One client's work.** With a client picked in the client choice beside the Workload heading, at the
   top of the tab, only that client's projects count, or those with no client
   (Features 16 Oct; see Clients in

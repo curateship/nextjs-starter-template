@@ -7,6 +7,11 @@ Tyler asked for the chat on 10 Oct 2026. His rules are in
 [What this app is](what-this-app-is.md), which wins wherever this file
 disagrees.
 
+On the task panel the chat is the Comments "/" block in the task's notes,
+or the same box under the notes while no block is placed (Tyler, 6 Nov 2026:
+"Make comments a block"; see [Notes and blocks](notes-and-blocks.md)). The
+Team dashboard's task window still shows it as a Chat card.
+
 Each project also has a chat of its own, the Chat tab on the project page.
 It works the same as a task's chat, except for who it tells (see
 [Projects and tasks](projects-and-tasks.md#the-projects-chat)).
@@ -46,7 +51,7 @@ It works the same as a task's chat, except for who it tells (see
   chat changed", never any words. The page then loads the task or the chat
   the normal way, which checks the person can still see it.
 - **The database says what changed.** Triggers on tasks, messages,
-  reactions, files, steps, labels and field values call `pg_notify` on the
+  reactions and files call `pg_notify` on the
   `project_live` channel, so no way of changing a task can forget to. The
   nudge waits for the change to be saved and is never sent for one that
   failed.
@@ -320,10 +325,12 @@ the launch?" is settled without twelve messages.
 
 ## Files
 
+- **Where a task's files show.** On the task panel there is no Files box
+  since 6 Nov 2026 (Tyler picked dropping it): a file comes in through a
+  File block in the notes or with a message, the File block's Delete file
+  deletes one, and the project's Files tab lists every one. The Team dashboard's task window keeps its Files card,
+  which the rest of this section describes.
 - **Files sent in the chat** are on the Files card too (above).
-- **A task type's File fields hold files too** (see
-  [Task types](task-types.md)). They count toward the same 10 and 5 GB, and
-  the Files card leaves them out.
 - **Drop files on the Files card or browse for them.** Pictures (PNG, JPEG,
   GIF, WebP) show small and open full size in a new tab. Anything else is a
   name to download.

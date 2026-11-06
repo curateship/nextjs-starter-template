@@ -41,15 +41,10 @@ import { cn } from "@/lib/utils"
 
 const NOBODY = "nobody"
 const NO_DATE = "none"
-const NO_TYPE = "none"
 
 export type BulkTargets = {
   people: { id: string; name: string; avatarUrl?: string }[]
   projects: { id: string; name: string; color: ProjectColor }[]
-  /** The team's tags, to add to or take off every ticked task. */
-  tags: { id: string; name: string; color: ProjectColor }[]
-  /** The types these tasks may take; a task whose project doesn't offer one is refused alone. */
-  types: { id: string; name: string }[]
 }
 
 /** "2 of the 12 tasks are now due on someone's day off." */
@@ -107,8 +102,8 @@ function useBulkActions(taskIds: string[], onDone: () => void) {
         title={`Delete ${taskIds.length} ${plural(taskIds.length, "task")}?`}
         description={
           taskIds.length === 1
-            ? `It moves to its project's bin with its steps, chat and files, and can be brought back for ${BIN_DAYS} days.`
-            : `Each moves to its project's bin with its steps, chat and files, and can be brought back for ${BIN_DAYS} days.`
+            ? `It moves to its project's bin with its chat and files, and can be brought back for ${BIN_DAYS} days.`
+            : `Each moves to its project's bin with its chat and files, and can be brought back for ${BIN_DAYS} days.`
         }
         confirmLabel={`Delete ${plural(taskIds.length, "task")}`}
         destructive
@@ -179,8 +174,8 @@ function useBulkActions(taskIds: string[], onDone: () => void) {
 }
 
 /**
- * Status, Hand to, Due date, Priority, Add tag, Take a tag off, Type and Move
- * to project as a row of pickers for the ticked rows of My tasks (which has no
+ * Status, Hand to, Due date, Priority and Move to project as a row of
+ * pickers for the ticked rows of My tasks (which has no
  * Move to project), beside Mark Done.
  */
 export function TaskBulkBar({
@@ -262,63 +257,6 @@ export function TaskBulkBar({
           ))}
         </SelectContent>
       </Select>
-      {targets.tags.length ? (
-        <>
-          <Select
-            key={`tag-on-${reset}`}
-            disabled={busy}
-            onValueChange={(labelId) => void apply({ kind: "tag", labelId, on: true }, "tagged")}
-          >
-            <DashboardToolbarSelectTrigger aria-label="Add a tag to the ticked tasks">
-              <SelectValue placeholder="Add tag" />
-            </DashboardToolbarSelectTrigger>
-            <SelectContent>
-              {targets.tags.map((tag) => (
-                <SelectItem key={tag.id} value={tag.id}>
-                  <ProjectDot color={tag.color} />
-                  {tag.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            key={`tag-off-${reset}`}
-            disabled={busy}
-            onValueChange={(labelId) => void apply({ kind: "tag", labelId, on: false }, "changed")}
-          >
-            <DashboardToolbarSelectTrigger aria-label="Take a tag off the ticked tasks">
-              <SelectValue placeholder="Remove tag" />
-            </DashboardToolbarSelectTrigger>
-            <SelectContent>
-              {targets.tags.map((tag) => (
-                <SelectItem key={tag.id} value={tag.id}>
-                  <ProjectDot color={tag.color} />
-                  {tag.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </>
-      ) : null}
-      {targets.types.length ? (
-        <Select
-          key={`type-${reset}`}
-          disabled={busy}
-          onValueChange={(value) => void apply({ kind: "type", typeId: value === NO_TYPE ? null : value }, "changed")}
-        >
-          <DashboardToolbarSelectTrigger aria-label="Set the template of the ticked tasks">
-            <SelectValue placeholder="Template" />
-          </DashboardToolbarSelectTrigger>
-          <SelectContent>
-            <SelectItem value={NO_TYPE}>No template</SelectItem>
-            {targets.types.map((type) => (
-              <SelectItem key={type.id} value={type.id}>
-                {type.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : null}
       {targets.projects.length ? (
         <Select
           key={`move-${reset}`}
@@ -343,13 +281,12 @@ export function TaskBulkBar({
   )
 }
 
-type MenuPage = "main" | "status" | "hand" | "due" | "priority" | "tag_on" | "tag_off" | "type" | "move"
+type MenuPage = "main" | "status" | "hand" | "due" | "priority" | "move"
 
 /**
  * The project List's ticked rows as one "3 selected" button in the header,
  * beside All time (Tyler, 19 Oct 2026). Its dropdown holds Mark Done, then
- * Status, Hand to, Due date, Priority, Add tag, Remove tag, Type and Move to
- * project, each stepping into its own list with a back arrow, then Delete and
+ * Status, Hand to, Due date, Priority and Move to project, each stepping into its own list with a back arrow, then Delete and
  * Clear selection.
  */
 export function TaskBulkMenu({
@@ -439,21 +376,6 @@ export function TaskBulkMenu({
               <MenuRow more page="priority" onClick={() => setPage("priority")}>
                 Priority
               </MenuRow>
-              {targets.tags.length ? (
-                <>
-                  <MenuRow more page="tag_on" onClick={() => setPage("tag_on")}>
-                    Add tag
-                  </MenuRow>
-                  <MenuRow more page="tag_off" onClick={() => setPage("tag_off")}>
-                    Remove tag
-                  </MenuRow>
-                </>
-              ) : null}
-              {targets.types.length ? (
-                <MenuRow more page="type" onClick={() => setPage("type")}>
-                  Type
-                </MenuRow>
-              ) : null}
               {targets.projects.length ? (
                 <MenuRow more page="move" onClick={() => setPage("move")}>
                   Move to project
@@ -528,34 +450,6 @@ export function TaskBulkMenu({
                     </MenuRow>
                   ))
                 : null}
-              {page === "tag_on" || page === "tag_off" ? (
-                <ScrollArea className="max-h-72">
-                  {targets.tags.map((tag) => (
-                    <MenuRow
-                      key={tag.id}
-                      onClick={() =>
-                        act(
-                          { kind: "tag", labelId: tag.id, on: page === "tag_on" },
-                          page === "tag_on" ? "tagged" : "changed"
-                        )
-                      }
-                    >
-                      <ProjectDot color={tag.color} />
-                      {tag.name}
-                    </MenuRow>
-                  ))}
-                </ScrollArea>
-              ) : null}
-              {page === "type" ? (
-                <ScrollArea className="max-h-72">
-                  <MenuRow onClick={() => act({ kind: "type", typeId: null }, "changed")}>No template</MenuRow>
-                  {targets.types.map((type) => (
-                    <MenuRow key={type.id} onClick={() => act({ kind: "type", typeId: type.id }, "changed")}>
-                      {type.name}
-                    </MenuRow>
-                  ))}
-                </ScrollArea>
-              ) : null}
               {page === "move" ? (
                 <ScrollArea className="max-h-72">
                   {targets.projects.map((project) => (
@@ -610,9 +504,6 @@ const MENU_TITLE: Record<Exclude<MenuPage, "main">, string> = {
   hand: "Hand to",
   due: "Due date",
   priority: "Priority",
-  tag_on: "Add tag",
-  tag_off: "Remove tag",
-  type: "Template",
   move: "Move to project",
 }
 

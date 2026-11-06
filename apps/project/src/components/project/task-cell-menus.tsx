@@ -201,7 +201,7 @@ export type ProjectChoice = { id: string; name: string; color: ProjectColor; gro
  * 23 Oct 2026: "I should be able to select a project in the project col and
  * the text there to be in a chip form"). The dropdown lists every choice in
  * its order, under group names, with the task's own project ticked. The move
- * is the task's own Move to project, so its steps, chat and files go with it.
+ * is the task's own Move to project, so its chat and files go with it.
  */
 export function ProjectCellMenu({
   task,

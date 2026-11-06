@@ -13,7 +13,6 @@ export const PROJECT_PANEL_LAYOUT_KEY = "project-page-horizontal-2"
 export const MY_DASHBOARD_PANEL_LAYOUT_KEY = "project-my-dashboard-horizontal-2"
 export const ADMIN_DASHBOARD_PANEL_LAYOUT_KEY = "project-admin-dashboard-horizontal-2"
 export const TEAM_PANEL_LAYOUT_KEY = "project-team-dashboard-horizontal-2"
-export const TASK_TYPES_PANEL_LAYOUT_KEY = "project-task-types-horizontal-2"
 
 /** The Board or List tab the project page opened on last. */
 export const PROJECT_TASK_VIEW_KEY = "project-page-task-view"
@@ -23,14 +22,8 @@ export const MY_TASK_VIEW_KEY = "project-my-dashboard-task-view"
 export const MY_OPEN_TASK_KEY = "project-my-dashboard-open-task"
 /** The task the site admin's My dashboard had open last. */
 export const ADMIN_OPEN_TASK_KEY = "project-admin-dashboard-open-task"
-
-/** The field columns a project's List shows when filtered to one task type, per type. */
-export const fieldColumnsKey = (typeId: string) => `project-type-columns-${typeId}`
-
-/** Whether every project's List shows the Time column (Task panel task 01, part 9). */
-export const LIST_TIME_COLUMN_KEY = "project-list-time-column"
-/** The Projects table's Time column, off until picked (Seven features, part 4). */
-export const PROJECTS_TIME_COLUMN_KEY = "project-projects-time-column"
+/** The task a project's page had open last, per project. */
+export const projectOpenTaskKey = (projectId: string) => `project-page-open-task-${projectId}`
 
 /** The project New task in the header chose last, so it is chosen first next time. */
 export const NEW_TASK_PROJECT_KEY = "project-new-task-project"

@@ -14,6 +14,7 @@ import { RoutineReminderTimes } from "@/components/project/routine-reminder-time
 import { MySettingsMenu } from "@/components/project/my-settings-menu"
 import { PickChoicesRow, PickGroup } from "@/components/project/pick-rows"
 import { MyTasksPanel } from "@/components/project/my-tasks-panel"
+import { PanelFooter } from "@/components/project/panel-footer"
 import { PersonPages } from "@/components/project/person-pages"
 import { AdminPageNotes } from "@/components/project/project-page-notes"
 import { PersonAvatar } from "@/components/project/task-bits"
@@ -38,17 +39,10 @@ import { useRememberedTask } from "@/lib/project/use-remembered-task"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { useZoneRows } from "@/lib/project/zone-rows"
-import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
+import { PANEL_BODY_ABOVE_FOOTER, PANEL_BODY_ABOVE_FOOTER_WIDE, PANEL_GUTTER } from "@/lib/project/panel-gutter"
 import { readActiveView } from "@/lib/saved-views"
 import { cn } from "@/lib/utils"
 
-/**
- * One footer card's box: rounded, light grey, and gone when its card draws
- * nothing. The Daily card's sections inside it are white, to stand off the
- * grey (Tyler, 6 Nov 2026: "bg white").
- */
-const FOOTER_CARD =
-  "grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-2xl bg-muted/50 empty:hidden [&_[data-daily-section]]:bg-background"
 
 /** The route whose data loads again on a live change. */
 const DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
@@ -87,7 +81,7 @@ export function AdminDashboardScreen({
     () => void router.invalidate({ filter: (match) => match.routeId === DASHBOARD_ROUTE_ID })
   )
 
-  // The open task asks its own team's questions (its tags, its people), as on its
+  // The open task asks its own team's questions (its people), as on its
   // project page. Only the right panel is scoped: New task in the middle offers
   // every team's projects, so it must not borrow the open task's team.
   const taskProjects = React.useMemo(() => {
@@ -164,8 +158,6 @@ export function AdminDashboardScreen({
               myOrder: dashboard.myOrder,
               today: dashboard.today,
               people: dashboard.people,
-              labels: dashboard.labels,
-              taskTypes: dashboard.taskTypes,
               views: dashboard.views,
               viewScreen: dashboard.viewScreen,
               statusOrder: dashboard.statusOrder,
@@ -181,8 +173,6 @@ export function AdminDashboardScreen({
               q: search.q,
               status: search.status,
               priority: search.priority,
-              label: search.label,
-              type: search.type,
               due: search.due,
               client: search.client,
               project: search.project,
@@ -318,7 +308,7 @@ function AdminPanel({
           does the footer scroll (Tyler, 6 Nov 2026: "why is there areascroll when
           theres so much space here", of a footer capped at 60 out of 100 of the
           screen's height). */}
-      <div className={cn("relative flex min-h-0 flex-col", view === "cards" ? "flex-[1_0_6rem]" : "flex-[1_0_50%]")}>
+      <div className={cn("relative flex min-h-0 flex-col", view === "cards" ? PANEL_BODY_ABOVE_FOOTER : PANEL_BODY_ABOVE_FOOTER_WIDE)}>
         {view === "lookBack" ? <DailyLookBack /> : null}
         <div className={cn("relative flex min-h-0 flex-1 flex-col", !inboxOpen && "hidden")}>
           <InboxCard inbox={inbox} bare onUnread={setUnread} />
@@ -338,34 +328,24 @@ function AdminPanel({
           needs to be the same size", then "reduce the gutter a bit"). A card with nothing to show leaves no empty box.
           Folding a card shrinks the footer to its heading, and the page above grows into
           the room. */}
-      <footer className="relative flex min-h-0 flex-col">
-        <ScrollArea className="min-h-0">
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-2.5 p-2.5">
-            <div className={FOOTER_CARD}>
-              <ProjectsCard
-                projects={dashboard.cards.projects}
-                extras={dashboard.cards.projectCards}
-                today={dashboard.today}
-                picked={pickedProject}
-                onPick={onPickProject}
-              />
-            </div>
-            <div className={FOOTER_CARD}>
-              <AdminCards
-                cards={dashboard.cards}
-                zone={dashboard.zone}
-                loadedAt={daily.loadedAt}
-                openTaskId={openTaskId}
-                projectInfo={dashboard.projectInfo}
-                onOpenTask={onOpenTask}
-              />
-            </div>
-            <div className={FOOTER_CARD}>
-              <DailyCard daily={daily} now={now} checkin={null} inFooter />
-            </div>
-          </div>
-        </ScrollArea>
-      </footer>
+      <PanelFooter>
+        <ProjectsCard
+          projects={dashboard.cards.projects}
+          extras={dashboard.cards.projectCards}
+          today={dashboard.today}
+          picked={pickedProject}
+          onPick={onPickProject}
+        />
+        <AdminCards
+          cards={dashboard.cards}
+          zone={dashboard.zone}
+          loadedAt={daily.loadedAt}
+          openTaskId={openTaskId}
+          projectInfo={dashboard.projectInfo}
+          onOpenTask={onOpenTask}
+        />
+        <DailyCard daily={daily} now={now} checkin={null} inFooter />
+      </PanelFooter>
     </div>
   )
 }

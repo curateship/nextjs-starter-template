@@ -2,17 +2,13 @@ import type * as React from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { TaskTypesDashboard } from "@/components/project/task-types-dashboard"
-import type { TaskType } from "@/lib/project/task-types"
 import { ProjectDetailsPanel } from "@/components/project/project-details-panel"
 import { ProjectMembersCard } from "@/components/project/project-members-card"
 import { ProjectWorkspace } from "@/components/project/project-workspace"
 import { ProjectsDashboard } from "@/components/project/projects-dashboard"
 import { TaskBoard } from "@/components/project/task-board"
-import type { FieldRule } from "@/lib/project/task-fields"
 import { TaskBulkMenu } from "@/components/project/task-bulk-bar"
 import { TaskList } from "@/components/project/task-list"
-import { MyTaskRows } from "@/components/project/my-task-rows"
 import { TeamStart } from "@/components/project/team-start"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { ProjectPage } from "@/lib/api/project/projects"
@@ -60,11 +56,9 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     review: { needed: false, waiting: false, reviewer: null },
     formerAssigneeName: null,
     handedBack: null,
-    steps: { done: 0, total: 0 },
     commentCount: 0,
     unread: 0,
     pickedDays: 0,
-    labels: [],
     milestoneId: null,
     position: 0,
     completedAt: new Date().toISOString(),
@@ -74,10 +68,6 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     priority: "normal",
     dueMoves: 0,
     repeat: null,
-    type: null,
-    fieldValues: {},
-    clock: { seconds: 0, runningSince: null },
-    guessMinutes: null,
     ...overrides,
   }
 }
@@ -86,11 +76,10 @@ const tasks = [
   card({ id: "a", title: "Pick the photos", waiting: true, commentCount: 3 }),
   card({ id: "b", title: "Redirects", status: "stuck", stuckReason: "Waiting on the page list", commentCount: 1 }),
   card({ id: "c", title: "Old copy", status: "doing", assignee: null, formerAssigneeName: "Leo" }),
-  card({ id: "d", title: "Fonts", status: "done", steps: { done: 3, total: 3 } }),
-  card({ id: "e", title: "Late thing", status: "doing", dueDate: "2020-01-02", steps: { done: 1, total: 4 } }),
+  card({ id: "d", title: "Fonts", status: "done" }),
+  card({ id: "e", title: "Late thing", status: "doing", dueDate: "2020-01-02" }),
   card({ id: "f", title: "Ancient", status: "done", completedAt: "2020-01-01T00:00:00Z" }),
-  card({ id: "g", title: "Tagged", labels: [{ id: "l1", name: "Client", color: "pink" }] }),
-  card({ id: "h", title: "Cut the trailer", type: { id: "ty1", name: "Video editing", icon: "video", color: "red" } }),
+  card({ id: "h", title: "Cut the trailer" }),
 ]
 
 describe("the board", () => {
@@ -110,13 +99,11 @@ describe("the board", () => {
     expect([...order].sort((x, y) => x - y)).toEqual(order)
   })
 
-  it("shows Waiting, the Stuck reason, a former assignee, steps and Overdue on the cards", () => {
+  it("shows Waiting, the Stuck reason, a former assignee and Overdue on the cards", () => {
     // The badge itself, not the word inside a Stuck reason.
     expect(html).toMatch(/<\/svg>Waiting</)
     expect(html).toContain("Stuck: Waiting on the page list")
     expect(html).toContain("Nobody (was Leo)")
-    // "3/3" with the words for screen readers, as Tyler drew the card on 13 Oct 2026.
-    expect(html).toContain("3/3<span class=\"sr-only\"> steps done</span>")
     expect(html).toContain("Overdue · ")
   })
 
@@ -156,72 +143,14 @@ describe("the board", () => {
     expect(html).not.toContain(`aria-current="true"`)
   })
 
-  it("shows tags on a card, and keeps old Done tasks behind Show older", () => {
-    expect(html).toContain("Client")
+  it("keeps old Done tasks behind Show older", () => {
     expect(html).toContain("Show 1 older")
     expect(html).not.toContain("Ancient")
-  })
-
-  it("shows a task's type as its name beside the icon, and a plain task none", () => {
-    expect(html.match(/Video editing/g)).toHaveLength(1)
-    const card = html.slice(html.indexOf("Cut the trailer"), html.indexOf("Cut the trailer") + 2000)
-    expect(card).toContain("Video editing")
   })
 
   it("says what a comment count is to a screen reader", () => {
     expect(html).toContain(`3<span class="sr-only">comments</span>`)
     expect(html).toContain(`1<span class="sr-only">comment</span>`)
-  })
-})
-
-describe("the board's field lines (Features 16 Oct, part 8)", () => {
-  const rule = (id: string, name: string, kind: FieldRule["kind"], settings: FieldRule["settings"] = {}): FieldRule => ({
-    id,
-    name,
-    kind,
-    neededBeforeDone: false,
-    neededWhenMade: false,
-    whoCanChange: "anyone",
-    settings,
-  })
-  const platform = rule("f1", "Platform", "dropdown", {
-    choices: [
-      { id: "yt", name: "YouTube" },
-      { id: "tt", name: "TikTok" },
-    ],
-  })
-  // Shown only for YouTube.
-  const thumbnail = rule("f2", "Thumbnail", "text", { showWhen: { fieldId: "f1", choiceId: "yt" } })
-  const finalCut = rule("f3", "Final cut", "file")
-  const fields = [platform, thumbnail, finalCut]
-  const type = { id: "ty1", name: "Video editing", icon: "video" as const, color: "red" as const }
-  const board = (cardFields?: React.ComponentProps<typeof TaskBoard>["cardFields"]) =>
-    renderToStaticMarkup(
-      <TaskBoard
-        tasks={[
-          card({ id: "v1", title: "TikTok cut", type, fieldValues: { f1: "tt", f2: "Hidden words", f3: 2 } }),
-          card({ id: "v2", title: "YouTube cut", type, fieldValues: { f1: "yt", f2: "Big smile" } }),
-        ]}
-        readOnly={false}
-        onOpenTask={() => {}}
-        onMove={() => {}}
-        onReorder={() => {}}
-        cardFields={cardFields}
-      />
-    )
-  const people = new Map<string, string>()
-
-  it("draws the List's chosen fields as lines, hiding a field its dropdown hides and an empty one", () => {
-    const html = board({ columns: fields.map((field) => ({ field, people })), fields })
-    expect(html).toContain("Platform:</span> TikTok")
-    expect(html).toContain("Final cut:</span> 2 files")
-    expect(html).toContain("Thumbnail:</span> Big smile")
-    expect(html).not.toContain("Hidden words")
-  })
-
-  it("draws no lines when no field is chosen", () => {
-    expect(board()).not.toContain("Platform:")
-    expect(board({ columns: [], fields })).not.toContain("Platform:")
   })
 })
 
@@ -249,7 +178,7 @@ describe("the list", () => {
     const html = renderToStaticMarkup(
       <TaskBulkMenu
         taskIds={["a", "b"]}
-        targets={{ people: [], projects: [], tags: [], types: [] }}
+        targets={{ people: [], projects: [] }}
         onDone={() => {}}
       />
     )
@@ -262,7 +191,7 @@ describe("the list", () => {
     const full = renderToStaticMarkup(<TaskList tasks={tasks} readOnly={false} onOpenTask={() => {}} />)
     expect(full).toContain("Pick the photos")
     expect(full).toContain("Assigned to")
-    expect(full).toContain("1 of 4")
+    expect(full).not.toContain(">Steps<")
     // One header section only: a second one throws the header out of line
     // with the rows in a real browser.
     expect(full.match(/<thead/g)).toHaveLength(1)
@@ -273,73 +202,10 @@ describe("the list", () => {
     expect(empty).toContain("Nothing assigned to you right now.")
   })
 
-  it("adds a type's fields as columns, blank where a task left one empty", () => {
-    const platform = {
-      id: "f1",
-      name: "Platform",
-      kind: "dropdown" as const,
-      settings: { choices: [{ id: "yt", name: "YouTube" }] },
-    }
-    const typed = [
-      card({ id: "x", title: "Trailer", fieldValues: { f1: "yt" } }),
-      card({ id: "y", title: "Teaser" }),
-    ]
-    const html = renderToStaticMarkup(
-      <TaskList
-        tasks={typed}
-        readOnly={false}
-        onOpenTask={() => {}}
-        fieldColumns={[{ field: platform, people: new Map() }]}
-      />
-    )
-    expect(html).toContain(">Platform<")
-    expect(html).toContain(">YouTube<")
-  })
-
-  it("shows the Time column only when picked, ticking on a running clock", () => {
-    const timed = [
-      card({ id: "t1", title: "Timed", clock: { seconds: 70 * 60, runningSince: null } }),
-      card({ id: "t2", title: "Never started" }),
-    ]
-    const plain = renderToStaticMarkup(<TaskList tasks={timed} readOnly={false} onOpenTask={() => {}} />)
-    expect(plain).not.toContain(">Time<")
-    const html = renderToStaticMarkup(<TaskList tasks={timed} readOnly={false} onOpenTask={() => {}} showTime />)
-    expect(html).toContain(">Time<")
-    expect(html).toContain(">1h 10m<")
-  })
-
-  it("marks a task whose clock is running with a Doing chip", () => {
-    const rows = [
-      card({ id: "c1", title: "Clocking", status: "doing", clock: { seconds: 0, runningSince: new Date().toISOString() } }),
-      card({ id: "c2", title: "Idle", status: "doing", clock: { seconds: 600, runningSince: null } }),
-    ]
-    const html = renderToStaticMarkup(<TaskList tasks={rows} readOnly={false} onOpenTask={() => {}} />)
-    expect(html.match(/animate-spin/g)).toHaveLength(1)
-    expect(html).toMatch(/Clocking.*>Doing<\/span>/s)
-  })
-
   it("names the project instead of the person on My dashboard", () => {
     const html = renderToStaticMarkup(<TaskList tasks={tasks} readOnly={false} showProject onOpenTask={() => {}} />)
     expect(html).toContain(">Project<")
     expect(html).not.toContain("Assigned to")
-  })
-})
-
-describe("My tasks rows (Task panel task 01, part 6)", () => {
-  it("show a running clock with its own Pause, beside the row's button", () => {
-    const rows = [
-      card({ id: "r1", title: "Running", status: "doing", clock: { seconds: 0, runningSince: new Date().toISOString() } }),
-      card({ id: "r2", title: "Paused", status: "doing", clock: { seconds: 600, runningSince: null } }),
-    ]
-    const html = renderToStaticMarkup(
-      <TooltipProvider>
-        <MyTaskRows tasks={rows} onOpenTask={() => {}} bulk={{ people: [], projects: [], tags: [], types: [] }} emptyText="None" />
-      </TooltipProvider>
-    )
-    expect(html).toContain('aria-label="Pause the clock on Running"')
-    expect(html).not.toContain("Pause the clock on Paused")
-    // A button inside a button is invalid HTML; the Pause sits beside the row's button.
-    expect(html).not.toMatch(/<button(?:(?!<\/button>).)*<button/s)
   })
 })
 
@@ -412,7 +278,6 @@ describe("the Projects dashboard", () => {
               category: "Marketing",
               team: { id: "team", name: "Acme" },
               dueDate: null,
-              clockSeconds: 0,
             },
             {
               id: "p2",
@@ -430,7 +295,6 @@ describe("the Projects dashboard", () => {
               category: null,
               team: { id: "team2", name: "Beta" },
               dueDate: null,
-              clockSeconds: 0,
             },
           ],
         }}
@@ -473,8 +337,6 @@ describe("the project page", () => {
       dueDate: null,
       personal: false,
       doingLimit: null,
-      hiddenTypeIds: [],
-      defaultTypeId: null,
       statusOrder: ["todo", "doing", "done", "stuck"],
       slowingAt: 1,
       behindAt: 3,
@@ -488,8 +350,6 @@ describe("the project page", () => {
     milestones: [{ id: "m1", name: "Design signed off", dueDate: "2020-01-01", done: 3, total: 5 }],
     teamClients: ["Hart Dental"],
     siteCategories: [],
-    taskTypes: [],
-    labels: [{ id: "l1", name: "Client", color: "pink" }],
     myUserId: "me",
     myRole: "owner",
     siteAdminMe: { userId: "me", name: "Tyler", email: "", avatarUrl: "", title: null, openTasks: 0 },
@@ -514,16 +374,18 @@ describe("the project page", () => {
     expect(html).toContain(`aria-label="Project settings"`)
     expect(html).toContain(`aria-label="Unpin Website"`)
     expect(html).toContain(">Filter</span>")
-    expect(html).toContain("Click a task to see its steps and chat here.")
+    expect(html).toContain("Click a task to see its notes and chat here.")
     // One late task ("Late thing"), and the rule starts Slowing down at 1.
     // The status is a dot after the name, its words its name (Tyler, 5 Nov 2026).
     expect(html).toContain(`aria-label="Status: Slowing down · 1 late"`)
     expect(html).not.toContain("Set by")
     expect(html).toContain("Board")
     expect(html).toContain("New task")
-    // Whose tasks show and the search are the header's, not the left panel's.
+    // Whose tasks show is the header's; the search is behind the ⋮ after New task
+    // (the Admin 3 panel design, 6 Nov 2026).
     expect(html).toContain(`aria-label="Showing: All members"`)
-    expect(html).toContain(`aria-label="Search tasks"`)
+    expect(html).not.toContain(`aria-label="Search tasks"`)
+    expect(html.indexOf(`aria-label="More for the tasks"`)).toBeGreaterThan(html.indexOf(`aria-label="New task"`))
     expect(html).not.toContain("Tyler (you)")
     // When it is due moved into Filter (Tyler, 19 Oct 2026).
     expect(html).not.toContain("All time")
@@ -557,9 +419,11 @@ describe("the project page", () => {
     expect(html).toMatch(/src="\/b\.jpg" alt="" class="[^"]*opacity-30/)
     // No line under the header across the banner (Tyler, 20 Oct 2026).
     expect(html).toContain("border-b-transparent")
-    // The client is listed once, beside the lead, not under the name (Tyler, 19 Oct 2026).
+    // The client is listed once, in the Details footer card, not under the name.
     expect(html.match(/Hart Dental/g)).toHaveLength(1)
-    expect(html).toMatch(/>Client<\/h3><span[^>]*>Hart Dental</)
+    const footer = html.slice(html.indexOf("<footer"))
+    expect(footer).toMatch(/>Details<(?:(?!<\/footer>).)*>Client<\/span><span[^>]*><span[^>]*>Hart Dental</)
+    expect(footer).toContain(">Milestones<")
   })
 
   it("shows the project's page, links and callout blocks, where the avatar was, with the status as a dot by the name", () => {
@@ -646,73 +510,5 @@ describe("the project page", () => {
     )
     expect(html).toContain("No tasks match")
     expect(html).toContain("zebra")
-  })
-})
-
-describe("the Task templates dashboard", () => {
-  const types: TaskType[] = [
-    {
-      id: "ty1",
-      name: "Video editing",
-      icon: "video",
-      color: "red",
-      archived: false,
-      steps: ["Rough cut"],
-      stepFields: {},
-      notes: "",
-      fields: [
-        {
-          id: "f1",
-          name: "Platform",
-          kind: "dropdown",
-          neededBeforeDone: false,
-          neededWhenMade: false,
-          whoCanChange: "anyone",
-          settings: { choices: [{ id: "yt", name: "YouTube" }] },
-        },
-        {
-          id: "f2",
-          name: "Thumbnail",
-          kind: "file",
-          neededBeforeDone: true,
-          neededWhenMade: false,
-          whoCanChange: "assignee",
-          settings: { showWhen: { fieldId: "f1", choiceId: "yt" } },
-        },
-      ],
-    },
-    { id: "ty2", name: "Research", icon: "search", color: "blue", archived: true, steps: [], stepFields: {}, notes: "", fields: [] },
-  ]
-  const draw = (myRole: "owner" | "member", selectedId?: string) =>
-    renderToStaticMarkup(
-      <TooltipProvider>
-        <TaskTypesDashboard page={{ myRole, types }} selectedId={selectedId} onSelect={() => {}} />
-      </TooltipProvider>
-    )
-
-  it("lets the site admin change types, starting on the first live one", () => {
-    const html = draw("owner")
-    expect(html).toContain(`aria-label="New task template"`)
-    expect(html).toContain(`aria-label="Video editing settings"`)
-    expect(html).toContain(`aria-label="Drag Video editing to change the order"`)
-    // An archived type sits apart and isn't dragged.
-    expect(html).not.toContain(`aria-label="Drag Research to change the order"`)
-    expect(html).toContain(`aria-label="Field name: Platform"`)
-    expect(html).toContain("Archived")
-    expect(html).toContain("Rough cut")
-  })
-
-  it("shows an employee every type as words, with nothing to change", () => {
-    const html = draw("member")
-    expect(html).not.toContain(`aria-label="New task template"`)
-    expect(html).not.toContain(`aria-label="Video editing settings"`)
-    expect(html).not.toContain("to change the order")
-    expect(html).not.toContain(`aria-label="Field name: Platform"`)
-    expect(html).toContain("File · Needed before Done · Only the person assigned · Only when Platform is YouTube")
-    expect(html).toContain("Dropdown · YouTube")
-  })
-
-  it("opens the type in the address, archived ones included", () => {
-    expect(draw("owner", "ty2")).toContain("Archived. New tasks can&#x27;t pick it")
   })
 })

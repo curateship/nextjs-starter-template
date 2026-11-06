@@ -13,18 +13,18 @@ import {
  * What the List and Timeline put their rows under, picked in Filter's Group
  * row the way Notion does (Tyler, 19 Oct 2026: "I can group by various things
  * like date, status, tags, priority"). It replaced the project's sections.
+ * Tags were removed on 6 Nov 2026, and their grouping with them. So were
+ * task templates (Tyler: "We need to remove the tasks templates feature too").
  */
-export const TASK_GROUPINGS = ["none", "status", "priority", "tags", "due", "assignee", "type"] as const
+export const TASK_GROUPINGS = ["none", "status", "priority", "due", "assignee"] as const
 export type TaskGrouping = (typeof TASK_GROUPINGS)[number]
 
 export const TASK_GROUPING_LABEL: Record<TaskGrouping, string> = {
   none: "None",
   status: "Status",
   priority: "Priority",
-  tags: "Tags",
   due: "Due date",
   assignee: "Assigned to",
-  type: "Template",
 }
 
 export type TaskGroup = { key: string; label: string }
@@ -35,9 +35,7 @@ export type GroupableTask = {
   priority: TaskPriority
   dueDate: string | null
   dueAt: string | null
-  labels: { id: string; name: string }[]
   assignee: { id: string; name: string } | null
-  type: { id: string; name: string } | null
 }
 
 const NONE = "none"
@@ -75,9 +73,8 @@ function byName(items: { id: string; name: string }[], noneLabel: string, hasNon
 }
 
 /**
- * The groups that have tasks in them, in order, and which group (or, for
- * tags, groups) each task sits in. A task with three tags shows under each.
- * Null for "none": one plain list.
+ * The groups that have tasks in them, in order, and the group each task sits
+ * in, as a list. Null for "none": one plain list.
  */
 export function groupTasks<T extends GroupableTask>(
   tasks: readonly T[],
@@ -90,14 +87,10 @@ export function groupTasks<T extends GroupableTask>(
         return [task.status]
       case "priority":
         return [task.priority]
-      case "tags":
-        return task.labels.length ? task.labels.map((label) => label.id) : [NONE]
       case "due":
         return [dueGroupOf(task, now)]
       case "assignee":
         return [task.assignee?.id ?? NONE]
-      case "type":
-        return [task.type?.id ?? NONE]
       default:
         return [NONE]
     }
@@ -115,21 +108,11 @@ export function groupTasks<T extends GroupableTask>(
     case "due":
       all = DUE_GROUPS
       break
-    case "tags":
-      all = byName(tasks.flatMap((task) => task.labels), "No tags", tasks.some((task) => !task.labels.length))
-      break
     case "assignee":
       all = byName(
         tasks.flatMap((task) => (task.assignee ? [task.assignee] : [])),
         "Nobody",
         tasks.some((task) => !task.assignee)
-      )
-      break
-    case "type":
-      all = byName(
-        tasks.flatMap((task) => (task.type ? [task.type] : [])),
-        "No template",
-        tasks.some((task) => !task.type)
       )
       break
   }
@@ -142,21 +125,16 @@ const DUE_DROPS = new Set(["today", "tomorrow", "week", "later", NONE])
 
 /**
  * Whether a task dragged on a project's List may go under another heading,
- * which changes what it is grouped by (Tyler, 24 Oct 2026). By tags it swaps
- * the tag it was under for the new one, so a heading it is already under
- * refuses it, and No tags takes it only when that was its one tag.
+ * which changes what it is grouped by (Tyler, 24 Oct 2026).
  */
-export function canMoveInGroup(grouping: TaskGrouping, to: string, task: GroupableTask) {
+export function canMoveInGroup(grouping: TaskGrouping, to: string) {
   switch (grouping) {
     case "status":
     case "priority":
     case "assignee":
-    case "type":
       return true
     case "due":
       return DUE_DROPS.has(to)
-    case "tags":
-      return to === NONE ? task.labels.length === 1 : !task.labels.some((label) => label.id === to)
     default:
       return false
   }
@@ -169,17 +147,15 @@ export function canMoveInGroup(grouping: TaskGrouping, to: string, task: Groupab
  * project List's groupings plus Project, since its tasks come from many
  * projects. He picked keeping My headings as the start.
  */
-export const MY_GROUPINGS = ["mine", "status", "priority", "tags", "due", "assignee", "type", "project"] as const
+export const MY_GROUPINGS = ["mine", "status", "priority", "due", "assignee", "project"] as const
 export type MyGrouping = (typeof MY_GROUPINGS)[number]
 
 export const MY_GROUPING_LABEL: Record<MyGrouping, string> = {
   mine: "My headings",
   status: TASK_GROUPING_LABEL.status,
   priority: TASK_GROUPING_LABEL.priority,
-  tags: TASK_GROUPING_LABEL.tags,
   due: TASK_GROUPING_LABEL.due,
   assignee: TASK_GROUPING_LABEL.assignee,
-  type: TASK_GROUPING_LABEL.type,
   project: "Project",
 }
 

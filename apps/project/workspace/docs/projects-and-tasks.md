@@ -22,15 +22,13 @@
 - **A project's settings are the site admin's alone** (Tyler, 16 Oct 2026:
   "Employees dont even see the settings cog or page. Only admin see it"):
   the name, colour, due date, Doing limit, client, members,
-  lead, "Everyone on the team", status rule, task templates and Archive.
+  lead, "Everyone on the team", status rule and Archive.
   Employees see no cog, and the server refuses each
   one: "Only the site admin changes a project's settings."
   (`requireProjectSettings` in `src/server/project/access.ts`). A person's
   own "Just me" list keeps its settings in their hands.
-- **Everyone on a project works in it**: tasks, steps, milestones, chat and
-  files. A task type's field can be limited to the person assigned or to
-  whoever handed the task out (Tyler, 11 Oct 2026; see
-  [Task types](task-types.md)).
+- **Everyone on a project works in it**: tasks, milestones, chat and
+  files.
 - **A project you can't see answers like one that doesn't exist.** Guessing a
   project's or task's id from another team gets "doesn't exist or you can't
   see it", never the record.
@@ -59,11 +57,7 @@
 - **The Projects table's columns** are Project, Team (site admin only),
   Progress, Status, Lead, Open tasks and Actions. Tyler took off the Stuck
   and Members columns on 19 Oct 2026.
-- **A Time column, off until picked** (Tyler, 20 Oct 2026). Columns in the
-  table's header switches it on: each project's time on the clock, every
-  stretch and time set by hand on its tasks plus any clock running now, with
-  tasks in the bin left out. It sorts, and this browser remembers the choice
-  (`projectClockSeconds` in `task-clock-runs.ts`).
+- **No Time column.** The task clock was removed on 6 Nov 2026 (Tyler: "remove the steps, timer and tags feature"). The table has no Columns menu since.
 - **A Projects row's actions**, for the site admin: the pin, Copy, Archive
   (or Bring back), then a cog that opens the project's settings over the
   table, the same window as the project page's cog (Tyler, 19 Oct 2026:
@@ -77,11 +71,10 @@
   so typing replaces it and Copy project works at once. It makes a project
   from the old one: its
   page, colour, milestones (with no dates) and every task
-  not in the bin, in the same order, with their labels, milestone, steps
-  (unticked), types and field values, and the project's own pick of task
-  types and category. The status, lead and client stay behind. Every task starts To do with
+  not in the bin, in the same order, with their milestone and priority,
+  and the project's category. The status, lead and client stay behind. Every task starts To do with
   nobody assigned and no due date (Tyler's choice, 10 Oct 2026). People,
-  chat, files and history stay behind, and Person fields start empty. Only
+  chat, files and history stay behind. Only
   the site admin copies, and the copy starts with nobody on it, like a new
   project. The page opens on the copy.
 - **A project's due date** sits in Project settings (the ⋮) and saves the
@@ -165,11 +158,13 @@ So a long project shows whether it's on time well before its end date.
 - **No tooltips on the Milestones card**, on its "+" or on each milestone's
   cog (Tyler, 19 Oct 2026: "Remove all the tooltips in status and milestone
   left panel"). The buttons still carry their names for screen readers.
-- **A name and a date**, such as "Design signed off, Nov 15", in a folding
-  Milestones card at the bottom of the details panel, under Status (Tyler,
-  15 Oct 2026), soonest first and the ones with no date last. The "+" in the
-  card's heading makes one and the cog on a row changes or deletes it. The
-  heading reads "Milestones  3", a gap and no dot, the same as Status.
+- **A name and a date**, such as "Design signed off, Nov 15", in the
+  Milestones footer card at the bottom of the left panel, under Details
+  (Tyler, 15 Oct 2026; a footer card since 6 Nov 2026), soonest first and
+  the ones with no date last. The "+" in the card's heading makes one and the
+  cog on a row changes or deletes it. The heading has a flag, then
+  "Milestones" with the count on a white patch after it, which drops under
+  the word in a narrow panel.
 - **A milestone's tasks.** The list icon beside a row's cog, centred on the
   row with it, opens a dropdown of every task in that milestone, in the
   project's order, each with its status dot and status. Clicking one opens it
@@ -179,13 +174,7 @@ So a long project shows whether it's on time well before its end date.
   who can change the project can do all three, up to 30 per project.
 - **Each reads "3 of 5 done, Nov 15"** with a bar, and turns red with
   "Overdue" once its date has passed with tasks still open. Tasks in the bin
-  don't count, and a milestone with no tasks reads "No tasks yet". Once its
-  tasks have a minute or more on the clock it adds that time: "3 of 5 done,
-  Nov 15, 6h 40m clocked".
-- **Time on the left panel.** Beside Lead and Client, a Time heading reads
-  "14h 20m clocked" once anyone has clocked a minute (`timeOnTasks` in
-  `lib/project/clock.ts`). It sets nothing against the guesses: Tyler took
-  that line out on 20 Oct 2026 ("remove the guesses time. dont need it").
+  don't count, and a milestone with no tasks reads "No tasks yet".
 - **A task joins one from its Plan card** (the Milestone field, shown once
   the project has milestones). A task belongs to at most one. Moving a task
   to another project takes it off; Duplicate keeps it; a repeating task's
@@ -208,9 +197,6 @@ So a long project shows whether it's on time well before its end date.
   in `src/server/project/reminder-jobs.ts`.
 - **Copy project** copies milestones with no date, the same rule
   as tasks, and keep which tasks belong to each.
-- **A milestone is not a tag.** A tag says what a task is; a milestone is
-  when a set of tasks must be finished (see
-  [Tags and groups](tags-and-groups.md)).
 - **Saved** in `project_milestones` and `project_tasks.milestone_id`. Rules
   in `src/server/project/milestones.ts`; the panel's list is
   `project-milestones.tsx`.
@@ -302,8 +288,8 @@ couple of blocks like a links block and call out block".
 
 Tyler, 28 Oct 2026 (Misc 4): "We need to remove the project templates feature
 too, its redeundent". Copy project starts a project from another one, with
-the same plan: colour, page, milestones, and tasks with their steps,
-step fields, tags, template, field values and priority. Save as template left
+the same plan: colour, page, milestones, and tasks with their priority.
+Save as template left
 Project settings, "Start from" left New project, and the Project templates
 card left Team settings. Migration `drizzle/0134_project_drop_templates.sql`
 dropped `project_templates`, since no real project had used one ("there is
@@ -328,31 +314,41 @@ show out of the left panel and into that header.
   dot right after it, the pin and the ⋮. The colour dot before the name, the
   avatar with the name beside it, the description and the links left the
   panel on 5 Nov 2026 (Tyler), and projects have no avatar at all since then
-  (migration 0145; the Dashboard's Projects card shows the colour dot). From the top: the project's page (see The
-  project's page), then the lead, the client and the time, then the
-  Milestones card at the bottom, which folds and remembers in this browser
-  whether it was left open. The Status card that was here went with the
-  manual status on 19 Oct 2026 (see Project status). The pin in the header pins the project for me
-  (see Pins below). The ⋮ opens Project settings as the shell's one ⋮ menu
-  (`FoldingMenu`, the UI standard's "The one dropdown look"), opening to the
-  right of the ⋮ over the board (Tyler, 5 Nov 2026: "Replace the project
-  settings cog with a 3 dot vertical and convert the modal into a dropdown
-  instead", then "dropdown align on right and card needs to follow ui
-  standard"; it was a cog and a window since 10 Oct 2026). It is 294px wide,
-  with a folding row per setting showing what it holds now: Name, Colour,
-  Client, Category, Due date, Doing per person, Everyone on the team, Status,
-  Banner, Members and Task templates. Then a line, then Archive project (or
-  Bring back). The row names the field, so the field inside has no second
-  label. Members are plain rows there, with the crown and the bin at the
-  row's end and "+ Invite" under them. Each field saves when it is left, and
-  the colour, due date and banner the moment they are picked, so there is no
-  Done; closing the menu with Escape or a click outside saves the field
-  being typed in too. A confirm, such as Everyone on the team's, opens over
-  the menu, and the colour list, Invite and the date picker open from it
-  without closing it.
+  (migration 0145; the Dashboard's Projects card shows the colour dot). Since
+  6 Nov 2026 the panel follows the Admin 3 panel design
+  (`.agents/skills/Design/admin-3-panel-design`; Tyler: "Apply this to the
+  project dashboard"). The body, at the top, holds the project's page (see
+  The project's page), then the archived and "Just me" notes. Under it is a
+  footer of folding cards, each in its own rounded light grey box, the same
+  footer My dashboard has (`PanelFooter`): **Details**, with Lead and
+  Client, each a name on the left and its value on the right; and **Milestones** (see Milestones). Each card
+  folds from its heading and is remembered in this browser. The footer
+  takes what its cards need and the page above keeps at least 6rem, or half
+  the panel with the notes open. A "Just me" list has no footer. The Status
+  card that was here went with the manual status on 19 Oct 2026 (see Project
+  status). The pin in the header pins the project for me (see Pins below).
+- **Project settings, the ⋮.** It opens to the right of the ⋮ over the board
+  (Tyler, 5 Nov 2026: "Replace the project settings cog with a 3 dot
+  vertical and convert the modal into a dropdown instead", then "dropdown
+  align on right"; it was a cog and a window since 10 Oct 2026). Since 6 Nov
+  2026 it is the tabbed menu My settings is, 326px wide, opening on General
+  each time:
+  - **General** is two grouped lists, as the task's ⋮ is. **Project:** Name,
+    Colour, Client, Category, Banner. **Schedule:** Due date, Status,
+    Doing per person, Everyone on the team. Each row names the setting on
+    the left and shows what it holds on the right. Colour lists the colours
+    and Due date opens the calendar at once, so one press picks and saves
+    (Tyler, 6 Nov 2026: "It should be one step to select"). The rest open a
+    small box with their field, which saves when it is left. Under the
+    lists are Lock page and Archive project (or Bring back). On an archived
+    project the rows can't be opened.
+  - **Members**: the members as plain rows, with the crown and the bin at
+    the row's end and "+ Invite" under them.
+  Closing the menu with Escape or a click outside saves the field being
+  typed in. A confirm, such as Everyone on the team's, opens over the menu.
 - **Project settings from the Projects table.** A row's cog opens the same
   fields as cards in a window (`ProjectSettingsDialog`): Project, Status,
-  Banner, Members and Task templates. Each card folds shut from its heading,
+  Banner and Members. Each card folds shut from its heading,
   with an arrow that shows on hover, and stays as it was left in this browser
   (Tyler, 19 Oct 2026). Members' "+ Invite" sits under the list rather than
   in the heading, since the heading folds the card. The Members card lists
@@ -383,12 +379,13 @@ show out of the left panel and into that header.
   headed by the status's dot (To do yellow, Doing blue, Done green, Stuck
   red), as tall as its cards. The List has the same tasks in rows, under
   the headings picked in Filter's Group row, or none (see
-  [Tags and groups](tags-and-groups.md#group)). Its tick boxes and drag
-  handles stay hidden until "Mass select" is pressed. It sits in the header,
-  left of the search, beside the "N selected" button (Tyler, 5 Nov 2026:
-  "Move the mass select button to here"), and on a narrow header shows its
-  icon alone, as Filter does. While it is on it reads "Hide select", which
-  hides the tick boxes and handles again and clears the ticks (Tyler, 19 Oct 2026). Each visit starts with them hidden, and someone who
+  [Groups and the project's order](groups.md#group)). Its tick boxes and drag
+  handles stay hidden until Mass select is picked, from the ⋮ after New
+  task or first in a task row's right-click menu, which also ticks that row
+  (Tyler, 6 Nov 2026, the Admin 3 panel design; on 5 Nov it had been a
+  button left of the search). The ⋮ offers it on the List only, and leaving
+  the List turns it off. While it is on it reads "Hide select", which hides
+  the tick boxes and handles again and clears the ticks (Tyler, 19 Oct 2026). Each visit starts with them hidden, and someone who
   can only read the project never sees it. The table's first column
   starts 16px in, under the List tab's word, and its last column ends 12px
   in, level with New task, so it lines up with the header (Tyler, 19 Oct
@@ -404,10 +401,10 @@ show out of the left panel and into that header.
   Chat say the same for the project's chat (see
   [Task chat](task-chat.md#new-messages)). The header's right end holds, in
   order (under a line drawn stronger than the app's other dividers, so it
-  shows against the List's grey header, Tyler, 19 Oct 2026): the search as a magnifying
-  glass, Filter (which holds the due date), Views, whose tasks show (the members' faces, with no
-  background), and New task
-  (see Search and filters below). Under 896px wide the dropdowns drop their
+  shows against the List's grey header, Tyler, 19 Oct 2026): Filter (which
+  holds the due date), Views, whose tasks show (the members' faces, with no
+  background), New task, then a ⋮ holding Search tasks and Mass select (see
+  Search and filters below). Under 896px wide the dropdowns drop their
   words for their icons, and under 768px New task shows only its plus. A
   panel narrower still, such as on a phone, scrolls the tabs sideways.
 - **Board columns move.** Drag a column by its heading to the left or right
@@ -425,18 +422,18 @@ show out of the left panel and into that header.
   New task dropdown (see Making tasks quickly) for that column: the task is
   made and moved there, and in Stuck the dropdown asks "Why is it stuck?"
   first. Grouped by person, the "+" in a person's row hands the task to them,
-  and in "Nobody assigned" to nobody. A move the server refuses, such as Done
-  with a field still empty, leaves the task in To do and says why.
+  and in "Nobody assigned" to nobody. A move the server refuses leaves the
+  task in To do and says why.
   A card drags between Board columns to change its status, and up or down
   to set the project's order. The Board and List change on their own when
   someone else changes a task (see [Task chat](task-chat.md#live-updates)).
   The tab last used is remembered in this browser. A browser that has never
   opened a project starts on List, the first tab (Tyler, 19 Oct 2026); one
   that last showed the Board keeps showing the Board until another tab is picked.
-- **A Board card** shows the title; the type and tags as small
-  tinted chips (a High priority mark first); "Date moved 5 times" as a
+- **A Board card** shows the title; the type as a small tinted chip (a
+  High priority mark first); "Date moved 5 times" as a
   yellow chip; a Stuck reason or a hand-back; then one line with the due
-  date ("Oct 19 by 3:06 PM", or "Overdue · Oct 12" in red), steps as "0/2",
+  date ("Oct 19 by 3:06 PM", or "Overdue · Oct 12" in red),
   the message count, "Waiting" while a task it waits on is open (or
   "Ready"), and the person at the line's end. A task with no due date shows
   no date. The card of the task open on the right is outlined.
@@ -455,7 +452,7 @@ show out of the left panel and into that header.
   mouse with `data-task-id` and `data-new-*` attributes, read by
   `src/lib/project/right-click.ts`.
 - **Right: the open task.** Clicking a task opens it here (see Opening a
-  task below). With none open, the panel says "Click a task to see its steps
+  task below). With none open, the panel says "Click a task to see its notes
   and chat here."
 - **Panels.** Drag the gaps to resize. Double-click blank space in a side panel,
   or drag it shut, to collapse it, and the tab on the middle panel's edge opens
@@ -567,8 +564,8 @@ marked Build the contact form Done", newest first, 50 at a time with "Show
 older". Each line says how long ago, with the exact time on hover.
 
 - **What it lists:** a task made, its status changed, handed over, accepted,
-  handed back, commented on, put in the bin and brought back, a step made its
-  own task, a task moved here, and the project's own status set or taken
+  handed back, commented on, put in the bin and brought back, a task moved
+  here, and the project's own status set or taken
   off (from 15 Oct 2026, read from `project_project_events` and merged in by
   time). Each is a full sentence ("put Logo in the bin", "put it in the bin").
   A status the app doesn't know reads "changed the status of Logo".
@@ -585,9 +582,8 @@ older". Each line says how long ago, with the exact time on hover.
 
 "Where was that logo file?" has one place to look.
 
-- **Every file in the project, newest first:** on its tasks' Files cards, in
-  their File fields, sent in their chats, and sent in the project's own
-  chat. Files on tasks in the bin, and on project-chat messages that were
+- **Every file in the project, newest first:** on its tasks' Files cards,
+  sent in their chats, and sent in the project's own chat. Files on tasks in the bin, and on project-chat messages that were
   deleted, are left out. Up to the newest 500 show.
 - **Each row** has a small picture or a file icon, the name (which
   downloads it), its size, who added it and when, and where it lives: the
@@ -663,7 +659,7 @@ goes, so it no longer ends up on whatever task was open.
   does. My tasks' Group row is kept in the browser, not in a view, so its
   views keep none. Views are each person's own, kept per
   project and on My tasks, and nobody else sees them. A view naming someone
-  no longer on the project, a deleted label or a type that's gone opens
+  no longer on the project opens
   without that filter and says so, such as "Leo isn't on this project any
   more, so "Leo's stuck tasks" opened without that filter." Leaving a
   project deletes my views on it, leaving the team deletes them all, and
@@ -673,18 +669,20 @@ goes, so it no longer ends up on whatever task was open.
   asked for Viral's views and said "Fix project too". Every view saved before
   was copied there with its own id, and `project_saved_views` is kept but
   nothing reads or writes it.
-- **Search and filters.** The magnifying glass opens the search box, which
+- **Search and filters.** Search tasks in the header's ⋮ opens the search
+  box with the cursor in it, which
   looks through each task's title and notes, every word typed, whatever its
-  capitals. It doesn't look inside a task type's fields. The box stays open
+  capitals. The box stays open
   while it holds words; Escape empties and closes it. Filter opens a popover
-  with Status, Priority, Due, Tags and Type, which narrow the Board, List,
+  with Status, Priority and Due, which narrow the Board, List,
   Calendar and Timeline at once, then Group (see
-  [Tags and groups](tags-and-groups.md#group)), then Clear and Save as
+  [Groups and the project's order](groups.md#group)), then Clear and Save as
   view. Filter counts the filters set, "Filter 2", and Clear leaves the
   header's whose-tasks dropdown alone. Save as view with nothing picked
   says "Search, pick a filter or choose a group first, then save it as a
-  view." A search that
-  finds nothing says so.
+  view." A search or filter that finds nothing says so, with a Clear filters
+  button under it that empties the search and every filter, whose tasks
+  show included.
 - **Whose tasks show** is the dropdown with the members' faces: All members
   with the project's open tasks, each member with their job title and open
   tasks ("Designer · 3 open tasks"), and Unassigned. The button shows the one picked.
@@ -696,20 +694,21 @@ goes, so it no longer ends up on whatever task was open.
   six days after it; Next week is the seven after those. Overdue leaves out
   Done tasks and counts a task due today by a time that has passed, the same
   as the red date on a card. A saved view keeps it.
-- **They live in the address** (`?q=…&status=…&priority=…&person=…&label=…&type=…&due=…`), so a
+- **They live in the address** (`?q=…&status=…&priority=…&person=…&due=…`), so a
   pasted link opens the page filtered the same way.
-- **Field columns.** Filtered to one task type, the List's Columns menu adds
-  up to 3 of that type's fields as columns (see [Task types](task-types.md)).
-  The menu is always on the List for Time, each task's time on the clock,
-  off until picked and remembered in this browser for every project (see
-  [The task clock](task-clock.md)).
+- **No Columns menu.** The List had field columns and a Template filter
+  until 6 Nov 2026. Task templates and their fields were removed on 6 Nov
+  2026 (Tyler: "We need to remove the tasks templates feature too"). It had
+  a Time column until the task clock was removed the same day.
 - **Old Done tasks fold away.** The Board's Done column shows tasks finished
   in the last 14 days, then "Show 34 older" for the rest. The List tab shows
   every task. A task's finish time is saved when it becomes Done
   (`completed_at`) and cleared when it leaves Done. Tasks finished before
   10 Oct 2026 have none, and count as older.
-- **Tags, the Group row and the shared order** are in
-  [Tags and groups](tags-and-groups.md).
+- **The Group row and the shared order** are in
+  [Groups and the project's order](groups.md). Tags were removed on 6 Nov
+  2026 (Tyler: "remove the steps, timer and tags feature"), with the Tags
+  filter and the `label` part of an address.
 
 ## Pins
 
@@ -732,6 +731,20 @@ On the project page and My dashboard a task opens in the right panel,
 beside the Board or My tasks (Tyler, 13 Oct 2026, from his drawing).
 Neither puts a window over the page.
 
+- **The right panel always holds a task.** Arriving on a project's page with
+  no task in the address opens the task last open on that project in this
+  browser, or, on a first visit or once that task is gone, the first task on
+  the list (Tyler, 6 Nov 2026: "The project right panel does not remember the
+  task I was at and if I load the dashboard after clearing page or for the
+  first time, it should always land on the first task on the list"). On the
+  List the first task is the top row as it shows, with its headings, sort and
+  filters, leaving out rows under a folded heading. On the other tabs it is
+  the first in the project's own order. Each project remembers its own task,
+  per person. A link's own task wins. On a phone the page stays on the list
+  rather than jumping to a task nobody pressed. My dashboard follows the same
+  rule (see [My dashboard](my-dashboard.md)); both use
+  `useRememberedTask` in `src/lib/project/use-remembered-task.ts`.
+
 - **No loading spinner.** A task opened before, since the page last loaded,
   shows straight away from the last copy while a fresh one loads behind it
   and replaces it (Tyler, 26 Oct 2026: "the task panel should not load every
@@ -745,28 +758,27 @@ Neither puts a window over the page.
   that day, `assets/pasted-image-1792504237260017000.png`). Until 2 Nov 2026
   there was a three-dot button and a cog, each with its own dropdown; Tyler
   combined them ("the 3 dot and the cog dropdowns are too redundent, combine
-  them into one"). Along the bottom, pinned while the rest scrolls: the
-  status as a pill with its dot, Start or Pause, and Completed (see
-  [The task clock](task-clock.md)). Neither page has a cross: the task stays open until
+  them into one"). Along the bottom, pinned while the rest scrolls, with a
+  line above: the status as a pill with its dot, and Completed at the right,
+  which marks the task Done ("Task completed.") through the usual checks,
+  with no question first (`task-footer.tsx`). Completed isn't
+  there on a Done task or for someone who can't change it. The task clock was removed on 6 Nov 2026 (Tyler: "remove the steps, timer and tags feature"). It
+  was Start and Pause in this footer. Neither page has a cross: the task stays open until
   another is picked (the project page since 20 Oct 2026, My dashboard since
   23 Oct: "There is no 'x' icon to close the right panel to show an empty
   panel"). Follow is a bell beside the ⋮ in the header, ringing while
   followed (Tyler, 6 Nov 2026: "move the bell follow here (just add the icon
   only)"; it was in the ⋮ menu from 14 Oct 2026).
-- **Add to task** sits just above the footer (Tyler, 6 Nov 2026: "Move tasks
-  action row down to the footer"): Tags, Comment (only while the chat has no
-  messages), Files, Steps and Time, each an icon with its word under it. In a
-  panel under 20rem wide only the icons show, each named on hover. The one
-  picked opens a titled box above the row with the same insides it had in
-  the menu. The box keeps 4px of room inside its scroll, so a field's border
-  and focus ring aren't cut off, and 12px between what is in it, such as the
-  chat's "No messages yet" and its field (Tyler, 6 Nov 2026: "the field is cut
-  off", then "add some bottom padding"). Someone who can't change the task sees only Files, and Time once
-  there is a time or a guess. Down the panel: anything that needs an answer (a
+- **Nothing sits between the notes and the footer.** The Add to task row
+  went on 6 Nov 2026 (Tyler: "Make comments a block", and the Files icon
+  with it): comments are a "/" block in the notes, and files come in
+  through the File block (see [Notes and blocks](notes-and-blocks.md)).
+  Down the panel: anything that needs an answer (a
   hand-over to accept, a review, the Stuck reason row, the Move and Remind
-  me cards), then Notes, always there to write in, Steps ("Steps · 0 of 2
-  done") once it has a step, and Chat ("Chat · 4") once it has a message, each a card that folds shut and stays shut
-  in this browser. The task's title is in the header, in bold (it was the
+  me cards), then Notes, always there to write in. A task with comments and
+  no Comments block in its notes shows its comments in the same box under
+  the notes, and so does a task whose notes are locked, so there is always
+  somewhere to write one. The task's title is in the header, in bold (it was the
   panel's first line from 14 Oct 2026, `assets/pasted-image-1792006071437749000.png`,
   until 20 Oct); a long one wraps and the header grows.
   Clicking it edits it in place: Enter or clicking away saves it, and an
@@ -776,23 +788,18 @@ Neither puts a window over the page.
 - **The panel's header button has no border or background**, so the ⋮ is
   plain until pointed at, and so is the status in the
   footer (Tyler, 14 Oct 2026).
-- **A card's arrow and cog show only while it is pointed at**, folded or
-  open (Tyler, 14 Oct 2026, `assets/pasted-image-1791995305794293000.png`).
-  The cog has no background. Clicking it, and only it, opens the card's
-  footer, a row of its buttons under a line, each stretched so together they
-  fill the row and wrap onto a second one in a narrow panel (Tyler, 20 Oct
-  2026: "the buttons should fill all the space"). Steps has Add a step list
-  and Save these steps as a list. On a folded card the cog opens the card
-  with its footer showing. The cog stays while its footer is open, so it can
-  close it again. Chat has no buttons, so only its arrow. Moving onto a card
-  with the keyboard shows them too, and a screen with no pointer always
-  shows them (`src/components/project/panel-card.tsx`).
+- **A card's arrow shows only while it is pointed at**, folded or open
+  (Tyler, 14 Oct 2026, `assets/pasted-image-1791995305794293000.png`).
+  Moving onto a card with the keyboard shows it too, and a screen with no
+  pointer always shows it (`src/components/project/panel-card.tsx`). The
+  cog that opened a card's row of buttons went with the Steps card, the only
+  card that had one.
 - **The notes are the panel's own body**, like a note in the Note app (Tyler,
   28 Oct 2026, Misc 4: "Change add note ui (in card) like note ui app",
   `assets/pasted-image-1793200989332143000.png`, then "note card not what i
   showed you"). The panel is the card: the task's title in the header with a
   ⋮, and the writing area straight under it, with no
-  box or label of its own, before Steps and Chat. It is there on every task,
+  box or label of its own, before Chat. It is there on every task,
   empty ones included, with "Write, type / for a block, or # to link a task" in grey, in
   15px writing. Empty, it is two lines tall, and it grows as you write
   (Tyler, 28 Oct 2026: "make the default row for the note 2 row").
@@ -809,17 +816,9 @@ Neither puts a window over the page.
 - **No text toolbar.** "Show the text toolbar" was a row in the ⋮ menu from
   2 Nov 2026 until 6 Nov 2026 ("remove this"). Selecting words still offers a
   link.
-- **Steps is in the Add to task row** (Tyler, 2 Nov 2026: "move the
-  add steps here", `assets/pasted-image-1793657078076743000.png`; for a
-  moment that day it was an icon in the header). It shows the Add a step box,
-  the cursor already in it, and Add a step list and Save these steps as a
-  list under it. Enter adds the step and empties the box for the next one,
-  and the menu stays open. A task with no steps
-  has no Steps card at all ("If there are no steps added this should not
-  show", `assets/pasted-image-1793656689890934000.png`). The first step
-  added brings the card in. In the panel the Steps card has no Add a step
-  box of its own; the Team dashboard's window still has one under its
-  steps.
+- **No steps.** Steps were removed on 6 Nov 2026 (Tyler: "remove the steps,
+  timer and tags feature"). The Steps card, the Add to task row's Steps,
+  saved step lists and "Make it a task" went with them.
 - **The notes' earlier versions** are the ⋮ menu's Versions tab since 6 Nov
   2026 ("The earlier version of the note moves to the tabs"): newest first,
   the last 20, each with who saved it and when and Bring back. "Delete the
@@ -829,13 +828,8 @@ Neither puts a window over the page.
   nothing there while there are none. The Team dashboard's window has the
   same box under a Notes label (`LiveTaskNotes` in
   `src/components/project/task-notes.tsx`).
-- **Files** shows "1 file", the limit, the task's files and the place to
-  drop more (Tyler, 14 Oct 2026; it was a window, then the paperclip).
-- **Comment** (Tyler, 14 Oct 2026, as the chat icon): while the chat has no messages, it holds the box to write the first
-  one, and once one is sent the menu closes, the Chat card appears and
-  Comment leaves the Add to task row. A deleted message doesn't count, so a chat
-  holding only "Message deleted" still offers Comment, shows the deleted
-  line, and counts 0.
+- **A deleted message doesn't count**, so a chat holding only "Message
+  deleted" counts 0 and still shows the deleted line.
 - **The ⋮ menu** is drawn as My settings is since 6 Nov 2026 (Tyler: "It
   needs to copy the Ui of the left panel tabs"), on the same frame
   (`TabbedMenu` in `my-settings-menu.tsx`): 326px wide, 10% narrower than My
@@ -853,8 +847,8 @@ Neither puts a window over the page.
     Nov 2026: "It doesnt need 2 steps to select"): a row with choices opens
     its list straight away, current one ticked, and a row with a day opens the
     quick days and the month straight away, with a Clear button under them.
-    A pick saves and closes. Only a typed address, the Due by time, a
-    template's fields and the Plan open a small box. Escape closes what opened
+    A pick saves and closes. Only a typed address, the Due by time and the
+    Plan open a small box. Escape closes what opened
     and leaves the menu open (`PickMenuRow`, `PickDayRow`, `PickRow` in
     `pick-rows.tsx`; the calendar's insides are `DayChoices` in
     `due-day-picker.tsx`).
@@ -864,14 +858,11 @@ Neither puts a window over the page.
       and Remind me, the day of my own reminder, or "None" ("put reminds me
       under here"). "Date moved 3 times" and a day-off warning sit under the
       list. Someone who can't change the task has no Remind me row.
-    - **Details:** Priority, Template, the template's own fields when it has
-      some, Video or Promo, and Plan (repeat, snooze, waiting on and my
-      reminder). Plan isn't in the drawing; it is kept as Details' last row.
+    - **Details:** Priority, Video or Promo, and Plan (repeat, snooze,
+      waiting on and my reminder). Plan isn't in the drawing; it is kept as Details' last row.
     - Under them: Needs review as a tick box, Delete the notes, Lock the notes,
       Ask for more time (when it applies), Duplicate task, Move to project,
-      Save as task template (for whoever runs the team; see
-      [Task templates](task-types.md)), and Delete task in red under a line of
-      its own. The drawing ends at Details; these rows stay because nothing
+      and Delete task in red under a line of its own. The drawing ends at Details; these rows stay because nothing
       else reaches them.
   - **Versions:** the notes' earlier versions (above).
   - Remind me was a tab for a few hours on 6 Nov 2026, then moved under
@@ -902,11 +893,11 @@ Neither puts a window over the page.
 ## Tasks
 
 - **What a task holds.** Title, formatted notes, project, the person assigned,
-  who handed it out, due date, status, priority, optional steps, files, a
-  chat, the people following it, and an optional task type with that type's
-  fields.
-  The chat, following, notes and files are in [Task chat](task-chat.md), and
-  types and their fields in [Task types](task-types.md).
+  who handed it out, due date, status, priority, files, a
+  chat, the people following it, and an optional Video or Promo record.
+  The chat, following, notes and files are in [Task chat](task-chat.md).
+  Task templates and their fields were removed on 6 Nov 2026 (Tyler: "We
+  need to remove the tasks templates feature too").
 - **Five statuses.** To do, Doing, Done, Stuck and Archived. Archived came
   last (Tyler, 25 Oct 2026: "add another status called 'Archived'").
 - **Archived is out of the way, not finished.** An archived task has its own
@@ -915,7 +906,7 @@ Neither puts a window over the page.
   late, never on My dashboard (no column there either), never in a check-in
   or the morning list, and left out of progress, open-task counts, the
   late-task project status and the Team dashboard's figures. Archiving
-  needs no "needed before Done" fields and no review, and clears the
+  needs no review, and clears the
   finished date. Done and Archived are the closed statuses
   (`CLOSED_TASK_STATUSES` and `isOpenStatus` in `src/lib/project/rules.ts`);
   everything that asks "is this still work?" uses them. A Board order saved
@@ -931,18 +922,6 @@ Neither puts a window over the page.
   (`?priority=high`) that saved views keep. The check-in's pick list puts High
   first within each project. Duplicate, Copy project and repeat copies keep
   it.
-- **Steps.** Up to 50 per task. Progress reads as "3 of 5 steps done". Tyler
-  chose steps over a percentage because a percentage is a guess.
-- **Saved step lists.** Under a task's steps, "Save these steps as a list"
-  keeps them under a name, such as "Payroll", and "Add a step list" drops a
-  saved list in after the steps already there. Lists belong to the team:
-  anyone on it makes or uses one, and the site admin renames and deletes
-  them in Team settings (Tyler's choice, 12 Oct 2026). Steps added from a
-  list start unticked, with no person and no date. A list that would take a
-  task past 50 steps is refused whole: "That list has 6 steps and this task
-  has room for 2 more, since a task can have at most 50." Names are unique in
-  the team whatever their capitals, up to 60 characters, and a team keeps at
-  most 100 lists.
 - **Due dates** are whole days. A task past its due date and not Done shows
   "Overdue". Wherever a task's due date is picked (the task, New task and the
   bulk bar's "Pick a date…") four buttons sit above the month: Today,
@@ -986,38 +965,28 @@ Neither puts a window over the page.
 
 ### Making tasks quickly
 
-- **A task type** can be picked in New task, which then fills the type's
-  starting steps and notes and asks for its fields that are needed when made
-  (see [Task types](task-types.md)).
+- **No template in New task.** Task templates and their fields were
+  removed on 6 Nov 2026 (Tyler: "We need to remove the tasks templates
+  feature too"). A new task is its title, notes, person, due date, status,
+  priority and milestone.
 - **New task opens a dropdown**, not a window (Tyler, 14 Oct 2026): the
   title, a Description box under it (Tyler, 22 Oct 2026), who it is for (me, when I'm on the project), a due date, then
-  Status, Priority, Type (when the project offers any, from 20 Oct 2026)
-  and, on a project's page, Milestone and Tags (Tyler,
-  19 Oct 2026: "there should be a way to add tags here as well as priority
-  and status", and "Add the milestone selection here"). Milestone lists the
+  Status, Priority and, on a project's page, Milestone (Tyler, 19 Oct 2026: "Add the
+  milestone selection here"). Milestone lists the
   project's milestones and No milestone, and shows only when the project has
   one. A long name in Assigned to is cut with "…" rather than pushing into
   Due date.
-  Tags work as under a task's title: type and press Enter for a pill with an
-  ×; a new name becomes the team's tag when the task is made. Enter in the
-  title or Create task makes it, with the type picked (the project's own
-  until another is picked, or No template) and that type's steps, and with
-  its priority and tags in the same save.
+  Enter in the title or Create task makes it, with its notes and its
+  priority in the same save.
 - **Description** is the same writing box as the task's notes: select words
   to make them bold, a list or a link, or type "/" for a block, File and the
   Video or Promo card aside ([Notes and the "/" blocks](notes-and-blocks.md)).
-  It saves as the task's notes. It
-  starts on the picked type's notes and follows the type while nothing is
-  typed in it; once something is typed, a new type leaves it alone. Enter
-  makes a new line there, not the task. When the full window opens instead
-  (a type that needs fields), what was written goes with it. A type that needs fields
-  when made opens the full window on that same type. Picking
-  Stuck asks why. There is no "More options" (Tyler, 19 Oct 2026: "we dont
+  It saves as the task's notes and starts empty. Enter makes a new line
+  there, not the task. When the full window opens instead (for a pasted
+  list), what was written goes with it. Picking Stuck asks why. There is no "More options" (Tyler, 19 Oct 2026: "we dont
   need the 'more option' to open up a modal. Just keep it all in the
   dropdown"). The full New task window, which has the same fields, still
-  opens on its own for a type that needs fields filled in when it is made
-  (the dropdown says so and its button reads Continue) and for pasting
-  several lines. Clicking away keeps the title and Description typed for the
+  opens on its own for pasting several lines. Clicking away keeps the title and Description typed for the
   next opening; the rest starts again from where it was opened.
 - **Right-click empty space** on the List, Board, Calendar or Timeline opens
   the same dropdown at the mouse (Tyler, 22 Oct 2026). It starts on what was
@@ -1029,8 +998,7 @@ Neither puts a window over the page.
   2026: "if I hover over the sort parent there should be a '+' icon for me to
   add a task that will slot into that sort"). It shows while the heading is
   pointed at, and always on a phone. Under Doing it starts on Doing; under a
-  tag, with that tag; under a person, given to them; under a type, of that
-  type; under High, on High; under Today, due today; under a "No ..."
+  person, given to them; under High, on High; under Today, due today; under a "No ..."
   heading, with none. Overdue, Earlier, This week and Later have no "+",
   since a new task can't be made late and those name no one day. The rule is
   `startInGroup` in `project-tasks-panel.tsx`.
@@ -1044,22 +1012,20 @@ Neither puts a window over the page.
   each with the person and due date picked in the window. Blank lines and
   bullet marks (-, *, •, 1., [ ]) are left out. At most 50 at once; more is
   refused with the reason and nothing is made. "No, make one task" joins the
-  lines into one title instead. Pasted tasks are made without a type (Tyler's
-  choice, 11 Oct 2026), and the window says "Pick their type one by one."
+  lines into one title instead.
 - **Duplicate**, from the task's "More" menu, makes "<title> (copy)" in the
-  same project, with its notes, tags, steps (unticked), type
-  and field values, To do and nobody assigned. The chat, history and files
-  stay with the original, so a File field starts empty.
+  same project, with its notes and priority, To do and nobody assigned. The
+  chat, history and files stay with the original.
   The copy opens straight away.
 
 ### Changing tasks
 
 - **Many at once.** With Mass select on, ticking rows on a project's List tab
-  puts a "3 selected" button in the header, left of the search, with a rainbow
+  puts a "3 selected" button in the header, left of Filter, with a rainbow
   running round its edge so the eye finds it (Tyler, 19 Oct 2026; it holds
   still when the device asks for less motion). Its dropdown holds Mark Done,
   Status, Hand to (with one optional note for all of them), Due date,
-  Priority, Add tag, Remove tag, Type and Move to project, each after Mark
+  Priority and Move to project, each after Mark
   Done stepping into its own list with a back arrow, then Delete and Clear
   selection. Delete, in red, asks "Delete 3 tasks?" first, then puts each
   ticked task in its project's bin for 30 days, the same as deleting it alone
@@ -1067,17 +1033,12 @@ Neither puts a window over the page.
   delete one, so a task someone else made is refused by name and the rest go.
   A deleted task that was open on the right closes there, as when one is
   deleted alone.
-  Add tag and Remove tag touch only that one tag and leave the rest. Type
-  follows the one-task rule: only whoever first handed a task out and the
-  site admin change its type, so the rest are refused with that reason, and
-  a project that doesn't offer the type refuses it for its own tasks (Tyler
-  asked for priority, tags and type on 20 Oct 2026). Add tag, Remove tag and
-  Type only show when the team has tags or types. Due date offers No due date, the quick days and
+  Due date offers No due date, the quick days and
   the month. Escape on a list goes back to the first one; Escape there
   closes the menu. My tasks keeps these as a row of pickers beside Mark Done.
   A due date that lands on someone's day off says so once it has saved: "2
   of the 12 tasks are now due on someone's day off." Mark Done reports the same way as the rest, naming each
-  refused task with its reason, such as "Fill in Final cut first." My tasks has the same bar without Move to project. Stuck asks for one reason
+  refused task with its reason. My tasks has the same bar without Move to project. Stuck asks for one reason
   for all of them ("Why is it stuck?" for one task, "Why are they stuck?" for
   more). Each task is changed on its own, as if alone, so each still writes
   its history and sends its notices, and one that can't be changed is refused
@@ -1086,8 +1047,8 @@ Neither puts a window over the page.
   Nobody.
 - **One at a time, from the List.** The status dot before a title and the
   Status cell both open To do, Doing, Done and Stuck, each with its dot; the
-  Assigned to (a face and name), Due (red-edged when overdue) and Steps ("1
-  of 4") cells are chips too, like Status (Tyler, 19 Oct 2026: "the assigned
+  Assigned to (a face and name) and Due (red-edged when overdue) cells are
+  chips too, like Status (Tyler, 19 Oct 2026: "the assigned
   to, due date and steps should also be chip ui"); Assigned to is at least
   160px wide so a full name shows. The
   Priority cell, where every priority is a chip (Normal and Low muted, High
@@ -1096,8 +1057,8 @@ Neither puts a window over the page.
   project's members; Due opens No due date, the quick days and the month
   (Tyler, 19 Oct 2026). Each saves as the task's own panel does: Stuck asks
   "Why is it stuck?" first, giving the task to someone other than me asks for
-  an optional note and waits for them to accept, and a refusal, such as Done
-  with a field still empty, says why and leaves the cell as it was. Picking
+  an optional note and waits for them to accept, and a refusal says why and
+  leaves the cell as it was. Picking
   inside one of these never opens the task; clicking the title still does. An
   archived project's cells don't open. The pieces are `task-cell-menus.tsx`.
 - **Pick a date…** in the bulk Due date opens the calendar at once. Escape or
@@ -1112,23 +1073,13 @@ Neither puts a window over the page.
   Cancel. Escape cancels the card before it closes the task's window. Greyed
   out, it says "You're not on any other project." If
   the person assigned isn't on the new one, the card says so and the task
-  moves with nobody assigned (and their name kept). Steps, chat, files,
-  tags, type, field values and history go with it. People on its steps who
-  aren't on the new project come off them, and so does a Person field naming
-  them. When the new project doesn't offer the task's type, the card says so
-  and the task keeps it. Past check-in lines keep the old project, because that's where
+  moves with nobody assigned (and their name kept). Chat, files and
+  history go with it. Past check-in lines keep the old project, because that's where
   the task was that day. On the old project's page, the page follows the task
   to its new one. The site admin's My dashboard can also move a task to
   another team's project, or a task they're doing into their own Just me
-  list, from its Project chip; another team's move drops the task's tags,
-  type and field values, which belong to the old team (see
+  list, from its Project chip (see
   [My dashboard](my-dashboard.md#the-site-admins-my-dashboard)).
-- **Make it a task.** A step that grew too big becomes its own task in the
-  same project, from the step's own menu, with the step's text, person and
-  date. The step leaves the old task, and both histories link to each other.
-- **Delete step** asks first inside the step's menu ("Delete this step?" with
-  Keep it), and says "Step deleted." The step's person, date and Clear wait
-  while a change to the task is saving.
 
 ### Planning ahead
 
@@ -1194,7 +1145,7 @@ Each task has a Plan card with three fields that save the moment they change.
   everyone who can see the project. See [Project notes](project-notes.md).
 - **Delete moves a task to its project's bin** for 30 days, with "Undo" on
   the message. Both ways a task opens ask the same question first: "Delete
-  this task? It moves to the project's bin with its steps, chat and files,
+  this task? It moves to the project's bin with its chat and files,
   and can be brought back for 30 days." In a panel that's a confirm window
   (on the project page, from Delete task in the ⋮ menu); in the
   task's window it's a line in the footer, so a window never opens over a
@@ -1202,8 +1153,8 @@ Each task has a Plan card with three fields that save the moment they change.
   deleted it.
 - **Bin**, at the foot of the tasks panel's More menu (it sat beside New task
   until 13 Oct 2026), lists what was deleted,
-  by whom and when, with Bring back. A task comes back whole: steps, chat,
-  files, labels and history.
+  by whom and when, with Bring back. A task comes back whole: chat,
+  files and history.
 - **Who may bring it back:** the same people who may delete it, that is
   whoever made it and the site admin (Tyler's choice, 10 Oct 2026).
 - **Empty bin** is for the site admin, and asks first in the Bin
@@ -1216,63 +1167,19 @@ Each task has a Plan card with three fields that save the moment they change.
   storage can't remove a file, the task stays in the bin and the job tries
   again on its next pass, so no file is left behind without its task.
 - **Files in the bin still count** toward the team's 5 GB until it is
-  emptied, files in a task type's File fields included.
+  emptied.
 - **A check-in line about a binned task** keeps its title but can't be
   opened, and its day doesn't count it as a blocker.
-
-### Each step is a card with its own fields
-
-Tyler, 28 Oct 2026 (Misc 4): "Make each step its own card and add ability to
-add fields to each step", then "name and value".
-
-- **Each step is a white card** on the grey Steps card: the tick, the step's
-  words and its "..." on top, then its person and date, then its fields.
-- **"Add field" lists five kinds** (Tyler: "the step fields should have a
-  few options like url field"): Text, Link, Number, Date and Tick box. The
-  pick puts a row of that kind under the step, its icon first, with the
-  cursor in its Name box: "Cut" and a Dropbox address, "Approved" and a
-  tick, "Shoot day" and Oct 15. Nothing is set up ahead, and any step can
-  have its own, up to 10. A field's kind is fixed; another kind means
-  removing it and adding a new one.
-- **Text, Link and Number save when their boxes are left; a Date or a Tick
-  box saves the moment it is picked.** A row with neither a name nor a value
-  is dropped. A value with no name is refused with "Give the field a name."
-  and kept to fix. The server refuses a Number that isn't a number and a
-  Date that isn't a real day.
-- **A Link** gets an arrow at the end of its row that opens it in a new tab,
-  with "https://" added when it was typed without. The arrow shows only when
-  the row is pointed at, like the cross beside it (Tyler, 28 Oct 2026: "we
-  dont need this", then "there was a hover over outbound link").
-- **Fields travel with the step.** Duplicate, a repeating task's next copy,
-  Copy project and a task template all bring them. Make it a task writes
-  them into the new task's notes, one "Name: value" line each (a tick as
-  Yes or No), since a task
-  has no fields of that kind. A saved step list keeps only the steps' words.
-- **Saved** on the step, `project_task_steps.fields`
-  (`drizzle/0135_project_step_fields.sql`); the boxes are
-  `src/components/project/step-fields.tsx`.
-
-### Steps with a person and a date
-
-- **A step can name someone on the project and a due date**, from the step's
-  own menu. Their photo and the date show under the step.
-- **"Anna gave you a step"** reaches that person in the bell, once, when the
-  step is given to them, with the task's title and the step.
-- **It shows only inside the task.** A step's person doesn't get it in My
-  tasks or the check-in (Tyler's choice, 10 Oct 2026). Steps are for small
-  jobs two people share inside one task; anything someone should pick at
-  check-in should be Make it a task.
-- **Leaving the project clears them** from its steps, and so does leaving the
-  team.
 
 ## Handing a task over
 
 - **Anyone can hand a task to anyone on the project.** The task records who
-  handed it out, and separately who first handed it out, which never changes
-  and decides who may change a task type's brief fields and the task's type
-  (see [Task types](task-types.md)).
+  handed it out. It also kept who first handed it out, for who could change
+  a template's fields, until task templates and their fields were removed
+  on 6 Nov 2026 (Tyler: "We need to remove the tasks templates feature
+  too").
 - **Every hand-over writes history and tells the person**, whether it's one
-  task, many ticked rows, a pasted list or a step made into a task.
+  task, many ticked rows or a pasted list.
 - **Waiting.** A task handed to someone else shows Waiting until they accept
   it. Taking a task yourself skips Waiting.
 - **A note with the hand-over.** An optional line, up to 200 characters,
@@ -1401,7 +1308,6 @@ project page:
   out, whoever made it, the task's followers, and whoever the message replies
   to.
 - **"Anna asked you about a task"** to each person tagged with @ in the chat.
-- **"Anna gave you a step"** to the person a step is given to.
 - **"Anna finished what your task was waiting on"** to the person on a task
   that was Waiting on the one just marked Done.
 - **"Priya finished a task for your review"** to the reviewer of a task that
@@ -1492,7 +1398,7 @@ task picked on 3 or more check-ins and still not Done shows "Picked on 4 days"
 The shell keeps its menus in the database, and an app can't edit the shell code
 that writes them. So a background job (`src/server/project/navigation.ts`,
 listed in `src/app/server-options.ts`) adds a "Work" section with My dashboard,
-Projects, Team and Task types to the members' menu and to each admin menu.
+Projects and Team to the members' menu and to each admin menu.
 
 - **Each menu gets the section once.** The job writes down which menus it has
   done in `project_navigation_added`. An admin who later removes a link in
@@ -1503,10 +1409,11 @@ Projects, Team and Task types to the members' menu and to each admin menu.
   them on 16 Oct 2026 by a pass marked `workspace:<id>:no-my-dashboard`; the
   pass marked `workspace:<id>:admin-my-dashboard` puts it back first where it
   is missing.
-- **A link added later gets its own pass.** Task types (12 Oct 2026) went
-  after Team in menus that already had the section, once each, with a marker
-  of its own (`members:task-types`, `workspace:<id>:task-types`). A menu
-  whose admin removed the whole Work section stays without it.
+- **A link added or taken out later gets its own pass.** Task templates
+  went after Team in menus that already had the section on 12 Oct 2026, and
+  left every menu on 6 Nov 2026 by the pass marked `members:no-task-templates`
+  and `workspace:<id>:no-task-templates`. A menu whose admin removed the whole
+  Work section stays without it.
 - **Why not a migration.** On a brand-new install the first admin menu doesn't
   exist until the first admin signs in, which is after the migrations run.
 
@@ -1514,14 +1421,14 @@ Projects, Team and Task types to the members' menu and to each admin menu.
 
 - **Tables:** `drizzle/0094_project_teams_projects_tasks.sql`, the chat's
   tags, followers and files in `drizzle/0097_project_task_chat_and_files.sql`,
-  tags (labels), the old sections, the order, `completed_at` and pins (stars) in
-  `drizzle/0099_project_finding_and_sorting.sql`, and a step's person and date
-  and the new history kinds in `drizzle/0100_project_making_and_changing.sql`,
+  the old sections, the order, `completed_at` and pins (stars) in
+  `drizzle/0099_project_finding_and_sorting.sql`, and the new history kinds
+  in `drizzle/0100_project_making_and_changing.sql`,
   repeating, snoozing, waiting, "Just me" and the bin in
   `drizzle/0101_project_planning_ahead.sql`, and a project's due date and the
   Activity tab's kinds in `drizzle/0102_project_projects.sql`, and priority,
   the newer repeats, `project_task_waits`, the due-date move kind,
-  `project_task_reminders` and `project_step_lists` in
+  and `project_task_reminders` in
   `drizzle/0111_project_planning_tasks.sql`, described to the code in
   `src/server/project/schema.ts`. A task's `start_date` is in
   `drizzle/0113_project_nine_features.sql`. The old manual project status, the lead,
@@ -1529,7 +1436,9 @@ Projects, Team and Task types to the members' menu and to each admin menu.
   templates are in `drizzle/0117_project_more_for_projects.sql`. The old single `waiting_on_task_id`
   column is still in the database, unread, until the move to
   `project_task_waits` is proven on the live database; a later migration
-  drops it.
+  drops it. Steps' tables and columns were dropped in
+  `drizzle/0151_project_remove_steps.sql`, and task templates' tables and
+  columns in `drizzle/0153_project_remove_task_templates.sql`.
 - **Search and saved views:** `src/server/project/search.ts` and the
   search's indexes in `drizzle/0110_project_finding_and_seeing.sql`, its
   endpoint in `src/lib/api/project/finding.ts`, screen
@@ -1544,13 +1453,13 @@ Projects, Team and Task types to the members' menu and to each admin menu.
   them and gives the same answers.
 - **Rules:** `src/server/project/projects.ts` and `src/server/project/tasks.ts`,
   with the chat, followers and files in `task-chat.ts`, `task-followers.ts` and
-  `task-files.ts` beside them, and pasting, duplicating, moving, bulk changes
-  and Make it a task in `task-changes.ts`, and repeat, waiting and the bin in
+  `task-files.ts` beside them, and pasting, duplicating, moving and bulk
+  changes in `task-changes.ts`, and repeat, waiting and the bin in
   `planning.ts`, with its jobs in `planning-jobs.ts` and "Just me" in
   `personal.ts`. Remind me is in `task-reminders.ts`, sent by
-  `sendTaskReminders` in `reminder-jobs.ts`, and step lists in
-  `step-lists.ts`, with their endpoints in `src/lib/api/project/planning.ts`. Copy project is in `projects.ts` and the Activity tab in
-  `project-activity.ts`.
+  `sendTaskReminders` in `reminder-jobs.ts`, with its endpoint in
+  `src/lib/api/project/planning.ts`. Copy project is in `projects.ts` and
+  the Activity tab in `project-activity.ts`.
 - **Endpoints:** `src/lib/api/project/`.
 - **Screens:** `src/components/project/`. A task's window is `task-dialog.tsx`,
   and the right panel of the project page and My dashboard, with its ⋮

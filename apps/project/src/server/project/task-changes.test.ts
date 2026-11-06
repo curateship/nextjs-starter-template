@@ -6,12 +6,7 @@ import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { linesToTitles } from "@/lib/project/paste-lines"
 import type { CustomShellDb } from "@/server/db"
 import { submitCheckin } from "@/server/project/checkins"
-import { createLabel, setTaskLabels } from "@/server/project/labels"
-import {
-  addProjectMember,
-  loadProjectPage,
-  removeProjectMember,
-} from "@/server/project/projects"
+import { addProjectMember, loadProjectPage } from "@/server/project/projects"
 import {
   projectCheckinItems,
   projectNoticeLinks,
@@ -22,15 +17,9 @@ import {
   createTasksFromLines,
   duplicateTask,
   moveTask,
-  promoteStep,
 } from "@/server/project/task-changes"
 import { sendMessage } from "@/server/project/task-chat"
-import {
-  addStep,
-  createTask,
-  loadTaskDetail,
-  updateStep,
-} from "@/server/project/tasks"
+import { createTask, loadTaskDetail } from "@/server/project/tasks"
 import { projectFor, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -70,7 +59,7 @@ async function task(title: string, assignee: CustomShellUser | null = null, proj
   return (
     await createTask(
       actor(anna),
-      { projectId, title, notes: "", assigneeUserId: assignee?.id ?? null, dueDate: null, steps: [] },
+      { projectId, title, notes: "", assigneeUserId: assignee?.id ?? null, dueDate: null },
       database
     )
   ).id
@@ -119,12 +108,8 @@ describe("pasting a list", () => {
 })
 
 describe("duplicating", () => {
-  it("copies the title, notes, labels and unticked steps, To do with nobody, and leaves the chat behind", async () => {
+  it("copies the title and notes, To do with nobody, and leaves the chat behind", async () => {
     const original = await task("Build the contact form", ben)
-    const step = await addStep(actor(anna), { taskId: original, text: "Spam protection" }, database)
-    await updateStep(actor(anna), { stepId: step.id, done: true }, database)
-    const label = await createLabel(anna.id, { name: "Client", color: "pink" }, database)
-    await setTaskLabels(anna.id, { taskId: original, labelIds: [label.id] }, database)
     await sendMessage(actor(anna), { chat: { taskId: original }, body: "First thoughts", replyToId: null }, database)
 
     const { id } = await duplicateTask(actor(ben), original, database)
@@ -132,12 +117,9 @@ describe("duplicating", () => {
     expect(copy.task.title).toBe("Build the contact form (copy)")
     expect(copy.task.status).toBe("todo")
     expect(copy.task.assignee).toBeNull()
-    expect(copy.steps.map((s) => [s.text, s.done])).toEqual([["Spam protection", false]])
-    expect(copy.task.labels.map((l) => l.name)).toEqual(["Client"])
     expect(copy.comments).toHaveLength(0)
 
     const before = await loadTaskDetail(ben.id, original, database)
-    expect(before.steps[0].done).toBe(true)
     expect(before.comments).toHaveLength(1)
   })
 })
@@ -183,7 +165,7 @@ describe("moving to another project", () => {
   it("never moves a shared task into a Just me list", async () => {
     const own = await createTask(
       actor(ben),
-      { projectId: "personal", title: "Mine alone", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+      { projectId: "personal", title: "Mine alone", notes: "", assigneeUserId: ben.id, dueDate: null },
       database
     )
     const personalId = (await loadTaskDetail(ben.id, own.id, database)).task.projectId
@@ -248,53 +230,5 @@ describe("changing many at once", () => {
       database
     )
     expect(outcome.refused[0]).toMatchObject({ title: "Brand logo", reason: PROJECT_ERRORS.notProjectMember })
-  })
-})
-
-describe("a step that becomes a task", () => {
-  it("makes a task from the step, takes the step off and links the two in their histories", async () => {
-    const parent = await task("Build the contact form", ben)
-    const step = await addStep(actor(anna), { taskId: parent, text: "Spam protection" }, database)
-    await updateStep(actor(anna), { stepId: step.id, assigneeUserId: carla.id }, database)
-    const { id } = await promoteStep(actor(anna), step.id, database)
-
-    const made = await loadTaskDetail(anna.id, id, database)
-    expect(made.task.title).toBe("Spam protection")
-    expect(made.task.assignee?.id).toBe(carla.id)
-    expect(made.history.find((e) => e.kind === "from_step")).toMatchObject({
-      relatedTask: { id: parent, title: "Build the contact form" },
-    })
-    const from = await loadTaskDetail(anna.id, parent, database)
-    expect(from.steps).toHaveLength(0)
-    expect(from.history.find((e) => e.kind === "became_task")).toMatchObject({
-      reason: "Spam protection",
-      relatedTask: { id, title: "Spam protection" },
-    })
-  })
-})
-
-describe("steps with a person and a date", () => {
-  it("saves both, tells the person once, and clears them when they leave the project", async () => {
-    const parent = await task("Launch page", ben)
-    const step = await addStep(actor(anna), { taskId: parent, text: "Write the headline" }, database)
-    await updateStep(actor(anna), { stepId: step.id, assigneeUserId: carla.id, dueDate: "2099-03-05" }, database)
-    await updateStep(actor(anna), { stepId: step.id, done: false }, database)
-    let detail = await loadTaskDetail(anna.id, parent, database)
-    expect(detail.steps[0]).toMatchObject({ assignee: { id: carla.id }, dueDate: "2099-03-05" })
-    expect(await noticesFor(carla, "task_step")).toEqual([
-      { message: "Anna gave you a step", detail: "Launch page: Write the headline" },
-    ])
-
-    await removeProjectMember(admin.id, website, carla.id, database)
-    detail = await loadTaskDetail(anna.id, parent, database)
-    expect(detail.steps[0].assignee).toBeNull()
-  })
-
-  it("refuses someone who isn't on the project", async () => {
-    const parent = await task("Brand task", null, brand)
-    const step = await addStep(actor(anna), { taskId: parent, text: "Pick colours" }, database)
-    await expect(
-      updateStep(actor(anna), { stepId: step.id, assigneeUserId: carla.id }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.notProjectMember)
   })
 })

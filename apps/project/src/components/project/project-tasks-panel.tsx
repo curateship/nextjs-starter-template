@@ -1,9 +1,8 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { ChevronDownIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { ChevronDownIcon, EllipsisVerticalIcon, ListChecksIcon, PlusIcon, SearchIcon, Trash2Icon } from "lucide-react"
 
 import { BinDialog } from "@/components/project/bin-dialog"
-import { FieldColumnsMenu } from "@/components/project/field-columns-menu"
 import { NOBODY, NewTaskDialog, type NewTaskStart } from "@/components/project/new-task-dialog"
 import { ProjectActivity } from "@/components/project/project-activity"
 import { ProjectChat } from "@/components/project/project-chat"
@@ -34,10 +33,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { loadProjectChatUnread } from "@/lib/api/project/chat"
 import { saveStatusOrder, type ProjectPage } from "@/lib/api/project/projects"
-import { saveTaskTypeOf } from "@/lib/api/project/task-types"
-import { saveTaskLabels, saveTaskOrder } from "@/lib/api/project/sorting"
+import { saveTaskOrder } from "@/lib/api/project/sorting"
 import {
   assignProjectTask,
   deleteProjectTask,
@@ -58,12 +57,11 @@ import { addDays } from "@/lib/project/days"
 import type { ListDrop } from "@/lib/project/list-drop"
 import { dropChange } from "@/lib/project/my-task-order"
 import { runsTheTeam, type TaskPriority, type TaskStatus, isOpenStatus } from "@/lib/project/rules"
-import { filterTasks, hasTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
+import { filterTasks, hasTaskFilters, NO_TASK_FILTERS, type TaskFilters } from "@/lib/project/task-filters"
+import { byPosition } from "@/lib/project/task-order"
 import { overDoingLimit } from "@/lib/project/doing-limit"
 import { TASK_GROUPINGS, canMoveInGroup, groupTasks, type TaskGrouping } from "@/lib/project/task-groups"
 import { placesAfterReorder } from "@/lib/project/task-order"
-import { offeredTypes } from "@/lib/project/task-types"
-import { useFieldColumns, useTimeColumn } from "@/lib/project/use-field-columns"
 import { useProjectLive } from "@/lib/project/use-project-live"
 import { viewHasFilters } from "@/lib/project/saved-views"
 import { pickedWordsUnder, readRightClick, type RightClickTarget } from "@/lib/project/right-click"
@@ -88,10 +86,7 @@ type QuickStart = {
   /** A member's id, or `NOBODY`. */
   assignee?: string
   priority?: TaskPriority
-  tagIds?: string[]
   due?: string | null
-  /** Null is a plain task. */
-  typeId?: string | null
   tooltip?: string
 }
 
@@ -109,12 +104,8 @@ function startInGroup(grouping: TaskGrouping, key: string): QuickStart | null {
       return { status: key as TaskStatus }
     case "priority":
       return { priority: key as TaskPriority }
-    case "tags":
-      return { tagIds: none ? [] : [key] }
     case "assignee":
       return { assignee: none ? NOBODY : key }
-    case "type":
-      return { typeId: none ? null : key }
     case "due":
       if (key === "today") return { due: todayKey() }
       if (key === "tomorrow") return { due: addDays(todayKey(), 1) }
@@ -140,7 +131,7 @@ type PendingHandOver = {
 
 /**
  * The project's tasks, as a Board (one column per status, or a row per person
- * when grouped), a List under Filter's Group row (status, tags, due date and so on), a Calendar of
+ * when grouped), a List under Filter's Group row (status, due date and so on), a Calendar of
  * due dates or a Timeline of start and due dates, its Activity, every file in it, and its own Chat. The tab last
  * used is remembered in this browser; the search and filters live in the
  * address. A status change or a new order shows at once and is put back if
@@ -160,6 +151,7 @@ export function ProjectTasksPanel({
   openTaskId,
   openChat,
   onChatOpened,
+  onRows,
 }: {
   page: ProjectPage
   filters: TaskFilters
@@ -170,6 +162,12 @@ export function ProjectTasksPanel({
   /** A chat notice's link asked for the Chat tab. */
   openChat: boolean
   onChatOpened: () => void
+  /**
+   * Told the tasks in the order they show, first first: the List's rows, or
+   * on the other tabs the project's own order, so the right panel can open
+   * the first task on arrival.
+   */
+  onRows: (ids: string[]) => void
 }) {
   const router = useRouter()
   const navigate = useNavigate()
@@ -213,26 +211,26 @@ export function ProjectTasksPanel({
   const [stuck, setStuck] = React.useState<{ task: TaskCard; order?: string[] } | null>(null)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const readOnly = page.project.archived
+  // Search and Mass select open from the header's ⋮ (the Admin 3 panel design, Tyler, 6 Nov 2026).
+  const [searchOpen, setSearchOpen] = React.useState(false)
+  const searchFromMenu = React.useRef(false)
+  const [massSelectOn, setMassSelectOn] = React.useState(false)
+  // The row whose right-click turned Mass select on, ticked as it starts.
+  const [tickOnStart, setTickOnStart] = React.useState<string | null>(null)
   // A "Just me" list has one person, so there is nothing to group by.
   const [chosenGroup, setGroup] = useRememberedChoice<Group>(BOARD_GROUP_KEY, "status", GROUPS)
   const byPerson = chosenGroup === "person" && !page.project.personal
   const [handingOver, setHandingOver] = React.useState<PendingHandOver | null>(null)
 
   const filtered = filterTasks(tasks, filters)
+  // Off the List, the first task is the first in the project's own order.
+  const orderedIds = view === "list" ? null : [...filtered].sort(byPosition).map((task) => task.id).join(",")
+  React.useEffect(() => {
+    if (orderedIds !== null) onRows(orderedIds ? orderedIds.split(",") : [])
+  }, [orderedIds, onRows])
   // Who a task can go to: the members, and the site admin, who can take tasks themselves.
   const assignees = page.siteAdminMe ? [...page.members, page.siteAdminMe] : page.members
   const people = assignees.map((m) => ({ id: m.userId, name: m.name, avatarUrl: m.avatarUrl }))
-  // Filtered to one type, the List can show up to 3 of its fields as columns.
-  const filteredType = page.taskTypes.find((type) => type.id === filters.type)
-  const [columnIds, setColumnIds] = useFieldColumns(filteredType?.id)
-  const [timeColumn, setTimeColumn] = useTimeColumn()
-  const fieldColumns = React.useMemo(() => {
-    const names = new Map(page.members.map((m) => [m.userId, m.name]))
-    return columnIds.flatMap((id) => {
-      const field = filteredType?.fields.find((f) => f.id === id)
-      return field ? [{ field, people: names }] : []
-    })
-  }, [columnIds, filteredType, page.members])
   const lanes = React.useMemo<BoardLane[]>(() => {
     const members = page.members.map((m) => ({ id: m.userId, name: m.name, avatarUrl: m.avatarUrl }))
     // Someone assigned who has since come off the project still gets a row, so no task goes missing.
@@ -293,19 +291,6 @@ export function ProjectTasksPanel({
         if (!change || !("dueDate" in change)) return
         const { dueDate } = change
         return void moveTask(task, { dueDate, dueAt: null }, () => saveTask({ taskId: task.id, dueDate }), order)
-      }
-      case "type": {
-        const type = none ? null : page.taskTypes.find((t) => t.id === drop.to)
-        if (type === undefined) return
-        return void moveTask(task, { type }, () => saveTaskTypeOf(task.id, type?.id ?? null), order)
-      }
-      case "tags": {
-        const labels = [
-          ...task.labels.filter((label) => label.id !== drop.from),
-          ...page.labels.filter((label) => label.id === drop.to),
-        ]
-        const ids = labels.map((label) => label.id)
-        return void moveTask(task, { labels }, () => saveTaskLabels(task.id, ids), order)
       }
     }
   }
@@ -410,6 +395,8 @@ export function ProjectTasksPanel({
   function pickView(next: View) {
     if (view === "chat") setChatUnread(0)
     setView(next)
+    // Mass select belongs to the List; leaving it turns it off.
+    setMassSelectOn(false)
   }
 
   function requestStatus(task: TaskCard, status: TaskStatus, order?: string[]) {
@@ -418,7 +405,7 @@ export function ProjectTasksPanel({
     else void changeStatus(task, status, null, order)
   }
 
-  const here = { screen: page.viewScreen, people, labels: page.labels, types: page.taskTypes, groups: TASK_GROUPINGS }
+  const here = { screen: page.viewScreen, people, groups: TASK_GROUPINGS }
   const taskTab = view !== "activity" && view !== "files" && view !== "chat"
 
   const thisProject: NewTaskProject = {
@@ -426,10 +413,6 @@ export function ProjectTasksPanel({
     name: page.project.name,
     color: page.project.color,
     members: assignees,
-    typeIds: offeredTypes(page.taskTypes, page.project.personal ? [] : page.project.hiddenTypeIds).map(
-      (type) => type.id
-    ),
-    defaultTypeId: page.project.defaultTypeId,
   }
 
   /** A New task dropdown, opened by `children`. `key` says which one is open. */
@@ -441,16 +424,12 @@ export function ProjectTasksPanel({
     return (
       <QuickNewTask
         projects={[thisProject]}
-        types={page.taskTypes}
-        tags={page.labels}
         milestones={page.milestones}
         initialProjectId={page.project.id}
         status={start?.status}
         assignee={start?.assignee}
         priority={start?.priority}
-        tagIds={start?.tagIds}
         due={start?.due}
-        typeId={start?.typeId}
         tooltip={start?.tooltip}
         align={key === HEADER_NEW_TASK ? "end" : "start"}
         open={quickOpen === key}
@@ -587,13 +566,16 @@ export function ProjectTasksPanel({
             <>
               {/* The List's "3 selected" button lands here, left of the search. */}
               {view === "list" ? <div ref={setSelectedSlot} className="contents" /> : null}
-              <SearchToggle value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
+              <SearchToggle
+                value={filters.q ?? ""}
+                onChange={(q) => onFilters({ q: q || undefined })}
+                open={searchOpen}
+                onOpenChange={setSearchOpen}
+              />
               <TaskFilterPopover
                 filters={filters}
                 onChange={onFilters}
-                labels={page.labels}
-                types={page.taskTypes}
-                buttonVariant="ghost"
+                        buttonVariant="ghost"
                 group={
                   view === "board"
                     ? // The Board keeps its status columns; Group only adds a row per person.
@@ -607,17 +589,6 @@ export function ProjectTasksPanel({
                     : view === "list" || view === "timeline"
                       ? { value: grouping, options: TASK_GROUPINGS, onChange: (next) => setGrouping(next as TaskGrouping) }
                       : undefined
-                }
-                extra={
-                  view === "list" || (view === "board" && filteredType?.fields.length) ? (
-                    <FieldColumnsMenu
-                      fields={filteredType?.fields ?? []}
-                      chosen={fieldColumns.map((column) => column.field.id)}
-                      onChange={setColumnIds}
-                      time={view === "list" ? { on: timeColumn, onChange: setTimeColumn } : undefined}
-                      label={view === "board" ? "Fields on cards" : "Columns"}
-                    />
-                  ) : null
                 }
                 onSaveView={saveView}
               />
@@ -653,6 +624,48 @@ export function ProjectTasksPanel({
                   <span className="@max-3xl:hidden">New task</span>
                 </Button>
               )}
+          {/* Search and Mass select behind a ⋮ after New task, as on My dashboard. Mass
+              select is the List's, so only the List offers it. */}
+          {taskTab ? (
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="ghost" size="icon" aria-label="More for the tasks" className="size-8">
+                      <EllipsisVerticalIcon className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Search and Mass select</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent
+                align="end"
+                // Picking Search opens its box once the menu has closed, so the cursor lands in it.
+                onCloseAutoFocus={(event) => {
+                  if (!searchFromMenu.current) return
+                  event.preventDefault()
+                  searchFromMenu.current = false
+                  setSearchOpen(true)
+                }}
+              >
+                <DropdownMenuItem onSelect={() => (searchFromMenu.current = true)}>
+                  <SearchIcon className="size-4" />
+                  Search tasks
+                </DropdownMenuItem>
+                {view === "list" && !readOnly ? (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setTickOnStart(null)
+                      setMassSelectOn(!massSelectOn)
+                    }}
+                  >
+                    <ListChecksIcon className="size-4" />
+                    {massSelectOn ? "Hide select" : "Mass select"}
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </div>
       </DashboardCardHeader>
       {view === "chat" ? (
@@ -671,10 +684,12 @@ export function ProjectTasksPanel({
           onContextMenu={rightClick}
         >
           {hasTaskFilters(filters) && filtered.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">
-              No tasks match {filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the
-              filters to see every task.
-            </p>
+            <div className="grid justify-items-start gap-2 p-4 text-sm text-muted-foreground">
+              <span>No tasks match {filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}.</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => onFilters({ ...NO_TASK_FILTERS, person: undefined })}>
+                Clear filters
+              </Button>
+            </div>
           ) : view === "calendar" ? (
             <TaskCalendar
               tasks={filtered}
@@ -729,8 +744,6 @@ export function ProjectTasksPanel({
               }}
               // Counted from every task, so a filter never hides who is over the limit.
               doingWarnings={overDoingLimit(tasks, page.project.doingLimit)}
-              // The List's chosen fields, as lines on the cards (Tyler, 16 Oct 2026).
-              cardFields={filteredType ? { columns: fieldColumns, fields: filteredType.fields } : undefined}
             />
           ) : (
             <TaskList
@@ -738,21 +751,23 @@ export function ProjectTasksPanel({
               readOnly={readOnly}
               busy={busy}
               onOpenTask={(task) => onOpenTask(task.id)}
+              onRows={onRows}
               groups={grouped?.groups}
               foldsKey={taskFoldsKey(page.project.id, grouping)}
               groupsOf={grouped?.groupsOf}
               ordered={!readOnly}
               onDrop={readOnly ? undefined : dropRow}
-              canMove={(_from, to, task) => canMoveInGroup(grouping, to, task)}
-              bulk={{
-                people,
-                projects: page.otherProjects,
-                tags: page.labels,
-                types: offeredTypes(page.taskTypes, page.project.personal ? [] : page.project.hiddenTypeIds),
-              }}
-              fieldColumns={fieldColumns}
-              showTime={timeColumn}
+              canMove={(_from, to) => canMoveInGroup(grouping, to)}
+              bulk={{ people, projects: page.otherProjects }}
               selectedSlot={selectedSlot}
+              massSelect={{
+                on: massSelectOn,
+                onToggle: () => {
+                  setTickOnStart(null)
+                  setMassSelectOn(!massSelectOn)
+                },
+                tick: tickOnStart,
+              }}
               onDelete={(task) => setDeleting(task)}
               canDelete={canDelete}
               myUserId={page.myUserId}
@@ -775,6 +790,17 @@ export function ProjectTasksPanel({
           canDelete={canDelete(taskMenu.task)}
           onDuplicate={() => void duplicate(taskMenu.task)}
           onDelete={() => setDeleting(taskMenu.task)}
+          massSelect={
+            view === "list" && !readOnly
+              ? {
+                  on: massSelectOn,
+                  onToggle: () => {
+                    setTickOnStart(massSelectOn ? null : taskMenu.task.id)
+                    setMassSelectOn(!massSelectOn)
+                  },
+                }
+              : undefined
+          }
         />
       ) : null}
       {pointNew && !readOnly
@@ -782,8 +808,6 @@ export function ProjectTasksPanel({
         : null}
       <NewTaskDialog
         projects={[thisProject]}
-        types={page.taskTypes}
-        tags={page.labels}
         milestones={page.milestones}
         initialProjectId={page.project.id}
         start={full ?? undefined}
