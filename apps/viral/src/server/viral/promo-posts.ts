@@ -1,7 +1,6 @@
 import { and, desc, eq } from "drizzle-orm"
 import { z } from "zod"
 
-import { AI_MODEL_PRICES } from "@/lib/ai/ai-models"
 import { scriptText } from "@/lib/viral/analysis"
 import {
   PROMO_POST_LIMITS,
@@ -13,7 +12,9 @@ import {
   type PromoPostSend,
   type VaultPost,
 } from "@/lib/viral/promo-link"
+import { currentScript, vaultNotesText } from "@/lib/viral/vault"
 import { viralSays } from "@/lib/viral/viral"
+import { roundedCents, writerDollars, type Writer } from "@/lib/viral/writers"
 import { segmentRoleLabels } from "@/lib/viral/viral-breakdown"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
@@ -21,7 +22,8 @@ import { requireViralProjectBudget, viralProjectSpendMetadata } from "@/server/v
 import { callPromo, onPromoAddress, PromoRefusal, readPromoConnection } from "@/server/viral/promo-link"
 import { viralProjects, viralPromoSends, viralVaultItems, viralVaultPosts, type ViralPromoSendRow } from "@/server/viral/schema"
 import { getPromoUrl } from "@/server/viral/settings"
-import { askWriter, WRITER_MODEL } from "@/server/viral/writer"
+import { askWriter } from "@/server/viral/writer"
+import { writerForPrices } from "@/server/viral/writer-choice"
 
 /**
  * Write a post for Promo (task part 20) and How your version did (part 21),
@@ -40,11 +42,9 @@ import { askWriter, WRITER_MODEL } from "@/server/viral/writer"
 /** The meter name for the post-writing call, so its cost shows apart on the AI usage page. */
 export const PROMO_POST_FEATURE = "viral_promo_post"
 
-/** The writing call reads the idea (about 2,500 tokens) and writes about 700. */
-export function promoPostPriceCents(): number {
-  const price = AI_MODEL_PRICES[WRITER_MODEL]
-  const dollars = (2_500 / 1_000_000) * price.inputPerMillion + (700 / 1_000_000) * price.outputPerMillion
-  return Math.max(1, Math.ceil(dollars * 100))
+/** The writing call reads the idea (about 2,500 tokens) and writes about 700, at the writer's price. */
+export function promoPostPriceCents(writer: Writer): number {
+  return roundedCents(writerDollars(writer, 2_500, 700))
 }
 
 const postSchema = z.object({
@@ -78,8 +78,8 @@ const SHAPES: Record<PromoPostNetwork, string> = {
 function postPrompt(network: PromoPostNetwork, idea: { title: string; topic: string; notes: string; why: string; script: string; caption: string }) {
   return `Write a social post for ${PROMO_POST_NETWORK_NAMES[network]}, for somebody whose subject is: """${idea.topic || idea.title}"""
 
-It turns this saved video idea into words that work on their own, without the video.
-Original video: ${idea.title}
+It turns this saved idea into words that work on their own, without a video.
+The idea: ${idea.title}
 Why it worked: ${idea.why || "(not analysed)"}
 The script written for them:
 ${idea.script || "(none)"}
@@ -125,8 +125,11 @@ function refuseTooLong(network: PromoPostNetwork, title: string, pieces: string[
  */
 export async function writePromoPost(ownerId: string, itemId: string, network: PromoPostNetwork): Promise<PromoPostSend> {
   const { item, spendLimitCents, topic } = await ownedIdea(ownerId, itemId)
-  await requireViralProjectBudget(ownerId, item.projectId, spendLimitCents, promoPostPriceCents())
+  await requireViralProjectBudget(ownerId, item.projectId, spendLimitCents, promoPostPriceCents(await writerForPrices()))
   const analysis = item.analysis
+  // Your edit of the script when there is one, otherwise the AI's.
+  const script = currentScript(item)
+  const why = analysis ? `${analysis.whyItWorks.hook} ${analysis.whyItWorks.whySpread}`.trim() : ""
   const written = await askWriter({
     userId: ownerId,
     feature: PROMO_POST_FEATURE,
@@ -134,9 +137,9 @@ export async function writePromoPost(ownerId: string, itemId: string, network: P
     prompt: postPrompt(network, {
       title: item.title,
       topic: item.analysisTopic ?? topic,
-      notes: item.notes.slice(0, 4_000),
-      why: analysis ? `${analysis.whyItWorks.hook} ${analysis.whyItWorks.whySpread}` : "",
-      script: analysis ? scriptText(analysis.script, segmentRoleLabels).slice(0, 6_000) : "",
+      notes: vaultNotesText(item).slice(0, 4_000),
+      why,
+      script: script ? scriptText(script, segmentRoleLabels).slice(0, 6_000) : "",
       caption: analysis ? `${analysis.title.caption} ${analysis.title.hashtags.join(" ")}`.trim() : "",
     }),
     schema: postSchema,
@@ -246,7 +249,8 @@ export type PromoPosted = z.infer<typeof promoPostedShape>
 /**
  * Keeps your post of an idea and its latest figures, and turns the idea
  * Posted. An idea no longer in the vault answers "gone", so Promo stops
- * asking about it.
+ * asking about it. A Reddit post keeps upvotes (Promo's `likes`) and
+ * comments, and never views, because Reddit shows none.
  */
 export async function applyPromoPosted(ownerId: string, event: PromoPosted): Promise<{ ok: true; status: "kept" | "gone" }> {
   if (!/^https?:\/\//.test(event.url)) return { ok: true, status: "gone" }
@@ -261,7 +265,7 @@ export async function applyPromoPosted(ownerId: string, event: PromoPosted): Pro
   const figures = {
     network: event.network,
     url: event.url,
-    views: event.views,
+    views: event.network === "reddit" ? null : event.views,
     likes: event.likes,
     comments: event.comments,
     postedAt: event.postedAt ? new Date(event.postedAt) : null,

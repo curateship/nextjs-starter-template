@@ -59,9 +59,13 @@ to Video. It opens a window.
   the written words, and asks "Discard changes?" first when they were edited
   by hand. Press Write again for the new one.
 - **Write.** The AI writes the post from the idea's analysis, script, caption
-  and notes. X may come back as a thread of up to 8 posts. Reddit comes back
-  as a title and a body.
-- **The cost.** One Gemini Flash call, about 1 cent, shown before Write. It
+  and notes. The script is your edited one when there is one (`vault.md`).
+  X may come back as a thread of up to 8 posts. Reddit comes back as a title
+  and a body.
+- **The cost.** One call to the writer picked on Settings → AI writer
+  (`ai-analysis.md`): about 1 cent with Gemini Flash or GPT-5 mini, 3 cents
+  with Claude Opus 5. The window shows it before Write, with the writer's
+  name. It
   goes on the AI meter as `viral_promo_post` and counts against the project's
   spend limit.
 - **The limits.** X takes 280 characters a post, Threads 500, LinkedIn 3,000,
@@ -83,18 +87,23 @@ When Promo posts something that came from a vault idea, Promo tells Viral,
 and the idea turns Posted on its own (`applyPromoPosted` in
 `src/server/viral/promo-posts.ts`).
 
-- **What counts.** An X or LinkedIn post whose draft came from Write a post
-  for Promo. Or any post Promo made from an Archive item that Video sent,
-  when Video's draft came from Send to Video. That chain is Viral → Video →
-  Promo → Viral.
+- **What counts.** An X, LinkedIn or Reddit post whose words came from Write
+  a post for Promo. Or any post Promo made from an Archive item that Video
+  sent, when Video's draft came from Send to Video. That chain is Viral →
+  Video → Promo → Viral.
 - **What is kept.** Your post's link and its views, likes and comments, one
-  row per post in `viral_vault_posts`.
+  row per post in `viral_vault_posts`. A Reddit post keeps upvotes in
+  `likes` and its comments, and never views, because Reddit shows none.
 - **Where it shows.** The vault idea's Numbers card lists "Your X views" under
-  the original's numbers, one line per post, each linking to the post.
+  the original's numbers, one line per post, each linking to the post. A
+  Reddit post shows "Your Reddit upvotes" and "Your Reddit comments" instead.
 - **Fresh views.** Promo sends the views again when they move, at most once a
   day. They are the numbers Promo's own checks read on its posts.
-- **Reddit.** A Reddit post isn't reported back yet, because Promo posts it
-  from the New post window without a link to the draft it came from.
+- **Reddit.** Promo opens the Reddit post in its New post window, which
+  remembers the post came from this idea. Once it is up, Promo reports it
+  once, with its link and when it went up, and the idea turns Posted. Its
+  upvotes and comments show "-", because Promo doesn't read a Reddit post's
+  numbers after it goes up, so none are ever sent.
 
 ## The messages
 
@@ -118,7 +127,8 @@ a read's answer) by what really arrived, not by what the sender's
 - **Promo → Viral `POST /api/connect/promo/reads`**: a read's answer.
 - **Promo → Viral `POST /api/connect/promo/events`**
   `{ type: "posted", ideaId, postKey, network, url, views, likes, comments, postedAt }`.
-  An idea no longer in the vault answers `{ status: "gone" }`.
+  For Reddit, `likes` is upvotes and `views` is ignored. An idea no longer in
+  the vault answers `{ status: "gone" }`.
 
 ## For the screens that show X, LinkedIn and Reddit posts
 

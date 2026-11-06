@@ -957,6 +957,12 @@ export const promoPosts = pgTable(
     visit: jsonb("visit").$type<VisitRecord | null>(),
     /** "Sam via Project" when a guest sent from Project posted it; null for the owner. */
     sentBy: text("sent_by"),
+    /**
+     * `viral:<idea id>` when New post opened with a post the Viral app wrote,
+     * so Promo tells Viral once it lands; "" otherwise. Added by
+     * `drizzle/0139_promo_reddit_post_source.sql`.
+     */
+    source: varchar("source", { length: 80 }).notNull().default(""),
     postedAt: timestamp("posted_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("ix_promo_posts_user").on(table.userId, table.postedAt.desc())]

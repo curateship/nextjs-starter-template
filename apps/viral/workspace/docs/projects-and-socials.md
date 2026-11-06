@@ -16,10 +16,15 @@ analyses and the vault.
 - **The socials.** A list in the order they were added
   (`viral_projects.socials`). The New project window ticks both YouTube and
   TikTok by default.
-- **The filters and limits copied from Video.** Days searched (7, 30 or 90),
-  video length, minimum views, minimum score, and the AI spend limit. All
-  of them are rows in the left panel's ⋮ and save as they change
-  (`project-page.md`).
+- **The filters and limits copied from Video.** Days searched (7, 30 or 90
+  days, 6 months or 1 year), video length, minimum views, minimum score, and
+  the AI spend limit. All of them are rows in the left panel's ⋮ and save as
+  they change (`project-page.md`). 6 months and 1 year came on 6 Nov 2026
+  (Tyler: "6 months and 1 year").
+- **Country and language.** What YouTube searches as, Anywhere until one is
+  picked (`viral_projects.region_code` and `relevance_language`, added by
+  `drizzle/0107_viral_writer_country_year.sql`). See `finding-content.md`.
+- **A duplicated project** keeps its window, country and language.
 
 ## Socials are modules
 
@@ -84,8 +89,10 @@ through the connection on Settings → Promo connection (`promo-connection.md`).
   connected. A read Promo never answered within 2 hours is asked for again.
   It runs only with `VIRAL_WATCH_ENABLED=1`.
 - **A duplicated project** copies what it reads, not the posts found.
-- **Not built for posts.** A post can't be analysed with AI or saved to the
-  vault, because both work from a video file.
+- **Saving a post.** Save to vault on a post's right panel has the AI write
+  the four pieces from the post's words and keeps it as a vault idea with no
+  video (Tyler, 6 Nov 2026: "All four pieces"; `vault.md`). Analyse with AI
+  stays a video's button, because it watches a file.
 
 ## Instagram and Threads
 

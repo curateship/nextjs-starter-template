@@ -1,11 +1,13 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 
 import { ANALYSIS_NOTES_MAX, type AnalysisPieces } from "@/lib/viral/analysis"
-import { isCreatorPlatform } from "@/lib/viral/creators"
-import { viralSays } from "@/lib/viral/viral"
+import { storedNotes } from "@/lib/viral/notes"
+import { viralSays, VIRAL_PROJECT_NOTES_MAX } from "@/lib/viral/viral"
 import {
   cleanTag,
+  readVaultPlatform,
   VAULT_TAGS_PER_ITEM_MAX,
+  VAULT_TITLE_MAX,
   type VaultItem,
   type VaultStats,
   type VaultStatus,
@@ -96,6 +98,7 @@ export async function saveToVault(ownerId: string, input: SaveToVaultInput): Pro
   const at = now()
   const notes = input.notes.slice(0, ANALYSIS_NOTES_MAX)
   const values = {
+    kind: "video" as const,
     savedVideoId: savedRow.id,
     sourceUrl: savedRow.sourceUrl,
     title: video?.title ?? savedRow.title ?? savedRow.sourceUrl,
@@ -129,12 +132,74 @@ export async function saveToVault(ownerId: string, input: SaveToVaultInput): Pro
         ...values,
         mediaId: sql`coalesce(${viralVaultItems.mediaId}, excluded.media_id)`,
         thumbnailStoragePath: sql`coalesce(${viralVaultItems.thumbnailStoragePath}, excluded.thumbnail_storage_path)`,
+        // Your edit of the script stays while the AI's script under it is the
+        // same one. Saving with another analysis, or none, drops it, because
+        // an edit of a script that is gone has nothing to sit on.
+        editedScript: sql`case when ${viralVaultItems.analysis} is not distinct from excluded.analysis then ${viralVaultItems.editedScript} else null end`,
         updatedAt: at,
       },
     })
     .returning()
   const [item] = await serialize([row])
   return item
+}
+
+/**
+ * "+ New idea" (more-features task part 3, Tyler: "Script on a button"). Your
+ * own idea has a title and notes and no video, and starts at Idea. Its script
+ * is written only when Write a script is pressed (`vault-ai.ts`). A sample
+ * project and an archived one take none.
+ */
+export async function createOwnIdea(
+  ownerId: string,
+  input: { projectId: string; title: string; notes: string }
+): Promise<VaultItem> {
+  const project = await requireOwnedViralProject(ownerId, input.projectId)
+  if (project.isSample) throw viralSays("This is a sample project, so nothing is kept in it. Pick one of your own projects.")
+  if (project.archivedAt) throw viralSays(`"${project.name}" is archived. Bring it back first, then add ideas to it.`)
+  const title = input.title.trim().replace(/\s+/g, " ").slice(0, VAULT_TITLE_MAX)
+  if (!title) throw viralSays("Give the idea a title first.")
+  const at = now()
+  const [row] = await db
+    .insert(viralVaultItems)
+    .values({
+      id: uuid(),
+      ownerId,
+      projectId: project.id,
+      kind: "own",
+      title,
+      stats: { views: null, likes: null, comments: null, subscribers: null, durationSeconds: null, postedAt: null, score: null, outlier: null },
+      notes: ownNotes(input.notes),
+      createdAt: at,
+      updatedAt: at,
+    })
+    .returning()
+  return serializeVaultRow(row)
+}
+
+/**
+ * Edit the script yourself (more-features task part 4, Tyler: "Keep it, Show
+ * original"). Each part keeps its label and seconds; only its words change.
+ * The AI's script stays as it was in `analysis`. `words` null, or words the
+ * same as the AI's, throws the edit away, so Show original only shows when
+ * there is a difference.
+ */
+export async function saveEditedScript(ownerId: string, itemId: string, words: string[] | null): Promise<VaultItem> {
+  const item = await requireOwnedItem(ownerId, itemId)
+  const original = item.analysis?.script
+  if (!original?.length) throw viralSays("This idea has no script to edit yet.")
+  let edited: AnalysisPieces["script"] | null = null
+  if (words) {
+    if (words.length !== original.length) throw viralSays("The script changed while you were editing. Open the idea again.")
+    const next = original.map((part, index) => ({ ...part, words: words[index] ?? "" }))
+    edited = next.every((part, index) => part.words === original[index].words) ? null : next
+  }
+  const [row] = await db
+    .update(viralVaultItems)
+    .set({ editedScript: edited, updatedAt: now() })
+    .where(and(eq(viralVaultItems.id, item.id), eq(viralVaultItems.ownerId, ownerId)))
+    .returning()
+  return serializeVaultRow(row)
 }
 
 /**
@@ -175,7 +240,13 @@ export async function loadVaultItem(ownerId: string, itemId: string): Promise<Va
   return item
 }
 
-async function requireOwnedItem(ownerId: string, itemId: string): Promise<ViralVaultItemRow> {
+/** One row as the vault shows it. The AI writing for posts and your own ideas answers through this. */
+export async function serializeVaultRow(row: ViralVaultItemRow): Promise<VaultItem> {
+  const [item] = await serialize([row])
+  return item
+}
+
+export async function requireOwnedItem(ownerId: string, itemId: string): Promise<ViralVaultItemRow> {
   const [row] = await db
     .select()
     .from(viralVaultItems)
@@ -222,18 +293,22 @@ async function serialize(rows: ViralVaultItemRow[]): Promise<VaultItem[]> {
       const send = lastSend.get(row.id)
       return {
         id: row.id,
+        kind: row.kind,
         projectId: row.projectId,
         projectName: names.get(row.projectId) ?? "",
-        platform: isCreatorPlatform(row.platform) ? row.platform : "youtube",
+        platform: readVaultPlatform(row.platform),
         platformVideoId: row.platformVideoId,
         sourceUrl: row.sourceUrl,
         title: row.title,
         channelName: row.channelName,
         thumbnailUrl: row.thumbnailStoragePath ? await getPublicMediaUrl(row.thumbnailStoragePath) : row.thumbnailUrl,
         playbackUrl: path ? await getPublicMediaUrl(path) : null,
+        hasFile: Boolean(path),
         stats: row.stats,
         analysisTopic: row.analysisTopic,
         analysis: row.analysis,
+        editedScript: row.editedScript,
+        post: row.post,
         notes: row.notes,
         status: row.status,
         tags: tagRows.filter((tag) => tag.itemId === row.id).map((tag) => tag.name),
@@ -246,18 +321,24 @@ async function serialize(rows: ViralVaultItemRow[]): Promise<VaultItem[]> {
   )
 }
 
-/** Notes, status and tags on one item, each saved as it changes. */
+/**
+ * Notes, status and tags on one item, each saved as it changes. Your own
+ * idea's notes are the shell editor's document, cleaned to what the shell's
+ * written-page rules allow; every other idea's notes are plain text.
+ */
 export async function updateVaultItem(
   ownerId: string,
   itemId: string,
   change: { notes?: string; status?: VaultStatus; tags?: string[] }
 ): Promise<VaultItem> {
-  await requireOwnedItem(ownerId, itemId)
+  const item = await requireOwnedItem(ownerId, itemId)
   if (change.notes !== undefined || change.status !== undefined) {
+    const notes =
+      change.notes === undefined ? undefined : item.kind === "own" ? ownNotes(change.notes) : change.notes.slice(0, ANALYSIS_NOTES_MAX)
     await db
       .update(viralVaultItems)
       .set({
-        ...(change.notes !== undefined ? { notes: change.notes.slice(0, ANALYSIS_NOTES_MAX) } : {}),
+        ...(notes !== undefined ? { notes } : {}),
         ...(change.status !== undefined ? { status: change.status } : {}),
         updatedAt: now(),
       })
@@ -265,6 +346,13 @@ export async function updateVaultItem(
   }
   if (change.tags !== undefined) await setItemTags(ownerId, itemId, change.tags)
   return loadVaultItem(ownerId, itemId)
+}
+
+/** Your own idea's notes as kept: the cleaned editor document, or "" when nothing is written. */
+function ownNotes(json: string): string {
+  const notes = storedNotes(json)
+  if (notes.length > VIRAL_PROJECT_NOTES_MAX) throw viralSays("The notes are too long to keep. Shorten them a little.")
+  return notes
 }
 
 /** Finds each tag by name, ignoring case, or makes it. Answers their ids. The Library's hook tags use the same list. */
@@ -413,8 +501,8 @@ export async function copyVaultItem(ownerId: string, itemId: string, targetProje
   // The same refusals as copying a video (`copy-to-project.ts`).
   if (target.isSample) throw viralSays("A sample project's videos are made up, so nothing can be copied into it.")
   if (target.archivedAt) throw viralSays(`"${target.name}" is archived. Bring it back first, then copy into it.`)
-  if (item.platformVideoId.startsWith("sample-")) {
-    throw viralSays("This is a made-up sample video, so there is nothing real to copy.")
+  if (item.platformVideoId?.startsWith("sample-")) {
+    throw viralSays(`This is a made-up sample ${item.kind === "post" ? "post" : "video"}, so there is nothing real to copy.`)
   }
   const at = now()
   const [row] = await db
@@ -430,6 +518,7 @@ export async function copyVaultItem(ownerId: string, itemId: string, targetProje
       target: [viralVaultItems.projectId, viralVaultItems.platform, viralVaultItems.platformVideoId],
     })
     .returning()
+  // Your own idea has no video to match on, so it is always copied.
   if (!row) return { state: "already", projectName: target.name }
   const tags = await db.select({ tagId: viralVaultItemTags.tagId }).from(viralVaultItemTags).where(eq(viralVaultItemTags.itemId, item.id))
   if (tags.length) await db.insert(viralVaultItemTags).values(tags.map((tag) => ({ itemId: row.id, tagId: tag.tagId })))

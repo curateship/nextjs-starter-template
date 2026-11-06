@@ -24,6 +24,13 @@ export type YoutubeSearchInput = {
   days: number
   /** Shorts only, or only videos longer than a Short. */
   length: "shorts" | "long"
+  /**
+   * The project's country and language (`src/lib/viral/places.ts`). Left out
+   * or null, nothing is sent, so a project on Anywhere searches as before.
+   * Neither changes the cost.
+   */
+  regionCode?: string | null
+  relevanceLanguage?: string | null
 }
 
 export type YoutubeVideo = {
@@ -61,20 +68,18 @@ export async function searchYoutubeVideos(
     Date.now() - input.days * 24 * 60 * 60 * 1000
   ).toISOString()
 
-  const search = await callYoutube(
-    fetchFn,
-    apiKey,
-    "search",
-    new URLSearchParams({
-      part: "id",
-      type: "video",
-      videoDuration: input.length === "shorts" ? "short" : "any",
-      order: "viewCount",
-      publishedAfter,
-      maxResults: "50",
-      q: input.keyword,
-    })
-  )
+  const searchParams = new URLSearchParams({
+    part: "id",
+    type: "video",
+    videoDuration: input.length === "shorts" ? "short" : "any",
+    order: "viewCount",
+    publishedAfter,
+    maxResults: "50",
+    q: input.keyword,
+  })
+  if (input.regionCode) searchParams.set("regionCode", input.regionCode)
+  if (input.relevanceLanguage) searchParams.set("relevanceLanguage", input.relevanceLanguage)
+  const search = await callYoutube(fetchFn, apiKey, "search", searchParams)
   const videoIds = itemsOf(search)
     .map((item) => stringAt(item, ["id", "videoId"]))
     .filter((id): id is string => !!id)

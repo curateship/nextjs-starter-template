@@ -34,6 +34,8 @@ export type NewPostStart = {
   subreddit: string
   title: string
   body: string
+  /** A post the Viral app wrote, so the post is reported back to Viral once it lands. */
+  viralDraftId?: string | null
 }
 
 /** The subreddit box's id, which New post in the middle column puts the cursor in. */
@@ -141,6 +143,7 @@ export function RedditNewPostPanel({
         subreddit: cleaned,
         title: title.trim(),
         body: body.trim(),
+        viralDraftId: start?.viralDraftId ?? null,
       })
       toast.success(
         runAfter

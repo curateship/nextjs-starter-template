@@ -7,6 +7,7 @@ import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS, NO_PROFILE_MESSAGE } from "@/lib/social/options"
 import { postingRefusalText } from "@/lib/social/wording"
+import { promoViralDrafts } from "@/server/viral-link/schema"
 
 import { refuseInteraction } from "../apart"
 import { queueJob } from "../jobs"
@@ -36,6 +37,42 @@ export type OwnPostInput = {
   body: string
   /** "Sam via Project" when a guest sent from Project pressed Post; null for the owner. */
   sentBy?: string | null
+  /**
+   * The Viral app's post New post opened with (`?newPost=<id>`), so the post
+   * is told to Viral once it lands (`src/server/viral-link/reports.ts`).
+   */
+  viralDraftId?: string | null
+}
+
+/** A post's source as X and LinkedIn drafts keep it: `viral:<idea id>`. */
+const VIRAL_SOURCE = /^viral:[A-Za-z0-9-]{1,64}$/
+
+/**
+ * The source a Viral draft gives a post: `viral:<idea id>` when the draft is
+ * this person's Reddit post for this project, "" for anything else. Worked out
+ * here from the draft itself, never taken from the browser.
+ */
+async function viralSourceOf(
+  userId: string,
+  projectId: string,
+  draftId: string | null | undefined,
+  db: CustomShellDb
+): Promise<string> {
+  if (!draftId) return ""
+  const [draft] = await db
+    .select({ ideaId: promoViralDrafts.ideaId })
+    .from(promoViralDrafts)
+    .where(
+      and(
+        eq(promoViralDrafts.id, draftId),
+        eq(promoViralDrafts.userId, userId),
+        eq(promoViralDrafts.projectId, projectId),
+        eq(promoViralDrafts.network, "reddit")
+      )
+    )
+    .limit(1)
+  const source = draft?.ideaId ? `viral:${draft.ideaId}` : ""
+  return VIRAL_SOURCE.test(source) ? source : ""
 }
 
 /**
@@ -98,10 +135,20 @@ export async function queueOwnPost(
   await refuseInteraction(userId, account, { words: [title, body] }, db)
 
   const runAfter = state.nextWakeAt
+  const source = await viralSourceOf(userId, projectId, input.viralDraftId, db)
   const jobId = await queueJob(
     userId,
     "submit",
-    { accountId: account.id, projectId, subreddit, title, body, ...(input.sentBy ? { sentBy: input.sentBy } : {}) },
+    {
+      accountId: account.id,
+      projectId,
+      subreddit,
+      title,
+      body,
+      ...(input.sentBy ? { sentBy: input.sentBy } : {}),
+      // Kept so Try again opens New post with the same draft, and the post keeps where it came from.
+      ...(source ? { source, viralDraftId: input.viralDraftId } : {}),
+    },
     db,
     runAfter
   )
@@ -124,6 +171,7 @@ export async function submitOwnPost(
   const body = String(payload.body ?? "").trim()
   const projectId = typeof payload.projectId === "string" ? payload.projectId : null
   const sentBy = typeof payload.sentBy === "string" && payload.sentBy ? payload.sentBy : null
+  const source = typeof payload.source === "string" && VIRAL_SOURCE.test(payload.source) ? payload.source : ""
   if (!subreddit || !title) throw new Error("That post job is missing its subreddit or its title.")
 
   const id = uuid()
@@ -132,13 +180,13 @@ export async function submitOwnPost(
     if (!postUrl.startsWith("https://www.reddit.com/")) {
       throw new Error("Reddit answered with an address that is not Reddit's.")
     }
-    await db.insert(promoPosts).values({ id, userId, accountId, projectId, subreddit, title, body, status: "posted", postUrl, visit, sentBy })
+    await db.insert(promoPosts).values({ id, userId, accountId, projectId, subreddit, title, body, status: "posted", postUrl, visit, sentBy, source })
     await db.update(promoAccounts).set({ lastPostedAt: new Date() }).where(eq(promoAccounts.id, accountId))
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     await db
       .insert(promoPosts)
-      .values({ id, userId, accountId, projectId, subreddit, title, body, status: "failed", lastError: message, sentBy })
+      .values({ id, userId, accountId, projectId, subreddit, title, body, status: "failed", lastError: message, sentBy, source })
     throw error
   }
 }
@@ -183,8 +231,9 @@ export async function listOwnPosts(userId: string, db: CustomShellDb = defaultDb
 }
 
 /**
- * A failed post's subreddit, title, words and account, for Try again, which
- * opens New post with them filled in. Never sends them.
+ * A failed post's subreddit, title, words and account, and the Viral draft it
+ * came from, for Try again, which opens New post with them filled in. Never
+ * sends them.
  */
 export async function failedPost(
   userId: string,
@@ -204,5 +253,6 @@ export async function failedPost(
     subreddit: text(job.payload.subreddit),
     title: text(job.payload.title),
     body: text(job.payload.body),
+    viralDraftId: text(job.payload.viralDraftId) || null,
   }
 }

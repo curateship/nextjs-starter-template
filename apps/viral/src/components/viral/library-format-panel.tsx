@@ -24,10 +24,12 @@ import {
   type ViralFormat,
 } from "@/lib/api/viral/viral-library"
 import { formatShortDay } from "@/lib/viral/viral-view"
+import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { scriptText } from "@/lib/viral/analysis"
 import { FORMAT_IDEA_MAX, FORMAT_NAME_MAX } from "@/lib/viral/formats"
 import { segmentRoleLabels } from "@/lib/viral/viral-breakdown"
+import type { WriterPrice } from "@/lib/viral/writers"
 
 type Scripts = { state: "loading" } | { state: "ready"; scripts: FormatScript[] } | { state: "failed"; error: string }
 
@@ -41,7 +43,7 @@ export function LibraryFormatPanel({
   format,
   projects,
   writeForId,
-  priceCents,
+  price,
   onChanged,
   onDeleted,
 }: {
@@ -50,7 +52,8 @@ export function LibraryFormatPanel({
   projects: { id: string; name: string }[]
   /** The project picked on the left, or the first one. */
   writeForId: string | null
-  priceCents: number
+  /** What one script costs, and who writes it (Settings → AI writer). */
+  price: WriterPrice
   onChanged: (format: ViralFormat) => void
   onDeleted: (format: ViralFormat) => void
 }) {
@@ -184,7 +187,7 @@ export function LibraryFormatPanel({
             ) : null}
           </InspectorCard>
 
-          <InspectorCard storageId="viral-format-write" title="Write a script" description={`About ${priceCents} cent${priceCents === 1 ? "" : "s"}`}>
+          <InspectorCard storageId="viral-format-write" title="Write a script" description={`About ${price.cents} ${plural(price.cents, "cent")} with ${price.writer}`}>
             <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
               <div className="grid gap-2">
                 <Label htmlFor={`format-project-${format.id}`}>Written for</Label>

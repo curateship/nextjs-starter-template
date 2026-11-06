@@ -35,6 +35,7 @@ import {
   type PromoPostSend,
   type VaultPost,
 } from "@/lib/viral/promo-link"
+import { writerPriceWords, type WriterPrice } from "@/lib/viral/writers"
 
 type Projects = { state: "loading" } | { state: "failed"; error: string } | { state: "ready"; projects: PromoProjectOption[] }
 
@@ -67,7 +68,7 @@ function PromoPostDialog({ open, itemId, onClose }: { open: boolean; itemId: str
   const [pieces, setPieces] = React.useState<string[]>([])
   const [projectId, setProjectId] = React.useState("")
   const [projects, setProjects] = React.useState<Projects>({ state: "loading" })
-  const [price, setPrice] = React.useState<number | null>(null)
+  const [price, setPrice] = React.useState<WriterPrice | null>(null)
   const [busy, setBusy] = React.useState<"write" | "send" | null>(null)
   // A network picked while the written words hold edits, waiting on "Discard changes?".
   const [askingFor, setAskingFor] = React.useState<PromoPostNetwork | null>(null)
@@ -113,7 +114,7 @@ function PromoPostDialog({ open, itemId, onClose }: { open: boolean; itemId: str
     let live = true
     loadPromoPostPrice().then(
       (answer) => {
-        if (live) setPrice(answer.cents)
+        if (live) setPrice(answer)
       },
       () => undefined
     )
@@ -217,9 +218,8 @@ function PromoPostDialog({ open, itemId, onClose }: { open: boolean; itemId: str
                     </Select>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {sendsToPromo(network)
-                      ? `Writing costs about ${price ?? 1} cent${price === null || price === 1 ? "" : "s"} of AI.`
-                      : `Promo has no Threads, so a Threads post is for Copy. Writing costs about ${price ?? 1} cent${price === null || price === 1 ? "" : "s"} of AI.`}
+                    {sendsToPromo(network) ? "" : "Promo has no Threads, so a Threads post is for Copy. "}
+                    {price ? `Writing costs ${writerPriceWords(price)}.` : "Writing costs about 1 cent of AI."}
                   </p>
                 </CardContent>
               </Card>
@@ -390,15 +390,39 @@ export function YourPostRows({ itemId, refreshKey }: { itemId: string; refreshKe
   return (
     <>
       {posts.map((post) => (
-        <div key={post.id} className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">
-            <a href={post.url} target="_blank" rel="noreferrer noopener" className="underline-offset-4 hover:underline">
-              Your {NETWORK_WORDS[post.network] ?? post.network} views
-            </a>
-          </dt>
-          <dd className="min-w-0 text-right font-medium">{formatCount(post.views)}</dd>
-        </div>
+        <React.Fragment key={post.id}>
+          {yourFigures(post).map((figure, index) => (
+            <div key={figure.label} className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">
+                {/* The first line of each post links to it. */}
+                {index === 0 ? (
+                  <a href={post.url} target="_blank" rel="noreferrer noopener" className="underline-offset-4 hover:underline">
+                    {figure.label}
+                  </a>
+                ) : (
+                  figure.label
+                )}
+              </dt>
+              <dd className="min-w-0 text-right font-medium">{formatCount(figure.value)}</dd>
+            </div>
+          ))}
+        </React.Fragment>
       ))}
     </>
   )
+}
+
+/**
+ * The lines one of your posts shows. Reddit has no views, so a Reddit post
+ * shows its upvotes and comments in Reddit's words. Every other network shows
+ * its views.
+ */
+function yourFigures(post: VaultPost): { label: string; value: number | null }[] {
+  if (post.network === "reddit") {
+    return [
+      { label: "Your Reddit upvotes", value: post.likes },
+      { label: "Your Reddit comments", value: post.comments },
+    ]
+  }
+  return [{ label: `Your ${NETWORK_WORDS[post.network] ?? post.network} views`, value: post.views }]
 }

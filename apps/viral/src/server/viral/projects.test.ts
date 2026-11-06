@@ -9,6 +9,7 @@ import { createTestDatabase, insertUser } from "@/server/test-support"
 import { listSavedViews, saveSavedView } from "@/server/saved-views"
 import { savedViewScreen } from "@/lib/saved-views"
 import { VIRAL_SAVED_VIEW_KIND } from "@/lib/viral/viral-saved-views"
+import type { ViralProjectItem } from "@/lib/viral/viral"
 import { viralSavedViewScreen } from "@/server/viral/saved-views"
 import {
   viralCreatorPosts,
@@ -192,7 +193,56 @@ describe("duplicating", () => {
     // Nothing is searched until somebody presses Search on the copy.
     expect(keywords.every((keyword) => keyword.status === "idle")).toBe(true)
   })
+
+  it("keeps the country and the language", async () => {
+    const project = await newProject()
+    await saveViralProjectSettings(user.id, project.id, { ...settingsOf(project), regionCode: "GB", relevanceLanguage: "en" })
+    const copy = await duplicateViralProject(user.id, project.id)
+    expect(copy.region_code).toBe("GB")
+    expect(copy.relevance_language).toBe("en")
+  })
 })
+
+describe("country, language and how far back", () => {
+  it("starts on Anywhere, and keeps a country and language until they are changed", async () => {
+    const project = await newProject()
+    expect(project.region_code).toBeNull()
+    expect(project.relevance_language).toBeNull()
+    const set = await saveViralProjectSettings(user.id, project.id, { ...settingsOf(project), regionCode: "GB", relevanceLanguage: "zh-Hans" })
+    expect([set.region_code, set.relevance_language]).toEqual(["GB", "zh-Hans"])
+    // Saving another setting leaves them as they are; null puts Anywhere back.
+    const named = await saveViralProjectSettings(user.id, project.id, { ...settingsOf(set), name: "Renamed" })
+    expect([named.region_code, named.relevance_language]).toEqual(["GB", "zh-Hans"])
+    const anywhere = await saveViralProjectSettings(user.id, project.id, { ...settingsOf(set), regionCode: null, relevanceLanguage: null })
+    expect([anywhere.region_code, anywhere.relevance_language]).toEqual([null, null])
+  })
+
+  it("refuses a country or language that isn't on the list", async () => {
+    const project = await newProject()
+    await expect(saveViralProjectSettings(user.id, project.id, { ...settingsOf(project), regionCode: "XX" })).rejects.toThrow("country")
+    await expect(saveViralProjectSettings(user.id, project.id, { ...settingsOf(project), relevanceLanguage: "zh" })).rejects.toThrow("language")
+  })
+
+  it("saves 6 months and 1 year, and the database takes both", async () => {
+    const project = await newProject()
+    expect((await saveViralProjectSettings(user.id, project.id, { ...settingsOf(project), days: 180 })).days).toBe(180)
+    expect((await saveViralProjectSettings(user.id, project.id, { ...settingsOf(project), days: 365 })).days).toBe(365)
+    const [row] = await database.select({ days: viralProjects.days }).from(viralProjects).where(eq(viralProjects.id, project.id))
+    expect(row.days).toBe(365)
+  })
+})
+
+function settingsOf(project: ViralProjectItem) {
+  return {
+    name: project.name,
+    description: project.description,
+    days: project.days,
+    minViews: project.min_views,
+    minScore: project.min_score,
+    videoLength: project.video_length,
+    spendLimitCents: project.spend_limit_cents,
+  }
+}
 
 describe("deleting", () => {
   it("says what goes and what stays, and takes the vault with it", async () => {

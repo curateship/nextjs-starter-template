@@ -10,11 +10,13 @@ import {
   type VaultPost,
 } from "@/lib/viral/promo-link"
 import { viralSays } from "@/lib/viral/viral"
+import type { WriterPrice } from "@/lib/viral/writers"
 import { adminGet, adminPost } from "@/server/guards"
 import { cleanVideoUrl } from "@/server/viral/video-link"
 import { helloPromo, listPromoProjects, type PromoProjectOption } from "@/server/viral/promo-link"
 import { listPromoSends, listVaultPosts, promoPostPriceCents, sendPromoPost, writePromoPost } from "@/server/viral/promo-posts"
 import { loadSocialPost, refreshPromoRead, requestThreadRead } from "@/server/viral/promo-reads"
+import { writerForPrices } from "@/server/viral/writer-choice"
 import {
   getPromoApiKey,
   getPromoKeyStatus,
@@ -169,9 +171,12 @@ export function askPromoForThread(postId: string) {
 
 const priceFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async (): Promise<{ cents: number }> => ({ cents: promoPostPriceCents() }))
+  .handler(async (): Promise<WriterPrice> => {
+    const writer = await writerForPrices()
+    return { cents: promoPostPriceCents(writer), writer: writer.label }
+  })
 
-/** What writing one post costs, roughly, shown before Write runs. */
+/** What writing one post costs, roughly, and who writes it, shown before Write runs. */
 export function loadPromoPostPrice() {
   return priceFn()
 }

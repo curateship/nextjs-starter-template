@@ -1,5 +1,5 @@
 import * as React from "react"
-import { BookMarkedIcon, EyeIcon, FilmIcon, LayoutTemplateIcon } from "lucide-react"
+import { BookMarkedIcon, EyeIcon, FilmIcon, LayoutTemplateIcon, QuoteIcon } from "lucide-react"
 
 import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
@@ -21,9 +21,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CoverImage } from "@/components/viral/cover-image"
 import { LibraryFormatPanel } from "@/components/viral/library-format-panel"
 import { LibraryHookPanel } from "@/components/viral/library-hook-panel"
+import { NewHookDropdown } from "@/components/viral/library-own-hook"
 import type { SavedView } from "@/lib/api/saved-views"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
-import type { LibraryHook, ViralFormat } from "@/lib/api/viral/viral-library"
+import type { LibraryHook, OwnHookType, ViralFormat } from "@/lib/api/viral/viral-library"
 import { plural } from "@/lib/format/plural"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
@@ -31,6 +32,7 @@ import { SAVED_VIEW_ERRORS, savedViewScreen, type SavedViewValues } from "@/lib/
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { creatorPlatformLabels, formatCount } from "@/lib/viral/creators"
+import { hookTypeChoices, hookTypeLabel, winnersByType, type HookTypeChoice } from "@/lib/viral/hook-types"
 import {
   describeLibraryView,
   filterLibraryHooks,
@@ -40,6 +42,7 @@ import {
   type LibraryTab,
 } from "@/lib/viral/library"
 import { segmentRoleLabels } from "@/lib/viral/viral-breakdown"
+import type { WriterPrice } from "@/lib/viral/writers"
 
 const LAYOUT_KEY = "viral-library-horizontal-1"
 const PLACE_KEY = "viral-library-place"
@@ -61,17 +64,24 @@ export function LibraryPage({
   hooks: loadedHooks,
   formats: loadedFormats,
   tags,
+  hookTypes,
   projects,
   views,
-  scriptPriceCents,
+  scriptPrice,
+  hookIdeasPrice,
   search,
 }: {
   hooks: LibraryHook[]
   formats: ViralFormat[]
   tags: string[]
+  /** The person's own hook types, added on Settings → Hook types. */
+  hookTypes: OwnHookType[]
   projects: LibraryProject[]
   views: SavedView[]
-  scriptPriceCents: number
+  /** What one script from a format costs, and who writes it. */
+  scriptPrice: WriterPrice
+  /** What one press of Write hooks like this costs, and who writes it. */
+  hookIdeasPrice: WriterPrice
   search: LibraryPageSearch
 }) {
   const setSearch = useListSearchNavigate()
@@ -82,20 +92,29 @@ export function LibraryPage({
     setSearch({ q: next.trim() ? next : undefined })
   )
 
-  // A tag or name changed on the right shows in the list at once; the next
-  // read of the page replaces these.
-  const [hookTags, setHookTags] = React.useState<Record<string, string[]>>({})
+  // A hook added, edited or deleted, or a tag or name changed, on the right
+  // shows in the list at once; the next read of the page replaces these.
+  const [hookEdits, setHookEdits] = React.useState<Record<string, LibraryHook | null>>({})
+  const [addedHooks, setAddedHooks] = React.useState<LibraryHook[]>([])
   const [formatEdits, setFormatEdits] = React.useState<Record<string, ViralFormat | null>>({})
   const [loadedFrom, setLoadedFrom] = React.useState({ loadedHooks, loadedFormats })
   if (loadedFrom.loadedHooks !== loadedHooks || loadedFrom.loadedFormats !== loadedFormats) {
     setLoadedFrom({ loadedHooks, loadedFormats })
-    setHookTags({})
+    setHookEdits({})
+    setAddedHooks([])
     setFormatEdits({})
   }
   const hooks = React.useMemo(
-    () => loadedHooks.map((hook) => (hookTags[hook.savedVideoId] ? { ...hook, tags: hookTags[hook.savedVideoId] } : hook)),
-    [hookTags, loadedHooks]
+    () =>
+      [...addedHooks, ...loadedHooks].flatMap((hook) => {
+        const edit = hookEdits[hook.id]
+        return edit === null ? [] : [edit ?? hook]
+      }),
+    [addedHooks, hookEdits, loadedHooks]
   )
+  const typeChoices = React.useMemo(() => hookTypeChoices(hookTypes), [hookTypes])
+  const winners = React.useMemo(() => winnersByType(hooks), [hooks])
+  const typeName = (id: string) => hookTypeLabel(id, typeChoices)
   const formats = React.useMemo(
     () =>
       loadedFormats.flatMap((format) => {
@@ -112,9 +131,10 @@ export function LibraryPage({
       libraryFilters({
         ...(search.q ? { q: search.q } : {}),
         ...(search.tag ? { tag: search.tag } : {}),
+        ...(search.type ? { type: search.type } : {}),
         ...(projectId ? { project: projectId } : {}),
       }),
-    [projectId, search.q, search.tag]
+    [projectId, search.q, search.tag, search.type]
   )
   const shownHooks = React.useMemo(() => filterLibraryHooks(hooks, currentView), [currentView, hooks])
   const shownFormats = React.useMemo(() => {
@@ -128,9 +148,9 @@ export function LibraryPage({
       : formats
   }, [formats, search.q])
 
-  const openHook = tab === "hooks" && search.open ? (hooks.find((hook) => hook.savedVideoId === search.open) ?? null) : null
+  const openHook = tab === "hooks" && search.open ? (hooks.find((hook) => hook.id === search.open) ?? null) : null
   const openFormat = tab === "formats" && search.open ? (formats.find((format) => format.id === search.open) ?? null) : null
-  const ids = tab === "hooks" ? shownHooks.map((hook) => hook.savedVideoId) : shownFormats.map((format) => format.id)
+  const ids = tab === "hooks" ? shownHooks.map((hook) => hook.id) : shownFormats.map((format) => format.id)
 
   // A new tab or project opens its first row, so the right panel is never
   // empty while the list has something (UI standard).
@@ -146,7 +166,7 @@ export function LibraryPage({
     describe: (filters) => {
       const kept = libraryFilters(filters)
       const name = kept.project ? projects.find((one) => one.id === kept.project)?.name : null
-      return [name, describeLibraryView(kept)].filter(Boolean).join(" · ")
+      return [name, describeLibraryView(kept, typeName)].filter(Boolean).join(" · ")
     },
     kept: (filters) => libraryFilters(filters) as SavedViewValues,
     describeError: (error) => {
@@ -165,7 +185,11 @@ export function LibraryPage({
       showErrorToast(`No hook carries the tag "${filters.tag}" any more, so "${saved.name}" opened without it.`)
       delete filters.tag
     }
-    setSearch({ tab: undefined, q: filters.q, tag: filters.tag, project: filters.project, open: undefined })
+    if (filters.type && !typeName(filters.type)) {
+      showErrorToast(`The hook type in "${saved.name}" was deleted, so it opened without it.`)
+      delete filters.type
+    }
+    setSearch({ tab: undefined, q: filters.q, tag: filters.tag, type: filters.type, project: filters.project, open: undefined })
   }
 
   function saveAsView() {
@@ -190,13 +214,20 @@ export function LibraryPage({
         />
       </div>
       <TagFilterRow id="edit-library-view-tag" value={libraryFilters(filters).tag} tags={tags} onChange={(tag) => change({ tag })} />
+      <TypeFilterRow
+        id="edit-library-view-type"
+        value={libraryFilters(filters).type}
+        choices={typeChoices}
+        winners={winners}
+        onChange={(type) => change({ type })}
+      />
     </>
   )
 
   // ------------------------------------------------------------- Panels --
 
   const hookCount = (id: string | null) =>
-    id ? hooks.filter((hook) => hook.projects.some((one) => one.id === id)).length : hooks.length
+    id ? hooks.filter((hook) => hook.kind === "video" && hook.projects.some((one) => one.id === id)).length : hooks.length
 
   const left = (
     <>
@@ -239,10 +270,10 @@ export function LibraryPage({
       {tab === "hooks" ? (
         <>
           <FilterPopover
-            count={search.tag ? 1 : 0}
+            count={(search.tag ? 1 : 0) + (search.type ? 1 : 0)}
             open={filterOpen}
             onOpenChange={setFilterOpen}
-            onClear={() => setSearch({ tag: undefined })}
+            onClear={() => setSearch({ tag: undefined, type: undefined })}
             save={
               <Button type="button" onClick={saveAsView}>
                 Save as view
@@ -250,16 +281,32 @@ export function LibraryPage({
             }
           >
             <TagFilterRow id="library-filter-tag" value={search.tag} tags={tags} onChange={(tag) => setSearch({ tag })} />
+            <TypeFilterRow
+              id="library-filter-type"
+              value={search.type}
+              choices={typeChoices}
+              winners={winners}
+              onChange={(type) => setSearch({ type })}
+            />
           </FilterPopover>
           <SavedViewsControls
             here={viewsHere}
             views={views}
             filters={currentView as SavedViewValues}
             onOpen={openView}
-            onClose={() => setSearch({ q: undefined, tag: undefined, project: undefined })}
+            onClose={() => setSearch({ q: undefined, tag: undefined, type: undefined, project: undefined })}
             editFields={editViewFields}
             saveButton={false}
             buttonVariant="ghost"
+          />
+          <NewHookDropdown
+            choices={typeChoices}
+            tags={tags}
+            onCreated={(hook) => {
+              setAddedHooks((was) => [hook, ...was])
+              // A new hook is nobody's project's, so it shows under All projects, with nothing filtering it out.
+              setSearch({ project: undefined, q: undefined, tag: undefined, type: undefined, open: hook.id })
+            }}
           />
         </>
       ) : null}
@@ -282,9 +329,9 @@ export function LibraryPage({
       <ScrollArea className="min-h-0 flex-1">
         {tab === "hooks" ? (
           !hooks.length ? (
-            <Empty>Press Analyse with AI on a project's videos, and their hooks gather here.</Empty>
+            <Empty>Press Analyse with AI on a project's videos, and their hooks gather here. Press New hook to add one you heard.</Empty>
           ) : shownHooks.length ? (
-            <HookRows hooks={shownHooks} openId={openHook?.savedVideoId ?? null} onPick={(hook) => setSearch({ open: hook.savedVideoId })} />
+            <HookRows hooks={shownHooks} choices={typeChoices} openId={openHook?.id ?? null} onPick={(hook) => setSearch({ open: hook.id })} />
           ) : (
             <Empty>No hook matches these filters.</Empty>
           )
@@ -300,14 +347,23 @@ export function LibraryPage({
   )
 
   const writeFor = project && !project.sample ? project : (projects.find((one) => !one.sample) ?? null)
+  const ownProjects = projects.filter((one) => !one.sample)
   let right: React.ReactNode
   if (openHook) {
     right = (
       <LibraryHookPanel
-        key={openHook.savedVideoId}
+        key={openHook.id}
         hook={openHook}
         tags={tags}
-        onTags={(next) => setHookTags((was) => ({ ...was, [openHook.savedVideoId]: next }))}
+        choices={typeChoices}
+        projects={ownProjects}
+        writeForId={writeFor?.id ?? null}
+        ideasPrice={hookIdeasPrice}
+        onChanged={(hook) => setHookEdits((was) => ({ ...was, [hook.id]: hook }))}
+        onDeleted={(hook) => {
+          setHookEdits((was) => ({ ...was, [hook.id]: null }))
+          setSearch({ open: undefined })
+        }}
       />
     )
   } else if (openFormat) {
@@ -315,9 +371,9 @@ export function LibraryPage({
       <LibraryFormatPanel
         key={openFormat.id}
         format={openFormat}
-        projects={projects.filter((one) => !one.sample)}
+        projects={ownProjects}
         writeForId={writeFor?.id ?? null}
-        priceCents={scriptPriceCents}
+        price={scriptPrice}
         onChanged={(format) => setFormatEdits((was) => ({ ...was, [format.id]: format }))}
         onDeleted={(format) => {
           setFormatEdits((was) => ({ ...was, [format.id]: null }))
@@ -424,60 +480,117 @@ function TagFilterRow({
   )
 }
 
+/**
+ * Type in Filter (task part 7): the fixed types, then the person's own, each
+ * with how many winners it has, so the types that win stand out.
+ */
+function TypeFilterRow({
+  id,
+  value,
+  choices,
+  winners,
+  onChange,
+}: {
+  id: string
+  value: string | undefined
+  choices: HookTypeChoice[]
+  winners: Map<string, number>
+  onChange: (type: string | undefined) => void
+}) {
+  // A type kept in a view but since deleted still shows, so it can be cleared.
+  const all = value && !choices.some((one) => one.id === value) ? [{ id: value, label: "A deleted type", own: true }, ...choices] : choices
+  return (
+    <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-2">
+      <Label htmlFor={id} className="text-muted-foreground">
+        Type
+      </Label>
+      <Select value={value ?? ANY} onValueChange={(next) => onChange(next === ANY ? undefined : next)}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY}>Any type</SelectItem>
+          {all.map((choice) => {
+            const count = winners.get(choice.id) ?? 0
+            return (
+              <SelectItem key={choice.id} value={choice.id}>
+                {choice.label}
+                <span className="text-muted-foreground tabular-nums">
+                  {count} {plural(count, "winner")}
+                </span>
+              </SelectItem>
+            )
+          })}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
 function HookRows({
   hooks,
+  choices,
   openId,
   onPick,
 }: {
   hooks: LibraryHook[]
+  choices: HookTypeChoice[]
   openId: string | null
   onPick: (hook: LibraryHook) => void
 }) {
   return (
     <ul aria-label="Hooks" className="grid grid-cols-[minmax(0,1fr)]">
-      {hooks.map((hook) => (
-        <li key={hook.savedVideoId} className={cn("border-b", hook.savedVideoId === openId ? "bg-muted" : "hover:bg-muted/50")}>
-          <button
-            type="button"
-            aria-current={hook.savedVideoId === openId ? "true" : undefined}
-            onClick={() => onPick(hook)}
-            className={cn("flex w-full min-w-0 items-start gap-3 px-3 py-3 text-left", focusRing)}
-          >
-            <span className="aspect-[9/16] w-10 shrink-0 overflow-hidden rounded-md bg-muted">
-              <CoverImage
-                src={hook.thumbnailUrl}
-                className="size-full object-cover"
-                fallback={
-                  <span className="grid size-full place-items-center">
-                    <FilmIcon className="size-4 text-muted-foreground" />
-                  </span>
-                }
-              />
-            </span>
-            <span className="grid min-w-0 flex-1 gap-1">
-              <span className="text-sm leading-snug font-medium">"{hook.hook.text}"</span>
-              <span className="truncate text-xs text-muted-foreground tabular-nums">
-                {[
-                  hook.projects[0]?.name,
-                  hook.channelName || creatorPlatformLabels[hook.platform],
-                  `${formatCount(hook.views)} views`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
-              {hook.tags.length ? (
-                <span className="flex flex-wrap gap-1">
-                  {hook.tags.slice(0, 3).map((tag) => (
-                    <Badge key={tag} variant="outline">
-                      {tag}
-                    </Badge>
-                  ))}
+      {hooks.map((hook) => {
+        const type = hookTypeLabel(hook.typeId, choices)
+        return (
+          <li key={hook.id} className={cn("border-b", hook.id === openId ? "bg-muted" : "hover:bg-muted/50")}>
+            <button
+              type="button"
+              aria-current={hook.id === openId ? "true" : undefined}
+              onClick={() => onPick(hook)}
+              className={cn("flex w-full min-w-0 items-start gap-3 px-3 py-3 text-left", focusRing)}
+            >
+              {hook.kind === "video" ? (
+                <span className="aspect-[9/16] w-10 shrink-0 overflow-hidden rounded-md bg-muted">
+                  <CoverImage
+                    src={hook.thumbnailUrl}
+                    className="size-full object-cover"
+                    fallback={
+                      <span className="grid size-full place-items-center">
+                        <FilmIcon className="size-4 text-muted-foreground" />
+                      </span>
+                    }
+                  />
                 </span>
-              ) : null}
-            </span>
-          </button>
-        </li>
-      ))}
+              ) : (
+                <span className="grid size-10 shrink-0 place-items-center rounded-md bg-muted">
+                  <QuoteIcon className="size-4 text-muted-foreground" aria-hidden />
+                </span>
+              )}
+              <span className="grid min-w-0 flex-1 gap-1">
+                <span className="text-sm leading-snug font-medium">"{hook.text}"</span>
+                <span className="truncate text-xs text-muted-foreground tabular-nums">
+                  {hook.kind === "video"
+                    ? [hook.projects[0]?.name, hook.channelName || creatorPlatformLabels[hook.platform], `${formatCount(hook.views)} views`]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : "Your hook"}
+                </span>
+                {type || hook.tags.length ? (
+                  <span className="flex flex-wrap gap-1">
+                    {type ? <Badge variant="secondary">{type}</Badge> : null}
+                    {hook.tags.slice(0, 3).map((tag) => (
+                      <Badge key={tag} variant="outline">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </span>
+                ) : null}
+              </span>
+            </button>
+          </li>
+        )
+      })}
     </ul>
   )
 }

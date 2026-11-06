@@ -4,6 +4,7 @@ import {
   DownloadIcon,
   EyeOffIcon,
   ExternalLinkIcon,
+  HardDriveDownloadIcon,
   LinkIcon,
   Loader2Icon,
   PlayIcon,
@@ -43,6 +44,7 @@ import {
   isSavedVideoWorking,
   savedVideoStatusLabels,
 } from "@/lib/viral/creators"
+import { downloadToComputer } from "@/lib/viral/download"
 import { soundLabel, type ViralVideo } from "@/lib/viral/viral"
 import { engagementPer100, viewsPerFollower } from "@/lib/viral/viral-view"
 import { CoverImage } from "@/components/viral/cover-image"
@@ -320,6 +322,15 @@ function PlayerBody({
                 Download, no AI
               </MenuAction>
             )}
+            {/* Shown only while Viral keeps a copy (Tyler, 6 Nov 2026: "Both ⋮ menus"). */}
+            {saved?.playbackUrl ? (
+              <MenuAction icon={<HardDriveDownloadIcon className="size-4" />} onClick={() => {
+                setMenuOpen(false)
+                downloadToComputer("video", saved.id)
+              }}>
+                Download to computer
+              </MenuAction>
+            ) : null}
             {saved?.status === "failed" ? (
               <MenuAction icon={<RotateCwIcon className="size-4" />} disabled={busy !== null} onClick={() => {
                 setMenuOpen(false)

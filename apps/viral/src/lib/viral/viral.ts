@@ -12,9 +12,22 @@ import type { Social } from "./socials"
 import type { HookLine } from "./viral-breakdown"
 import type { ViralScore } from "./viral-score"
 
-/** The posted-within windows a project offers, in days. */
-export const VIRAL_DAY_CHOICES = [7, 30, 90] as const
+/**
+ * The posted-within windows a project offers, in days. 180 and 365 were
+ * added on 6 Nov 2026 (Tyler: "6 months and 1 year"); a longer window costs
+ * the same 102 units a search.
+ */
+export const VIRAL_DAY_CHOICES = [7, 30, 90, 180, 365] as const
 export type ViralDays = (typeof VIRAL_DAY_CHOICES)[number]
+
+/** What the Posted within row says for each window. */
+export const viralDayLabels: Record<ViralDays, string> = {
+  7: "7 days",
+  30: "30 days",
+  90: "90 days",
+  180: "6 months",
+  365: "1 year",
+}
 
 /**
  * Anything longer than this many seconds is not a Short. The API's own
@@ -215,6 +228,10 @@ export function beatsUsualLine(beats: ViralCreator["beatsUsual"]): string | null
 
 export type ViralProjectFilters = {
   days: ViralDays
+  /** The country YouTube searches as (ISO 3166-1, such as GB), or null for Anywhere (`places.ts`). */
+  region_code: string | null
+  /** The language YouTube ranks for (such as en or zh-Hans), or null for Anywhere. */
+  relevance_language: string | null
   min_views: number
   min_score: number
   video_length: ViralVideoLength

@@ -6,6 +6,7 @@ import { filterVaultItems } from "@/lib/viral/vault-view"
 function item(id: string, change: Partial<VaultItem>): VaultItem {
   return {
     id,
+    kind: "video",
     projectId: "p1",
     projectName: "Meal prep",
     platform: "youtube",
@@ -15,9 +16,12 @@ function item(id: string, change: Partial<VaultItem>): VaultItem {
     channelName: "Chef",
     thumbnailUrl: null,
     playbackUrl: null,
+    hasFile: false,
     stats: { views: 1, likes: null, comments: null, subscribers: null, durationSeconds: null, postedAt: null, score: null, outlier: null },
     analysisTopic: null,
     analysis: null,
+    editedScript: null,
+    post: null,
     notes: "",
     status: "idea",
     tags: [],
@@ -48,5 +52,12 @@ describe("filterVaultItems", () => {
   it("keeps the list to a picked project and searches the notes", () => {
     expect(filterVaultItems(items, { project: "p2" }).map((one) => one.id)).toEqual(["d"])
     expect(filterVaultItems(items, { q: "LUNCH" }).map((one) => one.id)).toEqual(["d"])
+  })
+
+  it("searches your own idea's notes by their words, never the editor's document around them", () => {
+    const notes = JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Film on Sunday" }] }] })
+    const own = item("e", { kind: "own", platform: null, sourceUrl: null, platformVideoId: null, notes })
+    expect(filterVaultItems([own], { q: "sunday" })).toHaveLength(1)
+    expect(filterVaultItems([own], { q: "paragraph" })).toHaveLength(0)
   })
 })

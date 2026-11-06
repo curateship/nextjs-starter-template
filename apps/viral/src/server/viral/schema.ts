@@ -13,13 +13,16 @@ import {
   timestamp,
   uniqueIndex,
   varchar,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core"
 
 import type { Social, TextSocial, WatchKind } from "@/lib/viral/socials"
 import type { AnalysisPieces } from "@/lib/viral/analysis"
-import type { VaultStatus, VaultStats } from "@/lib/viral/vault"
+import type { VaultKind, VaultSourcePost, VaultStatus, VaultStats } from "@/lib/viral/vault"
 import type { PromoPostNetwork, PromoReadKind, PromoReadNetwork, PromoReadStatus, PromoSendStatus, SocialPostReply } from "@/lib/viral/promo-link"
 import type { FormatPart } from "@/lib/viral/formats"
+import type { WriterId } from "@/lib/viral/writers"
+import type { FixedHookTypeId } from "@/lib/viral/hook-types"
 import { customShellMedia, customShellUsers } from "@/server/schema"
 
 /**
@@ -132,6 +135,15 @@ export const viralCreatorPosts = pgTable(
 )
 
 /**
+ * A hook's type (0109): one of the fixed keys in `hook_type`, or one of the
+ * person's own in `hook_type_id`, never both. `viral_videos` and
+ * `viral_own_hooks` share it.
+ */
+function hookTypeCheck(table: { hookType: AnyPgColumn; hookTypeId: AnyPgColumn }) {
+  return sql`(${table.hookType} IS NULL OR ${table.hookType} in ('question', 'mistake', 'list', 'bold-claim', 'story', 'shocking-number', 'how-to')) AND (${table.hookType} IS NULL OR ${table.hookTypeId} IS NULL)`
+}
+
+/**
  * A video somebody pressed Download or AI analyse on: the downloaded file, and
  * what Gemini made of it.
  *
@@ -206,6 +218,13 @@ export const viralVideos = pgTable(
     ),
     /** When its right panel last opened it, so Storage clean-up can find copies nobody opens (0103). */
     lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }),
+    /**
+     * Its hook's type on the Library (0109): a fixed type here, or one of the
+     * person's own in `hookTypeId`, never both. Named by "Why it works" or
+     * the labelling pass on Settings → Hook types.
+     */
+    hookType: varchar("hook_type", { length: 20 }).$type<FixedHookTypeId>(),
+    hookTypeId: varchar("hook_type_id", { length: 36 }).references(() => viralHookTypes.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -222,6 +241,7 @@ export const viralVideos = pgTable(
       "ck_viral_videos_status",
       sql`${table.status} in ('waiting', 'downloading', 'downloaded', 'analysing', 'ready', 'failed')`
     ),
+    check("ck_viral_videos_hook_type", hookTypeCheck(table)),
   ]
 )
 
@@ -288,6 +308,10 @@ export const viralProjects = pgTable(
      */
     watchRunAt: timestamp("watch_run_at", { withTimezone: true }),
     days: integer("days").notNull().default(30),
+    /** YouTube's regionCode, an ISO 3166-1 code such as GB (`src/lib/viral/places.ts`). NULL is Anywhere (0107). */
+    regionCode: varchar("region_code", { length: 2 }),
+    /** YouTube's relevanceLanguage, such as en or zh-Hans. NULL is Anywhere (0107). */
+    relevanceLanguage: varchar("relevance_language", { length: 10 }),
     minViews: bigint("min_views", { mode: "number" }).notNull().default(0),
     minScore: integer("min_score").notNull().default(0),
     videoLength: varchar("video_length", { length: 10 })
@@ -315,7 +339,7 @@ export const viralProjects = pgTable(
       "ck_viral_projects_length",
       sql`${table.videoLength} in ('shorts', 'long', 'both')`
     ),
-    check("ck_viral_projects_days", sql`${table.days} in (7, 30, 90)`),
+    check("ck_viral_projects_days", sql`${table.days} in (7, 30, 90, 180, 365)`),
   ]
 )
 
@@ -484,25 +508,31 @@ export const viralYoutubeUnitSpend = pgTable(
  * Viral's own settings: one row, id "viral". The YouTube key and the key the
  * Video app made for Viral are scrambled the way the shell scrambles AI keys.
  */
-export const viralSettings = pgTable("viral_settings", {
-  id: varchar("id", { length: 20 }).primaryKey(),
-  /** NULL falls back to VIRAL_YOUTUBE_API_KEY. */
-  youtubeApiKey: text("youtube_api_key"),
-  /** The Video app's address, as Viral keeps it: no query, no trailing slash. */
-  videoUrl: text("video_url").notNull().default(""),
-  videoKey: text("video_key"),
-  /** Who saved the Video key: Video's calls back only touch their sends and files (0106). */
-  videoKeyOwnerId: varchar("video_key_owner_id", { length: 36 }).references(() => customShellUsers.id, { onDelete: "set null" }),
-  /** The Promo app's address and key (Settings → Promo connection), added by `drizzle/0102_viral_promo_link.sql`. */
-  promoUrl: text("promo_url").notNull().default(""),
-  promoKey: text("promo_key"),
-  /** Who saved the Promo key: Promo's calls back only touch their reads and ideas (0105). */
-  promoKeyOwnerId: varchar("promo_key_owner_id", { length: 36 }).references(() => customShellUsers.id, { onDelete: "set null" }),
-  /** The Meta ad library token on Settings → Meta, for Winning ads (0103). */
-  metaToken: text("meta_token"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-})
+export const viralSettings = pgTable(
+  "viral_settings",
+  {
+    id: varchar("id", { length: 20 }).primaryKey(),
+    /** NULL falls back to VIRAL_YOUTUBE_API_KEY. */
+    youtubeApiKey: text("youtube_api_key"),
+    /** The Video app's address, as Viral keeps it: no query, no trailing slash. */
+    videoUrl: text("video_url").notNull().default(""),
+    videoKey: text("video_key"),
+    /** Who saved the Video key: Video's calls back only touch their sends and files (0106). */
+    videoKeyOwnerId: varchar("video_key_owner_id", { length: 36 }).references(() => customShellUsers.id, { onDelete: "set null" }),
+    /** The Promo app's address and key (Settings → Promo connection), added by `drizzle/0102_viral_promo_link.sql`. */
+    promoUrl: text("promo_url").notNull().default(""),
+    promoKey: text("promo_key"),
+    /** Who saved the Promo key: Promo's calls back only touch their reads and ideas (0105). */
+    promoKeyOwnerId: varchar("promo_key_owner_id", { length: 36 }).references(() => customShellUsers.id, { onDelete: "set null" }),
+    /** The Meta ad library token on Settings → Meta, for Winning ads (0103). */
+    metaToken: text("meta_token"),
+    /** Which AI writes Viral's words, on Settings → AI writer (`src/lib/viral/writers.ts`). NULL is Gemini Flash (0107). */
+    writer: varchar("writer", { length: 20 }).$type<WriterId>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [check("ck_viral_settings_writer", sql`${table.writer} in ('gemini', 'openai', 'anthropic')`)]
+)
 
 /**
  * A channel's typical views: the middle value of its recent uploads' views,
@@ -594,9 +624,12 @@ export const viralVaultItems = pgTable(
     savedVideoId: varchar("saved_video_id", { length: 36 }).references(() => viralVideos.id, {
       onDelete: "set null",
     }),
-    platform: varchar("platform", { length: 20 }).notNull(),
-    platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
-    sourceUrl: text("source_url").notNull(),
+    /** A saved video, a saved X, Reddit or LinkedIn post, or your own idea (`drizzle/0108_viral_vault_ideas.sql`). */
+    kind: varchar("kind", { length: 10 }).$type<VaultKind>().notNull().default("video"),
+    /** The video's platform or the post's network; null only for your own idea. */
+    platform: varchar("platform", { length: 20 }),
+    platformVideoId: varchar("platform_video_id", { length: 100 }),
+    sourceUrl: text("source_url"),
     title: text("title").notNull(),
     channelName: text("channel_name").notNull().default(""),
     /** Viral's own copy of the video, in the shell's media library. */
@@ -610,6 +643,10 @@ export const viralVaultItems = pgTable(
     /** The analysis picked when it was saved, copied so a later analysis never changes it. */
     analysisTopic: text("analysis_topic"),
     analysis: jsonb("analysis").$type<AnalysisPieces>(),
+    /** Your version of the script. The AI's stays unchanged in `analysis`, behind Show original. */
+    editedScript: jsonb("edited_script").$type<AnalysisPieces["script"]>(),
+    /** A saved post's own words, copied when it was saved. */
+    post: jsonb("post").$type<VaultSourcePost>(),
     notes: text("notes").notNull().default(""),
     status: varchar("status", { length: 10 }).$type<VaultStatus>().notNull().default("idea"),
     /** The draft the last Send to Video made, and where to open it. */
@@ -621,6 +658,11 @@ export const viralVaultItems = pgTable(
   },
   (table) => [
     check("ck_viral_vault_items_status", sql`${table.status} in ('idea', 'scripted', 'sent', 'posted')`),
+    check("ck_viral_vault_items_kind", sql`${table.kind} in ('video', 'post', 'own')`),
+    check(
+      "ck_viral_vault_items_source",
+      sql`${table.kind} = 'own' OR (${table.platform} IS NOT NULL AND ${table.platformVideoId} IS NOT NULL AND ${table.sourceUrl} IS NOT NULL)`
+    ),
     index("ix_viral_vault_items_owner").on(table.ownerId, table.createdAt),
     index("ix_viral_vault_items_project").on(table.projectId, table.createdAt),
     // Saving the same video to the same project twice is one idea.
@@ -860,6 +902,86 @@ export const viralHookTags = pgTable(
 )
 
 /**
+ * The person's own hook types, added on Settings → Hook types (0109, task
+ * part 7, Tyler: "Fixed + my own"). Names are unique per person ignoring
+ * case. Deleting one sets its hooks back to no type through the foreign keys.
+ */
+export const viralHookTypes = pgTable(
+  "viral_hook_types",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 40 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [uniqueIndex("ux_viral_hook_types_owner_name").on(table.ownerId, sql`lower(${table.name})`)]
+)
+
+/** A hook typed in by the person on Library → Hooks (0109, task part 8, Tyler: "Words, link, tags"). */
+export const viralOwnHooks = pgTable(
+  "viral_own_hooks",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    words: text("words").notNull(),
+    /** Where it was heard, only ever http or https. */
+    link: text("link"),
+    hookType: varchar("hook_type", { length: 20 }).$type<FixedHookTypeId>(),
+    hookTypeId: varchar("hook_type_id", { length: 36 }).references(() => viralHookTypes.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_viral_own_hooks_owner").on(table.ownerId, table.createdAt),
+    check("ck_viral_own_hooks_hook_type", hookTypeCheck(table)),
+  ]
+)
+
+export const viralOwnHookTags = pgTable(
+  "viral_own_hook_tags",
+  {
+    ownHookId: varchar("own_hook_id", { length: 36 })
+      .notNull()
+      .references(() => viralOwnHooks.id, { onDelete: "cascade" }),
+    tagId: varchar("tag_id", { length: 36 })
+      .notNull()
+      .references(() => viralTags.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.ownHookId, table.tagId] }), index("ix_viral_own_hook_tags_tag").on(table.tagId)]
+)
+
+/**
+ * Five hooks written in one hook's style for one project (0109, task part 6,
+ * Tyler: "Kept under the hook"). From an analysed video's hook or your own,
+ * never both; deleting either deletes them.
+ */
+export const viralHookIdeas = pgTable(
+  "viral_hook_ideas",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    savedVideoId: varchar("saved_video_id", { length: 36 }).references(() => viralVideos.id, { onDelete: "cascade" }),
+    ownHookId: varchar("own_hook_id", { length: 36 }).references(() => viralOwnHooks.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 }).references(() => viralProjects.id, { onDelete: "set null" }),
+    hooks: jsonb("hooks").$type<string[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("ck_viral_hook_ideas_source", sql`num_nonnulls(${table.savedVideoId}, ${table.ownHookId}) = 1`),
+    index("ix_viral_hook_ideas_video").on(table.savedVideoId, table.createdAt),
+    index("ix_viral_hook_ideas_own").on(table.ownHookId, table.createdAt),
+  ]
+)
+
+export type ViralOwnHookRow = typeof viralOwnHooks.$inferSelect
+
+/**
  * One project's last Winning ads search: ads from Meta's ad library that
  * match its keywords and have run 30 days or more (`workspace/docs/winning-ads.md`).
  */
@@ -894,8 +1016,33 @@ export const viralAdRuns = pgTable("viral_ad_runs", {
   error: text("error"),
 })
 
+/**
+ * An ad written in a Winning ad's style for the project's topic (0109, task
+ * part 10, Tyler: "Meta's three boxes"). Kept by the project and the ad's
+ * library id, because a new search replaces `viral_ads`.
+ */
+export const viralAdCopies = pgTable(
+  "viral_ad_copies",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => viralProjects.id, { onDelete: "cascade" }),
+    adArchiveId: varchar("ad_archive_id", { length: 64 }).notNull(),
+    mainText: text("main_text").notNull(),
+    headline: text("headline").notNull(),
+    description: text("description").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_viral_ad_copies_ad").on(table.projectId, table.adArchiveId, table.createdAt)]
+)
+
 export type ViralFormatRow = typeof viralFormats.$inferSelect
 export type ViralAdRow = typeof viralAds.$inferSelect
+export type ViralAdCopyRow = typeof viralAdCopies.$inferSelect
 
 /**
  * The link with the Promo app (`workspace/docs/promo-connection.md`), made by

@@ -21,6 +21,7 @@ import {
   fillVaultCopies,
   listVault,
   listVaultTags,
+  saveEditedScript,
   saveToVault,
   updateVaultItem,
 } from "@/server/viral/vault"
@@ -183,6 +184,35 @@ describe("saving to the vault", () => {
     expect(again.id).toBe(item.id)
     expect(again.notes).toBe("Film Monday")
     expect(await database.select().from(viralVaultItems)).toHaveLength(1)
+  })
+
+  it("keeps your edit of the script while saving again keeps the same analysis, and drops it with another", async () => {
+    const project = await projectWithResult()
+    const saved = await downloaded()
+    const analysisId = uuid()
+    await database.insert(viralAnalyses).values({
+      id: analysisId,
+      ownerId: user.id,
+      savedVideoId: saved.id,
+      projectId: project.id,
+      topic: "busy dads",
+      pieces: {
+        whyItWorks: { hook: "h", parts: [], whySpread: "w" },
+        script: [{ role: "hook", seconds: 3, words: "Dads, listen" }],
+        ideas: [],
+        title: { title: "t", caption: "c", hashtags: [] },
+      },
+      createdAt: now(),
+      updatedAt: now(),
+    })
+    const item = await saveToVault(user.id, { projectId: project.id, url: URL_A, analysisId, notes: "" })
+    expect(item.kind).toBe("video")
+    expect(item.hasFile).toBe(true)
+    await saveEditedScript(user.id, item.id, ["Dads, stop scrolling"])
+    const same = await saveToVault(user.id, { projectId: project.id, url: URL_A, analysisId, notes: "" })
+    expect(same.editedScript?.[0].words).toBe("Dads, stop scrolling")
+    const none = await saveToVault(user.id, { projectId: project.id, url: URL_A, analysisId: null, notes: "" })
+    expect(none.editedScript).toBeNull()
   })
 
   it("plays on after its search result and its saved video are deleted", async () => {

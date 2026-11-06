@@ -9,7 +9,7 @@ import { createTestDatabase, insertUser } from "@/server/test-support"
 import { createSampleViralProject, createViralProject } from "@/server/viral/projects"
 import { onPromoAddress, promoCallerOwnerId } from "@/server/viral/promo-link"
 import { readCallBody } from "@/server/viral/video-link"
-import { applyPromoPosted, listVaultPosts, sendPromoPost, writePromoPost } from "@/server/viral/promo-posts"
+import { applyPromoPosted, listVaultPosts, promoPostedShape, sendPromoPost, writePromoPost } from "@/server/viral/promo-posts"
 import { applyPromoReadAnswer, listSocialPosts, refreshPromoRead, requestPromoRead, requestThreadRead } from "@/server/viral/promo-reads"
 import { viralPromoReads, viralPromoSends, viralSettings, viralVaultItems } from "@/server/viral/schema"
 import { savePromoApiKey, savePromoUrl } from "@/server/viral/settings"
@@ -323,6 +323,25 @@ describe("How your version did", () => {
     const posts = await listVaultPosts(user.id, itemId)
     expect(posts).toHaveLength(1)
     expect(posts[0]).toMatchObject({ network: "x", views: 12_000, url: "https://x.com/me/status/9" })
+  })
+
+  it("keeps a Reddit post's upvotes and comments, never views, and turns the idea Posted", async () => {
+    const itemId = await vaultItem()
+    const reddit = { ...posted(itemId, 5), postKey: "reddit:row-2", network: "reddit", url: "https://www.reddit.com/r/mealprep/comments/new/dinner/", likes: 900, comments: 41 }
+    expect(await applyPromoPosted(user.id, reddit)).toEqual({ ok: true, status: "kept" })
+    const [item] = await database.select({ status: viralVaultItems.status }).from(viralVaultItems).where(eq(viralVaultItems.id, itemId))
+    expect(item!.status).toBe("posted")
+    expect(await listVaultPosts(user.id, itemId)).toEqual([
+      expect.objectContaining({ network: "reddit", url: reddit.url, views: null, likes: 900, comments: 41 }),
+    ])
+  })
+
+  it("takes a Reddit post Promo reports with no numbers, as it does today", async () => {
+    const itemId = await vaultItem()
+    const reddit = { ...posted(itemId, null), postKey: "reddit:row-3", network: "reddit", url: "https://www.reddit.com/r/mealprep/comments/new/dinner/", likes: null, comments: null }
+    expect(promoPostedShape.parse(reddit)).toEqual(reddit)
+    expect(await applyPromoPosted(user.id, reddit)).toEqual({ ok: true, status: "kept" })
+    expect(await listVaultPosts(user.id, itemId)).toEqual([expect.objectContaining({ network: "reddit", likes: null, comments: null })])
   })
 
   it("never touches another person's idea, whoever the key belongs to", async () => {

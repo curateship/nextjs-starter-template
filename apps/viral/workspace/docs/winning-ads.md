@@ -36,11 +36,39 @@ Meta's ad library. The library's answer has no picture or video, only a page
 that needs the token to open, so the picture is seen on Meta's public page
 instead and the token never reaches the browser.
 
+## Write an ad like this
+
+Tyler, 6 Nov 2026: "Meta's three boxes". A card on the open ad's right panel
+writes a new ad in that ad's style for the project's topic
+(`AdCopyCards` in `src/components/viral/project-ads.tsx`,
+`src/server/viral/ad-copy.ts`).
+
+- **What it writes.** Main text, headline and description, the three boxes
+  Meta's ad form has. Each has its own Copy, so they paste straight in.
+- **The lengths.** The writer aims at what Meta shows before it cuts text
+  off: 125 characters of main text, 40 of headline, 30 of description
+  (`AD_COPY_AIMS` in `src/lib/viral/ads.ts`). Each box says how long it came
+  out, such as "132 of about 125 characters". An ad that runs over is kept,
+  never refused.
+- **The cost.** One call to the writer picked on Settings → AI writer, shown
+  first with its name: about 1 cent with Gemini Flash or GPT-5 mini, 2 cents
+  with Claude Opus 5. It goes on the AI meter as `viral_ad_copy` and counts
+  against the project's spend limit.
+- **Kept after a new search.** Search ads replaces the project's ads, so the
+  written ones are kept apart, by the project and the ad's library id
+  (`viral_ad_copies`). The same ad found again shows them again. Every press
+  is kept, newest first.
+- **Refused.** The ad has to be in the project's list now. A sample's
+  made-up ads have no Write an ad button and the server refuses them too, and
+  a project with no topic is refused before the AI is asked.
+
 ## The sample
 
 The sample project has two made-up ads, so the row has something to show. It
-is never searched.
+is never searched, and nothing is written from its ads.
 
 ## Not proven
 
-No real search has been run, because no Meta token has been set up yet.
+No real search has been run, because no Meta token has been set up yet. No
+real AI call has written an ad; the server test stubs the writer and Meta,
+and the card has not been opened in a browser.

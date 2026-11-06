@@ -35,6 +35,7 @@ import { savedViewScreen } from "@/lib/saved-views"
 import { VIRAL_SAVED_VIEW_KIND } from "@/lib/viral/viral-saved-views"
 import { ANALYSIS_TOPIC_MAX, type AnalysisPieces } from "@/lib/viral/analysis"
 import { storedNotes } from "@/lib/viral/notes"
+import { VIRAL_COUNTRY_CODES, VIRAL_LANGUAGE_CODES } from "@/lib/viral/places"
 import { isTextSocial, readSocials, socialHasKeywords, SOCIAL_NAMES, type Social } from "@/lib/viral/socials"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
@@ -183,6 +184,8 @@ async function serializeProjects(
       folder_id: row.folderId,
       keywords: keywords.map((one) => one.keyword),
       days: row.days as ViralDays,
+      region_code: row.regionCode,
+      relevance_language: row.relevanceLanguage,
       min_views: row.minViews,
       min_score: row.minScore,
       video_length: row.videoLength as ViralVideoLength,
@@ -290,6 +293,10 @@ export type ViralProjectSettings = {
   /** Left out, the topic stays as it is. */
   topic?: string
   days: ViralDays
+  /** YouTube's regionCode, null for Anywhere. Left out, it stays as it is. */
+  regionCode?: string | null
+  /** YouTube's relevanceLanguage, null for Anywhere. Left out, it stays as it is. */
+  relevanceLanguage?: string | null
   minViews: number
   minScore: number
   videoLength: ViralVideoLength
@@ -307,7 +314,13 @@ export async function saveViralProjectSettings(
 ): Promise<ViralProjectItem> {
   const before = await requireOwnedViralProject(ownerId, projectId)
   if (!(VIRAL_DAY_CHOICES as readonly number[]).includes(settings.days)) {
-    throw viralSays("Pick 7, 30 or 90 days.")
+    throw viralSays("Pick 7, 30 or 90 days, 6 months or 1 year.")
+  }
+  if (settings.regionCode && !(VIRAL_COUNTRY_CODES as readonly string[]).includes(settings.regionCode)) {
+    throw viralSays("Pick a country from the list, or Anywhere.")
+  }
+  if (settings.relevanceLanguage && !(VIRAL_LANGUAGE_CODES as readonly string[]).includes(settings.relevanceLanguage)) {
+    throw viralSays("Pick a language from the list, or Anywhere.")
   }
   await db
     .update(viralProjects)
@@ -316,6 +329,8 @@ export async function saveViralProjectSettings(
       description: cleanDescription(settings.description),
       ...(settings.topic === undefined ? {} : { topic: cleanTopic(settings.topic) }),
       days: settings.days,
+      ...(settings.regionCode === undefined ? {} : { regionCode: settings.regionCode }),
+      ...(settings.relevanceLanguage === undefined ? {} : { relevanceLanguage: settings.relevanceLanguage }),
       minViews: Math.max(0, Math.round(settings.minViews)),
       minScore: Math.min(100, Math.max(0, Math.round(settings.minScore))),
       videoLength: settings.videoLength,
@@ -491,6 +506,8 @@ export async function duplicateViralProject(
       socials: source.socials,
       pausedSocials: source.pausedSocials,
       days: source.days,
+      regionCode: source.regionCode,
+      relevanceLanguage: source.relevanceLanguage,
       minViews: source.minViews,
       minScore: source.minScore,
       videoLength: source.videoLength,
@@ -982,12 +999,14 @@ export async function createSampleViralProject(
       comments: results[0].comments,
       postedAt: results[0].postedAt,
       breakdown,
+      // Its hook's type on the Library, set here so the sample never goes to the labelling AI.
+      hookType: "mistake",
       viralProjectId: projectId,
       createdAt: at,
       updatedAt: at,
     }).onConflictDoUpdate({
       target: [viralVideos.ownerId, viralVideos.platform, viralVideos.platformVideoId],
-      set: { viralProjectId: projectId, updatedAt: at },
+      set: { viralProjectId: projectId, hookType: "mistake", hookTypeId: null, updatedAt: at },
     }).returning({ id: viralVideos.id })
     const savedId = saved.id
     await tx.insert(viralAnalyses).values({

@@ -20,8 +20,10 @@ import { promoViralDrafts, type PromoViralLinkRow } from "./schema"
  * and a Reddit post waits until New post opens with it. A person presses
  * Post in Promo, the same as for any other draft.
  *
- * Each draft's `source` is `viral:<idea id>`, which is how a post made from
- * it is reported back to Viral once it is up (`reports.ts`).
+ * Each X and LinkedIn draft's `source` is `viral:<idea id>`, which is how a
+ * post made from it is reported back to Viral once it is up (`reports.ts`).
+ * A Reddit post gets the same source when New post sends the draft's id back
+ * with Post (`queueOwnPost`).
  */
 
 /** The networks Viral can leave a post in. Promo has no Threads. */
@@ -132,7 +134,15 @@ export async function acceptPost(link: PromoViralLinkRow, note: PostNote, db: Cu
   return { draftId: id, draftUrl: appUrlFor(draftHref(project.id, note.network, id, promoPostId)) }
 }
 
-export type ViralRedditStart = { accountId: null; projectId: string; subreddit: string; title: string; body: string }
+export type ViralRedditStart = {
+  accountId: null
+  projectId: string
+  subreddit: string
+  title: string
+  body: string
+  /** Sent back with Post, so the post keeps `viral:<idea id>` as its source and is reported to Viral. */
+  viralDraftId: string
+}
 
 /**
  * A Reddit post Viral wrote, for New post to open with (`?newPost=<id>` on
@@ -146,5 +156,5 @@ export async function viralRedditDraft(userId: string, draftId: string, db: Cust
     .limit(1)
   if (!draft) return null
   if (!draft.usedAt) await db.update(promoViralDrafts).set({ usedAt: new Date() }).where(eq(promoViralDrafts.id, draft.id))
-  return { accountId: null, projectId: draft.projectId, subreddit: "", title: draft.title, body: draft.body }
+  return { accountId: null, projectId: draft.projectId, subreddit: "", title: draft.title, body: draft.body, viralDraftId: draft.id }
 }

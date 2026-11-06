@@ -27,6 +27,13 @@ Send to Video puts a vault idea into the Video app as a draft. Tyler, 4 Nov
 - **What Video gets.** A new draft video with the analysis's title, the
   script as its notes, your notes, a link back to the idea in Viral's Vault,
   and the original video. Video copies the original into the project's Media.
+  - **Your edit wins.** When you edited the script on the idea, your version
+    is what is sent. The AI's stays in Viral behind Show original (Tyler,
+    6 Nov 2026: "Keep it, Show original"; `vault.md`).
+  - **An idea with no video.** A saved post or your own idea sends a draft
+    with no file. Your own idea's notes go as plain words, never as the
+    editor's document, and only their first 20,000 characters, the most
+    Video takes.
 - **Sent.** The idea turns Sent and gets an Open in Video link. The link is
   kept only when it is on the Video address saved on Settings → Video
   connection. Any other link Video answers with is dropped, and the button

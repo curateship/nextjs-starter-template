@@ -10,15 +10,17 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core"
-import { FilmIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { CoverImage } from "@/components/viral/cover-image"
+import { VaultIdeaIcon } from "@/components/viral/vault-list"
 import type { VaultItem } from "@/lib/api/viral/viral-vault"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
-import { creatorPlatformLabels, formatCount } from "@/lib/viral/creators"
-import { VAULT_STATUSES, vaultStatusLabels, type VaultStatus } from "@/lib/viral/vault"
+import { formatCount } from "@/lib/viral/creators"
+import { figureName } from "@/lib/viral/text-posts"
+import { isTextSocial } from "@/lib/viral/socials"
+import { VAULT_STATUSES, vaultSourceLabel, vaultStatusLabels, type VaultStatus } from "@/lib/viral/vault"
 
 const CARD_CLASS = "grid w-full gap-2 rounded-lg border bg-card p-2 text-left text-sm shadow-xs"
 
@@ -153,23 +155,19 @@ function CardBody({ item, showProject }: { item: VaultItem; showProject: boolean
           <CoverImage
             src={item.thumbnailUrl}
             className="size-full object-cover"
-            fallback={
-              <span className="grid size-full place-items-center">
-                <FilmIcon className="size-4 text-muted-foreground" />
-              </span>
-            }
+            fallback={<VaultIdeaIcon item={item} />}
           />
         </span>
         <span className="grid min-w-0 gap-0.5">
           <span className="line-clamp-2 font-medium break-words">{item.title}</span>
           <span className="truncate text-xs text-muted-foreground">
             {showProject ? `${item.projectName} · ` : ""}
-            {item.channelName || creatorPlatformLabels[item.platform]}
+            {item.channelName || vaultSourceLabel(item)}
           </span>
         </span>
       </span>
       <span className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-        <span className="tabular-nums">{formatCount(item.stats.views)} views</span>
+        {cardFigure(item) ? <span className="tabular-nums">{cardFigure(item)}</span> : null}
         {item.tags.slice(0, 2).map((tag) => (
           <Badge key={tag} variant="outline">
             {tag}
@@ -178,4 +176,14 @@ function CardBody({ item, showProject }: { item: VaultItem; showProject: boolean
       </span>
     </>
   )
+}
+
+/** The one number a card shows: a video's views, a post's likes in its network's word, nothing for your own idea. */
+function cardFigure(item: VaultItem): string | null {
+  if (item.kind === "own") return null
+  if (item.kind === "post" && isTextSocial(item.platform)) {
+    const name = figureName(item.platform, "likes")
+    return name ? `${formatCount(item.stats.likes)} ${name.toLowerCase()}` : null
+  }
+  return `${formatCount(item.stats.views)} views`
 }

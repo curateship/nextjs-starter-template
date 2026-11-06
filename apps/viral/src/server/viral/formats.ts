@@ -1,7 +1,6 @@
 import { and, desc, eq, inArray } from "drizzle-orm"
 import { z } from "zod"
 
-import { AI_MODEL_PRICES } from "@/lib/ai/ai-models"
 import { missingScriptParts } from "@/lib/viral/analysis"
 import {
   FORMAT_IDEA_MAX,
@@ -14,12 +13,14 @@ import {
 } from "@/lib/viral/formats"
 import { SEGMENT_ROLES, segmentRoleLabels } from "@/lib/viral/viral-breakdown"
 import { viralSays } from "@/lib/viral/viral"
+import { roundedCents, writerDollars, type Writer } from "@/lib/viral/writers"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { requireViralProjectBudget, viralProjectSpendMetadata } from "@/server/viral/project-spend"
 import { requireOwnedViralProject } from "@/server/viral/projects"
 import { viralFormats, viralFormatScripts, viralProjects, type ViralFormatRow } from "@/server/viral/schema"
-import { askWriter, WRITER_MODEL } from "@/server/viral/writer"
+import { askWriter } from "@/server/viral/writer"
+import { writerForPrices } from "@/server/viral/writer-choice"
 
 /**
  * Saved formats and the scripts written from them (`workspace/docs/library.md`,
@@ -124,12 +125,11 @@ export async function listFormatScripts(ownerId: string, formatId: string): Prom
 
 /**
  * What one script from a format costs, roughly, before it runs. The question
- * is about 1,200 tokens and the script about 800, so it rounds up to 1 cent.
+ * is about 1,200 tokens and the script about 800, at the writer's price: 1
+ * cent with Gemini Flash or GPT-5 mini, 3 cents with Claude Opus 5.
  */
-export function formatScriptPriceCents(): number {
-  const price = AI_MODEL_PRICES[WRITER_MODEL]
-  const cents = ((1_200 / 1_000_000) * price.inputPerMillion + (800 / 1_000_000) * price.outputPerMillion) * 100
-  return Math.max(1, Math.ceil(cents))
+export function formatScriptPriceCents(writer: Writer): number {
+  return roundedCents(writerDollars(writer, 1_200, 800))
 }
 
 const roleEnum = z.enum(SEGMENT_ROLES).catch("other")
@@ -158,7 +158,7 @@ The script must have exactly these parts, in this order: ${parts.map((part) => p
 }
 
 /**
- * Write a script on Library → Formats: one Gemini call for an idea line,
+ * Write a script on Library → Formats: one call to the picked writer for an idea line,
  * written for the project's topic in the format's structure. A script that
  * leaves out a part of the format is refused, as Analyse refuses one.
  */
@@ -173,7 +173,7 @@ export async function writeFromFormat(
   if (!idea) throw viralSays("Say what this video is about first.")
   const topic = project.topic.trim()
   if (!topic) throw viralSays(`"${project.name}" has no topic yet. Set Your topic in its ⋮ first, so the script is written for it.`)
-  await requireViralProjectBudget(ownerId, project.id, project.spendLimitCents, formatScriptPriceCents())
+  await requireViralProjectBudget(ownerId, project.id, project.spendLimitCents, formatScriptPriceCents(await writerForPrices()))
 
   const answer = await askWriter({
     userId: ownerId,

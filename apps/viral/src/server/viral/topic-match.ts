@@ -20,6 +20,11 @@ import { askWriter } from "@/server/viral/writer"
  * stored on the results, and a title already matched is never sent again.
  * A project with no description has nothing to match against, so it is
  * skipped and its videos show no match.
+ *
+ * Always Gemini Flash, whoever is picked on Settings → AI writer. It runs on
+ * its own after every search and every daily re-check, with no price shown
+ * first, and it gives numbers rather than writing words, so a pricier writer
+ * would only cost more for the same scores.
  */
 
 /** The most titles one call reads. The rest wait for the next run. */
@@ -67,6 +72,7 @@ export async function matchTopics(project: ViralProjectRow): Promise<number> {
     prompt: topicPrompt(project.description, ids.map((id) => titles.get(id) ?? "")),
     schema: answerSchema,
     label: "The topic match",
+    writer: "gemini",
   })
 
   const byMatch = new Map<number, string[]>()

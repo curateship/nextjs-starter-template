@@ -50,7 +50,7 @@ function draw(writeForId: string) {
       format={format}
       projects={projects}
       writeForId={writeForId}
-      priceCents={1}
+      price={{ cents: 1, writer: "Gemini Flash" }}
       onChanged={() => undefined}
       onDeleted={() => undefined}
     />

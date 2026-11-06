@@ -1,9 +1,13 @@
 import * as React from "react"
-import { BookmarkPlusIcon, CheckIcon, CopyIcon, Loader2Icon } from "lucide-react"
+import { BookmarkPlusIcon, CheckIcon, CopyIcon, EyeIcon, Loader2Icon, PencilIcon, Undo2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { InspectorCard } from "@/components/shared/inspector-card"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
 import { saveFormatFn } from "@/lib/api/viral/viral-library"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -18,20 +22,30 @@ import { segmentRoleLabels } from "@/lib/viral/viral-breakdown"
  * item both draw them, so a saved idea reads exactly as it did when it was
  * written. Save format under the script keeps its structure for Library →
  * Formats (task part 18).
+ *
+ * A piece with nothing in it is left out: your own idea has a script and no
+ * other piece. On a vault idea `scriptEdit` puts a pencil in the Script
+ * card's header (more-features task part 4).
  */
 export function AnalysisCards({
   pieces,
   topic,
   sourceTitle = null,
+  scriptEdit,
 }: {
   pieces: AnalysisPieces
   topic: string
   /** The video it was written about, kept with a saved format. */
   sourceTitle?: string | null
+  /** A vault idea's own version of the script, and where an edit saves. Absent where nothing can be edited. */
+  scriptEdit?: ScriptEdit
 }) {
-  const { whyItWorks, script, ideas, title } = pieces
+  const { whyItWorks, ideas, title } = pieces
+  const hasWhy = Boolean(whyItWorks.hook || whyItWorks.parts.length || whyItWorks.whySpread)
+  const hasTitle = Boolean(title.title || title.caption || title.hashtags.length)
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
+      {hasWhy ? (
       <InspectorCard storageId="viral-analysis-why" title="Why it works">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
           <p>
@@ -60,24 +74,11 @@ export function AnalysisCards({
           />
         </div>
       </InspectorCard>
+      ) : null}
 
-      <InspectorCard storageId="viral-analysis-script" title="Script" description={topic ? `For ${topic}` : undefined}>
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
-          {script.map((part, index) => (
-            <div key={index} className="grid gap-0.5">
-              <p className="text-xs font-medium text-muted-foreground">
-                {segmentRoleLabels[part.role]} · about {part.seconds}s
-              </p>
-              <p className="whitespace-pre-wrap">{part.words}</p>
-            </div>
-          ))}
-          <div className="flex flex-wrap gap-2">
-            <CopyButton label="Copy" name="Copy the script" text={scriptText(script, segmentRoleLabels)} />
-            <SaveFormatButton pieces={pieces} sourceTitle={sourceTitle} />
-          </div>
-        </div>
-      </InspectorCard>
+      <ScriptCard pieces={pieces} topic={topic} sourceTitle={sourceTitle} edit={scriptEdit} />
 
+      {ideas.length ? (
       <InspectorCard storageId="viral-analysis-ideas" title="More ideas" description={`${ideas.length} in the same style`}>
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
           <ol className="grid gap-2">
@@ -94,7 +95,9 @@ export function AnalysisCards({
           />
         </div>
       </InspectorCard>
+      ) : null}
 
+      {hasTitle ? (
       <InspectorCard storageId="viral-analysis-title" title="Title and hashtags">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
           <p className="font-medium">{title.title}</p>
@@ -106,6 +109,194 @@ export function AnalysisCards({
           />
         </div>
       </InspectorCard>
+      ) : null}
+    </div>
+  )
+}
+
+type Script = AnalysisPieces["script"]
+
+export type ScriptEdit = {
+  /** Your version, or null while the AI's stands. */
+  edited: Script | null
+  /** Saves your words for each part in order; null goes back to the AI's. Resolves false when refused. */
+  onSave: (words: string[] | null) => Promise<boolean>
+}
+
+/** A pause in typing this long saves the script, as the notes do (UI standard, "Settings"). */
+const TYPING_SAVE_MS = 700
+
+/**
+ * The Script card. Tyler, 6 Nov 2026: "Keep it, Show original". On a vault
+ * idea the pencil in its header turns each part into a box, its label and
+ * seconds kept, and the words save themselves after typing. Your version is
+ * what Copy, Send to Video and Post for Promo use. The AI's stays as it was:
+ * Show original puts it on screen, and Go back to the AI's version throws
+ * your edit away after asking.
+ */
+function ScriptCard({
+  pieces,
+  topic,
+  sourceTitle,
+  edit,
+}: {
+  pieces: AnalysisPieces
+  topic: string
+  sourceTitle: string | null
+  edit?: ScriptEdit
+}) {
+  const original = pieces.script
+  const edited = edit?.edited ?? null
+  const [editing, setEditing] = React.useState(false)
+  const [showOriginal, setShowOriginal] = React.useState(false)
+  const [reverting, setReverting] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+  const shown = showOriginal || !edited ? original : edited
+
+  const [draft, setDraft] = React.useState<string[]>([])
+  const timer = React.useRef(0)
+  const pending = React.useRef<string[] | null>(null)
+  const saveRef = React.useRef(edit?.onSave)
+  React.useEffect(() => {
+    saveRef.current = edit?.onSave
+  })
+
+  // One save at a time, in the order they were made, so an older save can
+  // never land after a newer one, and Go back always lands last.
+  const saving = React.useRef<Promise<boolean>>(Promise.resolve(true))
+  const queueSave = React.useCallback((words: string[] | null) => {
+    const next = saving.current.then(async () => (await saveRef.current?.(words)) ?? false)
+    saving.current = next.catch(() => false)
+    return next
+  }, [])
+
+  const flush = React.useCallback(() => {
+    window.clearTimeout(timer.current)
+    const words = pending.current
+    pending.current = null
+    if (words) void queueSave(words)
+  }, [queueSave])
+  // Closing the idea, or another opening, saves what was typed.
+  React.useEffect(() => flush, [flush])
+
+  function startEditing() {
+    setDraft((edited ?? original).map((part) => part.words))
+    setShowOriginal(false)
+    setEditing(true)
+  }
+
+  function stopEditing() {
+    flush()
+    setEditing(false)
+  }
+
+  function type(index: number, words: string) {
+    const next = draft.map((one, at) => (at === index ? words : one))
+    setDraft(next)
+    pending.current = next
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(flush, TYPING_SAVE_MS)
+  }
+
+  async function goBack() {
+    window.clearTimeout(timer.current)
+    pending.current = null
+    setBusy(true)
+    try {
+      if (await queueSave(null)) {
+        setReverting(false)
+        setEditing(false)
+        setShowOriginal(false)
+        toast.success("The script is the AI's version again.")
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const description = [topic ? `For ${topic}` : "", edited ? (showOriginal ? "the AI's version" : "your version") : ""]
+    .filter(Boolean)
+    .join(" · ")
+  const editLabel = editing ? "Done editing" : "Edit the script"
+
+  return (
+    <div className="group/script relative">
+      <InspectorCard storageId="viral-analysis-script" title="Script" description={description || undefined}>
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
+          {editing
+            ? original.map((part, index) => (
+                <div key={index} className="grid gap-2">
+                  <Label htmlFor={`viral-script-part-${index}`} className="text-xs font-medium text-muted-foreground">
+                    {segmentRoleLabels[part.role]} · about {part.seconds}s
+                  </Label>
+                  <Textarea
+                    id={`viral-script-part-${index}`}
+                    rows={1}
+                    maxLength={4_000}
+                    value={draft[index] ?? ""}
+                    onChange={(event) => type(index, event.target.value)}
+                    onBlur={flush}
+                  />
+                </div>
+              ))
+            : shown.map((part, index) => (
+                <div key={index} className="grid gap-0.5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {segmentRoleLabels[part.role]} · about {part.seconds}s
+                  </p>
+                  <p className="whitespace-pre-wrap">{part.words}</p>
+                </div>
+              ))}
+          <div className="flex flex-wrap gap-2">
+            <CopyButton label="Copy" name="Copy the script" text={scriptText(editing ? original.map((part, index) => ({ ...part, words: draft[index] ?? "" })) : shown, segmentRoleLabels)} />
+            <SaveFormatButton pieces={pieces} sourceTitle={sourceTitle} />
+            {edited && !editing ? (
+              <Button type="button" variant="outline" size="sm" aria-pressed={showOriginal} onClick={() => setShowOriginal((was) => !was)}>
+                <EyeIcon />
+                {showOriginal ? "Show your version" : "Show original"}
+              </Button>
+            ) : null}
+            {edited ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => setReverting(true)}>
+                <Undo2Icon />
+                Go back to the AI's version
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </InspectorCard>
+      {edit ? (
+        // The pencil sits in the card's header, left of its fold arrow. The
+        // shared card's header has no slot for it, so it is laid over it.
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              // Hidden while the card is shut, since editing a shut card shows nothing.
+              // Only the card (the div) counts: this button carries the tooltip's own
+              // data-state="closed" whenever the tooltip is not showing.
+              className="absolute top-3 right-10 group-has-[>div[data-state=closed]]/script:hidden"
+              aria-label={editLabel}
+              aria-pressed={editing}
+              onClick={() => (editing ? stopEditing() : startEditing())}
+            >
+              {editing ? <CheckIcon /> : <PencilIcon />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{editing ? "Done editing. Your words are saved as you type." : "Edit the script"}</TooltipContent>
+        </Tooltip>
+      ) : null}
+      <ConfirmDialog
+        open={reverting}
+        onOpenChange={setReverting}
+        title="Go back to the AI's version?"
+        description="Your edit of the script is thrown away. The AI's version is what goes out again."
+        confirmLabel="Go back"
+        loading={busy}
+        onConfirm={() => void goBack()}
+      />
     </div>
   )
 }

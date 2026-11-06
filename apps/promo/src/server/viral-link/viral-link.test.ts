@@ -8,9 +8,11 @@ import { promoArchiveItems } from "@/server/archive/schema"
 import type { QueuedJob } from "@/server/social/jobs"
 import { readBehaviour, saveBehaviour } from "@/server/social/behaviour"
 import { createProject } from "@/server/social/projects"
-import { promoAccounts, promoAppPosts, promoJobs } from "@/server/social/schema"
+import { failedPost, queueOwnPost, submitOwnPost } from "@/server/social/reddit/own-posts"
+import { promoAccounts, promoAppPosts, promoJobs, promoPosts } from "@/server/social/schema"
 import { promoXPosts } from "@/server/social/x/schema"
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
+import { localMinutes } from "@/lib/social/waking"
 
 import { viralHello } from "./connect"
 import { answerViral, findViralCaller, makeViralKey, readViralKey } from "./link"
@@ -21,17 +23,19 @@ import { promoViralDrafts, promoViralLinks, promoViralReads, type PromoViralLink
 
 /**
  * Promo's side of the link with Viral (Viral's features task, parts 11 to
- * 14, 20 and 21), with Viral and the browser stubbed.
+ * 14, 20 and 21, and features/02 part 13), with Viral and the browser stubbed.
  */
 
 const browser = vi.hoisted(() => ({
   search: vi.fn(),
   thread: vi.fn(),
+  submit: vi.fn(),
 }))
 vi.mock("@/server/browser/command", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/browser/command")>()),
   redditSearch: browser.search,
   redditThread: browser.thread,
+  redditSubmit: browser.submit,
 }))
 
 const VIRAL = "http://localhost:3027"
@@ -79,6 +83,7 @@ describe("Promo's link with Viral", () => {
     ;[link] = await db.select().from(promoViralLinks).where(eq(promoViralLinks.userId, userId))
     browser.search.mockReset()
     browser.thread.mockReset()
+    browser.submit.mockReset()
   })
 
   afterEach(async () => {
@@ -207,7 +212,7 @@ describe("Promo's link with Viral", () => {
       const answer = await acceptPost(link, { sendId: "send-00002", projectId, network: "reddit", ideaId: "idea-2", pieces: ["Body"], title: "Dinner in 10" }, db)
       const [draft] = await db.select().from(promoViralDrafts)
       expect(answer.draftUrl).toContain(`network=reddit&newPost=${draft!.id}`)
-      expect(await viralRedditDraft(userId, draft!.id, db)).toEqual({ accountId: null, projectId, subreddit: "", title: "Dinner in 10", body: "Body" })
+      expect(await viralRedditDraft(userId, draft!.id, db)).toEqual({ accountId: null, projectId, subreddit: "", title: "Dinner in 10", body: "Body", viralDraftId: draft!.id })
       expect(await viralRedditDraft(userId, "not-a-draft", db)).toBeNull()
     })
 
@@ -293,6 +298,91 @@ describe("Promo's link with Viral", () => {
       expect(refusing.calls).toHaveLength(2)
       expect(await reportViralPosts(userId, db, { fetchImpl: refusing.fetchImpl })).toBe(0)
       expect(refusing.calls).toHaveLength(2)
+    })
+
+    describe("a Reddit post New post opened with a Viral draft", () => {
+      const target = { port: 1, token: "t" } as Parameters<typeof submitOwnPost>[3]
+      let accountId: string
+
+      beforeEach(async () => {
+        const now = new Date()
+        accountId = uuid()
+        await db.insert(promoAccounts).values({
+          id: accountId,
+          userId,
+          profileId: await createProfile(userId, { name: "Main" }, db),
+          handle: "a_persona",
+          projectId,
+          redditCreatedAt: new Date(now.getTime() - 365 * 86_400_000),
+        })
+        // Awake now, so the post goes at once rather than waiting for a morning.
+        const minute = localMinutes(now, "UTC")
+        const shift = (by: number) => (((minute + by) % 1440) + 1440) % 1440
+        await saveBehaviour(userId, { ...(await readBehaviour(userId, db)), wakeFromMinute: shift(-120), wakeUntilMinute: shift(120) }, db)
+      })
+
+      async function viralDraft(ideaId: string) {
+        await acceptPost(link, { sendId: `send-${ideaId}`, projectId, network: "reddit", ideaId, pieces: ["Body"], title: "Dinner in 10" }, db)
+        const [draft] = await db.select().from(promoViralDrafts).where(eq(promoViralDrafts.ideaId, ideaId))
+        return draft!.id
+      }
+
+      async function postIt(viralDraftId: string | null) {
+        await queueOwnPost(userId, projectId, { accountId, subreddit: "mealprep", title: "Dinner in 10", body: "Body", viralDraftId }, db)
+        const [job] = await db.select().from(promoJobs).where(eq(promoJobs.kind, "submit"))
+        browser.submit.mockResolvedValue({ postUrl: "https://www.reddit.com/r/mealprep/comments/new/dinner/", visit: null })
+        await submitOwnPost(userId, accountId, job!.payload, target, db)
+        await db.delete(promoJobs).where(eq(promoJobs.id, job!.id))
+        return job!
+      }
+
+      it("keeps the idea as the post's source and tells Viral once, with no numbers", async () => {
+        await postIt(await viralDraft("idea-5"))
+        const [row] = await db.select().from(promoPosts)
+        expect(row).toMatchObject({ status: "posted", source: "viral:idea-5" })
+
+        const viral = fakeViral()
+        expect(await reportViralPosts(userId, db, { fetchImpl: viral.fetchImpl, now: new Date("2026-11-04T12:00:00Z") })).toBe(1)
+        expect(viral.calls[0]!.body).toEqual({
+          type: "posted",
+          ideaId: "idea-5",
+          postKey: `reddit:${row!.id}`,
+          network: "reddit",
+          url: "https://www.reddit.com/r/mealprep/comments/new/dinner/",
+          views: null,
+          likes: null,
+          comments: null,
+          postedAt: row!.postedAt.toISOString(),
+        })
+        // Promo never reads a Reddit post's numbers again, so a day later there is nothing new to send.
+        expect(await reportViralPosts(userId, db, { fetchImpl: viral.fetchImpl, now: new Date("2026-11-06T12:00:00Z") })).toBe(0)
+      })
+
+      it("never reports a Reddit post written in Promo, or one naming another person's draft", async () => {
+        await postIt(null)
+        const otherUser = (await insertUser(db, { role: "admin" })).id
+        const theirProject = await createProject(otherUser, "Theirs", db, ["reddit"])
+        const theirDraft = uuid()
+        await db.insert(promoViralDrafts).values({ id: theirDraft, userId: otherUser, projectId: theirProject, sendId: "send-theirs", network: "reddit", ideaId: "their-idea", title: "T", body: "B" })
+        await postIt(theirDraft)
+        const rows = await db.select({ source: promoPosts.source }).from(promoPosts)
+        expect(rows).toEqual([{ source: "" }, { source: "" }])
+        expect(await reportViralPosts(userId, db, { fetchImpl: fakeViral().fetchImpl })).toBe(0)
+      })
+
+      it("keeps the draft on a post that failed, so Try again posts it with its source", async () => {
+        const draftId = await viralDraft("idea-6")
+        await queueOwnPost(userId, projectId, { accountId, subreddit: "mealprep", title: "Dinner in 10", body: "Body", viralDraftId: draftId }, db)
+        const [job] = await db.select().from(promoJobs).where(eq(promoJobs.kind, "submit"))
+        browser.submit.mockRejectedValue(new Error("submit: no title box"))
+        await expect(submitOwnPost(userId, accountId, job!.payload, target, db)).rejects.toThrow("no title box")
+        const [failed] = await db.select().from(promoPosts)
+        expect(failed).toMatchObject({ status: "failed", source: "viral:idea-6" })
+        // A failed post is never reported.
+        expect(await reportViralPosts(userId, db, { fetchImpl: fakeViral().fetchImpl })).toBe(0)
+        await db.update(promoJobs).set({ status: "failed" }).where(eq(promoJobs.id, job!.id))
+        expect(await failedPost(userId, job!.id, db)).toMatchObject({ title: "Dinner in 10", viralDraftId: draftId })
+      })
     })
 
     it("tries again next pass when Viral is down", async () => {

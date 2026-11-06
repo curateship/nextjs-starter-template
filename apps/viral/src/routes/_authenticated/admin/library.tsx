@@ -18,8 +18,8 @@ function readId(value: unknown) {
 
 /**
  * The Library page (`workspace/docs/library.md`): Hooks across every project
- * and saved Formats. The tab, the picked project, the search, the tag and the
- * open hook or format all live in the address. Archived projects are left out
+ * and saved Formats. The tab, the picked project, the search, the tag, the
+ * hook type and the open hook or format all live in the address. Archived projects are left out
  * of the left panel.
  */
 export const Route = createFileRoute("/_authenticated/admin/library")({
@@ -31,6 +31,7 @@ export const Route = createFileRoute("/_authenticated/admin/library")({
       project: readId(search.project),
       q: readSearchText(search.q),
       tag: tag || undefined,
+      type: readId(search.type),
       open: readId(search.open),
     }
   },
@@ -58,9 +59,11 @@ function LibraryRoute() {
       hooks={data.hooks}
       formats={data.formats}
       tags={data.tags}
+      hookTypes={data.hookTypes}
       projects={data.projects}
       views={data.views}
-      scriptPriceCents={data.scriptPriceCents}
+      scriptPrice={data.scriptPrice}
+      hookIdeasPrice={data.hookIdeasPrice}
       search={search}
     />
   )

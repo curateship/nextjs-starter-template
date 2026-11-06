@@ -5,10 +5,26 @@ shows every project's vault in one place. Tyler, 4 Nov 2026: "Per project +
 all-vault page", "Keep a downloaded copy", "Status and tags", "Vault replaces
 them" (Video's Favourites). The code is `src/server/viral/vault.ts`.
 
-## What an idea keeps
+## Three kinds of idea
 
-Save to vault on the right panel keeps everything below. Status starts at
-Idea.
+An idea is one of three kinds (`viral_vault_items.kind`, added by
+`drizzle/0108_viral_vault_ideas.sql`). Every idea starts at Idea.
+
+- **A saved video.** Save to vault on a video's right panel. Everything
+  below under "What a video idea keeps" is about this kind.
+- **A saved post.** Save to vault on an X, Reddit or LinkedIn post (Tyler,
+  6 Nov 2026: "All four pieces"). See "Posts in the vault".
+- **Your own idea.** "+ New idea", typed by you (Tyler: "Script on a
+  button"). See "Your own idea".
+
+Only a video has a player and a kept copy. A post and your own idea have no
+video at all, so their right panel has no player and its cards start with
+Idea. Everything else works the same for all three: List, Board, Filter,
+search, Mass select, Copy to another project, Send to Video, Post for Promo
+and delete. Send to Video sends a draft with no file. Deleting one has no
+file to throw away. Today counts them by status like any other idea.
+
+## What a video idea keeps
 
 - **The video.** Viral's own downloaded copy, so it still plays after the
   creator deletes it.
@@ -20,6 +36,105 @@ Idea.
 Saving the same video to the same project again updates that idea instead of
 adding a second one. The idea keeps the file and cover it already has, even
 when its saved video was deleted in between and the new one has no file yet.
+Your edit of the script stays when the same analysis is saved again, and is
+dropped when another analysis, or none, replaces it.
+
+## Posts in the vault
+
+Save to vault sits in a sticky footer on an X, Reddit or LinkedIn post's
+right panel (`src/components/viral/text-socials.tsx`). It opens a dropdown,
+the way Analyse with AI does, saying what the AI writes and what it costs
+with the writer's name, before anything runs.
+
+- **What the AI writes.** All four pieces, the same as a video's: why it
+  works, a video script, more ideas, and a title with hashtags. They are
+  written from the post's words for the project's topic, by the writer
+  picked on Settings → AI writer (`savePostToVault` in
+  `src/server/viral/vault-ai.ts`).
+- **The script's parts.** A post has no breakdown to copy, so the AI picks
+  the parts from Viral's list (hook, problem, the twist of the knife,
+  solution, proof, the ask). A script with no hook is refused and nothing is
+  kept.
+- **What is kept.** The network, the writer, the words, the title, the
+  subreddit, and the link the post carries, kept only when it is http or
+  https. The numbers are kept in the network's own words, so a Reddit
+  idea's Numbers card says Upvotes and Comments, and LinkedIn's says
+  Reactions. The post's top replies stay in Viral's post view, not the idea.
+- **The cost.** About 2 cents with Gemini Flash, 1 cent with GPT-5 mini and
+  11 cents with Claude Opus 5, on the AI meter as `viral_post_analysis`
+  (`ai-analysis.md`). It counts against the project's spend limit.
+- **Saving again.** The same post saved to the same project again writes the
+  four pieces again and updates that idea. Its status, notes and tags stay.
+  Your edit of the script does not, because it was an edit of the old
+  script, and the dropdown says so before you press. The button says
+  "In vault · save again" once it is in.
+- **Refused.** A sample's posts are made up, so they are refused before the
+  AI is asked, as every sample is. So is a project with no topic, and a post
+  whose address is not an http or https link, because the idea's Open on and
+  Copy link use it.
+
+## Your own idea
+
+"+ New idea" sits last in the Vault page's middle header and in a project's
+vault header, where every list's primary add sits. In a narrow panel it is
+the + alone. A sample project has none.
+
+- **The window.** The project, a title, and notes in the shell's editor. The
+  project list leaves out samples and archived projects
+  (`src/components/viral/new-idea-dialog.tsx`, `createOwnIdea` in
+  `src/server/viral/vault.ts`).
+- **The notes.** Your own idea's notes are written in the shell's editor, as a
+  project's notes are, and save as you type. A video's and a post's notes
+  stay a plain box. Send to Video, Post for Promo and the search read your
+  own idea's notes as plain words.
+- **Write a script.** Until it has one, the idea shows a Script card with a
+  Write a script button and its price. The AI writes one script for the
+  project's topic from the title and the notes, every part labelled. About 1
+  cent with Gemini Flash or GPT-5 mini, 2 cents with Claude Opus 5, on the
+  AI meter as `viral_own_idea_script` (`writeOwnIdeaScript` in
+  `src/server/viral/vault-ai.ts`).
+- **Refused.** A sample project and a project with no topic, before the AI is
+  asked.
+
+## Editing the script
+
+Tyler, 6 Nov 2026: "Keep it, Show original". This works on vault ideas only.
+An analysis on the project page's right panel stays as the AI wrote it.
+
+- **The pencil.** The pencil in the Script card's header turns each part into
+  a box. The part's label and seconds stay as they were; only the words
+  change. The words save 700ms after the last letter and when the box is
+  left, as the notes do. Saves go one at a time in the order they were
+  made, so a slow save never lands after a newer one, and Go back to the
+  AI's version waits for any save still on its way. The pencil turns into a
+  tick to stop editing. The
+  shared card has no place in its header for a button, so the pencil is laid
+  over the header, left of the fold arrow (`analysis-cards.tsx`).
+- **The original.** The AI's script is never changed. Your version is kept
+  apart (`viral_vault_items.edited_script`). Show original puts the AI's
+  version on screen, and Go back to the AI's version throws your edit away
+  after asking. An edit whose words all match the AI's is no edit.
+- **What goes out.** Send to Video, Post for Promo and the Script card's Copy
+  use your version when there is one (`currentScript` in
+  `src/lib/viral/vault.ts`). While Show original is on, Copy copies what is
+  on screen.
+- **Copying the idea.** Copy to another project takes your edit with it.
+
+## Download to computer
+
+Tyler, 6 Nov 2026: "Both ⋮ menus". "Download to computer" is in the ⋮ of the
+project page's right panel and of a vault idea. It shows only while Viral
+keeps a copy of the video.
+
+- **The file.** It is named after the video's title, with slashes, quotes and
+  line breaks taken out, such as `Meal prep 10 minutes.mp4`
+  (`src/server/viral/downloads.ts`).
+- **The route.** `/api/v1/viral/download/video/<saved video id>` and
+  `/api/v1/viral/download/idea/<idea id>`. It needs a signed-in admin, and
+  the copy must be theirs. Anybody else's id, and an id with no copy, both
+  answer "No such file", so the answer never says whether it exists.
+- **Streamed.** The file streams from the bucket as it is read, so a large
+  video is never held in memory.
 
 ## The copy of the video
 
@@ -44,7 +159,10 @@ when its saved video was deleted in between and the new one has no file yet.
   (`promo-connection.md`).
 - **Your views.** Once Promo has reported your post of an idea, the Numbers
   card lists "Your X views" under the original's numbers, one line per post,
-  each linking to it. Promo sends fresh views at most once a day.
+  each linking to it. Promo sends fresh views at most once a day. A Reddit
+  post shows "Your Reddit upvotes" and "Your Reddit comments" instead, the
+  first linking to it, because Reddit shows no views. Both read "-" for now,
+  because Promo doesn't read a Reddit post's numbers after it goes up.
 - **The board.** Filter's Show as on the Vault page has List and Board
   (Tyler, 4 Nov 2026: "List or Board switch"). Board draws a column for each
   status, and dragging a card to another column changes its status, in one
@@ -81,10 +199,11 @@ window listing your other projects, leaving out archived ones and samples
   `viral_project_links` and your one saved row, so both projects show one
   downloaded file (`src/server/viral/copy-to-project.ts`). A video nobody saved
   yet is saved with Download alone, so the copy has a file. No AI runs.
-- **Already there.** A project that already holds the video changes nothing
-  and says so.
-- **Refused.** A sample project, a made-up sample video, an archived project,
-  and anybody else's project.
+- **Already there.** A project that already holds the video or the post
+  changes nothing and says so. Your own idea has nothing to match on, so it
+  is always copied.
+- **Refused.** A sample project, a made-up sample video or post, an archived
+  project, and anybody else's project.
 
 ## Where it shows
 
@@ -103,12 +222,12 @@ window listing your other projects, leaving out archived ones and samples
     it (`?project=`).
   - **Middle.** The ideas, newest first, with the project's name under each
     title while All projects is picked. The header holds "N selected", Mass
-    select, search, Filter and Views. There is no + Add, because ideas only
-    arrive from Save to vault.
+    select, search, Filter, Views and "+ New idea". New idea opens on the
+    project picked on the left.
   - **Filter.** Status and Tag, which combine: Posted with the tag "hooks"
     shows only ideas that are both (`filterVaultItems` in
     `src/lib/viral/vault-view.ts`). The search looks in the title, the
-    channel and the notes. All of it lives in the address.
+    channel, the notes and a post's words. All of it lives in the address.
   - **Views.** Kind `viral-vault`, with no record. A view keeps the search,
     status, tag and project. A view whose project was deleted, or whose tag
     no idea carries any more, says so and opens without it.
@@ -116,5 +235,6 @@ window listing your other projects, leaving out archived ones and samples
     opens. The first idea shown opens on arrival and after picking a
     project, and the page goes back to where it was when opened from the
     left menu.
-  - **Empty.** With no ideas anywhere, the middle says "Save a video to the
-    vault from a project's right panel."
+  - **Empty.** With no ideas anywhere, the middle says "Save a video or a
+    post to the vault from a project's right panel, or press New idea to type
+    your own."

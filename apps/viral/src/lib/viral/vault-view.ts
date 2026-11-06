@@ -1,10 +1,12 @@
-import type { VaultItem } from "@/lib/viral/vault"
+import { vaultNotesText, type VaultItem } from "@/lib/viral/vault"
 import type { VaultViewFilters } from "@/lib/viral/vault-saved-views"
 
 /**
  * The vault list as the filters say (`workspace/docs/vault.md`). Status and
  * tag combine: an idea shows only when it has both. The search looks in the
- * title, the channel and the notes. A picked project keeps the list to it.
+ * title, the channel, the notes and a saved post's words. A picked project
+ * keeps the list to it. Your own idea's notes are searched by their words,
+ * never by the editor's document around them.
  */
 export function filterVaultItems(items: VaultItem[], filters: VaultViewFilters): VaultItem[] {
   const words = filters.q?.trim().toLowerCase() ?? ""
@@ -14,6 +16,6 @@ export function filterVaultItems(items: VaultItem[], filters: VaultViewFilters):
     if (filters.status && item.status !== filters.status) return false
     if (tag && !item.tags.some((one) => one.toLowerCase() === tag)) return false
     if (!words) return true
-    return [item.title, item.channelName, item.notes].some((text) => text.toLowerCase().includes(words))
+    return [item.title, item.channelName, vaultNotesText(item), item.post?.text ?? ""].some((text) => text.toLowerCase().includes(words))
   })
 }

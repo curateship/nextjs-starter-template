@@ -108,6 +108,37 @@ describe("what one keyword costs", () => {
   })
 })
 
+describe("country, language and how far back", () => {
+  it("sends the project's country and language, at the same cost", async () => {
+    const { calls, fetchFn } = fakeYoutube({ search: { items: [] } })
+    const answer = await searchYoutubeVideos({ ...INPUT, regionCode: "GB", relevanceLanguage: "zh-Hans" }, "key", fetchFn)
+    const search = new URL(calls[0]).searchParams
+    expect(search.get("regionCode")).toBe("GB")
+    expect(search.get("relevanceLanguage")).toBe("zh-Hans")
+    expect(answer.units).toBe(100)
+  })
+
+  it("sends neither for a project on Anywhere, so an old project searches as before", async () => {
+    const { calls, fetchFn } = fakeYoutube({ search: { items: [] } })
+    await searchYoutubeVideos({ ...INPUT, regionCode: null, relevanceLanguage: null }, "key", fetchFn)
+    await searchYoutubeVideos(INPUT, "key", fetchFn)
+    for (const call of calls) {
+      const search = new URL(call).searchParams
+      expect(search.has("regionCode")).toBe(false)
+      expect(search.has("relevanceLanguage")).toBe(false)
+    }
+  })
+
+  it("looks back a year for a project set to 1 year", async () => {
+    const { calls, fetchFn } = fakeYoutube({ search: { items: [] } })
+    const before = Date.now()
+    await searchYoutubeVideos({ ...INPUT, days: 365 }, "key", fetchFn)
+    const after = new Date(new URL(calls[0]).searchParams.get("publishedAfter") ?? "").getTime()
+    expect(before - after).toBeGreaterThanOrEqual(365 * 24 * 60 * 60 * 1000 - 1_000)
+    expect(before - after).toBeLessThan(366 * 24 * 60 * 60 * 1000)
+  })
+})
+
 describe("what comes back", () => {
   it("keeps only Shorts of 3 minutes or less, sorted by views", async () => {
     const { fetchFn } = fakeYoutube({

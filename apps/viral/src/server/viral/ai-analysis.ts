@@ -1,7 +1,6 @@
 import { and, desc, eq } from "drizzle-orm"
 import { z } from "zod"
 
-import { AI_MODEL_PRICES } from "@/lib/ai/ai-models"
 import {
   ANALYSIS_FEATURES,
   ANALYSIS_NOTES_MAX,
@@ -10,16 +9,19 @@ import {
   type AnalysisPieces,
   type ViralAnalysis,
 } from "@/lib/viral/analysis"
+import type { HookTypeChoice } from "@/lib/viral/hook-types"
 import { SEGMENT_ROLES, segmentRoleLabels, type SegmentRole, type ViralBreakdown } from "@/lib/viral/viral-breakdown"
 import { viralSays } from "@/lib/viral/viral"
+import { DEFAULT_WRITER, roundedCents, writerDollars, type Writer } from "@/lib/viral/writers"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { readStoredBreakdown } from "@/server/viral/analysis"
+import { hookTypeChoicesFor, hookTypeRule, keepAnalysedHookType, typeFromAnswer } from "@/server/viral/hook-types"
 import { requireViralProjectBudget, viralProjectSpendMetadata } from "@/server/viral/project-spend"
 import { requireOwnedViralProject } from "@/server/viral/projects"
 import { saveVideo, type SavedVideoDetail } from "@/server/viral/saved-videos"
 import { viralAnalyses, viralVideos, type ViralProjectRow, type ViralVideoRow } from "@/server/viral/schema"
-import { askWriter, WRITER_MODEL } from "@/server/viral/writer"
+import { askWriter } from "@/server/viral/writer"
 
 /**
  * Analyse with AI (`workspace/docs/ai-analysis.md`, task part 15). The video
@@ -36,42 +38,44 @@ import { askWriter, WRITER_MODEL } from "@/server/viral/writer"
 
 const roleEnum = z.enum(SEGMENT_ROLES).catch("other")
 
-const whySchema = z.object({
+// The four answers' shapes. A saved post's analysis (`vault-ai.ts`) asks for the same four.
+export const whySchema = z.object({
   hook: z.string().min(1).max(2_000),
   parts: z.array(z.object({ role: roleEnum, summary: z.string().max(2_000) })).max(30),
   whySpread: z.string().min(1).max(3_000),
+  // The hook's type (task part 7), asked of a video's "Why it works" only. An
+  // answer off the list, or none, never fails the analysis; the hook just has no type.
+  hookType: z.string().max(100).nullish().catch(null),
 })
-const scriptSchema = z.object({
+export const scriptSchema = z.object({
   script: z
     .array(z.object({ role: roleEnum, seconds: z.number().finite().min(0).max(3_600), words: z.string().min(1).max(4_000) }))
     .min(1)
     .max(30),
 })
-const ideasSchema = z.object({
+export const ideasSchema = z.object({
   ideas: z.array(z.object({ idea: z.string().min(1).max(600), hook: z.string().min(1).max(400) })).min(3).max(5),
 })
-const titleSchema = z.object({
+export const titleSchema = z.object({
   title: z.string().min(1).max(200),
   caption: z.string().max(2_200),
   hashtags: z.array(z.string().max(60)).max(30),
 })
 
-/** What one analysis costs, roughly, before it runs: shown in the Analyse box. */
-export type AnalysisPrice = { cents: number; breakdownNeeded: boolean }
+/** What one analysis costs, roughly, before it runs: shown in the Analyse box with the writer's name. */
+export type AnalysisPrice = { cents: number; breakdownNeeded: boolean; writer: string }
 
 /**
  * Gemini counts about 300 tokens a second of video. The breakdown writes
- * about 2,000 tokens; each of the four writing calls reads the breakdown
- * (about 3,000) and writes about 800. Flash's price is in `ai-models.ts`.
+ * about 2,000 tokens, and Gemini Flash always does it, whoever writes. Each
+ * of the four writing calls reads the breakdown (about 3,000) and writes
+ * about 800, at the writer's price (`ai-models.ts`).
  */
-export function analysisPrice(durationSeconds: number | null, breakdownReady: boolean): AnalysisPrice {
-  const price = AI_MODEL_PRICES[WRITER_MODEL]
-  const cost = (input: number, output: number) =>
-    (input / 1_000_000) * price.inputPerMillion + (output / 1_000_000) * price.outputPerMillion
+export function analysisPrice(durationSeconds: number | null, breakdownReady: boolean, writer: Writer): AnalysisPrice {
   const seconds = Math.max(15, Math.min(durationSeconds ?? 60, 600))
-  const breakdown = breakdownReady ? 0 : cost(seconds * 300 + 800, 2_000)
-  const writing = 4 * cost(3_000, 800)
-  return { cents: Math.max(1, Math.ceil((breakdown + writing) * 100)), breakdownNeeded: !breakdownReady }
+  const breakdown = breakdownReady ? 0 : writerDollars(DEFAULT_WRITER, seconds * 300 + 800, 2_000)
+  const writing = 4 * writerDollars(writer, 3_000, 800)
+  return { cents: roundedCents(breakdown + writing), breakdownNeeded: !breakdownReady, writer: writer.label }
 }
 
 function describeOriginal(row: Pick<ViralVideoRow, "title" | "channelName" | "views" | "subscribers">, breakdown: ViralBreakdown) {
@@ -92,16 +96,20 @@ Its parts, in order:
 ${parts || "- (no parts were found)"}`
 }
 
-const ANSWER_ONLY = "Answer with JSON only, in exactly this shape, and nothing else:"
+export const ANSWER_ONLY = "Answer with JSON only, in exactly this shape, and nothing else:"
 
-function whyPrompt(original: string) {
+/** What the original was, in the words the prompts use for it. */
+export type OriginalKind = "video" | "post"
+
+function whyPrompt(original: string, types: HookTypeChoice[]) {
   return `A short social video went viral. Explain to a creator, in plain words, why it works.
 
 ${original}
 
 ${ANSWER_ONLY}
-{ "hook": "what the opening does to stop the scroll", "parts": [{ "role": "hook", "summary": "what this part does" }], "whySpread": "what made people watch to the end and share it" }
-List the parts in the video's own order, one entry per part above, using the same roles.`
+{ "hook": "what the opening does to stop the scroll", "hookType": "the hook's type, a name from the list below", "parts": [{ "role": "hook", "summary": "what this part does" }], "whySpread": "what made people watch to the end and share it" }
+List the parts in the video's own order, one entry per part above, using the same roles.
+"hookType" is the kind of hook it opens with, ${hookTypeRule(types)}`
 }
 
 function scriptPrompt(original: string, topic: string, roles: SegmentRole[]) {
@@ -117,8 +125,8 @@ ${ANSWER_ONLY}
 The script must have exactly these parts, in this order: ${roles.join(", ")}.`
 }
 
-function ideasPrompt(original: string, topic: string) {
-  return `A short video went viral. Suggest 3 to 5 more video ideas in the same style, for somebody whose subject is: """${topic}"""
+export function ideasPrompt(original: string, topic: string, kind: OriginalKind = "video") {
+  return `${kind === "video" ? "A short video" : "A social post"} went viral. Suggest 3 to 5 more video ideas in the same style, for somebody whose subject is: """${topic}"""
 
 The original:
 ${original}
@@ -127,8 +135,8 @@ ${ANSWER_ONLY}
 { "ideas": [{ "idea": "one sentence saying what the video is", "hook": "its opening line" }] }`
 }
 
-function titlePrompt(original: string, topic: string) {
-  return `Write a title, a caption and hashtags for a new short video copying this viral one's style, about: """${topic}"""
+export function titlePrompt(original: string, topic: string, kind: OriginalKind = "video") {
+  return `Write a title, a caption and hashtags for a new short video copying this viral ${kind === "video" ? "one" : "post"}'s style, about: """${topic}"""
 
 The original:
 ${original}
@@ -137,7 +145,7 @@ ${ANSWER_ONLY}
 { "title": "under 70 characters", "caption": "one or two short sentences", "hashtags": ["#example"] }`
 }
 
-function cleanTopic(value: string) {
+export function cleanTopic(value: string) {
   return value.trim().replace(/\s+/g, " ").slice(0, ANALYSIS_TOPIC_MAX)
 }
 
@@ -164,12 +172,13 @@ export async function writeAnalysis(
 
   const original = describeOriginal(saved, breakdown)
   const roles = breakdown.segments.map((segment) => segment.role)
+  const types = await hookTypeChoicesFor(ownerId)
   const metadata = { savedVideoId: saved.id, ...(project ? viralProjectSpendMetadata(project.id) : {}) }
   const ask = <T>(feature: string, prompt: string, schema: z.ZodType<T>, label: string) =>
     askWriter({ userId: ownerId, feature, metadata, prompt, schema, label })
 
   const [why, script, ideas, title] = await Promise.all([
-    ask(ANALYSIS_FEATURES.whyItWorks, whyPrompt(original), whySchema, "Why it works"),
+    ask(ANALYSIS_FEATURES.whyItWorks, whyPrompt(original, types), whySchema, "Why it works"),
     ask(ANALYSIS_FEATURES.script, scriptPrompt(original, topic, roles), scriptSchema, "The script"),
     ask(ANALYSIS_FEATURES.ideas, ideasPrompt(original, topic), ideasSchema, "More ideas"),
     ask(ANALYSIS_FEATURES.title, titlePrompt(original, topic), titleSchema, "The title"),
@@ -182,19 +191,33 @@ export async function writeAnalysis(
     )
   }
 
-  const pieces: AnalysisPieces = {
-    whyItWorks: why,
-    script: script.script.map((part) => ({ ...part, seconds: Math.round(part.seconds) })),
-    ideas: ideas.ideas,
-    title: { ...title, hashtags: title.hashtags.map((tag) => (tag.startsWith("#") ? tag : `#${tag}`)) },
-  }
+  const pieces = toPieces({ why, script, ideas, title })
   const at = now()
   const [row] = await db
     .insert(viralAnalyses)
     .values({ id: uuid(), ownerId, savedVideoId: saved.id, projectId: project?.id ?? null, topic, pieces, createdAt: at, updatedAt: at })
     .returning()
   await db.update(viralVideos).set({ analysisError: null }).where(eq(viralVideos.id, saved.id))
+  // The Library's type for this hook, named in the same call at no extra cost. The newest analysis's wins.
+  await keepAnalysedHookType(ownerId, saved.id, typeFromAnswer(why.hookType, types))
   return toAnalysis(row)
+}
+
+/** The four answers as one analysis: seconds rounded, every hashtag with its #. */
+export function toPieces(answers: {
+  why: z.infer<typeof whySchema>
+  script: z.infer<typeof scriptSchema>
+  ideas: z.infer<typeof ideasSchema>
+  title: z.infer<typeof titleSchema>
+}): AnalysisPieces {
+  const { hook, parts, whySpread } = answers.why
+  return {
+    // The hook's type lives on the saved video, not in the analysis.
+    whyItWorks: { hook, parts, whySpread },
+    script: answers.script.script.map((part) => ({ ...part, seconds: Math.round(part.seconds) })),
+    ideas: answers.ideas.ideas,
+    title: { ...answers.title, hashtags: answers.title.hashtags.map((tag) => (tag.startsWith("#") ? tag : `#${tag}`)) },
+  }
 }
 
 export type AnalyseResult =

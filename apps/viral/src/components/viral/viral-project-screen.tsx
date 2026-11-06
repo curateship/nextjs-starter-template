@@ -65,6 +65,7 @@ import { useTextSocials } from "@/components/viral/use-text-socials"
 import { VaultItemPanel } from "@/components/viral/vault-item-panel"
 import { VaultList } from "@/components/viral/vault-list"
 import { VaultSelectedMenu } from "@/components/viral/vault-selected-menu"
+import { NewIdeaButton, NewIdeaDialog } from "@/components/viral/new-idea-dialog"
 import { VideoGrid, VideoList } from "@/components/viral/video-grid"
 import type { SavedView } from "@/lib/api/saved-views"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
@@ -232,6 +233,7 @@ export function ViralProjectScreenView({
   const [deletingVideos, setDeletingVideos] = React.useState<ViralVideo[]>([])
   const [pasting, setPasting] = React.useState(false)
   const [vault, setVault] = React.useState<ProjectVault>({ state: "loading" })
+  const [newIdea, setNewIdea] = React.useState(false)
   // A switch flipped here shows at once, before the screen reads itself again.
   const [watchOverride, setWatchOverride] = React.useState<Record<string, boolean>>({})
   // Videos opened since the screen was read, so their New mark clears at once.
@@ -1286,7 +1288,7 @@ export function ViralProjectScreenView({
     middle = (
       <>
         <DashboardCardTitleHeader
-          className="group/title"
+          className="group/title @container"
           back={{
             label: "Back to the videos",
             onClick: () => {
@@ -1297,25 +1299,29 @@ export function ViralProjectScreenView({
           title="Vault"
           meta={vault.state === "ready" ? `${vault.items.length} ${plural(vault.items.length, "idea")}` : undefined}
           action={
-            vault.state === "ready" && vault.items.length ? (
-              <div className="flex items-center gap-1">
-                {tickedVaultIds.length ? (
-                  <VaultSelectedMenu
-                    ids={tickedVaultIds}
-                    tags={vault.tags}
-                    onClear={() => setTicked(new Set())}
-                    onDone={async (change) => {
-                      if (change.kind === "delete") {
-                        setTicked(new Set())
-                        if (search.open && tickedVaultIds.includes(search.open)) setSearch({ open: undefined })
-                      }
-                      await afterVaultChange()
-                    }}
-                  />
-                ) : null}
-                {selectChip}
-              </div>
-            ) : undefined
+            <div className="flex items-center gap-1">
+              {vault.state === "ready" && vault.items.length ? (
+                <>
+                  {tickedVaultIds.length ? (
+                    <VaultSelectedMenu
+                      ids={tickedVaultIds}
+                      tags={vault.tags}
+                      onClear={() => setTicked(new Set())}
+                      onDone={async (change) => {
+                        if (change.kind === "delete") {
+                          setTicked(new Set())
+                          if (search.open && tickedVaultIds.includes(search.open)) setSearch({ open: undefined })
+                        }
+                        await afterVaultChange()
+                      }}
+                    />
+                  ) : null}
+                  {selectChip}
+                </>
+              ) : null}
+              {/* Your own idea (more-features task part 3). A sample keeps nothing new. */}
+              {project.sample ? null : <NewIdeaButton onPress={() => setNewIdea(true)} />}
+            </div>
           }
         />
         <ScrollArea className="min-h-0 flex-1">
@@ -1335,7 +1341,7 @@ export function ViralProjectScreenView({
             />
           ) : (
             <p className="px-3 py-10 text-center text-sm text-muted-foreground">
-              Nothing in this project's vault yet. Open a video and press Save to vault.
+              Nothing in this project's vault yet. Open a video or a post and press Save to vault, or press New idea.
             </p>
           )}
         </ScrollArea>
@@ -1371,7 +1377,7 @@ export function ViralProjectScreenView({
             </div>
           ) : !sameIdea.view ? (
             <p className="px-3 py-10 text-center text-sm text-muted-foreground">
-              Not searched yet. Search asks the AI for one search line, about 1 cent, then searches YouTube with it, 102 units.
+              Not searched yet. Search asks the writer picked on Settings → AI writer for one search line, about 1 cent, then searches YouTube with it, 102 units.
             </p>
           ) : (
             <>
@@ -1492,9 +1498,21 @@ export function ViralProjectScreenView({
 
   let right: React.ReactNode
   if (textSocial) {
-    right = <PostThreadPanel key={openPost?.id ?? "none"} post={openPost} sample={project.sample} onThreadRead={textSocials.reload} />
+    right = (
+      <PostThreadPanel
+        key={openPost?.id ?? "none"}
+        post={openPost}
+        sample={project.sample}
+        onThreadRead={textSocials.reload}
+        vaultItemId={openPost && textSocials.data.state === "ready" ? (textSocials.data.inVault[openPost.id] ?? null) : null}
+        onSavedToVault={async () => {
+          textSocials.reload()
+          await afterVaultChange()
+        }}
+      />
+    )
   } else if (adsView) {
-    right = <AdPanel key={openAd?.id ?? "none"} ad={openAd} />
+    right = <AdPanel key={openAd?.id ?? "none"} ad={openAd} projectId={project.id} sample={project.sample} />
   } else if (vaultView) {
     right = openItem ? (
       <VaultItemPanel
@@ -1626,6 +1644,17 @@ export function ViralProjectScreenView({
           here={postsViewsHere}
           filters={currentPostsView as SavedViewValues}
           onClose={() => setSavingPostsView(false)}
+        />
+
+        <NewIdeaDialog
+          open={newIdea}
+          projectId={project.id}
+          onClose={() => setNewIdea(false)}
+          onCreated={async (item) => {
+            await afterVaultChange()
+            // An idea made for another project stays in that project's vault; one made for this project opens here.
+            if (item.projectId === project.id) setSearch({ open: item.id })
+          }}
         />
 
         <DeleteSavedVideosDialog

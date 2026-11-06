@@ -1,14 +1,15 @@
-import { FilmIcon } from "lucide-react"
+import { FilmIcon, LightbulbIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ScrollBar } from "@/components/ui/scroll-area"
 import { CoverImage } from "@/components/viral/cover-image"
+import { SocialIcon } from "@/components/viral/social-icon"
 import type { VaultItem } from "@/lib/api/viral/viral-vault"
 import { cn } from "@/lib/utils"
-import { creatorPlatformLabels, formatCount } from "@/lib/viral/creators"
-import { vaultStatusLabels } from "@/lib/viral/vault"
+import { formatCount } from "@/lib/viral/creators"
+import { vaultSourceLabel, vaultStatusLabels } from "@/lib/viral/vault"
 import { formatShortDay } from "@/lib/viral/viral-view"
 
 /**
@@ -72,11 +73,7 @@ export function VaultList({
                     <CoverImage
                       src={item.thumbnailUrl}
                       className="size-full object-cover"
-                      fallback={
-                        <span className="grid size-full place-items-center">
-                          <FilmIcon className="size-4 text-muted-foreground" />
-                        </span>
-                      }
+                      fallback={<VaultIdeaIcon item={item} />}
                     />
                   </span>
                   <span className="grid min-w-0 gap-0.5">
@@ -86,7 +83,7 @@ export function VaultList({
                     <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                       <span className="truncate">
                         {showProject ? `${item.projectName} · ` : ""}
-                        {item.channelName || creatorPlatformLabels[item.platform]}
+                        {item.channelName || vaultSourceLabel(item)}
                       </span>
                       {item.tags.slice(0, 3).map((tag) => (
                         <Badge key={tag} variant="outline" className="shrink-0">
@@ -112,5 +109,23 @@ export function VaultList({
       </Table>
       <ScrollBar orientation="horizontal" />
     </>
+  )
+}
+
+/**
+ * What stands in for an idea's cover when it has none: a film for a video,
+ * the network's mark for a post, a light bulb for one you typed.
+ */
+export function VaultIdeaIcon({ item }: { item: Pick<VaultItem, "kind" | "platform"> }) {
+  return (
+    <span className="grid size-full place-items-center">
+      {item.kind === "own" || !item.platform ? (
+        <LightbulbIcon className="size-4 text-muted-foreground" />
+      ) : item.kind === "post" ? (
+        <SocialIcon social={item.platform} />
+      ) : (
+        <FilmIcon className="size-4 text-muted-foreground" />
+      )}
+    </span>
   )
 }

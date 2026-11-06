@@ -103,7 +103,7 @@ function fakeYoutube(
     })
   })
   vi.stubGlobal("fetch", fetchFn)
-  return { calls }
+  return { calls, fetchFn }
 }
 
 async function unitsSpent() {
@@ -205,6 +205,23 @@ describe("the worker", () => {
     expect(screen.project.cover_url).toMatch(/^https:\/\/img\.example\//)
     // The first search of a project has nothing to be new against.
     expect(screen.videos.some((video) => video.isNew)).toBe(false)
+  })
+
+  it("searches with the project's country, language and window (more-features parts 11 and 12)", async () => {
+    const { fetchFn } = fakeYoutube({ "gym tips": ["v1"] })
+    const project = await newProject(["gym tips"])
+    await database
+      .update(viralProjects)
+      .set({ regionCode: "GB", relevanceLanguage: "en", days: 365 })
+      .where(eq(viralProjects.id, project.id))
+    await queueViralSearch(user.id, project.id)
+    await viralSearchTick()
+
+    const search = fetchFn.mock.calls.map(([url]) => new URL(String(url))).find((url) => url.pathname.endsWith("/search"))
+    expect(search?.searchParams.get("regionCode")).toBe("GB")
+    expect(search?.searchParams.get("relevanceLanguage")).toBe("en")
+    const back = Date.now() - new Date(search?.searchParams.get("publishedAfter") ?? "").getTime()
+    expect(Math.round(back / 86_400_000)).toBe(365)
   })
 
   it("leaves a cover picked in the ⋮ alone, and fills it again once taken away", async () => {

@@ -105,6 +105,8 @@ export async function findSameIdea(
       keyword: searchLine,
       days: SAME_IDEA_DAYS,
       length: (original.durationSeconds ?? 0) > SHORT_MAX_SECONDS ? "long" : "shorts",
+      regionCode: project.regionCode,
+      relevanceLanguage: project.relevanceLanguage,
     },
     apiKey,
     fetchFn

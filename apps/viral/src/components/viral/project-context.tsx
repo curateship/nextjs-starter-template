@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
 import { saveViralProjectSettingsFn } from "@/lib/api/viral/viral-projects"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import type { ViralCountryCode, ViralLanguageCode } from "@/lib/viral/places"
 import type { ViralProjectItem, ViralProjectScreen } from "@/lib/viral/viral"
 
 /**
@@ -31,6 +32,8 @@ type SettingsPatch = Partial<{
   description: string
   topic: string
   days: ViralProjectItem["days"]
+  regionCode: ViralCountryCode | null
+  relevanceLanguage: ViralLanguageCode | null
   minViews: number
   minScore: number
   videoLength: ViralProjectItem["video_length"]

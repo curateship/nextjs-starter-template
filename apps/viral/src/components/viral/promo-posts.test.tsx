@@ -5,13 +5,14 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { WritePostForPromoButton } from "@/components/viral/promo-posts"
-import type { PromoPostSend } from "@/lib/viral/promo-link"
+import { WritePostForPromoButton, YourPostRows } from "@/components/viral/promo-posts"
+import { loadVaultPosts } from "@/lib/api/viral/viral-promo"
+import type { PromoPostSend, VaultPost } from "@/lib/viral/promo-link"
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
 
 vi.mock("@/lib/api/viral/viral-promo", () => ({
-  loadPromoPostPrice: vi.fn(async () => ({ cents: 1 })),
+  loadPromoPostPrice: vi.fn(async () => ({ cents: 1, writer: "Gemini Flash" })),
   loadPromoProjects: vi.fn(async () => [{ id: "promo-1", name: "Launch" }]),
   loadVaultPosts: vi.fn(async () => []),
   sendPromoPostFn: vi.fn(),
@@ -96,5 +97,45 @@ describe("the network after Write", () => {
     await act(async () => button("Discard changes")?.click())
     expect(document.querySelector("#viral-promo-piece-0")).toBeNull()
     expect(document.querySelector("#viral-promo-network")?.textContent).toContain("LinkedIn")
+  })
+})
+
+describe("your posts on the Numbers card", () => {
+  const yours = (network: string, extra: Partial<VaultPost> = {}): VaultPost => ({
+    id: `post-${network}`,
+    network,
+    url: `https://${network}.example/p/1`,
+    views: null,
+    likes: null,
+    comments: null,
+    postedAt: null,
+    figuresAt: "2099-01-01T00:00:00.000Z",
+    ...extra,
+  })
+
+  async function draw(posts: VaultPost[]) {
+    vi.mocked(loadVaultPosts).mockResolvedValueOnce(posts)
+    await act(async () =>
+      root.render(
+        <dl>
+          <YourPostRows itemId="idea-1" />
+        </dl>
+      )
+    )
+  }
+
+  it("shows a Reddit post's upvotes and comments, linked to the post, and no views", async () => {
+    await draw([yours("reddit", { url: "https://www.reddit.com/r/mealprep/comments/new/dinner/", likes: 900, comments: 41 })])
+    const lines = [...document.querySelectorAll("dt")].map((dt) => dt.textContent)
+    expect(lines).toEqual(["Your Reddit upvotes", "Your Reddit comments"])
+    expect(document.querySelector("a")?.getAttribute("href")).toBe("https://www.reddit.com/r/mealprep/comments/new/dinner/")
+    expect([...document.querySelectorAll("dd")].map((dd) => dd.textContent)).toEqual(["900", "41"])
+    expect(document.body.textContent).not.toContain("views")
+  })
+
+  it("shows an X post's views as before", async () => {
+    await draw([yours("x", { views: 12_000 })])
+    expect([...document.querySelectorAll("dt")].map((dt) => dt.textContent)).toEqual(["Your X views"])
+    expect(document.querySelector("dd")?.textContent).toBe("12k")
   })
 })

@@ -22,6 +22,7 @@ import { VaultBoard } from "@/components/viral/vault-board"
 import { VaultItemPanel } from "@/components/viral/vault-item-panel"
 import { VaultList } from "@/components/viral/vault-list"
 import { VaultSelectedMenu } from "@/components/viral/vault-selected-menu"
+import { NewIdeaButton, NewIdeaDialog } from "@/components/viral/new-idea-dialog"
 import type { SavedView } from "@/lib/api/saved-views"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
 import { changeVaultItemsFn, type VaultItem } from "@/lib/api/viral/viral-vault"
@@ -54,9 +55,9 @@ type VaultPageProject = { id: string; name: string; vaultCount: number }
  * left with their counts, "All projects" first; the picked project's ideas in
  * the middle, with search, Filter (status and tag, which combine) and Views;
  * the open idea on the right, the same panel the project page's vault opens.
- * Ideas only arrive from Save to vault, so there is no + Add. Filter's Show
- * as turns the middle into a board of the four statuses (task part 15,
- * Tyler: "List or Board switch").
+ * "+ New idea" last in the middle header adds one you type yourself
+ * (more-features task part 3). Filter's Show as turns the middle into a
+ * board of the four statuses (task part 15, Tyler: "List or Board switch").
  */
 export function VaultPage({
   items: loadedItems,
@@ -76,6 +77,7 @@ export function VaultPage({
   const [filterOpen, setFilterOpen] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
   const [selecting, setSelecting] = React.useState(false)
+  const [newIdea, setNewIdea] = React.useState(false)
   const [ticked, setTicked] = React.useState<Set<string>>(new Set())
   const [searchText, setSearchText] = useSearchBoxText(search.q ?? "", (next) =>
     setSearch({ q: next.trim() ? next : undefined })
@@ -241,8 +243,10 @@ export function VaultPage({
   )
 
   const filterCount = [search.status, search.tag].filter(Boolean).length
-  const toolbar = total ? (
+  const toolbar = (
     <div className="flex shrink-0 items-center gap-1">
+      {total ? (
+      <>
       {selecting && tickedIds.length ? (
         <VaultSelectedMenu
           ids={tickedIds}
@@ -299,8 +303,11 @@ export function VaultPage({
         saveButton={false}
         buttonVariant="ghost"
       />
+      </>
+      ) : null}
+      <NewIdeaButton onPress={() => setNewIdea(true)} />
     </div>
-  ) : undefined
+  )
 
   const middle = (
     <>
@@ -313,7 +320,7 @@ export function VaultPage({
       <ScrollArea className="min-h-0 flex-1">
         {!total ? (
           <p className="px-3 py-10 text-center text-sm text-muted-foreground">
-            Save a video to the vault from a project's right panel.
+            Save a video or a post to the vault from a project's right panel, or press New idea to type your own.
           </p>
         ) : shown.length && board ? (
           <>
@@ -379,6 +386,16 @@ export function VaultPage({
         here={viewsHere}
         filters={currentView as SavedViewValues}
         onClose={() => setSavingView(false)}
+      />
+      <NewIdeaDialog
+        open={newIdea}
+        projectId={project?.id}
+        onClose={() => setNewIdea(false)}
+        onCreated={async (item) => {
+          await refresh()
+          // A project picked on the left that isn't the new idea's would hide it.
+          setSearch({ open: item.id, ...(project && project.id !== item.projectId ? { project: item.projectId } : {}) })
+        }}
       />
     </ThreePanels>
   )

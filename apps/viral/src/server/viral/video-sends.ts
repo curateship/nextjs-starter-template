@@ -6,7 +6,7 @@ import { z } from "zod"
 import { scriptText } from "@/lib/viral/analysis"
 import { viralSays } from "@/lib/viral/viral"
 import { segmentRoleLabels } from "@/lib/viral/viral-breakdown"
-import type { VaultItem } from "@/lib/viral/vault"
+import { currentScript, vaultNotesText, type VaultItem } from "@/lib/viral/vault"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { getFromR2 } from "@/server/media/storage"
@@ -35,6 +35,13 @@ const FILE_LINK_MS = 2 * 60 * 60 * 1000
 
 /** Video refuses files over this size, so Viral says so first. */
 export const VIDEO_FILE_MAX_BYTES = 200 * 1024 * 1024
+
+/**
+ * Video refuses notes longer than this (`NOTES_MAX` in Video's
+ * `viral-link/arrivals.ts`). Your own idea's notes are written in the editor
+ * and may run longer, so the draft takes their first 20,000 characters.
+ */
+const VIDEO_NOTES_MAX = 20_000
 
 /** A send still "sending" after this long lost its answer, and Try again opens up. */
 const SENDING_STALE_MS = 2 * 60 * 1000
@@ -113,7 +120,9 @@ export async function sendToVideo(
     updatedAt: at,
   })
 
-  const script = item.analysis ? scriptText(item.analysis.script, segmentRoleLabels) : ""
+  // Your edit of the script when there is one, otherwise the AI's (Tyler, 6 Nov 2026: "Keep it, Show original").
+  const parts = currentScript(item)
+  const script = parts ? scriptText(parts, segmentRoleLabels) : ""
   let answer: z.infer<typeof draftAnswerShape>
   try {
     const reply = await callVideo<unknown>(
@@ -124,7 +133,7 @@ export async function sendToVideo(
         projectId: input.videoProjectId,
         title: item.analysis?.title.title || item.title,
         script,
-        notes: item.notes,
+        notes: vaultNotesText(item).slice(0, VIDEO_NOTES_MAX),
         vaultItemUrl: `${viralAddress()}/admin/vault?open=${encodeURIComponent(item.id)}`,
         viralProjectName: project.name,
         file,

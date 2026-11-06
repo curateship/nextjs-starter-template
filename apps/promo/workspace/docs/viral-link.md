@@ -55,7 +55,11 @@ Nothing Viral sends is posted. A person still presses Post in Promo.
   and the project page's `?network=reddit&newPost=<id>` opens New post with
   them filled in. The subreddit and the account are picked there.
 - **Where it came from.** Each X and LinkedIn draft's source is
-  `viral:<idea id>`.
+  `viral:<idea id>`. New post opened from a Viral post sends that post's id
+  back with Post, and the server gives the Reddit post the same source
+  (`promo_posts.source`, `drizzle/0139_promo_reddit_post_source.sql`). It is
+  worked out from the person's own Viral post for that project, never taken
+  from the browser. Try again on a failed one keeps it.
 - **The same send twice.** It answers the draft the first one made.
 - **Refusals.** Promo's own rules still apply, such as LinkedIn's 3,000
   characters, and the refusal goes back to Viral in Promo's words.
@@ -65,7 +69,7 @@ Nothing Viral sends is posted. A person still presses Post in Promo.
 Every ten minutes the `promo-viral` tick looks for posts that came from a
 Viral idea (`src/server/viral-link/reports.ts`).
 
-- **What counts.** A posted X or LinkedIn post whose source is
+- **What counts.** A posted X, LinkedIn or Reddit post whose source is
   `viral:<idea id>`. Also any posted X, LinkedIn, TikTok or Instagram post
   made from an Archive item that Video sent with a Viral idea's id. Video
   sends that id when its draft came from Viral's Send to Video, and the item
@@ -75,8 +79,9 @@ Viral idea (`src/server/viral-link/reports.ts`).
 - **Later reports.** Fresh views, sent when they moved, at most once a day.
   They are the numbers Promo's own checks read on its posts.
 - **Viral down.** The reports wait for the next pass.
-- **Reddit.** A Reddit post isn't reported yet, because New post doesn't
-  remember the Viral draft it was opened with.
+- **Reddit.** A Reddit post is reported once, with its link and when it went
+  up, and its upvotes, comments and views sent empty. Promo never reads a
+  Reddit post's numbers after it lands, so there is nothing to send later.
 
 ## Not proven
 

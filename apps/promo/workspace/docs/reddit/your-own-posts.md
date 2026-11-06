@@ -65,4 +65,8 @@ twice.
   seconds like a comment. Built from Reddit's submit page as it was known on
   12 Oct 2026 and unproven until a signed-in account has run it.
 - The table: `promo_posts`, one row per attempt, added by
-  `drizzle/0110_promo_new_features.sql`. The job kind is `submit`.
+  `drizzle/0110_promo_new_features.sql`. The job kind is `submit`. Its
+  `source` is `viral:<idea id>` when New post opened with a post the Viral app
+  wrote, so the post is reported back to Viral once it lands
+  (`drizzle/0139_promo_reddit_post_source.sql`, `../viral-link.md`). Promo
+  never reads a post's upvotes or comments after it lands.

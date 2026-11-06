@@ -8,6 +8,7 @@ import { ImageUpload } from "@/components/shared/image-upload"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { PlaceSelect } from "@/components/viral/place-select"
 import { useProject, useSaveProject } from "@/components/viral/project-context"
 import { SavingInput } from "@/components/viral/saving-fields"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
@@ -24,17 +25,27 @@ import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { ANALYSIS_TOPIC_MAX } from "@/lib/viral/analysis"
+import {
+  ANYWHERE,
+  countryName,
+  countryOptions,
+  languageName,
+  languageOptions,
+  type ViralCountryCode,
+  type ViralLanguageCode,
+} from "@/lib/viral/places"
 import { formatCents, parseSpendLimit } from "@/lib/viral/project-spend"
 import {
   VIRAL_DAY_CHOICES,
   VIRAL_PROJECT_NAME_MAX,
   VIRAL_VIDEO_LENGTHS,
+  viralDayLabels,
   viralVideoLengthLabels,
   type ViralDays,
   type ViralVideoLength,
 } from "@/lib/viral/viral"
 
-type Section = "cover" | "name" | "topic" | "days" | "length" | "minViews" | "minScore" | "spend"
+type Section = "cover" | "name" | "topic" | "days" | "country" | "language" | "length" | "minViews" | "minScore" | "spend"
 
 /**
  * The project's ⋮ at the top of its left panel, Travel's trip menu drawn for
@@ -43,8 +54,10 @@ type Section = "cover" | "name" | "topic" | "days" | "length" | "minViews" | "mi
  * Archive, and Delete project in red. The description isn't in it; it is
  * written in place under the panel's header.
  *
- * Posted within and Videos change what YouTube is asked for, so the next
- * search uses them; the minimums only hide what is already found.
+ * Posted within, Country, Language and Videos change what YouTube is asked
+ * for, so the next search uses them; the minimums only hide what is already
+ * found. Country and Language start on Anywhere (Tyler, 6 Nov 2026: "Every
+ * country + language").
  */
 export function ProjectMenu() {
   const { screen, refresh } = useProject()
@@ -57,6 +70,9 @@ export function ProjectMenu() {
   const [summary, setSummary] = React.useState<ViralDeleteSummary | null>(null)
   const [run, busy] = useAsyncAction(getViralErrorMessage)
   const row = (section: Section) => ({ open: shown.has(section), onToggle: () => toggle(section) })
+  // Every country and language, named by the browser once per menu.
+  const countries = React.useMemo(() => countryOptions(), [])
+  const languages = React.useMemo(() => languageOptions(), [])
 
   async function saveTopic(topic: string) {
     try {
@@ -161,7 +177,7 @@ export function ProjectMenu() {
             onSave={saveTopic}
           />
         </MenuSection>
-        <MenuSection label="Posted within" value={`${project.days} days`} {...row("days")}>
+        <MenuSection label="Posted within" value={viralDayLabels[project.days]} {...row("days")}>
           <Label htmlFor="viral-project-menu-days" className="sr-only">
             Posted within
           </Label>
@@ -172,11 +188,47 @@ export function ProjectMenu() {
             <SelectContent>
               {VIRAL_DAY_CHOICES.map((days) => (
                 <SelectItem key={days} value={String(days)}>
-                  The last {days} days
+                  {days === 365 ? "The last year" : `The last ${viralDayLabels[days]}`}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+        </MenuSection>
+        <MenuSection
+          label="Country"
+          value={project.region_code ? countryName(project.region_code) : ANYWHERE}
+          {...row("country")}
+        >
+          <Label htmlFor="viral-project-menu-country" className="sr-only">
+            Country
+          </Label>
+          <PlaceSelect
+            id="viral-project-menu-country"
+            value={project.region_code}
+            options={countries}
+            searchLabel="Search countries"
+            noMatch="No country matches."
+            onChange={(code) => void save({ regionCode: code as ViralCountryCode | null })}
+          />
+          <p className="mt-2 text-xs text-muted-foreground">YouTube searches for videos people in this country can watch.</p>
+        </MenuSection>
+        <MenuSection
+          label="Language"
+          value={project.relevance_language ? languageName(project.relevance_language) : ANYWHERE}
+          {...row("language")}
+        >
+          <Label htmlFor="viral-project-menu-language" className="sr-only">
+            Language
+          </Label>
+          <PlaceSelect
+            id="viral-project-menu-language"
+            value={project.relevance_language}
+            options={languages}
+            searchLabel="Search languages"
+            noMatch="No language matches."
+            onChange={(code) => void save({ relevanceLanguage: code as ViralLanguageCode | null })}
+          />
+          <p className="mt-2 text-xs text-muted-foreground">YouTube puts videos in this language first. Others can still show.</p>
         </MenuSection>
         <MenuSection label="Videos" value={viralVideoLengthLabels[project.video_length]} {...row("length")}>
           <Label htmlFor="viral-project-menu-length" className="sr-only">

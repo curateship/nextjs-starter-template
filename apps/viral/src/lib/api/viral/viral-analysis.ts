@@ -11,6 +11,7 @@ import {
   type AnalyseResult,
   type AnalysisPrice,
 } from "@/server/viral/ai-analysis"
+import { writerForPrices } from "@/server/viral/writer-choice"
 
 /**
  * Analyse with AI on the right panel (`workspace/docs/ai-analysis.md`). Admin
@@ -61,9 +62,12 @@ export function saveAnalysisNotesFn(analysisId: string, notes: string) {
 const priceFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(z.object({ durationSeconds: z.number().min(0).max(36_000).nullable(), breakdownReady: z.boolean() }))
-  .handler(async ({ data }): Promise<AnalysisPrice> => analysisPrice(data.durationSeconds, data.breakdownReady))
+  .handler(
+    async ({ data }): Promise<AnalysisPrice> =>
+      analysisPrice(data.durationSeconds, data.breakdownReady, await writerForPrices())
+  )
 
-/** What Analyse will roughly cost, shown in the Analyse box before it runs. */
+/** What Analyse will roughly cost and who writes it, shown in the Analyse box before it runs. */
 export function loadAnalysisPrice(durationSeconds: number | null, breakdownReady: boolean) {
   return priceFn({ data: { durationSeconds, breakdownReady } })
 }

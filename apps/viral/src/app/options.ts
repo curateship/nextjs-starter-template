@@ -39,6 +39,18 @@ export const appOptions: AppOptions = {
         label: "Meta",
         panel: () => import("@/components/viral/settings/meta-settings"),
       }),
+      // Which AI writes Viral's words, picked once (more-features task part 9).
+      defineSettingsTab({
+        id: "writer",
+        label: "AI writer",
+        panel: () => import("@/components/viral/settings/writer-settings"),
+      }),
+      // Your own hook types beside the fixed ones, and labelling old hooks (more-features task part 7).
+      defineSettingsTab({
+        id: "hook-types",
+        label: "Hook types",
+        panel: () => import("@/components/viral/settings/hook-types-settings"),
+      }),
       // The space downloaded videos use, and deleting unopened ones (part 19).
       defineSettingsTab({
         id: "storage",

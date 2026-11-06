@@ -59,6 +59,12 @@ import {
 import { PROJECT_FOLDER_NAME_MAX } from "@/lib/viral/project-folders"
 import { ANALYSIS_TOPIC_MAX } from "@/lib/viral/analysis"
 import { SOCIALS, type Social } from "@/lib/viral/socials"
+import {
+  VIRAL_COUNTRY_CODES,
+  VIRAL_LANGUAGE_CODES,
+  type ViralCountryCode,
+  type ViralLanguageCode,
+} from "@/lib/viral/places"
 
 /**
  * Viral projects' endpoints. Admin only, like every Viral door: searches
@@ -70,7 +76,7 @@ export type { ViralDeleteSummary, ViralFolderSummary }
 
 const id = z.string().min(1).max(36)
 const ids = z.array(id).min(1).max(100)
-const days = z.union([z.literal(7), z.literal(30), z.literal(90)])
+const days = z.literal(VIRAL_DAY_CHOICES)
 
 // ------------------------------------------------------------ The list ---
 
@@ -263,6 +269,8 @@ const settingsFn = createServerFn({ method: "POST" })
       description: z.string().max(VIRAL_DESCRIPTION_MAX),
       topic: z.string().max(ANALYSIS_TOPIC_MAX).optional(),
       days,
+      regionCode: z.enum(VIRAL_COUNTRY_CODES).nullable().optional(),
+      relevanceLanguage: z.enum(VIRAL_LANGUAGE_CODES).nullable().optional(),
       minViews: z.number().int().min(0).max(1_000_000_000),
       minScore: z.number().int().min(0).max(100),
       videoLength: z.enum(VIRAL_VIDEO_LENGTHS),
@@ -281,6 +289,10 @@ export function saveViralProjectSettingsFn(input: {
   /** Left out, the topic stays as it is. */
   topic?: string
   days: (typeof VIRAL_DAY_CHOICES)[number]
+  /** Left out, the country stays as it is; null is Anywhere. */
+  regionCode?: ViralCountryCode | null
+  /** Left out, the language stays as it is; null is Anywhere. */
+  relevanceLanguage?: ViralLanguageCode | null
   minViews: number
   minScore: number
   videoLength: (typeof VIRAL_VIDEO_LENGTHS)[number]

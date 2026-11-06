@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ANALYSIS_FEATURES } from "@/lib/viral/analysis"
+import { writerById } from "@/lib/viral/writers"
 import { now, uuid } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { type CustomShellUser } from "@/server/schema"
@@ -29,7 +30,6 @@ const asked = vi.hoisted(() => ({
 }))
 
 vi.mock("@/server/viral/writer", () => ({
-  WRITER_MODEL: "gemini-3.8-flash",
   askWriter: async ({
     feature,
     metadata,
@@ -207,8 +207,18 @@ describe("Analyse with AI", () => {
   })
 
   it("prices an analysis before it runs, more when the breakdown is still owed", () => {
-    expect(analysisPrice(30, true).cents).toBeGreaterThanOrEqual(1)
-    expect(analysisPrice(30, false).cents).toBeGreaterThanOrEqual(analysisPrice(30, true).cents)
-    expect(analysisPrice(30, false).breakdownNeeded).toBe(true)
+    const flash = writerById("gemini")
+    expect(analysisPrice(30, true, flash).cents).toBeGreaterThanOrEqual(1)
+    expect(analysisPrice(30, false, flash).cents).toBeGreaterThanOrEqual(analysisPrice(30, true, flash).cents)
+    expect(analysisPrice(30, false, flash).breakdownNeeded).toBe(true)
+  })
+
+  it("prices the writing at the writer's price and names it, and the watching at Gemini Flash's", () => {
+    // Four calls of 3,000 tokens in and 800 out: Opus 5 at $5 and $25 a million is $0.14.
+    const claude = analysisPrice(30, true, writerById("anthropic"))
+    expect(claude).toEqual({ cents: 14, breakdownNeeded: false, writer: "Claude Opus 5" })
+    // The 30-second breakdown adds Flash's $0.015 (9,800 in at $0.75, 2,000 out at $3.75), not Claude's price.
+    expect(analysisPrice(30, false, writerById("anthropic")).cents).toBe(16)
+    expect(analysisPrice(30, true, writerById("openai")).writer).toBe("GPT-5 mini")
   })
 })

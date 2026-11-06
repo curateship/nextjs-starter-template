@@ -26,6 +26,7 @@ import {
   viralPromoReads,
   viralSocialPosts,
   viralSocialWatches,
+  viralVaultItems,
   type ViralSocialWatchRow,
 } from "@/server/viral/schema"
 import { getPromoKeyStatus, getPromoUrl } from "@/server/viral/settings"
@@ -112,7 +113,7 @@ async function promoConnected(): Promise<boolean> {
 /** A project's X, Reddit and LinkedIn side: Promo's setup, its watches with how each stands, and the posts found. */
 export async function loadTextSocials(ownerId: string, projectId: string): Promise<TextSocialsScreen> {
   await requireOwnedViralProject(ownerId, projectId)
-  const [connected, rows, reads, posts] = await Promise.all([
+  const [connected, rows, reads, posts, saved] = await Promise.all([
     promoConnected(),
     db
       .select()
@@ -121,8 +122,19 @@ export async function loadTextSocials(ownerId: string, projectId: string): Promi
       .orderBy(asc(viralSocialWatches.createdAt), asc(viralSocialWatches.id)),
     newestReads([projectId]),
     listSocialPosts(ownerId, projectId),
+    db
+      .select({ id: viralVaultItems.id, platform: viralVaultItems.platform, postId: viralVaultItems.platformVideoId })
+      .from(viralVaultItems)
+      .where(and(eq(viralVaultItems.ownerId, ownerId), eq(viralVaultItems.projectId, projectId), eq(viralVaultItems.kind, "post"))),
   ])
-  return { connected, watches: rows.map((row) => toWatch(row, reads.get(watchKey(row)))), posts }
+  // Which posts are in this project's vault already, so Save to vault can say "In vault".
+  const byKey = new Map(saved.map((row) => [`${row.platform}:${row.postId}`, row.id]))
+  const inVault: Record<string, string> = {}
+  for (const post of posts) {
+    const itemId = byKey.get(`${post.network}:${post.postId}`)
+    if (itemId) inVault[post.id] = itemId
+  }
+  return { connected, watches: rows.map((row) => toWatch(row, reads.get(watchKey(row)))), posts, inVault }
 }
 
 /**

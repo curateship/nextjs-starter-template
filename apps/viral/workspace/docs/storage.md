@@ -1,7 +1,7 @@
 # Storage clean-up
 
-Every Analyse with AI and Save to vault keeps a full copy of the video in
-Viral's storage. Settings → Storage shows the space those copies use and has
+Every Analyse with AI and every Save to vault of a video keeps a full copy of
+the video in Viral's storage. A saved post and your own idea keep no file. Settings → Storage shows the space those copies use and has
 one button that deletes the copies nobody has opened for 30 days. Tyler,
 4 Nov 2026: "Button only", so nothing is ever deleted on its own
 (`src/components/viral/settings/storage-settings.tsx`,

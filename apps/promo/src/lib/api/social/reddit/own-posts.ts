@@ -72,6 +72,8 @@ const postInput = z.object({
   subreddit: z.string().trim().min(1).max(120),
   title: z.string().trim().min(1).max(MAX_POST_TITLE_CHARS),
   body: z.string().max(MAX_POST_BODY_CHARS).default(""),
+  /** The Viral post New post opened with, checked against the person's own drafts on the server. */
+  viralDraftId: z.string().min(1).max(36).nullable().default(null),
 })
 
 const sendFn = createServerFn({ method: "POST" })

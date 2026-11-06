@@ -14,6 +14,7 @@ import {
   viralChannelUsual,
   viralProjectKeywords,
   viralProjectResults,
+  viralProjects,
   viralSameIdea,
   viralYoutubeUnitSpend,
 } from "@/server/viral/schema"
@@ -32,7 +33,6 @@ import { recordViews } from "@/server/viral/view-history"
 const asked = vi.hoisted(() => ({ calls: [] as { feature: string; prompt: string }[] }))
 
 vi.mock("@/server/viral/writer", () => ({
-  WRITER_MODEL: "gemini-3.8-flash",
   askWriter: async ({ feature, prompt, schema }: { feature: string; prompt: string; schema: { parse: (value: unknown) => unknown } }) => {
     asked.calls.push({ feature, prompt })
     return schema.parse({ line: "desk stretch for back pain" })
@@ -291,6 +291,18 @@ describe("same idea, other creators", () => {
     expect(kept?.videos.map((video) => video.platformVideoId)).toEqual(["theirs"])
     const spent = await database.select().from(viralYoutubeUnitSpend)
     expect(spent.some((row) => row.reason === "viral_same_idea")).toBe(true)
+  })
+
+  it("searches in the project's country and language (more-features part 11)", async () => {
+    const made = await project()
+    await database.update(viralProjects).set({ regionCode: "GB", relevanceLanguage: "en" }).where(eq(viralProjects.id, made.id))
+    await addResult(made.id, "orig", { title: "The 30 second stretch that fixed my back" })
+    const fetchFn = youtubeStub()
+
+    await findSameIdea(user.id, made.id, { platform: "youtube", platformVideoId: "orig" }, fetchFn as unknown as typeof fetch)
+    const search = fetchFn.mock.calls.map(([url]) => new URL(String(url))).find((url) => url.pathname.endsWith("/search"))
+    expect(search?.searchParams.get("regionCode")).toBe("GB")
+    expect(search?.searchParams.get("relevanceLanguage")).toBe("en")
   })
 
   it("refuses a sample project and another person's project", async () => {

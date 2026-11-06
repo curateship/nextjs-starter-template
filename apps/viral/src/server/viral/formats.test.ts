@@ -30,7 +30,6 @@ const writer = vi.hoisted(() => ({
 }))
 
 vi.mock("@/server/viral/writer", () => ({
-  WRITER_MODEL: "gemini-3.8-flash",
   askWriter: async (input: { feature: string; metadata: Record<string, unknown> }) => {
     writer.calls.push({ feature: input.feature, metadata: input.metadata })
     return writer.answer
@@ -185,7 +184,7 @@ describe("Library → Hooks", () => {
       { id: uuid(), ownerId: user.id, savedVideoId: savedId, projectId: first.id, topic: "dads", pieces, createdAt: new Date(at.getTime() - 1_000), updatedAt: at },
       { id: uuid(), ownerId: user.id, savedVideoId: savedId, projectId: second.id, topic: "dads", pieces, createdAt: at, updatedAt: at },
     ])
-    expect(await setHookTags(user.id, savedId, ["Mistakes", "mistakes"])).toEqual(["Mistakes"])
+    expect(await setHookTags(user.id, "video", savedId, ["Mistakes", "mistakes"])).toEqual(["Mistakes"])
 
     const hooks = await listLibraryHooks(user.id)
     expect(hooks).toHaveLength(1)
@@ -201,6 +200,6 @@ describe("Library → Hooks", () => {
 
     const other = await insertUser(database)
     expect(await listLibraryHooks(other.id)).toEqual([])
-    await expect(setHookTags(other.id, savedId, ["x"])).rejects.toThrow(/That video is gone/)
+    await expect(setHookTags(other.id, "video", savedId, ["x"])).rejects.toThrow(/That video is gone/)
   })
 })

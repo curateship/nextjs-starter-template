@@ -41,9 +41,14 @@ Viral list.
   700ms after the last letter. They are kept in `viral_projects.notes`,
   added by `drizzle/0099_viral_project_notes.sql`, as the editor document
   cleaned to what the shell's written-page rules allow.
-- **The ⋮ holds the settings.** Cover photo, Name, Your topic, Posted within, Videos,
-  Minimum views, Minimum score and AI spend limit are folding rows, and each
-  one saves itself. Under a line are Duplicate, Archive and Delete project.
+- **The ⋮ holds the settings.** Cover photo, Name, Your topic, Posted within,
+  Country, Language, Videos, Minimum views, Minimum score and AI spend limit
+  are folding rows, and each one saves itself.
+  - **Posted within** offers 7, 30 and 90 days, 6 months and 1 year.
+  - **Country and Language** each open a list you can type into, with
+    Anywhere first (Tyler, 6 Nov 2026: "Every country + language"). The row
+    shows the name picked, such as United Kingdom, or Anywhere. The picker is
+    copied from Travel's time zone picker (`place-select.tsx`). Under a line are Duplicate, Archive and Delete project.
   Delete asks first and says what goes.
 - **The body.** First the description, written in
   place. Then come these cards:
@@ -117,7 +122,9 @@ Viral list.
   a back arrow and Search again (`finding-content.md`).
 - **The vault.** With the Vault row picked, the middle panel lists the
   project's ideas and the right panel shows the open one. The first idea
-  opens on arrival. Its header has the same Mass select as the Vault page.
+  opens on arrival. Its header has the same Mass select as the Vault page,
+  then "+ New idea", which opens on this project. A sample project has no
+  New idea.
 - Code: `src/components/viral/viral-project-screen.tsx`, `video-grid.tsx`,
   `hook-board.tsx` and `vault-list.tsx`. The route is
   `src/routes/_authenticated/admin/projects_.$projectId.tsx`.
@@ -126,8 +133,11 @@ Viral list.
 
 - **The header.** It has the social's mark, the title and channel, and a ⋮.
   The channel's name opens the creator page. The ⋮ holds Open on YouTube,
-  Copy link, Download with no AI, Same idea, other creators, Hide the
-  channel, and Delete the saved video.
+  Copy link, Copy to another project, Download with no AI, Download to
+  computer, Same idea, other creators, Hide the channel, and Delete the saved
+  video. Download to computer shows only once Viral keeps a copy, and saves
+  the file named after the title (Tyler, 6 Nov 2026: "Both ⋮ menus";
+  `vault.md`).
 - **What is said comes first under the player** (Tyler, 4 Nov 2026: "the
   what is said card should be under video and clicking on the text takes me
   to that part of the video"). Clicking a line plays from it: the kept copy
@@ -161,10 +171,14 @@ Viral list.
 - Code: `src/components/viral/player-panel.tsx`, `analyse-section.tsx`,
   `analysis-cards.tsx` and `send-to-video.tsx`.
 - **A vault idea** opens in `vault-item-panel.tsx`, which the Vault page
-  also uses. It shows the kept copy, then cards: Idea (Status, Tags, Notes),
-  Numbers from when it was saved, with your own posts' views under them, and
-  the analysis. Send to Video and Post for Promo share its sticky footer
-  (`promo-connection.md`).
+  also uses. A video idea shows the kept copy first. Then come cards: Idea
+  (Status, Tags, Notes), The post for a saved post, Numbers from when it was
+  saved, with your own posts' views under them, and the analysis. An idea
+  with no video has no player. Send to Video and Post for Promo share its
+  sticky footer (`promo-connection.md`). Its ⋮ holds Open on the original,
+  Copy link, Copy to another project, Download to computer while Viral keeps
+  a copy, and Delete. The Script card's pencil edits the script
+  (`vault.md`).
 
 ## X, Reddit and LinkedIn posts
 
@@ -201,6 +215,11 @@ panels into that social's posts (`src/components/viral/text-socials.tsx`).
 - **Replies not read yet.** The first time a post opens, Promo is asked to
   read it with its replies, and the card says "Promo is reading the thread".
   The replies arrive when Promo finishes; the page asks every 20 seconds.
+- **The sticky footer.** Save to vault sits under the scrolling body, as on a
+  video's right panel. It opens a dropdown with what the AI writes, its
+  price with the writer's name, and Save and write. Once the post is in the
+  vault it says "In vault · save again". A sample's posts are refused with a
+  sentence and no AI (`vault.md`).
 
 ## Narrow screens
 

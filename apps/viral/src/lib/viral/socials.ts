@@ -149,4 +149,6 @@ export type TextSocialsScreen = {
   connected: boolean
   watches: SocialWatch[]
   posts: SocialPost[]
+  /** The vault idea each post saved to this project's vault became, by the post's row id. */
+  inVault: Record<string, string>
 }

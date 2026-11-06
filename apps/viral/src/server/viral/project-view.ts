@@ -247,7 +247,7 @@ export type UnscoredVideo = Omit<
  * A pasted video, drawn from its saved row. Until the download lands the row
  * knows only its link, so the title is the link and the figures are blank.
  */
-async function pastedVideo(
+export async function pastedVideo(
   row: typeof viralVideos.$inferSelect
 ): Promise<UnscoredVideo | null> {
   if (!isCreatorPlatform(row.platform)) return null
@@ -373,7 +373,7 @@ async function vaultItemsByKey(ownerId: string, projectId: string) {
   const rows = await db
     .select({ id: viralVaultItems.id, platform: viralVaultItems.platform, platformVideoId: viralVaultItems.platformVideoId })
     .from(viralVaultItems)
-    .where(and(eq(viralVaultItems.ownerId, ownerId), eq(viralVaultItems.projectId, projectId)))
+    .where(and(eq(viralVaultItems.ownerId, ownerId), eq(viralVaultItems.projectId, projectId), eq(viralVaultItems.kind, "video")))
   return new Map(rows.map((row) => [`${row.platform}:${row.platformVideoId}`, row.id]))
 }
 

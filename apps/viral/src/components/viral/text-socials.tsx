@@ -1,6 +1,18 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { CircleAlertIcon, CopyIcon, ExternalLinkIcon, Loader2Icon, MessagesSquareIcon, PlusIcon, RefreshCwIcon, XIcon } from "lucide-react"
+import {
+  ArchiveIcon,
+  CheckIcon,
+  CircleAlertIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+  Loader2Icon,
+  MessagesSquareIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  SparklesIcon,
+  XIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -19,6 +31,7 @@ import type { TextSocialsState } from "@/components/viral/use-text-socials"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
 import { askPromoForThread, loadSocialPostFn, refreshPromoReadFn } from "@/lib/api/viral/viral-promo"
 import { addSocialWatchFn, readSocialWatchFn, removeSocialWatchFn } from "@/lib/api/viral/viral-socials"
+import { loadVaultWritingPrices, savePostToVaultFn } from "@/lib/api/viral/viral-vault"
 import { plural } from "@/lib/format/plural"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -37,6 +50,7 @@ import {
 } from "@/lib/viral/socials"
 import { figureName, postAuthor, postHeadline } from "@/lib/viral/text-posts"
 import { formatShortDay } from "@/lib/viral/viral-view"
+import { writerPriceWords, type WriterPrice } from "@/lib/viral/writers"
 
 const CARD_TITLES: Record<TextSocial, string> = {
   x: "X searches and accounts",
@@ -411,11 +425,17 @@ export function PostThreadPanel({
   post,
   sample,
   onThreadRead,
+  vaultItemId = null,
+  onSavedToVault,
 }: {
   post: SocialPost | null
   sample: boolean
   /** Promo finished reading the thread, so the list's copy is stale. */
   onThreadRead: () => void
+  /** The idea this post became in the project's vault, if it was saved. */
+  vaultItemId?: string | null
+  /** Save to vault kept the post: the screen reads its vault again. */
+  onSavedToVault?: () => void | Promise<void>
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [fresh, setFresh] = React.useState<SocialPost | null>(null)
@@ -585,7 +605,98 @@ export function PostThreadPanel({
           </InspectorCard>
         </div>
       </ScrollArea>
+      {/* The sticky footer, as a video's right panel has one (more-features task part 2). */}
+      {onSavedToVault ? (
+        <div className="shrink-0 border-t p-3">
+          <SavePostToVault post={current} sample={sample} inVault={Boolean(vaultItemId)} onSaved={onSavedToVault} />
+        </div>
+      ) : null}
     </>
+  )
+}
+
+/**
+ * Save to vault on a post (more-features task part 2, Tyler: "All four
+ * pieces"). It opens a dropdown, as Analyse with AI does, saying what the AI
+ * writes and its price with the writer's name before anything runs. A
+ * sample's posts are made up, so the button says so and asks nothing.
+ * Saving the same post again writes the pieces again and updates its idea.
+ */
+function SavePostToVault({
+  post,
+  sample,
+  inVault,
+  onSaved,
+}: {
+  post: SocialPost
+  sample: boolean
+  inVault: boolean
+  onSaved: () => void | Promise<void>
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+  const [price, setPrice] = React.useState<WriterPrice | null>(null)
+  const [saved, setSaved] = React.useState(inVault)
+  if (inVault && !saved) setSaved(true)
+
+  function onOpenChange(next: boolean) {
+    if (next && sample) {
+      showErrorToast("A sample's posts are made up, so they can't be kept. Make your own project to try it.")
+      return
+    }
+    setOpen(next)
+    if (next && !price) {
+      loadVaultWritingPrices().then(
+        (prices) => setPrice(prices.post),
+        () => undefined
+      )
+    }
+  }
+
+  async function save() {
+    setBusy(true)
+    setOpen(false)
+    try {
+      await savePostToVaultFn(post.id)
+      setSaved(true)
+      toast.success(saved ? "The idea in the vault is written again." : "Saved to the vault, with why it works, a script, more ideas and a title.")
+      await onSaved()
+    } catch (error) {
+      showErrorToast(getViralErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const word = busy ? "Writing it…" : saved ? "In vault · save again" : "Save to vault"
+  return (
+    <FoldingMenu
+      label="Save to vault"
+      align="end"
+      open={open}
+      onOpenChange={onOpenChange}
+      trigger={
+        <Button type="button" variant="outline" className="w-full" disabled={busy}>
+          {busy ? <Loader2Icon className="animate-spin" /> : saved ? <CheckIcon /> : <ArchiveIcon />}
+          {word}
+        </Button>
+      }
+    >
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-4">
+        <p className="text-sm">
+          The AI reads the post and writes why it works, a video script, more ideas, and a title with hashtags, for this
+          project's topic.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {price ? `${writerPriceWords(price).replace(/^about/, "About")}.` : "About 2 cents of AI."}
+          {saved ? " Saving again writes all four again and throws away any edit of its script." : ""}
+        </p>
+        <Button type="button" disabled={busy} onClick={() => void save()}>
+          <SparklesIcon />
+          {saved ? "Write again" : "Save and write"}
+        </Button>
+      </div>
+    </FoldingMenu>
   )
 }
 

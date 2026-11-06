@@ -25,22 +25,54 @@ export const AI_TOO_BUSY_MESSAGE =
 export const AI_DAY_USED_UP_MESSAGE =
   "This key's free allowance for today is used up - it resets tomorrow, or add billing to the key"
 
-/** Every "add a key" sentence, so a tool can show whichever one it hit. Viral asks Gemini alone. */
-export const AI_KEY_MISSING_MESSAGES: ReadonlySet<string> = new Set([GEMINI_KEY_MISSING_MESSAGE])
+export const OPENAI_KEY_MISSING_MESSAGE =
+  "No OpenAI key is saved - add one in Settings → AI"
+
+export const ANTHROPIC_KEY_MISSING_MESSAGE =
+  "No Anthropic key is saved - add one in Settings → AI"
+
+/** Every "add a key" sentence, one per writer (`src/lib/viral/writers.ts`), so a tool can show whichever one it hit. */
+export const AI_KEY_MISSING_MESSAGES: ReadonlySet<string> = new Set([
+  GEMINI_KEY_MISSING_MESSAGE,
+  OPENAI_KEY_MISSING_MESSAGE,
+  ANTHROPIC_KEY_MISSING_MESSAGE,
+])
 
 /**
- * Gemini's trouble in words already fit to read: written by this app, naming
+ * A writer's trouble in words already fit to read: written by this app, naming
  * the piece and saying what went wrong, so they are shown as they are rather
  * than swallowed by a plain "it did not work". A person told "The script
  * came back empty" can press the button again; one told nothing cannot. The
- * phrases are the ones `src/server/viral/gemini.ts` writes.
+ * phrases are the ones `src/server/viral/gemini.ts`, `openai-json.ts` and
+ * `anthropic-json.ts` write.
  */
 const PROVIDER_PROBLEMS = [
   "came back empty",
   "came back as something other than an answer",
   "came back in an unexpected shape",
   "took too long",
+  "account has no credit left",
+  "is turning requests away right now",
 ]
+
+/**
+ * What a turned-away call to OpenAI or Claude means, in words, never the raw
+ * reply. Both send 429 for "too many asks" and for "no credit", so the reply's
+ * reason picks between them. Measured 6 Nov 2026: an OpenAI account with no
+ * money left answers 429 with `credit_balance_exhausted`, which the screen
+ * used to show as "The script failed (HTTP 429)".
+ */
+export function writerRefusalMessage(provider: "openai" | "anthropic", status: number, body: string, label: string) {
+  const name = provider === "openai" ? "OpenAI" : "Anthropic"
+  if (/insufficient_quota|credit_balance|credit balance/i.test(body)) {
+    const billing = provider === "openai" ? "platform.openai.com → Billing" : "console.anthropic.com → Billing"
+    return `Your ${name} account has no credit left. Add some at ${billing}, or pick another writer in Settings → AI writer.`
+  }
+  if (status === 429 || status === 503 || status === 529) {
+    return `${name} is turning requests away right now. Wait a minute and try again.`
+  }
+  return `${label} failed (HTTP ${status})`
+}
 
 export function isShowableProviderProblem(message: string) {
   if (message === AI_TOO_BUSY_MESSAGE) return true

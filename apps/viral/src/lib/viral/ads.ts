@@ -1,3 +1,5 @@
+import type { WriterPrice } from "@/lib/viral/writers"
+
 /**
  * Winning ads (`workspace/docs/winning-ads.md`, task part 23). Tyler, 4 Nov
  * 2026: "Meta's ad library". An ad still running after this many days is
@@ -33,6 +35,18 @@ export type ProjectAds = {
   /** False until a token is pasted on Settings → Meta. */
   tokenSet: boolean
 }
+
+/**
+ * The lengths Meta shows before it cuts an ad's text off (task part 10). The
+ * writer aims at them; a written ad that runs over is kept, never refused.
+ */
+export const AD_COPY_AIMS = { mainText: 125, headline: 40, description: 30 } as const
+
+/** An ad written from a Winning ad for the project's topic, in Meta's three boxes (Tyler: "Meta's three boxes"). */
+export type AdCopy = { id: string; mainText: string; headline: string; description: string; createdAt: string }
+
+/** The ads written from one Winning ad, newest first, and what the next costs. */
+export type AdCopies = { copies: AdCopy[]; price: WriterPrice }
 
 /** Whole days between two moments, never below 0. */
 export function daysBetween(from: Date, to: Date): number {

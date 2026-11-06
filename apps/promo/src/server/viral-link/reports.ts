@@ -5,7 +5,7 @@ import { xPostUrl } from "@/lib/social/x/options"
 import { promoArchiveItems } from "@/server/archive/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoLinkedinPosts } from "@/server/social/linkedin/schema"
-import { promoAccounts, promoAppPosts } from "@/server/social/schema"
+import { promoAccounts, promoAppPosts, promoPosts } from "@/server/social/schema"
 import { promoXPosts } from "@/server/social/x/schema"
 
 import { callViral, ViralSaidNo } from "./link"
@@ -21,6 +21,11 @@ import { promoViralLinks, promoViralReports } from "./schema"
  * Posted. After that the figures Promo's own checks read are sent again at
  * most once a day, and only when the views moved, so Viral can show your
  * views beside the original's.
+ *
+ * A Reddit post of your own counts when New post opened with a post Viral
+ * wrote (task features/02, part 13). Promo never reads a Reddit post's
+ * upvotes or comments after it lands, so its figures go as null: it is
+ * reported once, with its link and when it went up, and never again.
  */
 
 /** A post from a Viral idea, ready to tell Viral about. */
@@ -43,7 +48,7 @@ function ideaOf(source: string, archiveIdea: string | null): string {
   return archiveIdea ?? ""
 }
 
-/** Every posted X, LinkedIn and phone-app post of this person that came from a Viral idea. */
+/** Every posted X, LinkedIn, Reddit and phone-app post of this person that came from a Viral idea. */
 export async function viralPosts(userId: string, db: CustomShellDb = defaultDb): Promise<ViralPostReport[]> {
   const fromViral = (source: Parameters<typeof like>[0], archiveIdea: Parameters<typeof ne>[0]) =>
     or(like(source, `${SOURCE_PREFIX}%`), ne(archiveIdea, ""))
@@ -67,6 +72,12 @@ export async function viralPosts(userId: string, db: CustomShellDb = defaultDb):
     .from(promoAppPosts)
     .innerJoin(promoArchiveItems, eq(promoArchiveItems.id, promoAppPosts.archiveItemId))
     .where(and(eq(promoAppPosts.userId, userId), eq(promoAppPosts.status, "posted"), ne(promoArchiveItems.viralIdeaId, "")))
+
+  // A Reddit post has no Archive item, so only its own source can name an idea.
+  const redditRows = await db
+    .select({ id: promoPosts.id, source: promoPosts.source, postUrl: promoPosts.postUrl, postedAt: promoPosts.postedAt })
+    .from(promoPosts)
+    .where(and(eq(promoPosts.userId, userId), eq(promoPosts.status, "posted"), like(promoPosts.source, `${SOURCE_PREFIX}%`), ne(promoPosts.postUrl, "")))
 
   const reports: ViralPostReport[] = []
   for (const row of xRows) {
@@ -109,6 +120,19 @@ export async function viralPosts(userId: string, db: CustomShellDb = defaultDb):
       likes: row.likes,
       comments: row.comments,
       postedAt: row.postedAt?.toISOString() ?? null,
+    })
+  }
+  for (const row of redditRows) {
+    reports.push({
+      postKey: `reddit:${row.id}`,
+      ideaId: ideaOf(row.source, null),
+      network: "reddit",
+      url: row.postUrl,
+      // Nothing in Promo reads a posted Reddit post's numbers, so there are none to send.
+      views: null,
+      likes: null,
+      comments: null,
+      postedAt: row.postedAt.toISOString(),
     })
   }
   return reports.filter((report) => report.ideaId)

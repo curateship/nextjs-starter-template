@@ -251,8 +251,8 @@ export function AnalyseSection({
         </div>
         {price ? (
           <p className="text-xs text-muted-foreground">
-            About {formatCents(price.cents)}
-            {price.breakdownNeeded ? ". It downloads the video and the AI watches it first, which is most of that." : "."}
+            About {formatCents(price.cents)} with {price.writer}.
+            {price.breakdownNeeded ? " It downloads the video and Gemini Flash watches it first." : ""}
           </p>
         ) : null}
         <Button type="button" disabled={busy !== null} onClick={() => void analyse()}>

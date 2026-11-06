@@ -86,6 +86,7 @@ import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport }
 import { Route as ApiConnectVideoFileTokenRouteImport } from './routes/api/connect/video/file/$token'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 import { Route as ApiV1ViralCreatorsCreatorIdAvatarRouteImport } from './routes/api/v1/viral/creators/$creatorId/avatar'
+import { Route as ApiV1ViralDownloadSourceIdRouteImport } from './routes/api/v1/viral/download/$source/$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -503,6 +504,12 @@ const ApiV1ViralCreatorsCreatorIdAvatarRoute =
     path: '/api/v1/viral/creators/$creatorId/avatar',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1ViralDownloadSourceIdRoute =
+  ApiV1ViralDownloadSourceIdRouteImport.update({
+    id: '/api/v1/viral/download/$source/$id',
+    path: '/api/v1/viral/download/$source/$id',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -581,6 +588,7 @@ export interface FileRoutesByFullPath {
   '/api/connect/video/file/$token': typeof ApiConnectVideoFileTokenRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/viral/creators/$creatorId/avatar': typeof ApiV1ViralCreatorsCreatorIdAvatarRoute
+  '/api/v1/viral/download/$source/$id': typeof ApiV1ViralDownloadSourceIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -656,6 +664,7 @@ export interface FileRoutesByTo {
   '/api/connect/video/file/$token': typeof ApiConnectVideoFileTokenRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/viral/creators/$creatorId/avatar': typeof ApiV1ViralCreatorsCreatorIdAvatarRoute
+  '/api/v1/viral/download/$source/$id': typeof ApiV1ViralDownloadSourceIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -736,6 +745,7 @@ export interface FileRoutesById {
   '/api/connect/video/file/$token': typeof ApiConnectVideoFileTokenRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/viral/creators/$creatorId/avatar': typeof ApiV1ViralCreatorsCreatorIdAvatarRoute
+  '/api/v1/viral/download/$source/$id': typeof ApiV1ViralDownloadSourceIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -816,6 +826,7 @@ export interface FileRouteTypes {
     | '/api/connect/video/file/$token'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/viral/creators/$creatorId/avatar'
+    | '/api/v1/viral/download/$source/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -891,6 +902,7 @@ export interface FileRouteTypes {
     | '/api/connect/video/file/$token'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/viral/creators/$creatorId/avatar'
+    | '/api/v1/viral/download/$source/$id'
   id:
     | '__root__'
     | '/'
@@ -970,6 +982,7 @@ export interface FileRouteTypes {
     | '/api/connect/video/file/$token'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/viral/creators/$creatorId/avatar'
+    | '/api/v1/viral/download/$source/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1006,6 +1019,7 @@ export interface RootRouteChildren {
   ApiConnectVideoFileTokenRoute: typeof ApiConnectVideoFileTokenRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
   ApiV1ViralCreatorsCreatorIdAvatarRoute: typeof ApiV1ViralCreatorsCreatorIdAvatarRoute
+  ApiV1ViralDownloadSourceIdRoute: typeof ApiV1ViralDownloadSourceIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1549,6 +1563,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1ViralCreatorsCreatorIdAvatarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/viral/download/$source/$id': {
+      id: '/api/v1/viral/download/$source/$id'
+      path: '/api/v1/viral/download/$source/$id'
+      fullPath: '/api/v1/viral/download/$source/$id'
+      preLoaderRoute: typeof ApiV1ViralDownloadSourceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1746,6 +1767,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
   ApiV1ViralCreatorsCreatorIdAvatarRoute:
     ApiV1ViralCreatorsCreatorIdAvatarRoute,
+  ApiV1ViralDownloadSourceIdRoute: ApiV1ViralDownloadSourceIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

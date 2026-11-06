@@ -97,13 +97,25 @@ export type GeminiJsonAnswer<T> = {
  * that reaches the screen says which feature went wrong. The token counts come
  * back with the answer for whoever is metering the call.
  */
-export async function generateJson<T>(options: {
+export async function generateJson<T>({
+  timeoutMs,
+  ...question
+}: {
   apiKey: string
   model: string
   parts: unknown[]
   schema: z.ZodType<T>
   label: string
+  /**
+   * The longest the whole ask may take, retries and the second go included,
+   * after which it throws "<label> took too long". Left out, it waits as long
+   * as Google does, which a video being watched needs. A button that only
+   * writes words passes one, because Google can hold a busy request for
+   * minutes (measured 6 Nov 2026: a Write a script took about 3 minutes).
+   */
+  timeoutMs?: number
 }): Promise<GeminiJsonAnswer<T>> {
+  const options = { ...question, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined }
   try {
     return await askOnce(options)
   } catch (error) {
@@ -123,15 +135,18 @@ async function askOnce<T>({
   parts,
   schema,
   label,
+  signal,
 }: {
   apiKey: string
   model: string
   parts: unknown[]
   schema: z.ZodType<T>
   label: string
+  signal?: AbortSignal
 }): Promise<GeminiJsonAnswer<T>> {
   let response: Response | null = null
   for (let attempt = 0; ; attempt += 1) {
+    if (signal?.aborted) throw new Error(`${label} took too long`)
     response = await fetch(
       `${GEMINI_BASE_URL}/v1beta/models/${model}:generateContent`,
       {
@@ -144,8 +159,12 @@ async function askOnce<T>({
           contents: [{ parts }],
           generationConfig: { responseMimeType: "application/json" },
         }),
+        signal,
       }
-    )
+    ).catch((error: unknown) => {
+      if (signal?.aborted) throw new Error(`${label} took too long`)
+      throw error
+    })
     if (response.ok) break
 
     const trouble = await safeBody(response)

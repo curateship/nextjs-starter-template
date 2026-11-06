@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { CopyIcon, ExternalLinkIcon, Loader2Icon, MegaphoneIcon, SearchIcon } from "lucide-react"
+import { CopyIcon, ExternalLinkIcon, Loader2Icon, MegaphoneIcon, PenLineIcon, SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -10,12 +10,14 @@ import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import type { WinningAd } from "@/lib/api/viral/viral-ads"
+import { getViralErrorMessage } from "@/lib/api/viral/viral"
+import { loadAdCopiesFn, writeAdCopyFn, type AdCopies, type AdCopy, type WinningAd } from "@/lib/api/viral/viral-ads"
 import { plural } from "@/lib/format/plural"
 import { focusRing } from "@/lib/layout/focus-ring"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
-import { platformNames, WINNING_AD_DAYS } from "@/lib/viral/ads"
+import { AD_COPY_AIMS, platformNames, WINNING_AD_DAYS } from "@/lib/viral/ads"
+import { writerPriceWords } from "@/lib/viral/writers"
 import type { AdsState } from "@/components/viral/use-project-ads"
 import { formatShortDay } from "@/lib/viral/viral-view"
 
@@ -122,8 +124,11 @@ export function AdsMiddle({
   )
 }
 
-/** The right panel while an ad is open: its words, who runs it and for how long. */
-export function AdPanel({ ad }: { ad: WinningAd | null }) {
+/**
+ * The right panel while an ad is open: its words, who runs it and for how
+ * long, and Write an ad like this.
+ */
+export function AdPanel({ ad, projectId, sample }: { ad: WinningAd | null; projectId: string; sample: boolean }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
   if (!ad) {
     return (
@@ -192,6 +197,7 @@ export function AdPanel({ ad }: { ad: WinningAd | null }) {
               <Detail label="Found by" value={ad.keyword ? `"${ad.keyword}"` : "-"} />
             </dl>
           </InspectorCard>
+          <AdCopyCards projectId={projectId} adArchiveId={ad.adArchiveId} sample={sample} />
         </div>
       </ScrollArea>
       <div className="shrink-0 border-t p-3">
@@ -211,6 +217,127 @@ function Detail({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between gap-3">
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="min-w-0 text-right font-medium">{value}</dd>
+    </div>
+  )
+}
+
+type Copies = { state: "loading" } | ({ state: "ready" } & AdCopies) | { state: "failed"; error: string }
+
+/**
+ * Write an ad like this (`workspace/docs/winning-ads.md`, more-features task
+ * part 10). Tyler, 6 Nov 2026: "Meta's three boxes". One press writes the
+ * main text, the headline and the description for the project's topic,
+ * each with Copy. The written ads are kept by the ad's library id, so they
+ * are still here after Search ads runs again. A sample's ads are made up,
+ * so the button is left off them.
+ */
+export function AdCopyCards({ projectId, adArchiveId, sample }: { projectId: string; adArchiveId: string; sample: boolean }) {
+  const [copies, setCopies] = React.useState<Copies>({ state: "loading" })
+  const [reloads, setReloads] = React.useState(0)
+  const [busy, setBusy] = React.useState(false)
+
+  React.useEffect(() => {
+    let live = true
+    loadAdCopiesFn(projectId, adArchiveId)
+      .then((answer) => {
+        if (live) setCopies({ state: "ready", ...answer })
+      })
+      .catch((error) => {
+        if (live) setCopies({ state: "failed", error: getViralErrorMessage(error) })
+      })
+    return () => {
+      live = false
+    }
+  }, [projectId, adArchiveId, reloads])
+
+  async function write() {
+    setBusy(true)
+    dismissErrorToast()
+    try {
+      const written = await writeAdCopyFn(projectId, adArchiveId)
+      setCopies((was) => (was.state === "ready" ? { ...was, copies: [written, ...was.copies] } : was))
+      toast.success("The ad is written.")
+    } catch (error) {
+      showErrorToast(getViralErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const priceLine = copies.state === "ready" ? writerPriceWords(copies.price) : null
+
+  return (
+    <InspectorCard
+      storageId="viral-ad-write"
+      title="Write an ad like this"
+      description={sample ? undefined : priceLine ? priceLine.charAt(0).toUpperCase() + priceLine.slice(1) : undefined}
+    >
+      {copies.state === "loading" ? (
+        <LoadingRow label="Reading the ads written" />
+      ) : copies.state === "failed" ? (
+        <ErrorRow message={copies.error} onRetry={() => setReloads((count) => count + 1)} />
+      ) : (
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 text-sm break-words">
+          {sample ? (
+            <p className="text-muted-foreground">A sample's ads are made up, so nothing is written from them. Search ads in your own project to try it.</p>
+          ) : (
+            <>
+              <p className="text-muted-foreground">
+                Main text, headline and description in this ad's style, for your project's topic. Ready to paste into Meta.
+              </p>
+              <div>
+                <Button type="button" onClick={() => void write()} disabled={busy}>
+                  {busy ? <Loader2Icon className="animate-spin" /> : <PenLineIcon />}
+                  Write an ad
+                </Button>
+              </div>
+            </>
+          )}
+          {copies.copies.length ? (
+            <ul aria-label="Ads written" className="grid gap-4">
+              {copies.copies.map((copy) => (
+                <AdCopyRow key={copy.id} copy={copy} />
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      )}
+    </InspectorCard>
+  )
+}
+
+function AdCopyRow({ copy }: { copy: AdCopy }) {
+  return (
+    <li className="grid gap-3 border-t pt-4">
+      <p className="text-xs text-muted-foreground">Written {formatShortDay(copy.createdAt)}</p>
+      <AdBox label="Main text" text={copy.mainText} aim={AD_COPY_AIMS.mainText} />
+      <AdBox label="Headline" text={copy.headline} aim={AD_COPY_AIMS.headline} />
+      <AdBox label="Description" text={copy.description} aim={AD_COPY_AIMS.description} />
+    </li>
+  )
+}
+
+/** One of Meta's boxes: its words, how long they are against what Meta shows, and Copy. */
+function AdBox({ label, text, aim }: { label: string; text: string; aim: number }) {
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(`${label} copied.`)
+    } catch {
+      showErrorToast("The text could not be copied. Select it and copy it instead.")
+    }
+  }
+  return (
+    <div className="grid gap-1">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground">
+          {label} · <span className="tabular-nums">{text.length}</span> of about {aim} characters
+        </p>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Copy the ${label.toLowerCase()}`} onClick={() => void copy()}>
+          <CopyIcon />
+        </Button>
+      </div>
+      <p className="whitespace-pre-wrap">{text || "-"}</p>
     </div>
   )
 }

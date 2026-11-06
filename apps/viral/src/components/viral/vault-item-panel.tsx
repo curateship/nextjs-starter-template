@@ -1,5 +1,17 @@
 import * as React from "react"
-import { ArchiveIcon, CopyPlusIcon, ExternalLinkIcon, LinkIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react"
+import {
+  ArchiveIcon,
+  CopyPlusIcon,
+  HardDriveDownloadIcon,
+  ExternalLinkIcon,
+  LightbulbIcon,
+  LinkIcon,
+  Loader2Icon,
+  PlusIcon,
+  SparklesIcon,
+  Trash2Icon,
+  XIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { InspectorCard } from "@/components/shared/inspector-card"
@@ -14,24 +26,37 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AnalysisCards } from "@/components/viral/analysis-cards"
 import { CopyToProjectDialog, type CopyTarget } from "@/components/viral/copy-to-project-dialog"
 import { CoverImage } from "@/components/viral/cover-image"
+import { SavingDocument } from "@/components/viral/saving-document"
 import { SavingTextarea } from "@/components/viral/saving-fields"
 import { WritePostForPromoButton, YourPostRows } from "@/components/viral/promo-posts"
 import { SendToVideoButton } from "@/components/viral/send-to-video"
 import { SocialIcon } from "@/components/viral/social-icon"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
-import { changeVaultItemsFn, updateVaultItemFn, type VaultItem } from "@/lib/api/viral/viral-vault"
+import {
+  changeVaultItemsFn,
+  loadVaultWritingPrices,
+  saveEditedScriptFn,
+  updateVaultItemFn,
+  writeOwnIdeaScriptFn,
+  type VaultItem,
+} from "@/lib/api/viral/viral-vault"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { ANALYSIS_NOTES_MAX } from "@/lib/viral/analysis"
-import { creatorPlatformLabels, formatCount, formatDuration } from "@/lib/viral/creators"
+import { formatCount, formatDuration } from "@/lib/viral/creators"
+import { isTextSocial } from "@/lib/viral/socials"
+import { figureName } from "@/lib/viral/text-posts"
+import { downloadToComputer } from "@/lib/viral/download"
 import { outlierBadge } from "@/lib/viral/viral"
 import {
   cleanTag,
   VAULT_STATUSES,
   VAULT_TAG_MAX,
   VAULT_TAGS_PER_ITEM_MAX,
+  vaultSourceLabel,
   vaultStatusLabels,
   type VaultStatus,
 } from "@/lib/viral/vault"
+import { writerPriceWords, type WriterPrice } from "@/lib/viral/writers"
 
 /**
  * One idea in the vault, as the right panel shows it (task parts 17 to 20
@@ -42,6 +67,12 @@ import {
  *
  * The copy is Viral's own, so it still plays after the creator deletes the
  * original. Status, tags and notes each save as they change.
+ *
+ * An idea with no video (more-features task part 1), a saved post or one you
+ * typed, has no player, and its cards start with Idea. A post adds The post,
+ * with its words and link, and its numbers in its network's own words. Your
+ * own idea's notes are written in the shell's editor, and its script comes
+ * from Write a script.
  */
 export function VaultItemPanel({
   item,
@@ -59,7 +90,8 @@ export function VaultItemPanel({
   const [deleting, setDeleting] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [copying, setCopying] = React.useState<CopyTarget | null>(null)
-  const platform = creatorPlatformLabels[item.platform]
+  const platform = vaultSourceLabel(item)
+  const sourceUrl = item.sourceUrl
 
   async function update(change: { notes?: string; status?: VaultStatus; tags?: string[] }) {
     try {
@@ -89,9 +121,20 @@ export function VaultItemPanel({
     }
   }
 
-  async function copyLink() {
+  async function saveScript(words: string[] | null) {
     try {
-      await navigator.clipboard.writeText(item.sourceUrl)
+      onChanged(await saveEditedScriptFn(item.id, words))
+      return true
+    } catch (error) {
+      showErrorToast(getViralErrorMessage(error))
+      return false
+    }
+  }
+
+  async function copyLink() {
+    if (!sourceUrl) return
+    try {
+      await navigator.clipboard.writeText(sourceUrl)
       toast.success("Link copied.")
     } catch {
       showErrorToast("The link could not be copied.")
@@ -99,11 +142,25 @@ export function VaultItemPanel({
   }
 
   const badge = outlierBadge({ times: item.stats.outlier, typicalViews: null })
+  const postFigures =
+    item.kind === "post" && isTextSocial(item.platform)
+      ? (["views", "likes", "replies", "reposts"] as const).flatMap((figure) => {
+          const label = figureName(item.platform as "x" | "reddit" | "linkedin", figure)
+          const value = figure === "replies" ? item.stats.comments : figure === "reposts" ? (item.stats.reposts ?? null) : item.stats[figure]
+          return label ? [{ label, value }] : []
+        })
+      : []
+  const deleteWords =
+    item.kind === "own"
+      ? `"${item.title}" leaves the vault with its notes, its script and its tags.`
+      : item.kind === "post"
+        ? `"${item.title}" leaves the vault with its notes and its tags. The post stays on ${platform}.`
+        : `"${item.title}" leaves the vault with its kept copy, its notes and its tags. The original stays on ${platform}.`
 
   return (
     <>
       <DashboardCardTitleHeader
-        icon={<SocialIcon social={item.platform} />}
+        icon={item.platform ? <SocialIcon social={item.platform} /> : <LightbulbIcon />}
         title={
           <span className="grid leading-tight">
             <span className="truncate">{item.title}</span>
@@ -114,29 +171,45 @@ export function VaultItemPanel({
         }
         action={
           <FoldingMenu label="More for this idea" fit align="end" open={menuOpen} onOpenChange={setMenuOpen}>
-            <MenuAction
-              icon={<ExternalLinkIcon className="size-4" />}
-              onClick={() => {
-                setMenuOpen(false)
-                window.open(item.sourceUrl, "_blank", "noopener,noreferrer")
-              }}
-            >
-              Open on {platform}
-            </MenuAction>
-            <MenuAction
-              icon={<LinkIcon className="size-4" />}
-              onClick={() => {
-                setMenuOpen(false)
-                void copyLink()
-              }}
-            >
-              Copy link
-            </MenuAction>
+            {sourceUrl ? (
+              <MenuAction
+                icon={<ExternalLinkIcon className="size-4" />}
+                onClick={() => {
+                  setMenuOpen(false)
+                  window.open(sourceUrl, "_blank", "noopener,noreferrer")
+                }}
+              >
+                Open on {platform}
+              </MenuAction>
+            ) : null}
+            {sourceUrl ? (
+              <MenuAction
+                icon={<LinkIcon className="size-4" />}
+                onClick={() => {
+                  setMenuOpen(false)
+                  void copyLink()
+                }}
+              >
+                Copy link
+              </MenuAction>
+            ) : null}
+            {/* Shown only while Viral keeps a copy (Tyler, 6 Nov 2026: "Both ⋮ menus"). */}
+            {item.hasFile ? (
+              <MenuAction
+                icon={<HardDriveDownloadIcon className="size-4" />}
+                onClick={() => {
+                  setMenuOpen(false)
+                  downloadToComputer("idea", item.id)
+                }}
+              >
+                Download to computer
+              </MenuAction>
+            ) : null}
             <MenuAction
               icon={<CopyPlusIcon className="size-4" />}
               onClick={() => {
                 setMenuOpen(false)
-                setCopying({ kind: "idea", itemId: item.id, title: item.title })
+                setCopying({ kind: "idea", itemId: item.id, title: item.title, post: item.kind === "post" })
               }}
             >
               Copy to another project
@@ -157,7 +230,7 @@ export function VaultItemPanel({
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid grid-cols-[minmax(0,1fr)]">
-          {item.playbackUrl ? (
+          {item.kind !== "video" ? null : item.playbackUrl ? (
             <video
               src={item.playbackUrl}
               controls
@@ -194,35 +267,87 @@ export function VaultItemPanel({
               </Select>
             </div>
             <TagField id={`vault-tags-${item.id}`} value={item.tags} known={tags} onChange={(next) => update({ tags: next })} />
-            <div className="grid gap-2">
-              <Label htmlFor={`vault-notes-${item.id}`}>Notes</Label>
-              <SavingTextarea
-                id={`vault-notes-${item.id}`}
-                rows={2}
-                maxLength={ANALYSIS_NOTES_MAX}
-                value={item.notes}
-                placeholder="What to keep, what to change, how you'd film it"
-                onSave={(notes) => update({ notes })}
-              />
-            </div>
+            {item.kind === "own" ? (
+              // Your own idea's notes are written in the shell's editor, as a project's notes are.
+              <div className="grid gap-2">
+                <Label>Notes</Label>
+                <div className="rounded-md border bg-background">
+                  <SavingDocument
+                    key={item.id}
+                    value={item.notes}
+                    placeholder="What it's about, how you'd film it"
+                    onSave={(notes) => update({ notes })}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                <Label htmlFor={`vault-notes-${item.id}`}>Notes</Label>
+                <SavingTextarea
+                  id={`vault-notes-${item.id}`}
+                  rows={2}
+                  maxLength={ANALYSIS_NOTES_MAX}
+                  value={item.notes}
+                  placeholder="What to keep, what to change, how you'd film it"
+                  onSave={(notes) => update({ notes })}
+                />
+              </div>
+            )}
           </div>
           </InspectorCard>
 
+          {item.post ? (
+            <InspectorCard storageId="viral-vault-post" title="The post">
+              <div className="grid gap-2 text-sm break-words">
+                {item.post.community ? <p className="text-xs text-muted-foreground">r/{item.post.community}</p> : null}
+                {item.post.title ? <p className="font-medium">{item.post.title}</p> : null}
+                <p className="whitespace-pre-wrap">{item.post.text || "This post has no words, only a picture or video."}</p>
+                {item.post.link ? (
+                  <a href={item.post.link} target="_blank" rel="noopener noreferrer" className="truncate text-muted-foreground underline">
+                    {item.post.link}
+                  </a>
+                ) : null}
+              </div>
+            </InspectorCard>
+          ) : null}
+
           <InspectorCard storageId="viral-vault-numbers" title="Numbers">
-            <dl className="grid gap-2 text-sm">
-              <Detail label="Views" value={formatCount(item.stats.views)} />
-              <Detail label="Likes" value={formatCount(item.stats.likes)} />
-              <Detail label="Comments" value={formatCount(item.stats.comments)} />
-              <Detail label="Outlier" value={badge ?? "-"} />
-              <Detail label="Score" value={item.stats.score === null ? "-" : String(item.stats.score)} />
-              <Detail label="Length" value={formatDuration(item.stats.durationSeconds) || "-"} />
+            {item.kind === "own" ? (
+              <p className="text-sm text-muted-foreground">Your posts of this idea show here once Promo reports them.</p>
+            ) : null}
+            <dl className="grid gap-2 text-sm empty:hidden">
+              {item.kind === "video" ? (
+                <>
+                  <Detail label="Views" value={formatCount(item.stats.views)} />
+                  <Detail label="Likes" value={formatCount(item.stats.likes)} />
+                  <Detail label="Comments" value={formatCount(item.stats.comments)} />
+                  <Detail label="Outlier" value={badge ?? "-"} />
+                  <Detail label="Score" value={item.stats.score === null ? "-" : String(item.stats.score)} />
+                  <Detail label="Length" value={formatDuration(item.stats.durationSeconds) || "-"} />
+                </>
+              ) : item.kind === "post" ? (
+                <>
+                  {/* In the post's own words: Reddit's upvotes and comments, LinkedIn's reactions. */}
+                  {postFigures.map((figure) => (
+                    <Detail key={figure.label} label={figure.label} value={formatCount(figure.value)} />
+                  ))}
+                  <Detail label="Followers" value={formatCount(item.stats.subscribers)} />
+                </>
+              ) : null}
               {/* Your own posts of it, as Promo reported them (features task part 21). */}
               <YourPostRows itemId={item.id} refreshKey={item.status} />
             </dl>
           </InspectorCard>
 
           {item.analysis ? (
-            <AnalysisCards pieces={item.analysis} topic={item.analysisTopic ?? ""} sourceTitle={item.title} />
+            <AnalysisCards
+              pieces={item.analysis}
+              topic={item.analysisTopic ?? ""}
+              sourceTitle={item.title}
+              scriptEdit={{ edited: item.editedScript, onSave: saveScript }}
+            />
+          ) : item.kind === "own" ? (
+            <WriteScriptCard item={item} onChanged={onChanged} />
           ) : (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <ArchiveIcon className="size-4" />
@@ -246,12 +371,63 @@ export function VaultItemPanel({
         open={deleting}
         onOpenChange={setDeleting}
         title="Delete this idea from the vault?"
-        description={`"${item.title}" leaves the vault with its kept copy, its notes and its tags. The original stays on ${platform}.`}
+        description={deleteWords}
         confirmLabel="Delete idea"
         loading={busy}
         onConfirm={() => void remove()}
       />
     </>
+  )
+}
+
+/**
+ * Write a script on your own idea (Tyler, 6 Nov 2026: "Script on a button").
+ * The price and the writer show before it runs. The server refuses a sample
+ * project and a project with no topic before the AI is asked.
+ */
+function WriteScriptCard({ item, onChanged }: { item: VaultItem; onChanged: (item: VaultItem) => void }) {
+  const [price, setPrice] = React.useState<WriterPrice | null>(null)
+  const [busy, setBusy] = React.useState(false)
+  React.useEffect(() => {
+    let live = true
+    loadVaultWritingPrices().then(
+      (prices) => {
+        if (live) setPrice(prices.ownScript)
+      },
+      () => undefined
+    )
+    return () => {
+      live = false
+    }
+  }, [])
+
+  async function write() {
+    setBusy(true)
+    try {
+      onChanged(await writeOwnIdeaScriptFn(item.id))
+      toast.success("The script is written. Press the pencil on it to change any part.")
+    } catch (error) {
+      showErrorToast(getViralErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <InspectorCard storageId="viral-vault-own-script" title="Script">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm">
+        <p className="text-muted-foreground">
+          No script yet. The AI writes one for the project's topic from the title and your notes
+          {price ? `, for ${writerPriceWords(price)}.` : "."}
+        </p>
+        <div>
+          <Button type="button" disabled={busy} onClick={() => void write()}>
+            {busy ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+            Write a script
+          </Button>
+        </div>
+      </div>
+    </InspectorCard>
   )
 }
 

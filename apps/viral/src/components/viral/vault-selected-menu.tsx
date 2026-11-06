@@ -146,7 +146,7 @@ export function VaultSelectedMenu({
         open={deleting}
         onOpenChange={setDeleting}
         title={`Delete ${ids.length} ${plural(ids.length, "idea", "ideas")} from the vault?`}
-        description="Each one leaves the vault with its kept copy of the video, its notes and its tags. The originals stay where they were posted."
+        description="Each one leaves the vault with its notes, its tags and any kept copy of its video. The originals stay where they were posted."
         confirmLabel={`Delete ${plural(ids.length, "idea", "ideas")}`}
         loading={busy}
         onConfirm={() =>

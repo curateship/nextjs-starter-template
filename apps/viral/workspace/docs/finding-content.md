@@ -18,6 +18,30 @@ its tables renamed from `video_viral_*` to `viral_*`.
   restart never strands one.
 - **The key.** Settings → YouTube, kept scrambled in `viral_settings`. The
   `VIRAL_YOUTUBE_API_KEY` env var is used when none is saved.
+- **How far back.** The project's Posted within: 7, 30 or 90 days, 6 months
+  or 1 year. Tyler, 6 Nov 2026: "6 months and 1 year". A longer window costs
+  the same 102 units.
+
+## Country and language
+
+Tyler, 6 Nov 2026: "Every country + language", searchable, with Anywhere as
+the default. Both are rows in the project's ⋮ (`project-page.md`).
+
+- **What YouTube gets.** Keyword searches, the daily re-check and Same idea
+  send the country as `regionCode` (such as GB) and the language as
+  `relevanceLanguage` (such as en) (`src/server/viral/youtube.ts`).
+- **Anywhere sends nothing.** A project on Anywhere, and every project made
+  before this, searches exactly as it did.
+- **The cost.** Unchanged. Both are part of the same 100-unit search.
+- **What they do.** The country keeps to videos people in that country can
+  watch. The language puts videos in it first, but others can still show.
+- **The lists.** Fixed lists of codes in `src/lib/viral/places.ts`, so
+  picking one costs nothing: every ISO 3166-1 country (249) and every ISO
+  639-1 language (184). Chinese is `zh-Hans` and `zh-Hant`, as YouTube asks.
+  The names come from the browser, in English.
+- **A country YouTube doesn't serve.** YouTube's docs say it answers as
+  another country it picks, rather than refusing, so every country is
+  offered.
 
 ## Followed creators
 
@@ -111,11 +135,12 @@ format repeats. "Same idea, other creators" is a row in the right panel's ⋮
 - **What happens.** The AI reads the video's title, and what is said in it
   once it has been broken down, and writes one YouTube search line. YouTube
   is searched with it, as far back as a year, for videos of the same length
-  kind.
+  kind, in the project's country and language.
 - **What shows.** The middle panel lists the other creators' versions, with
   a line such as "6 other creators made this, 4 doubled their usual". The
   original's own channel is left out. Opening one plays it on the right.
-- **Cost.** About 1 cent for the AI, metered as `viral_same_idea` against
+- **Cost.** About 1 cent for the writer picked on Settings → AI writer
+  (`ai-analysis.md`), metered as `viral_same_idea` against
   the project's spend limit. The search costs 102 units. Each channel's
   Outlier figure is read for the channels Viral doesn't have yet, at 2 units
   each, at most 25.
@@ -134,7 +159,8 @@ Tyler, 4 Nov 2026: "Daily, with a bell".
 
 - **What runs.** Once a day, the `viral-daily-recheck` worker queues every
   keyword of a project whose last run was over 24 hours ago
-  (`src/server/viral/daily-checks.ts`).
+  (`src/server/viral/daily-checks.ts`). Each is searched like a pressed
+  search, with the project's window, country and language.
 - **What it skips.** Samples, archived projects, and projects without
   YouTube or with YouTube paused. Those are left out before the day's
   projects are picked, so however many there are they never hold up the

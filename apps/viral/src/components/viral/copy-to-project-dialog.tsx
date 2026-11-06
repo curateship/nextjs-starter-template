@@ -16,7 +16,10 @@ import { copyVaultItemFn } from "@/lib/api/viral/viral-vault"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /** What is being copied: a video on the right panel, or a vault idea. */
-export type CopyTarget = { kind: "video"; url: string; title: string } | { kind: "idea"; itemId: string; title: string }
+export type CopyTarget =
+  | { kind: "video"; url: string; title: string }
+  /** `post` is true for a saved post, so "already there" names a post rather than a video. */
+  | { kind: "idea"; itemId: string; title: string; post?: boolean }
 
 type Choices = { state: "loading" } | { state: "ready"; projects: { id: string; name: string }[] } | { state: "failed"; error: string }
 
@@ -75,7 +78,7 @@ export function CopyToProjectDialog({
         toast.success(
           result.state === "copied"
             ? `Copied to ${result.item.projectName}'s vault. Both projects keep it.`
-            : `${result.projectName}'s vault already has this video, so nothing changed.`
+            : `${result.projectName}'s vault already has this ${target.post ? "post" : "video"}, so nothing changed.`
         )
       } else {
         const result = await copyVideoToProjectFn(target.url, picked)

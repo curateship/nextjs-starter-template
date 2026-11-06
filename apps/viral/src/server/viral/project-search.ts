@@ -206,7 +206,13 @@ async function runSearch(job: ClaimedKeyword): Promise<void> {
     }
     for (const length of lengths) {
       const answer = await searchYoutubeVideos(
-        { keyword: job.keyword, days: project.days, length },
+        {
+          keyword: job.keyword,
+          days: project.days,
+          length,
+          regionCode: project.regionCode,
+          relevanceLanguage: project.relevanceLanguage,
+        },
         apiKey
       )
       units += answer.units
