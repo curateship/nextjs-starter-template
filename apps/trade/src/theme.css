@@ -158,8 +158,15 @@
        a fill for badges and quiet buttons and only lands below --card by luck
        in light mode. Three tiers, darkest first: the page, then the sidebar
        rail and sticky bar, then the cards. Each pair is about five steps out
-       of 255 apart, in both palettes. */
-    --shell-canvas: oklch(0.970 0 0);
+       of 255 apart, in both palettes. Settings -> Styling -> Gutter shade
+       moves the page between a card (0) and --shell-canvas-deep (100)
+       through --shell-page-depth. Halfway is the 245 it has always been. */
+    --shell-canvas-deep: oklch(0.940 0 0);
+    --shell-canvas: color-mix(
+      in oklab,
+      var(--shell-canvas-deep) var(--shell-page-depth, 50%),
+      var(--card)
+    );
     /* The rail and the sticky bar, halfway between the page and a card, so
        they read as off white here and off black in the dark block without
        either being set by hand twice. Settings -> Styling -> Left menu shade
@@ -239,7 +246,12 @@
     /* A shade under --card, so the cards read as raised here exactly as they
        do in light mode. It carries the shade lift like every other grey, and
        --shell-rail is derived from it, so all three tiers lift together. */
-    --shell-canvas: oklch(calc(0.162 + var(--shell-dark-lift, 0)) 0 0);
+    --shell-canvas-deep: oklch(calc(0.119 + var(--shell-dark-lift, 0)) 0 0);
+    --shell-canvas: color-mix(
+      in oklab,
+      var(--shell-canvas-deep) var(--shell-page-depth, 50%),
+      var(--card)
+    );
     --shell-rail: color-mix(
       in oklab,
       var(--card) var(--shell-rail-card-share, 50%),

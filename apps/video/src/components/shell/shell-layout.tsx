@@ -55,10 +55,12 @@ import {
   getBorderStyleVars,
   getDarkShadeVars,
   getModalStyleVars,
+  getPageShadeVars,
   getSidebarShadeVars,
   MODAL_STYLE_VAR_NAMES,
   normalizeStyling,
   resolveBackground,
+  PAGE_SHADE_VAR_NAMES,
   SIDEBAR_SHADE_VAR_NAMES,
   type ShellModalStyling,
   type ShellStyling,
@@ -272,6 +274,7 @@ export function ShellLayout({
   useBorderStyleVars(config.styling)
   useDarkShadeVars(config.styling)
   useSidebarShadeVars(config.styling)
+  usePageShadeVars(config.styling)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -966,6 +969,15 @@ function useSidebarShadeVars(styling: ShellStyling) {
   React.useEffect(
     () =>
       applyRootStyleVars(SIDEBAR_SHADE_VAR_NAMES, getSidebarShadeVars(styling)),
+    [styling]
+  )
+}
+
+// The gutter shade. --shell-canvas in theme.css is declared on the root, so the
+// depth it reads has to be set there too, the same as the left menu's share.
+function usePageShadeVars(styling: ShellStyling) {
+  React.useEffect(
+    () => applyRootStyleVars(PAGE_SHADE_VAR_NAMES, getPageShadeVars(styling)),
     [styling]
   )
 }

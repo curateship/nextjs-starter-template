@@ -5,9 +5,10 @@ mode. That is the rule, and the whole of this file exists to hold it.
 
 Three tiers, darkest first: the page, then the sidebar rail and the sticky
 bar, then the cards. `--shell-canvas` is the page and `--shell-rail` is the
-rail, sitting between the page and a card. The page is not adjustable in
-Settings. The rail's place between the two is, through
-[the left menu shade](left-menu-shade.md), which starts at halfway.
+rail, sitting between the page and a card. How dark the page is can be set
+through [the gutter shade](page-shade.md), and the rail's place between the page
+and a card through [the left menu shade](left-menu-shade.md). Both start at
+halfway, which gives the greys measured below.
 
 ## The greys, measured
 
