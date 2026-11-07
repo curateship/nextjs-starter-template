@@ -1,8 +1,9 @@
 # Notes and the "/" blocks
 
 A task's notes take blocks as well as words. So do New task's and quick new
-task's Description, a project's page in its left panel, and each of a
-project's notes ([Project notes](project-notes.md)).
+task's Description, a project's page in its left panel, each of a
+project's notes ([Project notes](project-notes.md)), and the site admin's own
+page on My dashboard.
 Typing "/" opens a list of them. Meeting notes take words
 only. A task template's starting notes took them too, until task templates
 and their fields were removed on 6 Nov 2026 (Tyler: "We need to remove the
@@ -54,6 +55,19 @@ tasks templates feature too").
   block goes there. A pick, Escape or a click elsewhere closes it. With words
   selected, the browser's own menu shows instead, for Copy (`openAt` in
   `use-note-blocks.ts`, the handler in `note-editor.tsx`).
+- **Two groups** (Tyler, 6 Nov 2026: "divider the blocks into basic blocks
+  and advanced blocks"), each under a small grey heading with one line
+  between them, edge to edge:
+  - **Basic blocks:** what the writer types or pastes in themselves. Image,
+    Video, Checklist, Callout, Divider, Fold section, Web page and Links.
+  - **Advanced blocks:** blocks that show something live from the app. Task
+    card, File, Comments and Video or Promo where the box offers them, and on
+    the site admin's own page Projects, Daily card, Rating calendar and
+    Rating trend.
+  - The arrow keys walk the list as it shows, through the basic blocks and
+    on into the advanced ones. Narrowing it by typing keeps only the headings
+    whose group still has a block (`BLOCKS` in `note-block-nodes.ts`, drawn
+    by `note-blocks-menu.tsx`).
 - **Names only:** each row is the block's icon and name, with no grey line
   under it (Tyler, 6 Nov 2026: "remove all the sublabel").
 - **Narrowing it:** letters after the "/" keep only the blocks whose name
@@ -64,6 +78,13 @@ tasks templates feature too").
   Promo only when the task points at a record. New task, quick new task,
   a project's page and a project's notes leave out File and Video
   or Promo, because there is no task to hold a file or a record.
+- **The site admin's own page** offers what a project's page does, plus four
+  blocks no other note has: Projects, Daily card, Rating calendar and Rating trend
+  (Tyler, 6 Nov 2026: "Your My dashboard page only"). Their habits and
+  ratings are theirs alone, and a Projects block filters My tasks, which only
+  that page sits beside. The Daily card block, like Comments, goes in once. Every other save drops the four, on the server too
+  (`DASHBOARD_ATOM_TYPES` in `src/lib/project/note-blocks.ts`). What each one
+  shows is in [My dashboard](my-dashboard.md#their-pages-blocks).
 - **Words already on the line** stay where they are. Checklist, Callout and
   Fold section start on the next line.
 - **After a block with no writing in it** (a picture, a divider, a card),

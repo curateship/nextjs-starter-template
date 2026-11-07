@@ -1,5 +1,11 @@
 import * as React from "react"
 
+import {
+  DailyCardDrawing,
+  ProjectDrawing,
+  RatingMonthDrawing,
+  RatingTrendDrawing,
+} from "@/components/project/notes/dashboard-blocks"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import {
   CalloutFrame,
@@ -68,6 +74,15 @@ function Block({ node }: { node: NoteNode }) {
       return <LinksDrawing links={(Array.isArray(attrs.links) ? attrs.links : []) as NoteLink[]} editing={READING} onChange={none} />
     case "horizontalRule":
       return <hr className="border-t" />
+    // The site admin's own page, read only while it's locked.
+    case "noteProject":
+      return <ProjectDrawing projectId={text(attrs.projectId)} editing={READING} onPick={none} />
+    case "noteHabit":
+      return <DailyCardDrawing editing={READING} />
+    case "noteRatingMonth":
+      return <RatingMonthDrawing editing={READING} />
+    case "noteRatingTrend":
+      return <RatingTrendDrawing editing={READING} />
     case "noteCallout":
       return (
         <CalloutFrame kind={(attrs.kind as CalloutKind) ?? "note"} editing={READING}>

@@ -4,7 +4,7 @@ import {
   writtenPageBodyIsEmpty,
   type WrittenPageNode,
 } from "@/lib/pages/written-page-body"
-import { cleanNoteBody, noteForCopy, noteIsEmpty, type NoteNode } from "@/lib/project/note-blocks"
+import { cleanNoteBody, noteForCopy, noteIsEmpty, type NoteNode, type NoteRules } from "@/lib/project/note-blocks"
 
 /**
  * A task's notes. Since 10 Oct 2026 they are the shared editor's document
@@ -42,8 +42,9 @@ function readStored<Body>(stored: string, clean: (value: unknown) => Body): { ki
   return { kind: "text", text: stored }
 }
 
-export function readTaskNotes(stored: string): TaskNotes {
-  return readStored(stored, cleanNoteBody)
+/** A task's notes, a project's page, or with `dashboard` the site admin's own page. */
+export function readTaskNotes(stored: string, rules: NoteRules = {}): TaskNotes {
+  return readStored(stored, (value) => cleanNoteBody(value, rules))
 }
 
 /** A meeting's notes: words, lists and links, never a block. */
@@ -68,8 +69,8 @@ export function notesForEditor(notes: TaskNotes): NoteNode {
 }
 
 /** What is saved: "" when nothing is written, otherwise the cleaned document. */
-export function storedTaskNotes(value: unknown): string {
-  const body = cleanNoteBody(value)
+export function storedTaskNotes(value: unknown, rules: NoteRules = {}): string {
+  const body = cleanNoteBody(value, rules)
   return noteIsEmpty(body) ? "" : JSON.stringify(body)
 }
 
@@ -78,10 +79,13 @@ export function storedTaskNotes(value: unknown): string {
  * (`noteForCopy`): Duplicate, a repeating task's next copy and Copy project.
  * Plain-text notes copy as they are.
  */
-export function storedNotesForCopy(stored: string, options: Parameters<typeof noteForCopy>[1] = {}): string {
-  const notes = readTaskNotes(stored)
+export function storedNotesForCopy(
+  stored: string,
+  { dashboard, ...options }: NonNullable<Parameters<typeof noteForCopy>[1]> & NoteRules = {}
+): string {
+  const notes = readTaskNotes(stored, { dashboard })
   if (notes.kind === "text") return stored
-  return storedTaskNotes(noteForCopy(notes.body, options))
+  return storedTaskNotes(noteForCopy(notes.body, options), { dashboard })
 }
 
 /** A meeting's notes as saved, cleaned to a written page's rules so no block gets in. */

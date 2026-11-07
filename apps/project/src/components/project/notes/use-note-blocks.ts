@@ -35,7 +35,14 @@ const ATOMS: Partial<Record<BlockKey, string>> = {
   webpage: "noteWebPage",
   links: "noteLinks",
   divider: "horizontalRule",
+  project: "noteProject",
+  habit: "noteHabit",
+  ratingMonth: "noteRatingMonth",
+  ratingTrend: "noteRatingTrend",
 }
+
+/** Blocks a note holds once at most. */
+const ONE_PER_NOTE: Partial<Record<BlockKey, string>> = { comments: "noteComments", habit: "noteHabit" }
 
 function hasNode(editor: Editor, type: string) {
   let found = false
@@ -49,10 +56,12 @@ function hasNode(editor: Editor, type: string) {
 /** Puts the picked block where the "/" was typed. Blocks of words take over the line, keeping the cursor in it. */
 function place(editor: Editor, match: SlashMatch, key: BlockKey) {
   const range = { from: match.from, to: match.to }
-  // One Comments block per task: picking it again takes away the "/" and shows the one already there.
-  if (key === "comments" && hasNode(editor, "noteComments")) {
+  // One Comments block per task, and one Daily card per page: picking it again takes away the
+  // "/" and shows the one already there.
+  const single = ONE_PER_NOTE[key]
+  if (single && hasNode(editor, single)) {
     editor.chain().focus().deleteRange(range).run()
-    editor.view.dom.querySelector('[data-note-block="noteComments"]')?.scrollIntoView({ block: "nearest" })
+    editor.view.dom.querySelector(`[data-note-block="${single}"]`)?.scrollIntoView({ block: "nearest" })
     return
   }
   const atom = ATOMS[key]

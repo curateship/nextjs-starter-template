@@ -399,6 +399,9 @@ export const createTeamSchema = z.object({
 /** The site admin's own time zone, which every "today" on their My dashboard follows. */
 export const adminTimeZoneSchema = z.object({ timeZone: timeZoneSchema })
 
+/** The site admin's own page locked or unlocked, from My settings. */
+export const adminPageLockSchema = z.object({ locked: z.boolean() })
+
 /** A person's own check-in time and zone. Null goes back to the team's. */
 export const myCheckinTimeSchema = z.object({
   checkinTime: checkinTimeSchema.nullable().optional(),
@@ -495,14 +498,6 @@ export const statusOrderSchema = z.object({ projectId: id, statusOrder: statusLi
 /** My dashboard's own column order, which only I see. */
 export const myStatusOrderSchema = z.object({ statusOrder: statusListSchema })
 
-/** The site admin's Projects card: the projects hidden from it, or its own order. Ids only, no repeats. */
-export const adminProjectListSchema = z.object({
-  projectIds: z
-    .array(id)
-    .max(1000)
-    .refine((ids) => new Set(ids).size === ids.length, "A project is listed twice."),
-})
-
 const lateTasksSchema = z
   .number()
   .int("Type a whole number.")
@@ -515,8 +510,13 @@ const pageNotesSchema = z
   .transform((value) => storedTaskNotes(value))
   .refine((notes) => notes.length <= LIMITS.taskNotes, "The page is too long. Split it up or attach a file to a task.")
 
-/** The site admin's own page at the top of My dashboard. */
-export const adminPageSchema = z.object({ notes: pageNotesSchema })
+/** The site admin's own page at the top of My dashboard, which alone keeps the dashboard blocks. */
+export const adminPageSchema = z.object({
+  notes: z
+    .unknown()
+    .transform((value) => storedTaskNotes(value, { dashboard: true }))
+    .refine((notes) => notes.length <= LIMITS.taskNotes, "The page is too long. Split it up or attach a file to a task."),
+})
 
 export const updateProjectSchema = z.object({
   projectId: id,
@@ -593,7 +593,7 @@ export const reasonSchema = trimmed(LIMITS.reason, "The reason")
 /** The editor's document, cleaned to what notes may hold and saved as text. */
 const notesSchema = z
   .unknown()
-  .transform(storedTaskNotes)
+  .transform((value) => storedTaskNotes(value))
   .refine((notes) => notes.length <= LIMITS.taskNotes, "The notes are too long. Split them up or attach a file.")
 
 /** A meeting's notes take no "/" blocks (`notes.ts`), so they keep a written page's rules. */

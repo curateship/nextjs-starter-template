@@ -42,6 +42,8 @@ export const taskFoldsKey = (projectId: string, grouping: string) => `project-ta
 
 /** The headings folded shut on My dashboard's List, the employee's rows and the site admin's table alike. */
 export const MY_TASK_FOLDS_KEY = "project-my-dashboard-task-folds"
+/** The headings folded shut in the site admin's Need your attention tab. */
+export const MY_ATTENTION_FOLDS_KEY = "project-my-dashboard-attention-folds"
 /** My dashboard's Group row, remembered in this browser. */
 export const MY_TASK_GROUPING_KEY = "project-my-dashboard-task-grouping"
 

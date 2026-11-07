@@ -1,47 +1,20 @@
 import * as React from "react"
-import { Link, useRouter } from "@tanstack/react-router"
-import {
-  closestCenter,
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core"
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
-import { ArrowUpRightIcon, GripVerticalIcon, PinIcon, PlusIcon } from "lucide-react"
+import { Link } from "@tanstack/react-router"
+import { ArrowUpRightIcon, PlusIcon } from "lucide-react"
 import { Area, AreaChart, YAxis } from "recharts"
 
-import { FoldHeading } from "@/components/project/fold-heading"
 import { NewTaskWithProjectPicker } from "@/components/project/new-task-header"
-import { PinButton } from "@/components/project/pin-button"
 import { PersonAvatar, ProjectDot } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { saveAdminProjectOrder, type AdminDashboard, type AdminProjectCards } from "@/lib/api/project/admin-dashboard"
+import type { AdminDashboard, AdminProjectCards } from "@/lib/api/project/admin-dashboard"
 import { plural } from "@/lib/format/plural"
-import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { focusRingInset } from "@/lib/layout/focus-ring"
-import { projectCardList, projectDueLine, type PacedProject } from "@/lib/project/admin-project-cards"
-import { getProjectErrorMessage } from "@/lib/project/errors"
-import { FOOTER_CARD_BODY, PANEL_GAP } from "@/lib/project/panel-gutter"
+import { pacedProject, projectDueLine, type PacedProject } from "@/lib/project/admin-project-cards"
 import { PROJECT_PACE_LABEL, type ProjectPace } from "@/lib/project/project-pace"
-import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
-type Project = AdminDashboard["cards"]["projects"][number]
-
-/** Projects shown as blocks before "Show all". */
-const BLOCKS = 5
+type Project = AdminDashboard["projects"][number]
 
 /**
  * Each block's look, from Tyler's drawing of 29 Oct 2026
@@ -79,279 +52,85 @@ const PACE_LOOK: Record<ProjectPace, { block: string; pill: string; dot: string;
  */
 const PICKED = "border-muted-foreground/40 shadow-md"
 
-/** A block's buttons show while it is pointed at or holds focus, and always on a screen with no pointer. */
-const QUIET =
-  "opacity-0 transition-opacity group-hover/block:opacity-100 group-has-[:focus-visible]/block:opacity-100 [@media(hover:none)]:opacity-100"
 /** The name makes room for those buttons only while they show, so it isn't cut short the rest of the time. */
 const ROOM_FOR_BUTTONS =
-  "group-hover/block:pr-28 group-has-[:focus-visible]/block:pr-28 [@media(hover:none)]:pr-28"
+  "group-hover/block:pr-28 group-has-[:focus-visible]/block:pr-28 group-data-[selected]/block:pr-28 [@media(hover:none)]:pr-28"
 
 /**
- * The Pinned projects card on the site admin's My dashboard (task "My
- * dashboard/01 Project cards", Tyler, 29 Oct 2026). It took the place of
- * "Projects running late": the open projects they pinned as blocks, Behind
- * ones first in red and Slowing down next in amber, each with its status, how
- * much is done, its due date, how many are stuck, its lead and people, and a
- * small line of what got finished each day for two weeks. Pressing a block
- * shows only that project's tasks in My tasks, and pressing it again shows
- * them all. Pinned projects with nothing open sit under the blocks as thin
- * lines. Only pinned projects show, and the pin in each block's buttons
- * unpins it (Misc 5, Tyler, 2 Nov 2026: "Remove the hidden feature and make
- * only pinned project shows up"); the blocks drag into the site admin's own
- * order. "All projects" under the projects opens the Projects page, where the
- * rest are pinned. Since 6 Nov 2026 it is a card in the left panel's footer
- * that folds like the Daily card (Tyler: "The pinned project should have the
- * same toggle card like the good morning card"). Like it, it starts open, and
- * this browser remembers a fold; while My tasks is filtered to a project, the line
- * under the heading names it, so the filter shows folded too. Null when there
- * are no open projects at all.
+ * A Projects block on the site admin's own page (task "My
+ * dashboard/left-panel-blocks", Tyler, 6 Nov 2026: "a new "Projects" block
+ * where I can select a project with the same functionality as the pinned
+ * card"). It is one project drawn as the Pinned projects card drew each of
+ * its projects (task "My dashboard/01 Project cards", 29 Oct 2026): its
+ * status, how much is done, its due date, how many are late and stuck, its
+ * lead and people, and a small line of what got finished each day for two
+ * weeks. Pressing it shows only that project's tasks in My tasks, and
+ * pressing it again shows them all. Its + and arrow sit with the note block's
+ * bin in the top corner (`ProjectBlockButtons`).
  */
-export function ProjectsCard({
-  projects,
+export function ProjectBlock({
+  project,
   extras,
   today,
   picked,
   onPick,
 }: {
-  projects: Project[]
+  project: Project
   extras: AdminProjectCards
   /** The site admin's own today, for days left. */
   today: string
-  /** The project My tasks is filtered to. */
-  picked: string | undefined
-  onPick: (projectId: string | undefined) => void
-}) {
-  const router = useRouter()
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  // A drag shows at once and goes back if the save is refused.
-  const [order, setOrder] = useSyncedDraft(extras.order)
-  const [all, setAll] = React.useState(false)
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-  const dndId = React.useId()
-  const headingId = React.useId()
-  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-admin-footer-pinned"))
-
-  if (projects.length === 0) return null
-  const list = projectCardList(projects, order)
-  const blocks = all ? list.active : list.active.slice(0, BLOCKS)
-  const pinned = list.active.length + list.idle.length
-  const pickedName = picked ? projects.find((project) => project.id === picked)?.name : undefined
-
-  /** An unpinned project leaves the card, so My tasks stops being filtered to it. */
-  function unpinned(projectId: string) {
-    if (picked === projectId) onPick(undefined)
-  }
-
-  async function save(work: () => Promise<unknown>, undo: () => void) {
-    const ok = await run(work)
-    if (ok) await router.invalidate()
-    else undo()
-  }
-
-  function drop(event: DragEndEvent) {
-    const overId = event.over?.id
-    if (overId === undefined || overId === event.active.id) return
-    const ids = list.active.map((row) => row.project.id)
-    const moved = arrayMove(ids, ids.indexOf(String(event.active.id)), ids.indexOf(String(overId)))
-    // The thin lines keep their places after the blocks, for when they get tasks again.
-    const next = [...moved, ...list.idle.map((row) => row.project.id)]
-    const before = order
-    setOrder(next)
-    void save(
-      () => saveAdminProjectOrder(next),
-      () => setOrder(before)
-    )
-  }
-
-  return (
-    // Each project is a card of its own (Tyler, 30 Oct 2026: "Put the label and
-    // toggle outside and have the project in its own card"). Every grid here has
-    // one column that can shrink, so a narrow panel wraps a card's rows instead of
-    // pushing the card past its edge (Tyler, 31 Oct 2026).
-    <Collapsible open={open} onOpenChange={setOpen} asChild>
-      <section aria-labelledby={headingId} className="@container grid grid-cols-[minmax(0,1fr)]">
-        <FoldHeading
-          id={headingId}
-          band
-          icon={<PinIcon />}
-          title="Pinned projects"
-          count={pinned}
-          line={pickedName ? `Showing only ${pickedName}` : undefined}
-          open={open}
-        />
-        <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP, FOOTER_CARD_BODY)}>
-          {pinned ? null : (
-            <p className="text-sm text-muted-foreground">Pin a project on the Projects page to see it here.</p>
-          )}
-          {list.active.length ? (
-            <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}>
-              <SortableContext items={blocks.map((row) => row.project.id)} strategy={verticalListSortingStrategy}>
-                <ul className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GAP)} aria-label="Projects with open tasks">
-                  {blocks.map((row) => (
-                    <ProjectBlock
-                      key={row.project.id}
-                      row={row}
-                      extras={extras}
-                      today={today}
-                      picked={picked === row.project.id}
-                      dragDisabled={busy || list.active.length < 2}
-                      onPick={() => onPick(picked === row.project.id ? undefined : row.project.id)}
-                      onUnpin={() => unpinned(row.project.id)}
-                    />
-                  ))}
-                </ul>
-              </SortableContext>
-            </DndContext>
-          ) : null}
-          {list.active.length > BLOCKS ? (
-            <Button type="button" variant="ghost" size="sm" className="justify-self-start" onClick={() => setAll(!all)}>
-              {all ? "Show fewer" : `Show all ${list.active.length}`}
-            </Button>
-          ) : null}
-          {list.idle.length ? (
-            <ul className="grid grid-cols-[minmax(0,1fr)] gap-1" aria-label="Projects with nothing open">
-              {list.idle.map((row) => (
-                <IdleLine
-                  key={row.project.id}
-                  row={row}
-                  extras={extras}
-                  today={today}
-                  picked={picked === row.project.id}
-                  onPick={() => onPick(picked === row.project.id ? undefined : row.project.id)}
-                  onUnpin={() => unpinned(row.project.id)}
-                />
-              ))}
-            </ul>
-          ) : null}
-          {/* Under the projects, where the rest are pinned (Tyler, 6 Nov 2026: "move the
-              all projects link to the bottom"). No hover hint ("remove the tooltip for
-              all projects hover"). */}
-          <Button asChild variant="ghost" size="sm" className="justify-self-start text-muted-foreground">
-            <Link to="/projects">
-              All projects
-              <ArrowUpRightIcon className="size-3.5" aria-hidden />
-            </Link>
-          </Button>
-        </CollapsibleContent>
-      </section>
-    </Collapsible>
-  )
-}
-
-/** One project's block: what it is, how it's doing, and its own buttons. */
-function ProjectBlock({
-  row,
-  extras,
-  today,
-  picked,
-  dragDisabled,
-  onPick,
-  onUnpin,
-}: {
-  row: PacedProject<Project>
-  extras: AdminProjectCards
-  today: string
+  /** My tasks is filtered to this project. */
   picked: boolean
-  dragDisabled: boolean
   onPick: () => void
-  onUnpin: () => void
 }) {
-  const { project } = row
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id: project.id,
-    disabled: dragDisabled,
-  })
-  const style: React.CSSProperties | undefined = transform
-    ? { transform: `translate3d(0, ${transform.y}px, 0)`, transition }
-    : undefined
+  const row = pacedProject(project)
   return (
-    <li
-      ref={setNodeRef}
-      style={style}
+    <div
       className={cn(
-        "group/block relative rounded-xl border bg-[var(--block)]",
+        "@container relative rounded-xl border bg-[var(--block)]",
         PACE_LOOK[row.pace].block,
-        picked && PICKED,
-        isDragging && "z-10 shadow-md"
-      )}
-    >
-      <ProjectSummary row={row} extras={extras} today={today} picked={picked} onPick={onPick} />
-      <div className={cn("absolute top-3 right-3 flex items-center", QUIET)}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              ref={setActivatorNodeRef}
-              {...listeners}
-              {...attributes}
-              disabled={dragDisabled}
-              aria-label={`Drag ${project.name} to change the order`}
-              className={cn(
-                "flex size-6 cursor-grab items-center justify-center rounded text-muted-foreground hover:text-foreground disabled:cursor-default disabled:opacity-50",
-                focusRingInset
-              )}
-            >
-              <GripVerticalIcon className="size-4" aria-hidden />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Drag to change the order</TooltipContent>
-        </Tooltip>
-        <ProjectButtons project={project} onUnpin={onUnpin} />
-      </div>
-    </li>
-  )
-}
-
-/** A project with nothing open: one thin line, which opens to the full block. */
-function IdleLine({
-  row,
-  extras,
-  today,
-  picked,
-  onPick,
-  onUnpin,
-}: {
-  row: PacedProject<Project>
-  extras: AdminProjectCards
-  today: string
-  picked: boolean
-  onPick: () => void
-  onUnpin: () => void
-}) {
-  const [open, setOpen] = React.useState(false)
-  const { project } = row
-  return (
-    <li
-      className={cn(
-        "group/block relative rounded-xl border bg-[var(--block)] [--block:var(--background)]",
         picked && PICKED
       )}
     >
-      {open ? (
-        <ProjectSummary row={row} extras={extras} today={today} picked={picked} onPick={onPick} />
-      ) : (
-        <button
-          type="button"
-          aria-expanded={false}
-          onClick={() => setOpen(true)}
-          className={cn(
-            "flex w-full min-w-0 items-center gap-2.5 rounded-xl px-3.5 py-2 text-left text-sm",
-            ROOM_FOR_BUTTONS,
-            focusRingInset
+      <ProjectSummary row={row} extras={extras} today={today} picked={picked} onPick={onPick} />
+    </div>
+  )
+}
+
+/** "+" for a new task in the project, and the arrow to its page, for the block's top corner. */
+export function ProjectBlockButtons({ project }: { project: Pick<Project, "id" | "name"> }) {
+  return (
+    <>
+      {/* New task's own trigger wraps the tooltip's, so both reach the button. */}
+      <Tooltip>
+        <NewTaskWithProjectPicker align="start" projectId={project.id}>
+          {(loading) => (
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon-sm"
+                aria-label={`New task in ${project.name}`}
+                disabled={loading}
+              >
+                <PlusIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
           )}
-        >
-          <ProjectDot color={project.color} />
-          <span className="truncate text-muted-foreground">{project.name}</span>
-          <span className="sr-only">, nothing open. Show it in full.</span>
-        </button>
-      )}
-      <div className={cn("absolute top-1 right-3 flex items-center", open && "top-3", QUIET)}>
-        <ProjectButtons project={project} onUnpin={onUnpin} />
-      </div>
-    </li>
+        </NewTaskWithProjectPicker>
+        <TooltipContent>New task here</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="secondary" size="icon-sm" asChild>
+            <Link to="/projects/$projectId" params={{ projectId: project.id }} aria-label={`Open ${project.name}`}>
+              <ArrowUpRightIcon className="size-4" />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Open project</TooltipContent>
+      </Tooltip>
+    </>
   )
 }
 
@@ -446,49 +225,6 @@ function PaceChip({ pace, due }: { pace: ProjectPace; due: ReturnType<typeof pro
       <TooltipTrigger asChild>{chip}</TooltipTrigger>
       <TooltipContent>{due.text}</TooltipContent>
     </Tooltip>
-  )
-}
-
-/** "+" for a new task in the project, the pin that unpins it, and the arrow to its page. */
-function ProjectButtons({ project, onUnpin }: { project: Project; onUnpin: () => void }) {
-  return (
-    <>
-      {/* New task's own trigger wraps the tooltip's, so both reach the button. */}
-      <Tooltip>
-        <NewTaskWithProjectPicker align="start" projectId={project.id}>
-          {(loading) => (
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label={`New task in ${project.name}`}
-                disabled={loading}
-              >
-                <PlusIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-          )}
-        </NewTaskWithProjectPicker>
-        <TooltipContent>New task here</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PinButton project={project} size="icon-xs" onChange={(starred) => (starred ? undefined : onUnpin())} />
-        </TooltipTrigger>
-        <TooltipContent>Unpin</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-xs" asChild>
-            <Link to="/projects/$projectId" params={{ projectId: project.id }} aria-label={`Open ${project.name}`}>
-              <ArrowUpRightIcon className="size-4" />
-            </Link>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Open project</TooltipContent>
-      </Tooltip>
-    </>
   )
 }
 

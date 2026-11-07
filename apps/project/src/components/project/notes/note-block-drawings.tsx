@@ -107,20 +107,23 @@ function ToolButton({ label, icon: Icon, onClick }: { label: string; icon: Lucid
  * The block's buttons, inside its top-right corner. `top` lines them up with the block's first
  * line where that isn't 8px down, as on a Fold heading.
  */
-function BlockTools({
+export function BlockTools({
   editing,
   label,
   top = "top-2",
+  className,
   children,
 }: {
   editing: BlockEditing
   label: string
   top?: string
+  /** Where else the buttons sit, such as clear of a heading's own arrow. */
+  className?: string
   children?: React.ReactNode
 }) {
   if (!editing.editable && !children) return null
   return (
-    <div className={cn(BLOCK_TOOLS, top)}>
+    <div className={cn(BLOCK_TOOLS, top, className)}>
       {children}
       {editing.editable ? <ToolButton label={label} icon={Trash2Icon} onClick={editing.remove} /> : null}
     </div>
@@ -128,7 +131,7 @@ function BlockTools({
 }
 
 /** A grey line in the block's place: something gone, or not set up. */
-function BlockLine({ children, editing, label }: { children: React.ReactNode; editing: BlockEditing; label: string }) {
+export function BlockLine({ children, editing, label }: { children: React.ReactNode; editing: BlockEditing; label: string }) {
   return (
     <>
       <p className={cn("rounded-md border bg-muted/40 p-3 pr-12 text-sm text-muted-foreground", SELECTED)}>{children}</p>
@@ -137,7 +140,7 @@ function BlockLine({ children, editing, label }: { children: React.ReactNode; ed
   )
 }
 
-function BlockLoading({ label }: { label: string }) {
+export function BlockLoading({ label }: { label: string }) {
   return (
     <p className="flex items-center gap-2 rounded-md border p-3 text-sm text-muted-foreground">
       <Loader2Icon className="size-4 animate-spin" aria-hidden />

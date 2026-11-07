@@ -1,5 +1,7 @@
-import { and, asc, count, eq, gte, inArray, isNull, lt, lte, ne, notInArray, or, sql, type SQL } from "drizzle-orm"
+import { and, asc, eq, gte, inArray, isNull, lte, ne, notInArray, or, sql, type SQL } from "drizzle-orm"
 
+import type { AttentionHeading } from "@/lib/project/attention-headings"
+import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { addDays, daysBetween, localNow, momentOf } from "@/lib/project/days"
 import type { MyPlace } from "@/lib/project/my-task-order"
 import type { NoticeSwitchId } from "@/lib/project/notice-switches"
@@ -8,7 +10,6 @@ import { CLOSED_TASK_STATUSES, boardStatusOrder, PERSONAL_PROJECT_NAME, priority
 import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { inTeam, requireSiteAdmin, whoCanStillSee, type ProjectDb } from "@/server/project/access"
-import { occurrencesBetween } from "@/server/project/meetings"
 import { handedOutBy, openAsk } from "@/server/project/more-time"
 import { loadMyTaskOrder } from "@/server/project/my-task-order"
 import { loadNoticesOff } from "@/server/project/notice-switches"
@@ -16,8 +17,6 @@ import { loadProjectsPage, type ProjectListRow } from "@/server/project/projects
 import { listTeamNames } from "@/server/project/record-team"
 import { adminViewScreen, type SavedView } from "@/server/project/saved-views"
 import {
-  projectMeetings,
-  projectMilestones,
   projectProjectMembers,
   projectProjects,
   projectSiteAdminPrefs,
@@ -35,65 +34,48 @@ import { customShellUsers } from "@/server/schema"
  * wont work like 'my dashboard' my dashboard has things like checkin and
  * checkout which an admin wont need. Admin dashboard should have tasks that
  * are assigned to me and personal tasks." The middle is every task handed to
- * them in any team plus their own list; the left is ten cards counting across
- * every team. Every "today" is in the zone from their My settings.
+ * them in any team plus their own list, with a Need your attention tab of the
+ * tasks that need them across every team; the left is their own page, whose
+ * Projects blocks draw every open project. Every "today" is in the zone from
+ * their My settings.
  */
 
 /** A row's project, named as the site admin reads it across teams: "My team · Website", or "Just me". */
 type Named = { projectId: string; projectName: string }
 
-export type WaitingAsk = Named & {
-  taskId: string
-  title: string
+/** An ask for more time that falls to the site admin, for its Yes and No. */
+export type AttentionAsk = {
   askedByName: string
-  /** The day asked for, and the one it is due now. */
+  /** The day asked for. */
   day: string
-  dueDate: string | null
   reason: string
 }
 
-export type TeamAttention = { teamId: string; teamName: string; stuck: number; overdue: number; untouched: number }
+/** Someone Hand to offers on a task with nobody on it. */
+export type HandToPerson = { userId: string; name: string; avatarUrl: string }
 
-export type UnassignedTask = Named & {
-  taskId: string
-  title: string
-  dueDate: string | null
-  /** Who Hand to offers: the project's people, then the site admin. */
-  people: { userId: string; name: string; avatarUrl: string }[]
-}
-
-export type PendingInvite = { userId: string; name: string; email: string; teamId: string; teamName: string }
-
-export type TodayMeeting = {
-  meetingId: string
-  title: string
-  color: ProjectColor
-  teamId: string
-  teamName: string
-  startsAt: string
-  endsAt: string
-}
-
-export type MilestoneDue = Named & { id: string; name: string; dueDate: string; projectId: string; openTasks: number }
-
-export type DonePerson = {
-  /** Null for tasks finished with nobody on them. */
-  userId: string | null
-  name: string
-  avatarUrl: string
-  tasks: (Named & { taskId: string; title: string })[]
+/**
+ * The Need your attention tab: each task once, in heading order and, under a
+ * heading, the order its reader gives (oldest ask, soonest due, longest
+ * stuck first), with what its heading's buttons need.
+ */
+export type AdminAttention = {
+  tasks: TaskCard[]
+  heading: Record<string, AttentionHeading>
+  asks: Record<string, AttentionAsk>
+  /** The project's people, then the site admin, for each task with nobody on it. */
+  handTo: Record<string, HandToPerson[]>
 }
 
 /** A face on a Projects card. */
 export type ProjectFace = { id: string; name: string; avatarUrl: string }
 
 /**
- * What the Projects card adds to each project (task "My dashboard/01 Project
- * cards", Tyler, 29 Oct 2026): who's on it, and what got finished lately.
+ * What a Projects block adds to its project (task "My dashboard/01 Project
+ * cards", Tyler, 29 Oct 2026, drawn by the Projects block since 6 Nov 2026):
+ * who's on it, and what got finished lately.
  */
 export type AdminProjectCards = {
-  /** The card's projects in the order they dragged them; empty is late first. */
-  order: string[]
   /** Up to four people on each project besides its lead, and how many that is in all. */
   people: Record<string, { faces: ProjectFace[]; total: number }>
   /** Tasks finished on each of the last 14 days in their zone, oldest first, today last. */
@@ -106,6 +88,8 @@ export type AdminDashboard = {
   me: { id: string; name: string; email: string; avatarUrl: string }
   /** Their own page of notes and "/" blocks at the top of the left panel, as saved, or "". */
   page: string
+  /** Their page reads only until they unlock it in My settings. */
+  pageLocked: boolean
   /** The zone saved in My settings; null until the dashboard first saves the browser's. */
   savedZone: string | null
   /** The zone every "today" here is counted in, and today in it. */
@@ -128,25 +112,16 @@ export type AdminDashboard = {
    * for their own list), and whether a task can move into it (open and shared).
    */
   projectInfo: Record<string, AdminProject>
-  cards: {
-    waiting: WaitingAsk[]
-    attention: TeamAttention[]
-    unassigned: UnassignedTask[]
-    invites: PendingInvite[]
-    meetings: TodayMeeting[]
-    dueThisWeek: TaskCard[]
-    /** Every team's open shared projects, whose status the browser works out from late tasks. */
-    projects: ProjectListRow[]
-    projectCards: AdminProjectCards
-    milestones: MilestoneDue[]
-    doneToday: DonePerson[]
-  }
+  attention: AdminAttention
+  /** Every team's open shared projects, for the Projects blocks, whose status the browser works out from late tasks. */
+  projects: ProjectListRow[]
+  projectCards: AdminProjectCards
 }
 
 /** The zone the dashboard counts in before one is saved. */
 const FALLBACK_ZONE = "UTC"
-/** Milestones this many days ahead count as "this month". */
-const MILESTONE_DAYS = 30
+/** Due this week: today and the six days after it. */
+const WEEK_DAYS_AHEAD = 6
 
 export async function loadAdminDashboard(userId: string, database = db, at = new Date()): Promise<AdminDashboard> {
   await requireSiteAdmin(userId, database)
@@ -158,8 +133,8 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
     .select({
       timeZone: projectSiteAdminPrefs.timeZone,
       statusOrder: projectSiteAdminPrefs.statusOrder,
-      projectOrder: projectSiteAdminPrefs.projectOrder,
       notes: projectSiteAdminPrefs.notes,
+      notesLocked: projectSiteAdminPrefs.notesLocked,
     })
     .from(projectSiteAdminPrefs)
     .where(eq(projectSiteAdminPrefs.userId, userId))
@@ -167,7 +142,6 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
   const today = localNow(at, zone).day
   const teams = await listTeamNames(database)
   const teamIds = teams.map((team) => team.id)
-  const teamName = new Map(teams.map((team) => [team.id, team.name]))
   // Shared, open projects in the real teams: never anyone's own list, never a site admin's space.
   const sharedOpen: SQL = teamIds.length
     ? and(
@@ -194,6 +168,7 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
   return {
     me: { id: userId, name: me.name, email: me.email, avatarUrl: me.avatarUrl ?? "" },
     page: prefs?.notes ?? "",
+    pageLocked: prefs?.notesLocked ?? false,
     savedZone: prefs?.timeZone ?? null,
     zone,
     today,
@@ -216,39 +191,10 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
       : [],
     projectTeams,
     projectInfo,
-    cards: {
-      waiting: label(await waitingOn(userId, sharedOpen, database)),
-      attention: await attentionByTeam(userId, teams, database, at),
-      unassigned: label(await unassigned(userId, sharedOpen, database)),
-      invites: await pendingInvites(teamIds, teamName, database),
-      meetings: await meetingsOn(today, zone, teamIds, teamName, database),
-      dueThisWeek: label(
-        (
-          await listTaskCards(
-            and(
-              sharedOpen,
-              notInArray(projectTasks.status, CLOSED_TASK_STATUSES),
-              gte(projectTasks.dueDate, today),
-              lte(projectTasks.dueDate, addDays(today, 6))
-            ),
-            database
-          )
-        ).sort(bySoonest)
-      ),
-      projects,
-      projectCards: {
-        order: prefs?.projectOrder ?? [],
-        // Only pinned projects are drawn on the card, so only theirs are read.
-        ...(await projectCardExtras(
-          projects.filter((project) => project.starred),
-          today,
-          zone,
-          database
-        )),
-      },
-      milestones: label(await milestonesDue(today, sharedOpen, database)),
-      doneToday: await doneOn(today, zone, sharedOpen, label, database),
-    },
+    attention: await attentionTasks(userId, teams, sharedOpen, today, label, database, at),
+    projects,
+    // Every open project, so a Projects block picked a moment ago draws in full at once.
+    projectCards: await projectCardExtras(projects, today, zone, database),
   }
 }
 
@@ -315,49 +261,93 @@ async function waitingOn(userId: string, sharedOpen: SQL, database: ProjectDb) {
     .innerJoin(customShellUsers, eq(customShellUsers.id, projectTasks.moreTimeByUserId))
     .where(and(sharedOpen, isNull(projectTasks.deletedAt), notInArray(projectTasks.status, CLOSED_TASK_STATUSES)))
     .orderBy(asc(projectTasks.moreTimeAskedAt))
-  const asks: WaitingAsk[] = []
+  const asks = new Map<string, AttentionAsk>()
   for (const { task, project, askedByName } of rows) {
     const ask = openAsk(task)
     if (!ask) continue
     const hander = handedOutBy(task)
     const fallsToMe =
       !hander || hander === userId || (await whoCanStillSee(project, [hander], database)).length === 0
-    if (!fallsToMe) continue
-    asks.push({
-      taskId: task.id,
-      projectId: project.id,
-      projectName: project.name,
-      title: task.title,
-      askedByName,
-      day: ask.day,
-      dueDate: task.dueDate,
-      reason: ask.reason,
-    })
+    if (fallsToMe) asks.set(task.id, { askedByName, day: ask.day, reason: ask.reason })
   }
   return asks
 }
 
-/** Each team's Needs attention counts, worked out exactly as the team's own Attention tab. */
-async function attentionByTeam(
-  userId: string,
-  teams: { id: string; name: string }[],
-  database: typeof db,
-  at: Date
-): Promise<TeamAttention[]> {
-  const counts: TeamAttention[] = []
+/**
+ * Every team's Stuck, Overdue and Untouched tasks, worked out exactly as the
+ * team's own Attention tab works them out, longest first.
+ */
+async function needsHelp(userId: string, teams: { id: string; name: string }[], database: typeof db, at: Date) {
+  const kinds = new Map<string, HelpKind>()
   for (const team of teams) {
     const rows = await inTeam(team.id, () => loadNeedsAttention(userId, database, at))
-    const of = (kind: string) => new Set(rows.filter((row) => row.kind === kind).map((row) => row.taskId)).size
-    counts.push({
-      teamId: team.id,
-      teamName: team.name,
-      stuck: of("stuck"),
-      overdue: of("overdue"),
-      untouched: of("untouched"),
-    })
+    for (const row of rows) {
+      if (!isHelpKind(row.kind)) continue
+      // A task that is both keeps the heading higher up the tab: Stuck, then Overdue, then Untouched.
+      const kept = kinds.get(row.taskId)
+      if (!kept || HELP_KINDS.indexOf(row.kind) < HELP_KINDS.indexOf(kept)) kinds.set(row.taskId, row.kind)
+    }
   }
-  const total = (row: TeamAttention) => row.stuck + row.overdue + row.untouched
-  return counts.filter((row) => total(row) > 0).sort((a, b) => total(b) - total(a))
+  return kinds
+}
+
+const HELP_KINDS = ["stuck", "overdue", "untouched"] as const
+type HelpKind = (typeof HELP_KINDS)[number]
+const isHelpKind = (kind: string): kind is HelpKind => (HELP_KINDS as readonly string[]).includes(kind)
+
+/**
+ * The Need your attention tab's tasks, across every team: asks waiting on
+ * the site admin, tasks with nobody on them, Stuck, Overdue and Untouched
+ * tasks, and tasks due this week. Each task once, under its first heading.
+ */
+async function attentionTasks(
+  userId: string,
+  teams: { id: string; name: string }[],
+  sharedOpen: SQL,
+  today: string,
+  label: <T extends Named>(items: T[]) => T[],
+  database: typeof db,
+  at: Date
+): Promise<AdminAttention> {
+  const asks = await waitingOn(userId, sharedOpen, database)
+  const nobody = await unassigned(userId, sharedOpen, database)
+  const help = await needsHelp(userId, teams, database, at)
+  const due = (
+    await listTaskCards(
+      and(
+        sharedOpen,
+        notInArray(projectTasks.status, CLOSED_TASK_STATUSES),
+        gte(projectTasks.dueDate, today),
+        lte(projectTasks.dueDate, addDays(today, WEEK_DAYS_AHEAD))
+      ),
+      database
+    )
+  ).sort(bySoonest)
+
+  const heading = new Map<string, AttentionHeading>()
+  const put = (ids: Iterable<string>, under: AttentionHeading) => {
+    for (const id of ids) if (!heading.has(id)) heading.set(id, under)
+  }
+  put(asks.keys(), "waiting")
+  put(nobody.cards.map((card) => card.id), "unassigned")
+  for (const kind of HELP_KINDS) {
+    put([...help].filter(([, of]) => of === kind).map(([id]) => id), kind)
+  }
+  put(due.map((card) => card.id), "due")
+
+  // The cards already read are kept; the asks' and the team tabs' are read in one go.
+  const byId = new Map([...nobody.cards, ...due].map((card) => [card.id, card]))
+  const missing = [...heading.keys()].filter((id) => !byId.has(id))
+  if (missing.length) {
+    for (const card of await listTaskCards(and(sharedOpen, inArray(projectTasks.id, missing)), database)) byId.set(card.id, card)
+  }
+  const ids = [...heading.keys()].filter((id) => byId.has(id))
+  return {
+    tasks: label(ids.map((id) => byId.get(id)!)),
+    heading: Object.fromEntries(ids.map((id) => [id, heading.get(id)!])),
+    asks: Object.fromEntries(ids.flatMap((id) => (heading.get(id) === "waiting" ? [[id, asks.get(id)!]] : []))),
+    handTo: Object.fromEntries(ids.flatMap((id) => (heading.get(id) === "unassigned" ? [[id, nobody.people.get(id)!]] : []))),
+  }
 }
 
 /** Open tasks with nobody on them, soonest due first, each with the people Hand to offers. */
@@ -386,93 +376,19 @@ async function unassigned(userId: string, sharedOpen: SQL, database: ProjectDb) 
     .select({ name: customShellUsers.name, avatarUrl: customShellUsers.avatarUrl })
     .from(customShellUsers)
     .where(eq(customShellUsers.id, userId))
-  return cards.map((card) => ({
-    taskId: card.id,
-    projectId: card.projectId,
-    projectName: card.projectName,
-    title: card.title,
-    dueDate: card.dueDate,
-    people: [
-      ...members
-        .filter((member) => member.projectId === card.projectId)
-        .map(({ userId: id, name, avatarUrl }) => ({ userId: id, name, avatarUrl: avatarUrl ?? "" })),
-      // The site admin may take any task themselves.
-      { userId, name: me.name, avatarUrl: me.avatarUrl ?? "" },
-    ],
-  }))
-}
-
-/** People put on a team who haven't set a password yet, the longest waiting first. */
-async function pendingInvites(teamIds: string[], teamName: Map<string, string>, database: ProjectDb) {
-  if (teamIds.length === 0) return []
-  const rows = await database
-    .select({
-      userId: customShellUsers.id,
-      name: customShellUsers.name,
-      email: customShellUsers.email,
-      teamId: projectTeamMembers.teamId,
-    })
-    .from(projectTeamMembers)
-    .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
-    .where(and(inArray(projectTeamMembers.teamId, teamIds), isNull(customShellUsers.passwordHash)))
-    .orderBy(asc(projectTeamMembers.joinedAt))
-  return rows.map((row) => ({ ...row, teamName: teamName.get(row.teamId) ?? "" }))
-}
-
-/** Every team's meetings falling on the site admin's today, earliest first. */
-export async function meetingsOn(
-  today: string,
-  zone: string,
-  teamIds: string[],
-  teamName: Map<string, string>,
-  database: ProjectDb
-): Promise<TodayMeeting[]> {
-  if (teamIds.length === 0) return []
-  const rows = await database.select().from(projectMeetings).where(inArray(projectMeetings.teamId, teamIds))
-  return rows
-    .flatMap((row) =>
-      occurrencesBetween(row, zone, today, today).map((occurrence) => ({
-        meetingId: row.id,
-        title: row.title,
-        color: row.color,
-        teamId: row.teamId,
-        teamName: teamName.get(row.teamId) ?? "",
-        startsAt: occurrence.startsAt,
-        endsAt: occurrence.endsAt,
-      }))
-    )
-    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-}
-
-/** Milestones due from today to 30 days on, soonest first, with their tasks not yet Done. */
-async function milestonesDue(today: string, sharedOpen: SQL, database: ProjectDb) {
-  const open = database
-    .select({ milestoneId: projectTasks.milestoneId, n: count().as("n") })
-    .from(projectTasks)
-    .where(and(isNull(projectTasks.deletedAt), notInArray(projectTasks.status, CLOSED_TASK_STATUSES)))
-    .groupBy(projectTasks.milestoneId)
-    .as("open")
-  const rows = await database
-    .select({
-      id: projectMilestones.id,
-      name: projectMilestones.name,
-      dueDate: projectMilestones.dueDate,
-      projectId: projectProjects.id,
-      projectName: projectProjects.name,
-      openTasks: open.n,
-    })
-    .from(projectMilestones)
-    .innerJoin(projectProjects, eq(projectProjects.id, projectMilestones.projectId))
-    .leftJoin(open, eq(open.milestoneId, projectMilestones.id))
-    .where(
-      and(
-        sharedOpen,
-        gte(projectMilestones.dueDate, today),
-        lte(projectMilestones.dueDate, addDays(today, MILESTONE_DAYS))
-      )
-    )
-    .orderBy(asc(projectMilestones.dueDate), asc(projectMilestones.name))
-  return rows.map((row) => ({ ...row, dueDate: row.dueDate!, openTasks: Number(row.openTasks ?? 0) }))
+  const people = new Map<string, HandToPerson[]>(
+    cards.map((card) => [
+      card.id,
+      [
+        ...members
+          .filter((member) => member.projectId === card.projectId)
+          .map(({ userId: id, name, avatarUrl }) => ({ userId: id, name, avatarUrl: avatarUrl ?? "" })),
+        // The site admin may take any task themselves.
+        { userId, name: me.name, avatarUrl: me.avatarUrl ?? "" },
+      ],
+    ])
+  )
+  return { cards, people }
 }
 
 /** Days on a Projects card's line of finished tasks, today included. */
@@ -535,38 +451,6 @@ async function projectCardExtras(
   return { people, finished }
 }
 
-/** Tasks finished in the site admin's today, by person, the most first. */
-async function doneOn(
-  today: string,
-  zone: string,
-  sharedOpen: SQL,
-  label: <T extends Named>(items: T[]) => T[],
-  database: ProjectDb
-): Promise<DonePerson[]> {
-  const cards = await listTaskCards(
-    and(
-      sharedOpen,
-      eq(projectTasks.status, "done"),
-      gte(projectTasks.completedAt, momentOf(today, "00:00", zone)),
-      lt(projectTasks.completedAt, momentOf(addDays(today, 1), "00:00", zone))
-    ),
-    database
-  )
-  const people = new Map<string, DonePerson>()
-  for (const card of label(cards)) {
-    const key = card.assignee?.id ?? ""
-    const person = people.get(key) ?? {
-      userId: card.assignee?.id ?? null,
-      name: card.assignee?.name ?? "Nobody on it",
-      avatarUrl: card.assignee?.avatarUrl ?? "",
-      tasks: [],
-    }
-    person.tasks.push({ taskId: card.id, title: card.title, projectId: card.projectId, projectName: card.projectName })
-    people.set(key, person)
-  }
-  return [...people.values()].sort((a, b) => b.tasks.length - a.tasks.length || a.name.localeCompare(b.name))
-}
-
 /** The site admin's own time zone, from My settings. Their own list follows it too. */
 export async function setAdminTimeZone(userId: string, timeZone: string, database = db) {
   await requireSiteAdmin(userId, database)
@@ -584,26 +468,36 @@ export async function setAdminTimeZone(userId: string, timeZone: string, databas
 /**
  * The site admin's own page at the top of My dashboard, already checked by
  * `adminPageSchema`. Like a project's page it has no task, so no File block,
- * uploaded picture or Video or Promo card.
+ * uploaded picture or Video or Promo card. It alone keeps the dashboard
+ * blocks: Projects, Habit, Rating calendar and Rating trend.
  */
 export async function setAdminPage(userId: string, notes: string, database = db) {
   await requireSiteAdmin(userId, database)
+  // A locked page takes no writing until it's unlocked, as a project's page.
+  const [prefs] = await database
+    .select({ locked: projectSiteAdminPrefs.notesLocked })
+    .from(projectSiteAdminPrefs)
+    .where(eq(projectSiteAdminPrefs.userId, userId))
+  if (prefs?.locked) throw new Error(PROJECT_ERRORS.adminPageLocked)
   const at = now()
-  const kept = storedNotesForCopy(notes, { noTask: true })
+  const kept = storedNotesForCopy(notes, { noTask: true, dashboard: true })
   await database
     .insert(projectSiteAdminPrefs)
     .values({ userId, notes: kept, updatedAt: at })
     .onConflictDoUpdate({ target: projectSiteAdminPrefs.userId, set: { notes: kept, updatedAt: at } })
 }
 
-/** The Pinned projects card's projects dragged into a new order: theirs alone. */
-export async function setAdminProjectOrder(userId: string, projectOrder: string[], database = db) {
+/**
+ * Their own page locked so it reads only, or unlocked again, from My settings
+ * (Tyler, 6 Nov 2026: "lock the notes option is missing"). Theirs alone.
+ */
+export async function setAdminPageLock(userId: string, locked: boolean, database = db) {
   await requireSiteAdmin(userId, database)
   const at = now()
   await database
     .insert(projectSiteAdminPrefs)
-    .values({ userId, projectOrder, updatedAt: at })
-    .onConflictDoUpdate({ target: projectSiteAdminPrefs.userId, set: { projectOrder, updatedAt: at } })
+    .values({ userId, notesLocked: locked, updatedAt: at })
+    .onConflictDoUpdate({ target: projectSiteAdminPrefs.userId, set: { notesLocked: locked, updatedAt: at } })
 }
 
 /** The site admin's Board columns dragged into a new order: theirs alone. */

@@ -8,8 +8,8 @@ import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 /**
- * The heading of a card that folds on the site admin's left panel: the Daily
- * card's greeting, Pinned projects and Need your attention. It sits inside a
+ * The heading of a card that folds: the project page's footer cards (Details,
+ * Milestones) and an employee's Daily card greeting. It sits inside a
  * Collapsible. The heading is the button that folds and opens the card
  * (Tyler, 30 Oct 2026: "clicking on the text area should uncollpase it"), and
  * the arrow at its right is the same press, shown only while the heading is

@@ -986,15 +986,12 @@ export const projectSiteAdminPrefs = pgTable("project_site_admin_prefs", {
   timeZone: text("time_zone"),
   statusOrder: text("status_order").array().$type<TaskStatus[]>().notNull().default([]),
   /**
-   * My dashboard's Pinned projects card in the order they dragged it into;
-   * empty is late first (`drizzle/0136_project_admin_project_cards.sql`).
-   */
-  projectOrder: text("project_order").array().notNull().default([]),
-  /**
    * Their own page of notes and "/" blocks at the top of My dashboard's left
    * panel, as saved, or "" (`drizzle/0149_project_admin_page.sql`).
    */
   notes: text("notes").notNull().default(""),
+  /** Their page reads only until it's unlocked (`drizzle/0155_project_admin_page_lock.sql`). */
+  notesLocked: boolean("notes_locked").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 

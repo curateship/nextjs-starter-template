@@ -1,9 +1,11 @@
 import * as React from "react"
 import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import { HabitIconGlyph } from "@/components/project/habit-icons"
 import { PanelTabsRow } from "@/components/project/panel-tabs-row"
 import { Button } from "@/components/ui/button"
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ErrorRow } from "@/components/ui/error-row"
 import { Input } from "@/components/ui/input"
@@ -421,5 +423,150 @@ function SearchResults({ q }: { q: string }) {
         </li>
       ))}
     </ul>
+  )
+}
+
+/**
+ * The Rating calendar block on the site admin's page (task "My
+ * dashboard/left-panel-blocks", Tyler, 6 Nov 2026: "I mean the yearly
+ * rating"): one month laid out as the Month tab is, Monday first under the
+ * month's arrows, each day's square shaded by its rating as the Year tab
+ * shades them, with its date in the middle and its rating in the corner. Days to come are faded. It only shows:
+ * a day is rated with Rate your day.
+ */
+export function RatingMonth({ today, roomForTools = false }: { today: string; roomForTools?: boolean }) {
+  const [month, setMonth] = React.useState(() => today.slice(0, 7))
+  const year = Number(month.slice(0, 4))
+  const [loaded, retry] = useLoaded(String(year), () => loadYearOfRatingsPage(year))
+  const [, monthNumber] = month.split("-").map(Number)
+  const lead = (new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay() + 6) % 7
+  const days: string[] = []
+  for (let day = `${month}-01`; day.startsWith(month); day = addDays(day, 1)) days.push(day)
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
+      {/* `roomForTools` keeps the month after clear of a block's bin, the grid under it full width. */}
+      <div className={cn("flex items-center gap-2", roomForTools && "pr-9")}>
+        <Button type="button" variant="outline" size="icon" aria-label="The month before" onClick={() => setMonth(shiftMonth(month, -1))}>
+          <ChevronLeftIcon className="size-4" />
+        </Button>
+        <span className="min-w-0 flex-1 truncate text-center text-sm font-medium">{monthLabel(month)}</span>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="The month after"
+          disabled={month >= today.slice(0, 7)}
+          onClick={() => setMonth(shiftMonth(month, 1))}
+        >
+          <ChevronRightIcon className="size-4" />
+        </Button>
+      </div>
+      {loaded.state === "loading" ? (
+        <LoadingRow label="Loading the ratings" />
+      ) : loaded.state === "error" ? (
+        <ErrorRow message={loaded.message} onRetry={retry} />
+      ) : (
+        <ol className="grid grid-cols-7 gap-1 text-[11px] tabular-nums" aria-label={`Day ratings, ${monthLabel(month)}`}>
+          {WEEKDAY_LETTERS.map((letter, index) => (
+            <li key={`h${index}`} aria-hidden className="flex h-5 items-center justify-center text-muted-foreground">
+              {letter}
+            </li>
+          ))}
+          {Array.from({ length: lead }, (_, index) => (
+            <li key={`b${index}`} aria-hidden />
+          ))}
+          {days.map((day) => {
+            const rating = loaded.value.ratings[day]
+            const later = day > today
+            return (
+              <li
+                key={day}
+                aria-label={`${dayLabel(day)}: ${later ? "still to come" : rating ? `${rating} out of ${DAY_RATING_TOP}` : "not rated"}`}
+                className={cn(
+                  "relative flex aspect-square items-center justify-center rounded-md",
+                  later ? "text-muted-foreground/60" : rating ? RATING_LOOK[rating] : "bg-muted",
+                  day === today && !rating && "border border-muted-foreground/40 bg-transparent"
+                )}
+              >
+                {/* The date, as a calendar reads, and the day's rating in the corner, as the Year tab shows it. */}
+                <span aria-hidden>{Number(day.slice(8))}</span>
+                {rating ? (
+                  <span aria-hidden className="absolute top-0.5 right-1 text-[9px] leading-none font-semibold">
+                    {rating}
+                  </span>
+                ) : null}
+              </li>
+            )
+          })}
+        </ol>
+      )}
+    </div>
+  )
+}
+
+/** Days the Rating trend block looks back over, today included. */
+const RATING_TREND_DAYS = 30
+
+const trendConfig: ChartConfig = { rating: { label: "Rating", color: "var(--primary)" } }
+
+/**
+ * The Rating trend block on the site admin's page (task "My
+ * dashboard/left-panel-blocks", Tyler, 6 Nov 2026): a line of their day
+ * ratings over the last 30 days, 1 to 10 up the side, oldest on the left. A
+ * day with no rating leaves a gap. It is the shell's chart, drawn as the Team
+ * dashboard's trends are.
+ */
+export function RatingTrend({ today, roomForTools = false }: { today: string; roomForTools?: boolean }) {
+  const first = addDays(today, -(RATING_TREND_DAYS - 1))
+  const years = [...new Set([Number(first.slice(0, 4)), Number(today.slice(0, 4))])]
+  const [loaded, retry] = useLoaded(`${first}:${today}`, () => Promise.all(years.map((year) => loadYearOfRatingsPage(year))))
+  if (loaded.state === "loading") return <LoadingRow label="Loading the ratings" />
+  if (loaded.state === "error") return <ErrorRow message={loaded.message} onRetry={retry} />
+  const ratings: Record<string, number> = Object.assign({}, ...loaded.value.map((year) => year.ratings))
+  const rows = Array.from({ length: RATING_TREND_DAYS }, (_, index) => {
+    const day = addDays(first, index)
+    return { day, label: dayLabel(day), rating: ratings[day] ?? null }
+  })
+  const rated = rows.filter((row) => row.rating !== null).length
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+      <p className={cn("text-sm font-medium", roomForTools && "pr-9")}>
+        Day rating, last {RATING_TREND_DAYS} days
+        <span className="font-normal text-muted-foreground"> · {rated} rated</span>
+      </p>
+      {rated === 0 ? (
+        <p className="text-sm text-muted-foreground">No day rated in the last {RATING_TREND_DAYS} days. Rate your day at night.</p>
+      ) : (
+        <div className="h-36">
+          <ChartContainer config={trendConfig} className="h-full w-full">
+            <LineChart data={rows} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="0" vertical={false} />
+              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} dy={8} interval={9} />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 10, dx: -5 }}
+                width={28}
+                domain={[1, DAY_RATING_TOP]}
+                ticks={[1, 5, DAY_RATING_TOP]}
+              />
+              <ChartTooltip
+                content={<ChartTooltipContent formatter={(value) => `${value} out of ${DAY_RATING_TOP}`} />}
+              />
+              <Line
+                dataKey="rating"
+                type="monotone"
+                stroke="var(--color-rating)"
+                strokeWidth={2}
+                dot={{ r: 2, fill: "var(--color-rating)" }}
+                activeDot={{ r: 4 }}
+                connectNulls={false}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ChartContainer>
+        </div>
+      )}
+    </div>
   )
 }

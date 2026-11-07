@@ -30,11 +30,10 @@ import type { ShellIcon } from "@/lib/custom-shell"
 import { READY_ROUTINES } from "@/lib/project/daily-words"
 import { addDays, localNow, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
-import { CLOSED_TASK_STATUSES } from "@/lib/project/rules"
+import { CLOSED_TASK_STATUSES, type ProjectColor } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { isSiteAdmin, requireSiteAdmin, type ProjectDb } from "@/server/project/access"
-import { meetingsOn, type TodayMeeting } from "@/server/project/admin-dashboard"
 import { loadClock } from "@/server/project/checkins"
 import { holidayOn } from "@/server/project/holidays"
 import { occurrencesBetween } from "@/server/project/meetings"
@@ -278,6 +277,43 @@ async function siteAdminDaysOff(userId: string, teamCount: number, database: Pro
   }
   return days
 }
+
+/** One meeting on a day, in any team. */
+export type TodayMeeting = {
+  meetingId: string
+  title: string
+  color: ProjectColor
+  teamId: string
+  teamName: string
+  startsAt: string
+  endsAt: string
+}
+
+/** Every team's meetings falling on one day in the site admin's zone, earliest first. */
+async function meetingsOn(
+  today: string,
+  zone: string,
+  teamIds: string[],
+  teamName: Map<string, string>,
+  database: ProjectDb
+): Promise<TodayMeeting[]> {
+  if (teamIds.length === 0) return []
+  const rows = await database.select().from(projectMeetings).where(inArray(projectMeetings.teamId, teamIds))
+  return rows
+    .flatMap((row) =>
+      occurrencesBetween(row, zone, today, today).map((occurrence) => ({
+        meetingId: row.id,
+        title: row.title,
+        color: row.color,
+        teamId: row.teamId,
+        teamName: teamName.get(row.teamId) ?? "",
+        startsAt: occurrence.startsAt,
+        endsAt: occurrence.endsAt,
+      }))
+    )
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+}
+
 
 function asDailyMeetings(meetings: TodayMeeting[]): DailyMeeting[] {
   return meetings.map(({ meetingId, title, startsAt, endsAt }) => ({ meetingId, title, startsAt, endsAt }))

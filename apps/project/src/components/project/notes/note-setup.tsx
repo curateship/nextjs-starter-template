@@ -15,10 +15,11 @@ import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * Which notes box: a task's own notes, New task's or quick new task's
- * description (no task yet), a meeting's notes, or a project's page in its
- * left panel.
+ * description (no task yet), a meeting's notes, a project's page in its
+ * left panel, or the site admin's own page on My dashboard, which alone
+ * offers the dashboard blocks.
  */
-export type NoteWhere = "task" | "new" | "meeting" | "project"
+export type NoteWhere = "task" | "new" | "meeting" | "project" | "dashboard"
 
 export type NoteTask = {
   id: string

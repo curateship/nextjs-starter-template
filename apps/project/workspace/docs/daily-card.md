@@ -16,18 +16,17 @@ Daily card", and that file wins wherever the two disagree.
   into the panel, the way a project's banner does. On an employee's page the
   greeting sits under the header with the day's parts below it, above the
   other cards (`my-dashboard.tsx`).
-- **The site admin's sits at the foot of the left panel's footer** since 6
-  Nov 2026, under Pinned projects and Need your attention, each parted by a
-  line (Tyler: "move the start your day button into the footer of the panel
-  as well as the pinned projects", then "the footer card now hold greetings
-  and the habit section"). The whole card moved: greeting, Start day, the
-  habits and the rest, and Rate your day at night. The sky stays behind the
-  header, and the site admin's own page takes the greeting's old place under
-  it (`admin-dashboard.tsx`, `inFooter` on `DailyCard`).
-- **The greeting folds the card**, and the date and weather line folds away
+- **The site admin's is a block on their own page** since 6 Nov 2026: "/"
+  then "Daily card", placed wherever they like on the page, once (Tyler:
+  "make it the same as the habits and greeting card in the footer (and
+  remove the footer card)"). For that one day it sat in the left panel's
+  footer. The whole card is in the block: greeting, Start day, the habits
+  and the rest, and Rate your day at night. The sky stays behind the header
+  (`notes/dashboard-blocks.tsx`, `boxed` on `DailyCard`). See
+  [On their page, as blocks](#on-their-page-as-blocks).
+- **The greeting folds the card** on an employee's page, and the date and weather line folds away
   with it, so a folded card is the greeting alone (Tyler, 6 Nov 2026: "the
-  date should be inside when collapsed"). Pinned projects and Need your
-  attention fold the same way (`fold-heading.tsx`). Both pages draw
+  date should be inside when collapsed"; `fold-heading.tsx`). Both pages draw
   `DailySkyBanner` and `DailyCard` from
   `daily-card.tsx`. It loads with the page (`loadDailyCard`,
   `src/server/project/daily-card.ts`).
@@ -98,8 +97,8 @@ Daily card", and that file wins wherever the two disagree.
   it away, and pressing it again opens it ("clicking on the text area should
   uncollpase it"); the arrow beside it does the same.
   This browser remembers it, like the other cards.
-- **On a phone** the site admin's My dashboard opens on the Me tab, where the
-  Daily card is first. An employee's still opens on My tasks.
+- **On a phone** the site admin's My dashboard opens on the Me tab, with
+  their page and its Daily card block. An employee's still opens on My tasks.
 
 ## The site admin's own parts
 
@@ -258,6 +257,21 @@ a team screen or sent to anyone.
   should be full width"), the year two
   months across in a narrow panel and more as it widens.
   Search finds a word in wins and notes.
+
+### On their page, as blocks
+
+On the site admin's My dashboard the card is a "/" block on their own page,
+the **Daily card** block, in a rounded light grey box with the greeting
+alone at its top, no icon (Tyler, 6 Nov 2026: "make it the same as the
+habits and greeting card in the footer (and remove the footer card)"). One
+per page. There it is always open, with no arrow by the greeting ("it doesnt
+need to be a toggle"); on an employee's page the greeting still folds it. Until they place it, their dashboard shows no Daily card. Two more
+blocks show parts of it there (task "My dashboard/left-panel-blocks"; see
+[My dashboard](my-dashboard.md#their-pages-blocks)):
+
+- **Rating calendar:** one month of day ratings, laid out as Look back's
+  Month tab and shaded as its Year tab. It only shows them.
+- **Rating trend:** the last 30 days' ratings as a line.
 
 ### In My settings, for the site admin
 

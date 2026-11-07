@@ -29,8 +29,23 @@ export const NOTE_ATOM_TYPES = [
   "noteWebPage",
   "noteLinks",
   "horizontalRule",
+  "noteProject",
+  "noteHabit",
+  "noteRatingMonth",
+  "noteRatingTrend",
 ] as const
 export type NoteAtomType = (typeof NOTE_ATOM_TYPES)[number]
+
+/**
+ * Blocks only the site admin's own page on My dashboard may hold (task "My
+ * dashboard/left-panel-blocks", Tyler, 6 Nov 2026: "Your My dashboard page
+ * only"): a project, their Daily card, and their day ratings, which are
+ * theirs alone. Every other note drops them (`cleanNoteBody`).
+ */
+export const DASHBOARD_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set(["noteProject", "noteHabit", "noteRatingMonth", "noteRatingTrend"])
+
+/** Where a note is kept: `dashboard` for the site admin's own page, which alone keeps the dashboard blocks. */
+export type NoteRules = { dashboard?: boolean }
 
 /** Blocks that hold writing: a Callout's words, a Checklist's lines, a Fold section's heading. */
 export const NOTE_HOLDER_TYPES = ["noteCallout", "taskList", "taskItem", "noteFold"] as const
@@ -53,6 +68,7 @@ export type NoteVideoAttrs = { url: string }
 export type NoteTaskAttrs = { taskId: string }
 export type NoteFileAttrs = { fileId: string }
 export type NoteWebPageAttrs = { url: string }
+export type NoteProjectAttrs = { projectId: string }
 /** One line of a Links block: its words, or "" to show the address, and an `https://` address. */
 export type NoteLink = { label: string; url: string }
 export type NoteLinksAttrs = { links: NoteLink[] }
@@ -132,6 +148,11 @@ function cleanFile(attrs: Record<string, unknown>): NoteFileAttrs | null {
   return fileId.success ? { fileId: fileId.data } : null
 }
 
+function cleanProject(attrs: Record<string, unknown>): NoteProjectAttrs | null {
+  const projectId = noteId.safeParse(attrs.projectId)
+  return projectId.success ? { projectId: projectId.data } : null
+}
+
 function cleanWebPage(attrs: Record<string, unknown>): NoteWebPageAttrs | null {
   const url = httpsAddress(attrs.url, MAX_WEB_ADDRESS)
   return url ? { url } : null
@@ -165,6 +186,13 @@ const ATOM_CLEANERS: Record<NoteAtomType, (attrs: Record<string, unknown>) => Re
   noteWebPage: cleanWebPage,
   noteLinks: cleanLinks,
   horizontalRule: () => ({}),
+  noteProject: cleanProject,
+  // The whole Daily card, read from the dashboard when drawn, so it holds nothing. It
+  // held one habit's id until 6 Nov 2026; a saved one loses it here.
+  noteHabit: () => ({}),
+  // Both read the site admin's own ratings when drawn, so they hold nothing.
+  noteRatingMonth: () => ({}),
+  noteRatingTrend: () => ({}),
 }
 
 function isAtom(type: unknown): type is NoteAtomType {
@@ -179,61 +207,86 @@ function attrsOf(raw: { attrs?: unknown }): Record<string, unknown> {
   return raw.attrs && typeof raw.attrs === "object" && !Array.isArray(raw.attrs) ? (raw.attrs as Record<string, unknown>) : {}
 }
 
-function cleanChildren(raw: { content?: unknown }, depth: number, keep: (node: NoteNode) => boolean): NoteNode[] {
+function cleanChildren(
+  raw: { content?: unknown },
+  depth: number,
+  keep: (node: NoteNode) => boolean,
+  rules: NoteRules
+): NoteNode[] {
   if (!Array.isArray(raw.content)) return []
   return raw.content
-    .map((child) => cleanNode(child, depth + 1))
+    .map((child) => cleanNode(child, depth + 1, rules))
     .filter((child): child is NoteNode => child !== null && keep(child))
 }
 
 /** Only words go inside a Callout: paragraphs and lists, never a block inside a block. */
 const IN_CALLOUT = new Set(["paragraph", "bulletList", "orderedList"])
 
-function cleanHolder(type: NoteHolderType, raw: { attrs?: unknown; content?: unknown }, depth: number): NoteNode | null {
+function cleanHolder(
+  type: NoteHolderType,
+  raw: { attrs?: unknown; content?: unknown },
+  depth: number,
+  rules: NoteRules
+): NoteNode | null {
   const attrs = attrsOf(raw)
   if (type === "noteCallout") {
     const kind = CALLOUT_KINDS.includes(attrs.kind as CalloutKind) ? (attrs.kind as CalloutKind) : "note"
-    const content = cleanChildren(raw, depth, (child) => IN_CALLOUT.has(child.type))
+    const content = cleanChildren(raw, depth, (child) => IN_CALLOUT.has(child.type), rules)
     return { type, attrs: { kind }, content: content.length ? content : [{ type: "paragraph" }] }
   }
   if (type === "taskList") {
-    const content = cleanChildren(raw, depth, (child) => child.type === "taskItem")
+    const content = cleanChildren(raw, depth, (child) => child.type === "taskItem", rules)
     return content.length ? { type, content } : null
   }
   if (type === "taskItem") {
     // A line's own words first, then any lines tucked under it.
-    const content = cleanChildren(raw, depth, (child) => !isAtom(child.type) && child.type !== "noteCallout" && child.type !== "noteFold")
+    const content = cleanChildren(
+      raw,
+      depth,
+      (child) => !isAtom(child.type) && child.type !== "noteCallout" && child.type !== "noteFold",
+      rules
+    )
     return { type, attrs: { checked: attrs.checked === true }, content: content.length ? content : [{ type: "paragraph" }] }
   }
   // A Fold section is a heading line: its words and marks only, like a paragraph's.
   const id = noteId.safeParse(attrs.id)
-  const content = cleanChildren(raw, depth, (child) => child.type === "text" || child.type === "hardBreak")
+  const content = cleanChildren(raw, depth, (child) => child.type === "text" || child.type === "hardBreak", rules)
   // The editor gives every new section an id. One sent without stays foldable, under a shared name.
   return { type, attrs: { id: id.success ? id.data : "fold" }, ...(content.length ? { content } : {}) }
 }
 
-function cleanNode(value: unknown, depth: number): NoteNode | null {
+function cleanNode(value: unknown, depth: number, rules: NoteRules): NoteNode | null {
   if (depth > MAX_DEPTH || !value || typeof value !== "object" || Array.isArray(value)) return null
   const raw = value as { type?: unknown; attrs?: unknown; content?: unknown }
   if (isAtom(raw.type)) {
+    if (DASHBOARD_ATOM_TYPES.has(raw.type) && !rules.dashboard) return null
     const kept = ATOM_CLEANERS[raw.type](attrsOf(raw))
     if (!kept) return null
     return Object.keys(kept).length ? { type: raw.type, attrs: kept } : { type: raw.type }
   }
-  if (isHolder(raw.type)) return cleanHolder(raw.type, raw, depth)
+  if (isHolder(raw.type)) return cleanHolder(raw.type, raw, depth, rules)
   // Any other node is cleaned alone by the shell's written-page rules, then its children by these.
   const [alone] = cleanWrittenPageBody({ type: "doc", content: [{ ...raw, content: undefined }] }).content ?? []
   if (!alone) return null
   const node: NoteNode = { ...alone }
-  const content = cleanChildren(raw, depth, () => true)
+  const content = cleanChildren(raw, depth, () => true, rules)
   if (content.length) node.content = content
   return node
 }
 
-/** A note's document cleaned to what a Project note may hold. Anything else becomes an empty note. */
-export function cleanNoteBody(value: unknown): NoteNode {
+/**
+ * A note's document cleaned to what a Project note may hold. Anything else
+ * becomes an empty note. The dashboard blocks stay only with `dashboard`, on
+ * the site admin's own page.
+ */
+export function cleanNoteBody(value: unknown, rules: NoteRules = {}): NoteNode {
   if (!value || typeof value !== "object" || (value as { type?: unknown }).type !== "doc") return emptyWrittenPageBody()
-  return { type: "doc", content: cleanChildren(value as { content?: unknown }, 0, () => true) }
+  return { type: "doc", content: cleanChildren(value as { content?: unknown }, 0, () => true, rules) }
+}
+
+/** The site admin's own page, cleaned: a note's rules, keeping the dashboard blocks. */
+export function cleanDashboardBody(value: unknown): NoteNode {
+  return cleanNoteBody(value, { dashboard: true })
 }
 
 /** A new Fold section's id, which each reader's folds are remembered by. */

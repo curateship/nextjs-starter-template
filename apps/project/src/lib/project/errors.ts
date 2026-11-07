@@ -85,6 +85,7 @@ export const PROJECT_ERRORS = {
   photoNotYours: "Pick a photo you uploaded yourself.",
   notesLocked: "These notes are locked. Unlock them from the task's ⋮ to change them.",
   pageLocked: "This page is locked. Unlock it from the ⋮ at the top of the panel to change it.",
+  adminPageLocked: "Your page is locked. Unlock it in My settings, under General, to change it.",
   tooManyMeetingSaves: "That's a lot of meeting changes in an hour. Wait a while, then try again.",
   notInvitedToMeeting: "Only people invited to the meeting can answer it.",
   meetingNotOnDay: "The meeting doesn't fall on that day. Pick it again on the calendar.",

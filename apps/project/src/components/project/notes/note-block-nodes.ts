@@ -4,8 +4,12 @@ import { TextSelection } from "@tiptap/pm/state"
 import { TaskItem, TaskList } from "@tiptap/extension-list"
 import { ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react"
 import {
+  CalendarDaysIcon,
+  ChartLineIcon,
   ChevronsDownUpIcon,
   ClapperboardIcon,
+  FolderKanbanIcon,
+  SunriseIcon,
   FileIcon,
   GlobeIcon,
   ImageIcon,
@@ -31,6 +35,12 @@ import {
   VideoBlockView,
   WebPageBlockView,
 } from "@/components/project/notes/note-block-views"
+import {
+  DailyCardBlockView,
+  ProjectBlockView,
+  RatingMonthBlockView,
+  RatingTrendBlockView,
+} from "@/components/project/notes/dashboard-blocks"
 import { NoteFolds } from "@/components/project/notes/note-folds"
 import type { NoteWhere } from "@/components/project/notes/note-setup"
 
@@ -56,33 +66,61 @@ export type BlockKey =
   | "record"
   | "webpage"
   | "links"
+  | "project"
+  | "habit"
+  | "ratingMonth"
+  | "ratingTrend"
 
-export type BlockChoice = { key: BlockKey; label: string; icon: LucideIcon }
+/**
+ * The "/" list's two groups (Tyler, 6 Nov 2026: "divider the blocks into basic
+ * blocks and advanced blocks"). Basic blocks are what the writer types or
+ * pastes in themselves; advanced blocks show something live from the app: a
+ * task, a file, the comments, a Video or Promo record, a project, the Daily
+ * card or the ratings.
+ */
+export type BlockGroup = "basic" | "advanced"
+export const BLOCK_GROUP_LABEL: Record<BlockGroup, string> = { basic: "Basic blocks", advanced: "Advanced blocks" }
 
-/** In the "/" list's order: Image first, as in Travel (Tyler, 5 Nov 2026: "FIrst block is an image block"). */
+export type BlockChoice = { key: BlockKey; label: string; icon: LucideIcon; group: BlockGroup }
+
+/**
+ * In the "/" list's order: the basic blocks, then the advanced ones. Image is
+ * still first (Tyler, 5 Nov 2026: "FIrst block is an image block").
+ */
 const BLOCKS: BlockChoice[] = [
-  { key: "image", label: "Image", icon: ImageIcon },
-  { key: "video", label: "Video", icon: PlayIcon },
-  { key: "task", label: "Task card", icon: ListTodoIcon },
-  { key: "file", label: "File", icon: FileIcon },
-  { key: "comments", label: "Comments", icon: MessagesSquareIcon },
-  { key: "checklist", label: "Checklist", icon: ListChecksIcon },
-  { key: "callout", label: "Callout", icon: InfoIcon },
-  { key: "divider", label: "Divider", icon: MinusIcon },
-  { key: "fold", label: "Fold section", icon: ChevronsDownUpIcon },
-  { key: "record", label: "Video or Promo", icon: ClapperboardIcon },
-  { key: "webpage", label: "Web page", icon: GlobeIcon },
-  { key: "links", label: "Links", icon: LinkIcon },
+  { key: "image", label: "Image", icon: ImageIcon, group: "basic" },
+  { key: "video", label: "Video", icon: PlayIcon, group: "basic" },
+  { key: "checklist", label: "Checklist", icon: ListChecksIcon, group: "basic" },
+  { key: "callout", label: "Callout", icon: InfoIcon, group: "basic" },
+  { key: "divider", label: "Divider", icon: MinusIcon, group: "basic" },
+  { key: "fold", label: "Fold section", icon: ChevronsDownUpIcon, group: "basic" },
+  { key: "webpage", label: "Web page", icon: GlobeIcon, group: "basic" },
+  { key: "links", label: "Links", icon: LinkIcon, group: "basic" },
+  { key: "task", label: "Task card", icon: ListTodoIcon, group: "advanced" },
+  { key: "file", label: "File", icon: FileIcon, group: "advanced" },
+  { key: "comments", label: "Comments", icon: MessagesSquareIcon, group: "advanced" },
+  { key: "record", label: "Video or Promo", icon: ClapperboardIcon, group: "advanced" },
+  // The site admin's own page only (task "My dashboard/left-panel-blocks", 6 Nov 2026).
+  { key: "project", label: "Projects", icon: FolderKanbanIcon, group: "advanced" },
+  { key: "habit", label: "Daily card", icon: SunriseIcon, group: "advanced" },
+  { key: "ratingMonth", label: "Rating calendar", icon: CalendarDaysIcon, group: "advanced" },
+  { key: "ratingTrend", label: "Rating trend", icon: ChartLineIcon, group: "advanced" },
 ]
+
+/** Blocks only the site admin's own page on My dashboard offers. */
+const DASHBOARD_BLOCKS = new Set<BlockKey>(["project", "habit", "ratingMonth", "ratingTrend"])
 
 /**
  * The blocks a notes box offers. A File block and the Video or Promo card
  * belong to a task, so New task and quick new task leave them out
  * (Tyler, 5 Nov 2026: "Leave File out there"); the Video or Promo card shows
- * only on a task that points at a record.
+ * only on a task that points at a record. Projects, Habit and the two rating
+ * blocks are the site admin's own page's alone (Tyler, 6 Nov 2026: "Your My
+ * dashboard page only").
  */
 export function blocksFor(where: NoteWhere, hasRecord: boolean): BlockChoice[] {
   return BLOCKS.filter((block) => {
+    if (DASHBOARD_BLOCKS.has(block.key)) return where === "dashboard"
     if (block.key === "file" || block.key === "comments") return where === "task"
     if (block.key === "record") return where === "task" && hasRecord
     return true
@@ -217,6 +255,10 @@ export const BLOCK_NODES: Extensions = [
   atomNode("noteRecord", {}, RecordBlockView),
   atomNode("noteWebPage", { url: null }, WebPageBlockView),
   atomNode("noteLinks", { links: [] }, LinksBlockView),
+  atomNode("noteProject", { projectId: null }, ProjectBlockView),
+  atomNode("noteHabit", {}, DailyCardBlockView),
+  atomNode("noteRatingMonth", {}, RatingMonthBlockView),
+  atomNode("noteRatingTrend", {}, RatingTrendBlockView),
   Callout,
   Fold,
   TaskList,

@@ -1,28 +1,26 @@
 import { createServerFn } from "@tanstack/react-start"
 import type { z } from "zod"
 
-import { adminPageSchema, adminProjectListSchema, adminTimeZoneSchema, myStatusOrderSchema } from "@/lib/project/rules"
+import { adminPageLockSchema, adminPageSchema, adminTimeZoneSchema, myStatusOrderSchema } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
 import {
   loadAdminDashboard,
   setAdminPage,
-  setAdminProjectOrder,
+  setAdminPageLock,
   setAdminStatusOrder,
   setAdminTimeZone,
 } from "@/server/project/admin-dashboard"
 
+// Types only: a value from the server's module here would carry it, its
+// database and argon2 into the browser.
 export type {
+  AdminAttention,
   AdminDashboard,
   AdminProject,
   AdminProjectCards,
+  AttentionAsk,
+  HandToPerson,
   ProjectFace,
-  DonePerson,
-  MilestoneDue,
-  PendingInvite,
-  TeamAttention,
-  TodayMeeting,
-  UnassignedTask,
-  WaitingAsk,
 } from "@/server/project/admin-dashboard"
 
 const loadAdminDashboardFn = createServerFn({ method: "GET" })
@@ -39,15 +37,15 @@ const setAdminPageFn = createServerFn({ method: "POST" })
   .inputValidator(adminPageSchema)
   .handler(async ({ data, context }) => setAdminPage(context.user.id, data.notes))
 
+const setAdminPageLockFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(adminPageLockSchema)
+  .handler(async ({ data, context }) => setAdminPageLock(context.user.id, data.locked))
+
 const setAdminStatusOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(myStatusOrderSchema)
   .handler(async ({ data, context }) => setAdminStatusOrder(context.user.id, data.statusOrder))
-
-const setAdminProjectOrderFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(adminProjectListSchema)
-  .handler(async ({ data, context }) => setAdminProjectOrder(context.user.id, data.projectIds))
 
 /** The site admin's My dashboard: their tasks across every team, their own list and the admin cards. */
 export function loadAdminDashboardPage() {
@@ -61,11 +59,11 @@ export function saveAdminTimeZone(data: z.input<typeof adminTimeZoneSchema>) {
 export function saveAdminPage(notes: unknown) {
   return setAdminPageFn({ data: { notes } })
 }
+/** The site admin's own page locked or unlocked, from My settings. */
+export function saveAdminPageLock(locked: boolean) {
+  return setAdminPageLockFn({ data: { locked } })
+}
 /** The site admin's Board columns in their own order. */
 export function saveAdminStatusOrder(statusOrder: z.input<typeof myStatusOrderSchema>["statusOrder"]) {
   return setAdminStatusOrderFn({ data: { statusOrder } })
-}
-/** The site admin's Pinned projects card in their own order. */
-export function saveAdminProjectOrder(projectIds: string[]) {
-  return setAdminProjectOrderFn({ data: { projectIds } })
 }

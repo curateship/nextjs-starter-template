@@ -157,6 +157,7 @@ export function TaskList({
   addTask,
   projectColumn,
   massSelect,
+  rowActions,
 }: {
   tasks: TaskCard[]
   readOnly: boolean
@@ -210,6 +211,11 @@ export function TaskList({
    * no Mass select button of its own, only "N selected".
    */
   massSelect?: { on: boolean; onToggle: () => void; tick?: string | null }
+  /**
+   * A row's own buttons, first in its Actions, such as Yes and No on an ask
+   * for more time in My tasks' Need your attention tab.
+   */
+  rowActions?: (task: TaskCard) => React.ReactNode
 }) {
   const { sort, direction, toggleSort } = useTableSort<TaskColumn>(
     ordered ? "order" : showProject ? "due" : "status"
@@ -407,6 +413,7 @@ export function TaskList({
                           onDelete={
                             onDelete && !readOnly && (canDelete?.(task) ?? true) ? () => onDelete(task) : undefined
                           }
+                          actions={rowActions?.(task)}
                         />
                       ))}
                     </SortableContext>
@@ -440,6 +447,7 @@ function TaskRow({
   onToggle,
   onOpen,
   onDelete,
+  actions,
 }: {
   /** The row's heading and task together. */
   dragId: string
@@ -459,6 +467,7 @@ function TaskRow({
   onToggle: () => void
   onOpen: () => void
   onDelete?: () => void
+  actions?: React.ReactNode
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: dragId, disabled: !canDrag || dragLocked })
@@ -549,6 +558,7 @@ function TaskRow({
         )}
       </TableCell>
       <TableCell column="actions">
+        {actions}
         <Button
           type="button"
           variant="ghost"

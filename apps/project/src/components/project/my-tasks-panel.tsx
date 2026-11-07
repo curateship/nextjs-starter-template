@@ -3,6 +3,7 @@ import { useRouter } from "@tanstack/react-router"
 import { AlarmClockIcon, CheckCheckIcon, EllipsisVerticalIcon, ListChecksIcon, Loader2Icon, PlusIcon, SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { useAttentionActions } from "@/components/project/attention-actions"
 import { CatchUpDialog } from "@/components/project/catch-up-dialog"
 import { MyTaskRows } from "@/components/project/my-task-rows"
 import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION, showBinnedToast } from "@/components/project/task-body"
@@ -22,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import type { AdminAttention } from "@/lib/api/project/admin-dashboard"
 import type { SavedView } from "@/lib/api/project/finding"
 import {
   acceptTasks,
@@ -36,10 +38,11 @@ import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { clientChoices } from "@/lib/project/clients"
+import { ATTENTION_HEADINGS, ATTENTION_LABEL } from "@/lib/project/attention-headings"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import type { ListDrop } from "@/lib/project/list-drop"
 import { canMove, dropChange, inMyOrder, isMyHeading, takesDrops, type MyPlace } from "@/lib/project/my-task-order"
-import { MY_TASK_FOLDS_KEY, MY_TASK_GROUPING_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
+import { MY_ATTENTION_FOLDS_KEY, MY_TASK_FOLDS_KEY, MY_TASK_GROUPING_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
 import {
   isOpenStatus,
   isTaskPriority,
@@ -63,8 +66,13 @@ import {
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-const MY_VIEWS = ["list", "board", "calendar", "timeline"] as const
+const MY_VIEWS = ["list", "board", "calendar", "timeline", "attention"] as const
 type MyView = (typeof MY_VIEWS)[number]
+
+/** The Need your attention tab's headings, top to bottom. */
+const ATTENTION_GROUPS = ATTENTION_HEADINGS.map((key) => ({ key, label: ATTENTION_LABEL[key] }))
+/** An employee's My dashboard has no Need your attention tab. */
+const NO_ATTENTION: AdminAttention = { tasks: [], heading: {}, asks: {}, handTo: {} }
 
 /**
  * What My tasks draws: an employee's own My dashboard, or the site admin's.
@@ -96,8 +104,15 @@ export type MyTasksSource = {
    * ("remove the assigned to, steps and my team col").
    */
   table?: { project: ProjectColumn }
-  /** The site admin's projects, for Filter's Project row, which their Projects card sets too. */
+  /** The site admin's projects, for Filter's Project row, which their Projects blocks set too. */
   projects?: FilterProject[]
+  /**
+   * The site admin's Need your attention tab after Timeline (task "My
+   * dashboard/left-panel-blocks", Tyler, 6 Nov 2026: "it should be a tab
+   * here ... and show a real table"): every task across every team that
+   * needs them, under its heading.
+   */
+  attention?: AdminAttention
 }
 
 /**
@@ -145,7 +160,15 @@ export function MyTasksPanel({
   const open = notDone.filter((task) => !task.snoozedUntil || task.snoozedUntil <= myDay)
   const snoozed = notDone.length - open.length
   const done = tasks.filter((task) => task.status === "done")
-  const [view, setView] = useRememberedChoice<MyView>(MY_TASK_VIEW_KEY, "list", MY_VIEWS)
+  const [rememberedView, setView] = useRememberedChoice<MyView>(MY_TASK_VIEW_KEY, "list", MY_VIEWS)
+  // Only the site admin has the attention tab; anyone else remembered on it lands on the List.
+  const view: MyView = rememberedView === "attention" && !source.attention ? "list" : rememberedView
+  const attention = useAttentionActions(source.attention ?? NO_ATTENTION)
+  // The site admin's List and Need your attention are both the project page's table, so both
+  // have Mass select in the header's ⋮ and the "3 selected" button beside the search.
+  const tableView = view === "list" || view === "attention"
+  // Every task in the tab has its heading, set by the server.
+  const attentionHeading = (source.attention ?? NO_ATTENTION).heading
   // Both opened from the header's ⋮.
   const [searchOpen, setSearchOpen] = React.useState(false)
   const searchFromMenu = React.useRef(false)
@@ -363,7 +386,9 @@ export function MyTasksPanel({
     if (!onPickedWords) window.getSelection()?.removeAllRanges()
     event.preventDefault()
     if (target.kind === "task") {
-      const task = tasks.find((t) => t.id === target.taskId)
+      // The attention tab's rows are mostly other people's tasks, so they are looked up there.
+      const rows = view === "attention" ? (source.attention?.tasks ?? []) : tasks
+      const task = rows.find((t) => t.id === target.taskId)
       if (!task) return
       setPointNew(null)
       setTaskMenu({ ...at, task })
@@ -488,7 +513,7 @@ export function MyTasksPanel({
           value={view}
           onValueChange={(value) => {
             setView(value as MyView)
-            // Mass select belongs to the List; leaving it turns it off.
+            // Mass select belongs to a table; changing tab turns it off.
             setMassSelectOn(false)
           }}
           tabs={[
@@ -496,11 +521,21 @@ export function MyTasksPanel({
             { value: "board", label: "Board" },
             { value: "calendar", label: "Calendar" },
             { value: "timeline", label: "Timeline" },
+            ...(source.attention
+              ? [
+                  {
+                    value: "attention",
+                    label: "Need your attention",
+                    count: source.attention.tasks.length,
+                    ariaLabel: `Need your attention, ${source.attention.tasks.length}`,
+                  },
+                ]
+              : []),
           ]}
         />
         <div className="flex shrink-0 items-center gap-1">
           {/* The site admin's List puts its "3 selected" button here, left of the search, as a project page does. */}
-          {view === "list" && source.table ? <div ref={setSelectedSlot} className="contents" /> : null}
+          {tableView && source.table ? <div ref={setSelectedSlot} className="contents" /> : null}
           <SearchToggle
             value={filters.q ?? ""}
             onChange={(q) => onFilters({ q: q || undefined })}
@@ -584,7 +619,7 @@ export function MyTasksPanel({
                 <SearchIcon className="size-4" />
                 Search tasks
               </DropdownMenuItem>
-              {view === "list" && source.table ? (
+              {tableView && source.table ? (
                 <DropdownMenuItem
                   onSelect={() => {
                     setTickOnStart(null)
@@ -670,6 +705,34 @@ export function MyTasksPanel({
             onOpenTask={onOpenTask}
             onDueDate={(task, dueDate) => void changeDates(task, { dueDate })}
           />
+        ) : view === "attention" && source.attention && source.table ? (
+          <TaskList
+            // Under each heading, the order its reader gives: the oldest ask, the soonest due, the longest stuck.
+            tasks={filterTasks(source.attention.tasks, filters).map((task, position) => ({ ...task, position }))}
+            readOnly={busy}
+            ordered
+            foldsKey={MY_ATTENTION_FOLDS_KEY}
+            onOpenTask={(task) => onOpenTask(task.id)}
+            groups={ATTENTION_GROUPS}
+            groupsOf={(task) => [attentionHeading[task.id]]}
+            bulk={bulk}
+            showProject
+            projectColumn={source.table.project}
+            myUserId={source.myUserId}
+            onDelete={(task) => setDeleting(task)}
+            canDelete={source.canDelete}
+            rowActions={attention.actions}
+            massSelect={{
+              on: massSelectOn,
+              onToggle: () => {
+                setTickOnStart(null)
+                setMassSelectOn(!massSelectOn)
+              },
+              tick: tickOnStart,
+            }}
+            selectedSlot={selectedSlot}
+            emptyText={filtered ? noMatch : "Nothing needs you right now."}
+          />
         ) : view === "timeline" ? (
           <TaskTimeline
             tasks={shown}
@@ -735,7 +798,7 @@ export function MyTasksPanel({
           onDelete={() => setDeleting(taskMenu.task)}
           // The site admin's List only, where Mass select is.
           massSelect={
-            view === "list" && source.table
+            tableView && source.table
               ? {
                   on: massSelectOn,
                   onToggle: () => {
@@ -768,6 +831,7 @@ export function MyTasksPanel({
         loading={busy}
         onConfirm={() => (deleting ? void remove(deleting) : undefined)}
       />
+      {attention.dialog}
       <ReasonDialog
         open={Boolean(stuck)}
         title="Why is it stuck?"

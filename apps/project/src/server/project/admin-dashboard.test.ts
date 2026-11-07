@@ -2,22 +2,21 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { adminPageSchema, PERSONAL_PROJECT_ID } from "@/lib/project/rules"
+import { addDays, localNow } from "@/lib/project/days"
+import { adminPageSchema, PERSONAL_PROJECT_ID, updateProjectSchema } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
 import { inTeam } from "@/server/project/access"
 import {
   FINISHED_DAYS,
   loadAdminDashboard,
   setAdminPage,
-  setAdminProjectOrder,
+  setAdminPageLock,
   setAdminStatusOrder,
   setAdminTimeZone,
 } from "@/server/project/admin-dashboard"
 import { createInvite } from "@/server/project/invites"
-import { createMeeting } from "@/server/project/meetings"
-import { createMilestone } from "@/server/project/milestones"
 import { askForMoreTime } from "@/server/project/more-time"
-import { addProjectMember, createProject, loadProjectsPage, setProjectStar } from "@/server/project/projects"
+import { addProjectMember, createProject, loadProjectsPage } from "@/server/project/projects"
 import { listTeamNames } from "@/server/project/record-team"
 import { projectSavedViewScreens } from "@/server/project/saved-views"
 import { projectProjects, projectTasks, projectTeams } from "@/server/project/schema"
@@ -33,13 +32,18 @@ import { createTestDatabase, insertUser } from "@/server/test-support"
 /*
  * The site admin's My dashboard (workspace/tasks/Admin/03-admin-dashboard.md).
  * Tyler, 23 Oct 2026: "Admin dashboard should have tasks that are assigned to
- * me and personal tasks", his own list on no team, and cards counting across
- * every team.
+ * me and personal tasks", his own list on no team, and (since 6 Nov 2026) a
+ * Need your attention tab and Projects blocks counting across every team.
  *
  * 2 March 2099 is a Monday; both teams are on UTC.
  */
 const MONDAY = "2099-03-02"
 const NOON = new Date(`${MONDAY}T12:00:00Z`)
+/**
+ * A day counted from the real today, for the Need your attention tab: a task
+ * made now and read in 2099 would count as untouched for years.
+ */
+const inDays = (days: number) => addDays(localNow(new Date(), "UTC").day, days)
 
 let client: PGlite
 let database: CustomShellDb
@@ -167,6 +171,20 @@ describe("the middle", () => {
     expect((await loadAdminDashboard(tyler.id, database, NOON)).page).toBe("")
   })
 
+  it("refuses changes to his page while it is locked, until he unlocks it", async () => {
+    const body = (text: string) =>
+      adminPageSchema.parse({ notes: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] } }).notes
+    await setAdminPage(tyler.id, body("Before the lock"), database)
+    await setAdminPageLock(tyler.id, true, database)
+    expect((await loadAdminDashboard(tyler.id, database, NOON)).pageLocked).toBe(true)
+    await expect(setAdminPage(tyler.id, body("While locked"), database)).rejects.toThrow("Your page is locked")
+    expect((await loadAdminDashboard(tyler.id, database, NOON)).page).toContain("Before the lock")
+    await setAdminPageLock(tyler.id, false, database)
+    await setAdminPage(tyler.id, body("After the lock"), database)
+    expect((await loadAdminDashboard(tyler.id, database, NOON)).page).toContain("After the lock")
+    await expect(setAdminPageLock(ben.id, true, database)).rejects.toThrow()
+  })
+
   it("keeps views under his own id, which nobody else can use", async () => {
     const screens = projectSavedViewScreens
     const view = await saveSavedView(
@@ -195,8 +213,8 @@ describe("quick due dates", () => {
   })
 })
 
-describe("the cards", () => {
-  it("lists asks for more time that fall to him, and not one someone else answers", async () => {
+describe("the Need your attention tab", () => {
+  it("lists asks for more time that fall to him under Waiting on you, with who asked, the day and why", async () => {
     const mine = (
       await inTeam(acme, () => createTask(actor(tyler), task(website, "Homepage copy", ben.id, "2099-03-04"), database))
     ).id
@@ -204,97 +222,89 @@ describe("the cards", () => {
     // Ben's own task: nobody else handed it out, so it falls to the site admin too.
     const bens = (await createTask(actor(ben), task(website, "Ben's own", ben.id, "2099-03-04"), database)).id
     await askForMoreTime(actor(ben), { taskId: bens, day: "2099-03-05", reason: "Busy" }, database)
-    const dashboard = await loadAdminDashboard(tyler.id, database, NOON)
-    expect(dashboard.cards.waiting.map((ask) => [ask.title, ask.askedByName, ask.day, ask.projectName])).toEqual([
-      ["Homepage copy", "Ben", "2099-03-06", "Acme · Website"],
-      ["Ben's own", "Ben", "2099-03-05", "Acme · Website"],
+    const { attention } = await loadAdminDashboard(tyler.id, database, NOON)
+    expect(attention.tasks.map((card) => [card.title, card.projectName, attention.heading[card.id]])).toEqual([
+      ["Homepage copy", "Acme · Website", "waiting"],
+      ["Ben's own", "Acme · Website", "waiting"],
     ])
+    expect(attention.asks[mine]).toEqual({ askedByName: "Ben", day: "2099-03-06", reason: "Waiting on photos" })
   })
 
-  it("leaves out an ask whose hander can still answer it", async () => {
+  it("leaves an ask whose hander can still answer it out of Waiting on you", async () => {
     const sent = await inTeam(acme, () => createInvite(actor(tyler), { email: "dan@example.test" }, database))
     await addProjectMember(tyler.id, website, sent.userId, database)
     const dan = { id: sent.userId, name: "Dan", currentWorkspaceId: null }
-    const handed = (await createTask(dan, task(website, "From Dan", ben.id, "2099-03-04"), database)).id
-    await askForMoreTime(actor(ben), { taskId: handed, day: "2099-03-06", reason: "More time" }, database)
-    const dashboard = await loadAdminDashboard(tyler.id, database, NOON)
-    expect(dashboard.cards.waiting).toEqual([])
+    const handed = (await createTask(dan, task(website, "From Dan", ben.id, inDays(2)), database)).id
+    await askForMoreTime(actor(ben), { taskId: handed, day: inDays(4), reason: "More time" }, database)
+    const { attention } = await loadAdminDashboard(tyler.id, database, new Date())
+    expect(attention.asks).toEqual({})
+    // Still due this week, so it shows there instead.
+    expect(attention.heading[handed]).toBe("due")
   })
 
-  it("lists tasks with nobody on them with whom Hand to offers, and hands one out", async () => {
+  it("lists tasks with nobody on them with whom Hand to offers, and drops one once handed out", async () => {
     const loose = (await inTeam(acme, () => createTask(actor(tyler), task(website, "Fix the footer", null), database))).id
-    const before = await loadAdminDashboard(tyler.id, database, NOON)
-    expect(before.cards.unassigned.map((row) => [row.title, row.people.map((person) => person.name)])).toEqual([
-      ["Fix the footer", ["Ben", "Tyler"]],
-    ])
+    const before = (await loadAdminDashboard(tyler.id, database, new Date())).attention
+    expect(before.heading[loose]).toBe("unassigned")
+    expect(before.handTo[loose].map((person) => person.name)).toEqual(["Ben", "Tyler"])
     await assignTask(actor(tyler), { taskId: loose, assigneeUserId: ben.id }, database)
-    expect((await loadAdminDashboard(tyler.id, database, NOON)).cards.unassigned).toEqual([])
+    const after = (await loadAdminDashboard(tyler.id, database, new Date())).attention
+    expect(after.tasks.map((card) => card.id)).not.toContain(loose)
+    expect(after.handTo).toEqual({})
   })
 
-  it("lists invites not taken, due this week, milestones, today's meetings and who finished what today", async () => {
-    await inTeam(brand, () => createInvite(actor(tyler), { email: "eve@example.test" }, database))
-    await inTeam(acme, () => createTask(actor(tyler), task(website, "Due Wednesday", ben.id, "2099-03-04"), database))
-    await inTeam(acme, () => createTask(actor(tyler), task(website, "Due next month", ben.id, "2099-04-20"), database))
-    await inTeam(brand, () => createMilestone(tyler.id, { projectId: logo, name: "First draft", dueDate: "2099-03-20" }, database))
-    await inTeam(acme, () =>
-      createMeeting(
-        actor(tyler),
-        {
-          title: "Standup",
-          color: "blue",
-          day: MONDAY,
-          startTime: "15:00",
-          endTime: "15:15",
-          repeatEvery: null,
-          videoUrl: null,
-          peopleIds: [ben.id],
-        },
-        database,
-        NOON
-      )
-    )
-    const done = (await inTeam(brand, () => createTask(actor(tyler), task(logo, "Sketches", carla.id), database))).id
-    await setTaskStatus(actor(carla), { taskId: done, status: "done", stuckReason: null }, database)
-
-    // Finished just now, so today is the real one.
-    const { cards } = await loadAdminDashboard(tyler.id, database, new Date())
-    expect(cards.doneToday.map((person) => [person.name, person.tasks.map((t) => t.title)])).toEqual([
-      ["Carla", ["Sketches"]],
+  it("puts each task under its first heading only: Stuck, Overdue, then Due this week, across every team", async () => {
+    const stuck = (await inTeam(acme, () => createTask(actor(tyler), task(website, "Blocked copy", ben.id, inDays(2)), database))).id
+    await setTaskStatus(actor(ben), { taskId: stuck, status: "stuck", stuckReason: "No photos" }, database)
+    const late = (await inTeam(brand, () => createTask(actor(tyler), task(logo, "Late sketch", carla.id, inDays(-3)), database))).id
+    const soon = (await inTeam(acme, () => createTask(actor(tyler), task(website, "Due Wednesday", ben.id, inDays(2)), database))).id
+    await inTeam(acme, () => createTask(actor(tyler), task(website, "Due next month", ben.id, inDays(40)), database))
+    const { attention } = await loadAdminDashboard(tyler.id, database, new Date())
+    expect(attention.tasks.map((card) => [card.title, attention.heading[card.id]])).toEqual([
+      ["Blocked copy", "stuck"],
+      ["Late sketch", "overdue"],
+      ["Due Wednesday", "due"],
     ])
-    const monday = await loadAdminDashboard(tyler.id, database, NOON)
-    expect(monday.cards.invites.map((invite) => [invite.email, invite.teamName])).toEqual([["eve@example.test", "Brand"]])
-    expect(monday.cards.milestones.map((row) => [row.name, row.projectName, row.openTasks])).toEqual([
-      ["First draft", "Brand · Logo", 0],
-    ])
-    expect(monday.cards.dueThisWeek.map((card) => card.title)).toEqual(["Due Wednesday"])
-    expect(monday.cards.meetings.map((meeting) => [meeting.title, meeting.teamName])).toEqual([["Standup", "Acme"]])
+    expect(new Set(attention.tasks.map((card) => card.id)).size).toBe(attention.tasks.length)
+    expect([stuck, late, soon].every((id) => attention.heading[id])).toBe(true)
   })
 })
 
-describe("the Pinned projects card", () => {
-  it("names each pinned project's people, counts what got finished today, and keeps his order", async () => {
+describe("the Projects blocks", () => {
+  it("names every open project's people and counts what got finished today, pinned or not", async () => {
     const done = (await inTeam(acme, () => createTask(actor(tyler), task(website, "Hero image", ben.id), database))).id
     await setTaskStatus(actor(ben), { taskId: done, status: "done", stuckReason: null }, database)
-    await setProjectStar(tyler.id, { projectId: website, starred: true }, database)
-    await setAdminProjectOrder(tyler.id, [logo, website], database)
 
-    const { cards } = await loadAdminDashboard(tyler.id, database, new Date())
-    // Every open project still comes, pinned or not, for Filter's Project row.
-    expect(cards.projects.map((project) => [project.name, project.starred])).toEqual([
-      ["Logo", false],
-      ["Website", true],
-    ])
-    expect(cards.projectCards.people[website]).toEqual({ faces: [{ id: ben.id, name: "Ben", avatarUrl: "" }], total: 1 })
-    expect(cards.projectCards.finished[website]).toHaveLength(FINISHED_DAYS)
-    expect(cards.projectCards.finished[website].at(-1)).toBe(1)
-    // Logo isn't pinned, so it isn't on the card and its people aren't read.
-    expect(cards.projectCards.people[logo]).toBeUndefined()
-    expect(cards.projectCards.finished[logo]).toBeUndefined()
-    expect(cards.projectCards.order).toEqual([logo, website])
+    const dashboard = await loadAdminDashboard(tyler.id, database, new Date())
+    expect(dashboard.projects.map((project) => project.name)).toEqual(["Logo", "Website"])
+    expect(dashboard.projectCards.people[website]).toEqual({ faces: [{ id: ben.id, name: "Ben", avatarUrl: "" }], total: 1 })
+    expect(dashboard.projectCards.people[logo]).toEqual({ faces: [{ id: carla.id, name: "Carla", avatarUrl: "" }], total: 1 })
+    expect(dashboard.projectCards.finished[website]).toHaveLength(FINISHED_DAYS)
+    expect(dashboard.projectCards.finished[website].at(-1)).toBe(1)
   })
 
-  it("is the site admin's alone", async () => {
-    await expect(setAdminProjectOrder(ben.id, [website], database)).rejects.toThrow()
+  it("stay on his page, with the Daily card and rating blocks, while a project's page drops all four", async () => {
+    const body = {
+      type: "doc",
+      content: [
+        { type: "noteProject", attrs: { projectId: website } },
+        { type: "noteHabit", attrs: { habitId: "habit-1" } },
+        { type: "noteRatingMonth" },
+        { type: "noteRatingTrend" },
+        // Not filled in yet, so never saved.
+        { type: "noteProject", attrs: { projectId: null } },
+      ],
+    }
+    await setAdminPage(tyler.id, adminPageSchema.parse({ notes: body }).notes, database)
+    const page = JSON.parse((await loadAdminDashboard(tyler.id, database, NOON)).page)
+    expect(page.content).toEqual([
+      { type: "noteProject", attrs: { projectId: website } },
+      // The Daily card holds nothing; a habit's id from before 6 Nov 2026 is dropped.
+      { type: "noteHabit" },
+      { type: "noteRatingMonth" },
+      { type: "noteRatingTrend" },
+    ])
+    expect(updateProjectSchema.parse({ projectId: website, notes: body }).notes).toBe("")
   })
 })
 

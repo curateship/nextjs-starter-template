@@ -41,14 +41,21 @@ export function ProjectPageNotes({ projectId, notes, canWrite }: { projectId: st
  * The site admin's own page at the top of My dashboard's left panel, under
  * the sky (Tyler, 6 Nov 2026: "add the tiptap editor with blocks ability under
  * the banner"). One page that stays, like a project's, with the same "/"
- * blocks, kept in their account. Only the site admin has it.
+ * blocks, kept in their account. Only the site admin has it, and only it
+ * offers Projects, Habit, Rating calendar and Rating trend (task "My
+ * dashboard/left-panel-blocks", 6 Nov 2026). Those draw from the dashboard
+ * through `DashboardBlocksProvider`.
  */
-export function AdminPageNotes({ page }: { page: string }) {
+export function AdminPageNotes({ page, locked }: { page: string; locked: boolean }) {
   return (
     <PageNoteEditor
+      // Locking or unlocking draws it again, writable or not.
+      key={String(locked)}
       stored={page}
-      canWrite
-      placeholder="Your page. Type / for links, a callout and more."
+      // Locked in My settings, it reads only, blocks and all (Tyler, 6 Nov 2026: "lock the notes option is missing").
+      canWrite={!locked}
+      where="dashboard"
+      placeholder="Your page. Type / for projects, habits, links and more."
       onSave={saveAdminPage}
       // The panel's own 14px, so the hint and the writing match the cards around it
       // (Tyler, 6 Nov 2026: "this label font is too big. should be the same size as
@@ -75,6 +82,7 @@ export function PageNoteEditor({
   onSaved,
   startFocused = false,
   small = false,
+  where = "project",
 }: {
   stored: string
   canWrite: boolean
@@ -86,10 +94,13 @@ export function PageNoteEditor({
   startFocused?: boolean
   /** Writes at the panel's 14px instead of a page's 15px. */
   small?: boolean
+  /** A project's page or note, or the site admin's own page, which keeps the dashboard blocks. */
+  where?: "project" | "dashboard"
 }) {
-  const setup = useNotesBoxSetup("project")
-  const [start] = React.useState(() => notesForEditor(readTaskNotes(stored)))
-  const saved = React.useRef(storedTaskNotes(start))
+  const setup = useNotesBoxSetup(where)
+  const rules = { dashboard: where === "dashboard" }
+  const [start] = React.useState(() => notesForEditor(readTaskNotes(stored, rules)))
+  const saved = React.useRef(storedTaskNotes(start, rules))
   const draft = React.useRef<NoteNode | null>(null)
   const timer = React.useRef(0)
   const box = React.useRef<HTMLDivElement>(null)
@@ -104,7 +115,7 @@ export function PageNoteEditor({
     const next = draft.current
     if (!next) return
     draft.current = null
-    const kept = storedTaskNotes(next)
+    const kept = storedTaskNotes(next, { dashboard: where === "dashboard" })
     if (kept === saved.current) return
     saved.current = kept
     handlers.current.onSave(next).then(
@@ -116,7 +127,7 @@ export function PageNoteEditor({
         showErrorToast(getProjectErrorMessage(error))
       }
     )
-  }, [])
+  }, [where])
 
   // Leaving the page saves what was typed.
   React.useEffect(() => flush, [flush])
@@ -136,7 +147,7 @@ export function PageNoteEditor({
   }, [startFocused, canWrite])
 
   if (!canWrite) {
-    const read = readTaskNotes(stored)
+    const read = readTaskNotes(stored, rules)
     if (taskNotesAreEmpty(read)) return null
     return <NoteView setup={setup} body={notesForEditor(read)} />
   }

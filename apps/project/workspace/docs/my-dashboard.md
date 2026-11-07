@@ -25,8 +25,8 @@ check-in. It is described in
 - **The header** shows my photo, my name, and my job title and team
   ("Designer · Sample team"). The ⋮ beside it opens My settings (below).
 - **The Daily card comes first**, above every other card, on an employee's My
-  dashboard and the site admin's alike. How it works is in
-  [The Daily card](daily-card.md).
+  dashboard. The site admin's is a block on their own page instead (below).
+  How it works is in [The Daily card](daily-card.md).
 - **Under it, three cards that fold**, each remembered open or shut in this
   browser (`src/components/project/panel-card.tsx`, the shell's grey card
   with a muted note and a badge in its heading).
@@ -345,11 +345,11 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
 `workspace/tasks/Admin/03-admin-dashboard.md`.
 
 - **Three panels, the same frame.** Left: the site admin, their page (or the
-  Inbox or Look back in its place), then a footer of three cards.
-  Middle: their tasks. Right: the open task, with no cross. Below 1280px wide
-  one panel at a time, with Me, My tasks and Task tabs. Picking a pinned
-  project switches to My tasks.
-- **Their page, under the sky.** The only thing above the footer is a page of
+  Inbox or Look back in its place), with no footer.
+  Middle: their tasks, with the Need your attention tab. Right: the open task,
+  with no cross. Below 1280px wide one panel at a time, with Me, My tasks and
+  Task tabs. Pressing a Projects block switches to My tasks.
+- **Their page, under the sky.** Under the header the whole panel is a page of
   their own, written in place with the same "/" blocks as a project's page:
   links, a callout and the rest (Tyler, 6 Nov 2026: "add the tiptap editor
   with blocks ability under the banner"; he picked one page that stays, not a
@@ -361,44 +361,27 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   words alike, where a project's page writes at 15px (Tyler, 6 Nov 2026: "this
   label font is too big. should be the same size as the actual text"). The
   editor is `AdminPageNotes` in `project-page-notes.tsx`.
-- **The footer** sits at the bottom of the left panel, with the Inbox and Look
-  back open too, and holds three cards (Tyler, 6 Nov 2026: "move the start
-  your day button into the footer of the panel as well as the pinned
-  projects", "the footer card now hold greetings and the habit section", "the
-  need my attention should be a card in the footer too"). Top to bottom:
-  - **Pinned projects** (below).
-  - **Need your attention** and its cards ([The cards](#the-cards)).
-  - **The whole Daily card**: the greeting, then Start day until the day
-    starts, then the habits, Next meeting, Tomorrow at night, the Sunday look
-    back and the monthly review, with Rate your day under the habits at
-    night. See [The Daily card](daily-card.md).
-- **Each card is a rounded light grey box of its own** (Tyler, 6 Nov 2026,
-  drawing them so: `assets/pasted-image-1793988726894165000.png`). There are
-  10px between the boxes and from the panel's edges, the same all round ("the
-  gutter needs to be the same size", then "reduce the gutter a bit"). There
-  are no lines between them (they had lines, then light bands, earlier the
-  same day). The Daily card's sections inside are white ("bg white").
-- **Each heading has an icon** ("Add icon to each card"): a pin, an alert
-  sign, and a sunrise, sun or moon by the part of the day. Its count sits on a
-  white patch after the words, and its arrow always shows at the right.
-  The heading sits in the middle of its height, so a folded card is the
-  heading alone ("There is extra padding in the bottom here").
-- **The three fold the same way**, as the "Good morning" greeting always has
-  (Tyler, 6 Nov 2026: "The pinned project should have the same toggle card
-  like the good morning card"). The heading is the button, at 16px. Each
-  starts open, and this browser remembers a fold (`fold-heading.tsx`, `band`).
-  Folded, a card is its heading alone: the Daily card's date and weather fold
-  away with it ("the date should be inside when collapsed"). A card with
-  nothing to show, such as Need your attention with every card empty, leaves
-  no empty box.
-- **The footer takes what its cards need.** The page above keeps at least
-  6rem, or half the panel while the Inbox or Look back is open, and grows into
-  whatever the footer leaves. The footer only scrolls once the panel is full
-  (Tyler, 6 Nov 2026: "why is there areascroll when theres so much space
-  here", of the footer's first version, capped at 60 out of 100 of the
-  screen's height). Folding a card gives its room back to the page.
-- **The inbox icon** in the header, left of the cog, swaps the cards for the
-  Inbox, and pressed again brings the cards back (Tyler, 25 Oct 2026: "add an
+- **Their page's own blocks.** Typing "/" on their page offers four blocks no
+  other note has: **Projects**, **Daily card**, **Rating calendar** and **Rating
+  trend** (Tyler, 6 Nov 2026: "I want to create a few new blocks for left
+  panel"; he picked "Your My dashboard page only"). They are described in
+  [Their page's blocks](#their-pages-blocks) below. The task is
+  `workspace/tasks/My dashboard/left-panel-blocks.md`.
+- **No footer.** The left panel had a footer of folding cards for one day,
+  6 Nov 2026: Pinned projects, Need your attention, then the whole Daily card.
+  The Daily card is now a block on their page (Tyler: "make it the same as
+  the habits and greeting card in the footer (and remove the footer card)"),
+  so they place it where they like on the page. Until it is placed, the page
+  has no greeting, Start day, habits or Rate your day.
+- **Pinned projects and Need your attention left the footer** the same day. Projects blocks on the page replace Pinned
+  projects (Tyler picked "Goes"), and Need your attention is a tab in My tasks
+  ("I think it should be a tab here ... and show a real table",
+  `assets/pasted-image-1794005413220854000.png`). Its Meetings today,
+  Milestones this month, Done today and Invites not taken left My dashboard
+  with it (Tyler picked "Goes entirely"). The order the Pinned projects card
+  was dragged into went with the card (`drizzle/0154_project_drop_project_order.sql`).
+- **The inbox icon** in the header, left of the ⋮, swaps their page for the
+  Inbox, and pressed again brings the page back (Tyler, 25 Oct 2026: "add an
   inbox icon here with red bubble notification. the inbox open in that tab
   instead of card it currantly does"). A red bubble on it counts unread
   notices, "9+" past nine, and drops as they are read here. The Inbox there
@@ -407,20 +390,31 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   header, with Mark all read right of them, and the rows scroll under it
   ("fix the inbox tabs too", "put the mark all as read icons on the right of
   the tabs", 30 Oct 2026; the same row as Look back's, `panel-tabs-row.tsx`).
-  The Daily card's sky stays behind the header while it shows. The page opens on the cards. While the Inbox
+  The Daily card's sky stays behind the header while it shows. The panel opens on their page. While the Inbox
   shows, the icon morphs into a cross (Tyler, 25 Oct 2026: "make the inbox
   morphed into an x when its in the inbox tab", then "make it morph"): the
   tray's outline folds flat into one stroke and its dip straightens into the
   other, over about a quarter of a second, and back again on the way out
   (`inbox-morph-icon.tsx`). The bubble hides while it is a cross; the cross
-  brings the cards back.
+  brings the page back.
 - **The header** shows their photo, name and "Site admin", then Look back,
   the inbox and the ⋮ for My settings. There is no cog and no pencil since 6
   Nov 2026. My settings is the employee's frame with three tabs:
   - **General:** grouped rows. **Location:** Time zone, which opens
     straight onto the zones with a search box over them, and City for the
     weather. **Daily card:** Sky, whose kinds open straight away, and with My
-    own photos a Photos row for a photo per part of the day.
+    own photos a Photos row for a photo per part of the day. Under the
+    groups, **Lock the notes** (Unlock the notes while locked), drawn as the
+    task's ⋮ draws its own: a plain row with the lock icon (Tyler, 6 Nov 2026:
+    "lock the notes option is missing", then "match ui",
+    `assets/pasted-image-1794010759503376000.png`). It says "Notes locked.
+    Nobody can change them until they're unlocked." Locked, their page reads
+    only: no "/", no bins, and the server refuses any save until
+    it is unlocked, as a project's locked page does. Its blocks still show
+    and still work: the Daily card's ticks, Start day and Rate your day, a
+    Projects block's filter, + and arrow, and the rating blocks' arrows. It
+    is kept on `project_site_admin_prefs.notes_locked`
+    (`drizzle/0155_project_admin_page_lock.sql`, `setAdminPageLock`).
   - **Notifications:** the bell notice groups, plus the two only the site
     admin gets (who checked in this morning, joins through a team's link) and
     a Daily card group: "Daily routine" ("dont need these lenghty text. Just
@@ -429,13 +423,15 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
     an off one dashed, and pressing one opens its own switch and time.
   - **Daily card:** Card layout and Routine habits, drawn from Tyler's picture
     of the tab. See [The Daily card](daily-card.md#in-my-settings-for-the-site-admin).
-- **Their time zone.** Today, Due this week, Meetings today and Done today
+- **Their time zone.** Today, Due this week and a Projects block's days left
   count in it. Before one is saved, the first visit saves the browser's zone
   (until then the page counts in UTC). It lives on
   `project_site_admin_prefs`, beside their Board's column order, since the
   site admin has no team row to keep either on.
 - **The middle** is the same My tasks as an employee's (List, Board, Calendar,
-  Timeline, Filter, Views, New task, and the ⋮ with Search tasks and Mass select), with every open task handed to
+  Timeline, Filter, Views, New task, and the ⋮ with Search tasks and Mass
+  select), plus a fifth tab, **Need your attention**
+  ([below](#the-need-your-attention-tab)), with every open task handed to
   them in any team's projects mixed with their own list. **The List is the
   project page's table** (Tyler, 23 Oct 2026: "The tasks table have to look
   like the project's tasks table"), grouped under Overdue, Today, This week,
@@ -463,10 +459,10 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   Mass select is on (Dragging rows, above). Filter offers
   a **Project** row: every open project,
   pinned or not, and every one holding a task of theirs, named with its team
-  ("Sample team · Spring launch"). Pressing a project on the Pinned projects card
+  ("Sample team · Spring launch"). Pressing a Projects block on their page
   sets the same row, so the two always agree, and a saved view keeps it.
   The picked view stays picked across visits and shows its name on the Views
-  button; pressing a pinned project narrows that view, and pressing it again
+  button; pressing a Projects block narrows that view, and pressing it again
   goes back to the view, its own project included (see the repo's `docs/shell/three-column-dashboards.md`). Saved views are kept under their own id
   (`admin-tasks:<their id>`), so nobody else can save there.
 - **Their own list is on no team.** Every list in the app belongs to a team,
@@ -484,198 +480,152 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   here, or the List's first row, and no cross. A task opened here asks its own
   team's questions (its people), as on its project page.
 - **Live across every team.** A change to any task, project or team's
-  own things, by anyone, loads the page again a moment later, so the cards and
-  the Pinned projects card never go stale (Tyler, 29 Oct 2026, picking "Live across
+  own things, by anyone, loads the page again a moment later, so the Need
+  your attention tab and the Projects blocks never go stale (Tyler, 29 Oct 2026, picking "Live across
   every team"). It is the employee page's live stream: with no team named, the
   site admin's connection listens to every team and every project
   (`watchEveryTeam` in `src/server/project/my-live.ts`). Before 29 Oct 2026
   their page only loaded with the page.
 
-### The cards
+### The Need your attention tab
 
-The footer's middle card, "Need your attention", under Pinned projects and
-above the Daily card since 6 Nov 2026. It is there only while a card in it has
-anything (Tyler, 30 Oct 2026: "Add a label that says "Need your attention"
-here", "if there is nothing there (no cards) hide the label"). The heading
-folds every card under it and stays (Tyler, 31 Oct 2026: "add a toggle here to
-hide all the cards"). Its number counts the cards under it (Tyler, 31 Oct
-2026: "should have the amount beside it. Also add a light gray bg to the
-amount"). Then the cards, top to
-bottom, red first, then amber, blue and green (Tyler, 24 Oct 2026:
-"red card should be on top"), keeping his "act first" order inside each
-colour. Each counts across every team,
-folds and is remembered open or shut in this browser, and shows its five most
-urgent rows then "Show all 12" for the rest. A task in a card opens on the
-right.
+The fifth tab in My tasks' header, after Timeline, on the site admin's My
+dashboard only (Tyler, 6 Nov 2026: "The "Need my attention" cards needs
+rework. I think it should be a tab here ... and show a real table",
+`assets/pasted-image-1794005413220854000.png`). It reads "Need your
+attention" with how many tasks are in it. An employee has no such tab, and
+one whose browser last had it open lands on the List. It replaced the Need
+your attention card in the left panel's footer the same day.
 
-Five fixes Tyler ticked on 6 Nov 2026 (polish batch 1):
+- **A real table:** the site admin's List table (the project page's), with
+  the same columns: Task, Project, Status, Priority, Due and Actions. Every
+  cell changes its task as on the List, a row opens the task on the right,
+  and a right-click has Duplicate and Delete. Search and Filter narrow it as
+  they narrow the List, and Mass select is in the header's ⋮, as on the List,
+  with the "3 selected" button beside the search. It has no "+" on its headings and rows don't drag,
+  since a heading here is a reason, not a date.
+- **Every task that needs them, across every team** (Tyler picked "Every task
+  that needs you"), under six headings, top to bottom:
+  - **Waiting on you:** asks for more time that fall to them: nobody else
+    handed the task out, they handed it out themselves, or whoever did can no
+    longer see it. The oldest ask first.
+  - **No one on it:** open tasks with nobody on them, soonest due first.
+  - **Stuck**, **Overdue** and **Untouched:** worked out exactly as each
+    team's own Attention tab works them out
+    ([Needs attention](needs-attention.md)), the longest first. These were
+    the Urgent card's counts per team; here they are the tasks themselves.
+  - **Due this week:** open tasks due today to six days on, soonest first,
+    then High before Normal before Low.
+- **Each task shows once**, under the first heading it fits: a Stuck task due
+  on Wednesday is under Stuck, not Due this week. Empty headings are hidden.
+  This browser remembers which headings are folded, apart from the List's.
+- **Actions keep the cards' buttons.** A Waiting on you row has "Asks for Mar
+  6" (who asked, the old date and their reason on hover), then **Yes** and
+  **No**. Yes moves the date; No opens a box for an optional reason. Both are
+  the task's own answer, with its history line and its notice. A No one on
+  it row has **Hand to**, offering the project's people and the site admin,
+  the same hand-over as the task's own. One save spins only its own row.
+- **Empty,** it says "Nothing needs you right now."
+- **Where it lives:** the rows are read by `attentionTasks` in
+  `src/server/project/admin-dashboard.ts`; the tab is in `my-tasks-panel.tsx`,
+  its buttons in `attention-actions.tsx`.
 
-- **The open task's row looks picked** in Due this week, No one on it and Done
-  today: a white patch with a dark edge on its left, the mark My tasks puts on
-  its open row.
-- **Every task row starts with its project's dot**, in those three cards, as
-  a Meetings today row does.
-- **One save waits on its own row.** Pressing Yes on one ask, handing one task
-  to someone, or resending one invite turns off and spins only that row's
-  button. The other rows stay usable.
-- **Meetings today follows the clock.** The meeting on now comes first with
-  "Now" beside it, then the ones still to come, then the finished ones, faded
-  at the bottom. The card looks at the clock every 30 seconds, so a meeting
-  moves down as it ends (`meetingsByNow` in `src/lib/project/meetings-today.ts`).
-- **Clear filters** is a button in My tasks' "No tasks match" message, on
-  everyone's My dashboard. It clears the search and every filter, as Filter's
-  own Clear does (`NO_TASK_FILTERS` in `src/lib/project/task-filters.ts`).
+### Their page's blocks
 
-**A card with nothing in it is not drawn.** When all nine are empty, nothing
-stands in for them and the panel is blank below the header (Tyler, 25 Oct
-2026, of the "All clear" card that used to: "Just dont show anything").
-Tyler on 24 Oct 2026, when every empty card still showed as "Waiting on you ·
-None" and the like: "this is way too many cards. we need to simplify it".
+Four "/" blocks only the site admin's own page offers (task
+`workspace/tasks/My dashboard/left-panel-blocks.md`, Tyler, 6 Nov 2026). A
+project's page, a project's notes, a task's notes and New task never offer
+them, and the server drops them from any of those saves. Each has the bin
+in its top corner, as every block has. They draw from what My dashboard
+already loaded, so they follow its live reloads (`dashboard-blocks.tsx`).
 
-**Each card is tinted by how much it matters**, the same day: "each card
-should be a color based on their importance like the done card should have a
-green card". Red needs the site admin now: Waiting on you, Urgent.
-Amber is for soon: No one on it, Invites not taken, Due
-this week. Blue is to know about: Meetings today, Milestones this month. Green
-is Done today. The Pinned projects card has no tint of its own: each project
-in it is tinted instead. The tints are see-through
-(`TONE` in `admin-cards.tsx`), so they work in light and dark.
-
-1. **Waiting on you:** asks for more time that fall to them: nobody else
-   handed the task out, they handed it out themselves, or whoever did can no
-   longer see it. Each row has the task, who asked, the new day and the old,
-   the reason, and **Yes** and **No** in the card. Yes moves the date; No opens
-   a box for an optional reason. Both are the task's own answer, with its
-   history line and its notice.
-2. **Urgent** (called Needs attention until 30 Oct 2026: "rename the card
-   "Need your attention" to "Urgent""): each team with Stuck, Overdue or Untouched tasks,
-   counted exactly as that team's Attention tab counts them, the most first.
-   A count opens the team on its Needs attention tab.
-3. **No one on it:** open tasks with nobody on them, soonest due first. Each
-   has a **Hand to** picker with the project's people and the site admin;
-   picking one hands it over the same way the task's own Hand to does.
-4. **Invites not taken:** people put on a team who haven't set a password,
-   the longest waiting first, with **Resend**, which makes a fresh link.
-5. **Due this week:** open tasks in any team due today to six days on,
-   soonest first, then High before Normal before Low.
-6. **Meetings today:** every team's meetings on their today, the one on now
-   first, then the rest earliest first, finished ones last, with the time in
-   their zone. A row opens that team's calendar on that day.
-7. **Milestones this month:** milestones due today to 30 days on, with how
-   many of their tasks aren't Done ("All done" when none are left).
-8. **Done today:** tasks finished in their today, by person ("Carla · 3"),
-   the most first. A name folds open its tasks.
-The Inbox is not among them: it is behind the header's inbox icon.
-
-### The Pinned projects card
-
-Tyler, 29 Oct 2026: "in 'my dashboard' I want to add project cards that has
-summary of the currant projects in the left panel", then "This is for admin
-my dashboard". He picked 14 ideas; the task is
-`workspace/tasks/My dashboard/01-project-cards.md`. His answers: every team's
-open projects, in place of Projects running late, pressing a project filters
-My tasks, and live across every team.
-
-While My tasks is filtered to a project this way, New task, a heading's "+"
-and a right-click's New task all start on that project instead of the last
-one used (Tyler, 31 Oct 2026: "The task should automatically select that
-project and not select "just me"").
-
-Since 2 Nov 2026 it shows only the projects the site admin pinned, and its
-heading reads "Pinned projects" (Misc 5, Tyler: "Remove the hidden feature
-and make only pinned project shows up in the project toggles and rename the
-"Project" label to "Pinned projects""). A pin is the same one as on the
-Projects page and a project's own page: each person's own, kept in
-`project_project_stars`.
-
-Since 6 Nov 2026 it is the first card in the left panel's footer, folding
-like the others there (above). For a few hours that day it was a button that
-opened the cards in a box. Tyler then asked for "the same toggle card like the
-good morning card". The phone's own **Pinned** tab went the same day, since
-the footer is on a phone too. While My tasks is filtered to a project, the
-line under the heading says "Showing only Website", so the filter shows with
-the card folded too. Each project is a card of its own, 15px apart like the
-panel's other cards (Tyler, 30 Oct 2026: "Put the label and toggle outside and
-have the project in its own card").
-
-- **Which projects.** The open, shared projects the site admin pinned, from
-  any team: no archived project and nobody's "Just me" list. With no open
-  project anywhere, the card isn't drawn. With projects but none pinned, the
-  heading stays with "Pin a project on the Projects page to see it here."
-  under it, so the way to pin one is never lost. That line was not one of
-  Tyler's answers on 2 Nov 2026, so he may still change it.
-- **Each project is a block**, drawn from Tyler's picture of 29 Oct 2026
-  (`assets/pasted-image-1793297357679510000.png`, "clean up ui"). Top: the
-  project's picture, then its name, and under the name a coloured chip
-  ("● On track" green, "● Slowing down" amber, "● Behind" red) with the
-  team's name beside it. Then a thin green bar of how much is done. Bottom:
-  the faces on the left, and on the right "5 late" and "1 stuck" in red and
-  "5/13 done" (or "No tasks yet"). Where the panel is too narrow for the
-  faces and the counts, the counts drop to a line of their own.
-- **The picture** is the project's colour as a full dot, 36px across, the
-  height of the name and chip together (Tyler, 29 Oct 2026: "make it full
-  size dot that matches the size of the avatar"). Projects have no avatar
-  since 5 Nov 2026 (Tyler: "why is avatar is not removed"), so the dot is all
-  there is. The thin lines keep the small dot.
-- **The due date is the chip's hover hint** (Tyler, 29 Oct 2026: "The due
-  tomorrow can just be a tooltip when hover over the behind chip"): "Due Nov
-  20 · 22 days left", "Due tomorrow", "Due today" or "Overdue · Nov 20",
-  counted on their own today. A project with no due date has no hint.
-- **Late on top, tinted.** Behind blocks come first, a faint red with a red
-  edge, then Slowing down in amber, the most late first, then On track in
-  light green (Tyler, 29 Oct 2026: "change the on track to light green"). The tint is mixed into the block rather than see-through, so
-  the ring between the faces is the block's own colour. Dragging changes the
-  order (below).
-- **People.** The lead first, drawn dark, then up to four other people on
-  the project, overlapping a little, then "+3" for the rest.
-- **The finished line** shows tasks moved to Done each day over the last 14
-  days, oldest on the left, beside the faces, from each task's finish time in
-  their zone. With nothing finished in those 14 days it isn't drawn.
-- **Five blocks, then "Show all 7".**
-- **Projects with nothing open** (no To do, Doing or Stuck) sit under the
-  blocks as thin lines with only the colour and the name. Pressing one opens
-  it to the full block until the page loads again.
-- **Pressing a block** shows only that project's tasks in My tasks, the same
-  as picking it in Filter's Project row, and lifts the block with a grey
-  edge and a soft shadow (Tyler, 29 Oct 2026: "the black border is too
-  harsh. make it gray and add some background shadow").
-  Pressing it again shows them all. Only their own tasks are in My tasks, so
-  a project with none of theirs shows "No tasks match these filters."
-- **Its buttons,** showing while the block is pointed at (always on a phone):
-  a handle to drag it, **+** for New task already on that project, the
-  yellow **pin**, and an arrow that opens the project page. The name makes
-  room for them only while they show.
-- **The pin unpins it**, and the project leaves the card once the save is
-  back. Unpinning the project My tasks is filtered to clears that filter.
-  The card had Hide and a "Hidden 2" list until 2 Nov 2026; Tyler had both
-  taken out ("Remove the "hide this card" feature now that we already use
-  the pinned projects"), and the saved hidden list went with them
-  (`drizzle/0142_project_category_links_pins.sql`).
-- **All projects** sits under the last project and opens the Projects page,
-  where any project can be pinned (Tyler, 6 Nov 2026: "move the all projects
-  link to the bottom"). It always shows while the card is open, and folds
-  away with it. It sat at the right of the heading from 2 Nov ("move the view
-  all projects link here", "make it hover over only"). It has no hover hint
-  ("remove the tooltip for all projects hover").
-- **Their own order.** Dragging a block saves the order, and from then on it
-  wins over late first; a project they haven't placed goes after the placed
-  ones, late first. The thin lines keep their places for when they get tasks
-  again.
-- **Theirs alone.** The order is saved per site admin on
-  `project_site_admin_prefs` (`project_order`, migration 0136), and only a
-  site admin can save it. A refused save puts
-  the card back as it was and says why.
-- **Where it lives:** `src/components/project/admin-project-cards.tsx`, with
-  the order and the due line in `src/lib/project/admin-project-cards.ts` and
-  each pinned project's people and finished days from `projectCardExtras` in
-  `src/server/project/admin-dashboard.ts`.
+- **Projects** (Tyler: "a new "Projects" block where I can select a project
+  with the same functionality as the pinned card"). An empty block lists
+  every team's open, shared projects, with a box to narrow them by name; a
+  long list scrolls inside the block. Picking one draws it as the Pinned
+  projects card drew each project:
+  - **Top:** the project's colour as a full 36px dot, its name, and under the
+    name a coloured chip ("● On track" green, "● Slowing down" amber, "●
+    Behind" red) with the team's name. The due date is the chip's hover hint:
+    "Due Nov 20 · 22 days left", "Due tomorrow", "Due today" or "Overdue ·
+    Nov 20", counted on their own today (Tyler, 29 Oct 2026).
+  - **Then** a thin green bar of how much is done, and at the bottom the lead
+    first, drawn dark, then up to four people and "+3", the line of tasks
+    finished each day over the last 14 days, and "5 late", "1 stuck" and
+    "5/13 done" (or "No tasks yet").
+  - **The whole block is tinted by how it is doing:** faint red for Behind,
+    amber for Slowing down, light green for On track.
+  - **Pressing it** shows only that project's tasks in My tasks, the same as
+    picking it in Filter's Project row, and lifts it with a grey edge and a
+    soft shadow. Pressing it again shows them all. While My tasks is
+    filtered so, New task, a heading's "+" and a right-click start on that
+    project (Tyler, 31 Oct 2026).
+  - **Its buttons,** beside the bin while the block is pointed at (always on
+    a phone): **+** for New task already on that project, and an arrow to
+    the project page. It has no pin and no drag handle, since the block sits
+    where it was placed on the page.
+  - **A project that is archived, deleted or no longer shared** shows
+    "Removed: this project is no longer open."
+  - Every open project's people and finished days are read with the page, so
+    a project picked a moment ago draws in full at once (`projectCardExtras`
+    in `admin-dashboard.ts`; the drawing is `admin-project-cards.tsx`).
+- **Daily card** ("/" then "Daily card"). The whole Daily card, exactly as
+  the footer drew it until 6 Nov 2026 (Tyler: "The habits block doesnt
+  really work properly. Just make it the same as the habits and greeting card
+  in the footer (and remove the footer card)"; it replaced a Habit block that
+  showed one picked habit). See [The Daily card](daily-card.md).
+  - **What it holds:** the greeting, then Start day until the day starts,
+    then the habits, Next meeting, Tomorrow at night, the Sunday look back and
+    the monthly review, with Rate your day under the habits at night.
+  - **How it looks:** a rounded box of solid light grey, so the sky behind
+    the page never shows through it, its sections inside white ("bg white").
+    Its heading is the greeting alone, with no icon before it (Tyler, 6 Nov
+    2026: "remove this icon", `assets/pasted-image-1794010037256007000.png`).
+    Its bin, shown while the card is pointed at, sits level with the
+    greeting's first line ("align the trashcan icon"), and the greeting
+    leaves room for it.
+  - **Always open** (Tyler, 6 Nov 2026: "it doesnt need to be a toggle"): the
+    greeting is a plain heading with no arrow. Its own sections, such as
+    Tomorrow, still fold as they always have.
+  - **No ring when clicked** ("why is it so ugly?",
+    `assets/pasted-image-1794009881543968000.png`). Every other block shows a
+    ring while it is selected, and a click on a tick or a button inside the
+    card selects it, so the ring sat round the card most of the time.
+  - **It is the card itself** (`DailyCard` with `boxed`), so every tick, "+",
+    Start day and Rate your day saves the way the card always has.
+  - **One per page:** picking it again only takes away the "/" and shows the
+    one already there.
+  - It holds nothing of its own. A block saved while it was a Habit block
+    loses the habit it pointed at and shows the whole card.
+- **Rating calendar** (Tyler's own idea: "Monthly tick habit calender view",
+  then "I mean the yearly rating", `assets/pasted-image-1794005831963355000.png`,
+  laid out as `assets/pasted-image-1794005758559579000.png`). One month,
+  Monday first, with arrows to step back and forward and the month's name
+  between them, as Look back's Month tab is. Each day's square is shaded by
+  its rating from 1 to 10, as the Year tab shades them, with its date in the
+  middle and its rating in the corner. A day with no rating is plain grey,
+  today unrated has an outline, and days to come are faded. It only shows:
+  a day is rated with Rate your day (`RatingMonth` in `daily-look-back.tsx`).
+- **Rating trend** (picked from the third round). A line of their day
+  ratings over the last 30 days, 1 to 10 up the side, oldest on the left,
+  with "Day rating, last 30 days · 12 rated" above it. A day with no rating
+  leaves a gap in the line, and with none rated it says "No day rated in the
+  last 30 days. Rate your day at night." It is the shell's chart, drawn as
+  the Team dashboard's trends are (`RatingTrend` in `daily-look-back.tsx`).
+- **Ideas he passed on,** 6 Nov 2026: Meetings today, Team, Saved view,
+  Milestones, Done today, Who's away, Check-ins today, Invites waiting,
+  Finished chart, Person, Quick add, Project note, Mini calendar, Team
+  activity, Announcement, Recently opened, World clock, Countdown, Live
+  embed, Streaks, Habit month, Wins, On this day, Reviews, Next milestone,
+  Best habit, Week ahead and Numbers.
 
 ## Where it lives
 
 - **Reader:** `src/server/project/my-dashboard.ts`, and
   `src/server/project/admin-dashboard.ts` for the site admin's.
 - **Screen:** `src/components/project/my-dashboard.tsx`, and
-  `admin-dashboard.tsx` with `admin-cards.tsx`, `admin-project-cards.tsx` and
+  `admin-dashboard.tsx` with `attention-actions.tsx`,
+  `notes/dashboard-blocks.tsx`, `admin-project-cards.tsx` and
   `fold-heading.tsx` for the site admin's. Both
   share My tasks (`my-tasks-panel.tsx`) and the Inbox card (`inbox-card.tsx`),
   laid out by

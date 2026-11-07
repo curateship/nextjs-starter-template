@@ -1,5 +1,4 @@
 import * as React from "react"
-import { MoonIcon, SunIcon, SunriseIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { burstConfetti } from "@/components/project/confetti"
@@ -83,7 +82,7 @@ export function DailyLookBackButton({ open, onToggle }: { open: boolean; onToggl
           type="button"
           variant="ghost"
           size="icon"
-          aria-label={open ? "Back to my cards" : "Look back"}
+          aria-label={open ? "Back to my page" : "Look back"}
           aria-pressed={open}
           className={cn(open && "bg-muted")}
           onClick={onToggle}
@@ -91,7 +90,7 @@ export function DailyLookBackButton({ open, onToggle }: { open: boolean; onToggl
           <GraphMorphIcon open={open} />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{open ? "Back to my cards" : "Look back"}</TooltipContent>
+      <TooltipContent>{open ? "Back to my page" : "Look back"}</TooltipContent>
     </Tooltip>
   )
 }
@@ -112,7 +111,7 @@ export function DailyCard({
   checkin,
   onCheckIn,
   onCheckOut,
-  inFooter = false,
+  boxed = false,
 }: {
   daily: DailyCardData
   now: DailyNow
@@ -121,11 +120,12 @@ export function DailyCard({
   onCheckIn?: () => void
   onCheckOut?: () => void
   /**
-   * In the site admin's left panel footer, off the sky (Tyler, 6 Nov 2026: "the
-   * footer card now hold greetings and the habit section"), so the greeting
-   * needs no room to sit low on it.
+   * The site admin's Daily card block on their page (Tyler, 6 Nov 2026: "make
+   * it the same as the habits and greeting card in the footer (and remove the
+   * footer card)", then "it doesnt need to be a toggle"): in a box of its own,
+   * off the sky, with no icon by the greeting, always open.
    */
-  inFooter?: boolean
+  boxed?: boolean
 }) {
   const { nowMs, local, part, weather } = now
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-daily-card"))
@@ -135,76 +135,81 @@ export function DailyCard({
   // The day's own parts wait for Start day; an employee's card has no such button.
   const started = !daily.admin || Boolean(daily.admin.today.upAt)
 
+  // The date, then today's parts: the same in the panel and in the site admin's block.
+  const body = (
+    <>
+      {/* The date and weather fold away with the card, so a folded card is the
+          greeting alone (Tyler, 6 Nov 2026: "the date should be inside when
+          collapsed"). */}
+      <p className="pt-0.5 text-sm text-muted-foreground">
+        {fullDayLabel(local.day)}
+        {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}
+      </p>
+      {/* minmax(0, 1fr): a long task title truncates instead of widening the panel.
+          15px apart, the same gutter as the panel's cards below and its edges. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3.75 pt-3.75 empty:hidden">
+        {started ? (
+          <>
+            {daily.admin?.lookBack ? <SundayLookBack daily={daily} /> : null}
+            {daily.admin?.monthly ? <MonthlyReview daily={daily} /> : null}
+            {daily.dayOff ? <p className="text-sm">{daily.dayOff}. Nothing here needs you today.</p> : null}
+            {checkin && !checkin.checkedIn && part !== "night" && !daily.dayOff ? (
+              <Button type="button" className="w-full" onClick={onCheckIn}>
+                Check in to plan your day
+              </Button>
+            ) : null}
+            {/* In the site admin's own order, dragged in the pencil window (Tyler, 30 Oct
+                2026: "whats the point of dragging the cards in the modal if its not
+                reflected in the panel?"); an employee's card keeps the card's own. A
+                section hidden with the eye there is left out. */}
+            {daily.settings.sections.filter((name) => !daily.settings.hidden.includes(name)).map((name) => (
+                <DaySection
+                  key={name}
+                  name={name}
+                  daily={daily}
+                  part={part}
+                  nowMs={nowMs}
+                />
+            ))}
+            {checkin?.checkedIn && !checkin.checkedOut && part === "night" && onCheckOut ? (
+              <Button type="button" variant="outline" className="w-full" onClick={onCheckOut}>
+                Check out and plan tomorrow
+              </Button>
+            ) : null}
+          </>
+        ) : null}
+        {/* Look back lives in the panel's header (Tyler, 30 Oct 2026: "remove the look back button"). */}
+        {daily.admin ? !started ? <StartDayButton /> : part === "night" ? <RateYourDayButton daily={daily} /> : null : null}
+      </div>
+    </>
+  )
+
+  // The site admin's block on their page: always open, with a plain heading and no arrow
+  // (Tyler, 6 Nov 2026: "it doesnt need to be a toggle"). Room on the right for the block's bin.
+  if (boxed) {
+    return (
+      <section ref={cardRef} aria-label="Daily card" className="relative grid min-w-0 grid-cols-[minmax(0,1fr)]">
+        {/* No icon before the greeting (Tyler, 6 Nov 2026: "remove this icon"). The page's own
+            heading margins are cancelled, so the greeting's first line sits level with the
+            block's bin. */}
+        <h2 className="!m-0 py-3 pr-12 pl-4 text-base leading-tight font-semibold">{greeting}</h2>
+        <div className={FOOTER_CARD_BODY}>{body}</div>
+      </section>
+    )
+  }
+
   return (
     <Collapsible open={open} onOpenChange={setOpen} asChild>
       <section ref={cardRef} aria-label="Daily card" className="relative grid min-w-0 grid-cols-[minmax(0,1fr)]">
         {/* On an employee's page, down in the sky's lower half, where the fade has made it
             quiet enough to read on. */}
-        <FoldHeading
-          title={greeting}
-          icon={inFooter ? <PartIcon part={part} /> : undefined}
-          band={inFooter}
-          open={open}
-          foldHint="Fold it to the greeting"
-          className={inFooter ? undefined : "mt-6"}
-        />
-        <CollapsibleContent data-collapse-key={noFlashKey} className={cn(inFooter && FOOTER_CARD_BODY)}>
-          {/* The date and weather fold away with the card, so a folded card is the
-              greeting alone (Tyler, 6 Nov 2026: "the date should be inside when
-              collapsed"). */}
-          <p className="pt-0.5 text-sm text-muted-foreground">
-            {fullDayLabel(local.day)}
-            {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}
-          </p>
-          {/* minmax(0, 1fr): a long task title truncates instead of widening the panel.
-              15px apart, the same gutter as the panel's cards below and its edges. */}
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-3.75 pt-3.75 empty:hidden">
-            {started ? (
-              <>
-                {daily.admin?.lookBack ? <SundayLookBack daily={daily} /> : null}
-                {daily.admin?.monthly ? <MonthlyReview daily={daily} /> : null}
-                {daily.dayOff ? <p className="text-sm">{daily.dayOff}. Nothing here needs you today.</p> : null}
-                {checkin && !checkin.checkedIn && part !== "night" && !daily.dayOff ? (
-                  <Button type="button" className="w-full" onClick={onCheckIn}>
-                    Check in to plan your day
-                  </Button>
-                ) : null}
-                {/* In the site admin's own order, dragged in the pencil window (Tyler, 30 Oct
-                    2026: "whats the point of dragging the cards in the modal if its not
-                    reflected in the panel?"); an employee's card keeps the card's own. A
-                    section hidden with the eye there is left out. */}
-                {daily.settings.sections.filter((name) => !daily.settings.hidden.includes(name)).map((name) => (
-                    <DaySection
-                      key={name}
-                      name={name}
-                      daily={daily}
-                      part={part}
-                      nowMs={nowMs}
-                    />
-                ))}
-                {checkin?.checkedIn && !checkin.checkedOut && part === "night" && onCheckOut ? (
-                  <Button type="button" variant="outline" className="w-full" onClick={onCheckOut}>
-                    Check out and plan tomorrow
-                  </Button>
-                ) : null}
-              </>
-            ) : null}
-            {/* Look back lives in the panel's header (Tyler, 30 Oct 2026: "remove the look back button"). */}
-            {daily.admin ? !started ? <StartDayButton /> : part === "night" ? <RateYourDayButton daily={daily} /> : null : null}
-          </div>
-        </CollapsibleContent>
+        <FoldHeading title={greeting} open={open} foldHint="Fold it to the greeting" className="mt-6" />
+        <CollapsibleContent data-collapse-key={noFlashKey}>{body}</CollapsibleContent>
       </section>
     </Collapsible>
   )
 }
 
-
-/** The footer card's icon: the sun rising, the sun, or the moon, by the part of the day. */
-function PartIcon({ part }: { part: DayPart }) {
-  if (part === "morning") return <SunriseIcon />
-  if (part === "afternoon") return <SunIcon />
-  return <MoonIcon />
-}
 
 /** The weather in the person's city, loaded after the card so the page never waits for it. */
 function useWeather(city: string | null) {
