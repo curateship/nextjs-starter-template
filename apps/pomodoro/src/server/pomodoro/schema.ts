@@ -65,6 +65,12 @@ export const userPreferences = pgTable(
     soundVolume: integer("sound_volume").notNull().default(70),
     soundMuted: boolean("sound_muted").notNull().default(false),
     completionAlerts: boolean("completion_alerts").notNull().default(false),
+    /**
+     * The floating timer window opens by itself when a focus starts (Tyler,
+     * 7 Nov 2026: "The floating timer should be automatic", and "I can enable
+     * or disable the floating timer in settings"). On until switched off.
+     */
+    floatingTimer: boolean("floating_timer").notNull().default(true),
     /** The chime when a focus ends, an id from src/lib/pomodoro/chimes.ts. */
     focusChime: varchar("focus_chime", { length: 30 })
       .notNull()
@@ -254,6 +260,12 @@ export const tasks = pgTable(
     pomodoroCount: integer("pomodoro_count").notNull().default(0),
     priority: varchar("priority", { length: 10 }).notNull().default("normal"),
     estimatedPomodoros: integer("estimated_pomodoros"),
+    /**
+     * When the task has to be done by, apart from the day it is planned on.
+     * Null for no deadline. Carried with the task to the next day; a repeat
+     * rule's copies never have one.
+     */
+    dueDate: date("due_date", { mode: "string" }),
     sortOrder: integer("sort_order").notNull().default(0),
     projectId: uuid("project_id").references(() => pomodoroProjects.id, {
       onDelete: "set null",
@@ -1339,6 +1351,40 @@ export const roomMessages = pgTable(
   },
   (table) => [
     index("room_messages_room_created_idx").on(table.roomId, table.createdAt),
+  ]
+)
+
+/**
+ * "Did you finish?" after a room's focus (Tyler's pick, 7 Nov 2026). One
+ * answer per person per break, keyed by the room's `sequence` during that
+ * break, so a second press changes the answer and the next focus, which moves
+ * the sequence on, leaves every tick behind without a cleanup.
+ */
+export const pomodoroRoomCheckIns = pgTable(
+  "pomodoro_room_check_ins",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    breakSequence: integer("break_sequence").notNull(),
+    finished: boolean("finished").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pomodoro_room_check_ins_room_user_break_unique").on(
+      table.roomId,
+      table.userId,
+      table.breakSequence
+    ),
   ]
 )
 

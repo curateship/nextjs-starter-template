@@ -128,6 +128,37 @@ export function previewChime(chimeId: ChimeId) {
 }
 
 /**
+ * One tick of a hosted room's "Starting in" countdown, for its last ten
+ * seconds (Tyler, 7 Nov 2026). It plays whether or not Completion alerts is
+ * ticked, and stays quiet when the "When a break ends" chime is Silent: the
+ * countdown ends where a focus starts, the moment that chime marks. A page the
+ * person has not clicked since it loaded may not make sound yet, and then the
+ * tick is skipped rather than queued.
+ */
+export function playRoomStartTick() {
+  if (chimes.break === "none") return false
+  try {
+    const context = createChimeContext()
+    if (!context || context.state !== "running") return false
+    const start = context.currentTime + 0.01
+    const oscillator = context.createOscillator()
+    const gain = context.createGain()
+    oscillator.type = "triangle"
+    oscillator.frequency.value = 1400
+    gain.gain.setValueAtTime(0, start)
+    gain.gain.linearRampToValueAtTime(0.12, start + 0.004)
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.06)
+    oscillator.connect(gain)
+    gain.connect(context.destination)
+    oscillator.start(start)
+    oscillator.stop(start + 0.08)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * The alert for a finished phase. A focus ending and a break ending each have
  * their own chime, because they mean opposite things: stop working, and start
  * again.

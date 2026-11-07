@@ -136,7 +136,7 @@ function PlannedTaskRow({
       >
         <span className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-1">
           <span className="truncate text-sm">{task.title}</span>
-          <TaskMarks task={task} />
+          <TaskMarks task={task} today={pomodoro.localToday} />
         </span>
       </TaskTitleRename>
       <TaskStepsToggle

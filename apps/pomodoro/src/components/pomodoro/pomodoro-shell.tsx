@@ -37,6 +37,7 @@ import type { MediaBootstrap } from "@/lib/pomodoro/media-pair"
 import { setGuestStartingTimer } from "@/lib/pomodoro/use-pomodoro"
 import { MediaBootstrapContext } from "@/lib/pomodoro/room-media-store"
 import { useTabCountdown } from "@/lib/pomodoro/use-tab-countdown"
+import { FloatingTimerHost } from "@/components/pomodoro/floating-timer"
 
 // The whole Pomoder look rides in with the product shell: the tokens
 // stylesheet and the two fonts. The stylesheet is also imported by
@@ -474,6 +475,7 @@ export function PomodoroShell({
           </div>
           <div className="mx-auto flex items-center gap-2.5 min-[1440px]:mx-0">
             <QuickControlsHeader />
+            <FloatingTimerHost />
           </div>
           {/* Nothing in this group shrinks: squeezed, "Log in" broke over two
               lines. */}

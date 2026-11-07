@@ -21,6 +21,7 @@ import {
   pomodoroAuditLogs,
   pomodoroGroupMembers,
   pomodoroProfiles,
+  pomodoroRoomCheckIns,
   pomodoroRoomRepeats,
   pomodoroSimulatedAccounts,
   roomBans,
@@ -568,7 +569,10 @@ export type RoomSnapshot = {
   // so nobody can give it to themselves. The room labels it STAFF.
   // `avatarUrl` is the person's photo by the room cards' rule: only while
   // their public page is on, initials otherwise.
-  members: { id: string; name: string; handle: string | null; avatarUrl: string | null; role: string; avatarIndex: number; joinedAt: Date; task: string | null; mine: boolean; staff: boolean }[]
+  // `checkIn` is the person's answer to "Did you finish?" during the break
+  // after a focus: "finished", "not_yet", or null for no answer. Always null
+  // outside a break.
+  members: { id: string; name: string; handle: string | null; avatarUrl: string | null; role: string; avatarIndex: number; joinedAt: Date; task: string | null; checkIn: RoomCheckIn | null; mine: boolean; staff: boolean }[]
   // `removedBy` says who removed a removed message. `held` is the writer's own
   // line waiting for an admin, which nobody else receives.
   messages: { id: string; body: string; authorName: string; handle: string | null; mine: boolean; deleted: boolean; removedBy: "host" | "admin" | null; held: boolean; staff: boolean; createdAt: Date; reactions: RoomReactionSummary[] }[]
@@ -577,6 +581,8 @@ export type RoomSnapshot = {
   /** The admin's "Pause all chat" switch: the message box says so and sends nothing. */
   chatPaused: boolean
 }
+
+export type RoomCheckIn = "finished" | "not_yet"
 
 // Per-emoji tally for one message. `mine` marks the emoji the viewer has
 // toggled on, so the client can highlight it and tapping toggles it back off.
@@ -656,9 +662,10 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
   // A block holds inside a room as well: neither of you appears in the other's
   // member list and neither sees the other's messages. One query for the whole
   // snapshot, through the one function every list in this app uses.
-  const [blocked, tasksByUser] = await Promise.all([
+  const [blocked, tasksByUser, checkIns] = await Promise.all([
     blockedUserIdsFor(userId),
     runningTaskTitles(memberRows.filter((member) => member.sharesTask).map((member) => member.userId), database),
+    breakCheckIns(room, database),
   ])
   return {
     room: safeRoom,
@@ -668,6 +675,7 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
       avatarIndex: avatarIndexFor(memberUserId),
       handle: member.handle,
       task: sharesTask ? tasksByUser.get(memberUserId) ?? null : null,
+      checkIn: checkIns.get(memberUserId) ?? null,
       mine: memberUserId === userId,
     })),
     // Soft-deleted messages stay in the timeline as empty tombstones so
@@ -676,6 +684,26 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
     pinned,
     chatPaused: (await loadAppSettings())["safety.pause"].chat,
   }
+}
+
+/** Whether a room is in the break that follows a focus. */
+function onBreak(phase: string) {
+  return phase === "short" || phase === "long"
+}
+
+/**
+ * Everyone's answer to "Did you finish?" for the break the room is in now.
+ * Empty outside a break, so the ticks leave with the next focus.
+ */
+async function breakCheckIns(room: Pick<Room, "id" | "phase" | "sequence">, database: PomoderDb) {
+  const answers = new Map<string, RoomCheckIn>()
+  if (!onBreak(room.phase)) return answers
+  const rows = await database
+    .select({ userId: pomodoroRoomCheckIns.userId, finished: pomodoroRoomCheckIns.finished })
+    .from(pomodoroRoomCheckIns)
+    .where(and(eq(pomodoroRoomCheckIns.roomId, room.id), eq(pomodoroRoomCheckIns.breakSequence, room.sequence)))
+  for (const row of rows) answers.set(row.userId, row.finished ? "finished" : "not_yet")
+  return answers
 }
 
 /**
@@ -984,6 +1012,33 @@ export async function toggleRoomReaction(slug: string, reactorId: string, messag
     if (message.userId !== reactorId) await syncReactionNotice(tx, room, message, blocked, added)
     return { room, added }
   })
+}
+
+// Check-ins share the reactions' ceiling: a person changing their mind a few
+// times is fine, a script pressing it all break is not.
+const CHECK_IN_LIMIT = { maxAttempts: 20, windowSeconds: 60 }
+
+/**
+ * Records the caller's answer to "Did you finish?" for the break the room is
+ * in, or changes it. Only people in the room may answer, and only during the
+ * break after a focus; it never touches the person's tasks (Tyler, 7 Nov
+ * 2026: only mark the check-in).
+ */
+export async function answerRoomCheckIn(slug: string, userId: string, finished: boolean, database: PomoderDb = db, timestamp = new Date()) {
+  const [room] = await database.select().from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  await requireActiveMembership(room.id, userId, database)
+  await assertMayUseRooms(userId, database, timestamp)
+  if (!onBreak(room.phase)) throw new Error("ROOM_NOT_ON_BREAK")
+  await enforceRateLimit(`room-check-in:${room.id}:${userId}`, CHECK_IN_LIMIT, database)
+  await database
+    .insert(pomodoroRoomCheckIns)
+    .values({ roomId: room.id, userId, breakSequence: room.sequence, finished, updatedAt: timestamp })
+    .onConflictDoUpdate({
+      target: [pomodoroRoomCheckIns.roomId, pomodoroRoomCheckIns.userId, pomodoroRoomCheckIns.breakSequence],
+      set: { finished, updatedAt: timestamp },
+    })
+  return room
 }
 
 /**

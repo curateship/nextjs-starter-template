@@ -18,6 +18,11 @@ import {
 } from "@/lib/api/pomodoro/productivity"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { enableCompletionAlerts } from "@/lib/pomodoro/completion-alerts"
+import { useFloatingTimerSupported } from "@/components/pomodoro/floating-timer"
+import {
+  setFloatingTimerEnabled,
+  useFloatingTimerEnabled,
+} from "@/lib/pomodoro/floating-timer-setting"
 import { browserTimezone } from "@/lib/pomodoro/timer"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
@@ -52,6 +57,8 @@ const DEFAULT_ALERT_HELP =
  * preferences the dashboard reads on load.
  */
 export default function TimerSettingsPanel() {
+  const floatingSupported = useFloatingTimerSupported()
+  const floatingEnabled = useFloatingTimerEnabled()
   const player = useSoundPlayer()
   const { authenticated, known } = useProductAuth()
   const pomodoro = usePomodoro()
@@ -310,6 +317,27 @@ export default function TimerSettingsPanel() {
               {alertHelp}
             </span>
           </div>
+          {/* Only where the browser can float a window, the same rule the
+              header's button follows. Saves the moment it is flipped. */}
+          {floatingSupported ? (
+            <div className="grid gap-2">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="timer-floating-timer"
+                  checked={floatingEnabled}
+                  aria-describedby="floating-timer-help"
+                  onCheckedChange={setFloatingTimerEnabled}
+                />
+                <Label htmlFor="timer-floating-timer">Floating timer</Label>
+              </div>
+              <span
+                id="floating-timer-help"
+                className="text-xs text-muted-foreground"
+              >
+                A small timer window opens on top of your other apps when a focus starts.
+              </span>
+            </div>
+          ) : null}
           <CompletionChimeFields
             focusChime={player.state.focusChime}
             breakChime={player.state.breakChime}

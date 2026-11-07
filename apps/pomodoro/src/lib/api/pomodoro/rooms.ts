@@ -44,6 +44,7 @@ import {
   roomSnapshot,
   saveRoomMedia,
   toggleRoomReaction,
+  answerRoomCheckIn,
   type RoomHostAction,
 } from "@/server/pomodoro/rooms"
 import { REAL_START_DELAY_MS, startDueRoom } from "@/server/pomodoro/simulated-rooms"
@@ -151,6 +152,7 @@ const messageIdSchema = slugSchema.extend({ messageId: z.string().uuid() })
 const reactionSchema = messageIdSchema.extend({
   emoji: z.enum(ROOM_REACTION_EMOJIS),
 })
+const checkInSchema = slugSchema.extend({ finished: z.boolean() })
 const reportSchema = messageIdSchema.extend({
   reason: z.string().trim().min(3).max(300),
 })
@@ -585,6 +587,17 @@ const toggleReactionFn = createServerFn({ method: "POST" })
     return { added }
   })
 
+// "Did you finish?" after a room's focus. The tick reaches everyone through
+// the room's own snapshot, the same way a reaction does.
+const answerCheckInFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(checkInSchema)
+  .handler(async ({ data, context }) => {
+    const room = await answerRoomCheckIn(data.slug, context.user.id, data.finished)
+    await notifyRoom(room.id, "check-in")
+    return { finished: data.finished }
+  })
+
 // Reports never notify the room: they are private to the reporter and the
 // operators, so nothing changes in anyone else's snapshot.
 const reportMessageFn = createServerFn({ method: "POST" })
@@ -683,6 +696,8 @@ export const toggleReaction = (
       emoji: emoji as (typeof ROOM_REACTION_EMOJIS)[number],
     },
   })
+export const answerCheckIn = (slug: string, finished: boolean) =>
+  answerCheckInFn({ data: { slug, finished } })
 export const reportMessage = (
   slug: string,
   messageId: string,
