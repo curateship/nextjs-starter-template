@@ -18,13 +18,27 @@ pick one quietly.
 
 ## How to run it
 
-1. **Pick the target.** Tyler names the dashboard. Read its route, its screen
+1. **Pick the target.** Tyler names the dashboard. It is a screen already in
+   three panels. Never turn a table or a list page into three panels unless
+   he asks for exactly that (Tyler, 6 Nov 2026, after Travel's Trips table
+   was made into three panels: "I never said to do that. I said to fix the 3
+   panel dashboard"). In Travel, "the trips dashboard" is the trip page,
+   `/trips/<id>`. When the name could mean two screens, ask which one first. Read its route, its screen
    component, its left, middle and right panels, its settings menu or cog, and
    its docs in the app's `workspace/docs/`.
 2. **Map it.** Write a short table: each thing the dashboard has today, and the
    slot it takes below (left page, left footer card, middle toolbar ⋮, record
    ⋮ tab, a "/" block in the record's notes, My settings tab, and so on). Anything that fits no slot is
    listed as a question, never dropped.
+   - **Fix what's there; anything new is a "/" block** (Tyler, 6 Nov 2026,
+     on Travel: "fix whats already there and anything new
+     to add should just be blocks"). Never offer invented cards or panels as
+     options.
+   - **Find every mismatch yourself** across the app's screens on this
+     pattern: every settings ⋮, every Mass select, every header ("Dont make
+     me list them all. find them yoyurself"). Settings menus become the
+     tabbed ⋮ of grouped rows; menus of actions ("+ Add", a "More" ⋮) stay
+     the shell's `folding-menu.tsx`.
 3. **Ask.** One round of at most four questions through the option tool. Each
    question names the screen and offers a recommended first option with an
    ASCII preview. Typical questions:
@@ -174,7 +188,10 @@ Reference: `MyTasksPanel` in `apps/project/src/components/project/my-tasks-panel
   - the "N selected" slot while rows are ticked;
   - Filter, then Views;
   - the one primary **New …** button, which opens a dropdown;
-  - a **⋮** ("More for …", tooltip naming what it holds).
+  - a **⋮** ("More for …", tooltip naming what it holds), always the last
+    thing in the header, after the New button, never after the tabs
+    (Tyler, 6 Nov 2026, on Travel's trip page: "The 3 dots icon is supposed
+    to be here", pointing past "+ Add").
 - **The ⋮ holds Search and Mass select.** They are not buttons in the header.
   - Search opens its box in the header with the cursor in it. Open it from the
     menu's `onCloseAutoFocus`, after the menu has closed, because an open menu
@@ -240,7 +257,13 @@ and the parts built in `task-body.tsx`.
   - **General** is grouped lists (`PickGroup` and `PickRow` in
     `apps/project/src/components/project/pick-rows.tsx`, Tyler's drawing
     `assets/pasted-image-1793985847218883000.png`). A small muted heading, then
-    one bordered list (`divide-y overflow-hidden rounded-xl border`).
+    one bordered, light grey list (`divide-y overflow-hidden rounded-xl
+    border bg-muted/50`; Tyler, 6 Nov 2026: "make this bg light gray", and for
+    Project: "The project app settings white bg needs to be change to light
+    gray too"). Rows have no ground of their own and turn `bg-muted` while
+    pointed at or open. Every bordered list in a settings menu is the same
+    grey: the Notifications switches and a card's own lists too. An icon tile
+    inside a grey row is white (`bg-background`) so it still stands out.
     - **Each row** is `min-h-11 px-3`: the name on the left, muted; the value
       on the right; then a `ChevronRight`. An empty value is
       `text-muted-foreground/70` "None". A person's value carries their small
@@ -343,6 +366,27 @@ Reference: `TabbedMenu` and `MySettingsMenu` in
   - **Item forms** stack in a narrow box: the name on its own row, then two
     fields side by side. Never use `sm:` grid columns inside a dropdown,
     because they follow the screen, not the box.
+
+## The "/" list
+
+Reference: `NoteBlocksMenu` in
+`apps/project/src/components/project/notes/note-blocks-menu.tsx`, copied into
+Travel on 6 Nov 2026 (Tyler: "travel is missing some basic blocks. This is
+project blocks").
+
+- **Two groups,** a small grey heading each: Basic blocks, then Advanced
+  blocks under one line edge to edge.
+- **Basic blocks are the same in every app,** in this order: Image, Video,
+  Checklist, Callout, Divider, Fold section, Web page, Links. Copy any the
+  app is missing, with their save rules (`note-blocks.ts`), their views,
+  `note-folds.ts` and the editor styles for the tick list, the line and a
+  folded section. Checklist needs `@tiptap/extension-list` in the app.
+- **Advanced blocks** are the app's own live ones: Project's Task card,
+  File, Comments; Travel's Place and Map.
+- **Each row is the icon and the name alone,** with no line under it (Tyler,
+  6 Nov 2026: "remove the sub label").
+- **Right-click** in a note opens the same list at the pointer. On a block
+  itself, or with words selected, the browser's own menu stays.
 
 ## Words on screen
 

@@ -23,6 +23,13 @@ opens a list of them.
 
 - **Where it opens:** a "/" typed at the start of a line or after a space.
   A "/" inside a web address, like `https://kyoto.example/`, never opens it.
+- **Two groups,** as in Project's notes (Tyler, 6 Nov 2026: "travel is
+  missing some basic blocks. This is project blocks"). Basic blocks: Image,
+  Video, Checklist, Callout, Divider, Fold section, Web page and Links.
+  Advanced blocks: Place and Map, which point at a trip's cards. A saved
+  place's notes have no Place or Map.
+- **Each row** is the block's icon and name, with no line under it (Tyler,
+  6 Nov 2026: "remove the sub label").
 - **Narrowing it:** letters after the "/" keep only the blocks whose name
   starts with them, so "/ma" leaves Map.
 - **Keys:** the up and down arrows move through it, and Enter or Tab picks.
@@ -30,8 +37,28 @@ opens a list of them.
 - **The cursor stays in the note** the whole time. Clicking a row in the list
   doesn't take it out.
 - **With no signal** the note can't be written in, so there is no list.
+- **Right-click** in a note opens the same list at the pointer, and the block
+  picked goes where the click was (the Admin 3 panel design, 6 Nov 2026, as in
+  Project's notes). With words selected, or on a block itself, the browser's
+  own menu stays, for Copy. A click elsewhere or Esc closes it.
 
 ## The blocks
+
+Checklist, Callout, Divider, Fold section and Links came from Project's notes
+on 6 Nov 2026 and work as they do there:
+
+- **Checklist:** ticked lines; a ticked line is struck through. A tick is
+  only a tick.
+- **Callout:** a tinted box of words. Its icon changes it between Note,
+  Warning and Decision. Enter on an empty last line leaves the box.
+- **Divider:** a thin line across the note.
+- **Fold section:** a heading with an arrow that hides what's under it, up
+  to the next Fold section. Folding is yours alone, kept in this browser,
+  never saved in the note.
+- **Links:** labelled web addresses, one a line, each opening in a new tab,
+  up to 30. The cog adds and removes them.
+- **Web page** is the block that was called Link: a page as a small card
+  with its title, picture and site. It is still stored as `noteLink`.
 
 - **Image.** An empty Image block opens in the note with three ways in: an
   upload box (the shell's media library), the Unsplash button, and a "Web
@@ -114,7 +141,11 @@ opens a list of them.
 
 - **Words:** what a shell written page may: paragraphs, headings, lists,
   quotes, bold, italic, strikethrough and links. The shell's rule cleans these.
-- **Blocks:** only the five above, each with only its own few values. An
+- **Blocks:** only the ones above, each with only its own few values. A
+  Callout keeps its kind and only paragraphs and lists inside; a Checklist
+  line keeps whether it is ticked; a Fold section keeps its id and its
+  heading's words; Links keeps up to 30 `https://` addresses with up to 80
+  characters of words each; a Divider keeps nothing. An
   Image keeps its address (`https://` only), its description and its
   Unsplash credit. A Place keeps one card id. A Video keeps its plain link,
   rewritten from what was pasted, and the player's address is always built
@@ -138,7 +169,7 @@ own choice of address.
 - `src/components/travel/use-note-blocks.ts` and `note-blocks-menu.tsx`: the
   list, and the card window it opens.
 - `src/components/travel/note-block-nodes.ts` and `note-block-views.tsx`: the
-  five blocks.
+  blocks; `note-folds.ts`: which Fold sections this reader has folded.
 - `src/server/travel/link-preview.ts`: reading a Link block's page, behind
   `src/lib/api/travel/link-preview.ts`.
 - `src/components/travel/note-card-picker.tsx`: the card window for Place and

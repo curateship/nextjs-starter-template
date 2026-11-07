@@ -33,3 +33,6 @@ export const hiddenIdeasKey = (tripId: string) => `travel-hidden-ideas-${tripId}
 
 /** The Money card's By day or By type (More Travel features part 13). */
 export const MONEY_VIEW_KEY = "travel-money-view"
+
+/** The days folded shut on a trip's List tab, apart from the board's folded columns. */
+export const listFoldsKey = (tripId: string) => `travel-list-folds-${tripId}`

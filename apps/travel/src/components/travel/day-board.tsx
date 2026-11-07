@@ -68,6 +68,7 @@ export function DayBoard({
   selecting,
   selected,
   onToggleSelected,
+  onMassSelect,
   layout,
   showGaps,
   between,
@@ -85,6 +86,8 @@ export function DayBoard({
   selecting: boolean
   selected: ReadonlySet<string>
   onToggleSelected: (id: string) => void
+  /** Mass select on or off from a card's right-click, that card ticked as it comes on. */
+  onMassSelect?: (tickId?: string) => void
   /** Folded days and the hidden Ideas column, shared with the header's buttons. */
   layout: BoardLayout
   /** Off while a filter hides cards, since the time between two shown cards isn't free (task part 17). */
@@ -427,6 +430,7 @@ export function DayBoard({
           days={trip.days}
           startDate={trip.startDate}
           actions={actions}
+          massSelect={onMassSelect ? { on: selecting, onToggle: () => onMassSelect(menuActivity.id) } : undefined}
           onOpen={() => openActivity(menuActivity.id)}
           onClose={() => setMenu(null)}
         />

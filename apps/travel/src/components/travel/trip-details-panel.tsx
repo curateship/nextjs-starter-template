@@ -10,13 +10,16 @@ import { SavingDocument } from "@/components/travel/saving-document"
 import { PhotoCreditLine } from "@/components/travel/unsplash-picker"
 import { BlendedBanner, HeaderButton } from "@/components/travel/panel-bits"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { PanelFooter } from "@/components/travel/panel-footer"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { PANEL_BODY_ABOVE_FOOTER, PANEL_GUTTER } from "@/lib/travel/panel-gutter"
 import { cn } from "@/lib/utils"
 
 /**
  * The trip's left panel. Under the header is the trip's description, written
  * in place in the shell's editor (task "Misc": "I want to also inline edit
- * discription with tiptap editor"), then the Money card. The note icon beside
+ * discription with tiptap editor"). The Money card is a folding card in the
+ * panel's footer (the Admin 3 panel design, 6 Nov 2026). The note icon beside
  * the ⋮ shows the trip's notes in their place and turns into an × that
  * closes them; the ⋮ opens the trip's menu of settings and Delete trip.
  */
@@ -59,12 +62,18 @@ export function TripDetailsPanel() {
       {notesOpen ? (
         <TripNotes key={noteRequest?.at ?? "notes"} startOpen={noteRequest?.noteId ?? null} />
       ) : (
-        <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-            <TripDescription />
+        <>
+          {/* The body and the footer share the panel's height: the footer takes what Money needs, and the
+              description grows into the rest, keeping at least 6rem (the Admin 3 panel design). */}
+          <ScrollArea className={cn("relative min-h-0", PANEL_BODY_ABOVE_FOOTER)} viewportClassName="h-full">
+            <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
+              <TripDescription />
+            </div>
+          </ScrollArea>
+          <PanelFooter>
             <BudgetCard />
-          </div>
-        </ScrollArea>
+          </PanelFooter>
+        </>
       )}
     </div>
   )

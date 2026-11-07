@@ -841,8 +841,9 @@ Neither puts a window over the page.
   - **General** (it was Details: "details should be renamed to "General""),
     drawn from Tyler's picture of 6 Nov 2026
     (`assets/pasted-image-1793985847218883000.png`): small muted headings
-    over bordered lists, each row its name on the left and its value on the
-    right with an arrow, with no folds ("All these settings dont need to be in
+    over light grey bordered lists (Tyler, 6 Nov 2026: "The project app
+    settings white bg needs to be change to light gray too"), each row its
+    name on the left and its value on the right with an arrow, with no folds ("All these settings dont need to be in
     toggles"). An empty value is grey, "None". **One press picks** (Tyler, 6
     Nov 2026: "It doesnt need 2 steps to select"): a row with choices opens
     its list straight away, current one ticked, and a row with a day opens the

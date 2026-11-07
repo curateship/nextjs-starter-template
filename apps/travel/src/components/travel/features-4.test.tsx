@@ -209,17 +209,18 @@ describe("rain at the card's hour (part 3)", () => {
   })
 })
 
-describe("the Link block (part 5)", () => {
+describe("the Web page block, once Link (part 5)", () => {
   it("reads a pasted address into a small card that opens the page in a new tab", async () => {
     const saved: string[] = []
     act(() => root.render(withTrip(tripPage(), <SavingDocument value="" onSave={async (json) => saved.push(json)} />)))
     const editor = await noteEditor()
     act(() => {
-      editor.chain().focus().insertContent("/li").run()
+      // The Link block is named Web page since 6 Nov 2026, as Project's is.
+      editor.chain().focus().insertContent("/web").run()
     })
     await settle()
     expect(options()).toHaveLength(1)
-    expect(options()[0]).toContain("Link")
+    expect(options()[0]).toContain("Web page")
     key(editor, "Enter")
     await settle()
     const input = document.body.querySelector<HTMLInputElement>('input[placeholder="example.com"]')

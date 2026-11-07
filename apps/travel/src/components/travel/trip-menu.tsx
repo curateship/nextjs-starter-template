@@ -2,20 +2,19 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { StarIcon, Trash2Icon } from "lucide-react"
 
-import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
 import { RateTripDialog } from "@/components/travel/rate-trip-dialog"
 import { useTripBin } from "@/components/travel/use-trip-bin"
 import { SavingInput } from "@/components/travel/saving-fields"
-import { TimeZoneSelect } from "@/components/travel/time-zone-select"
+import { useZoneRows, ZoneChoices } from "@/components/travel/time-zone-select"
 import { useSaveTrip } from "@/components/travel/trip-budget-card"
 import { useTrip } from "@/components/travel/trip-context"
 import { PhotoCreditLine, UnsplashPicker } from "@/components/travel/unsplash-picker"
+import { PickChoicesRow, PickDayRow, PickGroup, PickMenuRow, PickRow } from "@/components/travel/pick-rows"
+import { TabbedMenu } from "@/components/travel/tabbed-menu"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
-import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { formatLongDate, isoToLocalDate, localDateToIso } from "@/lib/travel/dates"
+import { formatLongDate } from "@/lib/travel/dates"
 import {
   CURRENCIES,
   TRAVEL_MODES,
@@ -30,22 +29,22 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const WHERE_I_AM = ""
-
-type Section = "name" | "destination" | "tags" | "status" | "start" | "zone" | "currency" | "mode" | "cover"
+const PINNED_ZONES = [{ value: WHERE_I_AM, label: "Where I am" }]
+const ROW = "w-full justify-start font-normal"
 
 /**
- * The trip's ⋮ menu, at the top of its left panel, where the cog and its
- * Trip settings window were (Tyler, 3 Nov 2026: "change this to 3 vertical
- * dot and isntead of modal, make it into a dropdown and using the same ui and
- * spacing as the previous dropdown"). It is Travel's one ⋮ menu, the same
- * as an activity's: a folding row per setting, each saving itself, then a
- * line and Delete trip in red. The description isn't in it: it is written in
- * place right under the panel's header. The number of days changes on the
- * board, a day at a time (task part 10).
+ * The trip's ⋮ menu, Trip settings, at the top of its left panel. Since 6 Nov 2026 it is the tabbed ⋮ of the
+ * Admin 3 panel design (Tyler: "Look at the serttings dropdown, its not ui
+ * standard for example. fix them all"), as Project's project ⋮ is: General
+ * is grouped rows (Trip, Dates, Details), each picking in one press where
+ * there is a choice and opening a small box for a typed value, then Rate the
+ * trip and Delete trip in red under a line. It was a folding menu before, and
+ * a cog with a window before that (Tyler, 3 Nov 2026).
  *
- * A row's own name is its field's label, so the field inside carries no
- * second one on screen; screen readers still read it (Tyler, 4 Nov 2026:
- * "Remove all these duplicate labels").
+ * The description isn't in it: it is written in place under the panel's
+ * header. The number of days changes on the board, a day at a time. Every
+ * field saves itself, so the one being typed in is left before the menu
+ * shuts.
  */
 export function TripMenu() {
   const { page } = useTrip()
@@ -55,8 +54,8 @@ export function TripMenu() {
   const [open, setOpen] = React.useState(false)
   // Rate the trip (Travel features 3, part 11), opened from this menu only.
   const [rating, setRating] = React.useState(false)
-  const [shown, toggle] = useOpenSections<Section>()
   const { binTrips, busy: deleting } = useTripBin()
+  const zones = useZoneRows(trip.timeZone ?? WHERE_I_AM, PINNED_ZONES)
 
   // Into the Trips table's bin with Undo, so it doesn't ask first (Travel features part 8).
   async function deleteTrip() {
@@ -64,18 +63,19 @@ export function TripMenu() {
     if (await binTrips([trip])) await navigate({ to: "/trips" })
   }
 
-  const row = (section: Section) => ({ open: shown.has(section), onToggle: () => toggle(section) })
-
-  return (
-    <>
-      <FoldingMenu label="Trip settings" align="start" open={open} onOpenChange={setOpen}>
-        <MenuSection label="Name" value={trip.name} {...row("name")}>
-          <div className="grid gap-2">
-            <Label htmlFor="trip-name" className="sr-only">Name</Label>
+  const general = (
+    <div className="grid">
+      <div className="grid gap-5 px-4 py-3">
+        <PickGroup title="Trip">
+          <PickRow label="Name" value={trip.name}>
+            <Label htmlFor="trip-name" className="sr-only">
+              Name
+            </Label>
             <SavingInput
               id="trip-name"
               value={trip.name}
               maxLength={TRIP_NAME_MAX}
+              autoFocus
               onSave={(name) => {
                 if (!name.trim()) {
                   showErrorToast("Give the trip a name.")
@@ -84,21 +84,20 @@ export function TripMenu() {
                 return save({ name })
               }}
             />
-          </div>
-        </MenuSection>
-        <MenuSection label="Destination" value={trip.destination || "Not set"} {...row("destination")}>
-          <div className="grid gap-2">
-            <Label htmlFor="trip-destination" className="sr-only">Destination</Label>
+          </PickRow>
+          <PickRow label="Destination" empty={!trip.destination} value={trip.destination || "None"}>
+            <Label htmlFor="trip-destination" className="sr-only">
+              Destination
+            </Label>
             <SavingInput
               id="trip-destination"
               value={trip.destination ?? ""}
               maxLength={120}
+              autoFocus
               onSave={(destination) => save({ destination: destination.trim() || null })}
             />
-          </div>
-        </MenuSection>
-        <MenuSection label="Tags" value={trip.tags.join(", ") || "None"} {...row("tags")}>
-          <div className="grid gap-2">
+          </PickRow>
+          <PickRow label="Tags" empty={trip.tags.length === 0} value={trip.tags.join(", ") || "None"}>
             <Label htmlFor="trip-tags" className="sr-only">
               Tags
             </Label>
@@ -106,102 +105,16 @@ export function TripMenu() {
               id="trip-tags"
               value={trip.tags.join(", ")}
               maxLength={340}
+              autoFocus
               placeholder="Family, Beach (a comma between)"
               onSave={(text) => save({ tags: readTags(text) })}
             />
-          </div>
-        </MenuSection>
-        <MenuSection label="Status" value={TRIP_STATUS_LABEL[trip.status]} {...row("status")}>
-          <div className="grid gap-2">
-            <Label htmlFor="trip-status" className="sr-only">Status</Label>
-            <Select value={trip.status} onValueChange={(value) => void save({ status: value as TripStatus })}>
-              <SelectTrigger id="trip-status" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TRIP_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {TRIP_STATUS_LABEL[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </MenuSection>
-        <MenuSection
-          label="Start date"
-          value={trip.startDate ? formatLongDate(trip.startDate) : "No dates yet"}
-          {...row("start")}
-        >
-          <div className="grid gap-2">
-            <Label htmlFor="trip-start" className="sr-only">Start date</Label>
-            <div className="flex gap-2">
-              <DatePicker
-                id="trip-start"
-                className="w-auto min-w-0 flex-1"
-                value={isoToLocalDate(trip.startDate)}
-                placeholder="No dates yet"
-                onChange={(date) => void save({ startDate: localDateToIso(date) })}
-              />
-              {trip.startDate ? (
-                <Button type="button" variant="outline" onClick={() => void save({ startDate: null })}>
-                  Clear
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </MenuSection>
-        <MenuSection label="Time zone" value={trip.timeZone ?? "Where I am"} {...row("zone")}>
-          <div className="grid gap-2">
-            <Label htmlFor="trip-time-zone" className="sr-only">Time zone</Label>
-            <TimeZoneSelect
-              id="trip-time-zone"
-              value={trip.timeZone ?? WHERE_I_AM}
-              pinned={[{ value: WHERE_I_AM, label: "Where I am" }]}
-              onChange={(value) => void save({ timeZone: value || null })}
-            />
-          </div>
-        </MenuSection>
-        <MenuSection label="Currency" value={trip.currency} {...row("currency")}>
-          <div className="grid gap-2">
-            <Label htmlFor="trip-currency" className="sr-only">Currency</Label>
-            <Select value={trip.currency} onValueChange={(value) => void save({ currency: value as Currency })}>
-              <SelectTrigger id="trip-currency" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CURRENCIES.map((code) => (
-                  <SelectItem key={code} value={code}>
-                    {code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </MenuSection>
-        <MenuSection label="Getting around" value={TRAVEL_MODE_LABEL[trip.travelMode]} {...row("mode")}>
-          <div className="grid gap-2">
-            <Label htmlFor="trip-travel-mode" className="sr-only">Getting around</Label>
-            <Select value={trip.travelMode} onValueChange={(value) => void save({ travelMode: value as TravelMode })}>
-              <SelectTrigger id="trip-travel-mode" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TRAVEL_MODES.map((mode) => (
-                  <SelectItem key={mode} value={mode}>
-                    {TRAVEL_MODE_LABEL[mode]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </MenuSection>
-        <MenuSection
-          label="Cover photo"
-          value={trip.coverUrl ? (trip.coverCredit ? "Unsplash" : "Uploaded") : "None"}
-          {...row("cover")}
-        >
-          <div className="grid gap-2">
+          </PickRow>
+          <PickRow
+            label="Cover photo"
+            empty={!trip.coverUrl}
+            value={trip.coverUrl ? (trip.coverCredit ? "Unsplash" : "Uploaded") : "None"}
+          >
             <ImageUpload
               label="Cover photo"
               showLabel={false}
@@ -218,27 +131,94 @@ export function TripMenu() {
                 onPick={(photo) => void save({ coverUrl: photo.url, coverCredit: photo.credit })}
               />
             </div>
-          </div>
-        </MenuSection>
-        <MenuLine />
-        <MenuAction
-          icon={<StarIcon className="size-4" />}
+          </PickRow>
+        </PickGroup>
+        <PickGroup title="Dates">
+          <PickDayRow
+            label="Start date"
+            empty={!trip.startDate}
+            value={trip.startDate ? formatLongDate(trip.startDate) : "No dates yet"}
+            day={trip.startDate}
+            clearLabel="No dates yet"
+            onPick={(startDate) => void save({ startDate })}
+          />
+          <PickChoicesRow label="Time zone" value={trip.timeZone?.replaceAll("_", " ") ?? "Where I am"} contentClassName="w-72">
+            {(close) => (
+              <ZoneChoices
+                rows={zones}
+                value={trip.timeZone ?? WHERE_I_AM}
+                onPick={(next) => {
+                  close()
+                  if (next !== (trip.timeZone ?? WHERE_I_AM)) void save({ timeZone: next || null })
+                }}
+              />
+            )}
+          </PickChoicesRow>
+        </PickGroup>
+        <PickGroup title="Details">
+          <PickMenuRow
+            label="Status"
+            value={TRIP_STATUS_LABEL[trip.status]}
+            selected={trip.status}
+            options={TRIP_STATUSES.map((status) => ({ value: status, label: TRIP_STATUS_LABEL[status] }))}
+            onPick={(status) => void save({ status: status as TripStatus })}
+          />
+          <PickMenuRow
+            label="Currency"
+            value={trip.currency}
+            selected={trip.currency}
+            options={CURRENCIES.map((code) => ({ value: code, label: code }))}
+            onPick={(currency) => void save({ currency: currency as Currency })}
+          />
+          <PickMenuRow
+            label="Getting around"
+            value={TRAVEL_MODE_LABEL[trip.travelMode]}
+            selected={trip.travelMode}
+            options={TRAVEL_MODES.map((mode) => ({ value: mode, label: TRAVEL_MODE_LABEL[mode] }))}
+            onPick={(mode) => void save({ travelMode: mode as TravelMode })}
+          />
+        </PickGroup>
+      </div>
+      {/* Under the groups, the actions as ghost rows, then Delete in red under a line of its own. */}
+      <div className="grid gap-1 px-2 pb-2">
+        <Button
+          type="button"
+          variant="ghost"
+          className={ROW}
           onClick={() => {
             setOpen(false)
             setRating(true)
           }}
         >
+          <StarIcon className="size-4" />
           Rate the trip
-        </MenuAction>
-        <MenuAction
-          icon={<Trash2Icon className="size-4" />}
-          destructive
+        </Button>
+      </div>
+      <div className="grid border-t p-2">
+        <Button
+          type="button"
+          variant="ghost"
+          className={`${ROW} text-destructive hover:text-destructive`}
           disabled={deleting}
           onClick={() => void deleteTrip()}
         >
+          <Trash2Icon className="size-4" />
           Delete trip
-        </MenuAction>
-      </FoldingMenu>
+        </Button>
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      <TabbedMenu
+        label="Trip settings"
+        align="start"
+        width="20.4rem"
+        open={open}
+        onOpenChange={setOpen}
+        tabs={[{ value: "general", label: "General", content: general }]}
+      />
       <RateTripDialog open={rating} onClose={() => setRating(false)} />
     </>
   )

@@ -6,16 +6,16 @@ import { ActivityPictureFields } from "@/components/travel/activity-picture-fiel
 import { ActivityPlaceFields } from "@/components/travel/activity-place-fields"
 import { CardRainLine, DayOutlook } from "@/components/travel/day-weather"
 import { useBoardActions } from "@/components/travel/board-actions"
-import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
 import { dayLabel } from "@/components/travel/new-activity"
 import { SavingInput } from "@/components/travel/saving-fields"
 import { typeOf, useTrip } from "@/components/travel/trip-context"
-import { ActivityTypeSelect } from "@/components/travel/type-icon"
+import { ActivityTypeIcon } from "@/components/travel/type-icon"
+import { PickGroup, PickMenuRow, PickRow } from "@/components/travel/pick-rows"
+import { TabbedMenu } from "@/components/travel/tabbed-menu"
 import { useSaveActivity } from "@/components/travel/use-save-activity"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { addTips } from "@/lib/api/travel/place-tips"
 import type { Activity } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -28,22 +28,27 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 
 const IDEAS = "ideas"
 const NO_PART = "any"
-
-type Section = "name" | "when" | "weather" | "place" | "cost" | "picture" | "rating"
+const NO_TYPE = "none"
+const ROW = "w-full justify-start font-normal"
 
 /**
- * The open activity's ⋮ menu (Tyler, 2 Nov 2026: "All of these are
- * collapsible cards in a 3 dot dropdown ... and move delete there too"):
- * one folding row per part of the activity, each with what it holds now on
- * the right. Every field saves itself. Duplicate and Delete activity end it.
- * Its look is Travel's one ⋮ menu, `FoldingMenu`, shared with the trip's.
+ * The open activity's ⋮ menu. Since 6 Nov 2026 it is the tabbed ⋮ of the
+ * Admin 3 panel design, as the task ⋮ in Project is (Tyler: "Look at the
+ * serttings dropdown, its not ui standard for example. fix them all"):
+ * General is grouped rows (Activity, When, Place, Money and picture, How was
+ * it). A row with choices picks in one press; a typed value or a whole card
+ * opens a small box. The day's weather and holiday sit under When. Then Add
+ * tips and Duplicate activity, and Delete activity in red under a line.
+ * Before, it was one folding row per part (Tyler, 2 Nov 2026: "All of these
+ * are collapsible cards in a 3 dot dropdown ... and move delete there too").
+ * Every field saves itself.
  */
 export function ActivityMenu({ activity, onNotesChanged }: { activity: Activity; onNotesChanged: () => void }) {
   const { page, typesById, refresh, weather } = useTrip()
   const { trip } = page
   const [open, setOpen] = React.useState(false)
-  const [shown, toggle] = useOpenSections<Section>()
   const actions = useBoardActions()
+  const [save] = useSaveActivity(activity.id)
   const type = typeOf(activity, typesById)
   const [runTips, writingTips] = useAsyncAction(getTravelErrorMessage)
 
@@ -62,207 +67,217 @@ export function ActivityMenu({ activity, onNotesChanged }: { activity: Activity;
 
   // The day's weather and holiday live here, not on the day's heading (Tyler, 4 Nov 2026).
   const outlook = activity.day === null ? null : outlookSummary(weather, activity.day)
-  const when =
-    activity.day === null
-      ? "Ideas"
-      : [
-          `Day ${activity.day}`,
-          activity.startTime ? formatTime(activity.startTime) : activity.dayPart ? DAY_PART_LABEL[activity.dayPart] : null,
-        ]
+  const time = activity.startTime ? formatTime(activity.startTime) : null
+  const length =
+    activity.durationMinutes === null
+      ? null
+      : [Math.floor(activity.durationMinutes / 60) ? `${Math.floor(activity.durationMinutes / 60)}h` : null, activity.durationMinutes % 60 ? `${activity.durationMinutes % 60}m` : null]
           .filter(Boolean)
-          .join(" · ")
+          .join(" ")
+  const timeLine = [time, length].filter(Boolean).join(" · ")
 
-  return (
-    <FoldingMenu label="More for this activity" busy={actions.busy} open={open} onOpenChange={setOpen}>
-      <MenuSection
-        label="Name and type"
-        value={[type?.name ?? "No type", activity.mustDo ? "Must do" : null].filter(Boolean).join(" · ")}
-        open={shown.has("name")}
-        onToggle={() => toggle("name")}
-      >
-        <NameFields activity={activity} />
-      </MenuSection>
-      <MenuSection label="When" value={when} open={shown.has("when")} onToggle={() => toggle("when")}>
-        <WhenFields activity={activity} />
-      </MenuSection>
-      {outlook && activity.day !== null ? (
-        <MenuSection label="Weather" value={outlook} open={shown.has("weather")} onToggle={() => toggle("weather")}>
-          <div className="grid gap-1.5">
-            <DayOutlook weather={weather} day={activity.day} />
-            <CardRainLine card={activity} forecast={weather.forecast} />
-          </div>
-        </MenuSection>
-      ) : null}
-      <MenuSection
-        label="Place"
-        value={activity.place?.name || activity.place?.address || "Not set"}
-        open={shown.has("place")}
-        onToggle={() => toggle("place")}
-      >
-        <ActivityPlaceFields activity={activity} />
-      </MenuSection>
-      <MenuSection
-        label="Cost"
-        value={activity.costCents === null ? "None" : formatMoney(activity.costCents, trip.currency)}
-        open={shown.has("cost")}
-        onToggle={() => toggle("cost")}
-      >
-        <CostField activity={activity} />
-      </MenuSection>
-      <MenuSection
-        label="Picture"
-        value={activity.photoUrl ? (activity.photoCredit ? "Unsplash" : "Uploaded") : "None"}
-        open={shown.has("picture")}
-        onToggle={() => toggle("picture")}
-      >
-        <ActivityPictureFields activity={activity} />
-      </MenuSection>
-      {canRate(activity, trip) ? (
-        <MenuSection
-          label="How was it"
-          value={activity.rating ? `${activity.rating} of 5` : "Not rated"}
-          open={shown.has("rating")}
-          onToggle={() => toggle("rating")}
+  const general = (
+    <div className="grid">
+      <div className="grid gap-5 px-4 py-3">
+        <PickGroup title="Activity">
+          <PickRow label="Name" value={activity.title}>
+            <Label htmlFor={`activity-${activity.id}-title`} className="sr-only">
+              Name
+            </Label>
+            <SavingInput
+              id={`activity-${activity.id}-title`}
+              value={activity.title}
+              maxLength={200}
+              autoFocus
+              onSave={(title) => save({ title })}
+            />
+          </PickRow>
+          <PickMenuRow
+            label="Type"
+            empty={!type}
+            value={
+              type ? (
+                <>
+                  <ActivityTypeIcon type={type} />
+                  {type.name}
+                </>
+              ) : (
+                "None"
+              )
+            }
+            selected={activity.typeId ?? NO_TYPE}
+            options={[
+              { value: NO_TYPE, label: <span className="text-muted-foreground">No type</span> },
+              ...page.types.map((item) => ({
+                value: item.id,
+                label: (
+                  <>
+                    <ActivityTypeIcon type={item} />
+                    {item.name}
+                  </>
+                ),
+              })),
+            ]}
+            onPick={(typeId) => void save({ typeId: typeId === NO_TYPE ? null : typeId })}
+          />
+          {/* More Travel features part 4: AI plans around it, Filter can show only these, and it warns when left in Ideas. */}
+          <PickMenuRow
+            label="Must do"
+            value={activity.mustDo ? "Yes" : "No"}
+            empty={!activity.mustDo}
+            selected={activity.mustDo ? "yes" : "no"}
+            options={[
+              { value: "yes", label: "Yes" },
+              { value: "no", label: "No" },
+            ]}
+            onPick={(value) => void save({ mustDo: value === "yes" })}
+          />
+        </PickGroup>
+        <PickGroup
+          title="When"
+          after={
+            outlook && activity.day !== null ? (
+              <div className="grid gap-1.5 px-0.5 text-sm">
+                <DayOutlook weather={weather} day={activity.day} />
+                <CardRainLine card={activity} forecast={weather.forecast} />
+              </div>
+            ) : null
+          }
         >
-          <ActivityRatingFields activity={activity} />
-        </MenuSection>
-      ) : null}
-      <MenuLine />
-      <MenuAction
-        icon={writingTips ? <Loader2Icon className="size-4 animate-spin" /> : <SparklesIcon className="size-4" />}
-        disabled={writingTips}
-        onClick={() => void tips()}
-      >
-        {writingTips ? "Writing tips…" : "Add tips"}
-      </MenuAction>
-      <MenuAction
-        icon={<CopyIcon className="size-4" />}
-        disabled={actions.busy}
-        onClick={() => {
-          setOpen(false)
-          void actions.duplicate(activity)
-        }}
-      >
-        Duplicate activity
-      </MenuAction>
-      <MenuAction
-        icon={<Trash2Icon className="size-4" />}
-        destructive
-        disabled={actions.busy}
-        onClick={() => {
-          setOpen(false)
-          void actions.remove([activity.id])
-        }}
-      >
-        Delete activity
-      </MenuAction>
-    </FoldingMenu>
-  )
-}
-
-function NameFields({ activity }: { activity: Activity }) {
-  const { page } = useTrip()
-  const [save] = useSaveActivity(activity.id)
-  const idBase = `activity-${activity.id}`
-  return (
-    <div className="grid gap-3">
-      <div className="grid gap-2">
-        <Label htmlFor={`${idBase}-title`}>Name</Label>
-        <SavingInput id={`${idBase}-title`} value={activity.title} maxLength={200} onSave={(title) => save({ title })} />
+          <PickMenuRow
+            label="Day"
+            value={activity.day === null ? "Ideas" : dayLabel(activity.day, trip.startDate)}
+            selected={activity.day === null ? IDEAS : String(activity.day)}
+            options={[
+              { value: IDEAS, label: "Ideas" },
+              ...Array.from({ length: trip.days }, (_, index) => ({
+                value: String(index + 1),
+                label: dayLabel(index + 1, trip.startDate),
+              })),
+            ]}
+            // Moving to another day can be undone.
+            onPick={(value) => void actions.moveTo(activity, value === IDEAS ? null : Number(value))}
+          />
+          <PickRow label="Time" empty={!timeLine} value={timeLine || "None"}>
+            <TimeFields activity={activity} save={save} />
+            {type?.builtin === "hotel" || activity.nights ? <NightsField activity={activity} /> : null}
+          </PickRow>
+          {activity.day !== null && !activity.startTime ? (
+            // A rough time for a card with no start time; the day sorts by it (Travel features part 2).
+            <PickMenuRow
+              label="Part of day"
+              empty={!activity.dayPart}
+              value={activity.dayPart ? DAY_PART_LABEL[activity.dayPart] : "Any time"}
+              selected={activity.dayPart ?? NO_PART}
+              options={[{ value: NO_PART, label: "Any time" }, ...DAY_PARTS.map((part) => ({ value: part, label: DAY_PART_LABEL[part] }))]}
+              onPick={(value) => void save({ dayPart: value === NO_PART ? null : (value as DayPart) })}
+            />
+          ) : null}
+        </PickGroup>
+        <PickGroup title="Place">
+          <PickRow
+            label="Place"
+            empty={!activity.place?.name && !activity.place?.address}
+            value={activity.place?.name || activity.place?.address || "None"}
+          >
+            <ActivityPlaceFields activity={activity} />
+          </PickRow>
+        </PickGroup>
+        <PickGroup title="Money and picture">
+          <PickRow
+            label="Cost"
+            empty={activity.costCents === null}
+            value={activity.costCents === null ? "None" : formatMoney(activity.costCents, trip.currency)}
+          >
+            <CostField activity={activity} />
+          </PickRow>
+          <PickRow
+            label="Picture"
+            empty={!activity.photoUrl}
+            value={activity.photoUrl ? (activity.photoCredit ? "Unsplash" : "Uploaded") : "None"}
+          >
+            <ActivityPictureFields activity={activity} />
+          </PickRow>
+        </PickGroup>
+        {canRate(activity, trip) ? (
+          <PickGroup title="How was it">
+            <PickRow label="Rating" empty={!activity.rating} value={activity.rating ? `${activity.rating} of 5` : "Not rated"}>
+              <ActivityRatingFields activity={activity} />
+            </PickRow>
+          </PickGroup>
+        ) : null}
       </div>
-      <div className="grid gap-2">
-        <Label htmlFor={`${idBase}-type`}>Type</Label>
-        <ActivityTypeSelect
-          id={`${idBase}-type`}
-          types={page.types}
-          value={activity.typeId}
-          onChange={(typeId) => void save({ typeId })}
-        />
+      {/* Under the groups, the actions as ghost rows, then Delete in red under a line of its own. */}
+      <div className="grid gap-1 px-2 pb-2">
+        <Button type="button" variant="ghost" className={ROW} disabled={writingTips} onClick={() => void tips()}>
+          {writingTips ? <Loader2Icon className="size-4 animate-spin" /> : <SparklesIcon className="size-4" />}
+          {writingTips ? "Writing tips…" : "Add tips"}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className={ROW}
+          disabled={actions.busy}
+          onClick={() => {
+            setOpen(false)
+            void actions.duplicate(activity)
+          }}
+        >
+          <CopyIcon className="size-4" />
+          Duplicate activity
+        </Button>
       </div>
-      {/* More Travel features part 4: AI plans around it, Filter can show only these, and it warns when left in Ideas. */}
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id={`${idBase}-must-do`}
-          checked={activity.mustDo}
-          onCheckedChange={(checked) => void save({ mustDo: checked === true })}
-        />
-        <Label htmlFor={`${idBase}-must-do`}>Must do</Label>
+      <div className="grid border-t p-2">
+        <Button
+          type="button"
+          variant="ghost"
+          className={`${ROW} text-destructive hover:text-destructive`}
+          disabled={actions.busy}
+          onClick={() => {
+            setOpen(false)
+            void actions.remove([activity.id])
+          }}
+        >
+          <Trash2Icon className="size-4" />
+          Delete activity
+        </Button>
       </div>
     </div>
   )
+
+  return (
+    <TabbedMenu
+      label="More for this activity"
+      align="end"
+      width="20.4rem"
+      open={open}
+      onOpenChange={setOpen}
+      tabs={[{ value: "general", label: "General", content: general }]}
+    />
+  )
 }
 
-/** The day, start time, length and, for a stay, its nights. Moving to another day can be undone. */
-function WhenFields({ activity }: { activity: Activity }) {
-  const { page, typesById } = useTrip()
-  const { trip } = page
+/** Nights, for a stay (task part 9), under its time. */
+function NightsField({ activity }: { activity: Activity }) {
   const [save] = useSaveActivity(activity.id)
-  const actions = useBoardActions()
-  const idBase = `activity-${activity.id}`
-  const type = typeOf(activity, typesById)
+  const id = `activity-${activity.id}-nights`
   return (
-    <div className="grid gap-3">
-      <div className="grid gap-2">
-        <Label htmlFor={`${idBase}-day`}>Day</Label>
-        <Select
-          value={activity.day === null ? IDEAS : String(activity.day)}
-          onValueChange={(value) => void actions.moveTo(activity, value === IDEAS ? null : Number(value))}
-        >
-          <SelectTrigger id={`${idBase}-day`} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={IDEAS}>Ideas</SelectItem>
-            {Array.from({ length: trip.days }, (_, index) => (
-              <SelectItem key={index} value={String(index + 1)}>
-                {dayLabel(index + 1, trip.startDate)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <TimeFields activity={activity} save={save} />
-      {activity.day !== null && !activity.startTime ? (
-        // A rough time for a card with no start time; the day sorts by it (Travel features part 2).
-        <div className="grid gap-2">
-          <Label htmlFor={`${idBase}-part`}>Part of the day</Label>
-          <Select
-            value={activity.dayPart ?? NO_PART}
-            onValueChange={(value) => void save({ dayPart: value === NO_PART ? null : (value as DayPart) })}
-          >
-            <SelectTrigger id={`${idBase}-part`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_PART}>Any time</SelectItem>
-              {DAY_PARTS.map((part) => (
-                <SelectItem key={part} value={part}>
-                  {DAY_PART_LABEL[part]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
-      {type?.builtin === "hotel" || activity.nights ? (
-        <div className="grid gap-2">
-          <Label htmlFor={`${idBase}-nights`}>Nights</Label>
-          <SavingInput
-            id={`${idBase}-nights`}
-            inputMode="numeric"
-            className="w-20"
-            value={activity.nights === null ? "" : String(activity.nights)}
-            onSave={(next) => {
-              const nights = next.trim() === "" ? null : Number(next)
-              if (nights !== null && (!Number.isInteger(nights) || nights < 1 || nights > 60)) {
-                showErrorToast("Nights is a whole number from 1 to 60.")
-                return Promise.resolve(false)
-              }
-              return save({ nights })
-            }}
-          />
-        </div>
-      ) : null}
+    <div className="grid gap-2">
+      <Label htmlFor={id}>Nights</Label>
+      <SavingInput
+        id={id}
+        inputMode="numeric"
+        className="w-20"
+        value={activity.nights === null ? "" : String(activity.nights)}
+        onSave={(next) => {
+          const nights = next.trim() === "" ? null : Number(next)
+          if (nights !== null && (!Number.isInteger(nights) || nights < 1 || nights > 60)) {
+            showErrorToast("Nights is a whole number from 1 to 60.")
+            return Promise.resolve(false)
+          }
+          return save({ nights })
+        }}
+      />
     </div>
   )
 }

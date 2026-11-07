@@ -16,6 +16,11 @@ They outrank the code.
 - **Pricing:** free for now.
 - **Sample trip:** Tokyo, 5 days.
 - **Pictures:** "Add unsplash for images for activities and cover photo."
+- **The Trips table stays a table** (Tyler, 6 Nov 2026). Asked to apply the
+  Admin 3 panel design to "the trips dashboard", it meant the trip page, the
+  three-panel dashboard: "I never said to do that. I said to fix the 3 panel
+  dashboard." The table was turned into three panels by mistake that day and
+  put back.
 
 ## Who sees a trip
 

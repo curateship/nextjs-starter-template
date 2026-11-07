@@ -72,6 +72,11 @@ check-in. It is described in
   each tab scrolling inside it. It opens on General every time. There is no
   email line ("Remove email and dividers"). The frame is
   `my-settings-menu.tsx`, shared with the site admin's.
+  - **Every list in it is light grey,** with a row going a shade darker while
+    it is pointed at (Tyler, 6 Nov 2026: "The project app settings white bg
+    needs to be change to light gray too"). That is General's rows, each
+    Notifications group, and the Daily card's Card layout and habits, where
+    a habit's icon sits on a white tile so it still stands out.
   - **General** is grouped rows, as the task's ⋮ is (Tyler, 6 Nov 2026:
     "general should have the same grouping ui design too"): a grey heading
     over a bordered list, each row its name and value. **You:** Job title and

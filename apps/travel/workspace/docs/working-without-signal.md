@@ -30,7 +30,7 @@ Every change is off:
 - **The board:** no dragging cards or days, no Done tick, no right-click
   menu, no "+" on a day, no day menu, no "+" after the last day, no Move
   button on a shut day, and a day's description shows without editing.
-- **The header:** no "+ Add", no ⋮ after the tabs, no Mass select.
+- **The header:** no "+ Add", no ⋮ after "+ Add", no Mass select.
 - **The panels:** no ⋮ on the trip or the activity, notes and the description
   show faded and can't be typed in, the budget field is off, and the trip's
   notes have no New note and no right-click menu.

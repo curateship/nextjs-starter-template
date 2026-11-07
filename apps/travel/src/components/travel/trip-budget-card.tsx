@@ -1,21 +1,25 @@
 import * as React from "react"
+import { WalletIcon } from "lucide-react"
 
 import { dayLabel } from "@/components/travel/new-activity"
 import { SavingInput } from "@/components/travel/saving-fields"
 import { useTrip } from "@/components/travel/trip-context"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
-import { PanelCard } from "@/components/shared/panel-card"
+import { FoldHeading } from "@/components/travel/fold-heading"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { Label } from "@/components/ui/label"
 import { Meter } from "@/components/ui/meter"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { saveTrip } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { useRememberedChoice } from "@/lib/remembered-choice"
+import { collapseStorageKey, useRememberedChoice, useRememberedCollapse } from "@/lib/remembered-choice"
 import { spendingByType, tripTotals } from "@/lib/travel/budget"
 import { MONEY_VIEW_KEY } from "@/lib/travel/panel-keys"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { formatMoney, parseMoney } from "@/lib/travel/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { FOOTER_CARD_BODY } from "@/lib/travel/panel-gutter"
+import { cn } from "@/lib/utils"
 
 /** Saves one change to the trip, then reloads it. False when it was refused. */
 export function useSaveTrip() {
@@ -47,14 +51,20 @@ export function BudgetCard() {
   const [view, setView] = useRememberedChoice(MONEY_VIEW_KEY, "day", MONEY_VIEWS)
   const money = (cents: number) => formatMoney(cents, trip.currency)
   const over = trip.budgetCents !== null && total > trip.budgetCents
+  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("travel-trip-budget"))
 
   return (
-    <PanelCard
-      storageId="travel-trip-budget"
-      title="Money"
-      meta={trip.budgetCents !== null ? `${money(total)} of ${money(trip.budgetCents)}` : money(total)}
-    >
-      <div className="grid gap-3">
+    // A folding card in the left panel's footer (the Admin 3 panel design, 6 Nov 2026), keeping the old
+    // card's storage id, so a fold this browser already remembered stays.
+    <Collapsible open={open} onOpenChange={setOpen} className="grid grid-cols-[minmax(0,1fr)]">
+      <FoldHeading
+        band
+        icon={<WalletIcon />}
+        title="Money"
+        line={trip.budgetCents !== null ? `${money(total)} of ${money(trip.budgetCents)}` : money(total)}
+        open={open}
+      />
+      <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)] gap-3", FOOTER_CARD_BODY)}>
         {trip.budgetCents !== null ? (
           <Meter
             value={total}
@@ -87,10 +97,15 @@ export function BudgetCard() {
             }}
           />
         </div>
-        <Tabs value={view} onValueChange={(next) => setView(next as (typeof MONEY_VIEWS)[number])}>
-          <TabsList aria-label="Show the money">
-            <TabsTrigger value="day">By day</TabsTrigger>
-            <TabsTrigger value="type">By type</TabsTrigger>
+        {/* As wide as the card and no wider, so a narrow panel never pushes the switch past its edge. */}
+        <Tabs value={view} onValueChange={(next) => setView(next as (typeof MONEY_VIEWS)[number])} className="min-w-0">
+          <TabsList aria-label="Show the money" className="w-full min-w-0">
+            <TabsTrigger value="day" className="min-w-0 flex-1">
+              <span className="truncate">By day</span>
+            </TabsTrigger>
+            <TabsTrigger value="type" className="min-w-0 flex-1">
+              <span className="truncate">By type</span>
+            </TabsTrigger>
           </TabsList>
         </Tabs>
         <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 text-xs">
@@ -121,7 +136,7 @@ export function BudgetCard() {
             </>
           ) : null}
         </dl>
-      </div>
-    </PanelCard>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }

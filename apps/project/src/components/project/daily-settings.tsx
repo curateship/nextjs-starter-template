@@ -123,7 +123,8 @@ export function DailySectionsSetting({ daily }: { daily: DailyCard }) {
       </div>
       <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => void drop(event)}>
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
-          <ul className="divide-y overflow-hidden rounded-xl border" aria-label="Card layout">
+          {/* Light grey, as every settings list is (Tyler, 6 Nov 2026: "The project app settings white bg needs to be change to light gray too"). */}
+          <ul className="divide-y overflow-hidden rounded-xl border bg-muted/50" aria-label="Card layout">
             {order.map((name) => (
               <SectionRow key={name} name={name} hidden={hidden.includes(name)} onToggle={() => void toggle(name)} />
             ))}
@@ -153,7 +154,7 @@ function SectionRow({ name, hidden, onToggle }: { name: DailySection; hidden: bo
     : undefined
   const switchId = `daily-section-${name}`
   return (
-    <li ref={setNodeRef} style={style} className={cn("flex items-center gap-3 bg-background px-3 py-2.5", isDragging && "relative z-10 shadow-md")}>
+    <li ref={setNodeRef} style={style} className={cn("flex items-center gap-3 px-3 py-2.5", isDragging && "relative z-10 bg-muted shadow-md")}>
       <button
         type="button"
         ref={setActivatorNodeRef}
@@ -506,7 +507,7 @@ function PartList({
         <ul
           ref={setNodeRef}
           aria-label={`${DAY_PART_LABEL[part]} habits`}
-          className={cn("divide-y overflow-hidden rounded-xl border", isOver && "ring-2 ring-ring/40")}
+          className={cn("divide-y overflow-hidden rounded-xl border bg-muted/50", isOver && "ring-2 ring-ring/40")}
         >
           {habits.map((habit) => (
             <HabitLine
@@ -525,7 +526,7 @@ function PartList({
                 <button
                   type="button"
                   onClick={() => onAdd(true)}
-                  className={cn("flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground", focusRingInset)}
+                  className={cn("flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground", focusRingInset)}
                 >
                   {/* Under the icons above it, so the words line up with the names. */}
                   <span className="flex w-[4.5rem] shrink-0 justify-end pr-2.5">
@@ -580,7 +581,7 @@ function HabitLine({
     : undefined
   const summary = habitSummary(habit)
   return (
-    <li ref={setNodeRef} style={style} className={cn("grid gap-3 bg-background px-3 py-2.5", isDragging && "relative z-10 shadow-md")}>
+    <li ref={setNodeRef} style={style} className={cn("grid gap-3 px-3 py-2.5", isDragging && "relative z-10 bg-muted shadow-md")}>
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -597,7 +598,7 @@ function HabitLine({
           <GripVerticalIcon className="size-4" aria-hidden />
         </button>
         {/* The shell's picker, drawn as a grey tile from here so its own file stays as it is. */}
-        <span className="shrink-0 [&>button]:size-9 [&>button]:rounded-lg [&>button]:bg-muted [&>button]:hover:bg-muted/70">
+        <span className="shrink-0 [&>button]:size-9 [&>button]:rounded-lg [&>button]:bg-background [&>button]:hover:bg-background/70">
           <ShellIconPicker
             compact
             ghost

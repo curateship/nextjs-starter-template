@@ -1,18 +1,21 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { HistoryIcon, SquareMousePointerIcon } from "lucide-react"
+import { CheckIcon, CircleCheckIcon, CircleIcon, HistoryIcon, SquareMousePointerIcon } from "lucide-react"
 
 import { ActivityMenu } from "@/components/travel/activity-menu"
 import { ActivityNotes } from "@/components/travel/activity-notes"
+import { useBoardActions } from "@/components/travel/board-actions"
 import { ActivityPhotosRow } from "@/components/travel/activity-photos-row"
 import { BlendedBanner } from "@/components/travel/panel-bits"
 import { PhotoCreditLine } from "@/components/travel/unsplash-picker"
 import { typeOf, useTrip } from "@/components/travel/trip-context"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { Activity } from "@/lib/api/travel/trips"
 import { beenHereText } from "@/lib/travel/been-here"
+import { PANEL_FOOTER_PADDING, PANEL_GUTTER } from "@/lib/travel/panel-gutter"
 import { cn } from "@/lib/utils"
 
 /**
@@ -20,7 +23,7 @@ import { cn } from "@/lib/utils"
  * editor with its toolbar over selected words, as a task's notes do in
  * Project (Tyler, 2 Nov 2026: "The only thing I want to see is the tiptap
  * editor like in project task"). Everything else about it, and Delete, is in
- * the ⋮ menu in the header as folding sections.
+ * the ⋮ menu in the header as grouped rows, and Done is in the footer.
  *
  * It has no ×: the first activity opens on arrival and another opens when
  * its card is clicked (UI standard, "The right panel has no × and is never
@@ -67,7 +70,7 @@ function OpenActivity({ activity }: { activity: Activity }) {
         action={readOnly ? undefined : <ActivityMenu activity={activity} onNotesChanged={() => setNotesRound((was) => was + 1)} />}
       />
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-        <div className="grid gap-2 p-3">
+        <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
           <ActivityPhotosRow activity={activity} />
           <BeenHereLine activityId={activity.id} />
           <ActivityNotes key={`${activity.id}:${notesRound}`} activity={activity} />
@@ -75,6 +78,35 @@ function OpenActivity({ activity }: { activity: Activity }) {
           {banner && activity.photoCredit ? <PhotoCreditLine credit={activity.photoCredit} className="px-1" /> : null}
         </div>
       </ScrollArea>
+      {readOnly ? null : <ActivityFooter activity={activity} />}
+    </div>
+  )
+}
+
+/**
+ * The open activity's footer, pinned to the panel's bottom with a line above
+ * it, as Project's task footer is (the Admin 3 panel design, 6 Nov 2026): the
+ * activity's state on the left, and the one way to change it on the right.
+ * Done is the only state an activity has, since bookings went on 2 Nov 2026.
+ */
+function ActivityFooter({ activity }: { activity: Activity }) {
+  const actions = useBoardActions()
+  return (
+    <div className={cn("flex shrink-0 flex-wrap items-center gap-2 border-t", PANEL_FOOTER_PADDING)}>
+      <span className={cn("flex items-center gap-1.5 text-sm", !activity.done && "text-muted-foreground")}>
+        {activity.done ? <CircleCheckIcon className="size-4" aria-hidden /> : <CircleIcon className="size-4" aria-hidden />}
+        {activity.done ? "Done" : "Not done yet"}
+      </span>
+      <Button
+        type="button"
+        variant={activity.done ? "outline" : "default"}
+        className="ml-auto"
+        disabled={actions.busy}
+        onClick={() => void actions.setField(activity, { done: !activity.done })}
+      >
+        {activity.done ? null : <CheckIcon className="size-4" />}
+        {activity.done ? "Mark not done" : "Mark done"}
+      </Button>
     </div>
   )
 }

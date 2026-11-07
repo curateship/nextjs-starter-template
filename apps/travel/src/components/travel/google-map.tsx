@@ -161,9 +161,10 @@ export function GoogleMap({
   if (ready && !mapsKey) {
     return (
       <div className={className}>
-        <div className="grid h-full content-center justify-items-center gap-2 rounded-lg border bg-muted/40 p-6 text-center">
+        <div className="grid h-full grid-cols-[minmax(0,1fr)] content-center justify-items-center gap-2 rounded-lg border bg-muted/40 p-6 text-center">
           <MapIcon className="size-5 text-muted-foreground" aria-hidden />
-          <p className="max-w-72 text-sm text-muted-foreground">
+          {/* The key's name is one long word, so it breaks where it must in a narrow panel. */}
+          <p className="max-w-72 text-sm [overflow-wrap:anywhere] text-muted-foreground">
             The map needs a Google Maps browser key. Add GOOGLE_MAPS_BROWSER_KEY to the app's settings.
           </p>
         </div>

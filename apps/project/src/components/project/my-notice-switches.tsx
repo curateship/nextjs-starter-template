@@ -58,7 +58,8 @@ export function MyNoticeSwitches({
             <h4 id={`my-notices-${group.id}`} className="px-0.5 text-sm font-medium text-muted-foreground">
               {group.label}
             </h4>
-            <ul className="divide-y overflow-hidden rounded-xl border">
+            {/* Light grey, as every settings list is (Tyler, 6 Nov 2026: "The project app settings white bg needs to be change to light gray too"). */}
+            <ul className="divide-y overflow-hidden rounded-xl border bg-muted/50">
               {items.map((item) => {
                 const switchId = `my-notice-${item.id}`
                 return (

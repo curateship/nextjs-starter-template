@@ -17,7 +17,8 @@ export function PickGroup({ title, after, children }: { title: string; after?: R
   return (
     <section className="grid gap-2" aria-label={title}>
       <h3 className="px-0.5 text-sm font-medium text-muted-foreground">{title}</h3>
-      <div className="divide-y overflow-hidden rounded-xl border">{children}</div>
+      {/* Light grey, as every settings list is (Tyler, 6 Nov 2026: "make this bg light gray"). */}
+      <div className="divide-y overflow-hidden rounded-xl border bg-muted/50">{children}</div>
       {after}
     </section>
   )
@@ -41,8 +42,8 @@ const RowButton = React.forwardRef<HTMLButtonElement, RowLook & { open: boolean 
         type="button"
         disabled={disabled}
         className={cn(
-          "flex min-h-11 w-full items-center gap-3 bg-background px-3 py-2 text-left text-sm enabled:hover:bg-muted/40 disabled:cursor-default",
-          open && "bg-muted/40",
+          "flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm enabled:hover:bg-muted disabled:cursor-default",
+          open && "bg-muted",
           focusRingInset,
           className
         )}

@@ -13,7 +13,12 @@ opens Trip settings.
   inline edit discription with tiptap editor"). It saves 700ms after the last
   letter and when it's left. It is the only place the description is
   written. Trip settings doesn't have it.
-- **Money:** the total of every cost on the trip's days against the budget
+- **Money** is a folding card in the panel's footer, in a light grey box at
+  the bottom, as Project's footer cards are (the Admin 3 panel design, 6 Nov
+  2026). Its heading shows the total, or the total of the budget, and folds
+  the card; the fold is remembered in this browser. The description takes the
+  rest of the panel above it, keeping at least 6rem, and the footer only
+  scrolls once the panel is full. It holds the total of every cost on the trip's days against the budget
   typed here, with a bar that turns red over budget, then two tabs, By day
   and By type (Tyler, 4 Nov 2026: "Switch: day or type"), remembered in this
   browser. By day is a line per day. By type is a line per activity type with
@@ -79,27 +84,39 @@ settings.
 
 The ⋮ at the top of the panel opens Trip settings as a dropdown, not a
 window (Tyler, 3 Nov 2026: "change this to 3 vertical dot and isntead of
-modal, make it into a dropdown and using the same ui and spacing as the
-previous dropdown"). It opens to the right of the ⋮, over the board, not over
-the left menu ("dropdown to appear aligned right side").
+modal, make it into a dropdown"). It opens to the right of the ⋮, over the
+board, not over the left menu ("dropdown to appear aligned right side").
 
-- It is the same menu as an activity's ⋮ (see [Activities](activities.md)):
-  294px wide, folding rows with no lines between them, one line, then Delete
-  trip in red.
-- The rows are Name, Destination, Tags, Status, Start date, Time zone,
-  Currency, Getting around (walk, transit or drive, used for travel times)
-  and Cover photo. Each shows what it holds now on the right and folds open
-  to change it.
-- Every field saves itself, the way an activity's do. There is no Save
-  button. An empty name is refused with "Give the trip a name."
-- A folded-open row shows its field with no second label, since the row
-  already names it (Tyler, 4 Nov 2026: "Remove all these duplicate labels").
-  Tags says "a comma between" in its placeholder instead.
-- The Time zone list scrolls inside its dropdown, 240px tall, by wheel or
-  drag; before 4 Nov 2026 it ran past the dropdown's edge. The activity's
-  place suggestions scroll the same way at 288px.
+Since 6 Nov 2026 it is the tabbed ⋮ of the Admin 3 panel design, the same
+menu as Project's project ⋮ (Tyler: "Look at the serttings dropdown, its not
+ui standard for example. fix them all"). Before, it was one folding row per
+setting.
+
+- **Its shape:** 20.4rem wide, never past the screen less 2rem. One
+  underlined tab, General, since a trip has nothing for a second tab. It
+  opens on General every time.
+- **General is grouped rows.** A small grey heading, then one bordered list
+  with a line between rows. The rows are light grey, darker while pointed at
+  or open (Tyler, 6 Nov 2026: "make this bg light gray"). Each row is the name
+  on the left, muted, what it holds on the right, and an arrow. An empty value
+  reads "None" in grey.
+  - **Trip:** Name, Destination, Tags and Cover photo. Each opens a small box
+    with its field, the cursor already in it.
+  - **Dates:** Start date opens the month at once, with "No dates yet" under
+    it to clear the dates. Time zone opens the zones at once, with a search
+    box over them ("tok" finds Asia/Tokyo, Enter takes the first match).
+  - **Details:** Status, Currency and Getting around (walk, transit or drive,
+    used for travel times). Each drops its choices from the row, the current
+    one ticked, and one press picks and saves.
+- **Under the groups:** Rate the trip, then Delete trip in red under a line
+  of its own.
+- **Saving:** every field saves itself. There is no Save button. An empty
+  name is refused with "Give the trip a name." Closing the menu leaves the
+  field being typed in first, so its save lands.
+- **Escape** inside a row's box or list closes that box and leaves the menu
+  open. Using a box opened from inside, such as the media library or
+  Unsplash, doesn't close the menu.
 - Tags go in with a comma between them and filter the Trips table.
-- The cover photo is uploaded or picked from Unsplash.
 - Delete trip moves the trip to the Trips table's Bin with Undo, then goes
   back to Trips (see [Trips and the trip page](trips-and-the-trip-page.md)).
 - The number of days changes on the board.
@@ -109,8 +126,10 @@ the left menu ("dropdown to appear aligned right side").
 ## Where it lives
 
 `src/components/travel/trip-details-panel.tsx`, `trip-notes-panel.tsx`,
-`trip-budget-card.tsx`, `saving-document.tsx` and `trip-menu.tsx`, which is
-built from the shell's `src/components/shared/folding-menu.tsx`, the same
-pieces as an activity's ⋮ menu.
+`trip-budget-card.tsx`, `saving-document.tsx` and `trip-menu.tsx`. The menu
+is `TabbedMenu` (`tabbed-menu.tsx`) with `PickGroup` and the row kinds in
+`pick-rows.tsx`, copied from Project's `my-settings-menu.tsx` and
+`pick-rows.tsx`. The footer is `panel-footer.tsx` and `fold-heading.tsx`,
+copied from Project, with the gutters in `src/lib/travel/panel-gutter.ts`.
 Notes are `src/server/travel/trip-notes.ts`, the totals
 `src/lib/travel/budget.ts`.

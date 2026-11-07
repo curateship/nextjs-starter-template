@@ -19,8 +19,38 @@ import { readVideoLink } from "@/lib/travel/video-links"
  * This runs in the editor on every change and on the server on every save.
  */
 
-export const NOTE_BLOCK_TYPES = ["noteImage", "notePlace", "noteVideo", "noteMap", "noteLink"] as const
+/**
+ * Blocks with no writing inside, each a few plain values. Links and the
+ * Divider (`horizontalRule`) came from Project's basic blocks on 6 Nov 2026
+ * (Tyler: "travel is missing some basic blocks").
+ */
+export const NOTE_BLOCK_TYPES = [
+  "noteImage",
+  "notePlace",
+  "noteVideo",
+  "noteMap",
+  "noteLink",
+  "noteLinks",
+  "horizontalRule",
+] as const
 export type NoteBlockType = (typeof NOTE_BLOCK_TYPES)[number]
+
+/**
+ * Blocks that hold writing, from Project's basic blocks (6 Nov 2026): a
+ * Callout's words, a Checklist's lines, a Fold section's heading.
+ */
+export const NOTE_HOLDER_TYPES = ["noteCallout", "taskList", "taskItem", "noteFold"] as const
+export type NoteHolderType = (typeof NOTE_HOLDER_TYPES)[number]
+
+export const CALLOUT_KINDS = ["note", "warning", "decision"] as const
+export type CalloutKind = (typeof CALLOUT_KINDS)[number]
+
+/** One line of a Links block: its words, or "" to show the address, and an `https://` address. */
+export type NoteLink = { label: string; url: string }
+/** The most lines one Links block holds, and the longest a line's words may be. */
+export const LINKS_BLOCK_MAX = 30
+export const LINK_LABEL_MAX = 80
+
 
 /** A picture: uploaded, from Unsplash with its credit, or a pasted web address. */
 export type NoteImageAttrs = { src: string; alt: string; credit: PhotoCredit | null }
@@ -109,12 +139,76 @@ export function cleanLinkPreview(attrs: Record<string, unknown>): NoteLinkAttrs 
   }
 }
 
+function cleanLinks(attrs: Record<string, unknown>): { links: NoteLink[] } | null {
+  if (!Array.isArray(attrs.links)) return null
+  const links = attrs.links.flatMap((link): NoteLink[] => {
+    if (!link || typeof link !== "object") return []
+    const url = httpsAddress((link as { url?: unknown }).url)
+    const label = (link as { label?: unknown }).label
+    return url ? [{ label: typeof label === "string" ? label.trim().slice(0, LINK_LABEL_MAX) : "", url }] : []
+  })
+  return links.length ? { links: links.slice(0, LINKS_BLOCK_MAX) } : null
+}
+
+/** What a link shows when it has no words of its own: its address without `https://` or a last slash. */
+export function linkWords(link: NoteLink) {
+  return link.label || link.url.replace(/^https:\/\//, "").replace(/\/$/, "")
+}
+
+/** A new Fold section's id, which each reader's folds are remembered by. */
+export function newFoldId() {
+  return crypto.randomUUID()
+}
+
 const BLOCK_CLEANERS: Record<NoteBlockType, (attrs: Record<string, unknown>) => Record<string, unknown> | null> = {
   noteImage: cleanImage,
   notePlace: cleanPlace,
   noteVideo: cleanVideo,
   noteMap: cleanMap,
   noteLink: cleanLinkPreview,
+  noteLinks: cleanLinks,
+  horizontalRule: () => ({}),
+}
+
+function isHolder(type: unknown): type is NoteHolderType {
+  return NOTE_HOLDER_TYPES.includes(type as NoteHolderType)
+}
+
+function cleanChildren(raw: { content?: unknown }, depth: number, keep: (node: NoteNode) => boolean): NoteNode[] {
+  if (!Array.isArray(raw.content)) return []
+  return raw.content
+    .map((child) => cleanNode(child, depth + 1))
+    .filter((child): child is NoteNode => child !== null && keep(child))
+}
+
+/** Only words go inside a Callout: paragraphs and lists, never a block inside a block. */
+const IN_CALLOUT = new Set(["paragraph", "bulletList", "orderedList"])
+
+/** A Callout, a Checklist and its lines, and a Fold section's heading, as Project keeps them. */
+function cleanHolder(type: NoteHolderType, raw: { attrs?: unknown; content?: unknown }, depth: number): NoteNode | null {
+  const attrs = raw.attrs && typeof raw.attrs === "object" && !Array.isArray(raw.attrs) ? (raw.attrs as Record<string, unknown>) : {}
+  if (type === "noteCallout") {
+    const calloutKind = CALLOUT_KINDS.includes(attrs.kind as CalloutKind) ? (attrs.kind as CalloutKind) : "note"
+    const content = cleanChildren(raw, depth, (child) => IN_CALLOUT.has(child.type))
+    return { type, attrs: { kind: calloutKind }, content: content.length ? content : [{ type: "paragraph" }] }
+  }
+  if (type === "taskList") {
+    const content = cleanChildren(raw, depth, (child) => child.type === "taskItem")
+    return content.length ? { type, content } : null
+  }
+  if (type === "taskItem") {
+    // A line's own words first, then any lines tucked under it.
+    const content = cleanChildren(
+      raw,
+      depth,
+      (child) => !isBlock(child.type) && child.type !== "noteCallout" && child.type !== "noteFold"
+    )
+    return { type, attrs: { checked: attrs.checked === true }, content: content.length ? content : [{ type: "paragraph" }] }
+  }
+  // A Fold section is a heading line: its words and marks only, like a paragraph's.
+  const foldId = id.safeParse(attrs.id)
+  const content = cleanChildren(raw, depth, (child) => child.type === "text" || child.type === "hardBreak")
+  return { type, attrs: { id: foldId.success ? foldId.data : "fold" }, ...(content.length ? { content } : {}) }
 }
 
 function isBlock(type: unknown): type is NoteBlockType {
@@ -127,8 +221,10 @@ function cleanNode(value: unknown, depth: number): NoteNode | null {
   if (isBlock(raw.type)) {
     const attrs = raw.attrs && typeof raw.attrs === "object" ? (raw.attrs as Record<string, unknown>) : {}
     const kept = BLOCK_CLEANERS[raw.type](attrs)
-    return kept ? { type: raw.type, attrs: kept } : null
+    if (!kept) return null
+    return Object.keys(kept).length ? { type: raw.type, attrs: kept } : { type: raw.type }
   }
+  if (isHolder(raw.type)) return cleanHolder(raw.type, raw, depth)
   // Any other node is cleaned alone by the shell's written-page rules, then its children by these.
   const [alone] = cleanWrittenPageBody({ type: "doc", content: [{ ...raw, content: undefined }] }).content ?? []
   if (!alone) return null
