@@ -24,9 +24,14 @@ cover this one.
   background tab, and how both go back on stop.
 - [Zen mode](zen-mode.md) — the fullscreen timer: the ring, the phase and
   the task name, how you get in and out, and why the countdown never notices.
+- [The floating timer](floating-timer.md) — the small window on top of your
+  other apps, opening by itself when a focus starts, the switch for it in
+  Settings → Timer, Chrome, Edge and Arc only.
+- [The timer inside Notion](embed-timer.md) — `/embed/timer` for a Notion
+  embed block, always a guest timer, and why nothing about framing changed.
 - [Tasks](tasks.md) — today's plan and the six days after it: create,
   inline edit, drag to reorder, complete and abandon, the focus task the
-  timer counts on, the repeat rule, steps inside a task, and tags.
+  timer counts on, the repeat rule, steps inside a task, tags and due dates.
 - [Projects](projects.md) — grouping tasks at the level people bill at, an
   hours target per week or month, what archiving does, and the per-project
   split in Stats.
@@ -108,7 +113,8 @@ cover this one.
   with the one you are in lit, shared timers with a host, the Rhythm preset
   picker in Host a room, the fifteen-second
   server clock, SSE snapshots, invite links, the task beside a member's name,
-  saved rooms, and who you focus with.
+  the tick before a room starts, "Did you finish?" after a focus, saved
+  rooms, and who you focus with.
 - [Scheduled rooms](scheduled-rooms.md) — booking a room for later or every
   week, the invitation emails, and the worker that opens the room on time.
 - [Room chat and moderation](room-chat-and-moderation.md) — talking in a

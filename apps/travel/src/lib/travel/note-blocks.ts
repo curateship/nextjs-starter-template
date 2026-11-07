@@ -31,6 +31,7 @@ export const NOTE_BLOCK_TYPES = [
   "noteMap",
   "noteLink",
   "noteLinks",
+  "noteBudget",
   "horizontalRule",
 ] as const
 export type NoteBlockType = (typeof NOTE_BLOCK_TYPES)[number]
@@ -167,6 +168,8 @@ const BLOCK_CLEANERS: Record<NoteBlockType, (attrs: Record<string, unknown>) => 
   noteMap: cleanMap,
   noteLink: cleanLinkPreview,
   noteLinks: cleanLinks,
+  // The trip's money, drawn from the trip itself, so the block keeps no values of its own.
+  noteBudget: () => ({}),
   horizontalRule: () => ({}),
 }
 
@@ -274,6 +277,16 @@ export function notePictures(node: NoteNode): NoteImageAttrs[] {
     if (each.type === "noteImage" && each.attrs) found.push(each.attrs as NoteImageAttrs)
   })
   return found
+}
+
+/**
+ * The note with the blocks that only make sense on a trip taken out, for a
+ * saved place, which belongs to no trip: the Budget block shows the open
+ * trip's money. Place and Map blocks go through `swapNoteCards`.
+ */
+export function dropTripBlocks(node: NoteNode): NoteNode {
+  if (!node.content) return node
+  return { ...node, content: node.content.filter((child) => child.type !== "noteBudget").map(dropTripBlocks) }
 }
 
 /**

@@ -18,6 +18,10 @@ of the chosen sound.
   gesture a browser needs before it makes any sound. Silent has no Preview.
 - **The chimes play only while Completion alerts is ticked**, and the card
   says so while it is not.
+- **A Silent "When a break ends" also silences a room's countdown tick.** The
+  tick in the last 10 seconds before a hosted room starts plays even with
+  Completion alerts off, and only that Silent stops it. See "Starting in" in
+  [Focus rooms](rooms.md).
 - **Saved as soon as it is picked**, like the Completion alerts box above it:
   to the account (`user_preferences.focus_chime` and `break_chime`, migration
   `0121`) when signed in, and in the browser for a guest. A value the app no

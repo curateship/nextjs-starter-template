@@ -549,6 +549,47 @@ while they're in the room".
 - **Made-up hosts keep three there.** Their countdowns run 8 to 15 minutes,
   longer than a real host can pick; why is under "Rooms" in
   [Made-up members](made-up-members.md).
+- **The last 10 seconds tick.** Tyler, 7 Nov 2026: "Add a ticker sound when
+  room starts coutdown to start", the last 10 seconds. Everyone in the room
+  hears a soft tick each second from 10 down to 1, so the default 5-second
+  countdown ticks all the way through. Cancel or Start now stops it at once.
+- **The tick plays wherever you are on the site.** It comes from the header's
+  room control, which is on every page, so it plays once per tab, never twice.
+  A tab that wakes with 3 seconds left ticks once, not a burst for the seconds
+  it missed (`startTickDue` in `src/lib/pomodoro/room-countdown.ts`).
+- **Silent means silent.** The tick plays whether or not Completion alerts is
+  ticked, and stays quiet when the "When a break ends" chime is Silent,
+  because the countdown ends where a focus starts, the moment that chime marks.
+  A page that has not been clicked since it loaded cannot make sound yet, and
+  the tick is skipped there (`playRoomStartTick` in
+  `src/lib/pomodoro/completion-alerts.ts`).
+
+## Did you finish?
+
+When a room's focus ends, everyone who sat through it is asked "Did you
+finish?" under the ring, with Finished and Not yet. Tyler picked this on 7 Nov
+2026.
+
+- **It never holds up the break.** It is two buttons in the page, never a
+  window, and ignoring it leaves no mark.
+- **The answer shows beside your name** in the room's people list, Finished
+  with a tick or Not yet, for everyone in the room until the next focus
+  starts. A second press changes it.
+- **It only marks the check-in.** Tyler, 7 Nov 2026: Finished never ticks a
+  task off, because some tasks need more sessions.
+- **Only somebody who was in the focus is asked.** A person who joined during
+  the break was not there for it.
+- **A task stays as private as it was.** Someone who does not show their task
+  shows only their answer, never the task's name.
+- **The server checks it all again.** Only a person in the room may answer,
+  only during the break after a focus, and at most 20 presses a minute
+  (`answerRoomCheckIn` in `src/server/pomodoro/rooms.ts`).
+- **The break names the answers.** Each answer is kept against the room's
+  `sequence` during that break, so the next focus moving the sequence on leaves
+  the ticks behind with nothing to clear (`pomodoro_room_check_ins`, migration
+  `0164_pomodoro_room_check_ins.sql`).
+- **Made-up members answer too**, so a room of them does not look as if
+  nobody did anything. See [Made-up members](made-up-members.md).
 
 ## Picking the sound and the background
 

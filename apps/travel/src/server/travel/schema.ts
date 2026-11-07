@@ -56,6 +56,8 @@ export const travelTrips = pgTable("travel_trips", {
   dayInfo: jsonb("day_info").$type<DayInfo[]>().notNull(),
   /** The editor's own document as JSON text, or "" (`drizzle/0100_travel_misc.sql`). */
   description: text("description").notNull(),
+  /** Lock blocks: the description reads only until it's unlocked (`drizzle/0108_travel_trip_blocks_lock.sql`). */
+  descriptionLocked: boolean("description_locked").notNull().default(false),
   travelMode: varchar("travel_mode", { length: 16 }).$type<TravelMode>().notNull(),
   tags: text("tags").array().notNull(),
   calendarToken: varchar("calendar_token", { length: 64 }),

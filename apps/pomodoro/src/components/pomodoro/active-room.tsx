@@ -31,6 +31,7 @@ import {
   RoomMemberList,
 } from "@/components/pomodoro/room-chat"
 import { BreakCard } from "@/components/pomodoro/break-card"
+import { RoomCheckIn } from "@/components/pomodoro/room-check-in"
 import { TasksSection } from "@/components/pomodoro/today-task-list"
 import { SoundPlayerRow } from "@/components/pomodoro/sound-player-row"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
@@ -297,6 +298,8 @@ export function ActiveRoomPanel({
         pending={pending}
         onAction={(action) => void runAction(action)}
       />
+
+      <RoomCheckIn snapshot={snapshot} />
 
       {/* The same break card as the timer, while the room is on a break. */}
       {room.phase === "short" || room.phase === "long" ? (

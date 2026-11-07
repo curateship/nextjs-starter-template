@@ -170,6 +170,14 @@ export function NewAccountsSettingsTab() {
   )
 }
 
+export function NotionTimerSettingsTab() {
+  return (
+    <SettingsTab>
+      {({ settings }) => <NotionTimerCard initial={settings["embed.notionTimer"]} />}
+    </SettingsTab>
+  )
+}
+
 export function RoomsSettingsTab() {
   return (
     <SettingsTab>
@@ -562,6 +570,35 @@ function MemberUploadsCard({
           save.soon("uploads.pixabayDailyLimit", value)
         }}
         onCommit={() => save.flush("uploads.pixabayDailyLimit")}
+      />
+    </CollapsibleSettingsCard>
+  )
+}
+
+/**
+ * The switch for `/embed/timer`, the timer people put in a Notion page.
+ * Tyler, 7 Nov 2026: "Add enable and disable notion timer in settings".
+ */
+function NotionTimerCard({ initial }: { initial: boolean }) {
+  const [on, setOn] = React.useState(initial)
+  const save = useSettingSave()
+  const switchId = React.useId()
+  return (
+    <CollapsibleSettingsCard
+      storageId="pomodoro-notion-timer"
+      title="Notion timer"
+      description="The timer people paste into a Notion embed block, at /embed/timer on this site."
+      contentClassName="grid gap-4"
+    >
+      <SettingsSwitchRow
+        id={switchId}
+        checked={on}
+        onCheckedChange={(checked) => {
+          setOn(checked)
+          void save.now("embed.notionTimer", checked)
+        }}
+        label="Show the timer inside Notion"
+        hint="Off, every Notion page holding it shows one line saying the timer is switched off, with a link to the full site. It always runs as a guest, so its focuses never reach anybody's Stats."
       />
     </CollapsibleSettingsCard>
   )

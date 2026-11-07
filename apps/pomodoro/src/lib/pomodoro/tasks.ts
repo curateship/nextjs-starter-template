@@ -4,7 +4,9 @@
  * active or completed, with its finished-focus count and optional estimate.
  */
 
+import { formatShortDay } from "@/lib/format/calendar-day"
 import { plural } from "@/lib/format/plural"
+import { shiftLocalDate } from "@/lib/pomodoro/focus-history"
 import type { TaskStepItem } from "@/lib/pomodoro/task-steps"
 
 export type TaskPriority = "low" | "normal" | "high"
@@ -24,6 +26,8 @@ export type TaskItem = {
   pomodoros: number
   priority: TaskPriority
   estimatedPomodoros: number | null
+  /** The day it has to be done by, `yyyy-mm-dd`, or null for no deadline. */
+  dueDate: string | null
   /** The repeat rule's picked days as a seven-bit set, or null for no repeat. */
   repeatWeekdays: number | null
   projectId: string | null
@@ -46,6 +50,7 @@ export type ServerTaskRow = {
   pomodoroCount: number
   priority: string
   estimatedPomodoros: number | null
+  dueDate: string | null
   repeatWeekdays: number | null
   projectId: string | null
   projectName: string | null
@@ -61,6 +66,7 @@ export function taskItemFromServer(task: ServerTaskRow): TaskItem {
     pomodoros: task.pomodoroCount,
     priority: normalizeTaskPriority(task.priority),
     estimatedPomodoros: normalizeEstimatedPomodoros(task.estimatedPomodoros),
+    dueDate: normalizeDueDate(task.dueDate),
     repeatWeekdays: task.repeatWeekdays,
     projectId: task.projectId,
     projectName: task.projectName,
@@ -82,6 +88,48 @@ export function normalizeEstimatedPomodoros(value: unknown): number | null {
     value <= 20
     ? value
     : null
+}
+
+/** A stored due date, or null when it is missing or not a `yyyy-mm-dd`. */
+export function normalizeDueDate(value: unknown): string | null {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? value
+    : null
+}
+
+/**
+ * How close a due date is: "later" is grey, "soon" (tomorrow) amber, "due"
+ * (today or past) red. The words always say it too, so the colour is never
+ * the only sign.
+ */
+export type DueTone = "later" | "soon" | "due"
+
+const WEEKDAY_SHORT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  weekday: "short",
+})
+
+/**
+ * The mark a due date puts on a task row, against the account's today:
+ * "Due Nov 14", "Due Fri" inside the coming week, "Due tomorrow", "Due today",
+ * "Due yesterday" and "Overdue since Nov 3".
+ */
+export function dueDateMark(dueDate: string, today: string): {
+  text: string
+  tone: DueTone
+} {
+  if (dueDate < shiftLocalDate(today, -1))
+    return { text: `Overdue since ${formatShortDay(dueDate)}`, tone: "due" }
+  if (dueDate < today) return { text: "Due yesterday", tone: "due" }
+  if (dueDate === today) return { text: "Due today", tone: "due" }
+  if (dueDate === shiftLocalDate(today, 1))
+    return { text: "Due tomorrow", tone: "soon" }
+  if (dueDate <= shiftLocalDate(today, 6))
+    return {
+      text: `Due ${WEEKDAY_SHORT.format(new Date(`${dueDate}T12:00:00Z`))}`,
+      tone: "later",
+    }
+  return { text: `Due ${formatShortDay(dueDate)}`, tone: "later" }
 }
 
 /**

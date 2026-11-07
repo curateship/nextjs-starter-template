@@ -145,6 +145,22 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
   click was (`openAt` in `notes/use-note-blocks.ts`, the handler on
   `data-note-box` in `notes/note-editor.tsx`). With words selected, the
   browser's own menu stays, for Copy.
+- **A locked page reads at full strength, never faded.** The shell's
+  `DocumentEditor` fades anything passed `disabled` to 60%
+  (`src/components/shared/rich-text-editor.tsx`, `opacity-60`), which looks
+  like a shade laid over the panel (Tyler, 7 Nov 2026: "Why is there a shade
+  overlay when the left panel is locked?"). So a lock never goes to the
+  editor as `disabled`:
+  - **Project** draws a locked page with the reading view `NoteView`
+    (`project-page-notes.tsx`), not the editor.
+  - **Travel** passes `locked` to `SavingDocument`
+    (`apps/travel/src/components/travel/saving-document.tsx`). The editor
+    stops taking writing, and `opacity-100` on its box undoes the fade.
+  - **Keep the fade only for "No signal"**, where it says nothing could be
+    saved.
+  - Don't change the shell file to fix this in one app. That forks it.
+  - Check it in the browser: lock the page, then read
+    `getComputedStyle(...).opacity` on the editor's box. It must be `1`.
 - **The Inbox and Look back** replace the page in place, and the footer stays.
   The page and the inbox stay mounted while hidden, so counts stay right.
 - **Footer of folding cards:** fixed at the bottom of the panel, holding the

@@ -2,7 +2,7 @@ import * as React from "react"
 import type { Editor, Extensions } from "@tiptap/core"
 import { TextSelection } from "@tiptap/pm/state"
 
-import { BLOCK_NODE_NAMES, BLOCK_NODES, BLOCKS, matchingBlocks, type BlockKey } from "@/components/travel/note-block-nodes"
+import { BLOCK_NODE_NAMES, BLOCK_NODES, BLOCKS, matchingBlocks, TRIP_BLOCKS, type BlockKey } from "@/components/travel/note-block-nodes"
 import { newFoldId } from "@/lib/travel/note-blocks"
 import { dismissSlash, noteSlashExtension, type SlashBridge, type SlashMatch } from "@/components/travel/note-slash"
 
@@ -35,7 +35,20 @@ const ATOMS: Partial<Record<BlockKey, string>> = {
   video: "noteVideo",
   link: "noteLink",
   links: "noteLinks",
+  budget: "noteBudget",
   divider: "horizontalRule",
+}
+
+/** Blocks a note holds once at most, as Project's Daily card: a trip has one budget. */
+const ONE_PER_NOTE: Partial<Record<BlockKey, string>> = { budget: "noteBudget" }
+
+function hasNode(editor: Editor, type: string) {
+  let found = false
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === type) found = true
+    return !found
+  })
+  return found
 }
 
 /**
@@ -46,6 +59,13 @@ const ATOMS: Partial<Record<BlockKey, string>> = {
  */
 function place(editor: Editor, match: SlashMatch, key: BlockKey) {
   const range = { from: match.from, to: match.to }
+  // Picking Budget in a note that already has one takes away the "/" and shows the one already there.
+  const single = ONE_PER_NOTE[key]
+  if (single && hasNode(editor, single)) {
+    editor.chain().focus().deleteRange(range).run()
+    editor.view.dom.querySelector(`[data-travel-block="${single}"]`)?.scrollIntoView({ block: "nearest" })
+    return
+  }
   const atom = ATOMS[key]
   if (atom) {
     editor.chain().focus().insertContentAt(range, { type: atom }).run()
@@ -86,15 +106,15 @@ function place(editor: Editor, match: SlashMatch, key: BlockKey) {
  * the shell's editor, and the state `NoteBlocksMenu` draws the list and the
  * card picker from. The extensions are made once, since the shell's editor
  * asks for the same ones every render. With `cards` off, for a note that
- * belongs to no trip (a saved place's, Travel features 4, part 11), Place and
- * Map aren't offered and aren't known to the editor at all, so one pasted in
- * from a trip's note is dropped rather than drawn without its trip.
+ * belongs to no trip (a saved place's, Travel features 4, part 11), Place,
+ * Map and Budget aren't offered and aren't known to the editor at all, so one
+ * pasted in from a trip's note is dropped rather than drawn without its trip.
  */
 export function useNoteBlocks({ cards = true }: { cards?: boolean } = {}) {
   const [relay] = React.useState(() => new SlashRelay())
   // The blocks this note offers: a note away from a trip has no card blocks.
   const [keys] = React.useState(() =>
-    BLOCKS.map((block) => block.key).filter((key) => cards || (key !== "place" && key !== "map"))
+    BLOCKS.map((block) => block.key).filter((key) => cards || !TRIP_BLOCKS.includes(key))
   )
   const [extensions] = React.useState<Extensions>(() => {
     const names = new Set(keys.flatMap((key) => BLOCK_NODE_NAMES[key]))

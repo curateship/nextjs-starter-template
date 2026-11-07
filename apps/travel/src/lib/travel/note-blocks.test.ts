@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { cleanNoteBody, noteIsEmpty, notePictures, noteText, swapNoteCards } from "@/lib/travel/note-blocks"
-import { copiedNotes, readNotes, storedNotes } from "@/lib/travel/notes"
+import { copiedNotes, readNotes, savedPlaceNotes, storedNotes } from "@/lib/travel/notes"
 import { readVideoLink, SHORT_TIKTOK_REFUSED, VIDEO_LINK_REFUSED, videoLinkProblem } from "@/lib/travel/video-links"
 
 const credit = { name: "Ana", profileUrl: "https://unsplash.com/@ana", photoPageUrl: "https://unsplash.com/photos/abc" }
@@ -178,6 +178,14 @@ describe("Project's basic blocks in a Travel note", () => {
   it("drops a Links block with no address it can keep, and an empty Checklist", () => {
     const cleaned = cleanNoteBody(doc({ type: "noteLinks", attrs: { links: [{ url: "javascript:alert(1)" }] } }, { type: "taskList", content: [] }))
     expect(cleaned.content).toEqual([])
+  })
+
+  it("keeps a Budget block with no values, copies it with a trip, and leaves it off a saved place", () => {
+    const stored = JSON.stringify(doc(paragraph("Money"), { type: "noteBudget", attrs: { budgetCents: 5 } }))
+    expect(readNotes(stored).content).toEqual([paragraph("Money"), { type: "noteBudget" }])
+    expect(readNotes(copiedNotes(stored, new Map([["a", "b"]]))).content).toEqual([paragraph("Money"), { type: "noteBudget" }])
+    expect(readNotes(savedPlaceNotes(stored)).content).toEqual([paragraph("Money")])
+    expect(savedPlaceNotes(JSON.stringify(doc({ type: "noteBudget" })))).toBe("")
   })
 
   it("counts a Divider as something to save", () => {

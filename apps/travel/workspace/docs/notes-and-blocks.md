@@ -26,8 +26,8 @@ opens a list of them.
 - **Two groups,** as in Project's notes (Tyler, 6 Nov 2026: "travel is
   missing some basic blocks. This is project blocks"). Basic blocks: Image,
   Video, Checklist, Callout, Divider, Fold section, Web page and Links.
-  Advanced blocks: Place and Map, which point at a trip's cards. A saved
-  place's notes have no Place or Map.
+  Advanced blocks: Place and Map, which point at a trip's cards, and Budget,
+  which shows the trip's money. A saved place's notes have none of the three.
 - **Each row** is the block's icon and name, with no line under it (Tyler,
   6 Nov 2026: "remove the sub label").
 - **Narrowing it:** letters after the "/" keep only the blocks whose name
@@ -60,6 +60,38 @@ on 6 Nov 2026 and work as they do there:
 - **Web page** is the block that was called Link: a page as a small card
   with its title, picture and site. It is still stored as `noteLink`.
 
+- **Budget** (Tyler, 7 Nov 2026: "turn this bottom card into a budget
+  block") is the Money card that sat in the trip's left panel's footer. It
+  is offered in every note on a trip: the description, the trip's notes and
+  each card's notes.
+  - **Its heading** reads "Budget: CA$181,400 of CA$2,000": the total of
+    every cost on the trip's days against the budget (Tyler, 7 Nov 2026:
+    "make the header "Budget: $54 of $ 100""). With no budget it reads
+    "Budget: CA$181,400". It is 12.8px, 20% under the 16px it started at
+    (Tyler, 7 Nov 2026: "reduce header font by 30%", then "increase by 10").
+  - **It folds** from a click on its heading, with no arrow (Tyler, 7 Nov
+    2026: "Add collapsible to budget", then "clicking on header to toggle is
+    enough"). The fold is remembered
+    in this browser, for every Budget block at once, and works in a note that
+    can't be written in too.
+  - **Opened, it shows** a bar that turns red over budget with how far over,
+    the Budget field, then the By day and By type tabs. By day is a line per day. By type is a line per activity type
+    with its icon, biggest first; cards with no type, or a removed one, count
+    under Other. Costs in Ideas are listed apart and not counted. A stay
+    counts once, on its first day.
+  - **The box** is solid light grey, as Project's Daily card block is, with
+    no ring when it's selected, since a click on its field or tabs selects
+    the block.
+  - **Its bin** sits at the heading's right, where the arrow was ("replace
+    toggle with the trash icon"). It shows while the block is pointed at, as
+    other blocks' bins do, and always on a phone.
+  - **One trip, one budget.** The budget typed in any Budget block is the
+    trip's, so every Budget block on the trip shows the same numbers. The tab
+    picked is remembered in this browser for all of them.
+  - **One per note.** Picking Budget in a note that already has one takes
+    the "/" away and scrolls to the one there.
+  - **A note that can't be written in** shows the block with its field
+    turned off.
 - **Image.** An empty Image block opens in the note with three ways in: an
   upload box (the shell's media library), the Unsplash button, and a "Web
   address" field. A web address has to start with `https://`. An Unsplash
@@ -114,8 +146,8 @@ on 6 Nov 2026 and work as they do there:
     pasted. Only the first 256 KB of a page is read. These are the shell's
     webhook checks (`src/server/automations/net-guard.ts`).
   - **One person reads at most 60 pages in 10 minutes.**
-- **A note on no trip** (a saved place's) offers Image, Video and Link only,
-  since Place and Map point at a trip's cards.
+- **A note on no trip** (a saved place's) offers no Place, Map or Budget,
+  since they point at a trip's cards or its money.
 - **A selected block** (clicked once, ready for Backspace) gets a faint ring
   round its picture, player, card or map only, following its corners. There's
   no box round the whole block and its links: Tyler, 5 Nov 2026, "this ui
@@ -133,9 +165,12 @@ on 6 Nov 2026 and work as they do there:
 - **Copy trip** points the Place and Map blocks in the trip's description and
   in each card's notes at the copies, not at the old trip's cards. The trip's
   own notes aren't copied, as before.
+- **Copy trip** keeps the Budget blocks, which then show the copy's money.
 - **Saving a place, adding a saved place to a trip, and Go again** copy a
   card's notes too. Its Place blocks go, and so do its Map blocks, because
   they point at cards on the old trip. Words, pictures and videos stay.
+  Saving a place also drops its Budget block, since a saved place has no
+  trip.
 
 ## What a saved note may hold
 
@@ -151,7 +186,8 @@ on 6 Nov 2026 and work as they do there:
   rewritten from what was pasted, and the player's address is always built
   from that link, so a note can only ever play those three sites. A Map keeps
   up to 25 card ids. A Link keeps its address and picture (`https://`
-  only), a title of up to 200 characters and a site name of up to 100.
+  only), a title of up to 200 characters and a site name of up to 100. A
+  Budget keeps nothing, because it reads the trip.
   Anything else is dropped.
 - **The same cleaning runs twice:** in the editor on every change, and on the
   server before every save, so a note sent by hand can't hold more.
@@ -169,7 +205,8 @@ own choice of address.
 - `src/components/travel/use-note-blocks.ts` and `note-blocks-menu.tsx`: the
   list, and the card window it opens.
 - `src/components/travel/note-block-nodes.ts` and `note-block-views.tsx`: the
-  blocks; `note-folds.ts`: which Fold sections this reader has folded.
+  blocks; `note-folds.ts`: which Fold sections this reader has folded;
+  `trip-budget-card.tsx`: what the Budget block draws.
 - `src/server/travel/link-preview.ts`: reading a Link block's page, behind
   `src/lib/api/travel/link-preview.ts`.
 - `src/components/travel/note-card-picker.tsx`: the card window for Place and

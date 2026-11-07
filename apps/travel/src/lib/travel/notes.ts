@@ -1,5 +1,5 @@
 import { emptyWrittenPageBody } from "@/lib/pages/written-page-body"
-import { cleanNoteBody, noteIsEmpty, noteText, swapNoteCards, type NoteNode } from "@/lib/travel/note-blocks"
+import { cleanNoteBody, dropTripBlocks, noteIsEmpty, noteText, swapNoteCards, type NoteNode } from "@/lib/travel/note-blocks"
 
 /**
  * An activity's notes are the shell's editor document, kept as JSON text, the
@@ -37,6 +37,14 @@ export function storedNotes(text: string): string {
  */
 export function copiedNotes(stored: string, ids: ReadonlyMap<string, string> = new Map()): string {
   return stored ? storedNotes(JSON.stringify(swapNoteCards(readNotes(stored), ids))) : stored
+}
+
+/**
+ * A stored note copied onto a saved place, which belongs to no trip: as
+ * `copiedNotes`, and its Budget blocks go too.
+ */
+export function savedPlaceNotes(stored: string): string {
+  return stored ? storedNotes(JSON.stringify(dropTripBlocks(swapNoteCards(readNotes(stored), new Map())))) : stored
 }
 
 /** A note's first line of words, as its name in the notes list and the bin, or "Empty note". */

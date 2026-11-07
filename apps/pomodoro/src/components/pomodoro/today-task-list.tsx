@@ -33,6 +33,7 @@ import {
 } from "@/components/pomodoro/task-steps"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DatePicker } from "@/components/ui/date-picker"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Input } from "@/components/ui/input"
@@ -54,6 +55,7 @@ import { PROJECT_TONES, projectToneIndex } from "@/lib/pomodoro/project-initial"
 import type { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import {
   BLANK_TASK_TITLE,
+  dueDateMark,
   taskPriorities,
   taskProgressLabel,
   type TaskItem,
@@ -530,7 +532,7 @@ function TaskRow({
           >
             {task.title}
           </span>
-          <TaskMarks task={task} flat={flat} />
+          <TaskMarks task={task} flat={flat} today={pomodoro.localToday} />
         </span>
       ) : (
         <TaskTitleRename
@@ -560,7 +562,7 @@ function TaskRow({
             <span className={cn("truncate", flat ? "text-[15px]" : "text-sm")}>
               {task.title}
             </span>
-            <TaskMarks task={task} flat={flat} />
+            <TaskMarks task={task} flat={flat} today={pomodoro.localToday} />
           </button>
         </TaskTitleRename>
       )}
@@ -799,12 +801,17 @@ export function RemoveTaskButton({
  */
 export function TaskMarks({
   task,
+  today,
   flat = false,
 }: {
   task: TaskItem
+  /** The account's today, `yyyy-mm-dd`, which the due date is read against. */
+  today: string
   /** The front page's drawing: "in" and the project as a tinted pill, the count in pomos. */
   flat?: boolean
 }) {
+  const due =
+    task.dueDate && !task.completed ? dueDateMark(task.dueDate, today) : null
   return (
     <>
       {/* The repeat rule is in the row's own words rather than a tooltip on
@@ -833,6 +840,21 @@ export function TaskMarks({
       ) : task.projectName ? (
         <b className="max-w-28 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {task.projectName}
+        </b>
+      ) : null}
+      {due ? (
+        <b
+          className={cn(
+            "shrink-0 text-[10px] font-semibold uppercase tracking-wide",
+            due.tone === "due"
+              ? "text-destructive"
+              : due.tone === "soon"
+                ? "text-[var(--p-warning)]"
+                : "text-muted-foreground"
+          )}
+        >
+          <span className="sr-only">. </span>
+          {due.text}
         </b>
       ) : null}
       {task.priority !== "normal" ? (
@@ -919,6 +941,7 @@ export function TaskEditForm({
     title: string
     priority: TaskPriority
     estimatedPomodoros: number | null
+    dueDate: string | null
     projectId: string | null
     repeatWeekdays: number | null
     tags: string[]
@@ -938,6 +961,7 @@ export function TaskEditForm({
   const [estimate, setEstimate] = React.useState(
     task.estimatedPomodoros === null ? "" : String(task.estimatedPomodoros)
   )
+  const [dueDate, setDueDate] = React.useState(task.dueDate)
   const [repeatChoice, setRepeatChoice] = React.useState<RepeatChoice>(
     repeatChoiceOf(task.repeatWeekdays)
   )
@@ -983,6 +1007,7 @@ export function TaskEditForm({
           title: title.trim(),
           priority,
           estimatedPomodoros: parsedEstimate,
+          dueDate,
           projectId,
           repeatWeekdays,
           tags,
@@ -1037,6 +1062,30 @@ export function TaskEditForm({
             aria-invalid={!estimateValid || undefined}
             className="w-20"
           />
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor={`${id}-due`}>Due</Label>
+        <div className="flex items-center gap-2">
+          <DatePicker
+            id={`${id}-due`}
+            className="w-auto"
+            placeholder="No due date"
+            value={dueDate ? dateFromLocalDate(dueDate) : undefined}
+            onChange={(picked) =>
+              setDueDate(picked ? localDateFromDate(picked) : null)
+            }
+          />
+          {dueDate ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setDueDate(null)}
+            >
+              Clear
+            </Button>
+          ) : null}
         </div>
       </div>
       {allowRepeat ? (
@@ -1273,4 +1322,15 @@ function TagEditor({
         : null}
     </div>
   )
+}
+
+/** The calendar's day for a `yyyy-mm-dd`, at local midnight. */
+function dateFromLocalDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number)
+  return new Date(year, month - 1, day)
+}
+
+/** The `yyyy-mm-dd` of the day the calendar picked. */
+function localDateFromDate(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`
 }

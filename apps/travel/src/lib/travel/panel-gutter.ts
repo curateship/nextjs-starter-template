@@ -7,13 +7,3 @@
  */
 export const PANEL_GUTTER = "gap-3.75 p-3.75"
 export const PANEL_FOOTER_PADDING = "p-3.75"
-/**
- * A footer card's body, under its heading: the heading's 16px at the sides and
- * below, none above, since the heading brings its own (`band` on FoldHeading).
- */
-export const FOOTER_CARD_BODY = "px-4 pb-4"
-/**
- * A side panel's body above `PanelFooter`: it keeps at least 6rem and grows
- * into whatever the footer leaves.
- */
-export const PANEL_BODY_ABOVE_FOOTER = "flex-[1_0_6rem]"

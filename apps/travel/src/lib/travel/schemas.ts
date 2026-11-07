@@ -66,6 +66,8 @@ export const updateTripSchema = z.object({
   coverCredit: photoCreditSchema.nullable().optional(),
   /** The editor's own document as JSON text; the server cleans it. */
   description: z.string().max(100_000, "The description is too long to save.").optional(),
+  /** Lock blocks: the description reads only while this is on. */
+  descriptionLocked: z.boolean().optional(),
   travelMode: z.enum(TRAVEL_MODES).optional(),
   tags: z
     .array(z.string().trim().min(1).max(30, "A tag can be at most 30 characters."))

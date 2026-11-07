@@ -48,6 +48,7 @@ import { Route as PomodoroTimerRouteImport } from './routes/_pomodoro/timer'
 import { Route as PomodoroUploadsRouteImport } from './routes/_pomodoro/uploads'
 import { Route as PomodoroUsersRouteImport } from './routes/_pomodoro/users'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as EmbedTimerRouteImport } from './routes/embed.timer'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
@@ -316,6 +317,11 @@ const PomodoroUsersRoute = PomodoroUsersRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedTimerRoute = EmbedTimerRouteImport.update({
+  id: '/embed/timer',
+  path: '/embed/timer',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -791,6 +797,7 @@ export interface FileRoutesByFullPath {
   '/uploads': typeof PomodoroUploadsRoute
   '/users': typeof PomodoroUsersRoute
   '/api/health': typeof ApiHealthRoute
+  '/embed/timer': typeof EmbedTimerRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -904,6 +911,7 @@ export interface FileRoutesByTo {
   '/uploads': typeof PomodoroUploadsRoute
   '/users': typeof PomodoroUsersRoute
   '/api/health': typeof ApiHealthRoute
+  '/embed/timer': typeof EmbedTimerRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -1022,6 +1030,7 @@ export interface FileRoutesById {
   '/_pomodoro/uploads': typeof PomodoroUploadsRoute
   '/_pomodoro/users': typeof PomodoroUsersRoute
   '/api/health': typeof ApiHealthRoute
+  '/embed/timer': typeof EmbedTimerRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -1139,6 +1148,7 @@ export interface FileRouteTypes {
     | '/uploads'
     | '/users'
     | '/api/health'
+    | '/embed/timer'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -1252,6 +1262,7 @@ export interface FileRouteTypes {
     | '/uploads'
     | '/users'
     | '/api/health'
+    | '/embed/timer'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -1369,6 +1380,7 @@ export interface FileRouteTypes {
     | '/_pomodoro/uploads'
     | '/_pomodoro/users'
     | '/api/health'
+    | '/embed/timer'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
@@ -1469,6 +1481,7 @@ export interface RootRouteChildren {
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  EmbedTimerRoute: typeof EmbedTimerRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
@@ -1757,6 +1770,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/timer': {
+      id: '/embed/timer'
+      path: '/embed/timer'
+      fullPath: '/embed/timer'
+      preLoaderRoute: typeof EmbedTimerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -2560,6 +2580,7 @@ const rootRouteChildren: RootRouteChildren = {
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
+  EmbedTimerRoute: EmbedTimerRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,

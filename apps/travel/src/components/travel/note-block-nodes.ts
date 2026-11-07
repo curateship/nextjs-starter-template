@@ -14,10 +14,12 @@ import {
   MapPinIcon,
   MinusIcon,
   PlayIcon,
+  WalletIcon,
   type LucideIcon,
 } from "lucide-react"
 
 import {
+  BudgetBlockView,
   CalloutBlockView,
   FoldBlockView,
   ImageBlockView,
@@ -49,12 +51,13 @@ export type BlockKey =
   | "links"
   | "place"
   | "map"
+  | "budget"
 
 /**
  * The "/" list's two groups, as Project's (Tyler, 6 Nov 2026: "travel is
  * missing some basic blocks. This is project blocks"). Basic blocks are what
  * the writer types or pastes in; advanced blocks show something live from
- * Travel: a trip's cards.
+ * Travel: a trip's cards, or its money.
  */
 export type BlockGroup = "basic" | "advanced"
 export const BLOCK_GROUP_LABEL: Record<BlockGroup, string> = { basic: "Basic blocks", advanced: "Advanced blocks" }
@@ -75,6 +78,8 @@ export const BLOCKS: { key: BlockKey; label: string; icon: LucideIcon; group: Bl
   { key: "links", label: "Links", icon: LinkIcon, group: "basic" },
   { key: "place", label: "Place", icon: MapPinIcon, group: "advanced" },
   { key: "map", label: "Map", icon: MapIcon, group: "advanced" },
+  // The Money card from the left panel's footer, as a block (Tyler, 7 Nov 2026: "turn this bottom card into a budget block").
+  { key: "budget", label: "Budget", icon: WalletIcon, group: "advanced" },
 ]
 
 /** The blocks whose name starts with what was typed after the "/". */
@@ -82,6 +87,9 @@ export function matchingBlocks(query: string) {
   const words = query.toLowerCase()
   return BLOCKS.filter((block) => block.label.toLowerCase().startsWith(words))
 }
+
+/** The blocks that only make sense on a trip: Place and Map point at its cards, Budget shows its money. */
+export const TRIP_BLOCKS: readonly BlockKey[] = ["place", "map", "budget"]
 
 function blockNode(name: string, defaults: Record<string, unknown>, view: (props: NodeViewProps) => React.ReactNode) {
   return Node.create({
@@ -200,6 +208,7 @@ export const BLOCK_NODES: Extensions = [
   blockNode("noteMap", { activityIds: [] }, MapBlockView),
   blockNode("noteLink", { url: null, title: null, image: null, site: "" }, LinkBlockView),
   blockNode("noteLinks", { links: [] }, LinksBlockView),
+  blockNode("noteBudget", {}, BudgetBlockView),
   Callout,
   Fold,
   TaskList,
@@ -219,6 +228,7 @@ export const BLOCK_NODE_NAMES: Record<BlockKey, readonly string[]> = {
   map: ["noteMap"],
   link: ["noteLink"],
   links: ["noteLinks"],
+  budget: ["noteBudget"],
   checklist: ["taskList", "taskItem"],
   callout: ["noteCallout"],
   fold: ["noteFold", "travelNoteFolds"],

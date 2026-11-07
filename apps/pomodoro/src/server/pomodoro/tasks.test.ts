@@ -321,3 +321,30 @@ describe("the archive, a page of whole days", () => {
     expect(page.hasOlder).toBe(false)
   })
 })
+
+describe("due dates", () => {
+  it("saves and clears a due date, and carries it to the next day", async () => {
+    const friday = await addTask(FRIDAY)
+    await updateTaskPlan(userId, friday.id, FRIDAY, { dueDate: TUESDAY })
+    expect((await tasksOn(FRIDAY))[0].dueDate).toBe(TUESDAY)
+
+    await rollOverTasks(userId, SATURDAY)
+    const [carried] = await tasksOn(SATURDAY)
+    expect(carried.dueDate).toBe(TUESDAY)
+
+    await updateTaskPlan(userId, carried.id, SATURDAY, { dueDate: null })
+    expect((await tasksOn(SATURDAY))[0].dueDate).toBe(null)
+  })
+
+  it("never gives a repeat rule's fresh copy a due date", async () => {
+    const friday = await addTask(FRIDAY)
+    await setTaskRepeat(userId, friday.id, FRIDAY, EVERY_DAY)
+    await updateTaskPlan(userId, friday.id, FRIDAY, { dueDate: MONDAY })
+    await db.update(tasks).set({ status: "completed" }).where(eq(tasks.id, friday.id))
+
+    await rollOverTasks(userId, SATURDAY)
+    const [fresh] = await tasksOn(SATURDAY)
+    expect(fresh.repeatId).not.toBe(null)
+    expect(fresh.dueDate).toBe(null)
+  })
+})

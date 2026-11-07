@@ -123,7 +123,7 @@ The groups, in order:
   weekday isn't known, so it doesn't warn. Website and
   Menu open in a new tab, and Phone has a Call button.
 - **Money and picture:** Cost, in the trip's currency, added up in the trip's
-  Money card; and Picture, uploaded or searched on Unsplash. An Unsplash photo
+  Budget block; and Picture, uploaded or searched on Unsplash. An Unsplash photo
   shows its photographer's credit.
 - **How was it:** once the activity is done or its day is over, 1 to 5 stars,
   "Would go again", and Save to saved places.

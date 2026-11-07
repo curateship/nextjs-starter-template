@@ -1,7 +1,7 @@
 # The trip's left panel
 
-The trip's left panel shows the trip itself. The back arrow goes to Trips. Two
-icons sit in the header. The note icon opens the trip's notes, and the ⋮
+The trip's left panel shows the trip itself: the header, then the
+description. The back arrow goes to Trips. Two icons sit in the header. The note icon opens the trip's notes, and the ⋮
 opens Trip settings.
 
 - **The cover photo** lies faintly behind the top of the panel, the way
@@ -13,20 +13,27 @@ opens Trip settings.
   inline edit discription with tiptap editor"). It saves 700ms after the last
   letter and when it's left. It is the only place the description is
   written. Trip settings doesn't have it.
-- **Money** is a folding card in the panel's footer, in a light grey box at
-  the bottom, as Project's footer cards are (the Admin 3 panel design, 6 Nov
-  2026). Its heading shows the total, or the total of the budget, and folds
-  the card; the fold is remembered in this browser. The description takes the
-  rest of the panel above it, keeping at least 6rem, and the footer only
-  scrolls once the panel is full. It holds the total of every cost on the trip's days against the budget
-  typed here, with a bar that turns red over budget, then two tabs, By day
-  and By type (Tyler, 4 Nov 2026: "Switch: day or type"), remembered in this
-  browser. By day is a line per day. By type is a line per activity type with
-  its icon, biggest first, such as Hotel ¥90,000 and Food ¥42,000; cards with
-  no type, or a removed one, count under Other. Both add up to the same
-  total. Costs in Ideas are listed apart and not counted. A stay counts once,
-  on its first day. The sums are `tripTotals` and `spendingByType` in
-  `src/lib/travel/budget.ts`.
+- **Lock blocks** in the ⋮ makes the description read only, its words and
+  its blocks, until Unlock blocks (Tyler, 7 Nov 2026: "add lock blocks
+  button"), as Project's Lock the notes does for a page. While it's locked
+  nothing can be typed, no "/" list opens, the Budget field is turned off
+  and blocks have no bins. It reads at full strength, not faded the way a
+  note is with no signal (Tyler, 7 Nov 2026: "Why is there a shade overlay
+  when the left panel is locked?"). The Budget block still folds and switches between
+  By day and By type, since those change nothing on the trip. The server
+  refuses a new description while it's locked, with "The trip's blocks are
+  locked. Unlock them from the trip's ⋮ first." The trip's own notes behind
+  the note icon aren't locked. The lock is `description_locked` on
+  `travel_trips` (`drizzle/0108_travel_trip_blocks_lock.sql`), and Copy trip
+  copies it.
+- **Money** is the Budget block, put in the description, or any note on the
+  trip, by typing "/" (Tyler, 7 Nov 2026: "turn this bottom card into a
+  budget block"). It was a folding card in the panel's footer, so the panel
+  has no footer now and the description takes all of it. The block is
+  described in [Notes and the "/" blocks](notes-and-blocks.md). The budget
+  itself is still the trip's own (`budget_cents` on `travel_trips`), so a
+  trip keeps its budget without a block, and a trip with no block shows no
+  money in the panel until one is added.
 
 ## Notes
 
@@ -108,8 +115,8 @@ setting.
   - **Details:** Status, Currency and Getting around (walk, transit or drive,
     used for travel times). Each drops its choices from the row, the current
     one ticked, and one press picks and saves.
-- **Under the groups:** Rate the trip, then Delete trip in red under a line
-  of its own.
+- **Under the groups:** Rate the trip, Lock blocks (Unlock blocks while
+  locked), then Delete trip in red under a line of its own.
 - **Saving:** every field saves itself. There is no Save button. An empty
   name is refused with "Give the trip a name." Closing the menu leaves the
   field being typed in first, so its save lands.
@@ -126,10 +133,9 @@ setting.
 ## Where it lives
 
 `src/components/travel/trip-details-panel.tsx`, `trip-notes-panel.tsx`,
-`trip-budget-card.tsx`, `saving-document.tsx` and `trip-menu.tsx`. The menu
+`saving-document.tsx` and `trip-menu.tsx`. The menu
 is `TabbedMenu` (`tabbed-menu.tsx`) with `PickGroup` and the row kinds in
 `pick-rows.tsx`, copied from Project's `my-settings-menu.tsx` and
-`pick-rows.tsx`. The footer is `panel-footer.tsx` and `fold-heading.tsx`,
-copied from Project, with the gutters in `src/lib/travel/panel-gutter.ts`.
-Notes are `src/server/travel/trip-notes.ts`, the totals
-`src/lib/travel/budget.ts`.
+`pick-rows.tsx`. The gutters are in `src/lib/travel/panel-gutter.ts`.
+Notes are `src/server/travel/trip-notes.ts`. The Budget block is
+`trip-budget-card.tsx`, its totals `src/lib/travel/budget.ts`.

@@ -335,6 +335,13 @@ soon, then six to join.
   soon as no real person is left in it. The card says how many are waiting.
   Everybody else goes at once.
 
+- **They answer "Did you finish?"** in the break after a focus they sat
+  through, each 10 to 90 seconds in and about 70 out of 100 of them Finished.
+  The answer is written straight in, never through the server function a real
+  press uses, and it is not a line of chat, so it never takes chat's turn
+  (`checkInMadeUp` in `src/server/pomodoro/simulated-chat.ts`). Like the rest
+  of chat, it waits while nobody real is on the site.
+
 ## Chat and the voice card
 
 Task 03, built 9 Oct 2026. Tyler, 9 Oct 2026: "There should be options to
