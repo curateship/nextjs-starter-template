@@ -1,4 +1,5 @@
 import * as React from "react"
+import type { Editor } from "@tiptap/core"
 
 import { NoteEditor, NoteView } from "@/components/project/notes/note-editor"
 import { useNotesBoxSetup } from "@/components/project/notes/note-setup"
@@ -63,6 +64,27 @@ export function AdminPageNotes({ page, locked }: { page: string; locked: boolean
       small
     />
   )
+}
+
+/**
+ * A click above a page that starts with a block, such as the Daily card, puts
+ * a new line there and the cursor in it (Tyler, 7 Nov 2026: "i cant click at
+ * the very upper editor here to insert content because the block is in it").
+ * On a page that starts with writing, the click puts the cursor at its start.
+ */
+function lineAbove(event: React.MouseEvent<HTMLDivElement>) {
+  // Only the strip itself, never a click passed up from inside the page or from
+  // a menu or dialog it opened, which React passes up through this box too.
+  if (event.target !== event.currentTarget) return
+  const area = event.currentTarget.querySelector<HTMLElement & { editor?: Editor }>(".tiptap")
+  const editor = area?.editor
+  const first = area?.firstElementChild
+  if (!editor || editor.isDestroyed || !editor.isEditable || !first) return
+  if (event.clientY >= first.getBoundingClientRect().top) return
+  event.preventDefault()
+  const chain = editor.chain()
+  if (!editor.state.doc.firstChild?.isTextblock) chain.insertContentAt(0, { type: "paragraph" })
+  chain.setTextSelection(1).focus().run()
 }
 
 /**
@@ -158,6 +180,8 @@ export function PageNoteEditor({
       data-notes-editor=""
       className={cn(
         "relative",
+        // The panel's edge above the page, 12px, takes a click too (see `lineAbove`).
+        "before:absolute before:inset-x-0 before:-top-3 before:h-3 before:cursor-text before:content-['']",
         // A plain writing area, no box: the panel around it is the page.
         "[&_[data-note-box]>div:first-of-type]:rounded-none [&_[data-note-box]>div:first-of-type]:border-0 [&_[data-note-box]>div:first-of-type]:bg-transparent",
         "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-0 [&_.page-rte_.tiptap]:!pt-0 [&_.page-rte_.tiptap]:!pb-2",
@@ -165,6 +189,7 @@ export function PageNoteEditor({
           ? "[&_.page-rte_.tiptap]:!text-sm [&_.page-rte_.tiptap]:!leading-[1.6]"
           : "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]"
       )}
+      onMouseDown={lineAbove}
       onBlur={(event) => {
         const next = event.relatedTarget
         // The link box, the "/" list and a block's menu sit outside the writing area.
