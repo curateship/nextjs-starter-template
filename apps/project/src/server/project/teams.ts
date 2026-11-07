@@ -2,6 +2,7 @@ import { and, asc, count, eq, inArray, isNull, notInArray, sql, type SQL } from 
 
 import { localNow } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
+import { storedNotesForCopy } from "@/lib/project/notes"
 import { CLOSED_TASK_STATUSES, DEFAULT_CHECKIN_TIME, DEFAULT_WORK_DAYS, runsTheTeam, type TeamRole } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
@@ -9,7 +10,7 @@ import { isOwnedImageUrl } from "@/server/media/library"
 import { loadAnnouncement, type Announcement } from "@/server/project/announcements"
 import { requireKnownZone } from "@/server/project/checkins"
 import { holidayOn, listHolidays, type Holiday } from "@/server/project/holidays"
-import { projectViewScreen } from "@/server/project/saved-views"
+import { projectViewScreen, teamTasksViewScreen } from "@/server/project/saved-views"
 import { countTeamToday } from "@/server/project/team-days"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
 import {
@@ -40,8 +41,6 @@ export type TeamSummary = {
   createdAt: string
   /** The team photo's address, drawn as the wide cover; or null. */
   photoUrl: string | null
-  /** The team's square avatar beside its name; null shows its initials. */
-  avatarUrl: string | null
   /** The team's own words for the check-in's boxes; null keeps the usual one. */
   questions: { yesterday: string | null; today: string | null; blocker: string | null }
   /** Titles each new member gets as "Just me" tasks. */
@@ -74,6 +73,10 @@ export type TeamDashboard = {
   announcement: Announcement | null
   /** Clients of the projects I can see, for the Client choice on the calendar and Workload. */
   clients: string[]
+  /** The team's page at the top of the left panel, as kept: "" or a note's document. */
+  page: string
+  /** The page reads only, even for the site admin, until it's unlocked. */
+  pageLocked: boolean
 }
 
 /**
@@ -107,7 +110,6 @@ export async function createTeam(
 export type TeamListRow = {
   id: string
   name: string
-  avatarUrl: string | null
   checkinTime: string
   timeZone: string
   /** Employees on the team; the site admin is never counted. */
@@ -199,7 +201,6 @@ export async function listTeams(userId: string, database = db, at = new Date()):
     return {
       id: team.id,
       name: team.name,
-      avatarUrl: team.avatarUrl,
       checkinTime: team.checkinTime,
       timeZone: team.timeZone,
       people: peopleOf.get(team.id) ?? 0,
@@ -277,6 +278,8 @@ export async function loadTeamDashboard(
     ),
     announcement: await loadAnnouncement(membership, database),
     clients: await visibleClients(membership, database),
+    page: team.notes,
+    pageLocked: team.notesLocked,
   }
 }
 
@@ -356,23 +359,34 @@ export async function setTeamPhoto(userId: string, photoUrl: string, database = 
 }
 
 /**
- * The team's square avatar, the site admin's to change, with the same rule as
- * the cover photo: a picture they uploaded to the media library themselves.
- * "" takes it away and the team's initials show again.
+ * The team's page locked so it reads only, or unlocked again, from Team
+ * settings (Tyler, 7 Nov 2026: "the lock blocks button is missing"). The
+ * site admin's alone.
  */
-export async function setTeamAvatar(userId: string, avatarUrl: string, database = db) {
+export async function setTeamPageLock(userId: string, locked: boolean, database = db) {
   const membership = await requireTeamRunner(userId, database)
-  const [team] = await database
-    .select({ avatarUrl: projectTeams.avatarUrl })
-    .from(projectTeams)
-    .where(eq(projectTeams.id, membership.teamId))
-  const unchanged = avatarUrl === (team?.avatarUrl ?? "")
-  if (avatarUrl && !unchanged && !(await isOwnedImageUrl(userId, avatarUrl, database))) {
-    throw new Error(PROJECT_ERRORS.photoNotYours)
-  }
   await database
     .update(projectTeams)
-    .set({ avatarUrl: avatarUrl || null, updatedAt: now() })
+    .set({ notesLocked: locked, updatedAt: now() })
+    .where(eq(projectTeams.id, membership.teamId))
+}
+
+/**
+ * The team's page at the top of the Team dashboard's left panel, the site
+ * admin's to write (Tyler, 7 Nov 2026). Cleaned as a page with no task, so a
+ * Task card or Comments block that slipped in is dropped, keeping the team
+ * blocks.
+ */
+export async function setTeamPage(userId: string, notes: string, database = db) {
+  const membership = await requireTeamRunner(userId, database)
+  const [team] = await database
+    .select({ locked: projectTeams.notesLocked })
+    .from(projectTeams)
+    .where(eq(projectTeams.id, membership.teamId))
+  if (team?.locked) throw new Error(PROJECT_ERRORS.teamPageLocked)
+  await database
+    .update(projectTeams)
+    .set({ notes: storedNotesForCopy(notes, { noTask: true, team: true }), updatedAt: now() })
     .where(eq(projectTeams.id, membership.teamId))
 }
 
@@ -488,7 +502,7 @@ function toTeamSummary(
     Partial<
       Pick<
         typeof projectTeams.$inferSelect,
-        "photoUrl" | "avatarUrl" | "questionYesterday" | "questionToday" | "questionBlocker" | "starterTasks"
+        "photoUrl" | "questionYesterday" | "questionToday" | "questionBlocker" | "starterTasks"
       >
     >
 ): TeamSummary {
@@ -500,7 +514,6 @@ function toTeamSummary(
     workDays: [...team.workDays],
     createdAt: team.createdAt.toISOString(),
     photoUrl: team.photoUrl ?? null,
-    avatarUrl: team.avatarUrl ?? null,
     questions: {
       yesterday: team.questionYesterday ?? null,
       today: team.questionToday ?? null,
@@ -539,5 +552,9 @@ async function teamViewScreens(teamId: string, database: ProjectDb) {
     .select({ id: projectProjects.id })
     .from(projectProjects)
     .where(eq(projectProjects.teamId, teamId))
-  return [projectViewScreen(teamId, null), ...projects.map((project) => projectViewScreen(teamId, project.id))]
+  return [
+    projectViewScreen(teamId, null),
+    teamTasksViewScreen(teamId),
+    ...projects.map((project) => projectViewScreen(teamId, project.id)),
+  ]
 }

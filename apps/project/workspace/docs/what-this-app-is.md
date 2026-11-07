@@ -51,14 +51,18 @@ the code. If the code disagrees with a line here, the code is wrong.
 - **The Team dashboard.** Tyler gave a mockup on 10 Oct 2026
   (`assets/pasted-image-1791659665679304000.png`): the team and its members on
   the left, a month calendar in the middle, and one day's check-ins on the
-  right. The calendar shows each day's check-ins and the team's meetings.
+  right. On 7 Nov 2026 it took the Admin 3 panel design: the team's page with
+  "/" blocks on the left (Check-ins among them), Tasks, Calendar and Activity
+  in the middle, and the open task on the right. The calendar shows each day's check-ins and the team's meetings.
   Each person's check-in shows their own "Yesterday", "Today" and "Blocker"
   notes, with the tasks they picked under each, and a "Blocker" line for a
   picked task that is Stuck.
 - **Team settings live in a window on the Team dashboard.** Tyler first said
   "The team settings goes into app settings in settings", then chose the
   window when told that Settings only opens for app admins, so a customer who
-  owns a team couldn't reach it.
+  owns a team couldn't reach it. On 7 Nov 2026 they became the ⋮ in the left
+  panel's header, a tabbed menu of grouped rows (Tyler: "the teams settings
+  is not following the skill"). The Teams table's cog still opens a window.
 - **Teams belong to Project.** Teams, invites and roles are part of this
   product and are built inside `apps/project` only.
 - **A task opens in the middle panel.** On the project page and My dashboard,

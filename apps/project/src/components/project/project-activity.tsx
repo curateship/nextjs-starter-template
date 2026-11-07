@@ -40,7 +40,7 @@ export function ProjectActivity({
 /**
  * The Team dashboard's Activity tab: the same lines across every project the
  * viewer can see, each naming its project. "Just me" tasks and the bin never
- * show. A line opens its task as a window over the dashboard.
+ * show. A line opens its task in the right panel.
  */
 export function TeamActivity({ onOpenTask }: { onOpenTask: (taskId: string) => void }) {
   const teamId = useTeamId()

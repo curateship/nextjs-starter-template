@@ -109,6 +109,37 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
   own prefs row, cleaned by the same rule as a project's page
   (`pageNotesSchema` in `src/lib/project/rules.ts`), and only its owner can
   save it.
+- **Lock the notes:** the page's ⋮ (My settings, or the record's settings ⋮
+  such as Team settings) has a "Lock the notes" row under its General groups,
+  a ghost button with `LockIcon`, reading "Unlock the notes" with
+  `LockOpenIcon` while locked. Locked, the page reads only, blocks and all,
+  even for its owner, and the server refuses a save (Tyler, 7 Nov 2026, of
+  the team page: "the lock blocks button is missing"). Every page in this
+  design has it.
+- **Every card folds by its heading** (Tyler, 7 Nov 2026: "the header should
+  be here on the same row as the trashcan icon. Also clicking on the header
+  toggles the card. Update the skill that all cards must have this
+  function"). This holds for footer cards and for card-shaped "/" blocks on a
+  page alike:
+  - The card is a `Collapsible` whose heading is `FoldHeading band`: pressing
+    the title folds and opens it. A footer card shows the arrow at the right
+    as the same press; a "/" block card shows no arrow (Tyler, 7 Nov 2026:
+    "dont need to show this"), the title alone folds it
+    (`[&>button[aria-hidden]]:hidden` on `FoldHeading`). The fold is remembered in this browser per card
+    (`useRememberedCollapse(collapseStorageKey.settingsCard(...))`).
+  - A block's bin sits in the heading row, as `FoldHeading`'s children,
+    at the row's right end, its middle level with the title's
+    (measure both). It shows while the block is pointed at or focused, and
+    always on a phone. Never a bin floating over the card's corner above the
+    title.
+  - Inside the editor, the page's own heading styles reach the card's `h2`,
+    so the heading resets them (`!m-0 !p-0 !text-base !leading-tight`).
+  - The block is one solid light grey box
+    (`bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))]`,
+    `rounded-2xl`); cards inside it are white tiles (`rounded-xl
+    bg-background p-3`) with smaller headings, and never repeat the block's
+    title. Reference: `BlockCard` in
+    `apps/project/src/components/project/notes/team-blocks.tsx`.
 - **Right-click opens the blocks** in the page, and in the record's notes on
   the right: the same "/" list, at the pointer, putting the block where the
   click was (`openAt` in `notes/use-note-blocks.ts`, the handler on
@@ -310,6 +341,14 @@ and the parts built in `task-body.tsx`.
 Reference: `TabbedMenu` and `MySettingsMenu` in
 `apps/project/src/components/project/my-settings-menu.tsx`.
 
+- **Every settings window on the screen becomes one of these**, even where
+  the app's docs record an older choice of a window (Tyler, 7 Nov 2026: "the
+  teams settings is not following the skill", after Team settings was kept
+  as a window opened from ⋮). Only a table's row may still open the same
+  settings as a window, as the Projects and Teams tables do. Reference for
+  a record's settings with lists: `TeamMenu` in
+  `apps/project/src/components/project/team-menu.tsx` (General, Check-ins,
+  Joining; lists end with "+ Add …").
 - **Trigger:** a ghost `icon` button with `EllipsisVerticalIcon`, its
   `aria-label` and shadcn tooltip naming the menu ("My settings", "Task
   menu"). Grey while open.

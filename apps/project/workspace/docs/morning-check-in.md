@@ -254,7 +254,7 @@ A public holiday is a day off for everyone, set once.
 - **Saved as a day off.** The end-of-day job saves the day with `work_day`
   false, so nobody shows "Didn't check in" and the check-in rate leaves the
   day out.
-- **The calendar square reads the holiday's name**, and the Check-ins tab
+- **The calendar square reads the holiday's name**, and the Check-ins block
   says "Christmas Day, a team holiday."
 - **The date is read on each person's own calendar**, the same way the team's
   work days are. A person in another country marks their own country's

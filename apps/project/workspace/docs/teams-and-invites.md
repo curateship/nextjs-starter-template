@@ -60,8 +60,8 @@ two kinds of people, both ordinary shell accounts signing in on the one
   is a team holiday; and "Nobody expected" for a team with nobody on it.
   "Stuck" and "Overdue" count open tasks in its shared, open projects, with
   overdue read on the team's own calendar, the way its Needs attention reads
-  it; above zero they are red. Clicking a number opens that team's dashboard
-  on the matching tab: its check-ins, or Attention for Stuck and Overdue. The
+  it; above zero they are red. Clicking a number opens that team's dashboard,
+  whose page holds the Check-ins and Attention blocks. The
   columns sort (`listTeams` in `teams.ts`). Each team's count of today is
   read one team at a time, which is fine for a handful of teams.
 - **Each page names its team.** A project's page uses the project's team, and
@@ -162,7 +162,7 @@ One link to paste in a message, instead of inviting people one by one.
 
 - **A short title beside each name**, up to 40 characters, such as
   "Copywriter": on the Team dashboard's member list, the Members page, each
-  project's members, the Workload tab and the hand-to picker in a task.
+  project's members, the Workload block and the hand-to picker in a task.
 - **Each person sets their own** on My dashboard's left panel. **The site
   admin can change anyone's** from that person's page, opened from the
   Members page or the Team dashboard.
@@ -199,76 +199,103 @@ For when someone leaves or goes away, so their work isn't left with nobody.
 
 ## The Team dashboard
 
-`/team` is three panels, from Tyler's mockup of 10 Oct 2026
-(`assets/pasted-image-1791659665679304000.png`), redrawn by him on 14 Oct
-2026 (`assets/pasted-image-1792017230135278000.png`, the announcement's menu
-in `...7250513263000.png` and the Attention tab in `...7275530947000.png`). The panels resize and
-collapse like the project page's, and below 1280px wide one shows at a time,
-under Calendar, Team and Day tabs. Picking a day on the calendar switches to
-Day. The tab is "Day" so it doesn't sit over the panel's own Check-ins tab.
+`/team` for an employee and `/teams/<id>` for the site admin are three
+panels in the Admin 3 panel design (task "Team
+dashboard/admin-3-panel-design", Tyler, 7 Nov 2026: "Apply the changes to the
+team pages"). It began as his mockup of 10 Oct 2026
+(`assets/pasted-image-1791659665679304000.png`), redrawn on 14 Oct 2026. The
+panels resize and collapse like the project page's, and below 1280px wide one
+shows at a time, under Tasks, Team and Task tabs.
 
-- **Left: the team**, as Tyler drew it on 16 Oct 2026
-  (`assets/pasted-image-1792200037598390000.png`). The team's cover photo
-  fades into the panel, with no heading (Tyler removed "Team" on 16 Oct
-  2026) and the cog showing while the top of the panel is pointed at
-  (always on a touch screen); the team's square
-  avatar overlaps its foot beside the name, the day it was created and its
-  city (see The cover and the avatar below). Then two cards that fold, each
-  remembered open or shut in this browser. **This week** has Trends in its
-  heading and the four figures in a 2 by 2 grid with lines between.
-  **Members · 6** has Manage in its heading (the Members page), then
-  **Active** and, under a line, **Invited**: people who haven't set a
-  password yet, with a dashed photo and Resend for the site admin. A name
-  opens that person's page. Invite people fills the card's foot for the site
-  admin. The check-in schedule left this panel on 14 Oct 2026; it is set and
-  read in Team settings (the cog).
-- **Middle: Calendar and Activity tabs.** Tyler put Activity here on 12 Oct
-  2026, because the right panel's three tabs already fill it. The header is
-  one row: Calendar and Activity, then the month's name between its arrows
-  and Today, then a dropdown with a filter mark reading "Month" (Month or
-  Week, and the Due dates switch), the megaphone while no announcement is up,
-  and New meeting. On a phone the month and its arrows take a second row.
-  The team's announcement is a thin bar under the header (below), then a
-  month, or a week, of the team's check-ins and meetings, with the weekday
-  names in small capitals. The chosen day's meetings are on the right panel.
-  The tab and the Month or Week choice are remembered in this browser. See [Meetings](meetings.md),
-  [History](history.md#past-days-on-the-team-dashboard) and The team's
-  Activity below.
-- **Right: the chosen day.** Its header is the tabs, Check-ins, Workload
-  and, for the site admin, Attention, drawn like the project page's (Settings
-  → Styling → Dashboard tabs);
-  Attention carries the count of tasks needing it in red. There is no date
-  or arrows: the day is picked on the calendar (Tyler, 16 Oct 2026). Under
-  each tab sit the day's **Meetings** (the whole row lights on hover and
-  opens the meeting; "+ Add" opens New meeting on that day, Join opens its
-  video link, the cog changes it) and, with Due dates on, **Due this day**.
-  - **Check-ins**, as Tyler drew it on 16 Oct 2026
-    (`assets/pasted-image-1792199207802160000.png`): the card's heading is
-    "4 of 6 checked in" with "2 blocked" and "2 late" pills, then a bar with
-    one piece per person (red blocked, amber late, dark on time, grey not
-    yet). Each person who checked in has their time and Late, then under
-    the team's word for "Today" each task they picked as a card of its own,
-    "Since yesterday" when it was carried over. A blocked task's card is
-    red, with "Blocked", the reason and Reply. Their own words, when they
-    wrote any, sit above the cards; with nothing, "No tasks attached". A
-    **Didn't check in** card lists the rest with a dashed photo and what they
-    picked last time ("Yesterday: Book the photographer") or "No recent
-    check-ins", and an **Away** card whoever was on time off (see
-    [History](history.md#past-days-on-the-team-dashboard)).
+- **Left: the team.** The header is the team's name and, for the site admin,
+  the ⋮ Team settings menu (see Team settings below). The
+  team's cover photo lies faintly behind the header and fades into the
+  panel, as My dashboard's sky does. There is no avatar and no "Created"
+  line ("Dont show create data for the left panel. Remove team avatar").
+  Under it is **the team's page**, one page of notes and "/" blocks that
+  stays, which only the site admin writes ("Cover stays; you write", his
+  pick) and every member reads, blocks and all. It saves 700ms after typing
+  stops, in `project_teams.notes` (`drizzle/0156_project_team_page.sql`).
+  Besides a project page's blocks, it offers five of its own (Tyler, 7 Nov
+  2026: "checkins, workload and attention becomes blocks for the left
+  panel"), each once per page. Each block is one light grey card whose
+  heading row holds its title and its bin while the page can be written in,
+  with no fold arrow ("dont need to show this"); pressing the title folds it, remembered in this browser
+  (Tyler, 7 Nov 2026: "the header should be here on the same row as the
+  trashcan icon. Also clicking on the header toggles the card"). The cards
+  inside are white tiles:
+  - **Check-ins:** the day picked on the calendar, today on arrival. See
+    Check-ins below.
   - **Workload** and **Attention**: see
-    [Needs attention and workload](needs-attention.md).
-  - **Times read in your own clock.** "Checked in 4:02 AM" for a London
-    teammate's 9:02 check-in, read in Toronto, the way meetings already read.
-    Only the time moves: late is still judged on the teammate's own clock and
-    check-in time, and they stay on their own day.
-  - **A day nobody is expected** reads "A day off for the team." with no bar,
-    instead of "0 of 0 checked in". A day with nothing saved at all, such as
-    one before the team began, reads "Nothing was saved for this day."
-  - **A day still to come** shows today, and says so: "Wed, Oct 14 hasn't
-    happened yet. Showing today." Workload, for
-  everyone, and Needs attention, for the site admin (see
-  [Needs attention and workload](needs-attention.md)). The tab last used is
-  remembered in this browser.
+    [Needs attention and workload](needs-attention.md). Attention is the
+    site admin's alone; a member reading the page sees nothing in its place.
+  - **This week:** the four figures in a 2 by 2 grid with lines between, and
+    Trends at its foot (see The four figures and Trends below).
+  - **Members · 6:** **Active** and, under a line, **Invited**: people who
+    haven't set a password yet, with a dashed photo and Resend for the site
+    admin. A name opens that person's page. Invite people for the site
+    admin, and Manage (the Members page) at its foot.
+  The check-in schedule is set and read in Team settings.
+- **Middle: Tasks, Calendar and Activity tabs** (Tyler, 7 Nov 2026: "Middle
+  panel should now show all the tasks from the team. So tasks, calender,
+  activity"). The tab is remembered in this browser. The team's announcement
+  is a thin bar under the header on every tab (below).
+  - **Tasks** is the project page's table of every task in the team's shared,
+    open projects that the viewer can see, with a Project and an Assigned to
+    column, under Status headings. The site admin sees every one; an
+    employee the projects they are on ("As today", his pick). "Just me"
+    lists and archived tasks stay out. The header after the tabs: the "N
+    selected" slot, Filter (its Group row offers Status, Priority, Due date,
+    Assigned to, Project and None), Views, New task (this team's projects
+    only), and ⋮ with Search and Mass select. With Mass select on, a row
+    dragged under another status, priority or due date takes it. Each
+    person's views are kept under the team (`team-tasks:<team id>`).
+  - **Calendar:** the header has the view dropdown with a filter mark
+    reading "Month" (Month or Week, and the Due dates switch), the megaphone
+    while no announcement is up, and New meeting. Inside the tab, at its top,
+    the month's name between its arrows and Today (Tyler, 7 Nov 2026: "Move
+    this … inside calender tab"), then a month, or a week, of the team's
+    check-ins and meetings. Under it sit the picked day's **Meetings** (the
+    whole row lights on hover and opens the meeting; "+ Add" opens New
+    meeting on that day, Join opens its video link, the cog changes it) and,
+    with Due dates on, **Due this day**. The Month or Week choice is
+    remembered in this browser. See [Meetings](meetings.md) and
+    [History](history.md#past-days-on-the-team-dashboard).
+  - **Activity:** see The team's Activity below.
+- **Right: the open task**, as on a project's page and My dashboard (Tyler,
+  7 Nov 2026: "Right panel now shows task detail like project and my
+  dashboard with blocks etc"). On arrival it shows the task last open on
+  this team's dashboard, or the Tasks tab's first row. A task opened from the
+  calendar, Activity, a check-in or a block opens here too. It replaced the
+  task window this page had since 10 Oct 2026, and the day panel whose tabs
+  are now blocks.
+
+### Check-ins
+
+The Check-ins block on the team's page, as Tyler drew the Check-ins tab on
+16 Oct 2026 (`assets/pasted-image-1792199207802160000.png`).
+
+- **The heading** is "4 of 6 checked in" with "2 blocked" and "2 late"
+  pills, then a bar with one piece per person (red blocked, amber late, dark
+  on time, grey not yet).
+- **Each person who checked in** has their time and Late, then under the
+  team's word for "Today" each task they picked as a card of its own, "Since
+  yesterday" when it was carried over. A blocked task's card is red, with
+  "Blocked", the reason and Reply. Their own words, when they wrote any, sit
+  above the cards; with nothing, "No tasks attached".
+- **A Didn't check in card** lists the rest with a dashed photo and what they
+  picked last time ("Yesterday: Book the photographer") or "No recent
+  check-ins", and an **Away** card whoever was on time off (see
+  [History](history.md#past-days-on-the-team-dashboard)).
+- **Times read in your own clock.** "Checked in 4:02 AM" for a London
+  teammate's 9:02 check-in, read in Toronto, the way meetings already read.
+  Only the time moves: late is still judged on the teammate's own clock and
+  check-in time, and they stay on their own day.
+- **A day nobody is expected** reads "A day off for the team." with no bar,
+  instead of "0 of 0 checked in". A day with nothing saved at all, such as
+  one before the team began, reads "Nothing was saved for this day."
+- **A day still to come** shows today, and says so: "Wed, Oct 14 hasn't
+  happened yet. Showing today."
 
 ### The team's Activity
 
@@ -282,8 +309,8 @@ What moved today, without opening every project.
   project; an employee sees their own projects. A line from a project the
   viewer isn't on never shows. "Just me" tasks never show, not even the
   viewer's own, and neither does a task in the bin.
-- **A line opens its task** as a window over the dashboard, as the rest of
-  the Team dashboard does.
+- **A line opens its task** in the right panel, as the rest of the Team
+  dashboard does.
 - **Where it lives:** `loadTeamActivity` in
   `src/server/project/project-activity.ts`, drawn by `TeamActivity` in
   `src/components/project/project-activity.tsx`.
@@ -293,11 +320,19 @@ What moved today, without opening every project.
 Something for the whole team reaches everyone in one place: "Office closed
 Friday", pinned at the top of the Team dashboard's middle panel.
 
-- **It is a thin bar under the calendar's header**, as Tyler drew it on 14
-  Oct 2026: the megaphone, the words, who posted it and when, "Read by 4 of
+- **It is a thin bar under the middle panel's header**, on every tab, as
+  Tyler drew it on 14 Oct 2026: the megaphone, the words, who posted it and when, "Read by 4 of
   6" for the site admin, then "..." and the X.
-- **The site admin posts it.** The megaphone in the calendar's header
-  opens a window with one box, up to 500 characters, and Post announcement.
+- **Its colour says how important it is** (Tyler, 7 Nov 2026: "make this a
+  different color depending on the importance of the announcements"; his
+  pick of four): **Info** blue, **Good news** green, **Warning** amber and
+  **Urgent** red. The bar takes a light tint of the colour and the megaphone
+  the colour itself, and a small label before the words names the
+  importance, so the colour is never the only sign. The words stay their
+  usual colour. One posted before 7 Nov 2026 reads as Info.
+- **The site admin posts it.** The megaphone in the Calendar tab's header
+  opens a window with one box, up to 500 characters, Importance (Info
+  first), and Post announcement.
   While one is up, "Post a new one" in its "..." menu opens the same window.
 - **Everyone else on the team gets "Maya posted an announcement"** in the
   bell, with the start of it under the heading. It opens the Team dashboard.
@@ -318,36 +353,31 @@ Friday", pinned at the top of the Team dashboard's middle panel.
   again at nobody. Members never see the names, so nobody is watched by
   their peers.
 - **Where it is saved:** on `project_teams` (`announcement_id`, `_text`,
-  `_by_user_id`, `_at`), and who hid which one on `project_team_members`
+  `_by_user_id`, `_at`, and `_kind` from `drizzle/0157_project_announcement_kind.sql`), and who hid which one on `project_team_members`
   (`hidden_announcement_id`), in `drizzle/0109_project_chat_and_talking.sql`.
   Who has seen each one is `project_announcement_views`, one row per person
   per announcement, in `drizzle/0113_project_nine_features.sql`.
   Rules in `src/server/project/announcements.ts`, the card and window in
   `src/components/project/team-announcement.tsx`.
 
-### The cover and the avatar
+### The cover
 
-- **The cover** is the team's photo (`photo_url`), drawn wide across the top
-  of the left panel and fading into it. With none there is no cover at all:
-  the avatar, name and date move up to the top of the panel (Tyler, 16 Oct
-  2026), and the site admin adds one with the picture button beside the cog
-  in the panel's corner, shown on hover.
-- **The name and date** sit level with the middle of the avatar.
-- **The avatar** is a square picture beside the team's name (Tyler, 16 Oct
-  2026: "whats missing is the avatar, we need to add that"), saved in
-  `avatar_url` (`drizzle/0120_project_team_avatar.sql`). With none it shows
-  the team's initials, "ST".
-- **The site admin changes either by clicking it**, which opens the shared
-  media library to upload or pick a picture (Tyler's choice, 11 Oct 2026),
-  cropped wide for the cover and square for the avatar. The red × on its
-  corner, shown on hover, takes it away.
-- **Everyone else sees them**, and nothing to click.
+- **The cover** is the team's photo (`photo_url`), lying faintly behind the
+  left panel's header and the top of the team's page, fading into the panel.
+  With none there is no cover at all, and the header keeps its line.
+- **The site admin changes it in Team settings**, under General: Cover photo
+  opens the shared media library to upload or pick a picture (Tyler's
+  choice, 11 Oct 2026), cropped wide, or takes it away.
 - **The server only takes a picture the person uploaded themselves**, so
   nobody can point the team at another person's file or at an address outside
   the library. A file the library refuses (too big, or not a picture) says why
   in the upload window.
-- **If a picture is later deleted from the library**, the panel shows no
-  cover or the initials rather than a broken picture.
+- **If a picture is later deleted from the library**, no cover shows rather
+  than a broken picture.
+- **Teams have no avatar** (Tyler, 7 Nov 2026: "Remove team avatar", then
+  "we need to remove avatar"). Its column went in
+  `drizzle/0158_project_team_no_avatar.sql`; the Teams dashboard lists each
+  team by its name.
 
 ### The four figures
 
@@ -390,7 +420,7 @@ right:
   the window `src/components/project/team-trends-dialog.tsx`, drawn with the
   shell's shared chart card and chart parts.
 
-### Check-in notes on the Check-ins tab
+### Check-in notes on the Check-ins block
 
 - **Each person's three notes** from their check-in show under their name:
   "Yesterday · Still blocked on email provider", "Today · Work on members
@@ -429,7 +459,7 @@ So a blocker gets help where it was written, not in a side chat.
   `src/server/project/blocker-replies.ts`,
   `src/components/project/blocker-replies.tsx`.
 
-### Thanks on the Check-ins tab
+### Thanks on the Check-ins block
 
 - **One small line per person**: "Thanked by Maya for Build the contact
   form, Anna for a task". A task the reader can't see, or a "Just me" task,
@@ -439,25 +469,43 @@ So a blocker gets help where it was written, not in a side chat.
 
 ### Team settings
 
-The cog in the left panel's header opens the Team settings window: name,
-daily check-in time, time zone and work days, the check-in boxes' names, team
-holidays, starter tasks and the join link. The Tags card went with tags on
-6 Nov 2026 (Tyler: "remove the steps, timer and tags feature"). Only the site admin
-sees the cog: Team settings are theirs alone.
+Team settings are the ⋮ at the right of the Team dashboard's left panel
+header, the tabbed ⋮ of grouped rows the project page and My settings use
+(Tyler, 7 Nov 2026: "the teams settings is not following the skill"). Only
+the site admin sees it: Team settings are theirs alone. It opens on General
+every time, and every field saves itself: a pick at once, a typed value when
+it is left. A refused save says why.
 
-- **Check-in boxes**: rename the three notes, such as "Wins" and "Focus".
-  Empty keeps the usual word. See
-  [The morning check-in](morning-check-in.md#the-teams-own-words-for-the-boxes).
-- **Team holidays**: a date and a name, today or later. See
-  [Team holidays](morning-check-in.md#team-holidays).
-- **Starter tasks**: up to 10 titles each new member gets as "Just me" tasks.
-  The site admin sees whether they're done in each person's Just me list on
-  Projects. Each field saves when it is
-left or picked, so the window ends with Done, and the top of the window says
-Saving…, then Saved or Not saved (see
-[Fields that save themselves](fields-that-save-themselves.md)). Closing it with
-Escape or a click outside saves the field being typed in too. Tyler first
-asked for these in Settings → App settings, then chose the window.
+- **General:** Team (Name, Cover photo), then Schedule (Time zone, opening
+  straight onto the zones with a search box; Check-in time; Work days, each
+  a tick, at least one), then **Lock the notes** (below).
+- **Check-ins:** Check-in box names: one row per box everyone fills in at
+  their morning check-in, named by its usual word (Yesterday, Today,
+  Blocker) with the team's own word on the right, or "Not renamed" (Tyler,
+  7 Nov 2026, of rows that read "Box 1": "wht are these for?"). A row opens
+  a box to type the new word, such as "Wins" or "Focus"; empty keeps the
+  usual word, and the last still marks someone Blocked (see
+  [The morning check-in](morning-check-in.md#the-teams-own-words-for-the-boxes)).
+  Then Holidays: each a row with its day, name and bin, and "+ Add holiday"
+  as the last line, which opens a day and a name (see
+  [Team holidays](morning-check-in.md#team-holidays)).
+- **Joining:** Starter tasks, up to 10 titles each new member gets as "Just
+  me" tasks, each with its ×, and "+ Add starter task" as the last line. The
+  site admin sees whether they're done in each person's Just me list on
+  Projects. Then the Join link (below).
+- **Lock the notes** makes the team's page read only, blocks and all, even
+  for the site admin, until **Unlock the notes** (Tyler, 7 Nov 2026: "the
+  lock blocks button is missing"), the same row as My settings' on My
+  dashboard. The server refuses a save while it is locked
+  (`project_teams.notes_locked`, `drizzle/0159_project_team_page_lock.sql`).
+- **The Teams dashboard's cog** still opens the same settings as a window,
+  as the Projects table does for a project, kept in the address
+  (`/teams?settings=<id>`). It ends with Done, and the top of the window says
+  Saving…, then Saved or Not saved (see
+  [Fields that save themselves](fields-that-save-themselves.md)).
+- Tyler first asked for these in Settings → App settings, then chose a
+  window (16 Oct 2026), then the ⋮ (7 Nov 2026). The Tags card went with tags
+  on 6 Nov 2026.
 
 ### A teammate's page
 
@@ -520,7 +568,15 @@ week?" in one click.
   held the dropdown's pick. Its `team_id` is no longer read; the row still
   holds the site admin's calendar setting, `calendar_due_dates`.
 - **The four figures:** `src/server/project/team-figures.ts`, drawn by
-  `src/components/project/team-figures.tsx` with the team photo.
+  `src/components/project/team-figures.tsx` with the cover banner and the
+  Pictures card.
+- **The team's page and its blocks:** `TeamPageNotes` in
+  `src/components/project/project-page-notes.tsx`, `setTeamPage` in
+  `src/server/project/teams.ts`, the blocks in
+  `src/components/project/notes/team-blocks.tsx` (Check-ins from
+  `team-checkins-card.tsx`, Members from `team-member-groups.tsx`).
+- **The Tasks tab:** `loadTeamTasks` in `src/server/project/team-tasks.ts`,
+  drawn by `src/components/project/team-tasks-tab.tsx`.
 - **Who may do what:** `src/server/project/access.ts` (`findMembership`,
   `requireSiteAdmin`, `requireProjectSettings`).
 - **Screens:** `src/components/project/team-dashboard.tsx`,

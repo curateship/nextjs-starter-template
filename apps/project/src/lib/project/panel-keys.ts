@@ -24,12 +24,12 @@ export const MY_OPEN_TASK_KEY = "project-my-dashboard-open-task"
 export const ADMIN_OPEN_TASK_KEY = "project-admin-dashboard-open-task"
 /** The task a project's page had open last, per project. */
 export const projectOpenTaskKey = (projectId: string) => `project-page-open-task-${projectId}`
+/** The task the Team dashboard had open last, per team, or on an employee's own `/team`. */
+export const teamOpenTaskKey = (teamId: string | undefined) => `project-team-open-task-${teamId ?? "own"}`
 
 /** The project New task in the header chose last, so it is chosen first next time. */
 export const NEW_TASK_PROJECT_KEY = "project-new-task-project"
 
-/** The Team dashboard's right-hand tab opened last: Check-ins, Workload or Needs attention. */
-export const TEAM_RIGHT_TAB_KEY = "project-team-right-tab"
 
 /** The Board's "Group by person" switch, remembered in this browser. */
 export const BOARD_GROUP_KEY = "project-board-group"
@@ -47,6 +47,10 @@ export const MY_ATTENTION_FOLDS_KEY = "project-my-dashboard-attention-folds"
 /** My dashboard's Group row, remembered in this browser. */
 export const MY_TASK_GROUPING_KEY = "project-my-dashboard-task-grouping"
 
-/** The Team dashboard's middle tab (Calendar or Activity) and the calendar's Month or Week. */
+/** The headings folded shut on the Team dashboard's Tasks tab, per grouping, and its Group row. */
+export const TEAM_TASK_FOLDS_KEY = "project-team-task-folds"
+export const TEAM_TASK_GROUPING_KEY = "project-team-task-grouping"
+
+/** The Team dashboard's middle tab (Tasks, Calendar or Activity) and the calendar's Month or Week. */
 export const TEAM_MIDDLE_TAB_KEY = "project-team-middle-tab"
 export const TEAM_CALENDAR_VIEW_KEY = "project-team-calendar-view"

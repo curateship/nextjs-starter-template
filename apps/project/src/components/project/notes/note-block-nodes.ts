@@ -5,7 +5,10 @@ import { TaskItem, TaskList } from "@tiptap/extension-list"
 import { ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react"
 import {
   CalendarDaysIcon,
+  ActivityIcon,
   ChartLineIcon,
+  CircleAlertIcon,
+  ClipboardCheckIcon,
   ChevronsDownUpIcon,
   ClapperboardIcon,
   FolderKanbanIcon,
@@ -18,6 +21,8 @@ import {
   ListChecksIcon,
   ListTodoIcon,
   MessagesSquareIcon,
+  UsersIcon,
+  WeightIcon,
   MinusIcon,
   PlayIcon,
   type LucideIcon,
@@ -41,6 +46,13 @@ import {
   RatingMonthBlockView,
   RatingTrendBlockView,
 } from "@/components/project/notes/dashboard-blocks"
+import {
+  AttentionBlockView,
+  CheckinsBlockView,
+  MembersBlockView,
+  WeekBlockView,
+  WorkloadBlockView,
+} from "@/components/project/notes/team-blocks"
 import { NoteFolds } from "@/components/project/notes/note-folds"
 import type { NoteWhere } from "@/components/project/notes/note-setup"
 
@@ -70,6 +82,11 @@ export type BlockKey =
   | "habit"
   | "ratingMonth"
   | "ratingTrend"
+  | "teamCheckins"
+  | "teamWorkload"
+  | "teamAttention"
+  | "teamWeek"
+  | "teamMembers"
 
 /**
  * The "/" list's two groups (Tyler, 6 Nov 2026: "divider the blocks into basic
@@ -105,10 +122,23 @@ const BLOCKS: BlockChoice[] = [
   { key: "habit", label: "Daily card", icon: SunriseIcon, group: "advanced" },
   { key: "ratingMonth", label: "Rating calendar", icon: CalendarDaysIcon, group: "advanced" },
   { key: "ratingTrend", label: "Rating trend", icon: ChartLineIcon, group: "advanced" },
+  // A team's own page only (task "Team dashboard/admin-3-panel-design", 7 Nov 2026).
+  { key: "teamCheckins", label: "Check-ins", icon: ClipboardCheckIcon, group: "advanced" },
+  { key: "teamWorkload", label: "Workload", icon: WeightIcon, group: "advanced" },
+  { key: "teamAttention", label: "Attention", icon: CircleAlertIcon, group: "advanced" },
+  { key: "teamWeek", label: "This week", icon: ActivityIcon, group: "advanced" },
+  { key: "teamMembers", label: "Members", icon: UsersIcon, group: "advanced" },
 ]
 
 /** Blocks only the site admin's own page on My dashboard offers. */
 const DASHBOARD_BLOCKS = new Set<BlockKey>(["project", "habit", "ratingMonth", "ratingTrend"])
+
+/**
+ * Blocks only a team's own page on the Team dashboard offers (Tyler, 7 Nov
+ * 2026: "checkins, workload and attention becomes blocks for the left panel"),
+ * with This week and Members, the cards that were in that panel.
+ */
+const TEAM_BLOCKS = new Set<BlockKey>(["teamCheckins", "teamWorkload", "teamAttention", "teamWeek", "teamMembers"])
 
 /**
  * The blocks a notes box offers. A File block and the Video or Promo card
@@ -116,11 +146,12 @@ const DASHBOARD_BLOCKS = new Set<BlockKey>(["project", "habit", "ratingMonth", "
  * (Tyler, 5 Nov 2026: "Leave File out there"); the Video or Promo card shows
  * only on a task that points at a record. Projects, Habit and the two rating
  * blocks are the site admin's own page's alone (Tyler, 6 Nov 2026: "Your My
- * dashboard page only").
+ * dashboard page only"). The team blocks are a team's page's alone.
  */
 export function blocksFor(where: NoteWhere, hasRecord: boolean): BlockChoice[] {
   return BLOCKS.filter((block) => {
     if (DASHBOARD_BLOCKS.has(block.key)) return where === "dashboard"
+    if (TEAM_BLOCKS.has(block.key)) return where === "team"
     if (block.key === "file" || block.key === "comments") return where === "task"
     if (block.key === "record") return where === "task" && hasRecord
     return true
@@ -259,6 +290,11 @@ export const BLOCK_NODES: Extensions = [
   atomNode("noteHabit", {}, DailyCardBlockView),
   atomNode("noteRatingMonth", {}, RatingMonthBlockView),
   atomNode("noteRatingTrend", {}, RatingTrendBlockView),
+  atomNode("noteTeamCheckins", {}, CheckinsBlockView),
+  atomNode("noteTeamWorkload", {}, WorkloadBlockView),
+  atomNode("noteTeamAttention", {}, AttentionBlockView),
+  atomNode("noteTeamWeek", {}, WeekBlockView),
+  atomNode("noteTeamMembers", {}, MembersBlockView),
   Callout,
   Fold,
   TaskList,

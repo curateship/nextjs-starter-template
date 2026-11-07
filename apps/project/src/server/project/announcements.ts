@@ -2,7 +2,7 @@ import { and, asc, eq, isNotNull, ne } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { announcementHeading, TEAM_HREF } from "@/lib/project/notices"
-import { runsTheTeam } from "@/lib/project/rules"
+import { isAnnouncementKind, runsTheTeam, type AnnouncementKind } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { requireMembership, requireTeamRunner, type Membership, type ProjectDb } from "@/server/project/access"
@@ -26,6 +26,8 @@ type Reader = { id: string; name: string; avatarUrl: string }
 export type Announcement = {
   id: string
   text: string
+  /** How important it is, which colours its bar. */
+  kind: AnnouncementKind
   by: { name: string; avatarUrl: string } | null
   postedAt: string
   /**
@@ -45,6 +47,7 @@ export async function loadAnnouncement(
     .select({
       id: projectTeams.announcementId,
       text: projectTeams.announcementText,
+      kind: projectTeams.announcementKind,
       postedAt: projectTeams.announcementAt,
       byName: customShellUsers.name,
       byAvatar: customShellUsers.avatarUrl,
@@ -63,6 +66,7 @@ export async function loadAnnouncement(
   return {
     id: row.id,
     text: row.text,
+    kind: isAnnouncementKind(row.kind) ? row.kind : "info",
     by: row.byName === null ? null : { name: row.byName, avatarUrl: row.byAvatar ?? "" },
     postedAt: row.postedAt.toISOString(),
     readers: runsTheTeam(membership.role) ? await readersOf(membership, row.id, database) : null,
@@ -120,13 +124,13 @@ export async function markAnnouncementSeen(userId: string, announcementId: strin
   await recordView(membership, announcementId, database)
 }
 
-export async function postAnnouncement(actor: Actor, text: string, database = db) {
+export async function postAnnouncement(actor: Actor, text: string, kind: AnnouncementKind = "info", database = db) {
   await database.transaction(async (tx) => {
     const membership = await requireTeamRunner(actor.id, tx)
     const id = uuid()
     await tx
       .update(projectTeams)
-      .set({ announcementId: id, announcementText: text, announcementByUserId: actor.id, announcementAt: now() })
+      .set({ announcementId: id, announcementText: text, announcementKind: kind, announcementByUserId: actor.id, announcementAt: now() })
       .where(eq(projectTeams.id, membership.teamId))
     // Whoever wrote it has read it.
     await recordView(membership, id, tx)

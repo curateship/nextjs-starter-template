@@ -265,7 +265,7 @@ describe("who has seen the announcement", () => {
 
   it("counts each person on the team once, and hiding it, but never the site admin who posted it", async () => {
     await inTeam(teamId, async () => {
-      await postAnnouncement(admin, "Office closed Friday", database)
+      await postAnnouncement(admin, "Office closed Friday", "info", database)
       const id = await currentId()
       // The site admin is on no team, so they are in neither list.
       expect(await readers(admin)).toEqual({ seen: [], notYet: ["Anna", "Ben", "Carla", "Leo Park"] })
@@ -279,24 +279,24 @@ describe("who has seen the announcement", () => {
 
   it("shows the names to the site admin only", async () => {
     await inTeam(teamId, async () => {
-      await postAnnouncement(admin, "Office closed Friday", database)
+      await postAnnouncement(admin, "Office closed Friday", "info", database)
       expect(await readers(anna)).toBeNull()
       expect(await readers(ben)).toBeNull()
     })
   })
 
   it("is posted by the site admin only", async () => {
-    await expect(postAnnouncement(anna, "Office closed Friday", database)).rejects.toThrow(
+    await expect(postAnnouncement(anna, "Office closed Friday", "info", database)).rejects.toThrow(
       PROJECT_ERRORS.notRunningTeam
     )
   })
 
   it("starts again at nobody for a new announcement, and ignores an old id", async () => {
     await inTeam(teamId, async () => {
-      await postAnnouncement(admin, "Office closed Friday", database)
+      await postAnnouncement(admin, "Office closed Friday", "info", database)
       const first = await currentId()
       await markAnnouncementSeen(ben.id, first, database)
-      await postAnnouncement(admin, "Office open after all", database)
+      await postAnnouncement(admin, "Office open after all", "info", database)
       await markAnnouncementSeen(leo.id, first, database)
       expect(await readers(admin)).toEqual({ seen: [], notYet: ["Anna", "Ben", "Carla", "Leo Park"] })
     })

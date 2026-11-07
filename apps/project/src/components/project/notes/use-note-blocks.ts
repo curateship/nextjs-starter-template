@@ -39,10 +39,24 @@ const ATOMS: Partial<Record<BlockKey, string>> = {
   habit: "noteHabit",
   ratingMonth: "noteRatingMonth",
   ratingTrend: "noteRatingTrend",
+  teamCheckins: "noteTeamCheckins",
+  teamWorkload: "noteTeamWorkload",
+  teamAttention: "noteTeamAttention",
+  teamWeek: "noteTeamWeek",
+  teamMembers: "noteTeamMembers",
 }
 
 /** Blocks a note holds once at most. */
-const ONE_PER_NOTE: Partial<Record<BlockKey, string>> = { comments: "noteComments", habit: "noteHabit" }
+const ONE_PER_NOTE: Partial<Record<BlockKey, string>> = {
+  comments: "noteComments",
+  habit: "noteHabit",
+  // Each team block shows the whole team, so a second would only repeat it.
+  teamCheckins: "noteTeamCheckins",
+  teamWorkload: "noteTeamWorkload",
+  teamAttention: "noteTeamAttention",
+  teamWeek: "noteTeamWeek",
+  teamMembers: "noteTeamMembers",
+}
 
 function hasNode(editor: Editor, type: string) {
   let found = false

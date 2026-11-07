@@ -44,6 +44,7 @@ export function NewTaskWithProjectPicker({
   onClosed,
   start: startsAs,
   projectId,
+  teamId,
 }: {
   align: "start" | "end"
   /** The button, told while the projects load. */
@@ -56,6 +57,11 @@ export function NewTaskWithProjectPicker({
   start?: { status?: TaskStatus; due?: string | null; priority?: TaskPriority }
   /** The project it starts on, as from a project's own "+" on the site admin's Projects card. */
   projectId?: string
+  /**
+   * Offers only this team's projects, as on the Team dashboard's Tasks tab.
+   * Left out, the site admin is offered every team's.
+   */
+  teamId?: string
 }) {
   const here = useParams({ strict: false }).projectId
   const [projects, setProjects] = React.useState<NewTaskProject[] | null>(null)
@@ -66,7 +72,7 @@ export function NewTaskWithProjectPicker({
   async function start() {
     let found: NewTaskProject[] = []
     const ok = await run(async () => {
-      found = (await loadNewTaskProjects()).projects
+      found = (await loadNewTaskProjects(teamId)).projects
     })
     if (!ok) {
       onClosed?.()

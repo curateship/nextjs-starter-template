@@ -195,6 +195,31 @@ describe("blocks that point at a task's files", () => {
   })
 })
 
+describe("a team's page", () => {
+  const teamBlocks = ["noteTeamCheckins", "noteTeamWorkload", "noteTeamAttention", "noteTeamWeek", "noteTeamMembers"]
+
+  it("keeps the team blocks, holding nothing, only on a team's page", () => {
+    const body = doc(paragraph("Standup 9:30"), ...teamBlocks.map((type) => ({ type, attrs: { teamId: "x" } })))
+    expect(cleanNoteBody(body, { team: true }).content?.map((node) => node)).toEqual([
+      paragraph("Standup 9:30"),
+      ...teamBlocks.map((type) => ({ type })),
+    ])
+    // Every other note drops them, the site admin's own page too.
+    expect(cleanNoteBody(body).content).toEqual([paragraph("Standup 9:30")])
+    expect(cleanNoteBody(body, { dashboard: true }).content).toEqual([paragraph("Standup 9:30")])
+  })
+
+  it("drops the dashboard blocks from a team's page", () => {
+    const body = doc({ type: "noteHabit" }, { type: "noteTeamCheckins" })
+    expect(cleanNoteBody(body, { team: true }).content).toEqual([{ type: "noteTeamCheckins" }])
+  })
+
+  it("keeps the team blocks on a copy made for a team's page", () => {
+    const stored = JSON.stringify(doc({ type: "noteTeamWeek" }, { type: "noteComments" }))
+    expect(JSON.parse(storedNotesForCopy(stored, { noTask: true, team: true }))).toEqual(doc({ type: "noteTeamWeek" }))
+  })
+})
+
 describe("video links", () => {
   it("reads each site's links into one plain address and player", () => {
     expect(readVideoLink("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10")?.playerUrl).toBe(

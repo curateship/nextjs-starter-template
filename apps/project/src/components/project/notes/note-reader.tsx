@@ -6,6 +6,13 @@ import {
   RatingMonthDrawing,
   RatingTrendDrawing,
 } from "@/components/project/notes/dashboard-blocks"
+import {
+  AttentionDrawing,
+  CheckinsDrawing,
+  MembersDrawing,
+  WeekDrawing,
+  WorkloadDrawing,
+} from "@/components/project/notes/team-blocks"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import {
   CalloutFrame,
@@ -83,6 +90,17 @@ function Block({ node }: { node: NoteNode }) {
       return <RatingMonthDrawing editing={READING} />
     case "noteRatingTrend":
       return <RatingTrendDrawing editing={READING} />
+    // A team's page, as every member but the site admin reads it.
+    case "noteTeamCheckins":
+      return <CheckinsDrawing editing={READING} />
+    case "noteTeamWorkload":
+      return <WorkloadDrawing editing={READING} />
+    case "noteTeamAttention":
+      return <AttentionDrawing editing={READING} />
+    case "noteTeamWeek":
+      return <WeekDrawing editing={READING} />
+    case "noteTeamMembers":
+      return <MembersDrawing editing={READING} />
     case "noteCallout":
       return (
         <CalloutFrame kind={(attrs.kind as CalloutKind) ?? "note"} editing={READING}>

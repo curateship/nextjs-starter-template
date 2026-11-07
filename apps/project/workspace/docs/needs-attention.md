@@ -1,14 +1,17 @@
 # Needs attention and workload
 
-Two tabs in the Team dashboard's right panel, beside the day's check-ins, for
-whoever runs the team. Every mark that says something is wrong already exists
+Two "/" blocks on a team's page, the Team dashboard's left panel, beside the
+Check-ins block, for whoever runs the team. They were tabs in the right panel
+until 7 Nov 2026, when the right panel became the open task (Tyler:
+"checkins, workload and attention becomes blocks for the left panel"). Every mark that says something is wrong already exists
 on its own task; these put them in one place.
 
 ## Needs attention
 
-For the site admin only. Tyler chose a tab here, rather than a page of
-its own, on 10 Oct 2026. The tab reads "Attention" so three tabs fit the
-panel, and the list inside is headed "Needs attention". Three tabs fill the
+For the site admin only. Tyler chose it on the Team dashboard, rather than a
+page of its own, on 10 Oct 2026. The block is "Attention" in the "/" list. On
+the page it draws only for the site admin; a member reading the team's page
+sees nothing in its place. Three tabs fill the
 panel at its usual width, so the team's Activity went beside Calendar in the
 middle panel instead (Tyler, 12 Oct 2026; see
 [Teams and invites](teams-and-invites.md#the-teams-activity)).
@@ -37,10 +40,10 @@ middle panel instead (Tyler, 12 Oct 2026; see
 - **Each row** is the task's title, then whose it is ("Ben Tester → Sam
   Owner" for a review, naming the reviewer) and how long at the end ("7
   days" in red when overdue, "Stuck 6 days", "24 work days"), longest first.
-  It opens the task as a window, and a screen reader hears the whole
+  It opens the task in the right panel, and a screen reader hears the whole
   sentence ("Waiting for Sam's review for 2 work days").
 - **A fixed task leaves the list**, because it is worked out again every time
-  the tab opens and every time a task window opened from it closes. The old
+  the page opens and every time another task opens in the right panel. The old
   rows stay on screen until the new ones arrive. Workload reloads the same
   way.
 - **How long, for older tasks.** It reads each task's history rows. A task
@@ -60,18 +63,18 @@ For everyone, to see who has room before handing out more work.
   and the next seven days), across every project, as five figures in a white
   strip under their name (Tyler's drawing, 16 Oct 2026). A zero is grey;
   Stuck and Overdue above zero are red. Clicking a figure lists those tasks,
-  and each opens as a window.
+  and each opens in the right panel.
 - **Only what the viewer can see.** The site admin sees every shared
   project, as everywhere else; a member sees counts and tasks from their own
   projects only. "Just me" tasks never count.
 - **Busiest first**, by open tasks.
 - **No hours.** The task clock was removed on 6 Nov 2026 (Tyler: "remove the steps, timer and tags feature").
 - **One client's work.** With a client picked in the client choice beside the Workload heading, at the
-  top of the tab, only that client's projects count, or those with no client
+  top of the block, only that client's projects count, or those with no client
   (Features 16 Oct; see Clients in
   [Projects and tasks](projects-and-tasks.md#clients)). The same choice
   narrows the calendar's due dates.
-- **Both tabs keep up by themselves.** A change anywhere on the team loads
+- **Both blocks keep up by themselves.** A change anywhere on the team loads
   Attention and Workload again (see Live updates in
   [Task chat](task-chat.md#live-updates)).
 - **The same Open count shows in every hand-to picker**, beside each name,

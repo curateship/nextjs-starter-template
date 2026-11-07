@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
@@ -36,9 +37,44 @@ import {
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { LIMITS } from "@/lib/project/rules"
+import { ANNOUNCEMENT_KINDS, ANNOUNCEMENT_KIND_LABEL, LIMITS, type AnnouncementKind } from "@/lib/project/rules"
+import { cn } from "@/lib/utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useTeamId } from "@/lib/project/team-scope"
+
+/**
+ * Each importance's bar and megaphone (Tyler, 7 Nov 2026: "make this a
+ * different color depending on the importance of the announcements"): the
+ * same light tints as the app's urgency colours, with the words kept in the
+ * usual colour so they read on all four. A small label names the importance
+ * too, so the colour is never the only sign.
+ */
+const KIND_LOOK: Record<AnnouncementKind, { bar: string; icon: string; chip: string; dot: string }> = {
+  info: {
+    bar: "bg-blue-500/10",
+    icon: "text-blue-600 dark:text-blue-400",
+    chip: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
+    dot: "bg-blue-500",
+  },
+  good: {
+    bar: "bg-emerald-500/10",
+    icon: "text-emerald-600 dark:text-emerald-400",
+    chip: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+    dot: "bg-emerald-500",
+  },
+  warning: {
+    bar: "bg-amber-500/10",
+    icon: "text-amber-600 dark:text-amber-400",
+    chip: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+    dot: "bg-amber-500",
+  },
+  urgent: {
+    bar: "bg-red-500/10",
+    icon: "text-red-600 dark:text-red-400",
+    chip: "bg-red-500/15 text-red-700 dark:text-red-300",
+    dot: "bg-red-500",
+  },
+}
 
 /**
  * The team's announcement, pinned at the top of the Team dashboard's middle
@@ -61,6 +97,7 @@ export function AnnouncementCard({
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [confirmTakeDown, setConfirmTakeDown] = React.useState(false)
   const by = announcement.by?.name ?? "A former member"
+  const look = KIND_LOOK[announcement.kind]
 
   // Showing it here is seeing it, for the owner's "Read by" count.
   React.useEffect(() => {
@@ -77,9 +114,15 @@ export function AnnouncementCard({
   // who and when, Read by, then "..." with Post a new one and Take down, and
   // the cross that hides it for me.
   return (
-    <section aria-label="Team announcement" className="flex items-center gap-3 border-b bg-muted/40 px-4 py-2">
-      <MegaphoneIcon className="size-4 shrink-0" aria-hidden />
+    <section
+      aria-label={`Team announcement, ${ANNOUNCEMENT_KIND_LABEL[announcement.kind]}`}
+      className={cn("flex items-center gap-3 border-b px-4 py-2", look.bar)}
+    >
+      <MegaphoneIcon className={cn("size-4 shrink-0", look.icon)} aria-hidden />
       <p className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 text-sm">
+        <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium", look.chip)}>
+          {ANNOUNCEMENT_KIND_LABEL[announcement.kind]}
+        </span>
         <span className="font-medium break-words whitespace-pre-wrap">{announcement.text}</span>
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           {by} · <time dateTime={announcement.postedAt}>{formatTimeAgo(announcement.postedAt)}</time>
@@ -204,11 +247,13 @@ export function AnnouncementDialog({
   const teamId = useTeamId()
   const router = useRouter()
   const [text, setText] = React.useState("")
+  const [kind, setKind] = React.useState<AnnouncementKind>("info")
   const [invalid, setInvalid] = React.useState(false)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
 
   function close() {
     setText("")
+    setKind("info")
     setInvalid(false)
     onClose()
   }
@@ -219,7 +264,7 @@ export function AnnouncementDialog({
       showErrorToast("Write the announcement first.")
       return
     }
-    const ok = await run(() => postTeamAnnouncement(text.trim(), teamId), "Announcement posted. Everyone on the team is told.")
+    const ok = await run(() => postTeamAnnouncement(text.trim(), kind, teamId), "Announcement posted. Everyone on the team is told.")
     if (!ok) return
     await router.invalidate()
     close()
@@ -268,6 +313,22 @@ export function AnnouncementDialog({
                     <p id="announcement-count" className="text-xs text-muted-foreground">
                       {text.length} of {LIMITS.announcement} characters
                     </p>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="announcement-kind">Importance</Label>
+                    <Select value={kind} onValueChange={(value) => setKind(value as AnnouncementKind)}>
+                      <SelectTrigger id="announcement-kind" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ANNOUNCEMENT_KINDS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            <span aria-hidden className={cn("size-2.5 rounded-full", KIND_LOOK[option].dot)} />
+                            {ANNOUNCEMENT_KIND_LABEL[option]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </CardContent>
               </Card>

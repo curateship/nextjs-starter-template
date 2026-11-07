@@ -727,9 +727,10 @@ goes, so it no longer ends up on whatever task was open.
 
 ## Opening a task
 
-On the project page and My dashboard a task opens in the right panel,
-beside the Board or My tasks (Tyler, 13 Oct 2026, from his drawing).
-Neither puts a window over the page.
+On the project page, My dashboard and the Team dashboard a task opens in the
+right panel, beside the Board, My tasks or the team's Tasks tab (Tyler, 13
+Oct 2026, from his drawing; the Team dashboard on 7 Nov 2026). None puts a
+window over the page.
 
 - **The right panel always holds a task.** Arriving on a project's page with
   no task in the address opens the task last open on that project in this
@@ -882,14 +883,16 @@ Neither puts a window over the page.
 - **A task that's gone** shows "That task is gone or you can't see it." with
   Close, which takes `?task` out of the address. There's no Try again and no
   red message, since trying again can't bring it back.
-- **The Team dashboard and the check-in keep the window.** Their middle panel
-  isn't a task list, so a task opens there as a window over the page. Tyler
-  chose this on 10 Oct 2026.
+- **No task opens as a window any more.** The Team dashboard opened one over
+  the page from 10 Oct 2026, because its middle was a calendar. On 7 Nov 2026
+  its middle got a Tasks tab and its right panel became the open task (Tyler:
+  "Right panel now shows task detail like project and my dashboard"), and the
+  window went.
 - **This is the one exception to the template's rule** that a record opens as
-  a window over its list. It is Project's choice on purpose, for tasks only.
-- **The same task every way.** The window and the right panel draw the same
-  fields from one file
-  (`src/components/project/task-body.tsx`), placed differently.
+  a window over its list. It is Project's choice on purpose, for tasks only:
+  a task opens beside its list instead.
+- **The same task every way.** Every right panel draws the same fields from
+  one file (`src/components/project/task-body.tsx`).
 
 ## Tasks
 
@@ -1462,9 +1465,9 @@ Projects and Team to the members' menu and to each admin menu.
   `src/lib/api/project/planning.ts`. Copy project is in `projects.ts` and
   the Activity tab in `project-activity.ts`.
 - **Endpoints:** `src/lib/api/project/`.
-- **Screens:** `src/components/project/`. A task's window is `task-dialog.tsx`,
-  and the right panel of the project page and My dashboard, with its ⋮
-  menu, is `task-side-panel.tsx`. The Filter popover is `task-filter-popover.tsx` and
+- **Screens:** `src/components/project/`. A task's right panel, on the
+  project page, My dashboard and the Team dashboard, with its ⋮ menu, is
+  `task-side-panel.tsx`. The Filter popover is `task-filter-popover.tsx` and
   the header's due-date, search and members dropdowns `task-header-controls.tsx`.
   New task's dropdown is `quick-new-task.tsx`, and a task made from a Board
   column moves there through `src/lib/project/new-task-status.ts`. Project
