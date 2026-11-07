@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { StarIcon, Trash2Icon } from "lucide-react"
+import { LockIcon, LockOpenIcon, StarIcon, Trash2Icon } from "lucide-react"
 
 import { RateTripDialog } from "@/components/travel/rate-trip-dialog"
 import { useTripBin } from "@/components/travel/use-trip-bin"
@@ -26,6 +26,9 @@ import {
   type TravelMode,
   type TripStatus,
 } from "@/lib/travel/rules"
+import { saveTrip } from "@/lib/api/travel/trips"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const WHERE_I_AM = ""
@@ -38,7 +41,7 @@ const ROW = "w-full justify-start font-normal"
  * standard for example. fix them all"), as Project's project ⋮ is: General
  * is grouped rows (Trip, Dates, Details), each picking in one press where
  * there is a choice and opening a small box for a typed value, then Rate the
- * trip and Delete trip in red under a line. It was a folding menu before, and
+ * trip, Lock blocks, and Delete trip in red under a line. It was a folding menu before, and
  * a cog with a window before that (Tyler, 3 Nov 2026).
  *
  * The description isn't in it: it is written in place under the panel's
@@ -193,6 +196,7 @@ export function TripMenu() {
           <StarIcon className="size-4" />
           Rate the trip
         </Button>
+        <LockBlocksButton />
       </div>
       <div className="grid border-t p-2">
         <Button
@@ -225,6 +229,40 @@ export function TripMenu() {
 }
 
 /** "Work, family , Work" as ["Work", "family"]: trimmed, empty ones dropped, each once. */
+/**
+ * Lock blocks (Tyler, 7 Nov 2026: "add lock blocks button"): the trip's
+ * description in the left panel, its words and blocks, reads only until it's
+ * unlocked, as Project's Lock the notes does for a page. The Budget block's
+ * tabs and fold still work, since they change nothing on the trip. The words
+ * change once the save is back; a refused save says why.
+ */
+function LockBlocksButton() {
+  const { page, refresh } = useTrip()
+  const { trip } = page
+  const locked = trip.descriptionLocked
+  const [run, busy] = useAsyncAction(getTravelErrorMessage)
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className={ROW}
+      disabled={busy}
+      onClick={() =>
+        void run(
+          async () => {
+            await saveTrip({ tripId: trip.id, descriptionLocked: !locked })
+            await refresh()
+          },
+          locked ? "Blocks unlocked." : "Blocks locked. Nothing in the trip's description can change until they're unlocked."
+        )
+      }
+    >
+      {locked ? <LockOpenIcon className="size-4" /> : <LockIcon className="size-4" />}
+      {locked ? "Unlock blocks" : "Lock blocks"}
+    </Button>
+  )
+}
+
 function readTags(text: string) {
   return [...new Set(text.split(",").map((tag) => tag.trim()).filter(Boolean))]
 }

@@ -109,6 +109,7 @@ function tripPage(activities: Activity[], patch: Partial<TripPage> = {}): TripPa
       coverCredit: null,
       dayInfo: [],
       description: "",
+      descriptionLocked: false,
       travelMode: "walk",
       tags: [],
       isSample: false,

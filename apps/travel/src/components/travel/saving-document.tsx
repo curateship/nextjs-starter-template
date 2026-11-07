@@ -43,7 +43,8 @@ export function SavingDocument({
   onSave,
   placeholder = "Write something",
   focus = false,
-  readOnly = false,
+  readOnly: noSignal = false,
+  locked = false,
   cards = true,
   className,
 }: {
@@ -52,12 +53,20 @@ export function SavingDocument({
   onSave: (json: string) => Promise<unknown>
   placeholder?: string
   focus?: boolean
-  /** Shown, not written in: with no signal nothing could be saved. */
+  /** Shown faded, not written in: with no signal nothing could be saved. */
   readOnly?: boolean
+  /**
+   * Shown, not written in, at full strength: Lock blocks on the trip's
+   * description. The shell's editor fades whatever it can't write in, which
+   * read as a shade over the locked panel (Tyler, 7 Nov 2026: "Why is there a
+   * shade overlay when the left panel is locked?").
+   */
+  locked?: boolean
   /** Offer the Place and Map blocks, which point at the open trip's cards. Off for a note that belongs to no trip. */
   cards?: boolean
   className?: string
 }) {
+  const readOnly = noSignal || locked
   const [start] = React.useState(() => readNotes(value))
   // What was last saved, so the editor reporting the same words again (as it does when it is
   // locked and unlocked) sends nothing.
@@ -124,6 +133,7 @@ export function SavingDocument({
         "[&>div:first-of-type]:rounded-none [&>div:first-of-type]:border-0 [&>div:first-of-type]:bg-transparent",
         "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-1 [&_.page-rte_.tiptap]:!pt-1 [&_.page-rte_.tiptap]:!pb-4",
         "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]",
+        locked && !noSignal && "[&>div:first-of-type]:opacity-100",
         className
       )}
       // A right-click opens the "/" blocks at the pointer, putting the block where the click was. With words

@@ -1,7 +1,7 @@
 import * as React from "react"
 import { PlaneTakeoffIcon } from "lucide-react"
 
-import { BudgetCard, useSaveTrip } from "@/components/travel/trip-budget-card"
+import { useSaveTrip } from "@/components/travel/trip-budget-card"
 import { useTrip } from "@/components/travel/trip-context"
 import { NotesMorphIcon } from "@/components/travel/notes-morph-icon"
 import { TripNotes } from "@/components/travel/trip-notes-panel"
@@ -10,16 +10,16 @@ import { SavingDocument } from "@/components/travel/saving-document"
 import { PhotoCreditLine } from "@/components/travel/unsplash-picker"
 import { BlendedBanner, HeaderButton } from "@/components/travel/panel-bits"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { PanelFooter } from "@/components/travel/panel-footer"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { PANEL_BODY_ABOVE_FOOTER, PANEL_GUTTER } from "@/lib/travel/panel-gutter"
+import { PANEL_GUTTER } from "@/lib/travel/panel-gutter"
 import { cn } from "@/lib/utils"
 
 /**
  * The trip's left panel. Under the header is the trip's description, written
  * in place in the shell's editor (task "Misc": "I want to also inline edit
- * discription with tiptap editor"). The Money card is a folding card in the
- * panel's footer (the Admin 3 panel design, 6 Nov 2026). The note icon beside
+ * discription with tiptap editor"). The trip's money is the Budget block,
+ * typed in with "/" (Tyler, 7 Nov 2026: "turn this bottom card into a budget
+ * block"), so the panel has no footer. The note icon beside
  * the ⋮ shows the trip's notes in their place and turns into an × that
  * closes them; the ⋮ opens the trip's menu of settings and Delete trip.
  */
@@ -62,18 +62,11 @@ export function TripDetailsPanel() {
       {notesOpen ? (
         <TripNotes key={noteRequest?.at ?? "notes"} startOpen={noteRequest?.noteId ?? null} />
       ) : (
-        <>
-          {/* The body and the footer share the panel's height: the footer takes what Money needs, and the
-              description grows into the rest, keeping at least 6rem (the Admin 3 panel design). */}
-          <ScrollArea className={cn("relative min-h-0", PANEL_BODY_ABOVE_FOOTER)} viewportClassName="h-full">
-            <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
-              <TripDescription />
-            </div>
-          </ScrollArea>
-          <PanelFooter>
-            <BudgetCard />
-          </PanelFooter>
-        </>
+        <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
+          <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
+            <TripDescription />
+          </div>
+        </ScrollArea>
       )}
     </div>
   )
@@ -86,10 +79,13 @@ function TripDescription() {
   const save = useSaveTrip()
   return (
     <div className="grid gap-1">
+      {/* Lock blocks in the trip's ⋮ makes it read only; the editor is made again when the lock changes. */}
       <SavingDocument
+        key={trip.descriptionLocked ? "locked" : "open"}
         value={trip.description}
-        placeholder="Write something about the trip"
+        placeholder={trip.descriptionLocked ? "" : "Write something about the trip"}
         readOnly={readOnly}
+        locked={trip.descriptionLocked}
         onSave={(description) => save({ description })}
       />
       {trip.coverCredit ? <PhotoCreditLine credit={trip.coverCredit} className="px-1" /> : null}

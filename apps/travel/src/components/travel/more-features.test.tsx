@@ -102,6 +102,7 @@ function tripPage(activities: Activity[]): TripPage {
       coverCredit: null,
       dayInfo: [],
       description: "",
+      descriptionLocked: false,
       travelMode: "walk",
       tags: [],
       isSample: false,
@@ -184,7 +185,7 @@ describe("a day's heading (More Travel features parts 7 and 8)", () => {
   })
 })
 
-describe("the Money card (More Travel features part 13)", () => {
+describe("the Budget block's money (More Travel features part 13)", () => {
   it("switches from By day to By type, biggest first", () => {
     const cards = [
       activity({ id: "h", day: 1, typeId: "type-hotel", costCents: 90000 }),

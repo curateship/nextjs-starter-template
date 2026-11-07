@@ -3,7 +3,7 @@ import { and, asc, count, desc, eq, isNull } from "drizzle-orm"
 import type { Place } from "@/lib/travel/rules"
 
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
-import { copiedNotes } from "@/lib/travel/notes"
+import { copiedNotes, savedPlaceNotes } from "@/lib/travel/notes"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { checkPicture, requireActivity, requireTrip } from "@/server/travel/access"
@@ -51,7 +51,7 @@ export async function saveActivityAsPlace(userId: string, activityId: string, da
     website: activity.website,
     menuUrl: activity.menuUrl,
     phone: activity.phone,
-    notes: copiedNotes(activity.notes),
+    notes: savedPlaceNotes(activity.notes),
     photoUrl: activity.photoUrl,
     photoCredit: activity.photoCredit,
     createdAt: now(),
@@ -73,7 +73,7 @@ export type SavedPlacePatch = {
  * Changes a saved place's name, type, notes or picture (Travel features 4,
  * part 11; Tyler, 6 Nov 2026: "Opens in the window"). Copies already added to
  * a trip are their own and don't change. A saved place belongs to no trip, so
- * its notes keep no Place or Map block.
+ * its notes keep no Place, Map or Budget block.
  */
 export async function updateSavedPlace(userId: string, input: SavedPlacePatch, database: CustomShellDb = db) {
   const [saved] = await database
@@ -86,7 +86,7 @@ export async function updateSavedPlace(userId: string, input: SavedPlacePatch, d
   if (input.photoUrl !== undefined) await checkPicture(userId, input.photoUrl, input.photoCredit, database)
   const { savedPlaceId, ...patch } = input
   const values: Partial<typeof travelSavedPlaces.$inferInsert> = { ...patch }
-  if (patch.notes !== undefined) values.notes = copiedNotes(patch.notes)
+  if (patch.notes !== undefined) values.notes = savedPlaceNotes(patch.notes)
   if (patch.photoUrl !== undefined) values.photoCredit = patch.photoUrl ? (patch.photoCredit ?? null) : null
   if (Object.keys(values).length === 0) return
   await database.update(travelSavedPlaces).set(values).where(eq(travelSavedPlaces.id, savedPlaceId))
