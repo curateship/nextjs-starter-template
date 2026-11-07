@@ -4,7 +4,6 @@ import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
 import {
   FolderIcon,
   Grid2x2Icon,
-  InfoIcon,
   LayersIcon,
   ListOrderedIcon,
   RadarIcon,
@@ -42,18 +41,18 @@ import { cn } from "@/lib/utils"
 /** What each block draws, from the dashboard that holds the page. */
 export type TradeBlocks = {
   /**
-   * The Rules block is a box the chart draws into, as the left panel was
+   * A Rules block is a box the chart draws into, as the left panel was
    * before: the chart works out the rules' figures, so it keeps drawing them.
+   * Each Rules block on screen, on either page, adds its box and takes it
+   * away again when it goes.
    */
-  setRulesSlot: (element: HTMLElement | null) => void
+  addRulesSlot: (element: HTMLElement) => () => void
   grid: React.ReactNode
   dca: React.ReactNode
   manual: React.ReactNode
   alerts: React.ReactNode
   scanner: React.ReactNode
   folders: React.ReactNode
-  /** The facts about the market on the chart, or null with no market picked. */
-  marketInfo: React.ReactNode | null
 }
 
 const TradeBlocksContext = React.createContext<TradeBlocks | null>(null)
@@ -271,19 +270,17 @@ function blockView({ kind, title, icon, draw }: BlockSpec) {
 }
 
 /** The Rules box, drawn into by the chart. */
-function RulesSlot({ setSlot }: { setSlot: TradeBlocks["setRulesSlot"] }) {
-  const ref = React.useCallback(
-    (element: HTMLDivElement | null) => setSlot(element),
-    [setSlot]
-  )
-  return <div ref={ref} className="flex min-h-24 min-w-0 flex-1 flex-col" />
+function RulesSlot({ addSlot }: { addSlot: TradeBlocks["addRulesSlot"] }) {
+  const [element, setElement] = React.useState<HTMLDivElement | null>(null)
+  React.useEffect(() => (element ? addSlot(element) : undefined), [addSlot, element])
+  return <div ref={setElement} className="flex min-h-24 min-w-0 flex-1 flex-col" />
 }
 
 export const RulesBlockView = blockView({
   kind: "rules",
   title: "Rules",
   icon: <ShieldCheckIcon />,
-  draw: (blocks) => <RulesSlot setSlot={blocks.setRulesSlot} />,
+  draw: (blocks) => <RulesSlot addSlot={blocks.addRulesSlot} />,
 })
 
 export const ManualTradesBlockView = blockView({
@@ -326,16 +323,4 @@ export const FoldersBlockView = blockView({
   title: "Folders",
   icon: <FolderIcon />,
   draw: (blocks) => blocks.folders,
-})
-
-export const MarketInfoBlockView = blockView({
-  kind: "market-info",
-  title: "Market info",
-  icon: <InfoIcon />,
-  draw: (blocks) =>
-    blocks.marketInfo ?? (
-      <p className="p-3 text-xs text-muted-foreground">
-        Pick a market to see its facts.
-      </p>
-    ),
 })

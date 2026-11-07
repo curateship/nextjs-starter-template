@@ -1893,7 +1893,7 @@ describe("the rules before a real-money entry", () => {
             options={DEFAULT_CHART_OPTIONS}
             tradingRules={{ list: [rule] }}
             // The left panel's space for the Rules box.
-            rulesSlot={rulesSlot}
+            rulesSlots={[rulesSlot]}
             indicators={{}}
             market={
               {

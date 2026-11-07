@@ -136,7 +136,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { PanelLeftCloseIcon, PanelRightCloseIcon } from "lucide-react"
+import { InfoIcon, PanelLeftCloseIcon, PanelRightCloseIcon } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { DashboardCore } from "@/lib/api/trade/dashboard"
 import { useRememberedChoice } from "@/lib/remembered-choice"
@@ -146,7 +146,10 @@ import {
   type TradePanelLayouts,
   useRememberedPanelLayoutInPlace,
 } from "@/lib/trade/panel-layout"
-import { EXCHANGE_PAGE_MARKET } from "@/lib/trade/trade-pages"
+import {
+  EXCHANGE_PAGE_MARKET,
+  SHARED_PAGE_MARKET,
+} from "@/lib/trade/trade-pages"
 
 /**
  * No focus ring on a panel divider.
@@ -156,6 +159,8 @@ import { EXCHANGE_PAGE_MARKET } from "@/lib/trade/trade-pages"
  * last, so it beats the shell's own class without editing a shell file.
  */
 const NO_RING = "focus-visible:ring-0"
+const NO_SLOTS: readonly HTMLElement[] = []
+
 /** The middle panel's tabs, in the order they sit. */
 const MIDDLE_TABS: readonly ActivityTab[] = [
   "chart",
@@ -281,7 +286,7 @@ export function TradeWorkspace({
   initialQuickOrder: QuickOrderPrefs
   /** Divider positions owned by this account. */
   initialPanelLayouts: TradePanelLayouts
-  /** The exchange's page and the remembered market's page, from the same answer. */
+  /** The exchange's page and the All markets page, from the same answer. */
   initialPages: DashboardCore["pages"]
   /** The account panel's first answer from the same opening call. */
   initialWallets: DashboardBootstrap["wallets"]
@@ -804,11 +809,15 @@ export function TradeWorkspace({
     [trading.walletNames, account.wallets]
   )
 
-  // The Rules box is drawn by the chart into the Rules block on the
-  // exchange's page (the Admin 3 panel design, 7 Nov 2026). With no Rules
-  // block on the page, or the page's panel shut, the card over the chart sums
-  // the rules up instead, unless Settings, Trading rules switched it off.
-  const [rulesSlot, setRulesSlot] = React.useState<HTMLElement | null>(null)
+  // The Rules box is drawn by the chart into every Rules block on screen, on
+  // the exchange's page and on the market's (the Admin 3 panel design, 7 Nov
+  // 2026). With none on screen, the card over the chart sums the rules up
+  // instead, unless Settings, Trading rules switched it off.
+  const [rulesSlots, setRulesSlots] = React.useState<readonly HTMLElement[]>([])
+  const addRulesSlot = React.useCallback((element: HTMLElement) => {
+    setRulesSlots((slots) => [...slots, element])
+    return () => setRulesSlots((slots) => slots.filter((one) => one !== element))
+  }, [])
   // The rules as edited from the Rules box's cog, so the box and the entry
   // check follow an edit at once rather than after a reload.
   const [tradingRules, setTradingRules] = React.useState(initialTradingRules)
@@ -877,7 +886,7 @@ export function TradeWorkspace({
   // What each block on the two pages draws. Every one is the panel that used
   // to sit in its own column or behind a header button, with the same reads.
   const tradeBlocks: TradeBlocks = {
-    setRulesSlot,
+    addRulesSlot,
     grid: smartOrderPanel("grid"),
     dca: smartOrderPanel("dca"),
     manual: (
@@ -933,32 +942,20 @@ export function TradeWorkspace({
         onSelectMarket={pickMarket}
       />
     ),
-    marketInfo:
-      selection.kind === "market" ? (
-        <MarketInfoFacts selection={selection} />
-      ) : null,
   }
 
-  // The two pages: the exchange's own, and the market's on the chart.
+  // The two pages, both one per exchange: the exchange's own on the left,
+  // and All markets on the right, which every market shows (Tyler, 7 Nov
+  // 2026: "We should make both left and right panel all protocol wide").
   const exchangePage = useTradePage({
     protocol,
-    marketKey: EXCHANGE_PAGE_MARKET,
-    initial: { marketKey: EXCHANGE_PAGE_MARKET, page: initialPages.exchange },
+    pageKey: EXCHANGE_PAGE_MARKET,
+    initial: initialPages.exchange,
   })
-  const pageMarketKey = selection.kind === "market" ? selection.row.key : null
-  const marketPage = useTradePage({
+  const sharedPage = useTradePage({
     protocol,
-    marketKey: pageMarketKey,
-    initial: initialPages.market
-      ? {
-          marketKey: initialPages.market.marketKey,
-          page: {
-            body: initialPages.market.body,
-            locked: initialPages.market.locked,
-            coverUrl: initialPages.market.coverUrl,
-          },
-        }
-      : null,
+    pageKey: SHARED_PAGE_MARKET,
+    initial: initialPages.shared,
   })
 
   // The left panel: the exchange's own page of blocks, under its name and My
@@ -1025,24 +1022,26 @@ export function TradeWorkspace({
         className={cn("relative min-h-0 flex-1", folderManagerOpen && "hidden")}
       >
         <div className={cn(PANEL_GUTTER, "pt-0")}>
-          <TradePageBody page={exchangePage} marketKey={EXCHANGE_PAGE_MARKET} />
+          <TradePageBody page={exchangePage} />
         </div>
       </ScrollArea>
     </WorkspacePanel>
   )
 
-  // The right panel: the market's own page, under its name and the market's
-  // ⋮, which holds its folders and Pin to top.
+  // The right panel: the All markets page, the same on every market, under
+  // the market's name, its facts and its ⋮, which holds its folders and Pin
+  // to top.
   const marketColumn = (
     <WorkspacePanel
+      data-trade-page="shared"
       onDoubleClick={marketDoubleClick}
       className="relative flex min-h-0 w-full min-w-0 flex-1 flex-col"
     >
-      <PageCover url={pageMarketKey ? marketPage.cover.url : null} />
+      <PageCover url={sharedPage.cover.url} />
       {/* Wrapped for the same reason as the left panel's header. */}
       <div className="relative shrink-0">
       <DashboardCardHeader
-        className={cn(pageMarketKey && marketPage.cover.url && "border-b-transparent")}
+        className={cn(sharedPage.cover.url && "border-b-transparent")}
       >
         {/* The market's own icon before its name (Tyler, 7 Nov 2026: "Add the
             market favicon"), a first-letter circle where the exchange has
@@ -1058,15 +1057,45 @@ export function TradeWorkspace({
             />
           </span>
         ) : null}
-        <span className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>
-          {selection.kind === "market" ? selection.row.symbol : "No market"}
-        </span>
+        {selection.kind === "market" ? (
+          <>
+            <span
+              className={cn("min-w-0 truncate", dashboardCardHeadingClassName)}
+            >
+              {selection.row.symbol}
+            </span>
+            {/* The market's facts, in a tooltip on the "i" after its name
+                (Tyler, 7 Nov 2026: "move the market info into a tool top in
+                the header", then "Where is the "i" icon?"). */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`About ${selection.row.symbol} market`}
+                  className="shrink-0 text-muted-foreground"
+                >
+                  <InfoIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="center" className="p-0">
+                <MarketInfoFacts selection={selection} />
+              </TooltipContent>
+            </Tooltip>
+            <span aria-hidden className="flex-1" />
+          </>
+        ) : (
+          <span className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>
+            No market
+          </span>
+        )}
         <MarketPageMenu
-          marketKey={pageMarketKey}
+          marketKey={selection.kind === "market" ? selection.row.key : null}
           folders={folders}
           folderActions={folderActions}
-          lock={marketPage.lock}
-          cover={marketPage.cover}
+          lock={sharedPage.lock}
+          cover={sharedPage.cover}
         />
         {/* Shuts the right panel, at its outer edge as the left panel's
             button is at its own (Tyler, 7 Nov 2026: "add a collapsible icon
@@ -1092,13 +1121,10 @@ export function TradeWorkspace({
       </div>
       <ScrollArea className="relative min-h-0 flex-1">
         <div className={cn(PANEL_GUTTER, "pt-0")}>
-          {pageMarketKey ? (
-            <TradePageBody page={marketPage} marketKey={pageMarketKey} />
-          ) : (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Pick a market to see its page.
-            </p>
-          )}
+          <TradePageBody
+            page={sharedPage}
+            placeholder="Type / for a block every market shows"
+          />
         </div>
       </ScrollArea>
     </WorkspacePanel>
@@ -1132,6 +1158,16 @@ export function TradeWorkspace({
         {olderBarsNote}
       </div>
     ) : null
+
+  // A Rules block counts while its page is on screen: not in full screen,
+  // and not while its side panel is shut on a wide screen.
+  const shownRulesSlots = chartFullscreen
+    ? NO_SLOTS
+    : rulesSlots.filter((slot) =>
+        slot.closest("[data-trade-page=shared]")
+          ? !(desktop && marketCollapsed)
+          : !(desktop && blocksCollapsed)
+      )
 
   const chart = (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -1177,16 +1213,10 @@ export function TradeWorkspace({
             shownTrade={shownTrade}
             onClearShownTrade={() => setShownTrade(null)}
             onOlderBars={setOlderBars}
-            // The Rules block on the exchange's page, while that page is on
-            // screen.
-            rulesSlot={
-              chartFullscreen || (desktop && blocksCollapsed) ? null : rulesSlot
-            }
+            // Every Rules block whose page is on screen.
+            rulesSlots={shownRulesSlots}
             rulesCard={
-              (chartFullscreen ||
-                (desktop && blocksCollapsed) ||
-                rulesSlot === null) &&
-              showsRulesChartCard(tradingRules)
+              shownRulesSlots.length === 0 && showsRulesChartCard(tradingRules)
             }
             cornerControl={
               <div className="flex items-center gap-2">

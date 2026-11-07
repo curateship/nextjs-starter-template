@@ -37,11 +37,9 @@ import {
   FoldersBlockView,
   GridTradesBlockView,
   ManualTradesBlockView,
-  MarketInfoBlockView,
   RulesBlockView,
   ScannerBlockView,
 } from "@/components/trade/notes/trade-block-views"
-import type { TradePageKind } from "@/lib/trade/note-blocks"
 
 /**
  * The "/" blocks on a Trade page (the Admin 3 panel design, 7 Nov 2026),
@@ -68,7 +66,6 @@ export type BlockKey =
   | "alerts"
   | "scanner"
   | "folders"
-  | "marketInfo"
 
 /**
  * The "/" list's two groups, as Project's. Basic blocks are what the writer
@@ -99,30 +96,12 @@ export const BLOCKS: { key: BlockKey; label: string; icon: LucideIcon; group: Bl
   { key: "alerts", label: "Alerts", icon: SirenIcon, group: "advanced" },
   { key: "scanner", label: "Scanner", icon: RadarIcon, group: "advanced" },
   { key: "folders", label: "Folders", icon: FolderIcon, group: "advanced" },
-  { key: "marketInfo", label: "Market info", icon: InfoIcon, group: "advanced" },
 ]
 
 /** The blocks whose name starts with what was typed after the "/". */
 export function matchingBlocks(query: string) {
   const words = query.toLowerCase()
   return BLOCKS.filter((block) => block.label.toLowerCase().startsWith(words))
-}
-
-/** The blocks each page offers: the exchange's things on its own page, the market's facts on a market's. */
-const EXCHANGE_ONLY: readonly BlockKey[] = [
-  "rules",
-  "manualTrades",
-  "gridTrades",
-  "dcaTrades",
-  "alerts",
-  "scanner",
-  "folders",
-]
-const MARKET_ONLY: readonly BlockKey[] = ["marketInfo"]
-
-export function blocksFor(page: TradePageKind): BlockKey[] {
-  const left = page === "exchange" ? MARKET_ONLY : EXCHANGE_ONLY
-  return BLOCKS.map((block) => block.key).filter((key) => !left.includes(key))
 }
 
 function blockNode(name: string, defaults: Record<string, unknown>, view: (props: NodeViewProps) => React.ReactNode) {
@@ -285,7 +264,6 @@ export const BLOCK_NODES: Extensions = [
   blockNode("noteAlerts", {}, AlertsBlockView),
   blockNode("noteScanner", {}, ScannerBlockView),
   blockNode("noteFolders", {}, FoldersBlockView),
-  blockNode("noteMarketInfo", {}, MarketInfoBlockView),
   Callout,
   Fold,
   TaskList,
@@ -310,7 +288,6 @@ export const BLOCK_NODE_NAMES: Record<BlockKey, readonly string[]> = {
   alerts: ["noteAlerts"],
   scanner: ["noteScanner"],
   folders: ["noteFolders"],
-  marketInfo: ["noteMarketInfo"],
   checklist: ["taskList", "taskItem"],
   callout: ["noteCallout"],
   fold: ["noteFold", "tradeNoteFolds"],

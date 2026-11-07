@@ -65,7 +65,7 @@ screen: anything not written there has not been agreed yet.
 - [The active trades button](screens/active-trades-button.md) — click to open, why the table fits exactly, and why it never shows two dashes.
 - `dashboard-blocks.md` — the protocol dashboard in the Admin 3 panel design:
   the exchange's page of "/" blocks on the left (Rules, Manual, Grid and DCA
-  trades, Alerts, Scanner, Folders), the market's page on the right with its
+  trades, Alerts, Scanner, Folders), the All markets page on the right, the market's facts in a tooltip on its "i", its
   ⋮ for Folders and Pin to top, the chart and tables as middle tabs, the lock,
   widths and the narrow-screen pill row.
 - `dashboard-on-a-phone.md` — the exchange dashboard on a phone: the pill row,

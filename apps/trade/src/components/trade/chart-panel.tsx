@@ -466,6 +466,8 @@ function ordersAreSwaps(marketKey: string): boolean {
     : false
 }
 
+const NO_RULES_SLOTS: readonly HTMLElement[] = []
+
 export function ChartPanel({
   selectedKey,
   interval,
@@ -501,7 +503,7 @@ export function ChartPanel({
   onAddOpened,
   onOlderBars,
   cornerControl,
-  rulesSlot = null,
+  rulesSlots = NO_RULES_SLOTS,
   rulesCard = false,
   onEditRule,
 }: {
@@ -612,11 +614,12 @@ export function ChartPanel({
   /** A chart action pinned inside the plot, immediately left of the price axis. */
   cornerControl?: React.ReactNode
   /**
-   * The left panel's space for the Rules box. Null while that panel is shut,
-   * and the box is then not drawn at all (Tyler, 15 Oct 2026: "dont need to
-   * see this when collapsed"). The check before an entry still runs.
+   * Every Rules block on screen, on the exchange's page and on the market's,
+   * each drawn into. Empty while no Rules block shows, and the box is then not
+   * drawn at all (Tyler, 15 Oct 2026: "dont need to see this when
+   * collapsed"). The check before an entry still runs.
    */
-  rulesSlot?: HTMLElement | null
+  rulesSlots?: readonly HTMLElement[]
   /**
    * Sums the rules up in a card over the chart, for when the left panel and
    * its Rules box are shut on a wide screen.
@@ -2568,10 +2571,11 @@ export function ChartPanel({
         </div>
       )}
 
-      {market && rulesSlot
-        ? createPortal(
-            <RulesWatchPanel
-              key={market.key}
+      {market
+        ? rulesSlots.map((slot, index) =>
+            createPortal(
+              <RulesWatchPanel
+              key={`${market.key}:${index}`}
               marketKey={market.key}
               rules={tradingRules}
               holdings={ruleHoldings}
@@ -2581,7 +2585,11 @@ export function ChartPanel({
               // The slot is the dashboard's Rules block, whose heading names it.
               bare
             />,
-            rulesSlot
+              slot,
+              // Each box is its own, so a second Rules block never takes over
+              // the first one's picked rule.
+              `${market.key}:${index}`
+            )
           )
         : null}
 

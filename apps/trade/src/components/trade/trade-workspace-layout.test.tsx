@@ -190,12 +190,13 @@ vi.mock("@/components/trade/market-header", () => ({
   MarketInfoFacts: () => null,
 }))
 vi.mock("@/components/trade/notes/trade-page-panel", () => ({
-  useTradePage: () => ({
+  useTradePage: ({ pageKey }: { pageKey: string }) => ({
+    pageKey,
     lock: { locked: false, busy: false, setLocked: vi.fn() },
     cover: { url: null, busy: false, set: vi.fn() },
   }),
-  TradePageBody: ({ marketKey }: { marketKey: string }) => (
-    <div data-testid="page" data-market={marketKey} />
+  TradePageBody: ({ page }: { page: { pageKey: string } }) => (
+    <div data-testid="page" data-market={page.pageKey} />
   ),
 }))
 vi.mock("@/components/trade/notes/page-menus", () => ({
@@ -458,7 +459,7 @@ describe("the trade workspace", () => {
             }}
             initialPages={{
               exchange: { body: null, locked: false, coverUrl: null },
-              market: null,
+              shared: { body: null, locked: false, coverUrl: null },
             }}
             initialWallets={{
               rows: [],
@@ -487,12 +488,12 @@ describe("the trade workspace", () => {
     expect(
       host.querySelector('[data-testid="activity-panel"] [data-testid="chart"]')
     ).not.toBeNull()
-    // The exchange's page on the left, the market's page on the right.
+    // The exchange's page on the left, All markets on the right.
     expect(
       Array.from(host.querySelectorAll('[data-testid="page"]')).map((page) =>
         page.getAttribute("data-market")
       )
-    ).toEqual(["", "hyperliquid:mainnet:BTC"])
+    ).toEqual(["", "*"])
     // The chart header has no folder, alert or scanner buttons any more.
     expect(
       host.querySelector(

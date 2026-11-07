@@ -1,27 +1,18 @@
 import { and, eq } from "drizzle-orm"
 
 import type { ProtocolId } from "@/lib/protocols/contracts"
-import type { TradePageKind } from "@/lib/trade/note-blocks"
-import {
-  EXCHANGE_PAGE_MARKET,
-  storedTradePage,
-  type TradePage,
-} from "@/lib/trade/trade-pages"
+import { storedTradePage, type TradePage } from "@/lib/trade/trade-pages"
 import { db, type CustomShellDb } from "@/server/db"
 import { tradePages } from "@/server/trade/schema"
 
 /**
- * The dashboard's two pages (the Admin 3 panel design, 7 Nov 2026), each
- * read and written only by its owner. `marketKey` "" is the exchange's own
- * page on the left; any other key is that market's page on the right.
+ * The dashboard's two pages (the Admin 3 panel design, 7 Nov 2026), each read
+ * and written only by its owner, both one per exchange: `marketKey` "" is the
+ * exchange's own page on the left, "*" the All markets page on the right.
  */
 
 export const PAGE_LOCKED_MESSAGE =
   "This page is locked. Unlock the notes to change it."
-
-function kindOf(marketKey: string): TradePageKind {
-  return marketKey === EXCHANGE_PAGE_MARKET ? "exchange" : "market"
-}
 
 /** One page, or `null` body when it was never written, so the starting page shows. */
 export async function loadTradePage(
@@ -62,7 +53,7 @@ export async function saveTradePage(
   text: string,
   database: CustomShellDb = db
 ): Promise<Omit<TradePage, "coverUrl">> {
-  const body = storedTradePage(text, kindOf(marketKey))
+  const body = storedTradePage(text)
   return database.transaction(async (tx) => {
     const [row] = await tx
       .select({ locked: tradePages.locked })
@@ -100,7 +91,7 @@ export async function setTradePageLocked(
   shownBody: string,
   database: CustomShellDb = db
 ) {
-  const body = storedTradePage(shownBody, kindOf(marketKey))
+  const body = storedTradePage(shownBody)
   await database
     .insert(tradePages)
     .values({ userId, protocol, marketKey, body, locked })
@@ -123,7 +114,7 @@ export async function setTradePageCover(
   shownBody: string,
   database: CustomShellDb = db
 ) {
-  const body = storedTradePage(shownBody, kindOf(marketKey))
+  const body = storedTradePage(shownBody)
   await database
     .insert(tradePages)
     .values({ userId, protocol, marketKey, body, coverUrl })

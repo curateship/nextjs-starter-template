@@ -1,9 +1,10 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { KNOWN_PROTOCOLS, parseMarketKey } from "@/lib/protocols/contracts"
+import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
 import {
   EXCHANGE_PAGE_MARKET,
+  SHARED_PAGE_MARKET,
   TRADE_PAGE_MAX_LENGTH,
 } from "@/lib/trade/trade-pages"
 import { userGet, userPost } from "@/server/guards"
@@ -15,18 +16,13 @@ import {
 } from "@/server/trade/pages"
 
 /**
- * The dashboard's two pages: the exchange's own (`marketKey` "") and one
- * market's. Only the signed-in person's own pages are ever read or written.
+ * The dashboard's two pages, both one per exchange: the exchange's own
+ * (`marketKey` "") and All markets ("*"). Only the signed-in person's own
+ * pages are ever read or written.
  */
 const pageSchema = z.object({
   protocol: z.enum(KNOWN_PROTOCOLS),
-  marketKey: z
-    .string()
-    .max(180)
-    .refine(
-      (key) => key === EXCHANGE_PAGE_MARKET || parseMarketKey(key) !== null,
-      { message: "Not a market key." }
-    ),
+  marketKey: z.enum([EXCHANGE_PAGE_MARKET, SHARED_PAGE_MARKET]),
 })
 
 const loadPageFn = createServerFn({ method: "GET" })

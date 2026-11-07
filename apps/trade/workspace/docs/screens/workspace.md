@@ -21,8 +21,9 @@ sees only their own wallets and orders there —
   there. `dashboard-blocks.md` explains the pages, the blocks and the lock.
   Double-clicking the panel's blank space shuts it, the same as every other
   panel (Tyler, 15 Oct 2026). A double-click on words or a control does not.
-- **Right, the market's page.** The Market info block and the market's own
-  notes, under the market's ⋮ holding Folders and Pin to top.
+- **Right, the All markets page.** One page per exchange that every market
+  shows, under the market's name (its facts in a tooltip) and the market's ⋮
+  holding Folders and Pin to top.
 - **Middle — the market you picked.** One header: the primary Browse market
   button, then the market's chart, Positions, Open orders and the Journal as
   tabs, then the timeframe control (1m to 1d, remembered per browser, 4h the default),
