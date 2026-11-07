@@ -507,7 +507,11 @@ export function NotificationCenter({
         <Button
           variant="ghost"
           size="icon"
-          className="relative"
+          // Round, the shape Tyler drew on 7 Nov 2026
+          // (apps/shell/workspace/docs/assets/pasted-image-1794063523663072000.png).
+          // The grey circle in that picture is the hover look only. A grey
+          // fill at rest was wrong (Tyler, 7 Nov: "why is it gray").
+          className="relative rounded-full"
           data-nav-shape="icon"
           aria-label={
             unseenCount > 0
@@ -517,16 +521,22 @@ export function NotificationCenter({
         >
           <BellIcon className="size-4" />
           {unseenCount > 0 ? (
-            // A circle at one digit that stretches into a pill at two or three,
-            // capped at 99+ so a big number can never widen past the button.
+            // Always a round circle, at one digit, two, or "99+" (Tyler,
+            // 7 Nov 2026: "the red alert is NOT circle", about a "12" that had
+            // stretched into a pill). A fixed 20px circle (18px, then 10%
+            // bigger on Tyler's word the same day). The digits shrink at three
+            // characters so "99+" still fits inside.
             // The count is in the button's own label, so this is decoration to
-            // a screen reader. The shared badge's destructive treatment is the
-            // theme's own alarm colour, so it follows the workspace's styling
-            // and has a dark mode, which the baked-in red never did.
+            // a screen reader. Solid theme red with a white bold number, not
+            // the badge's pale destructive tint, which Tyler's 7 Nov picture
+            // replaced.
             <Badge
               variant="destructive"
               aria-hidden
-              className="pointer-events-none absolute -top-1 -right-1 min-w-5 border-2 border-background px-1 text-[0.625rem] leading-none font-semibold tabular-nums"
+              className={cn(
+                "pointer-events-none absolute -top-1 -right-1 size-5 rounded-full border-[1.5px] border-background bg-destructive p-0 leading-none font-bold tracking-tighter text-white tabular-nums dark:bg-destructive",
+                unseenCount > 99 ? "text-[0.4375rem]" : "text-[0.5625rem]"
+              )}
             >
               {unseenCount > 99 ? "99+" : unseenCount}
             </Badge>

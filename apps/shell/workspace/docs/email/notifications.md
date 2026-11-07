@@ -24,6 +24,12 @@ written reasons, such as a logo missing from the media library.
 
 ## Seen and read are two different things
 
+The bell sits in a round button that turns grey only under the pointer. Its
+number sits in a solid red 20px circle at the button's top right, in white bold
+digits, and stays a circle at one digit, two, or "99+". Tyler drew that look on
+7 Nov 2026 (`workspace/docs/assets/pasted-image-1794063523663072000.png`). It
+replaced a pale red pill with red digits.
+
 The bell carries a red number and opens the tray. The number is not the unread
 count. It counts notices that have arrived **since the bell was last opened**,
 which the `seen_at` column on each notice records.
@@ -71,6 +77,10 @@ The Notifications dashboard lets an admin:
 - Search, filter, sort, and page through notifications.
 - Delete selected records.
 - Clear all records in the active workspace.
+- Send a test notice to their own bell with **Send test**. It lands as
+  "Test notification" in the tray and puts the red number on the bell, so the
+  bell can be checked without waiting for a real notice. Tyler asked for it on
+  7 Nov 2026.
 
 Platform settings control which notification types the product may create.
 Account preferences control what an individual wants to receive where the type
