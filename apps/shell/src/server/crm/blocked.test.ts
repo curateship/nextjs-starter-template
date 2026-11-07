@@ -240,7 +240,7 @@ describe("the blocked list", () => {
     it("does not count as unread", async () => {
       await recordInboundEmail(workspaceId, inboundEvent(), db)
       expect(await countInboxThreads(workspaceId, { status: "all" }, db))
-        .toEqual({ all: 1, unread: 0 })
+        .toEqual({ all: 1, unread: 0, saved: 0 })
     })
 
     it("does not move the lead's stage", async () => {

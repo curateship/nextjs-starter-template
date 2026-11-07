@@ -498,7 +498,7 @@ export function RichTextEditor({
  * latter reads the editor while React is drawing, so a button lights up a beat
  * late or not at all.
  */
-function SelectionToolbar({ editor }: { editor: Editor }) {
+function SelectionToolbar({ editor, onBody = false }: { editor: Editor; onBody?: boolean }) {
   const state = useEditorState({
     editor,
     selector: ({ editor: current }) => ({
@@ -517,8 +517,15 @@ function SelectionToolbar({ editor }: { editor: Editor }) {
   return (
     <BubbleMenu
       editor={editor}
+      // On the page's body when asked, so a narrow panel that clips what it
+      // holds cannot cut the toolbar off (a 180px side panel holds 333px of
+      // toolbar). Not by default: inside a window, the body is behind it.
+      appendTo={onBody ? () => document.body : undefined}
       options={{ placement: "top", offset: 10, shift: true, flip: true }}
-      className="z-20 flex items-center gap-1 rounded-lg border bg-background/95 p-1 shadow-lg backdrop-blur"
+      className={cn(
+        "flex items-center gap-1 rounded-lg border bg-background/95 p-1 shadow-lg backdrop-blur",
+        onBody ? "z-50" : "z-20"
+      )}
     >
       <ToolbarButton
         label="Bold"
@@ -632,11 +639,18 @@ export function DocumentEditor<Body extends { type: string } = WrittenPageNode>(
   placeholder = "Write the page…",
   extensions = NO_EXTENSIONS,
   clean = cleanWrittenPageBody as unknown as (value: unknown) => Body,
+  toolbarOnBody = false,
 }: {
   value: Body
   onChange: (body: Body) => void
   disabled?: boolean
   placeholder?: string
+  /**
+   * Puts the toolbar over selected words on the page's body, for an editor in
+   * a narrow panel that clips what it holds, such as a side panel's page.
+   * Never inside a window, where the body sits behind it.
+   */
+  toolbarOnBody?: boolean
   /**
    * Behaviour an app adds on top, such as a list that opens on a key. They
    * may not add new kinds of content unless `clean` keeps them: what is saved
@@ -706,7 +720,7 @@ export function DocumentEditor<Body extends { type: string } = WrittenPageNode>(
         .page-rte .tiptap a { color: var(--primary); text-decoration: underline; }
         .page-rte .tiptap p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--muted-foreground); float: left; height: 0; pointer-events: none; }
       `}</style>
-      {editor && !disabled ? <SelectionToolbar editor={editor} /> : null}
+      {editor && !disabled ? <SelectionToolbar editor={editor} onBody={toolbarOnBody} /> : null}
       <div className="page-rte">
         <EditorContent editor={editor} />
       </div>

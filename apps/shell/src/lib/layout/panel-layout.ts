@@ -86,7 +86,12 @@ export const panelLayoutKey = {
   // the new ones would appear to do nothing. Changing the key abandons the
   // old widths, which is right: they were measured against a layout that no
   // longer exists. Bump it again the next time the defaults move.
-  crmWorkspace: "crm-workspace-horizontal-3",
+  // 4 from 7 Nov 2026: the CRM moved onto `ThreePanels` (the Admin 3 panel
+  // design), the left a page, the inbox in the middle, the conversation on
+  // the right, each side at its narrowest 16%.
+  crmWorkspace: "crm-workspace-horizontal-4",
+  // Not a layout: where the CRM dashboard was, for `useDashboardPlace`.
+  crmPlace: "crm-workspace-place",
   // Contacts with its segments, the shell's first `ThreePanels` screen.
   contactsWorkspace: "contacts-workspace-horizontal-2",
   // Not a layout: where the Contacts dashboard was, for `useDashboardPlace`.

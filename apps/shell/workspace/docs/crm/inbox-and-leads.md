@@ -5,18 +5,73 @@ answers it, and keeps a record of who it was with so they can be chased later.
 Everything else in the app sends mail outward; this is the only part that
 receives any.
 
+It is drawn in the Admin 3 panel design
+(`.agents/skills/Design/admin-3-panel-design/SKILL.md`) since 7 Nov 2026.
+Tyler: "Left panel list blocks like emails, I want to add new emails to the
+CRM so we'd need to add a + in the top header. Middle panel shows the inbox,
+second tab unread, 3rd tab saved. Right panel shows the full conversation and
+information about that contact." Every card is Trade's block card ("we need
+to use trade's card design though").
+
 Three panels, and each has one job:
 
-- **Left, the inbox.** One row per conversation, with search and filters above
-  it.
-- **Middle, the conversation.** The back-and-forth oldest first, with the box to
-  answer it at the foot.
-- **Right, the lead.** Who they are, what stage they are at, what the work is
-  worth, and when to chase them.
+- **Left, the page.** One page per site, written on like any page in the
+  design, holding "/" blocks. The header's **+** adds an address mail arrives
+  at.
+- **Middle, the inbox.** One row per conversation, under the All, Unread and
+  Saved tabs.
+- **Right, the conversation.** The back-and-forth oldest first, the folding
+  Contact card, and the box to answer it at the foot. The ⋮ holds who they
+  are and where they are up to.
 
 There is no bottom panel. The email and automation editors use one to show a
 list of things that happened to the thing above it, and a conversation already
 is that list.
+
+## The left page
+
+The page is the shell's page with "/" blocks (`docs/shell/page-blocks.md`),
+kept in `crm_pages`, one row per site. A site that has not written on it yet
+sees the Emails and Follow up today blocks. The CRM adds three blocks of its
+own to the "/" list, in `src/components/crm/crm-blocks.tsx`:
+
+- **Emails.** Every address mail arrives at, with its open conversations.
+  Pressing one narrows the inbox to that address (`?to=`), and pressing it
+  again lets go. A row's ⋯ has Rename and Remove.
+- **Follow up today.** Leads whose chase date has come, soonest first, never
+  one already Won or Lost. Pressing one opens their newest conversation.
+- **Stages.** How many leads are at each stage. Pressing one narrows the
+  inbox to it.
+
+The header holds the collapse button, "CRM" with the number of open
+conversations under it, the **+**, and the ⋮ (CRM settings). The ⋮'s General
+tab has the cover photo and Lock the notes. Locked, the page reads only, and
+the server refuses a save.
+
+## Several addresses
+
+A site can have more than one address mail arrives at, such as sales@ and
+support@, in one inbox (CRM task 18). The list is `crm_inbound_addresses`.
+Each conversation remembers the address its mail came to, in
+`crm_threads.to_address`.
+
+- **A reply goes out from the address the mail came to**, while that address
+  is still on the list. Otherwise it goes out from the first one. A customer
+  who wrote to support@ never gets an answer from sales@.
+  `senderFromSettings` in `src/server/crm/sender.ts` decides which, and the
+  footnote under Send reads from it.
+- **The first address is the Settings → Email one.** It was the only one
+  before the list, and the reply sender falls back to it. Adding the first
+  address writes it there too. Removing it moves the next one in, or clears
+  the box when it was the last. Migration 0098 copied every saved address
+  onto the list.
+- **Conversations from before the list have no address recorded.** They came
+  to the first address, so they count under it in the Emails block and show
+  when it is picked.
+- **A row names its address only when there are two or more**, as "To
+  Support", because a label on every row is noise.
+- **Mail to an address that is not on the list is still filed.** Its address
+  is recorded, and the reply goes out from the first one.
 
 ## What it looks like, and why
 
@@ -24,13 +79,17 @@ Tyler set the look on 2 Oct 2026 with a picture:
 [the mockup](../assets/pasted-image-1790966797817093000.png). Four things in it
 are decisions, not decoration.
 
-**The inbox header is two tabs and two buttons.** All and Unread, each carrying
-its own count, because those are the only two things looked at constantly.
-Search sits behind the magnifying glass, and the rest of the filters and the
-order behind the funnel. Five controls on permanent display would take a third
-of the panel's height from the list they exist to narrow. The funnel carries a
-dot when something is on, so a list narrowed or reordered yesterday cannot look
-like an ordinary one today.
+**The inbox has one header.** All, Unread and Saved, each carrying its own
+count, then "N selected" while rows are ticked, then Filter, then the ⋮. The
+⋮ holds Search and Mass select. Search opens its box in the header with the
+cursor in it. Filter holds the status, the stage, the address when there is
+more than one, the order and the follow-up filter, and counts what is on. A
+list narrowed or reordered yesterday cannot look like an ordinary one today.
+
+**Saved is one mark per conversation, for the whole site**, as unread and
+closed are (Tyler, 7 Nov 2026). The star in the conversation header saves it,
+and so does a row's right-click. A saved row shows a small star beside its
+time. `crm_threads.saved_at` holds when it was saved.
 
 **A tab's count is a soft grey chip, never a coloured number.** `TabsCount` in
 `src/components/ui/tabs.tsx` draws it, so every screen in every app gets the
@@ -42,10 +101,10 @@ it is warning about something. Tyler set this on 3 Oct 2026 with
 [a picture](../assets/pasted-image-1790999823792568000.png). The digits are
 fixed-width with a minimum width, so the pill does not jump going from 9 to 10.
 
-**Neither count moves when you press the other tab.** Both obey every filter
-except the unread one, so a search for "kitchen" answers how many of those
-there are and how many of those are unread. `countInboxThreads` works both out
-in one query, which is why they can never disagree. Counting the list instead
+**No count moves when you press another tab.** All three obey every filter
+except the tabs' own, so a search for "kitchen" answers how many of those
+there are, how many are unread and how many are saved. `countInboxThreads`
+works all three out in one query, which is why they can never disagree. Counting the list instead
 made All read 6 and then 2 the moment Unread was pressed, because the list it
 was counting had become the unread one.
 
@@ -61,13 +120,13 @@ message needs.
 not open. Those two lines only appear when they are true, so an ordinary row
 stays three lines.
 
-**The three panels start at roughly a fifth, a half and a quarter**, and each
-browser remembers where you drag the dividers. The inbox came down by a fifth
-on 3 Oct 2026: a conversation needs the room more than a list of names does.
+**The panels start at 16%, 68% and 16%**, the widths every `ThreePanels`
+dashboard opens at, and each browser remembers where you drag the dividers.
 When those starting widths move again, the key in
-`src/lib/layout/panel-layout.ts` has to move with them — a remembered layout
+`src/lib/layout/panel-layout.ts` has to move with them. A remembered layout
 outranks the default, so a browser that had already drawn the old proportions
-would keep them and the new ones would appear to do nothing.
+would keep them and the new ones would appear to do nothing. The key is
+`crm-workspace-horizontal-4` since 7 Nov 2026.
 
 **A conversation is drawn as a back-and-forth.** Theirs sit left in a plain
 bubble, ours sit right in a bubble tinted with the brand colour, and the time
@@ -77,10 +136,18 @@ repeated on every message: it is the same two people the whole way down, so the
 header says it once. A screen reader still hears "You wrote" or "They wrote" on
 each one, so which way it went never rests on which side it is drawn.
 
-The four square buttons in the conversation header are **mark unread**,
-**snooze**, **block this address** and **close**, and each does something.
-There is no star: nothing in the CRM is starred, and a button that only looks
-right is a button that lies.
+**The conversation header is the person, the star and the ⋮.** The star
+saves it for the Saved tab. The ⋮ (`src/components/crm/crm-record-menu.tsx`)
+has two tabs:
+
+- **General** holds grouped rows: Person (name, email, company, phone), Deal
+  (stage, worth), Follow up (date, note) and Conversation (status, snooze
+  until). Under them are Mark unread, Add to contacts, and Block this
+  address in red under a line.
+- **Files** lists every file the conversation carried.
+
+**A row's right-click** has Mass select, Save, Mark unread, Snooze until,
+Close, then Block under a line. Block asks first, as the ⋮ does.
 
 Mark unread exists because opening a conversation marks it read. Without a way
 back, one opened by accident, or meant for later, would look dealt with.
@@ -329,13 +396,12 @@ in `src/server/email/deliverability.ts`, which does catch subdomains — that
 list is a hand-kept set of providers whose whole business is temporary
 addresses, and those hand out endless subdomains of one name.
 
-**Blocking from the conversation is one button and one confirmation.** The ban
-icon in the conversation header blocks the address and closes the thread, in
+**Blocking from the conversation is one press and one confirmation.** Block
+this address, in the ⋮ or a row's right-click, blocks it and closes the thread, in
 that order: if closing fails the address is still blocked, which is the half
 that matters. The confirmation exists although nothing is destroyed, because
-the button sits in a row of four square icons and a misclick that quietly
-stopped a real customer's mail is the failure this whole design is shaped
-around. The note it writes is "Blocked from the conversation", so the settings
+a misclick that quietly stopped a real customer's mail is the failure this
+whole design is shaped around. The note it writes is "Blocked from the conversation", so the settings
 list says where the block came from.
 
 **Unblocking is one press and reopens nothing.** The next message from that
@@ -372,7 +438,7 @@ per workspace, typed by a person.
 ## Unread, snoozed and closed
 
 A conversation is **unread** while its `read_at` is null. Opening it stamps the
-time, the envelope button in the header clears it again, and a new message
+time, Mark unread in the ⋮ or a row's right-click clears it again, and a new message
 clears it too, which is what puts it back at the top of the inbox in bold.
 
 **Opening one marks it read, and that is a write**, so it goes out as its own
@@ -407,7 +473,7 @@ a separate question, and the answer may be no.
 
 ## The order the inbox comes in
 
-The inbox is newest first, and the funnel holds one other choice: **Longest
+The inbox is newest first, and Filter's Order holds one other choice: **Longest
 waiting**, which puts the person who has been waiting the most days at the top.
 
 Newest first is the order for reading mail. Longest waiting is the order for
@@ -421,10 +487,9 @@ somebody else. `readCrmSearch` checks it against the two values in
 `CRM_INBOX_SORTS`, so a hand-edited address can only fall back to newest first.
 The default stays out of the address: there is no `?sort=newest`.
 
-**The funnel's dot turns on for a non-default order**, the same dot a filter
-turns on, because a reordered list must not look like an ordinary one. The dot
-counts the order as one of the things that is on, and "Clear the filters" puts
-the order back to newest first along with the rest.
+**Filter counts a non-default order as one of the things that is on**,
+because a reordered list must not look like an ordinary one. Filter's Clear
+puts the order back to newest first along with the rest.
 
 **The order is not a filter, and the empty row knows the difference.** An inbox
 with nothing in it says "Nothing has arrived yet" rather than "Nothing matches
@@ -448,30 +513,21 @@ so neither needs a `NULLS LAST` — the trap in the last section of this doc.
 
 ## Clearing a handful at once
 
-Rows in the inbox can be ticked, and a bar above the list then deals with the
-lot in one press. A morning of newsletters and no-reply notices was otherwise
+Mass select, in the inbox's ⋮ or a row's right-click, puts a tick box on
+every row. The "N selected" menu in the header then deals with the ticked lot
+in one press. A morning of newsletters and no-reply notices was otherwise
 twenty conversations opened and closed one at a time.
 
-**The tick box sits on top of the avatar.** It appears when the pointer is over
-a row or the row has keyboard focus, and once anything is ticked every row's
-box stays out, because boxes that only appear under the pointer make picking the
-fifth row a hunt for where the fourth one was. The initials are hidden rather
-than removed, so ticking never moves the name under the pointer.
-
-Because the box is always there and only its opacity changes, a tap on the
-initials ticks the row on a phone, where there is no pointer to hover with. The
-open conversation keeps the darker fill and a ticked row takes the hover fill,
-so two rows never both look like the one being read.
+**The tick box sits where the initials were**, so ticking never moves the name
+under the pointer. While Mass select is on, pressing a row ticks it rather
+than opening it. Turned on from a row's right-click, that row starts ticked.
+Turning it off clears the ticks.
 
 The box is a sibling of the row's button, not a child of it. A button inside a
-button is invalid HTML, and the inner one swallows the outer one's click, so
-ticking a row would have opened it.
+button is invalid HTML, and the inner one swallows the outer one's click.
 
-**The bar is the count, then Mark read, Close, Snooze, then a way to clear the
-ticks.** Icon buttons, not words: the panel is a fifth of the window, and the
-three actions spelled out leave no room for the count. They are the same three
-icons the conversation header uses for the same three actions. Snooze opens the
-same date popover the header does.
+**The "N selected" menu holds Mark read, Close, and Snooze until**, which
+steps into a month to pick the day from.
 
 **One press is one request.** `markConversationsRead` and
 `setConversationsStatus` in `src/lib/api/crm/inbox.ts` each take the whole list
@@ -551,31 +607,181 @@ finds the row, so two overlapping passes cannot both send it. Moving the date
 clears that stamp, which is what lets a date moved forward be chased again. A
 lead already Won or Lost is never chased.
 
-## What the right panel holds
+## Chasing unanswered mail
+
+**When somebody wrote last and nobody has answered for three days, the bell
+says so, once** (CRM task 11): "Jane has waited 4 days for an answer", with
+the subject under it. It is the same `crm_follow_up` kind as a hand-set date,
+so it shows and searches the same way and opens the conversation. The number
+of days is the CRM settings ⋮'s "Unanswered mail" row: Off, or after 1, 2,
+3, 5, 7 or 14 days, kept in `email_settings.crm_unanswered_days` (migration
+0100), 3 unless changed.
+
+- **Once per conversation.** The stamp is written in the same statement that
+  finds the row, and a new message from them clears it, so a conversation
+  ignored twice is chased twice.
+- **Snoozed and closed ones are skipped**, since snoozed already means "not
+  now", and so are leads already Won or Lost.
+- **On screen:** the row says "Waiting 4 days", and the left page's Waiting
+  on you block lists them, the longest waiting first.
+
+## A notice when mail lands
+
+**The bell says who wrote in and about what** (CRM task 10): "Jane Doe wrote
+in", with the subject under it, and pressing it opens the conversation. Its
+own kind, `crm_mail_arrived` (migration 0101 widens the notifications check;
+the list only ever grows). It goes to the person the site belongs to, as the
+chase notices do, because nobody owns a lead yet.
+
+- **Once an hour per conversation**, so a back-and-forth is one notice, not
+  ten.
+- **Never for a blocked sender.**
+- **A notice that fails never stops the mail being written.**
+- Settings → General → Notifications has its switch, "Mail arriving in the
+  CRM".
+
+## The live inbox
+
+**Mail arriving while the CRM is open shows at once without moving the
+rows** (CRM task 33). The bell's stream already nudges a tab when a notice
+lands. The CRM listens for those nudges (`STREAM_NUDGE_EVENT` in
+`src/lib/hooks/use-notification-stream.ts`), so it shares the bell's one
+connection and its switch, and nothing polls.
+
+- On a nudge it reads the first page again, quietly. A bar says "New mail in
+  2 conversations. Show it." and pressing it redraws. A list that moves while
+  you read it is worse than one a moment stale.
+- The tab counts change at once, because a number changing is not rows
+  moving.
+- The conversation open on the right takes its new message in place.
+- Inside the notice's quiet hour the nudge is still sent, so the screen hears
+  every message even when the bell stays quiet.
+- With the live bell off, there is no nudge and the screen is what it was.
+- **Only the person the site belongs to gets the nudge**, the same person the
+  notice goes to. Another admin with the CRM open sees new mail when the
+  inbox is next read, not as a bar.
+
+## Starting a conversation
+
+**New email, the inbox's one primary button, writes to somebody who has not
+written first** (CRM task 15): to, their name, the address it goes from when
+there are two or more, a subject and the message. A small business finds
+half its work the other way round, and the CRM could only answer before.
+
+- **Nothing is written when the provider refuses.** The mail goes out first;
+  the lead, the conversation and the message are written only after.
+- **An address that already has a lead joins it.** A new one is a lead with
+  "Added by hand" as where it came from, already Contacted. It never writes a
+  contact.
+- **The first mail carries a Message-ID of its own**, so their answer
+  threads back by header. If Resend puts its own in its place, the answer
+  still joins: the same person writing about the same subject within 30 days
+  is the same conversation.
+
+## Forwarding
+
+**Forward, in the conversation's ⋮, sends the whole conversation on**, such
+as to a builder the job is subcontracted to (CRM task 20): your note, then
+every message oldest first, with each file named.
+
+- **Their answer starts a conversation of its own.** The forward carries a
+  new Message-ID that is in none of the conversation's mail, and no
+  `In-Reply-To`, so there is nothing to thread on.
+- **The conversation records it as a quiet line**, "Forwarded to
+  builder@example.com, Nov 7 3:12 PM", never a bubble, because it was not
+  part of the back-and-forth. Each forward is a row in
+  `crm_thread_forwards` (migration 0103).
+
+## What this conversation is about
+
+**Summarise, in the ⋮ of a conversation with four messages or more, writes
+two or three plain sentences above the messages** (CRM task 32): what they
+want, where it stands, and what is waiting on whom.
+
+- **A press, never on its own.** Each press spends from the AI allowance
+  through the same metered path as Draft with AI; a summary on every open
+  would spend it all.
+- **It is kept** on the conversation with the message count it was made at
+  (migration 0102), so opening it twice does not pay twice. Newer mail makes
+  it stale, and it says so with "Write it again".
+- **It is told not to invent a price, a date or a promise**, and never
+  suggests a stage or a next step.
+
+## Who it is with
 
 Name, address, company, phone, stage, what the work is worth, the follow-up
-date and its note, and the button that puts them on the newsletter list. Each
-box saves as it is left, on its own, so two people editing the same lead cannot
-have one of them write a stale copy over the other's change. Money is stored in
-cents and shown in dollars.
+date and its note, and Add to contacts. They are rows in the conversation's
+⋮, General tab, since 7 Nov 2026. Each row saves itself, on its own, so two
+people editing the same lead cannot have one of them write a stale copy over
+the other's change. Money is stored in cents and shown in dollars.
 
-**One column, no tabs.** It had four at first — the lead, their whole history,
-notes and to-dos, and saved replies — and Tyler called that badly thought out on
-3 Oct 2026. He was right. Three of the four were things you would go looking for
-once a month, parked permanently beside the one thing you look at every time,
-and each tab hid the others behind a click. The tables behind them went with
-them rather than sitting in the database with no way in; migration 0082 had
-never been deployed, so they came out of it instead of arriving and being
-dropped one file later.
+**The Contact card above the reply box shows three of them at a glance**:
+stage, worth and follow-up date. It folds by its title. Changing a fact is
+the ⋮'s job, so the card only reads. Three, because every line in the
+footer is a line the conversation above loses: at 900px tall the footer once
+took 522 of 822px. The status is the row under the reply box, with Snooze
+and Close beside it, because closing is the press made most often.
+
+**Tags say what kind of lead it is** (CRM task 27), beside the stage, which
+says how far along. The ⋮'s Deal group has a Tags row: type one and press
+Enter or a comma, pick one the site already uses, or take one off with its ×.
+A tag is lowered and trimmed, holds no comma, and is 60 characters at most;
+a lead holds 30. One row per tag in `crm_lead_tags` (migration 0099), as
+`member_tags` keeps them. An inbox row shows up to three, and Filter has a
+Tag choice once any lead has one.
+
+**No tabs of history, notes or saved replies.** The lead panel had four tabs
+at first: the lead, their whole history, notes and to-dos, and saved replies.
+Tyler called that badly thought out on 3 Oct 2026. Three of the four were
+things you would go looking for once a month, parked beside the one thing you
+look at every time. The tables behind them went with them; migration 0082 had
+never been deployed, so they came out of it. The ⋮'s two tabs are the facts
+and the files, both about the conversation on screen.
 
 Attachments did not go with them. They show in the message that carried them,
 which is where somebody looks for a file anyway.
 
-## Attachments and HTML
+## Files
 
-An attachment shows its name and, when the provider said, its size. Resend's
-event does not carry sizes, so inbound files usually show none rather than a
-made-up number.
+**The files somebody sends open from the conversation** (CRM task 21). Their
+mail is written first with the files' names, then the background pass
+fetches each file from Resend into the site's storage, under
+`crm-files/<site>/<message>/`, never into the media library. A picture shows
+small in the bubble; any other file is a link that downloads. Both come from
+one guarded route, `/api/v1/crm/files/<message>/<n>`, which serves a file
+only to an admin of the site it belongs to. Every file but a plain picture
+is served as bytes to download, so a stranger's HTML can never run in the
+admin. Nothing scans these files.
+
+A file that is not stored says why, where its link would be:
+
+- **On its way:** the pass has not fetched it yet.
+- **Could not be fetched:** five tries failed, and it stops asking, as the
+  words' fetch does.
+- **Too big to keep, over 25 MB:** named, never fetched.
+- **Set up file storage to open it:** the site has no storage. Nothing is
+  fetched and no try is counted.
+
+**The Resend call that lists a received email's files has not been run
+against a real Resend account from this repo.** It reads Resend's receiving
+API (`/emails/receiving/<id>/attachments`, each entry with a `download_url`)
+defensively, in `receiveFiles` in `src/server/email/provider.ts`. Locally,
+with no Resend key, every file ends at "Could not be fetched". The first
+real inbound mail with a file is the check.
+
+**Files go out with a reply from the media library** (CRM task 22): the
+paperclip beside Send opens it, and the picked files show above the buttons
+with an ×. Up to 10 MB in all, because Resend takes files as base64 inside
+the request, which grows them by a third. The media library holds pictures,
+video and sound, so a PDF cannot go out this way yet. A file from another
+site, or one gone since it was picked, refuses the whole reply and keeps the
+words. A sent file is recorded on the message like theirs, so it shows in
+the bubble and the Files tab.
+
+**The ⋮'s Files tab lists every file in the conversation**, theirs and ours,
+each a link once it is stored.
+
+## HTML and quoting
 
 Mail that is HTML only is **read as text** rather than drawn. Putting a
 stranger's markup into the admin page is not worth the formatting it would buy.
@@ -586,11 +792,13 @@ would otherwise show the quoting in the list and in the bubble both.
 
 ## What the background pass does for the CRM
 
-Three jobs, each isolated so one failing does not take the others with it:
+Five jobs, each isolated so one failing does not take the others with it:
 
 - Chase the leads whose follow-up date has come.
+- Chase the conversations nobody has answered (see Chasing unanswered mail).
 - Wake the conversations whose snooze has run out.
 - Ask Resend again for the message bodies that never arrived.
+- Fetch the files somebody sent (see Files).
 
 They ride the same pass as the automation tick and the broadcast send, so they
 run on the dev server's timer locally and in the worker container in production.
@@ -619,9 +827,10 @@ mail in it is never written to.
 2. Create an **inbound address** in Resend, such as `leads@inbox.yourdomain.com`.
 3. Tick the **`email.received` event** on the Resend webhook that already points
    at `/api/webhooks/resend`.
-4. Paste that address into **Settings → Email → Address mail arriving at**.
-   Empty means the CRM has no mailbox and cannot reply, and the Send button says
-   so.
+4. Paste that address into **Settings → Email → Address mail arriving at**,
+   or add it with the **+** on the CRM's left panel. Empty means the CRM has
+   no mailbox and cannot reply, and the Send button says so. A second address
+   goes in through the **+**, once Resend has it too.
 5. Type a name into **Name replies come from**, in the same card. Empty is
    allowed and sends under the app name.
 6. Type a **Signature on CRM replies**, in the same card. Empty is allowed and
@@ -671,7 +880,9 @@ the one anybody signs in as locally.
 
 ## Where the sidebar link comes from
 
-`/admin/crm` sits in the Administration section under Overview. A workspace
+`/admin/crm` sits in the Administration section under Overview. The address
+keeps `?open=`, `?saved=`, `?to=` and the filters, and `ThreePanels` puts
+back the last address on arrival and opens the first conversation. A workspace
 saved before the screen existed gets the link through navigation upgrade 20,
 which adds it once and never doubles one that is already there however it got
 there. A sidebar with no Overview link gets it at the front of the section

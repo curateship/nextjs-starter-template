@@ -18,6 +18,12 @@ All of them are in `src/components/shared/`.
   under a row of pills, and all three stay mounted. `showRightFor` switches a
   narrow screen to the right panel when a record opens; `showMiddleFor` does
   the same for the middle.
+- **`SidePanelCollapseButton`, in `three-panels.tsx`.** The collapse button at
+  a side panel header's outer edge (the Admin 3 panel design; Tyler, 7 Nov
+  2026: "add a collasible icon here to collapse the left panel"). Put it
+  first in the left header and last in the right one. It shuts the panel the
+  way a double-click on blank space does. It draws nothing under 1280px,
+  where one panel shows at a time.
 - **`ThreePanels`' `place`, read by `useDashboardPlace`
   (`src/lib/layout/dashboard-place.ts`).** Required. It takes a key from
   `panelLayoutKey` named `…Place`, the route's own `useSearch()`, and the ids
@@ -127,6 +133,10 @@ All of them are in `src/components/shared/`.
 - **Contacts, `/admin/contacts`.** Every piece above.
   `src/components/broadcasts/contacts-dashboard.tsx` is the place to start
   reading.
+- **The CRM, `/admin/crm`.** `ThreePanels`, `SidePanelCollapseButton`,
+  `DashboardTabs`, `FilterPopover`, `SelectedMenu` and the page pieces in
+  `page-blocks.md`, since 7 Nov 2026.
+  `src/components/crm/crm-workspace.tsx` is the place to start reading.
 - **Video's Viral project, `/admin/video-viral/<id>`.** `ThreePanels`,
   `PanelCard`, `DashboardTabs`, `SearchToggle`, `FilterPopover`, mass select,
   `NewRecordDropdown` (the Creators card's +) and saved views, since 20 Oct

@@ -1,5 +1,9 @@
 import * as React from "react"
+import { PanelLeftCloseIcon, PanelRightCloseIcon } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
+
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 import {
   PanelReopenTab,
@@ -19,6 +23,40 @@ import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 
 type Side = { label: string; content: React.ReactNode; showLabel: string }
+
+/** What a side panel's header can reach: the press that shuts each side, on a wide screen only. */
+const SideToggles = React.createContext<{ left: () => void; right: () => void } | null>(null)
+
+/**
+ * The collapse button at a side panel header's outer edge (the Admin 3 panel
+ * design, Tyler, 7 Nov 2026: "add a collasible icon here to collapse the left
+ * panel", then the same for the right). It shuts the panel as a double-click
+ * on its blank space does. The left one goes first in its header with
+ * `-ml-1`, the right one last with `-mr-1`, so the drawn icon sits 16px from
+ * the panel's edge. A narrow screen shows one panel at a time and draws none.
+ */
+export function SidePanelCollapseButton({ side, label }: { side: "left" | "right"; label: string }) {
+  const toggles = React.useContext(SideToggles)
+  if (!toggles) return null
+  const Icon = side === "left" ? PanelLeftCloseIcon : PanelRightCloseIcon
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={label}
+          className={side === "left" ? "-ml-1 shrink-0 rounded-lg" : "-mr-1 shrink-0 rounded-lg"}
+          onClick={toggles[side]}
+        >
+          <Icon className="size-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 /**
  * The three-column dashboard every app shares (UI standard, "Three-column
@@ -112,6 +150,7 @@ export function ThreePanels({
   const toggleRight = usePanelToggle(rightRef)
   const leftDoubleClick = useBlankSpaceDoubleClick(toggleLeft)
   const rightDoubleClick = useBlankSpaceDoubleClick(toggleRight)
+  const toggles = React.useMemo(() => ({ left: toggleLeft, right: toggleRight }), [toggleLeft, toggleRight])
 
   if (!wide) {
     return (
@@ -138,6 +177,7 @@ export function ThreePanels({
   }
 
   return (
+    <SideToggles.Provider value={toggles}>
     <div className="flex min-h-0 flex-1 flex-col">
       <ResizablePanelGroup
         key={layout.layoutKey}
@@ -198,5 +238,6 @@ export function ThreePanels({
       </ResizablePanelGroup>
       {children}
     </div>
+    </SideToggles.Provider>
   )
 }

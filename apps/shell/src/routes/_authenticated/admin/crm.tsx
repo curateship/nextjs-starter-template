@@ -20,12 +20,18 @@ import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import { readOneOf, readSearchText } from "@/lib/nav/list-search"
 
 type CrmSearch = {
-  /** Which conversation is open in the middle panel. */
+  /** Which conversation is open in the right panel. */
   open?: string
   q?: string
   status?: CrmThreadStatus | "all"
   stage?: CrmStage | "all"
   unread?: boolean
+  /** The Saved tab. */
+  saved?: boolean
+  /** Only mail that arrived at this address, picked in the Emails block. */
+  to?: string
+  /** Only leads with this tag. */
+  tag?: string
   due?: boolean
   sort?: CrmInboxSort
 }
@@ -42,6 +48,9 @@ function readCrmSearch(search: Record<string, unknown>): CrmSearch {
     status: readOneOf(search.status, [...CRM_THREAD_STATUSES, "all"] as const),
     stage: readOneOf(search.stage, [...CRM_STAGES, "all"] as const),
     unread: search.unread === true || search.unread === "true" ? true : undefined,
+    saved: search.saved === true || search.saved === "true" ? true : undefined,
+    to: readSearchText(search.to),
+    tag: readSearchText(search.tag),
     due: search.due === true || search.due === "true" ? true : undefined,
     sort: readOneOf(search.sort, CRM_INBOX_SORTS),
   }
@@ -71,6 +80,9 @@ export const Route = createFileRoute("/_authenticated/admin/crm")({
       status: deps.status ?? DEFAULT_STATUS,
       stage: deps.stage,
       unreadOnly: deps.unread,
+      savedOnly: deps.saved,
+      toAddress: deps.to,
+      tag: deps.tag,
       followUpDue: deps.due,
       sort: deps.sort,
     }),
@@ -89,6 +101,9 @@ function AdminCrmRoute() {
     status: search.status ?? DEFAULT_STATUS,
     stage: search.stage ?? "all",
     unreadOnly: search.unread ?? false,
+    savedOnly: search.saved ?? false,
+    toAddress: search.to ?? "",
+    tag: search.tag ?? "",
     followUpDue: search.due ?? false,
     sort: search.sort ?? CRM_DEFAULT_INBOX_SORT,
   }
@@ -105,6 +120,13 @@ function AdminCrmRoute() {
         ...(next.unreadOnly !== undefined
           ? { unread: next.unreadOnly || undefined }
           : {}),
+        ...(next.savedOnly !== undefined
+          ? { saved: next.savedOnly || undefined }
+          : {}),
+        ...(next.toAddress !== undefined
+          ? { to: next.toAddress || undefined }
+          : {}),
+        ...(next.tag !== undefined ? { tag: next.tag || undefined } : {}),
         ...(next.followUpDue !== undefined
           ? { due: next.followUpDue || undefined }
           : {}),
@@ -126,6 +148,7 @@ function AdminCrmRoute() {
     <CrmWorkspace
       page={page}
       filters={filters}
+      search={search}
       openThreadId={search.open ?? null}
       onFiltersChange={changeFilters}
       onOpenThread={(threadId) =>

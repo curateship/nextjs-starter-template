@@ -4,6 +4,7 @@ import {
   CircleAlertIcon,
   GaugeIcon,
   GitMergeIcon,
+  MailIcon,
   MegaphoneIcon,
   MailWarningIcon,
   MessageSquareIcon,
@@ -148,6 +149,7 @@ function ShellNotificationIcon({
   if (item.type === "app_activity") return <ActivityIcon className={className} />
   if (item.type === "crm_follow_up")
     return <CalendarClockIcon className={className} />
+  if (item.type === "crm_mail_arrived") return <MailIcon className={className} />
   if (isAiLimitNotification(item.type)) return <GaugeIcon className={className} />
   if (item.type === "feedback_merged")
     return <GitMergeIcon className={className} />

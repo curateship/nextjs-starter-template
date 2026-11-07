@@ -3,6 +3,7 @@ import {
 } from "@/lib/api/notification"
 import {
   isAiLimitNotification,
+  opensCrmConversation,
 } from "@/lib/notification-types"
 
 /**
@@ -79,7 +80,8 @@ export function notificationAction(item: NotificationItem): NotificationAction {
   // A follow-up notice is about a person, and the conversation with them is
   // where the chasing happens. A lead added by hand has no conversation yet,
   // and then the notice's own words are all there is.
-  if (item.type === "crm_follow_up") {
+  // A notice that mail landed opens that conversation too.
+  if (opensCrmConversation(item.type)) {
     return item.crm_thread_id
       ? { kind: "crmThread", threadId: item.crm_thread_id }
       : { kind: "none" }

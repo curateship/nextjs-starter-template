@@ -74,6 +74,7 @@ import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/no
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
+import { Route as ApiV1CrmFilesMessageIdIndexRouteImport } from './routes/api/v1/crm/files/$messageId/$index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -425,6 +426,12 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1CrmFilesMessageIdIndexRoute =
+  ApiV1CrmFilesMessageIdIndexRouteImport.update({
+    id: '/api/v1/crm/files/$messageId/$index',
+    path: '/api/v1/crm/files/$messageId/$index',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -491,6 +498,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/crm/files/$messageId/$index': typeof ApiV1CrmFilesMessageIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -555,6 +563,7 @@ export interface FileRoutesByTo {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/crm/files/$messageId/$index': typeof ApiV1CrmFilesMessageIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -623,6 +632,7 @@ export interface FileRoutesById {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/crm/files/$messageId/$index': typeof ApiV1CrmFilesMessageIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -691,6 +701,7 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/crm/files/$messageId/$index'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -755,6 +766,7 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/crm/files/$messageId/$index'
   id:
     | '__root__'
     | '/'
@@ -822,6 +834,7 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/_authenticated/admin/automations_/templates_/$templateKey'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/crm/files/$messageId/$index'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -853,6 +866,7 @@ export interface RootRouteChildren {
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
+  ApiV1CrmFilesMessageIdIndexRoute: typeof ApiV1CrmFilesMessageIdIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1312,6 +1326,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/crm/files/$messageId/$index': {
+      id: '/api/v1/crm/files/$messageId/$index'
+      path: '/api/v1/crm/files/$messageId/$index'
+      fullPath: '/api/v1/crm/files/$messageId/$index'
+      preLoaderRoute: typeof ApiV1CrmFilesMessageIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1476,6 +1497,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
+  ApiV1CrmFilesMessageIdIndexRoute: ApiV1CrmFilesMessageIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

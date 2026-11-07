@@ -465,7 +465,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed', 'app_activity', 'crm_follow_up')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed', 'app_activity', 'crm_follow_up', 'crm_mail_arrived')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -2496,6 +2496,12 @@ export const customShellEmailSettings = pgTable("email_settings", {
    */
   crmQuoteReplies: boolean("crm_quote_replies").notNull().default(true),
   /**
+   * After how many days without an answer the bell says somebody is waiting
+   * (CRM task 11). 0 turns it off. Set in the CRM's settings ⋮. Added in
+   * `0100_custom_shell_crm_unanswered.sql`.
+   */
+  crmUnansweredDays: integer("crm_unanswered_days").notNull().default(3),
+  /**
    * The drip rules a newly created newsletter starts from — see
    * `src/lib/broadcasts/drip.ts`. Only ever read at that moment; changing it
    * later leaves newsletters that already exist alone.
@@ -2627,6 +2633,100 @@ export const customShellCrmLeads = pgTable(
 )
 
 /**
+ * Who a conversation was forwarded to, when, and with what note (CRM task 20,
+ * built in task 36 on 7 Nov 2026). The conversation shows each as a quiet
+ * line, never a bubble, because it was not part of the back-and-forth.
+ */
+export const customShellCrmThreadForwards = pgTable(
+  "crm_thread_forwards",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    threadId: varchar("thread_id", { length: 36 })
+      .notNull()
+      .references(() => customShellCrmThreads.id, { onDelete: "cascade" }),
+    toEmail: varchar("to_email", { length: 255 }).notNull(),
+    note: text("note").notNull().default(""),
+    forwardedByUserId: varchar("forwarded_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_crm_thread_forwards_thread").on(table.threadId, table.createdAt)]
+)
+
+/**
+ * Tags on a lead (CRM task 27, built in task 36 on 7 Nov 2026): what kind of
+ * lead it is, beside the stage, which is how far along. One row per tag, as
+ * `member_tags` keeps them, lowered and trimmed, so one spelling finds them
+ * all. A lead's tags go with it.
+ */
+export const customShellCrmLeadTags = pgTable(
+  "crm_lead_tags",
+  {
+    leadId: varchar("lead_id", { length: 36 })
+      .notNull()
+      .references(() => customShellCrmLeads.id, { onDelete: "cascade" }),
+    tag: varchar("tag", { length: 60 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "crm_lead_tags_pk", columns: [table.leadId, table.tag] }),
+    check(
+      "crm_lead_tags_normalized_check",
+      sql`${table.tag} = lower(trim(${table.tag})) and length(${table.tag}) between 1 and 60 and position(',' in ${table.tag}) = 0`
+    ),
+    index("ix_crm_lead_tags_tag_lead").on(table.tag, table.leadId),
+  ]
+)
+
+/**
+ * The addresses one site's mail arrives at, such as sales@ and support@
+ * (CRM task 18, built in task 36, 7 Nov 2026). The CRM's left page lists them
+ * in its Emails block, and its + adds one. Migration 0098 copied the single
+ * `email_settings.inbound_address` in as each site's first row and left that
+ * column where it was.
+ */
+export const customShellCrmInboundAddresses = pgTable(
+  "crm_inbound_addresses",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    address: varchar("address", { length: 255 }).notNull(),
+    /** A short name such as "Sales", or "" to show the address alone. */
+    label: varchar("label", { length: 80 }).notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_crm_inbound_addresses_workspace_address").on(
+      table.workspaceId,
+      sql`lower(${table.address})`
+    ),
+  ]
+)
+
+/**
+ * The CRM dashboard's left page, one per site (the Admin 3 panel design,
+ * 7 Nov 2026): the shell's editor document as JSON text, its cover photo and
+ * its lock. "" is a page nobody has written on, which shows the starting
+ * blocks.
+ */
+export const customShellCrmPages = pgTable("crm_pages", {
+  workspaceId: varchar("workspace_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+  body: text("body").notNull().default(""),
+  coverUrl: text("cover_url"),
+  locked: boolean("locked").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/**
  * One back-and-forth with one lead.
  *
  * The newest message's time and the message count are kept on the row rather
@@ -2668,10 +2768,37 @@ export const customShellCrmThreads = pgTable(
     messageCount: integer("message_count").notNull().default(0),
     /** Null is unread. A new message clears it again. */
     readAt: timestamp("read_at", { withTimezone: true }),
+    /**
+     * When somebody saved it for the Saved tab, or null. One mark for the
+     * whole site, as unread and closed are (Tyler, 7 Nov 2026).
+     */
+    savedAt: timestamp("saved_at", { withTimezone: true }),
+    /**
+     * The address its mail arrived at, from `crm_inbound_addresses`, so the
+     * reply goes out from that same address. Null for conversations from
+     * before there was a list, which reply from the first one.
+     */
+    toAddress: varchar("to_address", { length: 255 }),
+    /**
+     * When the bell last said they were waiting for an answer (CRM task 11).
+     * A new message from them clears it, so a conversation ignored twice is
+     * chased twice.
+     */
+    unansweredNotifiedAt: timestamp("unanswered_notified_at", { withTimezone: true }),
+    /**
+     * A short summary somebody asked for (CRM task 32), and the message count
+     * it was made at. More messages than that means it is stale.
+     */
+    summary: text("summary"),
+    summaryMessageCount: integer("summary_message_count"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
+    // The Saved tab's own question.
+    index("ix_crm_threads_workspace_saved")
+      .on(table.workspaceId, table.lastMessageAt)
+      .where(sql`${table.savedAt} is not null`),
     check(
       "crm_threads_status_check",
       sql`${table.status} in ('open', 'snoozed', 'closed')`
@@ -2734,8 +2861,10 @@ export const customShellCrmMessages = pgTable(
     /** Resend's id: the received email on the way in, the sent one on the way out. */
     providerEmailId: varchar("provider_email_id", { length: 255 }),
     /**
-     * Names, sizes and types only. The files stay with Resend; pulling them
-     * into storage is a separate job nobody has asked for.
+     * The files: names, sizes and types, and once fetched into the site's
+     * storage, the key each is kept under (CRM task 21). An inbound file's
+     * words come from Resend; the background pass fetches the file itself
+     * (`src/server/crm/attachments.ts`).
      */
     attachments: jsonb("attachments")
       .notNull()
@@ -2743,6 +2872,9 @@ export const customShellCrmMessages = pgTable(
       .$type<CrmAttachment[]>(),
     bodyFetchedAt: timestamp("body_fetched_at", { withTimezone: true }),
     bodyAttempts: integer("body_attempts").notNull().default(0),
+    /** When the files were fetched into storage, or given up on. Added in 0104. */
+    filesFetchedAt: timestamp("files_fetched_at", { withTimezone: true }),
+    fileAttempts: integer("file_attempts").notNull().default(0),
     /** When the mail was sent or received, which is what the thread is ordered by. */
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),

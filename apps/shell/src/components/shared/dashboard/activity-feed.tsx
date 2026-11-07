@@ -5,6 +5,7 @@ import {
   CalendarClockIcon,
   CircleAlertIcon,
   GaugeIcon,
+  MailIcon,
   MailWarningIcon,
   MegaphoneIcon,
   PencilLineIcon,
@@ -23,6 +24,7 @@ import {
   automationApprovalNotificationText,
   isAiLimitNotification,
   notificationTypeLabels,
+  opensCrmConversation,
   type NotificationType,
 } from "@/lib/notification-types"
 import {
@@ -250,7 +252,7 @@ function toActivityEvent(item: NotificationItem): ActivityEvent {
     // The bell opens a follow-up's conversation in the CRM, so this does too.
     // A lead added by hand has no conversation yet, and then nothing opens.
     link:
-      item.type === "crm_follow_up" && item.crm_thread_id
+      opensCrmConversation(item.type) && item.crm_thread_id
         ? { to: "/admin/crm", search: { open: item.crm_thread_id } }
         : null,
   }
@@ -260,6 +262,7 @@ function toActivityEvent(item: NotificationItem): ActivityEvent {
 function selfWordedIcon(type: NotificationType) {
   if (type === "account_update") return UserRoundCogIcon
   if (type === "crm_follow_up") return CalendarClockIcon
+  if (type === "crm_mail_arrived") return MailIcon
   return ActivityIcon
 }
 

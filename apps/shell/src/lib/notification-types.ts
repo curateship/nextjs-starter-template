@@ -28,6 +28,7 @@ export type NotificationType =
   | "system_email_failed"
   | "app_activity"
   | "crm_follow_up"
+  | "crm_mail_arrived"
 
 export const NOTIFICATION_TYPES = [
   "feedback_vote",
@@ -43,6 +44,7 @@ export const NOTIFICATION_TYPES = [
   "system_email_failed",
   "app_activity",
   "crm_follow_up",
+  "crm_mail_arrived",
 ] as const satisfies readonly NotificationType[]
 
 /**
@@ -60,6 +62,7 @@ export const SELF_WORDED_NOTIFICATION_TYPES = [
   "system_email_failed",
   "app_activity",
   "crm_follow_up",
+  "crm_mail_arrived",
 ] as const satisfies readonly NotificationType[]
 
 export function carriesItsOwnWords(type: NotificationType) {
@@ -115,6 +118,7 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
   system_email_failed: "Email failed",
   app_activity: "Activity",
   crm_follow_up: "Follow up",
+  crm_mail_arrived: "New mail",
 }
 
 /**
@@ -160,6 +164,42 @@ export function crmFollowUpNotificationText(
       ? note.trim()
       : "You set a date to chase this one, and the date has passed.",
   }
+}
+
+/**
+ * The words of the notice that says somebody has waited for an answer (CRM
+ * task 11). The same `crm_follow_up` kind as a hand-set chase date, so it
+ * shows and searches the same way, with words of its own.
+ */
+export function crmUnansweredNotificationText(
+  who: string,
+  days: number,
+  subject: string
+): { message: string; detail: string } {
+  return {
+    message: `${who} has waited ${days} ${days === 1 ? "day" : "days"} for an answer`,
+    detail: subject.trim() ? subject.trim() : "They wrote last, and nobody has answered.",
+  }
+}
+
+/**
+ * The words of the notice that says mail has landed in the CRM (CRM task 10):
+ * who wrote in and the subject. Not the words of the mail, which have not
+ * arrived yet when the webhook fires.
+ */
+export function crmMailArrivedNotificationText(
+  who: string,
+  subject: string
+): { message: string; detail: string } {
+  return {
+    message: `${who} wrote in`,
+    detail: subject.trim() || "No subject",
+  }
+}
+
+/** Whether a notice opens a CRM conversation when pressed. */
+export function opensCrmConversation(type: NotificationType) {
+  return type === "crm_follow_up" || type === "crm_mail_arrived"
 }
 
 export type AiLimitNotificationType = "ai_limit_warning" | "ai_limit_reached"

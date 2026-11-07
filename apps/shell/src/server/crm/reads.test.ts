@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm"
 import { beforeEach, describe, expect, it } from "vitest"
 
 import {
@@ -8,6 +9,7 @@ import {
   markThreadRead,
   markThreadsRead,
   markThreadUnread,
+  setThreadSaved,
   setThreadStatus,
   setThreadStatuses,
 } from "@/server/crm/inbox"
@@ -283,11 +285,12 @@ describe("the reads the CRM screen makes", () => {
     })
   })
 
-  describe("the two tab counts", () => {
-    it("counts everything and the unread part of it", async () => {
+  describe("the three tab counts", () => {
+    it("counts everything, the unread part of it and the saved part of it", async () => {
       expect(await countInboxThreads(workspaceId, {}, db)).toEqual({
         all: 2,
         unread: 1,
+        saved: 0,
       })
     })
 
@@ -304,25 +307,78 @@ describe("the reads the CRM screen makes", () => {
 
     it("still obeys every other filter", async () => {
       const open = await countInboxThreads(workspaceId, { status: "open" }, db)
-      expect(open).toEqual({ all: 1, unread: 1 })
+      expect(open).toEqual({ all: 1, unread: 1, saved: 0 })
 
       const searched = await countInboxThreads(
         workspaceId,
         { search: "flats" },
         db
       )
-      expect(searched).toEqual({ all: 1, unread: 0 })
+      expect(searched).toEqual({ all: 1, unread: 0, saved: 0 })
     })
 
     it("never counts another workspace's", async () => {
       const counts = await countInboxThreads(otherWorkspaceId, {}, db)
-      expect(counts).toEqual({ all: 1, unread: 1 })
+      expect(counts).toEqual({ all: 1, unread: 1, saved: 0 })
     })
 
     it("answers zero rather than nothing when none match", async () => {
       expect(await countInboxThreads(workspaceId, { search: "zzzz" }, db)).toEqual(
-        { all: 0, unread: 0 }
+        { all: 0, unread: 0, saved: 0 }
       )
+    })
+  })
+
+  describe("the Saved tab", () => {
+    it("saves one conversation for the whole site, and takes it off again", async () => {
+      expect(await setThreadSaved(workspaceId, "thread-2", true, db)).toBe(true)
+      expect((await countInboxThreads(workspaceId, {}, db)).saved).toBe(1)
+      const saved = await listInboxThreads(workspaceId, { savedOnly: true, status: "all" }, db)
+      expect(saved.map((row) => row.id)).toEqual(["thread-2"])
+      expect(saved[0]?.savedAt).toBeInstanceOf(Date)
+
+      expect(await setThreadSaved(workspaceId, "thread-2", false, db)).toBe(true)
+      expect((await countInboxThreads(workspaceId, {}, db)).saved).toBe(0)
+    })
+
+    it("does not change its own count when the Saved tab goes on", async () => {
+      await setThreadSaved(workspaceId, "thread-1", true, db)
+      const off = await countInboxThreads(workspaceId, {}, db)
+      const on = await countInboxThreads(workspaceId, { savedOnly: true }, db)
+      expect(on).toEqual(off)
+    })
+
+    it("never saves another workspace's", async () => {
+      expect(await setThreadSaved(workspaceId, "thread-elsewhere", true, db)).toBe(false)
+      expect((await countInboxThreads(otherWorkspaceId, {}, db)).saved).toBe(0)
+    })
+  })
+
+  describe("the address mail arrived at", () => {
+    beforeEach(async () => {
+      await db
+        .update(customShellCrmThreads)
+        .set({ toAddress: "Support@Inbox.Example.com" })
+        .where(eq(customShellCrmThreads.id, "thread-1"))
+    })
+
+    it("narrows the inbox to one address, capitals aside", async () => {
+      const rows = await listInboxThreads(
+        workspaceId,
+        { status: "all", toAddress: "support@inbox.example.com" },
+        db
+      )
+      expect(rows.map((row) => row.id)).toEqual(["thread-1"])
+      expect(rows[0]?.toAddress).toBe("Support@Inbox.Example.com")
+    })
+
+    it("takes the conversations with no address when asked, for the first address", async () => {
+      const rows = await listInboxThreads(
+        workspaceId,
+        { status: "all", toAddress: "sales@inbox.example.com", toAddressTakesUnknown: true },
+        db
+      )
+      expect(rows.map((row) => row.id)).toEqual(["thread-2"])
     })
   })
 

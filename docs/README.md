@@ -36,6 +36,9 @@ sat in thirteen app folders, and nothing read them.
 - `security.md` — sessions, passwords, authorization, payments, uploads.
 - `user-interface.md` — the shell's own UI rules. The full standard is the
   `Ui-standards` skill in `.agents/skills/`.
+- `page-blocks.md` — the page with "/" blocks every Admin 3 panel design
+  side panel holds: the editor, the block card, the tabbed ⋮ and its rows,
+  and how an app adds blocks of its own.
 - `settings-saving.md` — how the Settings screen saves: the 700ms auto-save,
   the queue, and the two rules that stop one card's save undoing another
   card's edit.

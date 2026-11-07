@@ -1,5 +1,5 @@
 import * as React from "react"
-import { SparklesIcon } from "lucide-react"
+import { PaperclipIcon, SparklesIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,9 @@ import { CRM_MAX_BODY_LENGTH } from "@/lib/crm/crm"
 import type { ReplyDraftUpdate } from "@/lib/crm/reply-drafts"
 import { getCrmErrorMessage, sendReply } from "@/lib/api/crm/inbox"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
+import { cn } from "@/lib/utils"
+import { MediaPicker } from "@/components/media/media-picker"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -27,6 +30,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * opened. See `src/lib/crm/reply-drafts.ts`.
  */
 export function ReplyComposer({
+  className,
   threadId,
   body,
   canSend,
@@ -35,6 +39,7 @@ export function ReplyComposer({
   onSent,
   onDraft,
 }: {
+  className?: string
   threadId: string
   /** What is in the box, held by the screen so it survives a switch. */
   body: string
@@ -58,6 +63,16 @@ export function ReplyComposer({
   onDraft: () => Promise<string>
 }) {
   const [sending, setSending] = React.useState(false)
+  // Files from the media library, by the address the picker gave (CRM task
+  // 22). Kept through a refused send; a sent reply clears them, and so does
+  // opening another conversation.
+  const [files, setFiles] = React.useState<string[]>([])
+  const [filesFor, setFilesFor] = React.useState(threadId)
+  if (filesFor !== threadId) {
+    setFilesFor(threadId)
+    setFiles([])
+  }
+  const [picking, setPicking] = React.useState(false)
   const [drafting, setDrafting] = React.useState(false)
   const boxRef = React.useRef<HTMLTextAreaElement | null>(null)
 
@@ -81,8 +96,9 @@ export function ReplyComposer({
     if (!body.trim() || sending) return
     setSending(true)
     try {
-      const { reopened } = await sendReply(threadId, body.trim())
+      const { reopened } = await sendReply(threadId, body.trim(), files)
       setBody("")
+      setFiles([])
       // The conversation was closed or snoozed and answering it put it back in
       // the inbox. Said out loud, because a status changing under somebody
       // without a word is its own surprise.
@@ -115,7 +131,7 @@ export function ReplyComposer({
   const noAddress = !replyFrom
 
   return (
-    <div className="grid shrink-0 gap-2 border-t p-3">
+    <div className={cn("grid shrink-0 gap-2 border-t p-3.75", className)}>
       <Textarea
         ref={boxRef}
         value={body}
@@ -127,9 +143,32 @@ export function ReplyComposer({
             : "Write a reply"
         }
         aria-label="Your reply"
-        rows={4}
-        className="min-h-[5.5rem] resize-none"
+        rows={3}
+        className="min-h-[4.5rem] resize-none"
       />
+
+      {files.length ? (
+        <ul className="flex flex-wrap gap-1.5" aria-label="Files going with the reply">
+          {files.map((url) => (
+            <li
+              key={url}
+              className="flex max-w-full items-center gap-1 rounded-md bg-muted py-0.5 pr-0.5 pl-2 text-xs"
+            >
+              <PaperclipIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 truncate">{fileName(url)}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={`Take off ${fileName(url)}`}
+                onClick={() => setFiles((current) => current.filter((item) => item !== url))}
+              >
+                <XIcon className="size-3" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -142,6 +181,28 @@ export function ReplyComposer({
           <SparklesIcon className="size-4" />
           {drafting ? "Writing…" : "Draft with AI"}
         </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Attach a file from the media library, up to 10 MB in all"
+              onClick={() => setPicking(true)}
+            >
+              <PaperclipIcon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Attach a file, up to 10 MB in all</TooltipContent>
+        </Tooltip>
+        <MediaPicker
+          open={picking}
+          onOpenChange={setPicking}
+          onSelectMedia={(url) => {
+            setPicking(false)
+            setFiles((current) => (current.includes(url) || current.length >= 10 ? current : [...current, url]))
+          }}
+        />
 
         <div className="ml-auto flex items-center gap-2">
           <DisabledReason
@@ -167,4 +228,14 @@ export function ReplyComposer({
       ) : null}
     </div>
   )
+}
+
+/** A picked file's name, from the end of its address. */
+function fileName(url: string) {
+  const last = url.split("?")[0]?.split("/").pop() ?? url
+  try {
+    return decodeURIComponent(last) || url
+  } catch {
+    return last || url
+  }
 }
