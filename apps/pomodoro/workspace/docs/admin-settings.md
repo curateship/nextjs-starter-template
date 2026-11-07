@@ -1,8 +1,8 @@
 # Admin settings
 
-Pomoder's own admin settings are nine tabs under Settings → App settings, in
+Pomoder's own admin settings are ten tabs under Settings → App settings, in
 the rail on `/admin/settings`: Emergency switches, Backgrounds and sounds, Seasons,
-Breaks, New accounts, Rooms, Room chat, Pixabay and Made-up members. Each lives at
+Breaks, New accounts, Notion timer, Rooms, Room chat, Pixabay and Made-up members. Each lives at
 `/admin/settings/pomodoro-<name>` (the ids are `POMODORO_SETTINGS_TABS` in
 `src/lib/pomodoro/app-settings.ts`), is listed in `settings.tabs` in
 `src/app/options.ts`, and is drawn by `admin-settings-tabs.tsx`. Every save
@@ -70,6 +70,13 @@ nothing changes until an admin saves. The server holds them for five seconds.
   and every import spends the site's one Pixabay key. Counted over the last
   24 hours. See "From a Pixabay link" in [Your own backgrounds and
   sounds](own-media-uploads.md).
+
+## Notion timer
+
+One switch, "Show the timer inside Notion", on by default (Tyler, 7 Nov 2026:
+"Add enable and disable notion timer in settings"). Off, `/embed/timer` shows
+"This timer is switched off for now." in place of the timer. See [The timer
+inside Notion](embed-timer.md#switching-it-off).
 
 ## Seasons
 

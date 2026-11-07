@@ -20,8 +20,8 @@ import { useTeamId } from "@/lib/project/team-scope"
 type Loaded<T> = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; value: T }
 
 /**
- * Loads when the tab opens, with a retry on failure, and again whenever
- * `reload` changes, such as a task window closing. The old rows stay on
+ * Loads when its block shows, with a retry on failure, and again whenever
+ * `reload` changes, such as another task opening on the right. The old rows stay on
  * screen until the new ones arrive.
  */
 function useLoaded<T>(load: () => Promise<T>, reload: unknown) {
@@ -41,9 +41,9 @@ function useLoaded<T>(load: () => Promise<T>, reload: unknown) {
 }
 
 /**
- * What needs attention, loaded with the right panel rather than when its tab
- * opens, so the tab can carry the count (Tyler, 14 Oct 2026). Only the owner
- * and admins load it; for anyone else it is an empty list.
+ * What needs attention, for the Attention block on the team's page, whose
+ * heading carries the count. Only the site admin loads it; for anyone else
+ * it is an empty list.
  */
 export function useAttention(enabled: boolean, reload: unknown) {
   const teamId = useTeamId()
@@ -245,22 +245,30 @@ export function WorkloadPanel({
   const [open, setOpen] = React.useState<{ person: string; bucket: WorkloadBucket } | null>(null)
   if (loaded.state === "loading") return <LoadingRow label="Loading the workload…" />
   if (loaded.state === "error") return <ErrorRow message={loaded.message} onRetry={retry} />
+  // With nobody on the team there is no one to count, rather than an empty box.
+  if (loaded.value.length === 0 && !client) {
+    return (
+      <TeamSideCard>
+        <p className="text-sm text-muted-foreground">Nobody on the team yet, so there's no work to weigh.</p>
+      </TeamSideCard>
+    )
+  }
   // As Tyler drew it on 16 Oct 2026 (`workspace/docs/assets/pasted-image-1792198613454502000.png`).
   return (
-    <section aria-label="Workload" className="min-w-0 overflow-hidden rounded-lg border bg-muted/40">
-      <div className="flex min-w-0 items-center justify-between gap-3 border-b px-4 py-3">
-        <h3 className="shrink-0 text-[15px] font-semibold">Workload</h3>
-        {clients.length || client ? (
+    // A white tile in the Workload block, which carries the heading (Tyler, 7 Nov 2026).
+    <section aria-label="Workload" className="min-w-0 overflow-hidden rounded-xl bg-background">
+      {clients.length || client ? (
+        <div className="flex min-w-0 items-center justify-end gap-3 border-b px-3 py-2">
           <ClientFilterSelect
             id="workload-client"
             aria-label="Client"
             value={client}
             clients={clients}
             onChange={onClient}
-            className="w-fit min-w-0 bg-background"
+            className="w-fit min-w-0"
           />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <ul className="divide-y">
         {loaded.value.map((row) => (
           <WorkloadLine

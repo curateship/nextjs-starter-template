@@ -25,7 +25,8 @@ import { useTeamId } from "@/lib/project/team-scope"
  * ask inside the card: it sits in the Team settings window, and a second
  * window on top of it is the thing not to do.
  */
-export function JoinLinkCard({ state }: { state: JoinLinkState }) {
+/** `bare` draws only what is inside, for the Joining tab of the Team dashboard's ⋮. */
+export function JoinLinkCard({ state, bare = false }: { state: JoinLinkState; bare?: boolean }) {
   const teamId = useTeamId()
   const router = useRouter()
   const [link, setLink] = React.useState<string | null>(null)
@@ -62,12 +63,8 @@ export function JoinLinkCard({ state }: { state: JoinLinkState }) {
     }
   }
 
-  return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Join link</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+  const body = (
+    <>
         <p className="text-sm text-muted-foreground">
           {state.on
             ? state.expired
@@ -132,7 +129,15 @@ export function JoinLinkCard({ state }: { state: JoinLinkState }) {
             ) : null}
           </div>
         )}
-      </CardContent>
+    </>
+  )
+  if (bare) return <div className="grid gap-3">{body}</div>
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Join link</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">{body}</CardContent>
     </Card>
   )
 }

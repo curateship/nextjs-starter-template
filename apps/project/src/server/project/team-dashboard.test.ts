@@ -28,7 +28,8 @@ import { projectNoticeLinks, projectTasks } from "@/server/project/schema"
 import { createTask, deleteTask, setTaskStatus } from "@/server/project/tasks"
 import { loadTeamFigures } from "@/server/project/team-figures"
 import { loadTeamDay, loadTeamMonth } from "@/server/project/team-days"
-import { loadTeamDashboard, setTeamPhoto } from "@/server/project/teams"
+import { loadTeamTasks } from "@/server/project/team-tasks"
+import { loadTeamDashboard, setTeamPage, setTeamPageLock, setTeamPhoto } from "@/server/project/teams"
 import { insertEmployee, projectFor, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase } from "@/server/test-support"
@@ -423,5 +424,70 @@ describe("the team photo", () => {
       await setTeamPhoto(admin.id, "", database)
       expect((await loadTeamDashboard(admin.id, database))?.team.photoUrl).toBeNull()
     })
+  })
+})
+
+describe("the team's page", () => {
+  const page = JSON.stringify({
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "Standup 9:30" }] },
+      { type: "noteTeamCheckins" },
+      // A task's own block has no task here, so it goes.
+      { type: "noteComments" },
+    ],
+  })
+
+  it("is the site admin's to write and every member's to read, keeping the team blocks", async () => {
+    await inTeam(teamId, async () => {
+      await setTeamPage(admin.id, page, database)
+      const kept = JSON.parse((await loadTeamDashboard(anna.id, database))!.page)
+      expect(kept.content.map((node: { type: string }) => node.type)).toEqual(["paragraph", "noteTeamCheckins"])
+    })
+  })
+
+  it("reads only while locked, for the site admin too, until unlocked; only they lock it", async () => {
+    await inTeam(teamId, async () => {
+      await expect(setTeamPageLock(anna.id, true, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+      await setTeamPageLock(admin.id, true, database)
+      expect((await loadTeamDashboard(anna.id, database))!.pageLocked).toBe(true)
+      await expect(setTeamPage(admin.id, page, database)).rejects.toThrow(PROJECT_ERRORS.teamPageLocked)
+      await setTeamPageLock(admin.id, false, database)
+      await setTeamPage(admin.id, page, database)
+      expect((await loadTeamDashboard(admin.id, database))!.page).not.toBe("")
+    })
+  })
+
+  it("refuses a member's save", async () => {
+    await expect(setTeamPage(anna.id, page, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+    expect((await loadTeamDashboard(anna.id, database))!.page).toBe("")
+  })
+})
+
+describe("the Tasks tab", () => {
+  it("lists the team's tasks each person can see: every one for the site admin, their own projects for a member", async () => {
+    await inTeam(teamId, async () => {
+      const website = await projectFor(admin, anna.id, { name: "Website", color: "blue" }, database)
+      const blog = await projectFor(admin, ben.id, { name: "Blog", color: "green" }, database)
+      await createTask(actor(anna), { projectId: website.id, title: "Header", notes: "", assigneeUserId: anna.id, dueDate: null }, database)
+      await createTask(actor(ben), { projectId: blog.id, title: "Post", notes: "", assigneeUserId: ben.id, dueDate: null }, database)
+      // A "Just me" task is one person's own, so it stays out.
+      await createTask(actor(anna), { projectId: "personal", title: "Dentist", notes: "", assigneeUserId: anna.id, dueDate: null }, database)
+
+      const all = await loadTeamTasks(admin.id, database)
+      expect(all!.tasks.map((task) => task.title).sort()).toEqual(["Header", "Post"])
+      expect(all!.projects.map((project) => project.name)).toEqual(["Blog", "Website"])
+      expect(all!.viewScreen).toBe(`team-tasks:${teamId}`)
+
+      const annas = await loadTeamTasks(anna.id, database)
+      expect(annas!.tasks.map((task) => task.title)).toEqual(["Header"])
+      expect(annas!.projects.map((project) => project.name)).toEqual(["Website"])
+      // Carla is on no project of the team.
+      expect((await loadTeamTasks(carla.id, database))!.tasks).toEqual([])
+    })
+  })
+
+  it("leaves out Olga's team", async () => {
+    expect((await loadTeamTasks(olga.id, database))!.tasks).toEqual([])
   })
 })

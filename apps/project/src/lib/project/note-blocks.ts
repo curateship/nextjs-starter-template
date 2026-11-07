@@ -33,6 +33,11 @@ export const NOTE_ATOM_TYPES = [
   "noteHabit",
   "noteRatingMonth",
   "noteRatingTrend",
+  "noteTeamCheckins",
+  "noteTeamWorkload",
+  "noteTeamAttention",
+  "noteTeamWeek",
+  "noteTeamMembers",
 ] as const
 export type NoteAtomType = (typeof NOTE_ATOM_TYPES)[number]
 
@@ -44,8 +49,26 @@ export type NoteAtomType = (typeof NOTE_ATOM_TYPES)[number]
  */
 export const DASHBOARD_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set(["noteProject", "noteHabit", "noteRatingMonth", "noteRatingTrend"])
 
-/** Where a note is kept: `dashboard` for the site admin's own page, which alone keeps the dashboard blocks. */
-export type NoteRules = { dashboard?: boolean }
+/**
+ * Blocks only a team's own page on the Team dashboard may hold (task "Team
+ * dashboard/admin-3-panel-design", Tyler, 7 Nov 2026: "checkins, workload and
+ * attention becomes blocks for the left panel"), with This week and Members.
+ * Each draws the team's own figures, so every other note drops them.
+ */
+export const TEAM_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set([
+  "noteTeamCheckins",
+  "noteTeamWorkload",
+  "noteTeamAttention",
+  "noteTeamWeek",
+  "noteTeamMembers",
+])
+
+/**
+ * Where a note is kept: `dashboard` for the site admin's own page, which alone
+ * keeps the dashboard blocks, and `team` for a team's page, which alone keeps
+ * the team blocks.
+ */
+export type NoteRules = { dashboard?: boolean; team?: boolean }
 
 /** Blocks that hold writing: a Callout's words, a Checklist's lines, a Fold section's heading. */
 export const NOTE_HOLDER_TYPES = ["noteCallout", "taskList", "taskItem", "noteFold"] as const
@@ -193,6 +216,12 @@ const ATOM_CLEANERS: Record<NoteAtomType, (attrs: Record<string, unknown>) => Re
   // Both read the site admin's own ratings when drawn, so they hold nothing.
   noteRatingMonth: () => ({}),
   noteRatingTrend: () => ({}),
+  // Each reads the team when drawn, so they hold nothing.
+  noteTeamCheckins: () => ({}),
+  noteTeamWorkload: () => ({}),
+  noteTeamAttention: () => ({}),
+  noteTeamWeek: () => ({}),
+  noteTeamMembers: () => ({}),
 }
 
 function isAtom(type: unknown): type is NoteAtomType {
@@ -260,6 +289,7 @@ function cleanNode(value: unknown, depth: number, rules: NoteRules): NoteNode | 
   const raw = value as { type?: unknown; attrs?: unknown; content?: unknown }
   if (isAtom(raw.type)) {
     if (DASHBOARD_ATOM_TYPES.has(raw.type) && !rules.dashboard) return null
+    if (TEAM_ATOM_TYPES.has(raw.type) && !rules.team) return null
     const kept = ATOM_CLEANERS[raw.type](attrsOf(raw))
     if (!kept) return null
     return Object.keys(kept).length ? { type: raw.type, attrs: kept } : { type: raw.type }
@@ -277,7 +307,8 @@ function cleanNode(value: unknown, depth: number, rules: NoteRules): NoteNode | 
 /**
  * A note's document cleaned to what a Project note may hold. Anything else
  * becomes an empty note. The dashboard blocks stay only with `dashboard`, on
- * the site admin's own page.
+ * the site admin's own page, and the team blocks only with `team`, on a
+ * team's page.
  */
 export function cleanNoteBody(value: unknown, rules: NoteRules = {}): NoteNode {
   if (!value || typeof value !== "object" || (value as { type?: unknown }).type !== "doc") return emptyWrittenPageBody()
@@ -287,6 +318,11 @@ export function cleanNoteBody(value: unknown, rules: NoteRules = {}): NoteNode {
 /** The site admin's own page, cleaned: a note's rules, keeping the dashboard blocks. */
 export function cleanDashboardBody(value: unknown): NoteNode {
   return cleanNoteBody(value, { dashboard: true })
+}
+
+/** A team's page, cleaned: a note's rules, keeping the team blocks. */
+export function cleanTeamBody(value: unknown): NoteNode {
+  return cleanNoteBody(value, { team: true })
 }
 
 /** A new Fold section's id, which each reader's folds are remembered by. */

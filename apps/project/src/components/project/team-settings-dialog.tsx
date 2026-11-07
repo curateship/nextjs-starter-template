@@ -8,6 +8,7 @@ import {
   StarterTasksCard,
 } from "@/components/project/team-checkin-settings"
 import { SaveLine } from "@/components/project/save-line"
+import { TeamPicturesCard } from "@/components/project/team-figures"
 import { TimeZoneSelect } from "@/components/project/time-zone-select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,10 +33,12 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { useTeamId } from "@/lib/project/team-scope"
 
 /**
- * The team's name, check-in time, time zone, work days, check-in boxes,
- * holidays and starter tasks, in a window opened from the Team
- * dashboard. Each field saves when it is left or picked, so the window ends
- * with Done. The owner and admins edit; everyone else reads.
+ * The team's name, check-in time, time zone, work days, cover, check-in
+ * boxes, holidays, starter tasks and join link, in a window opened from a
+ * row's cog on the Teams dashboard. The Team dashboard itself has the same
+ * settings as its ⋮ menu (`team-menu.tsx`). Each field saves when it is left
+ * or picked, so the window ends with Done. The site admin edits; everyone
+ * else reads.
  */
 export function TeamSettingsDialog({
   team,
@@ -75,6 +78,7 @@ export function TeamSettingsDialog({
         </DialogHeader>
         <DialogBody>
           <TeamSettingsFields team={team} canEdit={canEdit} track={track} busy={saveState === "saving"} />
+          {canEdit ? <TeamPicturesCard team={team} /> : null}
           <CheckinQuestionsCard team={team} canEdit={canEdit} track={track} />
           <HolidaysCard holidays={holidays} canEdit={canEdit} />
           {canEdit ? <StarterTasksCard team={team} track={track} /> : null}

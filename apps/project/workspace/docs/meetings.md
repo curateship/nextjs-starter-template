@@ -58,7 +58,7 @@ page.
   count, cut with "…" when the name doesn't fit. Past two, the square says
   "+1 more". The name is always written, so colour is never the only sign.
 - **Days still to come can be clicked**, so next week's meetings can be read.
-  The Check-ins tab on the right keeps showing today for a day still to come,
+  The Check-ins block on the team's page keeps showing today for a day still to come,
   and says "Wed, Oct 14 hasn't happened yet. Showing today."
 - **Who is away.** Each of the team's work days names whoever is on time
   off: "Leo Hart away", or "3 away" when more than one is. A phone's square
@@ -70,10 +70,10 @@ page.
   `src/server/project/time-off.ts`; the mark is
   `src/components/project/team-away.tsx`.
 - **Moving to another month picks its 1st**, or today in today's month, so
-  the calendar, the meetings under it and the Check-ins tab all name the same
+  the calendar, the meetings under it and the Check-ins block all name the same
   day.
 - **Under the calendar**, the chosen day ("Mon, Oct 12", written the same as
-  in the Check-ins tab) and how many
+  in the Check-ins block) and how many
   meetings it has, then one row per meeting: the time, the name, the service,
   how many are going ("3 going", left out while nobody is), how it repeats
   ("Every Monday") and the people's photos.
@@ -128,9 +128,8 @@ So the site admin sees a crowded week coming.
   calendar; one with no tasks yet stays.
 - **Under the calendar, "Due this day"** lists the chosen day's milestones
   and projects due, each opening its project, then its due tasks with their
-  project, who has them and their status. Each task row opens the task's
-  window. The right panel shows today for a day still to come, as the
-  Check-ins tab does.
+  project, who has them and their status. Each task row opens the task in
+  the right panel. The Check-ins block shows today for a day still to come.
 - **One client's dates.** The view menu holds a Client choice while Due
   dates is on. Picked, the squares and "Due this day" show only that
   client's projects. The choice is in the page's address and also narrows

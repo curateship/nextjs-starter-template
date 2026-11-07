@@ -5,11 +5,22 @@ import { NoteEditor, NoteView } from "@/components/project/notes/note-editor"
 import { useNotesBoxSetup } from "@/components/project/notes/note-setup"
 import { saveAdminPage } from "@/lib/api/project/admin-dashboard"
 import { saveProject } from "@/lib/api/project/projects"
+import { saveTeamPage } from "@/lib/api/project/teams"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import type { NoteNode } from "@/lib/project/note-blocks"
 import { notesForEditor, readTaskNotes, storedTaskNotes, taskNotesAreEmpty } from "@/lib/project/notes"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
+
+/**
+ * On a left panel's page (My dashboard's and a team's, both `small`), the
+ * space between two blocks is the panel's own 15px edge, so the cards stand
+ * as far from each other as from the panel's sides (Tyler, 7 Nov 2026: "Make
+ * the gutter equal to the left and right"). Writing takes the blocks' margins,
+ * which meet in one 15px gap; reading, the reader's grid gap.
+ */
+const BLOCK_GAP_WRITING = "[&_.tiptap_[data-note-block]]:my-3.75"
+const BLOCK_GAP_READING = "[&>.grid]:gap-3.75"
 
 /** A pause in typing this long saves (UI standard, "Settings"). */
 const TYPING_SAVE_MS = 700
@@ -67,6 +78,41 @@ export function AdminPageNotes({ page, locked }: { page: string; locked: boolean
 }
 
 /**
+ * A team's own page at the top of the Team dashboard's left panel, under its
+ * cover (task "Team dashboard/admin-3-panel-design", Tyler, 7 Nov 2026). One
+ * page that stays, with the "/" blocks a project's page has plus the team's
+ * own: Check-ins, Workload, Attention, This week and Members, drawn from the
+ * dashboard through `TeamBlocksProvider`. Only the site admin writes it
+ * ("Cover stays; you write", his pick); every member reads it, blocks and all.
+ */
+export function TeamPageNotes({
+  page,
+  locked,
+  canWrite,
+  teamId,
+}: {
+  page: string
+  /** Locked in Team settings, it reads only, even for the site admin. */
+  locked: boolean
+  canWrite: boolean
+  teamId: string | undefined
+}) {
+  const save = React.useCallback((next: NoteNode) => saveTeamPage(next, teamId), [teamId])
+  return (
+    <PageNoteEditor
+      // Locking or unlocking draws it again, writable or not.
+      key={String(locked)}
+      stored={page}
+      canWrite={canWrite && !locked}
+      where="team"
+      placeholder="The team's page. Type / for check-ins, workload and more."
+      onSave={save}
+      small
+    />
+  )
+}
+
+/**
  * A click above a page that starts with a block, such as the Daily card, puts
  * a new line there and the cursor in it (Tyler, 7 Nov 2026: "i cant click at
  * the very upper editor here to insert content because the block is in it").
@@ -116,11 +162,14 @@ export function PageNoteEditor({
   startFocused?: boolean
   /** Writes at the panel's 14px instead of a page's 15px. */
   small?: boolean
-  /** A project's page or note, or the site admin's own page, which keeps the dashboard blocks. */
-  where?: "project" | "dashboard"
+  /**
+   * A project's page or note, the site admin's own page, which keeps the
+   * dashboard blocks, or a team's page, which keeps the team blocks.
+   */
+  where?: "project" | "dashboard" | "team"
 }) {
   const setup = useNotesBoxSetup(where)
-  const rules = { dashboard: where === "dashboard" }
+  const rules = { dashboard: where === "dashboard", team: where === "team" }
   const [start] = React.useState(() => notesForEditor(readTaskNotes(stored, rules)))
   const saved = React.useRef(storedTaskNotes(start, rules))
   const draft = React.useRef<NoteNode | null>(null)
@@ -137,7 +186,7 @@ export function PageNoteEditor({
     const next = draft.current
     if (!next) return
     draft.current = null
-    const kept = storedTaskNotes(next, { dashboard: where === "dashboard" })
+    const kept = storedTaskNotes(next, { dashboard: where === "dashboard", team: where === "team" })
     if (kept === saved.current) return
     saved.current = kept
     handlers.current.onSave(next).then(
@@ -171,7 +220,11 @@ export function PageNoteEditor({
   if (!canWrite) {
     const read = readTaskNotes(stored, rules)
     if (taskNotesAreEmpty(read)) return null
-    return <NoteView setup={setup} body={notesForEditor(read)} />
+    return (
+      <div className={small ? BLOCK_GAP_READING : undefined}>
+        <NoteView setup={setup} body={notesForEditor(read)} />
+      </div>
+    )
   }
 
   return (
@@ -186,7 +239,7 @@ export function PageNoteEditor({
         "[&_[data-note-box]>div:first-of-type]:rounded-none [&_[data-note-box]>div:first-of-type]:border-0 [&_[data-note-box]>div:first-of-type]:bg-transparent",
         "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-0 [&_.page-rte_.tiptap]:!pt-0 [&_.page-rte_.tiptap]:!pb-2",
         small
-          ? "[&_.page-rte_.tiptap]:!text-sm [&_.page-rte_.tiptap]:!leading-[1.6]"
+          ? cn("[&_.page-rte_.tiptap]:!text-sm [&_.page-rte_.tiptap]:!leading-[1.6]", BLOCK_GAP_WRITING)
           : "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]"
       )}
       onMouseDown={lineAbove}

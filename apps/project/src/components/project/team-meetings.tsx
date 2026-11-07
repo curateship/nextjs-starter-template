@@ -35,8 +35,9 @@ export function MeetingChips({ meetings }: { meetings: DayMeeting[] }) {
 }
 
 /**
- * The chosen day's meetings, as a card in the right panel under the day's
- * check-ins (Tyler, 14 Oct 2026; they sat under the calendar before). One row
+ * The chosen day's meetings, as a card under the calendar in the Calendar
+ * tab (back there since 7 Nov 2026, when the right panel became the open
+ * task; on the right panel from 14 Oct 2026). One row
  * each with its time, name, where it happens and who is coming. The row opens
  * the meeting's window for that date, Join opens the video link in a new tab,
  * the cog changes the meeting for whoever may, and "+ Add" makes a new one.
@@ -114,7 +115,7 @@ function MeetingRow({
   const body = (
     <>
       <span aria-hidden className={cn("h-9 w-1 shrink-0 rounded-full", PROJECT_COLOR_DOT[meeting.color])} />
-      {/* The time over the name: the right panel is too narrow for them side by side. */}
+      {/* The time over the name, so a narrow middle panel never squeezes them side by side. */}
       <span className="grid min-w-0 flex-1 gap-0.5">
         <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{time}</span>
         <span className="grid min-w-0">
@@ -138,7 +139,7 @@ function MeetingRow({
         {body}
       </button>
       {meeting.videoUrl ? (
-        // An icon, since the right panel's row has little room; its name says Join.
+        // An icon, since the row has little room; its name says Join.
         <Tooltip>
           <TooltipTrigger asChild>
             <Button asChild variant="ghost" size="icon" className="relative">

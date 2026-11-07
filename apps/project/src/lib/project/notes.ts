@@ -42,7 +42,7 @@ function readStored<Body>(stored: string, clean: (value: unknown) => Body): { ki
   return { kind: "text", text: stored }
 }
 
-/** A task's notes, a project's page, or with `dashboard` the site admin's own page. */
+/** A task's notes, a project's page, or with `dashboard` the site admin's own page and with `team` a team's page. */
 export function readTaskNotes(stored: string, rules: NoteRules = {}): TaskNotes {
   return readStored(stored, (value) => cleanNoteBody(value, rules))
 }
@@ -81,11 +81,11 @@ export function storedTaskNotes(value: unknown, rules: NoteRules = {}): string {
  */
 export function storedNotesForCopy(
   stored: string,
-  { dashboard, ...options }: NonNullable<Parameters<typeof noteForCopy>[1]> & NoteRules = {}
+  { dashboard, team, ...options }: NonNullable<Parameters<typeof noteForCopy>[1]> & NoteRules = {}
 ): string {
-  const notes = readTaskNotes(stored, { dashboard })
+  const notes = readTaskNotes(stored, { dashboard, team })
   if (notes.kind === "text") return stored
-  return storedTaskNotes(noteForCopy(notes.body, options), { dashboard })
+  return storedTaskNotes(noteForCopy(notes.body, options), { dashboard, team })
 }
 
 /** A meeting's notes as saved, cleaned to a written page's rules so no block gets in. */

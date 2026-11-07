@@ -135,6 +135,7 @@ const updateTaskSchema = z
     title: z.string().trim().min(1).max(160).optional(),
     priority: z.enum(["low", "normal", "high"]).optional(),
     estimatedPomodoros: z.number().int().min(1).max(20).nullable().optional(),
+    dueDate: localDateSchema.nullable().optional(),
     projectId: z.string().uuid().nullable().optional(),
   })
   .refine(
@@ -142,6 +143,7 @@ const updateTaskSchema = z
       data.title !== undefined ||
       data.priority !== undefined ||
       data.estimatedPomodoros !== undefined ||
+      data.dueDate !== undefined ||
       data.projectId !== undefined,
     { message: "EMPTY_UPDATE" }
   )
@@ -169,6 +171,7 @@ const guestImportSchema = z.object({
         pomodoros: z.number().int().min(0).max(100),
         priority: z.enum(["low", "normal", "high"]).optional(),
         estimatedPomodoros: z.number().int().min(1).max(20).nullable().optional(),
+        dueDate: localDateSchema.nullable().optional(),
       })
     )
     .max(100),
@@ -617,6 +620,7 @@ const importGuestStateFn = createServerFn({ method: "POST" })
             pomodoroCount: task.pomodoros,
             priority: task.priority ?? "normal",
             estimatedPomodoros: task.estimatedPomodoros ?? null,
+            dueDate: task.dueDate ?? null,
             sortOrder: index + 1,
           }))
         )

@@ -45,7 +45,7 @@ Drawn to Tyler's design of 7 Oct 2026
   `today-task-list.tsx`).
 - **Edit from the settings button** on a row. It opens a small window under
   the button, and the list stays where it is. The window holds labelled
-  fields for title, priority, estimate, repeat, project and tags, and ends
+  fields for title, priority, estimate, due date, repeat, project and tags, and ends
   in Cancel and "Save changes". Tyler asked for this on 7 Oct 2026 in place
   of the row turning into fields (`TaskSettingsWindow` in
   `today-task-list.tsx`). The window keeps 16px from the edge of the screen
@@ -239,6 +239,32 @@ appear as buttons while you type. Tyler set the cap at three on 7 Oct 2026.
 The tables are `pomodoro_tags` and the join `pomodoro_task_tags`; the logic is
 `src/server/pomodoro/task-tags.ts`, and the admin list is
 `src/server/pomodoro/admin-tags.ts`.
+
+## Due dates
+
+A task can say when it has to be done by, apart from the day it is planned on.
+Tyler picked this on 7 Nov 2026.
+
+- **Set in the task's window**, in the Due field under Priority and Estimate:
+  a calendar, and Clear beside it once a date is picked. No due date is the
+  default.
+- **The row says it in words**, after the project: "Due Nov 14", "Due Fri"
+  inside the coming week, "Due tomorrow", "Due today", "Due yesterday" and
+  "Overdue since Nov 3". The words are always there, so the colour is never
+  the only sign.
+- **Grey, then amber, then red.** Grey until the day before, amber on the day
+  before, red on the day and after. Read against the account's own today, the
+  same day boundary goals use (`dueDateMark` in `src/lib/pomodoro/tasks.ts`).
+- **A finished task drops the mark.**
+- **Moving to the next day keeps it.** The rollover copies the due date with
+  the task. A repeat rule's fresh copy never has one, because a deadline
+  belongs to one piece of work, not to the habit.
+- **A guest's due date** lives in the browser and comes across with the
+  one-time import on the first sign-in.
+- **Kept private.** The due date is never on a public profile or in a room's
+  people list.
+
+The column is `tasks.due_date`, migration `0163_pomodoro_task_due_date.sql`.
 
 ## Where things live
 

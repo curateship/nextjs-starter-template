@@ -59,8 +59,6 @@ export const projectTeams = pgTable("project_teams", {
   joinExpiresAt: timestamp("join_expires_at", { withTimezone: true }),
   /** The team's photo, a media library address (`drizzle/0105_project_team_dashboard.sql`). */
   photoUrl: text("photo_url"),
-  /** The team's square avatar beside its name; null shows its initials (`drizzle/0120_project_team_avatar.sql`). */
-  avatarUrl: text("avatar_url"),
   /** The team's own words for the check-in's boxes; null keeps the usual ones (`drizzle/0106_project_checkin_and_handing_out.sql`). */
   questionYesterday: varchar("question_yesterday", { length: 40 }),
   questionToday: varchar("question_today", { length: 40 }),
@@ -74,6 +72,12 @@ export const projectTeams = pgTable("project_teams", {
     onDelete: "set null",
   }),
   announcementAt: timestamp("announcement_at", { withTimezone: true }),
+  /** How important it is, which colours its bar (`drizzle/0157_project_announcement_kind.sql`). */
+  announcementKind: varchar("announcement_kind", { length: 16 }).notNull().default("info"),
+  /** The team's page of notes and "/" blocks, the site admin's to write (`drizzle/0156_project_team_page.sql`). */
+  notes: text("notes").notNull().default(""),
+  /** The team's page reads only until it's unlocked (`drizzle/0159_project_team_page_lock.sql`). */
+  notesLocked: boolean("notes_locked").notNull().default(false),
   /**
    * Set on a site admin's own space, which holds only their personal list:
    * no members, and left out of every list of teams

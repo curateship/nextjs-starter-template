@@ -95,6 +95,7 @@ export async function rollOverTasks(userId: string, today: string) {
           pomodoroCount: task.pomodoroCount,
           priority: task.priority,
           estimatedPomodoros: task.estimatedPomodoros,
+          dueDate: task.dueDate,
           projectId: task.projectId,
           repeatId: task.repeatId,
           sortOrder: plannedOrder + task.sortOrder,
@@ -169,6 +170,7 @@ export type TaskPlanChanges = {
   title?: string
   priority?: "low" | "normal" | "high"
   estimatedPomodoros?: number | null
+  dueDate?: string | null
   projectId?: string | null
 }
 
@@ -189,6 +191,7 @@ export async function updateTaskPlan(
   if (changes.priority !== undefined) set.priority = changes.priority
   if (changes.estimatedPomodoros !== undefined)
     set.estimatedPomodoros = changes.estimatedPomodoros
+  if (changes.dueDate !== undefined) set.dueDate = changes.dueDate
   if (changes.projectId !== undefined) set.projectId = changes.projectId
   return db.transaction(async (tx) => {
     const [updated] = await tx

@@ -2,7 +2,6 @@ import * as React from "react"
 import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import { Loader2Icon, PlusIcon, SettingsIcon, Trash2Icon, UsersIcon } from "lucide-react"
 
-import { PersonAvatar } from "@/components/project/task-bits"
 import { TeamSettingsDialog } from "@/components/project/team-settings-dialog"
 import { useCreateTeam } from "@/components/project/use-create-team"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -26,7 +25,6 @@ import { deleteProjectTeam, type TeamDashboard, type TeamListRow } from "@/lib/a
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { TEAM_RIGHT_TAB_KEY } from "@/lib/project/panel-keys"
 import { TeamScope } from "@/lib/project/team-scope"
 import { cn } from "@/lib/utils"
 
@@ -158,22 +156,10 @@ export function TeamsDashboard({
       >
         {rows.map((team) => {
           const open = () => void navigate({ to: "/teams/$teamId", params: { teamId: team.id } })
-          // A number opens the team on the tab that lists it: its check-ins, or Needs attention.
-          const openOn = (tab: "checkins" | "attention") => {
-            try {
-              window.localStorage.setItem(TEAM_RIGHT_TAB_KEY, tab)
-            } catch {
-              // Without storage the team opens on the tab it last had.
-            }
-            open()
-          }
           return (
             <TableRow key={team.id} className="group" rowAction={open}>
               <TableCell column="main">
-                <span className="flex min-w-0 items-center gap-2">
-                  <PersonAvatar name={team.name} avatarUrl={team.avatarUrl ?? undefined} />
-                  <span className="truncate font-medium">{team.name}</span>
-                </span>
+                <span className="block truncate font-medium">{team.name}</span>
               </TableCell>
               <TableCell column="preview">{team.people}</TableCell>
               <TableCell column="preview">
@@ -192,7 +178,7 @@ export function TeamsDashboard({
                 ) : team.today.state === "counted" ? (
                   <CountButton
                     label={`${team.name}: ${team.today.checkedIn} of ${team.today.expected} checked in today`}
-                    onClick={() => openOn("checkins")}
+                    onClick={open}
                   >
                     {team.today.checkedIn} of {team.today.expected}
                   </CountButton>
@@ -204,7 +190,7 @@ export function TeamsDashboard({
                 <CountButton
                   label={`${team.name}: ${team.stuck} stuck`}
                   late={team.stuck > 0}
-                  onClick={() => openOn("attention")}
+                  onClick={open}
                 >
                   {team.stuck}
                 </CountButton>
@@ -213,7 +199,7 @@ export function TeamsDashboard({
                 <CountButton
                   label={`${team.name}: ${team.overdue} overdue`}
                   late={team.overdue > 0}
-                  onClick={() => openOn("attention")}
+                  onClick={open}
                 >
                   {team.overdue}
                 </CountButton>

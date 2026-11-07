@@ -139,6 +139,7 @@ export function TaskList({
   busy = false,
   onOpenTask,
   showProject = false,
+  showAssignee = !showProject,
   emptyText = "No tasks yet.",
   groups,
   groupsOf,
@@ -165,6 +166,11 @@ export function TaskList({
   busy?: boolean
   onOpenTask: (task: TaskCard) => void
   showProject?: boolean
+  /**
+   * The Assigned to column. Left out, it shows only without the Project
+   * column; the Team dashboard's Tasks tab shows both (Tyler, 7 Nov 2026).
+   */
+  showAssignee?: boolean
   emptyText?: React.ReactNode
   groups?: readonly TaskGroup[]
   groupsOf?: (task: TaskCard) => string[]
@@ -259,7 +265,7 @@ export function TaskList({
     ...(showProject ? [{ key: "project" as const, label: "Project", column: "preview" as const }] : []),
     { key: "status", label: "Status", column: "preview" },
     { key: "priority", label: "Priority", column: "preview" },
-    ...(showProject ? [] : [{ key: "assignee" as const, label: "Assigned to", column: "preview" as const }]),
+    ...(showAssignee ? [{ key: "assignee" as const, label: "Assigned to", column: "preview" as const }] : []),
     { key: "due", label: "Due", column: "preview" },
   ]
 
@@ -401,6 +407,7 @@ export function TaskList({
                           task={task}
                           project={showProject ? (projectColumn?.of(task) ?? { name: task.projectName, color: "slate" }) : null}
                           projectChoices={projectColumn?.choices?.(task) ?? null}
+                          showAssignee={showAssignee}
                           editable={!readOnly}
                           people={bulk.people}
                           myUserId={myUserId}
@@ -437,6 +444,7 @@ function TaskRow({
   task,
   project,
   projectChoices,
+  showAssignee,
   editable,
   people,
   myUserId,
@@ -456,6 +464,7 @@ function TaskRow({
   project: { name: string; color: ProjectColor } | null
   /** Where the chip can move the task; null keeps it a plain chip. */
   projectChoices: ProjectChoice[] | null
+  showAssignee: boolean
   /** Each cell opens a dropdown to change it. */
   editable: boolean
   people: BulkTargets["people"]
@@ -540,7 +549,7 @@ function TaskRow({
           <PriorityChip priority={task.priority} />
         )}
       </TableCell>
-      {project !== null ? null : (
+      {!showAssignee ? null : (
         // Wide enough for a face and a full name, however narrow the panel.
         <TableCell column="preview" className="min-w-40">
           {editable ? (

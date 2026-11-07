@@ -115,10 +115,10 @@ export function showBinnedToast(taskId: string, router: { invalidate: () => Prom
 }
 
 /**
- * What a task shows, split into the pieces its frames place differently: the
- * window on the Team dashboard (`task-dialog.tsx`) draws `body`, the whole
- * task in one column. The right panel of the project page and My dashboard
- * (`task-side-panel.tsx`) draws `side` instead. Every piece is the same field with the same saving, so the task
+ * What a task shows, split into the pieces the right panel places
+ * (`task-side-panel.tsx`, on the project page, My dashboard and the Team
+ * dashboard): `side` once the task has loaded, and `body`, the whole task in
+ * one column, while it hasn't. Every piece is the same field with the same saving, so the task
  * behaves the same wherever it opens.
  */
 export type TaskParts = {

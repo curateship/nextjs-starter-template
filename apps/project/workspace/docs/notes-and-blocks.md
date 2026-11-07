@@ -63,7 +63,8 @@ tasks templates feature too").
   - **Advanced blocks:** blocks that show something live from the app. Task
     card, File, Comments and Video or Promo where the box offers them, and on
     the site admin's own page Projects, Daily card, Rating calendar and
-    Rating trend.
+    Rating trend, and on a team's page Check-ins, Workload, Attention, This
+    week and Members.
   - The arrow keys walk the list as it shows, through the basic blocks and
     on into the advanced ones. Narrowing it by typing keeps only the headings
     whose group still has a block (`BLOCKS` in `note-block-nodes.ts`, drawn
@@ -85,13 +86,26 @@ tasks templates feature too").
   that page sits beside. The Daily card block, like Comments, goes in once. Every other save drops the four, on the server too
   (`DASHBOARD_ATOM_TYPES` in `src/lib/project/note-blocks.ts`). What each one
   shows is in [My dashboard](my-dashboard.md#their-pages-blocks).
+- **A team's page** on the Team dashboard offers what a project's page does,
+  plus five blocks no other note has: Check-ins, Workload, Attention, This
+  week and Members (Tyler, 7 Nov 2026: "checkins, workload and attention
+  becomes blocks for the left panel"). Each shows the whole team, so each goes
+  in once. Every other save drops the five, the site admin's own page too, on
+  the server as well (`TEAM_ATOM_TYPES` in `src/lib/project/note-blocks.ts`).
+  What each one shows is in
+  [Teams and invites](teams-and-invites.md#the-team-dashboard).
+- **Blocks on a left panel's page stand 15px apart**, on My dashboard and a
+  team's page, the same as the panel's own edge on either side (Tyler, 7 Nov
+  2026: "Make the gutter equal to the left and right"), while writing and
+  while reading (`BLOCK_GAP_WRITING` and `BLOCK_GAP_READING` in
+  `project-page-notes.tsx`). A project's page keeps the usual space.
 - **Words already on the line** stay where they are. Checklist, Callout and
   Fold section start on the next line.
 - **After a block with no writing in it** (a picture, a divider, a card),
   the cursor moves to the line under it, so typing on never replaces it.
 - **Above a page's first block** (Tyler, 7 Nov 2026: "i cant click at the
   very upper editor here to insert content because the block is in it"): on
-  the site admin's page, a project's page and a project's note, a click in
+  the site admin's page, a team's page, a project's page and a project's note, a click in
   the 12px of panel edge above a first block, such as the Daily card, puts a
   new line there with the cursor in it. On a page that starts with writing,
   the click puts the cursor at the start of it. A click inside the page, or

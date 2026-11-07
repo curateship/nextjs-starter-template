@@ -518,6 +518,14 @@ export const adminPageSchema = z.object({
     .refine((notes) => notes.length <= LIMITS.taskNotes, "The page is too long. Split it up or attach a file to a task."),
 })
 
+/** A team's own page at the top of the Team dashboard's left panel, which alone keeps the team blocks. */
+export const teamPageSchema = z.object({
+  notes: z
+    .unknown()
+    .transform((value) => storedTaskNotes(value, { team: true }))
+    .refine((notes) => notes.length <= LIMITS.taskNotes, "The page is too long. Split it up or attach a file to a task."),
+})
+
 export const updateProjectSchema = z.object({
   projectId: id,
   doingLimit: z
@@ -820,8 +828,27 @@ export const reactSchema = z.object({
   on: z.boolean(),
 })
 
+/**
+ * How important an announcement is, which colours its bar (Tyler, 7 Nov 2026:
+ * "make this a different color depending on the importance of the
+ * announcements"; his pick of four): Info blue, Good news green, Warning amber,
+ * Urgent red. Info is the usual one.
+ */
+export const ANNOUNCEMENT_KINDS = ["info", "good", "warning", "urgent"] as const
+export type AnnouncementKind = (typeof ANNOUNCEMENT_KINDS)[number]
+export const ANNOUNCEMENT_KIND_LABEL: Record<AnnouncementKind, string> = {
+  info: "Info",
+  good: "Good news",
+  warning: "Warning",
+  urgent: "Urgent",
+}
+export function isAnnouncementKind(value: unknown): value is AnnouncementKind {
+  return ANNOUNCEMENT_KINDS.includes(value as AnnouncementKind)
+}
+
 export const announcementSchema = z.object({
   text: trimmed(LIMITS.announcement, "The announcement"),
+  kind: z.enum(ANNOUNCEMENT_KINDS).default("info"),
 })
 
 /** A check-in's three notes. An empty box saves as no note. */

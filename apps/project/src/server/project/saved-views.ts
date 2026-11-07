@@ -17,7 +17,8 @@ import { customShellUsers } from "@/server/schema"
 
 /**
  * Saved views on Project's task screens: one project's Board and List
- * (`project:<id>`), My tasks (`my-tasks:<team id>`), and the site admin's
+ * (`project:<id>`), My tasks (`my-tasks:<team id>`), a team's Tasks tab on
+ * the Team dashboard (`team-tasks:<team id>`), and the site admin's
  * My dashboard (`admin-tasks:<their id>`), which spans every team. They live in the
  * shell's `saved_views` table since 20 Oct 2026, when views moved into the
  * shell for every app; `project_saved_views` holds the rows from before and
@@ -35,6 +36,11 @@ export type SavedView = {
 /** The shell's key for a project's views, or My tasks' for `projectId` null. */
 export function projectViewScreen(teamId: string, projectId: string | null) {
   return projectId === null ? savedViewScreen("my-tasks", teamId) : savedViewScreen("project", projectId)
+}
+
+/** Everyone's own views on a team's Tasks tab on the Team dashboard, kept under the team's id. */
+export function teamTasksViewScreen(teamId: string) {
+  return savedViewScreen("team-tasks", teamId)
 }
 
 /** The site admin's own views on their My dashboard, kept under their id. */
@@ -87,6 +93,16 @@ export const projectSavedViewScreens: Record<string, SavedViewScreen> = {
       if (membership.teamId !== recordId) throw new Error("FORBIDDEN")
     },
     keep: ({ filters }) => keptFilters(filters, true),
+    namesOf: async ({ recordId, filters, database }) => namesOf(recordId, filters as SavedViewFilters, database),
+  },
+  "team-tasks": {
+    // Checked as My tasks is: the key's team must be the person's own, or the site admin's to see.
+    authorize: async ({ userId, recordId, database }) => {
+      const membership = await requireMembership(userId, database, recordId)
+      if (membership.teamId !== recordId) throw new Error("FORBIDDEN")
+    },
+    // Every team task, so a view keeps a Person filter and a Group row, as a project's does.
+    keep: ({ filters }) => keptFilters(filters, false),
     namesOf: async ({ recordId, filters, database }) => namesOf(recordId, filters as SavedViewFilters, database),
   },
   "admin-tasks": {

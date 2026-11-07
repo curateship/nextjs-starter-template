@@ -288,6 +288,11 @@ export const appOptions: AppOptions = {
         panel: () => settingsTab("NewAccountsSettingsTab"),
       },
       {
+        id: POMODORO_SETTINGS_TABS.notionTimer,
+        label: "Notion timer",
+        panel: () => settingsTab("NotionTimerSettingsTab"),
+      },
+      {
         id: POMODORO_SETTINGS_TABS.rooms,
         label: "Rooms",
         panel: () => settingsTab("RoomsSettingsTab"),
