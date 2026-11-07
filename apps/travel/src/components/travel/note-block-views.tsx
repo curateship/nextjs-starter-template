@@ -19,6 +19,7 @@ import { GoogleMap } from "@/components/travel/google-map"
 import { toggleFold, useFolded } from "@/components/travel/note-folds"
 import { dayLabel } from "@/components/travel/new-activity"
 import { NoteCardPicker } from "@/components/travel/note-card-picker"
+import { BudgetCard } from "@/components/travel/trip-budget-card"
 import { typeOf, useTrip } from "@/components/travel/trip-context"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import { PhotoCreditLine, UnsplashPicker } from "@/components/travel/unsplash-picker"
@@ -93,10 +94,12 @@ const SELECTED = "group-data-[selected]/block:ring-2 group-data-[selected]/block
 const BLOCK_TOOLS =
   "absolute top-2 right-2 flex gap-1 opacity-0 group-hover/block:opacity-100 group-data-[selected]/block:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"
 
-function BlockFrame({ selected, children }: { selected: boolean; children: React.ReactNode }) {
+/** `name` marks the block on the page, so a note can find the one it already holds. */
+function BlockFrame({ selected, name, children }: { selected: boolean; name?: string; children: React.ReactNode }) {
   return (
     <NodeViewWrapper
       data-selected={selected || undefined}
+      data-travel-block={name}
       // The note's own link style (primary, underlined) is for links in the writing, not a block's small print.
       className="group/block relative my-2 [&_a]:text-inherit! [&_a:hover]:text-foreground!"
     >
@@ -714,6 +717,35 @@ export function LinksBlockView({ node, editor, selected, updateAttributes, delet
           </Tooltip>
         </div>
       ) : null}
+    </BlockFrame>
+  )
+}
+
+/**
+ * Budget: the trip's money, the Money card that sat in the left panel's
+ * footer (Tyler, 7 Nov 2026: "turn this bottom card into a budget block"). It
+ * is the card itself, folding from its heading, so the budget typed here and
+ * the By day and By type tabs save as the card's always did. It sits in a solid light grey
+ * box with no "selected" ring, since a click on its field or tabs selects the
+ * block (as Project's Daily card). One per note.
+ */
+export function BudgetBlockView({ editor, selected, deleteNode }: NodeViewProps) {
+  const editable = editor.isEditable
+  return (
+    <BlockFrame selected={selected} name="noteBudget">
+      <div className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-2xl bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))]">
+        <BudgetCard
+          editable={editable}
+          tools={
+            editable ? (
+              // At the heading's right, shown while the block is pointed at, focused or selected.
+              <div className="opacity-0 group-hover/block:opacity-100 group-data-[selected]/block:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+                <RemoveBlock label="Remove budget" onRemove={deleteNode} placed />
+              </div>
+            ) : null
+          }
+        />
+      </div>
     </BlockFrame>
   )
 }

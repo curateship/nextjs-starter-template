@@ -17,6 +17,7 @@ export const TRAVEL_ERRORS = {
   otherTypeStays: "Other can't be removed. Every activity with a removed type goes there.",
   tooManyTypes: "You can have at most 30 activity types.",
   savedPlaceNotFound: "That saved place no longer exists.",
+  blocksLocked: "The trip's blocks are locked. Unlock them from the trip's ⋮ first.",
   tooManySavedPlaces: "You can keep at most 500 saved places.",
   needsStartDate: "Add a start date to the trip first.",
   googleOff: "Google Maps isn't set up on this server yet. Add GOOGLE_MAPS_API_KEY to the app's settings.",

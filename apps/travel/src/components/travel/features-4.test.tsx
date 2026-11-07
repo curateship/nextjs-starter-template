@@ -148,6 +148,7 @@ function tripPage(patch: Partial<TripPage> = {}): TripPage {
       coverCredit: null,
       dayInfo: [],
       description: "",
+      descriptionLocked: false,
       travelMode: "walk",
       tags: [],
       isSample: false,
@@ -248,7 +249,49 @@ describe("the Web page block, once Link (part 5)", () => {
     expect(options().map((text) => text.split(/(?=[A-Z][a-z]+ )/)[0])).toEqual(
       expect.arrayContaining([expect.stringContaining("Image"), expect.stringContaining("Video"), expect.stringContaining("Link")])
     )
-    expect(options().some((text) => text.startsWith("Place") || text.startsWith("Map"))).toBe(false)
+    expect(options().some((text) => text.startsWith("Place") || text.startsWith("Map") || text.startsWith("Budget"))).toBe(false)
+  })
+})
+
+describe("the Budget block (Tyler, 7 Nov 2026: \"turn this bottom card into a budget block\")", () => {
+  it("puts the trip's money in a note once, and saves it with no values of its own", async () => {
+    // The test page can't scroll, and picking Budget again scrolls to the one already there.
+    Element.prototype.scrollIntoView = vi.fn()
+    const saved: string[] = []
+    act(() => root.render(withTrip(tripPage(), <SavingDocument value="" onSave={async (json) => saved.push(json)} />)))
+    const editor = await noteEditor()
+    act(() => {
+      editor.chain().focus().insertContent("/bud").run()
+    })
+    await settle()
+    expect(options()).toHaveLength(1)
+    expect(options()[0]).toContain("Budget")
+    key(editor, "Enter")
+    await settle()
+    expect(host.querySelector('[data-travel-block="noteBudget"]')?.textContent).toContain("By type")
+    // Picking it again takes away the "/" and adds no second one.
+    act(() => {
+      editor.chain().focus().insertContent("/budget").run()
+    })
+    await settle()
+    key(editor, "Enter")
+    await settle()
+    expect(host.querySelectorAll('[data-travel-block="noteBudget"]')).toHaveLength(1)
+    expect(editor.getText()).not.toContain("/")
+    await settle(800)
+    expect(saved.at(-1)).toContain('{"type":"noteBudget"}')
+  })
+  it("folds from its heading, Budget: the total of the budget, and remembers the fold", async () => {
+    act(() => root.render(withTrip(tripPage(), <SavingDocument value={JSON.stringify({ type: "doc", content: [{ type: "noteBudget" }] })} onSave={async () => undefined} />)))
+    await settle()
+    const block = host.querySelector('[data-travel-block="noteBudget"]')!
+    const heading = block.querySelector<HTMLButtonElement>("h2 button")!
+    expect(heading.textContent).toMatch(/^Budget: /)
+    expect(block.textContent).toContain("By type")
+    await act(async () => heading.click())
+    await settle()
+    expect(block.textContent).not.toContain("By type")
+    expect(heading.getAttribute("aria-expanded")).toBe("false")
   })
 })
 

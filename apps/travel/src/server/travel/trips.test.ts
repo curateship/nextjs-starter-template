@@ -478,3 +478,21 @@ describe("the trip bin (Travel features part 8)", () => {
     expect(await database.select().from(travelActivities)).toEqual([])
   })
 })
+
+describe("Lock blocks (Tyler, 7 Nov 2026: \"add lock blocks button\")", () => {
+  it("refuses a new description while locked, and takes one again once unlocked", async () => {
+    const { id } = await createTrip(anna.id, { name: "Kyoto", days: 2, currency: "JPY", startDate: null }, database)
+    const words = (text: string) => JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] })
+    await updateTrip(anna.id, { tripId: id, description: words("Temples first") }, database)
+    await updateTrip(anna.id, { tripId: id, descriptionLocked: true }, database)
+    await expect(updateTrip(anna.id, { tripId: id, description: words("Changed") }, database)).rejects.toThrow(TRAVEL_ERRORS.blocksLocked)
+    // The rest of the trip still changes while its blocks are locked.
+    await updateTrip(anna.id, { tripId: id, budgetCents: 500_000 }, database)
+    // Unlocking in the same save as new words lets them in.
+    await updateTrip(anna.id, { tripId: id, descriptionLocked: false, description: words("Changed") }, database)
+    const page = await loadTripPage(anna.id, id, database)
+    expect(page.trip.description).toContain("Changed")
+    expect(page.trip.descriptionLocked).toBe(false)
+    expect(page.trip.budgetCents).toBe(500_000)
+  })
+})

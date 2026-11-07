@@ -146,6 +146,7 @@ export async function createTrip(userId: string, input: CreateTripInput, databas
     coverCredit: null,
     dayInfo: Array.from({ length: input.days }, () => ({ note: "" })),
     description: "",
+    descriptionLocked: false,
     travelMode: "walk",
     tags: [],
     calendarToken: null,
@@ -208,7 +209,11 @@ function checkTimeZone(timeZone: string | null | undefined) {
 }
 
 export async function updateTrip(userId: string, input: UpdateTripInput, database: CustomShellDb = db) {
-  await requireTrip(userId, input.tripId, database)
+  const trip = await requireTrip(userId, input.tripId, database)
+  // A locked description takes no writing until it's unlocked; the lock itself may change in the same save.
+  if (input.description !== undefined && (input.descriptionLocked ?? trip.descriptionLocked)) {
+    throw new Error(TRAVEL_ERRORS.blocksLocked)
+  }
   checkTimeZone(input.timeZone)
   if (input.coverUrl !== undefined) await checkPicture(userId, input.coverUrl, input.coverCredit, database)
   const { tripId, ...patch } = input
